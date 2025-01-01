@@ -42,3 +42,9 @@ Thumbs.db
 
 # Secrets
 .env
+
+# Playwright
+/test-results/
+/playwright-report/
+/playwright/.cache/
+/e2e/.auth

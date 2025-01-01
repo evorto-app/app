@@ -1,2 +1,2 @@
-export { db } from './db-client';
+export { database } from './database-client';
 export * from './preparedStatements';

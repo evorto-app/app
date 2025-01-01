@@ -1,0 +1,9 @@
+services:
+  evorto:
+    container_name: app
+    build: .
+    env_file:
+      - .env.local
+      - .env
+    ports:
+      - "3000:3000"

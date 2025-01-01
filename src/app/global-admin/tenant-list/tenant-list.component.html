@@ -1,0 +1,12 @@
+<p>tenant-list works!</p>
+@if (tenantQuery.isPending()) {
+  <p>Loading...</p>
+} @else if (tenantQuery.isError()) {
+  <p>Error: {{ tenantQuery.error().message }}</p>
+} @else if (tenantQuery.isSuccess()) {
+  @for (tenant of tenantQuery.data(); track tenant.id) {
+    <p>{{ tenant.id }}: {{ tenant.name }}</p>
+  } @empty {
+    <p>No tenants found</p>
+  }
+}

@@ -3,13 +3,19 @@ import { pgTable, text, timestamp, varchar } from 'drizzle-orm/pg-core';
 import { createId } from '../create-id';
 import { tenants } from './tenants';
 
-export const icons = pgTable('icons', {
-  commonName: text().notNull(),
+export const eventTemplateCategories = pgTable('event_template_categories', {
   createdAt: timestamp().notNull().defaultNow(),
+  description: text(),
+  icon: text().notNull(),
   id: varchar({ length: 20 })
     .$defaultFn(() => createId())
     .primaryKey(),
   tenantId: varchar({ length: 20 })
     .notNull()
     .references(() => tenants.id),
+  title: text().notNull(),
+  updatedAt: timestamp()
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
 });

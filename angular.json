@@ -134,6 +134,17 @@
               "src/**/*.html"
             ]
           }
+        },
+        "e2e": {
+          "builder": "playwright-ng-schematics:playwright",
+          "options": {
+            "devServerTarget": "evorto:serve"
+          },
+          "configurations": {
+            "production": {
+              "devServerTarget": "evorto:serve:production"
+            }
+          }
         }
       }
     }

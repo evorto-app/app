@@ -1,0 +1,7 @@
+.git
+.angular
+node_modules
+e2e
+playwright.config.ts
+.env
+.env.local

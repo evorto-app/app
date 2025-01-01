@@ -5,6 +5,7 @@ const eslintConfigPrettier = require("eslint-config-prettier");
 const eslint = require("@eslint/js");
 const tseslint = require("typescript-eslint");
 const angular = require("angular-eslint");
+// const pluginQuery = require("@tanstack/eslint-plugin-query");
 
 const baseConfig = tseslint.config(
   eslint.configs.recommended,
@@ -12,6 +13,7 @@ const baseConfig = tseslint.config(
   tseslint.configs.stylistic,
   eslintPluginUnicorn.configs["flat/recommended"],
   perfectionist.configs["recommended-natural"],
+  // ...pluginQuery.configs["flat/recommended"],
   eslintConfigPrettier,
 );
 
@@ -37,6 +39,7 @@ module.exports = tseslint.config(
           style: "kebab-case",
         },
       ],
+      "unicorn/consistent-function-scoping": "off",
     },
   },
   {

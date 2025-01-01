@@ -7,20 +7,25 @@ import {
 } from 'drizzle-orm/pg-core';
 
 import { createId } from '../create-id';
+import { eventTemplateCategories } from './event-template-categories';
 import { tenants } from './tenants';
 
-export const roles = pgTable('roles', {
-  canCreateEventTemplates: boolean().notNull().default(false),
+export const eventTemplates = pgTable('event_templates', {
+  categoryId: varchar({ length: 20 })
+    .notNull()
+    .references(() => eventTemplateCategories.id),
   createdAt: timestamp().notNull().defaultNow(),
-  defaultUserRole: boolean().notNull().default(false),
-  description: text(),
+  description: text().notNull(),
+  icon: text().notNull(),
   id: varchar({ length: 20 })
     .$defaultFn(() => createId())
     .primaryKey(),
-  name: text().notNull(),
+  planningTips: text(),
+  simpleModeEnabled: boolean().notNull().default(true),
   tenantId: varchar({ length: 20 })
     .notNull()
     .references(() => tenants.id),
+  title: text().notNull(),
   updatedAt: timestamp()
     .notNull()
     .defaultNow()

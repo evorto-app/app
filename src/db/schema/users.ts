@@ -4,32 +4,38 @@ import {
   text,
   timestamp,
   unique,
-  uuid,
+  varchar,
 } from 'drizzle-orm/pg-core';
-import { tenants } from './tenantTables';
+
+import { createId } from '../create-id';
 import { roles } from './roles';
+import { tenants } from './tenants';
 
 export const users = pgTable('users', {
-  id: uuid().defaultRandom().primaryKey(),
+  auth0Id: text().notNull().unique(),
   createdAt: timestamp().notNull().defaultNow(),
+  id: varchar({ length: 20 })
+    .$defaultFn(() => createId())
+    .primaryKey(),
   updatedAt: timestamp()
     .notNull()
     .defaultNow()
     .$onUpdate(() => new Date()),
-  auth0Id: text().notNull().unique(),
 });
 
 export const usersToTenants = pgTable(
   'users_to_tenants',
   {
-    id: uuid().defaultRandom().primaryKey(),
     createdAt: timestamp().notNull().defaultNow(),
-    userId: uuid()
-      .notNull()
-      .references(() => users.id),
-    tenantId: uuid()
+    id: varchar({ length: 20 })
+      .$defaultFn(() => createId())
+      .primaryKey(),
+    tenantId: varchar({ length: 20 })
       .notNull()
       .references(() => tenants.id),
+    userId: varchar({ length: 20 })
+      .notNull()
+      .references(() => users.id),
   },
   (table) => ({
     unique: unique().on(table.userId, table.tenantId),
@@ -39,10 +45,10 @@ export const usersToTenants = pgTable(
 export const rolesToTenantUsers = pgTable(
   'roles_to_tenant_users',
   {
-    roleId: uuid()
+    roleId: varchar({ length: 20 })
       .notNull()
       .references(() => roles.id),
-    userTenantId: uuid()
+    userTenantId: varchar({ length: 20 })
       .notNull()
       .references(() => usersToTenants.id),
   },

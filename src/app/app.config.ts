@@ -14,12 +14,14 @@ import {
 } from '@tanstack/angular-query-experimental';
 
 import { routes } from './app.routes';
+import { provideTrpcClient } from './core/trpc-client';
 
 export const appConfig: ApplicationConfig = {
   providers: [
     provideExperimentalZonelessChangeDetection(),
     provideRouter(routes, withComponentInputBinding()),
     provideHttpClient(withFetch()),
+    provideTrpcClient(),
     provideClientHydration(withEventReplay()),
     provideTanStackQuery(new QueryClient()),
   ],

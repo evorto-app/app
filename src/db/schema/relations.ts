@@ -1,23 +1,24 @@
 import { relations } from 'drizzle-orm/relations';
+
+import { eventTemplateCategories } from './event-template-categories';
+import { eventTemplates } from './event-templates';
 import { icons } from './icons';
-import { eventTemplateCategories } from './eventTemplateCategories';
-import { rolesToTenantUsers, users, usersToTenants } from './userTables';
-import { tenants } from './tenantTables';
 import { roles } from './roles';
+import { templateEventAddons } from './template-event-addons';
+import { templateRegistrationOptionDiscounts } from './template-registration-option-discounts';
 import {
   addonToTemplateRegistrationOptions,
   roleToTemplateRegistrationOptions,
   templateRegistrationOptions,
-} from './templateRegistrationOptions';
-import { eventTemplates } from './eventTemplates';
-import { templateEventAddons } from './templateEventAddons';
-import { templateRegistrationOptionDiscounts } from './templateRegistrationOptionDiscounts';
+} from './template-registration-options';
+import { tenants } from './tenants';
+import { rolesToTenantUsers, users, usersToTenants } from './users';
 
 export const tenantRelations = relations(tenants, ({ many }) => ({
+  icons: many(icons),
+  roles: many(roles),
   templateCategories: many(eventTemplateCategories),
   usersToTenants: many(usersToTenants),
-  roles: many(roles),
-  icons: many(icons),
 }));
 
 export const iconRelations = relations(icons, ({ one }) => ({
@@ -32,8 +33,8 @@ export const userRelations = relations(users, ({ many }) => ({
 }));
 
 export const roleRelations = relations(roles, ({ many, one }) => ({
-  rolesToTenantUsers: many(rolesToTenantUsers),
   allowedTemplateRegistrationOptions: many(roleToTemplateRegistrationOptions),
+  rolesToTenantUsers: many(rolesToTenantUsers),
   tenant: one(tenants, {
     fields: [roles.tenantId],
     references: [tenants.id],
@@ -56,7 +57,8 @@ export const rolesToTenantUsersRelations = relations(
 
 export const usersToTenantsRelations = relations(
   usersToTenants,
-  ({ one, many }) => ({
+  ({ many, one }) => ({
+    rolesToTenantUsers: many(rolesToTenantUsers),
     tenant: one(tenants, {
       fields: [usersToTenants.tenantId],
       references: [tenants.id],
@@ -65,7 +67,6 @@ export const usersToTenantsRelations = relations(
       fields: [usersToTenants.userId],
       references: [users.id],
     }),
-    rolesToTenantUsers: many(rolesToTenantUsers),
   }),
 );
 
@@ -82,19 +83,19 @@ export const eventTemplateCategoryRelations = relations(
 
 export const eventTemplateRelations = relations(
   eventTemplates,
-  ({ one, many }) => ({
+  ({ many, one }) => ({
+    addons: many(templateEventAddons),
     category: one(eventTemplateCategories, {
       fields: [eventTemplates.categoryId],
       references: [eventTemplateCategories.id],
     }),
-    addons: many(templateEventAddons),
     registrationOptions: many(templateRegistrationOptions),
   }),
 );
 
 export const templateEventAddonRelations = relations(
   templateEventAddons,
-  ({ one, many }) => ({
+  ({ many, one }) => ({
     includedInRegistrationOptions: many(addonToTemplateRegistrationOptions),
     template: one(eventTemplates, {
       fields: [templateEventAddons.templateId],
@@ -105,9 +106,9 @@ export const templateEventAddonRelations = relations(
 
 export const templateRegistrationOptionRelations = relations(
   templateRegistrationOptions,
-  ({ one, many }) => ({
-    includedAddons: many(addonToTemplateRegistrationOptions),
+  ({ many, one }) => ({
     discounts: many(templateRegistrationOptionDiscounts),
+    includedAddons: many(addonToTemplateRegistrationOptions),
     registrationOptionsToRoles: many(roleToTemplateRegistrationOptions),
     template: one(eventTemplates, {
       fields: [templateRegistrationOptions.templateId],
@@ -129,13 +130,13 @@ export const templateRegistrationOptionDiscountRelations = relations(
 export const roleToTemplateRegistrationOptionRelations = relations(
   roleToTemplateRegistrationOptions,
   ({ one }) => ({
-    role: one(roles, {
-      fields: [roleToTemplateRegistrationOptions.roleId],
-      references: [roles.id],
-    }),
     registrationOption: one(templateRegistrationOptions, {
       fields: [roleToTemplateRegistrationOptions.registrationOptionId],
       references: [templateRegistrationOptions.id],
+    }),
+    role: one(roles, {
+      fields: [roleToTemplateRegistrationOptions.roleId],
+      references: [roles.id],
     }),
   }),
 );

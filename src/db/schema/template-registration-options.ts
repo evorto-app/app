@@ -5,47 +5,51 @@ import {
   text,
   timestamp,
   unique,
-  uuid,
+  varchar,
 } from 'drizzle-orm/pg-core';
-import { registrationModes } from './globalEnums';
-import { eventTemplates } from './eventTemplates';
+
+import { createId } from '../create-id';
+import { eventTemplates } from './event-templates';
+import { registrationModes } from './global-enums';
 import { roles } from './roles';
-import { templateEventAddons } from './templateEventAddons';
+import { templateEventAddons } from './template-event-addons';
 
 export const templateRegistrationOptions = pgTable(
   'template_registration_options',
   {
-    id: uuid().defaultRandom().primaryKey(),
+    closeRegistrationOffset: integer().notNull(),
     createdAt: timestamp().notNull().defaultNow(),
+    description: text(),
+    id: varchar({ length: 20 })
+      .$defaultFn(() => createId())
+      .primaryKey(),
+    isPaid: boolean().notNull(),
+    openRegistrationOffset: integer().notNull(),
+    organizingRegistration: boolean().notNull(),
+    price: integer().notNull(),
+    registeredDescription: text(),
+    registrationMode: registrationModes().notNull(),
+    spots: integer().notNull(),
+    templateId: varchar({ length: 20 })
+      .notNull()
+      .references(() => eventTemplates.id),
+    title: text().notNull(),
     updatedAt: timestamp()
       .notNull()
       .defaultNow()
       .$onUpdate(() => new Date()),
-    title: text().notNull(),
-    description: text(),
-    spots: integer().notNull(),
-    organizingRegistration: boolean().notNull(),
-    registeredDescription: text(),
-    isPaid: boolean().notNull(),
-    price: integer().notNull(),
-    openRegistrationOffset: integer().notNull(),
-    closeRegistrationOffset: integer().notNull(),
-    registrationMode: registrationModes().notNull(),
-    templateId: uuid()
-      .notNull()
-      .references(() => eventTemplates.id),
   },
 );
 
 export const roleToTemplateRegistrationOptions = pgTable(
   'role_to_template_registration_options',
   {
-    roleId: uuid()
-      .notNull()
-      .references(() => roles.id),
-    registrationOptionId: uuid()
+    registrationOptionId: varchar({ length: 20 })
       .notNull()
       .references(() => templateRegistrationOptions.id),
+    roleId: varchar({ length: 20 })
+      .notNull()
+      .references(() => roles.id),
   },
   (table) => ({
     unique: unique().on(table.roleId, table.registrationOptionId),
@@ -55,13 +59,13 @@ export const roleToTemplateRegistrationOptions = pgTable(
 export const addonToTemplateRegistrationOptions = pgTable(
   'addon_to_template_registration_options',
   {
-    addonId: uuid()
+    addonId: varchar({ length: 20 })
       .notNull()
       .references(() => templateEventAddons.id),
-    registrationOptionId: uuid()
+    quantity: integer().notNull(),
+    registrationOptionId: varchar({ length: 20 })
       .notNull()
       .references(() => templateRegistrationOptions.id),
-    quantity: integer().notNull(),
   },
   (table) => ({
     unique: unique().on(table.addonId, table.registrationOptionId),
