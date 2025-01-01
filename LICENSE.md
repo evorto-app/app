@@ -6,7 +6,7 @@ FSL-1.1-ALv2
 
 ## Notice
 
-Copyright 2024 Lukas Heddendorp
+Copyright 2025 Lukas Heddendorp
 
 ## Terms and Conditions
 
