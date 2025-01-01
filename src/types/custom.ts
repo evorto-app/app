@@ -3,3 +3,8 @@ export interface Tenant {
   id: string;
   name: string;
 }
+
+export interface User {
+  auth0Id: string;
+  id: string;
+}

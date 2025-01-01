@@ -10,6 +10,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { addTokenContextMiddleware } from './middleware/tenant-context';
+import { addUserContextMiddleware } from './middleware/user-context';
 import { appRouter } from './trpc/app-router';
 
 const serverDistributionFolder = path.dirname(fileURLToPath(import.meta.url));
@@ -50,6 +51,7 @@ if (process.env['PRERENDER']) {
 
 app.use(cookieParser());
 app.use(addTokenContextMiddleware);
+app.use(addUserContextMiddleware);
 
 app.use(
   '/trpc',

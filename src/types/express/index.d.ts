@@ -1,11 +1,12 @@
-import { Tenant } from '../custom';
+import { Tenant, User } from '../custom';
 
 export {};
 
 declare global {
   namespace Express {
     export interface Request {
-      tenant?: Tenant;
+      tenant: Tenant;
+      user: User;
     }
   }
 }
