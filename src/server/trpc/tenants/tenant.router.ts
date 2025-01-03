@@ -1,4 +1,4 @@
-import { database as database } from '../../../db';
+import { database } from '../../../db';
 import { publicProcedure, router } from '../trpc-server';
 
 export const tenantRouter = router({

@@ -2,7 +2,7 @@ import { NextFunction, Request, Response } from 'express';
 
 import { getTenant } from '../../db';
 
-export const addTokenContextMiddleware = async (
+export const addTenantContext = async (
   request: Request,
   response: Response,
   next: NextFunction,

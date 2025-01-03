@@ -9,6 +9,7 @@ export const addUserContextMiddleware = async (
 ) => {
   if (!request.oidc.isAuthenticated()) {
     next();
+    return;
   }
   const auth0Id = request.oidc.user?.['sub'];
   if (auth0Id) {

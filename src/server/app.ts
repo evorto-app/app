@@ -4,12 +4,15 @@ import {
 } from '@angular/ssr/node';
 import * as trpcExpress from '@trpc/server/adapters/express';
 import cookieParser from 'cookie-parser';
+import { Either, Schema } from 'effect';
 import express from 'express';
 import { auth, ConfigParams } from 'express-openid-connect';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { addTokenContextMiddleware } from './middleware/tenant-context';
+import { Context } from '../types/custom/context';
+import { addAuthenticationContext } from './middleware/authentication-context';
+import { addTenantContext } from './middleware/tenant-context';
 import { addUserContextMiddleware } from './middleware/user-context';
 import { appRouter } from './trpc/app-router';
 
@@ -31,18 +34,6 @@ const config: ConfigParams = {
 export const app = express();
 const angularApp = new AngularNodeAppEngine();
 
-/**
- * Example Express Rest API endpoints can be defined here.
- * Uncomment and define endpoints as necessary.
- *
- * Example:
- * ```ts
- * app.get('/api/**', (req, res) => {
- *   // Handle API request
- * });
- * ```
- */
-
 if (process.env['PRERENDER']) {
   console.log('Skipping auth middleware for prerendering');
 } else {
@@ -50,14 +41,21 @@ if (process.env['PRERENDER']) {
 }
 
 app.use(cookieParser());
-app.use(addTokenContextMiddleware);
+app.use(addAuthenticationContext);
+app.use(addTenantContext);
 app.use(addUserContextMiddleware);
 
 app.use(
   '/trpc',
   trpcExpress.createExpressMiddleware({
+    createContext: (request) => {
+      const requestContext = Schema.decodeUnknownEither(Context)(request.req);
+      if (Either.isLeft(requestContext)) {
+        throw requestContext.left;
+      }
+      return requestContext.right;
+    },
     router: appRouter,
-    // createContext,
   }),
 );
 
@@ -76,8 +74,13 @@ app.use(
  * Handle all other requests by rendering the Angular application.
  */
 app.use('/**', (request, expressResponse, next) => {
+  const requestContext = Schema.decodeUnknownEither(Context)(request);
+  if (Either.isLeft(requestContext)) {
+    next(requestContext.left);
+    return;
+  }
   angularApp
-    .handle(request)
+    .handle(request, requestContext.right)
     .then((response) =>
       response
         ? writeResponseToNodeResponse(response, expressResponse)

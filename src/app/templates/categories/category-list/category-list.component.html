@@ -1,0 +1,17 @@
+<p>category-list works!</p>
+<button>Create a new category</button>
+@if (templateCategoriesQuery.isPending()) {
+  <p>Loading...</p>
+} @else if (templateCategoriesQuery.isError()) {
+  <p>Error: {{ templateCategoriesQuery.error().message }}</p>
+} @else if (templateCategoriesQuery.isSuccess()) {
+  @for (
+    templateCategory of templateCategoriesQuery.data();
+    track templateCategory.id
+  ) {
+    <p>{{ templateCategory.id }}: {{ templateCategory.title }}</p>
+  } @empty {
+    <p>No categories found</p>
+    <button>Create a new category</button>
+  }
+}
