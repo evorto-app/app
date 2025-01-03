@@ -1,4 +1,21 @@
+@use "@angular/material" as mat;
 @import "tailwindcss";
+
+html {
+  color-scheme: light dark;
+  @include mat.theme(
+    (
+      color: (
+        theme-type: light,
+        primary: mat.$azure-palette,
+        tertiary: mat.$violet-palette,
+      ),
+      typography: var(--font-sans),
+      density: 0,
+    )
+  );
+}
+
 html,
 body {
   min-height: 100%;

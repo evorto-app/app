@@ -7,6 +7,7 @@ import {
   provideClientHydration,
   withEventReplay,
 } from '@angular/platform-browser';
+import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { provideRouter, withComponentInputBinding } from '@angular/router';
 import {
   provideTanStackQuery,
@@ -24,5 +25,6 @@ export const appConfig: ApplicationConfig = {
     provideTrpcClient(),
     provideClientHydration(withEventReplay()),
     provideTanStackQuery(new QueryClient()),
+    provideAnimationsAsync(),
   ],
 };
