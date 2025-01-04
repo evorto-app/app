@@ -6,7 +6,7 @@ import * as trpcExpress from '@trpc/server/adapters/express';
 import cookieParser from 'cookie-parser';
 import { Either, Schema } from 'effect';
 import express from 'express';
-import { auth, ConfigParams } from 'express-openid-connect';
+import { attemptSilentLogin, auth, ConfigParams } from 'express-openid-connect';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -23,7 +23,6 @@ const browserDistributionFolder = path.resolve(
 );
 
 const config: ConfigParams = {
-  attemptSilentLogin: false,
   auth0Logout: true,
   authorizationParams: {
     response_type: 'code',
@@ -44,6 +43,17 @@ app.use(cookieParser());
 app.use(addAuthenticationContext);
 app.use(addTenantContext);
 app.use(addUserContextMiddleware);
+
+app.get('/forward-login', (request, response) => {
+  const redirectUrl = request.query['redirectUrl'];
+  if (typeof redirectUrl === 'string') {
+    response.oidc.login({
+      returnTo: redirectUrl,
+    });
+  } else {
+    response.redirect('/login');
+  }
+});
 
 app.use(
   '/trpc',
@@ -73,7 +83,7 @@ app.use(
 /**
  * Handle all other requests by rendering the Angular application.
  */
-app.use('/**', (request, expressResponse, next) => {
+app.use('/**', attemptSilentLogin(), (request, expressResponse, next) => {
   const requestContext = Schema.decodeUnknownEither(Context)(request);
   if (Either.isLeft(requestContext)) {
     next(requestContext.left);

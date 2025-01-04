@@ -25,7 +25,7 @@ export class CategoryListComponent {
   }));
   private queryClient = injectQueryClient();
   private createCategoryMutation = injectMutation(() => ({
-    mutationFn: (input: { title: string }) =>
+    mutationFn: (input: { icon: string; title: string }) =>
       this.trpc.templateCategories.create.mutate(input),
     onSuccess: () => {
       this.queryClient.invalidateQueries({ queryKey: ['templateCategories'] });

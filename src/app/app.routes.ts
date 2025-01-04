@@ -11,6 +11,7 @@ export const routes: Routes = [
     path: 'events',
   },
   {
+    // canActivate: [authGuard],
     children: TEMPLATE_ROUTES,
     path: 'templates',
   },

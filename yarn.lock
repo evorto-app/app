@@ -4252,16 +4252,16 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@tanstack/angular-query-experimental@npm:^5.62.8":
-  version: 5.62.8
-  resolution: "@tanstack/angular-query-experimental@npm:5.62.8"
+"@tanstack/angular-query-experimental@npm:5.62.7":
+  version: 5.62.7
+  resolution: "@tanstack/angular-query-experimental@npm:5.62.7"
   dependencies:
-    "@tanstack/query-core": "npm:5.62.8"
+    "@tanstack/query-core": "npm:5.62.7"
     "@tanstack/query-devtools": "npm:5.61.4"
   peerDependencies:
     "@angular/common": ">=16.0.0"
     "@angular/core": ">=16.0.0"
-  checksum: 10c0/0e6945708b25293befc31e8e4af1ca9bf4df5a06931fecc96756168568760fadb0bc7129607bcc6664f67a9bcd93d59789b1aebc3c59781307d87f426b8ab9bf
+  checksum: 10c0/85b5a13a22b8e7241558c69e63435ad3abf70bb018b051e085a65bcc17caabf0e800985b227c89cfbf0672e8b2be0d5fa8572cca5fe0816ac43b7a6004100086
   languageName: node
   linkType: hard
 
@@ -4276,10 +4276,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@tanstack/query-core@npm:5.62.8":
-  version: 5.62.8
-  resolution: "@tanstack/query-core@npm:5.62.8"
-  checksum: 10c0/190fd932ab0ee928172b4c8a20063a31d58a0165d53bc1f44c129fa0faa8d56d85e67963c4aa33e43009b3c65a49356a23ac342a0b7818829b12c6f2e3a9a228
+"@tanstack/query-core@npm:5.62.7":
+  version: 5.62.7
+  resolution: "@tanstack/query-core@npm:5.62.7"
+  checksum: 10c0/d7aa83571b56e7bf1b608b8f56c90a9e9e759ba5a8899686182e8961c94432d1b6437b066a228765250498a3009623a30c5ca17b2714ddb30e2d727adea9aa0c
   languageName: node
   linkType: hard
 
@@ -7359,7 +7359,7 @@ __metadata:
     "@paralleldrive/cuid2": "npm:^2.2.2"
     "@playwright/test": "npm:1.49.1"
     "@tailwindcss/postcss": "npm:^4.0.0-beta.8"
-    "@tanstack/angular-query-experimental": "npm:^5.62.8"
+    "@tanstack/angular-query-experimental": "npm:5.62.7"
     "@tanstack/eslint-plugin-query": "npm:^5.62.1"
     "@trpc/client": "npm:^11.0.0-rc.666"
     "@trpc/server": "npm:^11.0.0-rc.666"

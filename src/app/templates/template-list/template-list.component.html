@@ -1,18 +1,24 @@
 <p>template-list works!</p>
-<a routerLink="../categories">See template categories</a>
+<a routerLink="../categories" mat-button>See template categories</a>
+<a routerLink="../create" mat-button>Create a new template</a>
 @if (templateQuery.isPending()) {
   <p>Loading...</p>
 } @else if (templateQuery.isError()) {
   <p>Error: {{ templateQuery.error().message }}</p>
 } @else if (templateQuery.isSuccess()) {
   @for (templateCategory of templateQuery.data(); track templateCategory.id) {
-    <p>{{ templateCategory.id }}: {{ templateCategory.title }}</p>
-    @for (template of templateCategory.templates; track template.id) {
-      <p>{{ template.id }}: {{ template.title }}</p>
-    } @empty {
-      <p>No templates found in this category</p>
-    }
+    <div>
+      <p>{{ templateCategory.id }}: {{ templateCategory.title }}</p>
+      @for (template of templateCategory.templates; track template.id) {
+        <p>{{ template.id }}: {{ template.title }}</p>
+      } @empty {
+        <p>No templates found in this category</p>
+        <a mat-button routerLink="../create/{{ templateCategory.id }}">
+          Add template to this category
+        </a>
+      }
+    </div>
   } @empty {
-    <p>No templates found</p>
+    <p>No template categories found</p>
   }
 }

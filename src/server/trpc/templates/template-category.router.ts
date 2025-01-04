@@ -3,26 +3,30 @@ import { Schema } from 'effect';
 
 import { database } from '../../../db';
 import { eventTemplateCategories } from '../../../db/schema';
-import { publicProcedure, router } from '../trpc-server';
+import { authenticatedProcedure, router } from '../trpc-server';
 
 export const templateCategoryRouter = router({
-  create: publicProcedure
+  create: authenticatedProcedure
     .input(
-      Schema.decodeUnknownSync(Schema.Struct({ title: Schema.NonEmptyString })),
+      Schema.decodeUnknownSync(
+        Schema.Struct({
+          icon: Schema.NonEmptyString,
+          title: Schema.NonEmptyString,
+        }),
+      ),
     )
     .mutation(async ({ ctx, input }) => {
       return await database.insert(eventTemplateCategories).values({
-        icon: '',
         tenantId: ctx.tenant.id,
-        title: input.title,
+        ...input,
       });
     }),
-  findMany: publicProcedure.query(async ({ ctx }) => {
+  findMany: authenticatedProcedure.query(async ({ ctx }) => {
     return await database.query.eventTemplateCategories.findMany({
       where: eq(eventTemplateCategories.tenantId, ctx.tenant.id),
     });
   }),
-  update: publicProcedure
+  update: authenticatedProcedure
     .input(
       Schema.decodeUnknownSync(Schema.Struct({ title: Schema.NonEmptyString })),
     )

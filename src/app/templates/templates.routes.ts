@@ -12,6 +12,20 @@ export const TEMPLATE_ROUTES: Routes = [
     path: 'list',
   },
   {
+    loadComponent: () =>
+      import('./template-create/template-create.component').then(
+        (m) => m.TemplateCreateComponent,
+      ),
+    path: 'create',
+  },
+  {
+    loadComponent: () =>
+      import('./template-create/template-create.component').then(
+        (m) => m.TemplateCreateComponent,
+      ),
+    path: 'create/:categoryId',
+  },
+  {
     children: CATEGORY_ROUTES,
     path: 'categories',
   },
