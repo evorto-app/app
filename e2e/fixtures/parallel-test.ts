@@ -1,7 +1,12 @@
+import { addTemplateCategories } from '../../helpers/add-template-categories';
 import { createTenant } from '../../helpers/create-tenant';
 import { test as base } from './base-test';
 
 interface BaseFixtures {
+  templateCategories: {
+    id: string;
+    title: string;
+  }[];
   tenant: {
     domain: string;
     id: string;
@@ -21,6 +26,10 @@ export const test = base.extend<BaseFixtures>({
       },
     ]);
     await use(context);
+  },
+  templateCategories: async ({ database, tenant }, use) => {
+    const templateCategories = await addTemplateCategories(database, tenant);
+    await use(templateCategories);
   },
   tenant: async ({ database }, use) => {
     const tenant = await createTenant(database);

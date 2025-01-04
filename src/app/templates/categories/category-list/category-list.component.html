@@ -1,5 +1,7 @@
 <p>category-list works!</p>
-<button>Create a new category</button>
+<button mat-button (click)="openCategoryCreationDialog()">
+  Create a new category
+</button>
 @if (templateCategoriesQuery.isPending()) {
   <p>Loading...</p>
 } @else if (templateCategoriesQuery.isError()) {
@@ -9,9 +11,16 @@
     templateCategory of templateCategoriesQuery.data();
     track templateCategory.id
   ) {
-    <p>{{ templateCategory.id }}: {{ templateCategory.title }}</p>
+    <div>
+      {{ templateCategory.id }}: {{ templateCategory.title }}
+      <button mat-button (click)="openCategoryEditDialog(templateCategory)">
+        Edit
+      </button>
+    </div>
   } @empty {
     <p>No categories found</p>
-    <button>Create a new category</button>
+    <button mat-flat-button (click)="openCategoryCreationDialog()">
+      Create a new category
+    </button>
   }
 }

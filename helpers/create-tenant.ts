@@ -3,6 +3,7 @@ import { NeonHttpDatabase } from 'drizzle-orm/neon-http';
 
 import * as schema from '../src/db/schema';
 import { tenants } from '../src/db/schema';
+import { getId } from './get-id';
 
 const length = 4;
 
@@ -17,7 +18,8 @@ export const createTenant = async (
     .insert(tenants)
     .values({
       domain,
-      name: 'Test Tenant',
+      id: getId(),
+      name: 'ESN Murnau',
     })
     .returning();
   return tenant[0];

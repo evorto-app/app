@@ -6,7 +6,6 @@ html {
   @include mat.theme(
     (
       color: (
-        theme-type: light,
         primary: mat.$azure-palette,
         tertiary: mat.$violet-palette,
       ),
@@ -22,4 +21,10 @@ body {
   height: 100%;
   padding: 0;
   margin: 0;
+}
+
+// Tailwind overrride for angular material
+.mat-mdc-form-field.mat-mdc-form-field.mat-mdc-form-field.mat-mdc-form-field.mat-mdc-form-field
+  .mdc-notched-outline__notch {
+  border-right-style: hidden;
 }
