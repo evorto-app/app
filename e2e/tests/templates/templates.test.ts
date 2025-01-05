@@ -33,10 +33,22 @@ test('create a new template', async ({ page, templateCategories }) => {
     .getByRole('option', { name: category.title })
     .click();
   await page.getByRole('button', { name: 'Save template' }).click();
-  await page.waitForTimeout(1000);
+  // await page.waitForTimeout(1000);
   await expect(
     page
       .locator('app-template-list div', { hasText: category.title })
-      .locator('p', { hasText: 'Historical tour' }),
+      .locator('a', { hasText: 'Historical tour' }),
   ).toBeVisible();
+});
+
+test('view a template', async ({ page, templates }) => {
+  const template = templates[0];
+  await page.goto('.');
+  await page.getByRole('link', { name: 'Event templates' }).click();
+  await expect(page).toHaveURL(/\/templates/);
+  await page
+    .locator('app-template-list div', { hasText: template.title })
+    .getByRole('link', { name: template.title })
+    .click();
+  await expect(page).toHaveURL(`/templates/${template.id}`);
 });

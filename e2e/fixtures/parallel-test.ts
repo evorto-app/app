@@ -1,9 +1,15 @@
 import { addTemplateCategories } from '../../helpers/add-template-categories';
+import { addTemplates } from '../../helpers/add-templates';
 import { createTenant } from '../../helpers/create-tenant';
 import { test as base } from './base-test';
 
 interface BaseFixtures {
   templateCategories: {
+    id: string;
+    tenantId: string;
+    title: string;
+  }[];
+  templates: {
     id: string;
     title: string;
   }[];
@@ -30,6 +36,16 @@ export const test = base.extend<BaseFixtures>({
   templateCategories: async ({ database, tenant }, use) => {
     const templateCategories = await addTemplateCategories(database, tenant);
     await use(templateCategories);
+  },
+  templates: async ({ database, templateCategories }, use) => {
+    const hikingCategory = templateCategories.find(
+      (category) => category.title === 'Hikes',
+    );
+    if (!hikingCategory) {
+      throw new Error('Hiking category not found');
+    }
+    const templates = await addTemplates(database, hikingCategory);
+    await use(templates);
   },
   tenant: async ({ database }, use) => {
     const tenant = await createTenant(database);

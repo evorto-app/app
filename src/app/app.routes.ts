@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 
+import { authGuard } from './core/auth.guard';
 import { EVENT_ROUTES } from './events/events.routes';
 import { GLOBAL_ADMIN_ROUTES } from './global-admin/global-admin.routes';
 import { TEMPLATE_ROUTES } from './templates/templates.routes';
@@ -11,7 +12,7 @@ export const routes: Routes = [
     path: 'events',
   },
   {
-    // canActivate: [authGuard],
+    canActivate: [authGuard],
     children: TEMPLATE_ROUTES,
     path: 'templates',
   },

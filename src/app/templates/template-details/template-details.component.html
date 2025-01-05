@@ -1,0 +1,9 @@
+<p>template-details works!</p>
+@if (templateQuery.isPending()) {
+  <p>Loading...</p>
+} @else if (templateQuery.isError()) {
+  <p>Error: {{ templateQuery.error().message }}</p>
+} @else if (templateQuery.isSuccess()) {
+  <h1>{{ templateQuery.data().title }}</h1>
+  <a mat-button routerLink="create-event">Create event from this template</a>
+}

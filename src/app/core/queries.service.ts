@@ -1,4 +1,4 @@
-import { inject, Injectable } from '@angular/core';
+import { inject, Injectable, Signal } from '@angular/core';
 import {
   mutationOptions,
   QueryClient,
@@ -15,6 +15,20 @@ export class QueriesService {
   private queryClient = inject(QueryClient);
   private trpcClient = injectTrpcClient();
 
+  public createEvent() {
+    return () =>
+      mutationOptions({
+        mutationFn: (
+          input: AppRouter['events']['create']['_def']['$types']['input'],
+        ) => this.trpcClient.events.create.mutate(input),
+        onSuccess: () => {
+          this.queryClient.invalidateQueries({
+            queryKey: ['events'],
+          });
+        },
+      });
+  }
+
   public createTemplate() {
     return () =>
       mutationOptions({
@@ -29,6 +43,23 @@ export class QueriesService {
             queryKey: ['templates'],
           });
         },
+      });
+  }
+
+  public event(eventId: Signal<string>) {
+    return () =>
+      queryOptions({
+        queryFn: () => this.trpcClient.events.findOne.query({ id: eventId() }),
+        queryKey: ['event', eventId()],
+      });
+  }
+
+  public template(templateId: Signal<string>) {
+    return () =>
+      queryOptions({
+        queryFn: () =>
+          this.trpcClient.templates.findOne.query({ id: templateId() }),
+        queryKey: ['template', templateId()],
       });
   }
 

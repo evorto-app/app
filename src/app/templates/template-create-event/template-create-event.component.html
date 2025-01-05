@@ -1,0 +1,8 @@
+<p>template-create-event works!</p>
+<form [formGroup]="createEventForm" (ngSubmit)="onSubmit()">
+  <mat-form-field>
+    <mat-label>Event title</mat-label>
+    <input matInput formControlName="title" />
+  </mat-form-field>
+  <button type="submit" mat-button>Create event</button>
+</form>

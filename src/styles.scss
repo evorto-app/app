@@ -6,7 +6,7 @@ html {
   @include mat.theme(
     (
       color: (
-        primary: mat.$azure-palette,
+        primary: mat.$green-palette,
         tertiary: mat.$violet-palette,
       ),
       typography: var(--font-sans),

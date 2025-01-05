@@ -10,7 +10,9 @@
     <div>
       <p>{{ templateCategory.id }}: {{ templateCategory.title }}</p>
       @for (template of templateCategory.templates; track template.id) {
-        <p>{{ template.id }}: {{ template.title }}</p>
+        <a routerLink="../{{ template.id }}">
+          {{ template.id }}: {{ template.title }}
+        </a>
       } @empty {
         <p>No templates found in this category</p>
         <a mat-button routerLink="../create/{{ templateCategory.id }}">

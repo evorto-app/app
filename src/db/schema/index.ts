@@ -1,3 +1,4 @@
+export * from './event-instances';
 export * from './event-template-categories';
 export * from './event-templates';
 export * from './global-enums';

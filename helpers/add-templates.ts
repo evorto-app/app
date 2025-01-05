@@ -3,24 +3,20 @@ import { NeonHttpDatabase } from 'drizzle-orm/neon-http';
 import * as schema from '../src/db/schema';
 import { getId } from './get-id';
 
-export const addTemplateCategories = (
+export const addTemplates = (
   database: NeonHttpDatabase<typeof schema>,
-  tenant: { id: string },
+  category: { id: string; tenantId: string },
 ) => {
   return database
-    .insert(schema.eventTemplateCategories)
+    .insert(schema.eventTemplates)
     .values([
       {
+        categoryId: category.id,
+        description: 'City tours description',
         icon: '',
         id: getId(),
-        tenantId: tenant.id,
-        title: 'City tours',
-      },
-      {
-        icon: '',
-        id: getId(),
-        tenantId: tenant.id,
-        title: 'Hikes',
+        tenantId: category.tenantId,
+        title: 'Hörnle hike',
       },
     ])
     .returning();

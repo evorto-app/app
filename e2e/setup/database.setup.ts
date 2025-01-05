@@ -2,6 +2,7 @@ import { seed } from '@ngneat/falso';
 import { reset } from 'drizzle-seed';
 
 import { addTemplateCategories } from '../../helpers/add-template-categories';
+import { addTemplates } from '../../helpers/add-templates';
 import { createTenant } from '../../helpers/create-tenant';
 import { usersToAuthenticate } from '../../helpers/user-data';
 import * as schema from '../../src/db/schema';
@@ -19,5 +20,12 @@ setup('reset database', async ({ database }) => {
 
   // Setup default development tenant
   const developmentTenant = await createTenant(database, 'localhost');
-  await addTemplateCategories(database, developmentTenant);
+  const categories = await addTemplateCategories(database, developmentTenant);
+  const hikeCategory = categories.find(
+    (category) => category.title === 'Hikes',
+  );
+  if (!hikeCategory) {
+    throw new Error('Hike category not found');
+  }
+  await addTemplates(database, hikeCategory);
 });

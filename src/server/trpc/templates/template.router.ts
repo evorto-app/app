@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { Schema } from 'effect';
 
 import { database } from '../../../db';
@@ -28,11 +28,30 @@ export const templateRouter = router({
       where: eq(eventTemplates.tenantId, ctx.tenant.id),
     });
   }),
+  findOne: authenticatedProcedure
+    .input(
+      Schema.decodeUnknownSync(Schema.Struct({ id: Schema.NonEmptyString })),
+    )
+    .query(async ({ ctx, input }) => {
+      const template = await database.query.eventTemplates.findFirst({
+        where: and(
+          eq(eventTemplates.id, input.id),
+          eq(eventTemplates.tenantId, ctx.tenant.id),
+        ),
+      });
+      if (!template) {
+        throw new Error('Template not found');
+      }
+      return template;
+    }),
   groupedByCategory: authenticatedProcedure.query(async ({ ctx }) => {
     return await database.query.eventTemplateCategories.findMany({
+      orderBy: (categories, { asc }) => [asc(categories.title)],
       where: eq(eventTemplates.tenantId, ctx.tenant.id),
       with: {
-        templates: true,
+        templates: {
+          orderBy: (templates, { asc }) => [asc(templates.createdAt)],
+        },
       },
     });
   }),

@@ -29,4 +29,18 @@ export const TEMPLATE_ROUTES: Routes = [
     children: CATEGORY_ROUTES,
     path: 'categories',
   },
+  {
+    loadComponent: () =>
+      import('./template-details/template-details.component').then(
+        (m) => m.TemplateDetailsComponent,
+      ),
+    path: ':templateId',
+  },
+  {
+    loadComponent: () =>
+      import('./template-create-event/template-create-event.component').then(
+        (m) => m.TemplateCreateEventComponent,
+      ),
+    path: ':templateId/create-event',
+  },
 ];
