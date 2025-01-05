@@ -3,6 +3,8 @@ import { NonNullableFormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatInputModule } from '@angular/material/input';
 import { Router, RouterLink } from '@angular/router';
+import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
+import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
 import {
   injectMutation,
   injectQuery,
@@ -11,7 +13,13 @@ import {
 import { QueriesService } from '../../core/queries.service';
 
 @Component({
-  imports: [MatButtonModule, RouterLink, ReactiveFormsModule, MatInputModule],
+  imports: [
+    MatButtonModule,
+    ReactiveFormsModule,
+    MatInputModule,
+    FontAwesomeModule,
+    RouterLink,
+  ],
   selector: 'app-template-create-event',
   styles: ``,
   templateUrl: './template-create-event.component.html',
@@ -27,6 +35,7 @@ export class TemplateCreateEventComponent {
   protected readonly createEventMutation = injectMutation(
     this.queries.createEvent(),
   );
+  protected readonly faArrowLeft = faArrowLeft;
   protected readonly templateId = input.required<string>();
   protected readonly templateQuery = injectQuery(
     this.queries.template(this.templateId),

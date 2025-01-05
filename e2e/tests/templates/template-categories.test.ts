@@ -3,11 +3,17 @@ import { expect, test } from '../../fixtures/parallel-test';
 
 test.use({ storageState: defaultStateFile });
 
-test('create template category', async ({ page }) => {
+test('create template category', async ({ isMobile, page }) => {
   await page.goto('.');
   await page.getByRole('link', { name: 'Event templates' }).click();
   await expect(page).toHaveURL(/\/templates/);
-  await page.getByRole('link', { name: 'template categories' }).click();
+  if (isMobile) {
+    await page.getByRole('button', { name: 'Menu' }).click();
+    await page.getByRole('menuitem', { name: 'Template categories' }).click();
+  } else {
+    await page.getByRole('button', { name: 'Menu' }).click();
+    await page.getByRole('menuitem', { name: 'Template categories' }).click();
+  }
   await expect(page).toHaveURL(/\/templates\/categories/);
   await page
     .getByRole('button', { name: 'Create a new category' })
@@ -23,11 +29,21 @@ test('create template category', async ({ page }) => {
   );
 });
 
-test('edit template category', async ({ page, templateCategories }) => {
+test('edit template category', async ({
+  isMobile,
+  page,
+  templateCategories,
+}) => {
   await page.goto('.');
   await page.getByRole('link', { name: 'Event templates' }).click();
   await expect(page).toHaveURL(/\/templates/);
-  await page.getByRole('link', { name: 'template categories' }).click();
+  if (isMobile) {
+    await page.getByRole('button', { name: 'Menu' }).click();
+    await page.getByRole('menuitem', { name: 'Template categories' }).click();
+  } else {
+    await page.getByRole('button', { name: 'Menu' }).click();
+    await page.getByRole('menuitem', { name: 'Template categories' }).click();
+  }
   await expect(page).toHaveURL(/\/templates\/categories/);
   const category = templateCategories[0];
   await page

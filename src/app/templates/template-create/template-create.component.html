@@ -1,25 +1,36 @@
-<p>template-create works!</p>
-<form [formGroup]="templateForm" (ngSubmit)="onSubmit()">
-  <mat-form-field>
-    <mat-label>Template title</mat-label>
-    <input matInput formControlName="title" />
-  </mat-form-field>
-  <mat-form-field>
-    <mat-label>Template Category</mat-label>
-    <mat-select formControlName="categoryId">
-      @for (
-        templateCategory of templateCategoriesQuery.data();
-        track templateCategory.id
-      ) {
-        <mat-option [value]="templateCategory.id">
-          {{ templateCategory.title }}
-        </mat-option>
-      } @empty {
-        <mat-option disabled>No template categories found</mat-option>
-      }
-    </mat-select>
-  </mat-form-field>
-  <button type="submit" mat-button [disabled]="templateForm.invalid">
-    Save template
-  </button>
-</form>
+<div class="mb-4 flex flex-row items-center gap-2">
+  <a routerLink="/templates" mat-icon-button>
+    <fa-icon [icon]="faArrowLeft"></fa-icon>
+  </a>
+  <h1 class="title-large">Create template</h1>
+</div>
+<main class="p-2">
+  <form
+    [formGroup]="templateForm"
+    (ngSubmit)="onSubmit()"
+    class="flex flex-col gap-2"
+  >
+    <mat-form-field>
+      <mat-label>Template title</mat-label>
+      <input matInput formControlName="title" />
+    </mat-form-field>
+    <mat-form-field>
+      <mat-label>Template Category</mat-label>
+      <mat-select formControlName="categoryId">
+        @for (
+          templateCategory of templateCategoriesQuery.data();
+          track templateCategory.id
+        ) {
+          <mat-option [value]="templateCategory.id">
+            {{ templateCategory.title }}
+          </mat-option>
+        } @empty {
+          <mat-option disabled>No template categories found</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+    <button type="submit" mat-button [disabled]="templateForm.invalid">
+      Save template
+    </button>
+  </form>
+</main>

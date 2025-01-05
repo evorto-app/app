@@ -24,7 +24,7 @@ test('create a new template', async ({ page, templateCategories }) => {
   await page.goto('.');
   await page.getByRole('link', { name: 'Event templates' }).click();
   await expect(page).toHaveURL(/\/templates/);
-  await page.getByRole('link', { name: 'Create a new template' }).click();
+  await page.getByRole('link', { name: 'Create template' }).click();
   await expect(page).toHaveURL(`/templates/create`);
   await page.getByLabel('Template title').fill('Historical tour');
   await page.getByLabel('Template Category').locator('svg').click();

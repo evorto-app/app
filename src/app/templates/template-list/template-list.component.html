@@ -1,26 +1,41 @@
-<p>template-list works!</p>
-<a routerLink="../categories" mat-button>See template categories</a>
-<a routerLink="../create" mat-button>Create a new template</a>
-@if (templateQuery.isPending()) {
-  <p>Loading...</p>
-} @else if (templateQuery.isError()) {
-  <p>Error: {{ templateQuery.error().message }}</p>
-} @else if (templateQuery.isSuccess()) {
-  @for (templateCategory of templateQuery.data(); track templateCategory.id) {
-    <div>
-      <p>{{ templateCategory.id }}: {{ templateCategory.title }}</p>
-      @for (template of templateCategory.templates; track template.id) {
-        <a routerLink="../{{ template.id }}">
-          {{ template.id }}: {{ template.title }}
-        </a>
-      } @empty {
-        <p>No templates found in this category</p>
-        <a mat-button routerLink="../create/{{ templateCategory.id }}">
-          Add template to this category
-        </a>
-      }
-    </div>
-  } @empty {
-    <p>No template categories found</p>
+<div class="mb-4 flex flex-row items-center justify-between pl-2">
+  <h1 class="title-large">Event templates</h1>
+  <button title="menu" mat-icon-button [matMenuTriggerFor]="menu">
+    <fa-icon [icon]="faEllipsisVertical"></fa-icon>
+  </button>
+  <mat-menu #menu="matMenu">
+    <a routerLink="../categories" mat-menu-item>Template categories</a>
+    <!-- <a routerLink="../create" mat-menu-item>Create template</a> -->
+  </mat-menu>
+</div>
+
+<a routerLink="../create" class="fab-fixed" mat-fab extended>
+  <mat-icon svgIcon="faPlus"></mat-icon>
+  Create template
+</a>
+
+<main class="flex flex-col gap-4 p-2">
+  @if (templateQuery.isPending()) {
+    <p>Loading...</p>
+  } @else if (templateQuery.isError()) {
+    <p>Error: {{ templateQuery.error().message }}</p>
+  } @else if (templateQuery.isSuccess()) {
+    @for (templateCategory of templateQuery.data(); track templateCategory.id) {
+      <div class="flex flex-col gap-2">
+        <h2 class="title-medium">{{ templateCategory.title }}</h2>
+        @for (template of templateCategory.templates; track template.id) {
+          <a class="title-small" routerLink="../{{ template.id }}">
+            {{ template.title }}
+          </a>
+        } @empty {
+          <p>No templates found in this category</p>
+          <a mat-button routerLink="../create/{{ templateCategory.id }}">
+            Add template to this category
+          </a>
+        }
+      </div>
+    } @empty {
+      <p>No template categories found</p>
+    }
   }
-}
+</main>

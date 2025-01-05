@@ -2711,6 +2711,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@fortawesome/duotone-regular-svg-icons@npm:^6.7.2":
+  version: 6.7.2
+  resolution: "@fortawesome/duotone-regular-svg-icons@npm:6.7.2"
+  checksum: 10c0/077906ef5ddce1b708aaf75a9fe132338d9f594c048cd234fc63ac49d9c46119eb37a056ab81a68717fe11ef3738f8dbdd8858347148bccf45f3d38a9b9ce9e1
+  languageName: node
+  linkType: hard
+
 "@fortawesome/fontawesome-common-types@npm:6.7.2":
   version: 6.7.2
   resolution: "@fortawesome/fontawesome-common-types@npm:6.7.2"
@@ -7354,6 +7361,7 @@ __metadata:
     "@angular/ssr": "npm:^19.0.6"
     "@axe-core/playwright": "npm:^4.10.1"
     "@fortawesome/angular-fontawesome": "npm:1.0.0"
+    "@fortawesome/duotone-regular-svg-icons": "npm:^6.7.2"
     "@neondatabase/serverless": "npm:^0.10.4"
     "@ngneat/falso": "npm:^7.2.0"
     "@paralleldrive/cuid2": "npm:^2.2.2"

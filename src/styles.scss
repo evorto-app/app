@@ -1,4 +1,5 @@
 @use "@angular/material" as mat;
+@use "./theme-colors" as theme-colors;
 @import "tailwindcss";
 
 html {
@@ -6,21 +7,56 @@ html {
   @include mat.theme(
     (
       color: (
-        primary: mat.$green-palette,
-        tertiary: mat.$violet-palette,
+        primary: theme-colors.$primary-palette,
+        tertiary: theme-colors.$tertiary-palette,
       ),
       typography: var(--font-sans),
       density: 0,
     )
   );
+  @media (prefers-contrast: more) {
+    @include theme-colors.high-contrast-overrides(color-scheme);
+  }
+  --fa-fw-width: var(--mdc-icon-button-icon-size);
+  --fa-display: block;
+}
+
+@theme {
+  --color-surface-container: var(--mat-sys-surface-container);
+  --color-on-surface-container: var(--mat-sys-on-surface-container);
+  --color-surface: var(--mat-sys-surface);
+  --color-on-surface: var(--mat-sys-on-surface);
 }
 
 html,
-body {
+body,
+app-root {
   min-height: 100%;
   height: 100%;
   padding: 0;
   margin: 0;
+}
+
+.title-small {
+  font: var(--mat-sys-title-small);
+}
+
+.title-medium {
+  font: var(--mat-sys-title-medium);
+}
+
+.title-large {
+  font: var(--mat-sys-title-large);
+}
+
+// View transition names
+.main-content {
+  view-transition-name: main-content;
+}
+
+// Positioning of fixed fabs
+.mat-mdc-fab.fab-fixed {
+  @apply fixed right-4 bottom-16;
 }
 
 // Tailwind overrride for angular material

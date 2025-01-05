@@ -3,7 +3,9 @@ import { NonNullableFormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
+import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
+import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
 import {
   injectMutation,
   injectQuery,
@@ -17,6 +19,8 @@ import { QueriesService } from '../../core/queries.service';
     MatInputModule,
     MatButtonModule,
     MatSelectModule,
+    FontAwesomeModule,
+    RouterLink,
   ],
   selector: 'app-template-create',
   styles: ``,
@@ -28,6 +32,7 @@ export class TemplateCreateComponent {
   protected readonly createTemplateMutation = injectMutation(
     this.queries.createTemplate(),
   );
+  protected readonly faArrowLeft = faArrowLeft;
   protected readonly templateCategoriesQuery = injectQuery(
     this.queries.templateCategories(),
   );

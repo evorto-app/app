@@ -1,8 +1,19 @@
-<p>template-create-event works!</p>
-<form [formGroup]="createEventForm" (ngSubmit)="onSubmit()">
-  <mat-form-field>
-    <mat-label>Event title</mat-label>
-    <input matInput formControlName="title" />
-  </mat-form-field>
-  <button type="submit" mat-button>Create event</button>
-</form>
+<div class="mb-4 flex flex-row items-center gap-2">
+  <a routerLink=".." mat-icon-button>
+    <fa-icon [icon]="faArrowLeft"></fa-icon>
+  </a>
+  <h1 class="title-large">{{ templateQuery.data()?.title }}</h1>
+</div>
+<main class="p-2">
+  <form
+    [formGroup]="createEventForm"
+    (ngSubmit)="onSubmit()"
+    class="flex flex-col gap-2"
+  >
+    <mat-form-field>
+      <mat-label>Event title</mat-label>
+      <input matInput formControlName="title" />
+    </mat-form-field>
+    <button type="submit" mat-button>Create event</button>
+  </form>
+</main>

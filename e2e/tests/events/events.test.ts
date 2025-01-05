@@ -12,9 +12,7 @@ test('create event form template', async ({ page, templates }) => {
     .locator('app-template-list div', { hasText: template.title })
     .getByRole('link', { name: template.title })
     .click();
-  await page
-    .getByRole('link', { name: 'Create event from this template' })
-    .click();
+  await page.getByRole('link', { name: 'Create event' }).click();
   await expect(page).toHaveURL(`/templates/${template.id}/create-event`);
   await page.getByRole('button', { name: 'Create event' }).click();
   await expect(page).toHaveURL(/\/events/);
