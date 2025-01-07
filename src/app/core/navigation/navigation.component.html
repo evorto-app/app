@@ -1,5 +1,31 @@
-<div class="flex flex-row gap-2 p-2">
-  <a routerLink="/events">Events</a>
-  <a routerLink="/templates">Event templates</a>
-  <a routerLink="/global-admin">Global admin</a>
+<div
+  class="flex flex-row justify-around gap-2 bg-surface-dim pt-3 pb-4 text-on-surface-dim"
+>
+  <a routerLink="/events" class="flex flex-col items-center gap-1">
+    <div
+      class="flex min-w-16 flex-row justify-center rounded-full py-1"
+      routerLinkActive="bg-secondary-container text-on-secondary-container"
+    >
+      <fa-duotone-icon [icon]="faCalendarDays" size="xl"></fa-duotone-icon>
+    </div>
+    <span class="body-medium">Events</span>
+  </a>
+  <a routerLink="/templates" class="flex flex-col items-center gap-1">
+    <div
+      class="flex min-w-16 flex-row justify-center rounded-full py-1"
+      routerLinkActive="bg-secondary-container text-on-secondary-container"
+    >
+      <fa-duotone-icon [icon]="faFolders" size="xl"></fa-duotone-icon>
+    </div>
+    <span class="body-medium">Event templates</span>
+  </a>
+  <a routerLink="/global-admin" class="flex flex-col items-center gap-1">
+    <div
+      class="flex min-w-16 flex-row justify-center rounded-full py-1"
+      routerLinkActive="bg-secondary-container text-on-secondary-container"
+    >
+      <fa-duotone-icon [icon]="faLockKeyhole" size="xl"></fa-duotone-icon>
+    </div>
+    <span class="body-medium">Global admin</span>
+  </a>
 </div>

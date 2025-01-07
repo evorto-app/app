@@ -54,6 +54,14 @@ export class QueriesService {
       });
   }
 
+  public events() {
+    return () =>
+      queryOptions({
+        queryFn: () => this.trpcClient.events.findMany.query(),
+        queryKey: ['events'],
+      });
+  }
+
   public template(templateId: Signal<string>) {
     return () =>
       queryOptions({

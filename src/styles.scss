@@ -26,6 +26,12 @@ html {
   --color-on-surface-container: var(--mat-sys-on-surface-container);
   --color-surface: var(--mat-sys-surface);
   --color-on-surface: var(--mat-sys-on-surface);
+  --color-secondary-container: var(--mat-sys-secondary-container);
+  --color-on-secondary-container: var(--mat-sys-on-secondary-container);
+  --color-surface-bright: var(--mat-sys-surface-bright);
+  --color-on-surface-bright: var(--mat-sys-on-surface-bright);
+  --color-surface-dim: var(--mat-sys-surface-dim);
+  --color-on-surface-dim: var(--mat-sys-on-surface-dim);
 }
 
 html,
@@ -49,14 +55,35 @@ app-root {
   font: var(--mat-sys-title-large);
 }
 
+.headline-medium {
+  font: var(--mat-sys-headline-medium);
+}
+
+.headline-small {
+  font: var(--mat-sys-headline-small);
+}
+
+.body-medium {
+  font: var(--mat-sys-body-medium);
+}
+
 // View transition names
 .main-content {
   view-transition-name: main-content;
 }
+.mat-mdc-fab.fab-fixed {
+  // view-transition-name: fab-fixed;
+  mat-icon {
+    view-transition-name: fab-fixed-icon;
+  }
+  .mdc-button__label {
+    // view-transition-name: none;
+  }
+}
 
 // Positioning of fixed fabs
 .mat-mdc-fab.fab-fixed {
-  @apply fixed right-4 bottom-16;
+  @apply fixed right-4 bottom-26;
 }
 
 // Tailwind overrride for angular material

@@ -1,6 +1,7 @@
 import { seed } from '@ngneat/falso';
 import { reset } from 'drizzle-seed';
 
+import { addEvents } from '../../helpers/add-events';
 import { addTemplateCategories } from '../../helpers/add-template-categories';
 import { addTemplates } from '../../helpers/add-templates';
 import { createTenant } from '../../helpers/create-tenant';
@@ -27,5 +28,6 @@ setup('reset database', async ({ database }) => {
   if (!hikeCategory) {
     throw new Error('Hike category not found');
   }
-  await addTemplates(database, hikeCategory);
+  const templates = await addTemplates(database, hikeCategory);
+  await addEvents(database, templates);
 });

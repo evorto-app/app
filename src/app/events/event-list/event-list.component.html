@@ -11,5 +11,20 @@
 </div>
 
 <main class="flex flex-col gap-4 p-2">
-  <p>event-list works!</p>
+  @if (eventQuery.isPending()) {
+    <p>Loading...</p>
+  } @else if (eventQuery.isError()) {
+    <p>Error: {{ eventQuery.error().message }}</p>
+  } @else if (eventQuery.isSuccess()) {
+    @for (event of eventQuery.data(); track event.id) {
+      <a
+        routerLink="../{{ event.id }}"
+        class="rounded-2xl bg-surface px-4 py-2 text-on-surface"
+      >
+        <h2 class="headline-small">{{ event.title }}</h2>
+      </a>
+    } @empty {
+      <p>No events found</p>
+    }
+  }
 </main>

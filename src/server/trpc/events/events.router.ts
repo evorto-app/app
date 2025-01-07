@@ -3,7 +3,11 @@ import { Schema } from 'effect';
 
 import { database } from '../../../db';
 import * as schema from '../../../db/schema';
-import { authenticatedProcedure, router } from '../trpc-server';
+import {
+  authenticatedProcedure,
+  publicProcedure,
+  router,
+} from '../trpc-server';
 
 export const eventRouter = router({
   create: authenticatedProcedure
@@ -27,7 +31,12 @@ export const eventRouter = router({
         .returning()
         .then((result) => result[0]);
     }),
-  findOne: authenticatedProcedure
+  findMany: publicProcedure.query(async ({ ctx }) => {
+    return await database.query.eventInstances.findMany({
+      where: eq(schema.eventInstances.tenantId, ctx.tenant.id),
+    });
+  }),
+  findOne: publicProcedure
     .input(
       Schema.decodeUnknownSync(Schema.Struct({ id: Schema.NonEmptyString })),
     )
