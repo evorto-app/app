@@ -1,0 +1,21 @@
+<div class="mb-4 flex flex-row items-center gap-2 pl-2">
+  <a routerLink=".." mat-icon-button>
+    <fa-icon [icon]="faArrowLeft"></fa-icon>
+  </a>
+  <h1 class="title-large">Edit template</h1>
+</div>
+
+<main class="flex flex-col gap-4 rounded-2xl bg-surface p-4">
+  @if (templateQuery.isSuccess()) {
+    <app-template-form
+      [initialData]="templateQuery.data()"
+      [isSubmitting]="updateTemplateMutation.isPending()"
+      submitLabel="Update template"
+      (formSubmit)="onSubmit($event)"
+    ></app-template-form>
+  } @else if (templateQuery.isError()) {
+    <p class="text-error">Failed to load template</p>
+  } @else {
+    <p>Loading...</p>
+  }
+</main>

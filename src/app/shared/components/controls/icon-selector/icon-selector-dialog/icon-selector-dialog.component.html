@@ -1,0 +1,50 @@
+<h2 mat-dialog-title>Select an Icon</h2>
+<mat-dialog-content>
+  <div class="flex flex-col gap-4">
+    <mat-form-field class="!mt-2 w-full">
+      <mat-label>Search</mat-label>
+      <input
+        matInput
+        placeholder="Search icons"
+        [formControl]="searchControl"
+      />
+    </mat-form-field>
+    <div class="grid grid-cols-4 gap-1 lg:grid-cols-6 lg:gap-2">
+      @for (icon of iconSearchQuery.data(); track icon.id) {
+        <div
+          class="flex cursor-pointer flex-col items-center gap-2 p-2 hover:bg-gray-100"
+          [mat-dialog-close]="icon.commonName"
+        >
+          <app-icon size="30" [iconCommonName]="icon.commonName"></app-icon>
+          <span class="rounded bg-gray-200 px-1 text-sm break-all">
+            {{ icon.friendlyName }}
+          </span>
+        </div>
+      }
+    </div>
+    @if (displayDirectAccess()) {
+      <div
+        class="m-4 flex cursor-pointer flex-col items-center gap-2 self-center p-2 hover:bg-gray-100"
+        (click)="saveIconDirectly()"
+        data-testid="direct-access-icon"
+      >
+        <app-icon size="40" [iconCommonName]="searchValue()"></app-icon>
+        <span class="rounded bg-gray-200 px-2 py-1">{{ searchValue() }}</span>
+      </div>
+      <!-- <app-notification>
+        <h3 class="text-sm font-medium">Direct Icon Access</h3>
+        <div class="mt-2 text-sm">
+          <p>
+            If you know the name of the icon you want to use, you can directly
+            access it by typing the name in the search field above. <br />
+            If you then see the icon you want, select it. It will be added to
+            the library.
+          </p>
+        </div>
+      </app-notification> -->
+    }
+  </div>
+</mat-dialog-content>
+<mat-dialog-actions>
+  <button mat-button mat-dialog-close>Cancel</button>
+</mat-dialog-actions>

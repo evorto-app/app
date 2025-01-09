@@ -1,0 +1,38 @@
+<form
+  [formGroup]="templateForm"
+  (ngSubmit)="onSubmit()"
+  class="flex flex-col gap-2"
+>
+  <div class="grid grid-cols-1 gap-2 lg:grid-cols-[auto_1fr_1fr]">
+    <app-icon-selector-field formControlName="icon"></app-icon-selector-field>
+    <mat-form-field>
+      <mat-label>Template title</mat-label>
+      <input matInput formControlName="title" />
+    </mat-form-field>
+    <mat-form-field>
+      <mat-label>Template Category</mat-label>
+      <mat-select formControlName="categoryId">
+        @for (
+          templateCategory of templateCategoriesQuery.data();
+          track templateCategory.id
+        ) {
+          <mat-option [value]="templateCategory.id">
+            {{ templateCategory.title }}
+          </mat-option>
+        } @empty {
+          <mat-option disabled>No template categories found</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+  </div>
+
+  <app-editor formControlName="description"></app-editor>
+
+  <button
+    type="submit"
+    mat-button
+    [disabled]="templateForm.invalid || isSubmitting()"
+  >
+    {{ submitLabel() }}
+  </button>
+</form>

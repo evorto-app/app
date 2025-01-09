@@ -8,6 +8,7 @@ import { faEllipsisVertical } from '@fortawesome/duotone-regular-svg-icons';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import { injectTrpcClient } from '../../core/trpc-client';
+import { IconComponent } from '../../shared/components/icon/icon.component';
 
 @Component({
   imports: [
@@ -16,6 +17,7 @@ import { injectTrpcClient } from '../../core/trpc-client';
     MatIconModule,
     FontAwesomeModule,
     MatMenuModule,
+    IconComponent,
   ],
   selector: 'app-template-list',
   styles: ``,

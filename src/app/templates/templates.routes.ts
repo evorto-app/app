@@ -38,6 +38,14 @@ export const TEMPLATE_ROUTES: Routes = [
   },
   {
     loadComponent: () =>
+      import('./template-edit/template-edit.component').then(
+        (m) => m.TemplateEditComponent,
+      ),
+
+    path: ':templateId/edit',
+  },
+  {
+    loadComponent: () =>
       import('./template-create-event/template-create-event.component').then(
         (m) => m.TemplateCreateEventComponent,
       ),

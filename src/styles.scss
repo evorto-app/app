@@ -1,6 +1,7 @@
 @use "@angular/material" as mat;
 @use "./theme-colors" as theme-colors;
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
 
 html {
   color-scheme: light dark;
@@ -32,6 +33,7 @@ html {
   --color-on-surface-bright: var(--mat-sys-on-surface-bright);
   --color-surface-dim: var(--mat-sys-surface-dim);
   --color-on-surface-dim: var(--mat-sys-on-surface-dim);
+  --color-outline: var(--mat-sys-outline);
 }
 
 html,
@@ -67,6 +69,15 @@ app-root {
   font: var(--mat-sys-body-medium);
 }
 
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  text-wrap: balance;
+}
+
 // View transition names
 .main-content {
   view-transition-name: main-content;
@@ -83,7 +94,7 @@ app-root {
 
 // Positioning of fixed fabs
 .mat-mdc-fab.fab-fixed {
-  @apply fixed right-4 bottom-26;
+  @apply fixed right-4 bottom-26 z-10;
 }
 
 // Tailwind overrride for angular material

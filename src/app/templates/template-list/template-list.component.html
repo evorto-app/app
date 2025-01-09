@@ -14,18 +14,27 @@
   Create template
 </a>
 
-<main class="flex flex-col gap-4 rounded-2xl bg-surface p-4">
+<main class="flex flex-col gap-4">
   @if (templateQuery.isPending()) {
     <p>Loading...</p>
   } @else if (templateQuery.isError()) {
     <p>Error: {{ templateQuery.error().message }}</p>
   } @else if (templateQuery.isSuccess()) {
     @for (templateCategory of templateQuery.data(); track templateCategory.id) {
-      <div class="flex flex-col gap-2">
-        <h2 class="title-medium">{{ templateCategory.title }}</h2>
+      <div
+        class="flex flex-col gap-2 rounded-2xl bg-surface p-4 text-on-surface"
+      >
+        <div class="mb-6 flex flex-row items-start gap-4">
+          <app-icon [iconCommonName]="templateCategory.icon"></app-icon>
+          <h2 class="title-medium">{{ templateCategory.title }}</h2>
+        </div>
         @for (template of templateCategory.templates; track template.id) {
-          <a class="title-small" routerLink="../{{ template.id }}">
-            {{ template.title }}
+          <a
+            class="title-small flex flex-row items-start gap-2"
+            routerLink="../{{ template.id }}"
+          >
+            <app-icon [iconCommonName]="template.icon" size="20"></app-icon>
+            <span>{{ template.title }}</span>
           </a>
         } @empty {
           <p>No templates found in this category</p>

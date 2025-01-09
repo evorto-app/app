@@ -11,16 +11,44 @@ export const addTemplateCategories = (
     .insert(schema.eventTemplateCategories)
     .values([
       {
-        icon: '',
+        icon: 'city',
         id: getId(),
         tenantId: tenant.id,
         title: 'City tours',
       },
       {
-        icon: '',
+        description: 'Hiking tours in the alps',
+        icon: 'mountain',
         id: getId(),
         tenantId: tenant.id,
         title: 'Hikes',
+      },
+      {
+        description: 'Trips to cities close by',
+        icon: 'bus',
+        id: getId(),
+        tenantId: tenant.id,
+        title: 'City Trips',
+      },
+      {
+        icon: 'running',
+        id: getId(),
+        tenantId: tenant.id,
+        title: 'Sports',
+      },
+      {
+        description: 'Trips over the weekend',
+        icon: 'suitcase',
+        id: getId(),
+        tenantId: tenant.id,
+        title: 'Weekend Trips',
+      },
+      {
+        description: 'Collection of example configurations',
+        icon: 'user-manual',
+        id: getId(),
+        tenantId: tenant.id,
+        title: 'Example configurations',
       },
     ])
     .returning();

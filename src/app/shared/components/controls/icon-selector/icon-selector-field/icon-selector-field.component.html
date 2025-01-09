@@ -1,0 +1,15 @@
+<div
+  class="mb-5 flex items-center justify-between gap-4 rounded border border-outline px-4 py-2"
+>
+  <app-icon size="40" [iconCommonName]="iconName()"></app-icon>
+
+  <!-- {{ iconName() }} -->
+  <button
+    type="button"
+    mat-button
+    (click)="openSelectionDialog()"
+    [disabled]="ngControl.control.disabled"
+  >
+    Change Icon
+  </button>
+</div>

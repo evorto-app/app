@@ -15,6 +15,20 @@ export class QueriesService {
   private queryClient = inject(QueryClient);
   private trpcClient = injectTrpcClient();
 
+  public addIcon() {
+    return () =>
+      mutationOptions({
+        mutationFn: (
+          input: AppRouter['icons']['addIcon']['_def']['$types']['input'],
+        ) => this.trpcClient.icons.addIcon.mutate(input),
+        onSuccess: () => {
+          this.queryClient.invalidateQueries({
+            queryKey: ['icons'],
+          });
+        },
+      });
+  }
+
   public createEvent() {
     return () =>
       mutationOptions({
@@ -62,6 +76,14 @@ export class QueriesService {
       });
   }
 
+  public searchIcons(query: Signal<string>) {
+    return () =>
+      queryOptions({
+        queryFn: () => this.trpcClient.icons.search.query({ search: query() }),
+        queryKey: ['icons', query()],
+      });
+  }
+
   public template(templateId: Signal<string>) {
     return () =>
       queryOptions({
@@ -76,6 +98,26 @@ export class QueriesService {
       queryOptions({
         queryFn: () => this.trpcClient.templateCategories.findMany.query(),
         queryKey: ['templateCategories'],
+      });
+  }
+
+  public updateTemplate() {
+    return () =>
+      mutationOptions({
+        mutationFn: (
+          input: AppRouter['templates']['update']['_def']['$types']['input'],
+        ) => this.trpcClient.templates.update.mutate(input),
+        onSuccess: (data) => {
+          this.queryClient.invalidateQueries({
+            queryKey: ['templatesByCategory'],
+          });
+          this.queryClient.invalidateQueries({
+            queryKey: ['templates'],
+          });
+          this.queryClient.invalidateQueries({
+            queryKey: ['template', data.id],
+          });
+        },
       });
   }
 }

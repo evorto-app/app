@@ -5,32 +5,9 @@
   <h1 class="title-large">Create template</h1>
 </div>
 <main class="flex flex-col gap-4 rounded-2xl bg-surface p-4">
-  <form
-    [formGroup]="templateForm"
-    (ngSubmit)="onSubmit()"
-    class="flex flex-col gap-2"
-  >
-    <mat-form-field>
-      <mat-label>Template title</mat-label>
-      <input matInput formControlName="title" />
-    </mat-form-field>
-    <mat-form-field>
-      <mat-label>Template Category</mat-label>
-      <mat-select formControlName="categoryId">
-        @for (
-          templateCategory of templateCategoriesQuery.data();
-          track templateCategory.id
-        ) {
-          <mat-option [value]="templateCategory.id">
-            {{ templateCategory.title }}
-          </mat-option>
-        } @empty {
-          <mat-option disabled>No template categories found</mat-option>
-        }
-      </mat-select>
-    </mat-form-field>
-    <button type="submit" mat-button [disabled]="templateForm.invalid">
-      Save template
-    </button>
-  </form>
+  <app-template-form
+    [initialData]="initialFormData()"
+    [isSubmitting]="createTemplateMutation.isPending()"
+    (formSubmit)="onSubmit($event)"
+  ></app-template-form>
 </main>

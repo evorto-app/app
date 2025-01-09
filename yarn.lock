@@ -4259,6 +4259,20 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@tailwindcss/typography@npm:0.5.0-alpha.3":
+  version: 0.5.0-alpha.3
+  resolution: "@tailwindcss/typography@npm:0.5.0-alpha.3"
+  dependencies:
+    lodash.castarray: "npm:^4.4.0"
+    lodash.isplainobject: "npm:^4.0.6"
+    lodash.merge: "npm:^4.6.2"
+    lodash.uniq: "npm:^4.5.0"
+  peerDependencies:
+    tailwindcss: "*"
+  checksum: 10c0/b269651ba1cf55f254ac1d94fcf811c5ec668ca9c3b461da4fed85ed8c97aa36ec5269b3b636107d548018a050425cc8cd6c1d1d448716fe030e638d358714ad
+  languageName: node
+  linkType: hard
+
 "@tanstack/angular-query-experimental@npm:5.62.7":
   version: 5.62.7
   resolution: "@tanstack/angular-query-experimental@npm:5.62.7"
@@ -4294,6 +4308,21 @@ __metadata:
   version: 5.61.4
   resolution: "@tanstack/query-devtools@npm:5.61.4"
   checksum: 10c0/44886dbf92849d17729bf779a184a3fd304711d8ce8061c1deccc089a65d168ed8f0cf0da43b59a9a22a9afb7b25fba99de8af47fe44479ac3082d852dcaaf53
+  languageName: node
+  linkType: hard
+
+"@tinymce/tinymce-angular@npm:^8.0.1":
+  version: 8.0.1
+  resolution: "@tinymce/tinymce-angular@npm:8.0.1"
+  dependencies:
+    tinymce: "npm:^7.0.0 || ^6.0.0 || ^5.5.0"
+    tslib: "npm:^2.3.0"
+  peerDependencies:
+    "@angular/common": ">=16.0.0"
+    "@angular/core": ">=16.0.0"
+    "@angular/forms": ">=16.0.0"
+    rxjs: ^7.4.0
+  checksum: 10c0/248be3552fef1887c26f266d719d5423e24dc6fa88d0f07f1599344820c0f7c97c720664440545b3936fb393ae2ab37860fec9d8df81c7d0ddab08130c3ac2f2
   languageName: node
   linkType: hard
 
@@ -7367,8 +7396,10 @@ __metadata:
     "@paralleldrive/cuid2": "npm:^2.2.2"
     "@playwright/test": "npm:1.49.1"
     "@tailwindcss/postcss": "npm:^4.0.0-beta.8"
+    "@tailwindcss/typography": "npm:0.5.0-alpha.3"
     "@tanstack/angular-query-experimental": "npm:5.62.7"
     "@tanstack/eslint-plugin-query": "npm:^5.62.1"
+    "@tinymce/tinymce-angular": "npm:^8.0.1"
     "@trpc/client": "npm:^11.0.0-rc.666"
     "@trpc/server": "npm:^11.0.0-rc.666"
     "@types/cookie-parser": "npm:^1"
@@ -7395,6 +7426,7 @@ __metadata:
     karma-coverage: "npm:~2.2.0"
     karma-jasmine: "npm:~5.1.0"
     karma-jasmine-html-reporter: "npm:~2.1.0"
+    playwright-core: "npm:^1.49.1"
     playwright-ng-schematics: "npm:1.2.2"
     prettier: "npm:^3.4.2"
     prettier-plugin-tailwindcss: "npm:^0.6.9"
@@ -9295,6 +9327,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"lodash.castarray@npm:^4.4.0":
+  version: 4.4.0
+  resolution: "lodash.castarray@npm:4.4.0"
+  checksum: 10c0/0bf523ad1596a5bf17869ba047235b4453eee927005013ae152345e2b291b81a02e7f2b7c38f876a1d16f73c34aa3c3241e965193e5b31595035bc8f330c4358
+  languageName: node
+  linkType: hard
+
 "lodash.debounce@npm:^4.0.8":
   version: 4.0.8
   resolution: "lodash.debounce@npm:4.0.8"
@@ -9302,10 +9341,24 @@ __metadata:
   languageName: node
   linkType: hard
 
+"lodash.isplainobject@npm:^4.0.6":
+  version: 4.0.6
+  resolution: "lodash.isplainobject@npm:4.0.6"
+  checksum: 10c0/afd70b5c450d1e09f32a737bed06ff85b873ecd3d3d3400458725283e3f2e0bb6bf48e67dbe7a309eb371a822b16a26cca4a63c8c52db3fc7dc9d5f9dd324cbb
+  languageName: node
+  linkType: hard
+
 "lodash.merge@npm:^4.6.2":
   version: 4.6.2
   resolution: "lodash.merge@npm:4.6.2"
   checksum: 10c0/402fa16a1edd7538de5b5903a90228aa48eb5533986ba7fa26606a49db2572bf414ff73a2c9f5d5fd36b31c46a5d5c7e1527749c07cbcf965ccff5fbdf32c506
+  languageName: node
+  linkType: hard
+
+"lodash.uniq@npm:^4.5.0":
+  version: 4.5.0
+  resolution: "lodash.uniq@npm:4.5.0"
+  checksum: 10c0/262d400bb0952f112162a320cc4a75dea4f66078b9e7e3075ffbc9c6aa30b3e9df3cf20e7da7d566105e1ccf7804e4fbd7d804eee0b53de05d83f16ffbf41c5e
   languageName: node
   linkType: hard
 
@@ -10609,7 +10662,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"playwright-core@npm:1.49.1":
+"playwright-core@npm:1.49.1, playwright-core@npm:^1.49.1":
   version: 1.49.1
   resolution: "playwright-core@npm:1.49.1"
   bin:
@@ -12325,6 +12378,13 @@ __metadata:
   version: 1.1.0
   resolution: "thunky@npm:1.1.0"
   checksum: 10c0/369764f39de1ce1de2ba2fa922db4a3f92e9c7f33bcc9a713241bc1f4a5238b484c17e0d36d1d533c625efb00e9e82c3e45f80b47586945557b45abb890156d2
+  languageName: node
+  linkType: hard
+
+"tinymce@npm:^7.0.0 || ^6.0.0 || ^5.5.0":
+  version: 7.6.0
+  resolution: "tinymce@npm:7.6.0"
+  checksum: 10c0/746429c5dc2c9f7f5672b153fc5383bf4f83a76b5881c15df0c6cf7a417aa3647f16a44d6e15d738d451a66cbe292a49f077218ce3d833d6b6efd5203b1f6db2
   languageName: node
   linkType: hard
 

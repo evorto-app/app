@@ -5,17 +5,23 @@ import { getId } from './get-id';
 
 export const addTemplates = (
   database: NeonHttpDatabase<typeof schema>,
-  category: { id: string; tenantId: string },
+  categories: { id: string; tenantId: string; title: string }[],
 ) => {
+  const hikingCategory = categories.find(
+    (category) => category.title === 'Hikes',
+  );
+  if (!hikingCategory) {
+    throw new Error('Hiking category not found');
+  }
   return database
     .insert(schema.eventTemplates)
     .values([
       {
-        categoryId: category.id,
-        description: 'City tours description',
-        icon: '',
+        categoryId: hikingCategory.id,
+        description: 'Hike to the Hörnle',
+        icon: 'alps',
         id: getId(),
-        tenantId: category.tenantId,
+        tenantId: hikingCategory.tenantId,
         title: 'Hörnle hike',
       },
     ])

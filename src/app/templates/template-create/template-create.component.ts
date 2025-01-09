@@ -1,26 +1,22 @@
-import { Component, effect, inject, input } from '@angular/core';
-import { NonNullableFormBuilder, ReactiveFormsModule } from '@angular/forms';
+import { Component, computed, inject, input } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
-import { MatInputModule } from '@angular/material/input';
-import { MatSelectModule } from '@angular/material/select';
 import { Router, RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
-import {
-  injectMutation,
-  injectQuery,
-} from '@tanstack/angular-query-experimental';
+import { injectMutation } from '@tanstack/angular-query-experimental';
 
 import { QueriesService } from '../../core/queries.service';
+import {
+  TemplateFormComponent,
+  TemplateFormData,
+} from '../shared/template-form/template-form.component';
 
 @Component({
   imports: [
-    ReactiveFormsModule,
-    MatInputModule,
     MatButtonModule,
-    MatSelectModule,
     FontAwesomeModule,
     RouterLink,
+    TemplateFormComponent,
   ],
   selector: 'app-template-create',
   styles: ``,
@@ -33,30 +29,14 @@ export class TemplateCreateComponent {
     this.queries.createTemplate(),
   );
   protected readonly faArrowLeft = faArrowLeft;
-  protected readonly templateCategoriesQuery = injectQuery(
-    this.queries.templateCategories(),
-  );
-  private formBuilder = inject(NonNullableFormBuilder);
-  protected templateForm = this.formBuilder.group({
-    categoryId: '',
-    description: 'description',
-    icon: 'icon',
-    title: '',
-  });
+  protected readonly initialFormData = computed(() => ({
+    categoryId: this.categoryId() || '',
+  }));
+
   private router = inject(Router);
-  constructor() {
-    console.log('TemplateCreateComponent');
-    effect(() => {
-      const categoryId = this.categoryId();
-      if (categoryId) {
-        console.log('categoryId', categoryId);
-        this.templateForm.patchValue({ categoryId });
-      }
-    });
-  }
-  onSubmit() {
-    if (this.templateForm.invalid) return;
-    this.createTemplateMutation.mutate(this.templateForm.getRawValue(), {
+
+  onSubmit(formData: TemplateFormData) {
+    this.createTemplateMutation.mutate(formData, {
       onSuccess: () => this.router.navigate(['/templates']),
     });
   }

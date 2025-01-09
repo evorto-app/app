@@ -55,4 +55,34 @@ export const templateRouter = router({
       },
     });
   }),
+  update: authenticatedProcedure
+    .input(
+      Schema.decodeUnknownSync(
+        Schema.Struct({
+          categoryId: Schema.NonEmptyString,
+          description: Schema.NonEmptyString,
+          icon: Schema.NonEmptyString,
+          id: Schema.NonEmptyString,
+          title: Schema.NonEmptyString,
+        }),
+      ),
+    )
+    .mutation(async ({ ctx, input }) => {
+      return await database
+        .update(eventTemplates)
+        .set({
+          categoryId: input.categoryId,
+          description: input.description,
+          icon: input.icon,
+          title: input.title,
+        })
+        .where(
+          and(
+            eq(eventTemplates.id, input.id),
+            eq(eventTemplates.tenantId, ctx.tenant.id),
+          ),
+        )
+        .returning()
+        .then((rows) => rows[0]);
+    }),
 });

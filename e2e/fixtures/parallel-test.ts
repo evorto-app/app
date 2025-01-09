@@ -38,13 +38,7 @@ export const test = base.extend<BaseFixtures>({
     await use(templateCategories);
   },
   templates: async ({ database, templateCategories }, use) => {
-    const hikingCategory = templateCategories.find(
-      (category) => category.title === 'Hikes',
-    );
-    if (!hikingCategory) {
-      throw new Error('Hiking category not found');
-    }
-    const templates = await addTemplates(database, hikingCategory);
+    const templates = await addTemplates(database, templateCategories);
     await use(templates);
   },
   tenant: async ({ database }, use) => {

@@ -29,7 +29,6 @@ const angularLink = (http: HttpClient) => {
       ({ op }) =>
         observable((observer) => {
           const url = `${options.url}/${op.path}`;
-          console.log(op);
           switch (op.type) {
             case 'mutation': {
               http
@@ -76,11 +75,9 @@ const angularLink = (http: HttpClient) => {
                     observer.error(error);
                   },
                   next: (response) => {
-                    console.log(response);
                     const parsedResponse = superjson.deserialize(
                       response.result.data,
                     );
-                    console.log(parsedResponse);
                     observer.next({
                       result: {
                         data: parsedResponse,

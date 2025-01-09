@@ -2,22 +2,25 @@
   <a routerLink="/templates" mat-icon-button>
     <fa-icon [icon]="faArrowLeft"></fa-icon>
   </a>
-  <h1 class="title-large">{{ templateQuery.data()?.title }}</h1>
+  <h1 class="title-large">
+    {{ templateQuery.data()?.title ?? "Loading ..." }}
+  </h1>
   <div class="grow"></div>
-  <button mat-icon-button [matMenuTriggerFor]="menu">
+  <button title="menu" mat-icon-button [matMenuTriggerFor]="menu">
     <fa-icon [icon]="faEllipsisVertical"></fa-icon>
   </button>
-  <mat-menu #menu="matMenu"> </mat-menu>
+  <mat-menu #menu="matMenu">
+    <a mat-menu-item routerLink="edit">Edit template</a>
+  </mat-menu>
 </div>
-<main class="p-2">
-  @if (templateQuery.isPending()) {
-    <p>Loading...</p>
-  } @else if (templateQuery.isError()) {
+<main class="flex flex-col gap-4 rounded-2xl bg-surface p-4">
+  @if (templateQuery.isError()) {
     <p>Error: {{ templateQuery.error().message }}</p>
   } @else if (templateQuery.isSuccess()) {
     <a mat-fab extended routerLink="create-event" class="fab-fixed">
       <mat-icon svgIcon="faPlus"></mat-icon>
       Create event
     </a>
+    <div class="prose" [innerHTML]="templateQuery.data().description"></div>
   }
 </main>
