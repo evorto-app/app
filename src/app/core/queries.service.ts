@@ -43,19 +43,27 @@ export class QueriesService {
       });
   }
 
-  public createTemplate() {
+  public createSimpleTemplate() {
     return () =>
       mutationOptions({
         mutationFn: (
-          input: AppRouter['templates']['create']['_def']['$types']['input'],
-        ) => this.trpcClient.templates.create.mutate(input),
+          input: AppRouter['templates']['createSimpleTemplate']['_def']['$types']['input'],
+        ) => this.trpcClient.templates.createSimpleTemplate.mutate(input),
         onSuccess: () => {
-          this.queryClient.invalidateQueries({
-            queryKey: ['templatesByCategory'],
-          });
           this.queryClient.invalidateQueries({
             queryKey: ['templates'],
           });
+        },
+      });
+  }
+
+  public createTemplateCategory() {
+    return () =>
+      mutationOptions({
+        mutationFn: (input: { icon: string; title: string }) =>
+          this.trpcClient.templateCategories.create.mutate(input),
+        onSuccess: () => {
+          this.queryClient.invalidateQueries({ queryKey: ['templateCategories'] });
         },
       });
   }
@@ -73,6 +81,14 @@ export class QueriesService {
       queryOptions({
         queryFn: () => this.trpcClient.events.findMany.query(),
         queryKey: ['events'],
+      });
+  }
+
+  public iconSearch(searchTerm: Signal<string>) {
+    return () =>
+      queryOptions({
+        queryFn: () => this.trpcClient.icons.search.query({ search: searchTerm() }),
+        queryKey: ['icons', 'search', searchTerm()],
       });
   }
 
@@ -101,21 +117,45 @@ export class QueriesService {
       });
   }
 
-  public updateTemplate() {
+  public templatesByCategory() {
+    return () =>
+      queryOptions({
+        queryFn: () => this.trpcClient.templates.groupedByCategory.query(),
+        queryKey: ['templatesByCategory'],
+      });
+  }
+
+  public tenants() {
+    return () =>
+      queryOptions({
+        queryFn: () => this.trpcClient.tenants.findMany.query(),
+        queryKey: ['tenants'],
+      });
+  }
+
+  public updateSimpleTemplate() {
     return () =>
       mutationOptions({
         mutationFn: (
-          input: AppRouter['templates']['update']['_def']['$types']['input'],
-        ) => this.trpcClient.templates.update.mutate(input),
-        onSuccess: (data) => {
-          this.queryClient.invalidateQueries({
-            queryKey: ['templatesByCategory'],
-          });
+          input: AppRouter['templates']['updateSimpleTemplate']['_def']['$types']['input'],
+        ) => this.trpcClient.templates.updateSimpleTemplate.mutate(input),
+        onSuccess: () => {
           this.queryClient.invalidateQueries({
             queryKey: ['templates'],
           });
+        },
+      });
+  }
+
+  public updateTemplateCategory() {
+    return () =>
+      mutationOptions({
+        mutationFn: (input: { id: string; title: string }) =>
+          this.trpcClient.templateCategories.update.mutate(input),
+        onSuccess: (data) => {
+          this.queryClient.invalidateQueries({ queryKey: ['templateCategories'] });
           this.queryClient.invalidateQueries({
-            queryKey: ['template', data.id],
+            queryKey: ['templateCategory', data.id],
           });
         },
       });

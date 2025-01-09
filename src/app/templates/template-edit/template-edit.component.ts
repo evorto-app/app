@@ -35,7 +35,7 @@ export class TemplateEditComponent {
   );
 
   protected readonly updateTemplateMutation = injectMutation(
-    this.queries.updateTemplate(),
+    this.queries.updateSimpleTemplate(),
   );
 
   private router = inject(Router);

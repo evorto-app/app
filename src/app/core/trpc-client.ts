@@ -35,17 +35,31 @@ const angularLink = (http: HttpClient) => {
                 .post<{
                   result: { data: SuperJSONResult };
                 }>(url, superjson.serialize(op.input))
-                .subscribe((response) => {
-                  const parsedResponse = superjson.deserialize(
-                    response.result.data,
-                  );
-                  observer.next({
-                    result: {
-                      data: parsedResponse,
-                      type: 'data',
-                    },
-                  });
-                  observer.complete();
+                .subscribe({
+                  error: (error) => {
+                    console.warn('Error in mutation');
+                    if (error.status !== 0) {
+                      const parsedError = superjson.deserialize(
+                        error.error.error,
+                      ) as TRPCClientError<AppRouter>;
+                      console.error(parsedError);
+                      observer.error(parsedError);
+                    }
+                    console.error(error);
+                    observer.error(error);
+                  },
+                  next: (response) => {
+                    const parsedResponse = superjson.deserialize(
+                      response.result.data,
+                    );
+                    observer.next({
+                      result: {
+                        data: parsedResponse,
+                        type: 'data',
+                      },
+                    });
+                    observer.complete();
+                  },
                 });
               break;
             }
@@ -63,15 +77,15 @@ const angularLink = (http: HttpClient) => {
                 })
                 .subscribe({
                   error: (error) => {
-                    console.error('Error in query');
-                    console.error(error);
-                    console.info(error.error.error);
+                    console.warn('Error in query');
                     if (error.status !== 0) {
                       const parsedError = superjson.deserialize(
                         error.error.error,
                       ) as TRPCClientError<AppRouter>;
+                      console.error(parsedError);
                       observer.error(parsedError);
                     }
+                    console.error(error);
                     observer.error(error);
                   },
                   next: (response) => {

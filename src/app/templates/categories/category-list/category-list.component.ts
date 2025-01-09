@@ -8,11 +8,10 @@ import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
 import {
   injectMutation,
   injectQuery,
-  injectQueryClient,
 } from '@tanstack/angular-query-experimental';
 import { firstValueFrom } from 'rxjs';
 
-import { injectTrpcClient } from '../../../core/trpc-client';
+import { QueriesService } from '../../../core/queries.service';
 import { CreateEditCategoryDialogComponent } from '../create-edit-category-dialog/create-edit-category-dialog.component';
 
 @Component({
@@ -23,50 +22,30 @@ import { CreateEditCategoryDialogComponent } from '../create-edit-category-dialo
 })
 export class CategoryListComponent {
   protected readonly faArrowLeft = faArrowLeft;
-  private trpc = injectTrpcClient();
-  protected templateCategoriesQuery = injectQuery(() => ({
-    queryFn: () => this.trpc.templateCategories.findMany.query(),
-    queryKey: ['templateCategories'],
-  }));
-  private queryClient = injectQueryClient();
-  private createCategoryMutation = injectMutation(() => ({
-    mutationFn: (input: { icon: string; title: string }) =>
-      this.trpc.templateCategories.create.mutate(input),
-    onSuccess: () => {
-      this.queryClient.invalidateQueries({ queryKey: ['templateCategories'] });
-    },
-  }));
+  private queries = inject(QueriesService);
+  protected templateCategoriesQuery = injectQuery(this.queries.templateCategories());
+  private createCategoryMutation = injectMutation(this.queries.createTemplateCategory());
   private dialog = inject(MatDialog);
-  private updateQueryMutation = injectMutation(() => ({
-    mutationFn: (input: { id: string; title: string }) =>
-      this.trpc.templateCategories.update.mutate(input),
-    onSuccess: (data) => {
-      this.queryClient.invalidateQueries({ queryKey: ['templateCategories'] });
-      this.queryClient.invalidateQueries({
-        queryKey: ['templateCategory', data.id],
-      });
-    },
-  }));
+  private updateCategoryMutation = injectMutation(this.queries.updateTemplateCategory());
 
   async openCategoryCreationDialog() {
-    const result = await firstValueFrom(
-      this.dialog
-        .open(CreateEditCategoryDialogComponent, { data: { mode: 'create' } })
-        .afterClosed(),
-    );
-    if (!result) return;
-    this.createCategoryMutation.mutate(result);
+    const dialogRef = this.dialog.open(CreateEditCategoryDialogComponent, { data: { mode: 'create' } });
+    const result = await firstValueFrom(dialogRef.afterClosed());
+    if (result) {
+      await this.createCategoryMutation.mutateAsync(result);
+    }
   }
 
   async openCategoryEditDialog(category: { id: string; title: string }) {
-    const result = await firstValueFrom(
-      this.dialog
-        .open(CreateEditCategoryDialogComponent, {
-          data: { category, mode: 'edit' },
-        })
-        .afterClosed(),
-    );
-    if (!result) return;
-    this.updateQueryMutation.mutate({ id: category.id, title: result.title });
+    const dialogRef = this.dialog.open(CreateEditCategoryDialogComponent, {
+      data: { category, mode: 'edit' },
+    });
+    const result = await firstValueFrom(dialogRef.afterClosed());
+    if (result) {
+      await this.updateCategoryMutation.mutateAsync({
+        id: category.id,
+        ...result,
+      });
+    }
   }
 }

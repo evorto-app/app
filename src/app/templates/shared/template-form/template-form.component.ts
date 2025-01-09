@@ -3,16 +3,35 @@ import { NonNullableFormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import { QueriesService } from '../../../core/queries.service';
 import { EditorComponent } from '../../../shared/components/controls/editor/editor.component';
 import { IconSelectorFieldComponent } from '../../../shared/components/controls/icon-selector/icon-selector-field/icon-selector-field.component';
 
+export type RegistrationMode = 'application' | 'fcfs' | 'random';
+
 export interface TemplateFormData {
   categoryId: string;
   description: string;
   icon: string;
+  organizerRegistration: {
+    closeRegistrationOffset: number;
+    isPaid: boolean;
+    openRegistrationOffset: number;
+    price: number;
+    registrationMode: RegistrationMode;
+    spots: number;
+  };
+  participantRegistration: {
+    closeRegistrationOffset: number;
+    isPaid: boolean;
+    openRegistrationOffset: number;
+    price: number;
+    registrationMode: RegistrationMode;
+    spots: number;
+  };
   title: string;
 }
 
@@ -24,6 +43,7 @@ export interface TemplateFormData {
     MatSelectModule,
     EditorComponent,
     IconSelectorFieldComponent,
+    MatSlideToggleModule,
   ],
   selector: 'app-template-form',
   standalone: true,
@@ -33,8 +53,14 @@ export class TemplateFormComponent {
   public readonly initialData = input<Partial<TemplateFormData>>({});
 
   public readonly isSubmitting = input(false);
+
   public readonly submitLabel = input('Save template');
   protected formSubmit = output<TemplateFormData>();
+  protected readonly registrationModes: RegistrationMode[] = [
+    'fcfs',
+    'random',
+    'application',
+  ];
 
   private queries = inject(QueriesService);
   protected readonly templateCategoriesQuery = injectQuery(
@@ -47,6 +73,22 @@ export class TemplateFormComponent {
     categoryId: [''],
     description: [''],
     icon: [''],
+    organizerRegistration: this.formBuilder.group({
+      closeRegistrationOffset: [1],
+      isPaid: [false],
+      openRegistrationOffset: [168],
+      price: [0],
+      registrationMode: this.formBuilder.control<RegistrationMode>('fcfs'),
+      spots: [1],
+    }),
+    participantRegistration: this.formBuilder.group({
+      closeRegistrationOffset: [1],
+      isPaid: [false],
+      openRegistrationOffset: [168],
+      price: [0],
+      registrationMode: this.formBuilder.control<RegistrationMode>('fcfs'),
+      spots: [20],
+    }),
     title: [''],
   });
 

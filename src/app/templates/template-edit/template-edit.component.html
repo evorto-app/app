@@ -5,7 +5,7 @@
   <h1 class="title-large">Edit template</h1>
 </div>
 
-<main class="flex flex-col gap-4 rounded-2xl bg-surface p-4">
+<main class="flex flex-col gap-4">
   @if (templateQuery.isSuccess()) {
     <app-template-form
       [initialData]="templateQuery.data()"

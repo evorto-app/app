@@ -4679,7 +4679,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/ws@npm:^8.5.10":
+"@types/ws@npm:^8, @types/ws@npm:^8.5.10":
   version: 8.5.13
   resolution: "@types/ws@npm:8.5.13"
   dependencies:
@@ -7406,6 +7406,7 @@ __metadata:
     "@types/express": "npm:^4.17.17"
     "@types/jasmine": "npm:~5.1.0"
     "@types/node": "npm:^18.18.0"
+    "@types/ws": "npm:^8"
     angular-eslint: "npm:19.0.2"
     cookie-parser: "npm:^1.4.7"
     dotenv: "npm:^16.4.7"
@@ -7437,6 +7438,7 @@ __metadata:
     tsx: "npm:^4.19.2"
     typescript: "npm:~5.6.2"
     typescript-eslint: "npm:8.18.0"
+    ws: "npm:^8.18.0"
     zone.js: "npm:~0.15.0"
   languageName: unknown
   linkType: soft

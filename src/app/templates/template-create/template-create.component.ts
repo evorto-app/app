@@ -26,7 +26,7 @@ export class TemplateCreateComponent {
   protected readonly categoryId = input<string | undefined>();
   private queries = inject(QueriesService);
   protected readonly createTemplateMutation = injectMutation(
-    this.queries.createTemplate(),
+    this.queries.createSimpleTemplate(),
   );
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly initialFormData = computed(() => ({

@@ -1,6 +1,7 @@
-import { Component } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
+import { QueriesService } from '../../core/queries.service';
 import { injectTrpcClient } from '../../core/trpc-client';
 
 @Component({
@@ -10,9 +11,6 @@ import { injectTrpcClient } from '../../core/trpc-client';
   templateUrl: './tenant-list.component.html',
 })
 export class TenantListComponent {
-  private trpc = injectTrpcClient();
-  protected tenantQuery = injectQuery(() => ({
-    queryFn: () => this.trpc.tenants.findMany.query(),
-    queryKey: ['tenants'],
-  }));
+  private queries = inject(QueriesService);
+  protected tenantQuery = injectQuery(this.queries.tenants());
 }

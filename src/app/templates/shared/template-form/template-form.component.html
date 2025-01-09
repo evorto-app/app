@@ -1,32 +1,156 @@
 <form
   [formGroup]="templateForm"
   (ngSubmit)="onSubmit()"
-  class="flex flex-col gap-2"
+  class="flex flex-col gap-6 text-on-surface"
 >
-  <div class="grid grid-cols-1 gap-2 lg:grid-cols-[auto_1fr_1fr]">
-    <app-icon-selector-field formControlName="icon"></app-icon-selector-field>
-    <mat-form-field>
-      <mat-label>Template title</mat-label>
-      <input matInput formControlName="title" />
-    </mat-form-field>
-    <mat-form-field>
-      <mat-label>Template Category</mat-label>
-      <mat-select formControlName="categoryId">
-        @for (
-          templateCategory of templateCategoriesQuery.data();
-          track templateCategory.id
-        ) {
-          <mat-option [value]="templateCategory.id">
-            {{ templateCategory.title }}
-          </mat-option>
-        } @empty {
-          <mat-option disabled>No template categories found</mat-option>
-        }
-      </mat-select>
-    </mat-form-field>
+  <div class="rounded-2xl bg-surface p-4">
+    <div class="grid grid-cols-1 gap-2 lg:grid-cols-[auto_1fr_1fr]">
+      <app-icon-selector-field formControlName="icon"></app-icon-selector-field>
+      <mat-form-field>
+        <mat-label>Template title</mat-label>
+        <input matInput formControlName="title" />
+      </mat-form-field>
+      <mat-form-field>
+        <mat-label>Template Category</mat-label>
+        <mat-select formControlName="categoryId">
+          @for (
+            templateCategory of templateCategoriesQuery.data();
+            track templateCategory.id
+          ) {
+            <mat-option [value]="templateCategory.id">
+              {{ templateCategory.title }}
+            </mat-option>
+          } @empty {
+            <mat-option disabled>No template categories found</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+    </div>
+
+    <app-editor formControlName="description"></app-editor>
   </div>
 
-  <app-editor formControlName="description"></app-editor>
+  <div class="rounded-2xl bg-surface p-4">
+    <h2 class="mb-4 text-lg font-semibold">Simple Registration Setup</h2>
+    <p class="mb-4 text-sm">
+      This is the simple registration mode, which creates one registration
+      option for organizers and one for participants.
+    </p>
+
+    <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div>
+        <h3 class="mb-3 font-medium">Organizer Registration</h3>
+        <div class="grid gap-4 p-4" formGroupName="organizerRegistration">
+          <mat-slide-toggle formControlName="isPaid"
+            >Enable Payment</mat-slide-toggle
+          >
+
+          @if (templateForm.get("organizerRegistration.isPaid")?.value) {
+            <mat-form-field>
+              <mat-label>Price (in cents)</mat-label>
+              <input matInput type="number" formControlName="price" min="0" />
+            </mat-form-field>
+          }
+
+          <mat-form-field>
+            <mat-label>Number of Spots</mat-label>
+            <input matInput type="number" formControlName="spots" min="1" />
+            <mat-hint>How many organizers can register</mat-hint>
+          </mat-form-field>
+
+          <mat-form-field>
+            <mat-label>Registration Mode</mat-label>
+            <mat-select formControlName="registrationMode">
+              @for (mode of registrationModes; track mode) {
+                <mat-option [value]="mode">
+                  {{ mode }}
+                </mat-option>
+              }
+            </mat-select>
+            <mat-hint>How registrations are processed</mat-hint>
+          </mat-form-field>
+
+          <mat-form-field>
+            <mat-label>Registration Opens (hours before event)</mat-label>
+            <input
+              matInput
+              type="number"
+              formControlName="openRegistrationOffset"
+              min="0"
+            />
+            <mat-hint>Example: 168 hours = 7 days</mat-hint>
+          </mat-form-field>
+
+          <mat-form-field>
+            <mat-label>Registration Closes (hours before event)</mat-label>
+            <input
+              matInput
+              type="number"
+              formControlName="closeRegistrationOffset"
+              min="0"
+            />
+            <mat-hint>Example: 24 hours = 1 day</mat-hint>
+          </mat-form-field>
+        </div>
+      </div>
+
+      <div>
+        <h3 class="mb-3 font-medium">Participant Registration</h3>
+        <div class="grid gap-4 p-4" formGroupName="participantRegistration">
+          <mat-slide-toggle formControlName="isPaid"
+            >Enable Payment</mat-slide-toggle
+          >
+
+          @if (templateForm.get("participantRegistration.isPaid")?.value) {
+            <mat-form-field>
+              <mat-label>Price (in cents)</mat-label>
+              <input matInput type="number" formControlName="price" min="0" />
+            </mat-form-field>
+          }
+
+          <mat-form-field>
+            <mat-label>Number of Spots</mat-label>
+            <input matInput type="number" formControlName="spots" min="1" />
+            <mat-hint>How many participants can register</mat-hint>
+          </mat-form-field>
+
+          <mat-form-field>
+            <mat-label>Registration Mode</mat-label>
+            <mat-select formControlName="registrationMode">
+              @for (mode of registrationModes; track mode) {
+                <mat-option [value]="mode">
+                  {{ mode }}
+                </mat-option>
+              }
+            </mat-select>
+            <mat-hint>How registrations are processed</mat-hint>
+          </mat-form-field>
+
+          <mat-form-field>
+            <mat-label>Registration Opens (hours before event)</mat-label>
+            <input
+              matInput
+              type="number"
+              formControlName="openRegistrationOffset"
+              min="0"
+            />
+            <mat-hint>Example: 168 hours = 7 days</mat-hint>
+          </mat-form-field>
+
+          <mat-form-field>
+            <mat-label>Registration Closes (hours before event)</mat-label>
+            <input
+              matInput
+              type="number"
+              formControlName="closeRegistrationOffset"
+              min="0"
+            />
+            <mat-hint>Example: 24 hours = 1 day</mat-hint>
+          </mat-form-field>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <button
     type="submit"

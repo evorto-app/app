@@ -3,7 +3,7 @@ import { NeonHttpDatabase } from 'drizzle-orm/neon-http';
 import * as schema from '../src/db/schema';
 import { getId } from './get-id';
 
-export const addTemplates = (
+export const addTemplates = async (
   database: NeonHttpDatabase<typeof schema>,
   categories: { id: string; tenantId: string; title: string }[],
 ) => {
@@ -13,7 +13,8 @@ export const addTemplates = (
   if (!hikingCategory) {
     throw new Error('Hiking category not found');
   }
-  return database
+
+  const template = await database
     .insert(schema.eventTemplates)
     .values([
       {
@@ -25,5 +26,39 @@ export const addTemplates = (
         title: 'Hörnle hike',
       },
     ])
-    .returning();
+    .returning()
+    .then((results) => results[0]);
+
+  if (!template) {
+    throw new Error('Failed to create template');
+  }
+
+  await database.insert(schema.templateRegistrationOptions).values([
+    {
+      closeRegistrationOffset: 1,
+      description: 'Organizer registration',
+      isPaid: false,
+      openRegistrationOffset: 168,
+      organizingRegistration: true,
+      price: 0,
+      registrationMode: 'fcfs',
+      spots: 1,
+      templateId: template.id,
+      title: 'Organizer',
+    },
+    {
+      closeRegistrationOffset: 1,
+      description: 'Participant registration',
+      isPaid: false,
+      openRegistrationOffset: 168,
+      organizingRegistration: false,
+      price: 0,
+      registrationMode: 'fcfs',
+      spots: 20,
+      templateId: template.id,
+      title: 'Participant',
+    },
+  ]);
+
+  return [template];
 };
