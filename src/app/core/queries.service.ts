@@ -63,7 +63,9 @@ export class QueriesService {
         mutationFn: (input: { icon: string; title: string }) =>
           this.trpcClient.templateCategories.create.mutate(input),
         onSuccess: () => {
-          this.queryClient.invalidateQueries({ queryKey: ['templateCategories'] });
+          this.queryClient.invalidateQueries({
+            queryKey: ['templateCategories'],
+          });
         },
       });
   }
@@ -72,7 +74,7 @@ export class QueriesService {
     return () =>
       queryOptions({
         queryFn: () => this.trpcClient.events.findOne.query({ id: eventId() }),
-        queryKey: ['event', eventId()],
+        queryKey: ['events', eventId()],
       });
   }
 
@@ -81,14 +83,6 @@ export class QueriesService {
       queryOptions({
         queryFn: () => this.trpcClient.events.findMany.query(),
         queryKey: ['events'],
-      });
-  }
-
-  public iconSearch(searchTerm: Signal<string>) {
-    return () =>
-      queryOptions({
-        queryFn: () => this.trpcClient.icons.search.query({ search: searchTerm() }),
-        queryKey: ['icons', 'search', searchTerm()],
       });
   }
 
@@ -105,7 +99,7 @@ export class QueriesService {
       queryOptions({
         queryFn: () =>
           this.trpcClient.templates.findOne.query({ id: templateId() }),
-        queryKey: ['template', templateId()],
+        queryKey: ['templates', templateId()],
       });
   }
 
@@ -152,10 +146,9 @@ export class QueriesService {
       mutationOptions({
         mutationFn: (input: { id: string; title: string }) =>
           this.trpcClient.templateCategories.update.mutate(input),
-        onSuccess: (data) => {
-          this.queryClient.invalidateQueries({ queryKey: ['templateCategories'] });
+        onSuccess: () => {
           this.queryClient.invalidateQueries({
-            queryKey: ['templateCategory', data.id],
+            queryKey: ['templateCategories'],
           });
         },
       });

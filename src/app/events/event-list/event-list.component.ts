@@ -10,9 +10,16 @@ import {
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import { QueriesService } from '../../core/queries.service';
+import { IconComponent } from '../../shared/components/icon/icon.component';
 
 @Component({
-  imports: [FontAwesomeModule, MatButtonModule, MatMenuModule, RouterLink],
+  imports: [
+    FontAwesomeModule,
+    MatButtonModule,
+    MatMenuModule,
+    RouterLink,
+    IconComponent,
+  ],
   selector: 'app-event-list',
   styles: ``,
   templateUrl: './event-list.component.html',

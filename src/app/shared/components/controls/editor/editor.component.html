@@ -1,5 +1,27 @@
-<editor
-  [init]="config"
-  [formControl]="ngControl.control"
-  apiKey="c6qweyqnnyptnx064b9qmnmo0bh5n2e1t8db4wt7p4igwoi9"
-/>
+@defer (on interaction) {
+  <editor
+    [init]="config"
+    [formControl]="ngControl.control"
+    apiKey="c6qweyqnnyptnx064b9qmnmo0bh5n2e1t8db4wt7p4igwoi9"
+  />
+} @placeholder {
+  <div class="flex flex-col gap-2">
+    <div class="group relative">
+      <div
+        class="min-h-[100px] cursor-pointer rounded-md border border-outline p-2 opacity-80"
+        [innerHTML]="ngControl.value"
+        role="button"
+        tabindex="0"
+        aria-label="Click to edit content"
+      ></div>
+      <button
+        mat-button
+        type="button"
+        class="absolute! right-2 bottom-2 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
+      >
+        <fa-duotone-icon [icon]="faPencil"></fa-duotone-icon>
+        Edit
+      </button>
+    </div>
+  </div>
+}

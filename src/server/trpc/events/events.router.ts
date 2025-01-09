@@ -30,7 +30,7 @@ export const eventRouter = router({
               title: Schema.NonEmptyString,
             }),
           ),
-          startTime: Schema.Date,
+          startTime: Schema.ValidDateFromSelf,
           templateId: Schema.NonEmptyString,
           title: Schema.NonEmptyString,
         }),

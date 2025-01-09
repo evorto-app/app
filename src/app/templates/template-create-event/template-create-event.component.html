@@ -135,23 +135,15 @@
                       </mat-checkbox>
                     </div>
 
-                    <mat-form-field>
-                      <mat-label>Description</mat-label>
-                      <textarea
-                        matInput
-                        formControlName="description"
-                        rows="3"
-                      ></textarea>
-                    </mat-form-field>
+                    <div class="flex flex-col gap-2">
+                      <label class="text-on-surface-variant text-sm">Description</label>
+                      <app-editor formControlName="description"></app-editor>
+                    </div>
 
-                    <mat-form-field>
-                      <mat-label>Description for registered users</mat-label>
-                      <textarea
-                        matInput
-                        formControlName="registeredDescription"
-                        rows="3"
-                      ></textarea>
-                    </mat-form-field>
+                    <div class="flex flex-col gap-2">
+                      <label class="text-on-surface-variant text-sm">Description for registered users</label>
+                      <app-editor formControlName="registeredDescription"></app-editor>
+                    </div>
                   </div>
                 </div>
               </div>

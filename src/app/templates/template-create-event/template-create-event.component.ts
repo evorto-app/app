@@ -107,15 +107,14 @@ export class TemplateCreateEventComponent {
           registrationOptionsFormArray?.push(
             this.fb.group({
               closeRegistrationOffset: [option.closeRegistrationOffset],
-              description: [option.description ?? ''],
+              description: [option.description],
               isPaid: [option.isPaid],
               openRegistrationOffset: [option.openRegistrationOffset],
-              organizingRegistration: [false],
+              organizingRegistration: [option.organizingRegistration],
               price: [option.price],
-              registeredDescription: [option.registeredDescription ?? ''],
+              registeredDescription: [option.registeredDescription],
               registrationMode: [option.registrationMode],
               spots: [option.spots],
-              templateRegistrationOptionId: [option.id],
               title: [option.title],
             }),
           );

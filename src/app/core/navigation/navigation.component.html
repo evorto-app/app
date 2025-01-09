@@ -1,32 +1,32 @@
 <div
-  class="fixed bottom-0 flex w-screen flex-row justify-around gap-2 bg-surface-dim pt-3 pb-4 text-on-surface-dim"
+  class="navigation fixed bottom-0 z-5 flex w-screen flex-row justify-around gap-2 bg-surface-dim pt-3 pb-4 text-on-surface-dim lg:top-0 lg:bottom-0 lg:left-0 lg:w-20 lg:flex-col lg:justify-start lg:gap-3 lg:bg-inherit lg:px-2 lg:pt-18 lg:text-inherit"
 >
   <a routerLink="/events" class="flex flex-col items-center gap-1">
     <div
       class="flex min-w-16 flex-row justify-center rounded-full py-1"
-      routerLinkActive="bg-secondary-container text-on-secondary-container"
+      routerLinkActive="bg-secondary-container text-on-secondary-container navigation-active"
     >
       <fa-duotone-icon [icon]="faCalendarDays" size="xl"></fa-duotone-icon>
     </div>
-    <span class="body-medium">Events</span>
+    <span class="body-medium text-center">Events</span>
   </a>
   <a routerLink="/templates" class="flex flex-col items-center gap-1">
     <div
       class="flex min-w-16 flex-row justify-center rounded-full py-1"
-      routerLinkActive="bg-secondary-container text-on-secondary-container"
+      routerLinkActive="bg-secondary-container text-on-secondary-container navigation-active"
     >
       <fa-duotone-icon [icon]="faFolders" size="xl"></fa-duotone-icon>
     </div>
-    <span class="body-medium">Event templates</span>
+    <span class="body-medium text-center">Event templates</span>
   </a>
   <a routerLink="/global-admin" class="flex flex-col items-center gap-1">
     <div
       class="flex min-w-16 flex-row justify-center rounded-full py-1"
-      routerLinkActive="bg-secondary-container text-on-secondary-container"
+      routerLinkActive="bg-secondary-container text-on-secondary-container navigation-active"
     >
       <fa-duotone-icon [icon]="faLockKeyhole" size="xl"></fa-duotone-icon>
     </div>
-    <span class="body-medium">Global admin</span>
+    <span class="body-medium text-center">Global admin</span>
   </a>
 </div>
-<div class="h-24 w-full"></div>
+<div class="h-24 w-full lg:hidden"></div>

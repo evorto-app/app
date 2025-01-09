@@ -45,6 +45,13 @@ app-root {
   height: 100%;
   padding: 0;
   margin: 0;
+  box-sizing: border-box;
+}
+
+*,
+*:before,
+*:after {
+  box-sizing: inherit;
 }
 
 .title-small {
@@ -91,6 +98,27 @@ h6 {
   }
   .mdc-button__label {
     // view-transition-name: none;
+  }
+}
+.navigation {
+  view-transition-name: navigation;
+}
+.navigation-active {
+  view-transition-name: navigation-active;
+}
+
+// Positon fa-icons correctly in buttons
+.mat-mdc-button {
+  fa-duotone-icon,
+  fa-icon {
+    display: inline-block;
+    position: relative;
+    vertical-align: top;
+    font-size: 1.125rem;
+    height: 1.125rem;
+    width: 1.125rem;
+    margin-right: var(--mat-text-button-icon-spacing, 8px);
+    margin-left: var(--mat-text-button-icon-offset, -4px);
   }
 }
 

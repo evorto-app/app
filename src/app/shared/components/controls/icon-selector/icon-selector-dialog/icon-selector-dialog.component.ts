@@ -36,7 +36,7 @@ export class IconSelectorDialogComponent {
   );
   private queries = inject(QueriesService);
   protected readonly iconSearchQuery = injectQuery(
-    this.queries.iconSearch(this.searchValue),
+    this.queries.searchIcons(this.searchValue),
   );
 
   async saveIconDirectly() {
