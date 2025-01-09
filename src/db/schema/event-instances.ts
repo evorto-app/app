@@ -11,7 +11,7 @@ export const eventInstances = pgTable('event_instances', {
   id: varchar({ length: 20 })
     .$defaultFn(() => createId())
     .primaryKey(),
-  // simpleModeEnabled: boolean().notNull().default(true),
+  startTime: timestamp().notNull(),
   templateId: varchar({ length: 20 })
     .notNull()
     .references(() => eventTemplates.id),

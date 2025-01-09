@@ -543,6 +543,19 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@angular/material-luxon-adapter@npm:^19.0.5":
+  version: 19.0.5
+  resolution: "@angular/material-luxon-adapter@npm:19.0.5"
+  dependencies:
+    tslib: "npm:^2.3.0"
+  peerDependencies:
+    "@angular/core": ^19.0.0 || ^20.0.0
+    "@angular/material": 19.0.5
+    luxon: ^3.0.0
+  checksum: 10c0/5f1e016e5ab29b7e2bfe5ef5831cf09aad544330ae67de4a3f31b11a799a9219c2a660ba74a44b243038f806de8647080b59ac637935668a90894bbf23ca86fb
+  languageName: node
+  linkType: hard
+
 "@angular/material@npm:19.0.4":
   version: 19.0.4
   resolution: "@angular/material@npm:19.0.4"
@@ -4558,6 +4571,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/luxon@npm:^3.4.2":
+  version: 3.4.2
+  resolution: "@types/luxon@npm:3.4.2"
+  checksum: 10c0/d835467de3daf7e17ba78b50bb5a14efd94272439ca067990d71332a54b311544459c69623eddd243b511b28d70194c9591a9ee8cf9c038962c965f991affd7e
+  languageName: node
+  linkType: hard
+
 "@types/mime@npm:^1":
   version: 1.3.5
   resolution: "@types/mime@npm:1.3.5"
@@ -7383,6 +7403,7 @@ __metadata:
     "@angular/core": "npm:^19.0.0"
     "@angular/forms": "npm:^19.0.0"
     "@angular/material": "npm:19.0.4"
+    "@angular/material-luxon-adapter": "npm:^19.0.5"
     "@angular/platform-browser": "npm:^19.0.0"
     "@angular/platform-browser-dynamic": "npm:^19.0.0"
     "@angular/platform-server": "npm:^19.0.0"
@@ -7405,6 +7426,7 @@ __metadata:
     "@types/cookie-parser": "npm:^1"
     "@types/express": "npm:^4.17.17"
     "@types/jasmine": "npm:~5.1.0"
+    "@types/luxon": "npm:^3.4.2"
     "@types/node": "npm:^18.18.0"
     "@types/ws": "npm:^8"
     angular-eslint: "npm:19.0.2"
@@ -7427,6 +7449,7 @@ __metadata:
     karma-coverage: "npm:~2.2.0"
     karma-jasmine: "npm:~5.1.0"
     karma-jasmine-html-reporter: "npm:~2.1.0"
+    luxon: "npm:^3.5.0"
     playwright-core: "npm:^1.49.1"
     playwright-ng-schematics: "npm:1.2.2"
     prettier: "npm:^3.4.2"
@@ -9436,6 +9459,13 @@ __metadata:
   dependencies:
     yallist: "npm:^4.0.0"
   checksum: 10c0/cb53e582785c48187d7a188d3379c181b5ca2a9c78d2bce3e7dee36f32761d1c42983da3fe12b55cb74e1779fa94cdc2e5367c028a9b35317184ede0c07a30a9
+  languageName: node
+  linkType: hard
+
+"luxon@npm:^3.5.0":
+  version: 3.5.0
+  resolution: "luxon@npm:3.5.0"
+  checksum: 10c0/335789bba95077db831ef99894edadeb23023b3eb2137a1b56acd0d290082b691cf793143d69e30bc069ec95f0b49f36419f48e951c68014f19ffe12045e3494
   languageName: node
   linkType: hard
 

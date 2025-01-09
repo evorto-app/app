@@ -7,6 +7,7 @@ import {
   ApplicationConfig,
   provideExperimentalZonelessChangeDetection,
 } from '@angular/core';
+import { provideLuxonDateAdapter } from '@angular/material-luxon-adapter';
 import { MAT_FORM_FIELD_DEFAULT_OPTIONS } from '@angular/material/form-field';
 import {
   provideClientHydration,
@@ -30,6 +31,7 @@ import { provideTrpcClient } from './core/trpc-client';
 
 export const appConfig: ApplicationConfig = {
   providers: [
+    provideAnimationsAsync(),
     provideExperimentalZonelessChangeDetection(),
     provideRouter(
       routes,
@@ -41,7 +43,7 @@ export const appConfig: ApplicationConfig = {
     provideTrpcClient(),
     provideClientHydration(withEventReplay()),
     provideTanStackQuery(new QueryClient()),
-    provideAnimationsAsync(),
+    provideLuxonDateAdapter(),
     {
       provide: MAT_FORM_FIELD_DEFAULT_OPTIONS,
       useValue: {

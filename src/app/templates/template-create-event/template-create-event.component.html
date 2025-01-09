@@ -2,18 +2,175 @@
   <a routerLink=".." mat-icon-button>
     <fa-icon [icon]="faArrowLeft"></fa-icon>
   </a>
-  <h1 class="title-large">{{ templateQuery.data()?.title }}</h1>
+  <h1 class="title-large">Create {{ templateQuery.data()?.title }} event</h1>
 </div>
-<main class="p-2">
-  <form
-    [formGroup]="createEventForm"
-    (ngSubmit)="onSubmit()"
-    class="flex flex-col gap-2"
-  >
-    <mat-form-field>
-      <mat-label>Event title</mat-label>
-      <input matInput formControlName="title" />
-    </mat-form-field>
-    <button type="submit" mat-button>Create event</button>
-  </form>
+
+<main class="flex flex-col gap-6 p-4">
+  @if (templateQuery.isSuccess()) {
+    <form [formGroup]="createEventForm" (ngSubmit)="onSubmit()">
+      <div class="grid gap-6">
+        <section class="rounded-2xl bg-surface p-4 text-on-surface">
+          <h2 class="mb-4 text-lg font-semibold">Event Details</h2>
+          <div class="grid gap-4">
+            <div class="grid grid-cols-[auto_1fr] gap-4">
+              <app-icon-selector-field
+                formControlName="icon"
+              ></app-icon-selector-field>
+
+              <mat-form-field>
+                <mat-label>Event title</mat-label>
+                <input matInput formControlName="title" />
+              </mat-form-field>
+            </div>
+
+            <div class="flex flex-col gap-2">
+              <label class="text-on-surface-variant text-sm">Description</label>
+              <app-editor formControlName="description"></app-editor>
+            </div>
+
+            <mat-form-field>
+              <mat-label>Start time</mat-label>
+              <input
+                matInput
+                [matDatepicker]="picker"
+                formControlName="startTime"
+              />
+              <mat-hint>MM/DD/YYYY</mat-hint>
+              <mat-datepicker-toggle
+                matIconSuffix
+                [for]="picker"
+              ></mat-datepicker-toggle>
+              <mat-datepicker #picker></mat-datepicker>
+            </mat-form-field>
+          </div>
+        </section>
+
+        <section
+          class="rounded-2xl bg-surface-container-high p-4 text-on-surface-container-high"
+        >
+          <h2 class="mb-4 text-lg font-semibold">Registration Options</h2>
+          <div
+            class="grid grid-cols-1 gap-6 lg:grid-cols-2"
+            [formArrayName]="'registrationOptions'"
+          >
+            @for (
+              option of registrationOptions.controls;
+              track option;
+              let i = $index
+            ) {
+              <div
+                class="flex flex-col gap-4 rounded-xl bg-surface p-6 text-on-surface"
+                [formGroupName]="i"
+              >
+                <div class="flex flex-col gap-4">
+                  <h3 class="text-lg font-medium">{{ option.value.title }}</h3>
+
+                  <div class="grid gap-4">
+                    <div class="grid grid-cols-2 gap-4">
+                      <mat-form-field>
+                        <mat-label>Open registration</mat-label>
+                        <input
+                          matInput
+                          type="number"
+                          formControlName="openRegistrationOffset"
+                        />
+                        <mat-hint>Hours before event</mat-hint>
+                      </mat-form-field>
+
+                      <mat-form-field>
+                        <mat-label>Close registration</mat-label>
+                        <input
+                          matInput
+                          type="number"
+                          formControlName="closeRegistrationOffset"
+                        />
+                        <mat-hint>Hours before event</mat-hint>
+                      </mat-form-field>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                      <mat-form-field>
+                        <mat-label>Registration mode</mat-label>
+                        <mat-select formControlName="registrationMode">
+                          @for (mode of registrationModes; track mode) {
+                            <mat-option [value]="mode">{{
+                              mode | titlecase
+                            }}</mat-option>
+                          }
+                        </mat-select>
+                      </mat-form-field>
+
+                      <mat-form-field>
+                        <mat-label>Spots</mat-label>
+                        <input
+                          matInput
+                          type="number"
+                          formControlName="spots"
+                          min="1"
+                        />
+                      </mat-form-field>
+                    </div>
+
+                    <div class="flex flex-col gap-4">
+                      <mat-checkbox formControlName="isPaid">
+                        Paid registration
+                      </mat-checkbox>
+
+                      @if (option.value.isPaid) {
+                        <mat-form-field>
+                          <mat-label>Price (in cents)</mat-label>
+                          <input
+                            matInput
+                            type="number"
+                            formControlName="price"
+                          />
+                          <mat-hint>{{
+                            option.value.price | currency
+                          }}</mat-hint>
+                        </mat-form-field>
+                      }
+
+                      <mat-checkbox formControlName="organizingRegistration">
+                        Organizing registration
+                      </mat-checkbox>
+                    </div>
+
+                    <mat-form-field>
+                      <mat-label>Description</mat-label>
+                      <textarea
+                        matInput
+                        formControlName="description"
+                        rows="3"
+                      ></textarea>
+                    </mat-form-field>
+
+                    <mat-form-field>
+                      <mat-label>Description for registered users</mat-label>
+                      <textarea
+                        matInput
+                        formControlName="registeredDescription"
+                        rows="3"
+                      ></textarea>
+                    </mat-form-field>
+                  </div>
+                </div>
+              </div>
+            }
+          </div>
+        </section>
+
+        <div class="flex justify-end">
+          <button
+            type="submit"
+            mat-button
+            [disabled]="
+              createEventForm.invalid || createEventMutation.isPending()
+            "
+          >
+            Create event
+          </button>
+        </div>
+      </div>
+    </form>
+  }
 </main>
