@@ -1,6 +1,6 @@
 <div class="mb-4 flex flex-row items-center gap-2">
   <a routerLink=".." mat-icon-button>
-    <fa-icon [icon]="faArrowLeft"></fa-icon>
+    <fa-duotone-icon [icon]="faArrowLeft"></fa-duotone-icon>
   </a>
   <h1 class="title-large">Create {{ templateQuery.data()?.title }} event</h1>
 </div>
@@ -136,13 +136,19 @@
                     </div>
 
                     <div class="flex flex-col gap-2">
-                      <label class="text-on-surface-variant text-sm">Description</label>
+                      <label class="text-on-surface-variant text-sm"
+                        >Description</label
+                      >
                       <app-editor formControlName="description"></app-editor>
                     </div>
 
                     <div class="flex flex-col gap-2">
-                      <label class="text-on-surface-variant text-sm">Description for registered users</label>
-                      <app-editor formControlName="registeredDescription"></app-editor>
+                      <label class="text-on-surface-variant text-sm"
+                        >Description for registered users</label
+                      >
+                      <app-editor
+                        formControlName="registeredDescription"
+                      ></app-editor>
                     </div>
                   </div>
                 </div>

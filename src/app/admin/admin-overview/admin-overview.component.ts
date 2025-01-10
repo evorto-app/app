@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
-import { faUsers } from '@fortawesome/duotone-regular-svg-icons';
+import { faGlobe, faUsers } from '@fortawesome/duotone-regular-svg-icons';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -11,6 +11,7 @@ import { faUsers } from '@fortawesome/duotone-regular-svg-icons';
   templateUrl: './admin-overview.component.html',
 })
 export class AdminOverviewComponent {
+  protected readonly faGlobe = faGlobe;
   protected readonly faUsers = faUsers;
   protected readonly outletActive = signal(false);
 }

@@ -3,8 +3,8 @@ import { ChangeDetectionStrategy, Component } from '@angular/core';
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [],
-  selector: 'app-ga-overview',
+  selector: 'app-role-form',
   styles: ``,
-  templateUrl: './ga-overview.component.html',
+  templateUrl: './role-form.component.html',
 })
-export class GaOverviewComponent {}
+export class RoleFormComponent {}

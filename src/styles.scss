@@ -146,7 +146,7 @@ h6 {
 
 // Positioning of fixed fabs
 .mat-mdc-fab.fab-fixed {
-  @apply fixed right-4 bottom-26 z-10;
+  @apply fixed right-4 bottom-26 z-10 lg:right-8 lg:bottom-8;
 }
 
 // Tailwind overrride for angular material

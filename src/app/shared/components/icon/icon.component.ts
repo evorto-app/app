@@ -1,7 +1,14 @@
 import { NgOptimizedImage } from '@angular/common';
-import { Component, computed, input, numberAttribute } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  input,
+  numberAttribute,
+} from '@angular/core';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [NgOptimizedImage],
   selector: 'app-icon',
   styles: ``,

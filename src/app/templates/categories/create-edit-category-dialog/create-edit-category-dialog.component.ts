@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import {
@@ -11,6 +11,7 @@ import {
 import { MatInputModule } from '@angular/material/input';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     MatDialogTitle,
     MatDialogContent,

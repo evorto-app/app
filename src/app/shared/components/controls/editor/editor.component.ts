@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { ReactiveFormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -11,6 +11,7 @@ import { injectNgControl } from '../../../../utils';
 import { NoopValueAccessorDirective } from '../../../directives/noop-value-accessor.directive';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   hostDirectives: [NoopValueAccessorDirective],
   imports: [
     ReactiveFormsModule,

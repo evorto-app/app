@@ -70,6 +70,14 @@ export class QueriesService {
       });
   }
 
+  public currentTenant() {
+    return () =>
+      queryOptions({
+        queryFn: () => this.trpcClient.config.tenant.query(),
+        queryKey: ['config', 'tenant'],
+      });
+  }
+
   public event(eventId: Signal<string>) {
     return () =>
       queryOptions({
@@ -108,6 +116,22 @@ export class QueriesService {
             queryKey: ['events'],
           });
         },
+      });
+  }
+
+  public role(roleId: Signal<string>) {
+    return () =>
+      queryOptions({
+        queryFn: () => this.trpcClient.roles.findOne.query({ id: roleId() }),
+        queryKey: ['roles', roleId()],
+      });
+  }
+
+  public roles() {
+    return () =>
+      queryOptions({
+        queryFn: () => this.trpcClient.roles.findMany.query(),
+        queryKey: ['roles'],
       });
   }
 

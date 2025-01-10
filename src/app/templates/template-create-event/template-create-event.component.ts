@@ -1,5 +1,11 @@
 import { CurrencyPipe, TitleCasePipe } from '@angular/common';
-import { Component, effect, inject, input } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  effect,
+  inject,
+  input,
+} from '@angular/core';
 import {
   FormArray,
   NonNullableFormBuilder,
@@ -25,6 +31,7 @@ import { EditorComponent } from '../../shared/components/controls/editor/editor.
 import { IconSelectorFieldComponent } from '../../shared/components/controls/icon-selector/icon-selector-field/icon-selector-field.component';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     CurrencyPipe,
     EditorComponent,

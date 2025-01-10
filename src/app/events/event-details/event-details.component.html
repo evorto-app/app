@@ -1,13 +1,13 @@
 <div class="mb-4 flex flex-row items-center gap-2">
   <a routerLink="/events" mat-icon-button>
-    <fa-icon [icon]="faArrowLeft"></fa-icon>
+    <fa-duotone-icon [icon]="faArrowLeft"></fa-duotone-icon>
   </a>
   <h1 class="title-large">
     {{ eventQuery.data()?.title ?? "Loading ..." }}
   </h1>
   <div class="grow"></div>
   <button title="menu" mat-icon-button [matMenuTriggerFor]="menu">
-    <fa-icon [icon]="faEllipsisVertical"></fa-icon>
+    <fa-duotone-icon [icon]="faEllipsisVertical"></fa-duotone-icon>
   </button>
   <mat-menu #menu="matMenu">
     <a mat-menu-item routerLink="edit">Edit event</a>

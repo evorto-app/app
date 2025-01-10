@@ -1,4 +1,9 @@
-import { Component, inject, input } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  inject,
+  input,
+} from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { Router, RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
@@ -15,6 +20,7 @@ import {
 } from '../shared/template-form/template-form.component';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     MatButtonModule,
     FontAwesomeModule,

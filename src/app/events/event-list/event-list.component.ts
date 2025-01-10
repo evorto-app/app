@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatMenuModule } from '@angular/material/menu';
 import { RouterLink } from '@angular/router';
@@ -13,6 +13,7 @@ import { QueriesService } from '../../core/queries.service';
 import { IconComponent } from '../../shared/components/icon/icon.component';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     FontAwesomeModule,
     MatButtonModule,

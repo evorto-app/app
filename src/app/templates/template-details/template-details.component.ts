@@ -1,6 +1,11 @@
 import { CurrencyPipe, TitleCasePipe } from '@angular/common';
 import { CommonModule } from '@angular/common';
-import { Component, inject, input } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  inject,
+  input,
+} from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
@@ -18,6 +23,7 @@ import { injectQuery } from '@tanstack/angular-query-experimental';
 import { QueriesService } from '../../core/queries.service';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     CommonModule,
     RouterModule,

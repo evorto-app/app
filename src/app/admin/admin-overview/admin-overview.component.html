@@ -19,6 +19,16 @@
         <h2 class="title-medium">User roles</h2>
       </div>
     </a>
+    <a
+      routerLink="settings"
+      class="rounded-2xl bg-surface p-4 text-on-surface"
+      routerLinkActive="bg-secondary-container! text-on-secondary-container!"
+    >
+      <div class="flex flex-row items-center gap-4">
+        <fa-duotone-icon [icon]="faGlobe" size="xl"></fa-duotone-icon>
+        <h2 class="title-medium">General settings</h2>
+      </div>
+    </a>
   </nav>
   <div>
     <router-outlet

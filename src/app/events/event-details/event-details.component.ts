@@ -1,4 +1,9 @@
-import { Component, inject, input } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  inject,
+  input,
+} from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatMenuModule } from '@angular/material/menu';
 import { RouterLink } from '@angular/router';
@@ -15,6 +20,7 @@ import {
 import { QueriesService } from '../../core/queries.service';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [FontAwesomeModule, MatButtonModule, RouterLink, MatMenuModule],
   selector: 'app-event-details',
   styles: ``,

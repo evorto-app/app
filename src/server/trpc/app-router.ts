@@ -1,6 +1,7 @@
 import { configRouter } from './core/config.router';
 import { eventRouter } from './events/events.router';
 import { iconRouter } from './icons/icons.router';
+import { roleRouter } from './roles/role.router';
 import { templateCategoryRouter } from './templates/template-category.router';
 import { templateRouter } from './templates/template.router';
 import { tenantRouter } from './tenants/tenant.router';
@@ -10,6 +11,7 @@ export const appRouter = router({
   config: configRouter,
   events: eventRouter,
   icons: iconRouter,
+  roles: roleRouter,
   templateCategories: templateCategoryRouter,
   templates: templateRouter,
   tenants: tenantRouter,

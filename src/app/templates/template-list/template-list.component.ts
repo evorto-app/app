@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
@@ -11,6 +11,7 @@ import { QueriesService } from '../../core/queries.service';
 import { IconComponent } from '../../shared/components/icon/icon.component';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     RouterLink,
     MatButtonModule,

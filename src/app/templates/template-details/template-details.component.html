@@ -1,13 +1,13 @@
 <div class="mb-4 flex flex-row items-center gap-2">
   <a routerLink="/templates" mat-icon-button>
-    <fa-icon [icon]="faArrowLeft"></fa-icon>
+    <fa-duotone-icon [icon]="faArrowLeft"></fa-duotone-icon>
   </a>
   <h1 class="title-large">
     {{ templateQuery.data()?.title ?? "Loading ..." }}
   </h1>
   <div class="grow"></div>
   <button title="menu" mat-icon-button [matMenuTriggerFor]="menu">
-    <fa-icon [icon]="faEllipsisVertical"></fa-icon>
+    <fa-duotone-icon [icon]="faEllipsisVertical"></fa-duotone-icon>
   </button>
   <mat-menu #menu="matMenu">
     <a mat-menu-item routerLink="edit">Edit template</a>
@@ -46,7 +46,7 @@
             <div class="flex items-center gap-2">
               <h3 class="text-lg font-medium">{{ option.title }}</h3>
               <div
-                class="bg-primary-container flex items-center gap-1 rounded px-2 py-0.5 text-sm"
+                class="flex items-center gap-1 rounded bg-primary-container px-2 py-0.5 text-sm"
               >
                 <span>{{ option.spots }}</span>
                 <span>spots</span>

@@ -1,6 +1,7 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { inject } from '@angular/core';
+import { input } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
 import { RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
@@ -10,13 +11,14 @@ import { QueriesService } from '../../core/queries.service';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FontAwesomeModule, MatButtonModule, RouterLink, MatIconModule],
-  selector: 'app-role-list',
+  imports: [MatButtonModule, RouterLink, FontAwesomeModule],
+  selector: 'app-role-edit',
   styles: ``,
-  templateUrl: './role-list.component.html',
+  templateUrl: './role-edit.component.html',
 })
-export class RoleListComponent {
+export class RoleEditComponent {
   protected readonly faArrowLeft = faArrowLeft;
+  protected readonly roleId = input.required<string>();
   private readonly queries = inject(QueriesService);
-  protected readonly roleQuery = injectQuery(this.queries.roles());
+  protected readonly roleQuery = injectQuery(this.queries.role(this.roleId));
 }

@@ -1,4 +1,10 @@
-import { Component, inject, TemplateRef, viewChild } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  inject,
+  TemplateRef,
+  viewChild,
+} from '@angular/core';
 import {
   MatBottomSheet,
   MatBottomSheetModule,
@@ -15,6 +21,7 @@ import {
 } from '@fortawesome/duotone-regular-svg-icons';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     RouterLink,
     FontAwesomeModule,

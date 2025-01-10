@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
@@ -15,6 +15,7 @@ import { QueriesService } from '../../../core/queries.service';
 import { CreateEditCategoryDialogComponent } from '../create-edit-category-dialog/create-edit-category-dialog.component';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [MatButtonModule, FontAwesomeModule, MatIconModule, RouterLink],
   selector: 'app-category-list',
   styles: ``,
@@ -23,24 +24,36 @@ import { CreateEditCategoryDialogComponent } from '../create-edit-category-dialo
 export class CategoryListComponent {
   protected readonly faArrowLeft = faArrowLeft;
   private queries = inject(QueriesService);
-  protected templateCategoriesQuery = injectQuery(this.queries.templateCategories());
-  private createCategoryMutation = injectMutation(this.queries.createTemplateCategory());
+  protected templateCategoriesQuery = injectQuery(
+    this.queries.templateCategories(),
+  );
+  private createCategoryMutation = injectMutation(
+    this.queries.createTemplateCategory(),
+  );
   private dialog = inject(MatDialog);
-  private updateCategoryMutation = injectMutation(this.queries.updateTemplateCategory());
+  private updateCategoryMutation = injectMutation(
+    this.queries.updateTemplateCategory(),
+  );
 
   async openCategoryCreationDialog() {
-    const dialogRef = this.dialog.open(CreateEditCategoryDialogComponent, { data: { mode: 'create' } });
-    const result = await firstValueFrom(dialogRef.afterClosed());
+    const dialogReference = this.dialog.open(
+      CreateEditCategoryDialogComponent,
+      { data: { mode: 'create' } },
+    );
+    const result = await firstValueFrom(dialogReference.afterClosed());
     if (result) {
       await this.createCategoryMutation.mutateAsync(result);
     }
   }
 
   async openCategoryEditDialog(category: { id: string; title: string }) {
-    const dialogRef = this.dialog.open(CreateEditCategoryDialogComponent, {
-      data: { category, mode: 'edit' },
-    });
-    const result = await firstValueFrom(dialogRef.afterClosed());
+    const dialogReference = this.dialog.open(
+      CreateEditCategoryDialogComponent,
+      {
+        data: { category, mode: 'edit' },
+      },
+    );
+    const result = await firstValueFrom(dialogReference.afterClosed());
     if (result) {
       await this.updateCategoryMutation.mutateAsync({
         id: category.id,

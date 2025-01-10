@@ -1,10 +1,19 @@
-<div class="mb-4 flex flex-row items-center justify-between">
+<div class="mb-4 flex flex-row items-center">
   <h1 class="title-large">Event templates</h1>
-  <button title="menu" mat-icon-button [matMenuTriggerFor]="menu">
-    <fa-icon [icon]="faEllipsisVertical"></fa-icon>
+  <div class="grow"></div>
+  <a mat-button routerLink="../categories" class="hidden! lg:flex!">
+    Manage categories
+  </a>
+  <button
+    class="lg:hidden!"
+    title="menu"
+    mat-icon-button
+    [matMenuTriggerFor]="menu"
+  >
+    <fa-duotone-icon [icon]="faEllipsisVertical"></fa-duotone-icon>
   </button>
   <mat-menu #menu="matMenu">
-    <a routerLink="../categories" mat-menu-item>Template categories</a>
+    <a routerLink="../categories" mat-menu-item>Manage categories</a>
     <!-- <a routerLink="../create" mat-menu-item>Create template</a> -->
   </mat-menu>
 </div>
@@ -16,7 +25,11 @@
 
 <main class="flex flex-col gap-4">
   @if (templateQuery.isPending()) {
-    <p>Loading...</p>
+    <div
+      class="flex animate-pulse cursor-progress flex-col gap-2 rounded-2xl bg-surface p-4 text-on-surface"
+    >
+      <h2 class="title-medium">Loading ...</h2>
+    </div>
   } @else if (templateQuery.isError()) {
     <p>Error: {{ templateQuery.error().message }}</p>
   } @else if (templateQuery.isSuccess()) {

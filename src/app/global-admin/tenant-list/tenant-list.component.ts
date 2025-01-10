@@ -1,10 +1,10 @@
-import { Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import { QueriesService } from '../../core/queries.service';
-import { injectTrpcClient } from '../../core/trpc-client';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [],
   selector: 'app-tenant-list',
   styles: ``,

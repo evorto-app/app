@@ -10,6 +10,34 @@ export const ADMIN_ROUTES: Routes = [
           ),
         path: 'roles',
       },
+      {
+        loadComponent: () =>
+          import('./role-create/role-create.component').then(
+            (m) => m.RoleCreateComponent,
+          ),
+        path: 'roles/create',
+      },
+      {
+        loadComponent: () =>
+          import('./role-details/role-details.component').then(
+            (m) => m.RoleDetailsComponent,
+          ),
+        path: 'roles/:roleId',
+      },
+      {
+        loadComponent: () =>
+          import('./role-edit/role-edit.component').then(
+            (m) => m.RoleEditComponent,
+          ),
+        path: 'roles/:roleId/edit',
+      },
+      {
+        loadComponent: () =>
+          import('./general-settings/general-settings.component').then(
+            (m) => m.GeneralSettingsComponent,
+          ),
+        path: 'settings',
+      },
     ],
     loadComponent: () =>
       import('./admin-overview/admin-overview.component').then(

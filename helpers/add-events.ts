@@ -1,4 +1,5 @@
 import { NeonHttpDatabase } from 'drizzle-orm/neon-http';
+import { DateTime } from 'luxon';
 
 import * as schema from '../src/db/schema';
 import { getId } from './get-id';
@@ -18,8 +19,9 @@ export const addEvents = (
     .values([
       {
         description: 'Hörnle hike description',
-        icon: '',
+        icon: 'alps',
         id: getId(),
+        startTime: DateTime.local().plus({ days: 1, hours: 1 }).toJSDate(),
         templateId: hikeTemplate.id,
         tenantId: hikeTemplate.tenantId,
         title: 'Hörnle hike',

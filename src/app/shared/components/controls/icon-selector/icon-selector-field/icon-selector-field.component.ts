@@ -1,5 +1,6 @@
 import {
   AfterViewInit,
+  ChangeDetectionStrategy,
   Component,
   inject,
   OnDestroy,
@@ -15,6 +16,7 @@ import { IconComponent } from '../../../icon/icon.component';
 import { IconSelectorDialogComponent } from '../icon-selector-dialog/icon-selector-dialog.component';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   hostDirectives: [NoopValueAccessorDirective],
   imports: [IconComponent, MatButtonModule, MatDialogModule],
   selector: 'app-icon-selector-field',

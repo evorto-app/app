@@ -3,8 +3,37 @@
 >
   <div class="flex flex-row items-center gap-4">
     <a mat-icon-button routerLink=".." class="block lg:hidden!">
-      <fa-icon [icon]="faArrowLeft"></fa-icon>
+      <fa-duotone-icon [icon]="faArrowLeft"></fa-duotone-icon>
     </a>
     <h2 class="title-medium">User roles</h2>
   </div>
+
+  <a routerLink="create" class="fab-fixed" mat-fab extended>
+    <mat-icon svgIcon="faPlus"></mat-icon>
+    Create role
+  </a>
+
+  @if (roleQuery.isPending()) {
+    <div
+      class="flex animate-pulse cursor-progress flex-col gap-2 rounded-2xl bg-surface p-4 text-on-surface"
+    >
+      <h2 class="title-medium">Loading ...</h2>
+    </div>
+  } @else if (roleQuery.isError()) {
+    <p>Error: {{ roleQuery.error().message }}</p>
+  } @else if (roleQuery.isSuccess()) {
+    @for (role of roleQuery.data(); track role.id) {
+      <a
+        routerLink="{{ role.id }}"
+        class="rounded-2xl bg-surface px-4 py-2 text-on-surface"
+      >
+        <div class="flex flex-row items-start gap-4">
+          <h2 class="title-small">{{ role.name }}</h2>
+        </div>
+        <p class="body-medium">{{ role.description }}</p>
+      </a>
+    } @empty {
+      <p>No roles found</p>
+    }
+  }
 </div>
