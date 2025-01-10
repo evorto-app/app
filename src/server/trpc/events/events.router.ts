@@ -72,11 +72,13 @@ export const eventRouter = router({
 
       return event;
     }),
+
   findMany: publicProcedure.query(async ({ ctx }) => {
     return await database.query.eventInstances.findMany({
       where: eq(schema.eventInstances.tenantId, ctx.tenant.id),
     });
   }),
+
   findOne: publicProcedure
     .input(
       Schema.decodeUnknownSync(Schema.Struct({ id: Schema.NonEmptyString })),
@@ -87,10 +89,116 @@ export const eventRouter = router({
           eq(schema.eventInstances.id, input.id),
           eq(schema.eventInstances.tenantId, ctx.tenant.id),
         ),
+        with: {
+          registrationOptions: true,
+        },
       });
       if (!event) {
         throw new Error('Event not found');
       }
       return event;
+    }),
+
+  getRegistrationStatus: authenticatedProcedure
+    .input(
+      Schema.decodeUnknownSync(
+        Schema.Struct({ eventId: Schema.NonEmptyString }),
+      ),
+    )
+    .query(async ({ ctx, input }) => {
+      const registrations = await database.query.eventRegistrations.findMany({
+        where: and(
+          eq(schema.eventRegistrations.eventId, input.eventId),
+          eq(schema.eventRegistrations.userId, ctx.user.id),
+        ),
+        with: {
+          registrationOption: true,
+        },
+      });
+
+      return {
+        isRegistered: registrations.length > 0,
+        registrations: registrations.map((reg) => ({
+          id: reg.id,
+          registrationOptionId: reg.registrationOptionId,
+          registrationOptionTitle: reg.registrationOption.title,
+          status: reg.status,
+        })),
+      };
+    }),
+
+  registerForEvent: authenticatedProcedure
+    .input(
+      Schema.decodeUnknownSync(
+        Schema.Struct({
+          eventId: Schema.NonEmptyString,
+          registrationOptionId: Schema.NonEmptyString,
+        }),
+      ),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const registration = await database.transaction(async (tx) => {
+        // Check if user is already registered for this event
+        const existingRegistration =
+          await tx.query.eventRegistrations.findFirst({
+            where: and(
+              eq(schema.eventRegistrations.eventId, input.eventId),
+              eq(schema.eventRegistrations.userId, ctx.user.id),
+            ),
+          });
+        if (existingRegistration) {
+          throw new Error('User is already registered for this event');
+        }
+
+        // Check if event is full
+        const registrationOption =
+          await tx.query.eventRegistrationOptions.findFirst({
+            where: and(
+              eq(
+                schema.eventRegistrationOptions.id,
+                input.registrationOptionId,
+              ),
+              eq(schema.eventRegistrationOptions.eventId, input.eventId),
+            ),
+          });
+        if (!registrationOption) {
+          throw new Error('Registration option not found');
+        }
+        if (registrationOption.confirmedSpots >= registrationOption.spots) {
+          throw new Error('Event is full');
+        }
+
+        // Register user for event
+        const userRegistration = await tx
+          .insert(schema.eventRegistrations)
+          .values({
+            eventId: input.eventId,
+            registrationOptionId: input.registrationOptionId,
+            status: 'CONFIRMED',
+            userId: ctx.user.id,
+          })
+          .returning()
+          .then((result) => result[0]);
+
+        // Update registration option
+        await tx
+          .update(schema.eventRegistrationOptions)
+          .set({
+            confirmedSpots: registrationOption.confirmedSpots + 1,
+          })
+          .where(
+            and(
+              eq(
+                schema.eventRegistrationOptions.id,
+                input.registrationOptionId,
+              ),
+              eq(schema.eventRegistrationOptions.eventId, input.eventId),
+            ),
+          );
+
+        return userRegistration;
+      });
+
+      return registration;
     }),
 });

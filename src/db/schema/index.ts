@@ -1,5 +1,6 @@
 export * from './event-instances';
 export * from './event-registration-options';
+export * from './event-registrations';
 export * from './event-template-categories';
 export * from './event-templates';
 export * from './global-enums';

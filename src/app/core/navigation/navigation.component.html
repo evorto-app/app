@@ -17,9 +17,21 @@
     >
       <fa-duotone-icon [icon]="faFolders" size="xl"></fa-duotone-icon>
     </div>
-    <span class="body-medium text-center">Event templates</span>
+    <span class="body-medium text-center">Templates</span>
   </a>
-  <a routerLink="/global-admin" class="flex flex-col items-center gap-1">
+  <a routerLink="/profile" class="flex flex-col items-center gap-1">
+    <div
+      class="flex min-w-16 flex-row justify-center rounded-full py-1"
+      routerLinkActive="bg-secondary-container text-on-secondary-container navigation-active"
+    >
+      <fa-duotone-icon [icon]="faUser" size="xl"></fa-duotone-icon>
+    </div>
+    <span class="body-medium text-center">Profile</span>
+  </a>
+  <a
+    routerLink="/global-admin"
+    class="hidden flex-col items-center gap-1 lg:flex"
+  >
     <div
       class="flex min-w-16 flex-row justify-center rounded-full py-1"
       routerLinkActive="bg-secondary-container text-on-secondary-container navigation-active"
@@ -28,5 +40,55 @@
     </div>
     <span class="body-medium text-center">Global admin</span>
   </a>
+  <a routerLink="/admin" class="hidden flex-col items-center gap-1 lg:flex">
+    <div
+      class="flex min-w-16 flex-row justify-center rounded-full py-1"
+      routerLinkActive="bg-secondary-container text-on-secondary-container navigation-active"
+    >
+      <fa-duotone-icon [icon]="faFolderGear" size="xl"></fa-duotone-icon>
+    </div>
+    <span class="body-medium text-center">Admin Tools</span>
+  </a>
+  <button
+    title="menu"
+    mat-icon-button
+    (click)="openSheet()"
+    class="flex flex-col items-center gap-1 lg:hidden"
+  >
+    <div class="flex min-w-16 flex-row justify-center rounded-full py-1">
+      <fa-icon [icon]="faEllipsisVertical" size="xl"></fa-icon>
+    </div>
+    <span class="body-medium text-center">More</span>
+  </button>
 </div>
 <div class="h-24 w-full lg:hidden"></div>
+<ng-template #navigationSheet>
+  <div class="flex w-full flex-row justify-around gap-2 pt-3 pb-4">
+    <a
+      routerLink="/global-admin"
+      class="flex flex-col items-center gap-1"
+      (click)="closeSheet()"
+    >
+      <div
+        class="flex min-w-16 flex-row justify-center rounded-full py-1"
+        routerLinkActive="bg-secondary-container text-on-secondary-container"
+      >
+        <fa-duotone-icon [icon]="faLockKeyhole" size="xl"></fa-duotone-icon>
+      </div>
+      <span class="body-medium text-center">Global admin</span>
+    </a>
+    <a
+      routerLink="/admin"
+      class="flex flex-col items-center gap-1"
+      (click)="closeSheet()"
+    >
+      <div
+        class="flex min-w-16 flex-row justify-center rounded-full py-1"
+        routerLinkActive="bg-secondary-container text-on-secondary-container"
+      >
+        <fa-duotone-icon [icon]="faFolderGear" size="xl"></fa-duotone-icon>
+      </div>
+      <span class="body-medium text-center">Admin Tools</span>
+    </a>
+  </div>
+</ng-template>

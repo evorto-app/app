@@ -23,19 +23,41 @@ html {
 }
 
 @theme {
-  --color-surface-container: var(--mat-sys-surface-container);
-  --color-on-surface-container: var(--mat-sys-on-surface-container);
-  --color-surface: var(--mat-sys-surface);
-  --color-on-surface: var(--mat-sys-on-surface);
-  --color-secondary-container: var(--mat-sys-secondary-container);
+  --color-error-container: var(--mat-sys-error-container);
+  --color-error: var(--mat-sys-error);
+  --color-on-error-container: var(--mat-sys-on-error-container);
+  --color-on-error: var(--mat-sys-on-error);
+  --color-on-primary-container: var(--mat-sys-on-primary-container);
+  --color-on-primary: var(--mat-sys-on-primary);
   --color-on-secondary-container: var(--mat-sys-on-secondary-container);
-  --color-surface-bright: var(--mat-sys-surface-bright);
   --color-on-surface-bright: var(--mat-sys-on-surface-bright);
-  --color-surface-dim: var(--mat-sys-surface-dim);
-  --color-on-surface-dim: var(--mat-sys-on-surface-dim);
-  --color-outline: var(--mat-sys-outline);
-  --color-surface-container-high: var(--mat-sys-surface-container-high);
   --color-on-surface-container-high: var(--mat-sys-on-surface-container-high);
+  --color-on-surface-container-highest: var(
+    --mat-sys-on-surface-container-highest
+  );
+  --color-on-surface-container-low: var(--mat-sys-on-surface-container-low);
+  --color-on-surface-container-lowest: var(
+    --mat-sys-on-surface-container-lowest
+  );
+  --color-on-surface-container: var(--mat-sys-on-surface-container);
+  --color-on-surface-dim: var(--mat-sys-on-surface-dim);
+  --color-on-surface: var(--mat-sys-on-surface);
+  --color-on-tertiary-container: var(--mat-sys-on-tertiary-container);
+  --color-on-tertiary: var(--mat-sys-on-tertiary);
+  --color-outline: var(--mat-sys-outline);
+  --color-primary-container: var(--mat-sys-primary-container);
+  --color-primary: var(--mat-sys-primary);
+  --color-secondary-container: var(--mat-sys-secondary-container);
+  --color-surface-bright: var(--mat-sys-surface-bright);
+  --color-surface-container-high: var(--mat-sys-surface-container-high);
+  --color-surface-container-low: var(--mat-sys-surface-container-low);
+  --color-surface-container-highest: var(--mat-sys-surface-container-highest);
+  --color-surface-container-lowest: var(--mat-sys-surface-container-lowest);
+  --color-surface-container: var(--mat-sys-surface-container);
+  --color-surface-dim: var(--mat-sys-surface-dim);
+  --color-surface: var(--mat-sys-surface);
+  --color-tertiary-container: var(--mat-sys-tertiary-container);
+  --color-tertiary: var(--mat-sys-tertiary);
 }
 
 html,
@@ -131,4 +153,12 @@ h6 {
 .mat-mdc-form-field.mat-mdc-form-field.mat-mdc-form-field.mat-mdc-form-field.mat-mdc-form-field
   .mdc-notched-outline__notch {
   border-right-style: hidden;
+}
+
+.text-warning {
+  color: var(--color-warning);
+}
+
+.text-success {
+  color: var(--color-success);
 }

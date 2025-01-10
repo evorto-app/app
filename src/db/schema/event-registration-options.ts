@@ -13,6 +13,7 @@ import { registrationModes } from './global-enums';
 
 export const eventRegistrationOptions = pgTable('event_registration_options', {
   closeRegistrationOffset: integer().notNull(),
+  confirmedSpots: integer().notNull().default(0),
   createdAt: timestamp().notNull().defaultNow(),
   description: text(),
   eventId: varchar({ length: 20 })
@@ -27,10 +28,12 @@ export const eventRegistrationOptions = pgTable('event_registration_options', {
   price: integer().notNull(),
   registeredDescription: text(),
   registrationMode: registrationModes().notNull(),
+  reservedSpots: integer().notNull().default(0),
   spots: integer().notNull(),
   title: text().notNull(),
   updatedAt: timestamp()
     .notNull()
     .defaultNow()
     .$onUpdate(() => new Date()),
+  waitlistSpots: integer().notNull().default(0),
 });

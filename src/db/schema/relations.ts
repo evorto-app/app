@@ -1,5 +1,8 @@
 import { relations } from 'drizzle-orm/relations';
 
+import { eventInstances } from './event-instances';
+import { eventRegistrationOptions } from './event-registration-options';
+import { eventRegistrations } from './event-registrations';
 import { eventTemplateCategories } from './event-template-categories';
 import { eventTemplates } from './event-templates';
 import { icons } from './icons';
@@ -70,6 +73,46 @@ export const usersToTenantsRelations = relations(
   }),
 );
 
+export const eventRegistrationRelations = relations(
+  eventRegistrations,
+  ({ one }) => ({
+    registrationOption: one(eventRegistrationOptions, {
+      fields: [eventRegistrations.registrationOptionId],
+      references: [eventRegistrationOptions.id],
+    }),
+    user: one(users, {
+      fields: [eventRegistrations.userId],
+      references: [users.id],
+    }),
+  }),
+);
+
+export const eventRegistrationOptionRelations = relations(
+  eventRegistrationOptions,
+  ({ many, one }) => ({
+    event: one(eventInstances, {
+      fields: [eventRegistrationOptions.eventId],
+      references: [eventInstances.id],
+    }),
+    registrations: many(eventRegistrations),
+  }),
+);
+
+export const eventInstanceRelations = relations(
+  eventInstances,
+  ({ many, one }) => ({
+    registrationOptions: many(eventRegistrationOptions),
+    template: one(eventTemplates, {
+      fields: [eventInstances.templateId],
+      references: [eventTemplates.id],
+    }),
+    tenant: one(tenants, {
+      fields: [eventInstances.tenantId],
+      references: [tenants.id],
+    }),
+  }),
+);
+
 export const eventTemplateCategoryRelations = relations(
   eventTemplateCategories,
   ({ many, one }) => ({
@@ -89,7 +132,12 @@ export const eventTemplateRelations = relations(
       fields: [eventTemplates.categoryId],
       references: [eventTemplateCategories.id],
     }),
+    events: many(eventInstances),
     registrationOptions: many(templateRegistrationOptions),
+    tenant: one(tenants, {
+      fields: [eventTemplates.tenantId],
+      references: [tenants.id],
+    }),
   }),
 );
 

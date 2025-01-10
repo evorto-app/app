@@ -78,11 +78,36 @@ export class QueriesService {
       });
   }
 
+  public eventRegistrationStatus(eventId: Signal<string>) {
+    return () =>
+      queryOptions({
+        queryFn: () =>
+          this.trpcClient.events.getRegistrationStatus.query({
+            eventId: eventId(),
+          }),
+        queryKey: ['events', eventId(), 'registration-status'],
+      });
+  }
+
   public events() {
     return () =>
       queryOptions({
         queryFn: () => this.trpcClient.events.findMany.query(),
         queryKey: ['events'],
+      });
+  }
+
+  public registerForEvent() {
+    return () =>
+      mutationOptions({
+        mutationFn: (
+          input: AppRouter['events']['registerForEvent']['_def']['$types']['input'],
+        ) => this.trpcClient.events.registerForEvent.mutate(input),
+        onSuccess: () => {
+          this.queryClient.invalidateQueries({
+            queryKey: ['events'],
+          });
+        },
       });
   }
 

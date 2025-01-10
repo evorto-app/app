@@ -6,4 +6,17 @@ export const registrationModes = pgEnum('registration_modes', [
   'application',
 ]);
 
+export const paymentStatus = pgEnum('payment_statuses', [
+  'PENDING',
+  'PAID',
+  'REFUNDED',
+]);
+
+export const registrationStatus = pgEnum('registration_statuses', [
+  'PENDING',
+  'CONFIRMED',
+  'CANCELLED',
+  'WAITLIST',
+]);
+
 export const discountTypes = pgEnum('discount_types', ['esnCard']);
