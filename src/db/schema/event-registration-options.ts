@@ -12,7 +12,7 @@ import { eventInstances } from './event-instances';
 import { registrationModes } from './global-enums';
 
 export const eventRegistrationOptions = pgTable('event_registration_options', {
-  closeRegistrationOffset: integer().notNull(),
+  closeRegistrationTime: timestamp().notNull(),
   confirmedSpots: integer().notNull().default(0),
   createdAt: timestamp().notNull().defaultNow(),
   description: text(),
@@ -23,7 +23,7 @@ export const eventRegistrationOptions = pgTable('event_registration_options', {
     .$defaultFn(() => createId())
     .primaryKey(),
   isPaid: boolean().notNull(),
-  openRegistrationOffset: integer().notNull(),
+  openRegistrationTime: timestamp().notNull(),
   organizingRegistration: boolean().notNull(),
   price: integer().notNull(),
   registeredDescription: text(),

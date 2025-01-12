@@ -43,6 +43,20 @@ export class QueriesService {
       });
   }
 
+  public createRole() {
+    return () =>
+      mutationOptions({
+        mutationFn: (
+          input: AppRouter['roles']['create']['_def']['$types']['input'],
+        ) => this.trpcClient.roles.create.mutate(input),
+        onSuccess: () => {
+          this.queryClient.invalidateQueries({
+            queryKey: ['roles'],
+          });
+        },
+      });
+  }
+
   public createSimpleTemplate() {
     return () =>
       mutationOptions({
@@ -75,6 +89,20 @@ export class QueriesService {
       queryOptions({
         queryFn: () => this.trpcClient.config.tenant.query(),
         queryKey: ['config', 'tenant'],
+      });
+  }
+
+  public deleteRole() {
+    return () =>
+      mutationOptions({
+        mutationFn: (
+          input: AppRouter['roles']['delete']['_def']['$types']['input'],
+        ) => this.trpcClient.roles.delete.mutate(input),
+        onSuccess: () => {
+          this.queryClient.invalidateQueries({
+            queryKey: ['roles'],
+          });
+        },
       });
   }
 
@@ -173,6 +201,20 @@ export class QueriesService {
       queryOptions({
         queryFn: () => this.trpcClient.tenants.findMany.query(),
         queryKey: ['tenants'],
+      });
+  }
+
+  public updateRole() {
+    return () =>
+      mutationOptions({
+        mutationFn: (
+          input: AppRouter['roles']['update']['_def']['$types']['input'],
+        ) => this.trpcClient.roles.update.mutate(input),
+        onSuccess: () => {
+          this.queryClient.invalidateQueries({
+            queryKey: ['roles'],
+          });
+        },
       });
   }
 

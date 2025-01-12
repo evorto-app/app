@@ -22,5 +22,51 @@
     </div>
   } @else if (roleQuery.isError()) {
     <p>Error: {{ roleQuery.error().message }}</p>
-  } @else if (roleQuery.isSuccess()) {}
+  } @else if (roleQuery.isSuccess()) {
+    <div class="flex flex-col gap-4">
+      @if (roleQuery.data().description) {
+        <p class="body-medium text-on-surface-variant">
+          {{ roleQuery.data().description }}
+        </p>
+      }
+
+      @if (
+        roleQuery.data().defaultUserRole ||
+        roleQuery.data().defaultOrganizerRole
+      ) {
+        <div class="flex gap-2">
+          @if (roleQuery.data().defaultUserRole) {
+            <mat-chip>Default User Role</mat-chip>
+          }
+          @if (roleQuery.data().defaultOrganizerRole) {
+            <mat-chip>Default Organizer Role</mat-chip>
+          }
+        </div>
+      }
+
+      <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        @for (group of permissionGroups(); track group.label) {
+          <mat-card class="flex flex-col gap-4">
+            <mat-card-header class="flex items-center gap-2 p-4">
+              <fa-duotone-icon [icon]="group.icon" class="text-primary" />
+              <h3 class="title-medium">{{ group.label }}</h3>
+            </mat-card-header>
+
+            <mat-card-content>
+              <mat-chip-set>
+                @for (permission of group.permissions; track permission.label) {
+                  @if (permission.enabled) {
+                    <mat-chip>
+
+                      {{ permission.label }}
+                    </mat-chip>
+                  }
+                }
+              </mat-chip-set>
+            </mat-card-content>
+          </mat-card>
+        }
+      </div>
+    </div>
+  }
 </div>

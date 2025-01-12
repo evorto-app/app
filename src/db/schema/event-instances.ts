@@ -7,11 +7,12 @@ import { tenants } from './tenants';
 export const eventInstances = pgTable('event_instances', {
   createdAt: timestamp().notNull().defaultNow(),
   description: text().notNull(),
+  end: timestamp().notNull(),
   icon: text().notNull(),
   id: varchar({ length: 20 })
     .$defaultFn(() => createId())
     .primaryKey(),
-  startTime: timestamp().notNull(),
+  start: timestamp().notNull(),
   templateId: varchar({ length: 20 })
     .notNull()
     .references(() => eventTemplates.id),

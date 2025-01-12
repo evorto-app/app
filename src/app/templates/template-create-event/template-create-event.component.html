@@ -5,14 +5,14 @@
   <h1 class="title-large">Create {{ templateQuery.data()?.title }} event</h1>
 </div>
 
-<main class="flex flex-col gap-6 p-4">
+<main class="flex flex-col gap-6">
   @if (templateQuery.isSuccess()) {
     <form [formGroup]="createEventForm" (ngSubmit)="onSubmit()">
       <div class="grid gap-6">
         <section class="rounded-2xl bg-surface p-4 text-on-surface">
-          <h2 class="mb-4 text-lg font-semibold">Event Details</h2>
+          <h2 class="title-large mb-4">Event Details</h2>
           <div class="grid gap-4">
-            <div class="grid grid-cols-[auto_1fr] gap-4">
+            <div class="grid grid-cols-1 gap-4 lg:grid-cols-[auto_1fr]">
               <app-icon-selector-field
                 formControlName="icon"
               ></app-icon-selector-field>
@@ -28,27 +28,64 @@
               <app-editor formControlName="description"></app-editor>
             </div>
 
-            <mat-form-field>
-              <mat-label>Start time</mat-label>
-              <input
-                matInput
-                [matDatepicker]="picker"
-                formControlName="startTime"
-              />
-              <mat-hint>MM/DD/YYYY</mat-hint>
-              <mat-datepicker-toggle
-                matIconSuffix
-                [for]="picker"
-              ></mat-datepicker-toggle>
-              <mat-datepicker #picker></mat-datepicker>
-            </mat-form-field>
+            <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
+              <mat-form-field>
+                <mat-label>Start date</mat-label>
+                <input
+                  matInput
+                  [matDatepicker]="startDatePicker"
+                  formControlName="start"
+                />
+                <mat-hint>MM/DD/YYYY</mat-hint>
+                <mat-datepicker-toggle
+                  matIconSuffix
+                  [for]="startDatePicker"
+                ></mat-datepicker-toggle>
+                <mat-datepicker #startDatePicker></mat-datepicker>
+              </mat-form-field>
+              <mat-form-field>
+                <mat-label>Start time</mat-label>
+                <input
+                  matInput
+                  [matTimepicker]="startTimePicker"
+                  formControlName="start"
+                />
+                <mat-timepicker #startTimePicker />
+                <mat-timepicker-toggle matSuffix [for]="startTimePicker" />
+              </mat-form-field>
+
+              <mat-form-field>
+                <mat-label>End date</mat-label>
+                <input
+                  matInput
+                  [matDatepicker]="endDatePicker"
+                  formControlName="end"
+                />
+                <mat-hint>MM/DD/YYYY</mat-hint>
+                <mat-datepicker-toggle
+                  matIconSuffix
+                  [for]="endDatePicker"
+                ></mat-datepicker-toggle>
+                <mat-datepicker #endDatePicker></mat-datepicker>
+              </mat-form-field>
+              <mat-form-field>
+                <mat-label>End time</mat-label>
+                <input
+                  matInput
+                  [matTimepicker]="endTimePicker"
+                  formControlName="end"
+                />
+                <mat-timepicker #endTimePicker />
+                <mat-timepicker-toggle matSuffix [for]="endTimePicker" />
+              </mat-form-field>
+            </div>
           </div>
         </section>
 
         <section
-          class="rounded-2xl bg-surface-container-high p-4 text-on-surface-container-high"
+          class="rounded-2xl bg-surface-container-high p-2 text-on-surface-container-high"
         >
-          <h2 class="mb-4 text-lg font-semibold">Registration Options</h2>
+          <h2 class="title-large mb-4 p-2">Registration Options</h2>
           <div
             class="grid grid-cols-1 gap-6 lg:grid-cols-2"
             [formArrayName]="'registrationOptions'"
@@ -59,54 +96,91 @@
               let i = $index
             ) {
               <div
-                class="flex flex-col gap-4 rounded-xl bg-surface p-6 text-on-surface"
+                class="flex flex-col gap-4 rounded-xl bg-surface p-4 text-on-surface"
                 [formGroupName]="i"
               >
                 <div class="flex flex-col gap-4">
-                  <h3 class="text-lg font-medium">{{ option.value.title }}</h3>
+                  <h3 class="title-medium">{{ option.value.title }}</h3>
+
+                  <div class="grid grid-cols-2 gap-4">
+                    <mat-form-field>
+                      <mat-label>Registration mode</mat-label>
+                      <mat-select formControlName="registrationMode">
+                        @for (mode of registrationModes; track mode) {
+                          <mat-option [value]="mode">{{
+                            mode | titlecase
+                          }}</mat-option>
+                        }
+                      </mat-select>
+                    </mat-form-field>
+
+                    <mat-form-field>
+                      <mat-label>Spots</mat-label>
+                      <input
+                        matInput
+                        type="number"
+                        formControlName="spots"
+                        min="1"
+                      />
+                    </mat-form-field>
+                  </div>
+
+                  <h4 class="title-medium">Registration Period</h4>
 
                   <div class="grid gap-4">
                     <div class="grid grid-cols-2 gap-4">
                       <mat-form-field>
-                        <mat-label>Open registration</mat-label>
+                        <mat-label>Start date</mat-label>
                         <input
                           matInput
-                          type="number"
-                          formControlName="openRegistrationOffset"
+                          [matDatepicker]="startDatePicker"
+                          formControlName="openRegistrationTime"
                         />
-                        <mat-hint>Hours before event</mat-hint>
+                        <mat-hint>MM/DD/YYYY</mat-hint>
+                        <mat-datepicker-toggle
+                          matIconSuffix
+                          [for]="startDatePicker"
+                        ></mat-datepicker-toggle>
+                        <mat-datepicker #startDatePicker></mat-datepicker>
                       </mat-form-field>
-
                       <mat-form-field>
-                        <mat-label>Close registration</mat-label>
+                        <mat-label>Start time</mat-label>
                         <input
                           matInput
-                          type="number"
-                          formControlName="closeRegistrationOffset"
+                          [matTimepicker]="startTimePicker"
+                          formControlName="openRegistrationTime"
                         />
-                        <mat-hint>Hours before event</mat-hint>
+                        <mat-timepicker #startTimePicker />
+                        <mat-timepicker-toggle
+                          matSuffix
+                          [for]="startTimePicker"
+                        />
                       </mat-form-field>
-                    </div>
-
-                    <div class="grid grid-cols-2 gap-4">
                       <mat-form-field>
-                        <mat-label>Registration mode</mat-label>
-                        <mat-select formControlName="registrationMode">
-                          @for (mode of registrationModes; track mode) {
-                            <mat-option [value]="mode">{{
-                              mode | titlecase
-                            }}</mat-option>
-                          }
-                        </mat-select>
-                      </mat-form-field>
-
-                      <mat-form-field>
-                        <mat-label>Spots</mat-label>
+                        <mat-label>End date</mat-label>
                         <input
                           matInput
-                          type="number"
-                          formControlName="spots"
-                          min="1"
+                          [matDatepicker]="endDatePicker"
+                          formControlName="closeRegistrationTime"
+                        />
+                        <mat-hint>MM/DD/YYYY</mat-hint>
+                        <mat-datepicker-toggle
+                          matIconSuffix
+                          [for]="endDatePicker"
+                        ></mat-datepicker-toggle>
+                        <mat-datepicker #endDatePicker></mat-datepicker>
+                      </mat-form-field>
+                      <mat-form-field>
+                        <mat-label>End time</mat-label>
+                        <input
+                          matInput
+                          [matTimepicker]="endTimePicker"
+                          formControlName="closeRegistrationTime"
+                        />
+                        <mat-timepicker #endTimePicker />
+                        <mat-timepicker-toggle
+                          matSuffix
+                          [for]="endTimePicker"
                         />
                       </mat-form-field>
                     </div>

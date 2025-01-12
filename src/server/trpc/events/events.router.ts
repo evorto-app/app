@@ -15,13 +15,14 @@ export const eventRouter = router({
       Schema.decodeUnknownSync(
         Schema.Struct({
           description: Schema.NonEmptyString,
+          end: Schema.ValidDateFromSelf,
           icon: Schema.NonEmptyString,
           registrationOptions: Schema.Array(
             Schema.Struct({
-              closeRegistrationOffset: Schema.Number.pipe(Schema.nonNegative()),
+              closeRegistrationTime: Schema.ValidDateFromSelf,
               description: Schema.NullOr(Schema.NonEmptyString),
               isPaid: Schema.Boolean,
-              openRegistrationOffset: Schema.Number.pipe(Schema.nonNegative()),
+              openRegistrationTime: Schema.ValidDateFromSelf,
               organizingRegistration: Schema.Boolean,
               price: Schema.Number.pipe(Schema.nonNegative()),
               registeredDescription: Schema.NullOr(Schema.NonEmptyString),
@@ -30,7 +31,7 @@ export const eventRouter = router({
               title: Schema.NonEmptyString,
             }),
           ),
-          startTime: Schema.ValidDateFromSelf,
+          start: Schema.ValidDateFromSelf,
           templateId: Schema.NonEmptyString,
           title: Schema.NonEmptyString,
         }),
@@ -41,8 +42,9 @@ export const eventRouter = router({
         .insert(schema.eventInstances)
         .values({
           description: input.description,
+          end: input.end,
           icon: input.icon,
-          startTime: input.startTime,
+          start: input.start,
           templateId: input.templateId,
           tenantId: ctx.tenant.id,
           title: input.title,
@@ -56,11 +58,11 @@ export const eventRouter = router({
 
       await database.insert(schema.eventRegistrationOptions).values(
         input.registrationOptions.map((option) => ({
-          closeRegistrationOffset: option.closeRegistrationOffset,
+          closeRegistrationTime: option.closeRegistrationTime,
           description: option.description,
           eventId: event.id,
           isPaid: option.isPaid,
-          openRegistrationOffset: option.openRegistrationOffset,
+          openRegistrationTime: option.openRegistrationTime,
           organizingRegistration: option.organizingRegistration,
           price: option.price,
           registeredDescription: option.registeredDescription,

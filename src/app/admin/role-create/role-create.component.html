@@ -7,4 +7,9 @@
     </a>
     <h2 class="title-medium">Create role</h2>
   </div>
+
+  <app-role-form
+    [role]="{ defaultOrganizerRole: false, defaultUserRole: false }"
+    (save)="onSave($event)"
+  ></app-role-form>
 </div>

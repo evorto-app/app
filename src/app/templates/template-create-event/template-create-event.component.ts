@@ -6,6 +6,7 @@ import {
   inject,
   input,
 } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import {
   FormArray,
   NonNullableFormBuilder,
@@ -18,6 +19,7 @@ import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
+import { MatTimepickerModule } from '@angular/material/timepicker';
 import { Router } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
@@ -25,6 +27,7 @@ import {
   injectMutation,
   injectQuery,
 } from '@tanstack/angular-query-experimental';
+import { DateTime } from 'luxon';
 
 import { QueriesService } from '../../core/queries.service';
 import { EditorComponent } from '../../shared/components/controls/editor/editor.component';
@@ -44,6 +47,7 @@ import { IconSelectorFieldComponent } from '../../shared/components/controls/ico
     MatInputModule,
     MatNativeDateModule,
     MatSelectModule,
+    MatTimepickerModule,
     ReactiveFormsModule,
     TitleCasePipe,
   ],
@@ -58,12 +62,13 @@ export class TemplateCreateEventComponent {
 
   protected readonly createEventForm = this.fb.group({
     description: this.fb.control(''),
+    end: this.fb.control<Date>(new Date()),
     icon: this.fb.control(''),
     registrationOptions: this.fb.array<{
-      closeRegistrationOffset: number;
+      closeRegistrationTime: Date;
       description: string;
       isPaid: boolean;
-      openRegistrationOffset: number;
+      openRegistrationTime: Date;
       organizingRegistration: boolean;
       price: number;
       registeredDescription: string;
@@ -72,15 +77,16 @@ export class TemplateCreateEventComponent {
       templateRegistrationOptionId: number;
       title: string;
     }>([]),
-    startTime: this.fb.control<Date>(new Date()),
+    start: this.fb.control<Date>(new Date()),
     title: this.fb.control(''),
   });
+
   private queries = inject(QueriesService);
+
   protected readonly createEventMutation = injectMutation(
     this.queries.createEvent(),
   );
   protected readonly faArrowLeft = faArrowLeft;
-
   protected readonly registrationModes = [
     'fcfs',
     'random',
@@ -91,6 +97,10 @@ export class TemplateCreateEventComponent {
 
   protected readonly templateQuery = injectQuery(
     this.queries.template(this.templateId),
+  );
+
+  private eventStartValue = toSignal(
+    this.createEventForm.controls.start.valueChanges,
   );
 
   private readonly router = inject(Router);
@@ -113,10 +123,10 @@ export class TemplateCreateEventComponent {
         for (const option of template.registrationOptions) {
           registrationOptionsFormArray?.push(
             this.fb.group({
-              closeRegistrationOffset: [option.closeRegistrationOffset],
+              closeRegistrationTime: [],
               description: [option.description],
               isPaid: [option.isPaid],
-              openRegistrationOffset: [option.openRegistrationOffset],
+              openRegistrationTime: [],
               organizingRegistration: [option.organizingRegistration],
               price: [option.price],
               registeredDescription: [option.registeredDescription],
@@ -125,6 +135,34 @@ export class TemplateCreateEventComponent {
               title: [option.title],
             }),
           );
+        }
+      }
+    });
+    effect(() => {
+      const template = this.templateQuery.data();
+      const eventStart = this.eventStartValue();
+      if (template && eventStart) {
+        console.log(eventStart);
+        console.log(DateTime.isDateTime(eventStart));
+        const startDateTime = DateTime.fromJSDate(eventStart);
+        for (const [index, option] of template.registrationOptions.entries()) {
+          const openRegistrationTime = startDateTime
+            .minus({ hours: option.openRegistrationOffset })
+            .toJSDate();
+          const closeRegistrationTime = startDateTime
+            .minus({ hours: option.closeRegistrationOffset })
+            .toJSDate();
+
+          const registrationOptionsFormArray = this.createEventForm.get(
+            'registrationOptions',
+          ) as FormArray;
+          const registrationOption = registrationOptionsFormArray.at(index);
+          registrationOption
+            ?.get('openRegistrationTime')
+            ?.patchValue(openRegistrationTime);
+          registrationOption
+            ?.get('closeRegistrationTime')
+            ?.patchValue(closeRegistrationTime);
         }
       }
     });

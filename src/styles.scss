@@ -96,8 +96,16 @@ app-root {
   font: var(--mat-sys-headline-small);
 }
 
+.body-large {
+  font: var(--mat-sys-body-large);
+}
+
 .body-medium {
   font: var(--mat-sys-body-medium);
+}
+
+.body-small {
+  font: var(--mat-sys-body-small);
 }
 
 h1,
