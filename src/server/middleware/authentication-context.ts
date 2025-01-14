@@ -7,7 +7,7 @@ export const addAuthenticationContext = async (
 ) => {
   request.authentication = {
     cookie: request.cookies['appSession'],
-    isAuthenticated: request.oidc.isAuthenticated(),
+    isAuthenticated: request?.oidc?.isAuthenticated() ?? false,
   };
   next();
 };
