@@ -21,11 +21,17 @@ setup('reset database', async ({ database }) => {
     .values(usersToAuthenticate.map((data) => ({ auth0Id: data.userId })))
     .execute();
 
-  // Setup default development tenant
-  const developmentTenant = await createTenant(database, 'localhost');
-  await addIcons(database, developmentTenant);
-  await addRoles(database, developmentTenant);
-  const categories = await addTemplateCategories(database, developmentTenant);
-  const templates = await addTemplates(database, categories);
-  await addEvents(database, templates);
+  // Setup default development tenants
+  const developmentTenants = [
+    { domain: 'localhost', name: 'Development' },
+    { domain: 'evorto.fly.dev', name: 'Fly Deployment' },
+  ];
+  for (const tenant of developmentTenants) {
+    const developmentTenant = await createTenant(database, tenant.domain);
+    await addIcons(database, developmentTenant);
+    await addRoles(database, developmentTenant);
+    const categories = await addTemplateCategories(database, developmentTenant);
+    const templates = await addTemplates(database, categories);
+    await addEvents(database, templates);
+  }
 });

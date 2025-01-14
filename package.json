@@ -11,7 +11,8 @@
     "lint": "ng lint",
     "e2e": "ng e2e",
     "e2e:ui": "ng e2e --ui --workers 2",
-    "generate:colors": "ng generate @angular/material:theme-color --include-high-contrast --primary-color=#0891b2 --neutral-color=#71717a --interactive=false --directory=src/ --force=true"
+    "generate:colors": "ng generate @angular/material:theme-color --include-high-contrast --primary-color=#0891b2 --neutral-color=#71717a --interactive=false --directory=src/ --force=true",
+    "sentry:sourcemaps": "sentry-cli sourcemaps inject --org lukas-heddendorp --project evorto ./dist && sentry-cli sourcemaps upload --org lukas-heddendorp --project evorto ./dist"
   },
   "private": true,
   "dependencies": {
@@ -33,6 +34,8 @@
     "@fortawesome/duotone-regular-svg-icons": "^6.7.2",
     "@neondatabase/serverless": "^0.10.4",
     "@paralleldrive/cuid2": "^2.2.2",
+    "@sentry/cli": "^2.40.0",
+    "@sentry/node": "^8.48.0",
     "@tailwindcss/typography": "0.5.0-alpha.3",
     "@tanstack/angular-query-experimental": "5.62.7",
     "@tinymce/tinymce-angular": "^8.0.1",

@@ -15,4 +15,9 @@ RUN yarn build
 
 FROM base as production
 COPY --from=build --chown=appuser:appuser /app/dist ./dist
+RUN --mount=type=secret,id=SENTRY_AUTH_TOKEN \
+    SENTRY_AUTH_TOKEN=/run/secrets/SENTRY_AUTH_TOKEN \
+    if [ -n "$SENTRY_AUTH_TOKEN" ]; \
+    then yarn sentry:sourcemaps; \
+    fi
 CMD ["node", "dist/evorto/server/server.mjs"]

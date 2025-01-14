@@ -11,6 +11,7 @@ import {
 
 export const tenantRouter = router({
   findMany: publicProcedure.query(async () => {
+    throw new Error('Not implemented');
     return await database.query.tenants.findMany();
   }),
   updateSelf: authenticatedProcedure

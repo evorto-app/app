@@ -60,3 +60,6 @@ Thumbs.db
 
 # windsurf rules
 .windsurfrules
+
+# Sentry Config File
+.sentryclirc

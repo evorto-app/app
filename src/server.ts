@@ -1,3 +1,4 @@
+import './server/instrument';
 import { createNodeRequestHandler, isMainModule } from '@angular/ssr/node';
 import 'express-async-errors';
 
