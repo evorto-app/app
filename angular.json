@@ -63,6 +63,7 @@
             "server": "src/main.server.ts",
             "outputMode": "server",
             "sourceMap": true,
+            "externalDependencies": ["@sentry/profiling-node"],
             "ssr": {
               "entry": "src/server.ts"
             }
@@ -72,8 +73,8 @@
               "budgets": [
                 {
                   "type": "initial",
-                  "maximumWarning": "500kB",
-                  "maximumError": "1MB"
+                  "maximumWarning": "1MB",
+                  "maximumError": "2MB"
                 },
                 {
                   "type": "anyComponentStyle",

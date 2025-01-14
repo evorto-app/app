@@ -1,13 +1,11 @@
-FROM node:22-alpine as base
+FROM node:22-alpine AS base
 RUN corepack enable
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 USER appuser
 WORKDIR /app
 COPY --chown=appuser:appuser package.json yarn.lock .yarnrc.yml ./
 
-#FROM base as dependencies
-
-FROM base as build
+FROM base AS build
 ENV PRERENDER=true
 RUN yarn install --immutable
 COPY --chown=appuser:appuser . .
@@ -19,7 +17,10 @@ RUN --mount=type=secret,id=SENTRY_AUTH_TOKEN \
         yarn sentry:sourcemaps; \
     fi
 USER appuser
-FROM base as production
-COPY --from=build --chown=appuser:appuser /app/dist ./dist
 
-CMD ["node", "dist/evorto/server/server.mjs"]
+FROM base AS production
+COPY --from=build --chown=appuser:appuser /app/dist ./dist
+COPY --chown=appuser:appuser instrument.mjs .
+RUN yarn add @sentry/node @sentry/profiling-node
+
+CMD ["node","--import","./intrument.mjs", "dist/evorto/server/server.mjs"]

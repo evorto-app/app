@@ -13,7 +13,7 @@ Sentry.init({
     Sentry.browserTracingIntegration(),
     // Registers the Replay integration,
     // which automatically captures Session Replays
-    Sentry.replayIntegration(),
+    // Sentry.replayIntegration(),
   ],
 
   replaysOnErrorSampleRate: 1,

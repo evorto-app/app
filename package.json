@@ -8,6 +8,7 @@
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
     "serve:ssr:evorto": "node dist/evorto/server/server.mjs",
+    "serve:instrumented:evorto": "node --import ./instrument.mjs dist/evorto/server/server.mjs",
     "lint": "ng lint",
     "e2e": "ng e2e",
     "e2e:ui": "ng e2e --ui --workers 2",
