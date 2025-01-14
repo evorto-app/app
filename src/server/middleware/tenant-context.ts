@@ -7,6 +7,10 @@ export const addTenantContext = async (
   response: Response,
   next: NextFunction,
 ) => {
+  if (process.env['PRERENDER'] === 'true') {
+    next();
+    return;
+  }
   const tenantCookie =
     request.signedCookies?.['evorto-tenant'] ??
     request.cookies?.['evorto-tenant'];
