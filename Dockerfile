@@ -3,10 +3,10 @@ RUN corepack enable
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 USER appuser
 WORKDIR /app
-COPY --chown=appuser:appuser package.json yarn.lock .yarnrc.yml ./
 
 FROM base AS build
 ENV PRERENDER=true
+COPY --chown=appuser:appuser package.json yarn.lock .yarnrc.yml ./
 RUN yarn install --immutable
 COPY --chown=appuser:appuser . .
 RUN yarn build
@@ -18,9 +18,12 @@ RUN --mount=type=secret,id=SENTRY_AUTH_TOKEN \
     fi
 USER appuser
 
-FROM base AS production
-COPY --from=build --chown=appuser:appuser /app/dist ./dist
-COPY --chown=appuser:appuser instrument.mjs .
+FROM base AS production-dependencies
 RUN yarn add @sentry/node @sentry/profiling-node
 
-CMD ["node","--import","./intrument.mjs", "dist/evorto/server/server.mjs"]
+FROM base AS production
+COPY --from=production-dependencies --chown=appuser:appuser /app/node_modules ./node_modules
+COPY --from=build --chown=appuser:appuser /app/dist ./dist
+COPY --chown=appuser:appuser instrument.mjs ./
+
+CMD ["node","--import","./instrument.mjs", "dist/evorto/server/server.mjs"]
