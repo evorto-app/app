@@ -2,6 +2,7 @@ import {
   AngularNodeAppEngine,
   writeResponseToNodeResponse,
 } from '@angular/ssr/node';
+import * as Sentry from '@sentry/node';
 import * as trpcExpress from '@trpc/server/adapters/express';
 import cookieParser from 'cookie-parser';
 import { Either, Schema } from 'effect';
@@ -64,6 +65,13 @@ app.use(
         throw requestContext.left;
       }
       return requestContext.right;
+    },
+    onError: (options) => {
+      const { ctx, error, input, path, req, type } = options;
+      console.error('Error:', error);
+      if (error.code === 'INTERNAL_SERVER_ERROR') {
+        Sentry.captureException(error);
+      }
     },
     router: appRouter,
   }),
