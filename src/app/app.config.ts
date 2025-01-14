@@ -5,6 +5,9 @@ import {
 } from '@angular/common/http';
 import {
   ApplicationConfig,
+  ErrorHandler,
+  inject,
+  provideAppInitializer,
   provideExperimentalZonelessChangeDetection,
 } from '@angular/core';
 import { provideLuxonDateAdapter } from '@angular/material-luxon-adapter';
@@ -16,10 +19,12 @@ import {
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import {
   provideRouter,
+  Router,
   withComponentInputBinding,
   withRouterConfig,
   withViewTransitions,
 } from '@angular/router';
+import * as Sentry from '@sentry/angular';
 import {
   provideTanStackQuery,
   QueryClient,
@@ -50,5 +55,16 @@ export const appConfig: ApplicationConfig = {
         appearance: 'outline',
       },
     },
+    {
+      provide: ErrorHandler,
+      useValue: Sentry.createErrorHandler(),
+    },
+    {
+      deps: [Router],
+      provide: Sentry.TraceService,
+    },
+    provideAppInitializer(() => {
+      inject(Sentry.TraceService);
+    }),
   ],
 };

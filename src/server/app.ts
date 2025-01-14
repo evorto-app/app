@@ -106,3 +106,5 @@ app.use('/**', attemptSilentLogin(), (request, expressResponse, next) => {
     )
     .catch(next);
 });
+
+Sentry.setupExpressErrorHandler(app);

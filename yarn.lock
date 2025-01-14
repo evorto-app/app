@@ -4477,6 +4477,73 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@sentry-internal/browser-utils@npm:8.48.0":
+  version: 8.48.0
+  resolution: "@sentry-internal/browser-utils@npm:8.48.0"
+  dependencies:
+    "@sentry/core": "npm:8.48.0"
+  checksum: 10c0/0d61094a87c35e305b13cb43c3f48ffb9345e23b06f0e792763c5c84ada68cb999abfc5a49db1dea1b6e58e2bef98963221eb35a947008083b84fee1b60d4f41
+  languageName: node
+  linkType: hard
+
+"@sentry-internal/feedback@npm:8.48.0":
+  version: 8.48.0
+  resolution: "@sentry-internal/feedback@npm:8.48.0"
+  dependencies:
+    "@sentry/core": "npm:8.48.0"
+  checksum: 10c0/3af3ec32f71cb0c41b7d91e81e4886d4ecb2bbaffe46d590e3ba4c7aeb352b41e7ef2a3f5f29414092bc2a24dc3d16aefb1839bd48a0b39bba9cd8d911bd7ace
+  languageName: node
+  linkType: hard
+
+"@sentry-internal/replay-canvas@npm:8.48.0":
+  version: 8.48.0
+  resolution: "@sentry-internal/replay-canvas@npm:8.48.0"
+  dependencies:
+    "@sentry-internal/replay": "npm:8.48.0"
+    "@sentry/core": "npm:8.48.0"
+  checksum: 10c0/7495435d0129bdb28cee08ca30834444fcde981fe76ad2c1daee76d6d8a3d8889788a45e7975c89333fe756ecaee4a48a39110d8bf3c871959e669cda196c49a
+  languageName: node
+  linkType: hard
+
+"@sentry-internal/replay@npm:8.48.0":
+  version: 8.48.0
+  resolution: "@sentry-internal/replay@npm:8.48.0"
+  dependencies:
+    "@sentry-internal/browser-utils": "npm:8.48.0"
+    "@sentry/core": "npm:8.48.0"
+  checksum: 10c0/607fc41c67053f37bb8e0d15187e3158274aa8d4c35efed225a775f78547ae9fbffe51b6d7f06c6cc9bcbd5a7d54356cecc3143385d68f9b499cf5f8b7818931
+  languageName: node
+  linkType: hard
+
+"@sentry/angular@npm:^8.48.0":
+  version: 8.48.0
+  resolution: "@sentry/angular@npm:8.48.0"
+  dependencies:
+    "@sentry/browser": "npm:8.48.0"
+    "@sentry/core": "npm:8.48.0"
+    tslib: "npm:^2.4.1"
+  peerDependencies:
+    "@angular/common": ">= 14.x <= 19.x"
+    "@angular/core": ">= 14.x <= 19.x"
+    "@angular/router": ">= 14.x <= 19.x"
+    rxjs: ^6.5.5 || ^7.x
+  checksum: 10c0/0dd898e148939de52990d603758abfbfa477428a7d083c8fe004252e796a52c87c3a122e8933ccf54ac7617446d9be0bf316ab3c3a9c1eade239746662f31224
+  languageName: node
+  linkType: hard
+
+"@sentry/browser@npm:8.48.0":
+  version: 8.48.0
+  resolution: "@sentry/browser@npm:8.48.0"
+  dependencies:
+    "@sentry-internal/browser-utils": "npm:8.48.0"
+    "@sentry-internal/feedback": "npm:8.48.0"
+    "@sentry-internal/replay": "npm:8.48.0"
+    "@sentry-internal/replay-canvas": "npm:8.48.0"
+    "@sentry/core": "npm:8.48.0"
+  checksum: 10c0/e6f5ba45ef149e2ccdcc31324021d3530946e8174058a3cd6b8ee5092454a6f7d748467fcf149222a867099349d27673491ffe7cc016731ba7a0f145d5a9d567
+  languageName: node
+  linkType: hard
+
 "@sentry/cli-darwin@npm:2.40.0":
   version: 2.40.0
   resolution: "@sentry/cli-darwin@npm:2.40.0"
@@ -4570,7 +4637,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@sentry/node@npm:^8.48.0":
+"@sentry/node@npm:8.48.0, @sentry/node@npm:^8.48.0":
   version: 8.48.0
   resolution: "@sentry/node@npm:8.48.0"
   dependencies:
@@ -4625,6 +4692,21 @@ __metadata:
     "@opentelemetry/sdk-trace-base": ^1.29.0
     "@opentelemetry/semantic-conventions": ^1.28.0
   checksum: 10c0/f09c066e9ddeaaf33e25ab26b5688c144f3b5a71e70cbcd7fe6e56acce6326ebc0c090baa790ebefab747371819c8b5a786505dcbe66117f12c5feebf618fe72
+  languageName: node
+  linkType: hard
+
+"@sentry/profiling-node@npm:^8.48.0":
+  version: 8.48.0
+  resolution: "@sentry/profiling-node@npm:8.48.0"
+  dependencies:
+    "@sentry/core": "npm:8.48.0"
+    "@sentry/node": "npm:8.48.0"
+    detect-libc: "npm:^2.0.2"
+    node-abi: "npm:^3.61.0"
+    node-gyp: "npm:latest"
+  bin:
+    sentry-prune-profiler-binaries: scripts/prune-profiler-binaries.js
+  checksum: 10c0/6a71c7aea0c07988092442a40fe13ed1b11115cb53b8e3c9b67b4935d24e35f40376299920da069cb3cabf0dc94dfd29609d21eae3d86476278dd5b7f980aeb6
   languageName: node
   linkType: hard
 
@@ -6992,7 +7074,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"detect-libc@npm:^2.0.1":
+"detect-libc@npm:^2.0.1, detect-libc@npm:^2.0.2":
   version: 2.0.3
   resolution: "detect-libc@npm:2.0.3"
   checksum: 10c0/88095bda8f90220c95f162bf92cad70bd0e424913e655c20578600e35b91edc261af27531cf160a331e185c0ced93944bc7e09939143225f56312d7fd800fdb7
@@ -8117,8 +8199,10 @@ __metadata:
     "@ngneat/falso": "npm:^7.2.0"
     "@paralleldrive/cuid2": "npm:^2.2.2"
     "@playwright/test": "npm:1.49.1"
+    "@sentry/angular": "npm:^8.48.0"
     "@sentry/cli": "npm:^2.40.0"
     "@sentry/node": "npm:^8.48.0"
+    "@sentry/profiling-node": "npm:^8.48.0"
     "@tailwindcss/postcss": "npm:^4.0.0-beta.8"
     "@tailwindcss/typography": "npm:0.5.0-alpha.3"
     "@tanstack/angular-query-experimental": "npm:5.62.7"
@@ -10731,6 +10815,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"node-abi@npm:^3.61.0":
+  version: 3.72.0
+  resolution: "node-abi@npm:3.72.0"
+  dependencies:
+    semver: "npm:^7.3.5"
+  checksum: 10c0/a7f362a788f0d50998ede10d9f70d53c2b228bf96a5609a5c229097cf33463fb6a7006f7dc3d8e6c4ccfc4ddb47bd3c2c2d2114c478571d8bc243f60b72b71b5
+  languageName: node
+  linkType: hard
+
 "node-addon-api@npm:^6.1.0":
   version: 6.1.0
   resolution: "node-addon-api@npm:6.1.0"
@@ -13314,7 +13407,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"tslib@npm:2.8.1, tslib@npm:^2.0.0, tslib@npm:^2.1.0, tslib@npm:^2.3.0, tslib@npm:^2.8.1":
+"tslib@npm:2.8.1, tslib@npm:^2.0.0, tslib@npm:^2.1.0, tslib@npm:^2.3.0, tslib@npm:^2.4.1, tslib@npm:^2.8.1":
   version: 2.8.1
   resolution: "tslib@npm:2.8.1"
   checksum: 10c0/9c4759110a19c53f992d9aae23aac5ced636e99887b51b9e61def52611732872ff7668757d4e4c61f19691e36f4da981cd9485e869b4a7408d689f6bf1f14e62
