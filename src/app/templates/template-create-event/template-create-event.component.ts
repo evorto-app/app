@@ -20,7 +20,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTimepickerModule } from '@angular/material/timepicker';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
 import {
@@ -50,6 +50,7 @@ import { IconSelectorFieldComponent } from '../../shared/components/controls/ico
     MatTimepickerModule,
     ReactiveFormsModule,
     TitleCasePipe,
+    RouterLink,
   ],
   standalone: true,
   templateUrl: './template-create-event.component.html',

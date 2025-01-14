@@ -7,7 +7,7 @@ export const addUserContextMiddleware = async (
   response: Response,
   next: NextFunction,
 ) => {
-  if (!request.oidc.isAuthenticated()) {
+  if (!request?.oidc?.isAuthenticated()) {
     next();
     return;
   }

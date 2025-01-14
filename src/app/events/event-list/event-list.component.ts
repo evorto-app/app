@@ -1,7 +1,12 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  inject,
+  signal,
+} from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatMenuModule } from '@angular/material/menu';
-import { RouterLink } from '@angular/router';
+import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import {
   faEllipsisVertical,
@@ -20,6 +25,8 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
     MatMenuModule,
     RouterLink,
     IconComponent,
+    RouterOutlet,
+    RouterLinkActive,
   ],
   selector: 'app-event-list',
   styles: ``,
@@ -30,4 +37,5 @@ export class EventListComponent {
   protected readonly eventQuery = injectQuery(this.queries.events());
   protected readonly faEllipsisVertical = faEllipsisVertical;
   protected readonly faFilter = faFilter;
+  protected readonly outletActive = signal(false);
 }

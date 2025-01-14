@@ -1,5 +1,5 @@
-<div class="mb-4 flex flex-row items-center gap-2">
-  <a routerLink="/events" mat-icon-button>
+<div class="mb-4 flex w-full flex-row items-center gap-2">
+  <a routerLink="/events" mat-icon-button class="block lg:hidden!">
     <fa-duotone-icon [icon]="faArrowLeft"></fa-duotone-icon>
   </a>
   <h1 class="title-large">
@@ -25,29 +25,48 @@
     <section class="flex flex-col gap-4">
       <h2 class="headline-small">Registration</h2>
       @if (registrationStatusQuery.data()?.isRegistered) {
-        <div class="flex flex-col gap-2 rounded-2xl bg-surface p-4 text-on-surface">
+        <div
+          class="flex flex-col gap-2 rounded-2xl bg-surface p-4 text-on-surface"
+        >
           <h3 class="title-small">You are registered for this event</h3>
-          @for (registration of registrationStatusQuery.data()?.registrations ?? []; track registration.id) {
+          @for (
+            registration of registrationStatusQuery.data()?.registrations ?? [];
+            track registration.id
+          ) {
             <div class="flex flex-col gap-2">
-              <div class="text-on-surface-variant">{{ registration.registrationOptionTitle }}</div>
-              @if (registration.status === 'PENDING') {
-                <div class="text-warning">Your registration is pending confirmation</div>
-              } @else if (registration.status === 'WAITLIST') {
+              <div class="text-on-surface-variant">
+                {{ registration.registrationOptionTitle }}
+              </div>
+              @if (registration.status === "PENDING") {
+                <div class="text-warning">
+                  Your registration is pending confirmation
+                </div>
+              } @else if (registration.status === "WAITLIST") {
                 <div class="text-warning">You are on the waitlist</div>
-              } @else if (registration.status === 'CONFIRMED') {
+              } @else if (registration.status === "CONFIRMED") {
                 <div class="text-success">Your registration is confirmed</div>
               }
             </div>
           }
         </div>
       } @else {
-        <div class="flex flex-col gap-4">
-          @for (registrationOption of eventQuery.data().registrationOptions; track registrationOption.id) {
-            <div class="flex flex-col gap-2 rounded-2xl bg-surface p-4 text-on-surface {{
-              registrationMutation.isPending() ? 'animate-pulse cursor-progress' : ''
-            }}">
-              <h3 class="title-small">{{ registrationOption.title }}</h3>
-              <div class="prose prose-sm" [innerHTML]="registrationOption.description"></div>
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+          @for (
+            registrationOption of eventQuery.data().registrationOptions;
+            track registrationOption.id
+          ) {
+            <div
+              class="flex flex-col gap-2 rounded-2xl bg-surface p-4 text-on-surface {{
+                registrationMutation.isPending()
+                  ? 'animate-pulse cursor-progress'
+                  : ''
+              }}"
+            >
+              <h3 class="title-medium">{{ registrationOption.title }}</h3>
+              <div
+                class="prose dark:prose-invert"
+                [innerHTML]="registrationOption.description"
+              ></div>
               <button
                 (click)="register(registrationOption)"
                 mat-flat-button
@@ -61,7 +80,7 @@
       }
       @if (registrationMutation.isError()) {
         <div class="flex flex-col gap-2 rounded-2xl bg-error p-4 text-on-error">
-          <h3 class="title-small">Registration failed</h3>
+          <h3 class="title-medium">Registration failed</h3>
           <p>{{ registrationMutation.error().message }}</p>
         </div>
       }

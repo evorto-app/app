@@ -1,12 +1,32 @@
-<p>tenant-list works!</p>
+<div class="mb-4 flex flex-row items-center gap-2">
+  <h1 class="title-large">Tenants</h1>
+  <div class="grow"></div>
+  <!-- <a
+    [routerLink]="['/admin/roles', roleQuery.data()?.id, 'edit']"
+    mat-icon-button
+  >
+    <fa-icon [icon]="faEdit"></fa-icon>
+  </a> -->
+</div>
 @if (tenantQuery.isPending()) {
-  <p>Loading...</p>
+  <div
+    class="flex animate-pulse cursor-progress flex-col gap-2 rounded-2xl bg-surface p-4 text-on-surface"
+  >
+    <h2 class="title-medium">Loading ...</h2>
+  </div>
 } @else if (tenantQuery.isError()) {
-  <p>Error: {{ tenantQuery.error().message }}</p>
+  <div class="rounded-2xl bg-error p-4 text-on-error">
+    <h2 class="title-medium mb-4">There was an error</h2>
+    <p class="body-medium">Error: {{ tenantQuery.error().message }}</p>
+  </div>
 } @else if (tenantQuery.isSuccess()) {
   @for (tenant of tenantQuery.data(); track tenant.id) {
-    <p>{{ tenant.id }}: {{ tenant.name }}</p>
+    <div class="rounded-2xl bg-surface p-4 text-on-surface">
+      <h2 class="title-medium">{{ tenant.name }}</h2>
+    </div>
   } @empty {
-    <p>No tenants found</p>
+    <div class="rounded-2xl bg-surface p-4 text-on-surface">
+      <h2 class="title-medium">No tenants found</h2>
+    </div>
   }
 }
