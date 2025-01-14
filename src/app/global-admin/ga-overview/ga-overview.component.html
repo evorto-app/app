@@ -1,25 +1,28 @@
-<div
-  class="mb-4 {{
-    outletActive() ? 'hidden' : 'flex'
-  }} lg:flex w-full flex-row items-center gap-2"
->
-  <h1 class="title-large">Global admin</h1>
-  <div class="grow"></div>
-</div>
-
-<div class="grid grid-cols-1 lg:grid-cols-[300px_1fr] lg:gap-4">
-  <nav class="{{ outletActive() ? 'hidden' : 'flex' }} lg:flex flex-col gap-4">
-    <a
-      routerLink="tenants"
-      class="rounded-2xl bg-surface p-4 text-on-surface"
-      routerLinkActive="bg-secondary-container! text-on-secondary-container!"
+<div class="grid grid-cols-1 lg:grid-cols-[300px_1fr] lg:gap-4 lg:p-4">
+  <div>
+    <div
+      class="mb-4 {{
+        outletActive() ? 'hidden' : 'flex'
+      }} lg:flex w-full flex-row items-center gap-2"
     >
-      <div class="flex flex-row items-center gap-4">
-        <fa-duotone-icon [icon]="faFolders" size="xl"></fa-duotone-icon>
-        <h2 class="title-medium">Tenants</h2>
-      </div>
-    </a>
-  </nav>
+      <h1 class="title-large">Global admin</h1>
+      <div class="grow"></div>
+    </div>
+    <nav
+      class="{{ outletActive() ? 'hidden' : 'flex' }} lg:flex flex-col gap-4"
+    >
+      <a
+        routerLink="tenants"
+        class="rounded-2xl bg-surface p-4 text-on-surface"
+        routerLinkActive="bg-secondary-container! text-on-secondary-container!"
+      >
+        <div class="flex flex-row items-center gap-4">
+          <fa-duotone-icon [icon]="faFolders" size="xl"></fa-duotone-icon>
+          <h2 class="title-medium">Tenants</h2>
+        </div>
+      </a>
+    </nav>
+  </div>
   <div>
     <router-outlet
       (activate)="outletActive.set(true)"

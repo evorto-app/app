@@ -1,5 +1,6 @@
 @use "@angular/material" as mat;
 @use "./theme-colors" as theme-colors;
+@use "./esn_theme-colors" as esn-theme-colors;
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
@@ -20,6 +21,23 @@ html {
   }
   --fa-fw-width: var(--mdc-icon-button-icon-size);
   --fa-display: block;
+}
+
+.theme-esn {
+  color-scheme: light dark;
+  @include mat.theme(
+    (
+      color: (
+        primary: esn-theme-colors.$primary-palette,
+        tertiary: esn-theme-colors.$tertiary-palette,
+      ),
+      typography: var(--font-sans),
+      density: 0,
+    )
+  );
+  @media (prefers-contrast: more) {
+    @include esn-theme-colors.high-contrast-overrides(color-scheme);
+  }
 }
 
 @theme {

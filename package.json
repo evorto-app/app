@@ -13,6 +13,7 @@
     "e2e": "ng e2e",
     "e2e:ui": "ng e2e --ui --workers 2",
     "generate:colors": "ng generate @angular/material:theme-color --include-high-contrast --primary-color=#0891b2 --neutral-color=#71717a --interactive=false --directory=src/ --force=true",
+    "generate:colors:esn": "ng generate @angular/material:theme-color --include-high-contrast --primary-color=#00aeef --tertiary-color=#ec008c --neutral-color=#737373 --interactive=false --directory=src/_esn --force=true",
     "sentry:sourcemaps": "sentry-cli sourcemaps inject --org lukas-heddendorp --project evorto ./dist && sentry-cli sourcemaps upload --org lukas-heddendorp --project evorto ./dist"
   },
   "private": true,
@@ -30,7 +31,6 @@
     "@angular/platform-server": "^19.0.0",
     "@angular/router": "^19.0.0",
     "@angular/ssr": "^19.0.6",
-    "@axe-core/playwright": "^4.10.1",
     "@fortawesome/angular-fontawesome": "1.0.0",
     "@fortawesome/duotone-regular-svg-icons": "^6.7.2",
     "@neondatabase/serverless": "^0.10.4",
@@ -44,7 +44,6 @@
     "@tinymce/tinymce-angular": "^8.0.1",
     "@trpc/client": "^11.0.0-rc.666",
     "@trpc/server": "^11.0.0-rc.666",
-    "@types/luxon": "^3.4.2",
     "cookie-parser": "^1.4.7",
     "drizzle-orm": "^0.38.2",
     "effect": "^3.12.0",
@@ -59,6 +58,8 @@
     "zone.js": "~0.15.0"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.10.1",
+    "@types/luxon": "^3.4.2",
     "@angular-devkit/build-angular": "^19.0.6",
     "@angular/cli": "^19.0.6",
     "@angular/compiler-cli": "^19.0.0",

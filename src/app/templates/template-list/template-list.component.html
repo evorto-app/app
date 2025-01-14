@@ -1,5 +1,5 @@
-<div class="grid grid-cols-1 lg:grid-cols-[400px_1fr] lg:gap-8">
-  <div>
+<div class="grid grid-cols-1 lg:h-full lg:grid-cols-[400px_1fr] lg:gap-4">
+  <div class="lg:h-full lg:overflow-y-auto lg:py-4 lg:pr-4">
     <div
       class="mb-4 {{
         outletActive() ? 'hidden' : 'flex'
@@ -71,7 +71,7 @@
       }
     </nav>
   </div>
-  <div>
+  <div class="lg:p-4">
     <router-outlet
       (activate)="outletActive.set(true)"
       (deactivate)="outletActive.set(false)"
