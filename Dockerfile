@@ -12,11 +12,13 @@ ENV PRERENDER=true
 RUN yarn install --immutable
 COPY --chown=appuser:appuser . .
 RUN yarn build
+USER root
 RUN --mount=type=secret,id=SENTRY_AUTH_TOKEN \
     export SENTRY_AUTH_TOKEN=$(cat /run/secrets/SENTRY_AUTH_TOKEN) && \
     if [ -n "$SENTRY_AUTH_TOKEN" ]; then \
         yarn sentry:sourcemaps; \
     fi
+USER appuser
 FROM base as production
 COPY --from=build --chown=appuser:appuser /app/dist ./dist
 
