@@ -1,12 +1,18 @@
-# fly.toml app configuration file generated for app-kykudq on 2025-01-14T13:11:34Z
+# fly.toml app configuration file generated for evorto on 2025-01-14T14:20:26+01:00
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
-app = 'app-kykudq'
-primary_region = 'arn'
+app = 'evorto'
+primary_region = 'fra'
 
 [build]
+
+[env]
+  PORT = 3000
+  AUDIENCE = 'server.dev.evorto.app'
+  BASE_URL = 'https://evorto.fly.dev'
+  ISSUER_BASE_URL = 'https://tumi-dev.eu.auth0.com'
 
 [http_service]
   internal_port = 3000
@@ -20,4 +26,3 @@ primary_region = 'arn'
   memory = '1gb'
   cpu_kind = 'shared'
   cpus = 1
-  memory_mb = 1024
