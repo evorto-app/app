@@ -36,6 +36,7 @@ export const tenantRouter = router({
     }),
 
   findMany: authenticatedProcedure.query(async ({ ctx }) => {
+    throw new Error('Not implemented');
     return await database.query.tenants.findMany({
       orderBy: (tenants, { asc }) => [asc(tenants.name)],
     });

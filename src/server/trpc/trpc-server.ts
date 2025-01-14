@@ -23,13 +23,13 @@ const enforceAuth = t.middleware(async ({ ctx, meta, next }) => {
 
   if (meta?.requiredPermissions?.length) {
     const hasRequiredPermissions = meta.requiredPermissions.every(
-      (permission) => ctx.user?.permissions.includes(permission)
+      (permission) => ctx.user?.permissions.includes(permission),
     );
 
     if (!hasRequiredPermissions) {
-      throw new TRPCError({ 
+      throw new TRPCError({
         code: 'FORBIDDEN',
-        message: 'You do not have the required permissions for this action'
+        message: 'You do not have the required permissions for this action',
       });
     }
   }
