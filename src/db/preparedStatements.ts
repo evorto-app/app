@@ -9,5 +9,16 @@ export const getTenant = database.query.tenants
   .prepare('getTenant');
 
 export const getUser = database.query.users
-  .findFirst({ where: eq(users.auth0Id, sql.placeholder('auth0Id')) })
+  .findFirst({
+    where: eq(users.auth0Id, sql.placeholder('auth0Id')),
+    with: {
+      usersToTenants: {
+        with: {
+          rolesToTenantUsers: {
+            with: { role: { columns: { permissions: true } } },
+          },
+        },
+      },
+    },
+  })
   .prepare('getUser');

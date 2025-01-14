@@ -1,15 +1,15 @@
+<div class="mb-4 flex flex-row items-center gap-2">
+  <a [routerLink]="['/admin/roles']" mat-icon-button>
+    <fa-icon [icon]="faArrowLeft"></fa-icon>
+  </a>
+  <h1 class="title-large">Create Role</h1>
+  <div class="grow"></div>
+</div>
 <div
-  class="lg:test-on-surface-container-low flex flex-col gap-4 lg:rounded-2xl lg:bg-surface-container-low lg:px-4 lg:py-2"
+  class="flex flex-col gap-4 rounded-2xl bg-surface-container-low p-4 text-on-surface-container-low"
 >
-  <div class="flex flex-row items-center gap-4">
-    <a mat-icon-button routerLink="..">
-      <fa-duotone-icon [icon]="faArrowLeft"></fa-duotone-icon>
-    </a>
-    <h2 class="title-medium">Create role</h2>
-  </div>
-
   <app-role-form
-    [role]="{ defaultOrganizerRole: false, defaultUserRole: false }"
-    (save)="onSave($event)"
+    [isSubmitting]="createRoleMutation.isPending()"
+    (formSubmit)="onSubmit($event)"
   ></app-role-form>
 </div>

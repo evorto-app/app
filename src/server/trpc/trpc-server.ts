@@ -1,18 +1,44 @@
-import { initTRPC } from '@trpc/server';
+import { initTRPC, TRPCError } from '@trpc/server';
 import superjson from 'superjson';
 
+import { type Permission } from '../../shared/permissions/permissions';
 import { type Context } from '../../types/custom/context';
 
-const t = initTRPC.context<Context>().create({ transformer: superjson });
+interface Meta {
+  requiredPermissions?: Permission[];
+}
+
+const t = initTRPC
+  .context<Context>()
+  .meta<Meta>()
+  .create({ transformer: superjson });
+
 export const router = t.router;
 export const publicProcedure = t.procedure;
-export const authenticatedProcedure = publicProcedure.use(async (options) => {
-  if (!options.ctx.user) {
-    throw new Error('Unauthorized');
+
+const enforceAuth = t.middleware(async ({ ctx, meta, next }) => {
+  if (!ctx.user) {
+    throw new TRPCError({ code: 'UNAUTHORIZED' });
   }
-  return options.next({
+
+  if (meta?.requiredPermissions?.length) {
+    const hasRequiredPermissions = meta.requiredPermissions.every(
+      (permission) => ctx.user?.permissions.includes(permission)
+    );
+
+    if (!hasRequiredPermissions) {
+      throw new TRPCError({ 
+        code: 'FORBIDDEN',
+        message: 'You do not have the required permissions for this action'
+      });
+    }
+  }
+
+  return next({
     ctx: {
-      user: options.ctx.user,
+      user: ctx.user,
     },
   });
 });
+
+export const authenticatedProcedure = t.procedure.use(enforceAuth);

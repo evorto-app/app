@@ -47,8 +47,8 @@ export class QueriesService {
     return () =>
       mutationOptions({
         mutationFn: (
-          input: AppRouter['roles']['create']['_def']['$types']['input'],
-        ) => this.trpcClient.roles.create.mutate(input),
+          input: AppRouter['admin']['roles']['create']['_def']['$types']['input'],
+        ) => this.trpcClient.admin.roles.create.mutate(input),
         onSuccess: () => {
           this.queryClient.invalidateQueries({
             queryKey: ['roles'],
@@ -84,6 +84,20 @@ export class QueriesService {
       });
   }
 
+  public createTenant() {
+    return () =>
+      mutationOptions({
+        mutationFn: (
+          input: AppRouter['globalAdmin']['tenants']['create']['_def']['$types']['input'],
+        ) => this.trpcClient.globalAdmin.tenants.create.mutate(input),
+        onSuccess: () => {
+          this.queryClient.invalidateQueries({
+            queryKey: ['tenants'],
+          });
+        },
+      });
+  }
+
   public currentTenant() {
     return () =>
       queryOptions({
@@ -96,11 +110,25 @@ export class QueriesService {
     return () =>
       mutationOptions({
         mutationFn: (
-          input: AppRouter['roles']['delete']['_def']['$types']['input'],
-        ) => this.trpcClient.roles.delete.mutate(input),
+          input: AppRouter['admin']['roles']['delete']['_def']['$types']['input'],
+        ) => this.trpcClient.admin.roles.delete.mutate(input),
         onSuccess: () => {
           this.queryClient.invalidateQueries({
             queryKey: ['roles'],
+          });
+        },
+      });
+  }
+
+  public deleteTenant() {
+    return () =>
+      mutationOptions({
+        mutationFn: (
+          input: AppRouter['globalAdmin']['tenants']['delete']['_def']['$types']['input'],
+        ) => this.trpcClient.globalAdmin.tenants.delete.mutate(input),
+        onSuccess: () => {
+          this.queryClient.invalidateQueries({
+            queryKey: ['tenants'],
           });
         },
       });
@@ -147,18 +175,21 @@ export class QueriesService {
       });
   }
 
-  public role(roleId: Signal<string>) {
+  public role(id: Signal<string>) {
     return () =>
       queryOptions({
-        queryFn: () => this.trpcClient.roles.findOne.query({ id: roleId() }),
-        queryKey: ['roles', roleId()],
+        queryFn: () =>
+          this.trpcClient.admin.roles.findOne.query({
+            id: id(),
+          }),
+        queryKey: ['roles', id()],
       });
   }
 
   public roles() {
     return () =>
       queryOptions({
-        queryFn: () => this.trpcClient.roles.findMany.query(),
+        queryFn: () => this.trpcClient.admin.roles.findMany.query(),
         queryKey: ['roles'],
       });
   }
@@ -196,10 +227,21 @@ export class QueriesService {
       });
   }
 
+  public tenant(id: Signal<string>) {
+    return () =>
+      queryOptions({
+        queryFn: () =>
+          this.trpcClient.globalAdmin.tenants.findOne.query({
+            id: id(),
+          }),
+        queryKey: ['tenants', id()],
+      });
+  }
+
   public tenants() {
     return () =>
       queryOptions({
-        queryFn: () => this.trpcClient.tenants.findMany.query(),
+        queryFn: () => this.trpcClient.globalAdmin.tenants.findMany.query(),
         queryKey: ['tenants'],
       });
   }
@@ -208,8 +250,8 @@ export class QueriesService {
     return () =>
       mutationOptions({
         mutationFn: (
-          input: AppRouter['roles']['update']['_def']['$types']['input'],
-        ) => this.trpcClient.roles.update.mutate(input),
+          input: AppRouter['admin']['roles']['update']['_def']['$types']['input'],
+        ) => this.trpcClient.admin.roles.update.mutate(input),
         onSuccess: () => {
           this.queryClient.invalidateQueries({
             queryKey: ['roles'],
@@ -240,6 +282,20 @@ export class QueriesService {
         onSuccess: () => {
           this.queryClient.invalidateQueries({
             queryKey: ['templateCategories'],
+          });
+        },
+      });
+  }
+
+  public updateTenant() {
+    return () =>
+      mutationOptions({
+        mutationFn: (
+          input: AppRouter['globalAdmin']['tenants']['update']['_def']['$types']['input'],
+        ) => this.trpcClient.globalAdmin.tenants.update.mutate(input),
+        onSuccess: () => {
+          this.queryClient.invalidateQueries({
+            queryKey: ['tenants'],
           });
         },
       });

@@ -1,19 +1,28 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ReactiveFormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { Router, RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
 import { injectMutation } from '@tanstack/angular-query-experimental';
 
-import type { Role } from '../../../shared/role';
-
 import { QueriesService } from '../../core/queries.service';
-import { RoleFormComponent } from '../components/role-form/role-form.component';
+import {
+  RoleFormComponent,
+  RoleFormData,
+} from '../components/role-form/role-form.component';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, FontAwesomeModule, MatButtonModule, RoleFormComponent],
+  imports: [
+    FontAwesomeModule,
+    MatButtonModule,
+    RouterLink,
+    ReactiveFormsModule,
+    RoleFormComponent,
+  ],
   selector: 'app-role-create',
+  standalone: true,
   templateUrl: './role-create.component.html',
 })
 export class RoleCreateComponent {
@@ -25,8 +34,12 @@ export class RoleCreateComponent {
 
   private readonly router = inject(Router);
 
-  protected async onSave(role: Role) {
-    await this.createRoleMutation.mutateAsync(role);
-    await this.router.navigate(['..']);
+  protected async onSubmit(role: RoleFormData): Promise<void> {
+    this.createRoleMutation.mutate(
+      { ...role },
+      {
+        onSuccess: (data) => this.router.navigate(['admin', 'roles', data.id]),
+      },
+    );
   }
 }

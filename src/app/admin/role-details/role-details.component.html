@@ -1,72 +1,54 @@
-<div
-  class="lg:test-on-surface-container-low flex flex-col gap-4 lg:rounded-2xl lg:bg-surface-container-low lg:px-4 lg:py-2"
->
-  <div class="flex flex-row items-center gap-4">
-    <a mat-icon-button routerLink="..">
-      <fa-duotone-icon [icon]="faArrowLeft"></fa-duotone-icon>
-    </a>
-    <h2 class="title-medium">
-      Role: {{ roleQuery.data()?.name ?? "Loading ..." }}
-    </h2>
-    <div class="grow"></div>
-    <a mat-icon-button routerLink="edit">
-      <fa-duotone-icon [icon]="faEdit"></fa-duotone-icon>
-    </a>
+<div class="mb-4 flex flex-row items-center gap-2">
+  <a [routerLink]="['/admin/roles']" mat-icon-button>
+    <fa-icon [icon]="faArrowLeft"></fa-icon>
+  </a>
+  <h1 class="title-large">{{ roleQuery.data()?.name }}</h1>
+  <div class="grow"></div>
+  <a
+    [routerLink]="['/admin/roles', roleQuery.data()?.id, 'edit']"
+    mat-icon-button
+  >
+    <fa-icon [icon]="faEdit"></fa-icon>
+  </a>
+</div>
+
+@if (roleQuery.isPending()) {
+  <div
+    class="flex animate-pulse cursor-progress flex-col gap-2 rounded-2xl bg-surface p-4 text-on-surface"
+  >
+    <h2 class="title-medium">Loading ...</h2>
   </div>
-
-  @if (roleQuery.isPending()) {
-    <div
-      class="flex animate-pulse cursor-progress flex-col gap-2 rounded-2xl bg-surface p-4 text-on-surface"
-    >
-      <h2 class="title-medium">Loading ...</h2>
-    </div>
-  } @else if (roleQuery.isError()) {
-    <p>Error: {{ roleQuery.error().message }}</p>
-  } @else if (roleQuery.isSuccess()) {
-    <div class="flex flex-col gap-4">
-      @if (roleQuery.data().description) {
-        <p class="body-medium text-on-surface-variant">
-          {{ roleQuery.data().description }}
-        </p>
-      }
-
-      @if (
-        roleQuery.data().defaultUserRole ||
-        roleQuery.data().defaultOrganizerRole
-      ) {
-        <div class="flex gap-2">
-          @if (roleQuery.data().defaultUserRole) {
-            <mat-chip>Default User Role</mat-chip>
-          }
-          @if (roleQuery.data().defaultOrganizerRole) {
-            <mat-chip>Default Organizer Role</mat-chip>
-          }
-        </div>
-      }
-
-      <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        @for (group of permissionGroups(); track group.label) {
-          <mat-card class="flex flex-col gap-4">
-            <mat-card-header class="flex items-center gap-2 p-4">
-              <fa-duotone-icon [icon]="group.icon" class="text-primary" />
-              <h3 class="title-medium">{{ group.label }}</h3>
-            </mat-card-header>
-
-            <mat-card-content>
-              <mat-chip-set>
-                @for (permission of group.permissions; track permission.label) {
-                  @if (permission.enabled) {
-                    <mat-chip>
-
-                      {{ permission.label }}
-                    </mat-chip>
-                  }
+} @else if (roleQuery.isError()) {
+  <p>Error: {{ roleQuery.error().message }}</p>
+} @else if (roleQuery.isSuccess()) {
+  <div
+    class="flex flex-col gap-4 rounded-2xl bg-surface-container-low p-4 text-on-surface-container-low"
+  >
+    @if (roleQuery.data().description) {
+      <div>
+        <h2 class="title-small">Description</h2>
+        <p>{{ roleQuery.data().description }}</p>
+      </div>
+    }
+    <div>
+      <h2 class="title-small mb-2">Permissions</h2>
+      <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+        @for (group of permissionGroups; track group.key) {
+          <div class="space-y-2 rounded-2xl bg-surface p-4 text-on-surface">
+            <div class="flex items-center gap-2 font-medium">
+              <fa-icon [icon]="group.icon"></fa-icon>
+              <span>{{ group.label }}</span>
+            </div>
+            <div class="ml-6 space-y-1">
+              @for (permission of group.permissions; track permission.key) {
+                @if (hasPermission(permission.key)) {
+                  <div>{{ permission.label }}</div>
                 }
-              </mat-chip-set>
-            </mat-card-content>
-          </mat-card>
+              }
+            </div>
+          </div>
         }
       </div>
     </div>
-  }
-</div>
+  </div>
+}

@@ -1,0 +1,58 @@
+<form [formGroup]="permissionForm" (ngSubmit)="onSubmit()">
+  <div class="mb-6 space-y-4">
+    <mat-form-field class="w-full">
+      <mat-label>Name</mat-label>
+      <input matInput formControlName="name" [readonly]="isSubmitting()" />
+    </mat-form-field>
+
+    <mat-form-field class="w-full">
+      <mat-label>Description</mat-label>
+      <textarea
+        matInput
+        formControlName="description"
+        [readonly]="isSubmitting()"
+      ></textarea>
+    </mat-form-field>
+
+    <mat-checkbox formControlName="defaultUserRole"
+      >Is default user role</mat-checkbox
+    >
+
+    <mat-checkbox formControlName="defaultOrganizerRole"
+      >Is default organizer role</mat-checkbox
+    >
+
+    <div
+      class="grid grid-cols-1 gap-4 lg:grid-cols-4"
+      formGroupName="permissions"
+    >
+      @for (group of groupStates(); track group.key) {
+        <div class="rounded-2xl bg-surface p-2 text-on-surface">
+          <mat-checkbox
+            [checked]="group.checked"
+            [indeterminate]="group.indeterminate"
+            (change)="toggleGroup(group, $event.checked)"
+            class="font-medium"
+          >
+            {{ group.label }}
+          </mat-checkbox>
+
+          <div class="ml-8 grid grid-cols-1 gap-2">
+            @for (permission of group.permissions; track permission.key) {
+              <mat-checkbox [formControlName]="permission.key">
+                {{ permission.label }}
+              </mat-checkbox>
+            }
+          </div>
+        </div>
+      }
+    </div>
+  </div>
+  <button
+    type="submit"
+    mat-button
+    [disabled]="permissionForm.invalid || isSubmitting()"
+  >
+    {{ submitLabel() }}
+  </button>
+</form>

@@ -15,7 +15,10 @@ export const addUserContextMiddleware = async (
   if (auth0Id) {
     const user = await getUser.execute({ auth0Id });
     if (user) {
-      request.user = user;
+      const permissions = user.usersToTenants
+        .flatMap((ut) => ut.rolesToTenantUsers)
+        .flatMap((rttu) => rttu.role.permissions);
+      request.user = { ...user, permissions };
     }
   }
   next();
