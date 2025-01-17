@@ -6,5 +6,6 @@ export class Tenant extends Schema.Class<Tenant>('Tenant')({
   id: Schema.NonEmptyString,
   locale: Schema.NonEmptyString,
   name: Schema.NonEmptyString,
+  theme: Schema.Literal('evorto', 'esn'),
   timezone: Schema.NonEmptyString,
 }) {}

@@ -2,6 +2,11 @@ import { pgEnum, pgTable, text, timestamp, varchar } from 'drizzle-orm/pg-core';
 
 import { createId } from '../create-id';
 
+export const applicationThemes = pgEnum('application_themes', [
+  'evorto',
+  'esn',
+]);
+
 export const currencyEnum = pgEnum('currency', ['EUR', 'CZK', 'AUD']);
 
 export const localeEnum = pgEnum('locale', ['en-AU', 'en-GB', 'en-US']);
@@ -21,6 +26,7 @@ export const tenants = pgTable('tenants', {
     .primaryKey(),
   locale: localeEnum().notNull().default('en-GB'),
   name: text().notNull(),
+  theme: applicationThemes().notNull().default('evorto'),
   timezone: timezoneEnum().notNull().default('Europe/Berlin'),
   updatedAt: timestamp()
     .notNull()
