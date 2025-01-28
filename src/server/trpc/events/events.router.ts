@@ -101,13 +101,19 @@ export const eventRouter = router({
       return event;
     }),
 
-  getRegistrationStatus: authenticatedProcedure
+  getRegistrationStatus: publicProcedure
     .input(
       Schema.decodeUnknownSync(
         Schema.Struct({ eventId: Schema.NonEmptyString }),
       ),
     )
     .query(async ({ ctx, input }) => {
+      if (!ctx.user) {
+        return {
+          isRegistered: false,
+          registrations: [],
+        };
+      }
       const registrations = await database.query.eventRegistrations.findMany({
         where: and(
           eq(schema.eventRegistrations.eventId, input.eventId),

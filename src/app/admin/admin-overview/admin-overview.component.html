@@ -12,12 +12,22 @@
       class="{{ outletActive() ? 'hidden' : 'flex' }} lg:flex flex-col gap-4"
     >
       <a
-        routerLink="roles"
+        routerLink="users"
         class="rounded-2xl bg-surface p-4 text-on-surface"
         routerLinkActive="bg-secondary-container! text-on-secondary-container!"
       >
         <div class="flex flex-row items-center gap-4">
           <fa-duotone-icon [icon]="faUsers" size="xl"></fa-duotone-icon>
+          <h2 class="title-medium">Users</h2>
+        </div>
+      </a>
+      <a
+        routerLink="roles"
+        class="rounded-2xl bg-surface p-4 text-on-surface"
+        routerLinkActive="bg-secondary-container! text-on-secondary-container!"
+      >
+        <div class="flex flex-row items-center gap-4">
+          <fa-duotone-icon [icon]="faFolderUser" size="xl"></fa-duotone-icon>
           <h2 class="title-medium">User roles</h2>
         </div>
       </a>

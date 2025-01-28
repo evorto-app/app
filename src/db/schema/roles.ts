@@ -1,5 +1,6 @@
 import {
   boolean,
+  integer,
   jsonb,
   pgTable,
   text,
@@ -16,11 +17,13 @@ export const roles = pgTable('roles', {
   defaultOrganizerRole: boolean().notNull().default(false),
   defaultUserRole: boolean().notNull().default(false),
   description: text(),
+  displayInHub: boolean().notNull().default(false),
   id: varchar({ length: 20 })
     .$defaultFn(() => createId())
     .primaryKey(),
   name: text().notNull(),
   permissions: jsonb().$type<Permission[]>().notNull().default([]),
+  sortOrder: integer().notNull().default(0),
   tenantId: varchar({ length: 20 })
     .notNull()
     .references(() => tenants.id),

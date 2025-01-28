@@ -1,0 +1,83 @@
+<div class="mb-4 flex flex-row items-center gap-2">
+  <h1 class="title-large">All users</h1>
+  <div class="grow"></div>
+  <button
+    title="menu"
+    mat-icon-button
+    [matMenuTriggerFor]="menu"
+    class="block md:hidden!"
+  >
+    <fa-duotone-icon [icon]="faEllipsisVertical"></fa-duotone-icon>
+  </button>
+  <mat-menu #menu="matMenu">
+    <a mat-menu-item routerLink="edit">Edit template</a>
+  </mat-menu>
+  <button mat-button routerLink="edit" class="hidden! md:block!">
+    Edit template
+  </button>
+</div>
+@if (usersQuery.isPending()) {
+  <div
+    class="flex animate-pulse cursor-progress flex-col gap-2 rounded-2xl bg-surface p-4 text-on-surface"
+  >
+    <h2 class="title-medium">Loading users ...</h2>
+  </div>
+} @else if (usersQuery.isSuccess()) {
+  <div class="overflow-x-auto overflow-y-hidden rounded-2xl">
+    <table mat-table [dataSource]="usersDataSource">
+      <ng-container matColumnDef="select">
+        <th mat-header-cell *matHeaderCellDef>
+          <mat-checkbox
+            (change)="$event ? toggleAllRows() : null"
+            [checked]="selection.hasValue() && isAllSelected()"
+            [indeterminate]="selection.hasValue() && !isAllSelected()"
+          >
+          </mat-checkbox>
+        </th>
+        <td mat-cell *matCellDef="let row">
+          <mat-checkbox
+            (click)="$event.stopPropagation()"
+            (change)="$event ? selection.toggle(row) : null"
+            [checked]="selection.isSelected(row)"
+          >
+          </mat-checkbox>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="name">
+        <th mat-header-cell *matHeaderCellDef>Name</th>
+        <td mat-cell *matCellDef="let element">
+          {{ element.firstName }} {{ element.lastName }}
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="email">
+        <th mat-header-cell *matHeaderCellDef>Email</th>
+        <td mat-cell *matCellDef="let element">{{ element.email }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="role">
+        <th mat-header-cell *matHeaderCellDef>Roles</th>
+        <td mat-cell *matCellDef="let element">
+          <mat-chip-set role="list">
+            @for (role of element.roles; track role) {
+              <mat-chip role="listitem">{{ role }}</mat-chip>
+            }
+          </mat-chip-set>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="actions">
+        <th mat-header-cell *matHeaderCellDef>Actions</th>
+        <td mat-cell *matCellDef="let element">
+          <button mat-icon-button>
+            <fa-duotone-icon [icon]="faEdit"></fa-duotone-icon>
+          </button>
+        </td>
+      </ng-container>
+
+      <tr mat-header-row *matHeaderRowDef="columnsToDisplay()"></tr>
+      <tr mat-row *matRowDef="let row; columns: columnsToDisplay()"></tr>
+    </table>
+  </div>
+}

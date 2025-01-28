@@ -1,3 +1,4 @@
+import { and, eq } from 'drizzle-orm';
 import { NeonHttpDatabase } from 'drizzle-orm/neon-http';
 
 import * as schema from '../src/db/schema';
@@ -15,23 +16,21 @@ export const addRoles = (
         id: getId(),
         name: 'Admin',
         permissions: [
-          'admin:analytics',
-          'admin:billing',
-          'admin:roles',
+          'admin:manageRoles',
           'admin:settings',
           'events:create',
-          'events:delete',
-          'events:edit',
-          'events:registration',
-          'events:view',
+          'events:viewDrafts',
+          'events:viewPublic',
+          'events:manageAll',
+          'events:changePublication',
           'templates:create',
           'templates:delete',
-          'templates:edit',
+          'templates:editAll',
           'templates:view',
-          'users:create',
-          'users:delete',
-          'users:edit',
-          'users:view',
+          'templates:manageCategories',
+          'users:viewAll',
+          'users:assignRoles',
+          'internal:viewInternalPages',
         ],
         tenantId: tenant.id,
       },
@@ -40,7 +39,12 @@ export const addRoles = (
         description: 'Members of the section',
         id: getId(),
         name: 'Section member',
-        permissions: ['events:create', 'templates:view'],
+        permissions: [
+          'events:create',
+          'events:viewPublic',
+          'templates:view',
+          'internal:viewInternalPages',
+        ],
         tenantId: tenant.id,
       },
       {
@@ -48,9 +52,32 @@ export const addRoles = (
         description: 'Default role for all users',
         id: getId(),
         name: 'Regular user',
-        permissions: ['events:view'],
+        permissions: ['events:viewPublic'],
         tenantId: tenant.id,
       },
     ])
     .returning();
+};
+
+export const addUsersToRoles = async (
+  database: NeonHttpDatabase<typeof schema>,
+  assignments: { roleId: string; userId: string }[],
+  tenant: { id: string },
+) => {
+  for (const assignment of assignments) {
+    const userToTenant = await database.query.usersToTenants.findFirst({
+      where: and(
+        eq(schema.usersToTenants.userId, assignment.userId),
+        eq(schema.usersToTenants.tenantId, tenant.id),
+      ),
+    });
+    if (!userToTenant) {
+      throw new Error('User not found');
+    }
+
+    await database.insert(schema.rolesToTenantUsers).values({
+      roleId: assignment.roleId,
+      userTenantId: userToTenant.id,
+    });
+  }
 };

@@ -38,6 +38,13 @@ export const ADMIN_ROUTES: Routes = [
           ),
         path: 'settings',
       },
+      {
+        loadComponent: () =>
+          import('./user-list/user-list.component').then(
+            (m) => m.UserListComponent,
+          ),
+        path: 'users',
+      },
     ],
     loadComponent: () =>
       import('./admin-overview/admin-overview.component').then(

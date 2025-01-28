@@ -6,6 +6,7 @@ import { iconRouter } from './icons/icons.router';
 import { templateCategoryRouter } from './templates/template-category.router';
 import { templateRouter } from './templates/template.router';
 import { router } from './trpc-server';
+import { userRouter } from './users/users.router';
 
 export const appRouter = router({
   admin: adminRouter,
@@ -15,5 +16,6 @@ export const appRouter = router({
   icons: iconRouter,
   templateCategories: templateCategoryRouter,
   templates: templateRouter,
+  users: userRouter,
 });
 export type AppRouter = typeof appRouter;

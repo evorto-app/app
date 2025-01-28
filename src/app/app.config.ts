@@ -34,7 +34,8 @@ import {
 
 import { routes } from './app.routes';
 import { authTokenInterceptor } from './core/auth-token.interceptor';
-import { injectTrpcClient, provideTrpcClient } from './core/trpc-client';
+import { ConfigService } from './core/config.service';
+import { provideTrpcClient } from './core/trpc-client';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -67,13 +68,13 @@ export const appConfig: ApplicationConfig = {
     },
     provideAppInitializer(async () => {
       inject(Sentry.TraceService);
-      const trpcClient = injectTrpcClient();
+      const config = inject(ConfigService);
       // The types of createRenderer only allow null
       // eslint-disable-next-line unicorn/no-null
       const renderer = inject(RendererFactory2).createRenderer(null, null);
       const document = inject(DOCUMENT);
-      const tenantConfig = await trpcClient.config.tenant.query();
-      const theme = tenantConfig.theme;
+      await config.initialize();
+      const theme = config.tenant.theme;
       // This sets the theme on the html element also on the server
       renderer.addClass(document.documentElement, `theme-${theme}`);
       // renderer.addClass(document.documentElement, `theme-esn`);

@@ -1,10 +1,10 @@
 import { inject, REQUEST, REQUEST_CONTEXT, RESPONSE_INIT } from '@angular/core';
 import { CanActivateFn } from '@angular/router';
 
-import { type Context } from '../../types/custom/context';
-import { injectTrpcClient } from './trpc-client';
+import { type Context } from '../../../types/custom/context';
+import { injectTrpcClient } from './../trpc-client';
 
-export const authGuard: CanActivateFn = async () => {
+export const authGuard: CanActivateFn = async (_, state) => {
   const context = inject(REQUEST_CONTEXT) as Context | undefined;
   const trpcClient = injectTrpcClient();
   const response = inject(RESPONSE_INIT);
@@ -12,7 +12,7 @@ export const authGuard: CanActivateFn = async () => {
   if (!context) {
     const isAuthenticated = await trpcClient.config.isAuthenticated.query();
     if (!isAuthenticated) {
-      globalThis.location.href = `/forward-login?redirectUrl=${globalThis.location.pathname}`;
+      globalThis.location.href = `/forward-login?redirectUrl=${state.url}`;
       return false;
     }
   } else if (!context.authentication.isAuthenticated) {

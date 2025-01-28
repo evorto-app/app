@@ -1,4 +1,6 @@
+import { SQL, sql } from 'drizzle-orm';
 import {
+  index,
   pgTable,
   primaryKey,
   text,
@@ -11,17 +13,44 @@ import { createId } from '../create-id';
 import { roles } from './roles';
 import { tenants } from './tenants';
 
-export const users = pgTable('users', {
-  auth0Id: text().notNull().unique(),
-  createdAt: timestamp().notNull().defaultNow(),
-  id: varchar({ length: 20 })
-    .$defaultFn(() => createId())
-    .primaryKey(),
-  updatedAt: timestamp()
-    .notNull()
-    .defaultNow()
-    .$onUpdate(() => new Date()),
-});
+/**
+ * To add unaccent to our database as immutable extension
+ * CREATE EXTENSION IF NOT EXISTS unaccent;
+ * CREATE EXTENSION IF NOT EXISTS pg_trgm;
+ * CREATE OR REPLACE FUNCTION immutable_unaccent(varchar)
+ *   RETURNS text AS $$
+ *     SELECT unaccent($1)
+ *   $$ LANGUAGE sql IMMUTABLE;
+ */
+
+export const users = pgTable(
+  'users',
+  {
+    auth0Id: text().notNull().unique(),
+    communicationEmail: text().notNull(),
+    createdAt: timestamp().notNull().defaultNow(),
+    email: text().notNull(),
+    firstName: text().notNull(),
+    id: varchar({ length: 20 })
+      .$defaultFn(() => createId())
+      .primaryKey(),
+    lastName: text().notNull(),
+    searchableInfo: text().generatedAlwaysAs(
+      (): SQL =>
+        sql`lower(immutable_unaccent(${users.firstName} || ' ' || ${users.lastName} || ' ' || ${users.communicationEmail} || ' ' || ${users.email}))`,
+    ),
+    updatedAt: timestamp()
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => ({
+    seachGinIndex: index('searchable_info_idx').using(
+      'gin',
+      sql`${table.searchableInfo} gin_trgm_ops`,
+    ),
+  }),
+);
 
 export const usersToTenants = pgTable(
   'users_to_tenants',

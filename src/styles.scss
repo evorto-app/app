@@ -189,7 +189,8 @@ h6 {
 }
 
 // Positon fa-icons correctly in buttons
-.mat-mdc-button {
+.mat-mdc-button,
+.mat-mdc-outlined-button {
   fa-duotone-icon,
   fa-icon {
     display: inline-block;

@@ -17,8 +17,13 @@ import {
   faFolderGear,
   faFolders,
   faLockKeyhole,
+  faRightFromBracket,
+  faRightToBracket,
   faUser,
 } from '@fortawesome/duotone-regular-svg-icons';
+import { injectQuery } from '@tanstack/angular-query-experimental';
+
+import { QueriesService } from '../queries.service';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -33,11 +38,17 @@ import {
   templateUrl: './navigation.component.html',
 })
 export class NavigationComponent {
+  private readonly queries = inject(QueriesService);
+  protected readonly authenticationQuery = injectQuery(
+    this.queries.isAuthenticated(),
+  );
   protected readonly faCalendarDays = faCalendarDays;
   protected readonly faEllipsisVertical = faEllipsisVertical;
   protected readonly faFolderGear = faFolderGear;
   protected readonly faFolders = faFolders;
   protected readonly faLockKeyhole = faLockKeyhole;
+  protected readonly faRightFromBracket = faRightFromBracket;
+  protected readonly faRightToBracket = faRightToBracket;
   protected readonly faUser = faUser;
   protected readonly sheetTemplate =
     viewChild<TemplateRef<unknown>>('navigationSheet');

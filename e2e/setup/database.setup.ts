@@ -1,9 +1,9 @@
-import { seed } from '@ngneat/falso';
+import { randEmail, randFirstName, randLastName, seed } from '@ngneat/falso';
 import { reset } from 'drizzle-seed';
 
 import { addEvents } from '../../helpers/add-events';
 import { addIcons } from '../../helpers/add-icons';
-import { addRoles } from '../../helpers/add-roles';
+import { addRoles, addUsersToRoles } from '../../helpers/add-roles';
 import { addTemplateCategories } from '../../helpers/add-template-categories';
 import { addTemplates } from '../../helpers/add-templates';
 import { createTenant } from '../../helpers/create-tenant';
@@ -18,7 +18,18 @@ setup('reset database', async ({ database }) => {
   await reset(database, schema);
   await database
     .insert(users)
-    .values(usersToAuthenticate.map((data) => ({ auth0Id: data.userId })))
+    .values(
+      usersToAuthenticate
+        .filter((data) => data.addToDb)
+        .map((data) => ({
+          auth0Id: data.authId,
+          communicationEmail: randEmail(),
+          email: data.email,
+          firstName: randFirstName(),
+          id: data.id,
+          lastName: randLastName(),
+        })),
+    )
     .execute();
 
   // Setup default development tenants
@@ -29,7 +40,16 @@ setup('reset database', async ({ database }) => {
   for (const tenant of developmentTenants) {
     const developmentTenant = await createTenant(database, tenant.domain);
     await addIcons(database, developmentTenant);
-    await addRoles(database, developmentTenant);
+    const roles = await addRoles(database, developmentTenant);
+    await addUsersToRoles(
+      database,
+      usersToAuthenticate
+        .filter((data) => data.addToTenant && data.addToDb)
+        .flatMap((data) =>
+          roles.map((role) => ({ roleId: role.id, userId: data.id })),
+        ),
+      developmentTenant,
+    );
     const categories = await addTemplateCategories(database, developmentTenant);
     const templates = await addTemplates(database, categories);
     await addEvents(database, templates);

@@ -19,15 +19,24 @@
     </div>
     <span class="body-medium text-center">Templates</span>
   </a>
-  <a routerLink="/profile" class="flex flex-col items-center gap-1">
-    <div
-      class="flex min-w-16 flex-row justify-center rounded-full py-1"
-      routerLinkActive="bg-secondary-container text-on-secondary-container navigation-active"
-    >
-      <fa-duotone-icon [icon]="faUser" size="xl"></fa-duotone-icon>
-    </div>
-    <span class="body-medium text-center">Profile</span>
-  </a>
+  @if (authenticationQuery.data()) {
+    <a routerLink="/profile" class="flex flex-col items-center gap-1">
+      <div
+        class="flex min-w-16 flex-row justify-center rounded-full py-1"
+        routerLinkActive="bg-secondary-container text-on-secondary-container navigation-active"
+      >
+        <fa-duotone-icon [icon]="faUser" size="xl"></fa-duotone-icon>
+      </div>
+      <span class="body-medium text-center">Profile</span>
+    </a>
+  } @else {
+    <a href="/login" class="flex flex-col items-center gap-1 lg:hidden">
+      <div class="flex min-w-16 flex-row justify-center rounded-full py-1">
+        <fa-duotone-icon [icon]="faRightToBracket" size="xl"></fa-duotone-icon>
+      </div>
+      <span class="body-medium text-center">Login</span>
+    </a>
+  }
   <a
     routerLink="/global-admin"
     class="hidden flex-col items-center gap-1 lg:flex"
@@ -60,6 +69,26 @@
     </div>
     <span class="body-medium text-center">More</span>
   </button>
+  <div class="hidden grow lg:block"></div>
+
+  @if (authenticationQuery.data()) {
+    <a href="/logout" class="hidden flex-col items-center gap-1 lg:flex">
+      <div class="flex min-w-16 flex-row justify-center rounded-full py-1">
+        <fa-duotone-icon
+          [icon]="faRightFromBracket"
+          size="xl"
+        ></fa-duotone-icon>
+      </div>
+      <span class="body-medium text-center">Logout</span>
+    </a>
+  } @else {
+    <a href="/login" class="hidden flex-col items-center gap-1 lg:flex">
+      <div class="flex min-w-16 flex-row justify-center rounded-full py-1">
+        <fa-duotone-icon [icon]="faRightToBracket" size="xl"></fa-duotone-icon>
+      </div>
+      <span class="body-medium text-center">Login</span>
+    </a>
+  }
 </div>
 <div class="h-24 w-full lg:hidden"></div>
 <ng-template #navigationSheet>

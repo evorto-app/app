@@ -2,6 +2,7 @@ import {
   faCalendarDay,
   faFileEdit,
   faGear,
+  faLock,
   faUser,
 } from '@fortawesome/duotone-regular-svg-icons';
 import { IconDefinition } from '@fortawesome/fontawesome-svg-core';
@@ -10,28 +11,46 @@ import { Schema } from 'effect';
 // Define the permission groups as const
 const ADMIN_GROUP = {
   key: 'admin',
-  permissions: ['analytics', 'billing', 'roles', 'settings'] as const,
+  permissions: ['manageRoles', 'settings'] as const,
 } as const;
 
 const EVENTS_GROUP = {
   key: 'events',
-  permissions: ['create', 'delete', 'edit', 'registration', 'view'] as const,
+  permissions: [
+    'create',
+    'viewDrafts',
+    'viewPublic',
+    'manageAll',
+    'changePublication',
+  ] as const,
 } as const;
 
 const TEMPLATES_GROUP = {
   key: 'templates',
-  permissions: ['create', 'delete', 'edit', 'view'] as const,
+  permissions: [
+    'create',
+    'delete',
+    'editAll',
+    'view',
+    'manageCategories',
+  ] as const,
 } as const;
 
 const USERS_GROUP = {
   key: 'users',
-  permissions: ['create', 'delete', 'edit', 'view'] as const,
+  permissions: ['viewAll', 'assignRoles'] as const,
+} as const;
+
+const INTERNAL_GROUP = {
+  key: 'internal',
+  permissions: ['viewInternalPages'] as const,
 } as const;
 
 // Union type of all possible permissions
 export type Permission =
   | AdminPermissions
   | EventsPermissions
+  | InternalPermissions
   | TemplatesPermissions
   | UsersPermissions;
 export interface PermissionGroup {
@@ -52,6 +71,9 @@ type AdminPermissions =
 type EventsPermissions =
   `${typeof EVENTS_GROUP.key}:${(typeof EVENTS_GROUP.permissions)[number]}`;
 
+type InternalPermissions =
+  `${typeof INTERNAL_GROUP.key}:${(typeof INTERNAL_GROUP.permissions)[number]}`;
+
 type TemplatesPermissions =
   `${typeof TEMPLATES_GROUP.key}:${(typeof TEMPLATES_GROUP.permissions)[number]}`;
 
@@ -65,7 +87,22 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
     label: 'Admin',
     permissions: ADMIN_GROUP.permissions.map((perm) => ({
       key: `${ADMIN_GROUP.key}:${perm}` as Permission,
-      label: perm.charAt(0).toUpperCase() + perm.slice(1),
+      label: perm
+        .replaceAll(/([A-Z])/g, ' $1')
+        .replace(/^./, (string_) => string_.toUpperCase())
+        .trim(),
+    })),
+  },
+  {
+    icon: faLock,
+    key: INTERNAL_GROUP.key,
+    label: 'Internal',
+    permissions: INTERNAL_GROUP.permissions.map((perm) => ({
+      key: `${INTERNAL_GROUP.key}:${perm}` as Permission,
+      label: perm
+        .replaceAll(/([A-Z])/g, ' $1')
+        .replace(/^./, (string_) => string_.toUpperCase())
+        .trim(),
     })),
   },
   {
@@ -74,7 +111,10 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
     label: 'Events',
     permissions: EVENTS_GROUP.permissions.map((perm) => ({
       key: `${EVENTS_GROUP.key}:${perm}` as Permission,
-      label: perm.charAt(0).toUpperCase() + perm.slice(1),
+      label: perm
+        .replaceAll(/([A-Z])/g, ' $1')
+        .replace(/^./, (string_) => string_.toUpperCase())
+        .trim(),
     })),
   },
   {
@@ -83,7 +123,10 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
     label: 'Templates',
     permissions: TEMPLATES_GROUP.permissions.map((perm) => ({
       key: `${TEMPLATES_GROUP.key}:${perm}` as Permission,
-      label: perm.charAt(0).toUpperCase() + perm.slice(1),
+      label: perm
+        .replaceAll(/([A-Z])/g, ' $1')
+        .replace(/^./, (string_) => string_.toUpperCase())
+        .trim(),
     })),
   },
   {
@@ -92,7 +135,10 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
     label: 'Users',
     permissions: USERS_GROUP.permissions.map((perm) => ({
       key: `${USERS_GROUP.key}:${perm}` as Permission,
-      label: perm.charAt(0).toUpperCase() + perm.slice(1),
+      label: perm
+        .replaceAll(/([A-Z])/g, ' $1')
+        .replace(/^./, (string_) => string_.toUpperCase())
+        .trim(),
     })),
   },
 ] as const;

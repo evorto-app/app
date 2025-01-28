@@ -161,6 +161,22 @@ export class QueriesService {
       });
   }
 
+  public isAuthenticated() {
+    return () =>
+      queryOptions({
+        queryFn: () => this.trpcClient.config.isAuthenticated.query(),
+        queryKey: ['config', 'isAuthenticated'],
+      });
+  }
+
+  public permissions() {
+    return () =>
+      queryOptions({
+        queryFn: () => this.trpcClient.config.permissions.query(),
+        queryKey: ['config', 'permissions'],
+      });
+  }
+
   public registerForEvent() {
     return () =>
       mutationOptions({
@@ -199,6 +215,14 @@ export class QueriesService {
       queryOptions({
         queryFn: () => this.trpcClient.icons.search.query({ search: query() }),
         queryKey: ['icons', query()],
+      });
+  }
+
+  public self() {
+    return () =>
+      queryOptions({
+        queryFn: () => this.trpcClient.users.self.query(),
+        queryKey: ['users', 'self'],
       });
   }
 
@@ -298,6 +322,14 @@ export class QueriesService {
             queryKey: ['tenants'],
           });
         },
+      });
+  }
+
+  public users() {
+    return () =>
+      queryOptions({
+        queryFn: () => this.trpcClient.users.findMany.query(),
+        queryKey: ['users'],
       });
   }
 }

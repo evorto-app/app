@@ -1,31 +1,33 @@
-import { effect, inject, Injectable } from '@angular/core';
-import { injectQuery } from '@tanstack/angular-query-experimental';
+import { Injectable } from '@angular/core';
 
-import { type Tenant } from '../../types/custom/tenant';
-import { QueriesService } from './queries.service';
+import { Permission } from '../../shared/permissions/permissions';
+import { Tenant } from '../../types/custom/tenant';
+import { injectTrpcClient } from './trpc-client';
 
 @Injectable({
   providedIn: 'root',
 })
 export class ConfigService {
-  get currency() {
-    if (!this.staticTenant) {
-      throw new Error('No tenant found');
-    }
-    return this.staticTenant.currency;
+  public get permissions(): Permission[] {
+    return this._permissions;
   }
-  private readonly queries = inject(QueriesService);
 
-  private staticTenant?: Tenant;
+  public get tenant(): Tenant {
+    return this._tenant;
+  }
 
-  private tenantQuery = injectQuery(this.queries.currentTenant());
+  private _permissions!: Permission[];
+  private _tenant!: Tenant;
 
-  constructor() {
-    effect(() => {
-      const tenant = this.tenantQuery.data();
-      if (tenant) {
-        this.staticTenant = tenant;
-      }
-    });
+  private trpcClient = injectTrpcClient();
+
+  public async initialize() {
+    const [tenant, permissions] = await Promise.all([
+      this.trpcClient.config.tenant.query(),
+      this.trpcClient.config.permissions.query(),
+    ]);
+
+    this._tenant = tenant;
+    this._permissions = [...permissions];
   }
 }

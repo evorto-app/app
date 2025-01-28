@@ -1,1 +1,27 @@
-<p>user-profile works!</p>
+<div class="mb-4 flex flex-row items-center gap-2">
+  <!-- <a routerLink="/templates" mat-icon-button class="block lg:hidden!">
+    <fa-duotone-icon [icon]="faArrowLeft"></fa-duotone-icon>
+  </a> -->
+  <h1 class="title-large">Hello, {{ userQuery.data()?.firstName }}</h1>
+  <div class="grow"></div>
+  <!-- <button
+    title="menu"
+    mat-icon-button
+    [matMenuTriggerFor]="menu"
+    class="block lg:hidden!"
+  >
+    <fa-duotone-icon [icon]="faEllipsisVertical"></fa-duotone-icon>
+  </button>
+  <mat-menu #menu="matMenu">
+    <a mat-menu-item routerLink="edit">Edit template</a>
+  </mat-menu>
+  <button mat-button routerLink="edit" class="hidden! lg:block!">
+    Edit template
+  </button> -->
+</div>
+<main class="p-2">
+  <a href="/logout" mat-stroked-button>
+    <fa-duotone-icon [icon]="faRightFromBracket"></fa-duotone-icon>
+    Logout
+  </a>
+</main>
