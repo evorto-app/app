@@ -1,8 +1,10 @@
+import { TRPCError } from '@trpc/server';
 import { and, eq } from 'drizzle-orm';
 import { Schema } from 'effect';
 
 import { database } from '../../../db';
 import * as schema from '../../../db/schema';
+import { PermissionSchema } from '../../../shared/permissions/permissions';
 import {
   authenticatedProcedure,
   publicProcedure,
@@ -75,8 +77,55 @@ export const eventRouter = router({
       return event;
     }),
 
+  eventList: publicProcedure
+    .input(
+      Schema.decodeUnknownSync(
+        Schema.Struct({
+          authenticated: Schema.optionalWith(Schema.Boolean, {
+            default: () => false,
+          }),
+          permissions: Schema.optionalWith(Schema.Array(PermissionSchema), {
+            default: () => [],
+          }),
+          roleIds: Schema.optionalWith(Schema.Array(Schema.NonEmptyString), {
+            default: () => [],
+          }),
+        }),
+      ),
+    )
+    .query(async ({ ctx, input: { authenticated, permissions, roleIds } }) => {
+      if (ctx.authentication.isAuthenticated !== authenticated) {
+        throw new TRPCError({
+          code: 'CONFLICT',
+          message: `Supplied query parameter authenticated (${authenticated}) does not match the actual state (${ctx.authentication.isAuthenticated})!`,
+        });
+      }
+      if (
+        !permissions.every((permission) =>
+          ctx.user?.permissions?.includes(permission),
+        )
+      ) {
+        throw new TRPCError({
+          code: 'CONFLICT',
+          message: `Supplied query parameter permissions (${permissions}) does not match the actual state (${ctx.user?.permissions})!`,
+        });
+      }
+
+      if (!roleIds.every((id) => ctx.user?.roleIds?.includes(id))) {
+        throw new TRPCError({
+          code: 'CONFLICT',
+          message: `Supplied query parameter roleIds (${roleIds}) does not match the actual state (${ctx.user?.roleIds})!`,
+        });
+      }
+      const queryResult = await database
+        .select()
+        .from(schema.eventInstances)
+        .execute();
+      return queryResult;
+    }),
+
   findMany: publicProcedure.query(async ({ ctx }) => {
-    return await database.query.eventInstances.findMany({
+    return database.query.eventInstances.findMany({
       where: eq(schema.eventInstances.tenantId, ctx.tenant.id),
     });
   }),

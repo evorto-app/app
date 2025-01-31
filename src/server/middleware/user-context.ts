@@ -18,7 +18,10 @@ export const addUserContextMiddleware = async (
       const permissions = user.usersToTenants
         .flatMap((ut) => ut.rolesToTenantUsers)
         .flatMap((rttu) => rttu.role.permissions);
-      request.user = { ...user, permissions };
+      const roleIds = user.usersToTenants
+        .flatMap((ut) => ut.rolesToTenantUsers)
+        .flatMap((rttu) => rttu.roleId);
+      request.user = { ...user, permissions, roleIds };
     }
   }
   next();

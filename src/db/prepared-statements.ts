@@ -1,8 +1,7 @@
 import { eq, sql } from 'drizzle-orm';
 
 import { database as database } from './database-client';
-import { tenants } from './schema/tenants';
-import { users } from './schema/users';
+import { tenants, users } from './schema';
 
 export const getTenant = database.query.tenants
   .findFirst({ where: eq(tenants.domain, sql.placeholder('domain')) })
@@ -15,7 +14,7 @@ export const getUser = database.query.users
       usersToTenants: {
         with: {
           rolesToTenantUsers: {
-            with: { role: { columns: { permissions: true } } },
+            with: { role: { columns: { id: true, permissions: true } } },
           },
         },
       },

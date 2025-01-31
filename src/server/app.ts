@@ -62,7 +62,23 @@ app.use(
     createContext: (request) => {
       const requestContext = Schema.decodeUnknownEither(Context)(request.req);
       if (Either.isLeft(requestContext)) {
-        throw requestContext.left;
+        if (process.env['PRERENDER'] === 'true') {
+          // To make sure we can build our app, we have to handle the prerender
+          return Schema.decodeUnknownSync(Context)({
+            authentication: { isAuthenticated: false },
+            tenant: {
+              currency: 'NO_TENANT_PRERENDER',
+              domain: 'NO_TENANT_PRERENDER',
+              id: 'NO_TENANT_PRERENDER',
+              locale: 'NO_TENANT_PRERENDER',
+              name: 'NO_TENANT_PRERENDER',
+              theme: 'evorto',
+              timezone: 'NO_TENANT_PRERENDER',
+            },
+          });
+        } else {
+          throw requestContext.left;
+        }
       }
       return requestContext.right;
     },

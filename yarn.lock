@@ -7319,6 +7319,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"es-toolkit@npm:^1.31.0":
+  version: 1.31.0
+  resolution: "es-toolkit@npm:1.31.0"
+  dependenciesMeta:
+    "@trivago/prettier-plugin-sort-imports@4.3.0":
+      unplugged: true
+    prettier-plugin-sort-re-exports@0.0.1:
+      unplugged: true
+  checksum: 10c0/51db787e41b1cca12c819caa2f7a1326e7277f127ae4f344c7f6c7a8f0e2af0a0fc5ccb4fed316890e1ebc3302bcb5ce3eb480cc221386a546d67129d1d46f23
+  languageName: node
+  linkType: hard
+
 "esbuild-register@npm:^3.5.0":
   version: 3.6.0
   resolution: "esbuild-register@npm:3.6.0"
@@ -7955,6 +7967,7 @@ __metadata:
     drizzle-orm: "npm:^0.38.4"
     drizzle-seed: "npm:^0.3.0"
     effect: "npm:^3.12.7"
+    es-toolkit: "npm:^1.31.0"
     eslint: "npm:^9.19.0"
     eslint-config-prettier: "npm:^10.0.1"
     eslint-plugin-perfectionist: "npm:^4.7.0"

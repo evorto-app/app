@@ -9,4 +9,5 @@ export class User extends Schema.Class<User>('User')({
   id: Schema.NonEmptyString,
   lastName: Schema.NonEmptyString,
   permissions: Schema.Array(PermissionSchema),
+  roleIds: Schema.Array(Schema.NonEmptyString),
 }) {}
