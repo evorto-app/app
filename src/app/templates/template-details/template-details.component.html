@@ -33,7 +33,7 @@
   <div class="flex flex-col gap-4">
     <section class="rounded-2xl bg-surface p-4 text-on-surface">
       <div
-        class="prose dark:prose-invert"
+        class="prose max-w-none dark:prose-invert"
         [innerHTML]="templateQuery.data().description"
       ></div>
     </section>
@@ -63,9 +63,9 @@
 
             <div class="grid gap-3">
               <div class="flex flex-col">
-                <span class="text-on-surface-variant text-sm"
-                  >Registration</span
-                >
+                <span class="text-on-surface-variant text-sm">
+                  Registration
+                </span>
                 <div class="flex items-center gap-1">
                   <span class="font-medium">{{
                     option.registrationMode | titlecase
@@ -79,6 +79,19 @@
                 </div>
               </div>
 
+              <div class="grid gap-3">
+                <div class="flex flex-col">
+                  <span class="text-on-surface-variant text-sm">
+                    Allowed roles
+                  </span>
+                  <mat-chip-set role="list">
+                    @for (role of option.roles; track role.id) {
+                      <mat-chip role="listitem">{{ role.name }}</mat-chip>
+                    }
+                  </mat-chip-set>
+                </div>
+              </div>
+
               <div class="flex flex-col">
                 <span class="text-on-surface-variant text-sm">Timeline</span>
                 <div class="flex flex-col gap-1">
@@ -87,20 +100,20 @@
                       [icon]="faClock"
                       class="text-on-surface-variant text-sm"
                     ></fa-duotone-icon>
-                    <span
-                      >Opens {{ option.openRegistrationOffset }} hours before
-                      event</span
-                    >
+                    <span>
+                      Opens {{ option.openRegistrationOffset }} hours before
+                      event
+                    </span>
                   </div>
                   <div class="flex items-center gap-2">
                     <fa-duotone-icon
                       [icon]="faClockFour"
                       class="text-on-surface-variant text-sm"
                     ></fa-duotone-icon>
-                    <span
-                      >Closes {{ option.closeRegistrationOffset }} hours before
-                      event</span
-                    >
+                    <span>
+                      Closes {{ option.closeRegistrationOffset }} hours before
+                      event
+                    </span>
                   </div>
                 </div>
               </div>

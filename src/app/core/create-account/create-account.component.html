@@ -1,0 +1,52 @@
+<div class="flex flex-col gap-4 p-4">
+  <div class="flex flex-row items-start justify-between">
+    <h1 class="title-large">Welcome 👋🏼</h1>
+    <a href="/logout" mat-stroked-button>Log out</a>
+  </div>
+  <p>
+    Create an account to start using the app. If you do not want to create an
+    account, you can <a href="/logout" class="underline">log out</a>.
+  </p>
+  @if (authDataQuery.isPending()) {
+    <div
+      class="flex animate-pulse cursor-progress flex-col gap-2 rounded-2xl bg-surface p-4 text-on-surface"
+    >
+      <h2 class="title-medium">Loading ...</h2>
+    </div>
+  } @else if (authDataQuery.isSuccess()) {
+    @if (authDataQuery.data().email_verified) {
+      <form
+        [formGroup]="accountForm"
+        class="flex flex-col gap-4 rounded-2xl bg-surface p-4 text-on-surface"
+        (ngSubmit)="createAccount()"
+      >
+        <mat-form-field>
+          <mat-label>First name</mat-label>
+          <input matInput formControlName="firstName" />
+        </mat-form-field>
+
+        <mat-form-field>
+          <mat-label>Last name</mat-label>
+          <input matInput formControlName="lastName" />
+        </mat-form-field>
+
+        <mat-form-field>
+          <mat-label>Email</mat-label>
+          <input matInput formControlName="communicationEmail" />
+          <mat-hint> Address where you receive information </mat-hint>
+        </mat-form-field>
+
+        <button mat-flat-button type="submit" [disabled]="accountForm.invalid">
+          Create Account
+        </button>
+      </form>
+    } @else {
+      <div class="rounded-2xl bg-error p-4 text-on-error">
+        <h2 class="title-medium mb-4">Your email is not verified</h2>
+        <p class="body-medium">
+          Please check your inbox and return here once your email was verified.
+        </p>
+      </div>
+    }
+  }
+</div>

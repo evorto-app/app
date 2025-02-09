@@ -1,0 +1,23 @@
+<h2 mat-dialog-title>Update {{ data.event.title }}</h2>
+<mat-dialog-content>
+  <div>
+    <mat-form-field class="mt-2 w-full">
+      <mat-label>Visibility</mat-label>
+      <mat-select [formControl]="visibilityControl">
+        <mat-option value="PUBLIC">Public</mat-option>
+        <mat-option value="HIDDEN">Hidden</mat-option>
+        <mat-option value="PRIVATE">Private</mat-option>
+      </mat-select>
+    </mat-form-field>
+  </div>
+</mat-dialog-content>
+<mat-dialog-actions align="end">
+  <button mat-button mat-dialog-close>Cancel</button>
+  <button
+    mat-button
+    [mat-dialog-close]="visibilityControl.value"
+    cdkFocusInitial
+  >
+    Save
+  </button>
+</mat-dialog-actions>

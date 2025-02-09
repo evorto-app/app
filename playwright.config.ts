@@ -56,7 +56,7 @@ export default defineConfig({
     // },
   ],
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
-  reporter: 'html',
+  reporter: process.env['CI'] ? [['github'], ['dot']] : 'html',
   /* Retry on CI only */
   retries: process.env['CI'] ? 2 : 0,
   testDir: './e2e',
@@ -69,6 +69,12 @@ export default defineConfig({
 
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: 'on-first-retry',
+  },
+
+  webServer: {
+    command: 'docker compose up',
+    reuseExistingServer: !process.env['CI'],
+    url: 'http://localhost:4200',
   },
 
   /* Opt out of parallel tests on CI. */

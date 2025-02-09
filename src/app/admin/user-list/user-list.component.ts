@@ -10,6 +10,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatMenuModule } from '@angular/material/menu';
+import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatTableDataSource, MatTableModule } from '@angular/material/table';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import {
@@ -17,6 +18,7 @@ import {
   faEllipsisVertical,
 } from '@fortawesome/duotone-regular-svg-icons';
 import { injectQuery } from '@tanstack/angular-query-experimental';
+import consola from 'consola/browser';
 
 import { QueriesService } from '../../core/queries.service';
 
@@ -27,6 +29,7 @@ import { QueriesService } from '../../core/queries.service';
     MatMenuModule,
     MatButtonModule,
     MatTableModule,
+    MatPaginatorModule,
     MatCheckboxModule,
     MatChipsModule,
   ],
@@ -51,25 +54,29 @@ export class UserListComponent {
     lastName: string;
     roles: string[];
   }>(true);
+  private readonly filterInput = signal<{
+    limit?: number;
+    offset?: number;
+    search?: string;
+  }>({});
   private readonly queries = inject(QueriesService);
-  protected readonly usersQuery = injectQuery(this.queries.users());
-  protected readonly usersDataSource = new MatTableDataSource(
-    this.usersQuery.data(),
+  protected readonly usersQuery = injectQuery(
+    this.queries.users(this.filterInput),
   );
 
-  constructor() {
-    effect(() => {
-      const users = this.usersQuery.data();
-      if (users) {
-        this.usersDataSource.data = users;
-      }
-    });
+  handlePageChange(event: PageEvent) {
+    this.filterInput.update((old) => ({
+      ...old,
+      limit: event.pageSize,
+      offset: event.pageIndex * event.pageSize,
+    }));
+    consola.info('Page event', event);
   }
 
   /** Whether the number of selected elements matches the total number of rows. */
   isAllSelected() {
     const numberSelected = this.selection.selected.length;
-    const numberRows = this.usersDataSource.data.length;
+    const numberRows = this.usersQuery.data()?.users?.length ?? 0;
     return numberSelected == numberRows;
   }
 
@@ -77,6 +84,8 @@ export class UserListComponent {
   toggleAllRows() {
     this.isAllSelected()
       ? this.selection.clear()
-      : this.usersDataSource.data.forEach((row) => this.selection.select(row));
+      : this.usersQuery
+          .data()
+          ?.users?.forEach((row) => this.selection.select(row));
   }
 }

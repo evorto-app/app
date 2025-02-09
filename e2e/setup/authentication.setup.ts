@@ -5,8 +5,10 @@ import { test as setup } from './../fixtures/base-test';
 
 for (const userData of usersToAuthenticate) {
   setup(`authenticate ${userData.email}`, async ({ page }) => {
-    const fileStats = await stat(userData.stateFile);
-    if (fileStats.mtimeMs > Date.now() - 1000 * 60 * 60 * 24) {
+    const fileStats = await stat(userData.stateFile).catch(() => {
+      return;
+    });
+    if (fileStats && fileStats.mtimeMs > Date.now() - 1000 * 60 * 60 * 24) {
       return;
     }
     await page.goto('./login');

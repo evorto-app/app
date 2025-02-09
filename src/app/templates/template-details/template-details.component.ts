@@ -7,6 +7,7 @@ import {
   input,
 } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
+import { MatChipsModule } from '@angular/material/chips';
 import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
 import { RouterModule } from '@angular/router';
@@ -34,6 +35,7 @@ import { QueriesService } from '../../core/queries.service';
     MatMenuModule,
     CurrencyPipe,
     TitleCasePipe,
+    MatChipsModule,
   ],
   selector: 'app-template-details',
   styles: ``,

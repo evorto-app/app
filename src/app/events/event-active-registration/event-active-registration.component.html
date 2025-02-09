@@ -1,0 +1,54 @@
+<div class="flex flex-col gap-2 rounded-2xl bg-surface p-4 text-on-surface">
+  @for (registration of registrations(); track registration.id) {
+    <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div class="title-medium lg:col-span-2">
+        {{ registration.registrationOptionTitle }}
+      </div>
+      @if (registration.status === "PENDING") {
+        @if (registration.paymentPending) {
+          <div class="text-warning lg:col-span-2">
+            To finalize your registration you have to pay the registration fee.
+          </div>
+          @if (registration.checkoutUrl) {
+            <a href="{{ registration.checkoutUrl }}" mat-flat-button>
+              Pay now
+            </a>
+          }
+        } @else {
+          <div class="text-warning lg:col-span-2">
+            Your registration is pending confirmation
+          </div>
+        }
+        <button
+          mat-stroked-button
+          (click)="cancelPendingRegistration(registration)"
+        >
+          Cancel registration
+        </button>
+      } @else if (registration.status === "WAITLIST") {
+        <div class="text-warning">You are currently on the waitlist</div>
+      } @else if (registration.status === "CONFIRMED") {
+        @if (registration.registeredDescription) {
+          <div
+            class="prose max-w-none dark:prose-invert"
+            [innerHtml]="registration.registeredDescription"
+          ></div>
+        } @else {
+          <div class="text-success">Your registration is confirmed</div>
+        }
+        <div
+          class="flex flex-col gap-4 rounded-xl bg-surface-container-high p-4 text-on-surface-container-high"
+        >
+          <p class="title-medium">Your event ticket</p>
+          <img
+            ngSrc="/qr/registration/{{ registration.id }}"
+            priority
+            width="200"
+            height="200"
+            alt="QR code for the registration"
+          />
+        </div>
+      }
+    </div>
+  }
+</div>

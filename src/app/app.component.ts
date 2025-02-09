@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { MatIconRegistry } from '@angular/material/icon';
+import { MatSnackBarModule } from '@angular/material/snack-bar';
 import { DomSanitizer } from '@angular/platform-browser';
 import { RouterOutlet } from '@angular/router';
 
@@ -7,7 +8,7 @@ import { NavigationComponent } from './core/navigation/navigation.component';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterOutlet, NavigationComponent],
+  imports: [RouterOutlet, NavigationComponent, MatSnackBarModule],
   selector: 'app-root',
   templateUrl: './app.component.html',
 })

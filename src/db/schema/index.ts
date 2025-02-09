@@ -11,4 +11,5 @@ export * from './template-event-addons';
 export * from './template-registration-option-discounts';
 export * from './template-registration-options';
 export * from './tenants';
+export * from './transactions';
 export * from './users';

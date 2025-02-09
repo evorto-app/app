@@ -13,6 +13,7 @@ import { createId } from '../create-id';
 import { tenants } from './tenants';
 
 export const roles = pgTable('roles', {
+  collapseMembersInHup: boolean().notNull().default(true),
   createdAt: timestamp().notNull().defaultNow(),
   defaultOrganizerRole: boolean().notNull().default(false),
   defaultUserRole: boolean().notNull().default(false),
@@ -23,6 +24,7 @@ export const roles = pgTable('roles', {
     .primaryKey(),
   name: text().notNull(),
   permissions: jsonb().$type<Permission[]>().notNull().default([]),
+  showInHub: boolean().notNull().default(false),
   sortOrder: integer().notNull().default(0),
   tenantId: varchar({ length: 20 })
     .notNull()

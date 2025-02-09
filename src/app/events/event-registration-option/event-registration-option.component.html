@@ -1,0 +1,74 @@
+<div
+  class="flex flex-col gap-2 rounded-2xl bg-surface p-4 text-on-surface {{
+    registrationMutation.isPending()
+      ? 'animate-pulse cursor-progress pointer-events-none'
+      : ''
+  }}"
+>
+  <div class="flex flex-row items-center gap-4">
+    <h3 class="title-medium">{{ registrationOption().title }}</h3>
+    @if (registrationOption().isPaid) {
+      <div class="grow"></div>
+      <p class="title-small">
+        {{ registrationOption().price / 100 | currency }}
+      </p>
+    }
+  </div>
+
+  <div
+    class="prose max-w-none dark:prose-invert"
+    [innerHTML]="registrationOption().description"
+  ></div>
+
+  @if (authenticationQuery.data()) {
+    @switch (registrationOpen()) {
+      @case ("open") {
+        @if (registrationOption().isPaid) {
+          <button
+            (click)="register(registrationOption())"
+            mat-flat-button
+            [disabled]="registrationMutation.isPending()"
+          >
+            Pay {{ registrationOption().price / 100 | currency }} and register
+          </button>
+        } @else {
+          <button
+            (click)="register(registrationOption())"
+            mat-flat-button
+            [disabled]="registrationMutation.isPending()"
+          >
+            Register
+          </button>
+        }
+      }
+      @case ("tooEarly") {
+        <p class="body-large">
+          Registration is not open yet, it will open
+          {{ registrationOption().openRegistrationTime | date: "medium" }}
+        </p>
+      }
+      @case ("tooLate") {
+        <p class="body-large">
+          Registration is closed, it closed
+          {{ registrationOption().closeRegistrationTime | date: "medium" }}
+        </p>
+      }
+    }
+  } @else {
+    <p class="body-large">You can only register after logging in</p>
+    <a
+      href="/forward-login?redirectUrl=/events/{{
+        registrationOption().eventId
+      }}"
+      mat-button
+    >
+      Log in now
+    </a>
+  }
+</div>
+@if (registrationMutation.isError()) {
+  <div class="mt-4 flex flex-col gap-2 rounded-2xl bg-error p-4 text-on-error">
+    <h3 class="title-medium">Registration failed</h3>
+    <p>{{ registrationMutation.error().message }}</p>
+  </div>
+}

@@ -1,0 +1,77 @@
+<div class="mb-4 flex flex-row items-center gap-2">
+  <a routerLink="/scan" mat-icon-button>
+    <fa-duotone-icon [icon]="faArrowLeft"></fa-duotone-icon>
+  </a>
+  <h1 class="title-large">Registration scanned</h1>
+  <div class="grow"></div>
+</div>
+@if (scanResultQuery.isPending()) {
+  <div
+    class="flex animate-pulse cursor-progress flex-col gap-2 rounded-2xl bg-surface p-4 text-on-surface"
+  >
+    <h2 class="title-medium">Loading ...</h2>
+  </div>
+} @else if (scanResultQuery.isError()) {
+  <div class="rounded-2xl bg-error p-4 text-on-error">
+    <h2 class="title-medium mb-4">There was an error</h2>
+    <p class="body-medium">Error: {{ scanResultQuery.error().message }}</p>
+  </div>
+} @else if (scanResultQuery.isSuccess()) {
+  <div class="flex flex-col gap-2 rounded-2xl bg-surface text-on-surface">
+    <div class="border-b p-4">
+      <h2 class="title-medium">Scan result</h2>
+    </div>
+    <div class="border-b p-2">
+      <p class="title-small px-2">User</p>
+      <p class="px-2">
+        {{ scanResultQuery.data().user.firstName }}
+        {{ scanResultQuery.data().user.lastName }}
+      </p>
+      @if (scanResultQuery.data().sameUserIssue) {
+        <div class="mt-2 rounded bg-error p-2 text-on-error">
+          <p class="title-small">Registration for logged in user</p>
+          <p>
+            You can not scan a registration for yourself. Please ask another
+            member to scan your registration.
+          </p>
+        </div>
+      }
+    </div>
+    <div class="border-b p-2">
+      <p class="title-small px-2">Event</p>
+      <p class="px-2">{{ scanResultQuery.data().event.title }}</p>
+      @if (!startsSoon()) {
+        <div class="mt-2 rounded bg-error p-2 text-on-error">
+          <p class="title-small">Event starting in the future</p>
+          <p>
+            The event starts on more than one hour, on
+            {{ scanResultQuery.data().event.start | date: "medium" }}
+          </p>
+        </div>
+      }
+    </div>
+    <div class="p-2">
+      <p class="title-small px-2">Registration</p>
+      <p class="px-2">
+        {{ scanResultQuery.data().registrationOption.title }}
+      </p>
+      @if (scanResultQuery.data().registrationStatusIssue) {
+        <div class="mt-2 rounded bg-error p-2 text-on-error">
+          <p class="title-small">Registration is not confirmed</p>
+          <p>
+            This registration is not confirmed, please ask the user to check if
+            they paid. The registration can only be scanned if it is confirmed.
+          </p>
+        </div>
+      }
+    </div>
+  </div>
+  <button
+    [disabled]="!scanResultQuery.data().allowCheckin"
+    class="mt-4 w-full"
+    mat-raised-button
+    (click)="checkIn()"
+  >
+    Confirm Check In
+  </button>
+}

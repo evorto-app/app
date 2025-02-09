@@ -1,24 +1,70 @@
-import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { MatBadgeModule } from '@angular/material/badge';
+import { MatListModule } from '@angular/material/list';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import {
+  faCalendarCheck,
   faFolderUser,
   faGlobe,
   faUsers,
   faUsersGear,
 } from '@fortawesome/duotone-regular-svg-icons';
+import { injectQuery } from '@tanstack/angular-query-experimental';
+import { interval } from 'rxjs';
+
+import { QueriesService } from '../../core/queries.service';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FontAwesomeModule, RouterLink, RouterOutlet, RouterLinkActive],
-  selector: 'app-admin-overview',
-  styles: ``,
+  imports: [
+    RouterOutlet,
+    RouterLink,
+    RouterLinkActive,
+    FontAwesomeModule,
+    MatListModule,
+    MatBadgeModule,
+  ],
+  standalone: true,
   templateUrl: './admin-overview.component.html',
 })
 export class AdminOverviewComponent {
+  protected readonly faCalendarCheck = faCalendarCheck;
   protected readonly faFolderUser = faFolderUser;
   protected readonly faGlobe = faGlobe;
   protected readonly faUsers = faUsers;
   protected readonly faUsersGear = faUsersGear;
   protected readonly outletActive = signal(false);
+  private readonly queries = inject(QueriesService);
+  private readonly selfQuery = injectQuery(this.queries.self());
+  private pendingReviewsFilter = computed(() => ({
+    limit: 50,
+    offset: 0,
+    startAfter: new Date(),
+    status: ['PENDING_REVIEW'] as const,
+    userId: this.selfQuery.data()?.id,
+    visibility: ['PRIVATE', 'PUBLIC', 'HIDDEN'] as const,
+  }));
+  protected readonly pendingReviewsQuery = injectQuery(
+    this.queries.events(this.pendingReviewsFilter),
+  );
+  protected readonly pendingReviewsCount = computed(
+    () => this.pendingReviewsQuery.data()?.length ?? 0,
+  );
+
+  constructor() {
+    // Auto-refresh pending reviews count every minute
+    interval(60_000)
+      .pipe(takeUntilDestroyed())
+      .subscribe(() => {
+        this.pendingReviewsQuery.refetch();
+      });
+  }
 }

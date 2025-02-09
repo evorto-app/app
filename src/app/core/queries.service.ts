@@ -1,5 +1,6 @@
 import { inject, Injectable, Signal } from '@angular/core';
 import {
+  keepPreviousData,
   mutationOptions,
   QueryClient,
   queryOptions,
@@ -26,6 +27,53 @@ export class QueriesService {
             queryKey: ['icons'],
           });
         },
+      });
+  }
+
+  public addIconByName() {
+    return () => {
+      mutationOptions({
+        mutationFn: (
+          input: AppRouter['icons']['addIcon']['_def']['$types']['input'],
+        ) => this.trpcClient.icons.addIcon.mutate(input),
+        onSuccess: () => {
+          this.queryClient.invalidateQueries({
+            queryKey: ['icons'],
+          });
+        },
+      });
+    };
+  }
+
+  public authData() {
+    return () =>
+      queryOptions({
+        queryFn: () => this.trpcClient.users.authData.query(),
+        queryKey: ['authData'],
+        refetchInterval: 1000 * 20,
+      });
+  }
+
+  public cancelPendingRegistration() {
+    return () =>
+      mutationOptions({
+        mutationFn: (
+          input: AppRouter['events']['cancelPendingRegistration']['_def']['$types']['input'],
+        ) => this.trpcClient.events.cancelPendingRegistration.mutate(input),
+        onSuccess: () => {
+          this.queryClient.invalidateQueries({
+            queryKey: ['events'],
+          });
+        },
+      });
+  }
+
+  public createAccount() {
+    return () =>
+      mutationOptions({
+        mutationFn: (
+          input: AppRouter['users']['createAccount']['_def']['$types']['input'],
+        ) => this.trpcClient.users.createAccount.mutate(input),
       });
   }
 
@@ -106,6 +154,26 @@ export class QueriesService {
       });
   }
 
+  public defaultOrganizerRoles() {
+    return () =>
+      queryOptions({
+        queryFn: () =>
+          this.trpcClient.admin.roles.findMany.query({
+            defaultOrganizerRole: true,
+          }),
+        queryKey: ['roles', 'defaultOrganizerRole'],
+      });
+  }
+
+  public defaultUserRoles() {
+    return () =>
+      queryOptions({
+        queryFn: () =>
+          this.trpcClient.admin.roles.findMany.query({ defaultUserRole: true }),
+        queryKey: ['roles', 'defaultUserRole'],
+      });
+  }
+
   public deleteRole() {
     return () =>
       mutationOptions({
@@ -142,6 +210,16 @@ export class QueriesService {
       });
   }
 
+  public eventList(
+    input: Signal<AppRouter['events']['eventList']['_def']['$types']['input']>,
+  ) {
+    return () =>
+      queryOptions({
+        queryFn: () => this.trpcClient.events.eventList.query(input()),
+        queryKey: ['events', input()],
+      });
+  }
+
   public eventRegistrationStatus(eventId: Signal<string>) {
     return () =>
       queryOptions({
@@ -150,14 +228,17 @@ export class QueriesService {
             eventId: eventId(),
           }),
         queryKey: ['events', eventId(), 'registration-status'],
+        refetchInterval: 1000 * 20,
       });
   }
 
-  public events() {
+  public events(
+    input: Signal<AppRouter['events']['eventList']['_def']['$types']['input']>,
+  ) {
     return () =>
       queryOptions({
-        queryFn: () => this.trpcClient.events.findMany.query(),
-        queryKey: ['events'],
+        queryFn: () => this.trpcClient.events.findMany.query(input()),
+        queryKey: ['events', input()],
       });
   }
 
@@ -166,6 +247,14 @@ export class QueriesService {
       queryOptions({
         queryFn: () => this.trpcClient.config.isAuthenticated.query(),
         queryKey: ['config', 'isAuthenticated'],
+      });
+  }
+
+  public maybeSelf() {
+    return () =>
+      queryOptions({
+        queryFn: () => this.trpcClient.users.maybeSelf.query(),
+        queryKey: ['self'],
       });
   }
 
@@ -191,6 +280,29 @@ export class QueriesService {
       });
   }
 
+  public registrationScanned(id: Signal<string>) {
+    return () =>
+      queryOptions({
+        queryFn: () =>
+          this.trpcClient.events.registrationScanned.query({
+            registrationId: id(),
+          }),
+        queryKey: ['registrationScanned', id()],
+      });
+  }
+
+  public reviewEvent() {
+    return () =>
+      mutationOptions({
+        mutationFn: (
+          input: AppRouter['events']['reviewEvent']['_def']['$types']['input'],
+        ) => this.trpcClient.events.reviewEvent.mutate(input),
+        onSuccess: (data) => {
+          this.queryClient.invalidateQueries({ queryKey: ['events'] });
+        },
+      });
+  }
+
   public role(id: Signal<string>) {
     return () =>
       queryOptions({
@@ -205,7 +317,7 @@ export class QueriesService {
   public roles() {
     return () =>
       queryOptions({
-        queryFn: () => this.trpcClient.admin.roles.findMany.query(),
+        queryFn: () => this.trpcClient.admin.roles.findMany.query({}),
         queryKey: ['roles'],
       });
   }
@@ -218,11 +330,32 @@ export class QueriesService {
       });
   }
 
+  public searchRoles(search: Signal<string>) {
+    return () =>
+      queryOptions({
+        queryFn: () =>
+          this.trpcClient.admin.roles.search.query({ search: search() }),
+        queryKey: ['roles', 'search', search()],
+      });
+  }
+
   public self() {
     return () =>
       queryOptions({
         queryFn: () => this.trpcClient.users.self.query(),
-        queryKey: ['users', 'self'],
+        queryKey: ['self'],
+      });
+  }
+
+  public submitEventForReview() {
+    return () =>
+      mutationOptions({
+        mutationFn: (
+          input: AppRouter['events']['submitForReview']['_def']['$types']['input'],
+        ) => this.trpcClient.events.submitForReview.mutate(input),
+        onSuccess: (data) => {
+          this.queryClient.invalidateQueries({ queryKey: ['events'] });
+        },
       });
   }
 
@@ -270,6 +403,32 @@ export class QueriesService {
       });
   }
 
+  public transactions(
+    input: Signal<
+      AppRouter['finance']['transactions']['findMany']['_def']['$types']['input']
+    >,
+  ) {
+    return () =>
+      queryOptions({
+        placeholderData: keepPreviousData,
+        queryFn: () =>
+          this.trpcClient.finance.transactions.findMany.query(input()),
+        queryKey: ['transactions', input()],
+      });
+  }
+
+  public updateEventVisibility() {
+    return () =>
+      mutationOptions({
+        mutationFn: (
+          input: AppRouter['events']['updateVisibility']['_def']['$types']['input'],
+        ) => this.trpcClient.events.updateVisibility.mutate(input),
+        onSuccess: () => {
+          this.queryClient.invalidateQueries({ queryKey: ['events'] });
+        },
+      });
+  }
+
   public updateRole() {
     return () =>
       mutationOptions({
@@ -293,6 +452,9 @@ export class QueriesService {
         onSuccess: () => {
           this.queryClient.invalidateQueries({
             queryKey: ['templates'],
+          });
+          this.queryClient.invalidateQueries({
+            queryKey: ['templatesByCategory'],
           });
         },
       });
@@ -325,11 +487,14 @@ export class QueriesService {
       });
   }
 
-  public users() {
+  public users(
+    input: Signal<AppRouter['users']['findMany']['_def']['$types']['input']>,
+  ) {
     return () =>
       queryOptions({
-        queryFn: () => this.trpcClient.users.findMany.query(),
-        queryKey: ['users'],
+        placeholderData: keepPreviousData,
+        queryFn: () => this.trpcClient.users.findMany.query(input()),
+        queryKey: ['users', input()],
       });
   }
 }

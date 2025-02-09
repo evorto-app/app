@@ -1,6 +1,7 @@
 import { adminRouter } from './admin/admin.router';
 import { configRouter } from './core/config.router';
 import { eventRouter } from './events/events.router';
+import { financeRouter } from './finance/finance.router';
 import { globalAdminRouter } from './global-admin/global-admin.router';
 import { iconRouter } from './icons/icons.router';
 import { templateCategoryRouter } from './templates/template-category.router';
@@ -12,6 +13,7 @@ export const appRouter = router({
   admin: adminRouter,
   config: configRouter,
   events: eventRouter,
+  finance: financeRouter,
   globalAdmin: globalAdminRouter,
   icons: iconRouter,
   templateCategories: templateCategoryRouter,

@@ -5,6 +5,46 @@
 @plugin "@tailwindcss/typography";
 @import url(https://fonts.bunny.net/css?family=lato:400,700|oswald:400,700);
 
+:root {
+  @include mat.chips-overrides(
+    (
+      container-shape-radius: var(--mat-sys-corner-medium),
+    )
+  );
+  // Notification styles
+  .success-snackbar {
+    @include mat.snack-bar-overrides(
+      (
+        container-color: var(--color-success-container),
+        supporting-text-color: var(--color-on-success-container),
+        button-color: var(--color-on-success-container),
+      )
+    );
+  }
+
+  .error-snackbar {
+    @include mat.snack-bar-overrides(
+      (
+        container-color: var(--color-error-container),
+        supporting-text-color: var(--color-on-error-container),
+        button-color: var(--color-on-error-container),
+      )
+    );
+  }
+
+  .info-snackbar {
+    @include mat.snack-bar-overrides(
+      (
+        container-color: var(--color-tertiary-container),
+        supporting-text-color: var(--color-on-tertiary-container),
+        button-color: var(--color-on-tertiary-container),
+      )
+    );
+  }
+  --fa-fw-width: var(--mdc-icon-button-icon-size);
+  --fa-display: block;
+}
+
 .theme-evorto {
   color-scheme: light dark;
   @include mat.theme(
@@ -23,8 +63,14 @@
   @media (prefers-contrast: more) {
     @include theme-colors.high-contrast-overrides(color-scheme);
   }
-  --fa-fw-width: var(--mdc-icon-button-icon-size);
-  --fa-display: block;
+  --app-success: light-dark(#156b55, #88d6ba);
+  --app-on-success: light-dark(#ffffff, #00382a);
+  --app-success-container: light-dark(#a4f2d6, #00513f);
+  --app-on-success-container: light-dark(#00513f, #a4f2d6);
+  --app-warn: light-dark(#785a0b, #e9c16c);
+  --app-on-warn: light-dark(#fffff, #402d00);
+  --app-warn-container: light-dark(#ffdf9f, #5b4300);
+  --app-on-warn-container: light-dark(#5b4300, #ffdf9f);
 }
 
 .theme-esn {
@@ -51,16 +97,31 @@
       corner-small: 2px
     )
   );
+
+  @include mat.chips-overrides(
+    (
+      container-shape-radius: var(--mat-sys-corner-medium),
+    )
+  );
+
   @media (prefers-contrast: more) {
     @include esn-theme-colors.high-contrast-overrides(color-scheme);
   }
   --font-body: "Lato", sans-serif;
   --font-display: "Oswald", sans-serif;
-  --fa-fw-width: var(--mdc-icon-button-icon-size);
-  --fa-display: block;
+  --app-success: light-dark(#48672f, #add28e);
+  --app-on-success: light-dark(#ffffff, #1b3704);
+  --app-success-container: light-dark(#c8eea8, #314f19);
+  --app-on-success-container: light-dark(#314f19, #c8eea8);
+  --app-warn: light-dark(#8c4f27, #ffb68b);
+  --app-on-warn: light-dark(#fffff, #522300);
+  --app-warn-container: light-dark(#ffdbc8, #6f3811);
+  --app-on-warn-container: light-dark(#6f3811, #ffdbc8);
 }
 
 @theme {
+  --font-sans: InterVariable, sans-serif;
+
   --font-body: var(--font-sans);
   --font-display: var(--font-sans);
 
@@ -99,7 +160,15 @@
   --color-surface: var(--mat-sys-surface);
   --color-tertiary-container: var(--mat-sys-tertiary-container);
   --color-tertiary: var(--mat-sys-tertiary);
-
+  --color-secondary: var(--mat-sys-secondary);
+  --color-success: var(--app-success);
+  --color-on-success: var(--app-on-success);
+  --color-success-container: var(--app-success-container);
+  --color-on-success-container: var(--app-on-success-container);
+  --color-warn: var(--app-warn);
+  --color-on-warn: var(--app-on-warn);
+  --color-warn-container: var(--app-warn-container);
+  --color-on-warn-container: var(--app-on-warn-container);
   --radius-none: var(--mat-sys-corner-none);
   --radius-sm: var(--mat-sys-corner-extra-small);
   --radius: var(--mat-sys-corner-small);

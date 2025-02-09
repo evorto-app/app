@@ -12,11 +12,13 @@ import { NonNullableFormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatInputModule } from '@angular/material/input';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 
 import {
   ALL_PERMISSIONS,
   Permission,
+  PERMISSION_DEPENDENCIES,
   PERMISSION_GROUPS,
 } from '../../../../shared/permissions/permissions';
 
@@ -35,6 +37,7 @@ export interface RoleFormData {
     MatCheckboxModule,
     MatButtonModule,
     MatInputModule,
+    MatTooltipModule,
     ReactiveFormsModule,
   ],
   selector: 'app-role-form',
@@ -51,6 +54,7 @@ export class RoleFormComponent {
   private formBuilder = inject(NonNullableFormBuilder);
 
   protected permissionForm = this.formBuilder.group({
+    collapseMembersInHup: [false],
     defaultOrganizerRole: [false],
     defaultUserRole: [false],
     description: [''],
@@ -60,6 +64,7 @@ export class RoleFormComponent {
         ALL_PERMISSIONS.map((permission) => [permission, [false]]),
       ) as Record<Permission, [boolean]>,
     ),
+    showInHub: [false],
   });
 
   private formValue = toSignal(this.permissionForm.valueChanges);
@@ -135,5 +140,39 @@ export class RoleFormComponent {
         [permission]: checked,
       },
     });
+  }
+
+  protected getDependentPermissions(permission: Permission): Permission[] {
+    return PERMISSION_DEPENDENCIES[permission] || [];
+  }
+
+  protected getPermissionTooltip(permission: Permission): string {
+    if (this.isPermissionDisabled(permission)) {
+      // Find which permission grants this one
+      for (const [parentPerm, childPerms] of Object.entries(
+        PERMISSION_DEPENDENCIES,
+      )) {
+        if (childPerms.includes(permission)) {
+          return `Automatically granted by ${parentPerm}`;
+        }
+      }
+    }
+    return '';
+  }
+
+  protected isPermissionDisabled(permission: Permission): boolean {
+    const currentPermissions = this.formValue()?.permissions ?? {};
+    // Check if this permission is already granted through a dependency
+    for (const [parentPerm, childPerms] of Object.entries(
+      PERMISSION_DEPENDENCIES,
+    )) {
+      if (
+        currentPermissions[parentPerm as Permission] &&
+        childPerms.includes(permission)
+      ) {
+        return true;
+      }
+    }
+    return false;
   }
 }

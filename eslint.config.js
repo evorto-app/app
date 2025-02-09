@@ -20,6 +20,7 @@ const baseConfig = tseslint.config(
 module.exports = tseslint.config(
   {
     files: ["**/*.ts"],
+    ignores: ["old/**/*"],
     extends: [baseConfig, ...angular.configs.tsRecommended],
     processor: angular.processInlineTemplates,
     rules: {

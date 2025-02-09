@@ -1,0 +1,3305 @@
+{
+  "id": "00000000-0000-0000-0000-000000000000",
+  "prevId": "",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.ActivityLog": {
+      "name": "ActivityLog",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp(3)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        "message": {
+          "name": "message",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "data": {
+          "name": "data",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "oldData": {
+          "name": "oldData",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "involvedUser": {
+          "name": "involvedUser",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "severity": {
+          "name": "severity",
+          "type": "LogSeverity",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "category": {
+          "name": "category",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'general'"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false
+    },
+    "public.CostItem": {
+      "name": "CostItem",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp(3)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        "eventId": {
+          "name": "eventId",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "actualAmount": {
+          "name": "actualAmount",
+          "type": "numeric(65, 30)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "amount": {
+          "name": "amount",
+          "type": "numeric(65, 30)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "calculationInfo": {
+          "name": "calculationInfo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "details": {
+          "name": "details",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "onInvoice": {
+          "name": "onInvoice",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "notSubsidized": {
+          "name": "notSubsidized",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "complete": {
+          "name": "complete",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "completed": {
+          "name": "completed",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "CostItem_eventId_fkey": {
+          "name": "CostItem_eventId_fkey",
+          "tableFrom": "CostItem",
+          "tableTo": "TumiEvent",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "eventId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false
+    },
+    "public.EventOrganizer": {
+      "name": "EventOrganizer",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp(3)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        "tenantId": {
+          "name": "tenantId",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "text": {
+          "name": "text",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "link": {
+          "name": "link",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "EventOrganizer_tenantId_fkey": {
+          "name": "EventOrganizer_tenantId_fkey",
+          "tableFrom": "EventOrganizer",
+          "tableTo": "Tenant",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "tenantId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false
+    },
+    "public.EventRegistrationCode": {
+      "name": "EventRegistrationCode",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp(3)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        "createdById": {
+          "name": "createdById",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "registrationToRemoveId": {
+          "name": "registrationToRemoveId",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "registrationCreatedId": {
+          "name": "registrationCreatedId",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "isPublic": {
+          "name": "isPublic",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "eventId": {
+          "name": "eventId",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "RegistrationStatus",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'PENDING'"
+        },
+        "sepaAllowed": {
+          "name": "sepaAllowed",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        }
+      },
+      "indexes": {
+        "EventRegistrationCode_registrationToRemoveId_key": {
+          "name": "EventRegistrationCode_registrationToRemoveId_key",
+          "columns": [
+            {
+              "expression": "registrationToRemoveId",
+              "asc": true,
+              "nulls": "last",
+              "opclass": "uuid_ops",
+              "isExpression": false
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "EventRegistrationCode_eventId_fkey": {
+          "name": "EventRegistrationCode_eventId_fkey",
+          "tableFrom": "EventRegistrationCode",
+          "tableTo": "TumiEvent",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "eventId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false
+    },
+    "public.EventSubmissionItem": {
+      "name": "EventSubmissionItem",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp(3)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        "eventId": {
+          "name": "eventId",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "required": {
+          "name": "required",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "submissionTime": {
+          "name": "submissionTime",
+          "type": "SubmissionTime",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "instruction": {
+          "name": "instruction",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "SubmissionItemType",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "data": {
+          "name": "data",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "productId": {
+          "name": "productId",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "EventSubmissionItem_eventId_fkey": {
+          "name": "EventSubmissionItem_eventId_fkey",
+          "tableFrom": "EventSubmissionItem",
+          "tableTo": "TumiEvent",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "eventId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "cascade"
+        },
+        "EventSubmissionItem_productId_fkey": {
+          "name": "EventSubmissionItem_productId_fkey",
+          "tableFrom": "EventSubmissionItem",
+          "tableTo": "Product",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "productId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false
+    },
+    "public.LineItem": {
+      "name": "LineItem",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp(3)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        "cancellationReason": {
+          "name": "cancellationReason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cost": {
+          "name": "cost",
+          "type": "numeric(65, 30)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pickupTime": {
+          "name": "pickupTime",
+          "type": "timestamp(3)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "productId": {
+          "name": "productId",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "purchaseId": {
+          "name": "purchaseId",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "quantity": {
+          "name": "quantity",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "shoppingCartId": {
+          "name": "shoppingCartId",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "LineItem_productId_fkey": {
+          "name": "LineItem_productId_fkey",
+          "tableFrom": "LineItem",
+          "tableTo": "Product",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "productId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "cascade"
+        },
+        "LineItem_purchaseId_fkey": {
+          "name": "LineItem_purchaseId_fkey",
+          "tableFrom": "LineItem",
+          "tableTo": "Purchase",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "purchaseId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "cascade"
+        },
+        "LineItem_shoppingCartId_fkey": {
+          "name": "LineItem_shoppingCartId_fkey",
+          "tableFrom": "LineItem",
+          "tableTo": "ShoppingCart",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "shoppingCartId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false
+    },
+    "public.Product": {
+      "name": "Product",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp(3)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "availability": {
+          "name": "availability",
+          "type": "MembershipStatus\"[]",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tenantId": {
+          "name": "tenantId",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "isESNcard": {
+          "name": "isESNcard",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "prices": {
+          "name": "prices",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "leadImageId": {
+          "name": "leadImageId",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "publicationState": {
+          "name": "publicationState",
+          "type": "PublicationState",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'DRAFT'"
+        },
+        "needsShippingAddress": {
+          "name": "needsShippingAddress",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "isActive": {
+          "name": "isActive",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "Product_tenantId_fkey": {
+          "name": "Product_tenantId_fkey",
+          "tableFrom": "Product",
+          "tableTo": "Tenant",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "tenantId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false
+    },
+    "public.PhotoShare": {
+      "name": "PhotoShare",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp(3)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        "eventId": {
+          "name": "eventId",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "container": {
+          "name": "container",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "creatorId": {
+          "name": "creatorId",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "originalBlob": {
+          "name": "originalBlob",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "previewBlob": {
+          "name": "previewBlob",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cols": {
+          "name": "cols",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 2
+        },
+        "rows": {
+          "name": "rows",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "PhotoShare_creatorId_fkey": {
+          "name": "PhotoShare_creatorId_fkey",
+          "tableFrom": "PhotoShare",
+          "tableTo": "User",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "creatorId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "cascade"
+        },
+        "PhotoShare_eventId_fkey": {
+          "name": "PhotoShare_eventId_fkey",
+          "tableFrom": "PhotoShare",
+          "tableTo": "TumiEvent",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "eventId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false
+    },
+    "public.EventTemplate": {
+      "name": "EventTemplate",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp(3)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "icon": {
+          "name": "icon",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "comment": {
+          "name": "comment",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "location": {
+          "name": "location",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "duration": {
+          "name": "duration",
+          "type": "numeric(65, 30)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "participantText": {
+          "name": "participantText",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "organizerText": {
+          "name": "organizerText",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "finances": {
+          "name": "finances",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tenantId": {
+          "name": "tenantId",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "categoryId": {
+          "name": "categoryId",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "coordinates": {
+          "name": "coordinates",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "insuranceDescription": {
+          "name": "insuranceDescription",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "shouldBeReportedToInsurance": {
+          "name": "shouldBeReportedToInsurance",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "googlePlaceId": {
+          "name": "googlePlaceId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "googlePlaceUrl": {
+          "name": "googlePlaceUrl",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "isVirtual": {
+          "name": "isVirtual",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "onlineMeetingUrl": {
+          "name": "onlineMeetingUrl",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "EventTemplate_categoryId_fkey": {
+          "name": "EventTemplate_categoryId_fkey",
+          "tableFrom": "EventTemplate",
+          "tableTo": "EventTemplateCategory",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "categoryId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "cascade"
+        },
+        "EventTemplate_tenantId_fkey": {
+          "name": "EventTemplate_tenantId_fkey",
+          "tableFrom": "EventTemplate",
+          "tableTo": "Tenant",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "tenantId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false
+    },
+    "public.EventTemplateCategory": {
+      "name": "EventTemplateCategory",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp(3)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "icon": {
+          "name": "icon",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tenantId": {
+          "name": "tenantId",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "EventTemplateCategory_tenantId_fkey": {
+          "name": "EventTemplateCategory_tenantId_fkey",
+          "tableFrom": "EventTemplateCategory",
+          "tableTo": "Tenant",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "tenantId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false
+    },
+    "public.ProductImage": {
+      "name": "ProductImage",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp(3)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        "container": {
+          "name": "container",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "creatorId": {
+          "name": "creatorId",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "originalBlob": {
+          "name": "originalBlob",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "previewBlob": {
+          "name": "previewBlob",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "productId": {
+          "name": "productId",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "ProductImage_creatorId_fkey": {
+          "name": "ProductImage_creatorId_fkey",
+          "tableFrom": "ProductImage",
+          "tableTo": "User",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "creatorId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "cascade"
+        },
+        "ProductImage_productId_fkey": {
+          "name": "ProductImage_productId_fkey",
+          "tableFrom": "ProductImage",
+          "tableTo": "Product",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "productId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false
+    },
+    "public.EventSubmission": {
+      "name": "EventSubmission",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp(3)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        "submissionItemId": {
+          "name": "submissionItemId",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "data": {
+          "name": "data",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "eventRegistrationId": {
+          "name": "eventRegistrationId",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lineItemId": {
+          "name": "lineItemId",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "EventSubmission_eventRegistrationId_fkey": {
+          "name": "EventSubmission_eventRegistrationId_fkey",
+          "tableFrom": "EventSubmission",
+          "tableTo": "EventRegistration",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "eventRegistrationId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
+        },
+        "EventSubmission_lineItemId_fkey": {
+          "name": "EventSubmission_lineItemId_fkey",
+          "tableFrom": "EventSubmission",
+          "tableTo": "LineItem",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "lineItemId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "cascade"
+        },
+        "EventSubmission_submissionItemId_fkey": {
+          "name": "EventSubmission_submissionItemId_fkey",
+          "tableFrom": "EventSubmission",
+          "tableTo": "EventSubmissionItem",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "submissionItemId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false
+    },
+    "public.CollectedFee": {
+      "name": "CollectedFee",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp(3)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        "tenantId": {
+          "name": "tenantId",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "applicationFeeId": {
+          "name": "applicationFeeId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount": {
+          "name": "amount",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amountRefunded": {
+          "name": "amountRefunded",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "month": {
+          "name": "month",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "currency": {
+          "name": "currency",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "CollectedFee_applicationFeeId_key": {
+          "name": "CollectedFee_applicationFeeId_key",
+          "columns": [
+            {
+              "expression": "applicationFeeId",
+              "asc": true,
+              "nulls": "last",
+              "opclass": "text_ops",
+              "isExpression": false
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "CollectedFee_tenantId_fkey": {
+          "name": "CollectedFee_tenantId_fkey",
+          "tableFrom": "CollectedFee",
+          "tableTo": "Tenant",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "tenantId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false
+    },
+    "public.EventRegistration": {
+      "name": "EventRegistration",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp(3)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        "type": {
+          "name": "type",
+          "type": "RegistrationType",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'PARTICIPANT'"
+        },
+        "userId": {
+          "name": "userId",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "eventId": {
+          "name": "eventId",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "checkInTime": {
+          "name": "checkInTime",
+          "type": "timestamp(3)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "manualCheckin": {
+          "name": "manualCheckin",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "cancellationReason": {
+          "name": "cancellationReason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "RegistrationStatus",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'SUCCESSFUL'"
+        },
+        "registrationCodeId": {
+          "name": "registrationCodeId",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rating": {
+          "name": "rating",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "anonymousRating": {
+          "name": "anonymousRating",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "userComment": {
+          "name": "userComment",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "EventRegistration_eventId_fkey": {
+          "name": "EventRegistration_eventId_fkey",
+          "tableFrom": "EventRegistration",
+          "tableTo": "TumiEvent",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "eventId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "cascade"
+        },
+        "EventRegistration_registrationCodeId_fkey": {
+          "name": "EventRegistration_registrationCodeId_fkey",
+          "tableFrom": "EventRegistration",
+          "tableTo": "EventRegistrationCode",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "registrationCodeId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "cascade"
+        },
+        "EventRegistration_userId_fkey": {
+          "name": "EventRegistration_userId_fkey",
+          "tableFrom": "EventRegistration",
+          "tableTo": "User",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "userId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false
+    },
+    "public.StripeUserData": {
+      "name": "StripeUserData",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp(3)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        "usersOfTenantsUserId": {
+          "name": "usersOfTenantsUserId",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "usersOfTenantsTenantId": {
+          "name": "usersOfTenantsTenantId",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "customerId": {
+          "name": "customerId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "paymentMethodId": {
+          "name": "paymentMethodId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "StripeUserData_usersOfTenantsUserId_usersOfTenantsTenantId_key": {
+          "name": "StripeUserData_usersOfTenantsUserId_usersOfTenantsTenantId_key",
+          "columns": [
+            {
+              "expression": "usersOfTenantsUserId",
+              "asc": true,
+              "nulls": "last",
+              "opclass": "uuid_ops",
+              "isExpression": false
+            },
+            {
+              "expression": "usersOfTenantsTenantId",
+              "asc": true,
+              "nulls": "last",
+              "opclass": "uuid_ops",
+              "isExpression": false
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "StripeUserData_usersOfTenantsUserId_usersOfTenantsTenantId_fkey": {
+          "name": "StripeUserData_usersOfTenantsUserId_usersOfTenantsTenantId_fkey",
+          "tableFrom": "StripeUserData",
+          "tableTo": "UsersOfTenants",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "usersOfTenantsUserId",
+            "usersOfTenantsTenantId"
+          ],
+          "columnsTo": [
+            "userId",
+            "tenantId"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false
+    },
+    "public.Receipt": {
+      "name": "Receipt",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp(3)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        "userId": {
+          "name": "userId",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "costItemId": {
+          "name": "costItemId",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount": {
+          "name": "amount",
+          "type": "numeric(65, 30)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "blob": {
+          "name": "blob",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "container": {
+          "name": "container",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "md5": {
+          "name": "md5",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "preview": {
+          "name": "preview",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "confirmed": {
+          "name": "confirmed",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "canBeSubsidized": {
+          "name": "canBeSubsidized",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "countryCode": {
+          "name": "countryCode",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'DE'"
+        },
+        "taxAmount": {
+          "name": "taxAmount",
+          "type": "numeric(65, 30)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "Receipt_costItemId_fkey": {
+          "name": "Receipt_costItemId_fkey",
+          "tableFrom": "Receipt",
+          "tableTo": "CostItem",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "costItemId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "cascade"
+        },
+        "Receipt_userId_fkey": {
+          "name": "Receipt_userId_fkey",
+          "tableFrom": "Receipt",
+          "tableTo": "User",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "userId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false
+    },
+    "public.Purchase": {
+      "name": "Purchase",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp(3)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        "status": {
+          "name": "status",
+          "type": "PurchaseStatus",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'PENDING'"
+        },
+        "userId": {
+          "name": "userId",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "paymentId": {
+          "name": "paymentId",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cancellationReason": {
+          "name": "cancellationReason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "Purchase_paymentId_key": {
+          "name": "Purchase_paymentId_key",
+          "columns": [
+            {
+              "expression": "paymentId",
+              "asc": true,
+              "nulls": "last",
+              "opclass": "uuid_ops",
+              "isExpression": false
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "Purchase_paymentId_fkey": {
+          "name": "Purchase_paymentId_fkey",
+          "tableFrom": "Purchase",
+          "tableTo": "StripePayment",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "paymentId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "cascade"
+        },
+        "Purchase_userId_fkey": {
+          "name": "Purchase_userId_fkey",
+          "tableFrom": "Purchase",
+          "tableTo": "User",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "userId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false
+    },
+    "public.ShoppingCart": {
+      "name": "ShoppingCart",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp(3)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        "usersOfTenantsTenantId": {
+          "name": "usersOfTenantsTenantId",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "usersOfTenantsUserId": {
+          "name": "usersOfTenantsUserId",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "ShoppingCart_usersOfTenantsUserId_usersOfTenantsTenantId_key": {
+          "name": "ShoppingCart_usersOfTenantsUserId_usersOfTenantsTenantId_key",
+          "columns": [
+            {
+              "expression": "usersOfTenantsUserId",
+              "asc": true,
+              "nulls": "last",
+              "opclass": "uuid_ops",
+              "isExpression": false
+            },
+            {
+              "expression": "usersOfTenantsTenantId",
+              "asc": true,
+              "nulls": "last",
+              "opclass": "uuid_ops",
+              "isExpression": false
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "ShoppingCart_usersOfTenantsUserId_usersOfTenantsTenantId_fkey": {
+          "name": "ShoppingCart_usersOfTenantsUserId_usersOfTenantsTenantId_fkey",
+          "tableFrom": "ShoppingCart",
+          "tableTo": "UsersOfTenants",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "usersOfTenantsTenantId",
+            "usersOfTenantsUserId"
+          ],
+          "columnsTo": [
+            "userId",
+            "tenantId"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false
+    },
+    "public.StripePayment": {
+      "name": "StripePayment",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp(3)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        "amount": {
+          "name": "amount",
+          "type": "numeric(65, 30)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "checkoutSession": {
+          "name": "checkoutSession",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "events": {
+          "name": "events",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "feeAmount": {
+          "name": "feeAmount",
+          "type": "numeric(65, 30)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "netAmount": {
+          "name": "netAmount",
+          "type": "numeric(65, 30)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "paymentIntent": {
+          "name": "paymentIntent",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "paymentMethod": {
+          "name": "paymentMethod",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "paymentMethodType": {
+          "name": "paymentMethodType",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "refundedAmount": {
+          "name": "refundedAmount",
+          "type": "numeric(65, 30)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'0'"
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "shipping": {
+          "name": "shipping",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "checkoutUrl": {
+          "name": "checkoutUrl",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "StripePayment_checkoutSession_key": {
+          "name": "StripePayment_checkoutSession_key",
+          "columns": [
+            {
+              "expression": "checkoutSession",
+              "asc": true,
+              "nulls": "last",
+              "opclass": "text_ops",
+              "isExpression": false
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "StripePayment_paymentIntent_key": {
+          "name": "StripePayment_paymentIntent_key",
+          "columns": [
+            {
+              "expression": "paymentIntent",
+              "asc": true,
+              "nulls": "last",
+              "opclass": "text_ops",
+              "isExpression": false
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false
+    },
+    "public.User": {
+      "name": "User",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp(3)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        "authId": {
+          "name": "authId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "firstName": {
+          "name": "firstName",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "lastName": {
+          "name": "lastName",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "birthdate": {
+          "name": "birthdate",
+          "type": "timestamp(3)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "email_verified": {
+          "name": "email_verified",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "picture": {
+          "name": "picture",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "calendarToken": {
+          "name": "calendarToken",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "iban": {
+          "name": "iban",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "paypal": {
+          "name": "paypal",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "phone": {
+          "name": "phone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "esnCardOverride": {
+          "name": "esnCardOverride",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "university": {
+          "name": "university",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "partyAnimals": {
+          "name": "partyAnimals",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "enrolmentStatus": {
+          "name": "enrolmentStatus",
+          "type": "EnrollmentStatus",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'NONE'"
+        },
+        "bio": {
+          "name": "bio",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "country": {
+          "name": "country",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "homeUniversity": {
+          "name": "homeUniversity",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "instagram": {
+          "name": "instagram",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "studyProgram": {
+          "name": "studyProgram",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "communicationEmail": {
+          "name": "communicationEmail",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "esnCardNumber": {
+          "name": "esnCardNumber",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "esnCardValidUntil": {
+          "name": "esnCardValidUntil",
+          "type": "timestamp(3)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "acceptPhoneUsage": {
+          "name": "acceptPhoneUsage",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "phoneNumberOnWhatsapp": {
+          "name": "phoneNumberOnWhatsapp",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "deletedAt": {
+          "name": "deletedAt",
+          "type": "timestamp(3)",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "User_authId_key": {
+          "name": "User_authId_key",
+          "columns": [
+            {
+              "expression": "authId",
+              "asc": true,
+              "nulls": "last",
+              "opclass": "text_ops",
+              "isExpression": false
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "User_calendarToken_key": {
+          "name": "User_calendarToken_key",
+          "columns": [
+            {
+              "expression": "calendarToken",
+              "asc": true,
+              "nulls": "last",
+              "opclass": "uuid_ops",
+              "isExpression": false
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "User_esnCardNumber_key": {
+          "name": "User_esnCardNumber_key",
+          "columns": [
+            {
+              "expression": "esnCardNumber",
+              "asc": true,
+              "nulls": "last",
+              "opclass": "text_ops",
+              "isExpression": false
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false
+    },
+    "public.Transaction": {
+      "name": "Transaction",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp(3)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        "subject": {
+          "name": "subject",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "isMembershipFee": {
+          "name": "isMembershipFee",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "userId": {
+          "name": "userId",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tenantId": {
+          "name": "tenantId",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "comment": {
+          "name": "comment",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "creatorId": {
+          "name": "creatorId",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "TransactionType",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "direction": {
+          "name": "direction",
+          "type": "TransactionDirection",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "TransactionStatus",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'PENDING'"
+        },
+        "amount": {
+          "name": "amount",
+          "type": "numeric(65, 30)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "onSendingBalance": {
+          "name": "onSendingBalance",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "onReceivingBalance": {
+          "name": "onReceivingBalance",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "eventRegistrationId": {
+          "name": "eventRegistrationId",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "purchaseId": {
+          "name": "purchaseId",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "stripePaymentId": {
+          "name": "stripePaymentId",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "Transaction_creatorId_fkey": {
+          "name": "Transaction_creatorId_fkey",
+          "tableFrom": "Transaction",
+          "tableTo": "User",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "creatorId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "cascade"
+        },
+        "Transaction_eventRegistrationId_fkey": {
+          "name": "Transaction_eventRegistrationId_fkey",
+          "tableFrom": "Transaction",
+          "tableTo": "EventRegistration",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "eventRegistrationId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "cascade"
+        },
+        "Transaction_purchaseId_fkey": {
+          "name": "Transaction_purchaseId_fkey",
+          "tableFrom": "Transaction",
+          "tableTo": "Purchase",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "purchaseId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "cascade"
+        },
+        "Transaction_stripePaymentId_fkey": {
+          "name": "Transaction_stripePaymentId_fkey",
+          "tableFrom": "Transaction",
+          "tableTo": "StripePayment",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "stripePaymentId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "cascade"
+        },
+        "Transaction_tenantId_fkey": {
+          "name": "Transaction_tenantId_fkey",
+          "tableFrom": "Transaction",
+          "tableTo": "Tenant",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "tenantId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "cascade"
+        },
+        "Transaction_userId_fkey": {
+          "name": "Transaction_userId_fkey",
+          "tableFrom": "Transaction",
+          "tableTo": "User",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "userId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false
+    },
+    "public.TumiEvent": {
+      "name": "TumiEvent",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp(3)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "icon": {
+          "name": "icon",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "start": {
+          "name": "start",
+          "type": "timestamp(3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "end": {
+          "name": "end",
+          "type": "timestamp(3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "location": {
+          "name": "location",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "participantText": {
+          "name": "participantText",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "organizerText": {
+          "name": "organizerText",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "participantLimit": {
+          "name": "participantLimit",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "organizerLimit": {
+          "name": "organizerLimit",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "publicationState": {
+          "name": "publicationState",
+          "type": "PublicationState",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'DRAFT'"
+        },
+        "participantSignup": {
+          "name": "participantSignup",
+          "type": "MembershipStatus\"[]",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "organizerSignup": {
+          "name": "organizerSignup",
+          "type": "MembershipStatus\"[]",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "eventOrganizerId": {
+          "name": "eventOrganizerId",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "creatorId": {
+          "name": "creatorId",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "eventTemplateId": {
+          "name": "eventTemplateId",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "registrationLink": {
+          "name": "registrationLink",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "registrationMode": {
+          "name": "registrationMode",
+          "type": "RegistrationMode",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "coordinates": {
+          "name": "coordinates",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "prices": {
+          "name": "prices",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "registrationStart": {
+          "name": "registrationStart",
+          "type": "timestamp(3)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        "insuranceDescription": {
+          "name": "insuranceDescription",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "shouldBeReportedToInsurance": {
+          "name": "shouldBeReportedToInsurance",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "disableDeregistration": {
+          "name": "disableDeregistration",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "excludeFromStatistics": {
+          "name": "excludeFromStatistics",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "excludeFromRatings": {
+          "name": "excludeFromRatings",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "googlePlaceId": {
+          "name": "googlePlaceId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "googlePlaceUrl": {
+          "name": "googlePlaceUrl",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "organizerRegistrationStart": {
+          "name": "organizerRegistrationStart",
+          "type": "timestamp(3)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        "isVirtual": {
+          "name": "isVirtual",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "onlineMeetingUrl": {
+          "name": "onlineMeetingUrl",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "enablePhotoSharing": {
+          "name": "enablePhotoSharing",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "deRegistrationSettings": {
+          "name": "deRegistrationSettings",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "deferredPayment": {
+          "name": "deferredPayment",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "TumiEvent_creatorId_fkey": {
+          "name": "TumiEvent_creatorId_fkey",
+          "tableFrom": "TumiEvent",
+          "tableTo": "User",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "creatorId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "cascade"
+        },
+        "TumiEvent_eventOrganizerId_fkey": {
+          "name": "TumiEvent_eventOrganizerId_fkey",
+          "tableFrom": "TumiEvent",
+          "tableTo": "EventOrganizer",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "eventOrganizerId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "cascade"
+        },
+        "TumiEvent_eventTemplateId_fkey": {
+          "name": "TumiEvent_eventTemplateId_fkey",
+          "tableFrom": "TumiEvent",
+          "tableTo": "EventTemplate",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "eventTemplateId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false
+    },
+    "public._prisma_migrations": {
+      "name": "_prisma_migrations",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(36)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "checksum": {
+          "name": "checksum",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "finished_at": {
+          "name": "finished_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "migration_name": {
+          "name": "migration_name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "logs": {
+          "name": "logs",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rolled_back_at": {
+          "name": "rolled_back_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "started_at": {
+          "name": "started_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "applied_steps_count": {
+          "name": "applied_steps_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false
+    },
+    "public.Tenant": {
+      "name": "Tenant",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp(3)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "shortName": {
+          "name": "shortName",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "aboutPage": {
+          "name": "aboutPage",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "faqPage": {
+          "name": "faqPage",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "imprintPage": {
+          "name": "imprintPage",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "privacyPolicyPage": {
+          "name": "privacyPolicyPage",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "tacPage": {
+          "name": "tacPage",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "homePageLink": {
+          "name": "homePageLink",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "homePageStrategy": {
+          "name": "homePageStrategy",
+          "type": "HomePageStrategy",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'STATIC'"
+        },
+        "stripeConnectAccountId": {
+          "name": "stripeConnectAccountId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "stripeReducedTaxRate": {
+          "name": "stripeReducedTaxRate",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "stripeRegularTaxRate": {
+          "name": "stripeRegularTaxRate",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "settings": {
+          "name": "settings",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{\"socialLinks\":[],\"showPWAInstall\":false,\"sectionHubLinks\":[]}'::jsonb"
+        },
+        "communicationEmail": {
+          "name": "communicationEmail",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'questions@esn-tumi.de'"
+        },
+        "currency": {
+          "name": "currency",
+          "type": "Currency",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'EUR'"
+        },
+        "credit": {
+          "name": "credit",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "contractEnd": {
+          "name": "contractEnd",
+          "type": "timestamp(3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "hardContractEnd": {
+          "name": "hardContractEnd",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        }
+      },
+      "indexes": {
+        "Tenant_shortName_key": {
+          "name": "Tenant_shortName_key",
+          "columns": [
+            {
+              "expression": "shortName",
+              "asc": true,
+              "nulls": "last",
+              "opclass": "text_ops",
+              "isExpression": false
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false
+    },
+    "public._ReceiptToTransaction": {
+      "name": "_ReceiptToTransaction",
+      "schema": "",
+      "columns": {
+        "A": {
+          "name": "A",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "B": {
+          "name": "B",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "_ReceiptToTransaction_B_index": {
+          "name": "_ReceiptToTransaction_B_index",
+          "columns": [
+            {
+              "expression": "B",
+              "asc": true,
+              "nulls": "last",
+              "opclass": "uuid_ops",
+              "isExpression": false
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "_ReceiptToTransaction_A_fkey": {
+          "name": "_ReceiptToTransaction_A_fkey",
+          "tableFrom": "_ReceiptToTransaction",
+          "tableTo": "Receipt",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "A"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
+        },
+        "_ReceiptToTransaction_B_fkey": {
+          "name": "_ReceiptToTransaction_B_fkey",
+          "tableFrom": "_ReceiptToTransaction",
+          "tableTo": "Transaction",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "B"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {
+        "_ReceiptToTransaction_AB_pkey": {
+          "name": "_ReceiptToTransaction_AB_pkey",
+          "columns": [
+            "A",
+            "B"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false
+    },
+    "public.UsersOfTenants": {
+      "name": "UsersOfTenants",
+      "schema": "",
+      "columns": {
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp(3)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        "userId": {
+          "name": "userId",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tenantId": {
+          "name": "tenantId",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "role": {
+          "name": "role",
+          "type": "Role",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'USER'"
+        },
+        "status": {
+          "name": "status",
+          "type": "MembershipStatus",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'NONE'"
+        },
+        "position": {
+          "name": "position",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "additionalData": {
+          "name": "additionalData",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
+        "lastPrivacyAcceptance": {
+          "name": "lastPrivacyAcceptance",
+          "type": "timestamp(3)",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "UsersOfTenants_tenantId_fkey": {
+          "name": "UsersOfTenants_tenantId_fkey",
+          "tableFrom": "UsersOfTenants",
+          "tableTo": "Tenant",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "tenantId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "cascade"
+        },
+        "UsersOfTenants_userId_fkey": {
+          "name": "UsersOfTenants_userId_fkey",
+          "tableFrom": "UsersOfTenants",
+          "tableTo": "User",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "userId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {
+        "UsersOfTenants_pkey": {
+          "name": "UsersOfTenants_pkey",
+          "columns": [
+            "userId",
+            "tenantId"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {
+    "public.Currency": {
+      "name": "Currency",
+      "values": [
+        "EUR",
+        "CZK",
+        "AUD"
+      ],
+      "schema": "public"
+    },
+    "public.EnrollmentStatus": {
+      "name": "EnrollmentStatus",
+      "values": [
+        "LOCAL",
+        "EXCHANGE",
+        "INTERNATIONAL",
+        "NONE",
+        "OTHER"
+      ],
+      "schema": "public"
+    },
+    "public.HomePageStrategy": {
+      "name": "HomePageStrategy",
+      "values": [
+        "LINK",
+        "STATIC",
+        "MARKDOWN",
+        "NONE"
+      ],
+      "schema": "public"
+    },
+    "public.LogSeverity": {
+      "name": "LogSeverity",
+      "values": [
+        "SILLY",
+        "DEBUG",
+        "INFO",
+        "WARNING",
+        "ERROR"
+      ],
+      "schema": "public"
+    },
+    "public.MembershipStatus": {
+      "name": "MembershipStatus",
+      "values": [
+        "NONE",
+        "TRIAL",
+        "FULL",
+        "SPONSOR",
+        "ALUMNI",
+        "SELECTED",
+        "HELPER",
+        "BLACKLISTED"
+      ],
+      "schema": "public"
+    },
+    "public.PublicationState": {
+      "name": "PublicationState",
+      "values": [
+        "DRAFT",
+        "APPROVAL",
+        "PUBLIC",
+        "ORGANIZERS"
+      ],
+      "schema": "public"
+    },
+    "public.PurchaseStatus": {
+      "name": "PurchaseStatus",
+      "values": [
+        "PENDING",
+        "PAID",
+        "SENT",
+        "CANCELLED"
+      ],
+      "schema": "public"
+    },
+    "public.RegistrationCodeStatus": {
+      "name": "RegistrationCodeStatus",
+      "values": [
+        "OPEN",
+        "PENDING",
+        "SUCCESSFUL",
+        "CANCELLED"
+      ],
+      "schema": "public"
+    },
+    "public.RegistrationMode": {
+      "name": "RegistrationMode",
+      "values": [
+        "STRIPE",
+        "ONLINE",
+        "EXTERNAL"
+      ],
+      "schema": "public"
+    },
+    "public.RegistrationStatus": {
+      "name": "RegistrationStatus",
+      "values": [
+        "PENDING",
+        "SUCCESSFUL",
+        "CANCELLED"
+      ],
+      "schema": "public"
+    },
+    "public.RegistrationType": {
+      "name": "RegistrationType",
+      "values": [
+        "ORGANIZER",
+        "PARTICIPANT",
+        "CALENDAR"
+      ],
+      "schema": "public"
+    },
+    "public.Role": {
+      "name": "Role",
+      "values": [
+        "USER",
+        "ADMIN"
+      ],
+      "schema": "public"
+    },
+    "public.SubmissionItemType": {
+      "name": "SubmissionItemType",
+      "values": [
+        "FILE",
+        "NUMBER",
+        "TEXT",
+        "DATE",
+        "RATING",
+        "LONGTEXT",
+        "BOOLEAN",
+        "SELECT",
+        "CONFIRM"
+      ],
+      "schema": "public"
+    },
+    "public.SubmissionTime": {
+      "name": "SubmissionTime",
+      "values": [
+        "REGISTRATION",
+        "BEFORE",
+        "DURING",
+        "AFTER"
+      ],
+      "schema": "public"
+    },
+    "public.TransactionDirection": {
+      "name": "TransactionDirection",
+      "values": [
+        "TUMI_TO_EXTERNAL",
+        "EXTERNAL_TO_TUMI",
+        "TUMI_TO_USER",
+        "USER_TO_TUMI",
+        "USER_TO_EXTERNAL",
+        "EXTERNAL_TO_USER",
+        "USER_TO_USER"
+      ],
+      "schema": "public"
+    },
+    "public.TransactionStatus": {
+      "name": "TransactionStatus",
+      "values": [
+        "PENDING",
+        "CONFIRMED",
+        "CANCELLED"
+      ],
+      "schema": "public"
+    },
+    "public.TransactionType": {
+      "name": "TransactionType",
+      "values": [
+        "CASH",
+        "STRIPE",
+        "TRANSFER",
+        "PAYPAL"
+      ],
+      "schema": "public"
+    }
+  },
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "schemas": {},
+    "tables": {},
+    "columns": {}
+  },
+  "internal": {
+    "tables": {
+      "Product": {
+        "columns": {
+          "availability": {
+            "isArray": true,
+            "dimensions": 1,
+            "rawType": "\"MembershipStatus\""
+          }
+        }
+      },
+      "TumiEvent": {
+        "columns": {
+          "participantSignup": {
+            "isArray": true,
+            "dimensions": 1,
+            "rawType": "\"MembershipStatus\""
+          },
+          "organizerSignup": {
+            "isArray": true,
+            "dimensions": 1,
+            "rawType": "\"MembershipStatus\""
+          }
+        }
+      }
+    }
+  }
+}

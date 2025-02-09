@@ -16,7 +16,7 @@
     Edit template
   </button>
 </div>
-@if (usersQuery.isPending()) {
+@if (usersQuery.status() === "pending") {
   <div
     class="flex animate-pulse cursor-progress flex-col gap-2 rounded-2xl bg-surface p-4 text-on-surface"
   >
@@ -24,7 +24,7 @@
   </div>
 } @else if (usersQuery.isSuccess()) {
   <div class="overflow-x-auto overflow-y-hidden rounded-2xl">
-    <table mat-table [dataSource]="usersDataSource">
+    <table mat-table [dataSource]="usersQuery.data().users">
       <ng-container matColumnDef="select">
         <th mat-header-cell *matHeaderCellDef>
           <mat-checkbox
@@ -79,5 +79,14 @@
       <tr mat-header-row *matHeaderRowDef="columnsToDisplay()"></tr>
       <tr mat-row *matRowDef="let row; columns: columnsToDisplay()"></tr>
     </table>
+    <mat-paginator
+      [pageSizeOptions]="[50, 100, 200, 500]"
+      showFirstLastButtons
+      aria-label="Select page of users"
+      (page)="handlePageChange($event)"
+      [length]="usersQuery.data().usersCount"
+      [pageSize]="100"
+    >
+    </mat-paginator>
   </div>
 }

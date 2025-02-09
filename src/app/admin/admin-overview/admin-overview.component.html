@@ -41,6 +41,23 @@
           <h2 class="title-medium">General settings</h2>
         </div>
       </a>
+      <a
+        routerLink="event-reviews"
+        class="rounded-2xl bg-surface p-4 text-on-surface"
+        routerLinkActive="bg-secondary-container! text-on-secondary-container!"
+      >
+        <div class="flex flex-row items-center gap-4">
+          <fa-duotone-icon [icon]="faCalendarCheck" size="xl"></fa-duotone-icon>
+          <h2 class="title-medium">Event Reviews</h2>
+          @if (pendingReviewsCount() > 0) {
+            <span
+              class="bg-warning text-on-warning ml-auto rounded-full px-2 py-1 text-xs"
+            >
+              {{ pendingReviewsCount() }}
+            </span>
+          }
+        </div>
+      </a>
     </nav>
   </div>
   <div>

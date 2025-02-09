@@ -1,0 +1,18 @@
+<div class="mb-4 flex flex-row items-center gap-2">
+  <h1 class="title-large">Scanner</h1>
+  <div class="grow"></div>
+</div>
+<p class="mb-4">
+  Please allow access to your camera in case your browser asks for it.
+  <br />
+  If you encounter any problems, use your phones camera to scan the QR code.
+</p>
+<video #videoElement class="h-full w-full"></video>
+@if (errorMessage()) {
+  <div class="mt-2 rounded bg-error p-2 text-on-error">
+    <p class="title-small">Scanning error</p>
+    <p>
+      {{ errorMessage() }}
+    </p>
+  </div>
+}

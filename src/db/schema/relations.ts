@@ -15,6 +15,7 @@ import {
   templateRegistrationOptions,
 } from './template-registration-options';
 import { tenants } from './tenants';
+import { transactions } from './transactions';
 import { rolesToTenantUsers, users, usersToTenants } from './users';
 
 export const tenantRelations = relations(tenants, ({ many }) => ({
@@ -75,11 +76,16 @@ export const usersToTenantsRelations = relations(
 
 export const eventRegistrationRelations = relations(
   eventRegistrations,
-  ({ one }) => ({
+  ({ many, one }) => ({
+    event: one(eventInstances, {
+      fields: [eventRegistrations.eventId],
+      references: [eventInstances.id],
+    }),
     registrationOption: one(eventRegistrationOptions, {
       fields: [eventRegistrations.registrationOptionId],
       references: [eventRegistrationOptions.id],
     }),
+    transactions: many(transactions),
     user: one(users, {
       fields: [eventRegistrations.userId],
       references: [users.id],
@@ -102,6 +108,10 @@ export const eventInstanceRelations = relations(
   eventInstances,
   ({ many, one }) => ({
     registrationOptions: many(eventRegistrationOptions),
+    reviewer: one(users, {
+      fields: [eventInstances.reviewedBy],
+      references: [users.id],
+    }),
     template: one(eventTemplates, {
       fields: [eventInstances.templateId],
       references: [eventTemplates.id],
@@ -202,3 +212,22 @@ export const addonToTemplateRegistrationOptionRelations = relations(
     }),
   }),
 );
+
+export const transactionRelations = relations(transactions, ({ one }) => ({
+  event: one(eventInstances, {
+    fields: [transactions.eventId],
+    references: [eventInstances.id],
+  }),
+  eventRegistration: one(eventRegistrations, {
+    fields: [transactions.eventRegistrationId],
+    references: [eventRegistrations.id],
+  }),
+  executiveUser: one(users, {
+    fields: [transactions.executiveUserId],
+    references: [users.id],
+  }),
+  targetUser: one(users, {
+    fields: [transactions.targetUserId],
+    references: [users.id],
+  }),
+}));

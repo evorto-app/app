@@ -26,6 +26,7 @@ export const eventTemplates = pgTable('event_templates', {
     .notNull()
     .references(() => tenants.id),
   title: text().notNull(),
+  untouchedSinceMigration: boolean().notNull().default(false),
   updatedAt: timestamp()
     .notNull()
     .defaultNow()

@@ -1,4 +1,5 @@
 import { initTRPC, TRPCError } from '@trpc/server';
+import { Request } from 'express';
 import superjson from 'superjson';
 
 import { type Permission } from '../../shared/permissions/permissions';
@@ -9,16 +10,19 @@ interface Meta {
 }
 
 const t = initTRPC
-  .context<Context>()
+  .context<Context & { request: Request }>()
   .meta<Meta>()
   .create({ transformer: superjson });
 
 export const router = t.router;
 export const publicProcedure = t.procedure;
 
-const enforceAuth = t.middleware(async ({ ctx, meta, next }) => {
+const enforceAuth = t.middleware(async ({ ctx, meta, next, path }) => {
   if (!ctx.user) {
-    throw new TRPCError({ code: 'UNAUTHORIZED' });
+    throw new TRPCError({
+      code: 'UNAUTHORIZED',
+      message: `Cannot access ${path}`,
+    });
   }
 
   if (meta?.requiredPermissions?.length) {

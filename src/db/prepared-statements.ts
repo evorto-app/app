@@ -1,15 +1,15 @@
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 
 import { database as database } from './database-client';
-import { tenants, users } from './schema';
+import * as schema from './schema';
 
 export const getTenant = database.query.tenants
-  .findFirst({ where: eq(tenants.domain, sql.placeholder('domain')) })
+  .findFirst({ where: eq(schema.tenants.domain, sql.placeholder('domain')) })
   .prepare('getTenant');
 
 export const getUser = database.query.users
   .findFirst({
-    where: eq(users.auth0Id, sql.placeholder('auth0Id')),
+    where: eq(schema.users.auth0Id, sql.placeholder('auth0Id')),
     with: {
       usersToTenants: {
         with: {
@@ -21,3 +21,14 @@ export const getUser = database.query.users
     },
   })
   .prepare('getUser');
+
+export const userAttributes = database
+  .select()
+  .from(schema.userAttributes)
+  .where(
+    and(
+      eq(schema.userAttributes.tenantId, sql.placeholder('tenantId')),
+      eq(schema.userAttributes.userId, sql.placeholder('userId')),
+    ),
+  )
+  .prepare('userAttributes');

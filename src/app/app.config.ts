@@ -1,4 +1,4 @@
-import { DOCUMENT } from '@angular/common';
+import { DOCUMENT, provideCloudflareLoader } from '@angular/common';
 import {
   provideHttpClient,
   withFetch,
@@ -6,6 +6,7 @@ import {
 } from '@angular/common/http';
 import {
   ApplicationConfig,
+  DEFAULT_CURRENCY_CODE,
   ErrorHandler,
   inject,
   provideAppInitializer,
@@ -30,6 +31,7 @@ import * as Sentry from '@sentry/angular';
 import {
   provideTanStackQuery,
   QueryClient,
+  withDevtools,
 } from '@tanstack/angular-query-experimental';
 
 import { routes } from './app.routes';
@@ -50,8 +52,11 @@ export const appConfig: ApplicationConfig = {
     provideHttpClient(withFetch(), withInterceptors([authTokenInterceptor])),
     provideTrpcClient(),
     provideClientHydration(withEventReplay()),
-    provideTanStackQuery(new QueryClient()),
+    provideTanStackQuery(new QueryClient(), withDevtools()),
     provideLuxonDateAdapter(),
+    // provideCloudflareLoader(
+    //   'https://imagedelivery.net/DxTiV2GJoeCDYZ1DN5RPUA/',
+    // ),
     {
       provide: MAT_FORM_FIELD_DEFAULT_OPTIONS,
       useValue: {
@@ -79,5 +84,10 @@ export const appConfig: ApplicationConfig = {
       renderer.addClass(document.documentElement, `theme-${theme}`);
       // renderer.addClass(document.documentElement, `theme-esn`);
     }),
+    {
+      deps: [ConfigService],
+      provide: DEFAULT_CURRENCY_CODE,
+      useFactory: (config: ConfigService) => config.tenant.currency,
+    },
   ],
 };

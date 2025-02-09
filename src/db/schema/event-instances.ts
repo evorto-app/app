@@ -1,27 +1,37 @@
-import { pgTable, text, timestamp, varchar } from 'drizzle-orm/pg-core';
+import { pgEnum, pgTable, text, timestamp, varchar } from 'drizzle-orm/pg-core';
 
-import { createId } from '../create-id';
 import { eventTemplates } from './event-templates';
-import { tenants } from './tenants';
+import { modelOfTenant } from './model';
+import { users } from './users';
+
+export const eventReviewStatus = pgEnum('event_review_status', [
+  'DRAFT',
+  'PENDING_REVIEW',
+  'APPROVED',
+  'REJECTED',
+]);
+export const eventVisibility = pgEnum('event_publication_status', [
+  'PRIVATE',
+  'HIDDEN',
+  'PUBLIC',
+]);
 
 export const eventInstances = pgTable('event_instances', {
-  createdAt: timestamp().notNull().defaultNow(),
+  ...modelOfTenant,
+  creatorId: varchar({ length: 20 })
+    .notNull()
+    .references(() => users.id),
   description: text().notNull(),
   end: timestamp().notNull(),
   icon: text().notNull(),
-  id: varchar({ length: 20 })
-    .$defaultFn(() => createId())
-    .primaryKey(),
+  reviewedAt: timestamp(),
+  reviewedBy: varchar({ length: 20 }).references(() => users.id),
   start: timestamp().notNull(),
+  status: eventReviewStatus().notNull().default('DRAFT'),
+  statusComment: text(),
   templateId: varchar({ length: 20 })
     .notNull()
     .references(() => eventTemplates.id),
-  tenantId: varchar({ length: 20 })
-    .notNull()
-    .references(() => tenants.id),
   title: text().notNull(),
-  updatedAt: timestamp()
-    .notNull()
-    .defaultNow()
-    .$onUpdate(() => new Date()),
+  visibility: eventVisibility().notNull().default('PRIVATE'),
 });

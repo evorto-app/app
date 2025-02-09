@@ -1,5 +1,7 @@
 import { Routes } from '@angular/router';
 
+import { permissionGuard } from '../core/guards/permission.guard';
+
 export const ADMIN_ROUTES: Routes = [
   {
     children: [
@@ -44,6 +46,17 @@ export const ADMIN_ROUTES: Routes = [
             (m) => m.UserListComponent,
           ),
         path: 'users',
+      },
+      {
+        canActivate: [permissionGuard],
+        data: {
+          permissions: ['events:review'],
+        },
+        loadComponent: () =>
+          import('./event-reviews/event-reviews.component').then(
+            (m) => m.EventReviewsComponent,
+          ),
+        path: 'event-reviews',
       },
     ],
     loadComponent: () =>

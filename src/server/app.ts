@@ -4,9 +4,10 @@ import {
 } from '@angular/ssr/node';
 import * as Sentry from '@sentry/node';
 import * as trpcExpress from '@trpc/server/adapters/express';
+import consola from 'consola';
 import cookieParser from 'cookie-parser';
 import { Either, Schema } from 'effect';
-import express from 'express';
+import express, { ErrorRequestHandler } from 'express';
 import { attemptSilentLogin, auth, ConfigParams } from 'express-openid-connect';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -15,7 +16,9 @@ import { Context } from '../types/custom/context';
 import { addAuthenticationContext } from './middleware/authentication-context';
 import { addTenantContext } from './middleware/tenant-context';
 import { addUserContextMiddleware } from './middleware/user-context';
+import { qrCodeRouter } from './routers/qr-code.router';
 import { appRouter } from './trpc/app-router';
+import { webhookRouter } from './webhooks';
 
 const serverDistributionFolder = path.dirname(fileURLToPath(import.meta.url));
 const browserDistributionFolder = path.resolve(
@@ -25,14 +28,14 @@ const browserDistributionFolder = path.resolve(
 
 const config: ConfigParams = {
   auth0Logout: true,
-  authorizationParams: {
-    response_type: 'code',
-  },
   authRequired: false,
 };
 
 export const app = express();
 const angularApp = new AngularNodeAppEngine();
+
+app.use('/webhooks', webhookRouter);
+app.use('/qr', qrCodeRouter);
 
 if (process.env['PRERENDER']) {
   console.log('Skipping auth middleware for prerendering');
@@ -64,7 +67,7 @@ app.use(
       if (Either.isLeft(requestContext)) {
         if (process.env['PRERENDER'] === 'true') {
           // To make sure we can build our app, we have to handle the prerender
-          return Schema.decodeUnknownSync(Context)({
+          const context = Schema.decodeUnknownSync(Context)({
             authentication: { isAuthenticated: false },
             tenant: {
               currency: 'NO_TENANT_PRERENDER',
@@ -76,14 +79,15 @@ app.use(
               timezone: 'NO_TENANT_PRERENDER',
             },
           });
+          return { ...context, request: request.req };
         } else {
           throw requestContext.left;
         }
       }
-      return requestContext.right;
+      return { ...requestContext.right, request: request.req };
     },
     onError: (options) => {
-      const { ctx, error, input, path, req, type } = options;
+      const { error } = options;
       console.error('Error:', error);
       if (error.code === 'INTERNAL_SERVER_ERROR') {
         Sentry.captureException(error);
@@ -107,7 +111,7 @@ app.use(
 /**
  * Handle all other requests by rendering the Angular application.
  */
-app.use('/**', attemptSilentLogin(), (request, expressResponse, next) => {
+app.use('/{*splat}', attemptSilentLogin(), (request, expressResponse, next) => {
   const requestContext = Schema.decodeUnknownEither(Context)(request);
   if (Either.isLeft(requestContext)) {
     next(requestContext.left);
@@ -122,5 +126,12 @@ app.use('/**', attemptSilentLogin(), (request, expressResponse, next) => {
     )
     .catch(next);
 });
+
+// log any error
+const errorLogger: ErrorRequestHandler = (error, request, response, next) => {
+  consola.error(error);
+  next(error);
+};
+app.use(errorLogger);
 
 Sentry.setupExpressErrorHandler(app);

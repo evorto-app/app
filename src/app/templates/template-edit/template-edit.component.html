@@ -8,7 +8,7 @@
 <main class="flex flex-col gap-4">
   @if (templateQuery.isSuccess()) {
     <app-template-form
-      [initialData]="templateQuery.data()"
+      [initialData]="simpleTemplateData() ?? {}"
       [isSubmitting]="updateTemplateMutation.isPending()"
       submitLabel="Update template"
       (formSubmit)="onSubmit($event)"

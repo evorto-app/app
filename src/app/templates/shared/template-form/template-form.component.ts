@@ -12,10 +12,12 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { injectQuery } from '@tanstack/angular-query-experimental';
+import { PartialDeep } from 'type-fest';
 
 import { QueriesService } from '../../../core/queries.service';
 import { EditorComponent } from '../../../shared/components/controls/editor/editor.component';
 import { IconSelectorFieldComponent } from '../../../shared/components/controls/icon-selector/icon-selector-field/icon-selector-field.component';
+import { RoleSelectComponent } from '../../../shared/components/controls/role-select/role-select.component';
 
 export type RegistrationMode = 'application' | 'fcfs' | 'random';
 
@@ -29,6 +31,7 @@ export interface TemplateFormData {
     openRegistrationOffset: number;
     price: number;
     registrationMode: RegistrationMode;
+    roleIds: string[];
     spots: number;
   };
   participantRegistration: {
@@ -37,6 +40,7 @@ export interface TemplateFormData {
     openRegistrationOffset: number;
     price: number;
     registrationMode: RegistrationMode;
+    roleIds: string[];
     spots: number;
   };
   title: string;
@@ -52,13 +56,14 @@ export interface TemplateFormData {
     EditorComponent,
     IconSelectorFieldComponent,
     MatSlideToggleModule,
+    RoleSelectComponent,
   ],
   selector: 'app-template-form',
   standalone: true,
   templateUrl: './template-form.component.html',
 })
 export class TemplateFormComponent {
-  public readonly initialData = input<Partial<TemplateFormData>>({});
+  public readonly initialData = input<PartialDeep<TemplateFormData>>({});
 
   public readonly isSubmitting = input(false);
 
@@ -87,6 +92,7 @@ export class TemplateFormComponent {
       openRegistrationOffset: [168],
       price: [0],
       registrationMode: this.formBuilder.control<RegistrationMode>('fcfs'),
+      roleIds: this.formBuilder.control<string[]>([]),
       spots: [1],
     }),
     participantRegistration: this.formBuilder.group({
@@ -95,6 +101,7 @@ export class TemplateFormComponent {
       openRegistrationOffset: [168],
       price: [0],
       registrationMode: this.formBuilder.control<RegistrationMode>('fcfs'),
+      roleIds: this.formBuilder.control<string[]>([]),
       spots: [20],
     }),
     title: [''],

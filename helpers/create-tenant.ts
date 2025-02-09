@@ -1,4 +1,5 @@
 import { init } from '@paralleldrive/cuid2';
+import { InferInsertModel } from 'drizzle-orm';
 import { NeonHttpDatabase } from 'drizzle-orm/neon-http';
 
 import * as schema from '../src/db/schema';
@@ -12,15 +13,15 @@ export const createId = init({ length });
 
 export const createTenant = async (
   database: NeonHttpDatabase<typeof schema>,
-  domain?: string,
+  tenantData?: Partial<InferInsertModel<typeof schema.tenants>>,
 ) => {
-  domain ??= createId();
   const tenant = await database
     .insert(tenants)
     .values({
-      domain,
+      ...tenantData,
+      domain: tenantData?.domain ?? createId(),
       id: getId(),
-      name: 'ESN Murnau',
+      name: tenantData?.name ?? 'ESN Murnau',
     })
     .returning();
   await database.insert(schema.usersToTenants).values(

@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
   inject,
   input,
 } from '@angular/core';
@@ -39,6 +40,24 @@ export class TemplateEditComponent {
   protected readonly templateQuery = injectQuery(
     this.queries.template(this.templateId),
   );
+
+  protected readonly simpleTemplateData = computed(() => {
+    const templateData = this.templateQuery.data();
+    if (!templateData) return templateData;
+    const organizerRegistration =
+      templateData.registrationOptions.find(
+        (option) => option.organizingRegistration,
+      ) ?? {};
+    const participantRegistration =
+      templateData.registrationOptions.find(
+        (option) => !option.organizingRegistration,
+      ) ?? {};
+    return {
+      ...templateData,
+      organizerRegistration,
+      participantRegistration,
+    };
+  });
 
   protected readonly updateTemplateMutation = injectMutation(
     this.queries.updateSimpleTemplate(),

@@ -10,7 +10,11 @@
     </div>
     <span class="body-medium text-center">Events</span>
   </a>
-  <a routerLink="/templates" class="flex flex-col items-center gap-1">
+  <a
+    routerLink="/templates"
+    class="flex flex-col items-center gap-1"
+    *appIfPermission="'templates:*'"
+  >
     <div
       class="flex min-w-16 flex-row justify-center rounded-full py-1"
       routerLinkActive="bg-secondary-container text-on-secondary-container navigation-active"
@@ -39,6 +43,7 @@
   }
   <a
     routerLink="/global-admin"
+    *appIfPermission="'globalAdmin:*'"
     class="hidden flex-col items-center gap-1 lg:flex"
   >
     <div
@@ -49,7 +54,24 @@
     </div>
     <span class="body-medium text-center">Global admin</span>
   </a>
-  <a routerLink="/admin" class="hidden flex-col items-center gap-1 lg:flex">
+  <a
+    routerLink="/finance"
+    class="hidden flex-col items-center gap-1 lg:flex"
+    *appIfPermission="'finance:*'"
+  >
+    <div
+      class="flex min-w-16 flex-row justify-center rounded-full py-1"
+      routerLinkActive="bg-secondary-container text-on-secondary-container navigation-active"
+    >
+      <fa-duotone-icon [icon]="faMoneyBill" size="xl"></fa-duotone-icon>
+    </div>
+    <span class="body-medium text-center">Finances</span>
+  </a>
+  <a
+    routerLink="/admin"
+    class="hidden flex-col items-center gap-1 lg:flex"
+    *appIfPermission="'admin:*'"
+  >
     <div
       class="flex min-w-16 flex-row justify-center rounded-full py-1"
       routerLinkActive="bg-secondary-container text-on-secondary-container navigation-active"
@@ -60,9 +82,9 @@
   </a>
   <button
     title="menu"
-    mat-icon-button
     (click)="openSheet()"
     class="flex flex-col items-center gap-1 lg:hidden"
+    *appIfPermission="'admin:*'"
   >
     <div class="flex min-w-16 flex-row justify-center rounded-full py-1">
       <fa-duotone-icon [icon]="faEllipsisVertical" size="xl"></fa-duotone-icon>
@@ -95,6 +117,7 @@
   <div class="flex w-full flex-row justify-around gap-2 pt-3 pb-4">
     <a
       routerLink="/global-admin"
+      *appIfPermission="'globalAdmin:*'"
       class="flex flex-col items-center gap-1"
       (click)="closeSheet()"
     >
@@ -107,9 +130,37 @@
       <span class="body-medium text-center">Global admin</span>
     </a>
     <a
+      routerLink="/scan"
+      class="flex flex-col items-center gap-1"
+      (click)="closeSheet()"
+    >
+      <div
+        class="flex min-w-16 flex-row justify-center rounded-full py-1"
+        routerLinkActive="bg-secondary-container text-on-secondary-container"
+      >
+        <fa-duotone-icon [icon]="faScannerGun" size="xl"></fa-duotone-icon>
+      </div>
+      <span class="body-medium text-center">Scanner</span>
+    </a>
+    <a
+      routerLink="/finance"
+      class="flex flex-col items-center gap-1"
+      (click)="closeSheet()"
+      *appIfPermission="'finance:*'"
+    >
+      <div
+        class="flex min-w-16 flex-row justify-center rounded-full py-1"
+        routerLinkActive="bg-secondary-container text-on-secondary-container"
+      >
+        <fa-duotone-icon [icon]="faMoneyBill" size="xl"></fa-duotone-icon>
+      </div>
+      <span class="body-medium text-center">Finances</span>
+    </a>
+    <a
       routerLink="/admin"
       class="flex flex-col items-center gap-1"
       (click)="closeSheet()"
+      *appIfPermission="'admin:*'"
     >
       <div
         class="flex min-w-16 flex-row justify-center rounded-full py-1"

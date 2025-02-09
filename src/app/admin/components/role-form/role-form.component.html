@@ -1,5 +1,5 @@
 <form [formGroup]="permissionForm" (ngSubmit)="onSubmit()">
-  <div class="mb-6 space-y-4">
+  <div class="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
     <mat-form-field class="w-full">
       <mat-label>Name</mat-label>
       <input matInput formControlName="name" [readonly]="isSubmitting()" />
@@ -14,16 +14,26 @@
       ></textarea>
     </mat-form-field>
 
-    <mat-checkbox formControlName="defaultUserRole"
-      >Is default user role</mat-checkbox
-    >
+    <mat-checkbox formControlName="defaultUserRole">
+      Every new user should get this role
+    </mat-checkbox>
 
-    <mat-checkbox formControlName="defaultOrganizerRole"
-      >Is default organizer role</mat-checkbox
-    >
+    <mat-checkbox formControlName="defaultOrganizerRole">
+      An organizer registration should be available to this role by default
+    </mat-checkbox>
+
+    <mat-checkbox formControlName="showInHub" #showInHubCheckbox>
+      Show this role in the hub
+    </mat-checkbox>
+
+    @if (showInHubCheckbox.checked) {
+      <mat-checkbox formControlName="collapseMembersInHup">
+        Collapse the members of this role by default
+      </mat-checkbox>
+    }
 
     <div
-      class="grid grid-cols-1 gap-4 lg:grid-cols-4"
+      class="grid grid-cols-1 gap-4 lg:col-span-2 lg:grid-cols-4"
       formGroupName="permissions"
     >
       @for (group of groupStates(); track group.key) {
@@ -39,9 +49,20 @@
 
           <div class="ml-8 grid grid-cols-1 gap-2">
             @for (permission of group.permissions; track permission.key) {
-              <mat-checkbox [formControlName]="permission.key">
-                {{ permission.label }}
-              </mat-checkbox>
+              <div class="flex flex-col">
+                <mat-checkbox 
+                  [formControlName]="permission.key"
+                  [disabled]="isPermissionDisabled(permission.key)"
+                  [matTooltip]="getPermissionTooltip(permission.key)"
+                >
+                  {{ permission.label }}
+                </mat-checkbox>
+                @if (getDependentPermissions(permission.key).length > 0) {
+                  <div class="ml-6 text-xs text-on-surface-variant">
+                    Includes: {{ getDependentPermissions(permission.key).join(', ') }}
+                  </div>
+                }
+              </div>
             }
           </div>
         </div>

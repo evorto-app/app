@@ -1,4 +1,4 @@
-import { and, eq, ilike } from 'drizzle-orm';
+import { and, asc, eq, ilike } from 'drizzle-orm';
 import { Schema } from 'effect';
 
 import { database } from '../../../db';
@@ -16,7 +16,7 @@ export const iconRouter = router({
       if (!name) {
         throw new Error('Invalid icon name');
       }
-      if (set.includes('-')) {
+      if (set?.includes('-')) {
         const setParts = set.split('-');
         for (const part of setParts) {
           friendlyName = friendlyName.replaceAll(part, '');
@@ -41,6 +41,7 @@ export const iconRouter = router({
     .input(Schema.decodeUnknownSync(Schema.Struct({ search: Schema.String })))
     .query(async ({ ctx, input }) => {
       return await database.query.icons.findMany({
+        orderBy: [asc(icons.commonName)],
         where: and(
           ilike(icons.commonName, `%${input.search}%`),
           eq(icons.tenantId, ctx.tenant.id),

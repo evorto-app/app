@@ -1,0 +1,31 @@
+<mat-form-field class="w-full">
+  <mat-label>Selected Roles</mat-label>
+  <mat-chip-grid #chipGrid aria-label="Role selection">
+    @for (role of currentRolesQuery(); track role.data?.id) {
+      <mat-chip-row (removed)="remove(role.data?.id)">
+        {{ role.data?.name }}
+        <button matChipRemove [attr.aria-label]="'remove ' + role">
+          <fa-duotone-icon [icon]="faCircleXmark"></fa-duotone-icon>
+        </button>
+      </mat-chip-row>
+    }
+  </mat-chip-grid>
+  <input
+    name="currentRoles"
+    placeholder="Add Role..."
+    #roleInput
+    [formControl]="searchInput"
+    [matChipInputFor]="chipGrid"
+    [matAutocomplete]="auto"
+    [matChipInputSeparatorKeyCodes]="separatorKeysCodes"
+    (matChipInputTokenEnd)="add()"
+  />
+  <mat-autocomplete
+    #auto="matAutocomplete"
+    (optionSelected)="selected($event); roleInput.value = ''"
+  >
+    @for (role of searchRoleQuery.data(); track role.id) {
+      <mat-option [value]="role.id">{{ role.name }}</mat-option>
+    }
+  </mat-autocomplete>
+</mat-form-field>

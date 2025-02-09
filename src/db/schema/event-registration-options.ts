@@ -29,6 +29,7 @@ export const eventRegistrationOptions = pgTable('event_registration_options', {
   registeredDescription: text(),
   registrationMode: registrationModes().notNull(),
   reservedSpots: integer().notNull().default(0),
+  roleIds: varchar({ length: 20 }).array().notNull().default([]),
   spots: integer().notNull(),
   title: text().notNull(),
   updatedAt: timestamp()

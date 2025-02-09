@@ -1,7 +1,9 @@
-import { and, eq } from 'drizzle-orm';
+import { randEmail, randFirstName, randLastName } from '@ngneat/falso';
+import { and, eq, InferInsertModel } from 'drizzle-orm';
 import { NeonHttpDatabase } from 'drizzle-orm/neon-http';
 
 import * as schema from '../src/db/schema';
+import { ALL_PERMISSIONS } from '../src/shared/permissions/permissions';
 import { getId } from './get-id';
 
 export const addRoles = (
@@ -15,23 +17,7 @@ export const addRoles = (
         description: 'Full app admins',
         id: getId(),
         name: 'Admin',
-        permissions: [
-          'admin:manageRoles',
-          'admin:settings',
-          'events:create',
-          'events:viewDrafts',
-          'events:viewPublic',
-          'events:manageAll',
-          'events:changePublication',
-          'templates:create',
-          'templates:delete',
-          'templates:editAll',
-          'templates:view',
-          'templates:manageCategories',
-          'users:viewAll',
-          'users:assignRoles',
-          'internal:viewInternalPages',
-        ],
+        permissions: ALL_PERMISSIONS,
         tenantId: tenant.id,
       },
       {
@@ -41,6 +27,30 @@ export const addRoles = (
         name: 'Section member',
         permissions: [
           'events:create',
+          'events:viewPublic',
+          'templates:view',
+          'internal:viewInternalPages',
+        ],
+        tenantId: tenant.id,
+      },
+      {
+        defaultOrganizerRole: true,
+        description: 'Trial members of the section',
+        id: getId(),
+        name: 'Trial member',
+        permissions: [
+          'events:create',
+          'events:viewPublic',
+          'templates:view',
+          'internal:viewInternalPages',
+        ],
+        tenantId: tenant.id,
+      },
+      {
+        description: 'Helpers of the section',
+        id: getId(),
+        name: 'Helper',
+        permissions: [
           'events:viewPublic',
           'templates:view',
           'internal:viewInternalPages',
@@ -80,4 +90,54 @@ export const addUsersToRoles = async (
       userTenantId: userToTenant.id,
     });
   }
+};
+
+export const addExampleUsers = async (
+  database: NeonHttpDatabase<typeof schema>,
+  roles: { defaultUserRole: boolean; id: string }[],
+  tenant: { id: string },
+) => {
+  const usersToAdd: InferInsertModel<typeof schema.users>[] = [];
+  const tenantAssignmentsToAdd: InferInsertModel<
+    typeof schema.usersToTenants
+  >[] = [];
+  const roleAssignmentsToAdd: InferInsertModel<
+    typeof schema.rolesToTenantUsers
+  >[] = [];
+  const defaultUserRole = roles.find((role) => role.defaultUserRole);
+  if (!defaultUserRole) {
+    throw new Error('Default user role not found');
+  }
+  for (const role of roles) {
+    for (let index = 0; index < (role.defaultUserRole ? 100 : 20); index++) {
+      const user = {
+        auth0Id: getId(),
+        communicationEmail: randEmail(),
+        email: randEmail(),
+        firstName: randFirstName(),
+        id: getId(),
+        lastName: randLastName(),
+      };
+      usersToAdd.push(user);
+      const userToTenant = {
+        id: getId(),
+        tenantId: tenant.id,
+        userId: user.id,
+      };
+      tenantAssignmentsToAdd.push(userToTenant);
+      roleAssignmentsToAdd.push({
+        roleId: role.id,
+        userTenantId: userToTenant.id,
+      });
+      if (!role.defaultUserRole) {
+        roleAssignmentsToAdd.push({
+          roleId: defaultUserRole.id,
+          userTenantId: userToTenant.id,
+        });
+      }
+    }
+  }
+  await database.insert(schema.users).values(usersToAdd);
+  await database.insert(schema.usersToTenants).values(tenantAssignmentsToAdd);
+  await database.insert(schema.rolesToTenantUsers).values(roleAssignmentsToAdd);
 };

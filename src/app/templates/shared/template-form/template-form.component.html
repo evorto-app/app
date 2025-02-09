@@ -58,6 +58,8 @@
             <mat-hint>How many organizers can register</mat-hint>
           </mat-form-field>
 
+          <app-role-select formControlName="roleIds"></app-role-select>
+
           <mat-form-field>
             <mat-label>Registration Mode</mat-label>
             <mat-select formControlName="registrationMode">
@@ -113,6 +115,8 @@
             <input matInput type="number" formControlName="spots" min="1" />
             <mat-hint>How many participants can register</mat-hint>
           </mat-form-field>
+
+          <app-role-select formControlName="roleIds"></app-role-select>
 
           <mat-form-field>
             <mat-label>Registration Mode</mat-label>

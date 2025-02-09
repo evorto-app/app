@@ -9,7 +9,11 @@ import { MatButtonModule } from '@angular/material/button';
 import { Router, RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
-import { injectMutation } from '@tanstack/angular-query-experimental';
+import {
+  injectMutation,
+  injectQuery,
+} from '@tanstack/angular-query-experimental';
+import { PartialDeep } from 'type-fest';
 
 import { QueriesService } from '../../core/queries.service';
 import {
@@ -36,9 +40,26 @@ export class TemplateCreateComponent {
     this.queries.createSimpleTemplate(),
   );
   protected readonly faArrowLeft = faArrowLeft;
-  protected readonly initialFormData = computed(() => ({
-    categoryId: this.categoryId() || '',
-  }));
+  private defaultOrganizerRolesQuery = injectQuery(
+    this.queries.defaultOrganizerRoles(),
+  );
+  private defaultUserRolesQuery = injectQuery(this.queries.defaultUserRoles());
+  protected readonly initialFormData = computed<PartialDeep<TemplateFormData>>(
+    () => {
+      return {
+        categoryId: this.categoryId() || '',
+        organizerRegistration: {
+          roleIds:
+            this.defaultOrganizerRolesQuery.data()?.map((role) => role.id) ||
+            [],
+        },
+        participantRegistration: {
+          roleIds:
+            this.defaultUserRolesQuery.data()?.map((role) => role.id) || [],
+        },
+      };
+    },
+  );
 
   private router = inject(Router);
 

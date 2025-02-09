@@ -1,7 +1,8 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { Schema } from 'effect';
 
 import { database } from '../../../db';
+import * as schema from '../../../db/schema';
 import {
   eventTemplates,
   templateRegistrationOptions,
@@ -14,6 +15,7 @@ const registrationOptionSchema = Schema.Struct({
   openRegistrationOffset: Schema.Number.pipe(Schema.nonNegative()),
   price: Schema.Number.pipe(Schema.nonNegative()),
   registrationMode: Schema.Literal('fcfs', 'random', 'application'),
+  roleIds: Schema.mutable(Schema.Array(Schema.NonEmptyString)),
   spots: Schema.Positive,
 });
 
@@ -56,6 +58,7 @@ export const templateRouter = router({
           organizingRegistration: true,
           price: input.organizerRegistration.price,
           registrationMode: input.organizerRegistration.registrationMode,
+          roleIds: input.organizerRegistration.roleIds,
           spots: input.organizerRegistration.spots,
           templateId,
           title: 'Organizer registration',
@@ -71,6 +74,7 @@ export const templateRouter = router({
           organizingRegistration: false,
           price: input.participantRegistration.price,
           registrationMode: input.participantRegistration.registrationMode,
+          roleIds: input.participantRegistration.roleIds,
           spots: input.participantRegistration.spots,
           templateId,
           title: 'Participant registration',
@@ -93,8 +97,8 @@ export const templateRouter = router({
     .query(async ({ ctx, input }) => {
       const template = await database.query.eventTemplates.findFirst({
         where: and(
-          eq(eventTemplates.id, input.id),
-          eq(eventTemplates.tenantId, ctx.tenant.id),
+          eq(schema.eventTemplates.id, input.id),
+          eq(schema.eventTemplates.tenantId, ctx.tenant.id),
         ),
         with: {
           registrationOptions: true,
@@ -103,7 +107,21 @@ export const templateRouter = router({
       if (!template) {
         throw new Error('Template not found');
       }
-      return template;
+      const combinedRegistrationOptionRoleIds =
+        template.registrationOptions.flatMap((option) => option.roleIds);
+      const roles = await database.query.roles.findMany({
+        where: and(
+          eq(schema.roles.tenantId, ctx.tenant.id),
+          inArray(schema.roles.id, combinedRegistrationOptionRoleIds),
+        ),
+      });
+      return {
+        ...template,
+        registrationOptions: template.registrationOptions.map((option) => ({
+          ...option,
+          roles: roles.filter((role) => option.roleIds.includes(role.id)),
+        })),
+      };
     }),
   groupedByCategory: authenticatedProcedure.query(async ({ ctx }) => {
     return await database.query.eventTemplateCategories.findMany({
@@ -160,6 +178,7 @@ export const templateRouter = router({
               input.organizerRegistration.openRegistrationOffset,
             price: input.organizerRegistration.price,
             registrationMode: input.organizerRegistration.registrationMode,
+            roleIds: input.organizerRegistration.roleIds,
             spots: input.organizerRegistration.spots,
           })
           .where(
@@ -180,6 +199,7 @@ export const templateRouter = router({
               input.participantRegistration.openRegistrationOffset,
             price: input.participantRegistration.price,
             registrationMode: input.participantRegistration.registrationMode,
+            roleIds: input.participantRegistration.roleIds,
             spots: input.participantRegistration.spots,
           })
           .where(

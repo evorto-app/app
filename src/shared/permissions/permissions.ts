@@ -3,6 +3,7 @@ import {
   faFileEdit,
   faGear,
   faLock,
+  faMoneyBill,
   faUser,
 } from '@fortawesome/duotone-regular-svg-icons';
 import { IconDefinition } from '@fortawesome/fontawesome-svg-core';
@@ -11,17 +12,21 @@ import { Schema } from 'effect';
 // Define the permission groups as const
 const ADMIN_GROUP = {
   key: 'admin',
-  permissions: ['manageRoles', 'settings'] as const,
+  permissions: ['manageRoles', 'changeSettings'] as const,
 } as const;
 
 const EVENTS_GROUP = {
   key: 'events',
   permissions: [
-    'create',
-    'viewDrafts',
     'viewPublic',
-    'manageAll',
-    'changePublication',
+    'create',
+    'editAll',
+    'seeDrafts',
+    'review',
+    'runAll',
+    'seeHidden',
+    'seePrivate',
+    'changeVisibility',
   ] as const,
 } as const;
 
@@ -46,10 +51,22 @@ const INTERNAL_GROUP = {
   permissions: ['viewInternalPages'] as const,
 } as const;
 
+const FINANCE_GROUP = {
+  key: 'finance',
+  permissions: [
+    'viewTransactions',
+    'createTransactions',
+    'approveReceipts',
+    'refundReceipts',
+  ] as const,
+} as const;
+
 // Union type of all possible permissions
 export type Permission =
   | AdminPermissions
   | EventsPermissions
+  | FinancePermissions
+  | GlobalAdminPermissions
   | InternalPermissions
   | TemplatesPermissions
   | UsersPermissions;
@@ -64,21 +81,34 @@ export interface PermissionMeta {
   key: Permission;
   label: string;
 }
+
 // Type definitions using the const groups
+
 type AdminPermissions =
-  `${typeof ADMIN_GROUP.key}:${(typeof ADMIN_GROUP.permissions)[number]}`;
+  | `${typeof ADMIN_GROUP.key}:${(typeof ADMIN_GROUP.permissions)[number]}`
+  | `${typeof ADMIN_GROUP.key}:*`;
 
 type EventsPermissions =
-  `${typeof EVENTS_GROUP.key}:${(typeof EVENTS_GROUP.permissions)[number]}`;
+  | `${typeof EVENTS_GROUP.key}:${(typeof EVENTS_GROUP.permissions)[number]}`
+  | `${typeof EVENTS_GROUP.key}:*`;
+
+type FinancePermissions =
+  | `${typeof FINANCE_GROUP.key}:${(typeof FINANCE_GROUP.permissions)[number]}`
+  | `${typeof FINANCE_GROUP.key}:*`;
+
+type GlobalAdminPermissions = `globalAdmin:*` | `globalAdmin:manageTenants`;
 
 type InternalPermissions =
-  `${typeof INTERNAL_GROUP.key}:${(typeof INTERNAL_GROUP.permissions)[number]}`;
+  | `${typeof INTERNAL_GROUP.key}:${(typeof INTERNAL_GROUP.permissions)[number]}`
+  | `${typeof INTERNAL_GROUP.key}:*`;
 
 type TemplatesPermissions =
-  `${typeof TEMPLATES_GROUP.key}:${(typeof TEMPLATES_GROUP.permissions)[number]}`;
+  | `${typeof TEMPLATES_GROUP.key}:${(typeof TEMPLATES_GROUP.permissions)[number]}`
+  | `${typeof TEMPLATES_GROUP.key}:*`;
 
 type UsersPermissions =
-  `${typeof USERS_GROUP.key}:${(typeof USERS_GROUP.permissions)[number]}`;
+  | `${typeof USERS_GROUP.key}:${(typeof USERS_GROUP.permissions)[number]}`
+  | `${typeof USERS_GROUP.key}:*`;
 
 export const PERMISSION_GROUPS: PermissionGroup[] = [
   {
@@ -141,6 +171,18 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
         .trim(),
     })),
   },
+  {
+    icon: faMoneyBill,
+    key: FINANCE_GROUP.key,
+    label: 'Finance',
+    permissions: FINANCE_GROUP.permissions.map((perm) => ({
+      key: `${FINANCE_GROUP.key}:${perm}` as Permission,
+      label: perm
+        .replaceAll(/([A-Z])/g, ' $1')
+        .replace(/^./, (string_) => string_.toUpperCase())
+        .trim(),
+    })),
+  },
 ] as const;
 
 // Type-safe permissions record
@@ -155,6 +197,18 @@ export const PERMISSIONS = {
     EVENTS_GROUP.permissions.map((perm) => [
       perm.toUpperCase(),
       `${EVENTS_GROUP.key}:${perm}` as Permission,
+    ]),
+  ),
+  FINANCE: Object.fromEntries(
+    FINANCE_GROUP.permissions.map((perm) => [
+      perm.toUpperCase(),
+      `${FINANCE_GROUP.key}:${perm}` as Permission,
+    ]),
+  ),
+  INTERNAL: Object.fromEntries(
+    INTERNAL_GROUP.permissions.map((perm) => [
+      perm.toUpperCase(),
+      `${INTERNAL_GROUP.key}:${perm}` as Permission,
     ]),
   ),
   TEMPLATES: Object.fromEntries(
@@ -181,6 +235,35 @@ export const PermissionSchema = Schema.declare(
     if (typeof input !== 'string') {
       return false;
     }
-    return ALL_PERMISSIONS.includes(input as Permission);
+    return [
+      'globalAdmin:*',
+      'globalAdmin:manageTenants',
+      ...ALL_PERMISSIONS,
+    ].includes(input as Permission);
   },
 );
+
+export const PERMISSION_DEPENDENCIES: Record<Permission, Permission[]> =
+  Object.fromEntries(
+    PERMISSION_GROUPS.flatMap((group) =>
+      group.permissions.map((perm) => {
+        switch (perm.key) {
+          case 'events:changeVisibility': {
+            return [perm.key, ['events:seePrivate', 'events:seeHidden']];
+          }
+          case 'events:review': {
+            return [
+              perm.key,
+              ['events:seeDrafts', 'events:seePrivate', 'events:seeHidden'],
+            ];
+          }
+          case 'events:seePrivate': {
+            return [perm.key, ['events:seeHidden']];
+          }
+          default: {
+            return [perm.key, []];
+          }
+        }
+      }),
+    ),
+  ) as Record<Permission, Permission[]>;

@@ -17,6 +17,30 @@ export const addIcons = (
         tenantId: tenant.id,
       },
       {
+        commonName: 'valley:color',
+        friendlyName: 'Valley',
+        id: getId(),
+        tenantId: tenant.id,
+      },
+      {
+        commonName: 'football2',
+        friendlyName: 'Football',
+        id: getId(),
+        tenantId: tenant.id,
+      },
+      {
+        commonName: 'basketball',
+        friendlyName: 'Basketball',
+        id: getId(),
+        tenantId: tenant.id,
+      },
+      {
+        commonName: 'volleyball:color',
+        friendlyName: 'Volleyball',
+        id: getId(),
+        tenantId: tenant.id,
+      },
+      {
         commonName: 'mountain',
         friendlyName: 'Mountain',
         id: getId(),
@@ -97,12 +121,6 @@ export const addIcons = (
       {
         commonName: 'sled:color',
         friendlyName: 'Sled',
-        id: getId(),
-        tenantId: tenant.id,
-      },
-      {
-        commonName: 'alps',
-        friendlyName: 'Alps',
         id: getId(),
         tenantId: tenant.id,
       },

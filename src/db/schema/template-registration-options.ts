@@ -28,12 +28,14 @@ export const templateRegistrationOptions = pgTable(
     organizingRegistration: boolean().notNull(),
     price: integer().notNull(),
     registeredDescription: text(),
-    registrationMode: registrationModes().notNull(),
+    registrationMode: registrationModes().notNull().default('fcfs'),
+    roleIds: varchar({ length: 20 }).array().notNull().default([]),
     spots: integer().notNull(),
     templateId: varchar({ length: 20 })
       .notNull()
       .references(() => eventTemplates.id),
     title: text().notNull(),
+    untouchedSinceMigration: boolean().notNull().default(false),
     updatedAt: timestamp()
       .notNull()
       .defaultNow()

@@ -45,7 +45,9 @@ export class IconSelectorFieldComponent implements AfterViewInit, OnDestroy {
 
   async openSelectionDialog() {
     const icon = await firstValueFrom(
-      this.dialog.open(IconSelectorDialogComponent).afterClosed(),
+      this.dialog
+        .open(IconSelectorDialogComponent, { minWidth: '70dvw' })
+        .afterClosed(),
     );
     if (icon) {
       this.ngControl.control.patchValue(icon);

@@ -1,5 +1,8 @@
 import { createNodeRequestHandler, isMainModule } from '@angular/ssr/node';
-import 'express-async-errors';
+// import 'express-async-errors';
+import consola from 'consola';
+
+consola.wrapAll();
 
 import { app } from './server/app';
 

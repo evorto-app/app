@@ -9,6 +9,7 @@ import {
   MatBottomSheet,
   MatBottomSheetModule,
 } from '@angular/material/bottom-sheet';
+import { MatButtonModule } from '@angular/material/button';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import {
@@ -17,12 +18,15 @@ import {
   faFolderGear,
   faFolders,
   faLockKeyhole,
+  faMoneyBill,
   faRightFromBracket,
   faRightToBracket,
+  faScannerGun,
   faUser,
 } from '@fortawesome/duotone-regular-svg-icons';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
+import { IfPermissionDirective } from '../../shared/directives/if-permission.directive';
 import { QueriesService } from '../queries.service';
 
 @Component({
@@ -32,6 +36,8 @@ import { QueriesService } from '../queries.service';
     FontAwesomeModule,
     RouterLinkActive,
     MatBottomSheetModule,
+    IfPermissionDirective,
+    MatButtonModule,
   ],
   selector: 'app-navigation',
   styles: ``,
@@ -47,12 +53,15 @@ export class NavigationComponent {
   protected readonly faFolderGear = faFolderGear;
   protected readonly faFolders = faFolders;
   protected readonly faLockKeyhole = faLockKeyhole;
+  protected readonly faMoneyBill = faMoneyBill;
   protected readonly faRightFromBracket = faRightFromBracket;
   protected readonly faRightToBracket = faRightToBracket;
+  protected readonly faScannerGun = faScannerGun;
   protected readonly faUser = faUser;
   protected readonly sheetTemplate =
     viewChild<TemplateRef<unknown>>('navigationSheet');
   private readonly bottomSheet = inject(MatBottomSheet);
+
   closeSheet() {
     this.bottomSheet.dismiss();
   }

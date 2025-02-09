@@ -7,7 +7,15 @@
     >
       <h1 class="title-large">Events</h1>
       <div class="grow"></div>
-      <button mat-icon-button>
+      <button
+        mat-icon-button
+        (click)="openFilterPanel()"
+        *appIfAnyPermission="[
+          'events:seeDrafts',
+          'events:seeHidden',
+          'events:seePrivate',
+        ]"
+      >
         <fa-duotone-icon [icon]="faFilter"></fa-duotone-icon>
       </button>
       <button mat-icon-button [matMenuTriggerFor]="menu">
@@ -19,21 +27,87 @@
       class="{{ outletActive() ? 'hidden' : 'flex' }} lg:flex flex-col gap-4"
     >
       @if (eventQuery.isPending()) {
-        <p>Loading...</p>
+        <div
+          class="animate-pulse rounded-2xl bg-surface px-4 py-2 text-on-surface"
+        >
+          <p class="headline-small">Loading...</p>
+        </div>
       } @else if (eventQuery.isError()) {
         <p>Error: {{ eventQuery.error().message }}</p>
       } @else if (eventQuery.isSuccess()) {
-        @for (event of eventQuery.data(); track event.id) {
-          <a
-            routerLink="{{ event.id }}"
-            class="rounded-2xl bg-surface px-4 py-2 text-on-surface"
-            routerLinkActive="bg-secondary-container! text-on-secondary-container!"
-          >
-            <div class="flex flex-row items-start gap-4">
-              <app-icon [iconCommonName]="event.icon" size="32"></app-icon>
-              <h2 class="headline-small">{{ event.title }}</h2>
-            </div>
-          </a>
+        @for (day of eventQuery.data(); track day.day) {
+          <p class="title-medium">{{ day.day | date }}</p>
+          @for (event of day.events; track event.id) {
+            <a
+              routerLink="{{ event.id }}"
+              class="rounded-2xl bg-surface px-4 py-2 text-on-surface relative overflow-hidden {{
+                event.userRegistered
+                  ? 'ring-3 ring-inset ring-success'
+                  : event.userIsCreator
+                    ? 'ring-3 ring-inset ring-tertiary'
+                    : ''
+              }}"
+              routerLinkActive="bg-secondary-container! text-on-secondary-container!"
+            >
+              @switch (event.status) {
+                @case ("DRAFT") {
+                  <div class="absolute top-0 right-0 h-16 w-16">
+                    <div
+                      class="body-small absolute top-3 -right-9 w-28 rotate-45 transform bg-warn-container py-1 text-center text-on-warn-container"
+                    >
+                      draft
+                    </div>
+                  </div>
+                }
+                @case ("PENDING_REVIEW") {
+                  <div class="absolute top-0 right-0 h-16 w-16">
+                    <div
+                      class="body-small absolute top-3 -right-9 w-28 rotate-45 transform bg-tertiary-container py-1 text-center text-on-tertiary-container"
+                    >
+                      in review
+                    </div>
+                  </div>
+                }
+                @case ("REJECTED") {
+                  <div class="absolute top-0 right-0 h-16 w-16">
+                    <div
+                      class="body-small absolute top-3 -right-9 w-28 rotate-45 transform bg-error-container py-1 text-center text-on-error-container"
+                    >
+                      rejected
+                    </div>
+                  </div>
+                }
+              }
+              <div class="flex flex-row items-start gap-4">
+                <app-icon [iconCommonName]="event.icon" size="32"></app-icon>
+                <div class="flex flex-col gap-2">
+                  <h2 class="headline-small">{{ event.title }}</h2>
+                  <div class="flex flex-row flex-wrap items-center gap-4">
+                    <div class="flex flex-row items-center gap-2">
+                      <fa-duotone-icon [icon]="faClock"></fa-duotone-icon>
+                      <p>{{ event.start | date: "mediumTime" }}</p>
+                    </div>
+                    @switch (event.visibility) {
+                      @case ("HIDDEN") {
+                        <div class="flex flex-row items-center gap-2">
+                          <fa-duotone-icon
+                            [icon]="faEyeSlash"
+                          ></fa-duotone-icon>
+                          <p>hidden</p>
+                        </div>
+                      }
+                      @case ("PRIVATE") {
+                        <div class="flex flex-row items-center gap-2">
+                          <fa-duotone-icon [icon]="faLock"></fa-duotone-icon>
+                          <p>private</p>
+                        </div>
+                      }
+                    }
+                  </div>
+                </div>
+              </div>
+            </a>
+          }
         } @empty {
           <p>No events found</p>
         }
