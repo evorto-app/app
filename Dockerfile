@@ -7,7 +7,7 @@ WORKDIR /app
 FROM base AS build
 ENV PRERENDER=true
 COPY --chown=appuser:appuser package.json yarn.lock .yarnrc.yml ./
-RUN yarn config set npmScopes.fortawesome.npmAuthToken ${FONT_AWESOME_TOKEN}
+RUN yarn config set npmScopes.fortawesome.npmAuthToken \${FONT_AWESOME_TOKEN}
 RUN --mount=type=secret,id=FONT_AWESOME_TOKEN yarn install --immutable
 COPY --chown=appuser:appuser . .
 RUN yarn build
