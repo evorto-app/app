@@ -7,7 +7,7 @@ WORKDIR /app
 FROM base AS build
 ENV PRERENDER=true
 COPY --chown=appuser:appuser package.json yarn.lock .yarnrc.yml ./
-RUN --mount=type=secret,id=yarnrc,target:/.yarnrc.yml yarn install --immutable
+RUN --mount=type=secret,id=yarnrc,target=/.yarnrc.yml yarn install --immutable
 COPY --chown=appuser:appuser . .
 RUN yarn build
 USER root
