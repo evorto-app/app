@@ -1,4 +1,4 @@
-import { and, count, eq, exists, SQL, sql } from 'drizzle-orm';
+import { and, count, eq, SQL, sql } from 'drizzle-orm';
 import {
   index,
   pgTable,
@@ -11,7 +11,6 @@ import {
   varchar,
 } from 'drizzle-orm/pg-core';
 
-import { user, usersOfTenants } from '../../../old/drizzle';
 import { createId } from '../create-id';
 import { eventRegistrationOptions } from './event-registration-options';
 import { eventRegistrations } from './event-registrations';
@@ -42,7 +41,22 @@ export const users = pgTable(
     lastName: text().notNull(),
     searchableInfo: text().generatedAlwaysAs(
       (): SQL =>
-        sql`lower(immutable_unaccent(${users.firstName} || ' ' || ${users.lastName} || ' ' || ${users.communicationEmail} || ' ' || ${users.email}))`,
+        sql`lower(immutable_unaccent(
+        ${users.firstName}
+        ||
+        ' '
+        ||
+        ${users.lastName}
+        ||
+        ' '
+        ||
+        ${users.communicationEmail}
+        ||
+        ' '
+        ||
+        ${users.email}
+        )
+        )`,
     ),
     updatedAt: timestamp()
       .notNull()
@@ -52,7 +66,8 @@ export const users = pgTable(
   (table) => ({
     searchGinIndex: index('searchable_info_idx').using(
       'gin',
-      sql`${table.searchableInfo} gin_trgm_ops`,
+      sql`${table.searchableInfo}
+      gin_trgm_ops`,
     ),
   }),
 );
