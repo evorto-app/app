@@ -8,18 +8,13 @@ FROM base AS build
 ENV PRERENDER=true
 COPY --chown=appuser:appuser package.json yarn.lock .yarnrc.yml ./
 RUN --mount=type=secret,id=FONT_AWESOME_TOKEN \
-    export FONT_AWESOME_TOKEN=$(cat /run/secrets/FONT_AWESOME_TOKEN) && \
-    yarn config set npmScopes.fortawesome.npmAuthToken \${FONT_AWESOME_TOKEN}
-RUN --mount=type=secret,id=FONT_AWESOME_TOKEN \
-    export FONT_AWESOME_TOKEN=$(cat /run/secrets/FONT_AWESOME_TOKEN) && \
-    yarn install --immutable
+    yarn config set npmScopes.fortawesome.npmAuthToken $(cat /run/secrets/FONT_AWESOME_TOKEN) \
+RUN yarn config --no-defaults
+RUN yarn install --immutable
 COPY --chown=appuser:appuser . .
-RUN --mount=type=secret,id=FONT_AWESOME_TOKEN \
-    export FONT_AWESOME_TOKEN=$(cat /run/secrets/FONT_AWESOME_TOKEN) && \
-    yarn build
+RUN yarn build
 USER root
-RUN --mount=type=secret,id=SENTRY_AUTH_TOKEN --mount=type=secret,id=FONT_AWESOME_TOKEN \
-    export SENTRY_AUTH_TOKEN=$(cat /run/secrets/SENTRY_AUTH_TOKEN) && \
+RUN --mount=type=secret,id=SENTRY_AUTH_TOKEN \
     export FONT_AWESOME_TOKEN=$(cat /run/secrets/FONT_AWESOME_TOKEN) && \
     if [ -n "$SENTRY_AUTH_TOKEN" ]; then \
         yarn sentry:sourcemaps; \
