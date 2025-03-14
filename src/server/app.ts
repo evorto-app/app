@@ -70,7 +70,7 @@ app.use(
           const context = Schema.decodeUnknownSync(Context)({
             authentication: { isAuthenticated: false },
             tenant: {
-              currency: 'NO_TENANT_PRERENDER',
+              currency: 'EUR',
               domain: 'NO_TENANT_PRERENDER',
               id: 'NO_TENANT_PRERENDER',
               locale: 'NO_TENANT_PRERENDER',
