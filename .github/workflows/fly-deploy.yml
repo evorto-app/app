@@ -13,15 +13,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: superfly/flyctl-actions/setup-flyctl@master
-      - name: Enable corepack
-        run: corepack enable
-      - name: Setup yarn auth
-        run: |
-          yarn config set -H npmScopes.fortawesome.npmAuthToken ${{ secrets.FONT_AWESOME_TOKEN }}
-          yarn config set -H npmScopes.fortawesome.npmAlwaysAuth true
-          yarn config set -H npmScopes.fortawesome.npmRegistryServer https://npm.fontawesome.com/
-          yarn config set -H nodeLinker node-modules
-      - run: yarn config --no-defaults
-      - run: flyctl deploy --remote-only --build-secret=SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }} --build-secret=yarnrc=/home/runner/.yarnrc.yml
+      - run: flyctl deploy --remote-only --build-secret=SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }} --build-secret=FONT_AWESOME_TOKEN=${{ secrets.FONT_AWESOME_TOKEN }}
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
