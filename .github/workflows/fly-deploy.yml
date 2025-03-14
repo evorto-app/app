@@ -21,6 +21,7 @@ jobs:
           yarn config set -H npmScopes.fortawesome.npmAlwaysAuth true
           yarn config set -H npmScopes.fortawesome.npmRegistryServer https://npm.fontawesome.com/
           yarn config set -H nodeLinker node-modules
+      - run: yarn config --no-defaults
       - run: flyctl deploy --remote-only --build-secret=SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }} --build-secret type=file,id=yarnrc,src=/home/runner/.yarnrc.yml
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
