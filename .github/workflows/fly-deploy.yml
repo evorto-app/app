@@ -16,7 +16,7 @@ jobs:
       - name: Enable corepack
         run: corepack enable
       - name: Setup yarn auth
-        run: yarn config set --H npmScopes.fortawesome.npmAuthToken ${{ secrets.FONT_AWESOME_TOKEN }}
+        run: yarn config set -H npmScopes.fortawesome.npmAuthToken ${{ secrets.FONT_AWESOME_TOKEN }}
       - run: flyctl deploy --remote-only --build-secret=SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }} --build-secret type=file,id=yarnrc,src=/home/runner/.yarnrc.yml
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
