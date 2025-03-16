@@ -1,6 +1,6 @@
 import type { SQLWrapper } from 'drizzle-orm/sql/sql';
 
-import { and, eq, ilike, like } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { Schema } from 'effect';
 
 import { database } from '../../../db';
@@ -74,7 +74,8 @@ export const roleRouter = router({
       }
       return await database.query.roles.findMany({
         orderBy: (roles, { asc }) => [asc(roles.name)],
-        where: and(...conditions),
+        // TODO: Change to new query API
+        where: { RAW: and(...conditions) },
       });
     }),
 
@@ -89,7 +90,7 @@ export const roleRouter = router({
     )
     .query(async ({ ctx, input }) => {
       const role = await database.query.roles.findFirst({
-        where: and(eq(roles.id, input.id), eq(roles.tenantId, ctx.tenant.id)),
+        where: { id: input.id, tenantId: ctx.tenant.id },
       });
       if (!role) {
         throw new Error('Role not found');
@@ -109,11 +110,11 @@ export const roleRouter = router({
     .query(async ({ ctx, input }) => {
       return await database.query.roles.findMany({
         limit: 15,
-        orderBy: (roles, { asc }) => [asc(roles.name)],
-        where: and(
-          eq(roles.tenantId, ctx.tenant.id),
-          ilike(roles.name, `%${input.search}%`),
-        ),
+        orderBy: { name: 'asc' },
+        where: {
+          name: { ilike: `%${input.search}%` },
+          tenantId: ctx.tenant.id,
+        },
       });
     }),
 

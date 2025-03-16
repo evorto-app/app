@@ -15,11 +15,12 @@ export const cancelPendingRegistrationProcedure = authenticatedProcedure
   )
   .mutation(async ({ ctx, input }) => {
     const registration = await database.query.eventRegistrations.findFirst({
-      where: and(
-        eq(schema.eventRegistrations.id, input.registrationId),
-        eq(schema.eventRegistrations.userId, ctx.user.id),
-        eq(schema.eventRegistrations.status, 'PENDING'),
-      ),
+      where: {
+        id: input.registrationId,
+        status: 'PENDING',
+        tenantId: ctx.tenant.id,
+        userId: ctx.user.id,
+      },
       with: {
         registrationOption: true,
         transactions: true,
@@ -44,7 +45,8 @@ export const cancelPendingRegistrationProcedure = authenticatedProcedure
       await tx
         .update(schema.eventRegistrationOptions)
         .set({
-          reservedSpots: registration.registrationOption.reservedSpots - 1,
+          // TODO: Fix once drizzle fixes this type
+          reservedSpots: registration.registrationOption!.reservedSpots - 1,
         })
         .where(
           eq(

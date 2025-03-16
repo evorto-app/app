@@ -1,9 +1,7 @@
 import { TRPCError } from '@trpc/server';
-import { and, eq } from 'drizzle-orm';
 import { Schema } from 'effect';
 
 import { database } from '../../../db';
-import * as schema from '../../../db/schema';
 import { authenticatedProcedure } from '../trpc-server';
 
 export const registrationScannedProcedure = authenticatedProcedure
@@ -16,10 +14,8 @@ export const registrationScannedProcedure = authenticatedProcedure
   )
   .query(async ({ ctx, input }) => {
     const registration = await database.query.eventRegistrations.findFirst({
-      where: and(
-        eq(schema.eventRegistrations.id, input.registrationId),
-        eq(schema.eventRegistrations.tenantId, ctx.tenant.id),
-      ),
+      where: { id: input.registrationId, tenantId: ctx.tenant.id },
+
       with: {
         event: true,
         registrationOption: true,

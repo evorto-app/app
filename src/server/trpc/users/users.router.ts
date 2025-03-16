@@ -40,10 +40,7 @@ export const userRouter = router({
         });
       }
       const defaultUserRoles = await database.query.roles.findMany({
-        where: and(
-          eq(schema.roles.tenantId, ctx.tenant.id),
-          eq(schema.roles.defaultUserRole, true),
-        ),
+        where: { defaultUserRole: true, tenantId: ctx.tenant.id },
       });
       const userCreateResponse = await database
         .insert(schema.users)

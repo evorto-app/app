@@ -95,10 +95,10 @@ export const eventListProcedure = publicProcedure
         (await database.query.roles
           .findMany({
             columns: { id: true },
-            where: and(
-              eq(schema.roles.tenantId, ctx.tenant.id),
-              eq(schema.roles.defaultUserRole, true),
-            ),
+            where: {
+              defaultUserRole: true,
+              tenantId: ctx.tenant.id,
+            },
           })
           .then((roles) => roles.map((role) => role.id))) ??
         []) as string[];

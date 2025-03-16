@@ -1,8 +1,7 @@
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { Schema } from 'effect';
 
 import { database } from '../../../db';
-import * as schema from '../../../db/schema';
 import {
   eventTemplates,
   templateRegistrationOptions,
@@ -87,7 +86,7 @@ export const templateRouter = router({
     }),
   findMany: authenticatedProcedure.query(async ({ ctx }) => {
     return await database.query.eventTemplates.findMany({
-      where: eq(eventTemplates.tenantId, ctx.tenant.id),
+      where: { tenantId: ctx.tenant.id },
     });
   }),
   findOne: authenticatedProcedure
@@ -96,10 +95,7 @@ export const templateRouter = router({
     )
     .query(async ({ ctx, input }) => {
       const template = await database.query.eventTemplates.findFirst({
-        where: and(
-          eq(schema.eventTemplates.id, input.id),
-          eq(schema.eventTemplates.tenantId, ctx.tenant.id),
-        ),
+        where: { id: input.id, tenantId: ctx.tenant.id },
         with: {
           registrationOptions: true,
         },
@@ -110,10 +106,10 @@ export const templateRouter = router({
       const combinedRegistrationOptionRoleIds =
         template.registrationOptions.flatMap((option) => option.roleIds);
       const roles = await database.query.roles.findMany({
-        where: and(
-          eq(schema.roles.tenantId, ctx.tenant.id),
-          inArray(schema.roles.id, combinedRegistrationOptionRoleIds),
-        ),
+        where: {
+          id: { in: combinedRegistrationOptionRoleIds },
+          tenantId: ctx.tenant.id,
+        },
       });
       return {
         ...template,
@@ -126,10 +122,10 @@ export const templateRouter = router({
   groupedByCategory: authenticatedProcedure.query(async ({ ctx }) => {
     return await database.query.eventTemplateCategories.findMany({
       orderBy: (categories, { asc }) => [asc(categories.title)],
-      where: eq(eventTemplates.tenantId, ctx.tenant.id),
+      where: { tenantId: ctx.tenant.id },
       with: {
         templates: {
-          orderBy: (templates, { asc }) => [asc(templates.createdAt)],
+          orderBy: { createdAt: 'asc' },
         },
       },
     });

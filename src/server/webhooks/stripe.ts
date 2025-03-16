@@ -41,7 +41,7 @@ stripeRouter.post(
         const eventCharge = event.data.object;
 
         const appTransaction = await database.query.transactions.findFirst({
-          where: eq(schema.transactions.stripeChargeId, eventCharge.id),
+          where: { stripeChargeId: eventCharge.id },
         });
         if (!appTransaction) {
           response.status(400).send('Transaction not found');
@@ -51,7 +51,7 @@ stripeRouter.post(
         const stripeAccount = await database.query.tenants
           .findFirst({
             columns: { stripeAccountId: true },
-            where: eq(schema.tenants.id, appTransaction.tenantId),
+            where: { id: appTransaction.tenantId },
           })
           .then((tenant) => tenant?.stripeAccountId);
 
@@ -108,7 +108,7 @@ stripeRouter.post(
         const stripeAccount = await database.query.tenants
           .findFirst({
             columns: { stripeAccountId: true },
-            where: eq(schema.tenants.id, tenantId),
+            where: { id: tenantId },
           })
           .then((tenant) => tenant?.stripeAccountId);
 
@@ -167,7 +167,7 @@ stripeRouter.post(
         const stripeAccount = await database.query.tenants
           .findFirst({
             columns: { stripeAccountId: true },
-            where: eq(schema.tenants.id, tenantId),
+            where: { id: tenantId },
           })
           .then((tenant) => tenant?.stripeAccountId);
 

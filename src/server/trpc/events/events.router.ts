@@ -110,24 +110,17 @@ export const eventRouter = router({
         (await database.query.roles
           .findMany({
             columns: { id: true },
-            where: and(
-              eq(schema.roles.tenantId, ctx.tenant.id),
-              eq(schema.roles.defaultUserRole, true),
-            ),
+            where: { defaultUserRole: true, tenantId: ctx.tenant.id },
           })
           .then((roles) => roles.map((role) => role.id))) ??
         []) as string[];
       const event = await database.query.eventInstances.findFirst({
-        where: and(
-          eq(schema.eventInstances.id, input.id),
-          eq(schema.eventInstances.tenantId, ctx.tenant.id),
-        ),
+        where: { id: input.id, tenantId: ctx.tenant.id },
         with: {
           registrationOptions: {
-            where: arrayOverlaps(
-              schema.eventRegistrationOptions.roleIds,
-              rolesToFilterBy,
-            ),
+            where: {
+              RAW: (table) => arrayOverlaps(table.roleIds, rolesToFilterBy),
+            },
           },
           reviewer: {
             columns: {
@@ -150,11 +143,8 @@ export const eventRouter = router({
     .meta({ requiredPermissions: ['events:review'] })
     .query(async ({ ctx }) => {
       return database.query.eventInstances.findMany({
-        orderBy: schema.eventInstances.start,
-        where: and(
-          eq(schema.eventInstances.tenantId, ctx.tenant.id),
-          eq(schema.eventInstances.status, 'PENDING_REVIEW'),
-        ),
+        orderBy: { start: 'desc' },
+        where: { status: 'PENDING_REVIEW', tenantId: ctx.tenant.id },
         with: {
           registrationOptions: true,
           template: true,
@@ -176,11 +166,12 @@ export const eventRouter = router({
         };
       }
       const registrations = await database.query.eventRegistrations.findMany({
-        where: and(
-          eq(schema.eventRegistrations.eventId, input.eventId),
-          eq(schema.eventRegistrations.userId, ctx.user.id),
-          notInArray(schema.eventRegistrations.status, ['CANCELLED']),
-        ),
+        where: {
+          eventId: input.eventId,
+          status: { NOT: 'CANCELLED' },
+          tenantId: ctx.tenant.id,
+          userId: ctx.user.id,
+        },
         with: {
           registrationOption: true,
           transactions: true,
@@ -201,9 +192,11 @@ export const eventRouter = router({
               transaction.status === 'pending' &&
               transaction.type === 'registration',
           ),
-          registeredDescription: reg.registrationOption.registeredDescription,
+          // TODO: Fix once drizzle fixes this type
+          registeredDescription: reg.registrationOption!.registeredDescription,
           registrationOptionId: reg.registrationOptionId,
-          registrationOptionTitle: reg.registrationOption.title,
+          // TODO: Fix once drizzle fixes this type
+          registrationOptionTitle: reg.registrationOption!.title,
           status: reg.status,
         })),
       };
@@ -290,10 +283,10 @@ export const eventRouter = router({
     .mutation(async ({ ctx, input }) => {
       // Check if event is in a state that allows editing
       const event = await database.query.eventInstances.findFirst({
-        where: and(
-          eq(schema.eventInstances.id, input.eventId),
-          eq(schema.eventInstances.tenantId, ctx.tenant.id),
-        ),
+        where: {
+          id: input.eventId,
+          tenantId: ctx.tenant.id,
+        },
       });
 
       if (!event) {

@@ -1,11 +1,10 @@
-// @ts-check
-const eslintPluginUnicorn = require("eslint-plugin-unicorn");
-const perfectionist = require("eslint-plugin-perfectionist");
-const eslintConfigPrettier = require("eslint-config-prettier");
-const eslint = require("@eslint/js");
-const tseslint = require("typescript-eslint");
-const angular = require("angular-eslint");
-// const pluginQuery = require("@tanstack/eslint-plugin-query");
+import eslintPluginUnicorn from "eslint-plugin-unicorn";
+import perfectionist from "eslint-plugin-perfectionist";
+import eslintConfigPrettier from "eslint-config-prettier";
+import eslint from "@eslint/js";
+import * as tseslint from "typescript-eslint";
+import * as angular from "angular-eslint";
+// import * as pluginQuery from "@tanstack/eslint-plugin-query";
 
 const baseConfig = tseslint.config(
   eslint.configs.recommended,
@@ -17,7 +16,7 @@ const baseConfig = tseslint.config(
   eslintConfigPrettier,
 );
 
-module.exports = tseslint.config(
+export default tseslint.config(
   {
     files: ["**/*.ts"],
     ignores: ["old/**/*"],

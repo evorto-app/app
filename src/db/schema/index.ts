@@ -5,7 +5,6 @@ export * from './event-template-categories';
 export * from './event-templates';
 export * from './global-enums';
 export * from './icons';
-export * from './relations';
 export * from './roles';
 export * from './template-event-addons';
 export * from './template-registration-option-discounts';

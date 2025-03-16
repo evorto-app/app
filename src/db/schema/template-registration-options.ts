@@ -43,21 +43,6 @@ export const templateRegistrationOptions = pgTable(
   },
 );
 
-export const roleToTemplateRegistrationOptions = pgTable(
-  'role_to_template_registration_options',
-  {
-    registrationOptionId: varchar({ length: 20 })
-      .notNull()
-      .references(() => templateRegistrationOptions.id),
-    roleId: varchar({ length: 20 })
-      .notNull()
-      .references(() => roles.id),
-  },
-  (table) => ({
-    unique: unique().on(table.roleId, table.registrationOptionId),
-  }),
-);
-
 export const addonToTemplateRegistrationOptions = pgTable(
   'addon_to_template_registration_options',
   {

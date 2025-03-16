@@ -23,7 +23,7 @@ export const templateCategoryRouter = router({
     }),
   findMany: authenticatedProcedure.query(async ({ ctx }) => {
     return await database.query.eventTemplateCategories.findMany({
-      where: eq(eventTemplateCategories.tenantId, ctx.tenant.id),
+      where: { tenantId: ctx.tenant.id },
     });
   }),
   update: authenticatedProcedure

@@ -1,10 +1,11 @@
 import { drizzle } from 'drizzle-orm/neon-serverless';
 import ws from 'ws';
 
-import * as schema from './schema';
+import { relations } from './relations';
 
 export const database = drizzle({
   connection: process.env['DATABASE_URL']!,
-  schema,
+  relations,
+
   ws: ws,
 });

@@ -22,7 +22,8 @@ export const addUserContextMiddleware = async (
         ? ([...ALL_PERMISSIONS, 'globalAdmin:manageTenants'] as const)
         : user.usersToTenants
             .flatMap((ut) => ut.rolesToTenantUsers)
-            .flatMap((rttu) => rttu.role.permissions);
+            // TODO: Fix once drizzle fixes this type
+            .flatMap((rttu) => rttu.role!.permissions);
       const roleIds = user.usersToTenants
         .flatMap((ut) => ut.rolesToTenantUsers)
         .flatMap((rttu) => rttu.roleId);

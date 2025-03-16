@@ -1,11 +1,9 @@
 import consola from 'consola';
-import { eq } from 'drizzle-orm';
 import { Router } from 'express';
 import { PassThrough } from 'node:stream';
 import QRCode from 'qrcode';
 
 import { database } from '../../db';
-import * as schema from '../../db/schema';
 
 export const qrCodeRouter = Router();
 qrCodeRouter.get('/registration/:registrationId', async (request, response) => {
@@ -16,7 +14,7 @@ qrCodeRouter.get('/registration/:registrationId', async (request, response) => {
       id: true,
       tenantId: true,
     },
-    where: eq(schema.eventRegistrations.id, registrationId),
+    where: { id: registrationId },
   });
   if (!registration) {
     response.status(404).send('Registration not found');
@@ -26,7 +24,7 @@ qrCodeRouter.get('/registration/:registrationId', async (request, response) => {
     columns: {
       domain: true,
     },
-    where: eq(schema.tenants.id, registration.tenantId),
+    where: { id: registration.tenantId },
   });
   if (!tenant) {
     response.status(404).send('Tenant not found');

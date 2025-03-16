@@ -1,4 +1,3 @@
-import { and, asc, eq, ilike } from 'drizzle-orm';
 import { Schema } from 'effect';
 
 import { database } from '../../../db';
@@ -41,11 +40,11 @@ export const iconRouter = router({
     .input(Schema.decodeUnknownSync(Schema.Struct({ search: Schema.String })))
     .query(async ({ ctx, input }) => {
       return await database.query.icons.findMany({
-        orderBy: [asc(icons.commonName)],
-        where: and(
-          ilike(icons.commonName, `%${input.search}%`),
-          eq(icons.tenantId, ctx.tenant.id),
-        ),
+        orderBy: { commonName: 'asc' },
+        where: {
+          commonName: { ilike: `%${input.search}%` },
+          tenantId: ctx.tenant.id,
+        },
       });
     }),
 });

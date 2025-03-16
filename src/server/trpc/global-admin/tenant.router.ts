@@ -52,7 +52,7 @@ export const tenantRouter = router({
     )
     .query(async ({ ctx, input }) => {
       const tenant = await database.query.tenants.findFirst({
-        where: eq(tenants.id, input.id),
+        where: { id: input.id },
       });
       if (!tenant) {
         throw new TRPCError({

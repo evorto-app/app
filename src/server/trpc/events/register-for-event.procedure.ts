@@ -1,6 +1,6 @@
 import { TRPCError } from '@trpc/server';
 import consola from 'consola';
-import { and, eq, not } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { Schema } from 'effect';
 import { DateTime } from 'luxon';
 
@@ -23,11 +23,11 @@ export const registerForEventProcedure = authenticatedProcedure
     const databaseReturns = await database.transaction(async (tx) => {
       // Check if user is already registered for this event
       const existingRegistration = await tx.query.eventRegistrations.findFirst({
-        where: and(
-          eq(schema.eventRegistrations.eventId, input.eventId),
-          eq(schema.eventRegistrations.userId, ctx.user.id),
-          not(eq(schema.eventRegistrations.status, 'CANCELLED')),
-        ),
+        where: {
+          eventId: input.eventId,
+          status: { NOT: 'CANCELLED' },
+          userId: ctx.user.id,
+        },
       });
       if (existingRegistration) {
         throw new TRPCError({
@@ -39,10 +39,7 @@ export const registerForEventProcedure = authenticatedProcedure
       // Check if event is full
       const registrationOption =
         await tx.query.eventRegistrationOptions.findFirst({
-          where: and(
-            eq(schema.eventRegistrationOptions.id, input.registrationOptionId),
-            eq(schema.eventRegistrationOptions.eventId, input.eventId),
-          ),
+          where: { eventId: input.eventId, id: input.registrationOptionId },
           with: {
             event: {
               columns: {
@@ -127,7 +124,8 @@ export const registerForEventProcedure = authenticatedProcedure
                 price_data: {
                   currency: ctx.tenant.currency,
                   product_data: {
-                    name: `Registration fee for ${registrationOption.event.title}`,
+                    // TODO: Fix once drizzle fixes this type
+                    name: `Registration fee for ${registrationOption.event!.title}`,
                   },
                   unit_amount: registrationOption.price,
                 },
@@ -152,7 +150,8 @@ export const registerForEventProcedure = authenticatedProcedure
           .insert(schema.transactions)
           .values({
             amount: registrationOption.price,
-            comment: `Registration for event ${registrationOption.event.title} ${registrationOption.eventId}`,
+            // TODO: Fix once drizzle fixes this type
+            comment: `Registration for event ${registrationOption.event!.title} ${registrationOption.eventId}`,
             currency: ctx.tenant.currency,
             eventId: registrationOption.eventId,
             eventRegistrationId: userRegistration.id,
@@ -177,13 +176,10 @@ export const registerForEventProcedure = authenticatedProcedure
         await database.transaction(async (tx) => {
           const registrationOption =
             await tx.query.eventRegistrationOptions.findFirst({
-              where: and(
-                eq(
-                  schema.eventRegistrationOptions.id,
-                  input.registrationOptionId,
-                ),
-                eq(schema.eventRegistrationOptions.eventId, input.eventId),
-              ),
+              where: {
+                eventId: input.eventId,
+                id: input.registrationOptionId,
+              },
             });
           if (!registrationOption) {
             throw new TRPCError({
