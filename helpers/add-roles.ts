@@ -1,13 +1,14 @@
 import { randEmail, randFirstName, randLastName } from '@ngneat/falso';
-import { and, eq, InferInsertModel } from 'drizzle-orm';
-import { NeonHttpDatabase } from 'drizzle-orm/neon-http';
+import { InferInsertModel } from 'drizzle-orm';
+import { NeonDatabase } from 'drizzle-orm/neon-serverless';
 
+import { relations } from '../src/db/relations';
 import * as schema from '../src/db/schema';
 import { ALL_PERMISSIONS } from '../src/shared/permissions/permissions';
 import { getId } from './get-id';
 
 export const addRoles = (
-  database: NeonHttpDatabase<typeof schema>,
+  database: NeonDatabase<Record<string, never>, typeof relations>,
   tenant: { id: string },
 ) => {
   return database
@@ -70,16 +71,13 @@ export const addRoles = (
 };
 
 export const addUsersToRoles = async (
-  database: NeonHttpDatabase<typeof schema>,
+  database: NeonDatabase<Record<string, never>, typeof relations>,
   assignments: { roleId: string; userId: string }[],
   tenant: { id: string },
 ) => {
   for (const assignment of assignments) {
     const userToTenant = await database.query.usersToTenants.findFirst({
-      where: and(
-        eq(schema.usersToTenants.userId, assignment.userId),
-        eq(schema.usersToTenants.tenantId, tenant.id),
-      ),
+      where: { tenantId: tenant.id, userId: assignment.userId },
     });
     if (!userToTenant) {
       throw new Error('User not found');
@@ -93,7 +91,7 @@ export const addUsersToRoles = async (
 };
 
 export const addExampleUsers = async (
-  database: NeonHttpDatabase<typeof schema>,
+  database: NeonDatabase<Record<string, never>, typeof relations>,
   roles: { defaultUserRole: boolean; id: string }[],
   tenant: { id: string },
 ) => {

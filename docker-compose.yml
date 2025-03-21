@@ -1,27 +1,26 @@
 services:
   evorto:
     container_name: app
-    build: .
+    build:
+      context: .
+      secrets:
+        - FONT_AWESOME_TOKEN
+    develop:
+      watch:
+        - action: rebuild
+          path: ./src
+        - action: rebuild
+          path: package.json
     env_file:
       - .env.local
       - .env
+    environment:
+      STRIPE_WEBHOOK_SECRET: whsec_5cc4e8e60977a2f87895f2fe5484040de96728381f08f33617633205a0cafae3
     ports:
       - "4200:4200"
 
-  #  db:
-  #    image: postgres
-  #    restart: always
-  #    environment:
-  #      POSTGRES_USER: postgres
-  #      POSTGRES_PASSWORD: postgres
-  #    healthcheck:
-  #      test: ["CMD-SHELL", "pg_isready"]
-  #      interval: 1s
-  #      timeout: 5s
-  #      retries: 10
-
   stripe:
-    image: stripe/stripe-cli:v1.24.0
+    image: stripe/stripe-cli:v1.25.0
     restart: always
     env_file:
       - .env.local
@@ -29,20 +28,7 @@ services:
     environment:
       STRIPE_DEVICE_NAME: integration-tests
     command: "listen --forward-to http://evorto:4200/webhooks/stripe"
-#  migrate-db:
-#    restart: no
-#    depends_on:
-#      - db
-#    command: yarn drizzle-kit push --force
-#    build:
-#      context: .
-#      dockerfile_inline: |
-#        FROM node:22-alpine
-#        WORKDIR /app
-#        RUN corepack enable
-#        COPY package.json yarn.lock .yarnrc.yml drizzle.config.ts ./
-#        COPY src/db/schema ./src/db/schema
-#        COPY src/db/create-id.ts ./src/db
-#        RUN yarn
-#    environment:
-#      DATABASE_URL: postgresql://postgres:postgres@db/postgres
+
+secrets:
+  FONT_AWESOME_TOKEN:
+    environment: FONT_AWESOME_TOKEN

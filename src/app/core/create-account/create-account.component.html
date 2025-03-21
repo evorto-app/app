@@ -14,7 +14,7 @@
       <h2 class="title-medium">Loading ...</h2>
     </div>
   } @else if (authDataQuery.isSuccess()) {
-    @if (authDataQuery.data().email_verified) {
+    @if (authDataQuery.data()?.email_verified) {
       <form
         [formGroup]="accountForm"
         class="flex flex-col gap-4 rounded-2xl bg-surface p-4 text-on-surface"

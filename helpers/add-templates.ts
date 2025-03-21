@@ -1,6 +1,7 @@
 import { InferInsertModel } from 'drizzle-orm';
-import { NeonHttpDatabase } from 'drizzle-orm/neon-http';
+import { NeonDatabase } from 'drizzle-orm/neon-serverless';
 
+import { relations } from '../src/db/relations';
 import * as schema from '../src/db/schema';
 import { getId } from './get-id';
 import { getCityTourTemplates } from './templates/city-tour-templates';
@@ -11,7 +12,7 @@ import { getSportsTemplates } from './templates/sports-templates';
 import { getWeekendTripTemplates } from './templates/weekend-trip-templates';
 
 export const addTemplates = async (
-  database: NeonHttpDatabase<typeof schema>,
+  database: NeonDatabase<Record<string, never>, typeof relations>,
   categories: { id: string; tenantId: string; title: string }[],
   roles: {
     defaultOrganizerRole: boolean;

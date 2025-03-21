@@ -1,8 +1,9 @@
 import { randChanceBoolean, randNumber, randSoonDate } from '@ngneat/falso';
 import { InferInsertModel } from 'drizzle-orm';
-import { NeonHttpDatabase } from 'drizzle-orm/neon-http';
+import { NeonDatabase } from 'drizzle-orm/neon-serverless';
 import { DateTime } from 'luxon';
 
+import { relations } from '../src/db/relations';
 import * as schema from '../src/db/schema';
 import { getId } from './get-id';
 import { usersToAuthenticate } from './user-data';
@@ -17,7 +18,7 @@ const organizerUser =
   fallbackId;
 
 export const addEvents = async (
-  database: NeonHttpDatabase<typeof schema>,
+  database: NeonDatabase<Record<string, never>, typeof relations>,
   templates: {
     description: string;
     icon: string;

@@ -17,6 +17,12 @@ export default defineConfig({
     },
     {
       dependencies: ['setup'],
+      name: 'Desktop Documentation',
+      testMatch: /.*\.doc\.ts$/,
+      use: { ...devices['Desktop Chrome'], channel: 'chrome' },
+    },
+    {
+      dependencies: ['setup'],
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
     },
@@ -56,7 +62,9 @@ export default defineConfig({
     // },
   ],
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
-  reporter: process.env['CI'] ? [['github'], ['dot']] : 'html',
+  reporter: process.env['CI']
+    ? [['github'], ['dot']]
+    : [['html'], ['./e2e/reporters/documentation-reporter.ts'], ['dot']],
   /* Retry on CI only */
   retries: process.env['CI'] ? 2 : 0,
   testDir: './e2e',

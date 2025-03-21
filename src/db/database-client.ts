@@ -6,6 +6,5 @@ import { relations } from './relations';
 export const database = drizzle({
   connection: process.env['DATABASE_URL']!,
   relations,
-
   ws: ws,
 });

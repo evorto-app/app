@@ -1,12 +1,7 @@
-import {
-  randEmail,
-  randFirstName,
-  randLastName,
-  seed as seedFalso,
-} from '@ngneat/falso';
+import { randEmail, randFirstName, randLastName } from '@ngneat/falso';
 import consola from 'consola';
 import { InferInsertModel } from 'drizzle-orm';
-import { NeonHttpDatabase } from 'drizzle-orm/neon-http';
+import { NeonDatabase } from 'drizzle-orm/neon-serverless';
 import { reset } from 'drizzle-seed';
 
 import { addEvents } from '../../helpers/add-events';
@@ -21,17 +16,33 @@ import { addTemplates } from '../../helpers/add-templates';
 import { createTenant } from '../../helpers/create-tenant';
 import { usersToAuthenticate } from '../../helpers/user-data';
 import { database as databaseClient } from './database-client';
+import { relations } from './relations';
 import * as schema from './schema';
 import { users } from './schema';
 
 export async function setupDatabase(
-  database: NeonHttpDatabase<
-    typeof schema
-  > = databaseClient as unknown as NeonHttpDatabase<typeof schema>,
+  database: NeonDatabase<
+    Record<string, never>,
+    typeof relations
+  > = databaseClient as unknown as NeonDatabase<
+    Record<string, never>,
+    typeof relations
+  >,
 ) {
-  seedFalso('playwright'); // Set a consistent seed for falso
-  consola.info('Seeded falso');
+  // @ts-ignore
   await reset(database, schema);
+  consola.debug(
+    usersToAuthenticate
+      .filter((data) => data.addToDb)
+      .map((data) => ({
+        auth0Id: data.authId,
+        communicationEmail: randEmail(),
+        email: data.email,
+        firstName: randFirstName(),
+        id: data.id,
+        lastName: randLastName(),
+      })),
+  );
   await database
     .insert(users)
     .values(

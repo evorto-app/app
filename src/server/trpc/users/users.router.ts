@@ -1,4 +1,5 @@
 import { TRPCError } from '@trpc/server';
+import consola from 'consola';
 import { and, count, eq } from 'drizzle-orm';
 import { Schema } from 'effect';
 
@@ -12,7 +13,7 @@ import {
 
 export const userRouter = router({
   authData: publicProcedure.query(async ({ ctx }) => {
-    return ctx.request.oidc.fetchUserInfo();
+    return ctx.request.oidc.user;
   }),
 
   createAccount: publicProcedure
@@ -26,7 +27,13 @@ export const userRouter = router({
       ),
     )
     .mutation(async ({ ctx, input }) => {
-      const authData = await ctx.request.oidc.fetchUserInfo();
+      const authData = ctx.request.oidc.user;
+      if (!authData) {
+        throw new TRPCError({
+          code: 'UNAUTHORIZED',
+          message: 'User not authenticated',
+        });
+      }
       const auth0Id = authData.sub;
       const existingUser = await database
         .select()

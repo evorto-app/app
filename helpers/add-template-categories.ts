@@ -1,10 +1,11 @@
-import { NeonHttpDatabase } from 'drizzle-orm/neon-http';
+import { NeonDatabase } from 'drizzle-orm/neon-serverless';
 
+import { relations } from '../src/db/relations';
 import * as schema from '../src/db/schema';
 import { getId } from './get-id';
 
 export const addTemplateCategories = (
-  database: NeonHttpDatabase<typeof schema>,
+  database: NeonDatabase<Record<string, never>, typeof relations>,
   tenant: { id: string },
 ) => {
   return database
