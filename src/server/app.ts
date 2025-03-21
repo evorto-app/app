@@ -118,7 +118,7 @@ app.use('/{*splat}', attemptSilentLogin(), (request, expressResponse, next) => {
     return;
   }
   angularApp
-    .handle(request, requestContext.right)
+    .handle(request, 'test')
     .then((response) =>
       response
         ? writeResponseToNodeResponse(response, expressResponse)

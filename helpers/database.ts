@@ -1,4 +1,4 @@
-import { seed as seedFalso } from '@ngneat/falso/src/lib/random';
+import { seed as seedFalso } from '@ngneat/falso';
 import consola from 'consola';
 
 import { setupDatabase } from '../src/db/setup-database';

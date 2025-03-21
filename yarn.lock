@@ -5010,22 +5010,22 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@trpc/client@npm:^11.0.0-rc.844":
-  version: 11.0.0-rc.844
-  resolution: "@trpc/client@npm:11.0.0-rc.844"
+"@trpc/client@npm:^11.0.0":
+  version: 11.0.0
+  resolution: "@trpc/client@npm:11.0.0"
   peerDependencies:
-    "@trpc/server": 11.0.0-rc.844+0244dee81
+    "@trpc/server": 11.0.0
     typescript: ">=5.7.2"
-  checksum: 10c0/79d509e93fd8680d49d60e404b9da9e6631cbe91cfbb4e6bad435bee66a2bfa2a1701830a7acc299c8c576883e55b423dbaca27bfb75b028cb1ca584a23ec739
+  checksum: 10c0/d741f46dbfcb977d9b7d658703f2b354a32ee942a321cf7a986e778059ea8ee9249eaeb1d34fd1f50d4f059a7a86a4270c68bcda485e9bc9800de1ed3532af53
   languageName: node
   linkType: hard
 
-"@trpc/server@npm:^11.0.0-rc.844":
-  version: 11.0.0-rc.844
-  resolution: "@trpc/server@npm:11.0.0-rc.844"
+"@trpc/server@npm:^11.0.0":
+  version: 11.0.0
+  resolution: "@trpc/server@npm:11.0.0"
   peerDependencies:
     typescript: ">=5.7.2"
-  checksum: 10c0/46149b7149c51d2ac2e95abcfd8d94cbf74b1546be4fbb76081d6206c0ac757606f7b72611b58bc056176c7e44ca89cbf8d96bb54873b77ea16715fcc02c8bc3
+  checksum: 10c0/0fa6b9fd44d0378471df827fa1f35623d2ef463fe1af7c89de9433b22c81d0db5d60695a77a5ca723e91d2b77be08a48dee77703851109151c8e9febab478125
   languageName: node
   linkType: hard
 
@@ -8340,8 +8340,8 @@ __metadata:
     "@tanstack/angular-query-experimental": "npm:5.69.0"
     "@tanstack/eslint-plugin-query": "npm:^5.68.0"
     "@tinymce/tinymce-angular": "npm:^8.0.1"
-    "@trpc/client": "npm:^11.0.0-rc.844"
-    "@trpc/server": "npm:^11.0.0-rc.844"
+    "@trpc/client": "npm:^11.0.0"
+    "@trpc/server": "npm:^11.0.0"
     "@types/cookie-parser": "npm:^1.4.8"
     "@types/express": "npm:^5.0.1"
     "@types/html-to-text": "npm:^9.0.4"

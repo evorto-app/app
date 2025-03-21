@@ -28,7 +28,7 @@ export const addTenantContext = async (
   const host = request.headers['x-forwarded-host'] || request.headers['host'];
 
   if (!tenant && host && typeof host === 'string') {
-    const hostUrl = new URL(referer || `${request.protocol}://${host}`);
+    const hostUrl = new URL(`${request.protocol}://${host}`);
     const domain = hostUrl.hostname;
     tenant = await getTenant.execute({ domain });
     cause.domain = domain;
