@@ -2,7 +2,7 @@ import { inject, REQUEST, REQUEST_CONTEXT, RESPONSE_INIT } from '@angular/core';
 import { CanActivateFn } from '@angular/router';
 
 import { type Context } from '../../../types/custom/context';
-import { injectTrpcClient } from './../trpc-client';
+import { injectTrpcClient } from '../trpc-client';
 
 export const authGuard: CanActivateFn = async (_, state) => {
   const context = inject(REQUEST_CONTEXT) as Context | undefined;

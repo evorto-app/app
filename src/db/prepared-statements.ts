@@ -11,10 +11,16 @@ export const getUser = database.query.users
   .findFirst({
     where: { auth0Id: sql.placeholder('auth0Id') },
     with: {
-      usersToTenants: {
+      tenantAssignments: {
+        where: {
+          tenantId: sql.placeholder('tenantId'),
+        },
         with: {
-          rolesToTenantUsers: {
-            with: { role: { columns: { id: true, permissions: true } } },
+          roles: {
+            columns: {
+              id: true,
+              permissions: true,
+            },
           },
         },
       },

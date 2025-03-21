@@ -20,6 +20,8 @@ interface BaseFixtures {
   database: NeonDatabase<Record<string, never>, typeof relations>;
   newUser: {
     email: string;
+    firstName: string;
+    lastName: string;
     password: string;
   };
 }
@@ -36,18 +38,20 @@ export const test = base.extend<BaseFixtures>({
   newUser: async ({}, use) => {
     const email = `test-${createDedupeId()}@evorto.app`;
     const password = `notsecure-${createDedupeId()}1!`;
+    const firstName = randFirstName();
+    const lastName = randLastName();
     const user = await auth0.users.create({
       connection: 'Username-Password-Authentication',
       email,
       email_verified: true,
-      family_name: randLastName(),
-      given_name: randFirstName(),
+      family_name: lastName,
+      given_name: firstName,
       password,
       user_metadata: {
         localTest: true,
       },
     });
-    await use({ email, password });
+    await use({ email, firstName, lastName, password });
     await auth0.users.delete({ id: user.data.user_id });
   },
   page: async ({ page }, use) => {

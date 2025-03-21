@@ -177,6 +177,7 @@ export const relations = defineRelations(schema, (r) => ({
       alias: 'eventInstances_reviewedBy_users_id',
     }),
     eventRegistrations: r.many.eventRegistrations(),
+    tenantAssignments: r.many.usersToTenants(),
     tenants: r.many.tenants(),
     transactions_executiveUserId: r.many.transactions({
       alias: 'transactions_executiveUserId_users_id',
@@ -184,7 +185,6 @@ export const relations = defineRelations(schema, (r) => ({
     transactions_targetUserId: r.many.transactions({
       alias: 'transactions_targetUserId_users_id',
     }),
-    usersToTenants: r.many.usersToTenants(),
   },
   usersToTenants: {
     roles: r.many.roles(),

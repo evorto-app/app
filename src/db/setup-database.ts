@@ -28,21 +28,10 @@ export async function setupDatabase(
     Record<string, never>,
     typeof relations
   >,
+  skipDevelopmentTenants = false,
 ) {
   // @ts-ignore
   await reset(database, schema);
-  consola.debug(
-    usersToAuthenticate
-      .filter((data) => data.addToDb)
-      .map((data) => ({
-        auth0Id: data.authId,
-        communicationEmail: randEmail(),
-        email: data.email,
-        firstName: randFirstName(),
-        id: data.id,
-        lastName: randLastName(),
-      })),
-  );
   await database
     .insert(users)
     .values(
@@ -58,6 +47,8 @@ export async function setupDatabase(
         })),
     )
     .execute();
+
+  if (skipDevelopmentTenants) return;
 
   // Setup default development tenants
   const developmentTenants: Partial<InferInsertModel<typeof schema.tenants>>[] =

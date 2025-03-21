@@ -19,6 +19,7 @@ export default defineConfig({
       dependencies: ['setup'],
       name: 'Desktop Documentation',
       testMatch: /.*\.doc\.ts$/,
+      timeout: 20 * 1000,
       use: { ...devices['Desktop Chrome'], channel: 'chrome' },
     },
     {
@@ -80,7 +81,7 @@ export default defineConfig({
   },
 
   webServer: {
-    command: 'docker compose up',
+    command: process.env['CI'] ? 'docker compose up' : '',
     reuseExistingServer: !process.env['CI'],
     url: 'http://localhost:4200',
   },

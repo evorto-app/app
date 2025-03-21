@@ -1,4 +1,4 @@
-import consola from 'consola';
+import { uniq } from 'es-toolkit';
 import { NextFunction, Request, Response } from 'express';
 
 import { getUser, userAttributes } from '../../db';
@@ -15,19 +15,20 @@ export const addUserContextMiddleware = async (
   }
   const auth0Id = request.oidc.user?.['sub'];
   if (auth0Id) {
-    const user = await getUser.execute({ auth0Id });
+    const user = await getUser.execute({
+      auth0Id,
+      tenantId: request.tenant.id,
+    });
     if (user) {
       const appMetadata = request.oidc.user?.['evorto.app/app_metadata'];
       const permissions = appMetadata?.globalAdmin
         ? ([...ALL_PERMISSIONS, 'globalAdmin:manageTenants'] as const)
-        : user.usersToTenants
-            .flatMap((ut) => ut.rolesToTenantUsers)
-            // TODO: Fix once drizzle fixes this type
-            .flatMap((rttu) => rttu.role!.permissions);
-      const roleIds = user.usersToTenants
-        .flatMap((ut) => ut.rolesToTenantUsers)
-        .flatMap((rttu) => rttu.roleId);
-      consola.debug(userAttributes.getQuery().sql);
+        : user.tenantAssignments
+            .flatMap((assignment) => assignment.roles)
+            .flatMap((role) => role.permissions);
+      const roleIds = user.tenantAssignments
+        .flatMap((assignment) => assignment.roles)
+        .flatMap((role) => role.id);
       const attributeResponse = await userAttributes
         .execute({
           tenantId: request.tenant.id,
@@ -39,7 +40,12 @@ export const addUserContextMiddleware = async (
           ? (['events:organizesSome'] as const)
           : []),
       ];
-      request.user = { ...user, attributes, permissions, roleIds };
+      request.user = {
+        ...user,
+        attributes,
+        permissions: uniq(permissions),
+        roleIds,
+      };
     }
   }
   next();

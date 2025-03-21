@@ -4,7 +4,8 @@ import { takeScreenshot } from '../../reporters/documentation-reporter';
 
 // test.use({ storageState: defaultStateFile });
 
-test('Create your account', async ({ newUser, page }, testInfo) => {
+test('Create your account', async ({ newUser, page, roles }, testInfo) => {
+  void roles; // Ensure roles are created for this tenant
   await testInfo.attach('markdown', {
     body: `
 {% callout type="note" title="For first time visits" %}
@@ -47,8 +48,12 @@ The next step is simple. Just fill in the data requested and click on **Create a
   await page
     .getByRole('button', { exact: true, name: 'Create Account' })
     .click();
-  await page.waitForTimeout(2000);
-  await page.waitForTimeout(2000);
-  await page.waitForTimeout(2000);
-  await page.waitForTimeout(2000);
+  await expect(page.getByRole('heading')).toHaveText(
+    `Hello, ${newUser.firstName}`,
+  );
+  await testInfo.attach('markdown', {
+    body: `
+You should now be on your profile page and are ready to start using the app.
+Why not Register for an event next?`,
+  });
 });

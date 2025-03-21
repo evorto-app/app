@@ -79,11 +79,15 @@ const angularLink = (http: HttpClient) => {
                   error: (error) => {
                     console.warn('Error in query');
                     if (error.status !== 0) {
-                      const parsedError = superjson.deserialize(
-                        error.error.error,
-                      ) as TRPCClientError<AppRouter>;
-                      console.error(parsedError);
-                      observer.error(parsedError);
+                      try {
+                        const parsedError = superjson.deserialize(
+                          error.error.error,
+                        ) as TRPCClientError<AppRouter>;
+                        console.error(parsedError);
+                        observer.error(parsedError);
+                      } catch (error_) {
+                        console.error(error_);
+                      }
                     }
                     console.error(error);
                     observer.error(error);
