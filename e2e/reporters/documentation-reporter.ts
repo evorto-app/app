@@ -31,14 +31,14 @@ const writeFile = (filePath: string, content: Buffer | string) => {
 
 class DocumentationReporter implements Reporter {
   onBegin(config: FullConfig, suite: Suite) {
-    ensureDirectory(
-      path.resolve(
-        'C:/Users/hedde/source/repos/evorto/apps/documentation-page/public/docs',
-      ),
-      {
-        empty: true,
-      },
-    );
+    // ensureDirectory(
+    //   path.resolve(
+    //     'C:/Users/hedde/source/repos/evorto/apps/documentation-page/public/docs',
+    //   ),
+    //   {
+    //     empty: true,
+    //   },
+    // );
   }
 
   onEnd(result: FullResult) {
@@ -51,6 +51,7 @@ class DocumentationReporter implements Reporter {
 
   onTestEnd(test: TestCase, result: TestResult) {
     console.log(`Finished test ${test.title}: ${result.status}`);
+    const testFolderName = test.title.toLowerCase().replaceAll(' ', '-');
     if (
       result.attachments.filter((attachment) =>
         ['image', 'image-caption', 'markdown'].includes(attachment.name),
@@ -60,16 +61,15 @@ class DocumentationReporter implements Reporter {
     }
     const testFolder = ensureDirectory(
       path.resolve(
-        `C:/Users/hedde/source/repos/evorto/apps/documentation-page/app/docs/${test.title
-          .toLowerCase()
-          .replaceAll(' ', '-')}`,
+        `C:/Users/hedde/source/repos/evorto/apps/documentation-page/app/docs/${testFolderName}`,
       ),
       { empty: true },
     );
     const picturesFolder = ensureDirectory(
       path.resolve(
-        'C:/Users/hedde/source/repos/evorto/apps/documentation-page/public/docs',
+        `C:/Users/hedde/source/repos/evorto/apps/documentation-page/public/docs/${testFolderName}`,
       ),
+      { empty: true },
     );
     const fileContent = [`---\ntitle: ${test.title}\n---`];
     for (const attachment of result.attachments.filter((attachment) =>
@@ -99,7 +99,7 @@ class DocumentationReporter implements Reporter {
             attachment.body,
           );
           fileContent.push(
-            `![${attachment.name}](${attachment.name}-${id}.${
+            `![${attachment.name}](${testFolderName}/${attachment.name}-${id}.${
               attachment.contentType.split('/')[1]
             })`,
           );

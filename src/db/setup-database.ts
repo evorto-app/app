@@ -28,7 +28,7 @@ export async function setupDatabase(
     Record<string, never>,
     typeof relations
   >,
-  skipDevelopmentTenants = false,
+  onlyDevelopmentTenants = false,
 ) {
   // @ts-ignore
   await reset(database, schema);
@@ -48,8 +48,6 @@ export async function setupDatabase(
     )
     .execute();
 
-  if (skipDevelopmentTenants) return;
-
   // Setup default development tenants
   const developmentTenants: Partial<InferInsertModel<typeof schema.tenants>>[] =
     [
@@ -58,6 +56,9 @@ export async function setupDatabase(
         name: 'Development',
         stripeAccountId: 'acct_1Qs6S5PPcz51fqyK',
       },
+    ];
+  if (!onlyDevelopmentTenants) {
+    developmentTenants.push(
       {
         domain: 'evorto.fly.dev',
         name: 'Fly Deployment',
@@ -68,7 +69,8 @@ export async function setupDatabase(
         name: 'Evorto alpha',
         stripeAccountId: 'acct_1Qs6S5PPcz51fqyK',
       },
-    ];
+    );
+  }
   for (const tenant of developmentTenants) {
     const developmentTenant = await createTenant(database, tenant);
     await addIcons(database, developmentTenant);

@@ -79,6 +79,7 @@ export const appConfig: ApplicationConfig = {
       const renderer = inject(RendererFactory2).createRenderer(null, null);
       const document = inject(DOCUMENT);
       await config.initialize();
+      if (config.missingContext) return;
       const theme = config.tenant.theme;
       // This sets the theme on the html element also on the server
       renderer.addClass(document.documentElement, `theme-${theme}`);

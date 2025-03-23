@@ -14,6 +14,7 @@ import { fileURLToPath } from 'node:url';
 
 import { Context } from '../types/custom/context';
 import { addAuthenticationContext } from './middleware/authentication-context';
+import { prerenderSkip } from './middleware/prerender-skip';
 import { addTenantContext } from './middleware/tenant-context';
 import { addUserContextMiddleware } from './middleware/user-context';
 import { qrCodeRouter } from './routers/qr-code.router';
@@ -34,14 +35,12 @@ const config: ConfigParams = {
 export const app = express();
 const angularApp = new AngularNodeAppEngine();
 
+app.use(prerenderSkip);
+
 app.use('/webhooks', webhookRouter);
 app.use('/qr', qrCodeRouter);
 
-if (process.env['PRERENDER']) {
-  console.log('Skipping auth middleware for prerendering');
-} else {
-  app.use(auth(config));
-}
+app.use(auth(config));
 
 app.use(cookieParser());
 app.use(addAuthenticationContext);
@@ -118,7 +117,7 @@ app.use('/{*splat}', attemptSilentLogin(), (request, expressResponse, next) => {
     return;
   }
   angularApp
-    .handle(request, 'test')
+    .handle(request, requestContext.right)
     .then((response) =>
       response
         ? writeResponseToNodeResponse(response, expressResponse)

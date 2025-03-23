@@ -16,6 +16,7 @@ const t = initTRPC
 
 export const router = t.router;
 export const publicProcedure = t.procedure;
+export const createCallerFactory = t.createCallerFactory;
 
 const enforceAuth = t.middleware(async ({ ctx, meta, next, path }) => {
   if (!ctx.user) {

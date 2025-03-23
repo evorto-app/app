@@ -1,12 +1,14 @@
 import { DateTime } from 'luxon';
 
 import { defaultStateFile, userStateFile } from '../../../helpers/user-data';
+import { fillTestCard } from '../../fill-test-card';
 import { expect, test } from '../../fixtures/parallel-test';
 import { takeScreenshot } from '../../reporters/documentation-reporter';
 
 test.use({ storageState: userStateFile });
 
 test('Register for an event', async ({ events, page }, testInfo) => {
+  test.slow();
   const freeEvent = events.find((event) => {
     return (
       event.status === 'APPROVED' &&
@@ -78,8 +80,8 @@ test('Register for an event', async ({ events, page }, testInfo) => {
   await testInfo.attach('markdown', {
     body: `
 
-    ## Paid Events
-    To register for a paid event, you have to pay the registration fee.`,
+  ## Paid Events
+  To register for a paid event, you have to pay the registration fee.`,
   });
   await page.getByRole('link', { name: paidEvent.title }).click();
   await takeScreenshot(
@@ -90,8 +92,8 @@ test('Register for an event', async ({ events, page }, testInfo) => {
   await page.getByRole('button', { name: 'Pay' }).click();
   await testInfo.attach('markdown', {
     body: `
-    By clicking the **Pay and register** button, you are starting the payment process.
-    Afterwards, you can either finish the registration by paying or cancel your payment and registration in case you changed your mind.`,
+  By clicking the **Pay and register** button, you are starting the payment process.
+  Afterwards, you can either finish the registration by paying or cancel your payment and registration in case you changed your mind.`,
   });
   await takeScreenshot(
     testInfo,
@@ -101,14 +103,25 @@ test('Register for an event', async ({ events, page }, testInfo) => {
   await page.getByRole('link', { name: 'Pay now' }).click();
   await testInfo.attach('markdown', {
     body: `
-    I you choose to continue, the app will redirect your to stripe to process the payment.
-    This way your payment information will never be stored in the app, but only in stripe.
-    You can select any of the payment methods available to you, note, that they may be different than in this guide.`,
+  If you choose to continue, the app will redirect your to stripe to process the payment.
+  This way your payment information will never be stored in the app, but only in stripe.
+  You can select any of the payment methods available to you, note, that they may be different than in this guide.`,
   });
   await page.waitForTimeout(2000);
   await takeScreenshot(testInfo, page.locator('main'), page);
-  await page.getByTestId('card-accordion-item-button').click();
-  await page.waitForTimeout(2000);
+  await fillTestCard(page);
+  await page.getByTestId('hosted-payment-submit-button').click();
+
+  await page.waitForURL('./events/*');
+  await expect(page.getByText('You are registered')).toBeVisible();
+
+  await testInfo.attach('markdown', {
+    body: `
+  ## Successful registration
+  For both paid and free events you should now have a successful registration.
+  You can see this by additional information being available and also your ticket QR code.
+  This code is needed when attending the event, you will also receive it via email.`,
+  });
 
   await takeScreenshot(
     testInfo,
@@ -116,6 +129,4 @@ test('Register for an event', async ({ events, page }, testInfo) => {
     page,
     'Event details after registration',
   );
-
-  await page.waitForTimeout(2000);
 });

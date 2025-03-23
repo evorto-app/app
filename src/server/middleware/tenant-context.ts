@@ -10,24 +10,18 @@ export const addTenantContext = async (
   response: Response,
   next: NextFunction,
 ) => {
-  if (process.env['PRERENDER'] === 'true') {
-    next();
-    return;
-  }
   const cause = { domain: '', tenantCookie: '' };
   const tenantCookie =
     request.signedCookies?.['evorto-tenant'] ??
     request.cookies?.['evorto-tenant'];
-  console.dir(request.cookies);
   let tenant;
   if (tenantCookie) {
     tenant = await getTenant.execute({ domain: tenantCookie });
     cause.tenantCookie = tenantCookie;
   }
-  const referer = request.headers['referer'];
   const host = request.headers['x-forwarded-host'] || request.headers['host'];
 
-  if (!tenant && host && typeof host === 'string') {
+  if (!tenantCookie && host && typeof host === 'string') {
     const hostUrl = new URL(`${request.protocol}://${host}`);
     const domain = hostUrl.hostname;
     tenant = await getTenant.execute({ domain });

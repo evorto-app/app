@@ -17,7 +17,7 @@ export default defineConfig({
     },
     {
       dependencies: ['setup'],
-      name: 'Desktop Documentation',
+      name: 'docs',
       testMatch: /.*\.doc\.ts$/,
       timeout: 20 * 1000,
       use: { ...devices['Desktop Chrome'], channel: 'chrome' },

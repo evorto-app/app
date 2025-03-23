@@ -3,8 +3,8 @@ import type { AnyRouter } from '@trpc/server';
 import { HttpClient } from '@angular/common/http';
 import { inject, InjectionToken } from '@angular/core';
 import {
-  CreateTRPCClient,
   createTRPCClient,
+  TRPCClient,
   TRPCClientError,
   TRPCLink,
 } from '@trpc/client';
@@ -12,10 +12,7 @@ import { observable } from '@trpc/server/observable';
 import superjson, { SuperJSONResult } from 'superjson';
 
 import { AppRouter } from '../../server/trpc/app-router';
-
-const TRPC_CLIENT = new InjectionToken<CreateTRPCClient<AppRouter>>(
-  'TRPC_CLIENT',
-);
+import { TRPC_CLIENT } from './trpc-token';
 
 export interface AngularLinkOptions {
   url: string;
@@ -93,6 +90,14 @@ const angularLink = (http: HttpClient) => {
                     observer.error(error);
                   },
                   next: (response) => {
+                    if (response?.result?.data === undefined) {
+                      const error = new TRPCClientError('No data in response', {
+                        meta: { response },
+                      });
+                      console.error(error);
+                      observer.error(error);
+                      return;
+                    }
                     const parsedResponse = superjson.deserialize(
                       response.result.data,
                     );

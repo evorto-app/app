@@ -106,6 +106,10 @@ export const test = base.extend<BaseFixtures>({
     const tenant = await createTenant(database, {
       stripeAccountId: 'acct_1Qs6S5PPcz51fqyK',
     });
+    base.info().annotations.push({
+      description: tenant.domain,
+      type: 'tenant',
+    });
     await use(tenant);
   },
 });
