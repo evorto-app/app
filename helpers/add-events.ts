@@ -34,8 +34,6 @@ export const addEvents = async (
     name: string;
   }[],
 ) => {
-  consola.debug('template count: ', templates.length);
-
   const hikeTemplates = templates.filter((template) =>
     template.title.includes('hike'),
   );
@@ -139,7 +137,6 @@ export const addEvents = async (
       registrationOptions: true,
     },
   });
-  consola.debug('Created Event count:', createdEvents.length);
   return createdEvents;
 };
 

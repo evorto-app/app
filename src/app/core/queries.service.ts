@@ -487,6 +487,23 @@ export class QueriesService {
       });
   }
 
+  public updateTenantSettings() {
+    return () =>
+      mutationOptions({
+        mutationFn: (
+          input: AppRouter['admin']['tenant']['updateSettings']['_def']['$types']['input'],
+        ) => this.trpcClient.admin.tenant.updateSettings.mutate(input),
+        onSuccess: () => {
+          this.queryClient.invalidateQueries({
+            queryKey: ['tenants'],
+          });
+          this.queryClient.invalidateQueries({
+            queryKey: ['config', 'tenant'],
+          });
+        },
+      });
+  }
+
   public users(
     input: Signal<AppRouter['users']['findMany']['_def']['$types']['input']>,
   ) {

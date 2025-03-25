@@ -1,9 +1,10 @@
 <div class="mb-4 flex flex-row items-center gap-2">
-  <a routerLink="/templates" mat-icon-button>
+  <a routerLink="/templates" mat-icon-button class="block lg:hidden!">
     <fa-duotone-icon [icon]="faArrowLeft"></fa-duotone-icon>
   </a>
   <h1 class="title-large">Template Categories</h1>
 </div>
+
 <button
   mat-fab
   extended
@@ -13,9 +14,14 @@
   <mat-icon svgIcon="faPlus"></mat-icon>
   Create category
 </button>
-<main class="flex flex-col gap-4 p-2">
+
+<main class="grid grid-cols-1 gap-4 lg:grid-cols-2">
   @if (templateCategoriesQuery.isPending()) {
-    <p>Loading...</p>
+    <div
+      class="flex animate-pulse cursor-progress flex-col gap-2 rounded-2xl bg-surface p-4 text-on-surface"
+    >
+      <h2 class="title-medium">Loading ...</h2>
+    </div>
   } @else if (templateCategoriesQuery.isError()) {
     <p>Error: {{ templateCategoriesQuery.error().message }}</p>
   } @else if (templateCategoriesQuery.isSuccess()) {
@@ -23,8 +29,14 @@
       templateCategory of templateCategoriesQuery.data();
       track templateCategory.id
     ) {
-      <div>
-        <h2 class="title-medium">{{ templateCategory.title }}</h2>
+      <div class="category rounded-2xl bg-surface p-4 text-on-surface">
+        <div class="mb-4 flex flex-row items-start gap-4">
+          <app-icon
+            [iconCommonName]="templateCategory.icon"
+            size="28"
+          ></app-icon>
+          <h2 class="title-large">{{ templateCategory.title }}</h2>
+        </div>
         <button mat-button (click)="openCategoryEditDialog(templateCategory)">
           Edit
         </button>

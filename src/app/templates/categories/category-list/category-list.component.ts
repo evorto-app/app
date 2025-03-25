@@ -1,10 +1,19 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  inject,
+  signal,
+} from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
+import { MatMenu, MatMenuItem } from '@angular/material/menu';
 import { RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
-import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
+import {
+  faArrowLeft,
+  faEllipsisVertical,
+} from '@fortawesome/duotone-regular-svg-icons';
 import {
   injectMutation,
   injectQuery,
@@ -12,17 +21,28 @@ import {
 import { firstValueFrom } from 'rxjs';
 
 import { QueriesService } from '../../../core/queries.service';
+import { IconComponent } from '../../../shared/components/icon/icon.component';
 import { CreateEditCategoryDialogComponent } from '../create-edit-category-dialog/create-edit-category-dialog.component';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [MatButtonModule, FontAwesomeModule, MatIconModule, RouterLink],
+  imports: [
+    MatButtonModule,
+    FontAwesomeModule,
+    MatIconModule,
+    RouterLink,
+    MatMenu,
+    MatMenuItem,
+    IconComponent,
+  ],
   selector: 'app-category-list',
   styles: ``,
   templateUrl: './category-list.component.html',
 })
 export class CategoryListComponent {
   protected readonly faArrowLeft = faArrowLeft;
+  protected readonly faEllipsisVertical = faEllipsisVertical;
+  protected readonly outletActive = signal(false);
   private queries = inject(QueriesService);
   protected templateCategoriesQuery = injectQuery(
     this.queries.templateCategories(),
@@ -31,6 +51,7 @@ export class CategoryListComponent {
     this.queries.createTemplateCategory(),
   );
   private dialog = inject(MatDialog);
+
   private updateCategoryMutation = injectMutation(
     this.queries.updateTemplateCategory(),
   );

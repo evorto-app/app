@@ -12,8 +12,10 @@ import { MatChipsModule } from '@angular/material/chips';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatTableDataSource, MatTableModule } from '@angular/material/table';
+import { RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import {
+  faArrowLeft,
   faEdit,
   faEllipsisVertical,
 } from '@fortawesome/duotone-regular-svg-icons';
@@ -32,6 +34,7 @@ import { QueriesService } from '../../core/queries.service';
     MatPaginatorModule,
     MatCheckboxModule,
     MatChipsModule,
+    RouterLink,
   ],
   selector: 'app-user-list',
   styles: ``,
@@ -45,6 +48,7 @@ export class UserListComponent {
     'role',
     'actions',
   ]);
+  protected readonly faArrowLeft = faArrowLeft;
   protected readonly faEdit = faEdit;
   protected readonly faEllipsisVertical = faEllipsisVertical;
   protected readonly selection = new SelectionModel<{
@@ -60,6 +64,7 @@ export class UserListComponent {
     search?: string;
   }>({});
   private readonly queries = inject(QueriesService);
+
   protected readonly usersQuery = injectQuery(
     this.queries.users(this.filterInput),
   );

@@ -18,15 +18,15 @@ const ADMIN_GROUP = {
 const EVENTS_GROUP = {
   key: 'events',
   permissions: [
-    'viewPublic',
+    'changeVisibility',
     'create',
     'editAll',
-    'seeDrafts',
     'review',
     'runAll',
+    'seeDrafts',
     'seeHidden',
     'seePrivate',
-    'changeVisibility',
+    'viewPublic',
   ] as const,
 } as const;
 
@@ -36,8 +36,8 @@ const TEMPLATES_GROUP = {
     'create',
     'delete',
     'editAll',
-    'view',
     'manageCategories',
+    'view',
   ] as const,
 } as const;
 
@@ -250,6 +250,9 @@ export const PERMISSION_DEPENDENCIES: Record<Permission, Permission[]> =
         switch (perm.key) {
           case 'events:changeVisibility': {
             return [perm.key, ['events:seePrivate', 'events:seeHidden']];
+          }
+          case 'events:create': {
+            return [perm.key, ['templates:view']];
           }
           case 'events:review': {
             return [

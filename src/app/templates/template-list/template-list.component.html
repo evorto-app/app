@@ -35,9 +35,9 @@
       } @else if (templateQuery.isError()) {
         <p>Error: {{ templateQuery.error().message }}</p>
       } @else if (templateQuery.isSuccess()) {
-        <button mat-flat-button routerLink="create" class="hidden! lg:block!">
+        <a mat-flat-button routerLink="create" class="hidden! lg:flex!">
           Create template
-        </button>
+        </a>
         @for (
           templateCategory of templateQuery.data();
           track templateCategory.id

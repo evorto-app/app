@@ -1,16 +1,20 @@
-import { isPlatformServer } from '@angular/common';
+import { DOCUMENT, isPlatformServer } from '@angular/common';
 import {
+  effect,
   inject,
   Injectable,
   PLATFORM_ID,
+  RendererFactory2,
   REQUEST_CONTEXT,
 } from '@angular/core';
 import { Meta, Title } from '@angular/platform-browser';
+import { injectQuery } from '@tanstack/angular-query-experimental';
 import consola from 'consola/browser';
 
 import { Permission } from '../../shared/permissions/permissions';
 import { Context } from '../../types/custom/context';
 import { Tenant } from '../../types/custom/tenant';
+import { QueriesService } from './queries.service';
 import { injectTrpcClient } from './trpc-client';
 
 @Injectable({
@@ -31,14 +35,40 @@ export class ConfigService {
 
   private _tenant!: Tenant;
 
+  private queries = inject(QueriesService);
+
+  private currentTenantQuery = injectQuery(this.queries.currentTenant());
+
+  private document = inject(DOCUMENT);
   private readonly meta = inject(Meta);
 
   private readonly platformId = inject(PLATFORM_ID);
 
+  // eslint-disable-next-line unicorn/no-null
+  private renderer = inject(RendererFactory2).createRenderer(null, null);
   private readonly requestContext = inject(REQUEST_CONTEXT) as Context | null;
-  private readonly title = inject(Title);
 
+  private readonly title = inject(Title);
   private trpcClient = injectTrpcClient();
+
+  constructor() {
+    effect(() => {
+      const currentTenant = this.currentTenantQuery.data();
+      if (currentTenant) {
+        if (this.tenant) {
+          this.renderer.removeClass(
+            this.document.documentElement,
+            `theme-${this.tenant.theme}`,
+          );
+        }
+        this._tenant = currentTenant;
+        this.renderer.addClass(
+          this.document.documentElement,
+          `theme-${this.tenant.theme}`,
+        );
+      }
+    });
+  }
 
   public async initialize() {
     if (this.requestContext === null && isPlatformServer(this.platformId)) {

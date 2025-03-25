@@ -63,19 +63,17 @@ export const roleRouter = router({
       ),
     )
     .query(async ({ ctx, input }) => {
-      const conditions: SQLWrapper[] = [eq(roles.tenantId, ctx.tenant.id)];
-      if (input.defaultUserRole !== undefined) {
-        conditions.push(eq(roles.defaultUserRole, input.defaultUserRole));
-      }
-      if (input.defaultOrganizerRole !== undefined) {
-        conditions.push(
-          eq(roles.defaultOrganizerRole, input.defaultOrganizerRole),
-        );
-      }
       return await database.query.roles.findMany({
-        orderBy: (roles, { asc }) => [asc(roles.name)],
-        // TODO: Change to new query API
-        where: { RAW: and(...conditions) },
+        orderBy: { name: 'asc' },
+        where: {
+          tenantId: ctx.tenant.id,
+          ...(input.defaultUserRole !== undefined && {
+            defaultUserRole: input.defaultUserRole,
+          }),
+          ...(input.defaultOrganizerRole !== undefined && {
+            defaultOrganizerRole: input.defaultOrganizerRole,
+          }),
+        },
       });
     }),
 

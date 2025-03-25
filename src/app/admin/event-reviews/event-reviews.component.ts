@@ -38,8 +38,8 @@ import { EventReviewDialogComponent } from '../../events/event-review-dialog/eve
   standalone: true,
   template: `
     <div class="mb-4 flex flex-row items-center gap-2">
-      <a routerLink="/admin" mat-icon-button>
-        <fa-icon [icon]="faArrowLeft" />
+      <a routerLink="/admin" mat-icon-button class="block lg:hidden!">
+        <fa-duotone-icon [icon]="faArrowLeft"></fa-duotone-icon>
       </a>
       <h1 class="title-large">Event Reviews</h1>
       <div class="grow"></div>

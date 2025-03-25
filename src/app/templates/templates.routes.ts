@@ -1,12 +1,6 @@
 import { Routes } from '@angular/router';
 
-import { CATEGORY_ROUTES } from './categories/categories.routes';
-
 export const TEMPLATE_ROUTES: Routes = [
-  {
-    children: CATEGORY_ROUTES,
-    path: 'categories',
-  },
   {
     children: [
       {
@@ -22,6 +16,13 @@ export const TEMPLATE_ROUTES: Routes = [
             (m) => m.TemplateCreateComponent,
           ),
         path: 'create/:categoryId',
+      },
+      {
+        loadComponent: () =>
+          import('./categories/category-list/category-list.component').then(
+            (m) => m.CategoryListComponent,
+          ),
+        path: 'categories',
       },
       {
         loadComponent: () =>

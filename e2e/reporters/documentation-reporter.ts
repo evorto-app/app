@@ -61,13 +61,13 @@ class DocumentationReporter implements Reporter {
     }
     const testFolder = ensureDirectory(
       path.resolve(
-        `C:/Users/hedde/source/repos/evorto/apps/documentation-page/app/docs/${testFolderName}`,
+        `C:/Users/hedde/code/evorto-pages/apps/documentation/src/app/docs/${testFolderName}`,
       ),
       { empty: true },
     );
     const picturesFolder = ensureDirectory(
       path.resolve(
-        `C:/Users/hedde/source/repos/evorto/apps/documentation-page/public/docs/${testFolderName}`,
+        `C:/Users/hedde/code/evorto-pages/apps/documentation/public/docs/${testFolderName}`,
       ),
       { empty: true },
     );
@@ -160,17 +160,16 @@ export async function takeScreenshot(
   page: Page,
   caption?: string,
 ) {
-  let boxShadow = 'none';
+  // let boxShadow = 'none';
   let zIndex = '1';
   await page.waitForTimeout(1000);
   const focusPoints = Array.isArray(locators) ? locators : [locators];
   await Promise.all(
     focusPoints.map(async (locator) => {
       await locator.first().evaluate((element) => {
-        boxShadow = element.style.boxShadow;
+        // boxShadow = element.style.boxShadow;
         zIndex = element.style.zIndex;
-        element.style.boxShadow =
-          'rgb(248, 250, 252) 0px 0px 0px 2px, rgb(236, 72, 153) 0px 0px 0px 4px, rgba(0, 0, 0, 0.05) 0px 1px 2px 0px';
+        element.style.outline = 'thick solid rgb(236, 72, 153)';
         element.style.zIndex = '10000';
         return element;
       });
@@ -192,7 +191,8 @@ export async function takeScreenshot(
     focusPoints.map(async (locator) => {
       await locator.first().evaluate((element) => {
         element.style.zIndex = zIndex;
-        element.style.boxShadow = boxShadow;
+        // element.style.boxShadow = boxShadow;
+        element.style.outline = 'none';
         return element;
       });
     }),
