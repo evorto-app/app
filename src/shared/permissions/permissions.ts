@@ -54,10 +54,10 @@ const INTERNAL_GROUP = {
 const FINANCE_GROUP = {
   key: 'finance',
   permissions: [
-    'viewTransactions',
-    'createTransactions',
     'approveReceipts',
+    'createTransactions',
     'refundReceipts',
+    'viewTransactions',
   ] as const,
 } as const;
 
@@ -262,6 +262,9 @@ export const PERMISSION_DEPENDENCIES: Record<Permission, Permission[]> =
           }
           case 'events:seePrivate': {
             return [perm.key, ['events:seeHidden']];
+          }
+          case 'users:assignRoles': {
+            return [perm.key, ['users:viewAll']];
           }
           default: {
             return [perm.key, []];
