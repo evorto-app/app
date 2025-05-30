@@ -1,4 +1,4 @@
-import { DOCUMENT, provideCloudflareLoader } from '@angular/common';
+import { provideCloudflareLoader } from '@angular/common';
 import {
   provideHttpClient,
   withFetch,
@@ -12,6 +12,7 @@ import {
   provideAppInitializer,
   provideExperimentalZonelessChangeDetection,
   RendererFactory2,
+  DOCUMENT
 } from '@angular/core';
 import { provideLuxonDateAdapter } from '@angular/material-luxon-adapter';
 import { MAT_FORM_FIELD_DEFAULT_OPTIONS } from '@angular/material/form-field';

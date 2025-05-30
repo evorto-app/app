@@ -1,4 +1,4 @@
-import { DOCUMENT, isPlatformServer } from '@angular/common';
+import { isPlatformServer } from '@angular/common';
 import {
   effect,
   inject,
@@ -6,6 +6,7 @@ import {
   PLATFORM_ID,
   RendererFactory2,
   REQUEST_CONTEXT,
+  DOCUMENT
 } from '@angular/core';
 import { Meta, Title } from '@angular/platform-browser';
 import { injectQuery } from '@tanstack/angular-query-experimental';
