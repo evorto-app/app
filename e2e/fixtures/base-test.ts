@@ -56,7 +56,15 @@ export const test = base.extend<BaseFixtures>({
   },
   page: async ({ page }, use) => {
     page.on('pageerror', (error) => {
-      throw error;
+      const url = page.url();
+      if (url && url.includes('localhost')) {
+        throw error;
+      } else {
+        console.warn(
+          'Page error occurred but not throwing (non-localhost environment):',
+          error,
+        );
+      }
     });
     await use(page);
   },

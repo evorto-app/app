@@ -2,6 +2,7 @@ export const defaultStateFile = 'e2e/.auth/default.json';
 export const adminStateFile = 'e2e/.auth/admin-user.json';
 export const gaStateFile = 'e2e/.auth/global-admin-user.json';
 export const userStateFile = 'e2e/.auth/regular-user.json';
+export const organizerStateFile = 'e2e/.auth/organizer-user.json';
 export const emptyStateFile = 'e2e/.auth/empty-user.json';
 
 export const usersToAuthenticate = [
@@ -53,7 +54,7 @@ export const usersToAuthenticate = [
     id: 'ef7d925a3b3d9a50831a',
     password: 'organizerpassword1!',
     roles: 'organizer' as const,
-    stateFile: userStateFile,
+    stateFile: organizerStateFile,
   },
   {
     addToDb: true,

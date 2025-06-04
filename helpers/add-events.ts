@@ -1,5 +1,3 @@
-import { randChanceBoolean, randNumber, randSoonDate } from '@ngneat/falso';
-import consola from 'consola';
 import { InferInsertModel } from 'drizzle-orm';
 import { NeonDatabase } from 'drizzle-orm/neon-serverless';
 import { DateTime } from 'luxon';
@@ -17,6 +15,8 @@ const demoUser =
 const organizerUser =
   usersToAuthenticate.find((user) => user.roles === 'organizer')?.id ??
   fallbackId;
+const regularUser =
+  usersToAuthenticate.find((user) => user.roles === 'user')?.id ?? fallbackId;
 
 export const addEvents = async (
   database: NeonDatabase<Record<string, never>, typeof relations>,
@@ -157,32 +157,64 @@ const createEvents = (
     typeof schema.eventRegistrationOptions
   >[] = [];
 
+  // Use a fixed number of events per template type
+  // This ensures a consistent number of events are created
+  const eventsPerTemplate = 3;
+
   for (const template of templates) {
-    const eventCount = randNumber({ max: 10, min: 1 });
-    for (let index = 0; index < eventCount; index++) {
-      const eventStart = randSoonDate({
-        days: (index + 1) * randNumber({ max: 20, min: 1 }),
-      });
+    for (let index = 0; index < eventsPerTemplate; index++) {
+      // Create events relative to the current date
+      // Some in the past, some in the present, some in the future
+      let eventStart: Date;
+      let status: 'APPROVED' | 'DRAFT' | 'PENDING_REVIEW';
+      let visibility: 'HIDDEN' | 'PRIVATE' | 'PUBLIC';
+      let creatorId: string;
+
+      // Deterministic assignment based on index
+      if (index === 0) {
+        // First event should be a future event so it's visible in the UI
+        // This ensures events like "Hörnle hike 1" are visible
+        eventStart = DateTime.now()
+          .plus({ days: 5 + index * 2 })
+          .toJSDate();
+        status = 'APPROVED';
+        visibility = 'PUBLIC';
+        creatorId = organizerUser;
+      } else if (index === 1) {
+        // Current/upcoming event
+        eventStart = DateTime.now()
+          .plus({ days: 7 + index * 3 })
+          .toJSDate();
+        status = 'APPROVED';
+        visibility = 'PUBLIC';
+        // Use organizerUser for current/upcoming events
+        // Association members create and run events
+        creatorId = organizerUser;
+      } else {
+        // Future event
+        eventStart = DateTime.now()
+          .plus({ days: 30 + index * 10 })
+          .toJSDate();
+
+        // Mix of statuses for future events
+        if (index % 3 === 0) {
+          status = 'DRAFT';
+          visibility = 'HIDDEN';
+          creatorId = organizerUser;
+        } else if (index % 3 === 1) {
+          status = 'PENDING_REVIEW';
+          visibility = 'PRIVATE';
+          // Use adminUser for some events
+          creatorId = adminUser;
+        } else {
+          status = 'APPROVED';
+          visibility = 'PUBLIC';
+          // Use organizerUser for approved events
+          creatorId = organizerUser;
+        }
+      }
+
       const eventId = getId();
-      const status = (
-        randChanceBoolean({ chanceTrue: 0.8 })
-          ? 'APPROVED'
-          : randChanceBoolean({ chanceTrue: 0.8 })
-            ? 'DRAFT'
-            : 'PENDING_REVIEW'
-      ) as 'APPROVED' | 'DRAFT' | 'PENDING_REVIEW';
-      const visibility = (
-        randChanceBoolean({ chanceTrue: 0.8 })
-          ? 'PUBLIC'
-          : randChanceBoolean({ chanceTrue: 0.8 })
-            ? 'HIDDEN'
-            : 'PRIVATE'
-      ) as 'HIDDEN' | 'PRIVATE' | 'PUBLIC';
-      const creatorId = randChanceBoolean({ chanceTrue: 0.8 })
-        ? organizerUser
-        : randChanceBoolean({ chanceTrue: 0.8 })
-          ? demoUser
-          : adminUser;
       const event = {
         creatorId,
         description: template.description,
@@ -198,19 +230,25 @@ const createEvents = (
       };
       events.push(event);
 
+      // Registration options are also deterministic
+      // For registration times, ensure:
+      // - openRegistrationTime is always in the past (5 days before now)
+      // - closeRegistrationTime is always in the future (30 days from now)
+      // This ensures events are always available for registration in tests
+      const openRegistrationTime = DateTime.now().minus({ days: 5 }).toJSDate();
+      const closeRegistrationTime = DateTime.now()
+        .plus({ days: 30 })
+        .toJSDate();
+
       registrationOptions.push(
         {
-          closeRegistrationTime: DateTime.fromJSDate(eventStart)
-            .minus({ hours: 1 })
-            .toJSDate(),
+          closeRegistrationTime,
           description: `${template.title} registration ${index + 1}`,
           eventId: eventId,
           id: getId(),
           isPaid: paid,
-          openRegistrationTime: DateTime.fromJSDate(eventStart)
-            .minus({ days: 5 })
-            .toJSDate(),
-          organizingRegistration: true,
+          openRegistrationTime,
+          organizingRegistration: false,
           price: paid ? 100 * 25 : 0,
           registeredDescription: 'You are registered',
           registrationMode: 'fcfs',
@@ -219,16 +257,12 @@ const createEvents = (
           title: 'Participant registration',
         },
         {
-          closeRegistrationTime: DateTime.fromJSDate(eventStart)
-            .minus({ hours: 1 })
-            .toJSDate(),
+          closeRegistrationTime,
           description: `${template.title} registration ${index + 1}`,
           eventId: eventId,
           id: getId(),
           isPaid: paid,
-          openRegistrationTime: DateTime.fromJSDate(eventStart)
-            .minus({ days: 5 })
-            .toJSDate(),
+          openRegistrationTime,
           organizingRegistration: true,
           price: paid ? 100 * 10 : 0,
           registeredDescription: 'You are registered',

@@ -61,13 +61,13 @@ class DocumentationReporter implements Reporter {
     }
     const testFolder = ensureDirectory(
       path.resolve(
-        `C:/Users/hedde/code/evorto-pages/apps/documentation/src/app/docs/${testFolderName}`,
+        `/Users/hedde/code/evorto-pages/apps/documentation/src/app/docs/${testFolderName}`,
       ),
       { empty: true },
     );
     const picturesFolder = ensureDirectory(
       path.resolve(
-        `C:/Users/hedde/code/evorto-pages/apps/documentation/public/docs/${testFolderName}`,
+        `/Users/hedde/code/evorto-pages/apps/documentation/public/docs/${testFolderName}`,
       ),
       { empty: true },
     );

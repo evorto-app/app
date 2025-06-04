@@ -1,6 +1,6 @@
 import { DateTime } from 'luxon';
 
-import { defaultStateFile, userStateFile } from '../../../helpers/user-data';
+import { userStateFile } from '../../../helpers/user-data';
 import { fillTestCard } from '../../fill-test-card';
 import { expect, test } from '../../fixtures/parallel-test';
 import { takeScreenshot } from '../../reporters/documentation-reporter';
@@ -74,7 +74,11 @@ test('Register for an event', async ({ events, page }, testInfo) => {
     body: `
   After selecting a free event, all left to do is press the **Register** button for the option you chose. After that, you will see your confirmation and ticket QR code.`,
   });
-  await page.getByRole('button', { name: 'Register' }).click();
+  await page
+    .locator('app-event-registration-option')
+    .filter({ hasText: 'Participant registration' })
+    .getByRole('button', { name: 'Register' })
+    .click();
   await expect(page.getByText('You are registered')).toBeVisible();
 
   await testInfo.attach('markdown', {

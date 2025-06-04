@@ -17,7 +17,7 @@
     "e2e:ui": "playwright test --ui --workers 2",
     "e2e:browser": "playwright test --workers 1 --headed",
     "e2e:docs": "playwright test --project docs",
-    "stripe:listen": "..\\stripe.exe listen --forward-to http://localhost:4200/webhooks/stripe",
+    "stripe:listen": "stripe listen --forward-to http://localhost:4200/webhooks/stripe",
     "generate:colors": "ng generate @angular/material:theme-color --include-high-contrast --primary-color=#0891b2 --neutral-color=#71717a --interactive=false --directory=src/ --force=true",
     "generate:colors:esn": "ng generate @angular/material:theme-color --include-high-contrast --primary-color=#00aeef --tertiary-color=#ec008c --neutral-color=#737373 --interactive=false --directory=src/_esn --force=true",
     "sentry:sourcemaps": "sentry-cli sourcemaps inject --org lukas-heddendorp --project evorto ./dist && sentry-cli sourcemaps upload --org lukas-heddendorp --project evorto ./dist",
