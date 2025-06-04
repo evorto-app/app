@@ -28,7 +28,7 @@
     >
       @if (templateQuery.isPending()) {
         <div
-          class="flex animate-pulse cursor-progress flex-col gap-2 rounded-2xl bg-surface p-4 text-on-surface"
+          class="bg-surface text-on-surface flex animate-pulse cursor-progress flex-col gap-2 rounded-2xl p-4"
         >
           <h2 class="title-medium">Loading ...</h2>
         </div>
@@ -43,7 +43,7 @@
           track templateCategory.id
         ) {
           <div
-            class="flex flex-col gap-2 rounded-2xl bg-surface p-4 text-on-surface"
+            class="bg-surface text-on-surface flex flex-col gap-2 rounded-2xl p-4"
           >
             <div class="mb-4 flex flex-row items-start gap-4">
               <app-icon

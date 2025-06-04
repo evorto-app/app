@@ -7,17 +7,17 @@
 </div>
 @if (scanResultQuery.isPending()) {
   <div
-    class="flex animate-pulse cursor-progress flex-col gap-2 rounded-2xl bg-surface p-4 text-on-surface"
+    class="bg-surface text-on-surface flex animate-pulse cursor-progress flex-col gap-2 rounded-2xl p-4"
   >
     <h2 class="title-medium">Loading ...</h2>
   </div>
 } @else if (scanResultQuery.isError()) {
-  <div class="rounded-2xl bg-error p-4 text-on-error">
+  <div class="bg-error text-on-error rounded-2xl p-4">
     <h2 class="title-medium mb-4">There was an error</h2>
     <p class="body-medium">Error: {{ scanResultQuery.error().message }}</p>
   </div>
 } @else if (scanResultQuery.isSuccess()) {
-  <div class="flex flex-col gap-2 rounded-2xl bg-surface text-on-surface">
+  <div class="bg-surface text-on-surface flex flex-col gap-2 rounded-2xl">
     <div class="border-b p-4">
       <h2 class="title-medium">Scan result</h2>
     </div>
@@ -28,7 +28,7 @@
         {{ scanResultQuery.data().user.lastName }}
       </p>
       @if (scanResultQuery.data().sameUserIssue) {
-        <div class="mt-2 rounded bg-error p-2 text-on-error">
+        <div class="bg-error text-on-error mt-2 rounded p-2">
           <p class="title-small">Registration for logged in user</p>
           <p>
             You can not scan a registration for yourself. Please ask another
@@ -41,7 +41,7 @@
       <p class="title-small px-2">Event</p>
       <p class="px-2">{{ scanResultQuery.data().event.title }}</p>
       @if (!startsSoon()) {
-        <div class="mt-2 rounded bg-error p-2 text-on-error">
+        <div class="bg-error text-on-error mt-2 rounded p-2">
           <p class="title-small">Event starting in the future</p>
           <p>
             The event starts on more than one hour, on
@@ -56,7 +56,7 @@
         {{ scanResultQuery.data().registrationOption.title }}
       </p>
       @if (scanResultQuery.data().registrationStatusIssue) {
-        <div class="mt-2 rounded bg-error p-2 text-on-error">
+        <div class="bg-error text-on-error mt-2 rounded p-2">
           <p class="title-small">Registration is not confirmed</p>
           <p>
             This registration is not confirmed, please ask the user to check if

@@ -1,9 +1,9 @@
 <form
   [formGroup]="templateForm"
   (ngSubmit)="onSubmit()"
-  class="flex flex-col gap-6 text-on-surface"
+  class="text-on-surface flex flex-col gap-6"
 >
-  <div class="rounded-2xl bg-surface p-4">
+  <div class="bg-surface rounded-2xl p-4">
     <div class="grid grid-cols-1 gap-2 lg:grid-cols-[auto_1fr_1fr]">
       <app-icon-selector-field formControlName="icon"></app-icon-selector-field>
       <mat-form-field>
@@ -30,7 +30,7 @@
     <app-editor formControlName="description"></app-editor>
   </div>
 
-  <div class="rounded-2xl bg-surface p-4">
+  <div class="bg-surface rounded-2xl p-4">
     <h2 class="mb-4 text-lg font-semibold">Simple Registration Setup</h2>
     <p class="mb-4 text-sm">
       This is the simple registration mode, which creates one registration
@@ -42,8 +42,8 @@
         <h3 class="mb-3 font-medium">Organizer Registration</h3>
         <div class="grid gap-4 p-4" formGroupName="organizerRegistration">
           <mat-slide-toggle formControlName="isPaid"
-            >Enable Payment</mat-slide-toggle
-          >
+            >Enable Payment
+          </mat-slide-toggle>
 
           @if (templateForm.get("organizerRegistration.isPaid")?.value) {
             <mat-form-field>
@@ -100,8 +100,8 @@
         <h3 class="mb-3 font-medium">Participant Registration</h3>
         <div class="grid gap-4 p-4" formGroupName="participantRegistration">
           <mat-slide-toggle formControlName="isPaid"
-            >Enable Payment</mat-slide-toggle
-          >
+            >Enable Payment
+          </mat-slide-toggle>
 
           @if (templateForm.get("participantRegistration.isPaid")?.value) {
             <mat-form-field>

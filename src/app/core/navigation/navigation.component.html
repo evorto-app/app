@@ -1,5 +1,5 @@
 <div
-  class="navigation fixed bottom-0 z-5 flex w-screen flex-row justify-around gap-2 bg-surface-dim pt-3 pb-4 text-on-surface-dim lg:top-0 lg:bottom-0 lg:left-0 lg:w-20 lg:flex-col lg:justify-start lg:gap-4 lg:bg-inherit lg:px-2 lg:pt-18 lg:text-inherit"
+  class="navigation z-5 bg-surface-dim text-on-surface-dim lg:pt-18 fixed bottom-0 flex w-screen flex-row justify-around gap-2 pb-4 pt-3 lg:bottom-0 lg:left-0 lg:top-0 lg:w-20 lg:flex-col lg:justify-start lg:gap-4 lg:bg-inherit lg:px-2 lg:text-inherit"
 >
   <a routerLink="/events" class="flex flex-col items-center gap-1">
     <div
@@ -114,7 +114,7 @@
 </div>
 <div class="h-24 w-full lg:hidden"></div>
 <ng-template #navigationSheet>
-  <div class="flex w-full flex-row justify-around gap-2 pt-3 pb-4">
+  <div class="flex w-full flex-row justify-around gap-2 pb-4 pt-3">
     <a
       routerLink="/global-admin"
       *appIfPermission="'globalAdmin:*'"

@@ -1,5 +1,4 @@
 import { randEmail, randFirstName, randLastName } from '@ngneat/falso';
-import consola from 'consola';
 import { InferInsertModel } from 'drizzle-orm';
 import { NeonDatabase } from 'drizzle-orm/neon-serverless';
 import { reset } from 'drizzle-seed';

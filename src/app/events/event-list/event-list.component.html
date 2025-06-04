@@ -21,14 +21,14 @@
       <button mat-icon-button [matMenuTriggerFor]="menu">
         <fa-duotone-icon [icon]="faEllipsisVertical"></fa-duotone-icon>
       </button>
-      <mat-menu #menu="matMenu"> </mat-menu>
+      <mat-menu #menu="matMenu"></mat-menu>
     </div>
     <nav
       class="{{ outletActive() ? 'hidden' : 'flex' }} lg:flex flex-col gap-4"
     >
       @if (eventQuery.isPending()) {
         <div
-          class="animate-pulse rounded-2xl bg-surface px-4 py-2 text-on-surface"
+          class="bg-surface text-on-surface animate-pulse rounded-2xl px-4 py-2"
         >
           <p class="headline-small">Loading...</p>
         </div>
@@ -51,27 +51,27 @@
             >
               @switch (event.status) {
                 @case ("DRAFT") {
-                  <div class="absolute top-0 right-0 h-16 w-16">
+                  <div class="absolute right-0 top-0 h-16 w-16">
                     <div
-                      class="body-small absolute top-3 -right-9 w-28 rotate-45 transform bg-warn-container py-1 text-center text-on-warn-container"
+                      class="body-small bg-warn-container text-on-warn-container absolute -right-9 top-3 w-28 rotate-45 transform py-1 text-center"
                     >
                       draft
                     </div>
                   </div>
                 }
                 @case ("PENDING_REVIEW") {
-                  <div class="absolute top-0 right-0 h-16 w-16">
+                  <div class="absolute right-0 top-0 h-16 w-16">
                     <div
-                      class="body-small absolute top-3 -right-9 w-28 rotate-45 transform bg-tertiary-container py-1 text-center text-on-tertiary-container"
+                      class="body-small bg-tertiary-container text-on-tertiary-container absolute -right-9 top-3 w-28 rotate-45 transform py-1 text-center"
                     >
                       in review
                     </div>
                   </div>
                 }
                 @case ("REJECTED") {
-                  <div class="absolute top-0 right-0 h-16 w-16">
+                  <div class="absolute right-0 top-0 h-16 w-16">
                     <div
-                      class="body-small absolute top-3 -right-9 w-28 rotate-45 transform bg-error-container py-1 text-center text-on-error-container"
+                      class="body-small bg-error-container text-on-error-container absolute -right-9 top-3 w-28 rotate-45 transform py-1 text-center"
                     >
                       rejected
                     </div>

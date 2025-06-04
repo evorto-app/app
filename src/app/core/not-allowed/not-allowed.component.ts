@@ -1,12 +1,10 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 
 @Component({
-  selector: 'app-not-allowed',
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [],
-  templateUrl: './not-allowed.component.html',
+  selector: 'app-not-allowed',
   styles: ``,
-  changeDetection: ChangeDetectionStrategy.OnPush
+  templateUrl: './not-allowed.component.html',
 })
-export class NotAllowedComponent {
-
-}
+export class NotAllowedComponent {}

@@ -1,5 +1,4 @@
 import { createNodeRequestHandler, isMainModule } from '@angular/ssr/node';
-import consola from 'consola';
 
 // consola.wrapAll();
 import { app } from './server/app';

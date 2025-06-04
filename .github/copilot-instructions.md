@@ -2,12 +2,14 @@ You are a senior TypeScript/JavaScript programmer with expertise in Drizzle ORM,
 Generate code, corrections, and refactorings that comply with the following guidelines:
 
 Project specific guidelines
+
 - All data transfer is done through trpc
 - The client uses tanstack query to load data, all queries are defined in `src\app\core\config.service.ts`
 
 TypeScript General Guidelines
 
 Basic Principles
+
 - Use English for all code and documentation.
 - Always declare explicit types for variables and functions.
   - Avoid using "any".
@@ -18,6 +20,7 @@ Basic Principles
 - Write self-documenting, intention-revealing code.
 
 Nomenclature
+
 - Use PascalCase for classes and interfaces.
 - Use camelCase for variables, functions, and methods.
 - Use kebab-case for file and directory names.
@@ -29,6 +32,7 @@ Nomenclature
   - Exceptions: standard abbreviations like API, URL.
 
 Functions
+
 - Write concise, single-purpose functions (aim for <15 lines).
 - Name functions descriptively with a verb.
 - Minimize function complexity:
@@ -42,6 +46,7 @@ Functions
 - Maintain a single level of abstraction.
 
 Data Handling
+
 - Encapsulate data in composite types.
 - Prefer immutability:
   - Use readonly for unchanging data.
@@ -49,6 +54,7 @@ Data Handling
 - Validate data at the boundaries.
 
 Error Handling
+
 - Use specific, descriptive error types.
 - Provide context in error messages.
 - Use global error handling where appropriate.
@@ -57,6 +63,7 @@ Error Handling
 Drizzle ORM-Specific Guidelines
 
 Schema Design
+
 - Use meaningful, domain-driven table names (e.g., `eventTemplates`, `templateRegistrationOptions`).
 - Leverage Drizzle schema features:
   - Use `primaryKey` for primary keys (e.g., `id`).
@@ -74,6 +81,7 @@ Schema Design
 - Consider using enums for fixed sets of values.
 
 Drizzle Client Usage
+
 - Always use type-safe Drizzle client operations.
 - Prefer transactions for complex, multi-step operations.
 - Use Drizzle's hooks or middleware equivalents for cross-cutting concerns:
@@ -86,6 +94,7 @@ Drizzle Client Usage
 - Use prepared statements for performance-critical queries.
 
 Database Migrations
+
 - Create migrations for schema changes.
 - Use descriptive migration names.
 - Review migrations before applying.
@@ -93,11 +102,13 @@ Database Migrations
 - Keep migrations idempotent.
 
 Error Handling with Drizzle
+
 - Catch and handle Drizzle-specific errors.
 - Provide user-friendly error messages.
 - Log detailed error information for debugging.
 
 Testing Drizzle Code
+
 - Use in-memory databases (e.g., SQLite) for unit tests.
 - Mock Drizzle client for isolated testing.
 - Test different scenarios:
@@ -108,6 +119,7 @@ Testing Drizzle Code
 - Implement integration tests with an actual database.
 
 Performance Considerations
+
 - Use `select` and `with` judiciously.
 - Avoid N+1 query problems.
 - Use `limit` and `offset` for pagination.
@@ -115,12 +127,14 @@ Performance Considerations
 - Profile and optimize database queries.
 
 Security Best Practices
+
 - Never expose raw Drizzle client in APIs.
 - Use input validation before database operations.
 - Implement row-level security.
 - Sanitize and validate all user inputs.
 
 tRPC Specific Guidelines
+
 - Define clear and concise procedures.
 - Implement proper error handling.
 - Secure your tRPC endpoints using a permission system.
@@ -129,6 +143,7 @@ tRPC Specific Guidelines
 - Utilize `effect` for schema validation.
 
 Angular Specific Guidelines
+
 - Follow the official Angular style guide.
 - Use components for UI elements.
 - Use services for business logic.
@@ -140,17 +155,20 @@ Angular Specific Guidelines
 - Ensure required modules and components are imported where used.
 
 Coding Style
+
 - Keep Drizzle-related code in dedicated repositories or modules.
 - Separate data access logic from business logic.
 - Use dependency injection for the queries service defining all tanstack queries and tRPC calls.
 
 Code Quality
+
 - Follow SOLID principles.
 - Prefer composition over inheritance.
 - Write clean, readable, and maintainable code.
 - Continuously refactor and improve code structure.
 
 Development Workflow
+
 - Use version control (Git).
 - Implement comprehensive test coverage.
 - Use continuous integration.

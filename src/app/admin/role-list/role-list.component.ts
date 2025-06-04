@@ -7,17 +7,10 @@ import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import { QueriesService } from '../../core/queries.service';
-import { MatMenu } from '@angular/material/menu';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    FontAwesomeModule,
-    MatButtonModule,
-    RouterLink,
-    MatIconModule,
-    MatMenu,
-  ],
+  imports: [FontAwesomeModule, MatButtonModule, RouterLink, MatIconModule],
   selector: 'app-role-list',
   styles: ``,
   templateUrl: './role-list.component.html',

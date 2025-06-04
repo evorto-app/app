@@ -70,12 +70,14 @@ export type Permission =
   | InternalPermissions
   | TemplatesPermissions
   | UsersPermissions;
+
 export interface PermissionGroup {
   icon: IconDefinition;
   key: string;
   label: string;
   permissions: PermissionMeta[];
 }
+
 export interface PermissionMeta {
   description?: string;
   key: Permission;

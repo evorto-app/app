@@ -2,8 +2,8 @@ import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 
-import { QueriesService } from '../../core/queries.service';
 import { PermissionsService } from '../../core/permissions.service';
+import { QueriesService } from '../../core/queries.service';
 
 export const eventEditGuard: CanActivateFn = async (route) => {
   const router = inject(Router);
@@ -19,11 +19,11 @@ export const eventEditGuard: CanActivateFn = async (route) => {
     const event = await firstValueFrom(queries.event(eventId).result$);
     if (event.status !== 'draft' && event.status !== 'rejected') {
       return router.createUrlTree(['/events', eventId], {
-        queryParams: { error: 'event-locked' }
+        queryParams: { error: 'event-locked' },
       });
     }
     return true;
-  } catch (error) {
+  } catch {
     return router.createUrlTree(['/404']);
   }
 };

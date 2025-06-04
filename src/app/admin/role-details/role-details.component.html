@@ -14,7 +14,7 @@
 
 @if (roleQuery.isPending()) {
   <div
-    class="flex animate-pulse cursor-progress flex-col gap-2 rounded-2xl bg-surface p-4 text-on-surface"
+    class="bg-surface text-on-surface flex animate-pulse cursor-progress flex-col gap-2 rounded-2xl p-4"
   >
     <h2 class="title-medium">Loading ...</h2>
   </div>
@@ -22,7 +22,7 @@
   <p>Error: {{ roleQuery.error().message }}</p>
 } @else if (roleQuery.isSuccess()) {
   <div
-    class="flex flex-col gap-4 rounded-2xl bg-surface-container-low p-4 text-on-surface-container-low"
+    class="bg-surface-container-low text-on-surface-container-low flex flex-col gap-4 rounded-2xl p-4"
   >
     @if (roleQuery.data().description) {
       <div>
@@ -34,7 +34,7 @@
       <h2 class="title-small mb-2">Permissions</h2>
       <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
         @for (group of permissionGroups; track group.key) {
-          <div class="space-y-2 rounded-2xl bg-surface p-4 text-on-surface">
+          <div class="bg-surface text-on-surface space-y-2 rounded-2xl p-4">
             <div class="flex items-center gap-2 font-medium">
               <fa-icon [icon]="group.icon"></fa-icon>
               <span>{{ group.label }}</span>

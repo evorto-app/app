@@ -12,11 +12,11 @@ export const modelBasics = {
     .notNull()
     .defaultNow()
     .$onUpdate(() => new Date()),
-}
+};
 
 export const modelOfTenant = {
   ...modelBasics,
   tenantId: varchar({ length: 20 })
     .notNull()
     .references(() => tenants.id),
-}
+};

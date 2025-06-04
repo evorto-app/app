@@ -1,13 +1,8 @@
 import type { AnyRouter } from '@trpc/server';
 
 import { HttpClient } from '@angular/common/http';
-import { inject, InjectionToken } from '@angular/core';
-import {
-  createTRPCClient,
-  TRPCClient,
-  TRPCClientError,
-  TRPCLink,
-} from '@trpc/client';
+import { inject } from '@angular/core';
+import { createTRPCClient, TRPCClientError, TRPCLink } from '@trpc/client';
 import { observable } from '@trpc/server/observable';
 import superjson, { SuperJSONResult } from 'superjson';
 

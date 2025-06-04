@@ -7,7 +7,6 @@ import {
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
-import { MatMenu, MatMenuItem } from '@angular/material/menu';
 import { RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import {
@@ -31,8 +30,6 @@ import { CreateEditCategoryDialogComponent } from '../create-edit-category-dialo
     FontAwesomeModule,
     MatIconModule,
     RouterLink,
-    MatMenu,
-    MatMenuItem,
     IconComponent,
   ],
   selector: 'app-category-list',

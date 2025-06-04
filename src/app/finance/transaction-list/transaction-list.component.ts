@@ -5,12 +5,10 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { MatButton, MatButtonModule } from '@angular/material/button';
-import { MatCheckbox } from '@angular/material/checkbox';
-import { MatChip } from '@angular/material/chips';
+import { MatButtonModule } from '@angular/material/button';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
-import { MatCell, MatCellDef, MatTableModule } from '@angular/material/table';
+import { MatTableModule } from '@angular/material/table';
 import { RouterLink } from '@angular/router';
 import {
   FaDuotoneIconComponent,
@@ -21,7 +19,6 @@ import { faPaypal, faStripe } from '@fortawesome/free-brands-svg-icons';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 import consola from 'consola/browser';
 
-import { ConfigService } from '../../core/config.service';
 import { QueriesService } from '../../core/queries.service';
 
 @Component({

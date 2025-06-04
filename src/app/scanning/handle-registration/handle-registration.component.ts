@@ -6,19 +6,10 @@ import {
   inject,
   input,
 } from '@angular/core';
-import {
-  MatButton,
-  MatButtonModule,
-  MatIconAnchor,
-  MatIconButton,
-} from '@angular/material/button';
-import { MatMenu } from '@angular/material/menu';
+import { MatButtonModule } from '@angular/material/button';
 import { RouterLink } from '@angular/router';
 import { FaDuotoneIconComponent } from '@fortawesome/angular-fontawesome';
-import {
-  faArrowLeft,
-  faEllipsisVertical,
-} from '@fortawesome/duotone-regular-svg-icons';
+import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 import { DateTime } from 'luxon';
 

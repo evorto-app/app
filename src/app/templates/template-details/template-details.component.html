@@ -1,5 +1,5 @@
 <div class="mb-4 flex flex-row items-center gap-2">
-  <a routerLink="/templates" mat-icon-button class="block lg:hidden!">
+  <a routerLink="/templates" mat-icon-button class="lg:hidden! block">
     <fa-duotone-icon [icon]="faArrowLeft"></fa-duotone-icon>
   </a>
   <h1 class="title-large">
@@ -10,7 +10,7 @@
     title="menu"
     mat-icon-button
     [matMenuTriggerFor]="menu"
-    class="block lg:hidden!"
+    class="lg:hidden! block"
   >
     <fa-duotone-icon [icon]="faEllipsisVertical"></fa-duotone-icon>
   </button>
@@ -31,15 +31,15 @@
   </a>
 
   <div class="flex flex-col gap-4">
-    <section class="rounded-2xl bg-surface p-4 text-on-surface">
+    <section class="bg-surface text-on-surface rounded-2xl p-4">
       <div
-        class="prose max-w-none dark:prose-invert"
+        class="prose dark:prose-invert max-w-none"
         [innerHTML]="templateQuery.data().description"
       ></div>
     </section>
 
     <section
-      class="rounded-2xl bg-surface-container-high p-4 text-on-surface-container-high"
+      class="bg-surface-container-high text-on-surface-container-high rounded-2xl p-4"
     >
       <h2 class="mb-6 text-lg font-semibold">Registration Options</h2>
 
@@ -49,12 +49,12 @@
           track option.id
         ) {
           <div
-            class="flex flex-col gap-4 rounded-xl bg-surface p-4 text-on-surface"
+            class="bg-surface text-on-surface flex flex-col gap-4 rounded-xl p-4"
           >
             <div class="flex items-center gap-2">
               <h3 class="text-lg font-medium">{{ option.title }}</h3>
               <div
-                class="flex items-center gap-1 rounded bg-primary-container px-2 py-0.5 text-sm"
+                class="bg-primary-container flex items-center gap-1 rounded px-2 py-0.5 text-sm"
               >
                 <span>{{ option.spots }}</span>
                 <span>spots</span>

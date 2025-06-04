@@ -1,6 +1,9 @@
 import { computed, inject, Injectable } from '@angular/core';
 
-import { Permission, PERMISSION_DEPENDENCIES } from '../../shared/permissions/permissions';
+import {
+  Permission,
+  PERMISSION_DEPENDENCIES,
+} from '../../shared/permissions/permissions';
 import { ConfigService } from './config.service';
 
 @Injectable({
@@ -37,8 +40,13 @@ export class PermissionsService {
     }
 
     // Then check if any dependency grants this permission
-    for (const [parentPerm, childPerms] of Object.entries(PERMISSION_DEPENDENCIES)) {
-      if (permissions.includes(parentPerm as Permission) && childPerms.includes(permission)) {
+    for (const [parentPerm, childPerms] of Object.entries(
+      PERMISSION_DEPENDENCIES,
+    )) {
+      if (
+        permissions.includes(parentPerm as Permission) &&
+        childPerms.includes(permission)
+      ) {
         return true;
       }
     }

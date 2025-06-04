@@ -5,7 +5,7 @@
     title="menu"
     mat-icon-button
     [matMenuTriggerFor]="menu"
-    class="block md:hidden!"
+    class="md:hidden! block"
   >
     <fa-duotone-icon [icon]="faEllipsisVertical"></fa-duotone-icon>
   </button>
@@ -18,7 +18,7 @@
 </div>
 @if (transactionsQuery.status() === "pending") {
   <div
-    class="flex animate-pulse cursor-progress flex-col gap-2 rounded-2xl bg-surface p-4 text-on-surface"
+    class="bg-surface text-on-surface flex animate-pulse cursor-progress flex-col gap-2 rounded-2xl p-4"
   >
     <h2 class="title-medium">Loading transactions ...</h2>
   </div>

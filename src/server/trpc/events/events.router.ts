@@ -1,6 +1,5 @@
 import { TRPCError } from '@trpc/server';
 import { and, arrayOverlaps, eq, inArray } from 'drizzle-orm';
-import { notInArray } from 'drizzle-orm/sql/expressions/conditions';
 import { Schema } from 'effect';
 import { groupBy } from 'es-toolkit';
 import { DateTime } from 'luxon';

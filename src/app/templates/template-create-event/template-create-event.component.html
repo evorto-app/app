@@ -9,7 +9,7 @@
   @if (templateQuery.isSuccess()) {
     <form [formGroup]="createEventForm" (ngSubmit)="onSubmit()">
       <div class="grid gap-6">
-        <section class="rounded-2xl bg-surface p-4 text-on-surface">
+        <section class="bg-surface text-on-surface rounded-2xl p-4">
           <h2 class="title-large mb-4">Event Details</h2>
           <div class="grid gap-4">
             <div class="grid grid-cols-1 gap-4 lg:grid-cols-[auto_1fr]">
@@ -83,7 +83,7 @@
         </section>
 
         <section
-          class="rounded-2xl bg-surface-container-high p-2 text-on-surface-container-high"
+          class="bg-surface-container-high text-on-surface-container-high rounded-2xl p-2"
         >
           <h2 class="title-large mb-4 p-2">Registration Options</h2>
           <div
@@ -96,7 +96,7 @@
               let i = $index
             ) {
               <div
-                class="flex flex-col gap-4 rounded-xl bg-surface p-4 text-on-surface"
+                class="bg-surface text-on-surface flex flex-col gap-4 rounded-xl p-4"
                 [formGroupName]="i"
               >
                 <div class="flex flex-col gap-4">
@@ -107,9 +107,9 @@
                       <mat-label>Registration mode</mat-label>
                       <mat-select formControlName="registrationMode">
                         @for (mode of registrationModes; track mode) {
-                          <mat-option [value]="mode">{{
-                            mode | titlecase
-                          }}</mat-option>
+                          <mat-option [value]="mode"
+                            >{{ mode | titlecase }}
+                          </mat-option>
                         }
                       </mat-select>
                     </mat-form-field>
@@ -198,9 +198,9 @@
                             type="number"
                             formControlName="price"
                           />
-                          <mat-hint>{{
-                            option.value.price | currency
-                          }}</mat-hint>
+                          <mat-hint
+                            >{{ option.value.price | currency }}
+                          </mat-hint>
                         </mat-form-field>
                       }
 

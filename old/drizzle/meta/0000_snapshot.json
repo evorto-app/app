@@ -156,12 +156,8 @@
           "tableFrom": "CostItem",
           "tableTo": "TumiEvent",
           "schemaTo": "public",
-          "columnsFrom": [
-            "eventId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["eventId"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "cascade"
         }
@@ -221,12 +217,8 @@
           "tableFrom": "EventOrganizer",
           "tableTo": "Tenant",
           "schemaTo": "public",
-          "columnsFrom": [
-            "tenantId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["tenantId"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "cascade"
         }
@@ -325,12 +317,8 @@
           "tableFrom": "EventRegistrationCode",
           "tableTo": "TumiEvent",
           "schemaTo": "public",
-          "columnsFrom": [
-            "eventId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["eventId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "cascade"
         }
@@ -416,12 +404,8 @@
           "tableFrom": "EventSubmissionItem",
           "tableTo": "TumiEvent",
           "schemaTo": "public",
-          "columnsFrom": [
-            "eventId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["eventId"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "cascade"
         },
@@ -430,12 +414,8 @@
           "tableFrom": "EventSubmissionItem",
           "tableTo": "Product",
           "schemaTo": "public",
-          "columnsFrom": [
-            "productId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["productId"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "cascade"
         }
@@ -514,12 +494,8 @@
           "tableFrom": "LineItem",
           "tableTo": "Product",
           "schemaTo": "public",
-          "columnsFrom": [
-            "productId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["productId"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "cascade"
         },
@@ -528,12 +504,8 @@
           "tableFrom": "LineItem",
           "tableTo": "Purchase",
           "schemaTo": "public",
-          "columnsFrom": [
-            "purchaseId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["purchaseId"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "cascade"
         },
@@ -542,12 +514,8 @@
           "tableFrom": "LineItem",
           "tableTo": "ShoppingCart",
           "schemaTo": "public",
-          "columnsFrom": [
-            "shoppingCartId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["shoppingCartId"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "cascade"
         }
@@ -648,12 +616,8 @@
           "tableFrom": "Product",
           "tableTo": "Tenant",
           "schemaTo": "public",
-          "columnsFrom": [
-            "tenantId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["tenantId"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "cascade"
         }
@@ -739,12 +703,8 @@
           "tableFrom": "PhotoShare",
           "tableTo": "User",
           "schemaTo": "public",
-          "columnsFrom": [
-            "creatorId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["creatorId"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "cascade"
         },
@@ -753,12 +713,8 @@
           "tableFrom": "PhotoShare",
           "tableTo": "TumiEvent",
           "schemaTo": "public",
-          "columnsFrom": [
-            "eventId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["eventId"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "cascade"
         }
@@ -905,12 +861,8 @@
           "tableFrom": "EventTemplate",
           "tableTo": "EventTemplateCategory",
           "schemaTo": "public",
-          "columnsFrom": [
-            "categoryId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["categoryId"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "cascade"
         },
@@ -919,12 +871,8 @@
           "tableFrom": "EventTemplate",
           "tableTo": "Tenant",
           "schemaTo": "public",
-          "columnsFrom": [
-            "tenantId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["tenantId"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "cascade"
         }
@@ -978,12 +926,8 @@
           "tableFrom": "EventTemplateCategory",
           "tableTo": "Tenant",
           "schemaTo": "public",
-          "columnsFrom": [
-            "tenantId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["tenantId"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "cascade"
         }
@@ -1055,12 +999,8 @@
           "tableFrom": "ProductImage",
           "tableTo": "User",
           "schemaTo": "public",
-          "columnsFrom": [
-            "creatorId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["creatorId"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "cascade"
         },
@@ -1069,12 +1009,8 @@
           "tableFrom": "ProductImage",
           "tableTo": "Product",
           "schemaTo": "public",
-          "columnsFrom": [
-            "productId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["productId"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "cascade"
         }
@@ -1134,12 +1070,8 @@
           "tableFrom": "EventSubmission",
           "tableTo": "EventRegistration",
           "schemaTo": "public",
-          "columnsFrom": [
-            "eventRegistrationId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["eventRegistrationId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "cascade"
         },
@@ -1148,12 +1080,8 @@
           "tableFrom": "EventSubmission",
           "tableTo": "LineItem",
           "schemaTo": "public",
-          "columnsFrom": [
-            "lineItemId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["lineItemId"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "cascade"
         },
@@ -1162,12 +1090,8 @@
           "tableFrom": "EventSubmission",
           "tableTo": "EventSubmissionItem",
           "schemaTo": "public",
-          "columnsFrom": [
-            "submissionItemId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["submissionItemId"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "cascade"
         }
@@ -1256,12 +1180,8 @@
           "tableFrom": "CollectedFee",
           "tableTo": "Tenant",
           "schemaTo": "public",
-          "columnsFrom": [
-            "tenantId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["tenantId"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "cascade"
         }
@@ -1369,12 +1289,8 @@
           "tableFrom": "EventRegistration",
           "tableTo": "TumiEvent",
           "schemaTo": "public",
-          "columnsFrom": [
-            "eventId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["eventId"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "cascade"
         },
@@ -1383,12 +1299,8 @@
           "tableFrom": "EventRegistration",
           "tableTo": "EventRegistrationCode",
           "schemaTo": "public",
-          "columnsFrom": [
-            "registrationCodeId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["registrationCodeId"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "cascade"
         },
@@ -1397,12 +1309,8 @@
           "tableFrom": "EventRegistration",
           "tableTo": "User",
           "schemaTo": "public",
-          "columnsFrom": [
-            "userId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["userId"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "cascade"
         }
@@ -1486,14 +1394,8 @@
           "tableFrom": "StripeUserData",
           "tableTo": "UsersOfTenants",
           "schemaTo": "public",
-          "columnsFrom": [
-            "usersOfTenantsUserId",
-            "usersOfTenantsTenantId"
-          ],
-          "columnsTo": [
-            "userId",
-            "tenantId"
-          ],
+          "columnsFrom": ["usersOfTenantsUserId", "usersOfTenantsTenantId"],
+          "columnsTo": ["userId", "tenantId"],
           "onDelete": "restrict",
           "onUpdate": "cascade"
         }
@@ -1605,12 +1507,8 @@
           "tableFrom": "Receipt",
           "tableTo": "CostItem",
           "schemaTo": "public",
-          "columnsFrom": [
-            "costItemId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["costItemId"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "cascade"
         },
@@ -1619,12 +1517,8 @@
           "tableFrom": "Receipt",
           "tableTo": "User",
           "schemaTo": "public",
-          "columnsFrom": [
-            "userId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["userId"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "cascade"
         }
@@ -1703,12 +1597,8 @@
           "tableFrom": "Purchase",
           "tableTo": "StripePayment",
           "schemaTo": "public",
-          "columnsFrom": [
-            "paymentId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["paymentId"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "cascade"
         },
@@ -1717,12 +1607,8 @@
           "tableFrom": "Purchase",
           "tableTo": "User",
           "schemaTo": "public",
-          "columnsFrom": [
-            "userId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["userId"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "cascade"
         }
@@ -1794,14 +1680,8 @@
           "tableFrom": "ShoppingCart",
           "tableTo": "UsersOfTenants",
           "schemaTo": "public",
-          "columnsFrom": [
-            "usersOfTenantsTenantId",
-            "usersOfTenantsUserId"
-          ],
-          "columnsTo": [
-            "userId",
-            "tenantId"
-          ],
+          "columnsFrom": ["usersOfTenantsTenantId", "usersOfTenantsUserId"],
+          "columnsTo": ["userId", "tenantId"],
           "onDelete": "restrict",
           "onUpdate": "cascade"
         }
@@ -2303,12 +2183,8 @@
           "tableFrom": "Transaction",
           "tableTo": "User",
           "schemaTo": "public",
-          "columnsFrom": [
-            "creatorId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["creatorId"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "cascade"
         },
@@ -2317,12 +2193,8 @@
           "tableFrom": "Transaction",
           "tableTo": "EventRegistration",
           "schemaTo": "public",
-          "columnsFrom": [
-            "eventRegistrationId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["eventRegistrationId"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "cascade"
         },
@@ -2331,12 +2203,8 @@
           "tableFrom": "Transaction",
           "tableTo": "Purchase",
           "schemaTo": "public",
-          "columnsFrom": [
-            "purchaseId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["purchaseId"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "cascade"
         },
@@ -2345,12 +2213,8 @@
           "tableFrom": "Transaction",
           "tableTo": "StripePayment",
           "schemaTo": "public",
-          "columnsFrom": [
-            "stripePaymentId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["stripePaymentId"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "cascade"
         },
@@ -2359,12 +2223,8 @@
           "tableFrom": "Transaction",
           "tableTo": "Tenant",
           "schemaTo": "public",
-          "columnsFrom": [
-            "tenantId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["tenantId"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "cascade"
         },
@@ -2373,12 +2233,8 @@
           "tableFrom": "Transaction",
           "tableTo": "User",
           "schemaTo": "public",
-          "columnsFrom": [
-            "userId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["userId"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "cascade"
         }
@@ -2633,12 +2489,8 @@
           "tableFrom": "TumiEvent",
           "tableTo": "User",
           "schemaTo": "public",
-          "columnsFrom": [
-            "creatorId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["creatorId"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "cascade"
         },
@@ -2647,12 +2499,8 @@
           "tableFrom": "TumiEvent",
           "tableTo": "EventOrganizer",
           "schemaTo": "public",
-          "columnsFrom": [
-            "eventOrganizerId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["eventOrganizerId"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "cascade"
         },
@@ -2661,12 +2509,8 @@
           "tableFrom": "TumiEvent",
           "tableTo": "EventTemplate",
           "schemaTo": "public",
-          "columnsFrom": [
-            "eventTemplateId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["eventTemplateId"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "cascade"
         }
@@ -2943,12 +2787,8 @@
           "tableFrom": "_ReceiptToTransaction",
           "tableTo": "Receipt",
           "schemaTo": "public",
-          "columnsFrom": [
-            "A"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["A"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "cascade"
         },
@@ -2957,12 +2797,8 @@
           "tableFrom": "_ReceiptToTransaction",
           "tableTo": "Transaction",
           "schemaTo": "public",
-          "columnsFrom": [
-            "B"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["B"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "cascade"
         }
@@ -2970,10 +2806,7 @@
       "compositePrimaryKeys": {
         "_ReceiptToTransaction_AB_pkey": {
           "name": "_ReceiptToTransaction_AB_pkey",
-          "columns": [
-            "A",
-            "B"
-          ]
+          "columns": ["A", "B"]
         }
       },
       "uniqueConstraints": {},
@@ -3047,12 +2880,8 @@
           "tableFrom": "UsersOfTenants",
           "tableTo": "Tenant",
           "schemaTo": "public",
-          "columnsFrom": [
-            "tenantId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["tenantId"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "cascade"
         },
@@ -3061,12 +2890,8 @@
           "tableFrom": "UsersOfTenants",
           "tableTo": "User",
           "schemaTo": "public",
-          "columnsFrom": [
-            "userId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["userId"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "cascade"
         }
@@ -3074,10 +2899,7 @@
       "compositePrimaryKeys": {
         "UsersOfTenants_pkey": {
           "name": "UsersOfTenants_pkey",
-          "columns": [
-            "userId",
-            "tenantId"
-          ]
+          "columns": ["userId", "tenantId"]
         }
       },
       "uniqueConstraints": {},
@@ -3089,43 +2911,22 @@
   "enums": {
     "public.Currency": {
       "name": "Currency",
-      "values": [
-        "EUR",
-        "CZK",
-        "AUD"
-      ],
+      "values": ["EUR", "CZK", "AUD"],
       "schema": "public"
     },
     "public.EnrollmentStatus": {
       "name": "EnrollmentStatus",
-      "values": [
-        "LOCAL",
-        "EXCHANGE",
-        "INTERNATIONAL",
-        "NONE",
-        "OTHER"
-      ],
+      "values": ["LOCAL", "EXCHANGE", "INTERNATIONAL", "NONE", "OTHER"],
       "schema": "public"
     },
     "public.HomePageStrategy": {
       "name": "HomePageStrategy",
-      "values": [
-        "LINK",
-        "STATIC",
-        "MARKDOWN",
-        "NONE"
-      ],
+      "values": ["LINK", "STATIC", "MARKDOWN", "NONE"],
       "schema": "public"
     },
     "public.LogSeverity": {
       "name": "LogSeverity",
-      "values": [
-        "SILLY",
-        "DEBUG",
-        "INFO",
-        "WARNING",
-        "ERROR"
-      ],
+      "values": ["SILLY", "DEBUG", "INFO", "WARNING", "ERROR"],
       "schema": "public"
     },
     "public.MembershipStatus": {
@@ -3144,67 +2945,37 @@
     },
     "public.PublicationState": {
       "name": "PublicationState",
-      "values": [
-        "DRAFT",
-        "APPROVAL",
-        "PUBLIC",
-        "ORGANIZERS"
-      ],
+      "values": ["DRAFT", "APPROVAL", "PUBLIC", "ORGANIZERS"],
       "schema": "public"
     },
     "public.PurchaseStatus": {
       "name": "PurchaseStatus",
-      "values": [
-        "PENDING",
-        "PAID",
-        "SENT",
-        "CANCELLED"
-      ],
+      "values": ["PENDING", "PAID", "SENT", "CANCELLED"],
       "schema": "public"
     },
     "public.RegistrationCodeStatus": {
       "name": "RegistrationCodeStatus",
-      "values": [
-        "OPEN",
-        "PENDING",
-        "SUCCESSFUL",
-        "CANCELLED"
-      ],
+      "values": ["OPEN", "PENDING", "SUCCESSFUL", "CANCELLED"],
       "schema": "public"
     },
     "public.RegistrationMode": {
       "name": "RegistrationMode",
-      "values": [
-        "STRIPE",
-        "ONLINE",
-        "EXTERNAL"
-      ],
+      "values": ["STRIPE", "ONLINE", "EXTERNAL"],
       "schema": "public"
     },
     "public.RegistrationStatus": {
       "name": "RegistrationStatus",
-      "values": [
-        "PENDING",
-        "SUCCESSFUL",
-        "CANCELLED"
-      ],
+      "values": ["PENDING", "SUCCESSFUL", "CANCELLED"],
       "schema": "public"
     },
     "public.RegistrationType": {
       "name": "RegistrationType",
-      "values": [
-        "ORGANIZER",
-        "PARTICIPANT",
-        "CALENDAR"
-      ],
+      "values": ["ORGANIZER", "PARTICIPANT", "CALENDAR"],
       "schema": "public"
     },
     "public.Role": {
       "name": "Role",
-      "values": [
-        "USER",
-        "ADMIN"
-      ],
+      "values": ["USER", "ADMIN"],
       "schema": "public"
     },
     "public.SubmissionItemType": {
@@ -3224,12 +2995,7 @@
     },
     "public.SubmissionTime": {
       "name": "SubmissionTime",
-      "values": [
-        "REGISTRATION",
-        "BEFORE",
-        "DURING",
-        "AFTER"
-      ],
+      "values": ["REGISTRATION", "BEFORE", "DURING", "AFTER"],
       "schema": "public"
     },
     "public.TransactionDirection": {
@@ -3247,21 +3013,12 @@
     },
     "public.TransactionStatus": {
       "name": "TransactionStatus",
-      "values": [
-        "PENDING",
-        "CONFIRMED",
-        "CANCELLED"
-      ],
+      "values": ["PENDING", "CONFIRMED", "CANCELLED"],
       "schema": "public"
     },
     "public.TransactionType": {
       "name": "TransactionType",
-      "values": [
-        "CASH",
-        "STRIPE",
-        "TRANSFER",
-        "PAYPAL"
-      ],
+      "values": ["CASH", "STRIPE", "TRANSFER", "PAYPAL"],
       "schema": "public"
     }
   },

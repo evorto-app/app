@@ -11,7 +11,6 @@ import {
 import { createId } from '../create-id';
 import { eventTemplates } from './event-templates';
 import { registrationModes } from './global-enums';
-import { roles } from './roles';
 import { templateEventAddons } from './template-event-addons';
 
 export const templateRegistrationOptions = pgTable(

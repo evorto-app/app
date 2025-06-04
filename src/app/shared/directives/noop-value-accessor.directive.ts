@@ -15,6 +15,8 @@ import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
 })
 export class NoopValueAccessorDirective implements ControlValueAccessor {
   registerOnChange(_function: unknown): void {}
+
   registerOnTouched(_function: unknown): void {}
+
   writeValue(_object: unknown): void {}
 }

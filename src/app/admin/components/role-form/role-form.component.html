@@ -37,7 +37,7 @@
       formGroupName="permissions"
     >
       @for (group of groupStates(); track group.key) {
-        <div class="rounded-2xl bg-surface p-2 text-on-surface">
+        <div class="bg-surface text-on-surface rounded-2xl p-2">
           <mat-checkbox
             [checked]="group.checked"
             [indeterminate]="group.indeterminate"
@@ -50,7 +50,7 @@
           <div class="ml-8 grid grid-cols-1 gap-2">
             @for (permission of group.permissions; track permission.key) {
               <div class="flex flex-col">
-                <mat-checkbox 
+                <mat-checkbox
                   [formControlName]="permission.key"
                   [disabled]="isPermissionDisabled(permission.key)"
                   [matTooltip]="getPermissionTooltip(permission.key)"
@@ -58,8 +58,9 @@
                   {{ permission.label }}
                 </mat-checkbox>
                 @if (getDependentPermissions(permission.key).length > 0) {
-                  <div class="ml-6 text-xs text-on-surface-variant">
-                    Includes: {{ getDependentPermissions(permission.key).join(', ') }}
+                  <div class="text-on-surface-variant ml-6 text-xs">
+                    Includes:
+                    {{ getDependentPermissions(permission.key).join(", ") }}
                   </div>
                 }
               </div>

@@ -1,5 +1,4 @@
 import { TRPCError } from '@trpc/server';
-import consola from 'consola';
 import { and, count, eq } from 'drizzle-orm';
 import { Schema } from 'effect';
 

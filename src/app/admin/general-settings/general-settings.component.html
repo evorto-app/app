@@ -1,12 +1,12 @@
 <div class="mb-4 flex flex-row items-center gap-2">
-  <a routerLink="/admin" mat-icon-button class="block lg:hidden!">
+  <a routerLink="/admin" mat-icon-button class="lg:hidden! block">
     <fa-duotone-icon [icon]="faArrowLeft"></fa-duotone-icon>
   </a>
   <h1 class="title-large">General settings</h1>
   <div class="grow"></div>
 </div>
 <div class="grid grid-cols-1 gap-4">
-  <div class="rounded-2xl bg-surface p-4 text-on-surface">
+  <div class="bg-surface text-on-surface rounded-2xl p-4">
     <form
       class="grid grid-cols-1"
       [formGroup]="settingsForm"

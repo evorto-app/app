@@ -1,4 +1,3 @@
-import { provideCloudflareLoader } from '@angular/common';
 import {
   provideHttpClient,
   withFetch,
@@ -10,9 +9,7 @@ import {
   ErrorHandler,
   inject,
   provideAppInitializer,
-  provideExperimentalZonelessChangeDetection,
-  RendererFactory2,
-  DOCUMENT
+  provideZonelessChangeDetection,
 } from '@angular/core';
 import { provideLuxonDateAdapter } from '@angular/material-luxon-adapter';
 import { MAT_FORM_FIELD_DEFAULT_OPTIONS } from '@angular/material/form-field';
@@ -43,7 +40,7 @@ import { provideTrpcClient } from './core/trpc-client';
 export const appConfig: ApplicationConfig = {
   providers: [
     provideAnimationsAsync(),
-    provideExperimentalZonelessChangeDetection(),
+    provideZonelessChangeDetection(),
     provideRouter(
       routes,
       withComponentInputBinding(),

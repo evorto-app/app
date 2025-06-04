@@ -2,6 +2,7 @@
 @use "./theme-colors" as theme-colors;
 @use "./esn_theme-colors" as esn-theme-colors;
 @import "tailwindcss";
+
 @plugin "@tailwindcss/typography";
 @import url(https://fonts.bunny.net/css?family=lato:400,700|oswald:400,700);
 
@@ -41,6 +42,7 @@
       )
     );
   }
+
   --fa-fw-width: var(--mat-icon-button-icon-size);
   --fa-display: block;
 }
@@ -132,17 +134,13 @@
   --color-on-primary-container: var(--mat-sys-on-primary-container);
   --color-on-primary: var(--mat-sys-on-primary);
   --color-on-secondary-container: var(--mat-sys-on-secondary-container);
-  --color-on-surface-bright: var(--mat-sys-on-surface-bright);
-  --color-on-surface-container-high: var(--mat-sys-on-surface-container-high);
-  --color-on-surface-container-highest: var(
-    --mat-sys-on-surface-container-highest
-  );
-  --color-on-surface-container-low: var(--mat-sys-on-surface-container-low);
-  --color-on-surface-container-lowest: var(
-    --mat-sys-on-surface-container-lowest
-  );
-  --color-on-surface-container: var(--mat-sys-on-surface-container);
-  --color-on-surface-dim: var(--mat-sys-on-surface-dim);
+  --color-on-surface-bright: var(--mat-sys-on-surface);
+  --color-on-surface-container-high: var(--mat-sys-on-surface);
+  --color-on-surface-container-highest: var(--mat-sys-on-surface);
+  --color-on-surface-container-low: var(--mat-sys-on-surface);
+  --color-on-surface-container-lowest: var(--mat-sys-on-surface);
+  --color-on-surface-container: var(--mat-sys-on-surface);
+  --color-on-surface-dim: var(--mat-sys-on-surface);
   --color-on-surface: var(--mat-sys-on-surface);
   --color-on-tertiary-container: var(--mat-sys-on-tertiary-container);
   --color-on-tertiary: var(--mat-sys-on-tertiary);
@@ -161,14 +159,14 @@
   --color-tertiary-container: var(--mat-sys-tertiary-container);
   --color-tertiary: var(--mat-sys-tertiary);
   --color-secondary: var(--mat-sys-secondary);
-  --color-success: var(--app-success);
-  --color-on-success: var(--app-on-success);
-  --color-success-container: var(--app-success-container);
-  --color-on-success-container: var(--app-on-success-container);
-  --color-warn: var(--app-warn);
-  --color-on-warn: var(--app-on-warn);
-  --color-warn-container: var(--app-warn-container);
-  --color-on-warn-container: var(--app-on-warn-container);
+  //--color-success: var(--app-success);
+  //--color-on-success: var(--app-on-success);
+  //--color-success-container: var(--app-success-container);
+  //--color-on-success-container: var(--app-on-success-container);
+  //--color-warn: var(--app-warn);
+  //--color-on-warn: var(--app-on-warn);
+  //--color-warn-container: var(--app-warn-container);
+  //--color-on-warn-container: var(--app-on-warn-container);
   --radius-none: var(--mat-sys-corner-none);
   --radius-sm: var(--mat-sys-corner-extra-small);
   --radius: var(--mat-sys-corner-small);
@@ -241,18 +239,22 @@ h6 {
 .main-content {
   view-transition-name: main-content;
 }
+
 .mat-mdc-fab.fab-fixed {
   // view-transition-name: fab-fixed;
   mat-icon {
     view-transition-name: fab-fixed-icon;
   }
+
   .mdc-button__label {
     // view-transition-name: none;
   }
 }
+
 .navigation {
   view-transition-name: navigation;
 }
+
 .navigation-active {
   view-transition-name: navigation-active;
 }
@@ -275,7 +277,7 @@ h6 {
 
 // Positioning of fixed fabs
 .mat-mdc-fab.fab-fixed {
-  @apply fixed right-4 bottom-26 z-10 lg:right-8 lg:bottom-8;
+  @apply bottom-26 fixed right-4 z-10 lg:bottom-8 lg:right-8;
 }
 
 // Tailwind overrride for angular material

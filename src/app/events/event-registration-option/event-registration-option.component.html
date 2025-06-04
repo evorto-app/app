@@ -16,7 +16,7 @@
   </div>
 
   <div
-    class="prose max-w-none dark:prose-invert"
+    class="prose dark:prose-invert max-w-none"
     [innerHTML]="registrationOption().description"
   ></div>
 
@@ -67,7 +67,7 @@
   }
 </div>
 @if (registrationMutation.isError()) {
-  <div class="mt-4 flex flex-col gap-2 rounded-2xl bg-error p-4 text-on-error">
+  <div class="bg-error text-on-error mt-4 flex flex-col gap-2 rounded-2xl p-4">
     <h3 class="title-medium">Registration failed</h3>
     <p>{{ registrationMutation.error().message }}</p>
   </div>

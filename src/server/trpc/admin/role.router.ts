@@ -1,5 +1,3 @@
-import type { SQLWrapper } from 'drizzle-orm/sql/sql';
-
 import { and, eq } from 'drizzle-orm';
 import { Schema } from 'effect';
 

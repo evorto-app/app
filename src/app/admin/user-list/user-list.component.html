@@ -1,5 +1,5 @@
 <div class="mb-4 flex flex-row items-center gap-2">
-  <a routerLink="/admin" mat-icon-button class="block lg:hidden!">
+  <a routerLink="/admin" mat-icon-button class="lg:hidden! block">
     <fa-duotone-icon [icon]="faArrowLeft"></fa-duotone-icon>
   </a>
   <h1 class="title-large">All users</h1>
@@ -8,7 +8,7 @@
     title="menu"
     mat-icon-button
     [matMenuTriggerFor]="menu"
-    class="block md:hidden!"
+    class="md:hidden! block"
   >
     <fa-duotone-icon [icon]="faEllipsisVertical"></fa-duotone-icon>
   </button>
@@ -21,7 +21,7 @@
 </div>
 @if (usersQuery.status() === "pending") {
   <div
-    class="flex animate-pulse cursor-progress flex-col gap-2 rounded-2xl bg-surface p-4 text-on-surface"
+    class="bg-surface text-on-surface flex animate-pulse cursor-progress flex-col gap-2 rounded-2xl p-4"
   >
     <h2 class="title-medium">Loading users ...</h2>
   </div>

@@ -38,7 +38,7 @@ import { EventReviewDialogComponent } from '../../events/event-review-dialog/eve
   standalone: true,
   template: `
     <div class="mb-4 flex flex-row items-center gap-2">
-      <a routerLink="/admin" mat-icon-button class="block lg:hidden!">
+      <a routerLink="/admin" mat-icon-button class="lg:hidden! block">
         <fa-duotone-icon [icon]="faArrowLeft"></fa-duotone-icon>
       </a>
       <h1 class="title-large">Event Reviews</h1>
@@ -61,7 +61,7 @@ import { EventReviewDialogComponent } from '../../events/event-review-dialog/eve
         <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
           @for (event of pendingReviewsQuery.data(); track event.id) {
             <div
-              class="flex flex-col gap-2 rounded-2xl bg-surface p-4 text-on-surface"
+              class="bg-surface text-on-surface flex flex-col gap-2 rounded-2xl p-4"
             >
               <div class="flex items-center justify-between">
                 <h2 class="title-medium">{{ event.title }}</h2>

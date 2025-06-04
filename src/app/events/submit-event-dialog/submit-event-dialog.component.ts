@@ -3,15 +3,17 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatDialogModule } from '@angular/material/dialog';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [MatButtonModule, MatDialogModule],
   selector: 'app-submit-event-dialog',
   standalone: true,
-  imports: [MatButtonModule, MatDialogModule],
   template: `
     <h2 mat-dialog-title>Submit Event for Review</h2>
     <mat-dialog-content>
       <p>Are you sure you want to submit this event for review?</p>
-      <p class="mt-2 text-on-surface-variant">
-        Once submitted, the event will be locked for editing until it is either approved or rejected.
+      <p class="text-on-surface-variant mt-2">
+        Once submitted, the event will be locked for editing until it is either
+        approved or rejected.
       </p>
     </mat-dialog-content>
     <mat-dialog-actions align="end">
@@ -21,6 +23,5 @@ import { MatDialogModule } from '@angular/material/dialog';
       </button>
     </mat-dialog-actions>
   `,
-  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SubmitEventDialogComponent {}

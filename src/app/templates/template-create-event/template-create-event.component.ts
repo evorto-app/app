@@ -59,6 +59,7 @@ export class TemplateCreateEventComponent {
   get registrationOptions() {
     return this.createEventForm.get('registrationOptions') as FormArray;
   }
+
   private fb = inject(NonNullableFormBuilder);
 
   protected readonly createEventForm = this.fb.group({

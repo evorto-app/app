@@ -1,5 +1,5 @@
 <div class="mb-4 flex flex-row items-center gap-2">
-  <a routerLink="/templates" mat-icon-button class="block lg:hidden!">
+  <a routerLink="/templates" mat-icon-button class="lg:hidden! block">
     <fa-duotone-icon [icon]="faArrowLeft"></fa-duotone-icon>
   </a>
   <h1 class="title-large">Template Categories</h1>
@@ -18,7 +18,7 @@
 <main class="grid grid-cols-1 gap-4 lg:grid-cols-2">
   @if (templateCategoriesQuery.isPending()) {
     <div
-      class="flex animate-pulse cursor-progress flex-col gap-2 rounded-2xl bg-surface p-4 text-on-surface"
+      class="bg-surface text-on-surface flex animate-pulse cursor-progress flex-col gap-2 rounded-2xl p-4"
     >
       <h2 class="title-medium">Loading ...</h2>
     </div>
@@ -29,7 +29,7 @@
       templateCategory of templateCategoriesQuery.data();
       track templateCategory.id
     ) {
-      <div class="category rounded-2xl bg-surface p-4 text-on-surface">
+      <div class="category bg-surface text-on-surface rounded-2xl p-4">
         <div class="mb-4 flex flex-row items-start gap-4">
           <app-icon
             [iconCommonName]="templateCategory.icon"

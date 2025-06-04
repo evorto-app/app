@@ -9,7 +9,7 @@
   </p>
   @if (authDataQuery.isPending()) {
     <div
-      class="flex animate-pulse cursor-progress flex-col gap-2 rounded-2xl bg-surface p-4 text-on-surface"
+      class="bg-surface text-on-surface flex animate-pulse cursor-progress flex-col gap-2 rounded-2xl p-4"
     >
       <h2 class="title-medium">Loading ...</h2>
     </div>
@@ -17,7 +17,7 @@
     @if (authDataQuery.data()?.email_verified) {
       <form
         [formGroup]="accountForm"
-        class="flex flex-col gap-4 rounded-2xl bg-surface p-4 text-on-surface"
+        class="bg-surface text-on-surface flex flex-col gap-4 rounded-2xl p-4"
         (ngSubmit)="createAccount()"
       >
         <mat-form-field>
@@ -33,7 +33,7 @@
         <mat-form-field>
           <mat-label>Email</mat-label>
           <input matInput formControlName="communicationEmail" />
-          <mat-hint> Address where you receive information </mat-hint>
+          <mat-hint> Address where you receive information</mat-hint>
         </mat-form-field>
 
         <button mat-flat-button type="submit" [disabled]="accountForm.invalid">
@@ -41,7 +41,7 @@
         </button>
       </form>
     } @else {
-      <div class="rounded-2xl bg-error p-4 text-on-error">
+      <div class="bg-error text-on-error rounded-2xl p-4">
         <h2 class="title-medium mb-4">Your email is not verified</h2>
         <p class="body-medium">
           Please check your inbox and return here once your email was verified.

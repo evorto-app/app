@@ -12,11 +12,11 @@
     <div class="grid grid-cols-4 gap-1 lg:grid-cols-6 lg:gap-2">
       @for (icon of iconSearchQuery.data(); track icon.id) {
         <div
-          class="flex cursor-pointer flex-col items-center gap-2 rounded p-2 hover:bg-surface-container-high"
+          class="hover:bg-surface-container-high flex cursor-pointer flex-col items-center gap-2 rounded p-2"
           [mat-dialog-close]="icon.commonName"
         >
           <app-icon size="30" [iconCommonName]="icon.commonName"></app-icon>
-          <span class="rounded bg-surface px-2 text-sm break-all">
+          <span class="bg-surface break-all rounded px-2 text-sm">
             {{ icon.friendlyName }}
           </span>
         </div>
@@ -24,12 +24,12 @@
     </div>
     @if (displayDirectAccess()) {
       <div
-        class="m-4 flex cursor-pointer flex-col items-center gap-2 self-center rounded p-2 hover:bg-surface-container-high"
+        class="hover:bg-surface-container-high m-4 flex cursor-pointer flex-col items-center gap-2 self-center rounded p-2"
         (click)="saveIconDirectly()"
         data-testid="direct-access-icon"
       >
         <app-icon size="40" [iconCommonName]="searchValue()"></app-icon>
-        <span class="rounded bg-surface px-2 py-1">{{ searchValue() }}</span>
+        <span class="bg-surface rounded px-2 py-1">{{ searchValue() }}</span>
       </div>
       <!-- <app-notification>
         <h3 class="text-sm font-medium">Direct Icon Access</h3>

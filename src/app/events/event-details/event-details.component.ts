@@ -95,6 +95,7 @@ export class EventDetailsComponent {
   private readonly submitForReviewMutation = injectMutation(
     this.queries.submitEventForReview(),
   );
+
   constructor() {
     effect(() => {
       const event = this.eventQuery.data();

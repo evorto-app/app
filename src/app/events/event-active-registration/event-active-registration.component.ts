@@ -5,7 +5,7 @@ import {
   inject,
   input,
 } from '@angular/core';
-import { MatAnchor, MatButtonModule } from '@angular/material/button';
+import { MatButtonModule } from '@angular/material/button';
 import { injectMutation } from '@tanstack/angular-query-experimental';
 
 import { QueriesService } from '../../core/queries.service';

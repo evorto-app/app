@@ -1,12 +1,12 @@
 import { isPlatformServer } from '@angular/common';
 import {
+  DOCUMENT,
   effect,
   inject,
   Injectable,
   PLATFORM_ID,
   RendererFactory2,
   REQUEST_CONTEXT,
-  DOCUMENT
 } from '@angular/core';
 import { Meta, Title } from '@angular/platform-browser';
 import { injectQuery } from '@tanstack/angular-query-experimental';
@@ -25,12 +25,15 @@ export class ConfigService {
   public get missingContext() {
     return this._missingContext;
   }
+
   public get permissions(): Permission[] {
     return this._permissions;
   }
+
   public get tenant(): Tenant {
     return this._tenant;
   }
+
   private _missingContext = false;
   private _permissions!: Permission[];
 

@@ -1,12 +1,10 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 
 @Component({
-  selector: 'app-members-hub',
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [],
-  templateUrl: './members-hub.component.html',
+  selector: 'app-members-hub',
   styles: ``,
-  changeDetection: ChangeDetectionStrategy.OnPush
+  templateUrl: './members-hub.component.html',
 })
-export class MembersHubComponent {
-
-}
+export class MembersHubComponent {}
