@@ -514,4 +514,26 @@ export class QueriesService {
         queryKey: ['users', input()],
       });
   }
+
+  public userEvents() {
+    return () =>
+      queryOptions({
+        queryFn: () => this.trpcClient.users.events.findMany.query(),
+        queryKey: ['userEvents'],
+      });
+  }
+
+  public updateProfile() {
+    return () =>
+      mutationOptions({
+        mutationFn: (
+          input: { firstName: string; lastName: string },
+        ) => this.trpcClient.users.updateProfile.mutate(input),
+        onSuccess: () => {
+          this.queryClient.invalidateQueries({
+            queryKey: ['self'],
+          });
+        },
+      });
+  }
 }

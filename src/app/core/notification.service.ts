@@ -7,6 +7,13 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 export class NotificationService {
   private snackBar = inject(MatSnackBar);
 
+  showError(message: string): void {
+    this.snackBar.open(message, 'Close', {
+      duration: 5000,
+      panelClass: 'error-snackbar',
+    });
+  }
+
   showEventReviewed(approved: boolean, eventTitle: string): void {
     const message = approved
       ? `Event "${eventTitle}" has been approved`
@@ -29,5 +36,12 @@ export class NotificationService {
         panelClass: 'info-snackbar',
       },
     );
+  }
+
+  showSuccess(message: string): void {
+    this.snackBar.open(message, 'Close', {
+      duration: 5000,
+      panelClass: 'success-snackbar',
+    });
   }
 }

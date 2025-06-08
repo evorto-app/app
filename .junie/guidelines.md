@@ -59,6 +59,38 @@ If making database changes:
 2. **Create migrations**: Use `yarn push:database` to create and apply migrations
 3. **Test migrations**: Ensure migrations can be applied and rolled back correctly
 
+## Database interactions
+
+When interacting with the database, Junie should:
+
+1. **Use Drizzle ORM**: Follow the existing patterns for database interactions https://orm.drizzle.team/llms-full.txt
+
+## Design Guidelines
+
+1. **Follow existing design patterns**: Use the existing components and styles as a reference
+2. **Use Tailwind CSS**: Leverage Tailwind CSS for styling components
+3. **Use material design**: Follow Material Design principles for UI components, use the tokens defined in `src/styles.scss` for consistent styling. Also use material design expressive https://m3.material.io/blog/building-with-m3-expressive#what-rsquo-s-in-the-update
+4. **Use custom components**: Utilize the custom components defined in the project, such as `quick-links`, `callout`, and `figure`, for consistent UI elements
+
+## Angular Component Generation
+
+- Always generate standalone components (`standalone: true`).
+- Default to `ChangeDetectionStrategy.OnPush`.
+- Use the `inject` function for dependencies. Example: `const myService = inject(MyService);`
+- Component templates should use the new built-in control flow syntax (`@if`, `@for`).
+- Use `NgOptimizedImage` for all static images.
+- Selector prefix should be `app-`.
+
+## Angular Service Generation
+
+- Services should be tree-shakable (`providedIn: 'root'`).
+- Use the `inject` function for internal dependencies.
+
+## State Management
+
+- Prefer Angular Signals for reactive state within components.
+- All other state should be covered by tanstack query.
+
 ## Documentation
 
 For changes that affect user-facing features:

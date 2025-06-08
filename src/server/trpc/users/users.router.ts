@@ -79,6 +79,37 @@ export const userRouter = router({
       return createdUser;
     }),
 
+  events: router({
+    findMany: authenticatedProcedure.query(async ({ ctx }) => {
+      // Get all event registrations for the current user
+      const registrations = await database
+        .select({
+          eventId: schema.eventRegistrations.eventId,
+        })
+        .from(schema.eventRegistrations)
+        .where(eq(schema.eventRegistrations.userId, ctx.user.id));
+
+      if (registrations.length === 0) {
+        return [];
+      }
+
+      // Get the events for these registrations
+      const events = await database
+        .select({
+          description: schema.eventInstances.description,
+          end: schema.eventInstances.end,
+          id: schema.eventInstances.id,
+          start: schema.eventInstances.start,
+          title: schema.eventInstances.title,
+        })
+        .from(schema.eventInstances)
+        .where(eq(schema.eventInstances.tenantId, ctx.tenant.id))
+        .orderBy(schema.eventInstances.start);
+
+      return events;
+    }),
+  }),
+
   findMany: authenticatedProcedure
     .meta({ requiredPermissions: ['users:viewAll'] })
     .input(
@@ -186,6 +217,28 @@ export const userRouter = router({
   self: authenticatedProcedure.query(async ({ ctx }) => {
     return ctx.user;
   }),
+
+  updateProfile: authenticatedProcedure
+    .input(
+      Schema.decodeUnknownSync(
+        Schema.Struct({
+          firstName: Schema.NonEmptyString,
+          lastName: Schema.NonEmptyString,
+        }),
+      ),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const updatedUser = await database
+        .update(schema.users)
+        .set({
+          firstName: input.firstName,
+          lastName: input.lastName,
+        })
+        .where(eq(schema.users.id, ctx.user.id))
+        .returning();
+
+      return updatedUser[0];
+    }),
 
   userAssigned: publicProcedure.query(async ({ ctx }) => {
     return !!ctx.user;
