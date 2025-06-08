@@ -58,42 +58,48 @@ export const test = base.extend<BaseFixtures>({
     await use(context);
   },
 
-  events: async ({ database, roles, templates }, use) => {
-    const events = await addEvents(database, templates, roles);
-    await use(events);
-  },
-  roles: async ({ database, tenant }, use) => {
-    const roles = await addRoles(database, tenant);
-    await addUsersToRoles(
-      database,
-      usersToAuthenticate
-        .filter((data) => data.addToTenant && data.addToDb)
-        .flatMap((data) =>
-          roles
-            .filter((role) => {
-              if (data.roles === 'none') {
+  events: [
+    async ({ database, roles, templates }, use) => {
+      const events = await addEvents(database, templates, roles);
+      await use(events);
+    },
+    { auto: true },
+  ],
+  roles: [
+    async ({ database, tenant }, use) => {
+      const roles = await addRoles(database, tenant);
+      await addUsersToRoles(
+        database,
+        usersToAuthenticate
+          .filter((data) => data.addToTenant && data.addToDb)
+          .flatMap((data) =>
+            roles
+              .filter((role) => {
+                if (data.roles === 'none') {
+                  return false;
+                }
+                if (data.roles === 'all') {
+                  return true;
+                }
+                if (data.roles === 'user') {
+                  return role.defaultUserRole;
+                }
+                if (data.roles === 'organizer') {
+                  return role.defaultUserRole || role.defaultOrganizerRole;
+                }
+                if (data.roles === 'admin') {
+                  return role.defaultUserRole || role.name === 'Admin';
+                }
                 return false;
-              }
-              if (data.roles === 'all') {
-                return true;
-              }
-              if (data.roles === 'user') {
-                return role.defaultUserRole;
-              }
-              if (data.roles === 'organizer') {
-                return role.defaultUserRole || role.defaultOrganizerRole;
-              }
-              if (data.roles === 'admin') {
-                return role.defaultUserRole || role.name === 'Admin';
-              }
-              return false;
-            })
-            .map((role) => ({ roleId: role.id, userId: data.id })),
-        ),
-      tenant,
-    );
-    await use(roles);
-  },
+              })
+              .map((role) => ({ roleId: role.id, userId: data.id })),
+          ),
+        tenant,
+      );
+      await use(roles);
+    },
+    { auto: true },
+  ],
   templateCategories: async ({ database, tenant }, use) => {
     const templateCategories = await addTemplateCategories(database, tenant);
     await use(templateCategories);

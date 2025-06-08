@@ -7,6 +7,14 @@
     >
       <h1 class="title-large">Events</h1>
       <div class="grow"></div>
+      <a
+        mat-button
+        routerLink="/templates"
+        *appIfAnyPermission="['events:create']"
+        class="hidden! lg:flex!"
+      >
+        Create Event
+      </a>
       <button
         mat-icon-button
         (click)="openFilterPanel()"
@@ -21,7 +29,11 @@
       <button mat-icon-button [matMenuTriggerFor]="menu">
         <fa-duotone-icon [icon]="faEllipsisVertical"></fa-duotone-icon>
       </button>
-      <mat-menu #menu="matMenu"></mat-menu>
+      <mat-menu #menu="matMenu">
+        <a routerLink="/templates" mat-menu-item *appIfAnyPermission="['events:create']">
+          Create Event
+        </a>
+      </mat-menu>
     </div>
     <nav
       class="{{ outletActive() ? 'hidden' : 'flex' }} lg:flex flex-col gap-4"

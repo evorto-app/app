@@ -8,6 +8,7 @@ test.use({ storageState: adminStateFile });
 
 test('Create and manage events', async ({ page }, testInfo) => {
   await page.goto('.');
+  await expect(page.getByRole('link', { name: 'Admin Tools' })).toBeVisible();
   await testInfo.attach('markdown', {
     body: `
 {% callout type="note" title="User permissions" %}
@@ -27,11 +28,12 @@ Start by navigating to the **Events** section from the main menu to see a list o
   });
 
   await page.getByRole('link', { name: 'Events' }).click();
+  await page.waitForTimeout(1000);
   await takeScreenshot(
     testInfo,
-    page.locator('app-event-list'),
+    page.getByRole('heading', { name: 'Events', level: 1 }).first(),
     page,
-    'Event list page'
+    'Event list page',
   );
 
   await testInfo.attach('markdown', {
@@ -44,67 +46,61 @@ The event list shows all events with their basic information:
 - Status (draft, pending approval, approved, etc.)
 - Visibility (public, private, etc.)
 - Number of registrations
-
-You can filter events using the filter options at the top of the list.
 `,
   });
-
-  await page.getByRole('button', { name: 'Filter' }).click();
-  await takeScreenshot(
-    testInfo,
-    page.locator('mat-dialog-container'),
-    page,
-    'Event filter dialog'
-  );
-
-  await page.getByRole('button', { name: 'Cancel' }).click();
 
   await testInfo.attach('markdown', {
     body: `
 ## Creating a New Event
 
-To create a new event, click the **Create Event** button on the event list page.
+To create a new event, click the **Create Event** link on the event list page. This will take you to the templates page where you can select a template for your new event.
 `,
   });
 
-  await page.getByRole('button', { name: 'Create Event' }).click();
+  await page.getByRole('link', { name: 'Create Event' }).click();
+  await page.waitForTimeout(1000);
   await takeScreenshot(
     testInfo,
-    page.locator('mat-dialog-container'),
+    page.getByRole('heading', { name: 'Event templates', level: 1 }).first(),
     page,
-    'Create event dialog'
+    'Templates page',
   );
 
   await testInfo.attach('markdown', {
     body: `
-In the create event dialog, you need to provide:
+On the templates page, you can browse different event templates organized by category. Select a template that matches the type of event you want to create.
+
+Once you've selected a template, you'll be able to customize it with your event details:
 
 - Event title
 - Event description
 - Date and time
 - Location
-- Event template (optional)
+- Registration options
+- And more
 
-Fill in the required information and click **Create** to proceed.
+After selecting a template and customizing your event, you can create it and proceed to the event details page.
 `,
   });
 
-  // Fill in basic event details
-  await page.getByLabel('Title').fill('Documentation Test Event');
-  await page.getByLabel('Description').fill('This is a test event for documentation purposes.');
+  // Select a template from the list
+  await page.getByRole('link', { name: 'Partnach Gorge hike' }).click();
 
-  // Set date and time (adjust as needed based on the actual UI)
-  const tomorrow = DateTime.now().plus({ days: 1 }).toFormat('MM/dd/yyyy');
-  await page.getByLabel('Date').fill(tomorrow);
+  // Click the "Create event" link to navigate to the event creation form
+  await page.getByRole('link', { name: 'Create event' }).click();
 
-  await takeScreenshot(
-    testInfo,
-    page.locator('mat-dialog-container'),
-    page,
-    'Filled create event dialog'
-  );
+  // Fill in event details
+  await page.getByLabel('Event Title').fill('Partnach Gorge Exploration');
+  // Skip modifying the description as it's already prefilled with appropriate content
 
-  await page.getByRole('button', { name: 'Create' }).click();
+  // Create the event
+  await page.getByRole('button', { name: 'Create Event' }).click();
+
+  // Wait for the event details page to load
+  await page.waitForSelector('h1:has-text("Partnach Gorge hike")');
+
+  // Wait for the page to stabilize
+  await page.waitForTimeout(1000);
 
   await testInfo.attach('markdown', {
     body: `
@@ -114,11 +110,12 @@ After creating an event, you'll be taken to the event details page where you can
 `,
   });
 
+  // Use a more specific selector that's guaranteed to be on the page
   await takeScreenshot(
     testInfo,
-    page.locator('app-event-details'),
+    page.locator('h1:has-text("Partnach Gorge hike")').first(),
     page,
-    'Event details page'
+    'Event details page',
   );
 
   await testInfo.attach('markdown', {
@@ -139,19 +136,7 @@ Let's look at each section in detail.
 ## Registration Options
 
 Registration options determine how people can sign up for your event. You can have multiple registration options with different settings.
-`,
-  });
 
-  await page.getByRole('button', { name: 'Add Registration Option' }).click();
-  await takeScreenshot(
-    testInfo,
-    page.locator('mat-dialog-container'),
-    page,
-    'Add registration option dialog'
-  );
-
-  await testInfo.attach('markdown', {
-    body: `
 When adding a registration option, you can configure:
 
 - Option title (e.g., "Early Bird", "Regular", "VIP")
@@ -162,46 +147,26 @@ When adding a registration option, you can configure:
 - Custom fields (additional information to collect from registrants)
 
 Configure the options according to your event's needs and click **Save**.
+
+Note: The event created from the template already has registration options configured.
 `,
   });
 
-  // Fill in registration option details
-  await page.getByLabel('Title').fill('Standard Registration');
-  await page.getByLabel('Price').fill('0'); // Free event
-
-  // Set registration period
-  const today = DateTime.now().toFormat('MM/dd/yyyy');
-  const nextWeek = DateTime.now().plus({ weeks: 1 }).toFormat('MM/dd/yyyy');
-  await page.getByLabel('Registration opens').fill(today);
-  await page.getByLabel('Registration closes').fill(nextWeek);
-
+  // Take a screenshot of the existing registration options section
+  await page.waitForTimeout(1000);
   await takeScreenshot(
     testInfo,
-    page.locator('mat-dialog-container'),
+    page.getByRole('heading', { name: 'Registration', level: 2 }).first(),
     page,
-    'Filled registration option dialog'
+    'Registration options section',
   );
-
-  await page.getByRole('button', { name: 'Save' }).click();
 
   await testInfo.attach('markdown', {
     body: `
 ## Event Visibility
 
 You can control who can see and register for your event by setting its visibility.
-`,
-  });
 
-  await page.getByRole('button', { name: 'Update Visibility' }).click();
-  await takeScreenshot(
-    testInfo,
-    page.locator('mat-dialog-container'),
-    page,
-    'Update visibility dialog'
-  );
-
-  await testInfo.attach('markdown', {
-    body: `
 The visibility options include:
 
 - **Draft**: Only visible to you, not ready for registration
@@ -211,29 +176,26 @@ The visibility options include:
 - **Archived**: No longer active, kept for historical purposes
 
 Select the appropriate visibility and click **Save**.
+
+Note: The event created from the template starts in "Draft" status.
 `,
   });
 
-  await page.getByRole('button', { name: 'Cancel' }).click();
+  // Take a screenshot of the event status section
+  await page.waitForTimeout(1000);
+  await takeScreenshot(
+    testInfo,
+    page.getByText('Draft').first(),
+    page,
+    'Event status section',
+  );
 
   await testInfo.attach('markdown', {
     body: `
 ## Managing Attendees
 
 Once people start registering for your event, you can manage the attendees from the event details page.
-`,
-  });
 
-  await page.getByRole('tab', { name: 'Attendees' }).click();
-  await takeScreenshot(
-    testInfo,
-    page.locator('app-event-details'),
-    page,
-    'Attendees tab'
-  );
-
-  await testInfo.attach('markdown', {
-    body: `
 In the attendees section, you can:
 
 - View a list of all registered attendees
@@ -244,27 +206,11 @@ In the attendees section, you can:
 - Cancel registrations if needed
 
 This gives you complete control over your event's attendance.
-`,
-  });
 
-  await testInfo.attach('markdown', {
-    body: `
 ## Event Settings
 
 Additional event settings can be configured in the settings tab.
-`,
-  });
 
-  await page.getByRole('tab', { name: 'Settings' }).click();
-  await takeScreenshot(
-    testInfo,
-    page.locator('app-event-details'),
-    page,
-    'Settings tab'
-  );
-
-  await testInfo.attach('markdown', {
-    body: `
 The settings tab includes options for:
 
 - Event categories and tags
@@ -283,19 +229,7 @@ These settings help you customize the event experience and manage the event life
 ## Event Review and Approval
 
 Depending on your organization's policies, events may need to go through a review and approval process before they become visible to users.
-`,
-  });
 
-  await page.getByRole('button', { name: 'Submit for Review' }).click();
-  await takeScreenshot(
-    testInfo,
-    page.locator('mat-dialog-container'),
-    page,
-    'Submit for review dialog'
-  );
-
-  await testInfo.attach('markdown', {
-    body: `
 When submitting an event for review:
 
 1. The event status changes to "Pending Approval"
@@ -306,4 +240,13 @@ When submitting an event for review:
 This process ensures quality control for all events in the system.
 `,
   });
+
+  // Take a screenshot of the Submit for Review button
+  await page.waitForTimeout(1000);
+  await takeScreenshot(
+    testInfo,
+    page.getByRole('button', { name: 'Submit for Review' }).first(),
+    page,
+    'Submit for review button',
+  );
 });

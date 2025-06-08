@@ -17,6 +17,7 @@ const ensureDirectory = (
   directoryPath: string,
   options?: { empty?: boolean },
 ) => {
+  console.log(directoryPath);
   if (options?.empty && fs.existsSync(directoryPath)) {
     fs.rmSync(directoryPath, { force: true, recursive: true });
   }
