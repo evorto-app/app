@@ -17,6 +17,7 @@ import {
   faEllipsisVertical,
   faFolderGear,
   faFolders,
+  faHouseChimney,
   faLockKeyhole,
   faMoneyBill,
   faRightFromBracket,
@@ -52,6 +53,7 @@ export class NavigationComponent {
   protected readonly faEllipsisVertical = faEllipsisVertical;
   protected readonly faFolderGear = faFolderGear;
   protected readonly faFolders = faFolders;
+  protected readonly faHouseChimney = faHouseChimney;
   protected readonly faLockKeyhole = faLockKeyhole;
   protected readonly faMoneyBill = faMoneyBill;
   protected readonly faRightFromBracket = faRightFromBracket;
@@ -60,6 +62,7 @@ export class NavigationComponent {
   protected readonly faUser = faUser;
   protected readonly sheetTemplate =
     viewChild<TemplateRef<unknown>>('navigationSheet');
+
   private readonly bottomSheet = inject(MatBottomSheet);
 
   closeSheet() {

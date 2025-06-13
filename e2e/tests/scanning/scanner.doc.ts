@@ -25,12 +25,12 @@ To access the scanner, navigate to the **Scanning** section from the main menu.
 `,
   });
 
-  await page.getByRole('link', { name: 'Scanning' }).click();
+  await page.getByRole('link', { name: 'Scanner' }).click();
   await takeScreenshot(
     testInfo,
     page.locator('app-scanner'),
     page,
-    'Scanner page'
+    'Scanner page',
   );
 
   await testInfo.attach('markdown', {
@@ -75,7 +75,7 @@ After scanning a QR code, you'll see the registration details and can take appro
     testInfo,
     page.locator('app-handle-registration'),
     page,
-    'Handle registration page'
+    'Handle registration page',
   );
 
   await testInfo.attach('markdown', {

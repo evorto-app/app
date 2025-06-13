@@ -26,7 +26,7 @@ export const routes: Routes = [
   {
     canActivate: [userAccountGuard, authGuard],
     children: INTERNAL_ROUTES,
-    path: 'members-hub',
+    path: 'internal',
   },
   {
     canActivate: [userAccountGuard, authGuard],

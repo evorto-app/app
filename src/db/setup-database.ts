@@ -5,6 +5,7 @@ import { reset } from 'drizzle-seed';
 
 import { addEvents } from '../../helpers/add-events';
 import { addIcons } from '../../helpers/add-icons';
+import { addRegistrations } from '../../helpers/add-registrations';
 import {
   addExampleUsers,
   addRoles,
@@ -19,6 +20,8 @@ import { relations } from './relations';
 import * as schema from './schema';
 import { users } from './schema';
 
+export type Database = NeonDatabase<Record<string, never>, typeof relations>;
+
 export async function setupDatabase(
   database: NeonDatabase<
     Record<string, never>,
@@ -29,7 +32,7 @@ export async function setupDatabase(
   >,
   onlyDevelopmentTenants = false,
 ) {
-  // @ts-ignore
+  // @ts-expect-error - drizzle-seed missing proper types
   await reset(database, schema);
   await database
     .insert(users)
@@ -105,6 +108,7 @@ export async function setupDatabase(
     await addExampleUsers(database, roles, developmentTenant);
     const categories = await addTemplateCategories(database, developmentTenant);
     const templates = await addTemplates(database, categories, roles);
-    await addEvents(database, templates, roles);
+    const events = await addEvents(database, templates, roles);
+    await addRegistrations(database, events);
   }
 }

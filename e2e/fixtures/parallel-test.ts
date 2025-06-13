@@ -1,9 +1,17 @@
+import { NeonDatabase } from 'drizzle-orm/neon-serverless';
+
 import { addEvents } from '../../helpers/add-events';
+import {
+  addRegistrations,
+  EventRegistrationInput,
+} from '../../helpers/add-registrations';
 import { addRoles, addUsersToRoles } from '../../helpers/add-roles';
 import { addTemplateCategories } from '../../helpers/add-template-categories';
 import { addTemplates } from '../../helpers/add-templates';
 import { createTenant } from '../../helpers/create-tenant';
 import { usersToAuthenticate } from '../../helpers/user-data';
+import { createId } from '../../src/db/create-id';
+import { relations } from '../../src/db/relations';
 import { test as base } from './base-test';
 
 interface BaseFixtures {
@@ -11,6 +19,7 @@ interface BaseFixtures {
     id: string;
     registrationOptions: {
       closeRegistrationTime: Date;
+      id: string;
       isPaid: boolean;
       openRegistrationTime: Date;
       title: string;
@@ -18,6 +27,14 @@ interface BaseFixtures {
     status: 'APPROVED' | 'DRAFT' | 'PENDING_REVIEW' | 'REJECTED';
     title: string;
     visibility: 'HIDDEN' | 'PRIVATE' | 'PUBLIC';
+  }[];
+  registrations: {
+    eventId: string;
+    id: string;
+    registrationOptionId: string;
+    status: 'CANCELLED' | 'CONFIRMED' | 'PENDING' | 'WAITLIST';
+    tenantId: string;
+    userId: string;
   }[];
   roles: {
     defaultOrganizerRole: boolean;
@@ -62,6 +79,41 @@ export const test = base.extend<BaseFixtures>({
     async ({ database, roles, templates }, use) => {
       const events = await addEvents(database, templates, roles);
       await use(events);
+    },
+    { auto: true },
+  ],
+  registrations: [
+    async ({ database, events, tenant }, use) => {
+      // Create a minimal input format for each event with its registration options
+      const eventInputs = events.map((event) => ({
+        id: event.id,
+        registrationOptions: event.registrationOptions.map((option) => ({
+          confirmedSpots: 0,
+          id: option.id,
+          isPaid: option.isPaid,
+          price: option.isPaid ? 1000 : 0,
+          spots: 20,
+        })),
+        tenantId: tenant.id,
+        title: event.title,
+      }));
+
+      const registrationsFromDatabase = await addRegistrations(
+        database,
+        eventInputs,
+      );
+
+      // Ensure all registrations have valid IDs to satisfy the fixture type
+      const registrations = registrationsFromDatabase.map((reg) => ({
+        eventId: reg.eventId,
+        id: reg.id || createId(), // Provide fallback ID if undefined
+        registrationOptionId: reg.registrationOptionId,
+        status: reg.status,
+        tenantId: reg.tenantId,
+        userId: reg.userId,
+      }));
+
+      await use(registrations);
     },
     { auto: true },
   ],
