@@ -68,14 +68,12 @@ import { EventReviewDialogComponent } from '../../events/event-review-dialog/eve
                 <div class="flex gap-2">
                   <button
                     mat-stroked-button
-                    color="warn"
                     (click)="reviewEvent(event.id, event.title, false)"
                   >
                     Reject
                   </button>
                   <button
                     mat-flat-button
-                    color="primary"
                     (click)="reviewEvent(event.id, event.title, true)"
                   >
                     Approve

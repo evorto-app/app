@@ -12,6 +12,7 @@ import { eventInstances } from './event-instances';
 import { registrationModes } from './global-enums';
 
 export const eventRegistrationOptions = pgTable('event_registration_options', {
+  checkedInSpots: integer().notNull().default(0),
   closeRegistrationTime: timestamp().notNull(),
   confirmedSpots: integer().notNull().default(0),
   createdAt: timestamp().notNull().defaultNow(),

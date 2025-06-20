@@ -22,7 +22,7 @@ const EVENTS_GROUP = {
     'create',
     'editAll',
     'review',
-    'runAll',
+    'organizeAll',
     'seeDrafts',
     'seeHidden',
     'seePrivate',

@@ -15,7 +15,6 @@
           <h2 class="text-xl font-bold">Profile Information</h2>
           <button
             mat-raised-button
-            color="primary"
             (click)="startEditing()"
             id="edit-profile-btn"
           >
@@ -51,16 +50,8 @@
             />
           </mat-form-field>
           <div class="flex justify-end gap-3">
-            <button
-              mat-stroked-button
-              color="primary"
-              (click)="cancelEditing()"
-            >
-              Cancel
-            </button>
-            <button mat-raised-button color="primary" (click)="saveProfile()">
-              Save
-            </button>
+            <button mat-stroked-button (click)="cancelEditing()">Cancel</button>
+            <button mat-raised-button (click)="saveProfile()">Save</button>
           </div>
         </form>
       }
@@ -130,12 +121,7 @@
   <!-- Account Actions -->
   <section class="mt-8 flex flex-col items-start gap-4">
     <h2 class="text-on-surface mb-2 text-xl font-bold">Account Actions</h2>
-    <a
-      href="/logout"
-      mat-stroked-button
-      color="warn"
-      class="flex items-center gap-2"
-    >
+    <a href="/logout" mat-stroked-button class="flex items-center gap-2">
       <fa-duotone-icon
         [icon]="faRightFromBracket"
         class="mr-2"

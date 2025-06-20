@@ -1,0 +1,20 @@
+<div class="mb-4 flex w-full flex-row items-center gap-2">
+  <a routerLink="/events/{{eventId()}}" mat-icon-button>
+    <fa-duotone-icon [icon]="faArrowLeft"></fa-duotone-icon>
+  </a>
+  <h1 class="title-large">{{ eventQuery.data()?.title ?? "Loading ..." }}</h1>
+  <div class="grow"></div>
+  <button
+    title="menu"
+    *appIfAnyPermission="['events:changeVisibility']"
+    mat-icon-button
+    [matMenuTriggerFor]="menu"
+  >
+    <fa-duotone-icon [icon]="faEllipsisVertical"></fa-duotone-icon>
+  </button>
+  <mat-menu #menu="matMenu">
+    <!--    <button mat-menu-item (click)="updateVisibility()">-->
+    <!--      Update visibility-->
+    <!--    </button>-->
+  </mat-menu>
+</div>

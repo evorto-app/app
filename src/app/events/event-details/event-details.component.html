@@ -23,6 +23,9 @@
 <div class="flex flex-col gap-4">
   @if (eventQuery.isSuccess()) {
     <div class="flex flex-col gap-4">
+      @if (canOrganize()) {
+        <a routerLink="organize" matButton="filled">Organize this event</a>
+      }
       @if (canSeeStatus()) {
         <section
           class="bg-surface-container-low text-on-surface-container-low rounded-2xl p-4"
@@ -51,26 +54,16 @@
               @if (
                 canReview() && eventQuery.data().status === "PENDING_REVIEW"
               ) {
-                <button
-                  mat-stroked-button
-                  color="warn"
-                  (click)="reviewEvent(false)"
-                >
+                <button matButton="outlined" (click)="reviewEvent(false)">
                   Reject
                 </button>
-                <button
-                  mat-flat-button
-                  color="primary"
-                  (click)="reviewEvent(true)"
-                >
+                <button matButton="filled" (click)="reviewEvent(true)">
                   Approve
                 </button>
               }
 
               @if (canEdit()) {
-                <a mat-flat-button color="primary" [routerLink]="['edit']">
-                  Edit Event
-                </a>
+                <a matButton="tonal" routerLink="edit"> Edit Event </a>
               }
 
               @if (
@@ -78,11 +71,7 @@
                 (eventQuery.data().status === "DRAFT" ||
                   eventQuery.data().status === "REJECTED")
               ) {
-                <button
-                  mat-flat-button
-                  color="primary"
-                  (click)="submitForReview()"
-                >
+                <button matButton="filled" (click)="submitForReview()">
                   Submit for Review
                 </button>
               }

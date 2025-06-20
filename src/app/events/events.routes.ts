@@ -10,6 +10,13 @@ export const EVENT_ROUTES: Routes = [
           ),
         path: ':eventId',
       },
+      {
+        loadComponent: () =>
+          import('./event-organize/event-organize').then(
+            (m) => m.EventOrganize,
+          ),
+        path: ':eventId/organize',
+      },
     ],
     loadComponent: () =>
       import('./event-list/event-list.component').then(

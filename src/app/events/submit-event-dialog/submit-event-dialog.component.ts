@@ -18,7 +18,7 @@ import { MatDialogModule } from '@angular/material/dialog';
     </mat-dialog-content>
     <mat-dialog-actions align="end">
       <button mat-button mat-dialog-close>Cancel</button>
-      <button mat-flat-button color="primary" [mat-dialog-close]="true">
+      <button mat-flat-button [mat-dialog-close]="true">
         Submit for Review
       </button>
     </mat-dialog-actions>

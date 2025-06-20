@@ -71,8 +71,17 @@ export class EventDetailsComponent {
     }
     return false;
   });
+  protected readonly canOrganize = computed(() => {
+    const organizeAllPermission =
+      this.permissions.hasPermission('events:organizeAll')();
+    if (organizeAllPermission) {
+      return true;
+    }
+    return false; // TODO: Implement logic to check if the user can organize this event
+  });
   protected readonly canReview =
     this.permissions.hasPermission('events:review');
+
   protected readonly canSeeStatus = computed(() => {
     const canReview = this.permissions.hasPermission('events:review')();
     const canEdit = this.canEdit();

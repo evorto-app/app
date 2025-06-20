@@ -1,3 +1,11 @@
+/**
+ * Main Express app for Evorto server.
+ *
+ * - Sets up middleware for authentication, tenant/user context, and social crawler detection.
+ * - Handles static file serving and all other requests by rendering the Angular app.
+ * - For suspected social media crawlers, skips silent login to avoid unnecessary authentication.
+ */
+
 import {
   AngularNodeAppEngine,
   writeResponseToNodeResponse,
@@ -14,6 +22,7 @@ import { fileURLToPath } from 'node:url';
 
 import { Context } from '../types/custom/context';
 import { addAuthenticationContext } from './middleware/authentication-context';
+import { socialCrawlerBypass } from './middleware/crawler-id';
 import { prerenderSkip } from './middleware/prerender-skip';
 import { addTenantContext } from './middleware/tenant-context';
 import { addUserContextMiddleware } from './middleware/user-context';
@@ -36,6 +45,7 @@ export const app = express();
 const angularApp = new AngularNodeAppEngine();
 
 app.use(prerenderSkip);
+app.use(socialCrawlerBypass);
 
 app.use('/webhooks', webhookRouter);
 app.use('/qr', qrCodeRouter);
@@ -109,21 +119,35 @@ app.use(
 
 /**
  * Handle all other requests by rendering the Angular application.
+ * For social media crawlers, skip attemptSilentLogin to avoid unnecessary authentication.
  */
-app.use('/{*splat}', attemptSilentLogin(), (request, expressResponse, next) => {
-  const requestContext = Schema.decodeUnknownEither(Context)(request);
-  if (Either.isLeft(requestContext)) {
-    next(requestContext.left);
-    return;
+app.use('/{*splat}', (request, expressResponse, next) => {
+  const handleAngular = () => {
+    const requestContext = Schema.decodeUnknownEither(Context)(request);
+    if (Either.isLeft(requestContext)) {
+      next(requestContext.left);
+      return;
+    }
+    angularApp
+      .handle(request, requestContext.right)
+      .then((response) =>
+        response
+          ? writeResponseToNodeResponse(response, expressResponse)
+          : next(),
+      )
+      .catch(next);
+  };
+
+  if (request.isSocialMediaCrawler) {
+    // Skip silent login for crawlers
+    handleAngular();
+  } else {
+    // Run silent login for normal users
+    attemptSilentLogin()(request, expressResponse, (error) => {
+      if (error) return next(error);
+      handleAngular();
+    });
   }
-  angularApp
-    .handle(request, requestContext.right)
-    .then((response) =>
-      response
-        ? writeResponseToNodeResponse(response, expressResponse)
-        : next(),
-    )
-    .catch(next);
 });
 
 // log any error

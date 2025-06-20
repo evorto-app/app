@@ -6,8 +6,10 @@
  * Key features:
  * 1. Creates registrations for approximately 70% of spots in each event
  * 2. For paid registrations, creates associated transactions as if Stripe webhooks fired
- * 3. Uses batch operations for efficient database seeding
- * 4. Simulates the complete registration flow including Stripe webhook processing
+ * 3. Excludes admin user from seeded registrations
+ * 4. Only paid registrations can be pending; free registrations are confirmed immediately
+ * 5. Uses batch operations for efficient database seeding
+ * 6. Simulates the complete registration flow including Stripe webhook processing
  */
 import { InferInsertModel } from 'drizzle-orm';
 import { eq } from 'drizzle-orm';
@@ -49,11 +51,11 @@ export async function addRegistrations(
   events: EventRegistrationInput[],
 ) {
   // Query all users with their tenant relationships
-  const users = await database.query.users.findMany({
-    with: {
-      tenants: true,
-    },
+  const usersRaw = await database.query.users.findMany({
+    with: { tenants: true },
   });
+  // Exclude admin user from registrations
+  const users = usersRaw.filter((u) => u.email !== 'admin@evorto.app');
 
   if (users.length === 0) {
     console.warn('No users found for registrations');
@@ -107,7 +109,7 @@ export async function addRegistrations(
         const registrationId = createId();
 
         // Determine registration status based on payment requirement
-        const status = option.isPaid ? 'CONFIRMED' : 'PENDING';
+        const status = option.isPaid ? 'PENDING' : 'CONFIRMED';
 
         // Add registration to batch
         registrations.push({
