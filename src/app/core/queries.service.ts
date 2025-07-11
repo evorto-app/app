@@ -417,6 +417,18 @@ export class QueriesService {
       });
   }
 
+  public updateEvent() {
+    return () =>
+      mutationOptions({
+        mutationFn: (
+          input: AppRouter['events']['update']['_def']['$types']['input'],
+        ) => this.trpcClient.events.update.mutate(input),
+        onSuccess: () => {
+          this.queryClient.invalidateQueries({ queryKey: ['events'] });
+        },
+      });
+  }
+
   public updateEventVisibility() {
     return () =>
       mutationOptions({
@@ -425,6 +437,19 @@ export class QueriesService {
         ) => this.trpcClient.events.updateVisibility.mutate(input),
         onSuccess: () => {
           this.queryClient.invalidateQueries({ queryKey: ['events'] });
+        },
+      });
+  }
+
+  public updateProfile() {
+    return () =>
+      mutationOptions({
+        mutationFn: (input: { firstName: string; lastName: string }) =>
+          this.trpcClient.users.updateProfile.mutate(input),
+        onSuccess: () => {
+          this.queryClient.invalidateQueries({
+            queryKey: ['self'],
+          });
         },
       });
   }
@@ -504,17 +529,6 @@ export class QueriesService {
       });
   }
 
-  public users(
-    input: Signal<AppRouter['users']['findMany']['_def']['$types']['input']>,
-  ) {
-    return () =>
-      queryOptions({
-        placeholderData: keepPreviousData,
-        queryFn: () => this.trpcClient.users.findMany.query(input()),
-        queryKey: ['users', input()],
-      });
-  }
-
   public userEvents() {
     return () =>
       queryOptions({
@@ -523,17 +537,14 @@ export class QueriesService {
       });
   }
 
-  public updateProfile() {
+  public users(
+    input: Signal<AppRouter['users']['findMany']['_def']['$types']['input']>,
+  ) {
     return () =>
-      mutationOptions({
-        mutationFn: (
-          input: { firstName: string; lastName: string },
-        ) => this.trpcClient.users.updateProfile.mutate(input),
-        onSuccess: () => {
-          this.queryClient.invalidateQueries({
-            queryKey: ['self'],
-          });
-        },
+      queryOptions({
+        placeholderData: keepPreviousData,
+        queryFn: () => this.trpcClient.users.findMany.query(input()),
+        queryKey: ['users', input()],
       });
   }
 }

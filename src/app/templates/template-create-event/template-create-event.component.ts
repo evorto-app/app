@@ -1,4 +1,3 @@
-import { CurrencyPipe, TitleCasePipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -30,16 +29,16 @@ import {
 import { DateTime } from 'luxon';
 
 import { QueriesService } from '../../core/queries.service';
-import { EditorComponent } from '../../shared/components/controls/editor/editor.component';
-import { IconSelectorFieldComponent } from '../../shared/components/controls/icon-selector/icon-selector-field/icon-selector-field.component';
+import { EventGeneralForm } from '../../shared/components/forms/event-general-form/event-general-form';
+import {
+  RegistrationOptionForm,
+  RegistrationOptionFormGroup,
+} from '../../shared/components/forms/registration-option-form/registration-option-form';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    CurrencyPipe,
-    EditorComponent,
     FontAwesomeModule,
-    IconSelectorFieldComponent,
     MatButtonModule,
     MatCheckboxModule,
     MatDatepickerModule,
@@ -49,42 +48,29 @@ import { IconSelectorFieldComponent } from '../../shared/components/controls/ico
     MatSelectModule,
     MatTimepickerModule,
     ReactiveFormsModule,
-    TitleCasePipe,
     RouterLink,
+    RegistrationOptionForm,
+    EventGeneralForm,
   ],
   standalone: true,
   templateUrl: './template-create-event.component.html',
 })
 export class TemplateCreateEventComponent {
   get registrationOptions() {
-    return this.createEventForm.get('registrationOptions') as FormArray;
+    return this.createEventForm.get(
+      'registrationOptions',
+    ) as (typeof this.createEventForm)['controls']['registrationOptions'];
   }
-
   private fb = inject(NonNullableFormBuilder);
-
   protected readonly createEventForm = this.fb.group({
     description: this.fb.control(''),
     end: this.fb.control<Date>(new Date()),
     icon: this.fb.control(''),
-    registrationOptions: this.fb.array<{
-      closeRegistrationTime: Date;
-      description: string;
-      isPaid: boolean;
-      openRegistrationTime: Date;
-      organizingRegistration: boolean;
-      price: number;
-      registeredDescription: string;
-      registrationMode: 'application' | 'fcfs' | 'random';
-      spots: number;
-      templateRegistrationOptionId: number;
-      title: string;
-    }>([]),
+    registrationOptions: this.fb.array<RegistrationOptionFormGroup>([]),
     start: this.fb.control<Date>(new Date()),
     title: this.fb.control(''),
   });
-
   private queries = inject(QueriesService);
-
   protected readonly createEventMutation = injectMutation(
     this.queries.createEvent(),
   );
@@ -94,13 +80,10 @@ export class TemplateCreateEventComponent {
     'random',
     'application',
   ] as const;
-
   protected readonly templateId = input.required<string>();
-
   protected readonly templateQuery = injectQuery(
     this.queries.template(this.templateId),
   );
-
   private eventStartValue = toSignal(
     this.createEventForm.controls.start.valueChanges,
   );

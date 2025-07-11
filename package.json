@@ -58,6 +58,7 @@
     "auth0": "^4.27.0",
     "consola": "^3.4.2",
     "cookie-parser": "^1.4.7",
+    "date-fns": "^4.1.0",
     "drizzle-orm": "1.0.0-beta.1-c0277c0",
     "effect": "^3.16.12",
     "es-toolkit": "^1.39.6",
