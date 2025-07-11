@@ -36,7 +36,7 @@ check_docker() {
 start_db() {
     print_status "Starting local PostgreSQL database..."
     check_docker
-    docker-compose up -d postgres
+    docker compose up -d postgres
     
     # Wait for database to be ready
     print_status "Waiting for database to be ready..."
@@ -51,7 +51,7 @@ start_db() {
 # Function to stop local database
 stop_db() {
     print_status "Stopping local PostgreSQL database..."
-    docker-compose down
+    docker compose down
     print_status "Local database stopped!"
 }
 
@@ -60,7 +60,7 @@ reset_db() {
     print_status "Resetting local database..."
     export USE_LOCAL_DATABASE=true
     yarn db:local:push
-    yarn db:local:setup
+    npx tsx helpers/local-database-setup.ts
     print_status "Local database reset complete!"
 }
 
@@ -76,7 +76,7 @@ status_db() {
 
 # Function to show logs
 logs_db() {
-    docker-compose logs -f postgres
+    docker compose logs -f postgres
 }
 
 # Function to connect to database

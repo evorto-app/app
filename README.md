@@ -2,6 +2,54 @@
 
 This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 19.0.6.
 
+## Local Development with Local Database
+
+For local development, you can use a local PostgreSQL database instead of connecting to a remote Neon database. This provides faster development, offline capability, and isolated testing.
+
+### Quick Start with Local Database
+
+```bash
+# Start local database and development server
+yarn dev:local
+```
+
+This command will:
+1. Start a local PostgreSQL container
+2. Set up the database schema
+3. Seed the database with test data
+4. Start the Angular development server
+
+### Manual Setup
+
+```bash
+# Start local database
+yarn db:local:up
+
+# Set up schema and seed data
+yarn db:local:reset
+
+# Start development server
+yarn start
+```
+
+### Database Management
+
+```bash
+# Database management commands
+yarn db:local:up        # Start local database
+yarn db:local:down      # Stop local database
+yarn db:local:reset     # Reset database (schema + seed data)
+yarn db:local:push      # Push schema changes only
+yarn db:local:setup     # Seed database with test data
+
+# Using the management script
+./scripts/local-db.sh help     # Show all available commands
+./scripts/local-db.sh status   # Check database status
+./scripts/local-db.sh connect  # Connect to database CLI
+```
+
+For detailed local database setup instructions, see [docs/local-database.md](docs/local-database.md).
+
 ## Development server
 
 To start a local development server, run:

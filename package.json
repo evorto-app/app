@@ -24,10 +24,10 @@
     "push:database": "drizzle-kit push --force true",
     "setup:database": "tsx helpers/database.ts",
     "reset:database": "run push:database && run setup:database",
-    "db:local:up": "docker-compose up -d postgres",
-    "db:local:down": "docker-compose down",
+    "db:local:up": "docker compose up -d postgres",
+    "db:local:down": "docker compose down",
     "db:local:push": "drizzle-kit push --config=drizzle.config.local.ts",
-    "db:local:setup": "USE_LOCAL_DATABASE=true tsx helpers/database.ts",
+    "db:local:setup": "NODE_ENV=development USE_LOCAL_DATABASE=true npx tsx helpers/local-database-setup.ts",
     "db:local:reset": "yarn db:local:push && yarn db:local:setup",
     "dev:local": "yarn db:local:up && yarn db:local:reset && yarn start"
   },
