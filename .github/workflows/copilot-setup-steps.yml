@@ -39,7 +39,6 @@ jobs:
 
       - name: Configure FontAwesome authentication
         run: yarn config set npmScopes.fortawesome.npmAuthToken ${{ secrets.FONT_AWESOME_TOKEN }}
-        if: ${{ secrets.FONT_AWESOME_TOKEN != '' }}
 
       - name: Install dependencies
         run: yarn install
