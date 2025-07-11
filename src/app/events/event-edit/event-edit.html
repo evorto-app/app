@@ -19,7 +19,7 @@
   </mat-menu>
 </div>
 <main>
-  <form [formGroup]="editEventForm" (ngSubmit)="saveEvent()">
+  <form [formGroup]="editEventForm" (ngSubmit)="onSubmit()">
     <div class="grid gap-6">
       <section class="bg-surface text-on-surface rounded-2xl p-4">
         <h2 class="title-large mb-4">Event Details</h2>
@@ -50,10 +50,14 @@
           type="submit"
           mat-button
           [disabled]="
-              editEventForm.invalid
+              editEventForm.invalid || updateEventMutation.isPending()
             "
         >
-          Create event
+          @if (updateEventMutation.isPending()) {
+            Saving...
+          } @else {
+            Save Changes
+          }
         </button>
       </div>
     </div>

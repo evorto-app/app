@@ -5,27 +5,20 @@ import {
   inject,
   input,
 } from '@angular/core';
-import {
-  FormArray,
-  NonNullableFormBuilder,
-  ReactiveFormsModule,
-} from '@angular/forms';
-import { MatButtonModule, MatIconButton } from '@angular/material/button';
-import { MatMenu, MatMenuModule } from '@angular/material/menu';
+import { ReactiveFormsModule } from '@angular/forms';
+import { MatButtonModule } from '@angular/material/button';
+import { MatMenuModule } from '@angular/material/menu';
 import { RouterLink } from '@angular/router';
 import { FaDuotoneIconComponent } from '@fortawesome/angular-fontawesome';
 import {
   faArrowLeft,
   faEllipsisVertical,
 } from '@fortawesome/duotone-regular-svg-icons';
-import { injectQuery } from '@tanstack/angular-query-experimental';
+import { injectMutation, injectQuery } from '@tanstack/angular-query-experimental';
 
-import { QueriesService } from '../../core/queries.service';
+import { EventFormBase } from '../../shared/components/forms/event-form-base/event-form-base';
 import { EventGeneralForm } from '../../shared/components/forms/event-general-form/event-general-form';
-import {
-  RegistrationOptionForm,
-  RegistrationOptionFormGroup,
-} from '../../shared/components/forms/registration-option-form/registration-option-form';
+import { RegistrationOptionForm } from '../../shared/components/forms/registration-option-form/registration-option-form';
 import { IfAnyPermissionDirective } from '../../shared/directives/if-any-permission.directive';
 
 @Component({
@@ -44,32 +37,19 @@ import { IfAnyPermissionDirective } from '../../shared/directives/if-any-permiss
   styles: ``,
   templateUrl: './event-edit.html',
 })
-export class EventEdit {
+export class EventEdit extends EventFormBase {
   public eventId = input.required<string>();
-  get registrationOptions() {
-    return this.editEventForm.get(
-      'registrationOptions',
-    ) as (typeof this.editEventForm)['controls']['registrationOptions'];
-  }
-  private fb = inject(NonNullableFormBuilder);
-  protected readonly editEventForm = this.fb.group({
-    description: this.fb.control(''),
-    end: this.fb.control<Date>(new Date()),
-    icon: this.fb.control(''),
-    registrationOptions: this.fb.array<RegistrationOptionFormGroup>([]),
-    start: this.fb.control<Date>(new Date()),
-    title: this.fb.control(''),
-  });
-  private queries = inject(QueriesService);
+  
+  // Use the base class form with a more appropriate name
+  protected readonly editEventForm = this.eventForm;
+  
   protected readonly eventQuery = injectQuery(this.queries.event(this.eventId));
+  protected readonly updateEventMutation = injectMutation(this.queries.updateEvent());
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faEllipsisVertical = faEllipsisVertical;
-  protected readonly registrationModes = [
-    'fcfs',
-    'random',
-    'application',
-  ] as const;
+
   constructor() {
+    super();
     effect(() => {
       const event = this.eventQuery.data();
       if (event) {
@@ -80,28 +60,46 @@ export class EventEdit {
           start: event.start ? new Date(event.start) : new Date(),
           title: event.title,
         });
-        const registrationOptionsFormArray = this.editEventForm.get(
-          'registrationOptions',
-        ) as FormArray;
-        registrationOptionsFormArray.clear();
-        for (const option of event.registrationOptions) {
-          registrationOptionsFormArray?.push(
-            this.fb.group({
-              closeRegistrationTime: [],
-              description: [option.description],
-              isPaid: [option.isPaid],
-              openRegistrationTime: [],
-              organizingRegistration: [option.organizingRegistration],
-              price: [option.price],
-              registeredDescription: [option.registeredDescription],
-              registrationMode: [option.registrationMode],
-              spots: [option.spots],
-              title: [option.title],
-            }),
-          );
-        }
+        
+        this.populateRegistrationOptions(event.registrationOptions);
       }
     });
   }
-  protected saveEvent() {}
+
+  protected onSubmit() {
+    this.saveEvent();
+  }
+
+  private saveEvent() {
+    if (!this.handleFormErrors()) {
+      return;
+    }
+
+    const formValue = this.editEventForm.value;
+    const eventId = this.eventId();
+    const registrationOptions = this.transformRegistrationOptions(formValue.registrationOptions);
+    
+    this.updateEventMutation.mutate(
+      {
+        eventId,
+        description: formValue.description!,
+        end: formValue.end!,
+        icon: formValue.icon!,
+        registrationOptions,
+        start: formValue.start!,
+        title: formValue.title!,
+      },
+      {
+        onSuccess: () => {
+          this.notifications.showSuccess('Event updated successfully');
+          this.router.navigate(['/events', eventId]);
+        },
+        onError: (error) => {
+          this.notifications.showError(
+            'Failed to update event: ' + error.message
+          );
+        },
+      }
+    );
+  }
 }
