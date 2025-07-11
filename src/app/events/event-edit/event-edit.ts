@@ -77,7 +77,7 @@ export class EventEdit extends EventFormBase {
 
     const formValue = this.editEventForm.value;
     const eventId = this.eventId();
-    const registrationOptions = this.transformRegistrationOptions(formValue.registrationOptions);
+    const registrationOptions = this.transformRegistrationOptions(formValue.registrationOptions || []);
     
     this.updateEventMutation.mutate(
       {
