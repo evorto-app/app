@@ -1,5 +1,5 @@
 <div class="mb-4 flex flex-row items-center gap-2">
-  <a routerLink="/scan" mat-icon-button>
+  <a [routerLink]="backUrl()" mat-icon-button>
     <fa-duotone-icon [icon]="faArrowLeft"></fa-duotone-icon>
   </a>
   <h1 class="title-large">Registration scanned</h1>
@@ -40,6 +40,15 @@
     <div class="border-b p-2">
       <p class="title-small px-2">Event</p>
       <p class="px-2">{{ scanResultQuery.data().event.title }}</p>
+      @if (eventMismatch()) {
+        <div class="bg-error text-on-error mt-2 rounded p-2">
+          <p class="title-small">Event mismatch</p>
+          <p>
+            This registration is for a different event than the one you're currently organizing.
+            Please make sure you're scanning the correct QR code.
+          </p>
+        </div>
+      }
       @if (!startsSoon()) {
         <div class="bg-error text-on-error mt-2 rounded p-2">
           <p class="title-small">Event starting in the future</p>
@@ -67,11 +76,22 @@
     </div>
   </div>
   <button
-    [disabled]="!scanResultQuery.data().allowCheckin"
+    [disabled]="!scanResultQuery.data()?.allowCheckin || checkInMutation.isPending() || eventMismatch()"
     class="mt-4 w-full"
     mat-raised-button
     (click)="checkIn()"
   >
-    Confirm Check In
+    @if (checkInMutation.isPending()) {
+      Checking in...
+    } @else {
+      Confirm Check In
+    }
   </button>
+  
+  @if (checkInMutation.isError()) {
+    <div class="bg-error text-on-error mt-4 rounded-2xl p-4">
+      <h2 class="title-medium mb-2">Check-in failed</h2>
+      <p class="body-medium">{{ checkInMutation.error()?.message }}</p>
+    </div>
+  }
 }

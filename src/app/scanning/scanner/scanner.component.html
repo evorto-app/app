@@ -2,6 +2,19 @@
   <h1 class="title-large">Scanner</h1>
   <div class="grow"></div>
 </div>
+
+@if (eventId()) {
+  <div class="bg-primary text-on-primary mb-4 rounded-2xl p-4">
+    <h2 class="title-medium mb-2">Event Context</h2>
+    <p class="body-medium">
+      Scanning for event: {{ eventId() }}
+    </p>
+    <p class="body-small">
+      Registrations will be validated against this event.
+    </p>
+  </div>
+}
+
 <div class="bg-surface text-on-surface rounded-lg p-4">
   <p class="mb-4">
     Please allow access to your camera in case your browser asks for it.

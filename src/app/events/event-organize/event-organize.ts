@@ -6,11 +6,12 @@ import {
 } from '@angular/core';
 import { MatIconButton } from '@angular/material/button';
 import { MatMenu, MatMenuItem, MatMenuModule } from '@angular/material/menu';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { FaDuotoneIconComponent } from '@fortawesome/angular-fontawesome';
 import {
   faArrowLeft,
   faEllipsisVertical,
+  faQrcode,
 } from '@fortawesome/duotone-regular-svg-icons';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
@@ -33,7 +34,18 @@ import { IfAnyPermissionDirective } from '../../shared/directives/if-any-permiss
 export class EventOrganize {
   public eventId = input.required<string>();
   private queries = inject(QueriesService);
+  private router = inject(Router);
+  
   protected readonly eventQuery = injectQuery(this.queries.event(this.eventId));
+  protected readonly participantsQuery = injectQuery(this.queries.eventParticipants(this.eventId));
+  
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faEllipsisVertical = faEllipsisVertical;
+  protected readonly faQrcode = faQrcode;
+
+  openScanner() {
+    this.router.navigate(['/scan'], { 
+      queryParams: { eventId: this.eventId() } 
+    });
+  }
 }

@@ -8,7 +8,7 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
 import consola from 'consola/browser';
 import QrScanner from 'qr-scanner';
@@ -26,9 +26,19 @@ export class ScannerComponent implements OnDestroy {
   protected readonly videoRef =
     viewChild<ElementRef<HTMLVideoElement>>('videoElement');
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
   private readonly scanner = signal<null | QrScanner>(null);
+  
+  // Get eventId from query params if present - make it protected so template can access
+  protected readonly eventId = signal<string | null>(null);
 
   constructor() {
+    // Check for eventId in query params
+    this.route.queryParamMap.subscribe(params => {
+      const eventId = params.get('eventId');
+      this.eventId.set(eventId);
+    });
+
     afterNextRender(() => {
       const videoElement = this.videoRef();
       if (!videoElement) {
@@ -64,7 +74,10 @@ export class ScannerComponent implements OnDestroy {
       if (url.pathname.startsWith('/scan/registration/')) {
         const registrationId = url.pathname.split('/').pop();
         if (registrationId) {
-          this.router.navigate(['/scan/registration', registrationId]);
+          // Include eventId in navigation if present
+          const eventId = this.eventId();
+          const navigationExtras = eventId ? { queryParams: { eventId } } : {};
+          this.router.navigate(['/scan/registration', registrationId], navigationExtras);
           return;
         }
       } else {

@@ -12,12 +12,16 @@ import {
   router,
 } from '../trpc-server';
 import { cancelPendingRegistrationProcedure } from './cancel-pending-registration.procedure';
+import { checkInProcedure } from './check-in.procedure';
 import { eventListProcedure } from './event-list.procedure';
+import { eventParticipantsProcedure } from './event-participants.procedure';
 import { registerForEventProcedure } from './register-for-event.procedure';
 import { registrationScannedProcedure } from './registration-scanned.procedure';
 
 export const eventRouter = router({
   cancelPendingRegistration: cancelPendingRegistrationProcedure,
+
+  checkIn: checkInProcedure,
 
   create: authenticatedProcedure
     .meta({ requiredPermissions: ['events:create'] })
@@ -95,6 +99,8 @@ export const eventRouter = router({
       events,
     }));
   }),
+
+  eventParticipants: eventParticipantsProcedure,
 
   findMany: eventListProcedure.query(async ({ ctx: { events } }) => {
     return events;

@@ -68,6 +68,20 @@ export class QueriesService {
       });
   }
 
+  public checkIn() {
+    return () =>
+      mutationOptions({
+        mutationFn: (
+          input: AppRouter['events']['checkIn']['_def']['$types']['input'],
+        ) => this.trpcClient.events.checkIn.mutate(input),
+        onSuccess: () => {
+          this.queryClient.invalidateQueries({
+            queryKey: ['registrationScanned'],
+          });
+        },
+      });
+  }
+
   public createAccount() {
     return () =>
       mutationOptions({
@@ -217,6 +231,14 @@ export class QueriesService {
       queryOptions({
         queryFn: () => this.trpcClient.events.eventList.query(input()),
         queryKey: ['events', input()],
+      });
+  }
+
+  public eventParticipants(eventId: Signal<string>) {
+    return () =>
+      queryOptions({
+        queryFn: () => this.trpcClient.events.eventParticipants.query({ eventId: eventId() }),
+        queryKey: ['eventParticipants', eventId()],
       });
   }
 

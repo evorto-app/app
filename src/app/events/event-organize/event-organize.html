@@ -5,6 +5,14 @@
   <h1 class="title-large">{{ eventQuery.data()?.title ?? "Loading ..." }}</h1>
   <div class="grow"></div>
   <button
+    title="Open Scanner"
+    mat-icon-button
+    (click)="openScanner()"
+    class="bg-primary text-on-primary"
+  >
+    <fa-duotone-icon [icon]="faQrcode"></fa-duotone-icon>
+  </button>
+  <button
     title="menu"
     *appIfAnyPermission="['events:changeVisibility']"
     mat-icon-button
@@ -18,3 +26,81 @@
     <!--    </button>-->
   </mat-menu>
 </div>
+
+@if (participantsQuery.isPending()) {
+  <div
+    class="bg-surface text-on-surface flex animate-pulse cursor-progress flex-col gap-2 rounded-2xl p-4"
+  >
+    <h2 class="title-medium">Loading participants...</h2>
+  </div>
+} @else if (participantsQuery.isError()) {
+  <div class="bg-error text-on-error rounded-2xl p-4">
+    <h2 class="title-medium mb-4">Error loading participants</h2>
+    <p class="body-medium">{{ participantsQuery.error()?.message }}</p>
+  </div>
+} @else if (participantsQuery.isSuccess()) {
+  <div class="space-y-4">
+    <!-- Statistics Cards -->
+    <div class="grid grid-cols-2 gap-4 md:grid-cols-4">
+      <div class="bg-surface text-on-surface rounded-2xl p-4">
+        <h3 class="title-small">Total</h3>
+        <p class="display-small">{{ participantsQuery.data().stats.total }}</p>
+      </div>
+      <div class="bg-surface text-on-surface rounded-2xl p-4">
+        <h3 class="title-small">Confirmed</h3>
+        <p class="display-small">{{ participantsQuery.data().stats.confirmed }}</p>
+      </div>
+      <div class="bg-surface text-on-surface rounded-2xl p-4">
+        <h3 class="title-small">Checked In</h3>
+        <p class="display-small">{{ participantsQuery.data().stats.checkedIn }}</p>
+      </div>
+      <div class="bg-surface text-on-surface rounded-2xl p-4">
+        <h3 class="title-small">Pending</h3>
+        <p class="display-small">{{ participantsQuery.data().stats.pending }}</p>
+      </div>
+    </div>
+
+    <!-- Participants List -->
+    <div class="bg-surface text-on-surface rounded-2xl">
+      <div class="border-b p-4">
+        <h2 class="title-medium">Participants</h2>
+      </div>
+      
+      @if (participantsQuery.data().registrations.length === 0) {
+        <div class="p-4 text-center">
+          <p class="body-medium">No participants yet</p>
+        </div>
+      } @else {
+        <div class="divide-y">
+          @for (registration of participantsQuery.data().registrations; track registration.id) {
+            <div class="flex items-center justify-between p-4">
+              <div class="flex-1">
+                <h3 class="title-small">
+                  {{ registration.user.firstName }} {{ registration.user.lastName }}
+                </h3>
+                <p class="body-small text-on-surface-variant">
+                  {{ registration.registrationOption.title }}
+                </p>
+              </div>
+              <div class="flex items-center gap-2">
+                @if (registration.checkInTime) {
+                  <div class="bg-primary text-on-primary rounded-full px-3 py-1 text-sm">
+                    Checked In
+                  </div>
+                } @else if (registration.status === 'CONFIRMED') {
+                  <div class="bg-tertiary text-on-tertiary rounded-full px-3 py-1 text-sm">
+                    Confirmed
+                  </div>
+                } @else {
+                  <div class="bg-surface-variant text-on-surface-variant rounded-full px-3 py-1 text-sm">
+                    {{ registration.status }}
+                  </div>
+                }
+              </div>
+            </div>
+          }
+        </div>
+      }
+    </div>
+  </div>
+}
