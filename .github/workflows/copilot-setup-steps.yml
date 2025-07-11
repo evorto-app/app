@@ -28,14 +28,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Enable Corepack
+        run: corepack enable
+      
+      - name: Install Yarn 4.x
+        run: corepack prepare yarn@4 --activate
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "20"
           cache: "yarn"
-
-      - name: Enable Corepack
-        run: corepack enable
 
       - name: Configure FontAwesome authentication
         run: yarn config set npmScopes.fortawesome.npmAuthToken ${{ secrets.FONT_AWESOME_TOKEN }}
