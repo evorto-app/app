@@ -18,6 +18,26 @@ services:
       STRIPE_WEBHOOK_SECRET: whsec_5cc4e8e60977a2f87895f2fe5484040de96728381f08f33617633205a0cafae3
     ports:
       - "4200:4200"
+    depends_on:
+      - postgres
+
+  postgres:
+    image: postgres:16
+    container_name: evorto-postgres
+    environment:
+      POSTGRES_DB: evorto_local
+      POSTGRES_USER: evorto
+      POSTGRES_PASSWORD: evorto_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-local-db.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U evorto -d evorto_local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   stripe:
     image: stripe/stripe-cli:v1.25.0
@@ -28,6 +48,9 @@ services:
     environment:
       STRIPE_DEVICE_NAME: integration-tests
     command: "listen --forward-to http://evorto:4200/webhooks/stripe"
+
+volumes:
+  postgres_data:
 
 secrets:
   FONT_AWESOME_TOKEN:
