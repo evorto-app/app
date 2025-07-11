@@ -41,7 +41,7 @@ jobs:
           cache: "yarn"
 
       - name: Configure FontAwesome authentication
-        run: yarn config set npmScopes.fortawesome.npmAuthToken ${{ secrets.FONT_AWESOME_TOKEN }}
+        run: yarn config set npmScopes.fortawesome.npmAuthToken ${{ secrets.FONT_AWESOME_TOKEN }} --home
 
       - name: Install dependencies
         run: yarn install
