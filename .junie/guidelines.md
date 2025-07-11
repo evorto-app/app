@@ -1,5 +1,9 @@
 # Evorto Project Guidelines for Junie
 
+## Important references
+
+- [Angular instructions]('./angular.md')
+
 ## Project Overview
 
 Evorto is an Angular 20 application for event management and registration. The application allows users to create, manage, and register for events, with features including:
