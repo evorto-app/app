@@ -1,13 +1,14 @@
-# Local Database Setup for Evorto
+# Neon Local Database Setup for Evorto
 
-This document describes how to set up and use the local PostgreSQL database for development and testing, providing a local interface similar to Neon Local.
+This document describes how to set up and use Neon Local for development and testing, providing a local interface to your Neon cloud database.
 
 ## Overview
 
-The local database setup provides:
-- A PostgreSQL container running locally
+The Neon Local setup provides:
+- A local proxy service to your Neon cloud database
+- Automatic branch creation and management
 - Same schema as the production Neon database
-- Seeded test data for development
+- Git branch integration for persistent database branches
 - Easy management scripts
 - Automatic fallback to remote database when not in local mode
 
@@ -15,18 +16,26 @@ The local database setup provides:
 
 - Docker and Docker Compose
 - Node.js and Yarn
+- Neon API key and Project ID
 - Environment configured in `.env.local`
 
 ## Quick Start
 
-1. **Start the local database and development server:**
+1. **Set up your environment variables:**
+   ```bash
+   # In your .env.local file
+   NEON_API_KEY=your_neon_api_key
+   NEON_PROJECT_ID=your_neon_project_id
+   ```
+
+2. **Start the Neon Local proxy and development server:**
    ```bash
    yarn dev:local
    ```
 
-2. **Or start components separately:**
+3. **Or start components separately:**
    ```bash
-   # Start local database only
+   # Start Neon Local proxy only
    yarn db:local:up
    
    # Set up schema and seed data
@@ -38,14 +47,18 @@ The local database setup provides:
 
 ## Environment Configuration
 
-The local database uses these environment variables:
+The Neon Local setup uses these environment variables:
 
 ```env
-# Local database connection (default if not set)
-DATABASE_URL_LOCAL=postgresql://evorto:evorto_password@localhost:5432/evorto_local
+# Neon Local connection (default if not set)
+DATABASE_URL_LOCAL=postgres://neon:npg@localhost:5432/neondb?sslmode=no-verify
 
 # Enable local database mode
 USE_LOCAL_DATABASE=true
+
+# Neon API credentials (required)
+NEON_API_KEY=your_neon_api_key
+NEON_PROJECT_ID=your_neon_project_id
 
 # Remote database URL (fallback)
 DATABASE_URL=your_neon_database_url
@@ -55,37 +68,37 @@ DATABASE_URL=your_neon_database_url
 
 ### Yarn Scripts
 
-- `yarn db:local:up` - Start local PostgreSQL container
-- `yarn db:local:down` - Stop local PostgreSQL container
-- `yarn db:local:push` - Push schema to local database
-- `yarn db:local:setup` - Seed local database with test data
-- `yarn db:local:reset` - Reset local database (push schema + seed data)
-- `yarn dev:local` - Start database and development server
+- `yarn db:local:up` - Start Neon Local proxy container
+- `yarn db:local:down` - Stop Neon Local proxy container
+- `yarn db:local:push` - Push schema to Neon Local database
+- `yarn db:local:setup` - Seed Neon Local database with test data
+- `yarn db:local:reset` - Reset Neon Local database (push schema + seed data)
+- `yarn dev:local` - Start Neon Local proxy and development server
 
 ### Management Script
 
 Use the `scripts/local-db.sh` script for more detailed management:
 
 ```bash
-# Start local database
+# Start Neon Local proxy
 ./scripts/local-db.sh start
 
-# Stop local database
+# Stop Neon Local proxy
 ./scripts/local-db.sh stop
 
 # Reset database (recreate schema and seed data)
 ./scripts/local-db.sh reset
 
-# Show database status
+# Show Neon Local status
 ./scripts/local-db.sh status
 
-# Show database logs
+# Show Neon Local logs
 ./scripts/local-db.sh logs
 
 # Connect to database CLI
 ./scripts/local-db.sh connect
 
-# Start database and development server
+# Start Neon Local proxy and development server
 ./scripts/local-db.sh dev
 ```
 
@@ -96,31 +109,37 @@ The application automatically detects which database to use:
 1. **Local Database**: Used when `NODE_ENV=development` AND (`DATABASE_URL_LOCAL` is set OR `USE_LOCAL_DATABASE=true`)
 2. **Remote Database**: Used otherwise (production, staging, or when local database is not configured)
 
-## Local Database Details
+## Neon Local Details
 
-- **Database**: `evorto_local`
-- **User**: `evorto`
-- **Password**: `evorto_password`
+- **Connection**: `postgres://neon:npg@localhost:5432/neondb`
 - **Port**: `5432`
-- **Host**: `localhost` (or `postgres` when running in Docker)
+- **Host**: `localhost` (or `db` when running in Docker)
+- **Branch Management**: Automatically creates and deletes branches
+- **Git Integration**: Persistent branches per Git branch
 
 ## Troubleshooting
 
-### Database Connection Issues
+### Neon Local Connection Issues
 
 1. **Check if Docker is running:**
    ```bash
    docker info
    ```
 
-2. **Check if database container is running:**
+2. **Check if Neon Local container is running:**
    ```bash
-   docker ps | grep evorto-postgres
+   docker ps | grep evorto-neon-local
    ```
 
-3. **Check database logs:**
+3. **Check Neon Local logs:**
    ```bash
    ./scripts/local-db.sh logs
+   ```
+
+4. **Verify environment variables are set:**
+   ```bash
+   echo $NEON_API_KEY
+   echo $NEON_PROJECT_ID
    ```
 
 ### Port Already in Use
@@ -128,12 +147,25 @@ The application automatically detects which database to use:
 If port 5432 is already in use, you can change it in `docker-compose.yml`:
 
 ```yaml
-postgres:
+db:
   ports:
     - "5433:5432"  # Change left side to different port
 ```
 
 Then update your `DATABASE_URL_LOCAL` accordingly.
+
+### API Key Issues
+
+If you're getting authentication errors:
+
+1. **Verify your Neon API key:**
+   - Go to [Neon Console](https://console.neon.tech/)
+   - Navigate to Account Settings > API Keys
+   - Generate a new API key if needed
+
+2. **Check your Project ID:**
+   - Go to your project in Neon Console
+   - Find Project ID in Settings > General
 
 ### Schema Issues
 

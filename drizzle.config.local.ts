@@ -2,7 +2,7 @@ import { defineConfig } from 'drizzle-kit';
 
 export default defineConfig({
   dbCredentials: {
-    url: process.env['DATABASE_URL_LOCAL'] || 'postgresql://evorto:evorto_password@localhost:5432/evorto_local',
+    url: process.env['DATABASE_URL_LOCAL'] || 'postgres://neon:npg@localhost:5432/neondb?sslmode=no-verify',
   },
   dialect: 'postgresql',
   out: './drizzle',

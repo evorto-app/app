@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Local Database Management Script for Evorto
-# This script provides a local interface for testing similar to Neon Local
+# Neon Local Database Management Script for Evorto
+# This script provides a local interface using Neon Local proxy service
 
 set -e
 
@@ -32,27 +32,40 @@ check_docker() {
     fi
 }
 
-# Function to start local database
+# Function to check environment variables
+check_env() {
+    if [ -z "${NEON_API_KEY}" ]; then
+        print_error "NEON_API_KEY environment variable is not set"
+        exit 1
+    fi
+    if [ -z "${NEON_PROJECT_ID}" ]; then
+        print_error "NEON_PROJECT_ID environment variable is not set"
+        exit 1
+    fi
+}
+
+# Function to start Neon Local
 start_db() {
-    print_status "Starting local PostgreSQL database..."
+    print_status "Starting Neon Local database proxy..."
     check_docker
-    docker compose up -d postgres
+    check_env
+    docker compose up -d db
     
-    # Wait for database to be ready
-    print_status "Waiting for database to be ready..."
-    timeout 30 bash -c 'until docker exec evorto-postgres pg_isready -U evorto -d evorto_local; do sleep 1; done' || {
-        print_error "Database failed to start within 30 seconds"
+    # Wait for Neon Local to be ready
+    print_status "Waiting for Neon Local to be ready..."
+    timeout 60 bash -c 'until nc -z localhost 5432; do sleep 1; done' || {
+        print_error "Neon Local failed to start within 60 seconds"
         exit 1
     }
     
-    print_status "Local database is ready!"
+    print_status "Neon Local is ready!"
 }
 
-# Function to stop local database
+# Function to stop Neon Local
 stop_db() {
-    print_status "Stopping local PostgreSQL database..."
+    print_status "Stopping Neon Local database proxy..."
     docker compose down
-    print_status "Local database stopped!"
+    print_status "Neon Local stopped!"
 }
 
 # Function to reset local database
@@ -66,42 +79,49 @@ reset_db() {
 
 # Function to show database status
 status_db() {
-    if docker ps | grep -q evorto-postgres; then
-        print_status "Local database is running"
-        docker exec evorto-postgres psql -U evorto -d evorto_local -c "SELECT 'Database connection successful' as status;"
+    if docker ps | grep -q evorto-neon-local; then
+        print_status "Neon Local is running"
+        # Test connection to Neon Local
+        if nc -z localhost 5432; then
+            print_status "Connection to Neon Local successful"
+        else
+            print_warning "Neon Local container is running but not accepting connections"
+        fi
     else
-        print_warning "Local database is not running"
+        print_warning "Neon Local is not running"
     fi
 }
 
 # Function to show logs
 logs_db() {
-    docker compose logs -f postgres
+    docker compose logs -f db
 }
 
 # Function to connect to database
 connect_db() {
-    print_status "Connecting to local database..."
-    docker exec -it evorto-postgres psql -U evorto -d evorto_local
+    print_status "Connecting to Neon Local database..."
+    psql 'postgres://neon:npg@localhost:5432/neondb?sslmode=no-verify'
 }
 
 # Function to show help
 show_help() {
-    echo "Evorto Local Database Management"
+    echo "Evorto Neon Local Database Management"
     echo "Usage: $0 [command]"
     echo ""
     echo "Commands:"
-    echo "  start     Start the local PostgreSQL database"
-    echo "  stop      Stop the local PostgreSQL database"
+    echo "  start     Start the Neon Local database proxy"
+    echo "  stop      Stop the Neon Local database proxy"
     echo "  reset     Reset the local database (recreate schema and seed data)"
-    echo "  status    Show database status"
-    echo "  logs      Show database logs"
+    echo "  status    Show Neon Local status"
+    echo "  logs      Show Neon Local logs"
     echo "  connect   Connect to the database CLI"
-    echo "  dev       Start database and run development server"
+    echo "  dev       Start Neon Local and run development server"
     echo "  help      Show this help message"
     echo ""
     echo "Environment Variables:"
-    echo "  DATABASE_URL_LOCAL  Local database connection string (default: postgresql://evorto:evorto_password@localhost:5432/evorto_local)"
+    echo "  NEON_API_KEY        Your Neon API key (required)"
+    echo "  NEON_PROJECT_ID     Your Neon Project ID (required)"
+    echo "  DATABASE_URL_LOCAL  Local database connection string (default: postgres://neon:npg@localhost:5432/neondb)"
     echo "  USE_LOCAL_DATABASE  Set to 'true' to use local database (default: true in development)"
 }
 

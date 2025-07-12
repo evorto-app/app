@@ -52,6 +52,9 @@ Thumbs.db
 # Secrets
 .env
 
+# Neon Local
+.neon_local/
+
 # Playwright
 /test-results/
 /playwright-report/

@@ -19,25 +19,20 @@ services:
     ports:
       - "4200:4200"
     depends_on:
-      - postgres
+      - db
 
-  postgres:
-    image: postgres:16
-    container_name: evorto-postgres
+  db:
+    image: neondatabase/neon_local:latest
+    container_name: evorto-neon-local
     environment:
-      POSTGRES_DB: evorto_local
-      POSTGRES_USER: evorto
-      POSTGRES_PASSWORD: evorto_password
+      NEON_API_KEY: ${NEON_API_KEY}
+      NEON_PROJECT_ID: ${NEON_PROJECT_ID}
+      DRIVER: serverless
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./scripts/init-local-db.sql:/docker-entrypoint-initdb.d/init.sql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U evorto -d evorto_local"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      - ./.neon_local/:/tmp/.neon_local
+      - ./.git/HEAD:/tmp/.git/HEAD:ro,consistent
 
   stripe:
     image: stripe/stripe-cli:v1.25.0
@@ -48,9 +43,6 @@ services:
     environment:
       STRIPE_DEVICE_NAME: integration-tests
     command: "listen --forward-to http://evorto:4200/webhooks/stripe"
-
-volumes:
-  postgres_data:
 
 secrets:
   FONT_AWESOME_TOKEN:

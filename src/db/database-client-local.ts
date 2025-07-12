@@ -1,11 +1,12 @@
-import { drizzle } from 'drizzle-orm/node-postgres';
-import { Pool } from 'pg';
+import { neon, neonConfig } from '@neondatabase/serverless';
+import { drizzle } from 'drizzle-orm/neon-serverless';
 
 import * as schema from './schema';
 
-// Create a local PostgreSQL connection pool
-const pool = new Pool({
-  connectionString: process.env['DATABASE_URL_LOCAL'] || 'postgresql://evorto:evorto_password@localhost:5432/evorto_local',
-});
+// Configure Neon Local endpoint
+neonConfig.fetchEndpoint = 'http://localhost:5432/sql';
 
-export const databaseLocal = drizzle(pool, { schema });
+// Create a local Neon connection using the serverless driver
+const sql = neon(process.env['DATABASE_URL_LOCAL'] || 'postgres://neon:npg@localhost:5432/neondb');
+
+export const databaseLocal = drizzle(sql, { schema });
