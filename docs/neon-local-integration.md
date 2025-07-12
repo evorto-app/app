@@ -1,10 +1,10 @@
 # Neon Local Integration
 
-This document describes the integration of neon-local for testing purposes.
+This document describes the integration of neon-local for running all integration tests.
 
 ## Overview
 
-The application has been configured to use [neon-local](https://github.com/neondatabase-labs/neon_local) as a proxy service for testing. Neon-local creates a local interface to your Neon cloud database and can automatically manage database branches.
+The application has been configured to use [neon-local](https://github.com/neondatabase-labs/neon_local) as a proxy service for running the complete integration test suite. Neon-local creates a local interface to your Neon cloud database and can automatically manage database branches, providing a consistent environment for all tests.
 
 ## Configuration
 
@@ -27,11 +27,19 @@ db:
 
 ### Environment Variables
 
-The following environment variables are required:
+The following environment variables are required and must be provided in your `.env` file:
 
-- `NEON_API_KEY`: Your Neon API key
-- `NEON_PROJECT_ID`: Your Neon project ID
+- `NEON_API_KEY`: Your Neon API key (get from [Neon console](https://console.neon.tech/app/settings/api-keys))
+- `NEON_PROJECT_ID`: Your Neon project ID (found in project settings)
 - `DATABASE_URL`: Set to `postgres://neon:npg@localhost:5432/neondb` for neon-local
+
+Create a `.env` file in the project root with these values:
+
+```bash
+NEON_API_KEY=your_neon_api_key_here
+NEON_PROJECT_ID=your_project_id_here
+DATABASE_URL=postgres://neon:npg@localhost:5432/neondb
+```
 
 ### Database Configuration
 
@@ -46,16 +54,38 @@ if (process.env['DATABASE_URL']?.includes('localhost:5432')) {
 
 ## Usage
 
-### Running Tests
+### Running All Integration Tests
 
-To run tests with neon-local:
+To run the complete integration test suite with neon-local:
 
 ```bash
 # Start the neon-local container
 docker compose up db
 
-# Run tests
+# Run all integration tests
 npm run e2e
+```
+
+This will run all tests including:
+- Event creation and management tests
+- Template functionality tests
+- Database interaction tests
+- User authentication tests
+- And all other integration tests
+
+### Running Specific Test Suites
+
+You can also run specific test suites:
+
+```bash
+# Run only smoke tests
+npm run e2e -- --grep "smoke"
+
+# Run only event tests
+npm run e2e -- --grep "events"
+
+# Run only template tests
+npm run e2e -- --grep "templates"
 ```
 
 ### Git Integration

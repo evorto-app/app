@@ -11,17 +11,19 @@ echo "=================================="
 # Check if required environment variables are set
 if [ -z "$NEON_API_KEY" ]; then
     echo "❌ NEON_API_KEY is not set"
+    echo "   Please create a .env file with your Neon API key"
     exit 1
 fi
 
 if [ -z "$NEON_PROJECT_ID" ]; then
     echo "❌ NEON_PROJECT_ID is not set"
+    echo "   Please create a .env file with your Neon project ID"
     exit 1
 fi
 
 echo "✅ Environment variables are set"
 echo "   NEON_PROJECT_ID: $NEON_PROJECT_ID"
-echo "   NEON_API_KEY: ${NEON_API_KEY:0:10}..."
+echo "   NEON_API_KEY: [REDACTED]"
 
 # Check if Docker is available
 if ! command -v docker &> /dev/null; then
