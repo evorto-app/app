@@ -31,7 +31,7 @@ services:
     environment:
       NEON_API_KEY: ${NEON_API_KEY}
       NEON_PROJECT_ID: ${NEON_PROJECT_ID}
-      DRIVER: serverless
+      DRIVER: postgres
       DELETE_BRANCH: "false"
 
   stripe:
