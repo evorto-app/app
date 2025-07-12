@@ -66,3 +66,6 @@ Thumbs.db
 
 .npmrc
 repomix-output.md
+
+# neon-local metadata
+.neon_local/

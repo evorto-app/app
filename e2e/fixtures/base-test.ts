@@ -3,6 +3,7 @@ import { init } from '@paralleldrive/cuid2';
 import { test as base } from '@playwright/test';
 import { ManagementClient } from 'auth0';
 import { drizzle, NeonDatabase } from 'drizzle-orm/neon-serverless';
+import { neonConfig } from '@neondatabase/serverless';
 import ws from 'ws';
 
 import { relations } from '../../src/db/relations';
@@ -28,6 +29,11 @@ interface BaseFixtures {
 
 export const test = base.extend<BaseFixtures>({
   database: async ({}, use) => {
+    // Configure neon-local for serverless driver when using local database
+    if (process.env['DATABASE_URL']?.includes('localhost:5432')) {
+      neonConfig.fetchEndpoint = 'http://localhost:5432/sql';
+    }
+    
     const database = drizzle({
       connection: process.env['DATABASE_URL']!,
       relations,
