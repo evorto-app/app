@@ -21,6 +21,8 @@
     "generate:colors": "ng generate @angular/material:theme-color --include-high-contrast --primary-color=#0891b2 --interactive=false --directory=src/ --force=true",
     "generate:colors:esn": "ng generate @angular/material:theme-color --include-high-contrast --primary-color=#00aeef --secondary-color=#ec008c --tertiary-color=#7ac143 --interactive=false --directory=src/_esn --force",
     "sentry:sourcemaps": "sentry-cli sourcemaps inject --org lukas-heddendorp --project evorto ./dist && sentry-cli sourcemaps upload --org lukas-heddendorp --project evorto ./dist",
+    "docker:stop": "docker compose -f docker-compose.yml down",
+    "docker:start": "yarn docker:stop && docker compose -f docker-compose.yml up --build -d",
     "push:database": "drizzle-kit push --force true",
     "setup:database": "tsx helpers/database.ts",
     "reset:database": "run push:database && run setup:database"

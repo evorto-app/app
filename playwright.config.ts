@@ -81,7 +81,7 @@ export default defineConfig({
   },
 
   webServer: {
-    command: process.env['CI'] ? 'docker compose up' : '',
+    command: process.env['CI'] ? 'yarn docker:start' : '',
     reuseExistingServer: !process.env['CI'],
     url: 'http://localhost:4200',
   },

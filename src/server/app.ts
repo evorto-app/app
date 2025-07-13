@@ -50,7 +50,9 @@ app.use(socialCrawlerBypass);
 app.use('/webhooks', webhookRouter);
 app.use('/qr', qrCodeRouter);
 
-app.use(auth(config));
+if (!process.env['PRERENDER']) {
+  app.use(auth(config));
+}
 
 app.use(cookieParser());
 app.use(addAuthenticationContext);

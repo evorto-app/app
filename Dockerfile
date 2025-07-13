@@ -7,8 +7,9 @@ WORKDIR /app
 FROM base AS build
 ENV PRERENDER=true
 ENV STRIPE_API_KEY=sk_test_NotARealKey
+ENV DATABASE_URL=postgres://user:password@localhost:5432/dbname
 COPY --chown=appuser:appuser package.json yarn.lock .yarnrc.yml ./
-RUN --mount=type=secret,id=FONT_AWESOME_TOKEN,mode=0444 yarn config set npmScopes.fortawesome.npmAuthToken $(cat /run/secrets/FONT_AWESOME_TOKEN)
+RUN --mount=type=secret,id=FONT_AWESOME_TOKEN,mode=0444 yarn config set npmScopes.fortawesome.npmAuthToken $(cat /run/secrets/FONT_AWESOME_TOKEN) --home
 RUN yarn install --immutable
 COPY --chown=appuser:appuser . .
 RUN yarn build

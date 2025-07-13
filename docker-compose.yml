@@ -16,8 +16,6 @@ services:
       - .env
     environment:
       STRIPE_WEBHOOK_SECRET: whsec_5cc4e8e60977a2f87895f2fe5484040de96728381f08f33617633205a0cafae3
-      # Use neon-local for database connection in tests
-      DATABASE_URL: postgres://neon:npg@db:5432/neondb
     ports:
       - "4200:4200"
     depends_on:
@@ -27,12 +25,13 @@ services:
     image: neondatabase/neon_local:latest
     container_name: neon-local
     ports:
-      - '5432:5432'
+      - "5432:5432"
+    env_file:
+      - .env.local
+      - .env
     environment:
-      NEON_API_KEY: ${NEON_API_KEY}
-      NEON_PROJECT_ID: ${NEON_PROJECT_ID}
-      DRIVER: postgres
-      DELETE_BRANCH: "false"
+      DRIVER: serverless
+  #      DELETE_BRANCH: "false"
 
   stripe:
     image: stripe/stripe-cli:v1.25.0
