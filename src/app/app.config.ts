@@ -1,4 +1,5 @@
 import {
+  HttpClient,
   provideHttpClient,
   withFetch,
   withInterceptors,
@@ -25,17 +26,24 @@ import {
   withRouterConfig,
   withViewTransitions,
 } from '@angular/router';
+import {
+  createTRPCClientFactory,
+  provideTRPC,
+} from '@heddendorp/tanstack-angular-query';
+import { angularHttpLink } from '@heddendorp/trpc-link-angular';
 import * as Sentry from '@sentry/angular';
 import {
   provideTanStackQuery,
   QueryClient,
   withDevtools,
 } from '@tanstack/angular-query-experimental';
+import { createTRPCClient } from '@trpc/client';
+import superjson from 'superjson';
 
+import { AppRouter } from '../server/trpc/app-router';
 import { routes } from './app.routes';
 import { authTokenInterceptor } from './core/auth-token.interceptor';
 import { ConfigService } from './core/config.service';
-import { provideTrpcClient } from './core/trpc-client';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -48,7 +56,21 @@ export const appConfig: ApplicationConfig = {
       withRouterConfig({ paramsInheritanceStrategy: 'always' }),
     ),
     provideHttpClient(withFetch(), withInterceptors([authTokenInterceptor])),
-    provideTrpcClient(),
+    // provideTrpcClient(),
+    provideTRPC(
+      createTRPCClientFactory(() => {
+        const http = inject(HttpClient);
+        return createTRPCClient<AppRouter>({
+          links: [
+            angularHttpLink({
+              httpClient: http,
+              transformer: superjson,
+              url: '/trpc',
+            }),
+          ],
+        });
+      }),
+    ),
     provideClientHydration(withEventReplay()),
     provideTanStackQuery(new QueryClient(), withDevtools()),
     provideLuxonDateAdapter(),

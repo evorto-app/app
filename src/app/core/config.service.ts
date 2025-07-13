@@ -16,7 +16,7 @@ import { Permission } from '../../shared/permissions/permissions';
 import { Context } from '../../types/custom/context';
 import { Tenant } from '../../types/custom/tenant';
 import { QueriesService } from './queries.service';
-import { injectTrpcClient } from './trpc-client';
+import { injectTRPCClient } from './trpc-client';
 
 @Injectable({
   providedIn: 'root',
@@ -53,7 +53,7 @@ export class ConfigService {
   private readonly requestContext = inject(REQUEST_CONTEXT) as Context | null;
 
   private readonly title = inject(Title);
-  private trpcClient = injectTrpcClient();
+  private trpcClient = injectTRPCClient();
 
   constructor() {
     effect(() => {

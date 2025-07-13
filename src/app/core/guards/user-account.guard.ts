@@ -1,10 +1,10 @@
 import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
 
-import { injectTrpcClient } from '../trpc-client';
+import { injectTRPCClient } from '../trpc-client';
 
 export const userAccountGuard: CanActivateFn = async () => {
-  const trpcClient = injectTrpcClient();
+  const trpcClient = injectTRPCClient();
   const router = inject(Router);
   const isAuthenticated = await trpcClient.config.isAuthenticated.query();
   if (!isAuthenticated) {

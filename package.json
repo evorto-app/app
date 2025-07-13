@@ -43,6 +43,8 @@
     "@fortawesome/angular-fontawesome": "2.0.1",
     "@fortawesome/duotone-regular-svg-icons": "^6.7.2",
     "@fortawesome/free-brands-svg-icons": "^6.7.2",
+    "@heddendorp/tanstack-angular-query": "^0.0.4",
+    "@heddendorp/trpc-link-angular": "^0.0.4",
     "@neondatabase/serverless": "^1.0.1",
     "@ng-web-apis/common": "^4.12.0",
     "@paralleldrive/cuid2": "^2.2.2",
