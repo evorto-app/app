@@ -1733,9 +1733,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@heddendorp/tanstack-angular-query@npm:^0.0.4":
-  version: 0.0.4
-  resolution: "@heddendorp/tanstack-angular-query@npm:0.0.4"
+"@heddendorp/tanstack-angular-query@npm:^0.0.5":
+  version: 0.0.5
+  resolution: "@heddendorp/tanstack-angular-query@npm:0.0.5"
   dependencies:
     tslib: "npm:^2.3.0"
   peerDependencies:
@@ -1748,7 +1748,7 @@ __metadata:
   peerDependenciesMeta:
     "@heddendorp/trpc-link-angular":
       optional: true
-  checksum: 10c0/49db640e2bb75d4a7d8db398e3e7a567d5fc9b0738b27052e1724f30ddfac1ca9438ee1d2fadb23891785643a6f66a627a3caf55fc893c9474dc46abf12de693
+  checksum: 10c0/3a64a2ad9f5b7d7e40a849591a1db7ef2f288d479828e89a285110e0d3ca4d638b53f78f1e72b548a5ed00c780fab003462e7ce46be42188da171325e3e8ba4a
   languageName: node
   linkType: hard
 
@@ -6583,7 +6583,7 @@ __metadata:
     "@fortawesome/angular-fontawesome": "npm:2.0.1"
     "@fortawesome/duotone-regular-svg-icons": "npm:^6.7.2"
     "@fortawesome/free-brands-svg-icons": "npm:^6.7.2"
-    "@heddendorp/tanstack-angular-query": "npm:^0.0.4"
+    "@heddendorp/tanstack-angular-query": "npm:^0.0.5"
     "@heddendorp/trpc-link-angular": "npm:^0.0.4"
     "@neondatabase/serverless": "npm:^1.0.1"
     "@ng-web-apis/common": "npm:^4.12.0"
