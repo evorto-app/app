@@ -14,7 +14,7 @@ import {
 } from '@fortawesome/duotone-regular-svg-icons';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
-import { QueriesService } from '../../core/queries.service';
+import { injectTRPC } from '../../core/trpc-client';
 import { IfAnyPermissionDirective } from '../../shared/directives/if-any-permission.directive';
 
 @Component({
@@ -32,8 +32,8 @@ import { IfAnyPermissionDirective } from '../../shared/directives/if-any-permiss
 })
 export class EventOrganize {
   public eventId = input.required<string>();
-  private queries = inject(QueriesService);
-  protected readonly eventQuery = injectQuery(this.queries.event(this.eventId));
+  private trpc = injectTRPC();
+  protected readonly eventQuery = injectQuery(this.trpc.events.findOne.queryOptions({ id: this.eventId));
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faEllipsisVertical = faEllipsisVertical;
 }

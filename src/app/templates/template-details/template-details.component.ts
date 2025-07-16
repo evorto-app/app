@@ -19,7 +19,7 @@ import {
 } from '@fortawesome/duotone-regular-svg-icons';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
-import { QueriesService } from '../../core/queries.service';
+import { injectTRPC } from '../../core/trpc-client';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -46,8 +46,8 @@ export class TemplateDetailsComponent {
   protected readonly faEllipsisVertical = faEllipsisVertical;
 
   protected readonly templateId = input.required<string>();
-  private queries = inject(QueriesService);
+  private trpc = injectTRPC();
   protected readonly templateQuery = injectQuery(
-    this.queries.template(this.templateId),
+    this.trpc.templates.findOne.queryOptions({ id: this.templateId),
   );
 }

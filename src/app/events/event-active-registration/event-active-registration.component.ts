@@ -8,7 +8,7 @@ import {
 import { MatButtonModule } from '@angular/material/button';
 import { injectMutation } from '@tanstack/angular-query-experimental';
 
-import { QueriesService } from '../../core/queries.service';
+import { injectTRPC } from '../../core/trpc-client';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -28,10 +28,10 @@ export class EventActiveRegistrationComponent {
       status: string;
     }[]
   >();
-  private readonly queries = inject(QueriesService);
+  private readonly trpc = injectTRPC();
 
-  private readonly cancelPendingRegistrationMutation = injectMutation(
-    this.queries.cancelPendingRegistration(),
+  private readonly cancelPendingRegistrationMutation = injectMutation(() =>
+    this.trpc.events.cancelPendingRegistration.mutationOptions(),
   );
 
   cancelPendingRegistration(registration: { id: string }) {

@@ -28,7 +28,7 @@ import {
 } from '@tanstack/angular-query-experimental';
 import { DateTime } from 'luxon';
 
-import { QueriesService } from '../../core/queries.service';
+import { injectTRPC } from '../../core/trpc-client';
 import { EventGeneralForm } from '../../shared/components/forms/event-general-form/event-general-form';
 import {
   RegistrationOptionForm,
@@ -70,9 +70,9 @@ export class TemplateCreateEventComponent {
     start: this.fb.control<Date>(new Date()),
     title: this.fb.control(''),
   });
-  private queries = inject(QueriesService);
+  private trpc = injectTRPC();
   protected readonly createEventMutation = injectMutation(
-    this.queries.createEvent(),
+    this.trpc.events.create.mutationOptions(),
   );
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly registrationModes = [
@@ -82,7 +82,7 @@ export class TemplateCreateEventComponent {
   ] as const;
   protected readonly templateId = input.required<string>();
   protected readonly templateQuery = injectQuery(
-    this.queries.template(this.templateId),
+    this.trpc.templates.findOne.queryOptions({ id: this.templateId),
   );
   private eventStartValue = toSignal(
     this.createEventForm.controls.start.valueChanges,

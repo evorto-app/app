@@ -20,7 +20,7 @@ import {
 } from '@fortawesome/duotone-regular-svg-icons';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
-import { QueriesService } from '../../core/queries.service';
+import { injectTRPC } from '../../core/trpc-client';
 import { EventGeneralForm } from '../../shared/components/forms/event-general-form/event-general-form';
 import {
   RegistrationOptionForm,
@@ -60,8 +60,8 @@ export class EventEdit {
     start: this.fb.control<Date>(new Date()),
     title: this.fb.control(''),
   });
-  private queries = inject(QueriesService);
-  protected readonly eventQuery = injectQuery(this.queries.event(this.eventId));
+  private trpc = injectTRPC();
+  protected readonly eventQuery = injectQuery(this.trpc.events.findOne.queryOptions({ id: this.eventId));
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faEllipsisVertical = faEllipsisVertical;
   protected readonly registrationModes = [

@@ -28,7 +28,7 @@ import { firstValueFrom } from 'rxjs';
 
 import { ConfigService } from '../../core/config.service';
 import { PermissionsService } from '../../core/permissions.service';
-import { QueriesService } from '../../core/queries.service';
+import { injectTRPC } from '../../core/trpc-client';
 import { IconComponent } from '../../shared/components/icon/icon.component';
 import { IfAnyPermissionDirective } from '../../shared/directives/if-any-permission.directive';
 import { EventFilterDialogComponent } from '../event-filter-dialog/event-filter-dialog.component';
@@ -65,8 +65,10 @@ export class EventListComponent {
     this.permissions.hasPermission('events:seePrivate');
   protected readonly startFilter = signal(new Date());
   private readonly pageConfig = signal({ limit: 100, offset: 0 });
-  private readonly queries = inject(QueriesService);
-  private readonly selfQuery = injectQuery(this.queries.maybeSelf());
+  private readonly trpc = injectTRPC();
+  private readonly selfQuery = injectQuery(() =>
+    this.trpc.users.maybeSelf.queryOptions(),
+  );
   private readonly formBuilder = inject(NonNullableFormBuilder);
   protected readonly statusFilterControl = this.formBuilder.control<
     ('APPROVED' | 'DRAFT' | 'PENDING_REVIEW' | 'REJECTED')[]
@@ -111,8 +113,8 @@ export class EventListComponent {
       ...pageConfig,
     };
   });
-  protected readonly eventQuery = injectQuery(
-    this.queries.eventList(this.filterInput),
+  protected readonly eventQuery = injectQuery(() =>
+    this.trpc.events.eventList.queryOptions(this.filterInput()),
   );
   protected readonly faClock = faClock;
   protected readonly faEllipsisVertical = faEllipsisVertical;

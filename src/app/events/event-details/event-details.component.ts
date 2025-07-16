@@ -25,7 +25,7 @@ import { firstValueFrom } from 'rxjs';
 import { ConfigService } from '../../core/config.service';
 import { NotificationService } from '../../core/notification.service';
 import { PermissionsService } from '../../core/permissions.service';
-import { QueriesService } from '../../core/queries.service';
+import { injectTRPC } from '../../core/trpc-client';
 import { EventStatusComponent } from '../../shared/components/event-status/event-status.component';
 import { IfAnyPermissionDirective } from '../../shared/directives/if-any-permission.directive';
 import { EventActiveRegistrationComponent } from '../event-active-registration/event-active-registration.component';
@@ -51,9 +51,13 @@ import { UpdateVisibilityDialogComponent } from '../update-visibility-dialog/upd
 })
 export class EventDetailsComponent {
   public eventId = input.required<string>();
-  private queries = inject(QueriesService);
-  protected readonly eventQuery = injectQuery(this.queries.event(this.eventId));
-  protected readonly selfQery = injectQuery(this.queries.maybeSelf());
+  private trpc = injectTRPC();
+  protected readonly eventQuery = injectQuery(() =>
+    this.trpc.events.findOne.queryOptions({ id: this.eventId() }),
+  );
+  protected readonly selfQery = injectQuery(() =>
+    this.trpc.users.maybeSelf.queryOptions(),
+  );
   private permissions = inject(PermissionsService);
   protected readonly canEdit = computed(() => {
     const editAllPermission =
@@ -90,19 +94,23 @@ export class EventDetailsComponent {
   });
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faEllipsisVertical = faEllipsisVertical;
-  protected readonly registrationStatusQuery = injectQuery(
-    this.queries.eventRegistrationStatus(this.eventId),
+  protected readonly registrationStatusQuery = injectQuery(() =>
+    this.trpc.events.getRegistrationStatus.queryOptions({
+      eventId: this.eventId(),
+    }),
   );
-  protected readonly updateVisibilityMutation = injectMutation(
-    this.queries.updateEventVisibility(),
+  protected readonly updateVisibilityMutation = injectMutation(() =>
+    this.trpc.events.updateVisibility.mutationOptions(),
   );
   private readonly config = inject(ConfigService);
   private dialog = inject(MatDialog);
 
   private notifications = inject(NotificationService);
-  private readonly reviewMutation = injectMutation(this.queries.reviewEvent());
-  private readonly submitForReviewMutation = injectMutation(
-    this.queries.submitEventForReview(),
+  private readonly reviewMutation = injectMutation(() =>
+    this.trpc.events.reviewEvent.mutationOptions(),
+  );
+  private readonly submitForReviewMutation = injectMutation(() =>
+    this.trpc.events.submitForReview.mutationOptions(),
   );
 
   constructor() {

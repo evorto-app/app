@@ -3,11 +3,11 @@ import { CanActivateFn, Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 
 import { PermissionsService } from '../../core/permissions.service';
-import { QueriesService } from '../../core/queries.service';
+import { injectTRPCClient } from '../../core/trpc-client';
 
 export const eventEditGuard: CanActivateFn = async (route) => {
   const router = inject(Router);
-  const queries = inject(QueriesService);
+  const trpc = injectTRPCClient();
   const permissions = inject(PermissionsService);
   const eventId = route.params['id'];
 
@@ -16,7 +16,7 @@ export const eventEditGuard: CanActivateFn = async (route) => {
   }
 
   try {
-    const event = await firstValueFrom(queries.event(eventId).result$);
+    const event = await trpc.events.findOne.query({ id: eventId });
     if (event.status !== 'draft' && event.status !== 'rejected') {
       return router.createUrlTree(['/events', eventId], {
         queryParams: { error: 'event-locked' },

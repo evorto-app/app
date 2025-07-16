@@ -13,7 +13,7 @@ import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 import { DateTime } from 'luxon';
 
-import { QueriesService } from '../../core/queries.service';
+import { injectTRPC } from '../../core/trpc-client';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -25,9 +25,11 @@ import { QueriesService } from '../../core/queries.service';
 export class HandleRegistrationComponent {
   public readonly registrationId = input.required<string>();
   protected readonly faArrowLeft = faArrowLeft;
-  private readonly queries = inject(QueriesService);
-  protected readonly scanResultQuery = injectQuery(
-    this.queries.registrationScanned(this.registrationId),
+  private readonly trpc = injectTRPC();
+  protected readonly scanResultQuery = injectQuery(() =>
+    this.trpc.events.registrationScanned.queryOptions({
+      registrationId: this.registrationId(),
+    }),
   );
   protected readonly startsSoon = computed(() => {
     const scanResult = this.scanResultQuery.data();

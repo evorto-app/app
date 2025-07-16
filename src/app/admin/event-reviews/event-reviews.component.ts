@@ -22,7 +22,7 @@ import {
 import { firstValueFrom, interval } from 'rxjs';
 
 import { NotificationService } from '../../core/notification.service';
-import { QueriesService } from '../../core/queries.service';
+import { injectTRPC } from '../../core/trpc-client';
 import { EventReviewDialogComponent } from '../../events/event-review-dialog/event-review-dialog.component';
 
 @Component({
@@ -110,8 +110,10 @@ import { EventReviewDialogComponent } from '../../events/event-review-dialog/eve
 export class EventReviewsComponent {
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faArrowUpRightFromSquare = faArrowUpRightFromSquare;
-  private readonly queries = inject(QueriesService);
-  private readonly selfQuery = injectQuery(this.queries.self());
+  private readonly trpc = injectTRPC();
+  private readonly selfQuery = injectQuery(() =>
+    this.trpc.users.self.queryOptions(),
+  );
   private pendingReviewsFilter = computed(() => ({
     limit: 50,
     offset: 0,
@@ -120,11 +122,11 @@ export class EventReviewsComponent {
     userId: this.selfQuery.data()?.id,
     visibility: ['PRIVATE', 'PUBLIC', 'HIDDEN'] as const,
   }));
-  protected readonly pendingReviewsQuery = injectQuery(
-    this.queries.events(this.pendingReviewsFilter),
+  protected readonly pendingReviewsQuery = injectQuery(() =>
+    this.trpc.events.findMany.queryOptions(this.pendingReviewsFilter()),
   );
-  protected readonly reviewEventMutation = injectMutation(
-    this.queries.reviewEvent(),
+  protected readonly reviewEventMutation = injectMutation(() =>
+    this.trpc.events.reviewEvent.mutationOptions(),
   );
   private readonly dialog = inject(MatDialog);
 

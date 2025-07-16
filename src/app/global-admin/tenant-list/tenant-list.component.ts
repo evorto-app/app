@@ -1,7 +1,7 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
-import { QueriesService } from '../../core/queries.service';
+import { injectTRPC } from '../../core/trpc-client';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -11,6 +11,8 @@ import { QueriesService } from '../../core/queries.service';
   templateUrl: './tenant-list.component.html',
 })
 export class TenantListComponent {
-  private queries = inject(QueriesService);
-  protected tenantQuery = injectQuery(this.queries.tenants());
+  private trpc = injectTRPC();
+  protected tenantQuery = injectQuery(() =>
+    this.trpc.globalAdmin.tenants.findMany.queryOptions(),
+  );
 }

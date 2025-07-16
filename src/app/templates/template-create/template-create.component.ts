@@ -15,7 +15,7 @@ import {
 } from '@tanstack/angular-query-experimental';
 import { PartialDeep } from 'type-fest';
 
-import { QueriesService } from '../../core/queries.service';
+import { injectTRPC } from '../../core/trpc-client';
 import {
   TemplateFormComponent,
   TemplateFormData,
@@ -35,15 +35,15 @@ import {
 })
 export class TemplateCreateComponent {
   protected readonly categoryId = input<string | undefined>();
-  private queries = inject(QueriesService);
+  private trpc = injectTRPC();
   protected readonly createTemplateMutation = injectMutation(
-    this.queries.createSimpleTemplate(),
+    this.trpc.templates.createSimpleTemplate.mutationOptions(),
   );
   protected readonly faArrowLeft = faArrowLeft;
   private defaultOrganizerRolesQuery = injectQuery(
-    this.queries.defaultOrganizerRoles(),
+    this.trpc.admin.roles.findMany.queryOptions({ defaultOrganizerRole: true }),
   );
-  private defaultUserRolesQuery = injectQuery(this.queries.defaultUserRoles());
+  private defaultUserRolesQuery = injectQuery(this.trpc.admin.roles.findMany.queryOptions({ defaultUserRole: true }));
   protected readonly initialFormData = computed<PartialDeep<TemplateFormData>>(
     () => {
       return {
