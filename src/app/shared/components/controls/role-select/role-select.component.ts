@@ -25,7 +25,7 @@ import {
 import { startWith, Subscription } from 'rxjs';
 
 import { QueriesService } from '../../../../core/queries.service';
-import { injectTrpcClient } from '../../../../core/trpc-client';
+import { injectTRPCClient } from '../../../../core/trpc-client';
 import { injectNgControl } from '../../../../utils';
 import { NoopValueAccessorDirective } from '../../../directives/noop-value-accessor.directive';
 
@@ -46,7 +46,7 @@ import { NoopValueAccessorDirective } from '../../../directives/noop-value-acces
 export class RoleSelectComponent implements AfterViewInit, OnDestroy {
   readonly separatorKeysCodes: number[] = [ENTER, COMMA];
   private currentValue = signal<string[]>([]);
-  private trpcClient = injectTrpcClient();
+  private trpcClient = injectTRPCClient();
   protected currentRolesQuery = injectQueries({
     queries: computed(() => {
       const roleIds = this.currentValue();

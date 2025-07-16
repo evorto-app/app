@@ -2,6 +2,8 @@ import type { AnyRouter } from '@trpc/server';
 
 import { HttpClient } from '@angular/common/http';
 import { inject } from '@angular/core';
+import { createTRPCInjectors } from '@heddendorp/tanstack-angular-query';
+import { angularHttpLink } from '@heddendorp/trpc-link-angular';
 import { createTRPCClient, TRPCClientError, TRPCLink } from '@trpc/client';
 import { observable } from '@trpc/server/observable';
 import superjson, { SuperJSONResult } from 'superjson';
@@ -117,14 +119,26 @@ export const provideTrpcClient = () => {
     deps: [HttpClient],
     provide: TRPC_CLIENT,
     useFactory: (http: HttpClient) => {
-      const link = angularLink(http);
+      // const link = angularLink(http);
+      // return createTRPCClient<AppRouter>({
+      //   links: [link({ url: '/trpc' })],
+      // });
       return createTRPCClient<AppRouter>({
-        links: [link({ url: '/trpc' })],
+        links: [
+          angularHttpLink({
+            httpClient: http,
+            transformer: superjson,
+            url: '/trpc',
+          }),
+        ],
       });
     },
   };
 };
 
+export const { injectTRPC, injectTRPCClient } =
+  createTRPCInjectors<AppRouter>();
+
 export function injectTrpcClient() {
-  return inject(TRPC_CLIENT);
+  return injectTRPCClient();
 }

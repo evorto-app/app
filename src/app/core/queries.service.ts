@@ -7,14 +7,14 @@ import {
 } from '@tanstack/angular-query-experimental';
 
 import { type AppRouter } from '../../server/trpc/app-router';
-import { injectTrpcClient } from './trpc-client';
+import { injectTRPCClient } from './trpc-client';
 
 @Injectable({
   providedIn: 'root',
 })
 export class QueriesService {
   private queryClient = inject(QueryClient);
-  private trpcClient = injectTrpcClient();
+  private trpcClient = injectTRPCClient();
 
   public addIcon() {
     return () =>
