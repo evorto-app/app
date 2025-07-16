@@ -76,7 +76,7 @@ export class TemplateFormComponent {
   ];
 
   private trpc = injectTRPC();
-  protected readonly templateCategoriesQuery = injectQuery(
+  protected readonly templateCategoriesQuery = injectQuery(() =>
     this.trpc.templateCategories.findMany.queryOptions(),
   );
 

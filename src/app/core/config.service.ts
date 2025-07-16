@@ -15,7 +15,7 @@ import consola from 'consola/browser';
 import { Permission } from '../../shared/permissions/permissions';
 import { Context } from '../../types/custom/context';
 import { Tenant } from '../../types/custom/tenant';
-import { injectTRPC } from '../trpc-client';
+import { injectTRPC } from './trpc-client';
 import { injectTRPCClient } from './trpc-client';
 
 @Injectable({

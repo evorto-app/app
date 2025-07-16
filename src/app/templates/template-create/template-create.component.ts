@@ -36,14 +36,16 @@ import {
 export class TemplateCreateComponent {
   protected readonly categoryId = input<string | undefined>();
   private trpc = injectTRPC();
-  protected readonly createTemplateMutation = injectMutation(
+  protected readonly createTemplateMutation = injectMutation(() =>
     this.trpc.templates.createSimpleTemplate.mutationOptions(),
   );
   protected readonly faArrowLeft = faArrowLeft;
-  private defaultOrganizerRolesQuery = injectQuery(
+  private defaultOrganizerRolesQuery = injectQuery(() =>
     this.trpc.admin.roles.findMany.queryOptions({ defaultOrganizerRole: true }),
   );
-  private defaultUserRolesQuery = injectQuery(this.trpc.admin.roles.findMany.queryOptions({ defaultUserRole: true }));
+  private defaultUserRolesQuery = injectQuery(() =>
+    this.trpc.admin.roles.findMany.queryOptions({ defaultUserRole: true }),
+  );
   protected readonly initialFormData = computed<PartialDeep<TemplateFormData>>(
     () => {
       return {

@@ -61,7 +61,9 @@ export class EventEdit {
     title: this.fb.control(''),
   });
   private trpc = injectTRPC();
-  protected readonly eventQuery = injectQuery(this.trpc.events.findOne.queryOptions({ id: this.eventId));
+  protected readonly eventQuery = injectQuery(() =>
+    this.trpc.events.findOne.queryOptions({ id: this.eventId() }),
+  );
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faEllipsisVertical = faEllipsisVertical;
   protected readonly registrationModes = [

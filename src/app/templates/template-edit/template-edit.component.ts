@@ -37,8 +37,8 @@ export class TemplateEditComponent {
   protected readonly templateId = input.required<string>();
 
   private trpc = injectTRPC();
-  protected readonly templateQuery = injectQuery(
-    this.trpc.templates.findOne.queryOptions({ id: this.templateId),
+  protected readonly templateQuery = injectQuery(() =>
+    this.trpc.templates.findOne.queryOptions({ id: this.templateId() }),
   );
 
   protected readonly simpleTemplateData = computed(() => {

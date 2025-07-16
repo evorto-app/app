@@ -71,7 +71,7 @@ export class TemplateCreateEventComponent {
     title: this.fb.control(''),
   });
   private trpc = injectTRPC();
-  protected readonly createEventMutation = injectMutation(
+  protected readonly createEventMutation = injectMutation(() =>
     this.trpc.events.create.mutationOptions(),
   );
   protected readonly faArrowLeft = faArrowLeft;
@@ -81,8 +81,8 @@ export class TemplateCreateEventComponent {
     'application',
   ] as const;
   protected readonly templateId = input.required<string>();
-  protected readonly templateQuery = injectQuery(
-    this.trpc.templates.findOne.queryOptions({ id: this.templateId),
+  protected readonly templateQuery = injectQuery(() =>
+    this.trpc.templates.findOne.queryOptions({ id: this.templateId() }),
   );
   private eventStartValue = toSignal(
     this.createEventForm.controls.start.valueChanges,
