@@ -20,7 +20,7 @@ import {
 import { injectQuery } from '@tanstack/angular-query-experimental';
 import { interval } from 'rxjs';
 
-import { QueriesService } from '../../core/queries.service';
+import { injectTRPC } from '../../core/trpc-client';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -42,8 +42,10 @@ export class AdminOverviewComponent {
   protected readonly faUsers = faUsers;
   protected readonly faUsersGear = faUsersGear;
   protected readonly outletActive = signal(false);
-  private readonly queries = inject(QueriesService);
-  private readonly selfQuery = injectQuery(this.queries.self());
+  private readonly trpc = injectTRPC();
+  private readonly selfQuery = injectQuery(() =>
+    this.trpc.users.self.queryOptions(),
+  );
   private pendingReviewsFilter = computed(() => ({
     limit: 50,
     offset: 0,
@@ -52,8 +54,8 @@ export class AdminOverviewComponent {
     userId: this.selfQuery.data()?.id,
     visibility: ['PRIVATE', 'PUBLIC', 'HIDDEN'] as const,
   }));
-  protected readonly pendingReviewsQuery = injectQuery(
-    this.queries.events(this.pendingReviewsFilter),
+  protected readonly pendingReviewsQuery = injectQuery(() =>
+    this.trpc.events.findMany.queryOptions(this.pendingReviewsFilter()),
   );
   protected readonly pendingReviewsCount = computed(
     () => this.pendingReviewsQuery.data()?.length ?? 0,

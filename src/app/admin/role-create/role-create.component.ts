@@ -6,7 +6,7 @@ import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
 import { injectMutation } from '@tanstack/angular-query-experimental';
 
-import { QueriesService } from '../../core/queries.service';
+import { injectTRPC } from '../../core/trpc-client';
 import {
   RoleFormComponent,
   RoleFormData,
@@ -26,9 +26,9 @@ import {
   templateUrl: './role-create.component.html',
 })
 export class RoleCreateComponent {
-  private readonly queries = inject(QueriesService);
-  protected readonly createRoleMutation = injectMutation(
-    this.queries.createRole(),
+  private readonly trpc = injectTRPC();
+  protected readonly createRoleMutation = injectMutation(() =>
+    this.trpc.admin.roles.create.mutationOptions(),
   );
   protected readonly faArrowLeft = faArrowLeft;
 
