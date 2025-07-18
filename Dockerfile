@@ -5,8 +5,7 @@ USER appuser
 WORKDIR /app
 
 FROM base AS build
-ENV PRERENDER=true
-ENV STRIPE_API_KEY=sk_test_NotARealKey
+ENV NG_BUILD_PARTIAL_SSR=1
 COPY --chown=appuser:appuser package.json yarn.lock .yarnrc.yml ./
 RUN --mount=type=secret,id=FONT_AWESOME_TOKEN,mode=0444 yarn config set npmScopes.fortawesome.npmAuthToken $(cat /run/secrets/FONT_AWESOME_TOKEN)
 RUN yarn install --immutable
