@@ -12,7 +12,7 @@ import {
 
 export const userRouter = router({
   authData: publicProcedure.query(async ({ ctx }) => {
-    return ctx.request.oidc.user;
+    return ctx.request.oidc.user as Record<string, any>;
   }),
 
   createAccount: publicProcedure
