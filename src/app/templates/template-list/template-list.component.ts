@@ -12,7 +12,7 @@ import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faEllipsisVertical } from '@fortawesome/duotone-regular-svg-icons';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
-import { QueriesService } from '../../core/queries.service';
+import { injectTRPC } from '../../core/trpc-client';
 import { IconComponent } from '../../shared/components/icon/icon.component';
 
 @Component({
@@ -34,6 +34,8 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
 export class TemplateListComponent {
   protected readonly faEllipsisVertical = faEllipsisVertical;
   protected readonly outletActive = signal(false);
-  private queries = inject(QueriesService);
-  protected templateQuery = injectQuery(this.queries.templatesByCategory());
+  private trpc = injectTRPC();
+  protected templateQuery = injectQuery(() =>
+    this.trpc.templates.groupedByCategory.queryOptions(),
+  );
 }

@@ -2,7 +2,6 @@ import { SelectionModel } from '@angular/cdk/collections';
 import {
   ChangeDetectionStrategy,
   Component,
-  inject,
   signal,
 } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
@@ -21,7 +20,7 @@ import {
 import { injectQuery } from '@tanstack/angular-query-experimental';
 import consola from 'consola/browser';
 
-import { QueriesService } from '../../core/queries.service';
+import { injectTRPC } from '../../core/trpc-client';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -62,10 +61,10 @@ export class UserListComponent {
     offset?: number;
     search?: string;
   }>({});
-  private readonly queries = inject(QueriesService);
+  private readonly trpc = injectTRPC();
 
-  protected readonly usersQuery = injectQuery(
-    this.queries.users(this.filterInput),
+  protected readonly usersQuery = injectQuery(() =>
+    this.trpc.users.findMany.queryOptions(this.filterInput()),
   );
 
   handlePageChange(event: PageEvent) {

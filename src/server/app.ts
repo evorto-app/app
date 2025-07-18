@@ -23,7 +23,6 @@ import { fileURLToPath } from 'node:url';
 import { Context } from '../types/custom/context';
 import { addAuthenticationContext } from './middleware/authentication-context';
 import { socialCrawlerBypass } from './middleware/crawler-id';
-import { prerenderSkip } from './middleware/prerender-skip';
 import { addTenantContext } from './middleware/tenant-context';
 import { addUserContextMiddleware } from './middleware/user-context';
 import { qrCodeRouter } from './routers/qr-code.router';
@@ -44,7 +43,6 @@ const config: ConfigParams = {
 export const app = express();
 const angularApp = new AngularNodeAppEngine();
 
-app.use(prerenderSkip);
 app.use(socialCrawlerBypass);
 
 app.use('/webhooks', webhookRouter);
@@ -74,24 +72,7 @@ app.use(
     createContext: (request) => {
       const requestContext = Schema.decodeUnknownEither(Context)(request.req);
       if (Either.isLeft(requestContext)) {
-        if (process.env['PRERENDER'] === 'true') {
-          // To make sure we can build our app, we have to handle the prerender
-          const context = Schema.decodeUnknownSync(Context)({
-            authentication: { isAuthenticated: false },
-            tenant: {
-              currency: 'EUR',
-              domain: 'NO_TENANT_PRERENDER',
-              id: 'NO_TENANT_PRERENDER',
-              locale: 'NO_TENANT_PRERENDER',
-              name: 'NO_TENANT_PRERENDER',
-              theme: 'evorto',
-              timezone: 'NO_TENANT_PRERENDER',
-            },
-          });
-          return { ...context, request: request.req };
-        } else {
-          throw requestContext.left;
-        }
+        throw requestContext.left;
       }
       return { ...requestContext.right, request: request.req };
     },

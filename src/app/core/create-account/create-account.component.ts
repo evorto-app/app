@@ -17,7 +17,7 @@ import {
   injectQuery,
 } from '@tanstack/angular-query-experimental';
 
-import { QueriesService } from '../queries.service';
+import { injectTRPC, injectTRPCClient } from '../../core/trpc-client';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -33,10 +33,15 @@ export class CreateAccountComponent {
     firstName: ['', Validators.required],
     lastName: ['', Validators.required],
   });
-  private readonly queries = inject(QueriesService);
-  protected readonly authDataQuery = injectQuery(this.queries.authData());
-  private readonly createAccountMutation = injectMutation(
-    this.queries.createAccount(),
+  // Integration can't be used due to some type weirdness
+  protected readonly authDataQuery = injectQuery(() => ({
+    queryFn: () => injectTRPCClient().users.authData.query(),
+    queryKey: ['authData'],
+  }));
+
+  private readonly trpc = injectTRPC();
+  private readonly createAccountMutation = injectMutation(() =>
+    this.trpc.users.createAccount.mutationOptions(),
   );
   private readonly router = inject(Router);
 

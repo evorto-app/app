@@ -13,7 +13,7 @@ import {
   injectQuery,
 } from '@tanstack/angular-query-experimental';
 
-import { QueriesService } from '../../core/queries.service';
+import { injectTRPC } from '../../core/trpc-client';
 import {
   RoleFormComponent,
   RoleFormData,
@@ -28,10 +28,14 @@ import {
 export class RoleEditComponent {
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly roleId = input.required<string>();
-  private readonly queries = inject(QueriesService);
-  protected readonly roleQuery = injectQuery(this.queries.role(this.roleId));
-  protected readonly updateRoleMutation = injectMutation(
-    this.queries.updateRole(),
+  private readonly trpc = injectTRPC();
+  protected readonly roleQuery = injectQuery(() =>
+    this.trpc.admin.roles.findOne.queryOptions({
+      id: this.roleId(),
+    }),
+  );
+  protected readonly updateRoleMutation = injectMutation(() =>
+    this.trpc.admin.roles.update.mutationOptions(),
   );
 
   private readonly router = inject(Router);

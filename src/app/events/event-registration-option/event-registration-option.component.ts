@@ -14,7 +14,7 @@ import {
 } from '@tanstack/angular-query-experimental';
 import { interval, map } from 'rxjs';
 
-import { QueriesService } from '../../core/queries.service';
+import { injectTRPC } from '../../core/trpc-client';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -34,12 +34,12 @@ export class EventRegistrationOptionComponent {
     price: number;
     title: string;
   }>();
-  private queries = inject(QueriesService);
-  protected readonly authenticationQuery = injectQuery(
-    this.queries.isAuthenticated(),
+  private trpc = injectTRPC();
+  protected readonly authenticationQuery = injectQuery(() =>
+    this.trpc.config.isAuthenticated.queryOptions(),
   );
-  protected readonly registrationMutation = injectMutation(
-    this.queries.registerForEvent(),
+  protected readonly registrationMutation = injectMutation(() =>
+    this.trpc.events.registerForEvent.mutationOptions(),
   );
   private currentTime = toSignal(interval(1000).pipe(map(() => new Date())), {
     initialValue: new Date(),

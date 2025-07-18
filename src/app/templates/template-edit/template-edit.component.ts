@@ -14,7 +14,7 @@ import {
   injectQuery,
 } from '@tanstack/angular-query-experimental';
 
-import { QueriesService } from '../../core/queries.service';
+import { injectTRPC } from '../../core/trpc-client';
 import {
   TemplateFormComponent,
   TemplateFormData,
@@ -36,9 +36,9 @@ export class TemplateEditComponent {
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly templateId = input.required<string>();
 
-  private queries = inject(QueriesService);
-  protected readonly templateQuery = injectQuery(
-    this.queries.template(this.templateId),
+  private trpc = injectTRPC();
+  protected readonly templateQuery = injectQuery(() =>
+    this.trpc.templates.findOne.queryOptions({ id: this.templateId() }),
   );
 
   protected readonly simpleTemplateData = computed(() => {
@@ -59,8 +59,8 @@ export class TemplateEditComponent {
     };
   });
 
-  protected readonly updateTemplateMutation = injectMutation(
-    this.queries.updateSimpleTemplate(),
+  protected readonly updateTemplateMutation = injectMutation(() =>
+    this.trpc.templates.updateSimpleTemplate.mutationOptions(),
   );
 
   private router = inject(Router);
