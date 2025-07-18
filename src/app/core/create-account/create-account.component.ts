@@ -47,13 +47,13 @@ export class CreateAccountComponent {
       const authData = this.authDataQuery.data();
       if (!authData) return;
       if (this.accountForm.touched) return;
-      if (authData.given_name) {
+      if (authData?.given_name) {
         this.accountForm.patchValue({ firstName: authData.given_name });
       }
-      if (authData.family_name) {
+      if (authData?.family_name) {
         this.accountForm.patchValue({ lastName: authData.family_name });
       }
-      if (authData.email) {
+      if (authData?.email) {
         this.accountForm.patchValue({ communicationEmail: authData.email });
       }
     });
