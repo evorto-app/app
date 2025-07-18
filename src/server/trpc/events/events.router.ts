@@ -105,6 +105,32 @@ export const eventRouter = router({
       Schema.decodeUnknownSync(Schema.Struct({ id: Schema.NonEmptyString })),
     )
     .query(async ({ ctx, input }) => {
+      const event = await database.query.eventInstances.findFirst({
+        where: { id: input.id, tenantId: ctx.tenant.id },
+        with: {
+          registrationOptions: true,
+          reviewer: {
+            columns: {
+              firstName: true,
+              lastName: true,
+            },
+          },
+        },
+      });
+      if (!event) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: `Event with id ${input.id} not found`,
+        });
+      }
+      return event;
+    }),
+
+  findOnePublic: publicProcedure
+    .input(
+      Schema.decodeUnknownSync(Schema.Struct({ id: Schema.NonEmptyString })),
+    )
+    .query(async ({ ctx, input }) => {
       const rolesToFilterBy = (ctx.user?.roleIds ??
         (await database.query.roles
           .findMany({
@@ -274,6 +300,20 @@ export const eventRouter = router({
           end: Schema.ValidDateFromSelf,
           eventId: Schema.NonEmptyString,
           icon: Schema.NonEmptyString,
+          registrationOptions: Schema.Array(
+            Schema.Struct({
+              closeRegistrationTime: Schema.ValidDateFromSelf,
+              description: Schema.NullOr(Schema.NonEmptyString),
+              isPaid: Schema.Boolean,
+              openRegistrationTime: Schema.ValidDateFromSelf,
+              organizingRegistration: Schema.Boolean,
+              price: Schema.Number.pipe(Schema.nonNegative()),
+              registeredDescription: Schema.NullOr(Schema.NonEmptyString),
+              registrationMode: Schema.Literal('fcfs', 'random', 'application'),
+              spots: Schema.Number.pipe(Schema.nonNegative()),
+              title: Schema.NonEmptyString,
+            }),
+          ),
           start: Schema.ValidDateFromSelf,
           title: Schema.NonEmptyString,
         }),
@@ -303,7 +343,8 @@ export const eventRouter = router({
         });
       }
 
-      return await database
+      // Update the event
+      const updatedEvent = await database
         .update(schema.eventInstances)
         .set({
           description: input.description,
@@ -319,6 +360,30 @@ export const eventRouter = router({
           ),
         )
         .returning();
+
+      // Delete existing registration options and recreate them
+      await database.delete(schema.eventRegistrationOptions).where(
+        eq(schema.eventRegistrationOptions.eventId, input.eventId),
+      );
+
+      // Insert new registration options
+      await database.insert(schema.eventRegistrationOptions).values(
+        input.registrationOptions.map((option) => ({
+          closeRegistrationTime: option.closeRegistrationTime,
+          description: option.description,
+          eventId: input.eventId,
+          isPaid: option.isPaid,
+          openRegistrationTime: option.openRegistrationTime,
+          organizingRegistration: option.organizingRegistration,
+          price: option.price,
+          registeredDescription: option.registeredDescription,
+          registrationMode: option.registrationMode,
+          spots: option.spots,
+          title: option.title,
+        })),
+      );
+
+      return updatedEvent;
     }),
 
   updateVisibility: authenticatedProcedure

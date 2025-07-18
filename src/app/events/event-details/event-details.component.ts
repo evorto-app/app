@@ -53,7 +53,7 @@ export class EventDetailsComponent {
   public eventId = input.required<string>();
   private trpc = injectTRPC();
   protected readonly eventQuery = injectQuery(() =>
-    this.trpc.events.findOne.queryOptions({ id: this.eventId() }),
+    this.trpc.events.findOnePublic.queryOptions({ id: this.eventId() }),
   );
   protected readonly selfQery = injectQuery(() =>
     this.trpc.users.maybeSelf.queryOptions(),

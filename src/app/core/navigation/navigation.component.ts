@@ -27,8 +27,8 @@ import {
 } from '@fortawesome/duotone-regular-svg-icons';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
-import { IfPermissionDirective } from '../../shared/directives/if-permission.directive';
 import { injectTRPC } from '../../core/trpc-client';
+import { IfPermissionDirective } from '../../shared/directives/if-permission.directive';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
