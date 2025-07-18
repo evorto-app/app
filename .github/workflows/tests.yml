@@ -34,7 +34,7 @@ jobs:
         run: yarn docker:start
         env:
           FONT_AWESOME_TOKEN: ${{ secrets.FONT_AWESOME_TOKEN }}
+      - name: Install yarn dependencies
+        run: yarn playwright install
       - name: Run Playwright Tests
         run: yarn e2e
-        env:
-          FONT_AWESOME_TOKEN: ${{ secrets.FONT_AWESOME_TOKEN }}
