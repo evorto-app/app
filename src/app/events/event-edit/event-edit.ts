@@ -53,12 +53,7 @@ export class EventEdit {
       'registrationOptions',
     ) as (typeof this.editEventForm)['controls']['registrationOptions'];
   }
-  
   private fb = inject(NonNullableFormBuilder);
-  private notifications = inject(NotificationService);
-  private router = inject(Router);
-  private trpc = injectTRPC();
-  
   protected readonly editEventForm = this.fb.group({
     description: this.fb.control(''),
     end: this.fb.control<Date>(new Date()),
@@ -67,22 +62,27 @@ export class EventEdit {
     start: this.fb.control<Date>(new Date()),
     title: this.fb.control(''),
   });
+  private trpc = injectTRPC();
   
   protected readonly eventQuery = injectQuery(() =>
     this.trpc.events.findOne.queryOptions({ id: this.eventId() }),
   );
   
   protected readonly faArrowLeft = faArrowLeft;
+  
   protected readonly faEllipsisVertical = faEllipsisVertical;
+  
   protected readonly registrationModes = [
     'application',
     'fcfs',
     'random',
   ] as const;
-  
   protected readonly updateEventMutation = injectMutation(() =>
     this.trpc.events.update.mutationOptions(),
   );
+  private notifications = inject(NotificationService);
+  
+  private router = inject(Router);
 
   constructor() {
     effect(() => {
@@ -200,12 +200,12 @@ export class EventEdit {
       
       return {
         closeRegistrationTime: regOption.closeRegistrationTime,
-        description: regOption.description || undefined,
+        description: regOption.description || null,
         isPaid: regOption.isPaid,
         openRegistrationTime: regOption.openRegistrationTime,
         organizingRegistration: regOption.organizingRegistration,
         price: regOption.price,
-        registeredDescription: regOption.registeredDescription || undefined,
+        registeredDescription: regOption.registeredDescription || null,
         registrationMode: regOption.registrationMode,
         spots: regOption.spots,
         title: regOption.title,

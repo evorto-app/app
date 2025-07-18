@@ -4,6 +4,7 @@ import {
   Component,
   signal,
 } from '@angular/core';
+import { inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -22,8 +23,6 @@ import {
   injectMutation,
   injectQuery,
 } from '@tanstack/angular-query-experimental';
-
-import { inject } from '@angular/core';
 
 import { NotificationService } from '../../core/notification.service';
 import { injectTRPC } from '../../core/trpc-client';

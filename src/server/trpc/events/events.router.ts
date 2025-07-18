@@ -105,6 +105,32 @@ export const eventRouter = router({
       Schema.decodeUnknownSync(Schema.Struct({ id: Schema.NonEmptyString })),
     )
     .query(async ({ ctx, input }) => {
+      const event = await database.query.eventInstances.findFirst({
+        where: { id: input.id, tenantId: ctx.tenant.id },
+        with: {
+          registrationOptions: true,
+          reviewer: {
+            columns: {
+              firstName: true,
+              lastName: true,
+            },
+          },
+        },
+      });
+      if (!event) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: `Event with id ${input.id} not found`,
+        });
+      }
+      return event;
+    }),
+
+  findOnePublic: publicProcedure
+    .input(
+      Schema.decodeUnknownSync(Schema.Struct({ id: Schema.NonEmptyString })),
+    )
+    .query(async ({ ctx, input }) => {
       const rolesToFilterBy = (ctx.user?.roleIds ??
         (await database.query.roles
           .findMany({
