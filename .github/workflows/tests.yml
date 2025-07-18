@@ -23,5 +23,7 @@ jobs:
         run: touch .env
       - name: Start docker
         run: yarn docker:start
+        env:
+          FONT_AWESOME_TOKEN: ${{ secrets.FONT_AWESOME_TOKEN }}
       - name: Run Playwright Tests
         run: yarn e2e
