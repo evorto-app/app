@@ -80,11 +80,11 @@ export default defineConfig({
     trace: 'on-first-retry',
   },
 
-  webServer: {
-    command: process.env['CI'] ? 'docker compose up' : '',
-    reuseExistingServer: !process.env['CI'],
+  webServer: process.env['CI'] ? {
+    command: 'docker compose up',
+    reuseExistingServer: false,
     url: 'http://localhost:4200',
-  },
+  } : undefined,
 
   /* Opt out of parallel tests on CI. */
   ...(process.env['CI'] ? { workers: 1 } : {}),

@@ -18,12 +18,11 @@ import {
   faRightFromBracket,
   faUser,
 } from '@fortawesome/duotone-regular-svg-icons';
+import { inject } from '@angular/core';
 import {
   injectMutation,
   injectQuery,
 } from '@tanstack/angular-query-experimental';
-
-import { inject } from '@angular/core';
 
 import { NotificationService } from '../../core/notification.service';
 import { injectTRPC } from '../../core/trpc-client';
@@ -39,8 +38,6 @@ import { injectTRPC } from '../../core/trpc-client';
     FormsModule,
     MatCardModule,
     DatePipe,
-    NgIf,
-    NgFor,
   ],
   selector: 'app-user-profile',
   styles: `
@@ -113,7 +110,7 @@ export class UserProfileComponent {
 
   protected startEditing(): void {
     this.displayName.set(
-      this.userQuery.data()?.firstName + ' ' + this.userQuery.data()?.lastName,
+      (this.userQuery.data()?.firstName ?? '') + ' ' + (this.userQuery.data()?.lastName ?? ''),
     );
     this.isEditing.set(true);
   }
