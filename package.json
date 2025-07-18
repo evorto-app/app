@@ -25,7 +25,8 @@
     "setup:database": "tsx helpers/database.ts",
     "reset:database": "run push:database && run setup:database",
     "docker:stop": "docker compose down",
-    "docker:start": "yarn docker:stop && docker compose up --build -d"
+    "docker:start": "yarn docker:stop && docker compose up --build -d",
+    "docker:start-test": "yarn docker:stop && docker compose up --build"
   },
   "private": true,
   "dependencies": {
