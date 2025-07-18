@@ -18,7 +18,9 @@ jobs:
       - name: Add font awesome token
         run: yarn config set npmScopes.fortawesome.npmAuthToken ${{ secrets.FONT_AWESOME_TOKEN }} --home
       - name: Install dependencies
-        run: yarn install --frozen-lockfile
+        run: yarn install --immutable
+      - name: Create empty .env file
+        run: touch .env
       - name: Start docker
         run: yarn docker:start
       - name: Run Playwright Tests
