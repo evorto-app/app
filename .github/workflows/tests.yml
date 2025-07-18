@@ -31,10 +31,10 @@ jobs:
           echo "AUTH0_MANAGEMENT_CLIENT_ID=${{ secrets.AUTH0_MANAGEMENT_CLIENT_ID }}" >> .env
           echo "AUTH0_MANAGEMENT_CLIENT_SECRET=${{ secrets.AUTH0_MANAGEMENT_CLIENT_SECRET }}" >> .env
           echo "NEON_API_KEY=${{ secrets.NEON_API_KEY }}" >> .env
-      #      - name: Start docker
-      #        run: yarn docker:start
-      #        env:
-      #          FONT_AWESOME_TOKEN: ${{ secrets.FONT_AWESOME_TOKEN }}
+      - name: Start docker
+        run: yarn docker:start
+        env:
+          FONT_AWESOME_TOKEN: ${{ secrets.FONT_AWESOME_TOKEN }}
       - name: Run Playwright Tests
         run: yarn e2e
         env:
