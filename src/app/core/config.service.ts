@@ -15,7 +15,7 @@ import consola from 'consola/browser';
 import { Permission } from '../../shared/permissions/permissions';
 import { Context } from '../../types/custom/context';
 import { Tenant } from '../../types/custom/tenant';
-import { QueriesService } from './queries.service';
+import { injectTRPC } from './trpc-client';
 import { injectTRPCClient } from './trpc-client';
 
 @Injectable({
@@ -39,9 +39,11 @@ export class ConfigService {
 
   private _tenant!: Tenant;
 
-  private queries = inject(QueriesService);
+  private trpc = injectTRPC();
 
-  private currentTenantQuery = injectQuery(this.queries.currentTenant());
+  private currentTenantQuery = injectQuery(() =>
+    this.trpc.config.tenant.queryOptions(),
+  );
 
   private document = inject(DOCUMENT);
   private readonly meta = inject(Meta);

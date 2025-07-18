@@ -2,7 +2,6 @@ import { DatePipe, NgFor, NgIf } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
-  inject,
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
@@ -24,8 +23,10 @@ import {
   injectQuery,
 } from '@tanstack/angular-query-experimental';
 
+import { inject } from '@angular/core';
+
 import { NotificationService } from '../../core/notification.service';
-import { QueriesService } from '../../core/queries.service';
+import { injectTRPC } from '../../core/trpc-client';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -69,14 +70,18 @@ export class UserProfileComponent {
   protected readonly faUser = faUser;
   protected isEditing = signal(false);
 
-  private readonly queries = inject(QueriesService);
-  protected readonly updateProfileMutation = injectMutation(
-    this.queries.updateProfile(),
+  private readonly trpc = injectTRPC();
+  protected readonly updateProfileMutation = injectMutation(() =>
+    this.trpc.users.updateProfile.mutationOptions(),
   );
 
-  protected readonly userEventsQuery = injectQuery(this.queries.userEvents());
+  protected readonly userEventsQuery = injectQuery(() =>
+    this.trpc.users.events.findMany.queryOptions(),
+  );
 
-  protected readonly userQuery = injectQuery(this.queries.self());
+  protected readonly userQuery = injectQuery(() =>
+    this.trpc.users.self.queryOptions(),
+  );
   private readonly notifications = inject(NotificationService);
 
   protected cancelEditing(): void {

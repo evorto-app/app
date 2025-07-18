@@ -28,7 +28,7 @@ import {
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import { IfPermissionDirective } from '../../shared/directives/if-permission.directive';
-import { QueriesService } from '../queries.service';
+import { injectTRPC } from '../../core/trpc-client';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -45,9 +45,9 @@ import { QueriesService } from '../queries.service';
   templateUrl: './navigation.component.html',
 })
 export class NavigationComponent {
-  private readonly queries = inject(QueriesService);
-  protected readonly authenticationQuery = injectQuery(
-    this.queries.isAuthenticated(),
+  private readonly trpc = injectTRPC();
+  protected readonly authenticationQuery = injectQuery(() =>
+    this.trpc.config.isAuthenticated.queryOptions(),
   );
   protected readonly faCalendarDays = faCalendarDays;
   protected readonly faEllipsisVertical = faEllipsisVertical;

@@ -15,7 +15,7 @@ import {
   injectQuery,
 } from '@tanstack/angular-query-experimental';
 
-import { QueriesService } from '../../core/queries.service';
+import { injectTRPC } from '../../core/trpc-client';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -31,15 +31,17 @@ import { QueriesService } from '../../core/queries.service';
   templateUrl: './general-settings.component.html',
 })
 export class GeneralSettingsComponent {
-  private readonly queries = inject(QueriesService);
-  protected currentTenantQuery = injectQuery(this.queries.currentTenant());
+  private readonly trpc = injectTRPC();
+  protected currentTenantQuery = injectQuery(() =>
+    this.trpc.config.tenant.queryOptions(),
+  );
   protected readonly faArrowLeft = faArrowLeft;
   private readonly formBuilder = inject(NonNullableFormBuilder);
   protected readonly settingsForm = this.formBuilder.group({
     theme: this.formBuilder.control<'esn' | 'evorto'>('evorto'),
   });
-  private updateSettingsMutation = injectMutation(
-    this.queries.updateTenantSettings(),
+  private updateSettingsMutation = injectMutation(() =>
+    this.trpc.admin.tenant.updateSettings.mutationOptions(),
   );
 
   constructor() {

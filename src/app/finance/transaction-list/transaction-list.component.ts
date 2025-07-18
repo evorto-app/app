@@ -19,7 +19,7 @@ import { faPaypal, faStripe } from '@fortawesome/free-brands-svg-icons';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 import consola from 'consola/browser';
 
-import { QueriesService } from '../../core/queries.service';
+import { injectTRPC } from '../../core/trpc-client';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -59,10 +59,10 @@ export class TransactionListComponent {
     offset: 0,
   });
 
-  private readonly queries = inject(QueriesService);
+  private readonly trpc = injectTRPC();
 
-  protected readonly transactionsQuery = injectQuery(
-    this.queries.transactions(this.filterInput),
+  protected readonly transactionsQuery = injectQuery(() =>
+    this.trpc.finance.transactions.findMany.queryOptions(this.filterInput()),
   );
 
   handlePageChange(event: PageEvent) {

@@ -19,7 +19,7 @@ import {
 } from '@tanstack/angular-query-experimental';
 import { firstValueFrom } from 'rxjs';
 
-import { QueriesService } from '../../../core/queries.service';
+import { injectTRPC } from '../../../core/trpc-client';
 import { IconComponent } from '../../../shared/components/icon/icon.component';
 import { CreateEditCategoryDialogComponent } from '../create-edit-category-dialog/create-edit-category-dialog.component';
 
@@ -40,17 +40,17 @@ export class CategoryListComponent {
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faEllipsisVertical = faEllipsisVertical;
   protected readonly outletActive = signal(false);
-  private queries = inject(QueriesService);
-  protected templateCategoriesQuery = injectQuery(
-    this.queries.templateCategories(),
+  private trpc = injectTRPC();
+  protected templateCategoriesQuery = injectQuery(() =>
+    this.trpc.templateCategories.findMany.queryOptions(),
   );
-  private createCategoryMutation = injectMutation(
-    this.queries.createTemplateCategory(),
+  private createCategoryMutation = injectMutation(() =>
+    this.trpc.templateCategories.create.mutationOptions(),
   );
   private dialog = inject(MatDialog);
 
-  private updateCategoryMutation = injectMutation(
-    this.queries.updateTemplateCategory(),
+  private updateCategoryMutation = injectMutation(() =>
+    this.trpc.templateCategories.update.mutationOptions(),
   );
 
   async openCategoryCreationDialog() {

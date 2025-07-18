@@ -16,7 +16,7 @@ import {
 } from '@tanstack/angular-query-experimental';
 import { debounceTime } from 'rxjs';
 
-import { QueriesService } from '../../../../../core/queries.service';
+import { injectTRPC } from '../../../../../core/trpc-client';
 import { IconComponent } from '../../../icon/icon.component';
 
 @Component({
@@ -42,15 +42,17 @@ export class IconSelectorDialogComponent {
       initialValue: '',
     },
   );
-  private queries = inject(QueriesService);
-  protected readonly iconSearchQuery = injectQuery(
-    this.queries.searchIcons(this.searchValue),
+  private trpc = injectTRPC();
+  protected readonly iconSearchQuery = injectQuery(() =>
+    this.trpc.icons.search.queryOptions({ search: this.searchValue() }),
   );
   protected displayDirectAccess = computed(() => {
     const iconData = this.iconSearchQuery.data();
     return !!(iconData && iconData.length === 0);
   });
-  private readonly addIconMutation = injectMutation(this.queries.addIcon());
+  private readonly addIconMutation = injectMutation(() =>
+    this.trpc.icons.addIcon.mutationOptions(),
+  );
 
   async saveIconDirectly() {
     const icon = this.searchControl.value;

@@ -24,7 +24,7 @@ import {
 } from '@tanstack/angular-query-experimental';
 import { startWith, Subscription } from 'rxjs';
 
-import { QueriesService } from '../../../../core/queries.service';
+import { injectTRPC } from '../../../../core/trpc-client';
 import { injectTRPCClient } from '../../../../core/trpc-client';
 import { injectNgControl } from '../../../../utils';
 import { NoopValueAccessorDirective } from '../../../directives/noop-value-accessor.directive';
@@ -63,9 +63,9 @@ export class RoleSelectComponent implements AfterViewInit, OnDestroy {
   protected searchValue = toSignal(this.searchInput.valueChanges, {
     initialValue: '',
   });
-  private queries = inject(QueriesService);
-  protected searchRoleQuery = injectQuery(
-    this.queries.searchRoles(this.searchValue),
+  private trpc = injectTRPC();
+  protected searchRoleQuery = injectQuery(() =>
+    this.trpc.admin.roles.search.queryOptions({ search: this.searchValue() }),
   );
   private signalSubscription: Subscription | undefined;
 

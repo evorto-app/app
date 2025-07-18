@@ -14,7 +14,7 @@ import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 import { PartialDeep } from 'type-fest';
 
-import { QueriesService } from '../../../core/queries.service';
+import { injectTRPC } from '../../../core/trpc-client';
 import { EditorComponent } from '../../../shared/components/controls/editor/editor.component';
 import { IconSelectorFieldComponent } from '../../../shared/components/controls/icon-selector/icon-selector-field/icon-selector-field.component';
 import { RoleSelectComponent } from '../../../shared/components/controls/role-select/role-select.component';
@@ -75,9 +75,9 @@ export class TemplateFormComponent {
     'application',
   ];
 
-  private queries = inject(QueriesService);
-  protected readonly templateCategoriesQuery = injectQuery(
-    this.queries.templateCategories(),
+  private trpc = injectTRPC();
+  protected readonly templateCategoriesQuery = injectQuery(() =>
+    this.trpc.templateCategories.findMany.queryOptions(),
   );
 
   private formBuilder = inject(NonNullableFormBuilder);

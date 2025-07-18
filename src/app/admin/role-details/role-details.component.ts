@@ -1,7 +1,6 @@
 import {
   ChangeDetectionStrategy,
   Component,
-  inject,
   input,
 } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
@@ -16,7 +15,7 @@ import {
   Permission,
   PERMISSION_GROUPS,
 } from '../../../shared/permissions/permissions';
-import { QueriesService } from '../../core/queries.service';
+import { injectTRPC } from '../../core/trpc-client';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -38,8 +37,12 @@ export class RoleDetailsComponent {
 
   protected readonly permissionGroups = PERMISSION_GROUPS;
 
-  private readonly queries = inject(QueriesService);
-  protected readonly roleQuery = injectQuery(this.queries.role(this.roleId));
+  private readonly trpc = injectTRPC();
+  protected readonly roleQuery = injectQuery(() =>
+    this.trpc.admin.roles.findOne.queryOptions({
+      id: this.roleId(),
+    }),
+  );
 
   hasPermission(permission: Permission) {
     return this.roleQuery.data()?.permissions.includes(permission) ?? false;
