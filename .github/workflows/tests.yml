@@ -15,6 +15,8 @@ jobs:
           node-version: 24
       - name: Enable corepack
         run: corepack enable
+      - name: Add font awesome token
+        run: yarn config set npmScopes.fortawesome.npmAuthToken ${{ secrets.FONT_AWESOME_TOKEN }} --home
       - name: Install dependencies
         run: yarn install --frozen-lockfile
       - name: Start docker
