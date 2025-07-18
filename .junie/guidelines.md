@@ -25,19 +25,111 @@ Evorto is an Angular 20 application for event management and registration. The a
   - `/tests` - Test files, including documentation tests (`.doc.ts`)
   - `/fixtures` - Test fixtures and utilities
   - `/reporters` - Custom test reporters, including documentation generator
+  - `/setup` - Test setup files for authentication and database
 - `/helpers` - Utility scripts and helper functions
 - `/public` - Public assets served by the application
 - `/migration` - Database migration scripts
 - `/.junie` - Junie AI assistant configuration
 
+## Testing Setup and Requirements
+
+### Environment Configuration
+
+Before running tests, ensure the following environment variables are set:
+
+1. **Required for E2E Tests:**
+   - `DATABASE_URL` - Database connection (use `sqlite:///tmp/test.db` for local testing)
+   - `CLIENT_SECRET` - Auth0 client secret for authentication
+   - `CLIENT_ID` - Auth0 client ID
+   - `ISSUER_BASE_URL` - Auth0 issuer URL (defaults to `https://tumi-dev.eu.auth0.com`)
+   - `SECRET` - Application secret key
+
+2. **Optional but Recommended:**
+   - `PLAYWRIGHT_TEST_BASE_URL` - Base URL for tests (defaults to `http://localhost:4200`)
+   - `CONSOLA_LEVEL` - Log level (set to `1000` for minimal logging)
+
+### Test Types and Commands
+
+1. **Unit Tests (Angular/Karma):**
+   ```bash
+   yarn test --no-watch --browsers=ChromeHeadless
+   ```
+   - Currently configured but no tests written (0 tests)
+   - Uses Karma + Jasmine test runner
+   - Configured to skip tests by default in `angular.json`
+
+2. **End-to-End Tests (Playwright):**
+   ```bash
+   # Run all e2e tests
+   yarn e2e --reporter=line --project=chromium
+   
+   # Run specific test file
+   npx playwright test e2e/tests/smoke/load-application.test.ts --project=chromium --reporter=line
+   
+   # Run documentation tests
+   yarn e2e:docs --reporter=line
+   
+   # Run tests in UI mode
+   yarn e2e:ui --workers=2
+   ```
+
+3. **Lint and Format:**
+   ```bash
+   yarn lint        # Check code style (currently 65 errors)
+   yarn lint:fix    # Auto-fix lint issues
+   yarn format      # Format code with Prettier
+   ```
+
+### Known Issues and Fixes
+
+1. **Build Errors:**
+   - Auth-related TypeScript errors due to query typing issues
+   - Components expecting Auth0 user data but getting `never` type
+   - **Fix:** Add proper type guards and optional chaining
+
+2. **Test Environment:**
+   - Missing `.env` file (created from `.env.local` template)
+   - Docker setup requires FontAwesome token
+   - **Fix:** Use local development server instead of Docker for testing
+
+3. **Database Setup:**
+   - Tests require database setup via `e2e/setup/database.setup.ts`
+   - Uses Drizzle ORM with setup script in `src/db/setup-database`
+
+### Testing Best Practices
+
+When implementing changes, Junie should:
+
+1. **Environment Setup:**
+   - Ensure `.env` file exists with required variables
+   - Use SQLite for local testing: `DATABASE_URL=sqlite:///tmp/test.db`
+   - Set minimal logging: `CONSOLA_LEVEL=1000`
+
+2. **Running Tests:**
+   - Always use `--reporter=line` to avoid report viewer launching
+   - Use `--project=chromium` to prevent duplicate runs
+   - Use `--project=docs` for documentation tests only
+   - Add `--workers=1` for debugging failing tests
+
+3. **Before Testing:**
+   - Fix build errors first: `yarn build`
+   - Check lint issues: `yarn lint`
+   - Ensure database setup can run: `yarn setup:database`
+
+4. **Test Development:**
+   - Place tests in appropriate `e2e/tests/` subdirectories
+   - Use `.test.ts` for functional tests
+   - Use `.doc.ts` for documentation tests
+   - Include authentication setup via `e2e/setup/authentication.setup.ts`
+
 ## Testing Guidelines
 
 When implementing changes, Junie should:
 
-1. **Run tests to verify changes**: Use `yarn e2e` to run end-to-end tests
+1. **Run tests to verify changes**: Use `yarn e2e --reporter=line --project=chromium` to run end-to-end tests
 2. **Create or update documentation tests**: For new features or significant changes, update or create `.doc.ts` files
-3. **Test specific features**: Use `npx playwright test e2e/tests/path/to/test.ts` to test specific features
-4. **Generate documentation**: Use `yarn e2e:docs` to generate documentation from tests
+3. **Test specific features**: Use `npx playwright test e2e/tests/path/to/test.ts --project=chromium --reporter=line` to test specific features
+4. **Generate documentation**: Use `yarn e2e:docs --reporter=line` to generate documentation from tests
 
 ## Building the Project
 
@@ -108,7 +200,7 @@ For changes that affect user-facing features:
 
 Before submitting changes, Junie should:
 
-1. **Verify all tests pass**: Run `yarn test` and `yarn e2e` to ensure all tests pass
+1. **Verify all tests pass**: Run `yarn test` and `yarn e2e --reporter=line --project=chromium` to ensure all tests pass
 2. **Build the project**: Run `yarn build` to ensure the project builds successfully
 3. **Check for linting errors**: Run `yarn lint` to check for code style issues
 4. **Summarize changes**: Provide a clear summary of the changes made
