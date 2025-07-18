@@ -55,8 +55,8 @@ export class EventEdit {
   }
   
   private fb = inject(NonNullableFormBuilder);
-  private router = inject(Router);
   private notifications = inject(NotificationService);
+  private router = inject(Router);
   private trpc = injectTRPC();
   
   protected readonly editEventForm = this.fb.group({
@@ -72,17 +72,17 @@ export class EventEdit {
     this.trpc.events.findOne.queryOptions({ id: this.eventId() }),
   );
   
-  protected readonly updateEventMutation = injectMutation(() =>
-    this.trpc.events.update.mutationOptions(),
-  );
-  
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faEllipsisVertical = faEllipsisVertical;
   protected readonly registrationModes = [
+    'application',
     'fcfs',
     'random',
-    'application',
   ] as const;
+  
+  protected readonly updateEventMutation = injectMutation(() =>
+    this.trpc.events.update.mutationOptions(),
+  );
 
   constructor() {
     effect(() => {
@@ -105,51 +105,49 @@ export class EventEdit {
     this.saveEvent();
   }
 
-  private populateRegistrationOptions(registrationOptions: any[]) {
-    const registrationOptionsFormArray = this.editEventForm.get(
-      'registrationOptions',
-    ) as FormArray;
-    registrationOptionsFormArray.clear();
-    
-    for (const option of registrationOptions) {
-      registrationOptionsFormArray?.push(
-        this.fb.group({
-          closeRegistrationTime: [option.closeRegistrationTime ? new Date(option.closeRegistrationTime) : null],
-          description: [option.description],
-          isPaid: [option.isPaid],
-          openRegistrationTime: [option.openRegistrationTime ? new Date(option.openRegistrationTime) : null],
-          organizingRegistration: [option.organizingRegistration],
-          price: [option.price],
-          registeredDescription: [option.registeredDescription],
-          registrationMode: [option.registrationMode],
-          spots: [option.spots],
-          title: [option.title],
-        }),
-      );
-    }
-  }
-
-  private transformRegistrationOptions(registrationOptions: any[]) {
-    return registrationOptions?.map(option => ({
-      closeRegistrationTime: option.closeRegistrationTime!,
-      description: option.description || null,
-      isPaid: option.isPaid!,
-      openRegistrationTime: option.openRegistrationTime!,
-      organizingRegistration: option.organizingRegistration!,
-      price: option.price!,
-      registeredDescription: option.registeredDescription || null,
-      registrationMode: option.registrationMode! as 'fcfs' | 'random' | 'application',
-      spots: option.spots!,
-      title: option.title!,
-    })) || [];
-  }
-
   private handleFormErrors() {
     if (this.editEventForm.invalid) {
       this.notifications.showError('Please fill in all required fields');
       return false;
     }
     return true;
+  }
+
+  private populateRegistrationOptions(registrationOptions: unknown[]) {
+    const registrationOptionsFormArray = this.editEventForm.get(
+      'registrationOptions',
+    ) as FormArray;
+    registrationOptionsFormArray.clear();
+    
+    for (const option of registrationOptions) {
+      const regOption = option as {
+        closeRegistrationTime?: string;
+        description: string;
+        isPaid: boolean;
+        openRegistrationTime?: string;
+        organizingRegistration: boolean;
+        price: number;
+        registeredDescription: string;
+        registrationMode: string;
+        spots: number;
+        title: string;
+      };
+      
+      registrationOptionsFormArray?.push(
+        this.fb.group({
+          closeRegistrationTime: [regOption.closeRegistrationTime ? new Date(regOption.closeRegistrationTime) : undefined],
+          description: [regOption.description],
+          isPaid: [regOption.isPaid],
+          openRegistrationTime: [regOption.openRegistrationTime ? new Date(regOption.openRegistrationTime) : undefined],
+          organizingRegistration: [regOption.organizingRegistration],
+          price: [regOption.price],
+          registeredDescription: [regOption.registeredDescription],
+          registrationMode: [regOption.registrationMode],
+          spots: [regOption.spots],
+          title: [regOption.title],
+        }),
+      );
+    }
   }
 
   private saveEvent() {
@@ -163,25 +161,55 @@ export class EventEdit {
     
     this.updateEventMutation.mutate(
       {
+        description: formValue.description as string,
+        end: formValue.end as Date,
         eventId,
-        description: formValue.description!,
-        end: formValue.end!,
-        icon: formValue.icon!,
+        icon: formValue.icon as string,
         registrationOptions,
-        start: formValue.start!,
-        title: formValue.title!,
+        start: formValue.start as Date,
+        title: formValue.title as string,
       },
       {
-        onSuccess: () => {
-          this.notifications.showSuccess('Event updated successfully');
-          this.router.navigate(['/events', eventId]);
-        },
         onError: (error) => {
           this.notifications.showError(
             'Failed to update event: ' + error.message
           );
         },
+        onSuccess: () => {
+          this.notifications.showSuccess('Event updated successfully');
+          this.router.navigate(['/events', eventId]);
+        },
       }
     );
+  }
+
+  private transformRegistrationOptions(registrationOptions: unknown[]) {
+    return registrationOptions?.map(option => {
+      const regOption = option as {
+        closeRegistrationTime: Date;
+        description: string;
+        isPaid: boolean;
+        openRegistrationTime: Date;
+        organizingRegistration: boolean;
+        price: number;
+        registeredDescription: string;
+        registrationMode: 'application' | 'fcfs' | 'random';
+        spots: number;
+        title: string;
+      };
+      
+      return {
+        closeRegistrationTime: regOption.closeRegistrationTime,
+        description: regOption.description || undefined,
+        isPaid: regOption.isPaid,
+        openRegistrationTime: regOption.openRegistrationTime,
+        organizingRegistration: regOption.organizingRegistration,
+        price: regOption.price,
+        registeredDescription: regOption.registeredDescription || undefined,
+        registrationMode: regOption.registrationMode,
+        spots: regOption.spots,
+        title: regOption.title,
+      };
+    }) || [];
   }
 }
