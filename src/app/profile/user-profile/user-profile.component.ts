@@ -1,7 +1,8 @@
-import { DatePipe, NgFor, NgIf } from '@angular/common';
+import { DatePipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
+  inject,
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
@@ -23,8 +24,6 @@ import {
   injectQuery,
 } from '@tanstack/angular-query-experimental';
 
-import { inject } from '@angular/core';
-
 import { NotificationService } from '../../core/notification.service';
 import { injectTRPC } from '../../core/trpc-client';
 
@@ -39,8 +38,6 @@ import { injectTRPC } from '../../core/trpc-client';
     FormsModule,
     MatCardModule,
     DatePipe,
-    NgIf,
-    NgFor,
   ],
   selector: 'app-user-profile',
   styles: `
