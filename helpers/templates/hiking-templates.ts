@@ -10,6 +10,16 @@ export const getHikingTemplates = (hikingCategory: {
       '<h2>Hike to the Hörnle</h2><p>Join us for an exhilarating hike to the Hörnle. Enjoy breathtaking views and fresh mountain air. Don’t forget to bring your camera!</p><ul><li>Duration: 4 hours</li><li>Difficulty: Moderate</li><li>Meeting Point: Murnau Train Station</li></ul>',
     icon: 'alps',
     id: getId(),
+    location: {
+      address: '82418 Murnau am Staffelsee, Germany',
+      coordinates: {
+        lat: 47.682_852,
+        lng: 11.193_08,
+      },
+      name: 'Bahnhof, Murnau a. Staffelsee',
+      placeId: 'ChIJj-c4NCWunUcRarPf2welrJU',
+      type: 'google',
+    },
     tenantId: hikingCategory.tenantId,
     title: 'Hörnle hike',
   },

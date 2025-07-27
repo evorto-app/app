@@ -17,6 +17,7 @@ import { PartialDeep } from 'type-fest';
 import { injectTRPC } from '../../../core/trpc-client';
 import { EditorComponent } from '../../../shared/components/controls/editor/editor.component';
 import { IconSelectorFieldComponent } from '../../../shared/components/controls/icon-selector/icon-selector-field/icon-selector-field.component';
+import { LocationSelectorField } from '../../../shared/components/controls/location-selector/location-selector-field/location-selector-field';
 import { RoleSelectComponent } from '../../../shared/components/controls/role-select/role-select.component';
 
 export type RegistrationMode = 'application' | 'fcfs' | 'random';
@@ -57,6 +58,7 @@ export interface TemplateFormData {
     IconSelectorFieldComponent,
     MatSlideToggleModule,
     RoleSelectComponent,
+    LocationSelectorField,
   ],
   selector: 'app-template-form',
   standalone: true,
@@ -86,6 +88,7 @@ export class TemplateFormComponent {
     categoryId: [''],
     description: [''],
     icon: [''],
+    location: [undefined],
     organizerRegistration: this.formBuilder.group({
       closeRegistrationOffset: [1],
       isPaid: [false],

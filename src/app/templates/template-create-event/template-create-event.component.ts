@@ -26,8 +26,10 @@ import {
   injectMutation,
   injectQuery,
 } from '@tanstack/angular-query-experimental';
+import consola from 'consola/browser';
 import { DateTime } from 'luxon';
 
+import { EventLocation } from '../../../shared/types/location';
 import { injectTRPC } from '../../core/trpc-client';
 import { EventGeneralForm } from '../../shared/components/forms/event-general-form/event-general-form';
 import {
@@ -66,6 +68,7 @@ export class TemplateCreateEventComponent {
     description: this.fb.control(''),
     end: this.fb.control<Date>(new Date()),
     icon: this.fb.control(''),
+    location: this.fb.control<EventLocation | null>(null),
     registrationOptions: this.fb.array<RegistrationOptionFormGroup>([]),
     start: this.fb.control<Date>(new Date()),
     title: this.fb.control(''),
@@ -98,6 +101,7 @@ export class TemplateCreateEventComponent {
         this.createEventForm.patchValue({
           description: template.description,
           icon: template.icon,
+          location: template.location,
           title: template.title,
         });
 
@@ -127,8 +131,8 @@ export class TemplateCreateEventComponent {
       const template = this.templateQuery.data();
       const eventStart = this.eventStartValue();
       if (template && eventStart) {
-        console.log(eventStart);
-        console.log(DateTime.isDateTime(eventStart));
+        consola.info(eventStart);
+        consola.info(DateTime.isDateTime(eventStart));
         const startDateTime = DateTime.fromJSDate(eventStart);
         for (const [index, option] of template.registrationOptions.entries()) {
           const openRegistrationTime = startDateTime

@@ -1,5 +1,13 @@
-import { pgEnum, pgTable, text, timestamp, varchar } from 'drizzle-orm/pg-core';
+import {
+  jsonb,
+  pgEnum,
+  pgTable,
+  text,
+  timestamp,
+  varchar,
+} from 'drizzle-orm/pg-core';
 
+import { EventLocation } from '../../shared/types/location';
 import { eventTemplates } from './event-templates';
 import { modelOfTenant } from './model';
 import { users } from './users';
@@ -24,6 +32,7 @@ export const eventInstances = pgTable('event_instances', {
   description: text().notNull(),
   end: timestamp().notNull(),
   icon: text().notNull(),
+  location: jsonb('location').$type<EventLocation>(),
   reviewedAt: timestamp(),
   reviewedBy: varchar({ length: 20 }).references(() => users.id),
   start: timestamp().notNull(),

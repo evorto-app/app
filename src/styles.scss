@@ -12,6 +12,11 @@
       container-shape-radius: var(--mat-sys-corner-medium),
     )
   );
+  @include mat.form-field-overrides(
+    (
+      outlined-container-shape: var(--mat-sys-corner-small),
+    )
+  );
   // Notification styles
   .success-snackbar {
     @include mat.snack-bar-overrides(
