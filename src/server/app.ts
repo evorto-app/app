@@ -12,19 +12,19 @@ import {
 } from '@angular/ssr/node';
 import * as Sentry from '@sentry/node';
 import * as trpcExpress from '@trpc/server/adapters/express';
+import compression from 'compression';
 import consola from 'consola';
 import cookieParser from 'cookie-parser';
 import { Either, Schema } from 'effect';
 import express, { ErrorRequestHandler } from 'express';
-import { attemptSilentLogin, auth, ConfigParams } from 'express-openid-connect';
+import { auth, ConfigParams } from 'express-openid-connect';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { Context } from '../types/custom/context';
 import { addAuthenticationContext } from './middleware/authentication-context';
-import { socialCrawlerBypass } from './middleware/crawler-id';
 import { addTenantContext } from './middleware/tenant-context';
-import { addUserContextMiddleware } from './middleware/user-context';
+import { addUserContext } from './middleware/user-context';
 import { qrCodeRouter } from './routers/qr-code.router';
 import { appRouter } from './trpc/app-router';
 import { webhookRouter } from './webhooks';
@@ -43,7 +43,7 @@ const config: ConfigParams = {
 export const app = express();
 const angularApp = new AngularNodeAppEngine();
 
-app.use(socialCrawlerBypass);
+app.use(compression());
 
 app.use('/webhooks', webhookRouter);
 app.use('/qr', qrCodeRouter);
@@ -53,12 +53,12 @@ app.use(auth(config));
 app.use(cookieParser());
 app.use(addAuthenticationContext);
 app.use(addTenantContext);
-app.use(addUserContextMiddleware);
+app.use(addUserContext);
 
-app.get('/forward-login', (request, response) => {
+app.get('/forward-login', async (request, response) => {
   const redirectUrl = request.query['redirectUrl'];
   if (typeof redirectUrl === 'string') {
-    response.oidc.login({
+    await response.oidc.login({
       returnTo: redirectUrl,
     });
   } else {
@@ -119,16 +119,7 @@ app.use('/{*splat}', (request, expressResponse, next) => {
       .catch(next);
   };
 
-  if (request.isSocialMediaCrawler) {
-    // Skip silent login for crawlers
-    handleAngular();
-  } else {
-    // Run silent login for normal users
-    attemptSilentLogin()(request, expressResponse, (error) => {
-      if (error) return next(error);
-      handleAngular();
-    });
-  }
+  handleAngular();
 });
 
 // log any error

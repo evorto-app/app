@@ -8,20 +8,24 @@ export const authTokenInterceptor: HttpInterceptorFn = (request, next) => {
   const requestContext = inject(REQUEST_CONTEXT) as Context | null;
   const platformId = inject(PLATFORM_ID);
 
-  if (isPlatformServer(platformId) && requestContext === null) {
-    request = request.clone({
-      setHeaders: {
-        'x-no-context-on-server': 'true',
-      },
-    });
+  if (isPlatformServer(platformId)) {
+    if (requestContext === null) {
+      request = request.clone({
+        setHeaders: {
+          'x-no-context-on-server': 'true',
+        },
+      });
+    } else if (requestContext.authentication?.cookie) {
+      // Enhanced cookie forwarding with all necessary headers
+      request = request.clone({
+        setHeaders: {
+          Cookie: `appSession=${requestContext.authentication.cookie}; evorto-tenant=${requestContext.tenant.domain}`,
+          'x-forwarded-from': 'ssr',
+          'x-tenant-id': requestContext.tenant.id,
+        },
+      });
+    }
   }
 
-  if (requestContext?.authentication?.cookie) {
-    request = request.clone({
-      setHeaders: {
-        Cookie: `appSession=${requestContext.authentication.cookie}; evorto-tenant=${requestContext.tenant.domain}`,
-      },
-    });
-  }
   return next(request);
 };

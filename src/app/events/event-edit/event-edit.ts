@@ -20,6 +20,7 @@ import {
 } from '@fortawesome/duotone-regular-svg-icons';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
+import { EventLocation } from '../../../shared/types/location';
 import { injectTRPC } from '../../core/trpc-client';
 import { EventGeneralForm } from '../../shared/components/forms/event-general-form/event-general-form';
 import {
@@ -56,6 +57,7 @@ export class EventEdit {
     description: this.fb.control(''),
     end: this.fb.control<Date>(new Date()),
     icon: this.fb.control(''),
+    location: this.fb.control<EventLocation | null>(null),
     registrationOptions: this.fb.array<RegistrationOptionFormGroup>([]),
     start: this.fb.control<Date>(new Date()),
     title: this.fb.control(''),
