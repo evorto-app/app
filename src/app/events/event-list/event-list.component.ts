@@ -79,12 +79,7 @@ export class EventListComponent {
     this.config.updateTitle('Events');
     const eventsLoaded = this.taskService.add();
     effect(() => {
-      const event = this.eventQuery.data();
-      consola.info(event);
-    });
-    effect(() => {
       const successs = this.eventQuery.isSuccess();
-      consola.info({ successs });
       if (successs) {
         eventsLoaded();
       }
