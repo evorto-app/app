@@ -15,6 +15,7 @@ import { injectQuery } from '@tanstack/angular-query-experimental';
 import { PartialDeep } from 'type-fest';
 
 import { injectTRPC } from '../../../core/trpc-client';
+import { DurationSelectorComponent } from '../../../shared/components/controls/duration-selector/duration-selector.component';
 import { EditorComponent } from '../../../shared/components/controls/editor/editor.component';
 import { IconSelectorFieldComponent } from '../../../shared/components/controls/icon-selector/icon-selector-field/icon-selector-field.component';
 import { LocationSelectorField } from '../../../shared/components/controls/location-selector/location-selector-field/location-selector-field';
@@ -59,6 +60,7 @@ export interface TemplateFormData {
     MatSlideToggleModule,
     RoleSelectComponent,
     LocationSelectorField,
+    DurationSelectorComponent,
   ],
   selector: 'app-template-form',
   standalone: true,
