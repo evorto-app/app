@@ -71,7 +71,7 @@
   --app-success-container: light-dark(#a4f2d6, #00513f);
   --app-on-success-container: light-dark(#00513f, #a4f2d6);
   --app-warn: light-dark(#785a0b, #e9c16c);
-  --app-on-warn: light-dark(#fffff, #402d00);
+  --app-on-warn: light-dark(#ffffff, #402d00);
   --app-warn-container: light-dark(#ffdf9f, #5b4300);
   --app-on-warn-container: light-dark(#5b4300, #ffdf9f);
   @include mat.theme(
