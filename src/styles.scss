@@ -1,15 +1,32 @@
 @use "@angular/material" as mat;
 @use "./theme-colors" as theme-colors;
 @use "./esn_theme-colors" as esn-theme-colors;
+//@use "inter-ui/default" with (
+//  $inter-font-display: swap,
+//  $inter-font-path: "/assets/inter-ui/web"
+//);
+
+@use "inter-ui/variable" with (
+  $inter-font-display: swap,
+  $inter-font-path: "/inter-ui/variable"
+);
 @import "tailwindcss";
 
 @plugin "@tailwindcss/typography";
-@import url(https://fonts.bunny.net/css?family=lato:400,700|oswald:400,700);
+//@import url(https://fonts.bunny.net/css?family=lato:400,700|oswald:400,700);
+
+//@include default.all;
+@include variable.all;
 
 :root {
   @include mat.chips-overrides(
     (
       container-shape-radius: var(--mat-sys-corner-medium),
+    )
+  );
+  @include mat.form-field-overrides(
+    (
+      outlined-container-shape: var(--mat-sys-corner-small),
     )
   );
   // Notification styles
@@ -49,6 +66,14 @@
 
 .theme-evorto {
   color-scheme: light dark;
+  --app-success: light-dark(#156b55, #88d6ba);
+  --app-on-success: light-dark(#ffffff, #00382a);
+  --app-success-container: light-dark(#a4f2d6, #00513f);
+  --app-on-success-container: light-dark(#00513f, #a4f2d6);
+  --app-warn: light-dark(#785a0b, #e9c16c);
+  --app-on-warn: light-dark(#ffffff, #402d00);
+  --app-warn-container: light-dark(#ffdf9f, #5b4300);
+  --app-on-warn-container: light-dark(#5b4300, #ffdf9f);
   @include mat.theme(
     (
       color: (
@@ -65,18 +90,20 @@
   @media (prefers-contrast: more) {
     @include theme-colors.high-contrast-overrides(color-scheme);
   }
-  --app-success: light-dark(#156b55, #88d6ba);
-  --app-on-success: light-dark(#ffffff, #00382a);
-  --app-success-container: light-dark(#a4f2d6, #00513f);
-  --app-on-success-container: light-dark(#00513f, #a4f2d6);
-  --app-warn: light-dark(#785a0b, #e9c16c);
-  --app-on-warn: light-dark(#fffff, #402d00);
-  --app-warn-container: light-dark(#ffdf9f, #5b4300);
-  --app-on-warn-container: light-dark(#5b4300, #ffdf9f);
 }
 
 .theme-esn {
   color-scheme: light dark;
+  //--font-body: "Lato", sans-serif;
+  //--font-display: "Oswald", sans-serif;
+  --app-success: light-dark(#48672f, #add28e);
+  --app-on-success: light-dark(#ffffff, #1b3704);
+  --app-success-container: light-dark(#c8eea8, #314f19);
+  --app-on-success-container: light-dark(#314f19, #c8eea8);
+  --app-warn: light-dark(#8c4f27, #ffb68b);
+  --app-on-warn: light-dark(#ffffff, #522300);
+  --app-warn-container: light-dark(#ffdbc8, #6f3811);
+  --app-on-warn-container: light-dark(#6f3811, #ffdbc8);
   @include mat.theme(
     (
       color: (
@@ -110,16 +137,6 @@
   @media (prefers-contrast: more) {
     @include esn-theme-colors.high-contrast-overrides(color-scheme);
   }
-  --font-body: "Lato", sans-serif;
-  --font-display: "Oswald", sans-serif;
-  --app-success: light-dark(#48672f, #add28e);
-  --app-on-success: light-dark(#ffffff, #1b3704);
-  --app-success-container: light-dark(#c8eea8, #314f19);
-  --app-on-success-container: light-dark(#314f19, #c8eea8);
-  --app-warn: light-dark(#8c4f27, #ffb68b);
-  --app-on-warn: light-dark(#fffff, #522300);
-  --app-warn-container: light-dark(#ffdbc8, #6f3811);
-  --app-on-warn-container: light-dark(#6f3811, #ffdbc8);
 }
 
 @theme {

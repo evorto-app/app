@@ -9,16 +9,20 @@ import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatTimepickerModule } from '@angular/material/timepicker';
-import { omit } from 'es-toolkit';
 
+import { EventLocation } from '../../../../../shared/types/location';
 import { EditorComponent } from '../../controls/editor/editor.component';
 import { IconSelectorFieldComponent } from '../../controls/icon-selector/icon-selector-field/icon-selector-field.component';
+import {
+  LocationSelectorField
+} from '../../controls/location-selector/location-selector-field/location-selector-field';
 
 export type EventGeneralFormGroup = FormGroup<GeneralFormControls>;
 interface GeneralFormControls {
   description: FormControl<string>;
   end: FormControl<Date>;
   icon: FormControl<string>;
+  location: FormControl<EventLocation | null>;
   registrationOptions: FormArray;
   start: FormControl<Date>;
   title: FormControl<string>;
@@ -34,6 +38,7 @@ interface GeneralFormControls {
     MatInputModule,
     MatFormFieldModule,
     ReactiveFormsModule,
+    LocationSelectorField,
   ],
   selector: 'app-event-general-form',
   styles: ``,

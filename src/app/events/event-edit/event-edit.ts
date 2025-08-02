@@ -10,8 +10,8 @@ import {
   NonNullableFormBuilder,
   ReactiveFormsModule,
 } from '@angular/forms';
-import { MatButtonModule, MatIconButton } from '@angular/material/button';
-import { MatMenu, MatMenuModule } from '@angular/material/menu';
+import { MatButtonModule } from '@angular/material/button';
+import { MatMenuModule } from '@angular/material/menu';
 import { RouterLink } from '@angular/router';
 import { FaDuotoneIconComponent } from '@fortawesome/angular-fontawesome';
 import {
@@ -20,6 +20,7 @@ import {
 } from '@fortawesome/duotone-regular-svg-icons';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
+import { EventLocation } from '../../../shared/types/location';
 import { injectTRPC } from '../../core/trpc-client';
 import { EventGeneralForm } from '../../shared/components/forms/event-general-form/event-general-form';
 import {
@@ -56,13 +57,14 @@ export class EventEdit {
     description: this.fb.control(''),
     end: this.fb.control<Date>(new Date()),
     icon: this.fb.control(''),
+    location: this.fb.control<EventLocation | null>(null),
     registrationOptions: this.fb.array<RegistrationOptionFormGroup>([]),
     start: this.fb.control<Date>(new Date()),
     title: this.fb.control(''),
   });
   private trpc = injectTRPC();
   protected readonly eventQuery = injectQuery(() =>
-    this.trpc.events.findOne.queryOptions({ id: this.eventId() }),
+    this.trpc.events.findOneForEdit.queryOptions({ id: this.eventId() }),
   );
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faEllipsisVertical = faEllipsisVertical;
@@ -75,24 +77,28 @@ export class EventEdit {
     effect(() => {
       const event = this.eventQuery.data();
       if (event) {
-        this.editEventForm.reset({
+        // Use patchValue instead of reset for better control over form updates
+        this.editEventForm.patchValue({
           description: event.description,
           end: event.end ? new Date(event.end) : new Date(),
           icon: event.icon,
+          location: event.location || null,
           start: event.start ? new Date(event.start) : new Date(),
           title: event.title,
         });
+        
+        // Update registration options
         const registrationOptionsFormArray = this.editEventForm.get(
           'registrationOptions',
         ) as FormArray;
         registrationOptionsFormArray.clear();
         for (const option of event.registrationOptions) {
-          registrationOptionsFormArray?.push(
+          registrationOptionsFormArray.push(
             this.fb.group({
-              closeRegistrationTime: [],
+              closeRegistrationTime: [option.closeRegistrationTime ? new Date(option.closeRegistrationTime) : null],
               description: [option.description],
               isPaid: [option.isPaid],
-              openRegistrationTime: [],
+              openRegistrationTime: [option.openRegistrationTime ? new Date(option.openRegistrationTime) : null],
               organizingRegistration: [option.organizingRegistration],
               price: [option.price],
               registeredDescription: [option.registeredDescription],
@@ -105,5 +111,7 @@ export class EventEdit {
       }
     });
   }
-  protected saveEvent() {}
+  protected saveEvent() {
+    // TODO: Implement save event functionality
+  }
 }

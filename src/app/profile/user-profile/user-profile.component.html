@@ -26,14 +26,14 @@
           <div>
             <p class="text-on-surface-variant mb-1 text-xs">Name</p>
             <p class="text-base font-medium">
-              {{ userQuery.data()?.firstName ?? "" }}
-              {{ userQuery.data()?.lastName ?? "" }}
+              {{ userQuery.data().firstName }}
+              {{ userQuery.data().lastName }}
             </p>
           </div>
           <div>
             <p class="text-on-surface-variant mb-1 text-xs">Email</p>
             <p class="text-base font-medium">
-              {{ userQuery.data()?.email ?? "" }}
+              {{ userQuery.data().email }}
             </p>
           </div>
         </div>

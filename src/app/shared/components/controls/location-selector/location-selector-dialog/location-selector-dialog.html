@@ -1,0 +1,33 @@
+<h2 mat-dialog-title>Select a location</h2>
+<mat-dialog-content>
+  <mat-form-field class="w-full pt-2">
+    <mat-label>Location</mat-label>
+    <input
+      type="text"
+      placeholder="Start typing to search for a location"
+      matInput
+      [formControl]="locationControl"
+      [matAutocomplete]="auto"
+    />
+    <mat-autocomplete
+      #auto="matAutocomplete"
+      [displayWith]="displayFunction"
+      (optionSelected)="selectOption($event)"
+    >
+      @for (
+        option of locationOptions$ | async;
+        track option.placePrediction?.placeId
+      ) {
+        <mat-option [value]="option">
+          <span>{{ option.placePrediction?.mainText }}</span> <br />
+          <span class="body-small">{{
+            option.placePrediction?.secondaryText
+          }}</span>
+        </mat-option>
+      }
+    </mat-autocomplete>
+  </mat-form-field>
+</mat-dialog-content>
+<mat-dialog-actions>
+  <button mat-button mat-dialog-close>Cancel</button>
+</mat-dialog-actions>
