@@ -300,6 +300,7 @@ export const eventRouter = router({
           end: Schema.ValidDateFromSelf,
           eventId: Schema.NonEmptyString,
           icon: Schema.NonEmptyString,
+          location: Schema.NullOr(Schema.Any),
           start: Schema.ValidDateFromSelf,
           title: Schema.NonEmptyString,
         }),
@@ -321,30 +322,25 @@ export const eventRouter = router({
         });
       }
 
-      if (event.status !== 'DRAFT') {
-        //TODO: Check this for correctness
-        throw new TRPCError({
-          code: 'FORBIDDEN',
-          message: 'Event cannot be edited in its current state',
-        });
-      }
-
-      return await database
-        .update(schema.eventInstances)
-        .set({
-          description: input.description,
-          end: input.end,
-          icon: input.icon,
-          start: input.start,
-          title: input.title,
-        })
-        .where(
-          and(
-            eq(schema.eventInstances.id, input.eventId),
-            eq(schema.eventInstances.tenantId, ctx.tenant.id),
-          ),
-        )
-        .returning();
+      return (
+        await database
+          .update(schema.eventInstances)
+          .set({
+            description: input.description,
+            end: input.end,
+            icon: input.icon,
+            location: input.location,
+            start: input.start,
+            title: input.title,
+          })
+          .where(
+            and(
+              eq(schema.eventInstances.id, input.eventId),
+              eq(schema.eventInstances.tenantId, ctx.tenant.id),
+            ),
+          )
+          .returning()
+      )[0];
     }),
 
   updateVisibility: authenticatedProcedure

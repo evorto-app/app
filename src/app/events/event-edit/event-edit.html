@@ -50,11 +50,20 @@
           type="submit"
           mat-button
           [disabled]="
-              editEventForm.invalid
+              editEventForm.invalid || updateEventMutation.isPending()
             "
         >
-          Create event
+          @if (updateEventMutation.isPending()) {
+            Saving...
+          } @else {
+            Save Changes
+          }
         </button>
+        @if (updateEventMutation.error()) {
+          <div class="text-error mt-2 text-sm">
+            Failed to save event. Please try again.
+          </div>
+        }
       </div>
     </div>
   </form>
