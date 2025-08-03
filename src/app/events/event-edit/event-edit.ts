@@ -12,13 +12,18 @@ import {
 } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatMenuModule } from '@angular/material/menu';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { FaDuotoneIconComponent } from '@fortawesome/angular-fontawesome';
 import {
   faArrowLeft,
   faEllipsisVertical,
 } from '@fortawesome/duotone-regular-svg-icons';
-import { injectQuery } from '@tanstack/angular-query-experimental';
+import {
+  injectMutation,
+  injectQuery,
+  QueryClient,
+} from '@tanstack/angular-query-experimental';
+import consola from 'consola/browser';
 
 import { EventLocation } from '../../../shared/types/location';
 import { injectTRPC } from '../../core/trpc-client';
@@ -73,6 +78,21 @@ export class EventEdit {
     'random',
     'application',
   ] as const;
+  private queryClient = inject(QueryClient);
+  private router = inject(Router);
+  protected readonly updateEventMutation = injectMutation(() =>
+    this.trpc.events.update.mutationOptions({
+      onError: (error) => {
+        consola.error('Failed to update event:', error);
+      },
+      onSuccess: async ({ id }) => {
+        await this.queryClient.invalidateQueries({
+          queryKey: this.trpc.events.eventList.pathKey(),
+        });
+        return this.router.navigate(['/events', id]);
+      },
+    }),
+  );
   constructor() {
     effect(() => {
       const event = this.eventQuery.data();
@@ -86,7 +106,7 @@ export class EventEdit {
           start: event.start ? new Date(event.start) : new Date(),
           title: event.title,
         });
-        
+
         // Update registration options
         const registrationOptionsFormArray = this.editEventForm.get(
           'registrationOptions',
@@ -95,10 +115,18 @@ export class EventEdit {
         for (const option of event.registrationOptions) {
           registrationOptionsFormArray.push(
             this.fb.group({
-              closeRegistrationTime: [option.closeRegistrationTime ? new Date(option.closeRegistrationTime) : null],
+              closeRegistrationTime: [
+                option.closeRegistrationTime
+                  ? new Date(option.closeRegistrationTime)
+                  : null,
+              ],
               description: [option.description],
               isPaid: [option.isPaid],
-              openRegistrationTime: [option.openRegistrationTime ? new Date(option.openRegistrationTime) : null],
+              openRegistrationTime: [
+                option.openRegistrationTime
+                  ? new Date(option.openRegistrationTime)
+                  : null,
+              ],
               organizingRegistration: [option.organizingRegistration],
               price: [option.price],
               registeredDescription: [option.registeredDescription],
@@ -112,6 +140,30 @@ export class EventEdit {
     });
   }
   protected saveEvent() {
-    // TODO: Implement save event functionality
+    if (this.editEventForm.invalid) {
+      return;
+    }
+
+    const formValue = this.editEventForm.value;
+
+    if (
+      !formValue.description ||
+      !formValue.end ||
+      !formValue.icon ||
+      !formValue.start ||
+      !formValue.title
+    ) {
+      return;
+    }
+
+    this.updateEventMutation.mutate({
+      description: formValue.description,
+      end: formValue.end,
+      eventId: this.eventId(),
+      icon: formValue.icon,
+      location: formValue.location,
+      start: formValue.start,
+      title: formValue.title,
+    });
   }
 }

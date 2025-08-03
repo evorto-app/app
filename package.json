@@ -47,7 +47,7 @@
     "@fortawesome/duotone-regular-svg-icons": "^6.7.2",
     "@fortawesome/free-brands-svg-icons": "^6.7.2",
     "@googlemaps/js-api-loader": "^1.16.10",
-    "@heddendorp/tanstack-angular-query": "0.1.0",
+    "@heddendorp/tanstack-angular-query": "0.2.1",
     "@heddendorp/trpc-link-angular": "^0.0.4",
     "@neondatabase/serverless": "^1.0.1",
     "@ng-web-apis/common": "^4.12.0",

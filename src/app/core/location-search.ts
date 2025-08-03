@@ -38,13 +38,28 @@ export class LocationSearch {
 
   async search(
     query: string,
+    defaultLocation?: GoogleLocation | undefined,
   ): Promise<google.maps.places.AutocompleteSuggestion[]> {
     const { service, token } = await this.initAutocomplete();
+
+    const request: google.maps.places.AutocompleteRequest = {
+      input: query,
+      sessionToken: token,
+    };
+
+    // Use default location for bias if provided
+    if (defaultLocation) {
+      request.locationBias = {
+        center: new google.maps.LatLng(
+          defaultLocation.coordinates.lat,
+          defaultLocation.coordinates.lng,
+        ),
+        radius: 50_000, // 50km radius
+      };
+    }
+
     return service
-      .fetchAutocompleteSuggestions({
-        input: query,
-        sessionToken: token,
-      })
+      .fetchAutocompleteSuggestions(request)
       .then((result) => result.suggestions ?? []);
   }
 

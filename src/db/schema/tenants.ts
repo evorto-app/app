@@ -1,5 +1,6 @@
-import { pgEnum, pgTable, text, timestamp, varchar } from 'drizzle-orm/pg-core';
+import { jsonb, pgEnum, pgTable, text, timestamp, varchar } from 'drizzle-orm/pg-core';
 
+import { GoogleLocation } from '../../shared/types/location';
 import { createId } from '../create-id';
 
 export const applicationThemes = pgEnum('application_theme', ['evorto', 'esn']);
@@ -17,6 +18,7 @@ export const timezoneEnum = pgEnum('timezone', [
 export const tenants = pgTable('tenants', {
   createdAt: timestamp().notNull().defaultNow(),
   currency: currencyEnum().notNull().default('EUR'),
+  defaultLocation: jsonb('default_location').$type<GoogleLocation>(),
   domain: text().unique().notNull(),
   id: varchar({ length: 20 })
     .$defaultFn(() => createId())

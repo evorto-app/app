@@ -2020,9 +2020,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@heddendorp/tanstack-angular-query@npm:0.1.0":
-  version: 0.1.0
-  resolution: "@heddendorp/tanstack-angular-query@npm:0.1.0"
+"@heddendorp/tanstack-angular-query@npm:0.2.1":
+  version: 0.2.1
+  resolution: "@heddendorp/tanstack-angular-query@npm:0.2.1"
   dependencies:
     tslib: "npm:^2.3.0"
   peerDependencies:
@@ -2035,7 +2035,7 @@ __metadata:
   peerDependenciesMeta:
     "@heddendorp/trpc-link-angular":
       optional: true
-  checksum: 10c0/802da6eab61ac2783f4c7e89e6d96f4315d9b09818a58e21ee21edf261d8d6cc9e95ea20cd00a5731a3a22990661ce63daa71eea78a5a5c7cc423e88d2cbb762
+  checksum: 10c0/5fe9e71ea98b422b3f21a73e88223d37009e1a7f3d341b087e383b2e79ad6ca9b31c1600867621638a6a01f6f3804c201b57922822f0b12d95c2eb35c993cb50
   languageName: node
   linkType: hard
 
@@ -6968,7 +6968,7 @@ __metadata:
     "@fortawesome/duotone-regular-svg-icons": "npm:^6.7.2"
     "@fortawesome/free-brands-svg-icons": "npm:^6.7.2"
     "@googlemaps/js-api-loader": "npm:^1.16.10"
-    "@heddendorp/tanstack-angular-query": "npm:0.1.0"
+    "@heddendorp/tanstack-angular-query": "npm:0.2.1"
     "@heddendorp/trpc-link-angular": "npm:^0.0.4"
     "@neondatabase/serverless": "npm:^1.0.1"
     "@ng-web-apis/common": "npm:^4.12.0"

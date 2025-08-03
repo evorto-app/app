@@ -12,6 +12,7 @@ import { MatInputModule } from '@angular/material/input';
 import consola from 'consola/browser';
 import { catchError, debounceTime, from, of, switchMap, tap } from 'rxjs';
 
+import { ConfigService } from '../../../../../core/config.service';
 import { LocationSearch } from '../../../../../core/location-search';
 
 @Component({
@@ -31,7 +32,10 @@ import { LocationSearch } from '../../../../../core/location-search';
 })
 export class LocationSelectorDialog {
   protected locationControl = new FormControl();
+  private readonly configService = inject(ConfigService);
+  
   private readonly locationSearch = inject(LocationSearch);
+  
   protected locationOptions$ = this.locationControl.valueChanges.pipe(
     debounceTime(300), // Debounce input to reduce API calls
     // Use switchMap to handle the asynchronous search
@@ -43,7 +47,11 @@ export class LocationSelectorDialog {
         consola.warn('Query is not a string:', query);
         return of([]); // Handle non-string queries gracefully
       }
-      return from(this.locationSearch.search(query)).pipe(
+      
+      // Get tenant's default location for search bias from config service
+      const defaultLocation = this.configService.tenant?.defaultLocation;
+      
+      return from(this.locationSearch.search(query, defaultLocation)).pipe(
         catchError(() => of([])), // Handle errors gracefully
       );
     }),
