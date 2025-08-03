@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { Loader } from '@googlemaps/js-api-loader';
 
-import { GoogleLocation } from '../../shared/types/location';
+import { GoogleLocationType } from '../../types/location';
 
 const loader = new Loader({
   apiKey: 'AIzaSyAMfVVwWv-3eVdU3uU54ygI_7jCNSzRXlo',
@@ -16,7 +16,7 @@ export class LocationSearch {
   private _sessionToken?: google.maps.places.AutocompleteSessionToken;
   async getPlaceDetails(
     place: google.maps.places.Place,
-  ): Promise<GoogleLocation> {
+  ): Promise<GoogleLocationType> {
     await place.fetchFields({
       fields: ['displayName', 'formattedAddress', 'location'],
     });
@@ -38,7 +38,7 @@ export class LocationSearch {
 
   async search(
     query: string,
-    defaultLocation?: GoogleLocation | undefined,
+    defaultLocation?: GoogleLocationType | undefined,
   ): Promise<google.maps.places.AutocompleteSuggestion[]> {
     const { service, token } = await this.initAutocomplete();
 

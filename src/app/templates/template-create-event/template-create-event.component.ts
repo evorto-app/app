@@ -29,7 +29,7 @@ import {
 import consola from 'consola/browser';
 import { DateTime } from 'luxon';
 
-import { EventLocation } from '../../../shared/types/location';
+import { EventLocationType } from '../../../types/location';
 import { injectTRPC } from '../../core/trpc-client';
 import { EventGeneralForm } from '../../shared/components/forms/event-general-form/event-general-form';
 import {
@@ -68,7 +68,7 @@ export class TemplateCreateEventComponent {
     description: this.fb.control(''),
     end: this.fb.control<Date>(new Date()),
     icon: this.fb.control(''),
-    location: this.fb.control<EventLocation | null>(null),
+    location: this.fb.control<EventLocationType | null>(null),
     registrationOptions: this.fb.array<RegistrationOptionFormGroup>([]),
     start: this.fb.control<Date>(new Date()),
     title: this.fb.control(''),

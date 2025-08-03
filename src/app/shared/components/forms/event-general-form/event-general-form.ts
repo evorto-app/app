@@ -10,7 +10,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatTimepickerModule } from '@angular/material/timepicker';
 
-import { EventLocation } from '../../../../../shared/types/location';
+import { EventLocationType } from '../../../../../types/location';
 import { EditorComponent } from '../../controls/editor/editor.component';
 import { IconSelectorFieldComponent } from '../../controls/icon-selector/icon-selector-field/icon-selector-field.component';
 import {
@@ -22,7 +22,7 @@ interface GeneralFormControls {
   description: FormControl<string>;
   end: FormControl<Date>;
   icon: FormControl<string>;
-  location: FormControl<EventLocation | null>;
+  location: FormControl<EventLocationType | null>;
   registrationOptions: FormArray;
   start: FormControl<Date>;
   title: FormControl<string>;
