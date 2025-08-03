@@ -12,6 +12,14 @@
       [formGroup]="settingsForm"
       (ngSubmit)="saveSettings()"
     >
+      <div class="mb-4">
+        <label class="text-sm font-medium mb-2 block">Default Location</label>
+        <p class="text-xs text-gray-600 mb-2">
+          Set a default location to improve Google Places search results for your events.
+          This location will be used as the center point for location searches.
+        </p>
+        <app-location-selector-field formControlName="defaultLocation" />
+      </div>
       <mat-form-field>
         <mat-label>Site theme</mat-label>
         <mat-select formControlName="theme">

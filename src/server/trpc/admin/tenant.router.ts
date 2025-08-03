@@ -23,6 +23,7 @@ export const tenantRouter = router({
     .input(
       Schema.decodeUnknownSync(
         Schema.Struct({
+          defaultLocation: Schema.NullOr(Schema.Any),
           theme: Schema.mutable(Schema.Literal('evorto', 'esn')),
         }),
       ),
@@ -31,6 +32,7 @@ export const tenantRouter = router({
       const tenant = await database
         .update(schema.tenants)
         .set({
+          defaultLocation: input.defaultLocation,
           theme: input.theme,
         })
         .where(eq(schema.tenants.id, ctx.tenant.id))
