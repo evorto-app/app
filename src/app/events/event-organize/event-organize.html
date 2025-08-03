@@ -1,20 +1,57 @@
 <div class="mb-4 flex w-full flex-row items-center gap-2">
-  <a routerLink="/events/{{eventId()}}" mat-icon-button>
+  <a [routerLink]="['/events', eventId()]" mat-icon-button>
     <fa-duotone-icon [icon]="faArrowLeft"></fa-duotone-icon>
   </a>
-  <h1 class="title-large">{{ eventQuery.data()?.title ?? "Loading ..." }}</h1>
+  <h1 class="title-large">{{ event()?.title || "Loading..." }}</h1>
   <div class="grow"></div>
-  <button
-    title="menu"
-    *appIfAnyPermission="['events:changeVisibility']"
-    mat-icon-button
-    [matMenuTriggerFor]="menu"
-  >
-    <fa-duotone-icon [icon]="faEllipsisVertical"></fa-duotone-icon>
-  </button>
-  <mat-menu #menu="matMenu">
-    <!--    <button mat-menu-item (click)="updateVisibility()">-->
-    <!--      Update visibility-->
-    <!--    </button>-->
-  </mat-menu>
+  @if (event()) {
+    <span class="text-surface-variant text-sm">
+      {{ event()!.start | date: "shortDate" }} •
+      {{ event()!.start | date: "shortTime" }}
+    </span>
+  }
 </div>
+
+<main>
+  <div class="grid gap-6">
+    <!-- Quick Stats Cards -->
+    <section class="bg-surface text-on-surface rounded-2xl p-4">
+      <h2 class="title-large mb-4">Event Overview</h2>
+      <div class="grid grid-cols-3 gap-4">
+        <div class="bg-surface-container rounded-lg p-4 text-center">
+          <div class="text-2xl font-bold">{{ stats().registered }}</div>
+          <div class="text-surface-variant text-lg font-bold">
+            /{{ stats().capacity }}
+          </div>
+          <div class="text-surface-variant text-sm">Registered</div>
+        </div>
+        <div class="bg-surface-container rounded-lg p-4 text-center">
+          <div class="text-2xl font-bold">{{ stats().checkedIn }}</div>
+          <div class="text-surface-variant text-sm">Checked In</div>
+        </div>
+        <div class="bg-surface-container rounded-lg p-4 text-center">
+          <div class="text-2xl font-bold">
+            {{ stats().capacityPercentage | percent: "1.0-0" }}
+          </div>
+          <div class="text-surface-variant text-sm">Capacity</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Management Section -->
+    <section
+      class="bg-surface-container-high text-on-surface-container-high rounded-2xl p-4"
+    >
+      <h2 class="title-large mb-4">Event Management</h2>
+      <div class="py-8 text-center">
+        <p class="text-on-surface-container-high/70 mb-2">
+          Event management features coming soon
+        </p>
+        <p class="text-on-surface-container-high/50 text-sm">
+          This will include participant management, organizer controls,
+          check-ins, and registration tools.
+        </p>
+      </div>
+    </section>
+  </div>
+</main>

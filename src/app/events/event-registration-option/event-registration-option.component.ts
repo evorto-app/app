@@ -11,6 +11,7 @@ import { MatButtonModule } from '@angular/material/button';
 import {
   injectMutation,
   injectQuery,
+  QueryClient,
 } from '@tanstack/angular-query-experimental';
 import { interval, map } from 'rxjs';
 
@@ -38,8 +39,17 @@ export class EventRegistrationOptionComponent {
   protected readonly authenticationQuery = injectQuery(() =>
     this.trpc.config.isAuthenticated.queryOptions(),
   );
+  private queryClient = inject(QueryClient);
   protected readonly registrationMutation = injectMutation(() =>
-    this.trpc.events.registerForEvent.mutationOptions(),
+    this.trpc.events.registerForEvent.mutationOptions({
+      onSuccess: async ({ userRegistration: { eventId } }) => {
+        await this.queryClient.invalidateQueries({
+          queryKey: this.trpc.events.getRegistrationStatus.queryKey({
+            eventId,
+          }),
+        });
+      },
+    }),
   );
   private currentTime = toSignal(interval(1000).pipe(map(() => new Date())), {
     initialValue: new Date(),
