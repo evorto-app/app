@@ -131,6 +131,7 @@ export const migrateEvents = async (
     // Insert event instances and return inserted rows for mapping
     const eventInstancesToInsert = validEvents.map((event) => ({
       createdAt: DateTime.fromSQL(event.createdAt).toJSDate(),
+      creatorId: event.creatorId,
       description: marked.parse(event.description, { async: false }),
       end: DateTime.fromSQL(event.end).toJSDate(),
       icon: event.icon,

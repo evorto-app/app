@@ -45,12 +45,14 @@ async function runForTenant(oldShortName: string, newDomain: string) {
 
   // Get the tenant
   const oldTenant = await oldDatabase.query.tenant.findFirst({
-    where: eq(oldSchema.tenant.shortName, oldShortName),
+    where: { shortName: oldShortName },
   });
+
+  consola.debug('Retrieved old tenant');
 
   if (
     await database.query.tenants.findFirst({
-      where: eq(schema.tenants.domain, newDomain),
+      where: { domain: newDomain },
     })
   ) {
     consola.error(`Tenant ${newDomain} already exists`);

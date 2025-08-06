@@ -196,22 +196,6 @@
   --radius-full: var(--mat-sys-corner-full);
 }
 
-html,
-body,
-app-root {
-  min-height: 100%;
-  height: 100%;
-  padding: 0;
-  margin: 0;
-  box-sizing: border-box;
-}
-
-*,
-*:before,
-*:after {
-  box-sizing: inherit;
-}
-
 .title-small {
   font: var(--mat-sys-title-small);
 }

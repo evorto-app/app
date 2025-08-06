@@ -253,7 +253,7 @@ const createEvents = (
           registeredDescription: 'You are registered',
           registrationMode: 'fcfs',
           roleIds: defaultUserRoles.map((role) => role.id),
-          spots: 20,
+          spots: 15, // Participants get more spots
           title: 'Participant registration',
         },
         {
@@ -268,7 +268,7 @@ const createEvents = (
           registeredDescription: 'You are registered',
           registrationMode: 'fcfs',
           roleIds: defaultOrganizerRoles.map((role) => role.id),
-          spots: 20,
+          spots: 3, // Organizers get fewer spots
           title: 'Organizer registration',
         },
       );

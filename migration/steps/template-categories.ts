@@ -17,7 +17,7 @@ export const migrateTemplateCategories = async (
   newTenant: InferSelectModel<typeof schema.tenants>,
 ) => {
   const oldCategories = await oldDatabase.query.eventTemplateCategory.findMany({
-    where: eq(oldSchema.eventTemplateCategory.tenantId, oldTenant.id),
+    where: { tenantId: oldTenant.id },
   });
   consola.info(`Migrating ${oldCategories.length} template categories`);
   await maybeInsertIcons(newTenant.id, ...oldCategories.map((c) => c.icon));

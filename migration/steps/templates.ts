@@ -26,7 +26,7 @@ export const migrateTemplates = async (
   roleMap: Map<string, string>,
 ) => {
   const oldTemplates = await oldDatabase.query.eventTemplate.findMany({
-    where: eq(oldSchema.eventTemplate.tenantId, oldTenant.id),
+    where: { tenantId: oldTenant.id },
     with: {
       eventTemplateCategory: {
         columns: {
@@ -76,15 +76,23 @@ export const migrateTemplates = async (
         const participantRoleIds = [];
         const organizerRoleIds = [];
         if (eventInstance) {
+          // const eventStart = DateTime.fromISO(eventInstance.start);
+          // const registrationStart = DateTime.fromISO(
+          //   eventInstance.registrationStart,
+          // );
+          // const participantTimeDiff = eventStart.diff(registrationStart, [
+          //   'hours',
+          // ]);
+          // participantOffset = Math.round(participantTimeDiff.hours);
           participantOffset = Math.round(
-            DateTime.fromISO(eventInstance.start).diff(
-              DateTime.fromISO(eventInstance.registrationStart),
+            DateTime.fromSQL(eventInstance.start).diff(
+              DateTime.fromSQL(eventInstance.registrationStart),
               ['hours'],
             ).hours,
           );
           organizerOffset = Math.round(
-            DateTime.fromISO(eventInstance.start).diff(
-              DateTime.fromISO(eventInstance.registrationStart),
+            DateTime.fromSQL(eventInstance.start).diff(
+              DateTime.fromSQL(eventInstance.registrationStart),
               ['hours'],
             ).hours,
           );

@@ -34,7 +34,7 @@ export const migrateUserTenantAssignments = async (
     const oldUserAssignments = await oldDatabase.query.usersOfTenants.findMany({
       limit: migrationStepSize,
       offset: index,
-      where: eq(oldSchema.usersOfTenants.tenantId, oldTenant.id),
+      where: { tenantId: oldTenant.id },
       with: {
         user: {
           columns: {

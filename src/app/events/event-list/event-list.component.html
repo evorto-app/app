@@ -1,9 +1,11 @@
-<div class="grid grid-cols-1 lg:h-full lg:grid-cols-[400px_1fr] lg:gap-4">
-  <div class="lg:h-full lg:overflow-y-auto lg:py-4 lg:pr-4">
+<div
+  class="grid grid-cols-1 lg:relative lg:h-full lg:grid-cols-[400px_1fr] lg:gap-4"
+>
+  <div class="lg:h-full lg:overflow-y-auto lg:rounded-t-lg lg:p-4">
     <div
       class="mb-4 {{
         outletActive() ? 'hidden' : 'flex'
-      }} lg:flex w-full flex-row items-center gap-2"
+      }} lg:flex w-full flex-row items-center gap-2 p-2 lg:p-0"
     >
       <h1 class="title-large">Events</h1>
       <div class="grow"></div>
@@ -30,13 +32,19 @@
         <fa-duotone-icon [icon]="faEllipsisVertical"></fa-duotone-icon>
       </button>
       <mat-menu #menu="matMenu">
-        <a routerLink="/templates" mat-menu-item *appIfAnyPermission="['events:create']">
+        <a
+          routerLink="/templates"
+          mat-menu-item
+          *appIfAnyPermission="['events:create']"
+        >
           Create Event
         </a>
       </mat-menu>
     </div>
     <nav
-      class="{{ outletActive() ? 'hidden' : 'flex' }} lg:flex flex-col gap-4"
+      class="{{
+        outletActive() ? 'hidden' : 'flex'
+      }} lg:flex flex-col gap-2 px-2 lg:px-0"
     >
       @if (eventQuery.isPending()) {
         <div
@@ -126,7 +134,7 @@
       }
     </nav>
   </div>
-  <div class="lg:p-4">
+  <div class="lg:h-full lg:pr-4">
     <router-outlet
       (activate)="outletActive.set(true)"
       (deactivate)="outletActive.set(false)"

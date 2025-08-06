@@ -164,6 +164,101 @@ export const eventRouter = router({
       return event;
     }),
 
+  getOrganizeOverview: authenticatedProcedure
+    .input(
+      Schema.decodeUnknownSync(
+        Schema.Struct({ eventId: Schema.NonEmptyString }),
+      ),
+    )
+    .query(async ({ ctx, input }) => {
+      const registrations = await database
+        .select({
+          checkInTime: schema.eventRegistrations.checkInTime,
+          organizingRegistration:
+            schema.eventRegistrationOptions.organizingRegistration,
+          registrationOptionId: schema.eventRegistrations.registrationOptionId,
+          registrationOptionTitle: schema.eventRegistrationOptions.title,
+          userEmail: schema.users.email,
+          userFirstName: schema.users.firstName,
+          userId: schema.users.id,
+          userLastName: schema.users.lastName,
+        })
+        .from(schema.eventRegistrations)
+        .innerJoin(
+          schema.eventRegistrationOptions,
+          eq(
+            schema.eventRegistrations.registrationOptionId,
+            schema.eventRegistrationOptions.id,
+          ),
+        )
+        .innerJoin(
+          schema.users,
+          eq(schema.eventRegistrations.userId, schema.users.id),
+        )
+        .where(
+          and(
+            eq(schema.eventRegistrations.eventId, input.eventId),
+            eq(schema.eventRegistrations.tenantId, ctx.tenant.id),
+            eq(schema.eventRegistrations.status, 'CONFIRMED'),
+          ),
+        );
+
+      // Group by registration option and sort
+      const groupedRegistrations = groupBy(
+        registrations,
+        (reg) => reg.registrationOptionId,
+      );
+
+      // Sort registration options: organizing first, then by title
+      const sortedOptions = Object.entries(groupedRegistrations).sort(
+        ([, regsA], [, regsB]) => {
+          // First sort by organizing registration (true first)
+          if (
+            regsA[0].organizingRegistration !== regsB[0].organizingRegistration
+          ) {
+            return regsB[0].organizingRegistration ? 1 : -1;
+          }
+          // Then sort by title
+          return regsA[0].registrationOptionTitle.localeCompare(
+            regsB[0].registrationOptionTitle,
+          );
+        },
+      );
+
+      return sortedOptions.map(([optionId, regs]) => {
+        // Sort users within each option: not checked in first, then by name
+        const sortedUsers = regs
+          .sort((a, b) => {
+            // First: not checked in users first (checkInTime === null)
+            if ((a.checkInTime === null) !== (b.checkInTime === null)) {
+              return a.checkInTime === null ? -1 : 1;
+            }
+            // Then by first name
+            const firstNameCompare = a.userFirstName.localeCompare(
+              b.userFirstName,
+            );
+            if (firstNameCompare !== 0) return firstNameCompare;
+            // Finally by last name
+            return a.userLastName.localeCompare(b.userLastName);
+          })
+          .map((reg) => ({
+            checkedIn: reg.checkInTime !== null,
+            checkInTime: reg.checkInTime,
+            email: reg.userEmail,
+            firstName: reg.userFirstName,
+            lastName: reg.userLastName,
+            userId: reg.userId,
+          }));
+
+        return {
+          organizingRegistration: regs[0].organizingRegistration,
+          registrationOptionId: optionId,
+          registrationOptionTitle: regs[0].registrationOptionTitle,
+          users: sortedUsers,
+        };
+      });
+    }),
+
   getPendingReviews: authenticatedProcedure
     .meta({ requiredPermissions: ['events:review'] })
     .query(async ({ ctx }) => {

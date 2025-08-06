@@ -32,6 +32,7 @@ export interface EventRegistrationInput {
     id?: string;
     isPaid: boolean;
     price: number;
+    roleIds: string[];
     spots: number;
   }[];
   start: Date | string;
@@ -57,9 +58,19 @@ export async function addRegistrations(
   database: NeonDatabase<Record<string, never>, typeof relations>,
   events: EventRegistrationInput[],
 ) {
-  // Query all users with their tenant relationships
+  // Query all users with their tenant relationships and roles
   const usersRaw = await database.query.users.findMany({
-    with: { tenants: true },
+    with: { 
+      tenantAssignments: {
+        with: {
+          rolesToTenantUsers: {
+            with: {
+              role: true
+            }
+          }
+        }
+      }
+    },
   });
   // Exclude admin user from registrations
   const users = usersRaw.filter((u) => u.email !== 'admin@evorto.app');
@@ -85,6 +96,15 @@ export async function addRegistrations(
     return [];
   }
   const defaultCurrency = defaultTenant.currency || 'EUR';
+
+  // Helper function to check if user has required roles for a registration option
+  const userHasRequiredRoles = (user: typeof users[0], roleIds: string[], tenantId: string) => {
+    const userTenantAssignment = user.tenantAssignments?.find(t => t.tenantId === tenantId);
+    if (!userTenantAssignment) return false;
+    
+    const userRoleIds = userTenantAssignment.rolesToTenantUsers?.map(r => r.role.id) || [];
+    return roleIds.some(requiredRoleId => userRoleIds.includes(requiredRoleId));
+  };
 
   // Process each event with varied registration patterns
   for (const [eventIndex, event] of events.entries()) {
@@ -150,6 +170,19 @@ export async function addRegistrations(
         continue;
       }
 
+      // Get tenantId for this event
+      const tenantId = event.tenantId || defaultTenant.id;
+
+      // Filter users who have the required roles for this registration option
+      const eligibleUsers = users.filter(user => 
+        userHasRequiredRoles(user, option.roleIds, tenantId)
+      );
+
+      if (eligibleUsers.length === 0) {
+        console.warn(`No eligible users found for registration option ${option.id} with roles ${option.roleIds.join(', ')}`);
+        continue;
+      }
+
       // Calculate registrations and waitlist
       const regularSpots = Math.floor(
         option.spots * Math.min(fillPercentage, 1),
@@ -157,21 +190,21 @@ export async function addRegistrations(
       const waitlistSpots = shouldHaveWaitlist
         ? Math.floor(option.spots * 0.2)
         : 0;
-      const totalRegistrations = regularSpots + waitlistSpots;
+      const totalRegistrations = Math.min(regularSpots + waitlistSpots, eligibleUsers.length);
 
       let confirmedCount = 0;
       let waitlistCount = 0;
       let checkedInCount = 0;
 
+      // Shuffle eligible users to create more realistic distribution
+      const shuffledUsers = [...eligibleUsers].sort(() => Math.random() - 0.5);
+
       // Create registrations
       for (let index = 0; index < totalRegistrations; index++) {
-        const userIndex = index % users.length;
-        const user = users[userIndex];
+        const user = shuffledUsers[index];
 
-        // Get tenantId from user relationship or fall back to event tenant or default tenant
-        const userTenantRelation = user.tenants?.[0];
-        const tenantId =
-          userTenantRelation?.id || event.tenantId || defaultTenant.id;
+        // Get userTenant relationship for this specific tenant
+        const userTenantRelation = user.tenantAssignments?.find(t => t.tenantId === tenantId);
 
         // Generate IDs for the registration and transaction
         const registrationId = createId();
