@@ -32,7 +32,7 @@ RUN --mount=type=secret,id=SENTRY_AUTH_TOKEN,mode=0444 \
     fi
 
 FROM base AS production-dependencies
-RUN yarn add @sentry/node @sentry/profiling-node
+RUN yarn add @sentry/node @sentry/profiling-node canvas
 
 FROM base AS production
 
