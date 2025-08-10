@@ -14,6 +14,7 @@ import { getWeekendTripTemplates } from './templates/weekend-trip-templates';
 export const addTemplates = async (
   database: NeonDatabase<Record<string, never>, typeof relations>,
   categories: { id: string; tenantId: string; title: string }[],
+  icons: { id: string; commonName: string; sourceColor: number | null }[],
   roles: {
     defaultOrganizerRole: boolean;
     defaultUserRole: boolean;
@@ -56,17 +57,43 @@ export const addTemplates = async (
     (role) => role.defaultOrganizerRole,
   );
 
+  const createIconObject = (iconName: string) => {
+    const icon = icons.find((i) => i.commonName === iconName);
+    if (!icon) {
+      throw new Error(`Icon with commonName "${iconName}" not found`);
+    }
+    return {
+      iconColor: icon.sourceColor ?? 0,
+      iconName: icon.commonName,
+    };
+  };
+
   const freeTemplates = [
     // Hiking freeTemplates
-    ...getHikingTemplates(hikingCategory),
+    ...getHikingTemplates(hikingCategory).map(template => ({
+      ...template,
+      icon: createIconObject(template.icon),
+    })),
     // City tours freeTemplates
-    ...getCityTourTemplates(cityToursCategory),
+    ...getCityTourTemplates(cityToursCategory).map(template => ({
+      ...template,
+      icon: createIconObject(template.icon),
+    })),
     // City trips freeTemplates
-    ...getCityTripTemplates(cityTripsCategory),
+    ...getCityTripTemplates(cityTripsCategory).map(template => ({
+      ...template,
+      icon: createIconObject(template.icon),
+    })),
     // Weekend trips freeTemplates
-    ...getWeekendTripTemplates(weekendTripsCategory),
+    ...getWeekendTripTemplates(weekendTripsCategory).map(template => ({
+      ...template,
+      icon: createIconObject(template.icon),
+    })),
     // Example configurations freeTemplates
-    ...getExampleConfigTemplates(exampleConfigsCategory),
+    ...getExampleConfigTemplates(exampleConfigsCategory).map(template => ({
+      ...template,
+      icon: createIconObject(template.icon),
+    })),
   ];
 
   const createdFreeTemplates = await database
@@ -117,7 +144,10 @@ export const addTemplates = async (
 
   const paidTemplates = [
     // Sports freeTemplates
-    ...getSportsTemplates(sportsCategory),
+    ...getSportsTemplates(sportsCategory).map(template => ({
+      ...template,
+      icon: createIconObject(template.icon),
+    })),
   ];
 
   const createdPaidTemplates = await database

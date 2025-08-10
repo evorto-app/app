@@ -25,7 +25,7 @@ import {
 } from '@tanstack/angular-query-experimental';
 import consola from 'consola/browser';
 
-import { EventLocation } from '../../../shared/types/location';
+import { EventLocationType } from '../../../types/location';
 import { injectTRPC } from '../../core/trpc-client';
 import { EventGeneralForm } from '../../shared/components/forms/event-general-form/event-general-form';
 import {
@@ -61,8 +61,8 @@ export class EventEdit {
   protected readonly editEventForm = this.fb.group({
     description: this.fb.control(''),
     end: this.fb.control<Date>(new Date()),
-    icon: this.fb.control(''),
-    location: this.fb.control<EventLocation | null>(null),
+    icon: this.fb.control<null | { iconColor: number; iconName: string }>(null),
+    location: this.fb.control<EventLocationType | null>(null),
     registrationOptions: this.fb.array<RegistrationOptionFormGroup>([]),
     start: this.fb.control<Date>(new Date()),
     title: this.fb.control(''),

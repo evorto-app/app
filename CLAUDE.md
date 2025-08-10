@@ -76,6 +76,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Material Design principles with custom tokens in `src/styles.scss`
 - Reactive forms with proper validation
 
+### Responsive Layout
+- **Desktop**: Two-column layout with event list always visible in sidebar
+- **Mobile**: Single-column layout with event list hidden when viewing event details/organize pages
+- Layout automatically adapts based on screen size using responsive design patterns
+
 ### Testing Conventions
 - Documentation tests (`.doc.ts`) generate project documentation
 - Use `takeScreenshot()` for visual documentation
@@ -94,3 +99,110 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Prettier for formatting
 - No comments unless explicitly needed
 - Follow existing component and service patterns
+
+## Neon Database Integration Guidelines
+
+### Dependencies
+For Neon with Drizzle ORM integration:
+```bash
+npm install drizzle-orm @neondatabase/serverless dotenv
+npm install -D drizzle-kit
+```
+
+### Connection Configuration
+- Use Neon connection string format: `postgres://username:password@ep-instance-id.region.aws.neon.tech/neondb`
+- Store in `.env` or `.env.local` file as `DATABASE_URL`
+
+### Connection Setup
+```typescript
+import { drizzle } from "drizzle-orm/neon-http";
+import { neon } from "@neondatabase/serverless";
+
+const sql = neon(process.env.DATABASE_URL);
+export const db = drizzle({ client: sql });
+```
+
+### Key Considerations
+- Use `neon-http` adapter for serverless optimization
+- Leverage Neon's auto-scaling and connection pooling
+- Support for Postgres features: JSON/JSONB, arrays, enums, full-text search
+- Use prepared statements for repeated queries
+- Batch operations when possible for efficiency
+
+## Angular Development Rules (Critical)
+
+### Component Architecture
+- **ALL COMPONENTS MUST BE STANDALONE**: Never explicitly set `standalone: true` (implied by default)
+- **MUST USE OnPush**: Always set `changeDetection: ChangeDetectionStrategy.OnPush`
+- **Modern Control Flow**: Use `@if`, `@for`, `@switch` instead of structural directives
+- **Signal-based I/O**: Use `input()` and `output()` functions, not decorators
+
+### Forbidden Patterns
+- ❌ `NgModules` (`@NgModule`)
+- ❌ `*ngIf`, `*ngFor`, `*ngSwitch` (use `@if`, `@for`, `@switch`)
+- ❌ `NgClass`, `NgStyle` (use `[class]`, `[style]` bindings)
+- ❌ `@Input()`, `@Output()` decorators (use `input()`, `output()` functions)
+- ❌ Constructor injection (use `inject()` function)
+
+### Required Patterns
+```typescript
+// Component structure
+@Component({
+  selector: 'app-example',
+  imports: [CommonModule],
+  template: `
+    @if (isVisible()) {
+      <div [class.active]="isActive()">Content</div>
+    }
+    @for (item of items(); track item.id) {
+      <span>{{ item.name }}</span>
+    }
+  `,
+  changeDetection: ChangeDetectionStrategy.OnPush
+})
+export class ExampleComponent {
+  // Signals for state
+  private myService = inject(MyService);
+  protected isVisible = signal(false);
+  protected items = signal<Item[]>([]);
+  
+  // Signal inputs/outputs
+  public title = input.required<string>();
+  public search = output<string>();
+  
+  // Computed values
+  protected isActive = computed(() => this.items().length > 0);
+}
+```
+
+### Error Detection Process
+1. After every modification, run `ng build`
+2. Monitor IDE diagnostics
+3. Check dev server output
+4. Automatically fix common Angular errors
+5. Report unresolvable errors with specific location and suggested fixes
+
+## Project Architecture Decisions
+
+### Code Organization
+- **No Barrel Files**: Do not create index.ts barrel export files for now
+- **Direct Imports**: Use direct imports from specific files rather than barrel exports
+- **Path Mapping**: Use TypeScript path mapping for cleaner imports when needed
+
+### TypeScript Path Mappings
+Use these path aliases to avoid deep relative imports:
+- `@app/*` → `src/app/*` (Angular client code)
+- `@server/*` → `src/server/*` (Server-side code)
+- `@db/*` → `src/db/*` (Database layer)
+- `@shared/*` → `src/shared/*` (Shared utilities and types)
+- `@types/*` → `src/types/*` (Type definitions)
+- `@helpers/*` → `helpers/*` (Helper scripts)
+
+### Code Boundary Enforcement
+ESLint rules prevent inappropriate cross-boundary imports:
+- **Production code** (`src/**`) cannot import helpers (development/testing only)
+- **Client code** (`src/app/**`) cannot import server modules or server-only dependencies
+- **Server code** (`src/server/**`) cannot import Angular framework or client modules
+- **Database layer** (`src/db/**`) must remain framework-agnostic
+- **Shared code** (`src/shared/**`) can be imported from both client and server
+- **Helpers** (`helpers/**`) are restricted to development and testing scripts only

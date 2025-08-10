@@ -8,6 +8,7 @@ import { database } from '../../src/db';
 import * as schema from '../../src/db/schema';
 import { transformAuthId } from '../config';
 import { oldDatabase } from '../migrator-database';
+import { maybeAddPositionRole } from './roles';
 
 const migrationStepSize = 1000;
 const numberFormat = new Intl.NumberFormat();
@@ -34,7 +35,7 @@ export const migrateUserTenantAssignments = async (
     const oldUserAssignments = await oldDatabase.query.usersOfTenants.findMany({
       limit: migrationStepSize,
       offset: index,
-      where: eq(oldSchema.usersOfTenants.tenantId, oldTenant.id),
+      where: { tenantId: oldTenant.id },
       with: {
         user: {
           columns: {
@@ -56,31 +57,55 @@ export const migrateUserTenantAssignments = async (
       )
       .returning();
 
-    const rolesToAdd = oldUserAssignments.flatMap((oldAssignment, index) => {
-      const assignment = newAssignments[index];
-      const defaultUserRole = roleMap.get('NONE');
-      const rolesToAdd = defaultUserRole ? [defaultUserRole] : [];
+    const rolesToAddPromises = oldUserAssignments.map(
+      async (oldAssignment, index) => {
+        const assignment = newAssignments[index];
+        const defaultUserRole = roleMap.get('NONE');
+        const rolesToAdd = defaultUserRole ? [defaultUserRole] : [];
 
-      if (oldAssignment.role === 'ADMIN') {
-        const adminRole = roleMap.get('ADMIN');
-        if (adminRole) {
-          rolesToAdd.push(adminRole);
-        } else {
-          consola.warn('Could not find admin role');
+        if (oldAssignment.role === 'ADMIN') {
+          const adminRole = roleMap.get('ADMIN');
+          if (adminRole) {
+            rolesToAdd.push(adminRole);
+          } else {
+            consola.warn('Could not find admin role');
+          }
         }
-      }
-      const statusRole = roleMap.get(oldAssignment.status);
-      if (statusRole) {
-        rolesToAdd.push(statusRole);
-      } else {
-        consola.warn(`Could not find status role for ${oldAssignment.status}`);
-      }
+        const statusRole = roleMap.get(oldAssignment.status);
+        if (statusRole) {
+          rolesToAdd.push(statusRole);
+        } else {
+          consola.warn(
+            `Could not find status role for ${oldAssignment.status}`,
+          );
+        }
 
-      return uniq(rolesToAdd).map((role) => ({
-        roleId: role,
-        userTenantId: assignment.id,
-      }));
-    });
+        if (oldAssignment.position) {
+          console.info(
+            'Migrating position to custom role:',
+            oldAssignment.position,
+          );
+          const positionRole = await maybeAddPositionRole(
+            oldAssignment.position,
+            newTenant,
+          );
+          if (positionRole) {
+            rolesToAdd.push(positionRole);
+          } else {
+            consola.warn(
+              `Could not find position role for ${oldAssignment.position}`,
+            );
+          }
+        }
+
+        return uniq(rolesToAdd).map((role) => ({
+          roleId: role,
+          userTenantId: assignment.id,
+        }));
+      },
+    );
+
+    const rolesToAdd = (await Promise.all(rolesToAddPromises)).flat();
 
     await database.insert(schema.rolesToTenantUsers).values(rolesToAdd);
   }

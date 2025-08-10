@@ -7,7 +7,7 @@ import {
   varchar,
 } from 'drizzle-orm/pg-core';
 
-import { EventLocation } from '../../shared/types/location';
+import { EventLocationType } from '../../types/location';
 import { createId } from '../create-id';
 import { eventTemplateCategories } from './event-template-categories';
 import { tenants } from './tenants';
@@ -18,11 +18,13 @@ export const eventTemplates = pgTable('event_templates', {
     .references(() => eventTemplateCategories.id),
   createdAt: timestamp().notNull().defaultNow(),
   description: text().notNull(),
-  icon: text().notNull(),
+  icon: jsonb('icon')
+    .$type<{ iconColor: number; iconName: string }>()
+    .notNull(),
   id: varchar({ length: 20 })
     .$defaultFn(() => createId())
     .primaryKey(),
-  location: jsonb('location').$type<EventLocation>(),
+  location: jsonb('location').$type<EventLocationType>(),
   planningTips: text(),
   simpleModeEnabled: boolean().notNull().default(true),
   tenantId: varchar({ length: 20 })

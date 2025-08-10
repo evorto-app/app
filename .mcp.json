@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "browsermcp": {
+      "command": "npx",
+      "args": ["@browsermcp/mcp@latest"]
+    },
+    "Neon": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote@latest", "https://mcp.neon.tech/mcp"]
+    },
+    "angular-cli": {
+      "command": "npx",
+      "args": ["@angular/cli", "mcp"]
+    }
+  }
+}

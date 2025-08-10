@@ -1,5 +1,6 @@
 import { defineRelations } from 'drizzle-orm';
 import * as schema from './schema';
+import { usersOfTenants } from './schema';
 
 export const relations = defineRelations(schema, (r) => ({
   costItem: {
@@ -19,11 +20,14 @@ export const relations = defineRelations(schema, (r) => ({
       from: r.tumiEvent.id.through(r.eventSubmissionItem.eventId),
       to: r.product.id.through(r.eventSubmissionItem.productId),
     }),
-    users: r.many.tumiEvent(),
+    users: r.many.user({
+      alias: 'user_id_tumiEvent_id_via_photoShare',
+    }),
     eventRegistrations: r.many.eventRegistration(),
     user: r.one.user({
       from: r.tumiEvent.creatorId,
       to: r.user.id,
+      alias: 'tumiEvent_creatorId_user_id',
     }),
     eventOrganizer: r.one.eventOrganizer({
       from: r.tumiEvent.eventOrganizerId,
@@ -44,8 +48,12 @@ export const relations = defineRelations(schema, (r) => ({
   tenant: {
     eventOrganizers: r.many.eventOrganizer(),
     products: r.many.product(),
-    eventTemplateCategories_id: r.many.tenant(),
-    eventTemplateCategories_tenantId: r.many.eventTemplateCategory(),
+    eventTemplateCategoriesViaEventTemplate: r.many.eventTemplateCategory({
+      alias: 'eventTemplateCategory_id_tenant_id_via_eventTemplate',
+    }),
+    eventTemplateCategoriesTenantId: r.many.eventTemplateCategory({
+      alias: 'eventTemplateCategory_tenantId_tenant_id',
+    }),
     collectedFees: r.many.collectedFee(),
     transactions: r.many.transaction(),
     users: r.many.user({
@@ -61,17 +69,13 @@ export const relations = defineRelations(schema, (r) => ({
     eventRegistrations: r.many.eventRegistration(),
   },
   product: {
-    tumiEvents: r.many.product({
-      alias: 'product_id_eventSubmissionItem_productId',
-    }),
+    tumiEvents: r.many.tumiEvent(),
     lineItems: r.many.lineItem(),
     tenant: r.one.tenant({
       from: r.product.tenantId,
       to: r.tenant.id,
     }),
-    users: r.many.product({
-      alias: 'product_id_productImage_productId',
-    }),
+    users: r.many.user(),
   },
   lineItem: {
     product: r.one.product({
@@ -96,54 +100,47 @@ export const relations = defineRelations(schema, (r) => ({
     lineItems: r.many.lineItem(),
     usersOfTenant: r.one.usersOfTenants({
       from: [
-        r.shoppingCart.usersOfTenantsTenantId,
         r.shoppingCart.usersOfTenantsUserId,
+        r.shoppingCart.usersOfTenantsTenantId,
       ],
       to: [r.usersOfTenants.userId, r.usersOfTenants.tenantId],
     }),
   },
   user: {
-    tumiEvents_id: r.many.tumiEvent({
+    tumiEventsViaPhotoShare: r.many.tumiEvent({
       from: r.user.id.through(r.photoShare.creatorId),
       to: r.tumiEvent.id.through(r.photoShare.eventId),
-      alias: 'tumiEvent_id_user_id',
+      alias: 'user_id_tumiEvent_id_via_photoShare',
     }),
     products: r.many.product({
       from: r.user.id.through(r.productImage.creatorId),
       to: r.product.id.through(r.productImage.productId),
     }),
     eventRegistrations: r.many.eventRegistration(),
-    costItems: r.many.user({
-      alias: 'user_id_receipt_userId',
-    }),
-    stripePayments: r.many.user({
-      alias: 'user_id_purchase_userId',
-    }),
-    transactions_creatorId: r.many.transaction({
+    costItems: r.many.costItem(),
+    stripePayments: r.many.stripePayment(),
+    transactionsCreatorId: r.many.transaction({
       alias: 'transaction_creatorId_user_id',
     }),
-    transactions_userId: r.many.transaction({
+    transactionsUserId: r.many.transaction({
       alias: 'transaction_userId_user_id',
     }),
-    tumiEvents_creatorId: r.many.tumiEvent({
+    tumiEventsCreatorId: r.many.tumiEvent({
       alias: 'tumiEvent_creatorId_user_id',
     }),
-    tenants: r.many.user({
-      alias: 'user_id_usersOfTenants_userId',
-    }),
+    tenants: r.many.tenant(),
   },
   eventTemplateCategory: {
     tenants: r.many.tenant({
       from: r.eventTemplateCategory.id.through(r.eventTemplate.categoryId),
       to: r.tenant.id.through(r.eventTemplate.tenantId),
-      alias: 'tenant_id_eventTemplateCategory_id',
+      alias: 'eventTemplateCategory_id_tenant_id_via_eventTemplate',
     }),
     tenant: r.one.tenant({
       from: r.eventTemplateCategory.tenantId,
       to: r.tenant.id,
       alias: 'eventTemplateCategory_tenantId_tenant_id',
     }),
-    templates: r.many.eventTemplate(),
   },
   eventSubmission: {
     eventRegistration: r.one.eventRegistration({
@@ -194,8 +191,12 @@ export const relations = defineRelations(schema, (r) => ({
     }),
   },
   usersOfTenants: {
-    stripeUserData: r.many.stripeUserData(),
-    shoppingCarts: r.many.shoppingCart(),
+    stripeUserData: r.one.stripeUserData(),
+    shoppingCarts: r.one.shoppingCart(),
+    user: r.one.user({
+      from: r.usersOfTenants.userId,
+      to: r.user.id,
+    }),
   },
   stripePayment: {
     users: r.many.user({
@@ -205,7 +206,7 @@ export const relations = defineRelations(schema, (r) => ({
     transactions: r.many.transaction(),
   },
   transaction: {
-    user_creatorId: r.one.user({
+    userCreatorId: r.one.user({
       from: r.transaction.creatorId,
       to: r.user.id,
       alias: 'transaction_creatorId_user_id',
@@ -226,16 +227,16 @@ export const relations = defineRelations(schema, (r) => ({
       from: r.transaction.tenantId,
       to: r.tenant.id,
     }),
-    user_userId: r.one.user({
+    userUserId: r.one.user({
       from: r.transaction.userId,
       to: r.user.id,
       alias: 'transaction_userId_user_id',
     }),
-    receipts: r.many.transaction(),
+    receipts: r.many.receipt(),
   },
   eventTemplate: {
     tumiEvents: r.many.tumiEvent(),
-    category: r.one.eventTemplateCategory({
+    eventTemplateCategory: r.one.eventTemplateCategory({
       from: r.eventTemplate.categoryId,
       to: r.eventTemplateCategory.id,
     }),

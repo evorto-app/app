@@ -151,6 +151,7 @@
   --color-on-error: var(--mat-sys-on-error);
   --color-on-primary-container: var(--mat-sys-on-primary-container);
   --color-on-primary: var(--mat-sys-on-primary);
+  --color-on-secondary: var(--mat-sys-on-secondary);
   --color-on-secondary-container: var(--mat-sys-on-secondary-container);
   --color-on-surface-bright: var(--mat-sys-on-surface);
   --color-on-surface-container-high: var(--mat-sys-on-surface);
@@ -196,20 +197,16 @@
   --radius-full: var(--mat-sys-corner-full);
 }
 
-html,
-body,
-app-root {
-  min-height: 100%;
-  height: 100%;
-  padding: 0;
-  margin: 0;
-  box-sizing: border-box;
+.display-small {
+  font: var(--mat-sys-display-small);
 }
 
-*,
-*:before,
-*:after {
-  box-sizing: inherit;
+.display-medium {
+  font: var(--mat-sys-display-medium);
+}
+
+.display-large {
+  font: var(--mat-sys-display-large);
 }
 
 .title-small {
@@ -242,6 +239,18 @@ app-root {
 
 .body-small {
   font: var(--mat-sys-body-small);
+}
+
+.label-large {
+  font: var(--mat-sys-label-large);
+}
+
+.label-medium {
+  font: var(--mat-sys-label-medium);
+}
+
+.label-small {
+  font: var(--mat-sys-label-small);
 }
 
 h1,
@@ -303,7 +312,6 @@ h6 {
   .mdc-notched-outline__notch {
   border-right-style: hidden;
 }
-
 .text-warning {
   color: var(--color-warning);
 }

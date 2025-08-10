@@ -12,7 +12,7 @@ import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
 import { injectMutation } from '@tanstack/angular-query-experimental';
 
-import { GoogleLocation } from '../../../shared/types/location';
+import { GoogleLocationType } from '../../../types/location';
 import { ConfigService } from '../../core/config.service';
 import { injectTRPC } from '../../core/trpc-client';
 import { LocationSelectorField } from '../../shared/components/controls/location-selector/location-selector-field/location-selector-field';
@@ -32,14 +32,14 @@ import { LocationSelectorField } from '../../shared/components/controls/location
   templateUrl: './general-settings.component.html',
 })
 export class GeneralSettingsComponent {
-  private readonly configService = inject(ConfigService);
-  private readonly trpc = injectTRPC();
   protected readonly faArrowLeft = faArrowLeft;
   private readonly formBuilder = inject(NonNullableFormBuilder);
   protected readonly settingsForm = this.formBuilder.group({
-    defaultLocation: this.formBuilder.control<GoogleLocation | null>(null),
+    defaultLocation: this.formBuilder.control<GoogleLocationType | null>(null),
     theme: this.formBuilder.control<'esn' | 'evorto'>('evorto'),
   });
+  private readonly configService = inject(ConfigService);
+  private readonly trpc = injectTRPC();
   private updateSettingsMutation = injectMutation(() =>
     this.trpc.admin.tenant.updateSettings.mutationOptions(),
   );

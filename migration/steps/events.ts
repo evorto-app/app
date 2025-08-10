@@ -12,9 +12,10 @@ import { DateTime } from 'luxon';
 import { marked } from 'marked';
 
 import * as oldSchema from '../../old/drizzle';
+import { publicationState } from '../../old/drizzle';
 import { database } from '../../src/db';
 import * as schema from '../../src/db/schema';
-import { transformAuthId } from '../config';
+import { mapUserId, resolveIcon, transformAuthId } from '../config';
 import { oldDatabase } from '../migrator-database';
 import { maybeInsertIcons } from './icons';
 
@@ -129,17 +130,48 @@ export const migrateEvents = async (
     });
 
     // Insert event instances and return inserted rows for mapping
-    const eventInstancesToInsert = validEvents.map((event) => ({
-      createdAt: DateTime.fromSQL(event.createdAt).toJSDate(),
-      description: marked.parse(event.description, { async: false }),
-      end: DateTime.fromSQL(event.end).toJSDate(),
-      icon: event.icon,
-      start: DateTime.fromSQL(event.start).toJSDate(),
-      templateId: templateIdMap.get(event.eventTemplateId) as string,
-      tenantId: newTenant.id,
-      title: event.title,
-      untouchedSinceMigration: true,
-    }));
+    const eventInstancesToInsert = [];
+    for (const event of validEvents) {
+      const mappedCreatorId = await mapUserId(event.creatorId);
+      const resolvedIcon = await resolveIcon(event.icon, newTenant.id);
+      if (!mappedCreatorId) {
+        consola.warn(
+          `Skipping event "${event.title}" - creator ID ${event.creatorId} not found in user mapping`,
+        );
+        continue;
+      }
+
+      const statusMap = {
+        APPROVAL: { status: 'PENDING_REVIEW', visibility: 'HIDDEN' },
+        DRAFT: { status: 'DRAFT', visibility: 'HIDDEN' },
+        ORGANIZERS: { status: 'APPROVED', visibility: 'HIDDEN' },
+        PUBLIC: { status: 'APPROVED', visibility: 'PUBLIC' },
+      };
+      eventInstancesToInsert.push({
+        createdAt: DateTime.fromSQL(event.createdAt).toJSDate(),
+        creatorId: mappedCreatorId,
+        description: marked.parse(event.description, { async: false }),
+        end: DateTime.fromSQL(event.end).toJSDate(),
+        icon: resolvedIcon,
+        location: event.coordinates
+          ? ({
+              coordinates: event.coordinates as {
+                lat: number;
+                lng: number;
+              },
+              name: event.location,
+              placeId: event.googlePlaceId!,
+              type: 'google',
+            } as const)
+          : null,
+        start: DateTime.fromSQL(event.start).toJSDate(),
+        ...statusMap[event.publicationState],
+        templateId: templateIdMap.get(event.eventTemplateId) as string,
+        tenantId: newTenant.id,
+        title: event.title,
+        untouchedSinceMigration: true,
+      });
+    }
 
     const newEvents = await database
       .insert(schema.eventInstances)
@@ -189,6 +221,9 @@ export const migrateEvents = async (
       // Participant option
       registrationOptions.push(
         {
+          checkedInSpots: oldEvent.registrations.filter(
+            (registration) => registration.checkInTime,
+          ).length,
           closeRegistrationTime: eventStart.plus({ hours: 1 }).toJSDate(),
           confirmedSpots: oldEvent.registrations.filter(
             (registration) =>
@@ -210,13 +245,18 @@ export const migrateEvents = async (
               registration.type === 'PARTICIPANT' &&
               registration.status === 'PENDING',
           ).length,
-          roleIds: [],
+          roleIds: participantRoleIds,
           spots: oldEvent.participantLimit,
           title: 'Participants',
           updatedAt: new Date(),
           waitlistSpots: 0,
         },
         {
+          checkedInSpots: oldEvent.registrations.filter(
+            (registration) =>
+              registration.type === 'ORGANIZER' &&
+              registration.status === 'SUCCESSFUL',
+          ).length,
           closeRegistrationTime: eventStart.plus({ hours: 1 }).toJSDate(),
           confirmedSpots: oldEvent.registrations.filter(
             (registration) =>
@@ -233,7 +273,7 @@ export const migrateEvents = async (
           registeredDescription: undefined,
           registrationMode: 'fcfs',
           reservedSpots: 0,
-          roleIds: [],
+          roleIds: organizerRoleIds,
           spots: oldEvent.organizerLimit ?? 1,
           title: 'Organizers',
           updatedAt: new Date(),

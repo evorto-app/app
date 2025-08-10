@@ -12,7 +12,7 @@ import { marked } from 'marked';
 import * as oldSchema from '../../old/drizzle';
 import { database } from '../../src/db';
 import * as schema from '../../src/db/schema';
-import { transformAuthId } from '../config';
+import { resolveIcon, transformAuthId } from '../config';
 import { oldDatabase } from '../migrator-database';
 import { maybeInsertIcons } from './icons';
 
@@ -26,7 +26,7 @@ export const migrateTemplates = async (
   roleMap: Map<string, string>,
 ) => {
   const oldTemplates = await oldDatabase.query.eventTemplate.findMany({
-    where: eq(oldSchema.eventTemplate.tenantId, oldTenant.id),
+    where: { tenantId: oldTenant.id },
     with: {
       eventTemplateCategory: {
         columns: {
@@ -42,28 +42,57 @@ export const migrateTemplates = async (
 
   await maybeInsertIcons(newTenant.id, ...oldTemplates.map((t) => t.icon));
 
+  const templateValues = await Promise.all(
+    oldTemplates
+      .map(async (template) => {
+        try {
+          const resolvedIcon = await resolveIcon(template.icon, newTenant.id);
+          return {
+            categoryId:
+              categoryIdMap.get(template.categoryId ?? 'none') ?? 'remove',
+            createdAt: new Date(template.createdAt),
+            description: marked.parse(template.description, { async: false }),
+            icon: resolvedIcon,
+            location: template.coordinates
+              ? ({
+                  coordinates: template.coordinates as {
+                    lat: number;
+                    lng: number;
+                  },
+                  name: template.location,
+                  placeId: template.googlePlaceId!,
+                  type: 'google',
+                } as const)
+              : null,
+            planningTips: marked.parse(template.comment, { async: false }),
+            tenantId: newTenant.id,
+            title: template.title,
+            untouchedSinceMigration: true,
+          };
+        } catch (error) {
+          consola.warn(`Failed to resolve icon "${template.icon}" for template "${template.title}": ${error}`);
+          return null;
+        }
+      })
+      .filter(Boolean),
+  );
+
   const newTemplates = await database
     .insert(schema.eventTemplates)
     .values(
-      oldTemplates
-        .map((template) => ({
-          categoryId:
-            categoryIdMap.get(template.categoryId ?? 'none') ?? 'remove',
-          createdAt: new Date(template.createdAt),
-          description: marked.parse(template.description, { async: false }),
-          icon: template.icon,
-          planningTips: marked.parse(template.comment, { async: false }),
-          tenantId: newTenant.id,
-          title: template.title,
-          untouchedSinceMigration: true,
-        }))
-        .filter((t) => t.categoryId !== 'remove'),
+      templateValues
+        .filter((t) => t !== null && t.categoryId !== 'remove')
     )
     .returning();
 
   const templateIdMap = new Map<string, string>();
-  for (const [index, oldTemplate] of oldTemplates.entries()) {
-    templateIdMap.set(oldTemplate.id, newTemplates[index].id);
+  let newTemplateIndex = 0;
+  for (const [oldIndex, oldTemplate] of oldTemplates.entries()) {
+    const templateValue = templateValues[oldIndex];
+    if (templateValue && templateValue.categoryId !== 'remove') {
+      templateIdMap.set(oldTemplate.id, newTemplates[newTemplateIndex].id);
+      newTemplateIndex++;
+    }
   }
 
   await database.insert(schema.templateRegistrationOptions).values(
@@ -77,14 +106,14 @@ export const migrateTemplates = async (
         const organizerRoleIds = [];
         if (eventInstance) {
           participantOffset = Math.round(
-            DateTime.fromISO(eventInstance.start).diff(
-              DateTime.fromISO(eventInstance.registrationStart),
+            DateTime.fromSQL(eventInstance.start).diff(
+              DateTime.fromSQL(eventInstance.registrationStart),
               ['hours'],
             ).hours,
           );
           organizerOffset = Math.round(
-            DateTime.fromISO(eventInstance.start).diff(
-              DateTime.fromISO(eventInstance.registrationStart),
+            DateTime.fromSQL(eventInstance.start).diff(
+              DateTime.fromSQL(eventInstance.registrationStart),
               ['hours'],
             ).hours,
           );

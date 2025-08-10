@@ -12,9 +12,9 @@ import consola from 'consola/browser';
 import { firstValueFrom } from 'rxjs';
 
 import {
-  EventLocation,
-  GoogleLocation,
-} from '../../../../../../shared/types/location';
+  EventLocationType,
+  GoogleLocationType,
+} from '../../../../../../types/location';
 import { LocationSelectorDialog } from '../location-selector-dialog/location-selector-dialog';
 
 @Component({
@@ -34,11 +34,11 @@ import { LocationSelectorDialog } from '../location-selector-dialog/location-sel
 export class LocationSelectorField implements ControlValueAccessor {
   protected readonly disabled = signal<boolean>(false);
 
-  protected readonly value = signal<EventLocation | null>(null);
+  protected readonly value = signal<EventLocationType | null>(null);
   private readonly dialog = inject(MatDialog);
 
   // Registers a callback for when the value changes
-  registerOnChange(function_: (value: EventLocation) => void): void {
+  registerOnChange(function_: (value: EventLocationType) => void): void {
     this._onChange = function_;
   }
   // Registers a callback for when the field is touched
@@ -52,7 +52,7 @@ export class LocationSelectorField implements ControlValueAccessor {
   }
 
   // Called by Angular to write a value to the field
-  writeValue(value: EventLocation | null): void {
+  writeValue(value: EventLocationType | null): void {
     this.value.set(value);
   }
 
@@ -63,7 +63,7 @@ export class LocationSelectorField implements ControlValueAccessor {
     const dialogReference = this.dialog.open<
       LocationSelectorDialog,
       never,
-      EventLocation | undefined
+      EventLocationType | undefined
     >(LocationSelectorDialog, {
       maxWidth: '90dvw',
       width: '400px',
@@ -78,7 +78,7 @@ export class LocationSelectorField implements ControlValueAccessor {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-empty-function
-  private _onChange: (value: EventLocation) => void = () => {};
+  private _onChange: (value: EventLocationType) => void = () => {};
 
   // eslint-disable-next-line @typescript-eslint/no-empty-function
   private _onTouched: () => void = () => {};

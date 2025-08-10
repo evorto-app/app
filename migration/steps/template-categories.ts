@@ -5,7 +5,7 @@ import { DateTime } from 'luxon';
 import * as oldSchema from '../../old/drizzle';
 import { database } from '../../src/db';
 import * as schema from '../../src/db/schema';
-import { transformAuthId } from '../config';
+import { resolveIcon, transformAuthId } from '../config';
 import { oldDatabase } from '../migrator-database';
 import { maybeInsertIcons } from './icons';
 
@@ -17,25 +17,41 @@ export const migrateTemplateCategories = async (
   newTenant: InferSelectModel<typeof schema.tenants>,
 ) => {
   const oldCategories = await oldDatabase.query.eventTemplateCategory.findMany({
-    where: eq(oldSchema.eventTemplateCategory.tenantId, oldTenant.id),
+    where: { tenantId: oldTenant.id },
   });
   consola.info(`Migrating ${oldCategories.length} template categories`);
   await maybeInsertIcons(newTenant.id, ...oldCategories.map((c) => c.icon));
+  
+  const categoryValues = await Promise.all(
+    oldCategories.map(async (category) => {
+      try {
+        const resolvedIcon = await resolveIcon(category.icon, newTenant.id);
+        return {
+          createdAt: new Date(category.createdAt),
+          icon: resolvedIcon,
+          tenantId: newTenant.id,
+          title: category.name,
+        };
+      } catch (error) {
+        consola.warn(`Failed to resolve icon "${category.icon}" for category "${category.name}": ${error}`);
+        return null;
+      }
+    })
+  );
+
   const newCategories = await database
     .insert(schema.eventTemplateCategories)
-    .values(
-      oldCategories.map((category) => ({
-        createdAt: new Date(category.createdAt),
-        icon: category.icon,
-        tenantId: newTenant.id,
-        title: category.name,
-      })),
-    )
+    .values(categoryValues.filter((c) => c !== null))
     .returning();
 
   const categoryIdMap = new Map<string, string>();
-  for (const [index, oldCategory] of oldCategories.entries()) {
-    categoryIdMap.set(oldCategory.id, newCategories[index].id);
+  let newCategoryIndex = 0;
+  for (const [oldIndex, oldCategory] of oldCategories.entries()) {
+    const categoryValue = categoryValues[oldIndex];
+    if (categoryValue !== null) {
+      categoryIdMap.set(oldCategory.id, newCategories[newCategoryIndex].id);
+      newCategoryIndex++;
+    }
   }
 
   const newTemplateCategoryCountResult = await database

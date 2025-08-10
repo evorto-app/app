@@ -299,7 +299,7 @@ export const product = pgTable(
     // TODO: failed to parse database type 'MembershipStatus"[]'
     availability: membershipStatus().array(),
     tenantId: uuid().notNull(),
-    isEsNcard: boolean().default(false).notNull(),
+    isESNcard: boolean().default(false).notNull(),
     prices: jsonb().notNull(),
     leadImageId: uuid(),
     publicationState: publicationState().default('DRAFT').notNull(),
@@ -680,7 +680,7 @@ export const shoppingCart = pgTable(
       table.usersOfTenantsTenantId.asc().nullsLast().op('uuid_ops'),
     ),
     foreignKey({
-      columns: [table.usersOfTenantsTenantId, table.usersOfTenantsUserId],
+      columns: [table.usersOfTenantsUserId, table.usersOfTenantsTenantId],
       foreignColumns: [usersOfTenants.userId, usersOfTenants.tenantId],
       name: 'ShoppingCart_usersOfTenantsUserId_usersOfTenantsTenantId_fkey',
     })
@@ -717,56 +717,6 @@ export const stripePayment = pgTable(
     uniqueIndex('StripePayment_paymentIntent_key').using(
       'btree',
       table.paymentIntent.asc().nullsLast().op('text_ops'),
-    ),
-  ],
-);
-
-export const user = pgTable(
-  'User',
-  {
-    id: uuid().notNull(),
-    createdAt: timestamp({ precision: 3, mode: 'string' })
-      .default(sql`CURRENT_TIMESTAMP`)
-      .notNull(),
-    authId: text().notNull(),
-    firstName: text().notNull(),
-    lastName: text().notNull(),
-    email: text().notNull(),
-    birthdate: timestamp({ precision: 3, mode: 'string' }),
-    emailVerified: boolean('email_verified').notNull(),
-    picture: text().notNull(),
-    calendarToken: uuid().notNull(),
-    iban: text(),
-    paypal: text(),
-    phone: text(),
-    esnCardOverride: boolean().default(false).notNull(),
-    university: text(),
-    partyAnimals: boolean().default(false).notNull(),
-    enrolmentStatus: enrollmentStatus().default('NONE').notNull(),
-    bio: text(),
-    country: text(),
-    homeUniversity: text(),
-    instagram: text(),
-    studyProgram: text(),
-    communicationEmail: text(),
-    esnCardNumber: text(),
-    esnCardValidUntil: timestamp({ precision: 3, mode: 'string' }),
-    acceptPhoneUsage: boolean().default(false).notNull(),
-    phoneNumberOnWhatsapp: boolean().default(false).notNull(),
-    deletedAt: timestamp({ precision: 3, mode: 'string' }),
-  },
-  (table) => [
-    uniqueIndex('User_authId_key').using(
-      'btree',
-      table.authId.asc().nullsLast().op('text_ops'),
-    ),
-    uniqueIndex('User_calendarToken_key').using(
-      'btree',
-      table.calendarToken.asc().nullsLast().op('uuid_ops'),
-    ),
-    uniqueIndex('User_esnCardNumber_key').using(
-      'btree',
-      table.esnCardNumber.asc().nullsLast().op('text_ops'),
     ),
   ],
 );
@@ -868,14 +818,7 @@ export const tumiEvent = pgTable(
     registrationLink: text(),
     registrationMode: registrationMode().notNull(),
     coordinates: jsonb(),
-    prices: jsonb().$type<{
-      options: {
-        amount: number;
-        esnCardRequired: boolean;
-        allowedStatusList: string[];
-        defaultPrice: boolean;
-      }[];
-    }>(),
+    prices: jsonb(),
     registrationStart: timestamp({ precision: 3, mode: 'string' })
       .default(sql`CURRENT_TIMESTAMP`)
       .notNull(),
@@ -917,6 +860,57 @@ export const tumiEvent = pgTable(
     })
       .onUpdate('cascade')
       .onDelete('restrict'),
+  ],
+);
+
+export const user = pgTable(
+  'User',
+  {
+    id: uuid().notNull(),
+    createdAt: timestamp({ precision: 3, mode: 'string' })
+      .default(sql`CURRENT_TIMESTAMP`)
+      .notNull(),
+    authId: text().notNull(),
+    firstName: text().notNull(),
+    lastName: text().notNull(),
+    email: text().notNull(),
+    birthdate: timestamp({ precision: 3, mode: 'string' }),
+    emailVerified: boolean('email_verified').notNull(),
+    picture: text().notNull(),
+    calendarToken: uuid().notNull(),
+    iban: text(),
+    paypal: text(),
+    phone: text(),
+    esnCardOverride: boolean().default(false).notNull(),
+    university: text(),
+    partyAnimals: boolean().default(false).notNull(),
+    enrolmentStatus: enrollmentStatus().default('NONE').notNull(),
+    bio: text(),
+    country: text(),
+    homeUniversity: text(),
+    instagram: text(),
+    studyProgram: text(),
+    communicationEmail: text(),
+    esnCardNumber: text(),
+    esnCardValidUntil: timestamp({ precision: 3, mode: 'string' }),
+    acceptPhoneUsage: boolean().default(false).notNull(),
+    phoneNumberOnWhatsapp: boolean().default(false).notNull(),
+    deletedAt: timestamp({ precision: 3, mode: 'string' }),
+    telegramUsername: text(),
+  },
+  (table) => [
+    uniqueIndex('User_authId_key').using(
+      'btree',
+      table.authId.asc().nullsLast().op('text_ops'),
+    ),
+    uniqueIndex('User_calendarToken_key').using(
+      'btree',
+      table.calendarToken.asc().nullsLast().op('uuid_ops'),
+    ),
+    uniqueIndex('User_esnCardNumber_key').using(
+      'btree',
+      table.esnCardNumber.asc().nullsLast().op('text_ops'),
+    ),
   ],
 );
 
@@ -1020,6 +1014,12 @@ export const tenant = pgTable(
     credit: integer().default(0).notNull(),
     contractEnd: timestamp({ precision: 3, mode: 'string' }).notNull(),
     hardContractEnd: boolean().default(false).notNull(),
+    seoDescription: text()
+      .default(
+        'Here you can find events for international students around the city',
+      )
+      .notNull(),
+    seoTitle: text().default('ESN App').notNull(),
   },
   (table) => [
     uniqueIndex('Tenant_shortName_key').using(

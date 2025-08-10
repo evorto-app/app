@@ -22,7 +22,7 @@ export const addEvents = async (
   database: NeonDatabase<Record<string, never>, typeof relations>,
   templates: {
     description: string;
-    icon: string;
+    icon: { iconColor: number; iconName: string };
     id: string;
     tenantId: string;
     title: string;
@@ -143,7 +143,7 @@ export const addEvents = async (
 const createEvents = (
   templates: {
     description: string;
-    icon: string;
+    icon: { iconColor: number; iconName: string };
     id: string;
     tenantId: string;
     title: string;
@@ -253,7 +253,7 @@ const createEvents = (
           registeredDescription: 'You are registered',
           registrationMode: 'fcfs',
           roleIds: defaultUserRoles.map((role) => role.id),
-          spots: 20,
+          spots: 15, // Participants get more spots
           title: 'Participant registration',
         },
         {
@@ -268,7 +268,7 @@ const createEvents = (
           registeredDescription: 'You are registered',
           registrationMode: 'fcfs',
           roleIds: defaultOrganizerRoles.map((role) => role.id),
-          spots: 20,
+          spots: 3, // Organizers get fewer spots
           title: 'Organizer registration',
         },
       );
