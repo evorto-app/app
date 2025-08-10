@@ -1,5 +1,19 @@
 FROM node:22-alpine AS base
 RUN corepack enable
+
+# Install canvas dependencies for Alpine Linux
+RUN apk add --no-cache \
+    build-base \
+    cairo-dev \
+    jpeg-dev \
+    pango-dev \
+    musl-dev \
+    giflib-dev \
+    pixman-dev \
+    pangomm-dev \
+    libjpeg-turbo-dev \
+    freetype-dev
+
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 USER appuser
 WORKDIR /app
@@ -21,6 +35,7 @@ FROM base AS production-dependencies
 RUN yarn add @sentry/node @sentry/profiling-node
 
 FROM base AS production
+
 COPY --from=production-dependencies --chown=appuser:appuser /app/node_modules ./node_modules
 COPY --from=build --chown=appuser:appuser /app/dist ./dist
 COPY --chown=appuser:appuser instrument.mjs ./
