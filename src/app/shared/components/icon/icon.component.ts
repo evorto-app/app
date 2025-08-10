@@ -17,16 +17,22 @@ import {
   templateUrl: './icon.component.html',
 })
 export class IconComponent {
-  public iconCommonName = input.required<string>();
+  public iconCommonName = input.required<
+    string | { iconColor: number; iconName: string }
+  >();
   public size = input(24, {
     transform: numberAttribute,
   });
   protected iconName = computed(() => {
-    const [name] = (this.iconCommonName() ?? '').split(':');
+    const value = this.iconCommonName();
+    const commonName = typeof value === 'string' ? value : value.iconName;
+    const [name] = (commonName ?? '').split(':');
     return name || 'nothing-found';
   });
   protected iconSet = computed(() => {
-    const [, set] = (this.iconCommonName() ?? '').split(':');
+    const value = this.iconCommonName();
+    const commonName = typeof value === 'string' ? value : value.iconName;
+    const [, set] = (commonName ?? '').split(':');
     return set || 'fluent';
   });
   protected iconUrl = computed(() => {

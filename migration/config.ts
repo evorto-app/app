@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 
 import * as oldSchema from '../old/drizzle';
 import { database } from '../src/db';
@@ -10,6 +10,7 @@ export const migrationConfig = {
     'google-oauth2|110521442319435018423': 'auth0|6775a3a47369b902878fdc74',
   } as Record<string, string>,
   disableSpecials: false,
+  iconCache: new Map<string, { iconColor: number; iconName: string } | undefined>(),
   userIdCache: new Map<string, string>(),
 };
 
@@ -61,3 +62,53 @@ export const resolveUserId = async (
 };
 
 export const mapUserId = resolveUserId;
+
+export const resolveIcon = async (
+  iconName: string,
+  tenantId: string,
+): Promise<{ iconColor: number; iconName: string }> => {
+  const cacheKey = `${iconName}:${tenantId}`;
+  
+  // Check cache first
+  if (migrationConfig.iconCache.has(cacheKey)) {
+    const cached = migrationConfig.iconCache.get(cacheKey);
+    if (!cached) {
+      throw new Error(`Icon with name "${iconName}" not found for tenant ${tenantId}`);
+    }
+    return cached;
+  }
+
+  try {
+    // Find icon by commonName and tenantId
+    const [icon] = await database
+      .select({ 
+        commonName: newSchema.icons.commonName,
+        sourceColor: newSchema.icons.sourceColor 
+      })
+      .from(newSchema.icons)
+      .where(and(
+        eq(newSchema.icons.commonName, iconName),
+        eq(newSchema.icons.tenantId, tenantId)
+      ))
+      .limit(1);
+
+    if (!icon) {
+      migrationConfig.iconCache.set(cacheKey, undefined);
+      throw new Error(`Icon with name "${iconName}" not found for tenant ${tenantId}`);
+    }
+
+    const iconObject = {
+      iconColor: icon.sourceColor ?? 0,
+      iconName: icon.commonName,
+    };
+
+    migrationConfig.iconCache.set(cacheKey, iconObject);
+    return iconObject;
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('not found')) {
+      throw error;
+    }
+    console.error(`Failed to resolve icon ${iconName} for tenant ${tenantId}:`, error);
+    throw new Error(`Failed to resolve icon ${iconName} for tenant ${tenantId}`);
+  }
+};

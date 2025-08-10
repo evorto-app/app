@@ -3,6 +3,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   inject,
+  input,
   OnDestroy,
   signal,
 } from '@angular/core';
@@ -24,7 +25,9 @@ import { IconSelectorDialogComponent } from '../icon-selector-dialog/icon-select
   templateUrl: './icon-selector-field.component.html',
 })
 export class IconSelectorFieldComponent implements AfterViewInit, OnDestroy {
-  protected iconName = signal<string>('');
+  protected iconValue = signal<
+    string | { iconColor: number; iconName: string }
+  >('');
 
   protected ngControl = injectNgControl();
 
@@ -35,7 +38,9 @@ export class IconSelectorFieldComponent implements AfterViewInit, OnDestroy {
     this.signalSubscription = this.ngControl.valueChanges
       ?.pipe(startWith(this.ngControl.value))
       .subscribe((icon) => {
-        this.iconName.set(icon);
+        this.iconValue.set(
+          icon as string | { iconColor: number; iconName: string },
+        );
       });
   }
 

@@ -67,7 +67,7 @@ export class TemplateCreateEventComponent {
   protected readonly createEventForm = this.fb.group({
     description: this.fb.control(''),
     end: this.fb.control<Date>(new Date()),
-    icon: this.fb.control(''),
+    icon: this.fb.control<null | { iconColor: number; iconName: string }>(null),
     location: this.fb.control<EventLocationType | null>(null),
     registrationOptions: this.fb.array<RegistrationOptionFormGroup>([]),
     start: this.fb.control<Date>(new Date()),
@@ -100,7 +100,7 @@ export class TemplateCreateEventComponent {
         // Set basic template info
         this.createEventForm.patchValue({
           description: template.description,
-          icon: template.icon,
+          icon: template.icon as any,
           location: template.location,
           title: template.title,
         });
@@ -163,6 +163,7 @@ export class TemplateCreateEventComponent {
       this.createEventMutation.mutate(
         {
           ...formValue,
+          icon: formValue.icon!,
           templateId: this.templateId(),
         },
         {

@@ -26,7 +26,7 @@ export type RegistrationMode = 'application' | 'fcfs' | 'random';
 export interface TemplateFormData {
   categoryId: string;
   description: string;
-  icon: string;
+  icon: { iconColor: number; iconName: string };
   organizerRegistration: {
     closeRegistrationOffset: number;
     isPaid: boolean;
@@ -89,7 +89,10 @@ export class TemplateFormComponent {
   protected templateForm = this.formBuilder.group({
     categoryId: [''],
     description: [''],
-    icon: [''],
+    icon: this.formBuilder.control<null | {
+      iconColor: number;
+      iconName: string;
+    }>(null),
     location: [undefined],
     organizerRegistration: this.formBuilder.group({
       closeRegistrationOffset: [1],
@@ -116,13 +119,29 @@ export class TemplateFormComponent {
     effect(() => {
       const data = this.initialData();
       if (data) {
-        this.templateForm.patchValue(data, { emitEvent: true });
+        this.templateForm.patchValue(
+          {
+            ...data,
+            icon:
+              data.icon?.iconColor && data.icon?.iconName
+                ? {
+                    iconColor: data.icon.iconColor,
+                    iconName: data.icon.iconName,
+                  }
+                : null,
+          },
+          { emitEvent: true },
+        );
       }
     });
   }
 
   onSubmit() {
     if (this.templateForm.invalid) return;
-    this.formSubmit.emit(this.templateForm.getRawValue());
+    const formValue = this.templateForm.getRawValue();
+    this.formSubmit.emit({
+      ...formValue,
+      icon: formValue.icon!,
+    });
   }
 }

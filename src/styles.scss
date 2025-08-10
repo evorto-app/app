@@ -197,6 +197,18 @@
   --radius-full: var(--mat-sys-corner-full);
 }
 
+.display-small {
+  font: var(--mat-sys-display-small);
+}
+
+.display-medium {
+  font: var(--mat-sys-display-medium);
+}
+
+.display-large {
+  font: var(--mat-sys-display-large);
+}
+
 .title-small {
   font: var(--mat-sys-title-small);
 }
@@ -300,7 +312,6 @@ h6 {
   .mdc-notched-outline__notch {
   border-right-style: hidden;
 }
-
 .text-warning {
   color: var(--color-warning);
 }

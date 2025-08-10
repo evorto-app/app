@@ -61,7 +61,7 @@ export class EventEdit {
   protected readonly editEventForm = this.fb.group({
     description: this.fb.control(''),
     end: this.fb.control<Date>(new Date()),
-    icon: this.fb.control(''),
+    icon: this.fb.control<null | { iconColor: number; iconName: string }>(null),
     location: this.fb.control<EventLocationType | null>(null),
     registrationOptions: this.fb.array<RegistrationOptionFormGroup>([]),
     start: this.fb.control<Date>(new Date()),

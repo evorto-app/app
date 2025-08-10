@@ -15,7 +15,7 @@ import * as oldSchema from '../../old/drizzle';
 import { publicationState } from '../../old/drizzle';
 import { database } from '../../src/db';
 import * as schema from '../../src/db/schema';
-import { mapUserId, transformAuthId } from '../config';
+import { mapUserId, resolveIcon, transformAuthId } from '../config';
 import { oldDatabase } from '../migrator-database';
 import { maybeInsertIcons } from './icons';
 
@@ -133,6 +133,7 @@ export const migrateEvents = async (
     const eventInstancesToInsert = [];
     for (const event of validEvents) {
       const mappedCreatorId = await mapUserId(event.creatorId);
+      const resolvedIcon = await resolveIcon(event.icon, newTenant.id);
       if (!mappedCreatorId) {
         consola.warn(
           `Skipping event "${event.title}" - creator ID ${event.creatorId} not found in user mapping`,
@@ -151,7 +152,7 @@ export const migrateEvents = async (
         creatorId: mappedCreatorId,
         description: marked.parse(event.description, { async: false }),
         end: DateTime.fromSQL(event.end).toJSDate(),
-        icon: event.icon,
+        icon: resolvedIcon,
         location: event.coordinates
           ? ({
               coordinates: event.coordinates as {

@@ -26,7 +26,10 @@ export const eventRouter = router({
         Schema.Struct({
           description: Schema.NonEmptyString,
           end: Schema.ValidDateFromSelf,
-          icon: Schema.NonEmptyString,
+          icon: Schema.Struct({
+            iconColor: Schema.Number,
+            iconName: Schema.NonEmptyString,
+          }),
           registrationOptions: Schema.Array(
             Schema.Struct({
               closeRegistrationTime: Schema.ValidDateFromSelf,
@@ -394,7 +397,10 @@ export const eventRouter = router({
           description: Schema.NonEmptyString,
           end: Schema.ValidDateFromSelf,
           eventId: Schema.NonEmptyString,
-          icon: Schema.NonEmptyString,
+          icon: Schema.Struct({
+            iconColor: Schema.Number,
+            iconName: Schema.NonEmptyString,
+          }),
           location: Schema.NullOr(Schema.Any),
           start: Schema.ValidDateFromSelf,
           title: Schema.NonEmptyString,

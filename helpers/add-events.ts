@@ -22,7 +22,7 @@ export const addEvents = async (
   database: NeonDatabase<Record<string, never>, typeof relations>,
   templates: {
     description: string;
-    icon: string;
+    icon: { iconColor: number; iconName: string };
     id: string;
     tenantId: string;
     title: string;
@@ -143,7 +143,7 @@ export const addEvents = async (
 const createEvents = (
   templates: {
     description: string;
-    icon: string;
+    icon: { iconColor: number; iconName: string };
     id: string;
     tenantId: string;
     title: string;

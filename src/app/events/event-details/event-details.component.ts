@@ -16,9 +16,14 @@ import {
   faEllipsisVertical,
 } from '@fortawesome/duotone-regular-svg-icons';
 import {
+  hexFromArgb,
+  themeFromSourceColor,
+} from '@material/material-color-utilities';
+import {
   injectMutation,
   injectQuery,
 } from '@tanstack/angular-query-experimental';
+import consola from 'consola/browser';
 import { convert } from 'html-to-text';
 import { firstValueFrom } from 'rxjs';
 
@@ -36,6 +41,9 @@ import { UpdateVisibilityDialogComponent } from '../update-visibility-dialog/upd
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: {
+    '[style]': 'themeStyles()',
+  },
   imports: [
     MatButtonModule,
     MatMenuModule,
@@ -85,12 +93,21 @@ export class EventDetailsComponent {
   });
   protected readonly canReview =
     this.permissions.hasPermission('events:review');
-
   protected readonly canSeeStatus = computed(() => {
     const canReview = this.permissions.hasPermission('events:review')();
     const canEdit = this.canEdit();
     const canSeeDrafts = this.permissions.hasPermission('events:seeDrafts')();
     return canReview || canEdit || canSeeDrafts;
+  });
+
+  protected readonly eventTheme = computed(() => {
+    const event = this.eventQuery.data();
+    if (!event) {
+      return;
+    }
+    const theme = themeFromSourceColor(event.icon.iconColor);
+    consola.info('Event theme:', theme);
+    return theme;
   });
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faEllipsisVertical = faEllipsisVertical;
@@ -99,6 +116,16 @@ export class EventDetailsComponent {
       eventId: this.eventId(),
     }),
   );
+  protected readonly themeStyles = computed(() => {
+    const theme = this.eventTheme();
+    if (!theme) {
+      return {};
+    }
+    return {
+      '--mat-sys-primary': `light-dark(${hexFromArgb(theme.schemes.light.primary)}, ${hexFromArgb(theme.schemes.dark.primary)}`,
+      '--mat-sys-surface': `light-dark(${hexFromArgb(theme.schemes.light.surface)}, ${hexFromArgb(theme.schemes.dark.surface)}`,
+    };
+  });
   protected readonly updateVisibilityMutation = injectMutation(() =>
     this.trpc.events.updateVisibility.mutationOptions(),
   );

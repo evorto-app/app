@@ -13,15 +13,13 @@ import { MatTimepickerModule } from '@angular/material/timepicker';
 import { EventLocationType } from '../../../../../types/location';
 import { EditorComponent } from '../../controls/editor/editor.component';
 import { IconSelectorFieldComponent } from '../../controls/icon-selector/icon-selector-field/icon-selector-field.component';
-import {
-  LocationSelectorField
-} from '../../controls/location-selector/location-selector-field/location-selector-field';
+import { LocationSelectorField } from '../../controls/location-selector/location-selector-field/location-selector-field';
 
 export type EventGeneralFormGroup = FormGroup<GeneralFormControls>;
 interface GeneralFormControls {
   description: FormControl<string>;
   end: FormControl<Date>;
-  icon: FormControl<string>;
+  icon: FormControl<null | { iconColor: number; iconName: string }>;
   location: FormControl<EventLocationType | null>;
   registrationOptions: FormArray;
   start: FormControl<Date>;
