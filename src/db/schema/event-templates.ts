@@ -18,7 +18,9 @@ export const eventTemplates = pgTable('event_templates', {
     .references(() => eventTemplateCategories.id),
   createdAt: timestamp().notNull().defaultNow(),
   description: text().notNull(),
-  icon: text().notNull(),
+  icon: jsonb('icon')
+    .$type<{ iconColor: number; iconName: string }>()
+    .notNull(),
   id: varchar({ length: 20 })
     .$defaultFn(() => createId())
     .primaryKey(),

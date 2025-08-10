@@ -16,6 +16,7 @@ import {
   injectMutation,
   injectQuery,
 } from '@tanstack/angular-query-experimental';
+import consola from 'consola/browser';
 
 import { injectTRPC, injectTRPCClient } from '../../core/trpc-client';
 
@@ -34,8 +35,9 @@ export class CreateAccountComponent {
     lastName: ['', Validators.required],
   });
   // Integration can't be used due to some type weirdness
+  private trpcClient = injectTRPCClient();
   protected readonly authDataQuery = injectQuery(() => ({
-    queryFn: () => injectTRPCClient().users.authData.query(),
+    queryFn: () => this.trpcClient.users.authData.query(),
     queryKey: ['authData'],
   }));
 
@@ -46,6 +48,7 @@ export class CreateAccountComponent {
   private readonly router = inject(Router);
 
   constructor() {
+    // this.trpcClient.users.authData.query().then(consola.info);
     effect(() => {
       const authData = this.authDataQuery.data();
       if (!authData) return;

@@ -11,6 +11,11 @@ export const EVENT_ROUTES: Routes = [
         path: ':eventId',
       },
       {
+        canActivate: [
+          () => import('./guards/event-organizer.guard').then(
+            (m) => m.eventOrganizerGuard,
+          ),
+        ],
         loadComponent: () =>
           import('./event-organize/event-organize').then(
             (m) => m.EventOrganize,

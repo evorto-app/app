@@ -6,6 +6,7 @@ import {
   eventTemplates,
   templateRegistrationOptions,
 } from '../../../db/schema';
+import { computeIconSourceColor } from '../../utils/icon-color';
 import { authenticatedProcedure, router } from '../trpc-server';
 
 const registrationOptionSchema = Schema.Struct({
@@ -25,7 +26,10 @@ export const templateRouter = router({
         Schema.Struct({
           categoryId: Schema.NonEmptyString,
           description: Schema.NonEmptyString,
-          icon: Schema.NonEmptyString,
+          icon: Schema.Struct({
+            iconColor: Schema.Number,
+            iconName: Schema.NonEmptyString,
+          }),
           organizerRegistration: registrationOptionSchema,
           participantRegistration: registrationOptionSchema,
           title: Schema.NonEmptyString,
@@ -136,7 +140,10 @@ export const templateRouter = router({
         Schema.Struct({
           categoryId: Schema.NonEmptyString,
           description: Schema.NonEmptyString,
-          icon: Schema.NonEmptyString,
+          icon: Schema.Struct({
+            iconColor: Schema.optional(Schema.Number),
+            iconName: Schema.NonEmptyString,
+          }),
           id: Schema.NonEmptyString,
           organizerRegistration: registrationOptionSchema,
           participantRegistration: registrationOptionSchema,
@@ -146,12 +153,15 @@ export const templateRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       return await database.transaction(async (tx) => {
+        const iconColor =
+          input.icon.iconColor ??
+          (await computeIconSourceColor(input.icon.iconName));
         const template = await tx
           .update(eventTemplates)
           .set({
             categoryId: input.categoryId,
             description: input.description,
-            icon: input.icon,
+            icon: { iconColor: iconColor!, iconName: input.icon.iconName },
             title: input.title,
           })
           .where(

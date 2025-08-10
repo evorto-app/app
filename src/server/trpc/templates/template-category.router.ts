@@ -11,15 +11,19 @@ export const templateCategoryRouter = router({
     .input(
       Schema.decodeUnknownSync(
         Schema.Struct({
-          icon: Schema.NonEmptyString,
+          icon: Schema.Struct({
+            iconColor: Schema.Number,
+            iconName: Schema.NonEmptyString,
+          }),
           title: Schema.NonEmptyString,
         }),
       ),
     )
     .mutation(async ({ ctx, input }) => {
       return await database.insert(eventTemplateCategories).values({
+        icon: input.icon,
         tenantId: ctx.tenant.id,
-        ...input,
+        title: input.title,
       });
     }),
   findMany: authenticatedProcedure.query(async ({ ctx }) => {

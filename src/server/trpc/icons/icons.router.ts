@@ -2,6 +2,7 @@ import { Schema } from 'effect';
 
 import { database } from '../../../db';
 import { icons } from '../../../db/schema';
+import { computeIconSourceColor } from '../../utils/icon-color';
 import { authenticatedProcedure, router } from '../trpc-server';
 
 export const iconRouter = router({
@@ -27,11 +28,13 @@ export const iconRouter = router({
         .split(' ')
         .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
         .join(' ');
+      const sourceColor = await computeIconSourceColor(input.icon);
       return database
         .insert(icons)
         .values({
           commonName: input.icon,
           friendlyName,
+          sourceColor,
           tenantId: ctx.tenant.id,
         })
         .returning();

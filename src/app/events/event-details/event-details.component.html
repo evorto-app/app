@@ -1,117 +1,130 @@
-<div class="mb-4 flex w-full flex-row items-center gap-2">
-  <a routerLink="/events" mat-icon-button class="lg:hidden! block">
-    <fa-duotone-icon [icon]="faArrowLeft"></fa-duotone-icon>
-  </a>
-  <h1 class="title-large">
-    {{ eventQuery.data()?.title ?? "Loading ..." }}
-  </h1>
-  <div class="grow"></div>
-  <button
-    title="menu"
-    *appIfAnyPermission="['events:changeVisibility']"
-    mat-icon-button
-    [matMenuTriggerFor]="menu"
+<div class="lg:min-h-full">
+  <header
+    class="bg-primary-container text-on-primary-container rounded-t-lg p-4"
   >
-    <fa-duotone-icon [icon]="faEllipsisVertical"></fa-duotone-icon>
-  </button>
-  <mat-menu #menu="matMenu">
-    <button mat-menu-item (click)="updateVisibility()">
-      Update visibility
-    </button>
-  </mat-menu>
-</div>
-<div class="flex flex-col gap-4">
-  @if (eventQuery.isSuccess()) {
-    <div class="flex flex-col gap-4">
-      @if (canOrganize()) {
-        <a routerLink="organize" matButton="filled">Organize this event</a>
-      }
-      @if (canSeeStatus()) {
-        <section
-          class="bg-surface-container-low text-on-surface-container-low rounded-2xl p-4"
-        >
-          <div class="flex flex-col gap-4 lg:flex-row lg:justify-between">
-            <div class="flex gap-2 lg:items-center">
-              <app-event-status
-                [status]="eventQuery.data().status"
-                [comment]="eventQuery.data().statusComment"
-                [reviewer]="
-                  eventQuery.data().reviewer?.firstName +
-                  ' ' +
-                  eventQuery.data().reviewer?.lastName
-                "
-              />
-              @if (!canEdit() && eventQuery.data().status !== "APPROVED") {
-                <span class="text-on-surface-variant text-sm">
-                  (Event is locked for editing)
-                </span>
-              }
-            </div>
-
-            <div
-              class="flex flex-col gap-2 lg:flex-row lg:items-center lg:gap-4"
-            >
-              @if (
-                canReview() && eventQuery.data().status === "PENDING_REVIEW"
-              ) {
-                <button matButton="outlined" (click)="reviewEvent(false)">
-                  Reject
-                </button>
-                <button matButton="filled" (click)="reviewEvent(true)">
-                  Approve
-                </button>
-              }
-
-              @if (canEdit()) {
-                <a matButton="tonal" routerLink="edit"> Edit Event </a>
-              }
-
-              @if (
-                canEdit() &&
-                (eventQuery.data().status === "DRAFT" ||
-                  eventQuery.data().status === "REJECTED")
-              ) {
-                <button matButton="filled" (click)="submitForReview()">
-                  Submit for Review
-                </button>
-              }
-            </div>
-          </div>
-        </section>
-      }
-
-      <section class="bg-surface text-on-surface rounded-2xl p-4">
-        <div
-          class="prose dark:prose-invert max-w-none"
-          [innerHTML]="eventQuery.data().description"
-        ></div>
-      </section>
-
-      <section class="flex flex-col gap-4">
-        <h2 class="headline-small">Registration</h2>
-        @if (registrationStatusQuery.isPending()) {
-          <div class="bg-surface text-on-surface rounded-2xl p-4">
-            <h3 class="title-small">Loading registration status ...</h3>
-          </div>
-        } @else if (registrationStatusQuery.isSuccess()) {
-          @if (registrationStatusQuery.data().isRegistered) {
-            <app-event-active-registration
-              [registrations]="registrationStatusQuery.data().registrations"
-            ></app-event-active-registration>
-          } @else {
-            <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-              @for (
-                registrationOption of eventQuery.data().registrationOptions;
-                track registrationOption.id
-              ) {
-                <app-event-registration-option
-                  [registrationOption]="registrationOption"
-                ></app-event-registration-option>
-              }
-            </div>
-          }
-        }
-      </section>
+    <div class="mb-4 flex w-full flex-row items-center gap-2 lg:mb-0">
+      <a routerLink="/events" mat-icon-button class="lg:hidden! block">
+        <fa-duotone-icon [icon]="faArrowLeft"></fa-duotone-icon>
+      </a>
+      <div class="grow"></div>
+      <button
+        title="menu"
+        *appIfAnyPermission="['events:changeVisibility']"
+        mat-icon-button
+        [matMenuTriggerFor]="menu"
+      >
+        <fa-duotone-icon [icon]="faEllipsisVertical"></fa-duotone-icon>
+      </button>
+      <mat-menu #menu="matMenu">
+        <button mat-menu-item (click)="updateVisibility()">
+          Update visibility
+        </button>
+      </mat-menu>
     </div>
-  }
+    <h1 class="display-medium">{{ eventQuery.data()?.title ?? "..." }}</h1>
+    <div class="flex justify-center">
+      <app-shape
+        [changeSignal]="eventQuery.data()?.icon"
+        class="text-secondary w-42 mt-8"
+      >
+        @if (eventQuery.isSuccess()) {
+          <app-icon [iconCommonName]="eventQuery.data().icon" size="100" />
+        }
+      </app-shape>
+    </div>
+  </header>
+  <div class="flex flex-col gap-4">
+    @if (eventQuery.isSuccess()) {
+      <div class="flex flex-col gap-4">
+        @if (canOrganize()) {
+          <a routerLink="organize" matButton="filled">Organize this event</a>
+        }
+        @if (canSeeStatus()) {
+          <section
+            class="bg-surface-container-low text-on-surface-container-low rounded-2xl"
+          >
+            <div class="flex flex-col gap-4 lg:flex-row lg:justify-between">
+              <div class="flex gap-2 lg:items-center">
+                <app-event-status
+                  [status]="eventQuery.data().status"
+                  [comment]="eventQuery.data().statusComment"
+                  [reviewer]="
+                    eventQuery.data().reviewer?.firstName +
+                    ' ' +
+                    eventQuery.data().reviewer?.lastName
+                  "
+                />
+                @if (!canEdit() && eventQuery.data().status !== "APPROVED") {
+                  <span class="text-on-surface-variant text-sm">
+                    (Event is locked for editing)
+                  </span>
+                }
+              </div>
+
+              <div
+                class="flex flex-col gap-2 lg:flex-row lg:items-center lg:gap-4"
+              >
+                @if (
+                  canReview() && eventQuery.data().status === "PENDING_REVIEW"
+                ) {
+                  <button matButton="outlined" (click)="reviewEvent(false)">
+                    Reject
+                  </button>
+                  <button matButton="filled" (click)="reviewEvent(true)">
+                    Approve
+                  </button>
+                }
+
+                @if (canEdit()) {
+                  <a matButton="tonal" routerLink="edit"> Edit Event </a>
+                }
+
+                @if (
+                  canEdit() &&
+                  (eventQuery.data().status === "DRAFT" ||
+                    eventQuery.data().status === "REJECTED")
+                ) {
+                  <button matButton="filled" (click)="submitForReview()">
+                    Submit for Review
+                  </button>
+                }
+              </div>
+            </div>
+          </section>
+        }
+        <section class="bg-surface text-on-surface rounded-b-lg p-4">
+          <div
+            class="prose dark:prose-invert max-w-none"
+            [innerHTML]="eventQuery.data().description"
+          ></div>
+        </section>
+
+        <section class="flex flex-col gap-4">
+          <h2 class="headline-small">Registration</h2>
+          @if (registrationStatusQuery.isPending()) {
+            <div class="bg-surface text-on-surface rounded-2xl p-4">
+              <h3 class="title-small">Loading registration status ...</h3>
+            </div>
+          } @else if (registrationStatusQuery.isSuccess()) {
+            @if (registrationStatusQuery.data().isRegistered) {
+              <app-event-active-registration
+                [registrations]="registrationStatusQuery.data().registrations"
+              ></app-event-active-registration>
+            } @else {
+              <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                @for (
+                  registrationOption of eventQuery.data().registrationOptions;
+                  track registrationOption.id
+                ) {
+                  <app-event-registration-option
+                    [registrationOption]="registrationOption"
+                  ></app-event-registration-option>
+                }
+              </div>
+            }
+          }
+        </section>
+      </div>
+    }
+  </div>
 </div>

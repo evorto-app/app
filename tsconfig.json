@@ -18,7 +18,16 @@
     "importHelpers": true,
     "typeRoots": ["node_modules/@types"],
     "target": "ES2022",
-    "module": "ES2022"
+    "module": "ES2022",
+    "baseUrl": ".",
+    "paths": {
+      "@app/*": ["src/app/*"],
+      "@server/*": ["src/server/*"],
+      "@db/*": ["src/db/*"],
+      "@shared/*": ["src/shared/*"],
+      "@types/*": ["src/types/*"],
+      "@helpers/*": ["helpers/*"]
+    }
   },
   "angularCompilerOptions": {
     "enableI18nLegacyMessageIdFormat": false,

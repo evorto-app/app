@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, varchar } from 'drizzle-orm/pg-core';
+import { jsonb, pgTable, text, timestamp, varchar } from 'drizzle-orm/pg-core';
 
 import { createId } from '../create-id';
 import { tenants } from './tenants';
@@ -6,7 +6,9 @@ import { tenants } from './tenants';
 export const eventTemplateCategories = pgTable('event_template_categories', {
   createdAt: timestamp().notNull().defaultNow(),
   description: text(),
-  icon: text().notNull(),
+  icon: jsonb('icon')
+    .$type<{ iconColor: number; iconName: string }>()
+    .notNull(),
   id: varchar({ length: 20 })
     .$defaultFn(() => createId())
     .primaryKey(),

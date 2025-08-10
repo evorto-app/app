@@ -56,7 +56,6 @@ export const appConfig: ApplicationConfig = {
       withRouterConfig({ paramsInheritanceStrategy: 'always' }),
     ),
     provideHttpClient(withFetch(), withInterceptors([authTokenInterceptor])),
-    // provideTrpcClient(),
     provideTRPC(
       createTRPCClientFactory(() => {
         const http = inject(HttpClient);

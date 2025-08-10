@@ -32,14 +32,14 @@ import { LocationSelectorField } from '../../shared/components/controls/location
   templateUrl: './general-settings.component.html',
 })
 export class GeneralSettingsComponent {
-  private readonly configService = inject(ConfigService);
-  private readonly trpc = injectTRPC();
   protected readonly faArrowLeft = faArrowLeft;
   private readonly formBuilder = inject(NonNullableFormBuilder);
   protected readonly settingsForm = this.formBuilder.group({
     defaultLocation: this.formBuilder.control<GoogleLocationType | null>(null),
     theme: this.formBuilder.control<'esn' | 'evorto'>('evorto'),
   });
+  private readonly configService = inject(ConfigService);
+  private readonly trpc = injectTRPC();
   private updateSettingsMutation = injectMutation(() =>
     this.trpc.admin.tenant.updateSettings.mutationOptions(),
   );

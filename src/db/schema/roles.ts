@@ -1,36 +1,28 @@
+import { modelOfTenant } from '@db/schema/model';
 import {
   boolean,
   integer,
   jsonb,
   pgTable,
   text,
-  timestamp,
-  varchar,
+  unique,
 } from 'drizzle-orm/pg-core';
 
 import { Permission } from '../../shared/permissions/permissions';
-import { createId } from '../create-id';
-import { tenants } from './tenants';
 
-export const roles = pgTable('roles', {
-  collapseMembersInHup: boolean().notNull().default(true),
-  createdAt: timestamp().notNull().defaultNow(),
-  defaultOrganizerRole: boolean().notNull().default(false),
-  defaultUserRole: boolean().notNull().default(false),
-  description: text(),
-  displayInHub: boolean().notNull().default(false),
-  id: varchar({ length: 20 })
-    .$defaultFn(() => createId())
-    .primaryKey(),
-  name: text().notNull(),
-  permissions: jsonb().$type<Permission[]>().notNull().default([]),
-  showInHub: boolean().notNull().default(false),
-  sortOrder: integer().notNull().default(0),
-  tenantId: varchar({ length: 20 })
-    .notNull()
-    .references(() => tenants.id),
-  updatedAt: timestamp()
-    .notNull()
-    .defaultNow()
-    .$onUpdate(() => new Date()),
-});
+export const roles = pgTable(
+  'roles',
+  {
+    ...modelOfTenant,
+    collapseMembersInHup: boolean().notNull().default(true),
+    defaultOrganizerRole: boolean().notNull().default(false),
+    defaultUserRole: boolean().notNull().default(false),
+    description: text(),
+    displayInHub: boolean().notNull().default(false),
+    name: text().notNull(),
+    permissions: jsonb().$type<Permission[]>().notNull().default([]),
+    showInHub: boolean().notNull().default(false),
+    sortOrder: integer().notNull().default(2_147_483_647),
+  },
+  (t) => [unique().on(t.tenantId, t.name)],
+);
