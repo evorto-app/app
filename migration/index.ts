@@ -27,7 +27,7 @@ async function main() {
   await migrateUsers();
 
   await runForTenant('tumi', 'localhost');
-  // await runForTenant('tumi', 'evorto.fly.dev');
+  await runForTenant('tumi', 'evorto.fly.dev');
   // await runForTenant('tumi', 'tumi.esn.world');
   consola.success('Migration complete');
   const migrationEnd = DateTime.local();

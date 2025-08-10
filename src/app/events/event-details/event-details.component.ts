@@ -10,6 +10,8 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
 import { MatMenuModule } from '@angular/material/menu';
 import { RouterLink } from '@angular/router';
+import { IconComponent } from '@app/shared/components/icon/icon.component';
+import { Shape } from '@app/shared/components/shape/shape';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import {
   faArrowLeft,
@@ -53,8 +55,24 @@ import { UpdateVisibilityDialogComponent } from '../update-visibility-dialog/upd
     EventActiveRegistrationComponent,
     EventStatusComponent,
     IfAnyPermissionDirective,
+    Shape,
+    IconComponent,
   ],
   standalone: true,
+  styles: `
+    header {
+      view-transition-name: header;
+      h1 {
+        view-transition-name: header-title;
+      }
+      app-shape {
+        view-transition-name: header-shape;
+      }
+      //app-icon {
+      //  view-transition-name: header-icon;
+      //}
+    }
+  `,
   templateUrl: './event-details.component.html',
 })
 export class EventDetailsComponent {
@@ -121,10 +139,33 @@ export class EventDetailsComponent {
     if (!theme) {
       return {};
     }
-    return {
-      '--mat-sys-primary': `light-dark(${hexFromArgb(theme.schemes.light.primary)}, ${hexFromArgb(theme.schemes.dark.primary)}`,
-      '--mat-sys-surface': `light-dark(${hexFromArgb(theme.schemes.light.surface)}, ${hexFromArgb(theme.schemes.dark.surface)}`,
+    const syles = {
+      '--color-on-primary': `light-dark(${hexFromArgb(theme.schemes.light.onPrimary)}, ${hexFromArgb(theme.schemes.dark.onPrimary)})`,
+      '--color-on-primary-container': `light-dark(${hexFromArgb(theme.schemes.light.onPrimaryContainer)}, ${hexFromArgb(theme.schemes.dark.onPrimaryContainer)})`,
+      '--color-on-secondary': `light-dark(${hexFromArgb(theme.schemes.light.onSecondary)}, ${hexFromArgb(theme.schemes.dark.onSecondary)})`,
+      '--color-on-secondary-container': `light-dark(${hexFromArgb(theme.schemes.light.onSecondaryContainer)}, ${hexFromArgb(theme.schemes.dark.onSecondaryContainer)})`,
+      '--color-on-surface': `light-dark(${hexFromArgb(theme.schemes.light.onSurface)}, ${hexFromArgb(theme.schemes.dark.onSurface)})`,
+      '--color-primary': `light-dark(${hexFromArgb(theme.schemes.light.primary)}, ${hexFromArgb(theme.schemes.dark.primary)})`,
+      '--color-primary-container': `light-dark(${hexFromArgb(theme.schemes.light.primaryContainer)}, ${hexFromArgb(theme.schemes.dark.primaryContainer)})`,
+      '--color-secondary': `light-dark(${hexFromArgb(theme.schemes.light.secondary)}, ${hexFromArgb(theme.schemes.dark.secondary)})`,
+      '--color-secondary-container': `light-dark(${hexFromArgb(theme.schemes.light.secondaryContainer)}, ${hexFromArgb(theme.schemes.dark.secondaryContainer)})`,
+      '--color-surface': `light-dark(${hexFromArgb(theme.schemes.light.surface)}, ${hexFromArgb(theme.schemes.dark.surface)})`,
+      '--color-tertiary-container': `light-dark(${hexFromArgb(theme.schemes.light.tertiaryContainer)}, ${hexFromArgb(theme.schemes.dark.tertiaryContainer)})`,
+      '--mat-sys-on-primary': `light-dark(${hexFromArgb(theme.schemes.light.onPrimary)}, ${hexFromArgb(theme.schemes.dark.onPrimary)})`,
+      '--mat-sys-on-primary-container': `light-dark(${hexFromArgb(theme.schemes.light.onPrimaryContainer)}, ${hexFromArgb(theme.schemes.dark.onPrimaryContainer)})`,
+      '--mat-sys-on-secondary': `light-dark(${hexFromArgb(theme.schemes.light.onSecondary)}, ${hexFromArgb(theme.schemes.dark.onSecondary)})`,
+      '--mat-sys-on-secondary-container': `light-dark(${hexFromArgb(theme.schemes.light.onSecondaryContainer)}, ${hexFromArgb(theme.schemes.dark.onSecondaryContainer)})`,
+      '--mat-sys-on-surface': `light-dark(${hexFromArgb(theme.schemes.light.onSurface)}, ${hexFromArgb(theme.schemes.dark.onSurface)})`,
+      '--mat-sys-on-surface-variant': `light-dark(${hexFromArgb(theme.schemes.light.onSurfaceVariant)}, ${hexFromArgb(theme.schemes.dark.onSurfaceVariant)})`,
+      '--mat-sys-primary': `light-dark(${hexFromArgb(theme.schemes.light.primary)}, ${hexFromArgb(theme.schemes.dark.primary)})`,
+      '--mat-sys-primary-container': `light-dark(${hexFromArgb(theme.schemes.light.primaryContainer)}, ${hexFromArgb(theme.schemes.dark.primaryContainer)})`,
+      '--mat-sys-secondary': `light-dark(${hexFromArgb(theme.schemes.light.secondary)}, ${hexFromArgb(theme.schemes.dark.secondary)})`,
+      '--mat-sys-secondary-container': `light-dark(${hexFromArgb(theme.schemes.light.secondaryContainer)}, ${hexFromArgb(theme.schemes.dark.secondaryContainer)})`,
+      '--mat-sys-surface': `light-dark(${hexFromArgb(theme.schemes.light.surface)}, ${hexFromArgb(theme.schemes.dark.surface)})`,
+      '--mat-sys-surface-variant': `light-dark(${hexFromArgb(theme.schemes.light.surfaceVariant)}, ${hexFromArgb(theme.schemes.dark.surfaceVariant)})`,
     };
+    consola.info('Theme styles:', syles);
+    return syles;
   });
   protected readonly updateVisibilityMutation = injectMutation(() =>
     this.trpc.events.updateVisibility.mutationOptions(),

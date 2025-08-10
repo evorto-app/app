@@ -73,7 +73,7 @@
             "server": "src/main.server.ts",
             "outputMode": "server",
             "sourceMap": true,
-            "externalDependencies": ["@sentry/profiling-node"],
+            "externalDependencies": ["@sentry/profiling-node", "canvas"],
             "ssr": {
               "entry": "src/server.ts"
             }

@@ -64,6 +64,7 @@
     "@trpc/client": "^11.4.4",
     "@trpc/server": "^11.4.4",
     "auth0": "^4.28.0",
+    "canvas": "^3.1.2",
     "compression": "^1.8.1",
     "consola": "^3.4.2",
     "cookie-parser": "^1.4.7",
