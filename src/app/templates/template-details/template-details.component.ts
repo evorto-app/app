@@ -20,6 +20,7 @@ import {
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import { injectTRPC } from '../../core/trpc-client';
+import { RegistrationStartOffsetPipe } from '../../shared/pipes/registration-start-offset.pipe';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -34,6 +35,7 @@ import { injectTRPC } from '../../core/trpc-client';
     CurrencyPipe,
     TitleCasePipe,
     MatChipsModule,
+    RegistrationStartOffsetPipe,
   ],
   selector: 'app-template-details',
   styles: ``,

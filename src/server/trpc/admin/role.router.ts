@@ -51,6 +51,43 @@ export const roleRouter = router({
         .returning();
     }),
 
+  findHubRoles: authenticatedProcedure.query(async ({ ctx }) => {
+    return database.query.roles
+      .findMany({
+        columns: {
+          description: true,
+          id: true,
+          name: true,
+        },
+        orderBy: (roles, { asc }) => [asc(roles.sortOrder), asc(roles.name)],
+        where: {
+          displayInHub: true,
+          tenantId: ctx.tenant.id,
+        },
+        with: {
+          usersToTenants: {
+            with: {
+              user: {
+                columns: {
+                  firstName: true,
+                  id: true,
+                  lastName: true,
+                },
+              },
+            },
+          },
+        },
+      })
+      .then((result) =>
+        result.map((role) => ({
+          ...role,
+          userCount: role.usersToTenants.length,
+          users: role.usersToTenants.map((utt) => utt.user),
+          usersToTenants: undefined,
+        })),
+      );
+  }),
+
   findMany: authenticatedProcedure
     .input(
       Schema.decodeUnknownSync(

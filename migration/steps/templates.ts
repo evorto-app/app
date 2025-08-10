@@ -52,6 +52,17 @@ export const migrateTemplates = async (
           createdAt: new Date(template.createdAt),
           description: marked.parse(template.description, { async: false }),
           icon: template.icon,
+          location: template.coordinates
+            ? ({
+                coordinates: template.coordinates as {
+                  lat: number;
+                  lng: number;
+                },
+                name: template.location,
+                placeId: template.googlePlaceId!,
+                type: 'google',
+              } as const)
+            : null,
           planningTips: marked.parse(template.comment, { async: false }),
           tenantId: newTenant.id,
           title: template.title,
@@ -76,14 +87,6 @@ export const migrateTemplates = async (
         const participantRoleIds = [];
         const organizerRoleIds = [];
         if (eventInstance) {
-          // const eventStart = DateTime.fromISO(eventInstance.start);
-          // const registrationStart = DateTime.fromISO(
-          //   eventInstance.registrationStart,
-          // );
-          // const participantTimeDiff = eventStart.diff(registrationStart, [
-          //   'hours',
-          // ]);
-          // participantOffset = Math.round(participantTimeDiff.hours);
           participantOffset = Math.round(
             DateTime.fromSQL(eventInstance.start).diff(
               DateTime.fromSQL(eventInstance.registrationStart),

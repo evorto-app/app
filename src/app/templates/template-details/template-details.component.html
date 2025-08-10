@@ -108,8 +108,7 @@
                       class="text-on-surface-variant text-sm"
                     ></fa-duotone-icon>
                     <span>
-                      Opens {{ option.openRegistrationOffset }} hours before
-                      event
+                      Opens {{ option.openRegistrationOffset | registrationStartOffset }}
                     </span>
                   </div>
                   <div class="flex items-center gap-2">
@@ -118,8 +117,7 @@
                       class="text-on-surface-variant text-sm"
                     ></fa-duotone-icon>
                     <span>
-                      Closes {{ option.closeRegistrationOffset }} hours before
-                      event
+                      Closes {{ option.closeRegistrationOffset | registrationStartOffset }}
                     </span>
                   </div>
                 </div>

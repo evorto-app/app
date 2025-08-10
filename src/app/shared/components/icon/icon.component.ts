@@ -9,9 +9,11 @@ import {
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: {
+    class: 'shrink-0',
+  },
   imports: [NgOptimizedImage],
   selector: 'app-icon',
-  styles: ``,
   templateUrl: './icon.component.html',
 })
 export class IconComponent {

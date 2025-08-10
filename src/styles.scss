@@ -151,6 +151,7 @@
   --color-on-error: var(--mat-sys-on-error);
   --color-on-primary-container: var(--mat-sys-on-primary-container);
   --color-on-primary: var(--mat-sys-on-primary);
+  --color-on-secondary: var(--mat-sys-on-secondary);
   --color-on-secondary-container: var(--mat-sys-on-secondary-container);
   --color-on-surface-bright: var(--mat-sys-on-surface);
   --color-on-surface-container-high: var(--mat-sys-on-surface);
@@ -226,6 +227,18 @@
 
 .body-small {
   font: var(--mat-sys-body-small);
+}
+
+.label-large {
+  font: var(--mat-sys-label-large);
+}
+
+.label-medium {
+  font: var(--mat-sys-label-medium);
+}
+
+.label-small {
+  font: var(--mat-sys-label-small);
 }
 
 h1,

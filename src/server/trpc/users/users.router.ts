@@ -1,4 +1,5 @@
 import { TRPCError } from '@trpc/server';
+import consola from 'consola';
 import { and, count, eq } from 'drizzle-orm';
 import { Schema } from 'effect';
 
@@ -12,6 +13,7 @@ import {
 
 export const userRouter = router({
   authData: publicProcedure.query(async ({ ctx }) => {
+    consola.info('Auth data', ctx.request.oidc.user);
     return ctx.request.oidc.user as Record<string, any>;
   }),
 
