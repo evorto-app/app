@@ -1,68 +1,42 @@
 <h1 class="title-large mb-6">Members Hub</h1>
 
-<div class="bg-surface text-on-surface rounded-md p-2">
+<div class="bg-surface text-on-surface @container rounded-md p-2">
   <h2 class="title-medium mb-4">Who's who</h2>
   @if (rolesQuery.isError()) {
     <div class="text-error p-4">
       Error loading roles: {{ rolesQuery.error().message }}
     </div>
   } @else if (rolesQuery.isSuccess()) {
-    <div class="grid gap-4 lg:grid-cols-2">
+    <div class="@lg:grid-cols-3 @md:grid-cols-2 grid gap-4">
       @for (role of rolesQuery.data(); track role.id) {
         <div class="">
-          @if (role.userCount === 1 && role.users[0]) {
-            <!-- Single member role: Show as person's position -->
-            <div class="flex flex-col gap-1">
-              <div
-                class="bg-primary-container text-on-primary-container label-large rounded-full p-1"
-              >
-                {{ role.name }}
-              </div>
-              <div>
-                <div class="body-medium">
-                  {{ role.users[0].firstName }} {{ role.users[0].lastName }}
-                </div>
-                @if (role.description) {
-                  <div class="text-on-surface-variant text-sm">
-                    {{ role.description }}
-                  </div>
-                }
-              </div>
-            </div>
-          } @else {
-            <!-- Multiple member role: Show as group -->
-            <div class="mb-3">
-              <div
-                class="bg-primary-container text-on-primary-container label-large rounded-full p-1"
-              >
-                {{ role.name }}
-              </div>
-              @if (role.description) {
-                <p class="text-on-surface-variant text-sm">
-                  {{ role.description }}
-                </p>
-              }
-              <div class="text-primary text-sm font-medium">
-                {{ role.userCount }} members
-              </div>
-            </div>
-
+          <div
+            class="bg-primary-container text-on-primary-container label-large flex items-baseline justify-between rounded-full px-3 py-1"
+          >
+            <span> {{ role.name }}</span>
+            @if (role.userCount > 1) {
+              <span class="label-medium">{{ role.userCount }} members</span>
+            }
+          </div>
+          <div class="px-3">
+            @if (role.description) {
+              <p class="text-on-surface-variant text-sm">
+                {{ role.description }}
+              </p>
+            }
             @if (role.users.length > 0) {
-              <div class="flex flex-wrap gap-1">
-                @for (user of role.users; track $index) {
+              <div class="flex flex-wrap gap-2">
+                @for (user of role.users; track $index; let last = $last) {
                   @if (user) {
-                    <div
-                      class="bg-surface-bright text-on-surface-bright rounded-full p-1"
-                    >
-                      <span class="body-medium"
-                        >{{ user.firstName }} {{ user.lastName }}</span
-                      >
-                    </div>
+                    <span>
+                      {{ user.firstName }} {{ user.lastName
+                      }}{{ last ? "" : ", " }}
+                    </span>
                   }
                 }
               </div>
             }
-          }
+          </div>
         </div>
       }
     </div>

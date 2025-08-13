@@ -73,7 +73,7 @@
                 @case ("DRAFT") {
                   <div class="absolute right-0 top-0 h-16 w-16">
                     <div
-                      class="body-small bg-secondary text-on-secondary absolute -right-9 top-3 w-28 rotate-45 transform py-1 text-center"
+                      class="body-small bg-warn text-on-warn absolute -right-9 top-3 w-28 rotate-45 transform py-1 text-center"
                     >
                       draft
                     </div>
@@ -105,7 +105,7 @@
                   <div class="flex flex-row flex-wrap items-center gap-4">
                     <div class="flex flex-row items-center gap-2">
                       <fa-duotone-icon [icon]="faClock"></fa-duotone-icon>
-                      <p>{{ event.start | date: "mediumTime" }}</p>
+                      <p>{{ event.start | date: "shortTime" }}</p>
                     </div>
                     @switch (event.visibility) {
                       @case ("HIDDEN") {

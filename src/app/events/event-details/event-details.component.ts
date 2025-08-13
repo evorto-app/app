@@ -72,6 +72,9 @@ import { UpdateVisibilityDialogComponent } from '../update-visibility-dialog/upd
       //  view-transition-name: header-icon;
       //}
     }
+    .description {
+      view-transition-name: event-description;
+    }
   `,
   templateUrl: './event-details.component.html',
 })
@@ -145,11 +148,13 @@ export class EventDetailsComponent {
       '--color-on-secondary': `light-dark(${hexFromArgb(theme.schemes.light.onSecondary)}, ${hexFromArgb(theme.schemes.dark.onSecondary)})`,
       '--color-on-secondary-container': `light-dark(${hexFromArgb(theme.schemes.light.onSecondaryContainer)}, ${hexFromArgb(theme.schemes.dark.onSecondaryContainer)})`,
       '--color-on-surface': `light-dark(${hexFromArgb(theme.schemes.light.onSurface)}, ${hexFromArgb(theme.schemes.dark.onSurface)})`,
+      '--color-on-surface-variant': `light-dark(${hexFromArgb(theme.schemes.light.onSurfaceVariant)}, ${hexFromArgb(theme.schemes.dark.onSurfaceVariant)})`,
       '--color-primary': `light-dark(${hexFromArgb(theme.schemes.light.primary)}, ${hexFromArgb(theme.schemes.dark.primary)})`,
       '--color-primary-container': `light-dark(${hexFromArgb(theme.schemes.light.primaryContainer)}, ${hexFromArgb(theme.schemes.dark.primaryContainer)})`,
       '--color-secondary': `light-dark(${hexFromArgb(theme.schemes.light.secondary)}, ${hexFromArgb(theme.schemes.dark.secondary)})`,
       '--color-secondary-container': `light-dark(${hexFromArgb(theme.schemes.light.secondaryContainer)}, ${hexFromArgb(theme.schemes.dark.secondaryContainer)})`,
       '--color-surface': `light-dark(${hexFromArgb(theme.schemes.light.surface)}, ${hexFromArgb(theme.schemes.dark.surface)})`,
+      '--color-surface-variant': `light-dark(${hexFromArgb(theme.schemes.light.surfaceVariant)}, ${hexFromArgb(theme.schemes.dark.surfaceVariant)})`,
       '--color-tertiary-container': `light-dark(${hexFromArgb(theme.schemes.light.tertiaryContainer)}, ${hexFromArgb(theme.schemes.dark.tertiaryContainer)})`,
       '--mat-sys-on-primary': `light-dark(${hexFromArgb(theme.schemes.light.onPrimary)}, ${hexFromArgb(theme.schemes.dark.onPrimary)})`,
       '--mat-sys-on-primary-container': `light-dark(${hexFromArgb(theme.schemes.light.onPrimaryContainer)}, ${hexFromArgb(theme.schemes.dark.onPrimaryContainer)})`,

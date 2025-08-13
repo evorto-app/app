@@ -161,6 +161,7 @@
   --color-on-surface-container: var(--mat-sys-on-surface);
   --color-on-surface-dim: var(--mat-sys-on-surface);
   --color-on-surface: var(--mat-sys-on-surface);
+  --color-on-surface-variant: var(--mat-sys-on-surface-variant);
   --color-on-tertiary-container: var(--mat-sys-on-tertiary-container);
   --color-on-tertiary: var(--mat-sys-on-tertiary);
   --color-outline: var(--mat-sys-outline);
@@ -175,6 +176,7 @@
   --color-surface-container: var(--mat-sys-surface-container);
   --color-surface-dim: var(--mat-sys-surface-dim);
   --color-surface: var(--mat-sys-surface);
+  --color-surface-variant: var(--mat-sys-surface-variant);
   --color-tertiary-container: var(--mat-sys-tertiary-container);
   --color-tertiary: var(--mat-sys-tertiary);
   --color-secondary: var(--mat-sys-secondary);
@@ -182,8 +184,8 @@
   //--color-on-success: var(--app-on-success);
   //--color-success-container: var(--app-success-container);
   //--color-on-success-container: var(--app-on-success-container);
-  //--color-warn: var(--app-warn);
-  //--color-on-warn: var(--app-on-warn);
+  --color-warn: var(--app-warn);
+  --color-on-warn: var(--app-on-warn);
   //--color-warn-container: var(--app-warn-container);
   //--color-on-warn-container: var(--app-on-warn-container);
   --radius-none: var(--mat-sys-corner-none);
