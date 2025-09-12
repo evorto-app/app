@@ -67,4 +67,17 @@ export const routes: Routes = [
       ),
     path: 'create-account',
   },
+  {
+    loadComponent: () =>
+      import('./core/error/error.component').then((m) => m.ErrorComponent),
+    path: '500',
+  },
+  {
+    loadComponent: () =>
+      import('./core/not-found/not-found.component').then(
+        (m) => m.NotFoundComponent,
+      ),
+    path: '404',
+  },
+  { path: '**', redirectTo: '404' },
 ];

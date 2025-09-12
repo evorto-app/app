@@ -7312,6 +7312,8 @@ __metadata:
     eslint-plugin-unicorn: "npm:^61.0.2"
     express: "npm:^5.1.0"
     express-openid-connect: "npm:^2.19.2"
+    express-rate-limit: "npm:^7.5.1"
+    helmet: "npm:^7.2.0"
     html-to-text: "npm:^9.0.5"
     inter-ui: "npm:^4.1.1"
     luxon: "npm:^3.7.2"
@@ -7373,7 +7375,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"express-rate-limit@npm:^7.5.0":
+"express-rate-limit@npm:^7.5.0, express-rate-limit@npm:^7.5.1":
   version: 7.5.1
   resolution: "express-rate-limit@npm:7.5.1"
   peerDependencies:
@@ -7887,6 +7889,13 @@ __metadata:
   dependencies:
     function-bind: "npm:^1.1.2"
   checksum: 10c0/3769d434703b8ac66b209a4cca0737519925bbdb61dd887f93a16372b14694c63ff4e797686d87c90f08168e81082248b9b028bad60d4da9e0d1148766f56eb9
+  languageName: node
+  linkType: hard
+
+"helmet@npm:^7.2.0":
+  version: 7.2.0
+  resolution: "helmet@npm:7.2.0"
+  checksum: 10c0/7ba8503519cabc1d6410330b710da3ac01a4ff66e7e10cb68c4d73c96803a2e86ce45c71f3127dfb8ef3ea2e91c7b8316726191873f80d0572f8826878b2854e
   languageName: node
   linkType: hard
 

@@ -9,6 +9,7 @@ export class RegistrationStartOffsetPipe implements PipeTransform {
       return 'At event start';
     }
 
+    // Keep original semantics: positive => before, negative => after
     if (offsetInHours > 0) {
       return this.formatOffset(offsetInHours, 'before');
     }

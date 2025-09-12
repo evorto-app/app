@@ -9,7 +9,7 @@ import { authenticatedProcedure } from '../trpc-server';
 
 export const cancelPendingRegistrationProcedure = authenticatedProcedure
   .input(
-    Schema.decodeUnknownSync(
+    Schema.standardSchemaV1(
       Schema.Struct({ registrationId: Schema.NonEmptyString }),
     ),
   )

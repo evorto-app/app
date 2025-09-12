@@ -9,7 +9,7 @@ export const templateCategoryRouter = router({
   create: authenticatedProcedure
     .meta({ requiredPermissions: ['templates:manageCategories'] })
     .input(
-      Schema.decodeUnknownSync(
+      Schema.standardSchemaV1(
         Schema.Struct({
           icon: Schema.Struct({
             iconColor: Schema.Number,
@@ -33,7 +33,7 @@ export const templateCategoryRouter = router({
   }),
   update: authenticatedProcedure
     .input(
-      Schema.decodeUnknownSync(
+      Schema.standardSchemaV1(
         Schema.Struct({
           id: Schema.NonEmptyString,
           title: Schema.NonEmptyString,

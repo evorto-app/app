@@ -10,7 +10,7 @@ export const roleRouter = router({
   create: authenticatedProcedure
     .meta({ requiredPermissions: ['admin:manageRoles'] })
     .input(
-      Schema.decodeUnknownSync(
+      Schema.standardSchemaV1(
         Schema.Struct({
           defaultOrganizerRole: Schema.Boolean,
           defaultUserRole: Schema.Boolean,
@@ -38,7 +38,7 @@ export const roleRouter = router({
   delete: authenticatedProcedure
     .meta({ requiredPermissions: ['admin:manageRoles'] })
     .input(
-      Schema.decodeUnknownSync(
+      Schema.standardSchemaV1(
         Schema.Struct({
           id: Schema.NonEmptyString,
         }),
@@ -90,7 +90,7 @@ export const roleRouter = router({
 
   findMany: authenticatedProcedure
     .input(
-      Schema.decodeUnknownSync(
+      Schema.standardSchemaV1(
         Schema.Struct({
           defaultOrganizerRole: Schema.optional(Schema.Boolean),
           defaultUserRole: Schema.optional(Schema.Boolean),
@@ -115,7 +115,7 @@ export const roleRouter = router({
   findOne: authenticatedProcedure
     .meta({ requiredPermissions: ['admin:manageRoles'] })
     .input(
-      Schema.decodeUnknownSync(
+      Schema.standardSchemaV1(
         Schema.Struct({
           id: Schema.NonEmptyString,
         }),
@@ -134,7 +134,7 @@ export const roleRouter = router({
   search: authenticatedProcedure
     .meta({ requiredPermissions: ['admin:manageRoles'] })
     .input(
-      Schema.decodeUnknownSync(
+      Schema.standardSchemaV1(
         Schema.Struct({
           search: Schema.String,
         }),
@@ -154,7 +154,7 @@ export const roleRouter = router({
   update: authenticatedProcedure
     .meta({ requiredPermissions: ['admin:manageRoles'] })
     .input(
-      Schema.decodeUnknownSync(
+      Schema.standardSchemaV1(
         Schema.Struct({
           defaultOrganizerRole: Schema.Boolean,
           defaultUserRole: Schema.Boolean,

@@ -37,10 +37,11 @@ import {
   QueryClient,
   withDevtools,
 } from '@tanstack/angular-query-experimental';
+import { isDevMode } from '@angular/core';
 import { createTRPCClient } from '@trpc/client';
 import superjson from 'superjson';
 
-import { AppRouter } from '../server/trpc/app-router';
+import type { AppRouter } from '../server/trpc/app-router';
 import { routes } from './app.routes';
 import { authTokenInterceptor } from './core/auth-token.interceptor';
 import { ConfigService } from './core/config.service';
@@ -71,7 +72,11 @@ export const appConfig: ApplicationConfig = {
       }),
     ),
     provideClientHydration(withEventReplay()),
-    provideTanStackQuery(new QueryClient(), withDevtools()),
+    // Enable TanStack Query devtools only in dev mode
+    provideTanStackQuery(
+      new QueryClient(),
+      ...(isDevMode() ? [withDevtools()] as const : ([] as const)),
+    ),
     provideLuxonDateAdapter(),
     // provideCloudflareLoader(
     //   'https://imagedelivery.net/DxTiV2GJoeCDYZ1DN5RPUA/',

@@ -22,7 +22,7 @@ import { publicProcedure } from '../trpc-server';
 
 export const eventListProcedure = publicProcedure
   .input(
-    Schema.decodeUnknownSync(
+    Schema.standardSchemaV1(
       Schema.Struct({
         limit: Schema.optionalWith(Schema.Number.pipe(Schema.nonNegative()), {
           default: () => 100,

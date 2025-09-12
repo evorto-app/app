@@ -9,7 +9,7 @@ import { authenticatedProcedure, router } from '../trpc-server';
 export const tenantRouter = router({
   create: authenticatedProcedure
     .input(
-      Schema.decodeUnknownSync(
+      Schema.standardSchemaV1(
         Schema.Struct({
           domain: Schema.NonEmptyString,
           name: Schema.NonEmptyString,
@@ -22,7 +22,7 @@ export const tenantRouter = router({
 
   delete: authenticatedProcedure
     .input(
-      Schema.decodeUnknownSync(
+      Schema.standardSchemaV1(
         Schema.Struct({
           id: Schema.NonEmptyString,
         }),
@@ -44,7 +44,7 @@ export const tenantRouter = router({
 
   findOne: authenticatedProcedure
     .input(
-      Schema.decodeUnknownSync(
+      Schema.standardSchemaV1(
         Schema.Struct({
           id: Schema.NonEmptyString,
         }),
@@ -65,7 +65,7 @@ export const tenantRouter = router({
 
   update: authenticatedProcedure
     .input(
-      Schema.decodeUnknownSync(
+      Schema.standardSchemaV1(
         Schema.Struct({
           domain: Schema.NonEmptyString,
           id: Schema.NonEmptyString,

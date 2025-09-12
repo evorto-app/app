@@ -12,7 +12,7 @@ import { authenticatedProcedure } from '../trpc-server';
 
 export const registerForEventProcedure = authenticatedProcedure
   .input(
-    Schema.decodeUnknownSync(
+    Schema.standardSchemaV1(
       Schema.Struct({
         eventId: Schema.NonEmptyString,
         registrationOptionId: Schema.NonEmptyString,

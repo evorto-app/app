@@ -6,7 +6,7 @@ import { authenticatedProcedure } from '../trpc-server';
 
 export const registrationScannedProcedure = authenticatedProcedure
   .input(
-    Schema.decodeUnknownSync(
+    Schema.standardSchemaV1(
       Schema.Struct({
         registrationId: Schema.NonEmptyString,
       }),

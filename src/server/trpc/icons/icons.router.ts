@@ -8,7 +8,7 @@ import { authenticatedProcedure, router } from '../trpc-server';
 export const iconRouter = router({
   addIcon: authenticatedProcedure
     .input(
-      Schema.decodeUnknownSync(Schema.Struct({ icon: Schema.NonEmptyString })),
+      Schema.standardSchemaV1(Schema.Struct({ icon: Schema.NonEmptyString })),
     )
     .mutation(async ({ ctx, input }) => {
       const [name, set] = input.icon.split(':');
@@ -40,7 +40,7 @@ export const iconRouter = router({
         .returning();
     }),
   search: authenticatedProcedure
-    .input(Schema.decodeUnknownSync(Schema.Struct({ search: Schema.String })))
+    .input(Schema.standardSchemaV1(Schema.Struct({ search: Schema.String })))
     .query(async ({ ctx, input }) => {
       return await database.query.icons.findMany({
         orderBy: { commonName: 'asc' },

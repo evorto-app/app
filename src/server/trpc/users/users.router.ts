@@ -19,7 +19,7 @@ export const userRouter = router({
 
   createAccount: publicProcedure
     .input(
-      Schema.decodeUnknownSync(
+      Schema.standardSchemaV1(
         Schema.Struct({
           communicationEmail: Schema.NonEmptyString,
           firstName: Schema.NonEmptyString,
@@ -115,7 +115,7 @@ export const userRouter = router({
   findMany: authenticatedProcedure
     .meta({ requiredPermissions: ['users:viewAll'] })
     .input(
-      Schema.decodeUnknownSync(
+      Schema.standardSchemaV1(
         Schema.Struct({
           limit: Schema.optional(Schema.Number),
           offset: Schema.optional(Schema.Number),
@@ -197,7 +197,7 @@ export const userRouter = router({
   findOne: authenticatedProcedure
     .meta({ requiredPermissions: ['users:viewAll'] })
     .input(
-      Schema.decodeUnknownSync(
+      Schema.standardSchemaV1(
         Schema.Struct({
           id: Schema.NonEmptyString,
         }),
@@ -222,7 +222,7 @@ export const userRouter = router({
 
   updateProfile: authenticatedProcedure
     .input(
-      Schema.decodeUnknownSync(
+      Schema.standardSchemaV1(
         Schema.Struct({
           firstName: Schema.NonEmptyString,
           lastName: Schema.NonEmptyString,

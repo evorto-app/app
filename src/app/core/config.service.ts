@@ -34,10 +34,18 @@ export class ConfigService {
     return this._tenant;
   }
 
+  public get publicConfig() {
+    return this._publicConfig;
+  }
+
   private _missingContext = false;
   private _permissions!: Permission[];
 
   private _tenant!: Tenant;
+  private _publicConfig: { sentryDsn: string | null; googleMapsApiKey: string | null } = {
+    googleMapsApiKey: null,
+    sentryDsn: null,
+  };
 
   private trpc = injectTRPC();
 
@@ -82,15 +90,18 @@ export class ConfigService {
       consola.warn('Missing context on server. Skipping config loading.');
       return;
     }
-    const [tenant, permissions] = await Promise.all([
+    const [tenant, permissions, pub] = await Promise.all([
       this.trpcClient.config.tenant.query(),
       this.trpcClient.config.permissions.query(),
+      this.trpcClient.config.public.query(),
     ]);
 
     this.title.setTitle(tenant.name);
 
     this._tenant = tenant;
     this._permissions = [...permissions];
+
+    this._publicConfig = pub;
   }
 
   public updateDescription(description: string): void {

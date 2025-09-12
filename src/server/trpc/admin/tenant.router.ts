@@ -21,7 +21,7 @@ export const tenantRouter = router({
   updateSettings: authenticatedProcedure
     .meta({ requiredPermissions: ['admin:changeSettings'] })
     .input(
-      Schema.decodeUnknownSync(
+      Schema.standardSchemaV1(
         Schema.Struct({
           defaultLocation: Schema.NullOr(Schema.Any),
           theme: Schema.mutable(Schema.Literal('evorto', 'esn')),

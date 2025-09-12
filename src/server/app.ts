@@ -18,6 +18,8 @@ import cookieParser from 'cookie-parser';
 import { Either, Schema } from 'effect';
 import express, { ErrorRequestHandler } from 'express';
 import { auth, ConfigParams } from 'express-openid-connect';
+import rateLimit from 'express-rate-limit';
+import helmet from 'helmet';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -43,9 +45,13 @@ const config: ConfigParams = {
 export const app = express();
 const angularApp = new AngularNodeAppEngine();
 
+// Trust upstream proxy (Fly.io, etc.)
+app.set('trust proxy', 1);
+app.disable('x-powered-by');
+
+app.use(helmet({ contentSecurityPolicy: false }));
 app.use(compression());
 
-app.use('/webhooks', webhookRouter);
 app.use('/qr', qrCodeRouter);
 
 app.use(auth(config));
@@ -54,6 +60,18 @@ app.use(cookieParser());
 app.use(addAuthenticationContext);
 app.use(addTenantContext);
 app.use(addUserContext);
+
+// Apply basic rate limiting to webhooks
+app.use(
+  '/webhooks',
+  rateLimit({
+    legacyHeaders: false,
+    limit: 60,
+    standardHeaders: true,
+    windowMs: 60_000,
+  }),
+);
+app.use('/webhooks', webhookRouter);
 
 app.get('/forward-login', async (request, response) => {
   const redirectUrl = request.query['redirectUrl'];
@@ -130,3 +148,22 @@ const errorLogger: ErrorRequestHandler = (error, request, response, next) => {
 app.use(errorLogger);
 
 Sentry.setupExpressErrorHandler(app);
+
+// Final error handler: redirect to /500 for HTML requests
+// Must be the last handler
+const finalErrorHandler: ErrorRequestHandler = (error, request, response) => {
+  try {
+    consola.error(error);
+    if (response.headersSent) return;
+    const accept = request.headers['accept'] ?? '';
+    if (typeof accept === 'string' && accept.includes('text/html')) {
+      response.status(500).redirect('/500');
+    } else {
+      response.status(500).json({ error: 'Internal Server Error' });
+    }
+  } catch (handlerError) {
+    consola.error('Error in error handler', handlerError);
+    if (!response.headersSent) response.status(500).end();
+  }
+};
+app.use(finalErrorHandler);

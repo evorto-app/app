@@ -9,7 +9,7 @@ export const financeRouter = router({
   transactions: router({
     findMany: authenticatedProcedure
       .input(
-        Schema.decodeUnknownSync(
+        Schema.standardSchemaV1(
           Schema.Struct({
             limit: Schema.Number,
             offset: Schema.Number,

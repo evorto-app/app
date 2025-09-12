@@ -22,7 +22,7 @@ export const eventRouter = router({
   create: authenticatedProcedure
     .meta({ requiredPermissions: ['events:create'] })
     .input(
-      Schema.decodeUnknownSync(
+      Schema.standardSchemaV1(
         Schema.Struct({
           description: Schema.NonEmptyString,
           end: Schema.ValidDateFromSelf,
@@ -105,7 +105,7 @@ export const eventRouter = router({
 
   findOne: publicProcedure
     .input(
-      Schema.decodeUnknownSync(Schema.Struct({ id: Schema.NonEmptyString })),
+      Schema.standardSchemaV1(Schema.Struct({ id: Schema.NonEmptyString })),
     )
     .query(async ({ ctx, input }) => {
       const rolesToFilterBy = (ctx.user?.roleIds ??
@@ -143,7 +143,7 @@ export const eventRouter = router({
 
   findOneForEdit: authenticatedProcedure
     .input(
-      Schema.decodeUnknownSync(Schema.Struct({ id: Schema.NonEmptyString })),
+      Schema.standardSchemaV1(Schema.Struct({ id: Schema.NonEmptyString })),
     )
     .query(async ({ ctx, input }) => {
       const event = await database.query.eventInstances.findFirst({
@@ -169,7 +169,7 @@ export const eventRouter = router({
 
   getOrganizeOverview: authenticatedProcedure
     .input(
-      Schema.decodeUnknownSync(
+      Schema.standardSchemaV1(
         Schema.Struct({ eventId: Schema.NonEmptyString }),
       ),
     )
@@ -277,7 +277,7 @@ export const eventRouter = router({
 
   getRegistrationStatus: publicProcedure
     .input(
-      Schema.decodeUnknownSync(
+      Schema.standardSchemaV1(
         Schema.Struct({ eventId: Schema.NonEmptyString }),
       ),
     )
@@ -331,7 +331,7 @@ export const eventRouter = router({
 
   reviewEvent: authenticatedProcedure
     .input(
-      Schema.decodeUnknownSync(
+      Schema.standardSchemaV1(
         Schema.Struct({
           approved: Schema.Boolean,
           comment: Schema.optional(Schema.NonEmptyString),
@@ -362,7 +362,7 @@ export const eventRouter = router({
 
   submitForReview: authenticatedProcedure
     .input(
-      Schema.decodeUnknownSync(
+      Schema.standardSchemaV1(
         Schema.Struct({
           eventId: Schema.NonEmptyString,
         }),
@@ -392,7 +392,7 @@ export const eventRouter = router({
   update: authenticatedProcedure
     // .meta({ requiredPermissions: ['events:edit'] })
     .input(
-      Schema.decodeUnknownSync(
+      Schema.standardSchemaV1(
         Schema.Struct({
           description: Schema.NonEmptyString,
           end: Schema.ValidDateFromSelf,
@@ -449,7 +449,7 @@ export const eventRouter = router({
       requiredPermissions: ['events:changeVisibility'],
     })
     .input(
-      Schema.decodeUnknownSync(
+      Schema.standardSchemaV1(
         Schema.Struct({
           eventId: Schema.NonEmptyString,
           visibility: Schema.Literal(...schema.eventVisibility.enumValues),

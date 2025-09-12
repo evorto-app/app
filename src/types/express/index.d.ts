@@ -16,7 +16,7 @@ declare global {
        */
       isSocialMediaCrawler?: boolean;
       tenant: Tenant;
-      user: User;
+      user?: User;
     }
   }
 }

@@ -22,7 +22,7 @@ const registrationOptionSchema = Schema.Struct({
 export const templateRouter = router({
   createSimpleTemplate: authenticatedProcedure
     .input(
-      Schema.decodeUnknownSync(
+      Schema.standardSchemaV1(
         Schema.Struct({
           categoryId: Schema.NonEmptyString,
           description: Schema.NonEmptyString,
@@ -95,7 +95,7 @@ export const templateRouter = router({
   }),
   findOne: authenticatedProcedure
     .input(
-      Schema.decodeUnknownSync(Schema.Struct({ id: Schema.NonEmptyString })),
+      Schema.standardSchemaV1(Schema.Struct({ id: Schema.NonEmptyString })),
     )
     .query(async ({ ctx, input }) => {
       const template = await database.query.eventTemplates.findFirst({
@@ -136,7 +136,7 @@ export const templateRouter = router({
   }),
   updateSimpleTemplate: authenticatedProcedure
     .input(
-      Schema.decodeUnknownSync(
+      Schema.standardSchemaV1(
         Schema.Struct({
           categoryId: Schema.NonEmptyString,
           description: Schema.NonEmptyString,

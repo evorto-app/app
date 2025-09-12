@@ -1,17 +1,15 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { Loader } from '@googlemaps/js-api-loader';
 
 import { GoogleLocationType } from '../../types/location';
-
-const loader = new Loader({
-  apiKey: 'AIzaSyAMfVVwWv-3eVdU3uU54ygI_7jCNSzRXlo',
-  version: 'weekly',
-});
+import { ConfigService } from './config.service';
 
 @Injectable({
   providedIn: 'root',
 })
 export class LocationSearch {
+  private readonly config = inject(ConfigService);
+  private loader?: Loader;
   private _autocompleteService?: typeof google.maps.places.AutocompleteSuggestion;
   private _sessionToken?: google.maps.places.AutocompleteSessionToken;
   async getPlaceDetails(
@@ -67,9 +65,15 @@ export class LocationSearch {
     service: typeof google.maps.places.AutocompleteSuggestion;
     token: google.maps.places.AutocompleteSessionToken;
   }> {
+    if (!this.loader) {
+      this.loader = new Loader({
+        apiKey: this.config.publicConfig.googleMapsApiKey ?? '',
+        version: 'weekly',
+      });
+    }
     if (!this._autocompleteService || !this._sessionToken) {
       const { AutocompleteSessionToken, AutocompleteSuggestion } =
-        await loader.importLibrary('places');
+        await this.loader.importLibrary('places');
       this._autocompleteService = AutocompleteSuggestion;
       this._sessionToken = new AutocompleteSessionToken();
     }

@@ -15,6 +15,7 @@ services:
       - .env.local
       - .env
     environment:
+      #      This secret is for the local stripe cli, it is not a production secret
       STRIPE_WEBHOOK_SECRET: whsec_5cc4e8e60977a2f87895f2fe5484040de96728381f08f33617633205a0cafae3
     ports:
       - "4200:4200"
