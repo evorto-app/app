@@ -22,15 +22,11 @@ export class EventListService {
     this.trpc.users.maybeSelf.queryOptions(),
   );
 
-  private readonly visibilityFilterValue = signal([
-    'HIDDEN',
-    'PRIVATE',
-    'PUBLIC',
-  ] as const);
+  private readonly includeUnlisted = signal(false);
 
   readonly canSeeDrafts = this.permissions.hasPermission('events:seeDrafts');
-  readonly canSeeHidden = this.permissions.hasPermission('events:seeHidden');
-  readonly canSeePrivate = this.permissions.hasPermission('events:seePrivate');
+  readonly canSeeUnlisted =
+    this.permissions.hasPermission('events:seeUnlisted');
 
   readonly startFilter = signal(new Date());
 
@@ -50,34 +46,20 @@ export class EventListService {
     const status = this.canSeeDrafts()
       ? this.statusFilterValue()
       : (['APPROVED'] as const);
-    const visibilityFilter = this.visibilityFilterValue();
-    const canSeePrivate = this.canSeePrivate();
-    const canSeeHidden = this.canSeeHidden();
-    const visibility = visibilityFilter.filter((option) => {
-      if (canSeePrivate) {
-        return true;
-      }
-      if (option === 'PRIVATE') {
-        return false;
-      }
-      if (canSeeHidden) {
-        return true;
-      }
-      return option !== 'HIDDEN';
-    });
+    const includeUnlisted = this.canSeeUnlisted();
     const userId = self?.id;
     consola.info({
+      includeUnlisted,
       startAfter,
       status,
       userId,
-      visibility,
       ...pageConfig,
     });
     return {
+      includeUnlisted,
       startAfter,
       status,
       userId,
-      visibility,
       ...pageConfig,
     };
   });
@@ -94,7 +76,7 @@ export class EventListService {
     this.startFilter.set(date);
   }
 
-  updateVisibilityFilter(visibility: readonly ['HIDDEN', 'PRIVATE', 'PUBLIC']) {
-    this.visibilityFilterValue.set(visibility);
+  setIncludeUnlisted(value: boolean) {
+    this.includeUnlisted.set(value);
   }
 }

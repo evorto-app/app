@@ -120,7 +120,7 @@ export class EventReviewsComponent {
     startAfter: new Date(),
     status: ['PENDING_REVIEW'] as const,
     userId: this.selfQuery.data()?.id,
-    visibility: ['PRIVATE', 'PUBLIC', 'HIDDEN'] as const,
+    includeUnlisted: true,
   }));
   protected readonly pendingReviewsQuery = injectQuery(() =>
     this.trpc.events.findMany.queryOptions(this.pendingReviewsFilter()),

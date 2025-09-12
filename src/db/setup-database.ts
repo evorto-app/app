@@ -75,7 +75,7 @@ export async function setupDatabase(
   }
   for (const tenant of developmentTenants) {
     const developmentTenant = await createTenant(database, tenant);
-    await addIcons(database, developmentTenant);
+    const icons = await addIcons(database, developmentTenant);
     const roles = await addRoles(database, developmentTenant);
     await addUsersToRoles(
       database,
@@ -106,7 +106,11 @@ export async function setupDatabase(
       developmentTenant,
     );
     await addExampleUsers(database, roles, developmentTenant);
-    const categories = await addTemplateCategories(database, developmentTenant);
+    const categories = await addTemplateCategories(
+      database,
+      developmentTenant,
+      icons,
+    );
     const templates = await addTemplates(database, categories, roles);
     const events = await addEvents(database, templates, roles);
     await addRegistrations(database, events);

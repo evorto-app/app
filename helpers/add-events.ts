@@ -167,7 +167,7 @@ const createEvents = (
       // Some in the past, some in the present, some in the future
       let eventStart: Date;
       let status: 'APPROVED' | 'DRAFT' | 'PENDING_REVIEW';
-      let visibility: 'HIDDEN' | 'PRIVATE' | 'PUBLIC';
+      let unlisted: boolean;
       let creatorId: string;
 
       // Deterministic assignment based on index
@@ -178,7 +178,7 @@ const createEvents = (
           .plus({ days: 5 + index * 2 })
           .toJSDate();
         status = 'APPROVED';
-        visibility = 'PUBLIC';
+        unlisted = false;
         creatorId = organizerUser;
       } else if (index === 1) {
         // Current/upcoming event
@@ -186,7 +186,7 @@ const createEvents = (
           .plus({ days: 7 + index * 3 })
           .toJSDate();
         status = 'APPROVED';
-        visibility = 'PUBLIC';
+        unlisted = false;
         // Use organizerUser for current/upcoming events
         // Association members create and run events
         creatorId = organizerUser;
@@ -199,16 +199,16 @@ const createEvents = (
         // Mix of statuses for future events
         if (index % 3 === 0) {
           status = 'DRAFT';
-          visibility = 'HIDDEN';
+          unlisted = true;
           creatorId = organizerUser;
         } else if (index % 3 === 1) {
           status = 'PENDING_REVIEW';
-          visibility = 'PRIVATE';
+          unlisted = false;
           // Use adminUser for some events
           creatorId = adminUser;
         } else {
           status = 'APPROVED';
-          visibility = 'PUBLIC';
+          unlisted = false;
           // Use organizerUser for approved events
           creatorId = organizerUser;
         }
@@ -226,7 +226,7 @@ const createEvents = (
         templateId: template.id,
         tenantId: template.tenantId,
         title: `${template.title} ${index + 1}`,
-        visibility,
+        unlisted,
       };
       events.push(event);
 

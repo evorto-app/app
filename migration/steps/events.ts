@@ -142,11 +142,11 @@ export const migrateEvents = async (
       }
 
       const statusMap = {
-        APPROVAL: { status: 'PENDING_REVIEW', visibility: 'HIDDEN' },
-        DRAFT: { status: 'DRAFT', visibility: 'HIDDEN' },
-        ORGANIZERS: { status: 'APPROVED', visibility: 'HIDDEN' },
-        PUBLIC: { status: 'APPROVED', visibility: 'PUBLIC' },
-      };
+        APPROVAL: { status: 'PENDING_REVIEW', unlisted: true },
+        DRAFT: { status: 'DRAFT', unlisted: true },
+        ORGANIZERS: { status: 'APPROVED', unlisted: true },
+        PUBLIC: { status: 'APPROVED', unlisted: false },
+      } as const;
       eventInstancesToInsert.push({
         createdAt: DateTime.fromSQL(event.createdAt).toJSDate(),
         creatorId: mappedCreatorId,

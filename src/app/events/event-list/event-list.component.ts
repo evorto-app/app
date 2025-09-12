@@ -16,13 +16,7 @@ import { MatMenuModule } from '@angular/material/menu';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
-import {
-  faClock,
-  faEllipsisVertical,
-  faEyeSlash,
-  faFilter,
-  faLock,
-} from '@fortawesome/duotone-regular-svg-icons';
+import { faClock, faEllipsisVertical, faEyeSlash, faFilter } from '@fortawesome/duotone-regular-svg-icons';
 import consola from 'consola/browser';
 import { firstValueFrom } from 'rxjs';
 
@@ -59,14 +53,12 @@ export class EventListComponent {
 
   // Expose service properties for template access
   protected readonly canSeeDrafts = this.eventListService.canSeeDrafts;
-  protected readonly canSeeHidden = this.eventListService.canSeeHidden;
-  protected readonly canSeePrivate = this.eventListService.canSeePrivate;
+  protected readonly canSeeUnlisted = this.eventListService.canSeeUnlisted;
   protected readonly eventQuery = this.eventListService.eventQuery;
   protected readonly faClock = faClock;
   protected readonly faEllipsisVertical = faEllipsisVertical;
   protected readonly faEyeSlash = faEyeSlash;
   protected readonly faFilter = faFilter;
-  protected readonly faLock = faLock;
   protected readonly outletActive = signal(false);
   protected readonly startFilter = this.eventListService.startFilter;
   protected readonly statusFilterControl =

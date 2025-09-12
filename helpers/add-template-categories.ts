@@ -4,13 +4,21 @@ import { relations } from '../src/db/relations';
 import * as schema from '../src/db/schema';
 import { getId } from './get-id';
 
-export const addTemplateCategories = (
+export const addTemplateCategories = async (
   database: NeonDatabase<Record<string, never>, typeof relations>,
   tenant: { id: string },
-  icons: { id: string; commonName: string; sourceColor: number | null }[],
+  iconsParameter?: {
+    commonName: string;
+    id: string;
+    sourceColor: null | number;
+  }[],
 ) => {
+  const icons =
+    iconsParameter ??
+    (await database.query.icons.findMany({ where: { tenantId: tenant.id } }));
+
   const createIconObject = (iconName: string) => {
-    const icon = icons.find((i) => i.commonName === iconName);
+    const icon = icons.find((icon) => icon.commonName === iconName);
     if (!icon) {
       throw new Error(`Icon with commonName "${iconName}" not found`);
     }

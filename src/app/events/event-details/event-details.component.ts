@@ -129,8 +129,8 @@ export class EventDetailsComponent {
       eventId: this.eventId(),
     }),
   );
-  protected readonly updateVisibilityMutation = injectMutation(() =>
-    this.trpc.events.updateVisibility.mutationOptions(),
+  protected readonly updateListingMutation = injectMutation(() =>
+    this.trpc.events.updateListing.mutationOptions(),
   );
   private readonly config = inject(ConfigService);
   private dialog = inject(MatDialog);
@@ -154,17 +154,17 @@ export class EventDetailsComponent {
   }
 
   async updateVisibility() {
-    const visibility = await firstValueFrom(
+    const unlisted = await firstValueFrom(
       this.dialog
         .open(UpdateVisibilityDialogComponent, {
           data: { event: this.eventQuery.data() },
         })
         .afterClosed(),
     );
-    if (visibility) {
-      this.updateVisibilityMutation.mutate({
+    if (unlisted !== null && unlisted !== undefined) {
+      this.updateListingMutation.mutate({
         eventId: this.eventId(),
-        visibility,
+        unlisted,
       });
     }
   }

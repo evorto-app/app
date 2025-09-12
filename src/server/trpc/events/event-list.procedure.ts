@@ -17,13 +17,14 @@ import { Writable } from 'type-fest';
 
 import { database } from '../../../db';
 import * as schema from '../../../db/schema';
-import { eventReviewStatus, eventVisibility } from '../../../db/schema';
+import { eventReviewStatus } from '../../../db/schema';
 import { publicProcedure } from '../trpc-server';
 
 export const eventListProcedure = publicProcedure
   .input(
     Schema.standardSchemaV1(
       Schema.Struct({
+        includeUnlisted: Schema.optional(Schema.Boolean),
         limit: Schema.optionalWith(Schema.Number.pipe(Schema.nonNegative()), {
           default: () => 100,
         }),
@@ -38,19 +39,13 @@ export const eventListProcedure = publicProcedure
           { default: () => [] },
         ),
         userId: Schema.optional(Schema.NonEmptyString),
-        visibility: Schema.optionalWith(
-          Schema.Array(Schema.Literal(...eventVisibility.enumValues)),
-          {
-            default: () => [],
-          },
-        ),
       }),
     ),
   )
   .use(
     async ({
       ctx,
-      input: { limit, offset, startAfter, status, userId, visibility },
+      input: { includeUnlisted, limit, offset, startAfter, status, userId },
       next,
     }) => {
       if (ctx.user?.id !== userId) {
@@ -70,24 +65,14 @@ export const eventListProcedure = publicProcedure
       }
 
       if (
-        visibility.includes('PRIVATE') &&
-        !ctx.user?.permissions?.includes('events:seePrivate')
+        includeUnlisted &&
+        !ctx.user?.permissions?.includes('events:seeUnlisted')
       ) {
         consola.debug('User permissions', ctx.user?.permissions);
         throw new TRPCError({
           code: 'FORBIDDEN',
-          message: `User tried to see events with visibility ${visibility} but is missing the 'events:seePrivate' permission!`,
-        });
-      }
-
-      if (
-        visibility.includes('HIDDEN') &&
-        !ctx.user?.permissions?.includes('events:seeHidden')
-      ) {
-        consola.debug('User permissions', ctx.user?.permissions);
-        throw new TRPCError({
-          code: 'FORBIDDEN',
-          message: `User tried to see events with visibility ${visibility} but is missing the 'events:seeHidden' permission!`,
+          message:
+            "User tried to include unlisted events but is missing the 'events:seeUnlisted' permission!",
         });
       }
 
@@ -110,6 +95,7 @@ export const eventListProcedure = publicProcedure
           start: schema.eventInstances.start,
           status: schema.eventInstances.status,
           title: schema.eventInstances.title,
+          unlisted: schema.eventInstances.unlisted,
           userIsCreator: sql`${schema.eventInstances.creatorId}=${ctx.user?.id ?? 'not'}`,
           userRegistered: exists(
             database
@@ -126,7 +112,6 @@ export const eventListProcedure = publicProcedure
                 ),
               ),
           ),
-          visibility: schema.eventInstances.visibility,
         })
         .from(schema.eventInstances)
         .where(
@@ -137,10 +122,9 @@ export const eventListProcedure = publicProcedure
               schema.eventInstances.status,
               status as Writable<typeof status>,
             ),
-            inArray(
-              schema.eventInstances.visibility,
-              visibility as Writable<typeof visibility>,
-            ),
+            ...(includeUnlisted
+              ? []
+              : [eq(schema.eventInstances.unlisted, false)]),
             exists(
               database
                 .select()

@@ -12,7 +12,7 @@ test('Register for an event', async ({ events, page }, testInfo) => {
   const freeEvent = events.find((event) => {
     return (
       event.status === 'APPROVED' &&
-      event.visibility === 'PUBLIC' &&
+      event.unlisted === false &&
       event.registrationOptions.some((option) => {
         return (
           DateTime.fromJSDate(option.openRegistrationTime).diffNow()
@@ -28,7 +28,7 @@ test('Register for an event', async ({ events, page }, testInfo) => {
   const paidEvent = events.find((event) => {
     return (
       event.status === 'APPROVED' &&
-      event.visibility === 'PUBLIC' &&
+      event.unlisted === false &&
       event.registrationOptions.some((option) => {
         return (
           DateTime.fromJSDate(option.openRegistrationTime).diffNow()

@@ -7,6 +7,7 @@ import {
 } from '../../helpers/add-registrations';
 import { addRoles, addUsersToRoles } from '../../helpers/add-roles';
 import { addTemplateCategories } from '../../helpers/add-template-categories';
+import { addIcons } from '../../helpers/add-icons';
 import { addTemplates } from '../../helpers/add-templates';
 import { createTenant } from '../../helpers/create-tenant';
 import { usersToAuthenticate } from '../../helpers/user-data';
@@ -26,7 +27,7 @@ interface BaseFixtures {
     }[];
     status: 'APPROVED' | 'DRAFT' | 'PENDING_REVIEW' | 'REJECTED';
     title: string;
-    visibility: 'HIDDEN' | 'PRIVATE' | 'PUBLIC';
+    unlisted: boolean;
   }[];
   registrations: {
     eventId: string;
@@ -153,7 +154,12 @@ export const test = base.extend<BaseFixtures>({
     { auto: true },
   ],
   templateCategories: async ({ database, tenant }, use) => {
-    const templateCategories = await addTemplateCategories(database, tenant);
+    const icons = await addIcons(database, tenant);
+    const templateCategories = await addTemplateCategories(
+      database,
+      tenant,
+      icons,
+    );
     await use(templateCategories);
   },
   templates: async ({ database, roles, templateCategories }, use) => {

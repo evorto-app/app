@@ -14,6 +14,6 @@ export class EventFilterDialogComponent {
   private readonly formBuilder = inject(NonNullableFormBuilder);
   protected readonly filterForm = this.formBuilder.group({
     statusFilter: [],
-    visibility: [],
+    includeUnlisted: [],
   });
 }

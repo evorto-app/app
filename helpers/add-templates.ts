@@ -14,7 +14,6 @@ import { getWeekendTripTemplates } from './templates/weekend-trip-templates';
 export const addTemplates = async (
   database: NeonDatabase<Record<string, never>, typeof relations>,
   categories: { id: string; tenantId: string; title: string }[],
-  icons: { id: string; commonName: string; sourceColor: number | null }[],
   roles: {
     defaultOrganizerRole: boolean;
     defaultUserRole: boolean;
@@ -22,6 +21,11 @@ export const addTemplates = async (
     name: string;
   }[],
 ) => {
+  const tenantId = categories[0]?.tenantId;
+  if (!tenantId) {
+    throw new Error('Cannot determine tenantId from categories');
+  }
+  const icons = await database.query.icons.findMany({ where: { tenantId } });
   const hikingCategory = categories.find(
     (category) => category.title === 'Hikes',
   );
@@ -58,7 +62,7 @@ export const addTemplates = async (
   );
 
   const createIconObject = (iconName: string) => {
-    const icon = icons.find((i) => i.commonName === iconName);
+    const icon = icons.find((index) => index.commonName === iconName);
     if (!icon) {
       throw new Error(`Icon with commonName "${iconName}" not found`);
     }
@@ -70,27 +74,27 @@ export const addTemplates = async (
 
   const freeTemplates = [
     // Hiking freeTemplates
-    ...getHikingTemplates(hikingCategory).map(template => ({
+    ...getHikingTemplates(hikingCategory).map((template) => ({
       ...template,
       icon: createIconObject(template.icon),
     })),
     // City tours freeTemplates
-    ...getCityTourTemplates(cityToursCategory).map(template => ({
+    ...getCityTourTemplates(cityToursCategory).map((template) => ({
       ...template,
       icon: createIconObject(template.icon),
     })),
     // City trips freeTemplates
-    ...getCityTripTemplates(cityTripsCategory).map(template => ({
+    ...getCityTripTemplates(cityTripsCategory).map((template) => ({
       ...template,
       icon: createIconObject(template.icon),
     })),
     // Weekend trips freeTemplates
-    ...getWeekendTripTemplates(weekendTripsCategory).map(template => ({
+    ...getWeekendTripTemplates(weekendTripsCategory).map((template) => ({
       ...template,
       icon: createIconObject(template.icon),
     })),
     // Example configurations freeTemplates
-    ...getExampleConfigTemplates(exampleConfigsCategory).map(template => ({
+    ...getExampleConfigTemplates(exampleConfigsCategory).map((template) => ({
       ...template,
       icon: createIconObject(template.icon),
     })),
@@ -142,14 +146,12 @@ export const addTemplates = async (
     .insert(schema.templateRegistrationOptions)
     .values(registrationOptionsToAdd);
 
-  const paidTemplates = [
+  const paidTemplates =
     // Sports freeTemplates
-    ...getSportsTemplates(sportsCategory).map(template => ({
+    getSportsTemplates(sportsCategory).map((template) => ({
       ...template,
       icon: createIconObject(template.icon),
-    })),
-  ];
-
+    }));
   const createdPaidTemplates = await database
     .insert(schema.eventTemplates)
     .values(paidTemplates)

@@ -18,14 +18,13 @@ const ADMIN_GROUP = {
 const EVENTS_GROUP = {
   key: 'events',
   permissions: [
-    'changeVisibility',
+    'changeListing',
     'create',
     'editAll',
     'review',
     'organizeAll',
     'seeDrafts',
-    'seeHidden',
-    'seePrivate',
+    'seeUnlisted',
     'viewPublic',
   ] as const,
 } as const;
@@ -250,20 +249,14 @@ export const PERMISSION_DEPENDENCIES: Record<Permission, Permission[]> =
     PERMISSION_GROUPS.flatMap((group) =>
       group.permissions.map((perm) => {
         switch (perm.key) {
-          case 'events:changeVisibility': {
-            return [perm.key, ['events:seePrivate', 'events:seeHidden']];
+          case 'events:changeListing': {
+            return [perm.key, ['events:seeUnlisted']];
           }
           case 'events:create': {
             return [perm.key, ['templates:view']];
           }
           case 'events:review': {
-            return [
-              perm.key,
-              ['events:seeDrafts', 'events:seePrivate', 'events:seeHidden'],
-            ];
-          }
-          case 'events:seePrivate': {
-            return [perm.key, ['events:seeHidden']];
+            return [perm.key, ['events:seeDrafts', 'events:seeUnlisted']];
           }
           case 'users:assignRoles': {
             return [perm.key, ['users:viewAll']];

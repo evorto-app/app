@@ -16,7 +16,7 @@
         <div class="grow"></div>
         <button
           title="menu"
-          *appIfAnyPermission="['events:changeVisibility']"
+          *appIfAnyPermission="['events:changeListing']"
           mat-icon-button
           [matMenuTriggerFor]="menu"
         >
@@ -24,7 +24,7 @@
         </button>
         <mat-menu #menu="matMenu">
           <button mat-menu-item (click)="updateVisibility()">
-            Update visibility
+            Update listing
           </button>
         </mat-menu>
       </div>

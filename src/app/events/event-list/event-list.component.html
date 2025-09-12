@@ -20,11 +20,7 @@
       <button
         mat-icon-button
         (click)="openFilterPanel()"
-        *appIfAnyPermission="[
-          'events:seeDrafts',
-          'events:seeHidden',
-          'events:seePrivate',
-        ]"
+        *appIfAnyPermission="['events:seeDrafts', 'events:seeUnlisted']"
       >
         <fa-duotone-icon [icon]="faFilter"></fa-duotone-icon>
       </button>
@@ -107,22 +103,12 @@
                       <fa-duotone-icon [icon]="faClock"></fa-duotone-icon>
                       <p>{{ event.start | date: "shortTime" }}</p>
                     </div>
-                    @switch (event.visibility) {
-                      @case ("HIDDEN") {
-                        <div class="flex flex-row items-center gap-2">
-                          <fa-duotone-icon
-                            [icon]="faEyeSlash"
-                          ></fa-duotone-icon>
-                          <p>hidden</p>
-                        </div>
-                      }
-                      @case ("PRIVATE") {
-                        <div class="flex flex-row items-center gap-2">
-                          <fa-duotone-icon [icon]="faLock"></fa-duotone-icon>
-                          <p>private</p>
-                        </div>
-                      }
-                    }
+            @if (event.unlisted) {
+              <div class="flex flex-row items-center gap-2">
+                <fa-duotone-icon [icon]="faEyeSlash"></fa-duotone-icon>
+                <p>unlisted</p>
+              </div>
+            }
                   </div>
                 </div>
               </div>

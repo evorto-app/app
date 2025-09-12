@@ -1,11 +1,4 @@
-import {
-  jsonb,
-  pgEnum,
-  pgTable,
-  text,
-  timestamp,
-  varchar,
-} from 'drizzle-orm/pg-core';
+import { boolean, jsonb, pgEnum, pgTable, text, timestamp, varchar } from 'drizzle-orm/pg-core';
 
 import { EventLocationType } from '../../types/location';
 import { eventTemplates } from './event-templates';
@@ -17,11 +10,6 @@ export const eventReviewStatus = pgEnum('event_review_status', [
   'PENDING_REVIEW',
   'APPROVED',
   'REJECTED',
-]);
-export const eventVisibility = pgEnum('event_publication_status', [
-  'PRIVATE',
-  'HIDDEN',
-  'PUBLIC',
 ]);
 
 export const eventInstances = pgTable('event_instances', {
@@ -44,5 +32,6 @@ export const eventInstances = pgTable('event_instances', {
     .notNull()
     .references(() => eventTemplates.id),
   title: text().notNull(),
-  visibility: eventVisibility().notNull().default('PRIVATE'),
+  // Unlisted events do not show up in public lists unless user has permission
+  unlisted: boolean().notNull().default(false),
 });

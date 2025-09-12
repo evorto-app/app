@@ -47,12 +47,12 @@ export class AdminOverviewComponent {
     this.trpc.users.self.queryOptions(),
   );
   private pendingReviewsFilter = computed(() => ({
+    includeUnlisted: true,
     limit: 50,
     offset: 0,
     startAfter: new Date(),
     status: ['PENDING_REVIEW'] as const,
     userId: this.selfQuery.data()?.id,
-    visibility: ['PRIVATE', 'PUBLIC', 'HIDDEN'] as const,
   }));
   protected readonly pendingReviewsQuery = injectQuery(() =>
     this.trpc.events.findMany.queryOptions(this.pendingReviewsFilter()),

@@ -1,11 +1,4 @@
-import {
-  boolean,
-  jsonb,
-  pgTable,
-  text,
-  timestamp,
-  varchar,
-} from 'drizzle-orm/pg-core';
+import { boolean, jsonb, pgTable, text, timestamp, varchar } from 'drizzle-orm/pg-core';
 
 import { EventLocationType } from '../../types/location';
 import { createId } from '../create-id';
@@ -31,6 +24,8 @@ export const eventTemplates = pgTable('event_templates', {
     .notNull()
     .references(() => tenants.id),
   title: text().notNull(),
+  // Unlisted templates do not show in lists unless user has permission
+  unlisted: boolean().notNull().default(false),
   untouchedSinceMigration: boolean().notNull().default(false),
   updatedAt: timestamp()
     .notNull()

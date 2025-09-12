@@ -51,6 +51,10 @@ export const eventRouter = router({
       ),
     )
     .mutation(async ({ ctx, input }) => {
+      const templateDefaults = await database.query.eventTemplates.findFirst({
+        columns: { unlisted: true },
+        where: { id: input.templateId },
+      });
       const event = await database
         .insert(schema.eventInstances)
         .values({
@@ -58,6 +62,7 @@ export const eventRouter = router({
           description: input.description,
           end: input.end,
           icon: input.icon,
+          unlisted: templateDefaults?.unlisted ?? false,
           start: input.start,
           templateId: input.templateId,
           tenantId: ctx.tenant.id,
@@ -444,22 +449,22 @@ export const eventRouter = router({
       )[0];
     }),
 
-  updateVisibility: authenticatedProcedure
+  updateListing: authenticatedProcedure
     .meta({
-      requiredPermissions: ['events:changeVisibility'],
+      requiredPermissions: ['events:changeListing'],
     })
     .input(
       Schema.standardSchemaV1(
         Schema.Struct({
           eventId: Schema.NonEmptyString,
-          visibility: Schema.Literal(...schema.eventVisibility.enumValues),
+          unlisted: Schema.Boolean,
         }),
       ),
     )
     .mutation(async ({ ctx, input }) => {
       await database
         .update(schema.eventInstances)
-        .set({ visibility: input.visibility })
+        .set({ unlisted: input.unlisted })
         .where(
           and(
             eq(schema.eventInstances.tenantId, ctx.tenant.id),
