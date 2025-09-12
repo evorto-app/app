@@ -6,7 +6,7 @@ import {
   faMoneyBill,
   faUser,
 } from '@fortawesome/duotone-regular-svg-icons';
-import { IconDefinition } from '@fortawesome/fontawesome-svg-core';
+import { IconDefinition } from '@fortawesome/fontawesome-common-types';
 import { Schema } from 'effect';
 
 // Define the permission groups as const
