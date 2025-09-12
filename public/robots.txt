@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+
+# Sitemap (update to your canonical domain)
+Sitemap: https://evorto.fly.dev/sitemap.xml
+

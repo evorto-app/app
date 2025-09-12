@@ -61,6 +61,11 @@ app.use(addAuthenticationContext);
 app.use(addTenantContext);
 app.use(addUserContext);
 
+// Liveness/health endpoint
+app.get('/healthz', (_request, response) => {
+  response.status(200).json({ status: 'ok', uptime: process.uptime() });
+});
+
 // Apply basic rate limiting to webhooks
 app.use(
   '/webhooks',

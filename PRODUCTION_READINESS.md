@@ -52,8 +52,8 @@ This document summarizes the current state of the codebase, key findings, and a 
    - Fix `registration-start-offset.pipe` logic to match spec.
    - Change `import { AppRouter }` to `import type { AppRouter }` in `src/app/app.config.ts` to ensure tree‑shaking friendliness.
    - Gate TanStack Query devtools behind an env/dev flag.
-5) CI Quality Gates
-   - Update CI to run `yarn lint`, `yarn build`, then `yarn e2e`; gate Fly deploy on a green pipeline.
+5) CI Quality Gates (Defer for now)
+   - CI is secondary until E2E coverage is complete. Keep CI minimal and add gates later.
 
 ### Phase 2 — Pre‑Prod Hardening (After features are complete)
 1) Observability and Ops
@@ -71,7 +71,8 @@ This document summarizes the current state of the codebase, key findings, and a 
    - Finalize CSP (script/style nonces or hashes), Strict‑Transport‑Security, and standard security headers via `helmet`.
    - Review CSRF posture for any cookie‑authenticated mutations; add CSRF protection if applicable.
 5) UX/SEO
-   - Add `public/robots.txt` and sitemap; add canonical + Open Graph/Twitter meta (SSR via `ConfigService`).
+   - Generate tenant‑aware `robots.txt` and `sitemap.xml` via server endpoints, using `request.tenant` and published content (e.g., visible events). Include caching and `lastmod` where possible. Remove static files once dynamic endpoints are live.
+   - Add canonical + Open Graph/Twitter meta (SSR via `ConfigService`).
    - Use `NgOptimizedImage` for static assets where appropriate.
 6) Documentation & Developer Experience
    - Replace CLI boilerplate `README.md` with project‑specific instructions (from `AGENTS.md`).
@@ -95,7 +96,7 @@ This document summarizes the current state of the codebase, key findings, and a 
 - Keep sourcemap upload step conditional on token; store in CI secrets.
 
 ### Build & CI/CD
-- CI should: install, lint, build (client+server), then run e2e. Only deploy on success.
+- For now, keep CI minimal; once E2E is mature, consider adding lint/build gates before deploy.
 - Keep `@sentry/cli` and other build-time tools out of production image layers.
 
 ### Testing
@@ -136,4 +137,4 @@ This document summarizes the current state of the codebase, key findings, and a 
   1) Extract secrets to env-driven config and wire a public runtime config endpoint.
   2) Add 404/500 routes and harden Express (helmet, trust proxy, headers).
   3) Fix the pipe and Express type; adjust `AppRouter` import and devtools guard.
-  4) Update CI to gate on lint/build/e2e before deploy.
+  4) After E2E coverage is done, update CI to gate on lint/build/e2e before deploy.

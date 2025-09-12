@@ -33,6 +33,7 @@ jobs:
           echo "FONT_AWESOME_TOKEN=${{ secrets.FONT_AWESOME_TOKEN }}" >> .env
           echo "AUTH0_MANAGEMENT_CLIENT_ID=${{ secrets.AUTH0_MANAGEMENT_CLIENT_ID }}" >> .env
           echo "AUTH0_MANAGEMENT_CLIENT_SECRET=${{ secrets.AUTH0_MANAGEMENT_CLIENT_SECRET }}" >> .env
+          if [ -n "${{ secrets.PUBLIC_GOOGLE_MAPS_API_KEY }}" ]; then echo "PUBLIC_GOOGLE_MAPS_API_KEY=${{ secrets.PUBLIC_GOOGLE_MAPS_API_KEY }}" >> .env; fi
       - name: Start docker
         run: yarn docker:start
         env:
