@@ -142,10 +142,10 @@ export const migrateEvents = async (
       }
 
       const statusMap = {
-        APPROVAL: { status: 'PENDING_REVIEW', unlisted: true },
-        DRAFT: { status: 'DRAFT', unlisted: true },
-        ORGANIZERS: { status: 'APPROVED', unlisted: true },
-        PUBLIC: { status: 'APPROVED', unlisted: false },
+        APPROVAL: { status: 'PENDING_REVIEW' },
+        DRAFT: { status: 'DRAFT' },
+        ORGANIZERS: { status: 'APPROVED' },
+        PUBLIC: { status: 'APPROVED' },
       } as const;
       eventInstancesToInsert.push({
         createdAt: DateTime.fromSQL(event.createdAt).toJSDate(),
@@ -169,6 +169,8 @@ export const migrateEvents = async (
         templateId: templateIdMap.get(event.eventTemplateId) as string,
         tenantId: newTenant.id,
         title: event.title,
+        // Old behavior: all migrated events are listed by default
+        unlisted: false,
         untouchedSinceMigration: true,
       });
     }

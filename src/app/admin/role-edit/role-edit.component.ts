@@ -11,6 +11,7 @@ import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
 import {
   injectMutation,
   injectQuery,
+  QueryClient,
 } from '@tanstack/angular-query-experimental';
 
 import { injectTRPC } from '../../core/trpc-client';
@@ -39,13 +40,28 @@ export class RoleEditComponent {
   );
 
   private readonly router = inject(Router);
+  private readonly queryClient = inject(QueryClient);
 
   onSubmit(role: RoleFormData) {
     this.updateRoleMutation.mutate(
       { ...role, id: this.roleId() },
       {
-        onSuccess: () =>
-          this.router.navigate(['admin', 'roles', this.roleId()]),
+        onSuccess: async () => {
+          const id = this.roleId();
+          await this.queryClient.invalidateQueries({
+            queryKey: this.trpc.admin.roles.findOne.queryKey({ id }),
+          });
+          await this.queryClient.invalidateQueries({
+            queryKey: this.trpc.admin.roles.findMany.pathKey(),
+          });
+          await this.queryClient.invalidateQueries({
+            queryKey: this.trpc.admin.roles.findHubRoles.pathKey(),
+          });
+          await this.queryClient.invalidateQueries({
+            queryKey: this.trpc.admin.roles.search.pathKey(),
+          });
+          this.router.navigate(['admin', 'roles', id]);
+        },
       },
     );
   }

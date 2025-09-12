@@ -25,6 +25,7 @@ import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
 import {
   injectMutation,
   injectQuery,
+  QueryClient,
 } from '@tanstack/angular-query-experimental';
 import consola from 'consola/browser';
 import { DateTime } from 'luxon';
@@ -92,6 +93,7 @@ export class TemplateCreateEventComponent {
   );
 
   private readonly router = inject(Router);
+  private readonly queryClient = inject(QueryClient);
 
   constructor() {
     effect(() => {
@@ -167,7 +169,10 @@ export class TemplateCreateEventComponent {
           templateId: this.templateId(),
         },
         {
-          onSuccess: (data) => {
+          onSuccess: async (data) => {
+            await this.queryClient.invalidateQueries({
+              queryKey: this.trpc.events.eventList.pathKey(),
+            });
             this.router.navigate(['/events', data.id]);
           },
         },

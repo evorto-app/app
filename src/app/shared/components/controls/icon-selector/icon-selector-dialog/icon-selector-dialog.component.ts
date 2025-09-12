@@ -13,6 +13,7 @@ import { MatInputModule } from '@angular/material/input';
 import {
   injectMutation,
   injectQuery,
+  QueryClient,
 } from '@tanstack/angular-query-experimental';
 import { debounceTime } from 'rxjs';
 
@@ -53,9 +54,19 @@ export class IconSelectorDialogComponent {
   private readonly addIconMutation = injectMutation(() =>
     this.trpc.icons.addIcon.mutationOptions(),
   );
+  private readonly queryClient = inject(QueryClient);
 
   async saveIconDirectly() {
     const icon = this.searchControl.value;
-    this.addIconMutation.mutate({ icon });
+    this.addIconMutation.mutate(
+      { icon },
+      {
+        onSuccess: async () => {
+          await this.queryClient.invalidateQueries({
+            queryKey: this.trpc.icons.search.pathKey(),
+          });
+        },
+      },
+    );
   }
 }

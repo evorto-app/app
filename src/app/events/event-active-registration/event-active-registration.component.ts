@@ -6,7 +6,7 @@ import {
   input,
 } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
-import { injectMutation } from '@tanstack/angular-query-experimental';
+import { injectMutation, QueryClient } from '@tanstack/angular-query-experimental';
 
 import { injectTRPC } from '../../core/trpc-client';
 
@@ -29,14 +29,24 @@ export class EventActiveRegistrationComponent {
     }[]
   >();
   private readonly trpc = injectTRPC();
+  private readonly queryClient = inject(QueryClient);
 
   private readonly cancelPendingRegistrationMutation = injectMutation(() =>
     this.trpc.events.cancelPendingRegistration.mutationOptions(),
   );
 
   cancelPendingRegistration(registration: { id: string }) {
-    this.cancelPendingRegistrationMutation.mutate({
-      registrationId: registration.id,
-    });
+    this.cancelPendingRegistrationMutation.mutate(
+      {
+        registrationId: registration.id,
+      },
+      {
+        onSuccess: async () => {
+          await this.queryClient.invalidateQueries({
+            queryKey: this.trpc.events.getRegistrationStatus.pathKey(),
+          });
+        },
+      },
+    );
   }
 }

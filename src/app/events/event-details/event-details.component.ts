@@ -21,6 +21,7 @@ import {
 import {
   injectMutation,
   injectQuery,
+  QueryClient,
 } from '@tanstack/angular-query-experimental';
 import { convert } from 'html-to-text';
 import { firstValueFrom } from 'rxjs';
@@ -75,6 +76,7 @@ import { UpdateVisibilityDialogComponent } from '../update-visibility-dialog/upd
 export class EventDetailsComponent {
   public eventId = input.required<string>();
   private trpc = injectTRPC();
+  private queryClient = inject(QueryClient);
   protected readonly eventQuery = injectQuery(() =>
     this.trpc.events.findOne.queryOptions({ id: this.eventId() }),
   );
@@ -130,17 +132,47 @@ export class EventDetailsComponent {
     }),
   );
   protected readonly updateListingMutation = injectMutation(() =>
-    this.trpc.events.updateListing.mutationOptions(),
+    this.trpc.events.updateListing.mutationOptions({
+      onSuccess: async () => {
+        await this.queryClient.invalidateQueries({
+          queryKey: this.trpc.events.findOne.queryKey({ id: this.eventId() }),
+        });
+        await this.queryClient.invalidateQueries({
+          queryKey: this.trpc.events.eventList.pathKey(),
+        });
+      },
+    }),
   );
   private readonly config = inject(ConfigService);
   private dialog = inject(MatDialog);
 
   private notifications = inject(NotificationService);
   private readonly reviewMutation = injectMutation(() =>
-    this.trpc.events.reviewEvent.mutationOptions(),
+    this.trpc.events.reviewEvent.mutationOptions({
+      onSuccess: async () => {
+        await this.queryClient.invalidateQueries({
+          queryKey: this.trpc.events.findOne.queryKey({ id: this.eventId() }),
+        });
+        await this.queryClient.invalidateQueries({
+          queryKey: this.trpc.events.eventList.pathKey(),
+        });
+        await this.queryClient.invalidateQueries({
+          queryKey: this.trpc.events.findMany.pathKey(),
+        });
+      },
+    }),
   );
   private readonly submitForReviewMutation = injectMutation(() =>
-    this.trpc.events.submitForReview.mutationOptions(),
+    this.trpc.events.submitForReview.mutationOptions({
+      onSuccess: async () => {
+        await this.queryClient.invalidateQueries({
+          queryKey: this.trpc.events.findOne.queryKey({ id: this.eventId() }),
+        });
+        await this.queryClient.invalidateQueries({
+          queryKey: this.trpc.events.eventList.pathKey(),
+        });
+      },
+    }),
   );
 
   constructor() {

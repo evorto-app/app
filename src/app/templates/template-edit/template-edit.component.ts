@@ -12,6 +12,7 @@ import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
 import {
   injectMutation,
   injectQuery,
+  QueryClient,
 } from '@tanstack/angular-query-experimental';
 
 import { injectTRPC } from '../../core/trpc-client';
@@ -64,13 +65,22 @@ export class TemplateEditComponent {
   );
 
   private router = inject(Router);
+  private queryClient = inject(QueryClient);
 
   onSubmit(formData: TemplateFormData) {
     const id = this.templateId();
     this.updateTemplateMutation.mutate(
       { id, ...formData },
       {
-        onSuccess: () => this.router.navigate(['/templates', id]),
+        onSuccess: async () => {
+          await this.queryClient.invalidateQueries({
+            queryKey: this.trpc.templates.findOne.queryKey({ id }),
+          });
+          await this.queryClient.invalidateQueries({
+            queryKey: this.trpc.templates.groupedByCategory.pathKey(),
+          });
+          this.router.navigate(['/templates', id]);
+        },
       },
     );
   }

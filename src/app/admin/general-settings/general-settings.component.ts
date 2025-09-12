@@ -10,7 +10,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
-import { injectMutation } from '@tanstack/angular-query-experimental';
+import { injectMutation, QueryClient } from '@tanstack/angular-query-experimental';
 
 import { GoogleLocationType } from '../../../types/location';
 import { ConfigService } from '../../core/config.service';
@@ -43,6 +43,7 @@ export class GeneralSettingsComponent {
   private updateSettingsMutation = injectMutation(() =>
     this.trpc.admin.tenant.updateSettings.mutationOptions(),
   );
+  private readonly queryClient = inject(QueryClient);
 
   constructor() {
     effect(() => {
@@ -61,6 +62,12 @@ export class GeneralSettingsComponent {
       return;
     }
     const settings = this.settingsForm.getRawValue();
-    this.updateSettingsMutation.mutate(settings);
+    this.updateSettingsMutation.mutate(settings, {
+      onSuccess: async () => {
+        await this.queryClient.invalidateQueries({
+          queryKey: this.trpc.config.tenant.pathKey(),
+        });
+      },
+    });
   }
 }

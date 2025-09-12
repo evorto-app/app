@@ -22,6 +22,7 @@ import {
 import {
   injectMutation,
   injectQuery,
+  QueryClient,
 } from '@tanstack/angular-query-experimental';
 
 import { NotificationService } from '../../core/notification.service';
@@ -80,6 +81,7 @@ export class UserProfileComponent {
     this.trpc.users.self.queryOptions(),
   );
   private readonly notifications = inject(NotificationService);
+  private readonly queryClient = inject(QueryClient);
 
   protected cancelEditing(): void {
     this.isEditing.set(false);
@@ -100,7 +102,13 @@ export class UserProfileComponent {
             'Failed to update profile: ' + error.message,
           );
         },
-        onSuccess: () => {
+        onSuccess: async () => {
+          await this.queryClient.invalidateQueries({
+            queryKey: this.trpc.users.self.pathKey(),
+          });
+          await this.queryClient.invalidateQueries({
+            queryKey: this.trpc.users.maybeSelf.pathKey(),
+          });
           this.isEditing.set(false);
           this.notifications.showSuccess('Profile updated successfully');
         },

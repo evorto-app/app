@@ -16,6 +16,7 @@ import {
 import {
   injectMutation,
   injectQuery,
+  QueryClient,
 } from '@tanstack/angular-query-experimental';
 import { firstValueFrom } from 'rxjs';
 
@@ -48,6 +49,7 @@ export class CategoryListComponent {
     this.trpc.templateCategories.create.mutationOptions(),
   );
   private dialog = inject(MatDialog);
+  private queryClient = inject(QueryClient);
 
   private updateCategoryMutation = injectMutation(() =>
     this.trpc.templateCategories.update.mutationOptions(),
@@ -61,6 +63,12 @@ export class CategoryListComponent {
     const result = await firstValueFrom(dialogReference.afterClosed());
     if (result) {
       await this.createCategoryMutation.mutateAsync(result);
+      await this.queryClient.invalidateQueries({
+        queryKey: this.trpc.templateCategories.findMany.pathKey(),
+      });
+      await this.queryClient.invalidateQueries({
+        queryKey: this.trpc.templates.groupedByCategory.pathKey(),
+      });
     }
   }
 
@@ -76,6 +84,12 @@ export class CategoryListComponent {
       await this.updateCategoryMutation.mutateAsync({
         id: category.id,
         ...result,
+      });
+      await this.queryClient.invalidateQueries({
+        queryKey: this.trpc.templateCategories.findMany.pathKey(),
+      });
+      await this.queryClient.invalidateQueries({
+        queryKey: this.trpc.templates.groupedByCategory.pathKey(),
       });
     }
   }

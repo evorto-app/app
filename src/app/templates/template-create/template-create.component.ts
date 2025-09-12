@@ -12,6 +12,7 @@ import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
 import {
   injectMutation,
   injectQuery,
+  QueryClient,
 } from '@tanstack/angular-query-experimental';
 import { PartialDeep } from 'type-fest';
 
@@ -64,10 +65,16 @@ export class TemplateCreateComponent {
   );
 
   private router = inject(Router);
+  private queryClient = inject(QueryClient);
 
   onSubmit(formData: TemplateFormData) {
     this.createTemplateMutation.mutate(formData, {
-      onSuccess: () => this.router.navigate(['/templates']),
+      onSuccess: async () => {
+        await this.queryClient.invalidateQueries({
+          queryKey: this.trpc.templates.groupedByCategory.pathKey(),
+        });
+        this.router.navigate(['/templates']);
+      },
     });
   }
 }

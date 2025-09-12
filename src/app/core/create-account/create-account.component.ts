@@ -15,6 +15,7 @@ import { Router } from '@angular/router';
 import {
   injectMutation,
   injectQuery,
+  QueryClient,
 } from '@tanstack/angular-query-experimental';
 import consola from 'consola/browser';
 
@@ -46,6 +47,7 @@ export class CreateAccountComponent {
     this.trpc.users.createAccount.mutationOptions(),
   );
   private readonly router = inject(Router);
+  private readonly queryClient = inject(QueryClient);
 
   constructor() {
     // this.trpcClient.users.authData.query().then(consola.info);
@@ -68,7 +70,13 @@ export class CreateAccountComponent {
   createAccount() {
     if (this.accountForm.invalid) return;
     this.createAccountMutation.mutate(this.accountForm.getRawValue(), {
-      onSuccess: () => {
+      onSuccess: async () => {
+        await this.queryClient.invalidateQueries({
+          queryKey: this.trpc.users.self.pathKey(),
+        });
+        await this.queryClient.invalidateQueries({
+          queryKey: this.trpc.users.maybeSelf.pathKey(),
+        });
         this.router.navigate(['/profile']);
       },
     });

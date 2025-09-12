@@ -18,6 +18,7 @@ import {
 import {
   injectMutation,
   injectQuery,
+  QueryClient,
 } from '@tanstack/angular-query-experimental';
 import { firstValueFrom, interval } from 'rxjs';
 
@@ -131,6 +132,7 @@ export class EventReviewsComponent {
   private readonly dialog = inject(MatDialog);
 
   private readonly notifications = inject(NotificationService);
+  private readonly queryClient = inject(QueryClient);
 
   constructor() {
     // Auto-refresh pending reviews every 30 seconds
@@ -150,7 +152,13 @@ export class EventReviewsComponent {
       this.reviewEventMutation.mutate(
         { approved, eventId },
         {
-          onSuccess: () => {
+          onSuccess: async () => {
+            await this.queryClient.invalidateQueries({
+              queryKey: this.trpc.events.findMany.pathKey(),
+            });
+            await this.queryClient.invalidateQueries({
+              queryKey: this.trpc.events.eventList.pathKey(),
+            });
             this.notifications.showEventReviewed(approved, eventTitle);
           },
         },
@@ -162,7 +170,13 @@ export class EventReviewsComponent {
         this.reviewEventMutation.mutate(
           { approved, comment, eventId },
           {
-            onSuccess: () => {
+            onSuccess: async () => {
+              await this.queryClient.invalidateQueries({
+                queryKey: this.trpc.events.findMany.pathKey(),
+              });
+              await this.queryClient.invalidateQueries({
+                queryKey: this.trpc.events.eventList.pathKey(),
+              });
               this.notifications.showEventReviewed(approved, eventTitle);
             },
           },
