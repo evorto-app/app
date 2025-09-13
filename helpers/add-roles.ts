@@ -1,5 +1,5 @@
 import { randEmail, randFirstName, randLastName } from '@ngneat/falso';
-import { InferInsertModel } from 'drizzle-orm';
+import { InferInsertModel, and, eq, inArray } from 'drizzle-orm';
 import consola from 'consola';
 import { NeonDatabase } from 'drizzle-orm/neon-serverless';
 
@@ -80,21 +80,33 @@ export const addUsersToRoles = async (
   assignments: { roleId: string; userId: string }[],
   tenant: { id: string },
 ) => {
-  const t0 = Date.now();
-  for (const assignment of assignments) {
-    const userToTenant = await database.query.usersToTenants.findFirst({
-      where: { tenantId: tenant.id, userId: assignment.userId },
-    });
-    if (!userToTenant) {
+  if (assignments.length === 0) {
+    consola.info('No role assignments to process');
+    return;
+  }
+  const userIds = Array.from(new Set(assignments.map((a) => a.userId)));
+  const userTenantRows = await database
+    .select({ id: schema.usersToTenants.id, userId: schema.usersToTenants.userId })
+    .from(schema.usersToTenants)
+    .where(
+      and(
+        eq(schema.usersToTenants.tenantId, tenant.id),
+        inArray(schema.usersToTenants.userId, userIds),
+      ),
+    );
+  const userToTenantMap = new Map<string, string>();
+  for (const row of userTenantRows) userToTenantMap.set(row.userId, row.id);
+
+  const roleAssignments = assignments.map((a) => {
+    const userTenantId = userToTenantMap.get(a.userId);
+    if (!userTenantId) {
       throw new Error('User not found');
     }
+    return { roleId: a.roleId, userTenantId } as InferInsertModel<typeof schema.rolesToTenantUsers>;
+  });
 
-    await database.insert(schema.rolesToTenantUsers).values({
-      roleId: assignment.roleId,
-      userTenantId: userToTenant.id,
-    });
-  }
-  consola.success(`Assigned ${assignments.length} users to roles in ${Date.now() - t0}ms`);
+  await database.insert(schema.rolesToTenantUsers).values(roleAssignments);
+  consola.success(`Assigned ${roleAssignments.length} role assignments`);
 };
 
 export const addExampleUsers = async (
@@ -102,7 +114,6 @@ export const addExampleUsers = async (
   roles: { defaultUserRole: boolean; id: string }[],
   tenant: { id: string },
 ) => {
-  const t0 = Date.now();
   const usersToAdd: InferInsertModel<typeof schema.users>[] = [];
   const tenantAssignmentsToAdd: InferInsertModel<
     typeof schema.usersToTenants
@@ -147,6 +158,6 @@ export const addExampleUsers = async (
   await database.insert(schema.usersToTenants).values(tenantAssignmentsToAdd);
   await database.insert(schema.rolesToTenantUsers).values(roleAssignmentsToAdd);
   consola.success(
-    `Added ${usersToAdd.length} users (${roleAssignmentsToAdd.length} role assignments) in ${Date.now() - t0}ms`,
+    `Added ${usersToAdd.length} users (${roleAssignmentsToAdd.length} role assignments)`,
   );
 };
