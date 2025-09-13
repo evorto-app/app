@@ -119,6 +119,7 @@ As a tenant administrator I want to import inclusive tax rates from the external
 - **FR-021**: System SHOULD notify administrators if an in‑use imported rate becomes unavailable/incompatible. This can happen in the tenant wide warnings area.
 - **FR-022**: System MUST support zero‑percent inclusive tax rates for use cases where tax applies at 0%. System should not care, as tax rates are inclusive anyways and just shown by the payment provider.
 - **FR-023**: System SHOULD log (at a business/audit level) the import of tax rates and their later unavailability for compliance traceability. Audit log retention will be determined by the business.
+- **FR-024**: System MUST introduce a distinct permission `admin:manageTaxes` that governs viewing provider tax rates, importing tax rates, and listing imported tax rates. Existing broader permissions (e.g., `admin:changeSettings`) must NOT implicitly grant these actions unless explicitly configured (migration will grant `admin:manageTaxes` to roles currently holding `admin:changeSettings`).
 
 ### Non‑Functional / Policy Requirements (Derived)
 
