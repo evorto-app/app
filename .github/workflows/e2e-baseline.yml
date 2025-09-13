@@ -3,7 +3,7 @@ name: E2E Baseline
 on:
   workflow_dispatch:
   push:
-    branches: [ main, develop, "**/002-evorto-living-e2e" ]
+    branches: [main, develop, "**/002-evorto-living-e2e"]
   pull_request:
 
 concurrency:
@@ -23,7 +23,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-      # Use sparse-checkout false to ensure .env and Docker context are available
+        # Use sparse-checkout false to ensure .env and Docker context are available
         uses: actions/checkout@v4
 
       - name: Enable Corepack
@@ -35,8 +35,8 @@ jobs:
       - name: Setup Node.js 20
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'yarn'
+          node-version: "20"
+          cache: "yarn"
 
       - name: Configure FontAwesome auth for Yarn
         run: yarn config set npmScopes.fortawesome.npmAuthToken ${{ secrets.FONT_AWESOME_TOKEN }} --home
@@ -46,6 +46,19 @@ jobs:
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps
+
+      - name: Create .env from secrets
+        run: |
+          {
+          echo "AUTH0_MANAGEMENT_CLIENT_ID=${{ secrets.AUTH0_MANAGEMENT_CLIENT_ID }}";
+          echo "AUTH0_MANAGEMENT_CLIENT_SECRET=${{ secrets.AUTH0_MANAGEMENT_CLIENT_SECRET }}";
+          echo "CLIENT_ID=${{ secrets.CLIENT_ID }}";
+          echo "CLIENT_SECRET=${{ secrets.CLIENT_SECRET }}";
+          echo "DATABASE_URL=${{ secrets.DATABASE_URL }}";
+          echo "FONT_AWESOME_TOKEN=${{ secrets.FONT_AWESOME_TOKEN }}";
+          echo "NEON_API_KEY=${{ secrets.NEON_API_KEY }}";
+          echo "STRIPE_API_KEY=${{ secrets.STRIPE_API_KEY }}";
+          } > .env
 
       # Functional tests (keep scope minimal for CI speed). The Playwright webServer will
       # start Docker services via `yarn docker:start-test` from playwright.config.ts.
