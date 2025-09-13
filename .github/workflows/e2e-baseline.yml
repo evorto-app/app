@@ -3,7 +3,7 @@ name: E2E Baseline
 on:
   workflow_dispatch:
   push:
-    branches: [main, develop, "**/002-evorto-living-e2e"]
+    branches: [main, develop]
   pull_request:
 
 concurrency:
@@ -59,6 +59,12 @@ jobs:
           echo "NEON_API_KEY=${{ secrets.NEON_API_KEY }}";
           echo "STRIPE_API_KEY=${{ secrets.STRIPE_API_KEY }}";
           } > .env
+
+      - name: Pull Docker images (compose)
+        run: docker compose pull
+
+      - name: Build Docker images (compose)
+        run: docker compose build --pull
 
       # Functional tests (keep scope minimal for CI speed). The Playwright webServer will
       # start Docker services via `yarn docker:start-test` from playwright.config.ts.

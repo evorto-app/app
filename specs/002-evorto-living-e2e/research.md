@@ -129,3 +129,16 @@ Research complete; decisions support deterministic, maintainable baseline focusi
 
 ## Performance Measurement Placeholder
 After initial implementation: record two sequential full runs (functional + docs) capturing total duration, docs overhead %, and seed duration to update this section.
+
+
+## Status Update — 2025-09-13
+Implemented in codebase and CI:
+- T020 Unlisted visibility regression
+- T021 Free registration regression
+- T022 Selector normalization across suites
+- T023 Screenshot helper contract
+- T024 doc-screenshot helper + integration
+- T025 CI workflow for baseline runs
+- T026 Excluded @finance in docs runs
+
+Pending next: T027–T030 (determinism check, quickstart adjustments if any gaps, performance metrics capture, plan gate confirmation).

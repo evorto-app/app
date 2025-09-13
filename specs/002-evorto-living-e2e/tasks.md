@@ -30,6 +30,34 @@ H. CI Workflow
 I. Verification & Hardening / Docs updates
 
 ---
+## Progress Snapshot (2025-09-13)
+- T001 Test inventory doc — implemented ✓
+- T002 Tag out-of-scope finance tests — implemented ✓
+- T003 Paid flow steps tagged @finance in register.doc — implemented ✓
+- T004 First-time account journey conditional skip — implemented ✓
+- T005 Seed helper skeleton test-first — implemented ✓
+- T006 Implemented e2e/utils/seed.ts — implemented ✓
+- T007 Integrated seed into global setup — implemented ✓
+- T008 Tenant cookie fixture — implemented ✓
+- T009 Storage state freshness failing test — implemented ✓
+- T010 Freshness + tenant match logic — implemented ✓
+- T011 State generation script — implemented ✓
+- T012 Permission override failing test — implemented ✓
+- T013 permissions-override helper — implemented ✓
+- T014 permissionOverride fixture — implemented ✓
+- T015 Reporter env param test — implemented ✓
+- T016 Documentation reporter refactor — implemented ✓
+- T017 Front matter normalization test — implemented ✓
+- T018 Scanning regression test — implemented ✓
+- T019 Smoke app load test — implemented ✓
+- T020 Unlisted visibility test — implemented ✓
+- T021 Free registration regression test — implemented ✓
+- T022 Selector normalization pass — implemented ✓
+- T023 Screenshot helper contract test — implemented ✓
+- T024 Implemented doc-screenshot helper — implemented ✓
+- T025 CI workflow draft — implemented ✓
+- T026 Finance tag exclusion — implemented ✓
+
 ## Task List
 
 ### Setup & Inventory
