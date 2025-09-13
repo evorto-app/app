@@ -2,21 +2,22 @@ import eslintPluginUnicorn from "eslint-plugin-unicorn";
 import perfectionist from "eslint-plugin-perfectionist";
 import eslintConfigPrettier from "eslint-config-prettier";
 import eslint from "@eslint/js";
+import { defineConfig } from "eslint/config";
 import * as tseslint from "typescript-eslint";
 import * as angular from "angular-eslint";
 // import * as pluginQuery from "@tanstack/eslint-plugin-query";
 
-const baseConfig = tseslint.config(
+const baseConfig = [
   eslint.configs.recommended,
-  tseslint.configs.strict,
-  tseslint.configs.stylistic,
+  ...tseslint.configs.strict,
+  ...tseslint.configs.stylistic,
   eslintPluginUnicorn.configs["flat/recommended"],
   perfectionist.configs["recommended-natural"],
   // ...pluginQuery.configs["flat/recommended"],
   eslintConfigPrettier,
-);
+];
 
-export default tseslint.config(
+export default defineConfig(
   {
     files: ["**/*.ts"],
     ignores: ["old/**/*"],

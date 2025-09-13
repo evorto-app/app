@@ -15,6 +15,9 @@ yarn docker:start-test
 ## 2. Run Baseline Functional Tests
 ```bash
 yarn e2e
+# If you need to inspect failures interactively, prefer the default configured reporters
+# (do NOT override with --reporter). Then open the report:
+# yarn e2e:report
 ```
 Outputs: Playwright report + ensures seed & isolation logic works.
 
@@ -29,6 +32,7 @@ DOCS_OUT_DIR=./artifacts/docs DOCS_IMG_OUT_DIR=./artifacts/docs/images yarn e2e:
 
 ## 4. Artifacts
 - HTML Report: `playwright-report/`
+- View HTML Report: `yarn e2e:report`
 - Docs Markdown: `test-results/docs` (or DOCS_OUT_DIR)
 - Journey Images: `test-results/docs/images` (or DOCS_IMG_OUT_DIR)
 
@@ -57,4 +61,3 @@ Seed helper ensures per-run tenant and baseline entities. To reset: delete gener
 - Implement reporter env variable support if not already.
 - Add permission override helper fixture.
 - Add deterministic naming map logging to console for debugging.
-
