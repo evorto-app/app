@@ -10,10 +10,16 @@ import {
  * - Downloads image, properly decodes PNG, and extracts the dominant/source color using material-color-utilities
  * Returns undefined on network or parsing failures to avoid blocking inserts/migrations.
  */
+const colorCache = new Map<string, Promise<number | undefined>>();
+
 export async function computeIconSourceColor(
   iconCommonName: string,
 ): Promise<number | undefined> {
   try {
+    if (colorCache.has(iconCommonName)) {
+      return colorCache.get(iconCommonName)!;
+    }
+    const promise = (async () => {
     const [nameRaw, setRaw] = (iconCommonName ?? '').split(':');
     const name = nameRaw || 'nothing-found';
     const set = setRaw || 'fluent';
@@ -42,12 +48,15 @@ export async function computeIconSourceColor(
       pixels.push(argb);
     }
     
-    if (pixels.length === 0) return undefined;
+    if (pixels.length === 0) return;
     
     // Use Material Color Utilities to find the best source color
     const result = QuantizerCelebi.quantize(pixels, 128);
     const ranked = Score.score(result);
     return ranked[0];
+    })();
+    colorCache.set(iconCommonName, promise);
+    return await promise;
   } catch {
     // Fallback: return undefined to avoid blocking operations
     return undefined;

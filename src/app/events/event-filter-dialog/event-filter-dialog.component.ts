@@ -13,7 +13,7 @@ import { MatDialogModule } from '@angular/material/dialog';
 export class EventFilterDialogComponent {
   private readonly formBuilder = inject(NonNullableFormBuilder);
   protected readonly filterForm = this.formBuilder.group({
-    statusFilter: [],
     includeUnlisted: [],
+    statusFilter: [],
   });
 }

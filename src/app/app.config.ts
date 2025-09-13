@@ -12,6 +12,7 @@ import {
   provideAppInitializer,
   provideZonelessChangeDetection,
 } from '@angular/core';
+import { isDevMode } from '@angular/core';
 import { provideLuxonDateAdapter } from '@angular/material-luxon-adapter';
 import { MAT_FORM_FIELD_DEFAULT_OPTIONS } from '@angular/material/form-field';
 import {
@@ -37,11 +38,11 @@ import {
   QueryClient,
   withDevtools,
 } from '@tanstack/angular-query-experimental';
-import { isDevMode } from '@angular/core';
 import { createTRPCClient } from '@trpc/client';
 import superjson from 'superjson';
 
 import type { AppRouter } from '../server/trpc/app-router';
+
 import { routes } from './app.routes';
 import { authTokenInterceptor } from './core/auth-token.interceptor';
 import { ConfigService } from './core/config.service';

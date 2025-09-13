@@ -30,22 +30,22 @@ export class ConfigService {
     return this._permissions;
   }
 
-  public get tenant(): Tenant {
-    return this._tenant;
-  }
-
   public get publicConfig() {
     return this._publicConfig;
+  }
+
+  public get tenant(): Tenant {
+    return this._tenant;
   }
 
   private _missingContext = false;
   private _permissions!: Permission[];
 
-  private _tenant!: Tenant;
-  private _publicConfig: { sentryDsn: string | null; googleMapsApiKey: string | null } = {
+  private _publicConfig: { googleMapsApiKey: null | string; sentryDsn: null | string; } = {
     googleMapsApiKey: null,
     sentryDsn: null,
   };
+  private _tenant!: Tenant;
 
   private trpc = injectTRPC();
 

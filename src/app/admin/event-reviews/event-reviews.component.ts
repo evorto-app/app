@@ -116,12 +116,12 @@ export class EventReviewsComponent {
     this.trpc.users.self.queryOptions(),
   );
   private pendingReviewsFilter = computed(() => ({
+    includeUnlisted: true,
     limit: 50,
     offset: 0,
     startAfter: new Date(),
     status: ['PENDING_REVIEW'] as const,
     userId: this.selfQuery.data()?.id,
-    includeUnlisted: true,
   }));
   protected readonly pendingReviewsQuery = injectQuery(() =>
     this.trpc.events.findMany.queryOptions(this.pendingReviewsFilter()),

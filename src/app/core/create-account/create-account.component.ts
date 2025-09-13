@@ -46,8 +46,8 @@ export class CreateAccountComponent {
   private readonly createAccountMutation = injectMutation(() =>
     this.trpc.users.createAccount.mutationOptions(),
   );
-  private readonly router = inject(Router);
   private readonly queryClient = inject(QueryClient);
+  private readonly router = inject(Router);
 
   constructor() {
     // this.trpcClient.users.authData.query().then(consola.info);

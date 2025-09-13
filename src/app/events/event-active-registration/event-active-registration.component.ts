@@ -29,11 +29,11 @@ export class EventActiveRegistrationComponent {
     }[]
   >();
   private readonly trpc = injectTRPC();
-  private readonly queryClient = inject(QueryClient);
-
   private readonly cancelPendingRegistrationMutation = injectMutation(() =>
     this.trpc.events.cancelPendingRegistration.mutationOptions(),
   );
+
+  private readonly queryClient = inject(QueryClient);
 
   cancelPendingRegistration(registration: { id: string }) {
     this.cancelPendingRegistrationMutation.mutate(
