@@ -44,7 +44,8 @@ export default tseslint.config(
   },
   // Prevent src/ code from importing helpers (development/testing only)
   {
-    files: ["src/**/*.ts", "!src/db/setup-database.ts"],
+    files: ["src/**/*.ts"],
+    ignores: ["src/db/setup-database.ts"],
     rules: {
       "no-restricted-imports": [
         "error",

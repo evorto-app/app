@@ -1,19 +1,14 @@
 import { eq } from 'drizzle-orm';
-import { NeonDatabase } from 'drizzle-orm/neon-serverless';
 
 import { addEvents } from '../../helpers/add-events';
 import { addIcons } from '../../helpers/add-icons';
-import {
-  addRegistrations,
-  EventRegistrationInput,
-} from '../../helpers/add-registrations';
+import { addRegistrations } from '../../helpers/add-registrations';
 import { addRoles, addUsersToRoles } from '../../helpers/add-roles';
 import { addTemplateCategories } from '../../helpers/add-template-categories';
 import { addTemplates } from '../../helpers/add-templates';
 import { createTenant } from '../../helpers/create-tenant';
 import { usersToAuthenticate } from '../../helpers/user-data';
 import { createId } from '../../src/db/create-id';
-import { relations } from '../../src/db/relations';
 import * as schema from '../../src/db/schema';
 import { test as base } from './base-test';
 

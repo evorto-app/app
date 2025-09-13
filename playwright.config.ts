@@ -48,13 +48,11 @@ export default defineConfig({
     {
       dependencies: ['setup'],
       name: 'local-chrome',
-      timeout: 120 * 1000,
       use: { ...devices['Desktop Chrome'], channel: 'chrome' },
     },
     {
       dependencies: ['setup'],
       name: 'chromium',
-      timeout: 120 * 1000,
       use: { ...devices['Desktop Chrome'] },
     },
 
