@@ -17,6 +17,7 @@ const registrationOptionSchema = Schema.Struct({
   registrationMode: Schema.Literal('fcfs', 'random', 'application'),
   roleIds: Schema.mutable(Schema.Array(Schema.NonEmptyString)),
   spots: Schema.Positive,
+  stripeTaxRateId: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
 });
 
 export const templateRouter = router({
@@ -63,6 +64,7 @@ export const templateRouter = router({
           registrationMode: input.organizerRegistration.registrationMode,
           roleIds: input.organizerRegistration.roleIds,
           spots: input.organizerRegistration.spots,
+          stripeTaxRateId: input.organizerRegistration.stripeTaxRateId ?? null,
           templateId,
           title: 'Organizer registration',
         });
@@ -79,6 +81,7 @@ export const templateRouter = router({
           registrationMode: input.participantRegistration.registrationMode,
           roleIds: input.participantRegistration.roleIds,
           spots: input.participantRegistration.spots,
+          stripeTaxRateId: input.participantRegistration.stripeTaxRateId ?? null,
           templateId,
           title: 'Participant registration',
         });
@@ -186,6 +189,8 @@ export const templateRouter = router({
             registrationMode: input.organizerRegistration.registrationMode,
             roleIds: input.organizerRegistration.roleIds,
             spots: input.organizerRegistration.spots,
+            stripeTaxRateId:
+              input.organizerRegistration.stripeTaxRateId ?? null,
           })
           .where(
             and(
@@ -207,6 +212,8 @@ export const templateRouter = router({
             registrationMode: input.participantRegistration.registrationMode,
             roleIds: input.participantRegistration.roleIds,
             spots: input.participantRegistration.spots,
+            stripeTaxRateId:
+              input.participantRegistration.stripeTaxRateId ?? null,
           })
           .where(
             and(

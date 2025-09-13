@@ -64,8 +64,8 @@ export class TemplateEditComponent {
     this.trpc.templates.updateSimpleTemplate.mutationOptions(),
   );
 
-  private router = inject(Router);
   private queryClient = inject(QueryClient);
+  private router = inject(Router);
 
   onSubmit(formData: TemplateFormData) {
     const id = this.templateId();

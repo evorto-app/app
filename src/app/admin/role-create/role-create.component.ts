@@ -32,8 +32,8 @@ export class RoleCreateComponent {
   );
   protected readonly faArrowLeft = faArrowLeft;
 
-  private readonly router = inject(Router);
   private readonly queryClient = inject(QueryClient);
+  private readonly router = inject(Router);
 
   protected async onSubmit(role: RoleFormData): Promise<void> {
     this.createRoleMutation.mutate(

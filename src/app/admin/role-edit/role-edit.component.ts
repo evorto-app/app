@@ -39,8 +39,8 @@ export class RoleEditComponent {
     this.trpc.admin.roles.update.mutationOptions(),
   );
 
-  private readonly router = inject(Router);
   private readonly queryClient = inject(QueryClient);
+  private readonly router = inject(Router);
 
   onSubmit(role: RoleFormData) {
     this.updateRoleMutation.mutate(

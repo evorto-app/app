@@ -132,6 +132,7 @@ export class EventEdit {
               registeredDescription: [option.registeredDescription],
               registrationMode: [option.registrationMode],
               spots: [option.spots],
+              stripeTaxRateId: [option.stripeTaxRateId ?? null],
               title: [option.title],
             }),
           );

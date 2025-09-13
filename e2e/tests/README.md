@@ -20,6 +20,8 @@ The application has the following documentation tests:
 ### Events
 - `events/register.doc.ts`: Registering for events (free and paid)
 - `events/event-management.doc.ts`: Creating and managing events
+- `events/unlisted-admin.doc.ts`: Admin view — toggling and seeing unlisted events
+- `events/unlisted-user.doc.ts`: User view — understanding unlisted events
 
 ### Templates
 - `templates/templates.doc.ts`: Working with event templates
@@ -30,6 +32,7 @@ The application has the following documentation tests:
 
 ### Profile
 - `profile/user-profile.doc.ts`: Managing user profiles
+- `profile/discounts.doc.ts`: Managing ESN discount cards
 
 ### Scanning
 - `scanning/scanner.doc.ts`: Using the QR code scanner for event check-ins

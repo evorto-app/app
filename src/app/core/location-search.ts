@@ -1,4 +1,4 @@
-import { Injectable, inject } from '@angular/core';
+import { inject, Injectable } from '@angular/core';
 import { Loader } from '@googlemaps/js-api-loader';
 
 import { GoogleLocationType } from '../../types/location';
@@ -8,10 +8,10 @@ import { ConfigService } from './config.service';
   providedIn: 'root',
 })
 export class LocationSearch {
-  private readonly config = inject(ConfigService);
-  private loader?: Loader;
   private _autocompleteService?: typeof google.maps.places.AutocompleteSuggestion;
   private _sessionToken?: google.maps.places.AutocompleteSessionToken;
+  private readonly config = inject(ConfigService);
+  private loader?: Loader;
   async getPlaceDetails(
     place: google.maps.places.Place,
   ): Promise<GoogleLocationType> {

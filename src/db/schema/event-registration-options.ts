@@ -32,6 +32,7 @@ export const eventRegistrationOptions = pgTable('event_registration_options', {
   reservedSpots: integer().notNull().default(0),
   roleIds: varchar({ length: 20 }).array().notNull().default([]),
   spots: integer().notNull(),
+  stripeTaxRateId: varchar(),
   title: text().notNull(),
   updatedAt: timestamp()
     .notNull()

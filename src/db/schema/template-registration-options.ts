@@ -30,6 +30,7 @@ export const templateRegistrationOptions = pgTable(
     registrationMode: registrationModes().notNull().default('fcfs'),
     roleIds: varchar({ length: 20 }).array().notNull().default([]),
     spots: integer().notNull(),
+    stripeTaxRateId: varchar(),
     templateId: varchar({ length: 20 })
       .notNull()
       .references(() => eventTemplates.id),

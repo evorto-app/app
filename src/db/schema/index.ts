@@ -1,4 +1,5 @@
 export * from './event-instances';
+export * from './event-registration-option-discounts';
 export * from './event-registration-options';
 export * from './event-registrations';
 export * from './event-template-categories';
@@ -9,6 +10,8 @@ export * from './roles';
 export * from './template-event-addons';
 export * from './template-registration-option-discounts';
 export * from './template-registration-options';
+export * from './tenant-stripe-tax-rates';
 export * from './tenants';
 export * from './transactions';
+export * from './user-discount-cards';
 export * from './users';

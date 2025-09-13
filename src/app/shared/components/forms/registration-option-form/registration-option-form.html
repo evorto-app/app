@@ -85,6 +85,25 @@
             >{{ registrationOptionForm().value.price | currency }}
           </mat-hint>
         </mat-form-field>
+
+        <mat-form-field>
+          <mat-label>Tax rate</mat-label>
+          <mat-select formControlName="stripeTaxRateId" required>
+            @if (taxRatesQuery.isPending()) {
+              <mat-option disabled>Loading tax rates...</mat-option>
+            } @else if (taxRatesQuery.isSuccess()) {
+              @for (rate of taxRatesQuery.data(); track rate.id) {
+                <mat-option [value]="rate.stripeTaxRateId">
+                  {{ rate.displayName || rate.stripeTaxRateId }} —
+                  {{ rate.percentage ?? '?' }}%
+                </mat-option>
+              }
+            } @else {
+              <mat-option disabled>Failed to load tax rates</mat-option>
+            }
+          </mat-select>
+          <mat-hint>Inclusive tax; shown price is final</mat-hint>
+        </mat-form-field>
         }
 
         <mat-checkbox formControlName="organizingRegistration">

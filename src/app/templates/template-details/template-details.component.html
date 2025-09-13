@@ -80,6 +80,16 @@
                   <span class="text-on-surface-variant">·</span>
                   @if (option.isPaid) {
                     <span>{{ option.price / 100 | currency }}</span>
+                    @if (
+                      taxRatesQuery.isSuccess() &&
+                        findRateByStripeId(option.stripeTaxRateId); as rate
+                    ) {
+                      <span class="text-on-surface-variant">·</span>
+                      <span class="text-on-surface-variant">
+                        Incl. {{ rate.percentage }}%
+                        {{ rate.displayName || 'Tax' }}
+                      </span>
+                    }
                   } @else {
                     <span>Free</span>
                   }

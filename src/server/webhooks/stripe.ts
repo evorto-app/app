@@ -9,7 +9,7 @@ import { stripe } from '../stripe-client';
 export const stripeRouter = Router();
 stripeRouter.post(
   '/',
-  express.raw({ type: 'application/json', limit: '200kb' }),
+  express.raw({ limit: '200kb', type: 'application/json' }),
   async (request, response) => {
     const sig = request.headers['stripe-signature'];
 

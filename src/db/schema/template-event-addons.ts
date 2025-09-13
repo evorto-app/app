@@ -23,6 +23,7 @@ export const templateEventAddons = pgTable('template_event_addons', {
   isPaid: boolean().notNull(),
   maxQuantityPerUser: integer().notNull(),
   price: integer().notNull(),
+  stripeTaxRateId: varchar(),
   templateId: varchar({ length: 20 })
     .notNull()
     .references(() => eventTemplates.id),

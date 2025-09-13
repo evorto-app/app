@@ -2,6 +2,7 @@ import { CommonModule, CurrencyPipe, TitleCasePipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
   inject,
   input,
 } from '@angular/core';
@@ -47,9 +48,20 @@ export class TemplateDetailsComponent {
   protected readonly faClockFour = faClockFour;
   protected readonly faEllipsisVertical = faEllipsisVertical;
 
-  protected readonly templateId = input.required<string>();
   private trpc = injectTRPC();
+  protected readonly taxRatesQuery = injectQuery(() =>
+    this.trpc.taxRates.listActive.queryOptions(),
+  );
+  protected readonly taxRateById = computed(() => {
+    const rates = this.taxRatesQuery.data() ?? [];
+    return Object.fromEntries(rates.map((r) => [r.stripeTaxRateId, r]));
+  });
+  protected readonly templateId = input.required<string>();
   protected readonly templateQuery = injectQuery(() =>
     this.trpc.templates.findOne.queryOptions({ id: this.templateId() }),
   );
+  protected findRateByStripeId(id: null | string | undefined) {
+    const map = this.taxRateById();
+    return id ? map[id] : undefined;
+  }
 }

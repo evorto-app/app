@@ -1,0 +1,53 @@
+<h2 mat-dialog-title>Import Stripe tax rates</h2>
+<mat-dialog-content>
+  <p class="text-xs text-on-surface-variant mb-2">
+    Only included (VAT-style) and active tax rates are compatible.
+    Manage tax rates in the Stripe Dashboard:
+    <a
+      href="https://dashboard.stripe.com/test/tax-rates"
+      target="_blank"
+      rel="noopener noreferrer"
+      class="underline"
+      >Open test tax rates</a
+    >.
+  </p>
+
+  @if (ratesQuery.isPending()) {
+    <p>Loading from Stripe ...</p>
+  } @else if (ratesQuery.isError()) {
+    <p class="text-error">Failed to load rates from Stripe.</p>
+  } @else if (ratesQuery.isSuccess()) {
+    <div class="flex flex-col gap-2">
+      @for (rate of ratesQuery.data(); track rate.id) {
+        <div class="flex items-center gap-3">
+          <mat-checkbox
+            [disabled]="!(rate.inclusive && rate.active) || importedIds().has(rate.id)"
+            [checked]="selected().includes(rate.id) || importedIds().has(rate.id)"
+            (change)="toggle(rate.id, $event.checked)"
+          >
+            {{ rate.displayName || rate.id }} — {{ rate.percentage ?? '?' }}%
+          </mat-checkbox>
+          <mat-chip-set>
+            @if (rate.inclusive) {
+              <mat-chip color="primary" selected>included</mat-chip>
+            } @else {
+              <mat-chip color="warn" selected>excluded (not compatible)</mat-chip>
+            }
+            @if (!rate.active) {
+              <mat-chip color="warn" selected>archived (not compatible)</mat-chip>
+            }
+            @if (importedIds().has(rate.id)) {
+              <mat-chip selected>imported</mat-chip>
+            }
+          </mat-chip-set>
+        </div>
+      }
+    </div>
+  }
+</mat-dialog-content>
+<mat-dialog-actions align="end">
+  <button mat-stroked-button mat-dialog-close>Cancel</button>
+  <button mat-flat-button color="primary" (click)="importSelected()" [disabled]="!canImport()">
+    Import selected
+  </button>
+</mat-dialog-actions>

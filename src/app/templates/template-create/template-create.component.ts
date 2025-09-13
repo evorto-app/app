@@ -64,8 +64,8 @@ export class TemplateCreateComponent {
     },
   );
 
-  private router = inject(Router);
   private queryClient = inject(QueryClient);
+  private router = inject(Router);
 
   onSubmit(formData: TemplateFormData) {
     this.createTemplateMutation.mutate(formData, {

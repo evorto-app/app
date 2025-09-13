@@ -92,8 +92,8 @@ export class TemplateCreateEventComponent {
     this.createEventForm.controls.start.valueChanges,
   );
 
-  private readonly router = inject(Router);
   private readonly queryClient = inject(QueryClient);
+  private readonly router = inject(Router);
 
   constructor() {
     effect(() => {
@@ -123,6 +123,7 @@ export class TemplateCreateEventComponent {
               registeredDescription: [option.registeredDescription],
               registrationMode: [option.registrationMode],
               spots: [option.spots],
+              stripeTaxRateId: [(option as any).stripeTaxRateId ?? null],
               title: [option.title],
             }),
           );

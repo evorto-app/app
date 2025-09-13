@@ -4,8 +4,8 @@ import { Pipe, PipeTransform } from '@angular/core';
   name: 'registrationStartOffset'
 })
 export class RegistrationStartOffsetPipe implements PipeTransform {
-  transform(offsetInHours: number | null | undefined): string {
-    if (offsetInHours == null || offsetInHours === 0) {
+  transform(offsetInHours: null | number | undefined): string {
+    if (offsetInHours == undefined || offsetInHours === 0) {
       return 'At event start';
     }
 
@@ -17,7 +17,7 @@ export class RegistrationStartOffsetPipe implements PipeTransform {
     return this.formatOffset(Math.abs(offsetInHours), 'after');
   }
 
-  private formatOffset(hours: number, timing: 'before' | 'after'): string {
+  private formatOffset(hours: number, timing: 'after' | 'before'): string {
     if (hours < 24) {
       const hourText = hours === 1 ? 'hour' : 'hours';
       return `${hours} ${hourText} ${timing} event start`;
