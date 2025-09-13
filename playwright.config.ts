@@ -4,6 +4,28 @@ import { defineConfig, devices } from '@playwright/test';
 /**
  * See https://playwright.dev/docs/test-configuration.
  */
+const webServer = process.env['NO_WEBSERVER']
+  ? undefined
+  : ({
+      command: 'yarn docker:start-test',
+      reuseExistingServer: true,
+      timeout: 240_000,
+      url: 'http://localhost:4200',
+    } as const);
+
+// Configure reporters: avoid blocking HTML server opening; prefer terminal output
+const reporters: any[] = [];
+if (process.env['CI']) {
+  reporters.push(['github'], ['dot']);
+} else {
+  // Local: never auto-open HTML report; still generate artifacts
+  reporters.push(
+    ['html', { open: 'never' }],
+    ['dot'],
+    ['./e2e/reporters/documentation-reporter.ts'],
+  );
+}
+
 export default defineConfig({
   /* Fail the build on CI if you accidentally left test.only in the source code. */
   forbidOnly: !!process.env['CI'],
@@ -14,6 +36,7 @@ export default defineConfig({
     {
       name: 'setup',
       testMatch: /.*\.setup\.ts$/,
+      use: { ...devices['Desktop Chrome'], channel: 'chrome' },
     },
     {
       dependencies: ['setup'],
@@ -24,7 +47,14 @@ export default defineConfig({
     },
     {
       dependencies: ['setup'],
+      name: 'local-chrome',
+      timeout: 120 * 1000,
+      use: { ...devices['Desktop Chrome'], channel: 'chrome' },
+    },
+    {
+      dependencies: ['setup'],
       name: 'chromium',
+      timeout: 120 * 1000,
       use: { ...devices['Desktop Chrome'] },
     },
 
@@ -63,9 +93,7 @@ export default defineConfig({
     // },
   ],
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
-  reporter: process.env['CI']
-    ? [['github'], ['dot']]
-    : [['html'], ['./e2e/reporters/documentation-reporter.ts'], ['dot']],
+  reporter: reporters,
   /* Retry on CI only */
   retries: process.env['CI'] ? 2 : 0,
   testDir: './e2e',
@@ -80,11 +108,7 @@ export default defineConfig({
     trace: 'on-first-retry',
   },
 
-  webServer: {
-    command: 'yarn docker:start-test',
-    reuseExistingServer: true,
-    url: 'http://localhost:4200',
-  },
+  ...(webServer ? { webServer } : {}),
 
   /* Opt out of parallel tests on CI. */
   ...(process.env['CI'] ? { workers: 1 } : {}),

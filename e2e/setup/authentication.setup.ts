@@ -12,8 +12,8 @@ for (const userData of usersToAuthenticate) {
       return;
     }
     await page.goto('./login');
-    await page.getByLabel('Email address').fill(userData.email);
-    await page.getByLabel('Password').fill(userData.password);
+    await page.getByRole('textbox', { name: 'Email address' }).fill(userData.email);
+    await page.getByRole('textbox', { name: 'Password' }).fill(userData.password);
     await page.getByRole('button', { exact: true, name: 'Continue' }).click();
     await page.waitForURL('./events');
     await page.context().storageState({ path: userData.stateFile });

@@ -9,6 +9,6 @@ test('load application', async ({ page }) => {
 
 test('load template list', async ({ page }) => {
   await page.goto('.');
-  await page.getByRole('link', { name: 'Event templates' }).click();
+  await page.getByRole('link', { name: 'Templates' }).click();
   await expect(page).toHaveURL(/\/templates/);
 });
