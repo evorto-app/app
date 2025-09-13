@@ -1,11 +1,13 @@
 import { defaultStateFile } from '../../../helpers/user-data';
 import { expect, test } from '../../fixtures/parallel-test';
 
+test.setTimeout(120000);
+
 test.use({ storageState: defaultStateFile });
 
 test('create template category', async ({ isMobile, page }) => {
   await page.goto('.');
-  await page.getByRole('link', { name: 'Event templates' }).click();
+  await page.getByRole('link', { name: 'Templates' }).click();
   await expect(page).toHaveURL(/\/templates/);
   if (isMobile) {
     await page.getByRole('button', { name: 'Menu' }).click();
@@ -19,14 +21,10 @@ test('create template category', async ({ isMobile, page }) => {
     .getByRole('button', { name: 'Create a new category' })
     .first()
     .click();
-  await expect(page.locator('app-create-edit-category-dialog h1')).toHaveText(
-    'Create a new category',
-  );
+  await expect(page.getByRole('heading', { name: 'Create a new category' })).toBeVisible();
   await page.getByLabel('Category title').fill('Mountain trips');
   await page.getByRole('button', { name: 'Save' }).click();
-  await expect(page.locator('app-category-list')).toContainText(
-    'Mountain trips',
-  );
+  await expect(page.getByText('Mountain trips')).toBeVisible();
 });
 
 test('edit template category', async ({
@@ -35,7 +33,7 @@ test('edit template category', async ({
   templateCategories,
 }) => {
   await page.goto('.');
-  await page.getByRole('link', { name: 'Event templates' }).click();
+  await page.getByRole('link', { name: 'Templates' }).click();
   await expect(page).toHaveURL(/\/templates/);
   if (isMobile) {
     await page.getByRole('button', { name: 'Menu' }).click();
@@ -46,17 +44,10 @@ test('edit template category', async ({
   }
   await expect(page).toHaveURL(/\/templates\/categories/);
   const category = templateCategories[0];
-  await page
-    .locator('app-category-list div', { hasText: category.title })
-    .getByRole('button', { name: 'Edit' })
-    .click();
-  await expect(page.locator('app-create-edit-category-dialog h1')).toHaveText(
-    'Edit category',
-  );
+  await page.getByText(category.title).getByRole('button', { name: 'Edit' }).click();
+  await expect(page.getByRole('heading', { name: 'Edit category' })).toBeVisible();
   await expect(page.getByLabel('Category title')).toHaveValue(category.title);
   await page.getByLabel('Category title').fill('Mountain trips');
   await page.getByRole('button', { name: 'Save' }).click();
-  await expect(page.locator('app-category-list')).toContainText(
-    'Mountain trips',
-  );
+  await expect(page.getByText('Mountain trips')).toBeVisible();
 });

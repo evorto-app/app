@@ -6,18 +6,16 @@ import type {
   TestCase,
   TestResult,
 } from '@playwright/test/reporter';
-
 import { Locator, Page, TestInfo } from '@playwright/test';
 import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import path from 'node:path';
 
-// Helper functions to replace fs-jetpack functionality
+// Helpers
 const ensureDirectory = (
   directoryPath: string,
   options?: { empty?: boolean },
 ) => {
-  console.log(directoryPath);
   if (options?.empty && fs.existsSync(directoryPath)) {
     fs.rmSync(directoryPath, { force: true, recursive: true });
   }
@@ -31,124 +29,119 @@ const writeFile = (filePath: string, content: Buffer | string) => {
 };
 
 class DocumentationReporter implements Reporter {
+  private docsRoot(): string {
+    const root = process.env.DOCS_OUT_DIR || path.resolve('test-results/docs');
+    ensureDirectory(root);
+    return root;
+  }
+
+  private imagesRoot(): string {
+    const root =
+      process.env.DOCS_IMG_OUT_DIR || path.resolve('test-results/docs/images');
+    ensureDirectory(root);
+    return root;
+  }
+
   onBegin(config: FullConfig, suite: Suite) {
-    // ensureDirectory(
-    //   path.resolve(
-    //     'C:/Users/hedde/source/repos/evorto/apps/documentation-page/public/docs',
-    //   ),
-    //   {
-    //     empty: true,
-    //   },
-    // );
+    const docs = this.docsRoot();
+    const imgs = this.imagesRoot();
+    console.log(`[docs-reporter] docsRoot=${docs} imagesRoot=${imgs}`);
   }
 
-  onEnd(result: FullResult) {
-    // console.log(`Finished the run: ${result.status}`);
-  }
-
-  onTestBegin(test: TestCase, result: TestResult) {
-    // console.log(`Starting test ${test.title}`);
-  }
+  onEnd(result: FullResult) {}
+  onTestBegin(test: TestCase, result: TestResult) {}
 
   onTestEnd(test: TestCase, result: TestResult) {
-    console.log(`Finished test ${test.title}: ${result.status}`);
     const testFolderName = test.title.toLowerCase().replaceAll(' ', '-');
-    if (
-      result.attachments.filter((attachment) =>
-        ['image', 'image-caption', 'markdown'].includes(attachment.name),
-      ).length === 0
-    ) {
-      return;
-    }
+    const relevant = result.attachments.filter((a) =>
+      ['image', 'image-caption', 'markdown', 'permissions'].includes(a.name),
+    );
+    if (relevant.length === 0) return;
+
     const testFolder = ensureDirectory(
-      path.resolve(
-        `/Users/hedde/code/evorto-pages/apps/documentation/src/app/docs/${testFolderName}`,
-      ),
+      path.join(this.docsRoot(), testFolderName),
       { empty: true },
     );
     const picturesFolder = ensureDirectory(
-      path.resolve(
-        `/Users/hedde/code/evorto-pages/apps/documentation/public/docs/${testFolderName}`,
-      ),
+      path.join(this.imagesRoot(), testFolderName),
       { empty: true },
     );
-    const fileContent = [`---\ntitle: ${test.title}\n---`];
-    for (const attachment of result.attachments.filter((attachment) =>
-      ['image', 'image-caption', 'markdown'].includes(attachment.name),
-    )) {
+
+    const fileContent: string[] = [`---\ntitle: ${test.title}\n---`];
+
+    // collect permissions lines from attachment and/or front matter in markdown
+    const permissionsLines: string[] = [];
+    const permissionsAttachment = relevant.find((a) => a.name === 'permissions');
+    if (permissionsAttachment?.body) {
+      const raw = permissionsAttachment.body.toString();
+      for (const line of raw.split(/\r?\n/)) {
+        const trimmed = line.trim();
+        if (trimmed) permissionsLines.push(trimmed);
+      }
+    }
+
+    for (const attachment of relevant) {
       switch (attachment.name) {
         case 'image': {
-          // Ensure body exists before using it
           if (!attachment.body) {
             console.warn(`Missing body for image attachment in ${test.title}`);
             continue;
           }
-
-          // Generate hash based on image content instead of random ID
-          const hash = crypto
-            .createHash('sha256')
-            .update(attachment.body)
-            .digest('hex');
-          // Use a shorter version of the hash to keep filenames reasonable
+          const hash = crypto.createHash('sha256').update(attachment.body).digest('hex');
           const id = hash.slice(0, 16);
-
-          writeFile(
-            path.join(
-              picturesFolder,
-              `${attachment.name}-${id}.${attachment.contentType.split('/')[1]}`,
-            ),
-            attachment.body,
-          );
-          fileContent.push(
-            `![${attachment.name}](${testFolderName}/${attachment.name}-${id}.${
-              attachment.contentType.split('/')[1]
-            })`,
-          );
-          break;
-        }
-        case 'markdown': {
-          // Ensure body exists before using toString()
-          if (!attachment.body) {
-            console.warn(
-              `Missing body for markdown attachment in ${test.title}`,
-            );
-            continue;
-          }
-          fileContent.push(attachment.body.toString());
+          const ext = attachment.contentType.split('/')[1] || 'png';
+          const imgName = `${attachment.name}-${id}.${ext}`;
+          writeFile(path.join(picturesFolder, imgName), attachment.body);
+          fileContent.push(`![${attachment.name}](${testFolderName}/${imgName})`);
           break;
         }
         case 'image-caption': {
-          // Ensure body exists before using toString()
           if (!attachment.body) {
-            console.warn(
-              `Missing body for image-caption attachment in ${test.title}`,
-            );
+            console.warn(`Missing body for image-caption in ${test.title}`);
             continue;
           }
-
-          // check last element
-          const lastElement = fileContent.at(-1);
-          if (!lastElement) {
-            console.warn(`No elements to caption in ${test.title}`);
-            continue;
-          }
-
+          const last = fileContent.at(-1) ?? '';
+          if (!last.startsWith('![')) break;
+          const imageUrl = last.split('(')[1]?.split(')')[0] ?? '';
           const caption = attachment.body.toString();
-          // check if last element is an image
-          if (!lastElement.startsWith('![')) {
-            console.warn(
-              `Last element is not an image in ${test.title} for caption ${caption}`,
-            );
-            break;
+          fileContent[fileContent.length - 1] = `{% figure src="${imageUrl}" caption="${caption}" /%}`;
+          break;
+        }
+        case 'markdown': {
+          if (!attachment.body) {
+            console.warn(`Missing body for markdown in ${test.title}`);
+            continue;
           }
-          // extract image url
-          const imageUrl = lastElement.split('(')[1].split(')')[0];
-          // insert figure
-          fileContent[fileContent.length - 1] =
-            `{% figure src="${imageUrl}" caption="${caption}" /%}`;
+          const text = attachment.body.toString();
+          const fmMatch = text.match(/^---[\s\S]*?---\s*/);
+          let body = text;
+          if (fmMatch) {
+            const fm = fmMatch[0];
+            // collect leading list items as permissions lines
+            for (const line of fm.split(/\r?\n/)) {
+              const m = line.match(/^\s*-\s*(.+)$/);
+              if (m) permissionsLines.push(m[1]);
+            }
+            body = text.slice(fm.length);
+          }
+          if (permissionsLines.length) {
+            fileContent.push(
+              '{% callout type="note" title="User permissions" %}',
+              ...permissionsLines.map((p) => `- ${p}`),
+              '{% /callout %}',
+              '',
+            );
+          }
+          fileContent.push(body.trim());
+          break;
+        }
+        case 'permissions': {
+          // handled above
+          break;
         }
       }
     }
+
     writeFile(path.join(testFolder, 'page.md'), fileContent.join('\n'));
   }
 }

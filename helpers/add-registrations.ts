@@ -16,8 +16,7 @@ import consola from 'consola';
  * 8. For paid registrations, creates associated transactions as if Stripe webhooks fired
  * 9. Handles various registration and payment statuses for comprehensive testing scenarios
  */
-import { InferInsertModel } from 'drizzle-orm';
-import { eq } from 'drizzle-orm';
+import { InferInsertModel, SQL, inArray, sql } from 'drizzle-orm';
 import { NeonDatabase } from 'drizzle-orm/neon-serverless';
 
 import { createId } from '../src/db/create-id';
@@ -60,7 +59,6 @@ export async function addRegistrations(
   database: NeonDatabase<Record<string, never>, typeof relations>,
   events: EventRegistrationInput[],
 ) {
-  const t0 = Date.now();
   // Query all users with their tenant relationships and roles
   const usersRaw = await database.query.users.findMany({
     with: {
@@ -95,6 +93,45 @@ export async function addRegistrations(
     { checkedInSpots: number; confirmedSpots: number; waitlistSpots: number }
   >();
 
+  // Build fast eligibility index: tenantId -> roleId -> users[]
+  const roleIndex = new Map<string, Map<string, (typeof users)[number][]>>();
+  for (const u of users) {
+    for (const ta of u.tenantAssignments ?? []) {
+      let byRole = roleIndex.get(ta.tenantId);
+      if (!byRole) {
+        byRole = new Map();
+        roleIndex.set(ta.tenantId, byRole);
+      }
+      for (const rtu of ta.rolesToTenantUsers ?? []) {
+        const roleId = rtu.role.id;
+        const list = byRole.get(roleId);
+        if (list) {
+          list.push(u);
+        } else {
+          byRole.set(roleId, [u]);
+        }
+      }
+    }
+  }
+
+  // Helper to quickly compute eligible users by tenant+roles (union, dedup by id)
+  const getEligibleUsers = (tenantId: string, roleIds: string[]) => {
+    const seen = new Set<string>();
+    const result: (typeof users)[number][] = [];
+    const byRole = roleIndex.get(tenantId);
+    if (!byRole) return result;
+    for (const rid of roleIds) {
+      const list = byRole.get(rid) ?? [];
+      for (const u of list) {
+        if (!seen.has(u.id)) {
+          seen.add(u.id);
+          result.push(u);
+        }
+      }
+    }
+    return result;
+  };
+
   // Get the default tenant for fallback values
   const defaultTenant = await database.query.tenants.findFirst();
   if (!defaultTenant) {
@@ -103,23 +140,22 @@ export async function addRegistrations(
   }
   const defaultCurrency = defaultTenant.currency || 'EUR';
 
-  // Helper function to check if user has required roles for a registration option
-  const userHasRequiredRoles = (
-    user: (typeof users)[0],
-    roleIds: string[],
-    tenantId: string,
-  ) => {
-    const userTenantAssignment = user.tenantAssignments?.find(
-      (t) => t.tenantId === tenantId,
-    );
-    if (!userTenantAssignment) return false;
-
-    const userRoleIds =
-      userTenantAssignment.rolesToTenantUsers?.map((r) => r.role.id) || [];
-    return roleIds.some((requiredRoleId) =>
-      userRoleIds.includes(requiredRoleId),
-    );
+  // Utility: deterministically pick k users using partial Fisher–Yates (O(k))
+  const pickK = <T,>(arr: T[], k: number) => {
+    const n = arr.length;
+    if (k >= n) return arr.slice();
+    const a = arr.slice();
+    for (let i = 0; i < k; i++) {
+      const max = n - 1 - i;
+      const offset = max > 0 ? randNumber({ min: 0, max }) : 0;
+      const j = i + offset;
+      const tmp = a[i];
+      a[i] = a[j];
+      a[j] = tmp;
+    }
+    return a.slice(0, k);
   };
+
 
   // Process each event with varied registration patterns
   for (const [eventIndex, event] of events.entries()) {
@@ -188,10 +224,8 @@ export async function addRegistrations(
       // Get tenantId for this event
       const tenantId = event.tenantId || defaultTenant.id;
 
-      // Filter users who have the required roles for this registration option
-      const eligibleUsers = users.filter((user) =>
-        userHasRequiredRoles(user, option.roleIds, tenantId),
-      );
+      // Eligible users for this option (union of role holders within tenant)
+      const eligibleUsers = getEligibleUsers(tenantId, option.roleIds);
 
       if (eligibleUsers.length === 0) {
         console.warn(
@@ -216,15 +250,12 @@ export async function addRegistrations(
       let waitlistCount = 0;
       let checkedInCount = 0;
 
-      // Deterministically shuffle eligible users with seeded falso
-      const shuffledUsers = [...eligibleUsers]
-        .map((u) => ({ k: randNumber({ max: 1_000_000, min: 0 }), u }))
-        .sort((a, b) => a.k - b.k)
-        .map((x) => x.u);
+      // Deterministically select K users using partial shuffle (faster than full sort)
+      const selectedUsers = pickK(eligibleUsers, totalRegistrations);
 
       // Create registrations
-      for (let index = 0; index < totalRegistrations; index++) {
-        const user = shuffledUsers[index];
+      for (let index = 0; index < selectedUsers.length; index++) {
+        const user = selectedUsers[index];
 
         // Get userTenant relationship for this specific tenant
         const userTenantRelation = user.tenantAssignments?.find(
@@ -337,29 +368,57 @@ export async function addRegistrations(
     }
   }
 
+
   // Execute all operations in a transaction for atomicity
   try {
     await database.transaction(async (tx) => {
-      // Batch insert all registrations
+      // Insert all registrations in a single statement (no chunking)
       if (registrations.length > 0) {
         await tx.insert(schema.eventRegistrations).values(registrations);
       }
 
-      // Batch insert all transactions
+      // Insert all transactions in a single statement (no chunking)
       if (transactions.length > 0) {
         await tx.insert(schema.transactions).values(transactions);
       }
 
-      // Update spot counts for each registration option
-      for (const [optionId, counts] of optionUpdates.entries()) {
+      // Multi-row UPDATE using CASE expressions in a single request
+      const updatesArray = Array.from(optionUpdates.entries());
+      if (updatesArray.length > 0) {
+        const ids: string[] = [];
+        const checkedSqlChunks: SQL[] = [];
+        const confirmedSqlChunks: SQL[] = [];
+        const waitlistSqlChunks: SQL[] = [];
+        checkedSqlChunks.push(sql`(case`);
+        confirmedSqlChunks.push(sql`(case`);
+        waitlistSqlChunks.push(sql`(case`);
+        for (const [id, c] of updatesArray) {
+          checkedSqlChunks.push(
+            sql`when ${schema.eventRegistrationOptions.id} = ${id} then cast(${c.checkedInSpots} as integer)`,
+          );
+          confirmedSqlChunks.push(
+            sql`when ${schema.eventRegistrationOptions.id} = ${id} then cast(${c.confirmedSpots} as integer)`,
+          );
+          waitlistSqlChunks.push(
+            sql`when ${schema.eventRegistrationOptions.id} = ${id} then cast(${c.waitlistSpots} as integer)`,
+          );
+          ids.push(id);
+        }
+        checkedSqlChunks.push(sql`end)`);
+        confirmedSqlChunks.push(sql`end)`);
+        waitlistSqlChunks.push(sql`end)`);
+        const checkedFinal: SQL = sql.join(checkedSqlChunks, sql.raw(' '));
+        const confirmedFinal: SQL = sql.join(confirmedSqlChunks, sql.raw(' '));
+        const waitlistFinal: SQL = sql.join(waitlistSqlChunks, sql.raw(' '));
+
         await tx
           .update(schema.eventRegistrationOptions)
           .set({
-            checkedInSpots: counts.checkedInSpots,
-            confirmedSpots: counts.confirmedSpots,
-            waitlistSpots: counts.waitlistSpots,
+            checkedInSpots: checkedFinal,
+            confirmedSpots: confirmedFinal,
+            waitlistSpots: waitlistFinal,
           })
-          .where(eq(schema.eventRegistrationOptions.id, optionId));
+          .where(inArray(schema.eventRegistrationOptions.id, ids));
       }
     });
   } catch (error) {
@@ -367,7 +426,7 @@ export async function addRegistrations(
     return [];
   }
   consola.success(
-    `Created ${registrations.length} registrations and ${transactions.length} transactions in ${Date.now() - t0}ms`,
+    `Created ${registrations.length} registrations and ${transactions.length} transactions`,
   );
   return registrations;
 }

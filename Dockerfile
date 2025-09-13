@@ -25,10 +25,12 @@ RUN --mount=type=secret,id=FONT_AWESOME_TOKEN,mode=0444 yarn config set npmScope
 RUN yarn install --immutable
 COPY --chown=appuser:appuser . .
 RUN yarn build
-RUN --mount=type=secret,id=SENTRY_AUTH_TOKEN,mode=0444 \
-    export SENTRY_AUTH_TOKEN="$(cat /run/secrets/SENTRY_AUTH_TOKEN)" && \
-    if [ -n "$SENTRY_AUTH_TOKEN" ]; then \
-        yarn sentry:sourcemaps; \
+RUN --mount=type=secret,id=SENTRY_AUTH_TOKEN,mode=0444,required=false \
+    if [ -f /run/secrets/SENTRY_AUTH_TOKEN ]; then \
+        export SENTRY_AUTH_TOKEN="$(cat /run/secrets/SENTRY_AUTH_TOKEN)"; \
+        if [ -n "$SENTRY_AUTH_TOKEN" ]; then \
+            yarn sentry:sourcemaps; \
+        fi; \
     fi
 
 FROM base AS production-dependencies

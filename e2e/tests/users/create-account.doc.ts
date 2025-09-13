@@ -4,7 +4,12 @@ import { takeScreenshot } from '../../reporters/documentation-reporter';
 
 // test.use({ storageState: defaultStateFile });
 
-test('Create your account', async ({ newUser, page, roles }, testInfo) => {
+// Skip this journey if Auth0 Management credentials are not configured
+if (!process.env['AUTH0_MANAGEMENT_CLIENT_ID'] || !process.env['AUTH0_MANAGEMENT_CLIENT_SECRET']) {
+  test.skip(true, 'Auth0 creds missing');
+}
+
+test('Create your account @needs-auth0', async ({ newUser, page, roles }, testInfo) => {
   void roles; // Ensure roles are created for this tenant
   await testInfo.attach('markdown', {
     body: `

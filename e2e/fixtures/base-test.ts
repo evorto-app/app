@@ -3,6 +3,8 @@ import { init } from '@paralleldrive/cuid2';
 import { test as base } from '@playwright/test';
 import { ManagementClient } from 'auth0';
 import { drizzle, NeonDatabase } from 'drizzle-orm/neon-serverless';
+import fs from 'node:fs';
+import path from 'node:path';
 import ws from 'ws';
 
 import { relations } from '../../src/db/relations';
@@ -24,9 +26,22 @@ interface BaseFixtures {
     lastName: string;
     password: string;
   };
+  tenantDomain?: string;
 }
 
 export const test = base.extend<BaseFixtures>({
+  tenantDomain: async ({}, use) => {
+    try {
+      const runtimePath = path.resolve('.e2e-runtime.json');
+      if (fs.existsSync(runtimePath)) {
+        const raw = fs.readFileSync(runtimePath, 'utf-8');
+        const data = JSON.parse(raw) as { tenantDomain?: string };
+        await use(data.tenantDomain);
+        return;
+      }
+    } catch {}
+    await use(process.env['TENANT_DOMAIN']);
+  },
   database: async ({}, use) => {
     const database = drizzle({
       connection: process.env['DATABASE_URL']!,
@@ -54,7 +69,20 @@ export const test = base.extend<BaseFixtures>({
     await use({ email, firstName, lastName, password });
     await auth0.users.delete({ id: user.data.user_id });
   },
-  page: async ({ page }, use) => {
+  page: async ({ page, tenantDomain }, use) => {
+    if (tenantDomain) {
+      try {
+        await page.context().addCookies([
+          {
+            domain: 'localhost',
+            expires: -1,
+            name: 'evorto-tenant',
+            path: '/',
+            value: tenantDomain,
+          },
+        ]);
+      } catch {}
+    }
     page.on('pageerror', (error) => {
       const url = page.url();
       if (url && url.includes('localhost')) {

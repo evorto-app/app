@@ -4,7 +4,7 @@ import { expect, test } from '../../fixtures/parallel-test';
 
 test.use({ storageState: userStateFile });
 
-test('applies ESN discount to paid registrations', async ({ database, events, page, tenant }) => {
+test('applies ESN discount to paid registrations @finance', async ({ database, events, page, tenant }) => {
   // Find a paid, approved, listed event with a participant option
   const paidEvent = events.find((event) =>
     event.status === 'APPROVED' &&
@@ -15,7 +15,7 @@ test('applies ESN discount to paid registrations', async ({ database, events, pa
   const option = paidEvent.registrationOptions.find((o) => o.isPaid && o.title === 'Participant registration')!;
   const expectedAmount = Math.max(0, option.price - 500); // seeded discount is price - 500
 
-  await page.goto('./events');
+  await page.goto('/events', { waitUntil: 'domcontentloaded' });
   await page.getByRole('link', { name: paidEvent.title }).click();
   await page.getByRole('button', { name: 'Pay' }).click();
 
@@ -38,4 +38,3 @@ test('applies ESN discount to paid registrations', async ({ database, events, pa
   expect(tx).toBeTruthy();
   expect(tx?.amount).toBe(expectedAmount);
 });
-
