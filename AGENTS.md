@@ -26,9 +26,31 @@
 - Run `yarn lint` and `yarn format` before committing.
 - Prefer path aliases: `@app/*`, `@server/*`, `@db/*`, `@shared/*`, `@types/*`.
 
+### Type Safety (Always Full Types)
+- End-to-end types across the stack are mandatory.
+  - Server: Use Effect `Schema` for every tRPC input and output; no `any` and no unchecked `as` casts.
+  - Database: Prefer Drizzle typed schema/helpers; avoid `as any`; propagate inferred types to callers.
+  - Client: Use fully typed Angular code, typed queries (`injectQuery`), and typed signals/inputs/outputs.
+  - Utilities: Provide explicit, correct generic types; avoid implicit `any` in function params and returns.
+- Review PRs for any introduction of `any`, `unknown` without narrowing, or unsafe `as` casts and replace with proper types.
+
+### Reactive Forms (Non‑Nullable)
+- Always use Angular’s reactive forms in the non‑nullable variant.
+  - Construct forms via `NonNullableFormBuilder`.
+  - Controls: `formBuilder.control<T>(initialValue)` with non‑nullable generics.
+  - Groups: `formBuilder.group({ ... })` with typed, non‑nullable controls.
+  - Do not bind `[disabled]` directly on controls; set disabled at creation or via `setDisabledState` (for CVAs) to avoid change detection issues.
+  - Prefer strongly typed form models over `FormGroup<{[key:string]:FormControl}>` with `any`.
+
 ## Testing Guidelines
 - Unit: place `*.spec.ts` next to the unit under test. Keep tests deterministic and fast.
 - E2E: author Playwright tests in `e2e/**`; use `yarn e2e:ui` to debug; attach screenshots for UI changes.
+
+## Research Before You Code
+- For Angular work, retrieve and review the current Angular Best Practices before making changes.
+  - Verify usage of: standalone components, typed (non‑nullable) reactive forms, and modern control flow (`@if`, `@for`, `@switch`).
+- Confirm type safety end‑to‑end for any affected path (tRPC schemas, Drizzle models, client types).
+- Scan the workspace for adjacent patterns to keep implementations consistent (permissions, routing, data loading).
 
 ## Commit & Pull Request Guidelines
 - Messages: imperative mood, concise summary; reference tickets (e.g., `Sa-186: implement google places`).
