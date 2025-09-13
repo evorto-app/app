@@ -1,5 +1,5 @@
 import consola from 'consola';
-import { count, eq, InferSelectModel, sql } from 'drizzle-orm';
+import { and, count, eq, InferSelectModel, inArray, sql } from 'drizzle-orm';
 import { uniq } from 'es-toolkit';
 import { DateTime } from 'luxon';
 
@@ -45,21 +45,46 @@ export const migrateUserTenantAssignments = async (
       },
     });
 
-    const newAssignments = await database
+    await database
       .insert(schema.usersToTenants)
       .values(
-        oldUserAssignments.map((userAssignment) => {
-          return {
-            tenantId: newTenant.id,
-            userId: sql`(select ${schema.users.id} from ${schema.users} where ${schema.users.auth0Id} = ${transformAuthId(userAssignment.user.authId)})`,
-          };
-        }),
+        oldUserAssignments.map((userAssignment) => ({
+          tenantId: newTenant.id,
+          userId: sql`(select ${schema.users.id} from ${schema.users} where ${schema.users.auth0Id} = ${transformAuthId(userAssignment.user.authId)})`,
+        })),
       )
-      .returning();
+      .onConflictDoNothing({
+        target: [schema.usersToTenants.userId, schema.usersToTenants.tenantId],
+      });
+
+    // Retrieve (existing or newly inserted) assignments for these users to build role relations
+    const transformedAuthIds = oldUserAssignments.map((ua) =>
+      transformAuthId(ua.user.authId),
+    );
+    const userRows = await database
+      .select({ id: schema.users.id, auth0Id: schema.users.auth0Id })
+      .from(schema.users)
+      .where(inArray(schema.users.auth0Id, transformedAuthIds));
+    const userIdSet = new Set(userRows.map((u) => u.id));
+    const assignments = await database
+      .select({ id: schema.usersToTenants.id, userId: schema.usersToTenants.userId })
+      .from(schema.usersToTenants)
+      .where(
+        and(
+          eq(schema.usersToTenants.tenantId, newTenant.id),
+          inArray(schema.usersToTenants.userId, Array.from(userIdSet)),
+        ),
+      );
+    const assignmentByUserId = new Map(assignments.map((a) => [a.userId, a.id]));
 
     const rolesToAddPromises = oldUserAssignments.map(
-      async (oldAssignment, index) => {
-        const assignment = newAssignments[index];
+      async (oldAssignment) => {
+        // Resolve user for this assignment
+        const transformedId = transformAuthId(oldAssignment.user.authId);
+        const userId = userRows.find((u) => u.auth0Id === transformedId)?.id;
+        if (!userId) return [] as { roleId: string; userTenantId: string }[];
+        const assignmentId = assignmentByUserId.get(userId);
+        if (!assignmentId) return [] as { roleId: string; userTenantId: string }[];
         const defaultUserRole = roleMap.get('NONE');
         const rolesToAdd = defaultUserRole ? [defaultUserRole] : [];
 
@@ -100,14 +125,21 @@ export const migrateUserTenantAssignments = async (
 
         return uniq(rolesToAdd).map((role) => ({
           roleId: role,
-          userTenantId: assignment.id,
+          userTenantId: assignmentId,
         }));
       },
     );
 
     const rolesToAdd = (await Promise.all(rolesToAddPromises)).flat();
 
-    await database.insert(schema.rolesToTenantUsers).values(rolesToAdd);
+    if (rolesToAdd.length) {
+      await database
+        .insert(schema.rolesToTenantUsers)
+        .values(rolesToAdd)
+        .onConflictDoNothing({
+          target: [schema.rolesToTenantUsers.roleId, schema.rolesToTenantUsers.userTenantId],
+        });
+    }
   }
   const newUserAssignmentCountResult = await database
     .select({ count: count() })

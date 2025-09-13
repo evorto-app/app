@@ -15,19 +15,66 @@ import { migrateTenant } from './steps/tenant';
 import { migrateUserTenantAssignments } from './steps/user-assignments';
 import { migrateUsers } from './steps/users';
 
+type Features = 'users' | 'tenants' | 'roles' | 'assignments' | 'templates' | 'events';
+
+function parseFeatures(env: string | undefined): Features[] {
+  const all: Features[] = [
+    'users',
+    'tenants',
+    'roles',
+    'assignments',
+    'templates',
+    'events',
+  ];
+  if (!env) return all;
+  const parts = env
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean) as Features[];
+  const set = new Set(parts);
+  return all.filter((f) => set.has(f));
+}
+
 async function main() {
   const migrationStart = DateTime.local();
 
   consola.info('Migrations for evorto');
-  consola.start('Clear DB');
-  await reset(database, schema);
-  consola.success('DB cleared');
+  const clearDb = process.env.MIGRATION_CLEAR_DB === 'true';
+  const allowReuseTenant = process.env.MIGRATION_ALLOW_REUSE_TENANT !== 'false';
+  const features = parseFeatures(process.env.MIGRATE_FEATURES);
+  const tenantsEnv = process.env.MIGRATE_TENANTS; // e.g. "tumi:localhost,tumi:evorto.fly.dev"
+  const tenantPairs = tenantsEnv
+    ? tenantsEnv
+        .split(',')
+        .map((p) => p.trim())
+        .filter(Boolean)
+        .map((p) => {
+          const [oldShort, domain] = p.split(':');
+          return { oldShortName: oldShort, newDomain: domain };
+        })
+    : [
+        { oldShortName: 'tumi', newDomain: 'localhost' },
+        { oldShortName: 'tumi', newDomain: 'evorto.fly.dev' },
+      ];
+
+  if (clearDb) {
+    consola.start('Clear DB');
+    await reset(database, schema);
+    consola.success('DB cleared');
+  }
+
   consola.start('Begin migration');
 
-  await migrateUsers();
+  if (features.includes('users')) {
+    await migrateUsers();
+  }
 
-  await runForTenant('tumi', 'localhost');
-  await runForTenant('tumi', 'evorto.fly.dev');
+  for (const pair of tenantPairs) {
+    await runForTenant(pair.oldShortName, pair.newDomain, {
+      allowReuseTenant,
+      features,
+    });
+  }
   // await runForTenant('tumi', 'tumi.esn.world');
   consola.success('Migration complete');
   const migrationEnd = DateTime.local();
@@ -40,7 +87,11 @@ main().catch((error) => {
   consola.error('Migration failed', error);
 });
 
-async function runForTenant(oldShortName: string, newDomain: string) {
+async function runForTenant(
+  oldShortName: string,
+  newDomain: string,
+  options: { allowReuseTenant: boolean; features: Features[] },
+) {
   consola.start(`Migrating tenant ${oldShortName} to ${newDomain}`);
 
   // Get the tenant
@@ -50,11 +101,10 @@ async function runForTenant(oldShortName: string, newDomain: string) {
 
   consola.debug('Retrieved old tenant');
 
-  if (
-    await database.query.tenants.findFirst({
-      where: { domain: newDomain },
-    })
-  ) {
+  const existingTenant = await database.query.tenants.findFirst({
+    where: { domain: newDomain },
+  });
+  if (existingTenant && !options.allowReuseTenant) {
     consola.error(`Tenant ${newDomain} already exists`);
     return;
   }
@@ -64,17 +114,35 @@ async function runForTenant(oldShortName: string, newDomain: string) {
     return;
   }
 
-  const newTenant = await migrateTenant(newDomain, oldTenant);
-  const roleMap = await setupDefaultRoles(newTenant);
-  await migrateUserTenantAssignments(oldTenant, newTenant, roleMap);
-  const categoryIdMap = await migrateTemplateCategories(oldTenant, newTenant);
-  const templateIdMap = await migrateTemplates(
-    oldTenant,
-    newTenant,
-    categoryIdMap,
-    roleMap,
-  );
-  await migrateEvents(oldTenant, newTenant, templateIdMap, roleMap);
+  const newTenant =
+    existingTenant ?? (await migrateTenant(newDomain, oldTenant));
+
+  const roleMap = options.features.includes('roles')
+    ? await setupDefaultRoles(newTenant)
+    : new Map<string, string>();
+
+  if (options.features.includes('assignments')) {
+    await migrateUserTenantAssignments(oldTenant, newTenant, roleMap);
+  }
+
+  let categoryIdMap = new Map<string, string>();
+  if (options.features.includes('templates')) {
+    categoryIdMap = await migrateTemplateCategories(oldTenant, newTenant);
+  }
+
+  let templateIdMap = new Map<string, string>();
+  if (options.features.includes('templates')) {
+    templateIdMap = await migrateTemplates(
+      oldTenant,
+      newTenant,
+      categoryIdMap,
+      roleMap,
+    );
+  }
+
+  if (options.features.includes('events')) {
+    await migrateEvents(oldTenant, newTenant, templateIdMap, roleMap);
+  }
 
   consola.success(`Migration ${oldShortName} to ${newDomain} complete`);
 }

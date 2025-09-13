@@ -37,7 +37,7 @@ export const migrateUsers = async () => {
           lastName: user.lastName,
         })),
       )
-      .returning();
+      .onConflictDoNothing({ target: [schema.users.auth0Id] });
   }
   const newUserCountResult = await database
     .select({ count: count() })

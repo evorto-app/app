@@ -18,6 +18,7 @@ export const migrateTenant = async (
       name: oldTenantData.name,
       theme: 'esn',
     })
+    .onConflictDoNothing({ target: [schema.tenants.domain] })
     .returning();
   const newTenant = tenantReturn[0];
 
