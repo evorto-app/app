@@ -7,7 +7,7 @@ import { takeScreenshot } from '../../reporters/documentation-reporter';
 
 test.use({ storageState: userStateFile });
 
-test('Register for an event', async ({ events, page }, testInfo) => {
+test('Register for a free event', async ({ events, page }, testInfo) => {
   test.slow();
   const freeEvent = events.find((event) => {
     return (
@@ -25,23 +25,7 @@ test('Register for an event', async ({ events, page }, testInfo) => {
       })
     );
   });
-  const paidEvent = events.find((event) => {
-    return (
-      event.status === 'APPROVED' &&
-      event.unlisted === false &&
-      event.registrationOptions.some((option) => {
-        return (
-          DateTime.fromJSDate(option.openRegistrationTime).diffNow()
-            .milliseconds < 0 &&
-          option.isPaid &&
-          option.title === 'Participant registration' &&
-          DateTime.fromJSDate(option.closeRegistrationTime).diffNow()
-            .milliseconds > 0
-        );
-      })
-    );
-  });
-  if (!freeEvent || !paidEvent) {
+  if (!freeEvent) {
     throw new Error('No event found');
   }
 
@@ -83,7 +67,43 @@ test('Register for an event', async ({ events, page }, testInfo) => {
 
   await testInfo.attach('markdown', {
     body: `
+  ## Successful registration
+  You should now have a successful registration.
+  You can see this by additional information being available and also your ticket QR code.
+  This code is needed when attending the event, you will also receive it via email.`,
+  });
 
+  await takeScreenshot(
+    testInfo,
+    page.locator('section').filter({ hasText: 'Registration' }),
+    page,
+    'Event details after registration',
+  );
+});
+
+test('Register for a paid event @finance', async ({ events, page }, testInfo) => {
+  test.slow();
+  const paidEvent = events.find((event) => {
+    return (
+      event.status === 'APPROVED' &&
+      event.unlisted === false &&
+      event.registrationOptions.some((option) => {
+        return (
+          DateTime.fromJSDate(option.openRegistrationTime).diffNow()
+            .milliseconds < 0 &&
+          option.isPaid &&
+          option.title === 'Participant registration' &&
+          DateTime.fromJSDate(option.closeRegistrationTime).diffNow()
+            .milliseconds > 0
+        );
+      })
+    );
+  });
+  if (!paidEvent) throw new Error('No paid event found');
+
+  await page.goto('.');
+  await testInfo.attach('markdown', {
+    body: `
   ## Paid Events
   To register for a paid event, you have to pay the registration fee.`,
   });
@@ -105,12 +125,6 @@ test('Register for an event', async ({ events, page }, testInfo) => {
     page,
   );
   await page.getByRole('link', { name: 'Pay now' }).click();
-  await testInfo.attach('markdown', {
-    body: `
-  If you choose to continue, the app will redirect your to stripe to process the payment.
-  This way your payment information will never be stored in the app, but only in stripe.
-  You can select any of the payment methods available to you, note, that they may be different than in this guide.`,
-  });
   await page.waitForTimeout(2000);
   await takeScreenshot(testInfo, page.locator('main'), page);
   await fillTestCard(page);
@@ -118,19 +132,4 @@ test('Register for an event', async ({ events, page }, testInfo) => {
 
   await page.waitForURL('./events/*');
   await expect(page.getByText('You are registered')).toBeVisible();
-
-  await testInfo.attach('markdown', {
-    body: `
-  ## Successful registration
-  For both paid and free events you should now have a successful registration.
-  You can see this by additional information being available and also your ticket QR code.
-  This code is needed when attending the event, you will also receive it via email.`,
-  });
-
-  await takeScreenshot(
-    testInfo,
-    page.locator('section').filter({ hasText: 'Registration' }),
-    page,
-    'Event details after registration',
-  );
 });

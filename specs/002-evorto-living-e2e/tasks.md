@@ -1,6 +1,6 @@
 # Tasks: Evorto Living E2E Baseline
 
-Feature Directory: `/Users/hedde/code/evorto/specs/002-evorto-living-e2e`
+Feature Directory: `specs/002-evorto-living-e2e`
 Date: 2025-09-13
 Branch: `002-evorto-living-e2e`
 
@@ -17,6 +17,8 @@ Guiding Rules (Applied):
 - Same file modifications kept sequential (no [P])
 
 ## High-Level Dependency Blocks
+- Quick Run Order: A → B → C → D → E → F → G → H → I
+
 A. Inventory & Tagging
 B. Seeding & Isolation
 C. Storage State Refresh
@@ -63,9 +65,9 @@ T006. Implement `e2e/utils/seed.ts` helper
 - Output: `e2e/utils/seed.ts`
 
 T007. Integrate seed into global setup
-- Action: Modify `e2e/setup/database.setup.ts` (create if missing) to invoke `seedBaseline`, persist `{ runId, tenantId }` to `.e2e-runtime.json`.
+- Action: Extend existing `e2e/setup/database.setup.ts` to invoke `seedBaseline` after `setupDatabase(...)`; persist `{ runId, tenantId }` to `.e2e-runtime.json`.
 - Depends: T006
-- Output: Updated/created setup file + `.e2e-runtime.json` generation
+- Output: Updated setup file + `.e2e-runtime.json` generation
 
 T008. Tenant cookie fixture [P]
 - Action: Update `e2e/fixtures/base-test.ts` adding fixture to set `evorto-tenant` cookie from `.e2e-runtime.json`.
