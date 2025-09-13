@@ -19,6 +19,14 @@ export const taxRatesRouter = router({
     })
     .query(async ({ ctx }) => {
       return database.query.tenantStripeTaxRates.findMany({
+        columns: {
+          id: true,
+          stripeTaxRateId: true,
+          displayName: true,
+          percentage: true,
+          country: true,
+          state: true,
+        },
         orderBy: (table, { asc }) => [
           asc(table.displayName),
           asc(table.stripeTaxRateId),

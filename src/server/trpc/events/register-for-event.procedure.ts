@@ -156,8 +156,51 @@ export const registerForEventProcedure = authenticatedProcedure
           }
         }
 
+        // Check if discount reduced price to zero or negative - treat as free
+        if (effectivePrice <= 0) {
+          consola.info(`Effective price ${effectivePrice} <= 0 for registration ${userRegistration.id}, treating as free`);
+          
+          // Update registration status to confirmed (no payment needed)
+          await database
+            .update(schema.eventRegistrations)
+            .set({ status: 'CONFIRMED' })
+            .where(eq(schema.eventRegistrations.id, userRegistration.id));
+
+          // Update registration option spots
+          await database
+            .update(schema.eventRegistrationOptions)
+            .set({
+              confirmedSpots: registrationOption.confirmedSpots + 1,
+              reservedSpots: Math.max(0, registrationOption.reservedSpots - 1),
+            })
+            .where(eq(schema.eventRegistrationOptions.id, registrationOption.id));
+
+          return { userRegistration: { ...userRegistration, status: 'CONFIRMED' as const } };
+        }
+
         const applicationFee = Math.round(effectivePrice * 0.035);
         const selectedTaxRateId = registrationOption.stripeTaxRateId || null;
+
+        // Log warning if tax rate exists but may be inactive
+        if (selectedTaxRateId) {
+          const taxRate = await database.query.tenantStripeTaxRates.findFirst({
+            where: and(
+              eq(schema.tenantStripeTaxRates.tenantId, ctx.tenant.id),
+              eq(schema.tenantStripeTaxRates.stripeTaxRateId, selectedTaxRateId)
+            ),
+          });
+
+          if (!taxRate || !taxRate.active || !taxRate.inclusive) {
+            consola.warn(`WARN_INACTIVE_TAX_RATE: Tax rate ${selectedTaxRateId} is not active or compatible for registration ${userRegistration.id}`, {
+              taxRateId: selectedTaxRateId,
+              registrationId: userRegistration.id,
+              tenantId: ctx.tenant.id,
+              active: taxRate?.active,
+              inclusive: taxRate?.inclusive,
+            });
+            // Continue with checkout but log the warning
+          }
+        }
 
         const sessionCreateParameters: Stripe.Checkout.SessionCreateParams = {
           cancel_url: `${eventUrl}?registrationStatus=cancel`,
