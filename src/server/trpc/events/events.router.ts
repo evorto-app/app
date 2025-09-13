@@ -41,6 +41,9 @@ export const eventRouter = router({
               registeredDescription: Schema.NullOr(Schema.NonEmptyString),
               registrationMode: Schema.Literal('fcfs', 'random', 'application'),
               spots: Schema.Number.pipe(Schema.nonNegative()),
+              stripeTaxRateId: Schema.optional(
+                Schema.NullOr(Schema.NonEmptyString),
+              ),
               title: Schema.NonEmptyString,
             }),
           ),
@@ -62,11 +65,11 @@ export const eventRouter = router({
           description: input.description,
           end: input.end,
           icon: input.icon,
-          unlisted: templateDefaults?.unlisted ?? false,
           start: input.start,
           templateId: input.templateId,
           tenantId: ctx.tenant.id,
           title: input.title,
+          unlisted: templateDefaults?.unlisted ?? false,
         })
         .returning()
         .then((result) => result[0]);
@@ -75,21 +78,77 @@ export const eventRouter = router({
         throw new Error('Failed to create event');
       }
 
-      await database.insert(schema.eventRegistrationOptions).values(
-        input.registrationOptions.map((option) => ({
-          closeRegistrationTime: option.closeRegistrationTime,
-          description: option.description,
-          eventId: event.id,
-          isPaid: option.isPaid,
-          openRegistrationTime: option.openRegistrationTime,
-          organizingRegistration: option.organizingRegistration,
-          price: option.price,
-          registeredDescription: option.registeredDescription,
-          registrationMode: option.registrationMode,
-          spots: option.spots,
-          title: option.title,
-        })),
-      );
+      const createdOptions = await database
+        .insert(schema.eventRegistrationOptions)
+        .values(
+          input.registrationOptions.map((option) => ({
+            closeRegistrationTime: option.closeRegistrationTime,
+            description: option.description,
+            eventId: event.id,
+            isPaid: option.isPaid,
+            openRegistrationTime: option.openRegistrationTime,
+            organizingRegistration: option.organizingRegistration,
+            price: option.price,
+            registeredDescription: option.registeredDescription,
+            registrationMode: option.registrationMode,
+            spots: option.spots,
+            stripeTaxRateId: option.stripeTaxRateId ?? null,
+            title: option.title,
+          })),
+        )
+        .returning();
+
+      // Copy discounts from template registration options to event options
+      const templateOptions =
+        await database.query.templateRegistrationOptions.findMany({
+          where: { templateId: input.templateId },
+        });
+      if (templateOptions.length > 0) {
+        const templateDiscounts = await database
+          .select()
+          .from(schema.templateRegistrationOptionDiscounts)
+          .where(
+            inArray(
+              schema.templateRegistrationOptionDiscounts.registrationOptionId,
+              templateOptions.map((t) => t.id),
+            ),
+          );
+        if (templateDiscounts.length > 0) {
+          const key = (title: string, organizing: boolean) =>
+            `${title}__${organizing ? '1' : '0'}`;
+          const tMap = new Map(
+            templateOptions.map((t) => [
+              key(t.title, t.organizingRegistration),
+              t,
+            ]),
+          );
+          const inserts: {
+            discountedPrice: number;
+            discountType: any;
+            registrationOptionId: string;
+          }[] = [];
+          for (const event_ of createdOptions) {
+            const t = tMap.get(
+              key(event_.title, event_.organizingRegistration),
+            );
+            if (!t) continue;
+            for (const d of templateDiscounts) {
+              if (d.registrationOptionId === t.id) {
+                inserts.push({
+                  discountedPrice: d.discountedPrice,
+                  discountType: d.discountType as any,
+                  registrationOptionId: event_.id,
+                });
+              }
+            }
+          }
+          if (inserts.length > 0) {
+            await database
+              .insert(schema.eventRegistrationOptionDiscounts)
+              .values(inserts as any);
+          }
+        }
+      }
 
       return event;
     }),

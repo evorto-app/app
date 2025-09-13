@@ -76,7 +76,6 @@ import { UpdateVisibilityDialogComponent } from '../update-visibility-dialog/upd
 export class EventDetailsComponent {
   public eventId = input.required<string>();
   private trpc = injectTRPC();
-  private queryClient = inject(QueryClient);
   protected readonly eventQuery = injectQuery(() =>
     this.trpc.events.findOne.queryOptions({ id: this.eventId() }),
   );
@@ -116,6 +115,22 @@ export class EventDetailsComponent {
     const canSeeDrafts = this.permissions.hasPermission('events:seeDrafts')();
     return canReview || canEdit || canSeeDrafts;
   });
+  protected readonly myCardsQuery = injectQuery(() =>
+    this.trpc.discounts.getMyCards.queryOptions(),
+  );
+  protected readonly cardExpiresBeforeEvent = computed(() => {
+    const event = this.eventQuery.data();
+    const cards = this.myCardsQuery.data();
+    if (!event || !cards) return false;
+    const verified = cards.filter((c) => c.status === 'verified');
+    if (verified.length === 0) return false;
+    const latestValidTo = verified
+      .map((c) => c.validTo)
+      .filter((d): d is Date => !!d)
+      .sort((a, b) => b.getTime() - a.getTime())[0];
+    if (!latestValidTo) return false;
+    return latestValidTo <= event.start;
+  });
 
   protected readonly eventIconColor = computed(() => {
     const event = this.eventQuery.data();
@@ -131,6 +146,7 @@ export class EventDetailsComponent {
       eventId: this.eventId(),
     }),
   );
+  private queryClient = inject(QueryClient);
   protected readonly updateListingMutation = injectMutation(() =>
     this.trpc.events.updateListing.mutationOptions({
       onSuccess: async () => {

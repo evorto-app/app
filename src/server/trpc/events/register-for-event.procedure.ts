@@ -1,3 +1,5 @@
+import type Stripe from 'stripe';
+
 import { TRPCError } from '@trpc/server';
 import consola from 'consola';
 import { and, eq } from 'drizzle-orm';
@@ -43,6 +45,7 @@ export const registerForEventProcedure = authenticatedProcedure
           with: {
             event: {
               columns: {
+                start: true,
                 title: true,
               },
             },
@@ -111,45 +114,95 @@ export const registerForEventProcedure = authenticatedProcedure
             message: 'Stripe account not found',
           });
         }
-        const applicationFee = Math.round(registrationOption.price * 0.035);
-        const session = await stripe.checkout.sessions.create(
-          {
-            cancel_url: `${eventUrl}?registrationStatus=cancel`,
-            customer_email: ctx.user.email,
-            expires_at: Math.ceil(
-              DateTime.local().plus({ minutes: 30 }).toSeconds(),
-            ),
-            line_items: [
-              {
-                price_data: {
-                  currency: ctx.tenant.currency,
-                  product_data: {
-                    // TODO: Fix once drizzle fixes this type
-                    name: `Registration fee for ${registrationOption.event!.title}`,
-                  },
-                  unit_amount: registrationOption.price,
-                },
-                quantity: 1,
-              },
-            ],
-            metadata: {
-              registrationId: userRegistration.id,
-              tenantId: ctx.tenant.id,
-              transactionId,
-            },
-            mode: 'payment',
-            payment_intent_data: {
-              application_fee_amount: applicationFee,
-            },
-            success_url: `${eventUrl}?registrationStatus=success`,
+        // Determine effective price (apply best discount if any)
+        let effectivePrice = registrationOption.price;
+        // Find verified user cards for tenant
+        const cards = await database.query.userDiscountCards.findMany({
+          where: {
+            status: 'verified',
+            tenantId: ctx.tenant.id,
+            userId: ctx.user.id,
           },
+        });
+        if (cards.length > 0) {
+          // Only apply discounts for providers enabled on this tenant
+          const tenant = await database.query.tenants.findFirst({
+            where: { id: ctx.tenant.id },
+          });
+          const providerConfig = (tenant as any)?.discountProviders ?? {};
+          const enabledTypes = new Set(
+            Object.entries(providerConfig)
+              .filter(([, v]) => (v as any)?.status === 'enabled')
+              .map(([k]) => k as string),
+          );
+          // Fetch event-level discounts for this registration option
+          const discounts =
+            await database.query.eventRegistrationOptionDiscounts.findMany({
+              where: { registrationOptionId: registrationOption.id },
+            });
+          const eventStart = registrationOption.event?.start ?? new Date();
+          const eligible = discounts.filter((d) =>
+            cards.some(
+              (c) =>
+                c.type === d.discountType &&
+                enabledTypes.has(c.type) &&
+                (!c.validTo || c.validTo > eventStart),
+            ),
+          );
+          if (eligible.length > 0) {
+            effectivePrice = Math.min(
+              ...eligible.map((e) => e.discountedPrice),
+            );
+          }
+        }
+
+        const applicationFee = Math.round(effectivePrice * 0.035);
+        const selectedTaxRateId = registrationOption.stripeTaxRateId || null;
+
+        const sessionCreateParameters: Stripe.Checkout.SessionCreateParams = {
+          cancel_url: `${eventUrl}?registrationStatus=cancel`,
+          customer_email: ctx.user.email,
+          expires_at: Math.ceil(
+            DateTime.local().plus({ minutes: 30 }).toSeconds(),
+          ),
+          line_items: [
+            {
+              price_data: {
+                currency: ctx.tenant.currency,
+                product_data: {
+                  // TODO: Fix once drizzle fixes this type
+                  name: `Registration fee for ${registrationOption.event!.title}`,
+                },
+                unit_amount: effectivePrice,
+              },
+              // Apply tax rate if configured/selected
+              ...(selectedTaxRateId
+                ? { tax_rates: [selectedTaxRateId] as string[] }
+                : {}),
+              quantity: 1,
+            },
+          ],
+          metadata: {
+            registrationId: userRegistration.id,
+            tenantId: ctx.tenant.id,
+            transactionId,
+          },
+          mode: 'payment',
+          payment_intent_data: {
+            application_fee_amount: applicationFee,
+          },
+          success_url: `${eventUrl}?registrationStatus=success`,
+        };
+
+        const session = await stripe.checkout.sessions.create(
+          sessionCreateParameters,
           { stripeAccount },
         );
 
         const transactionResponse = await database
           .insert(schema.transactions)
           .values({
-            amount: registrationOption.price,
+            amount: effectivePrice,
             // TODO: Fix once drizzle fixes this type
             comment: `Registration for event ${registrationOption.event!.title} ${registrationOption.eventId}`,
             currency: ctx.tenant.currency,

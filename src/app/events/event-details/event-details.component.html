@@ -46,6 +46,11 @@
   <div
     class="bg-surface-container-high text-on-surface-container-high flex items-center justify-between gap-4 p-2"
   >
+    @if (eventQuery.isSuccess() && cardExpiresBeforeEvent()) {
+      <div class="bg-warn-container text-on-warn-container rounded px-3 py-2 body-small">
+        Your discount card expires before the event starts. Discounted prices may not apply.
+      </div>
+    }
     @if (eventQuery.isSuccess()) {
       @if (canOrganize()) {
         <a routerLink="organize" matButton="filled">Organize this event</a>

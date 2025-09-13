@@ -1,4 +1,5 @@
 import { NeonDatabase } from 'drizzle-orm/neon-serverless';
+import { eq } from 'drizzle-orm';
 
 import { addEvents } from '../../helpers/add-events';
 import {
@@ -13,6 +14,7 @@ import { createTenant } from '../../helpers/create-tenant';
 import { usersToAuthenticate } from '../../helpers/user-data';
 import { createId } from '../../src/db/create-id';
 import { relations } from '../../src/db/relations';
+import * as schema from '../../src/db/schema';
 import { test as base } from './base-test';
 
 interface BaseFixtures {
@@ -60,6 +62,7 @@ interface BaseFixtures {
     id: string;
     name: string;
   };
+  discounts?: void;
 }
 
 export const test = base.extend<BaseFixtures>({
@@ -150,6 +153,38 @@ export const test = base.extend<BaseFixtures>({
         tenant,
       );
       await use(roles);
+    },
+    { auto: true },
+  ],
+  // Seed discount provider and a verified ESN card for the regular user
+  discounts: [
+    async ({ database, tenant }, use) => {
+      // Enable ESN provider for tenant (stored on tenant model)
+      const currentTenant = await database.query.tenants.findFirst({
+        where: { id: tenant.id },
+      });
+      const current = ((currentTenant as any)?.discountProviders ?? {}) as Record<
+        string,
+        { status: 'enabled' | 'disabled'; config: unknown }
+      >;
+      const updated = { ...current, esnCard: { status: 'enabled', config: {} } };
+      await database
+        .update(schema.tenants)
+        .set({ discountProviders: updated as any })
+        .where(eq(schema.tenants.id, tenant.id));
+      const regularUser = usersToAuthenticate.find((u) => u.roles === 'user');
+      if (regularUser) {
+        await database.insert(schema.userDiscountCards).values({
+          identifier: 'TEST-ESN-0001',
+          status: 'verified',
+          tenantId: tenant.id,
+          type: 'esnCard',
+          userId: regularUser.id,
+          validFrom: new Date(),
+          validTo: new Date(Date.now() + 1000 * 60 * 60 * 24 * 180), // ~6 months
+        });
+      }
+      await use(undefined);
     },
     { auto: true },
   ],

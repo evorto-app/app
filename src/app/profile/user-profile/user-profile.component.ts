@@ -4,8 +4,10 @@ import {
   Component,
   inject,
   signal,
+  computed,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -36,6 +38,7 @@ import { injectTRPC } from '../../core/trpc-client';
     MatTabsModule,
     MatFormFieldModule,
     MatInputModule,
+    ReactiveFormsModule,
     FormsModule,
     MatCardModule,
     DatePipe,
@@ -59,32 +62,96 @@ import { injectTRPC } from '../../core/trpc-client';
   templateUrl: './user-profile.component.html',
 })
 export class UserProfileComponent {
+  private readonly notifications = inject(NotificationService);
+  private readonly queryClient = inject(QueryClient);
+  private readonly trpc = injectTRPC();
+  protected readonly discountProvidersQuery = injectQuery(() =>
+    this.trpc.discounts.getTenantProviders.queryOptions(),
+  );
+  protected readonly esnEnabled = computed(() => {
+    const providers = this.discountProvidersQuery.data();
+    if (!providers) return false;
+    return providers.find((p) => p.type === 'esnCard')?.status === 'enabled';
+  });
+  protected readonly deleteCardMutation = injectMutation(() =>
+    this.trpc.discounts.deleteMyCard.mutationOptions({
+      onSuccess: async () => {
+        await this.queryClient.invalidateQueries({
+          queryKey: this.trpc.discounts.getMyCards.pathKey(),
+        });
+        this.notifications.showSuccess('ESN card removed');
+      },
+    }),
+  );
   protected displayName = signal('');
+
+  protected readonly esnCardControl = new FormControl<string>('', {
+    nonNullable: true,
+    validators: [Validators.pattern(/^[A-Za-z0-9]{8,16}$/)],
+  });
   protected readonly faCalendarDays = faCalendarDays;
+
   protected readonly faCog = faCog;
   protected readonly faPencil = faPencil;
+
   protected readonly faRightFromBracket = faRightFromBracket;
 
   protected readonly faUser = faUser;
   protected isEditing = signal(false);
+  // Discounts
+  protected readonly myCardsQuery = injectQuery(() =>
+    this.trpc.discounts.getMyCards.queryOptions(),
+  );
 
-  private readonly trpc = injectTRPC();
+  protected readonly refreshCardMutation = injectMutation(() =>
+    this.trpc.discounts.refreshMyCard.mutationOptions({
+      onSuccess: async () => {
+        await this.queryClient.invalidateQueries({
+          queryKey: this.trpc.discounts.getMyCards.pathKey(),
+        });
+        this.notifications.showSuccess('ESN card refreshed');
+      },
+    }),
+  );
   protected readonly updateProfileMutation = injectMutation(() =>
     this.trpc.users.updateProfile.mutationOptions(),
   );
-
+  protected readonly upsertCardMutation = injectMutation(() =>
+    this.trpc.discounts.upsertMyCard.mutationOptions({
+      onSuccess: async () => {
+        await this.queryClient.invalidateQueries({
+          queryKey: this.trpc.discounts.getMyCards.pathKey(),
+        });
+        this.notifications.showSuccess('ESN card saved');
+      },
+    }),
+  );
   protected readonly userEventsQuery = injectQuery(() =>
     this.trpc.users.events.findMany.queryOptions(),
   );
-
   protected readonly userQuery = injectQuery(() =>
     this.trpc.users.self.queryOptions(),
   );
-  private readonly notifications = inject(NotificationService);
-  private readonly queryClient = inject(QueryClient);
 
   protected cancelEditing(): void {
     this.isEditing.set(false);
+  }
+  protected deleteEsnCard() {
+    this.deleteCardMutation.mutate({ type: 'esnCard' });
+  }
+  protected refreshEsnCard() {
+    this.refreshCardMutation.mutate({ type: 'esnCard' });
+  }
+
+  protected saveEsnCard() {
+    if (this.esnCardControl.invalid) {
+      this.notifications.showError('Please enter a valid ESN card number');
+      return;
+    }
+    this.upsertCardMutation.mutate({
+      identifier: this.esnCardControl.value,
+      type: 'esnCard',
+    });
   }
 
   protected saveProfile(): void {

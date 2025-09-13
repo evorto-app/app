@@ -6,7 +6,7 @@ import {
   input,
   output,
 } from '@angular/core';
-import { NonNullableFormBuilder, ReactiveFormsModule } from '@angular/forms';
+import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
@@ -35,6 +35,7 @@ export interface TemplateFormData {
     registrationMode: RegistrationMode;
     roleIds: string[];
     spots: number;
+    stripeTaxRateId: null | string;
   };
   participantRegistration: {
     closeRegistrationOffset: number;
@@ -44,6 +45,7 @@ export interface TemplateFormData {
     registrationMode: RegistrationMode;
     roleIds: string[];
     spots: number;
+    stripeTaxRateId: null | string;
   };
   title: string;
 }
@@ -80,6 +82,9 @@ export class TemplateFormComponent {
   ];
 
   private trpc = injectTRPC();
+  protected readonly taxRatesQuery = injectQuery(() =>
+    this.trpc.taxRates.listActive.queryOptions(),
+  );
   protected readonly templateCategoriesQuery = injectQuery(() =>
     this.trpc.templateCategories.findMany.queryOptions(),
   );
@@ -102,6 +107,7 @@ export class TemplateFormComponent {
       registrationMode: this.formBuilder.control<RegistrationMode>('fcfs'),
       roleIds: this.formBuilder.control<string[]>([]),
       spots: [1],
+      stripeTaxRateId: this.formBuilder.control<null | string>(null),
     }),
     participantRegistration: this.formBuilder.group({
       closeRegistrationOffset: [1],
@@ -111,6 +117,7 @@ export class TemplateFormComponent {
       registrationMode: this.formBuilder.control<RegistrationMode>('fcfs'),
       roleIds: this.formBuilder.control<string[]>([]),
       spots: [20],
+      stripeTaxRateId: this.formBuilder.control<null | string>(null),
     }),
     title: [''],
   });
@@ -132,6 +139,30 @@ export class TemplateFormComponent {
           },
           { emitEvent: true },
         );
+      }
+    });
+
+    // Always require, and toggle enable/disable based on isPaid
+    const orgTax = this.templateForm.controls.organizerRegistration.controls.stripeTaxRateId;
+    const partTax = this.templateForm.controls.participantRegistration.controls.stripeTaxRateId;
+    orgTax.addValidators([Validators.required]);
+    partTax.addValidators([Validators.required]);
+
+    effect(() => {
+      const orgPaid = this.templateForm.controls.organizerRegistration.controls.isPaid.value;
+      if (orgPaid) {
+        orgTax.enable({ emitEvent: false });
+      } else {
+        orgTax.disable({ emitEvent: false });
+      }
+    });
+
+    effect(() => {
+      const partPaid = this.templateForm.controls.participantRegistration.controls.isPaid.value;
+      if (partPaid) {
+        partTax.enable({ emitEvent: false });
+      } else {
+        partTax.disable({ emitEvent: false });
       }
     });
   }
