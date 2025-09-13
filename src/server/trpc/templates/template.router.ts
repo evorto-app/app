@@ -9,6 +9,7 @@ import {
 } from '../../../db/schema';
 import { computeIconSourceColor } from '../../utils/icon-color';
 import { validateTaxRate } from '../../utils/validate-tax-rate';
+import { TaxRateLogger, createLogContext } from '../../utils/tax-rate-logging';
 import { authenticatedProcedure, router } from '../trpc-server';
 
 const registrationOptionSchema = Schema.Struct({
