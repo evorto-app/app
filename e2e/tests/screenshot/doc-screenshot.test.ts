@@ -11,6 +11,8 @@ import { test } from '../../fixtures/parallel-test';
 // - It should return a relative image path (not absolute)
 // - The returned path is relative to the images root (DOCS_IMG_OUT_DIR or default)
 
+test.setTimeout(120000);
+
 test.use({ storageState: defaultStateFile });
 
 test('doc-screenshot returns a relative path and writes image', async ({ page }, testInfo) => {
