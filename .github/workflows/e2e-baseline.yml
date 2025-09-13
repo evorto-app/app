@@ -1,0 +1,85 @@
+name: E2E Baseline
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, develop, "**/002-evorto-living-e2e" ]
+  pull_request:
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: Playwright E2E (functional + docs)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      # Ensure Docker build can access the FontAwesome private registry during image build
+      FONT_AWESOME_TOKEN: ${{ secrets.FONT_AWESOME_TOKEN }}
+      # Make Playwright run in CI mode
+      CI: true
+
+    steps:
+      - name: Checkout repository
+      # Use sparse-checkout false to ensure .env and Docker context are available
+        uses: actions/checkout@v4
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install Yarn 4.x
+        run: corepack prepare yarn@4 --activate
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'yarn'
+
+      - name: Configure FontAwesome auth for Yarn
+        run: yarn config set npmScopes.fortawesome.npmAuthToken ${{ secrets.FONT_AWESOME_TOKEN }} --home
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+
+      # Functional tests (keep scope minimal for CI speed). The Playwright webServer will
+      # start Docker services via `yarn docker:start-test` from playwright.config.ts.
+      - name: Run functional tests (chromium only)
+        run: |
+          yarn e2e --project=local-chrome
+
+      # Documentation tests: exclude @finance tagged journeys and force the documentation reporter
+      # even on CI by overriding reporters via CLI.
+      - name: Run documentation tests (exclude @finance)
+        env:
+          # Allow overriding output directories if desired in future; defaults are fine otherwise.
+          DOCS_OUT_DIR: test-results/docs
+          DOCS_IMG_OUT_DIR: test-results/docs/images
+        run: |
+          yarn playwright test --project=docs --grep-invert "@finance" \
+            --reporter=github,dot,./e2e/reporters/documentation-reporter.ts
+
+      - name: Upload Playwright test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-test-results
+          path: |
+            test-results/**
+            playwright-report/**
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload generated docs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-docs
+          path: test-results/docs/**
+          if-no-files-found: ignore
+          retention-days: 14
