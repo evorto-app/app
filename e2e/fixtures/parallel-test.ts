@@ -11,8 +11,10 @@ import { usersToAuthenticate } from '../../helpers/user-data';
 import { createId } from '../../src/db/create-id';
 import * as schema from '../../src/db/schema';
 import { test as base } from './base-test';
+import { applyPermissionDiff, PermissionDiff } from '../utils/permissions-override';
 
 interface BaseFixtures {
+  permissionOverride: (diff: PermissionDiff) => Promise<void>;
   discounts?: void;
   events: {
     id: string;
@@ -212,6 +214,11 @@ export const test = base.extend<BaseFixtures>({
       type: 'tenant',
     });
     await use(tenant);
+  },
+  permissionOverride: async ({ database, tenant }, use) => {
+    await use(async (diff: PermissionDiff) => {
+      await applyPermissionDiff(database as any, tenant, diff);
+    });
   },
 });
 export { expect } from '@playwright/test';

@@ -1,3 +1,4 @@
+import { randEmail, randFirstName, randLastName } from '@ngneat/falso';
 import consola from 'consola';
 import { NeonDatabase } from 'drizzle-orm/neon-serverless';
 
@@ -12,6 +13,7 @@ import { addTemplateCategories } from '../../helpers/add-template-categories';
 import { addTemplates } from '../../helpers/add-templates';
 import { createTenant } from '../../helpers/create-tenant';
 import { usersToAuthenticate } from '../../helpers/user-data';
+import { users } from '../../src/db/schema';
 
 export interface SeedOptions {
   runId: string;
@@ -42,6 +44,23 @@ export async function seedBaseline(
   database: NeonDatabase<Record<string, never>, typeof relations>,
   { runId, domain }: SeedOptions,
 ): Promise<SeedResult> {
+  // Ensure base users exist BEFORE creating tenant (createTenant links users to tenant)
+  await database
+    .insert(users)
+    .values(
+      usersToAuthenticate
+        .filter((data) => data.addToDb)
+        .map((data) => ({
+          auth0Id: data.authId,
+          communicationEmail: randEmail(),
+          email: data.email,
+          firstName: randFirstName(),
+          id: data.id,
+          lastName: randLastName(),
+        })),
+    )
+    .execute();
+
   const tenant = await createTenant(database, {
     domain: domain ?? `e2e-${runId}`,
     name: `E2E ${runId}`,
@@ -115,4 +134,3 @@ export async function seedBaseline(
     })),
   } satisfies SeedResult;
 }
-
