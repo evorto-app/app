@@ -34,6 +34,13 @@
   - Utilities: Provide explicit, correct generic types; avoid implicit `any` in function params and returns.
 - Review PRs for any introduction of `any`, `unknown` without narrowing, or unsafe `as` casts and replace with proper types.
 
+### Type Derivation (Prefer Inference)
+- Prefer derived/inferred types over hand-written ones.
+  - Source of truth is the database schema (Drizzle). Derive types from schema and pass them through to routers and clients.
+  - Keep object shapes single-sourced. Avoid duplicating domain types in multiple layers.
+  - Use Effect `Schema` for validation, but leverage its inferred TypeScript types whenever possible.
+- Only specify types explicitly when inference is insufficient or for well-defined external/public boundaries (e.g., API contracts).
+
 ### Reactive Forms (Non‑Nullable)
 - Always use Angular’s reactive forms in the non‑nullable variant.
   - Construct forms via `NonNullableFormBuilder`.
