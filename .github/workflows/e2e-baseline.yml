@@ -55,7 +55,6 @@ jobs:
           echo "CLIENT_ID=${{ secrets.CLIENT_ID }}";
           echo "CLIENT_SECRET=${{ secrets.CLIENT_SECRET }}";
           echo "DATABASE_URL=${{ secrets.DATABASE_URL }}";
-          echo "FONT_AWESOME_TOKEN=${{ secrets.FONT_AWESOME_TOKEN }}";
           echo "NEON_API_KEY=${{ secrets.NEON_API_KEY }}";
           echo "STRIPE_API_KEY=${{ secrets.STRIPE_API_KEY }}";
           } > .env

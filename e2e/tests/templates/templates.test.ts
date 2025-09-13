@@ -11,7 +11,7 @@ test('create template in empty category', async ({
 }) => {
   const category = templateCategories[0];
   await page.goto('.');
-  await page.getByRole('link', { name: 'Event templates' }).click();
+  await page.getByRole('link', { name: 'Templates' }).click();
   await expect(page).toHaveURL(/\/templates/);
   await page.getByRole('heading', { name: category.title }).locator('..').getByRole('link', { name: 'Add template to this category' }).click();
   await expect(page).toHaveURL(`/templates/create/${category.id}`);
@@ -21,7 +21,7 @@ test('create template in empty category', async ({
 test('create a new template', async ({ page, templateCategories }) => {
   const category = templateCategories[0];
   await page.goto('.');
-  await page.getByRole('link', { name: 'Event templates' }).click();
+  await page.getByRole('link', { name: 'Templates' }).click();
   await expect(page).toHaveURL(/\/templates/);
   await page.getByRole('link', { name: 'Create template' }).click();
   await expect(page).toHaveURL(`/templates/create`);
@@ -39,7 +39,7 @@ test('create a new template', async ({ page, templateCategories }) => {
 test('view a template', async ({ page, templates }) => {
   const template = templates[0];
   await page.goto('.');
-  await page.getByRole('link', { name: 'Event templates' }).click();
+  await page.getByRole('link', { name: 'Templates' }).click();
   await expect(page).toHaveURL(/\/templates/);
   await page.getByRole('link', { name: template.title }).click();
   await expect(page).toHaveURL(`/templates/${template.id}`);

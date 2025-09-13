@@ -109,5 +109,5 @@ export default defineConfig({
   ...(webServer ? { webServer } : {}),
 
   /* Opt out of parallel tests on CI. */
-  ...(process.env['CI'] ? { workers: 1 } : {}),
+  // ...(process.env['CI'] ? { workers: 1 } : {}),
 });

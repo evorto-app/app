@@ -21,11 +21,11 @@ for (const userData of usersToAuthenticate) {
       tenantDomain: runtime.tenantDomain,
     });
     if (fresh) return;
-    await page.goto('./login');
+    await page.goto('/login', { waitUntil: 'domcontentloaded' });
     await page.getByRole('textbox', { name: 'Email address' }).fill(userData.email);
     await page.getByRole('textbox', { name: 'Password' }).fill(userData.password);
     await page.getByRole('button', { exact: true, name: 'Continue' }).click();
-    await page.waitForURL('./events');
+    await page.waitForURL(/\/events(\?.*)?$/);
     // Save state with correct tenant cookie if present
     if (runtime.tenantDomain) {
       await page.context().addCookies([

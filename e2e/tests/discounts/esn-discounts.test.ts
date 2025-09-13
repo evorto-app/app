@@ -15,7 +15,7 @@ test('applies ESN discount to paid registrations @finance', async ({ database, e
   const option = paidEvent.registrationOptions.find((o) => o.isPaid && o.title === 'Participant registration')!;
   const expectedAmount = Math.max(0, option.price - 500); // seeded discount is price - 500
 
-  await page.goto('./events');
+  await page.goto('/events', { waitUntil: 'domcontentloaded' });
   await page.getByRole('link', { name: paidEvent.title }).click();
   await page.getByRole('button', { name: 'Pay' }).click();
 

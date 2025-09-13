@@ -7,7 +7,7 @@ test.use({ storageState: defaultStateFile });
 
 test('create template category', async ({ isMobile, page }) => {
   await page.goto('.');
-  await page.getByRole('link', { name: 'Event templates' }).click();
+  await page.getByRole('link', { name: 'Templates' }).click();
   await expect(page).toHaveURL(/\/templates/);
   if (isMobile) {
     await page.getByRole('button', { name: 'Menu' }).click();
@@ -33,7 +33,7 @@ test('edit template category', async ({
   templateCategories,
 }) => {
   await page.goto('.');
-  await page.getByRole('link', { name: 'Event templates' }).click();
+  await page.getByRole('link', { name: 'Templates' }).click();
   await expect(page).toHaveURL(/\/templates/);
   if (isMobile) {
     await page.getByRole('button', { name: 'Menu' }).click();

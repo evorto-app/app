@@ -8,7 +8,7 @@ test.use({ storageState: defaultStateFile });
 test('create event form template', async ({ page, templates }) => {
   const template = templates[0];
   await page.goto('.');
-  await page.getByRole('link', { name: 'Event templates' }).click();
+  await page.getByRole('link', { name: 'Templates' }).click();
   await expect(page).toHaveURL(/\/templates/);
   await page.getByRole('link', { name: template.title }).click();
   await page.getByRole('link', { name: 'Create event' }).click();
