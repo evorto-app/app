@@ -56,6 +56,11 @@ Scope: Spec‑Kit templates and commands already enforce process gates (spec/pla
 ### Article IX: Integration‑First Testing
 
 - Prefer realistic environments: actual DBs/services over mocks. Validate SSR and API paths end‑to‑end.
+- Permissions in tests:
+  - Every unit, integration, and E2E suite explicitly annotates permissions in scope (requires/denies/dependencies) for the actor(s) under test.
+  - Effectiveness must be tested: authorized paths succeed; unauthorized paths are denied with the correct, typed failure and no side effects; include minimal‑required vs. insufficient permission boundaries.
+  - Verify assignment correctness and useful granularity (avoid unnecessary wildcards), and enforce declared dependencies.
+  - Reference: see `SDD.md` for the general SDD approach.
 
 ## Additional Constraints & Stack Standards
 
@@ -115,8 +120,10 @@ Scope: Spec‑Kit templates and commands already enforce process gates (spec/pla
 - Complexity must be justified with concrete constraints; speculative features are prohibited.
 - Use the `.specify/templates/*` files, follow the execution flow in `/plan`, and keep documentation living and in sync with code.
 
-**Version**: 1.0.0 | **Ratified**: 2025-09-13 | **Last Amended**: 2025-09-13
+**Version**: 1.0.1 | **Ratified**: 2025-09-13 | **Last Amended**: 2025-09-13
 
 ### Amendment History
 
+- 1.0.1 (2025-09-13): Added explicit permission‑testing requirements (annotation, effectiveness, assignment granularity) with SDD reference under Article IX.
 - 1.0.0 (2025-09-13): Initial ratification; E2E‑first TDD; CLIs optional; documentation tests included; Angular modern patterns enforced; end‑to‑end type safety mandated.
+
