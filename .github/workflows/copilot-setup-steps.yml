@@ -44,7 +44,7 @@ jobs:
         run: yarn config set npmScopes.fortawesome.npmAuthToken ${{ secrets.FONT_AWESOME_TOKEN }} --home
 
       - name: Install dependencies
-        run: yarn install
+        run: yarn install --immutable
 
       - name: Create .env from secrets
         run: |

@@ -45,7 +45,7 @@ jobs:
         run: yarn install --immutable
 
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps
+        run: yarn playwright install --with-deps
 
       - name: Create .env from secrets
         run: |
