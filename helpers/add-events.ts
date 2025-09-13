@@ -1,4 +1,5 @@
 import { InferInsertModel } from 'drizzle-orm';
+import consola from 'consola';
 import { NeonDatabase } from 'drizzle-orm/neon-serverless';
 import { DateTime } from 'luxon';
 
@@ -72,33 +73,39 @@ export const addEvents = async (
     (role) => role.defaultOrganizerRole,
   );
 
-  const hikeEvents = createEvents(
+  const hikeEvents = await createEvents(
+    database,
     hikeTemplates,
     defaultUserRoles,
     defaultOrganizerRoles,
   );
-  const cityToursEvents = createEvents(
+  const cityToursEvents = await createEvents(
+    database,
     cityToursTemplates,
     defaultUserRoles,
     defaultOrganizerRoles,
   );
-  const cityTripsEvents = createEvents(
+  const cityTripsEvents = await createEvents(
+    database,
     cityTripsTemplates,
     defaultUserRoles,
     defaultOrganizerRoles,
   );
-  const sportsEvents = createEvents(
+  const sportsEvents = await createEvents(
+    database,
     sportsTemplates,
     defaultUserRoles,
     defaultOrganizerRoles,
     true,
   );
-  const weekendTripsEvents = createEvents(
+  const weekendTripsEvents = await createEvents(
+    database,
     weekendTripsTemplates,
     defaultUserRoles,
     defaultOrganizerRoles,
   );
-  const exampleConfigsEvents = createEvents(
+  const exampleConfigsEvents = await createEvents(
+    database,
     exampleConfigsTemplates,
     defaultUserRoles,
     defaultOrganizerRoles,
@@ -122,10 +129,34 @@ export const addEvents = async (
     ...exampleConfigsEvents.registrationOptions,
   ];
 
+  consola.start(`Inserting ${allEvents.length} events`);
+  const t0 = Date.now();
   await database.insert(schema.eventInstances).values(allEvents);
+  consola.success(`Events inserted in ${Date.now() - t0}ms`);
   await database
     .insert(schema.eventRegistrationOptions)
     .values(allRegistrationOptions);
+  consola.success(`Inserted ${allRegistrationOptions.length} event registration options`);
+
+  // Seed discounts for paid participant registration options (ESN card)
+  try {
+    const paidOptions = allRegistrationOptions.filter(
+      (opt) => opt.isPaid && !opt.organizingRegistration,
+    );
+    if (paidOptions.length > 0) {
+      await database
+        .insert(schema.eventRegistrationOptionDiscounts)
+        .values(
+          paidOptions.map((opt) => ({
+            discountedPrice: Math.max(0, (opt.price ?? 0) - 500), // simple discount of 5€
+            discountType: 'esnCard' as const,
+            registrationOptionId: opt.id,
+          })),
+        );
+    }
+  } catch (error) {
+    console.warn('Failed to seed event discounts', error);
+  }
   const createdEvents = await database.query.eventInstances.findMany({
     orderBy: {
       start: 'asc',
@@ -137,10 +168,12 @@ export const addEvents = async (
       registrationOptions: true,
     },
   });
+  consola.success(`Loaded ${createdEvents.length} created events`);
   return createdEvents;
 };
 
-const createEvents = (
+const createEvents = async (
+  database: NeonDatabase<Record<string, never>, typeof relations>,
   templates: {
     description: string;
     icon: { iconColor: number; iconName: string };
@@ -151,7 +184,10 @@ const createEvents = (
   defaultUserRoles: { id: string }[],
   defaultOrganizerRoles: { id: string }[],
   paid = false,
-) => {
+ ): Promise<{
+  events: InferInsertModel<typeof schema.eventInstances>[];
+  registrationOptions: InferInsertModel<typeof schema.eventRegistrationOptions>[];
+ }> => {
   const events: InferInsertModel<typeof schema.eventInstances>[] = [];
   const registrationOptions: InferInsertModel<
     typeof schema.eventRegistrationOptions
@@ -162,6 +198,15 @@ const createEvents = (
   const eventsPerTemplate = 3;
 
   for (const template of templates) {
+    // Choose tax rates per tenant
+    const taxRates = (database as any).query.tenantStripeTaxRates
+      ? await (database as any).query.tenantStripeTaxRates.findMany({
+          where: { tenantId: template.tenantId },
+        })
+      : [];
+    const vat19 = taxRates.find((r: any) => r.percentage === '19');
+    const vat7 = taxRates.find((r: any) => r.percentage === '7');
+    const defaultRate = vat19 ?? vat7 ?? taxRates[0];
     for (let index = 0; index < eventsPerTemplate; index++) {
       // Create events relative to the current date
       // Some in the past, some in the present, some in the future
@@ -250,6 +295,9 @@ const createEvents = (
           openRegistrationTime,
           organizingRegistration: false,
           price: paid ? 100 * 25 : 0,
+          stripeTaxRateId: paid
+            ? (vat19 ?? defaultRate)?.stripeTaxRateId ?? null
+            : null,
           registeredDescription: 'You are registered',
           registrationMode: 'fcfs',
           roleIds: defaultUserRoles.map((role) => role.id),
@@ -265,6 +313,9 @@ const createEvents = (
           openRegistrationTime,
           organizingRegistration: true,
           price: paid ? 100 * 10 : 0,
+          stripeTaxRateId: paid
+            ? (vat7 ?? defaultRate)?.stripeTaxRateId ?? null
+            : null,
           registeredDescription: 'You are registered',
           registrationMode: 'fcfs',
           roleIds: defaultOrganizerRoles.map((role) => role.id),

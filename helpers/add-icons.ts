@@ -1,4 +1,5 @@
 import { NeonDatabase } from 'drizzle-orm/neon-serverless';
+import consola from 'consola';
 
 import { relations } from '../src/db/relations';
 import * as schema from '../src/db/schema';
@@ -42,7 +43,9 @@ export const addIcons = async (
   ];
   const values = await Promise.all(
     seed.map(async (icon) => {
+      const t0 = Date.now();
       const sourceColor = await computeIconSourceColor(icon.commonName);
+      consola.debug(`Computed color for ${icon.commonName} in ${Date.now() - t0}ms`);
       return {
         commonName: icon.commonName,
         friendlyName: icon.friendlyName,
@@ -52,8 +55,10 @@ export const addIcons = async (
       } as const;
     }),
   );
-  return database
+  const inserted = await database
     .insert(schema.icons)
     .values(values)
     .returning();
+  consola.success(`Inserted ${inserted.length} icons`);
+  return inserted;
 };

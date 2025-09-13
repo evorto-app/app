@@ -1,5 +1,6 @@
 import { randEmail, randFirstName, randLastName } from '@ngneat/falso';
 import { InferInsertModel } from 'drizzle-orm';
+import consola from 'consola';
 import { NeonDatabase } from 'drizzle-orm/neon-serverless';
 
 import { relations } from '../src/db/relations';
@@ -67,7 +68,11 @@ export const addRoles = (
         tenantId: tenant.id,
       },
     ])
-    .returning();
+    .returning()
+    .then((rows) => {
+      consola.success(`Inserted ${rows.length} roles for tenant ${tenant.id}`);
+      return rows;
+    });
 };
 
 export const addUsersToRoles = async (
@@ -75,6 +80,7 @@ export const addUsersToRoles = async (
   assignments: { roleId: string; userId: string }[],
   tenant: { id: string },
 ) => {
+  const t0 = Date.now();
   for (const assignment of assignments) {
     const userToTenant = await database.query.usersToTenants.findFirst({
       where: { tenantId: tenant.id, userId: assignment.userId },
@@ -88,6 +94,7 @@ export const addUsersToRoles = async (
       userTenantId: userToTenant.id,
     });
   }
+  consola.success(`Assigned ${assignments.length} users to roles in ${Date.now() - t0}ms`);
 };
 
 export const addExampleUsers = async (
@@ -95,6 +102,7 @@ export const addExampleUsers = async (
   roles: { defaultUserRole: boolean; id: string }[],
   tenant: { id: string },
 ) => {
+  const t0 = Date.now();
   const usersToAdd: InferInsertModel<typeof schema.users>[] = [];
   const tenantAssignmentsToAdd: InferInsertModel<
     typeof schema.usersToTenants
@@ -138,4 +146,7 @@ export const addExampleUsers = async (
   await database.insert(schema.users).values(usersToAdd);
   await database.insert(schema.usersToTenants).values(tenantAssignmentsToAdd);
   await database.insert(schema.rolesToTenantUsers).values(roleAssignmentsToAdd);
+  consola.success(
+    `Added ${usersToAdd.length} users (${roleAssignmentsToAdd.length} role assignments) in ${Date.now() - t0}ms`,
+  );
 };

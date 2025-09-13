@@ -17,6 +17,7 @@ export const createTenant = async (
   database: NeonDatabase<Record<string, never>, typeof relations>,
   tenantData?: Partial<InferInsertModel<typeof schema.tenants>>,
 ) => {
+  const t0 = Date.now();
   const tenant = await database
     .insert(tenants)
     .values({
@@ -26,6 +27,7 @@ export const createTenant = async (
       name: tenantData?.name ?? 'ESN Murnau',
     })
     .returning();
+  consola.success(`Created tenant ${tenant[0].domain} (${tenant[0].id}) in ${Date.now() - t0}ms`);
   // consola.debug(tenant);
   // for (const record of usersToAuthenticate
   //   .filter((data) => data.addToDb && data.addToTenant)
@@ -46,5 +48,6 @@ export const createTenant = async (
         userId: data.id,
       })),
   );
+  consola.info('Assigned default users to new tenant');
   return tenant[0];
 };

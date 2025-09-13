@@ -1,4 +1,5 @@
 import { NeonDatabase } from 'drizzle-orm/neon-serverless';
+import consola from 'consola';
 
 import { relations } from '../src/db/relations';
 import * as schema from '../src/db/schema';
@@ -28,7 +29,7 @@ export const addTemplateCategories = async (
     };
   };
 
-  return database
+  const inserted = await database
     .insert(schema.eventTemplateCategories)
     .values([
       {
@@ -73,4 +74,6 @@ export const addTemplateCategories = async (
       },
     ])
     .returning();
+  consola.success(`Inserted ${inserted.length} template categories for tenant ${tenant.id}`);
+  return inserted;
 };

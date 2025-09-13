@@ -1,3 +1,5 @@
+import { randChanceBoolean, randFloat, randNumber } from '@ngneat/falso';
+import consola from 'consola';
 /**
  * Registration Helper
  *
@@ -58,22 +60,26 @@ export async function addRegistrations(
   database: NeonDatabase<Record<string, never>, typeof relations>,
   events: EventRegistrationInput[],
 ) {
+  const t0 = Date.now();
   // Query all users with their tenant relationships and roles
   const usersRaw = await database.query.users.findMany({
-    with: { 
+    with: {
       tenantAssignments: {
         with: {
           rolesToTenantUsers: {
             with: {
-              role: true
-            }
-          }
-        }
-      }
+              role: true,
+            },
+          },
+        },
+      },
     },
   });
   // Exclude admin user from registrations
   const users = usersRaw.filter((u) => u.email !== 'admin@evorto.app');
+  consola.start(
+    `Seeding registrations for ${events.length} events (eligible users: ${users.length})`,
+  );
 
   if (users.length === 0) {
     console.warn('No users found for registrations');
@@ -98,12 +104,21 @@ export async function addRegistrations(
   const defaultCurrency = defaultTenant.currency || 'EUR';
 
   // Helper function to check if user has required roles for a registration option
-  const userHasRequiredRoles = (user: typeof users[0], roleIds: string[], tenantId: string) => {
-    const userTenantAssignment = user.tenantAssignments?.find(t => t.tenantId === tenantId);
+  const userHasRequiredRoles = (
+    user: (typeof users)[0],
+    roleIds: string[],
+    tenantId: string,
+  ) => {
+    const userTenantAssignment = user.tenantAssignments?.find(
+      (t) => t.tenantId === tenantId,
+    );
     if (!userTenantAssignment) return false;
-    
-    const userRoleIds = userTenantAssignment.rolesToTenantUsers?.map(r => r.role.id) || [];
-    return roleIds.some(requiredRoleId => userRoleIds.includes(requiredRoleId));
+
+    const userRoleIds =
+      userTenantAssignment.rolesToTenantUsers?.map((r) => r.role.id) || [];
+    return roleIds.some((requiredRoleId) =>
+      userRoleIds.includes(requiredRoleId),
+    );
   };
 
   // Process each event with varied registration patterns
@@ -138,25 +153,25 @@ export async function addRegistrations(
       }
       case 1: {
         // Popular events (80-90% full)
-        fillPercentage = 0.8 + Math.random() * 0.1;
+        fillPercentage = 0.8 + randFloat({ fraction: 3, max: 0.1, min: 0 });
         checkInRate = 0.9;
         break;
       }
       case 2: {
         // Moderately popular (60-70% full)
-        fillPercentage = 0.6 + Math.random() * 0.1;
+        fillPercentage = 0.6 + randFloat({ fraction: 3, max: 0.1, min: 0 });
         checkInRate = 0.85;
         break;
       }
       case 3: {
         // Less popular (30-50% full)
-        fillPercentage = 0.3 + Math.random() * 0.2;
+        fillPercentage = 0.3 + randFloat({ fraction: 3, max: 0.2, min: 0 });
         checkInRate = 0.8;
         break;
       }
       case 4: {
         // New/unpopular events (10-30% full)
-        fillPercentage = 0.1 + Math.random() * 0.2;
+        fillPercentage = 0.1 + randFloat({ fraction: 3, max: 0.2, min: 0 });
         checkInRate = 0.75;
         break;
       }
@@ -174,12 +189,14 @@ export async function addRegistrations(
       const tenantId = event.tenantId || defaultTenant.id;
 
       // Filter users who have the required roles for this registration option
-      const eligibleUsers = users.filter(user => 
-        userHasRequiredRoles(user, option.roleIds, tenantId)
+      const eligibleUsers = users.filter((user) =>
+        userHasRequiredRoles(user, option.roleIds, tenantId),
       );
 
       if (eligibleUsers.length === 0) {
-        console.warn(`No eligible users found for registration option ${option.id} with roles ${option.roleIds.join(', ')}`);
+        console.warn(
+          `No eligible users found for registration option ${option.id} with roles ${option.roleIds.join(', ')}`,
+        );
         continue;
       }
 
@@ -190,21 +207,29 @@ export async function addRegistrations(
       const waitlistSpots = shouldHaveWaitlist
         ? Math.floor(option.spots * 0.2)
         : 0;
-      const totalRegistrations = Math.min(regularSpots + waitlistSpots, eligibleUsers.length);
+      const totalRegistrations = Math.min(
+        regularSpots + waitlistSpots,
+        eligibleUsers.length,
+      );
 
       let confirmedCount = 0;
       let waitlistCount = 0;
       let checkedInCount = 0;
 
-      // Shuffle eligible users to create more realistic distribution
-      const shuffledUsers = [...eligibleUsers].sort(() => Math.random() - 0.5);
+      // Deterministically shuffle eligible users with seeded falso
+      const shuffledUsers = [...eligibleUsers]
+        .map((u) => ({ k: randNumber({ max: 1_000_000, min: 0 }), u }))
+        .sort((a, b) => a.k - b.k)
+        .map((x) => x.u);
 
       // Create registrations
       for (let index = 0; index < totalRegistrations; index++) {
         const user = shuffledUsers[index];
 
         // Get userTenant relationship for this specific tenant
-        const userTenantRelation = user.tenantAssignments?.find(t => t.tenantId === tenantId);
+        const userTenantRelation = user.tenantAssignments?.find(
+          (t) => t.tenantId === tenantId,
+        );
 
         // Generate IDs for the registration and transaction
         const registrationId = createId();
@@ -222,7 +247,7 @@ export async function addRegistrations(
           // Regular registration
           if (option.isPaid) {
             // For paid events, create more realistic payment scenarios
-            const paymentScenario = Math.random();
+            const paymentScenario = randFloat({ fraction: 4, max: 1, min: 0 });
             if (paymentScenario < 0.85) {
               status = 'CONFIRMED';
               paymentStatus = 'PAID';
@@ -237,7 +262,7 @@ export async function addRegistrations(
           } else {
             // Free events are typically confirmed immediately
             const confirmationRate = isPastEvent ? 0.95 : 0.9;
-            if (Math.random() < confirmationRate) {
+            if (randChanceBoolean({ chanceTrue: confirmationRate })) {
               status = 'CONFIRMED';
               confirmedCount++;
             } else {
@@ -250,14 +275,15 @@ export async function addRegistrations(
         if (
           isPastEvent &&
           status === 'CONFIRMED' &&
-          Math.random() < checkInRate
+          randChanceBoolean({ chanceTrue: checkInRate })
         ) {
           // Check-in time between event start and 30 minutes after
           const eventStart = new Date(event.start);
           const checkInWindow = 30 * 60 * 1000; // 30 minutes in milliseconds
-          checkInTime = new Date(
-            eventStart.getTime() + Math.random() * checkInWindow,
+          const offset = Math.floor(
+            randFloat({ fraction: 0, max: checkInWindow, min: 0 }),
           );
+          checkInTime = new Date(eventStart.getTime() + offset);
           checkedInCount++;
         }
 
@@ -337,9 +363,11 @@ export async function addRegistrations(
       }
     });
   } catch (error) {
-    console.error('Failed to create registrations:', error);
+    consola.error('Failed to create registrations:', error);
     return [];
   }
-
+  consola.success(
+    `Created ${registrations.length} registrations and ${transactions.length} transactions in ${Date.now() - t0}ms`,
+  );
   return registrations;
 }
