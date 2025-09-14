@@ -21,6 +21,10 @@ WORKDIR /app
 FROM base AS build
 ENV NG_BUILD_PARTIAL_SSR=1
 COPY --chown=appuser:appuser package.json yarn.lock .yarnrc.yml ./
+
+# Note: FontAwesome Pro registry (npm.fontawesome.com) connectivity issues in Docker environment
+# can cause build failures. For testing, use the Angular dev server approach instead.
+# See E2E_TESTING_GUIDE.md for working setup instructions.
 RUN --mount=type=secret,id=FONT_AWESOME_TOKEN,mode=0444 yarn config set npmScopes.fortawesome.npmAuthToken $(cat /run/secrets/FONT_AWESOME_TOKEN)
 RUN yarn install --immutable
 COPY --chown=appuser:appuser . .
