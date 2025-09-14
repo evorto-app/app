@@ -30,216 +30,204 @@ import { ImportTaxRatesDialogComponent } from '../components/import-tax-rates-di
   ],
   selector: 'app-tax-rates-settings',
   template: `
-    <div class="tax-rates-settings">
-      <div class="header">
-        <h1>Tax Rates Settings</h1>
-        <p class="text-muted-foreground">
-          Manage inclusive tax rates for paid registration options. Only rates that are inclusive and active 
-          can be used for new events and templates.
-        </p>
-      </div>
+    <!-- Header with navigation -->
+    <div class="mb-4 flex flex-row items-center gap-2">
+      <a routerLink="/admin" mat-icon-button class="lg:hidden! block">
+        <mat-icon>arrow_back</mat-icon>
+      </a>
+      <h1 class="title-large">Tax Rates</h1>
+    </div>
 
-      <div class="actions mb-6">
-        <button
-          mat-raised-button
-          color="primary"
-          (click)="openImportDialog()"
-          [disabled]="importedQuery.isLoading()"
-        >
-          <mat-icon>add</mat-icon>
-          Import Tax Rates
-        </button>
-      </div>
+    <!-- FAB for primary action -->
+    <button
+      mat-fab
+      extended
+      class="fab-fixed"
+      (click)="openImportDialog()"
+      [disabled]="importedQuery.isLoading()"
+    >
+      <mat-icon>add</mat-icon>
+      Import Tax Rates
+    </button>
 
-      <mat-card>
-        <mat-card-header>
-          <mat-card-title>Imported Tax Rates</mat-card-title>
-          <mat-card-subtitle>
-            Tax rates available for use in your events and templates
-          </mat-card-subtitle>
-        </mat-card-header>
-        
-        <mat-card-content>
-          @if (importedQuery.isLoading()) {
-            <div class="loading">Loading tax rates...</div>
-          } @else if (importedQuery.error()) {
-            <div class="error">
-              <mat-icon color="warn">error</mat-icon>
-              Failed to load tax rates: {{ importedQuery.error()?.message }}
+    <!-- Main content grid with list-detail pattern -->
+    <div class="grid grid-cols-1 gap-4">
+      <!-- Loading state -->
+      @if (importedQuery.isLoading()) {
+        <div class="bg-surface text-on-surface flex animate-pulse cursor-progress flex-col gap-2 rounded-2xl p-4">
+          <h2 class="title-medium">Loading tax rates...</h2>
+        </div>
+      } 
+      
+      <!-- Error state -->
+      @else if (importedQuery.error()) {
+        <div class="bg-error-container text-on-error-container rounded-2xl p-4">
+          <div class="flex items-center gap-2">
+            <mat-icon>error</mat-icon>
+            <span class="body-medium">Failed to load tax rates: {{ importedQuery.error()?.message }}</span>
+          </div>
+        </div>
+      } 
+      
+      <!-- Empty state -->
+      @else if (importedRates().length === 0 && incompatibleRates().length === 0) {
+        <div class="bg-surface-container-low text-on-surface flex flex-col items-center justify-center rounded-2xl p-8">
+          <mat-icon class="mb-4 text-6xl text-on-surface-variant">receipt</mat-icon>
+          <h2 class="title-medium mb-2">No tax rates imported</h2>
+          <p class="body-medium text-on-surface-variant mb-4 text-center">
+            Import tax rates from your payment provider to enable paid registration options.
+          </p>
+          <button mat-button color="primary" (click)="openImportDialog()">
+            Import Your First Tax Rate
+          </button>
+        </div>
+      } 
+      
+      <!-- Content sections -->
+      @else {
+        <!-- Compatible rates section -->
+        @if (importedRates().length > 0) {
+          <div class="bg-surface-container-low text-on-surface rounded-2xl p-4">
+            <div class="mb-4">
+              <h2 class="title-small">Compatible Tax Rates</h2>
+              <p class="body-medium text-on-surface-variant">
+                Available for use in your events and templates
+              </p>
             </div>
-          } @else if (importedRates().length === 0) {
-            <div class="empty-state">
-              <mat-icon>receipt</mat-icon>
-              <h3>No tax rates imported</h3>
-              <p>Import tax rates from your payment provider to enable paid registration options.</p>
-              <button mat-button color="primary" (click)="openImportDialog()">
-                Import Your First Tax Rate
-              </button>
+            
+            <div class="bg-surface rounded-2xl overflow-hidden">
+              <table mat-table [dataSource]="importedRates()" class="w-full">
+                <!-- Name Column -->
+                <ng-container matColumnDef="displayName">
+                  <th mat-header-cell *matHeaderCellDef class="title-small">Name</th>
+                  <td mat-cell *matCellDef="let rate" class="body-medium">
+                    {{ rate.displayName || 'Unnamed Rate' }}
+                  </td>
+                </ng-container>
+
+                <!-- Percentage Column -->
+                <ng-container matColumnDef="percentage">
+                  <th mat-header-cell *matHeaderCellDef class="title-small">Rate</th>
+                  <td mat-cell *matCellDef="let rate">
+                    @if (rate.percentage === '0') {
+                      <mat-chip class="bg-tertiary-container text-on-tertiary-container">Tax Free</mat-chip>
+                    } @else {
+                      <span class="body-medium">{{ rate.percentage }}%</span>
+                    }
+                  </td>
+                </ng-container>
+
+                <!-- Region Column -->
+                <ng-container matColumnDef="region">
+                  <th mat-header-cell *matHeaderCellDef class="title-small">Region</th>
+                  <td mat-cell *matCellDef="let rate">
+                    @if (rate.country || rate.state) {
+                      <span class="body-medium">{{ rate.country }}{{ rate.state ? ', ' + rate.state : '' }}</span>
+                    } @else {
+                      <span class="body-medium text-on-surface-variant">Global</span>
+                    }
+                  </td>
+                </ng-container>
+
+                <!-- Status Column -->
+                <ng-container matColumnDef="status">
+                  <th mat-header-cell *matHeaderCellDef class="title-small">Status</th>
+                  <td mat-cell *matCellDef="let rate">
+                    <mat-chip class="bg-primary-container text-on-primary-container">Compatible</mat-chip>
+                  </td>
+                </ng-container>
+
+                <!-- Provider ID Column -->
+                <ng-container matColumnDef="stripeTaxRateId">
+                  <th mat-header-cell *matHeaderCellDef class="title-small">Provider ID</th>
+                  <td mat-cell *matCellDef="let rate">
+                    <code class="bg-surface-variant text-on-surface-variant px-2 py-1 rounded font-mono text-sm">
+                      {{ rate.stripeTaxRateId }}
+                    </code>
+                  </td>
+                </ng-container>
+
+                <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+                <tr mat-row *matRowDef="let row; columns: displayedColumns;" 
+                    class="hover:bg-surface-container transition-colors"></tr>
+              </table>
             </div>
-          } @else {
-            <table mat-table [dataSource]="importedRates()" class="tax-rates-table">
-              <!-- Name Column -->
-              <ng-container matColumnDef="displayName">
-                <th mat-header-cell *matHeaderCellDef>Name</th>
-                <td mat-cell *matCellDef="let rate">
-                  {{ rate.displayName || 'Unnamed Rate' }}
-                </td>
-              </ng-container>
+          </div>
+        }
 
-              <!-- Percentage Column -->
-              <ng-container matColumnDef="percentage">
-                <th mat-header-cell *matHeaderCellDef>Percentage</th>
-                <td mat-cell *matCellDef="let rate">
-                  @if (rate.percentage === '0') {
-                    <mat-chip color="accent">Tax Free</mat-chip>
-                  } @else {
-                    {{ rate.percentage }}%
-                  }
-                </td>
-              </ng-container>
+        <!-- Incompatible rates section -->
+        @if (incompatibleRates().length > 0) {
+          <div class="bg-surface-container-low text-on-surface rounded-2xl p-4">
+            <div class="mb-4">
+              <h2 class="title-small">Incompatible Rates</h2>
+              <p class="body-medium text-on-surface-variant">
+                Cannot be used for new registration options but shown for reference
+              </p>
+            </div>
+            
+            <div class="bg-surface rounded-2xl overflow-hidden opacity-60">
+              <table mat-table [dataSource]="incompatibleRates()" class="w-full">
+                <!-- Use same column definitions -->
+                <ng-container matColumnDef="displayName">
+                  <th mat-header-cell *matHeaderCellDef class="title-small">Name</th>
+                  <td mat-cell *matCellDef="let rate" class="body-medium">
+                    {{ rate.displayName || 'Unnamed Rate' }}
+                  </td>
+                </ng-container>
 
-              <!-- Region Column -->
-              <ng-container matColumnDef="region">
-                <th mat-header-cell *matHeaderCellDef>Region</th>
-                <td mat-cell *matCellDef="let rate">
-                  @if (rate.country || rate.state) {
-                    {{ rate.country }}{{ rate.state ? ', ' + rate.state : '' }}
-                  } @else {
-                    <span class="text-muted-foreground">Global</span>
-                  }
-                </td>
-              </ng-container>
+                <ng-container matColumnDef="percentage">
+                  <th mat-header-cell *matHeaderCellDef class="title-small">Rate</th>
+                  <td mat-cell *matCellDef="let rate">
+                    @if (rate.percentage === '0') {
+                      <mat-chip class="bg-surface-variant text-on-surface-variant">Tax Free</mat-chip>
+                    } @else {
+                      <span class="body-medium">{{ rate.percentage }}%</span>
+                    }
+                  </td>
+                </ng-container>
 
-              <!-- Status Column -->
-              <ng-container matColumnDef="status">
-                <th mat-header-cell *matHeaderCellDef>Status</th>
-                <td mat-cell *matCellDef="let rate">
-                  @if (rate.inclusive && rate.active) {
-                    <mat-chip color="primary">Compatible</mat-chip>
-                  } @else if (!rate.inclusive) {
-                    <mat-chip color="warn">Exclusive</mat-chip>
-                  } @else if (!rate.active) {
-                    <mat-chip color="warn">Inactive</mat-chip>
-                  }
-                </td>
-              </ng-container>
+                <ng-container matColumnDef="region">
+                  <th mat-header-cell *matHeaderCellDef class="title-small">Region</th>
+                  <td mat-cell *matCellDef="let rate">
+                    @if (rate.country || rate.state) {
+                      <span class="body-medium">{{ rate.country }}{{ rate.state ? ', ' + rate.state : '' }}</span>
+                    } @else {
+                      <span class="body-medium text-on-surface-variant">Global</span>
+                    }
+                  </td>
+                </ng-container>
 
-              <!-- Provider ID Column -->
-              <ng-container matColumnDef="stripeTaxRateId">
-                <th mat-header-cell *matHeaderCellDef>Provider ID</th>
-                <td mat-cell *matCellDef="let rate">
-                  <code class="provider-id">{{ rate.stripeTaxRateId }}</code>
-                </td>
-              </ng-container>
+                <ng-container matColumnDef="status">
+                  <th mat-header-cell *matHeaderCellDef class="title-small">Status</th>
+                  <td mat-cell *matCellDef="let rate">
+                    @if (!rate.inclusive) {
+                      <mat-chip class="bg-error-container text-on-error-container">Exclusive</mat-chip>
+                    } @else if (!rate.active) {
+                      <mat-chip class="bg-error-container text-on-error-container">Inactive</mat-chip>
+                    }
+                  </td>
+                </ng-container>
 
-              <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-              <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
-            </table>
-          }
-        </mat-card-content>
-      </mat-card>
+                <ng-container matColumnDef="stripeTaxRateId">
+                  <th mat-header-cell *matHeaderCellDef class="title-small">Provider ID</th>
+                  <td mat-cell *matCellDef="let rate">
+                    <code class="bg-surface-variant text-on-surface-variant px-2 py-1 rounded font-mono text-sm">
+                      {{ rate.stripeTaxRateId }}
+                    </code>
+                  </td>
+                </ng-container>
 
-      @if (incompatibleRates().length > 0) {
-        <mat-card class="mt-6">
-          <mat-card-header>
-            <mat-card-title>Incompatible Rates</mat-card-title>
-            <mat-card-subtitle>
-              These rates cannot be used for new registration options but are shown for reference
-            </mat-card-subtitle>
-          </mat-card-header>
-          
-          <mat-card-content>
-            <table mat-table [dataSource]="incompatibleRates()" class="tax-rates-table">
-              <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-              <tr mat-row *matRowDef="let row; columns: displayedColumns;" class="incompatible-row"></tr>
-            </table>
-          </mat-card-content>
-        </mat-card>
+                <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+                <tr mat-row *matRowDef="let row; columns: displayedColumns;"
+                    class="hover:bg-surface-container transition-colors"></tr>
+              </table>
+            </div>
+          </div>
+        }
       }
     </div>
   `,
-  styles: [`
-    .tax-rates-settings {
-      max-width: 1200px;
-      margin: 0 auto;
-      padding: 24px;
-    }
-
-    .header {
-      margin-bottom: 32px;
-    }
-
-    .header h1 {
-      margin: 0 0 8px 0;
-      font-size: 2rem;
-      font-weight: 600;
-    }
-
-    .actions {
-      display: flex;
-      gap: 16px;
-      align-items: center;
-    }
-
-    .loading, .error {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 24px;
-      justify-content: center;
-    }
-
-    .empty-state {
-      text-align: center;
-      padding: 48px 24px;
-    }
-
-    .empty-state mat-icon {
-      font-size: 48px;
-      width: 48px;
-      height: 48px;
-      color: #666;
-      margin-bottom: 16px;
-    }
-
-    .empty-state h3 {
-      margin: 0 0 8px 0;
-      font-size: 1.25rem;
-    }
-
-    .empty-state p {
-      margin: 0 0 16px 0;
-      color: #666;
-    }
-
-    .tax-rates-table {
-      width: 100%;
-    }
-
-    .provider-id {
-      background: #f5f5f5;
-      padding: 2px 6px;
-      border-radius: 4px;
-      font-family: monospace;
-      font-size: 0.875rem;
-    }
-
-    .incompatible-row {
-      opacity: 0.6;
-    }
-
-    .text-muted-foreground {
-      color: #666;
-    }
-
-    .mt-6 {
-      margin-top: 24px;
-    }
-
-    .mb-6 {
-      margin-bottom: 24px;
-    }
-  `]
+  styles: [``]
 })
 export class TaxRatesSettingsComponent {
   private readonly trpc = injectTRPC();
