@@ -1,8 +1,7 @@
-import { and, eq } from 'drizzle-orm';
 import { Schema } from 'effect';
 
-import { database } from '../../../db';
-import * as schema from '../../../db/schema';
+import { database } from '../../db';
+import * as schema from '../../db/schema';
 
 // Error codes for tax rate validation
 export const TAX_RATE_ERROR_CODES = {
@@ -78,10 +77,10 @@ export async function validateTaxRate(
     // If paid option with tax rate, validate it's compatible
     if (input.isPaid && input.stripeTaxRateId) {
       const taxRate = await database.query.tenantStripeTaxRates.findFirst({
-        where: and(
-          eq(schema.tenantStripeTaxRates.tenantId, input.tenantId),
-          eq(schema.tenantStripeTaxRates.stripeTaxRateId, input.stripeTaxRateId)
-        ),
+        where: {
+          tenantId: input.tenantId,
+          stripeTaxRateId: input.stripeTaxRateId,
+        },
       });
 
       if (!taxRate) {
@@ -130,12 +129,12 @@ export async function validateTaxRate(
  */
 export async function getCompatibleTaxRates(tenantId: string) {
   return database.query.tenantStripeTaxRates.findMany({
-    where: and(
-      eq(schema.tenantStripeTaxRates.tenantId, tenantId),
-      eq(schema.tenantStripeTaxRates.inclusive, true),
-      eq(schema.tenantStripeTaxRates.active, true)
-    ),
-    orderBy: (table, { asc }) => [
+    where: {
+      tenantId: tenantId,
+      inclusive: true,
+      active: true,
+    },
+    orderBy: (table: typeof schema.tenantStripeTaxRates, { asc }: any) => [
       asc(table.displayName),
       asc(table.stripeTaxRateId),
     ],

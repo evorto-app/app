@@ -168,9 +168,14 @@ export class TaxRateLogger {
  * Helper function to create base log context from common parameters
  */
 export function createLogContext(tenantId: string, userId?: string): TaxRateLogContext {
-  return {
+  const context: TaxRateLogContext = {
     tenantId,
-    userId,
     timestamp: new Date(),
   };
+  
+  if (userId) {
+    context.userId = userId;
+  }
+  
+  return context;
 }

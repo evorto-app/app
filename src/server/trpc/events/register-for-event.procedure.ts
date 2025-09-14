@@ -184,10 +184,10 @@ export const registerForEventProcedure = authenticatedProcedure
         // Log warning if tax rate exists but may be inactive
         if (selectedTaxRateId) {
           const taxRate = await database.query.tenantStripeTaxRates.findFirst({
-            where: and(
-              eq(schema.tenantStripeTaxRates.tenantId, ctx.tenant.id),
-              eq(schema.tenantStripeTaxRates.stripeTaxRateId, selectedTaxRateId)
-            ),
+            where: {
+              tenantId: ctx.tenant.id,
+              stripeTaxRateId: selectedTaxRateId,
+            },
           });
 
           if (!taxRate || !taxRate.active || !taxRate.inclusive) {
