@@ -104,6 +104,9 @@ export default defineConfig({
 
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: 'on-first-retry',
+
+    /* Ignore SSL errors when connecting to Auth0 and other external services */
+    ignoreHTTPSErrors: true,
   },
 
   ...(webServer ? { webServer } : {}),
