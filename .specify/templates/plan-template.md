@@ -82,6 +82,18 @@
 - Frontend logs → backend? (unified stream)
 - Error context sufficient?
 
+**Design System & UI Standards**:
+- Material 3 + Angular Material + Tailwind alignment documented?
+- Tailwind utilities mapped via `src/styles.scss` tokens (no hardcoded colors)?
+- Icon usage follows Font Awesome Duotone pattern (`<fa-duotone-icon>` only)?
+- Accessibility (WCAG 2.2 AA) and responsive list–detail pattern accounted for UI work?
+- Feature README will include M3 references, screenshots, and updated documentation tests?
+
+**Documentation & Knowledge Sharing**:
+- Documentation tests (`*.doc.ts`) planned to generate updated user-facing docs for this feature?
+- Plan captures where generated docs live and how they are reviewed?
+- Implementation will attach a PR preview (screenshots or rendered markdown snippet) of the generated documentation?
+
 **Versioning**:
 - Version number assigned? (MAJOR.MINOR.BUILD)
 - BUILD increments on every change?
@@ -250,4 +262,4 @@ ios/ or android/
 - [ ] Complexity deviations documented
 
 ---
-*Based on Constitution 1.0.0 - See `/memory/constitution.md`*
+*Based on Constitution 1.1.3 - See `.specify/memory/constitution.md`*
