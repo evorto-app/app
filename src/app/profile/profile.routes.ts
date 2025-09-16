@@ -9,4 +9,11 @@ export const PROFILE_ROUTES: Routes = [
     path: '',
     pathMatch: 'full',
   },
+  {
+    loadComponent: () =>
+      import('./discount-cards/discount-cards.component').then(
+        (m) => m.DiscountCardsComponent,
+      ),
+    path: 'discount-cards',
+  },
 ];
