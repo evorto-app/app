@@ -14,6 +14,7 @@ import {
   faCalendarCheck,
   faFolderUser,
   faGlobe,
+  faReceipt,
   faUsers,
   faUsersGear,
 } from '@fortawesome/duotone-regular-svg-icons';
@@ -39,6 +40,7 @@ export class AdminOverviewComponent {
   protected readonly faCalendarCheck = faCalendarCheck;
   protected readonly faFolderUser = faFolderUser;
   protected readonly faGlobe = faGlobe;
+  protected readonly faReceipt = faReceipt;
   protected readonly faUsers = faUsers;
   protected readonly faUsersGear = faUsersGear;
   protected readonly outletActive = signal(false);
