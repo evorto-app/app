@@ -76,3 +76,15 @@
 - Prefer `inject()` for DI and `providedIn: 'root'` for singletons.
 - Use typed reactive forms; keep templates logic-light and reuse services/computed signals.
 - Use `NgOptimizedImage` for static images.
+
+## Design System & UI Standards
+- Material Design 3 is the source of truth for layout, motion, and components; cite relevant M3 guidance when adding UI.
+- Implement UI with Angular Material components plus Tailwind utility classes mapped via `src/styles.scss` theme tokens (no hardcoded colors).
+- Use Font Awesome Duotone Regular SVG icons through `<fa-duotone-icon>`; size/color via Tailwind utilities tied to theme roles.
+- Ensure responsive list–detail patterns, accessibility (WCAG 2.2 AA), and `prefers-reduced-motion` handling.
+- Document new UI with a feature README design note, screenshots, and keep `.doc.ts` documentation tests in sync with UX changes.
+
+## Documentation Tests & PR Previews
+- Every feature must include `.doc.ts` documentation tests that generate the relevant user-facing documentation updates.
+- Run `yarn e2e:docs` (or targeted doc test commands) during implementation to refresh the generated docs.
+- Capture a preview of the generated documentation (screenshot or rendered markdown snippet) and attach it to the feature PR so reviewers can validate content.

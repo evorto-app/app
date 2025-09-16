@@ -6,7 +6,7 @@ import { takeScreenshot } from '../../reporters/documentation-reporter';
 
 test.use({ storageState: adminStateFile });
 
-test('Manage finances', async ({ page }, testInfo) => {
+test('Manage finances @finance', async ({ page }, testInfo) => {
   await page.goto('.');
   await testInfo.attach('markdown', {
     body: `

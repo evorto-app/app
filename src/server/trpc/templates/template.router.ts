@@ -1,5 +1,6 @@
 import { and, eq } from 'drizzle-orm';
 import { Schema } from 'effect';
+import consola from 'consola';
 
 import { database } from '../../../db';
 import {
@@ -7,6 +8,8 @@ import {
   templateRegistrationOptions,
 } from '../../../db/schema';
 import { computeIconSourceColor } from '../../utils/icon-color';
+import { validateTaxRate } from '../../utils/validate-tax-rate';
+import { TaxRateLogger, createLogContext } from '../../utils/tax-rate-logging';
 import { authenticatedProcedure, router } from '../trpc-server';
 
 const registrationOptionSchema = Schema.Struct({
@@ -38,6 +41,29 @@ export const templateRouter = router({
       ),
     )
     .mutation(async ({ ctx, input }) => {
+      // Validate tax rates for both registration options before proceeding
+      const organizerValidation = await validateTaxRate({
+        isPaid: input.organizerRegistration.isPaid,
+        stripeTaxRateId: input.organizerRegistration.stripeTaxRateId ?? null,
+        tenantId: ctx.tenant.id,
+      });
+
+      if (!organizerValidation.success) {
+        consola.error('Organizer registration tax rate validation failed:', organizerValidation.error);
+        throw new Error(`Organizer registration: ${organizerValidation.error.message}`);
+      }
+
+      const participantValidation = await validateTaxRate({
+        isPaid: input.participantRegistration.isPaid,
+        stripeTaxRateId: input.participantRegistration.stripeTaxRateId ?? null,
+        tenantId: ctx.tenant.id,
+      });
+
+      if (!participantValidation.success) {
+        consola.error('Participant registration tax rate validation failed:', participantValidation.error);
+        throw new Error(`Participant registration: ${participantValidation.error.message}`);
+      }
+
       const template = await database.transaction(async (tx) => {
         const templateResponse = await tx
           .insert(eventTemplates)
@@ -155,6 +181,29 @@ export const templateRouter = router({
       ),
     )
     .mutation(async ({ ctx, input }) => {
+      // Validate tax rates for both registration options before proceeding
+      const organizerValidation = await validateTaxRate({
+        isPaid: input.organizerRegistration.isPaid,
+        stripeTaxRateId: input.organizerRegistration.stripeTaxRateId ?? null,
+        tenantId: ctx.tenant.id,
+      });
+
+      if (!organizerValidation.success) {
+        consola.error('Organizer registration tax rate validation failed:', organizerValidation.error);
+        throw new Error(`Organizer registration: ${organizerValidation.error.message}`);
+      }
+
+      const participantValidation = await validateTaxRate({
+        isPaid: input.participantRegistration.isPaid,
+        stripeTaxRateId: input.participantRegistration.stripeTaxRateId ?? null,
+        tenantId: ctx.tenant.id,
+      });
+
+      if (!participantValidation.success) {
+        consola.error('Participant registration tax rate validation failed:', participantValidation.error);
+        throw new Error(`Participant registration: ${participantValidation.error.message}`);
+      }
+
       return await database.transaction(async (tx) => {
         const iconColor =
           input.icon.iconColor ??

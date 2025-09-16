@@ -12,7 +12,7 @@ import { Schema } from 'effect';
 // Define the permission groups as const
 const ADMIN_GROUP = {
   key: 'admin',
-  permissions: ['manageRoles', 'changeSettings'] as const,
+  permissions: ['manageRoles', 'changeSettings', 'manageTaxes'] as const,
 } as const;
 
 const EVENTS_GROUP = {

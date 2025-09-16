@@ -71,7 +71,8 @@ Scope: Spec‑Kit templates and commands already enforce process gates (spec/pla
 - Lint/Format: `yarn lint`/`yarn lint:fix` and `yarn format` must be clean before merge.
 - E2E & Documentation Tests:
   - Primary validation via Playwright E2E in `e2e/**`.
-  - Documentation tests (`*.doc.ts`) generate living markdown docs (see `e2e/tests/README.md`).
+  - Documentation tests (`*.doc.ts`) are REQUIRED for every new feature; they must generate the user-facing documentation updates relevant to that feature (see `e2e/tests/README.md`).
+  - Feature pull requests MUST include a preview (screenshots or rendered markdown snippet) of the documentation produced by those tests so reviewers can validate the content in context.
   - Commands: `yarn e2e`, `yarn e2e:ui`, `yarn e2e:docs`.
 - Type Safety (Repository Contract):
   - End‑to‑end types across the stack are mandatory.
@@ -87,6 +88,47 @@ Scope: Spec‑Kit templates and commands already enforce process gates (spec/pla
   - Prefer `host` metadata over `@HostBinding`/`@HostListener` decorators.
   - Prefer native control flow (`@if`, `@for`, `@switch`) and `class`/`style` bindings (not `ngIf/ngFor`, `ngClass/ngStyle`).
   - Use `NgOptimizedImage` for static assets; avoid inline base64 with it.
+
+### Design System & UI Standards (Material 3 + Angular Material + Tailwind)
+
+- Approach (single source of truth)
+  - Design basis: Google’s Material Design 3 (https://m3.material.io/).
+  - Implementation libraries: Angular Material (https://material.angular.dev/) and Tailwind CSS (https://tailwindcss.com/).
+  - Theme/color mapping: Material tokens → Tailwind utilities via `src/styles.scss` (authoritative mapping).
+- Source of truth
+  - Follow Material Design 3 (m3.material.io) for layout, elevation, motion, and component behavior.
+  - Prefer Angular Material components by default; only author custom primitives when Material lacks the capability and document the rationale.
+- Tailwind usage
+  - Use Tailwind utilities for layout, spacing, and responsiveness; avoid deep overrides of Angular Material styles.
+  - Material color tokens are mapped to Tailwind in `src/styles.scss` and act as the single mapping source. Update tokens there instead of hardcoding colors.
+  - Use `@apply` sparingly in component styles to compose semantic utilities; keep overrides minimal and component‑scoped.
+- Theming & tokens
+  - Support light/dark schemes aligned with M3 roles (primary, secondary, tertiary, surface, background, error, outline, inverse, scrim).
+  - Expose CSS variables for theme roles in `:root` (and dark variant) and consume them via Tailwind theme config/utilities. Do not hardcode color values.
+  - Respect Material density and shape scales; keep radii and elevations consistent with the theme.
+- Typography & spacing
+  - Use Material typographic roles mapped to Tailwind font/size/weight; avoid ad‑hoc sizes.
+  - Base spacing unit is 4px; prefer Tailwind’s scale and avoid arbitrary pixel values unless justified by guidelines.
+- Icons (exception to Angular Material)
+  - Use Font Awesome Duotone Regular SVG icons via `@fortawesome/angular-fontawesome` and `<fa-duotone-icon>`.
+  - Do not use `mat-icon` or Material Symbols.
+  - Import icons from `@fortawesome/duotone-regular-svg-icons` and expose them on the component for template use.
+  - Size via the `size` input (`'sm'|'lg'|'xl'|…`) or Tailwind `text-*` utilities; keep layout stable.
+  - Color via Tailwind `text-*` utilities mapped to theme tokens (e.g., `text-on-surface`, `text-on-secondary-container`). Avoid inline colors; duotone layers should respect theme roles.
+  - Keep icon names consistent and semantically meaningful.
+- Accessibility
+  - Meet WCAG 2.2 AA. Maintain visible focus states, sufficient contrast, keyboard navigation, and proper aria roles/labels.
+  - Honor user preferences (e.g., `prefers-reduced-motion`).
+- Canonical list–detail pattern
+  - Route‑driven: `/feature` lists and `/feature/:id` details. Persist filters/sort/page in the URL.
+  - Responsive: two‑pane layout on desktop; on small screens navigate to detail with a clear back affordance.
+  - Behavior: stable selection across refresh/SSR; lazy‑load detail; lists handle filtering/sorting/pagination or virtual scroll; provide empty/loading/error states and skeletons; bulk actions live at list level.
+  - Detail: typed non‑nullable forms, optimistic saves with toasts, validation errors inline, and unsaved‑changes guards.
+- Screen strategy
+  - Prefer integrating new feature UI into existing screens to avoid proliferation; only add a new screen if integrating would make the existing screen too complex.
+  - When a new screen is added, reassess adjacent features and move related UI to the new screen where it improves coherence.
+- Documentation
+  - New UI should include a brief design note in the feature README referencing applicable M3 sections and screenshots. Update E2E documentation tests when UX flows change.
 
 ## Legacy Migration Policy (Per‑Feature Scripts, One‑Go Execution)
 
@@ -120,10 +162,11 @@ Scope: Spec‑Kit templates and commands already enforce process gates (spec/pla
 - Complexity must be justified with concrete constraints; speculative features are prohibited.
 - Use the `.specify/templates/*` files, follow the execution flow in `/plan`, and keep documentation living and in sync with code.
 
-**Version**: 1.0.1 | **Ratified**: 2025-09-13 | **Last Amended**: 2025-09-13
+**Version**: 1.1.3 | **Ratified**: 2025-09-13 | **Last Amended**: 2025-09-16
 
 ### Amendment History
 
+- 1.1.3 (2025-09-16): Mandated documentation tests for every feature to generate user-facing docs and required PR previews of generated documentation.
+- 1.1.2 (2025-09-14): Added Design System & UI Standards, clarified approach (M3 + Angular Material + Tailwind with color mapping in `src/styles.scss`), codified Font Awesome Duotone icon exception, and added screen strategy for integrating features vs. new screens.
 - 1.0.1 (2025-09-13): Added explicit permission‑testing requirements (annotation, effectiveness, assignment granularity) with SDD reference under Article IX.
 - 1.0.0 (2025-09-13): Initial ratification; E2E‑first TDD; CLIs optional; documentation tests included; Angular modern patterns enforced; end‑to‑end type safety mandated.
-

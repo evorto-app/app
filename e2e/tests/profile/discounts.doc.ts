@@ -4,7 +4,7 @@ import { takeScreenshot } from '../../reporters/documentation-reporter';
 
 test.use({ storageState: userStateFile });
 
-test('Manage ESN discount card', async ({ page }, testInfo) => {
+test('Manage ESN discount card @finance', async ({ page }, testInfo) => {
   await page.goto('./profile');
   await testInfo.attach('markdown', {
     body: `
@@ -23,4 +23,3 @@ If you already added your ESN card, you will see its status and validity here. Y
 `,
   });
 });
-

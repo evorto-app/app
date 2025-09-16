@@ -104,6 +104,14 @@ When creating this spec from a user prompt:
 - [ ] Primary user journey can be validated via E2E tests
 - [ ] Non‑functional constraints (auth/roles, performance budgets, a11y where applicable) are stated for E2E validation
 - [ ] Documentation test journey (where appropriate) is feasible for `.doc.ts`
+- [ ] Expected documentation outputs (pages/sections) are identified so `.doc.ts` files generate user-facing updates
+- [ ] PR preview assets (screenshots or rendered markdown snippets) can be produced from documentation tests
+
+### Design System Alignment *(if UI involved)*
+- [ ] Material Design 3 references noted (layouts, components, interactions)
+- [ ] Angular Material component usage or justified alternatives identified
+- [ ] Tailwind utility expectations align with theme tokens (no custom color guesses)
+- [ ] Accessibility, responsive behavior, and list–detail expectations captured
 
 ### Legacy Data Migration (if applicable)
 - [ ] Data mapping rules (old DB → new DB) documented
@@ -125,6 +133,6 @@ When creating this spec from a user prompt:
 - [ ] Review checklist passed
 
 ---
-*Based on Constitution 1.0.0 - See `/memory/constitution.md`*
+*Based on Constitution 1.1.3 - See `.specify/memory/constitution.md`*
 
 ---
