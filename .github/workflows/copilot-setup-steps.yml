@@ -58,3 +58,6 @@ jobs:
             echo "NEON_API_KEY=${{ secrets.NEON_API_KEY }}";
             echo "STRIPE_API_KEY=${{ secrets.STRIPE_API_KEY }}";
           } > .env
+
+      - name: Install Playwright browsers
+        run: yarn playwright install --with-deps
