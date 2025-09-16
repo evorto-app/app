@@ -36,19 +36,19 @@ export default defineConfig({
     {
       name: 'setup',
       testMatch: /.*\.setup\.ts$/,
-      use: { ...devices['Desktop Chrome'], channel: 'chrome' },
+      use: { ...devices['Desktop Chrome'] },
     },
     {
       dependencies: ['setup'],
       name: 'docs',
       testMatch: /.*\.doc\.ts$/,
       timeout: 20 * 1000,
-      use: { ...devices['Desktop Chrome'], channel: 'chrome' },
+      use: { ...devices['Desktop Chrome'] },
     },
     {
       dependencies: ['setup'],
       name: 'local-chrome',
-      use: { ...devices['Desktop Chrome'], channel: 'chrome' },
+      use: { ...devices['Desktop Chrome'] },
     },
     {
       dependencies: ['setup'],

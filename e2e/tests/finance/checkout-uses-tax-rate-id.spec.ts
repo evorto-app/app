@@ -1,4 +1,4 @@
-import { defaultStateFile } from '../../../helpers/user-data';
+import { defaultStateFile, usersToAuthenticate } from '../../../helpers/user-data';
 import { expect, test } from '../../fixtures/parallel-test';
 
 test.use({ storageState: defaultStateFile });
@@ -90,10 +90,29 @@ test.describe('Checkout Tax Rate Integration', () => {
     await expect(page.getByRole('heading', { name: paidEvent.title })).toBeVisible();
   });
 
-  test('free registration skips tax rate processing @finance @taxRates @checkout', async ({ page, events }) => {
+  test('free registration skips tax rate processing @finance @taxRates @checkout', async ({ page, events, registrations, tenant }) => {
     // Verify that free registrations don't involve tax rate processing
     
-    const eventWithFreeOptions = events.find(e => e.registrationOptions.some(o => !o.isPaid));
+    const defaultUserId = usersToAuthenticate.find(
+      (user) => user.stateFile === defaultStateFile,
+    )?.id;
+
+    const eventWithFreeOptions = events.find((event) => {
+      if (event.tenantId !== tenant.id) return false;
+      const hasFreeOption = event.registrationOptions.some(
+        (option) => !option.isPaid,
+      );
+      if (!hasFreeOption) return false;
+      if (!defaultUserId) return hasFreeOption;
+
+      const alreadyRegistered = registrations.some(
+        (registration) =>
+          registration.eventId === event.id &&
+          registration.userId === defaultUserId &&
+          registration.status !== 'CANCELLED',
+      );
+      return !alreadyRegistered;
+    });
     
     if (!eventWithFreeOptions) {
       test.skip('No events with free options available for testing');
