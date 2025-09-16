@@ -67,13 +67,78 @@ export const registerForEventProcedure = authenticatedProcedure
         });
       }
 
-      // Register user for event
+      // Register user for event with pricing snapshot
+      let appliedDiscountType: 'esnCard' | null = null;
+      let appliedDiscountedPrice: number | null = null;
+      let discountAmount: number | null = null;
+      
+      // Determine effective price (apply best discount if any)
+      let effectivePrice = registrationOption.price;
+      const basePriceAtRegistration = registrationOption.price;
+      
+      // Find verified user cards for tenant
+      const cards = await tx.query.userDiscountCards.findMany({
+        where: {
+          status: 'verified',
+          tenantId: ctx.tenant.id,
+          userId: ctx.user.id,
+        },
+      });
+      
+      if (cards.length > 0) {
+        // Only apply discounts for providers enabled on this tenant
+        const tenant = await tx.query.tenants.findFirst({
+          where: { id: ctx.tenant.id },
+        });
+        const providerConfig = (tenant as any)?.discountProviders ?? {};
+        const enabledTypes = new Set(
+          Object.entries(providerConfig)
+            .filter(([, v]) => (v as any)?.status === 'enabled')
+            .map(([k]) => k as string),
+        );
+        
+        // Use new JSONB discounts field instead of separate table
+        const discounts = registrationOption.discounts || [];
+        const eventStart = registrationOption.event?.start ?? new Date();
+        
+        const eligible = discounts.filter((d) =>
+          cards.some(
+            (c) =>
+              c.type === d.discountType &&
+              enabledTypes.has(c.type) &&
+              (!c.validTo || c.validTo > eventStart),
+          ),
+        );
+        
+        if (eligible.length > 0) {
+          // Find the lowest price
+          const lowestPrice = Math.min(...eligible.map((e) => e.discountedPrice));
+          
+          // Tie-breaker: if lowest equals base price, prefer base; otherwise use discount
+          if (lowestPrice < basePriceAtRegistration) {
+            effectivePrice = lowestPrice;
+            // Find the discount that provides this price (alphabetical by provider type for tie-breaking)
+            const selectedDiscount = eligible
+              .filter((e) => e.discountedPrice === lowestPrice)
+              .sort((a, b) => a.discountType.localeCompare(b.discountType))[0];
+            
+            appliedDiscountType = selectedDiscount.discountType;
+            appliedDiscountedPrice = selectedDiscount.discountedPrice;
+            discountAmount = basePriceAtRegistration - selectedDiscount.discountedPrice;
+          }
+        }
+      }
+
       const userRegistration = await tx
         .insert(schema.eventRegistrations)
         .values({
+          appliedDiscountType,
+          appliedDiscountedPrice,
+          basePriceAtRegistration,
+          discountAmount,
           eventId: input.eventId,
           registrationOptionId: registrationOption.id,
-          status: registrationOption.isPaid ? 'PENDING' : 'CONFIRMED',
+          status: registrationOption.isPaid && effectivePrice > 0 ? 'PENDING' : 'CONFIRMED',
           tenantId: ctx.tenant.id,
           userId: ctx.user.id,
         })
@@ -135,11 +200,8 @@ export const registerForEventProcedure = authenticatedProcedure
               .filter(([, v]) => (v as any)?.status === 'enabled')
               .map(([k]) => k as string),
           );
-          // Fetch event-level discounts for this registration option
-          const discounts =
-            await database.query.eventRegistrationOptionDiscounts.findMany({
-              where: { registrationOptionId: registrationOption.id },
-            });
+          // Use new JSONB discounts field instead of separate table
+          const discounts = registrationOption.discounts || [];
           const eventStart = registrationOption.event?.start ?? new Date();
           const eligible = discounts.filter((d) =>
             cards.some(
@@ -150,9 +212,10 @@ export const registerForEventProcedure = authenticatedProcedure
             ),
           );
           if (eligible.length > 0) {
-            effectivePrice = Math.min(
-              ...eligible.map((e) => e.discountedPrice),
-            );
+            const lowestPrice = Math.min(...eligible.map((e) => e.discountedPrice));
+            if (lowestPrice < registrationOption.price) {
+              effectivePrice = lowestPrice;
+            }
           }
         }
 

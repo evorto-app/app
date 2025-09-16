@@ -1,6 +1,7 @@
 import {
   boolean,
   integer,
+  jsonb,
   pgTable,
   text,
   timestamp,
@@ -10,8 +11,14 @@ import {
 
 import { createId } from '../create-id';
 import { eventTemplates } from './event-templates';
-import { registrationModes } from './global-enums';
+import { discountTypes, registrationModes } from './global-enums';
 import { templateEventAddons } from './template-event-addons';
+
+// Type for discount configurations
+export interface DiscountConfig {
+  discountType: 'esnCard';
+  discountedPrice: number;
+}
 
 export const templateRegistrationOptions = pgTable(
   'template_registration_options',
@@ -19,6 +26,8 @@ export const templateRegistrationOptions = pgTable(
     closeRegistrationOffset: integer().notNull(),
     createdAt: timestamp().notNull().defaultNow(),
     description: text(),
+    // Discounts configuration stored as JSONB array
+    discounts: jsonb('discounts').$type<DiscountConfig[]>(),
     id: varchar({ length: 20 })
       .$defaultFn(() => createId())
       .primaryKey(),
