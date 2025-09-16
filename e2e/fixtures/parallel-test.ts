@@ -10,11 +10,13 @@ import { createTenant } from '../../helpers/create-tenant';
 import { usersToAuthenticate } from '../../helpers/user-data';
 import { createId } from '../../src/db/create-id';
 import * as schema from '../../src/db/schema';
+import {
+  applyPermissionDiff,
+  PermissionDiff,
+} from '../utils/permissions-override';
 import { test as base } from './base-test';
-import { applyPermissionDiff, PermissionDiff } from '../utils/permissions-override';
 
 interface BaseFixtures {
-  permissionOverride: (diff: PermissionDiff) => Promise<void>;
   discounts?: void;
   events: {
     id: string;
@@ -29,6 +31,7 @@ interface BaseFixtures {
     title: string;
     unlisted: boolean;
   }[];
+  permissionOverride: (diff: PermissionDiff) => Promise<void>;
   registrations: {
     eventId: string;
     id: string;
@@ -118,8 +121,14 @@ export const test = base.extend<BaseFixtures>({
       const events = await addEvents(database, templates, roles);
       await use(events);
     },
-    { auto: true },
+    // Increase timeout to allow seeding events to finish in slower environments
+    { auto: true, timeout: 20_000 },
   ],
+  permissionOverride: async ({ database, tenant }, use) => {
+    await use(async (diff: PermissionDiff) => {
+      await applyPermissionDiff(database as any, tenant, diff);
+    });
+  },
   registrations: [
     async ({ database, events, tenant }, use) => {
       // Create a minimal input format for each event with its registration options
@@ -214,11 +223,6 @@ export const test = base.extend<BaseFixtures>({
       type: 'tenant',
     });
     await use(tenant);
-  },
-  permissionOverride: async ({ database, tenant }, use) => {
-    await use(async (diff: PermissionDiff) => {
-      await applyPermissionDiff(database as any, tenant, diff);
-    });
   },
 });
 export { expect } from '@playwright/test';

@@ -81,7 +81,7 @@ test('Register for a free event', async ({ events, page }, testInfo) => {
   );
 });
 
-test('Register for a paid event @finance', async ({ events, page }, testInfo) => {
+test('Register for a paid event', async ({ events, page }, testInfo) => {
   test.slow();
   const paidEvent = events.find((event) => {
     return (

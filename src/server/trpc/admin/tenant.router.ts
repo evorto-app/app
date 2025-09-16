@@ -20,7 +20,7 @@ export const tenantRouter = router({
     }),
 
   importStripeTaxRates: authenticatedProcedure
-    .meta({ requiredPermissions: ['admin:changeSettings'] })
+    .meta({ requiredPermissions: ['admin:manageTaxes'] })
     .input(
       Schema.standardSchemaV1(
         Schema.Struct({ ids: Schema.Array(Schema.NonEmptyString) }),
@@ -59,7 +59,7 @@ export const tenantRouter = router({
     }),
 
   listImportedTaxRates: authenticatedProcedure
-    .meta({ requiredPermissions: ['admin:changeSettings'] })
+    .meta({ requiredPermissions: ['admin:manageTaxes'] })
     .query(async ({ ctx }) => {
       return database.query.tenantStripeTaxRates.findMany({
         where: { tenantId: ctx.tenant.id },
@@ -67,7 +67,7 @@ export const tenantRouter = router({
     }),
 
   listStripeTaxRates: authenticatedProcedure
-    .meta({ requiredPermissions: ['admin:changeSettings'] })
+    .meta({ requiredPermissions: ['admin:manageTaxes'] })
     .query(async ({ ctx }) => {
       const stripeAccount = ctx.tenant.stripeAccountId;
       if (!stripeAccount) {

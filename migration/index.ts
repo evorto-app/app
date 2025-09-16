@@ -14,6 +14,9 @@ import { migrateTemplates } from './steps/templates';
 import { migrateTenant } from './steps/tenant';
 import { migrateUserTenantAssignments } from './steps/user-assignments';
 import { migrateUsers } from './steps/users';
+import { addUniqueIndexTenantStripeTaxRates } from './steps/001_add_unique_index_tenant_stripe_tax_rates';
+import { backfillAndSeedTaxRates } from './steps/002_backfill_and_seed_tax_rates';
+import { addAdminManageTaxesPermission } from './steps/003_add_admin_manage_taxes_permission';
 
 type Features = 'users' | 'tenants' | 'roles' | 'assignments' | 'templates' | 'events';
 
@@ -62,6 +65,11 @@ async function main() {
     await reset(database, schema);
     consola.success('DB cleared');
   }
+
+  // Run global migration steps first
+  consola.start('Running global migration steps');
+  await addUniqueIndexTenantStripeTaxRates();
+  consola.success('Global migration steps complete');
 
   consola.start('Begin migration');
 
@@ -143,6 +151,10 @@ async function runForTenant(
   if (options.features.includes('events')) {
     await migrateEvents(oldTenant, newTenant, templateIdMap, roleMap);
   }
+
+  // Run tenant-specific migration steps
+  await addAdminManageTaxesPermission(newTenant.id);
+  await backfillAndSeedTaxRates(newTenant.id, newTenant.stripeAccountId);
 
   consola.success(`Migration ${oldShortName} to ${newDomain} complete`);
 }

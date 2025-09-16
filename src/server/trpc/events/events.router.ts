@@ -3,9 +3,11 @@ import { and, arrayOverlaps, eq, inArray } from 'drizzle-orm';
 import { Schema } from 'effect';
 import { groupBy } from 'es-toolkit';
 import { DateTime } from 'luxon';
+import consola from 'consola';
 
 import { database } from '../../../db';
 import * as schema from '../../../db/schema';
+import { validateTaxRate } from '../../utils/validate-tax-rate';
 import {
   authenticatedProcedure,
   publicProcedure,
@@ -54,6 +56,23 @@ export const eventRouter = router({
       ),
     )
     .mutation(async ({ ctx, input }) => {
+      // Validate tax rates for all registration options before proceeding
+      for (const [index, option] of input.registrationOptions.entries()) {
+        const validation = await validateTaxRate({
+          isPaid: option.isPaid,
+          stripeTaxRateId: option.stripeTaxRateId ?? null,
+          tenantId: ctx.tenant.id,
+        });
+
+        if (!validation.success) {
+          consola.error(`Registration option ${index} tax rate validation failed:`, validation.error);
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: `Registration option "${option.title}": ${validation.error.message}`,
+          });
+        }
+      }
+
       const templateDefaults = await database.query.eventTemplates.findFirst({
         columns: { unlisted: true },
         where: { id: input.templateId },

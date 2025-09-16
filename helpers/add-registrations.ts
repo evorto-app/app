@@ -22,6 +22,7 @@ import { NeonDatabase } from 'drizzle-orm/neon-serverless';
 import { createId } from '../src/db/create-id';
 import { relations } from '../src/db/relations';
 import * as schema from '../src/db/schema';
+import { usersToAuthenticate } from './user-data';
 
 /**
  * Simplified event input type containing only the essential fields needed for registrations
@@ -140,21 +141,10 @@ export async function addRegistrations(
   }
   const defaultCurrency = defaultTenant.currency || 'EUR';
 
-  // Utility: deterministically pick k users using partial Fisher–Yates (O(k))
-  const pickK = <T,>(arr: T[], k: number) => {
-    const n = arr.length;
-    if (k >= n) return arr.slice();
-    const a = arr.slice();
-    for (let i = 0; i < k; i++) {
-      const max = n - 1 - i;
-      const offset = max > 0 ? randNumber({ min: 0, max }) : 0;
-      const j = i + offset;
-      const tmp = a[i];
-      a[i] = a[j];
-      a[j] = tmp;
-    }
-    return a.slice(0, k);
-  };
+  const testerUserIds = new Set(usersToAuthenticate.map((user) => user.id));
+  const seededCountByUser = new Map<string, number>();
+  const MAX_REGISTRATIONS_PER_USER = 4;
+  const MAX_REGISTRATIONS_PER_TEST_USER = 1;
 
 
   // Process each event with varied registration patterns
@@ -251,7 +241,28 @@ export async function addRegistrations(
       let checkedInCount = 0;
 
       // Deterministically select K users using partial shuffle (faster than full sort)
-      const selectedUsers = pickK(eligibleUsers, totalRegistrations);
+      const shuffledUsers = eligibleUsers.slice();
+      for (let i = shuffledUsers.length - 1; i > 0; i--) {
+        const j = randNumber({ min: 0, max: i });
+        const tmp = shuffledUsers[i];
+        shuffledUsers[i] = shuffledUsers[j];
+        shuffledUsers[j] = tmp;
+      }
+
+      const selectedUsers: (typeof users)[number][] = [];
+      for (const user of shuffledUsers) {
+        const limit = testerUserIds.has(user.id)
+          ? MAX_REGISTRATIONS_PER_TEST_USER
+          : MAX_REGISTRATIONS_PER_USER;
+        const currentCount = seededCountByUser.get(user.id) ?? 0;
+        if (currentCount >= limit) {
+          continue;
+        }
+        selectedUsers.push(user);
+        if (selectedUsers.length >= totalRegistrations) {
+          break;
+        }
+      }
 
       // Create registrations
       for (let index = 0; index < selectedUsers.length; index++) {
@@ -329,6 +340,9 @@ export async function addRegistrations(
           tenantId,
           userId: user.id,
         });
+
+        const previousCount = seededCountByUser.get(user.id) ?? 0;
+        seededCountByUser.set(user.id, previousCount + 1);
 
         // For paid registrations, create a transaction record
         if (option.isPaid && paymentStatus) {

@@ -51,7 +51,7 @@
 **CRITICAL: These tests MUST be written and MUST FAIL before ANY implementation**
 - [ ] T004 [P] E2E happy‑path flow in e2e/tests/[feature].spec.ts
 - [ ] T005 [P] E2E role/permissions constraints in e2e/tests/[feature].spec.ts
-- [ ] T006 [P] Documentation test journey in e2e/tests/[feature].doc.ts
+- [ ] T006 [P] Documentation test journey in e2e/tests/[feature].doc.ts (ensure it generates updated user-facing docs for the feature)
 - [ ] T007 [P] Contract tests for critical endpoints in tests/contract/[feature].spec.ts
 
 ### If migrating legacy data
@@ -65,6 +65,7 @@
 - [ ] T009 [P] Service(s) in src/server/services/[feature].ts or src/app/[feature]/data/[feature].service.ts
 - [ ] T010 [P] API router/endpoint(s) in src/server/trpc/[feature]-router.ts
 - [ ] T011 [P] UI route/component(s) in src/app/[feature]/
+- [ ] T011a Ensure UI complies with Material 3 + Angular Material + Tailwind standards (theme tokens, responsive list–detail where applicable, `<fa-duotone-icon>` usage)
 - [ ] T012 Input validation with Effect Schema (server)
 - [ ] T013 Error handling and structured logging
 
@@ -81,6 +82,8 @@
 - [ ] T018 [P] Unit tests for critical pure logic (optional)
 - [ ] T019 Performance validations (< defined budget)
 - [ ] T020 [P] Update documentation (including generated docs from .doc.ts)
+- [ ] T020a Add feature README design note with Material 3 references, screenshots, and note any theme/token updates
+- [ ] T020b Capture documentation preview assets (screenshots or rendered markdown snippet) from `.doc.ts` output for PR description
 - [ ] T021 Remove duplication
 - [ ] T022 Run quickstart.md and manual-testing.md
 
@@ -137,4 +140,4 @@ Task: "Integration test auth in tests/integration/test_auth.py"
 - [ ] If migrating: ETL mapping/backfills defined; verification checks and seed updates planned
 
 ---
-*Based on Constitution 1.0.0 - See `/memory/constitution.md`*
+*Based on Constitution 1.1.3 - See `.specify/memory/constitution.md`*
