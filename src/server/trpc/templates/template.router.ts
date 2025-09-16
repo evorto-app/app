@@ -3,7 +3,10 @@ import { Schema } from 'effect';
 import consola from 'consola';
 
 import { database } from '../../../db';
+import { createId } from '../../../db/create-id';
 import {
+  eventInstances,
+  eventRegistrationOptions,
   eventTemplates,
   templateRegistrationOptions,
 } from '../../../db/schema';
@@ -24,6 +27,82 @@ const registrationOptionSchema = Schema.Struct({
 });
 
 export const templateRouter = router({
+  createEventFromTemplate: authenticatedProcedure
+    .meta({ requiredPermissions: ['events:create'] })
+    .input(
+      Schema.standardSchemaV1(
+        Schema.Struct({
+          templateId: Schema.NonEmptyString,
+          title: Schema.NonEmptyString,
+          start: Schema.ValidDateFromSelf,
+          end: Schema.ValidDateFromSelf,
+          description: Schema.optional(Schema.NonEmptyString),
+        }),
+      ),
+    )
+    .mutation(async ({ ctx, input }) => {
+      return database.transaction(async (tx) => {
+        // Get the template with its registration options
+        const template = await tx.query.eventTemplates.findFirst({
+          where: { id: input.templateId, tenantId: ctx.tenant.id },
+          with: {
+            registrationOptions: true,
+          },
+        });
+
+        if (!template) {
+          throw new Error('Template not found');
+        }
+
+        // Create the event instance
+        const event = await tx
+          .insert(eventInstances)
+          .values({
+            tenantId: ctx.tenant.id,
+            templateId: template.id,
+            creatorId: ctx.user.id,
+            title: input.title,
+            description: input.description || template.description,
+            start: input.start,
+            end: input.end,
+            icon: template.icon,
+            location: template.location,
+          })
+          .returning()
+          .then((result) => result[0]);
+
+        // Duplicate each template registration option to event registration options
+        for (const templateOption of template.registrationOptions) {
+          await tx.insert(eventRegistrationOptions).values({
+            eventId: event.id,
+            title: templateOption.title,
+            description: templateOption.description,
+            price: templateOption.price,
+            isPaid: templateOption.isPaid,
+            spots: templateOption.spots,
+            organizingRegistration: templateOption.organizingRegistration,
+            registrationMode: templateOption.registrationMode,
+            roleIds: templateOption.roleIds,
+            stripeTaxRateId: templateOption.stripeTaxRateId,
+            registeredDescription: templateOption.registeredDescription,
+            // Copy discounts JSON array from template to event
+            discounts: templateOption.discounts,
+            // Calculate registration times based on offsets
+            openRegistrationTime: new Date(
+              input.start.getTime() + templateOption.openRegistrationOffset * 60 * 60 * 1000
+            ),
+            closeRegistrationTime: new Date(
+              input.start.getTime() + templateOption.closeRegistrationOffset * 60 * 60 * 1000
+            ),
+          });
+        }
+
+        consola.info(`Created event ${event.id} from template ${template.id} with ${template.registrationOptions.length} registration options`);
+        
+        return event;
+      });
+    }),
+    
   createSimpleTemplate: authenticatedProcedure
     .input(
       Schema.standardSchemaV1(

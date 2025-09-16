@@ -15,7 +15,7 @@ import { discountTypes, registrationModes } from './global-enums';
 import { templateEventAddons } from './template-event-addons';
 
 // Type for discount configurations
-export interface DiscountConfig {
+export interface TemplateDiscountConfig {
   discountType: 'esnCard';
   discountedPrice: number;
 }
@@ -27,7 +27,7 @@ export const templateRegistrationOptions = pgTable(
     createdAt: timestamp().notNull().defaultNow(),
     description: text(),
     // Discounts configuration stored as JSONB array
-    discounts: jsonb('discounts').$type<DiscountConfig[]>(),
+    discounts: jsonb('discounts').$type<TemplateDiscountConfig[]>(),
     id: varchar({ length: 20 })
       .$defaultFn(() => createId())
       .primaryKey(),
