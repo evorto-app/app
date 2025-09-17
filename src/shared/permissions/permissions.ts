@@ -26,6 +26,8 @@ const EVENTS_GROUP = {
     'seeDrafts',
     'seeUnlisted',
     'viewPublic',
+    'registrations:cancel:any',
+    'registrations:cancelWithoutRefund',
   ] as const,
 } as const;
 

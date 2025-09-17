@@ -11,6 +11,64 @@ import { createId } from '../../../db/create-id';
 import * as schema from '../../../db/schema';
 import { stripe } from '../../stripe-client';
 import { authenticatedProcedure } from '../trpc-server';
+import { 
+  resolvePolicyVariant, 
+  createDefaultTenantPolicies, 
+  EffectiveCancellationPolicy 
+} from '../../../types/cancellation';
+
+/**
+ * Resolves the effective cancellation policy for a registration
+ */
+async function resolveEffectiveCancellationPolicy(
+  registrationOption: {
+    isPaid: boolean;
+    organizingRegistration: boolean;
+    useTenantCancellationPolicy: boolean;
+    cancellationPolicy: any;
+  },
+  tenantId: string,
+): Promise<EffectiveCancellationPolicy> {
+  const variant = resolvePolicyVariant(
+    registrationOption.isPaid,
+    registrationOption.organizingRegistration,
+  );
+
+  if (registrationOption.useTenantCancellationPolicy) {
+    // Get tenant default policies
+    const tenant = await database.query.tenants.findFirst({
+      where: { id: tenantId },
+      columns: { cancellationPolicies: true },
+    });
+
+    const tenantPolicies = tenant?.cancellationPolicies || createDefaultTenantPolicies();
+    const policy = tenantPolicies[variant];
+
+    return {
+      ...policy,
+      source: 'tenant-default',
+      variant,
+    };
+  } else {
+    // Use option override policy
+    const policy = registrationOption.cancellationPolicy;
+    if (!policy) {
+      // Fallback to default if no custom policy
+      const defaultPolicies = createDefaultTenantPolicies();
+      return {
+        ...defaultPolicies[variant],
+        source: 'option-override',
+        variant,
+      };
+    }
+
+    return {
+      ...policy,
+      source: 'option-override',
+      variant,
+    };
+  }
+}
 
 export const registerForEventProcedure = authenticatedProcedure
   .input(
@@ -67,6 +125,12 @@ export const registerForEventProcedure = authenticatedProcedure
         });
       }
 
+      // Resolve effective cancellation policy
+      const effectiveCancellationPolicy = await resolveEffectiveCancellationPolicy(
+        registrationOption,
+        ctx.tenant.id,
+      );
+
       // Register user for event
       const userRegistration = await tx
         .insert(schema.eventRegistrations)
@@ -76,6 +140,8 @@ export const registerForEventProcedure = authenticatedProcedure
           status: registrationOption.isPaid ? 'PENDING' : 'CONFIRMED',
           tenantId: ctx.tenant.id,
           userId: ctx.user.id,
+          effectiveCancellationPolicy,
+          effectivePolicySource: effectiveCancellationPolicy.source,
         })
         .returning()
         .then((result) => result[0]);

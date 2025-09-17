@@ -4,6 +4,7 @@ import { Schema } from 'effect';
 import { database } from '../../../db';
 import * as schema from '../../../db/schema';
 import { stripe } from '../../stripe-client';
+import { TenantCancellationPolicies, CancellationPolicy } from '../../../types/cancellation';
 import { authenticatedProcedure, router } from '../trpc-server';
 
 export const tenantRouter = router({
@@ -17,6 +18,62 @@ export const tenantRouter = router({
       });
 
       return tenant;
+    }),
+
+  getCancellationPolicies: authenticatedProcedure
+    .meta({ requiredPermissions: ['admin:changeSettings'] })
+    .query(async ({ ctx }) => {
+      const tenant = await database.query.tenants.findFirst({
+        where: { id: ctx.tenant.id },
+        columns: { cancellationPolicies: true },
+      });
+      
+      return tenant?.cancellationPolicies || null;
+    }),
+
+  setCancellationPolicies: authenticatedProcedure
+    .meta({ requiredPermissions: ['admin:changeSettings'] })
+    .input(
+      Schema.standardSchemaV1(
+        Schema.Struct({
+          'paid-regular': Schema.Struct({
+            allowCancellation: Schema.Boolean,
+            includeTransactionFees: Schema.Boolean,
+            includeAppFees: Schema.Boolean,
+            cutoffDays: Schema.Int.pipe(Schema.greaterThanOrEqualTo(0)),
+            cutoffHours: Schema.Int.pipe(Schema.between(0, 23)),
+          }),
+          'paid-organizer': Schema.Struct({
+            allowCancellation: Schema.Boolean,
+            includeTransactionFees: Schema.Boolean,
+            includeAppFees: Schema.Boolean,
+            cutoffDays: Schema.Int.pipe(Schema.greaterThanOrEqualTo(0)),
+            cutoffHours: Schema.Int.pipe(Schema.between(0, 23)),
+          }),
+          'free-regular': Schema.Struct({
+            allowCancellation: Schema.Boolean,
+            includeTransactionFees: Schema.Boolean,
+            includeAppFees: Schema.Boolean,
+            cutoffDays: Schema.Int.pipe(Schema.greaterThanOrEqualTo(0)),
+            cutoffHours: Schema.Int.pipe(Schema.between(0, 23)),
+          }),
+          'free-organizer': Schema.Struct({
+            allowCancellation: Schema.Boolean,
+            includeTransactionFees: Schema.Boolean,
+            includeAppFees: Schema.Boolean,
+            cutoffDays: Schema.Int.pipe(Schema.greaterThanOrEqualTo(0)),
+            cutoffHours: Schema.Int.pipe(Schema.between(0, 23)),
+          }),
+        }),
+      ),
+    )
+    .mutation(async ({ ctx, input }) => {
+      await database
+        .update(schema.tenants)
+        .set({ cancellationPolicies: input as TenantCancellationPolicies })
+        .where(eq(schema.tenants.id, ctx.tenant.id));
+      
+      return { success: true };
     }),
 
   importStripeTaxRates: authenticatedProcedure
