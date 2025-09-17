@@ -3,6 +3,10 @@ import { Schema } from 'effect';
 
 import { database } from '../../../db';
 import * as schema from '../../../db/schema';
+import {
+  GetTenantPoliciesOutputSchema,
+  SetTenantPoliciesInputSchema,
+} from '../../../shared/schemas/cancellation';
 import { stripe } from '../../stripe-client';
 import { authenticatedProcedure, router } from '../trpc-server';
 
@@ -17,6 +21,42 @@ export const tenantRouter = router({
       });
 
       return tenant;
+    }),
+
+  getCancellationPolicies: authenticatedProcedure
+    .meta({ requiredPermissions: ['admin:changeSettings'] })
+    .query(async ({ ctx }) => {
+      const tenant = await database.query.tenants.findFirst({
+        columns: { cancellationPolicies: true },
+        where: { id: ctx.tenant.id },
+      });
+
+      return {
+        policies: tenant?.cancellationPolicies || undefined,
+      };
+    }),
+
+  setCancellationPolicies: authenticatedProcedure
+    .meta({ requiredPermissions: ['admin:changeSettings'] })
+    .input(Schema.standardSchemaV1(SetTenantPoliciesInputSchema))
+    .mutation(async ({ ctx, input }) => {
+      let policies = input.overrides || {};
+
+      if (input.applyToAll) {
+        policies = {
+          'paid-regular': input.policy,
+          'paid-organizer': input.policy,
+          'free-regular': input.policy,
+          'free-organizer': input.policy,
+        };
+      }
+
+      await database
+        .update(schema.tenants)
+        .set({ cancellationPolicies: policies })
+        .where(eq(schema.tenants.id, ctx.tenant.id));
+
+      return { success: true };
     }),
 
   importStripeTaxRates: authenticatedProcedure
