@@ -85,19 +85,14 @@ const test = base.extend<{
       throw new Error('Unable to locate participant registration option');
     }
 
-    const originalTitle = template.title;
     const originalDiscounts = participantOption.discounts ?? [];
-    const originalPrice = participantOption.price;
 
-    const patchedTitle = `Discount template ${createId().slice(-6)}`;
     const discountConfiguration = [
-      { discountType: 'esnCard' as const, discountedPrice: Math.max(0, originalPrice - 1000) },
+      {
+        discountType: 'esnCard' as const,
+        discountedPrice: Math.max(0, (participantOption.price ?? 0) - 1000),
+      },
     ];
-
-    await database
-      .update(schema.eventTemplates)
-      .set({ title: patchedTitle })
-      .where(eq(schema.eventTemplates.id, template.id));
 
     await database
       .update(schema.templateRegistrationOptions)
@@ -108,21 +103,16 @@ const test = base.extend<{
       await use({
         categoryTitle: template.category.title,
         discountedPrice: discountConfiguration[0].discountedPrice,
-        fullPrice: originalPrice,
+        fullPrice: participantOption.price,
         optionTitle: participantOption.title,
         templateId: template.id,
-        templateTitle: patchedTitle,
+        templateTitle: template.title,
       });
     } finally {
       await database
         .update(schema.templateRegistrationOptions)
         .set({ discounts: originalDiscounts })
         .where(eq(schema.templateRegistrationOptions.id, participantOption.id));
-
-      await database
-        .update(schema.eventTemplates)
-        .set({ title: originalTitle })
-        .where(eq(schema.eventTemplates.id, template.id));
     }
   },
 });
@@ -175,10 +165,10 @@ test.describe.configure({ tag: '@contracts' });
 
 test.use({ storageState: defaultStateFile });
 
-test(
+test.fixme(
   'Contract: templates.createEventFromTemplate keeps ESN discount configuration @slow',
   async ({ browser, discountTemplate, page, tenant }) => {
-    test.fixme(true, 'Template creation flow is not accessible via UI navigation yet.');
+    // TODO: event approval flow is required to expose registration options to end users.
     const uniqueTitle = `Discounted event ${Date.now()}`;
 
     await page.goto('/templates');
@@ -186,18 +176,30 @@ test(
       .getByText('Loading ...', { exact: false })
       .first()
       .waitFor({ state: 'detached' });
-    // Template navigation collapses on smaller breakpoints; when the nav is hidden
-    // the router link is not rendered. Fall back to direct navigation when the link
-    // is not immediately available.
-    await page.goto(`/templates/${discountTemplate.templateId}/create-event`);
-    await page.waitForURL(/create-event$/);
+    const templateLink = page
+      .getByRole('link', {
+        name: new RegExp(discountTemplate.templateTitle, 'i'),
+      })
+      .first();
+
+    await expect(templateLink).toBeVisible({ timeout: 15_000 });
+    await templateLink.scrollIntoViewIfNeeded();
+    await templateLink.click();
+
+    const createEventButton = page.getByRole('link', { name: 'Create event' });
+    await expect(createEventButton).toBeVisible({ timeout: 10_000 });
+    await createEventButton.click();
+
+    await expect(page).toHaveURL(/create-event$/);
     await expect(page.getByLabel('Event title')).toBeVisible({ timeout: 15_000 });
 
-    await page.getByLabel('Event title').fill(uniqueTitle);
-    await page.getByLabel('Start date').fill('12/31/2030');
-    await page.getByLabel('Start time').fill('09:00');
-    await page.getByLabel('End date').fill('01/01/2031');
-    await page.getByLabel('End time').fill('18:00');
+    const eventDetails = page.locator('app-event-general-form');
+
+    await eventDetails.getByLabel('Event title').fill(uniqueTitle);
+    await eventDetails.getByLabel('Start date').fill('12/31/2030');
+    await eventDetails.getByLabel('Start time').fill('09:00');
+    await eventDetails.getByLabel('End date').fill('01/01/2031');
+    await eventDetails.getByLabel('End time').fill('18:00');
 
     await page.getByRole('button', { name: 'Create event' }).click();
     await page.waitForURL(/\/events\/[^/]+$/);

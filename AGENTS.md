@@ -1,5 +1,43 @@
 # Repository Guidelines
 
+## Angular Agent Prompt
+You are an expert in TypeScript, Angular, and scalable web application development. You write maintainable, performant, and accessible code following Angular and TypeScript best practices.
+
+### TypeScript Best Practices
+- Use strict type checking.
+- Prefer type inference when the type is obvious.
+- Avoid the `any` type; when information is uncertain prefer `unknown` and narrow it safely.
+
+### Angular Best Practices
+- Always use standalone components over NgModules and do not set `standalone: true` manually—it is the default.
+- Implement lazy loading for feature routes to keep bundles lean.
+- Manage local state with signals and derive values with `computed()`.
+- Declare host bindings inside the `host` object of the decorator instead of using `@HostBinding` or `@HostListener`.
+- Use `NgOptimizedImage` for static images and remember it does not work with inline base64 sources.
+
+### Components
+- Keep components small and focused on a single responsibility.
+- Use the `input()` and `output()` helpers instead of decorators.
+- Set `changeDetection: ChangeDetectionStrategy.OnPush` and favor inline templates for small components.
+- Prefer reactive, non-nullable forms instead of template-driven forms.
+- Avoid `ngClass` and `ngStyle`; rely on `class` and `style` bindings.
+
+### State Management
+- Use signals for local component state.
+- Use `computed()` for derived state.
+- Keep state transformations pure and predictable.
+- Never call `mutate` on signals; use `set` or `update`.
+
+### Templates
+- Keep templates simple and avoid complex logic.
+- Use the native control flow syntax (`@if`, `@for`, `@switch`) instead of structural directives.
+- Use the `async` pipe to handle observables.
+
+### Services
+- Design services around a single responsibility.
+- Provide singleton services with `providedIn: 'root'`.
+- Use the `inject()` function rather than constructor injection.
+
 ## Tooling Requirements
 - Use Yarn v4 (Berry) for all workspace commands. Do not run `npm`, `pnpm`, or global Playwright binaries—always execute scripts through `yarn <script>` so the repo-managed plugins and constraints apply.
 
@@ -55,6 +93,7 @@
 ## Testing Guidelines
 - Unit: place `*.spec.ts` next to the unit under test. Keep tests deterministic and fast.
 - E2E: author Playwright tests in `e2e/**`; use `yarn e2e:ui` to debug; attach screenshots for UI changes.
+- Discount card validation requires external ESN data that we cannot seed. Leave any ESN-number-dependent scenarios skipped/fixme'd until stable fixtures exist.
 
 ## Research Before You Code
 - For Angular work, retrieve and review the current Angular Best Practices before making changes.
@@ -70,15 +109,6 @@
 ## Security & Configuration
 - Copy environment from `.env`/`.env.local`; never commit secrets. Stripe/Sentry helpers exist (`stripe:listen`, `sentry:sourcemaps`).
 - When touching DB schema, include migration steps and local verification notes.
-
-## Angular Best Practices
-- Use standalone components (no NgModules) and don’t set `standalone: true`.
-- Prefer `input()`/`output()` helpers; set `changeDetection: ChangeDetectionStrategy.OnPush`.
-- Use signals for local state and `computed()` for derived values; avoid `mutate`, use `set`/`update`.
-- Use native control flow: `@if`, `@for`, `@switch` and `class`/`style` bindings (not `ngIf/ngFor`, `ngClass/ngStyle`).
-- Prefer `inject()` for DI and `providedIn: 'root'` for singletons.
-- Use typed reactive forms; keep templates logic-light and reuse services/computed signals.
-- Use `NgOptimizedImage` for static images.
 
 ## Design System & UI Standards
 - Material Design 3 is the source of truth for layout, motion, and components; cite relevant M3 guidance when adding UI.

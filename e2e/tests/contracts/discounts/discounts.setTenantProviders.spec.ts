@@ -58,6 +58,12 @@ async function withContext(
   }
 }
 
+const providerSwitch = (page: Page) =>
+  page.getByTestId('enable-esn-provider').getByRole('switch');
+
+const ctaSwitch = (page: Page) =>
+  page.getByTestId('esn-show-cta-toggle').getByRole('switch');
+
 test.describe('Contract: discounts.setTenantProviders', () => {
   test('updates tenant providers and reflects on the user profile', async ({ browser, tenant }) => {
     await withContext(browser, tenant.domain, adminStateFile, async (page) => {
@@ -65,16 +71,17 @@ test.describe('Contract: discounts.setTenantProviders', () => {
         waitUntil: 'domcontentloaded',
       });
 
-      const providerToggle = page.getByTestId('enable-esn-provider').locator('button');
+      const providerToggle = providerSwitch(page);
       if ((await providerToggle.getAttribute('aria-checked')) !== 'true') {
         await providerToggle.click();
+        await expect(providerToggle).toHaveAttribute('aria-checked', 'true');
       }
 
-      const ctaToggle = page.getByTestId('esn-show-cta-toggle');
+      const ctaToggle = ctaSwitch(page);
       await expect(ctaToggle).toHaveCount(1);
-      const ctaButton = ctaToggle.locator('button');
-      if ((await ctaButton.getAttribute('aria-checked')) === 'true') {
-        await ctaButton.click();
+      if ((await ctaToggle.getAttribute('aria-checked')) === 'true') {
+        await ctaToggle.click();
+        await expect(ctaToggle).toHaveAttribute('aria-checked', 'false');
       }
 
       await page.getByTestId('save-discount-settings').click();
@@ -93,9 +100,10 @@ test.describe('Contract: discounts.setTenantProviders', () => {
       await page.goto('/admin/settings/discounts', {
         waitUntil: 'domcontentloaded',
       });
-      const ctaToggle = page.getByTestId('esn-show-cta-toggle');
-      if ((await ctaToggle.locator('button').getAttribute('aria-checked')) !== 'true') {
-        await ctaToggle.locator('button').click();
+      const ctaToggle = ctaSwitch(page);
+      if ((await ctaToggle.getAttribute('aria-checked')) !== 'true') {
+        await ctaToggle.click();
+        await expect(ctaToggle).toHaveAttribute('aria-checked', 'true');
         await page.getByTestId('save-discount-settings').click();
         await expect(page.locator(SNACKBAR)).toContainText('Discount settings saved successfully');
         await page.locator(SNACKBAR).waitFor({ state: 'detached' });

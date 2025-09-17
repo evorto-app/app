@@ -50,6 +50,7 @@ Contract tests (1 per contract file)
 - [ ] T005 [P] Contract test: discounts.cards (getMyCards, upsertMyCard, deleteMyCard)
   - File: `/Users/hedde/code/evorto/e2e/tests/contracts/discounts/discounts.cards.crud.spec.ts`
   - Assert immediate validation on upsert; uniqueness `(type, identifier)` enforced; provider disabled blocks upsert; delete removes user’s card.
+  - **Status**: Blocked in automation until stable ESNcard test identifiers are available (flows currently skipped in Playwright).
 
 - [ ] T006 [P] Contract test: events.pricing.selection applied during `registerForEvent`
   - File: `/Users/hedde/code/evorto/e2e/tests/contracts/events/events.pricing.selection.spec.ts`
@@ -63,6 +64,7 @@ Integration/E2E documentation tests (user journeys from quickstart)
 - [ ] T008 [P] Documentation test: end‑to‑end journey
   - File: `/Users/hedde/code/evorto/e2e/tests/discounts/discounts.doc.ts`
   - Steps: admin enables ESN; user adds/validates ESN card; create template with ESN discounted price; create event from template; register and see discounted/zero price; participants list shows discount; toggle ESN off then ensure new card upsert blocked.
+  - **Status**: Blocked pending deterministic ESNcard test numbers; doc test currently short‑circuits when numbers are unavailable.
 
 - [ ] T009 [P] E2E: permissions and visibility
   - File: `/Users/hedde/code/evorto/e2e/tests/discounts/discounts-permissions.spec.ts`

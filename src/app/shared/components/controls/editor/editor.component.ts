@@ -43,7 +43,6 @@ export class EditorComponent {
   protected config: TinyEditor['init'] = {
     content_css: this.useDarkMode ? 'dark' : 'default',
     height: 600,
-    license_key: 'gpl',
     menubar: false,
     plugins: 'lists link image table code help wordcount',
     skin: this.useDarkMode ? 'oxide-dark' : 'oxide',

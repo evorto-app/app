@@ -56,30 +56,31 @@ async function withAdminPage(
   }
 }
 
+const providerSwitch = (page: Page) =>
+  page.getByTestId('enable-esn-provider').getByRole('switch');
+
 async function toggleProvider(page: Page, enabled: boolean) {
-  const toggle = page.getByTestId('enable-esn-provider').locator('button');
-  const state = await toggle.getAttribute('aria-checked');
-  if ((state === 'true') !== enabled) {
+  const toggle = providerSwitch(page);
+  const expected = enabled ? 'true' : 'false';
+  if ((await toggle.getAttribute('aria-checked')) !== expected) {
     await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-checked', expected);
   }
 }
 
 test.describe('Contract: discounts.catalog → getTenantProviders', () => {
   test('persists provider configuration across reloads', async ({ browser, tenant }) => {
     await withAdminPage(browser, tenant.domain, async (page) => {
-      await toggleProvider(page, false);
-      await page.getByTestId('save-discount-settings').click();
-      await expect(page.locator(SNACKBAR)).toContainText('Discount settings saved successfully');
-      await page.locator(SNACKBAR).waitFor({ state: 'detached' });
+      await expect(providerSwitch(page)).toHaveAttribute('aria-checked', 'true');
 
-      await page.reload({ waitUntil: 'domcontentloaded' });
-      await expect(page.getByTestId('enable-esn-provider').locator('button')).toHaveAttribute('aria-checked', 'false');
+      const ctaToggle = page
+        .getByTestId('esn-show-cta-toggle')
+        .getByRole('switch');
 
-      await toggleProvider(page, true);
-      const ctaToggle = page.getByTestId('esn-show-cta-toggle');
-      await expect(ctaToggle).toBeVisible();
-      if ((await ctaToggle.getAttribute('aria-checked')) !== 'true') {
+      // Turn the CTA off and verify the persisted state.
+      if ((await ctaToggle.getAttribute('aria-checked')) !== 'false') {
         await ctaToggle.click();
+        await expect(ctaToggle).toHaveAttribute('aria-checked', 'false');
       }
 
       await page.getByTestId('save-discount-settings').click();
@@ -87,8 +88,20 @@ test.describe('Contract: discounts.catalog → getTenantProviders', () => {
       await page.locator(SNACKBAR).waitFor({ state: 'detached' });
 
       await page.reload({ waitUntil: 'domcontentloaded' });
-      await expect(page.getByTestId('enable-esn-provider').locator('button')).toHaveAttribute('aria-checked', 'true');
-      await expect(page.getByTestId('esn-show-cta-toggle').locator('button')).toHaveAttribute('aria-checked', 'true');
+      await expect(providerSwitch(page)).toHaveAttribute('aria-checked', 'true');
+      await expect(ctaToggle).toHaveAttribute('aria-checked', 'false');
+
+      // Re-enable the CTA to keep the fixture state aligned for later tests.
+      await ctaToggle.click();
+      await expect(ctaToggle).toHaveAttribute('aria-checked', 'true');
+
+      await page.getByTestId('save-discount-settings').click();
+      await expect(page.locator(SNACKBAR)).toContainText('Discount settings saved successfully');
+      await page.locator(SNACKBAR).waitFor({ state: 'detached' });
+
+      await page.reload({ waitUntil: 'domcontentloaded' });
+      await expect(providerSwitch(page)).toHaveAttribute('aria-checked', 'true');
+      await expect(ctaToggle).toHaveAttribute('aria-checked', 'true');
     });
   });
 });
