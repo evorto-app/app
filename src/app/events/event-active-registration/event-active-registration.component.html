@@ -48,6 +48,16 @@
             alt="QR code for the registration"
           />
         </div>
+        
+        <!-- Cancel confirmed registration -->
+        <button
+          mat-stroked-button
+          color="warn"
+          (click)="cancelConfirmedRegistration(registration)"
+          [disabled]="cancelRegistrationMutation.isPending()"
+        >
+          {{ cancelRegistrationMutation.isPending() ? 'Cancelling...' : 'Cancel Registration' }}
+        </button>
       }
     </div>
   }
