@@ -27,6 +27,9 @@ function getPolicyVariant(isPaid: boolean, organizingRegistration: boolean): Pol
 }
 
 export const cancelRegistrationProcedure = authenticatedProcedure
+  .meta({ 
+    requiredPermissions: [], // Self-cancellation allowed, other permissions checked in code
+  })
   .input(Schema.standardSchemaV1(CancelRegistrationInputSchema))
   .mutation(async ({ ctx, input }) => {
     // Find the registration with all needed relations
@@ -39,12 +42,17 @@ export const cancelRegistrationProcedure = authenticatedProcedure
         registrationOption: true,
         transactions: true,
         event: {
-          columns: { start: true },
+          columns: { start: true, title: true },
         },
       },
     });
 
     if (!registration) {
+      console.warn(`CANCELLATION_DENIED: Registration ${input.registrationId} not found`, {
+        userId: ctx.user.id,
+        tenantId: ctx.tenant.id,
+        registrationId: input.registrationId,
+      });
       throw new TRPCError({
         code: 'NOT_FOUND',
         message: 'Registration not found',
@@ -62,8 +70,13 @@ export const cancelRegistrationProcedure = authenticatedProcedure
     // Check permissions for cancelling other users' registrations
     const isOwnRegistration = registration.userId === ctx.user.id;
     if (!isOwnRegistration) {
-      // TODO: Check if user has 'events:registrations:cancel:any' permission
-      // For now, only allow users to cancel their own registrations
+      // TODO: Implement permission check for 'events:registrations:cancel:any'
+      console.warn(`CANCELLATION_DENIED: User ${ctx.user.id} attempted to cancel registration ${input.registrationId} belonging to user ${registration.userId}`, {
+        actorUserId: ctx.user.id,
+        registrationUserId: registration.userId,
+        tenantId: ctx.tenant.id,
+        registrationId: input.registrationId,
+      });
       throw new TRPCError({
         code: 'FORBIDDEN',
         message: 'You can only cancel your own registrations',
@@ -92,6 +105,14 @@ export const cancelRegistrationProcedure = authenticatedProcedure
 
     // If no policy found, use default (no cancellation allowed)
     if (!effectivePolicy || !effectivePolicy.allowCancellation) {
+      console.warn(`CANCELLATION_DENIED: No cancellation policy or cancellation disabled`, {
+        userId: ctx.user.id,
+        tenantId: ctx.tenant.id,
+        registrationId: input.registrationId,
+        eventTitle: registration.event.title,
+        hasPolicy: !!effectivePolicy,
+        allowCancellation: effectivePolicy?.allowCancellation,
+      });
       throw new TRPCError({
         code: 'BAD_REQUEST',
         message: 'Cancellation is not allowed for this registration',
@@ -103,6 +124,16 @@ export const cancelRegistrationProcedure = authenticatedProcedure
     const now = new Date();
     
     if (now > cutoffTime) {
+      console.warn(`CANCELLATION_DENIED: Cutoff deadline passed`, {
+        userId: ctx.user.id,
+        tenantId: ctx.tenant.id,
+        registrationId: input.registrationId,
+        eventTitle: registration.event.title,
+        cutoffTime: cutoffTime.toISOString(),
+        currentTime: now.toISOString(),
+        cutoffDays: effectivePolicy.cutoffDays,
+        cutoffHours: effectivePolicy.cutoffHours,
+      });
       throw new TRPCError({
         code: 'BAD_REQUEST',
         message: 'The cancellation deadline has passed',
@@ -137,6 +168,19 @@ export const cancelRegistrationProcedure = authenticatedProcedure
       // Ensure refund amount is not negative
       refundAmount = Math.max(0, refundAmount);
 
+      console.info(`CANCELLATION_REFUND_CALCULATED`, {
+        userId: ctx.user.id,
+        tenantId: ctx.tenant.id,
+        registrationId: input.registrationId,
+        eventTitle: registration.event.title,
+        originalAmount: paymentTransaction.amount,
+        refundAmount,
+        includesTransactionFees,
+        includesAppFees,
+        stripeFee: paymentTransaction.stripeFee,
+        appFee: paymentTransaction.appFee,
+      });
+
       // Initiate Stripe refund if there's an amount to refund
       if (refundAmount > 0 && paymentTransaction.stripePaymentIntentId) {
         const stripeAccount = ctx.tenant.stripeAccountId;
@@ -151,8 +195,23 @@ export const cancelRegistrationProcedure = authenticatedProcedure
               { stripeAccount }
             );
             refunded = true;
+            console.info(`CANCELLATION_REFUND_INITIATED`, {
+              userId: ctx.user.id,
+              tenantId: ctx.tenant.id,
+              registrationId: input.registrationId,
+              eventTitle: registration.event.title,
+              refundAmount,
+              stripePaymentIntentId: paymentTransaction.stripePaymentIntentId,
+            });
           } catch (error) {
-            console.error('Stripe refund failed:', error);
+            console.error('CANCELLATION_REFUND_FAILED', {
+              userId: ctx.user.id,
+              tenantId: ctx.tenant.id,
+              registrationId: input.registrationId,
+              eventTitle: registration.event.title,
+              error: error instanceof Error ? error.message : 'Unknown error',
+              stripePaymentIntentId: paymentTransaction.stripePaymentIntentId,
+            });
             throw new TRPCError({
               code: 'INTERNAL_SERVER_ERROR',
               message: 'Failed to process refund',
@@ -178,9 +237,23 @@ export const cancelRegistrationProcedure = authenticatedProcedure
       await tx
         .update(schema.eventRegistrationOptions)
         .set({
-          confirmedSpots: registration.registrationOption!.confirmedSpots - 1,
+          confirmedSpots: Math.max(0, registration.registrationOption!.confirmedSpots - 1),
         })
         .where(eq(schema.eventRegistrationOptions.id, registration.registrationOptionId));
+    });
+
+    console.info(`CANCELLATION_COMPLETED`, {
+      userId: ctx.user.id,
+      tenantId: ctx.tenant.id,
+      registrationId: input.registrationId,
+      eventTitle: registration.event.title,
+      reason: input.reason || 'user',
+      reasonNote: input.reasonNote,
+      refunded,
+      refundAmount,
+      includesTransactionFees,
+      includesAppFees,
+      policySource: registration.effectivePolicySource || 'calculated',
     });
 
     return {

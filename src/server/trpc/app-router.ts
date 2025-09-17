@@ -1,5 +1,6 @@
 import { adminRouter } from './admin/admin.router';
 import { configRouter } from './core/config.router';
+import { registrationOptionRouter } from './core/registration-option.router';
 import { discountsRouter } from './discounts/discounts.router';
 import { eventRouter } from './events/events.router';
 import { financeRouter } from './finance/finance.router';
@@ -19,6 +20,7 @@ export const appRouter = router({
   finance: financeRouter,
   globalAdmin: globalAdminRouter,
   icons: iconRouter,
+  registrationOptions: registrationOptionRouter,
   taxRates: taxRatesRouter,
   templateCategories: templateCategoryRouter,
   templates: templateRouter,

@@ -7,12 +7,14 @@ import {
   eventTemplates,
   templateRegistrationOptions,
 } from '../../../db/schema';
+import { CancellationPolicySchema } from '../../../shared/schemas/cancellation';
 import { computeIconSourceColor } from '../../utils/icon-color';
 import { validateTaxRate } from '../../utils/validate-tax-rate';
 import { TaxRateLogger, createLogContext } from '../../utils/tax-rate-logging';
 import { authenticatedProcedure, router } from '../trpc-server';
 
 const registrationOptionSchema = Schema.Struct({
+  cancellationPolicy: Schema.optional(Schema.NullOr(CancellationPolicySchema)),
   closeRegistrationOffset: Schema.Number.pipe(Schema.nonNegative()),
   isPaid: Schema.Boolean,
   openRegistrationOffset: Schema.Number.pipe(Schema.nonNegative()),
@@ -21,6 +23,7 @@ const registrationOptionSchema = Schema.Struct({
   roleIds: Schema.mutable(Schema.Array(Schema.NonEmptyString)),
   spots: Schema.Positive,
   stripeTaxRateId: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
+  useTenantCancellationPolicy: Schema.optional(Schema.Boolean),
 });
 
 export const templateRouter = router({
@@ -80,6 +83,7 @@ export const templateRouter = router({
 
         // Create organizer registration option
         await tx.insert(templateRegistrationOptions).values({
+          cancellationPolicy: input.organizerRegistration.cancellationPolicy ?? null,
           closeRegistrationOffset:
             input.organizerRegistration.closeRegistrationOffset,
           isPaid: input.organizerRegistration.isPaid,
@@ -93,10 +97,12 @@ export const templateRouter = router({
           stripeTaxRateId: input.organizerRegistration.stripeTaxRateId ?? null,
           templateId,
           title: 'Organizer registration',
+          useTenantCancellationPolicy: input.organizerRegistration.useTenantCancellationPolicy ?? true,
         });
 
         // Create participant registration option
         await tx.insert(templateRegistrationOptions).values({
+          cancellationPolicy: input.participantRegistration.cancellationPolicy ?? null,
           closeRegistrationOffset:
             input.participantRegistration.closeRegistrationOffset,
           isPaid: input.participantRegistration.isPaid,
@@ -110,6 +116,7 @@ export const templateRouter = router({
           stripeTaxRateId: input.participantRegistration.stripeTaxRateId ?? null,
           templateId,
           title: 'Participant registration',
+          useTenantCancellationPolicy: input.participantRegistration.useTenantCancellationPolicy ?? true,
         });
 
         return templateResponse[0];
