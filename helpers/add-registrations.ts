@@ -24,6 +24,8 @@ import { relations } from '../src/db/relations';
 import * as schema from '../src/db/schema';
 import { usersToAuthenticate } from './user-data';
 
+type EventRegistrationInsert = typeof schema.eventRegistrations.$inferInsert;
+
 /**
  * Simplified event input type containing only the essential fields needed for registrations
  */
@@ -329,9 +331,36 @@ export async function addRegistrations(
           checkedInCount++;
         }
 
+        const basePriceAtRegistration = option.price ?? 0;
+        let appliedDiscountType: EventRegistrationInsert['appliedDiscountType'] =
+          null;
+        let appliedDiscountedPrice:
+          | EventRegistrationInsert['appliedDiscountedPrice']
+          | null = null;
+        let discountAmount: EventRegistrationInsert['discountAmount'] | null =
+          null;
+
+        const canApplyDiscount =
+          option.isPaid &&
+          status !== 'WAITLIST' &&
+          basePriceAtRegistration > 0 &&
+          randChanceBoolean({ chanceTrue: 0.35 });
+        if (canApplyDiscount) {
+          const discountedPrice = Math.max(0, basePriceAtRegistration - 500);
+          if (discountedPrice < basePriceAtRegistration) {
+            appliedDiscountType = 'esnCard';
+            appliedDiscountedPrice = discountedPrice;
+            discountAmount = basePriceAtRegistration - discountedPrice;
+          }
+        }
+
         // Add registration to batch
         registrations.push({
+          appliedDiscountType,
+          appliedDiscountedPrice,
+          basePriceAtRegistration,
           checkInTime,
+          discountAmount,
           eventId: event.id,
           id: registrationId,
           paymentStatus,
