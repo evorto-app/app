@@ -1,10 +1,11 @@
-import { pgTable, timestamp, varchar } from 'drizzle-orm/pg-core';
+import { jsonb, pgTable, text, timestamp, varchar } from 'drizzle-orm/pg-core';
 
 import { eventInstances } from './event-instances';
 import { eventRegistrationOptions } from './event-registration-options';
-import { paymentStatus, registrationStatus } from './global-enums';
+import { cancellationReasons, paymentStatus, registrationStatus } from './global-enums';
 import { modelOfTenant } from './model';
 import { users } from './users';
+import { EffectiveCancellationPolicy } from '../../types/cancellation';
 
 export const eventRegistrations = pgTable('event_registrations', {
   ...modelOfTenant,
@@ -21,4 +22,12 @@ export const eventRegistrations = pgTable('event_registrations', {
   userId: varchar({ length: 20 })
     .notNull()
     .references(() => users.id),
+  // Cancellation policy snapshot taken at registration time
+  effectiveCancellationPolicy: jsonb('effective_cancellation_policy').$type<EffectiveCancellationPolicy>(),
+  effectivePolicySource: varchar({ length: 50 }),
+  // Cancellation tracking
+  cancelledAt: timestamp(),
+  refundTransactionId: varchar({ length: 20 }),
+  cancellationReason: cancellationReasons(),
+  cancellationReasonNote: text(),
 });

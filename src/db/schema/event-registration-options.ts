@@ -1,6 +1,7 @@
 import {
   boolean,
   integer,
+  jsonb,
   pgTable,
   text,
   timestamp,
@@ -10,6 +11,7 @@ import {
 import { createId } from '../create-id';
 import { eventInstances } from './event-instances';
 import { registrationModes } from './global-enums';
+import { CancellationPolicy } from '../../types/cancellation';
 
 export const eventRegistrationOptions = pgTable('event_registration_options', {
   checkedInSpots: integer().notNull().default(0),
@@ -34,6 +36,9 @@ export const eventRegistrationOptions = pgTable('event_registration_options', {
   spots: integer().notNull(),
   stripeTaxRateId: varchar(),
   title: text().notNull(),
+  // Cancellation policy configuration (copied from template)
+  useTenantCancellationPolicy: boolean().notNull().default(true),
+  cancellationPolicy: jsonb('cancellation_policy').$type<CancellationPolicy>(),
   updatedAt: timestamp()
     .notNull()
     .defaultNow()

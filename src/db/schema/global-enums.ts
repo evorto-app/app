@@ -20,3 +20,12 @@ export const registrationStatus = pgEnum('registration_status', [
 ]);
 
 export const discountTypes = pgEnum('discount_type', ['esnCard']);
+
+export const cancellationReasons = pgEnum('cancellation_reason', [
+  'user-request',
+  'no-show',
+  'duplicate',
+  'admin-action',
+  'policy-violation',
+  'other',
+]);

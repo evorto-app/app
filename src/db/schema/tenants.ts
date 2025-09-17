@@ -1,6 +1,7 @@
 import { jsonb, pgEnum, pgTable, text, timestamp, varchar } from 'drizzle-orm/pg-core';
 
 import { GoogleLocationType } from '../../types/location';
+import { TenantCancellationPolicies } from '../../types/cancellation';
 import { createId } from '../create-id';
 
 export const applicationThemes = pgEnum('application_theme', ['evorto', 'esn']);
@@ -25,6 +26,9 @@ export const tenants = pgTable('tenants', {
   discountProviders: jsonb('discount_providers').$type<
     Partial<Record<'esnCard', { config: unknown; status: 'disabled' | 'enabled'; }>>
   >(),
+  // Stores tenant-level default cancellation policies for all four variants:
+  // paid/free × regular/organizer registrations
+  cancellationPolicies: jsonb('cancellation_policies').$type<TenantCancellationPolicies>(),
   domain: text().unique().notNull(),
   id: varchar({ length: 20 })
     .$defaultFn(() => createId())

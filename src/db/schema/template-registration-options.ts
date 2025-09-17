@@ -1,6 +1,7 @@
 import {
   boolean,
   integer,
+  jsonb,
   pgTable,
   text,
   timestamp,
@@ -12,6 +13,7 @@ import { createId } from '../create-id';
 import { eventTemplates } from './event-templates';
 import { registrationModes } from './global-enums';
 import { templateEventAddons } from './template-event-addons';
+import { CancellationPolicy } from '../../types/cancellation';
 
 export const templateRegistrationOptions = pgTable(
   'template_registration_options',
@@ -36,6 +38,9 @@ export const templateRegistrationOptions = pgTable(
       .references(() => eventTemplates.id),
     title: text().notNull(),
     untouchedSinceMigration: boolean().notNull().default(false),
+    // Cancellation policy configuration
+    useTenantCancellationPolicy: boolean().notNull().default(true),
+    cancellationPolicy: jsonb('cancellation_policy').$type<CancellationPolicy>(),
     updatedAt: timestamp()
       .notNull()
       .defaultNow()
