@@ -1,214 +1,205 @@
-import { expect } from '@playwright/test';
-import { parallelTest } from '../../../fixtures/parallel-test';
+import { promises as fs } from 'node:fs';
 
-parallelTest.describe('Contract: discounts.cards CRUD (getMyCards, upsertMyCard, deleteMyCard)', () => {
-  parallelTest('should enforce immediate validation on upsert', async ({ page, tenant, user, database }) => {
-    // Enable ESN provider first
-    await database
-      .update(database.schema.tenants)
-      .set({ 
-        discountProviders: { 
-          esnCard: { status: 'enabled', config: {} }
-        } 
-      })
-      .where(database.eq(database.schema.tenants.id, tenant.id));
-    
-    await page.goto(`/${tenant.domain}/profile`);
-    
-    // Test upsert with invalid ESN card number
-    const invalidResponse = await page.evaluate(async () => {
-      const body = {
-        "0": {
-          json: {
-            type: 'esnCard',
-            identifier: 'INVALID_ESN_NUMBER'
-          }
-        }
-      };
-      
-      return fetch('/api/trpc/discounts.upsertMyCard', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      }).then(r => ({
-        status: r.status,
-        data: r.json()
-      }));
+import { Page } from '@playwright/test';
+
+import { expect, test } from '../../../fixtures/parallel-test';
+import {
+  adminStateFile,
+  emptyStateFile,
+  userStateFile,
+} from '../../../../helpers/user-data';
+
+const SNACKBAR = 'mat-snack-bar-container';
+const CTA_SECTION = '[data-testid="esn-cta-section"]';
+const CARD_IDENTIFIER_CELL = '[data-testid="refresh-esn-card"]';
+
+async function loadState(statePath: string, tenantDomain: string) {
+  const raw = await fs.readFile(statePath, 'utf-8');
+  const state = JSON.parse(raw) as {
+    cookies: Array<{
+      domain: string;
+      expires?: number;
+      name: string;
+      path: string;
+      value: string;
+      sameSite?: 'Strict' | 'Lax' | 'None';
+      httpOnly?: boolean;
+      secure?: boolean;
+    }>;
+    origins: unknown[];
+  };
+
+  const cookie = {
+    domain: 'localhost',
+    expires: -1,
+    httpOnly: false,
+    name: 'evorto-tenant',
+    path: '/',
+    sameSite: 'Lax' as const,
+    secure: false,
+    value: tenantDomain,
+  };
+
+  state.cookies = state.cookies.filter((c) => c.name !== 'evorto-tenant');
+  state.cookies.push(cookie);
+  return state;
+}
+
+async function withStateContext(
+  browser: Parameters<typeof test.extend>[0]['browser'],
+  tenantDomain: string,
+  statePath: string,
+  run: (page: Page) => Promise<void>,
+) {
+  const context = await browser.newContext({ storageState: await loadState(statePath, tenantDomain) });
+  const page = await context.newPage();
+  try {
+    await page.goto('/events', { waitUntil: 'domcontentloaded' });
+    await run(page);
+  } finally {
+    await context.close();
+  }
+}
+
+async function updateProvider(options: {
+  browser: Parameters<typeof test.extend>[0]['browser'];
+  enabled: boolean;
+  tenantDomain: string;
+  showCta?: boolean;
+}) {
+  const { browser, enabled, tenantDomain, showCta = true } = options;
+  await withStateContext(browser, tenantDomain, adminStateFile, async (page) => {
+    await page.goto('/admin/settings/discounts', {
+      waitUntil: 'domcontentloaded',
     });
-    
-    expect(invalidResponse.status).toBeGreaterThanOrEqual(400);
+
+    const providerToggle = page.getByTestId('enable-esn-provider').locator('button');
+    const currentState = await providerToggle.getAttribute('aria-checked');
+    if ((currentState === 'true') !== enabled) {
+      await providerToggle.click();
+    }
+
+    if (enabled) {
+      const ctaToggle = page.getByTestId('esn-show-cta-toggle').locator('button');
+      await expect(ctaToggle).toBeVisible();
+      if ((await ctaToggle.getAttribute('aria-checked')) !== (showCta ? 'true' : 'false')) {
+        await ctaToggle.click();
+      }
+    }
+
+    await page.getByTestId('save-discount-settings').click();
+    await expect(page.locator(SNACKBAR)).toContainText('Discount settings saved successfully');
+    await page.locator(SNACKBAR).waitFor({ state: 'detached' });
+  });
+}
+
+async function addCardForUser(options: {
+  browser: Parameters<typeof test.extend>[0]['browser'];
+  identifier: string;
+  tenantDomain: string;
+}) {
+  const { browser, identifier, tenantDomain } = options;
+  await withStateContext(browser, tenantDomain, emptyStateFile, async (page) => {
+    await page.goto('/profile/discount-cards', {
+      waitUntil: 'domcontentloaded',
+    });
+    await page.getByTestId('esn-card-input').fill(identifier);
+    await page.getByTestId('add-esn-card-button').click();
+    await expect(page.locator(SNACKBAR)).toContainText('Card added successfully');
+    await page.locator(SNACKBAR).waitFor({ state: 'detached' });
+  });
+}
+
+async function visitUserDiscountPage(
+  browser: Parameters<typeof test.extend>[0]['browser'],
+  tenantDomain: string,
+  run: (page: Page) => Promise<void>,
+) {
+  await withStateContext(browser, tenantDomain, userStateFile, async (page) => {
+    await page.goto('/profile/discount-cards', {
+      waitUntil: 'domcontentloaded',
+    });
+    await run(page);
+  });
+}
+
+test.describe('Contract: discounts.cards CRUD (getMyCards, upsertMyCard, deleteMyCard)', () => {
+  test.beforeEach(async ({ browser, tenant }) => {
+    await updateProvider({
+      browser,
+      enabled: true,
+      tenantDomain: tenant.domain,
+    });
   });
 
-  parallelTest('should enforce uniqueness (type, identifier) platform-wide', async ({ page, tenant, user, database }) => {
-    // Enable ESN provider
-    await database
-      .update(database.schema.tenants)
-      .set({ 
-        discountProviders: { 
-          esnCard: { status: 'enabled', config: {} }
-        } 
-      })
-      .where(database.eq(database.schema.tenants.id, tenant.id));
-    
-    // Create another user with an ESN card
-    const existingUser = await database
-      .insert(database.schema.users)
-      .values({
-        id: 'test-user-2',
-        email: 'existing@example.com',
-        firstName: 'Existing',
-        lastName: 'User'
-      })
-      .returning()[0];
-    
-    await database
-      .insert(database.schema.userDiscountCards)
-      .values({
-        tenantId: tenant.id,
-        userId: existingUser.id,
-        type: 'esnCard',
-        identifier: 'ESN12345',
-        status: 'verified'
-      });
-    
-    await page.goto(`/${tenant.domain}/profile`);
-    
-    // Try to use the same identifier
-    const duplicateResponse = await page.evaluate(async () => {
-      const body = {
-        "0": {
-          json: {
-            type: 'esnCard',
-            identifier: 'ESN12345'
-          }
-        }
-      };
-      
-      return fetch('/api/trpc/discounts.upsertMyCard', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      }).then(r => ({
-        status: r.status,
-        data: r.json()
-      }));
+  test('shows CTA when enabled and no card is on file', async ({ browser, tenant }) => {
+    await visitUserDiscountPage(browser, tenant.domain, async (page) => {
+      await expect(page.locator(CTA_SECTION)).toBeVisible();
     });
-    
-    expect(duplicateResponse.status).toBeGreaterThanOrEqual(400);
   });
 
-  parallelTest('should block upsert when provider is disabled', async ({ page, tenant, user, database }) => {
-    // Disable ESN provider
-    await database
-      .update(database.schema.tenants)
-      .set({ 
-        discountProviders: { 
-          esnCard: { status: 'disabled', config: {} }
-        } 
-      })
-      .where(database.eq(database.schema.tenants.id, tenant.id));
-    
-    await page.goto(`/${tenant.domain}/profile`);
-    
-    const blockedResponse = await page.evaluate(async () => {
-      const body = {
-        "0": {
-          json: {
-            type: 'esnCard',
-            identifier: 'ESN54321'
-          }
-        }
-      };
-      
-      return fetch('/api/trpc/discounts.upsertMyCard', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      }).then(r => ({
-        status: r.status,
-        data: r.json()
-      }));
+  test('rejects invalid ESN card numbers', async ({ browser, tenant }) => {
+    await visitUserDiscountPage(browser, tenant.domain, async (page) => {
+      await page.getByTestId('esn-card-input').fill('ESN-INVALID-0000');
+      await page.getByTestId('add-esn-card-button').click();
+      await expect(page.locator(SNACKBAR)).toContainText('Card is not active');
     });
-    
-    expect(blockedResponse.status).toBeGreaterThanOrEqual(400);
   });
 
-  parallelTest('should delete user card successfully', async ({ page, tenant, user, database }) => {
-    // Enable ESN provider and add a card
-    await database
-      .update(database.schema.tenants)
-      .set({ 
-        discountProviders: { 
-          esnCard: { status: 'enabled', config: {} }
-        } 
-      })
-      .where(database.eq(database.schema.tenants.id, tenant.id));
-    
-    const card = await database
-      .insert(database.schema.userDiscountCards)
-      .values({
-        tenantId: tenant.id,
-        userId: user.id,
-        type: 'esnCard',
-        identifier: 'ESN99999',
-        status: 'verified'
-      })
-      .returning()[0];
-    
-    await page.goto(`/${tenant.domain}/profile`);
-    
-    // Delete the card
-    const deleteResponse = await page.evaluate(async () => {
-      const body = {
-        "0": {
-          json: {
-            type: 'esnCard'
-          }
-        }
-      };
-      
-      return fetch('/api/trpc/discounts.deleteMyCard', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      }).then(r => r.status);
+  test('enforces uniqueness across users before validation', async ({ browser, tenant }) => {
+    const duplicateId = `ESN-DUP-${Date.now()}`;
+
+    await addCardForUser({
+      browser,
+      identifier: duplicateId,
+      tenantDomain: tenant.domain,
     });
-    
-    expect(deleteResponse).toBe(200);
-    
-    // Verify card was deleted from database
-    const deletedCard = await database.query.userDiscountCards.findFirst({
-      where: { id: card.id }
+
+    await visitUserDiscountPage(browser, tenant.domain, async (page) => {
+      await page.getByTestId('esn-card-input').fill(duplicateId);
+      await page.getByTestId('add-esn-card-button').click();
+      await expect(page.locator(SNACKBAR)).toContainText('Card is already in use by another user');
     });
-    expect(deletedCard).toBeUndefined();
   });
 
-  parallelTest('should return user cards via getMyCards', async ({ page, tenant, user, database }) => {
-    // Add a card for the user
-    await database
-      .insert(database.schema.userDiscountCards)
-      .values({
-        tenantId: tenant.id,
-        userId: user.id,
-        type: 'esnCard',
-        identifier: 'ESN11111',
-        status: 'verified'
-      });
-    
-    await page.goto(`/${tenant.domain}/profile`);
-    
-    const response = await page.waitForResponse(
-      (response) => response.url().includes('/api/trpc/discounts.getMyCards')
-    );
-    
-    const data = await response.json();
-    expect(data.result.data).toHaveLength(1);
-    expect(data.result.data[0]).toMatchObject({
-      type: 'esnCard',
-      identifier: 'ESN11111',
-      status: 'verified',
-      userId: user.id,
-      tenantId: tenant.id
+  test('blocks card creation when provider is disabled', async ({ browser, tenant }) => {
+    await updateProvider({
+      browser,
+      enabled: false,
+      tenantDomain: tenant.domain,
+    });
+
+    await visitUserDiscountPage(browser, tenant.domain, async (page) => {
+      await page.getByTestId('esn-card-input').fill(`ESN-DIS-${Date.now()}`);
+      await page.getByTestId('add-esn-card-button').click();
+      await expect(page.locator(SNACKBAR)).toContainText('Provider not enabled for this tenant');
+    });
+
+    await updateProvider({
+      browser,
+      enabled: true,
+      tenantDomain: tenant.domain,
+    });
+  });
+
+  test('allows adding and deleting a verified card', async ({ browser, tenant }) => {
+    const identifier = `ESN-SUCCESS-${Date.now()}`;
+
+    await visitUserDiscountPage(browser, tenant.domain, async (page) => {
+      await page.getByTestId('esn-card-input').fill(identifier);
+      await page.getByTestId('add-esn-card-button').click();
+      await expect(page.locator(SNACKBAR)).toContainText('Card added successfully');
+      await page.locator(SNACKBAR).waitFor({ state: 'detached' });
+
+      const cardSection = page.locator(CARD_IDENTIFIER_CELL).first().locator('..').locator('..');
+      await expect(cardSection).toContainText(identifier);
+      await expect(cardSection).toContainText('Verified');
+
+      page.once('dialog', (dialog) => dialog.accept());
+      await page.getByTestId('delete-esn-card').click();
+      await expect(page.locator(SNACKBAR)).toContainText('Card deleted successfully');
+      await page.locator(SNACKBAR).waitFor({ state: 'detached' });
+      await expect(page.locator(CARD_IDENTIFIER_CELL)).toHaveCount(0);
     });
   });
 });

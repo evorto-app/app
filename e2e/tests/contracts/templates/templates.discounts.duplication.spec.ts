@@ -1,8 +1,7 @@
-import { expect } from '@playwright/test';
-import { parallelTest } from '../../../fixtures/parallel-test';
+import { expect, test } from '../../../fixtures/parallel-test';
 
-parallelTest.describe('Contract: templates.discounts.duplication on event create from template', () => {
-  parallelTest('should copy template discounts JSON to event options', async ({ page, tenant, user, database }) => {
+test.describe('Contract: templates.discounts.duplication on event create from template', () => {
+  test('should copy template discounts JSON to event options', async ({ page, tenant, user, database }) => {
     // Create template with registration options that have discounts
     const eventTemplate = await database
       .insert(database.schema.eventTemplates)
@@ -96,7 +95,7 @@ parallelTest.describe('Contract: templates.discounts.duplication on event create
     ]);
   });
 
-  parallelTest('should preserve discount configurations during duplication', async ({ page, tenant, user, database }) => {
+  test('should preserve discount configurations during duplication', async ({ page, tenant, user, database }) => {
     // Create template with complex discount configuration
     const eventTemplate = await database
       .insert(database.schema.eventTemplates)
@@ -176,7 +175,7 @@ parallelTest.describe('Contract: templates.discounts.duplication on event create
     });
   });
 
-  parallelTest('should handle templates without discounts', async ({ page, tenant, user, database }) => {
+  test('should handle templates without discounts', async ({ page, tenant, user, database }) => {
     // Create template without discounts
     const eventTemplate = await database
       .insert(database.schema.eventTemplates)
@@ -237,7 +236,7 @@ parallelTest.describe('Contract: templates.discounts.duplication on event create
     expect(eventOption.price).toBe(1500);
   });
 
-  parallelTest('should maintain referential integrity after duplication', async ({ page, tenant, user, database }) => {
+  test('should maintain referential integrity after duplication', async ({ page, tenant, user, database }) => {
     // Create template with option that has discounts
     const eventTemplate = await database
       .insert(database.schema.eventTemplates)

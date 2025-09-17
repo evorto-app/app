@@ -1,8 +1,7 @@
-import { expect } from '@playwright/test';
-import { parallelTest } from '../../../fixtures/parallel-test';
+import { expect, test } from '../../../fixtures/parallel-test';
 
-parallelTest.describe('Contract: events.pricing.selection applied during registerForEvent', () => {
-  parallelTest('should apply lowest eligible discount', async ({ page, tenant, user, database }) => {
+test.describe('Contract: events.pricing.selection applied during registerForEvent', () => {
+  test('should apply lowest eligible discount', async ({ page, tenant, user, database }) => {
     // Enable ESN provider
     await database
       .update(database.schema.tenants)
@@ -108,7 +107,7 @@ parallelTest.describe('Contract: events.pricing.selection applied during registe
     });
   });
 
-  parallelTest('should handle tie-breakers correctly', async ({ page, tenant, user, database }) => {
+  test('should handle tie-breakers correctly', async ({ page, tenant, user, database }) => {
     // Enable ESN provider
     await database
       .update(database.schema.tenants)
@@ -185,7 +184,7 @@ parallelTest.describe('Contract: events.pricing.selection applied during registe
     });
   });
 
-  parallelTest('should check validity on event start date', async ({ page, tenant, user, database }) => {
+  test('should check validity on event start date', async ({ page, tenant, user, database }) => {
     // Enable ESN provider
     await database
       .update(database.schema.tenants)
@@ -263,7 +262,7 @@ parallelTest.describe('Contract: events.pricing.selection applied during registe
     });
   });
 
-  parallelTest('should set confirmed status for zero-price registrations', async ({ page, tenant, user, database }) => {
+  test('should set confirmed status for zero-price registrations', async ({ page, tenant, user, database }) => {
     // Enable ESN provider
     await database
       .update(database.schema.tenants)
