@@ -9,9 +9,28 @@
     <h3 class="title-medium">{{ registrationOption().title }}</h3>
     @if (registrationOption().isPaid) {
       <div class="grow"></div>
-      <p class="title-small">
-        {{ registrationOption().price / 100 | currency }}
-      </p>
+      
+      <!-- Pricing Display with Discounts -->
+      @if (discountInfo().hasDiscount) {
+        <div class="flex flex-col items-end">
+          <div class="flex items-center gap-2">
+            <span class="text-sm text-on-surface-variant line-through">
+              {{ discountInfo().originalPrice / 100 | currency }}
+            </span>
+            <span class="title-small text-primary">
+              {{ discountInfo().finalPrice / 100 | currency }}
+            </span>
+          </div>
+          <div class="text-xs text-primary">
+            Save {{ discountInfo().savings / 100 | currency }} 
+            ({{ discountInfo().savingsPercentage }}% off)
+          </div>
+        </div>
+      } @else {
+        <p class="title-small">
+          {{ registrationOption().price / 100 | currency }}
+        </p>
+      }
     }
   </div>
 
@@ -20,17 +39,92 @@
     [innerHTML]="registrationOption().description"
   ></div>
 
+  <!-- Discount Information Section -->
+  @if (registrationOption().isPaid && authenticationQuery.data() && (registrationOption().discounts?.length ?? 0) > 0) {
+    <div class="bg-surface-variant rounded-lg p-3 text-sm">
+      <div class="flex items-center gap-2 mb-2">
+        <mat-icon class="text-base">local_offer</mat-icon>
+        <span class="font-medium">Available Discounts</span>
+      </div>
+      
+      @if (discountInfo().hasDiscount) {
+        <div class="text-primary font-medium mb-2">
+          ✓ You're getting {{ discountInfo().savingsPercentage }}% off with your 
+          @switch (discountInfo().discountType) {
+            @case ('esnCard') { ESN Card }
+          }
+        </div>
+      }
+      
+      @for (discount of availableDiscounts(); track discount.discountType) {
+        <div class="flex items-center justify-between py-1">
+          <div class="flex items-center gap-2">
+            @switch (discount.discountType) {
+              @case ('esnCard') { 
+                <mat-icon class="text-base">credit_card</mat-icon>
+                <span>ESN Card</span>
+              }
+            }
+            
+            @switch (discount.status) {
+              @case ('eligible') {
+                <mat-icon class="text-green-600 text-base">check_circle</mat-icon>
+              }
+              @case ('no_card') {
+                <mat-icon class="text-orange-500 text-base">add_card</mat-icon>
+              }
+              @case ('invalid_card') {
+                <mat-icon class="text-red-500 text-base">error</mat-icon>
+              }
+              @case ('provider_disabled') {
+                <mat-icon class="text-gray-500 text-base">block</mat-icon>
+              }
+            }
+          </div>
+          
+          <div class="text-right">
+            <div class="font-medium">{{ discount.discountedPrice / 100 | currency }}</div>
+            <div class="text-xs text-on-surface-variant">
+              {{ discount.message }}
+            </div>
+          </div>
+        </div>
+      }
+      
+      @if (availableDiscounts().length > 0) {
+        @if (hasManageableDiscounts()) {
+          <div class="mt-2 pt-2 border-t border-outline">
+            <a href="/profile/discount-cards" class="text-primary text-xs underline">
+              Manage your discount cards →
+            </a>
+          </div>
+        }
+      }
+    </div>
+  }
+
   @if (authenticationQuery.data()) {
     @switch (registrationOpen()) {
       @case ("open") {
         @if (registrationOption().isPaid) {
-          <button
-            (click)="register(registrationOption())"
-            mat-flat-button
-            [disabled]="registrationMutation.isPending()"
-          >
-            Pay {{ registrationOption().price / 100 | currency }} and register
-          </button>
+          @if (discountInfo().hasDiscount) {
+            <button
+              (click)="register(registrationOption())"
+              mat-flat-button
+              [disabled]="registrationMutation.isPending()"
+            >
+              Pay {{ discountInfo().finalPrice / 100 | currency }} and register
+              <span class="text-xs ml-1">({{ discountInfo().savingsPercentage }}% off)</span>
+            </button>
+          } @else {
+            <button
+              (click)="register(registrationOption())"
+              mat-flat-button
+              [disabled]="registrationMutation.isPending()"
+            >
+              Pay {{ registrationOption().price / 100 | currency }} and register
+            </button>
+          }
         } @else {
           <button
             (click)="register(registrationOption())"
