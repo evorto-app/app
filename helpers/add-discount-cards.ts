@@ -22,6 +22,7 @@ export async function addDiscountCards(
   const discountCards = [
     {
       id: 'test-esncard-001',
+      tenantId,
       userId: testUser.id,
       type: 'esnCard' as const,
       identifier: 'TEST123456',
@@ -34,8 +35,6 @@ export async function addDiscountCards(
         university: 'Test University',
         country: 'TestLand'
       },
-      createdAt: new Date(),
-      updatedAt: new Date(),
     }
   ];
 
