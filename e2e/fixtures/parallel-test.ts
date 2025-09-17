@@ -20,11 +20,21 @@ interface BaseFixtures {
   discounts?: void;
   events: {
     id: string;
+    start: Date;
+    end: Date;
+    tenantId?: string;
     registrationOptions: {
+      description?: string | null;
       closeRegistrationTime: Date;
       id: string;
       isPaid: boolean;
+      organizingRegistration: boolean;
       openRegistrationTime: Date;
+      price?: number | null;
+      discounts?: {
+        discountType: 'esnCard';
+        discountedPrice: number;
+      }[] | null;
       title: string;
     }[];
     status: 'APPROVED' | 'DRAFT' | 'PENDING_REVIEW' | 'REJECTED';
