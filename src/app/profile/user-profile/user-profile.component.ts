@@ -13,11 +13,13 @@ import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatTabsModule } from '@angular/material/tabs';
+import { RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import {
   faCalendarDays,
   faCog,
   faPencil,
+  faPercent,
   faRightFromBracket,
   faUser,
 } from '@fortawesome/duotone-regular-svg-icons';
@@ -42,6 +44,7 @@ import { injectTRPC } from '../../core/trpc-client';
     FormsModule,
     MatCardModule,
     DatePipe,
+    RouterLink,
   ],
   selector: 'app-user-profile',
   styles: `
@@ -93,6 +96,7 @@ export class UserProfileComponent {
 
   protected readonly faCog = faCog;
   protected readonly faPencil = faPencil;
+  protected readonly faPercent = faPercent;
 
   protected readonly faRightFromBracket = faRightFromBracket;
 

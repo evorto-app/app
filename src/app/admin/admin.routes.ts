@@ -43,6 +43,17 @@ export const ADMIN_ROUTES: Routes = [
       {
         canActivate: [permissionGuard],
         data: {
+          permissions: ['admin:changeSettings'],
+        },
+        loadComponent: () =>
+          import('./discount-settings/discount-settings.component').then(
+            (m) => m.DiscountSettingsComponent,
+          ),
+        path: 'settings/discounts',
+      },
+      {
+        canActivate: [permissionGuard],
+        data: {
           permissions: ['admin:manageTaxes'],
         },
         loadComponent: () =>

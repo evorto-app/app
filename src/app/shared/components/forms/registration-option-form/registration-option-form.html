@@ -104,6 +104,84 @@
           </mat-select>
           <mat-hint>Inclusive tax; shown price is final</mat-hint>
         </mat-form-field>
+
+        <!-- Discount Pricing Section -->
+        @if (discountProvidersQuery.isSuccess() && enabledProviders.length > 0) {
+          <mat-card class="mt-4">
+            <mat-card-header>
+              <mat-card-title class="text-base">Discount Pricing</mat-card-title>
+              <mat-card-subtitle>Configure discounted prices for enabled providers</mat-card-subtitle>
+            </mat-card-header>
+            <mat-card-content class="pt-4">
+              @for (provider of enabledProviders; track provider.type) {
+                <div class="border border-outline rounded-lg p-4 mb-4">
+                  <div class="flex items-center justify-between mb-3">
+                    <div class="flex items-center gap-2">
+                      <mat-icon>credit_card</mat-icon>
+                      <span class="font-medium">
+                        @switch (provider.type) {
+                          @case ('esnCard') { ESN Card Discount }
+                        }
+                      </span>
+                    </div>
+                    @if (getDiscountForProvider(provider.type)) {
+                      <button mat-icon-button (click)="removeDiscountForProvider(provider.type)" 
+                              type="button"
+                              matTooltip="Remove discount">
+                        <mat-icon>delete</mat-icon>
+                      </button>
+                    } @else {
+                      <button mat-stroked-button (click)="addDiscountForProvider(provider.type)"
+                              type="button">
+                        <mat-icon>add</mat-icon>
+                        Add Discount
+                      </button>
+                    }
+                  </div>
+                  
+                  @if (getDiscountForProvider(provider.type); as discount) {
+                    <div class="grid grid-cols-2 gap-4">
+                      <mat-form-field>
+                        <mat-label>Discounted Price (in cents)</mat-label>
+                        <input matInput type="number" 
+                               [value]="discount.discountedPrice"
+                               (input)="updateDiscountPrice(provider.type, +$any($event.target).value)"
+                               [max]="registrationOptionForm().value.price"
+                               min="0" />
+                        <mat-hint>{{ discount.discountedPrice | currency }}</mat-hint>
+                      </mat-form-field>
+                      
+                      <div class="flex flex-col justify-center">
+                        <div class="text-sm text-on-surface-variant mb-1">Savings</div>
+                        <div class="text-lg font-medium text-primary">
+                          {{ getSavingsAmount(provider.type) | currency }}
+                          <span class="text-sm font-normal">
+                            ({{ getSavingsPercentage(provider.type) }}% off)
+                          </span>
+                        </div>
+                        @if (getSavingsAmount(provider.type) === 0) {
+                          <div class="text-xs text-warning">No savings configured</div>
+                        }
+                      </div>
+                    </div>
+                  }
+                </div>
+              }
+              
+              @if (enabledProviders.length === 0) {
+                <div class="text-center text-on-surface-variant p-4">
+                  <mat-icon class="text-4xl mb-2 opacity-60">info</mat-icon>
+                  <p>No discount providers are currently enabled.</p>
+                  <p class="text-sm">Contact an admin to enable discount providers.</p>
+                </div>
+              }
+            </mat-card-content>
+          </mat-card>
+        } @else if (discountProvidersQuery.isPending()) {
+          <div class="text-center p-4">
+            <p class="text-on-surface-variant">Loading discount providers...</p>
+          </div>
+        }
         }
 
         <mat-checkbox formControlName="organizingRegistration">

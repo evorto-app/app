@@ -17,6 +17,7 @@ import {
   faReceipt,
   faUsers,
   faUsersGear,
+  faPercent,
 } from '@fortawesome/duotone-regular-svg-icons';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 import { interval } from 'rxjs';
@@ -40,6 +41,7 @@ export class AdminOverviewComponent {
   protected readonly faCalendarCheck = faCalendarCheck;
   protected readonly faFolderUser = faFolderUser;
   protected readonly faGlobe = faGlobe;
+  protected readonly faPercent = faPercent;
   protected readonly faReceipt = faReceipt;
   protected readonly faUsers = faUsers;
   protected readonly faUsersGear = faUsersGear;

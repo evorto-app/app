@@ -11,6 +11,8 @@ import { addRoles, addUsersToRoles } from '../../helpers/add-roles';
 import { addTaxRates } from '../../helpers/add-tax-rates';
 import { addTemplateCategories } from '../../helpers/add-template-categories';
 import { addTemplates } from '../../helpers/add-templates';
+import { addDiscountCards } from '../../helpers/add-discount-cards';
+import { addDiscountProviders } from '../../helpers/add-discount-providers';
 import { createTenant } from '../../helpers/create-tenant';
 import { usersToAuthenticate } from '../../helpers/user-data';
 import { users } from '../../src/db/schema';
@@ -95,6 +97,10 @@ export async function seedBaseline(
   const templates = await addTemplates(database, templateCategories, roles);
   const events = await addEvents(database, templates, roles);
   await addRegistrations(database, events);
+
+  // Add discount functionality for testing
+  await addDiscountProviders(database, tenant.id);
+  await addDiscountCards(database, tenant.id);
 
   // Build a compact, deterministic map for quick debugging
   const map = {

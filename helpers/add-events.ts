@@ -1,4 +1,4 @@
-import { InferInsertModel } from 'drizzle-orm';
+import { InferInsertModel, eq } from 'drizzle-orm';
 import consola from 'consola';
 import { NeonDatabase } from 'drizzle-orm/neon-serverless';
 import { DateTime } from 'luxon';
@@ -144,15 +144,22 @@ export const addEvents = async (
       (opt) => opt.isPaid && !opt.organizingRegistration,
     );
     if (paidOptions.length > 0) {
-      await database
-        .insert(schema.eventRegistrationOptionDiscounts)
-        .values(
-          paidOptions.map((opt) => ({
-            discountedPrice: Math.max(0, (opt.price ?? 0) - 500), // simple discount of 5€
+      // Update registration options to include discount configurations using JSONB
+      for (const opt of paidOptions) {
+        const discountedPrice = Math.max(0, (opt.price ?? 0) - 500); // simple discount of 5€
+        const discounts = [
+          {
             discountType: 'esnCard' as const,
-            registrationOptionId: opt.id,
-          })),
-        );
+            discountedPrice,
+          },
+        ];
+        
+        await database
+          .update(schema.eventRegistrationOptions)
+          .set({ discounts })
+          .where(eq(schema.eventRegistrationOptions.id, opt.id));
+      }
+      consola.success(`Added discount configurations to ${paidOptions.length} paid registration options`);
     }
   } catch (error) {
     console.warn('Failed to seed event discounts', error);
