@@ -1,5 +1,8 @@
 # Repository Guidelines
 
+## Tooling Requirements
+- Use Yarn v4 (Berry) for all workspace commands. Do not run `npm`, `pnpm`, or global Playwright binaries—always execute scripts through `yarn <script>` so the repo-managed plugins and constraints apply.
+
 ## Project Structure & Module Organization
 - App code: `src/app/**` (feature areas like `events`, `finance`, `profile`).
 - SSR and API: `src/server/**` (tRPC routers, middleware, webhooks) with path aliases like `@server/*`.
