@@ -36,6 +36,25 @@
         } @else {
           <div class="text-success">Your registration is confirmed</div>
         }
+        
+        @if (canCancelRegistration(registration)) {
+          <button
+            mat-stroked-button
+            color="warn"
+            (click)="cancelConfirmedRegistration(registration)"
+          >
+            Cancel Registration
+          </button>
+        } @else if (registration.effectiveCancellationPolicy && !registration.effectiveCancellationPolicy.allowCancellation) {
+          <div class="text-on-surface-variant text-sm">
+            Cancellation not allowed for this registration
+          </div>
+        } @else if (registration.effectiveCancellationPolicy) {
+          <div class="text-on-surface-variant text-sm">
+            Cancellation cutoff has passed
+          </div>
+        }
+        
         <div
           class="bg-surface-container-high text-on-surface-container-high flex flex-col gap-4 rounded-xl p-4"
         >
