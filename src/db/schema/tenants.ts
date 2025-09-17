@@ -1,6 +1,7 @@
 import { jsonb, pgEnum, pgTable, text, timestamp, varchar } from 'drizzle-orm/pg-core';
 
 import { GoogleLocationType } from '../../types/location';
+import { TenantCancellationPolicies } from '../../types/cancellation';
 import { createId } from '../create-id';
 
 export const applicationThemes = pgEnum('application_theme', ['evorto', 'esn']);
@@ -16,6 +17,7 @@ export const timezoneEnum = pgEnum('timezone', [
 ]);
 
 export const tenants = pgTable('tenants', {
+  cancellationPolicies: jsonb('cancellation_policies').$type<TenantCancellationPolicies>(),
   createdAt: timestamp().notNull().defaultNow(),
   currency: currencyEnum().notNull().default('EUR'),
   defaultLocation: jsonb('default_location').$type<GoogleLocationType>(),

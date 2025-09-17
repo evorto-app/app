@@ -20,3 +20,11 @@ export const registrationStatus = pgEnum('registration_status', [
 ]);
 
 export const discountTypes = pgEnum('discount_type', ['esnCard']);
+
+export const cancellationReasons = pgEnum('cancellation_reason', [
+  'user',
+  'admin',
+  'organizer',
+  'payment_abandoned',
+  'other',
+]);

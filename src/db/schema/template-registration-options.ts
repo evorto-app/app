@@ -1,6 +1,7 @@
 import {
   boolean,
   integer,
+  jsonb,
   pgTable,
   text,
   timestamp,
@@ -8,6 +9,7 @@ import {
   varchar,
 } from 'drizzle-orm/pg-core';
 
+import { CancellationPolicy } from '../../types/cancellation';
 import { createId } from '../create-id';
 import { eventTemplates } from './event-templates';
 import { registrationModes } from './global-enums';
@@ -16,6 +18,7 @@ import { templateEventAddons } from './template-event-addons';
 export const templateRegistrationOptions = pgTable(
   'template_registration_options',
   {
+    cancellationPolicy: jsonb('cancellation_policy').$type<CancellationPolicy>(),
     closeRegistrationOffset: integer().notNull(),
     createdAt: timestamp().notNull().defaultNow(),
     description: text(),
@@ -40,6 +43,7 @@ export const templateRegistrationOptions = pgTable(
       .notNull()
       .defaultNow()
       .$onUpdate(() => new Date()),
+    useTenantCancellationPolicy: boolean().notNull().default(true),
   },
 );
 
