@@ -17,7 +17,7 @@ A partial implementation already exists in the Evorto stack:
   - Registration flow applies the lowest eligible discount among verified cards for enabled providers; treats zero effective price as free.
   - Event creation copies template registration option discounts.
 - Client (Angular 20):
-  - Profile page shows ESN card controls when ESN provider enabled.
+  - Profile page shows ESNcard controls when ESN provider enabled.
   - Event details warn if card expires before event starts (basic).
 
 This aligns strongly with FR‑001..FR‑014, FR‑017, FR‑019, FR‑021..FR‑023. Gaps and refinements remain below.
@@ -56,7 +56,7 @@ This aligns strongly with FR‑001..FR‑014, FR‑017, FR‑019, FR‑021..FR�
    - Decision: Record tenant provider toggles via existing update flows with structured logs. Consider optional lightweight `audit_events` table in a follow‑up if needed for FR‑016; for this iteration, capture logs with actor and timestamps in server actions where available.
 
 8. User Education / CTA
-   - Decision: When ESN provider is enabled and user has no verified ESN card, show guidance and “Get your ESNcard” CTA in profile and during relevant registration contexts (FR‑009, FR‑010). Allow tenant config flag to disable CTA (store under `discountProviders.esnCard.config.showCta?: boolean = true`).
+   - Decision: When ESN provider is enabled and user has no verified ESNcard, show guidance and “Get your ESNcard” CTA in profile and during relevant registration contexts (FR‑009, FR‑010). Allow tenant config flag to disable CTA (store under `discountProviders.esnCard.config.showCta?: boolean = true`).
 
 ## Unknowns → Resolutions
 

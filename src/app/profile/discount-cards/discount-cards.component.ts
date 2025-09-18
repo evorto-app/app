@@ -90,7 +90,7 @@ import { injectTRPC } from '../../core/trpc-client';
                           target="_blank"
                           class="text-blue-600 hover:text-blue-800 underline"
                           data-testid="get-esncard-link">
-                          Get your ESN Card →
+                          Get your ESNcard →
                         </a>
                       </div>
                     }
@@ -207,7 +207,7 @@ export class DiscountCardsComponent {
 
   getProviderDisplayName(type: string): string {
     const names: Record<string, string> = {
-      esnCard: 'ESN Card',
+      esnCard: 'ESNcard',
     };
     return names[type] || type;
   }

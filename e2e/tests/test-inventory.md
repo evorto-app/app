@@ -23,7 +23,7 @@ Scope: Playwright coverage split between documentation journeys (`docs/**`) and 
 - `specs/auth/storage-state-refresh.test.ts` — Storage state freshness: enforces age and tenant cookie validity.
 
 ### Contracts
-- `specs/contracts/discounts/discounts.cards.crud.spec.ts` — ESN card CRUD contract (CTA visibility, validation, enable/disable).
+- `specs/contracts/discounts/discounts.cards.crud.spec.ts` — ESNcard CRUD contract (CTA visibility, validation, enable/disable).
 - `specs/contracts/discounts/discounts.catalog.spec.ts` — Tenant discount provider settings persist across reloads.
 - `specs/contracts/discounts/discounts.setTenantProviders.spec.ts` — Tenant provider toggles propagate to user profile.
 - `specs/contracts/events/events.pricing.selection.spec.ts` — ESN discount pricing path and expired card fallback (`@slow`).

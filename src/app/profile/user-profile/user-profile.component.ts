@@ -82,7 +82,7 @@ export class UserProfileComponent {
         await this.queryClient.invalidateQueries({
           queryKey: this.trpc.discounts.getMyCards.pathKey(),
         });
-        this.notifications.showSuccess('ESN card removed');
+        this.notifications.showSuccess('ESNcard removed');
       },
     }),
   );
@@ -113,7 +113,7 @@ export class UserProfileComponent {
         await this.queryClient.invalidateQueries({
           queryKey: this.trpc.discounts.getMyCards.pathKey(),
         });
-        this.notifications.showSuccess('ESN card refreshed');
+        this.notifications.showSuccess('ESNcard refreshed');
       },
     }),
   );
@@ -126,7 +126,7 @@ export class UserProfileComponent {
         await this.queryClient.invalidateQueries({
           queryKey: this.trpc.discounts.getMyCards.pathKey(),
         });
-        this.notifications.showSuccess('ESN card saved');
+        this.notifications.showSuccess('ESNcard saved');
       },
     }),
   );
@@ -149,7 +149,7 @@ export class UserProfileComponent {
 
   protected saveEsnCard() {
     if (this.esnCardControl.invalid) {
-      this.notifications.showError('Please enter a valid ESN card number');
+      this.notifications.showError('Please enter a valid ESNcard number');
       return;
     }
     this.upsertCardMutation.mutate({

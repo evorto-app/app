@@ -125,10 +125,10 @@ test.describe('Contract: discounts.cards CRUD (getMyCards, upsertMyCard, deleteM
     await expect(page.locator(CTA_SECTION)).toBeVisible();
   });
 
-  test('rejects invalid ESN card numbers', async ({ page }) => {
+  test('rejects invalid ESNcard numbers', async ({ page }) => {
     test.skip(
       true,
-      'ESN card validation requires reliable upstream test numbers.',
+      'ESNcard validation requires reliable upstream test numbers.',
     );
     await page.goto('/profile/discount-cards', {
       waitUntil: 'domcontentloaded',
@@ -144,7 +144,7 @@ test.describe('Contract: discounts.cards CRUD (getMyCards, upsertMyCard, deleteM
   }) => {
     test.skip(
       true,
-      'ESN card validation requires reliable upstream test numbers.',
+      'ESNcard validation requires reliable upstream test numbers.',
     );
     const duplicateId = `ESN-DUP-${Date.now()}`;
 
@@ -167,7 +167,7 @@ test.describe('Contract: discounts.cards CRUD (getMyCards, upsertMyCard, deleteM
   }) => {
     test.skip(
       true,
-      'ESN card validation requires reliable upstream test numbers.',
+      'ESNcard validation requires reliable upstream test numbers.',
     );
     await updateProvider({
       browser,
@@ -194,7 +194,7 @@ test.describe('Contract: discounts.cards CRUD (getMyCards, upsertMyCard, deleteM
   test('allows adding and deleting a verified card', async ({ page }) => {
     test.skip(
       true,
-      'ESN card validation requires reliable upstream test numbers.',
+      'ESNcard validation requires reliable upstream test numbers.',
     );
     const identifier = `ESN-SUCCESS-${Date.now()}`;
 

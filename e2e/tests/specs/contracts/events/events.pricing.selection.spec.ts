@@ -220,7 +220,7 @@ test(
 );
 
 test(
-  'Contract: events.pricing.selection falls back to base price for expired ESN card @slow',
+  'Contract: events.pricing.selection falls back to base price for expired ESNcard @slow',
   async ({
     browser,
     expiredCard,

@@ -88,8 +88,8 @@ export class GeneralSettingsComponent {
   > = {
     esnCard: {
       description:
-        'Offer automatic discounts to members with a verified ESN card.',
-      name: 'ESN Card',
+        'Offer automatic discounts to members with a verified ESNcard.',
+      name: 'ESNcard',
     },
   };
 

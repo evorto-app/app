@@ -12,7 +12,7 @@ export async function addDiscountCards(
   database: NeonDatabase<Record<string, never>, typeof relations>,
   tenantId: string,
 ) {
-  // Add a verified ESN card for one test user to enable discount testing
+  // Add a verified ESNcard for one test user to enable discount testing
   const testUser = usersToAuthenticate.find(u => u.roles === 'user' && u.addToDb);
   
   if (!testUser) {

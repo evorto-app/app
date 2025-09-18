@@ -63,7 +63,7 @@ Contract tests (1 per contract file)
 Integration/E2E documentation tests (user journeys from quickstart)
 - [ ] T008 [P] Documentation test: end‑to‑end journey
   - File: `/Users/hedde/code/evorto/e2e/tests/discounts/discounts.doc.ts`
-  - Steps: admin enables ESN; user adds/validates ESN card; create template with ESN discounted price; create event from template; register and see discounted/zero price; participants list shows discount; toggle ESN off then ensure new card upsert blocked.
+  - Steps: admin enables ESN; user adds/validates ESNcard; create template with ESN discounted price; create event from template; register and see discounted/zero price; participants list shows discount; toggle ESN off then ensure new card upsert blocked.
   - **Status**: Blocked pending deterministic ESNcard test numbers; doc test currently short‑circuits when numbers are unavailable.
 
 - [ ] T009 [P] E2E: permissions and visibility

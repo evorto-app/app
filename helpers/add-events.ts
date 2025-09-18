@@ -138,7 +138,7 @@ export const addEvents = async (
     .values(allRegistrationOptions);
   consola.success(`Inserted ${allRegistrationOptions.length} event registration options`);
 
-  // Seed discounts for paid participant registration options (ESN card)
+  // Seed discounts for paid participant registration options (ESNcard)
   try {
     const paidOptions = allRegistrationOptions.filter(
       (opt) => opt.isPaid && !opt.organizingRegistration,

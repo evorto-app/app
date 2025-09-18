@@ -51,7 +51,7 @@
         <div class="text-primary font-medium mb-2">
           ✓ You're getting {{ discountInfo().savingsPercentage }}% off with your 
           @switch (discountInfo().discountType) {
-            @case ('esnCard') { ESN Card }
+            @case ('esnCard') { ESNcard }
           }
         </div>
       }
@@ -62,7 +62,7 @@
             @switch (discount.discountType) {
               @case ('esnCard') { 
                 <mat-icon class="text-base">credit_card</mat-icon>
-                <span>ESN Card</span>
+                <span>ESNcard</span>
               }
             }
             

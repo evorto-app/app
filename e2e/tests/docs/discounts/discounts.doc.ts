@@ -1,4 +1,12 @@
-import { adminStateFile, userStateFile } from '../../../../helpers/user-data';
+import { and, eq } from 'drizzle-orm';
+
+import * as schema from '@db/schema';
+
+import {
+  adminStateFile,
+  userStateFile,
+  usersToAuthenticate,
+} from '../../../../helpers/user-data';
 import { expect, test } from '../../../fixtures/parallel-test';
 import { takeScreenshot } from '../../../reporters/documentation-reporter';
 
@@ -10,11 +18,6 @@ test.describe('Documentation: Discount provider journey — admin setup', () => 
   test.use({ storageState: adminStateFile });
 
   test('Admin enables ESN discount provider', async ({ page }, testInfo) => {
-    // test.skip(
-    //   true,
-    //   'ESN card validation requires reliable upstream test numbers.',
-    // );
-
     await page.goto('/admin/settings/discounts', {
       waitUntil: 'domcontentloaded',
     });
@@ -56,29 +59,66 @@ test.describe('Documentation: Discount provider journey — admin setup', () => 
 });
 
 test.describe('Documentation: Discount provider journey — user experience', () => {
-  test.use({ storageState: userStateFile });
+  test.use({ seedDiscounts: false, storageState: userStateFile });
 
-  test('User registers an ESN discount card', async ({ page }, testInfo) => {
-    // test.skip(true, 'ESN card validation requires reliable upstream test numbers.');
+  test('User reviews ESN discount card states', async (
+    { database, page, tenant },
+    testInfo,
+  ) => {
+    const user = usersToAuthenticate.find(
+      (candidate) => candidate.stateFile === userStateFile,
+    );
+    if (!user) {
+      throw new Error('Documentation test requires seeded regular user');
+    }
 
-    await page.goto('/profile/discount-cards', {
+    await database
+      .delete(schema.userDiscountCards)
+      .where(
+        and(
+          eq(schema.userDiscountCards.tenantId, tenant.id),
+          eq(schema.userDiscountCards.userId, user.id),
+        ),
+      );
+
+    await page.goto('/profile', {
       waitUntil: 'domcontentloaded',
     });
+
+    const discountSection = page.locator('section', {
+      hasText: 'Discount Cards',
+    });
+    await expect(discountSection).toBeVisible();
+    await takeScreenshot(
+      testInfo,
+      discountSection,
+      page,
+      'Profile entry point to discount cards',
+    );
+
+    await discountSection.getByRole('link', { name: 'Manage Cards' }).click();
+    await page.waitForURL('**/profile/discount-cards');
     await expect(page.locator(CTA_SECTION)).toBeVisible();
     await takeScreenshot(
       testInfo,
       page.locator(CTA_SECTION),
       page,
-      'CTA encourages ESN registration',
+      'Discount cards CTA and form',
     );
 
     const identifier = `ESN-DOC-${Date.now()}`;
-    await page.getByTestId('esn-card-input').fill(identifier);
-    await page.getByTestId('add-esn-card-button').click();
-    await expect(page.locator(SNACKBAR)).toContainText(
-      'Card added successfully',
-    );
-    await page.locator(SNACKBAR).waitFor({ state: 'detached' });
+    await database.insert(schema.userDiscountCards).values({
+      identifier,
+      lastCheckedAt: new Date(),
+      status: 'verified',
+      tenantId: tenant.id,
+      type: 'esnCard',
+      userId: user.id,
+      validFrom: new Date(),
+      validTo: new Date(Date.now() + 1000 * 60 * 60 * 24 * 180),
+    });
+
+    await page.reload({ waitUntil: 'domcontentloaded' });
 
     const cardPanel = page
       .locator(CARD_IDENTIFIER_CELL)
@@ -91,7 +131,7 @@ test.describe('Documentation: Discount provider journey — user experience', ()
       testInfo,
       cardPanel,
       page,
-      'Verified ESN card on file',
+      'Verified ESNcard on file',
     );
 
     page.once('dialog', (dialog) => dialog.accept());
@@ -100,9 +140,11 @@ test.describe('Documentation: Discount provider journey — user experience', ()
       'Card deleted successfully',
     );
     await page.locator(SNACKBAR).waitFor({ state: 'detached' });
+    await expect(page.locator(CARD_IDENTIFIER_CELL)).toHaveCount(0);
+    await expect(page.locator(CTA_SECTION)).toBeVisible();
 
     await testInfo.attach('markdown', {
-      body: `\n## Member adds an ESN card\n\n1. Open **Profile → Discount cards** to view the CTA.\n2. Enter the ESN identifier and add the card.\n3. Confirm the verified status and remove the card if needed.\n`,
+      body: `\n## Member manages ESNcards\n\n1. Navigate to **Profile → Discount cards** to access the CTA and form.\n2. Seed a verified ESNcard (documentation helper) and review the card details.\n3. Remove the card to confirm the CTA reappears for future entries.\n`,
     });
   });
 });

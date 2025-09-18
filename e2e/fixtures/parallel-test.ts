@@ -94,47 +94,43 @@ export const test = base.extend<BaseFixtures & ParallelOptions>({
     ]);
     await use(context);
   },
-  // Seed discount provider and a verified ESN card for the regular user
-  discounts: [
-    async ({ database, seedDiscounts, tenant }, use) => {
-      if (!seedDiscounts) {
-        await use();
-        return;
-      }
-      // Enable ESN provider for tenant (stored on tenant model)
-      const currentTenant = await database.query.tenants.findFirst({
-        where: { id: tenant.id },
-      });
-      const current = ((currentTenant as any)?.discountProviders ??
-        {}) as Record<
-        string,
-        { config: unknown; status: 'disabled' | 'enabled' }
-      >;
-      const updated = {
-        ...current,
-        esnCard: { config: {}, status: 'enabled' },
-      };
-      await database
-        .update(schema.tenants)
-        .set({ discountProviders: updated as any })
-        .where(eq(schema.tenants.id, tenant.id));
-      const regularUser = usersToAuthenticate.find((u) => u.roles === 'user');
-      if (regularUser) {
-        const uniqueIdentifier = `TEST-ESN-0001-${tenant.id.slice(0, 6)}`;
-        await database.insert(schema.userDiscountCards).values({
-          identifier: uniqueIdentifier,
-          status: 'verified',
-          tenantId: tenant.id,
-          type: 'esnCard',
-          userId: regularUser.id,
-          validFrom: new Date(),
-          validTo: new Date(Date.now() + 1000 * 60 * 60 * 24 * 180), // ~6 months
-        });
-      }
+  // Seed discount provider and a verified ESNcard for the regular user
+  discounts: async ({ database, seedDiscounts, tenant }, use) => {
+    if (!seedDiscounts) {
       await use();
-    },
-    { auto: true },
-  ],
+      return;
+    }
+    // Enable ESN provider for tenant (stored on tenant model)
+    const currentTenant = await database.query.tenants.findFirst({
+      where: { id: tenant.id },
+    });
+    const current = ((currentTenant as any)?.discountProviders ?? {}) as Record<
+      string,
+      { config: unknown; status: 'disabled' | 'enabled' }
+    >;
+    const updated = {
+      ...current,
+      esnCard: { config: {}, status: 'enabled' },
+    };
+    await database
+      .update(schema.tenants)
+      .set({ discountProviders: updated as any })
+      .where(eq(schema.tenants.id, tenant.id));
+    const regularUser = usersToAuthenticate.find((u) => u.roles === 'user');
+    if (regularUser) {
+      const uniqueIdentifier = `TEST-ESN-0001-${tenant.id.slice(0, 6)}`;
+      await database.insert(schema.userDiscountCards).values({
+        identifier: uniqueIdentifier,
+        status: 'verified',
+        tenantId: tenant.id,
+        type: 'esnCard',
+        userId: regularUser.id,
+        validFrom: new Date(),
+        validTo: new Date(Date.now() + 1000 * 60 * 60 * 24 * 180), // ~6 months
+      });
+    }
+    await use();
+  },
 
   events: [
     async ({ database, roles, templates }, use) => {

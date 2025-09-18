@@ -6,7 +6,7 @@ import { tenants } from '../src/db/schema';
 
 /**
  * Seeds discount providers configuration for the tenant
- * Enables ESN card discounts by default for testing
+ * Enables ESNcard discounts by default for testing
  */
 export async function addDiscountProviders(
   database: NeonDatabase<Record<string, never>, typeof relations>,

@@ -23,7 +23,7 @@ export interface ValidationResult {
   validTo?: Date | null;
 }
 
-// ESN Card example config schema (placeholder)
+// ESNcard example config schema (placeholder)
 const EsnConfig = Schema.Struct({
   apiKey: Schema.NonEmptyString,
   apiUrl: Schema.NonEmptyString,
@@ -32,8 +32,8 @@ const EsnConfig = Schema.Struct({
 export const PROVIDERS: Record<ProviderType, ProviderConfig> = {
   esnCard: {
     configSchema: EsnConfig,
-    description: 'Validate ESN cards and eligibility windows.',
-    displayName: 'ESN Card',
+    description: 'Validate ESNcard credentials and eligibility windows.',
+    displayName: 'ESNcard',
     type: 'esnCard',
   },
 };

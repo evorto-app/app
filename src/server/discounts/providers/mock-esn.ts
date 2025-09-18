@@ -1,6 +1,6 @@
 import { effect, Schema } from 'effect';
 
-// Mock ESN card provider that doesn't rely on external API
+// Mock ESNcard provider that doesn't rely on external API
 // This allows testing without network dependencies
 export const mockEsnCardProvider = {
   async validate({ identifier }: { identifier: string; config?: any }) {

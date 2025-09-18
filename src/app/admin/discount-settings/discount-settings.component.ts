@@ -56,7 +56,7 @@ interface ProviderForm {
                       <mat-slide-toggle 
                         formControlName="showCta"
                         data-testid="esn-show-cta-toggle">
-                        Show "Get ESN Card" call-to-action
+                        Show "Get ESNcard" call-to-action
                       </mat-slide-toggle>
                     </div>
                   }
@@ -131,14 +131,14 @@ export class DiscountSettingsComponent {
 
   getProviderDisplayName(type: string): string {
     const names: Record<string, string> = {
-      esnCard: 'ESN Card',
+      esnCard: 'ESNcard',
     };
     return names[type] || type;
   }
 
   getProviderDescription(type: string): string {
     const descriptions: Record<string, string> = {
-      esnCard: 'Validate ESN cards and provide discounts to ESN members',
+      esnCard: 'Validate ESNcard credentials and provide discounts to ESN members',
     };
     return descriptions[type] || `${type} discount provider`;
   }

@@ -4,13 +4,13 @@ import { takeScreenshot } from '../../../reporters/documentation-reporter';
 
 test.use({ storageState: userStateFile });
 
-test('Manage ESN discount card @finance', async ({ page }, testInfo) => {
+test('Manage ESNcard discount @finance', async ({ page }, testInfo) => {
   await page.goto('./profile');
   await testInfo.attach('markdown', {
     body: `
-# ESN Discount Card
+# ESNcard Discount
 
-Add your ESN card to receive discounted prices on eligible events. Your card is validated against esncard.org and discounts apply only while the card is valid.
+Add your ESNcard to receive discounted prices on eligible events. Your card is validated against esncard.org and discounts apply only while the card is valid.
 `,
   });
 
@@ -19,7 +19,7 @@ Add your ESN card to receive discounted prices on eligible events. Your card is 
 
   await testInfo.attach('markdown', {
     body: `
-If you already added your ESN card, you will see its status and validity here. You can refresh its status or remove it. Use the form to add or update your ESN card number.
+If you already added your ESNcard, you will see its status and validity here. You can refresh its status or remove it. Use the form to add or update your ESNcard number.
 `,
   });
 });
