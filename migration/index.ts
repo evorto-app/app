@@ -1,10 +1,10 @@
 import consola from 'consola';
 import { eq } from 'drizzle-orm';
-import { reset } from 'drizzle-seed';
 import { DateTime } from 'luxon';
 
 import * as oldSchema from '../old/drizzle';
 import { database } from '../src/db';
+import { resetDatabaseSchema } from '../src/db/reset';
 import * as schema from '../src/db/schema';
 import { oldDatabase } from './migrator-database';
 import { migrateEvents } from './steps/events';
@@ -62,7 +62,7 @@ async function main() {
 
   if (clearDb) {
     consola.start('Clear DB');
-    await reset(database, schema);
+    await resetDatabaseSchema(database, schema);
     consola.success('DB cleared');
   }
 

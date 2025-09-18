@@ -2,7 +2,6 @@ import { randEmail, randFirstName, randLastName } from '@ngneat/falso';
 import consola from 'consola';
 import { InferInsertModel } from 'drizzle-orm';
 import { NeonDatabase } from 'drizzle-orm/neon-serverless';
-import { reset } from 'drizzle-seed';
 
 import { addEvents } from '../../helpers/add-events';
 import { addIcons } from '../../helpers/add-icons';
@@ -19,6 +18,7 @@ import { createTenant } from '../../helpers/create-tenant';
 import { usersToAuthenticate } from '../../helpers/user-data';
 import { database as databaseClient } from './database-client';
 import { relations } from './relations';
+import { resetDatabaseSchema } from './reset';
 import * as schema from './schema';
 import { users } from './schema';
 
@@ -36,8 +36,7 @@ export async function setupDatabase(
 ) {
   consola.start('Reset database schema');
   const resetStart = Date.now();
-  // @ts-expect-error - drizzle-seed missing proper types
-  await reset(database, schema);
+  await resetDatabaseSchema(database, schema);
   consola.success(`Database reset in ${Date.now() - resetStart}ms`);
   await database
     .insert(users)
