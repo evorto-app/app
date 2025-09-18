@@ -2,6 +2,26 @@
 
 The discount-suite refactor highlighted a few non-negotiables for writing Playwright specs in this repo:
 
+## Test layout
+- Documentation journeys live under `e2e/tests/docs/<domain>/*.doc.ts`; pick the domain that matches the user-facing area (events, finance, profile, etc.).
+- Regression and contract coverage sits in `e2e/tests/specs/<domain>/**/*.test.ts` (or `.spec.ts` for contract suites). Keep slow contract checks grouped under `specs/contracts/*`.
+- Infrastructure verifications (reporters, screenshot helpers, seed invariants) belong in `e2e/tests/specs/tooling` or `e2e/tests/specs/seed` so they do not pollute domain folders.
+- Name files and `test()` titles as user outcomes (“creates template in empty category”) so generated docs, dashboards, and slugs stay legible.
+- Avoid adding new top-level folders unless the product area is genuinely new—extend existing domains wherever possible.
+
+### Authoring workflow
+1. **Pick the folder first.** Docs → `docs/<domain>/journey.doc.ts`; regression/contract → `specs/<domain>/scenario.test.ts` (or `.spec.ts` for contracts); infrastructure → `specs/tooling/*`.
+2. **Use shared fixtures.** Always import `test`/`expect` from `e2e/fixtures/*` (parallel/base/permissions) so seeded data, auth, and helpers stay consistent.
+3. **Write outcomes, not steps.** Keep titles and assertions anchored on observable user value. Prefer web-first expectations and resilient locators.
+4. **Documentation tests stay lean.** Pair each important step with `takeScreenshot()` + concise markdown; declare permissions in the opening callout so the reporter can surface them automatically.
+5. **Keep specs isolated.** Seed or clean up via fixtures; don’t reach into the database directly from the test body; ensure navigation happens via the UI.
+6. **Run locally before landing.** Execute the targeted Playwright command and eyeball `test-results` (for docs) to confirm attachments look right.
+
+### Running suites
+- `yarn e2e` — full regression run across `specs/**`.
+- `yarn e2e:docs` — generate documentation output from every `*.doc.ts` under `docs/**`.
+- `yarn e2e -- --grep "@tag"` — run tagged scenarios (for example `@finance`).
+
 - **Use Yarn v4 tooling only.** All scripts assume the Yarn 4 (Berry) runtime—do not run `npm`, `pnpm`, or global Playwright commands. Always invoke scripts through `yarn <script>` so the repo-managed binaries and constraints apply.
 - **Stay user-facing end to end.** Configure the application by exercising the same flows real users do. Skip direct database access, ad-hoc TRPC fetches, or manually crafted HTTP calls—if data is required, create it through the UI or dedicated fixtures that reuse seeded storage states.
 - **Navigate via the UI.** Move between screens using the navigation controls the product exposes (drawer links, buttons, etc.). `page.goto` is reserved for the very first entry point inside helpers/fixtures.

@@ -1,70 +1,65 @@
 # E2E Test Inventory
 
-Scope: Current Playwright tests and documentation journeys; identifies gaps vs. Evorto Living E2E Baseline spec.
+Scope: Playwright coverage split between documentation journeys (`docs/**`) and regression/contract specs (`specs/**`).
 
-Generated: 2025-09-13
+## Documentation journeys (`*.doc.ts`)
+- `docs/discounts/discounts.doc.ts` — Admin configures ESN provider and a member registers a card.
+- `docs/events/event-management.doc.ts` — Create and manage events end to end.
+- `docs/events/register.doc.ts` — Register for free and paid events.
+- `docs/events/unlisted-admin.doc.ts` — Admin perspective on unlisted events.
+- `docs/events/unlisted-user.doc.ts` — Member understanding of unlisted events.
+- `docs/finance/finance-overview.doc.ts` — Finance dashboard management (`@finance`).
+- `docs/finance/inclusive-tax-rates.doc.ts` — Import and apply inclusive tax rates.
+- `docs/profile/discounts.doc.ts` — Manage ESN discount card from profile (`@finance`).
+- `docs/profile/user-profile.doc.ts` — Manage personal profile settings.
+- `docs/roles/roles.doc.ts` — Create and configure custom roles.
+- `docs/template-categories/categories.doc.ts` — Maintain template categories.
+- `docs/templates/templates.doc.ts` — Manage event templates.
+- `docs/users/create-account.doc.ts` — Self-service account creation (`@needs-auth0`).
 
-## Summary
+## Functional suites (`*.test.ts` / `*.spec.ts`)
 
-- Documentation journeys (`*.doc.ts`):
-  - events/event-management.doc.ts
-  - events/unlisted-admin.doc.ts
-  - events/unlisted-user.doc.ts
-  - finance/finance-overview.doc.ts [finance]
-  - profile/discounts.doc.ts [finance]
-  - profile/user-profile.doc.ts
-  - roles/roles.doc.ts
-  - template-categories/categories.doc.ts
-  - templates/templates.doc.ts
-  - users/create-account.doc.ts [@needs-auth0]
+### Auth & storage
+- `specs/auth/storage-state-refresh.test.ts` — Storage state freshness: enforces age and tenant cookie validity.
 
-- Functional tests (`*.test.ts`):
-  - discounts/esn-discounts.test.ts [finance]
-  - events/events.test.ts
-  - smoke/load-application.test.ts
-  - template-categories/template-categories.test.ts
-  - templates/templates.test.ts
+### Contracts
+- `specs/contracts/discounts/discounts.cards.crud.spec.ts` — ESN card CRUD contract (CTA visibility, validation, enable/disable).
+- `specs/contracts/discounts/discounts.catalog.spec.ts` — Tenant discount provider settings persist across reloads.
+- `specs/contracts/discounts/discounts.setTenantProviders.spec.ts` — Tenant provider toggles propagate to user profile.
+- `specs/contracts/events/events.pricing.selection.spec.ts` — ESN discount pricing path and expired card fallback (`@slow`).
+- `specs/contracts/templates/templates.discounts.duplication.spec.ts` — Template → event duplication preserves discount configuration (`test.fixme`).
 
-## Gaps vs. Baseline Plan
+### Events
+- `specs/events/create-event-from-template.test.ts` — Creates event from template.
+- `specs/events/free-event-registration.test.ts` — Registers for an available free event.
+- `specs/events/price-labels-inclusive.spec.ts` — Inclusive price label coverage across events and templates (`@events @taxRates @priceLabels`).
+- `specs/events/unlisted-visibility-matrix.test.ts` — Visibility matrix for unlisted events (member vs admin).
 
-- Scanning regression test: MISSING → add `e2e/tests/scanning/scanner.test.ts` (T018)
-- Free registration regression test: MISSING → add `e2e/tests/events/free-registration.test.ts` (T021)
-- Unlisted visibility functional test: MISSING → add `e2e/tests/events/unlisted-visibility.test.ts` (T020)
-- Reporter env override tests: MISSING → add `e2e/tests/reporter/reporter-paths.test.ts` (T015) and front-matter normalization test (T017)
-- Seed log/map and runtime file: MISSING → implement wrapper and runtime output (T006/T007)
-- Storage state freshness tests: MISSING → add `e2e/tests/auth/storage-state-refresh.test.ts` (T009)
+### Finance & taxation
+- `specs/finance/discounts/esn-discounts.test.ts` — Applies ESN discount during paid registration (`@finance`).
+- `specs/finance/checkout/checkout-uses-tax-rate-id.spec.ts` — Checkout integrations respect displayed prices and tax metadata (`@finance @taxRates @checkout`).
+- `specs/finance/tax-rates/admin-import-tax-rates.spec.ts` — Admin tax-rate import, permissions, and isolation (`@finance @taxRates`).
 
-## Tagging Candidates
+### Permissions
+- `specs/permissions/internal-link-override.test.ts` — Internal link appears after granting `internal:viewInternalPages`.
+- `specs/permissions/tenant-isolation-tax-rates.spec.ts` — Tenant isolation for tax rates across UI and API layers.
 
-- Finance-related flows (exclude from baseline runs):
-  - finance/finance-overview.doc.ts → tag `@finance` (T002)
-  - discounts/esn-discounts.test.ts → tag `@finance` (T002)
-  - profile/discounts.doc.ts → tag `@finance` (T002)
-  - events/register.doc.ts → wrap paid path and tag (T003)
+### Templates & categories
+- `specs/template-categories/manage-template-categories.test.ts` — Creates and edits template categories.
+- `specs/templates/template-crud-flows.test.ts` — Template CRUD flows (create/view).
+- `specs/templates/paid-option-requires-tax-rate.spec.ts` — Paid template options require compatible tax rates (`@templates @taxRates`).
 
-## Planned: Inclusive Tax Rates (TAX-RATES)
+### Scanning
+- `specs/scanning/qr-check-in-flow.test.ts` — Confirmed registration scan permits check-in.
 
-Source: `/specs/001-inclusive-tax-rates/e2e-plan.md`
+### Smoke & seed guards
+- `specs/smoke/load-application-shell.test.ts` — Loads the shell and navigates to events list.
+- `specs/seed/seed-baseline-invariants.test.ts` — Soft assertions for seeded tenant/categories/events mixture.
 
-Proposed files (Playwright):
-
-- finance/tax-rates/admin-import-tax-rates.spec.ts
-- templates/paid-option-requires-tax-rate.spec.ts
-- events/price-labels-inclusive.spec.ts
-- finance/checkout-uses-tax-rate-id.spec.ts
-- finance/fallback-unavailable-rate.spec.ts
-- discounts/discount-reduces-inclusive-price.spec.ts
-- permissions/admin-manage-taxes-permission.spec.ts
-- permissions/tenant-isolation-tax-rates.spec.ts
-- finance/zero-percent-inclusive-rate.spec.ts
-- finance/audit-logging-import-and-unavailability.spec.ts
-
-Notes:
-
-- Each spec seeds isolated tenants; relies on helpers in `/helpers/*`.
-- Where Stripe test credentials are absent, assert constructed payloads at the server boundary instead of confirming with provider.
+### Tooling & infrastructure
+- `specs/tooling/doc-screenshot-helper.test.ts` — Doc screenshot helper returns relative paths and writes images.
+- `specs/tooling/documentation-reporter-paths.test.ts` — Documentation reporter honors env overrides and normalizes permissions callouts.
 
 ## Notes
-
-- Current fixtures in `e2e/fixtures/parallel-test.ts` already seed tenant, categories, templates, events, and registrations per test run.
-- Base fixture enhancement to read `.e2e-runtime.json` enables cookie injection for tests not using parallel fixtures (T008).
+- Use `yarn e2e` for regression suites and `yarn e2e:docs` for documentation generation.
+- Keep new tests aligned with the folder conventions above (see `e2e/AGENTS.md` for authoring rules).

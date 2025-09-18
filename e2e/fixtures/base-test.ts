@@ -30,18 +30,6 @@ interface BaseFixtures {
 }
 
 export const test = base.extend<BaseFixtures>({
-  tenantDomain: async ({}, use) => {
-    try {
-      const runtimePath = path.resolve('.e2e-runtime.json');
-      if (fs.existsSync(runtimePath)) {
-        const raw = fs.readFileSync(runtimePath, 'utf-8');
-        const data = JSON.parse(raw) as { tenantDomain?: string };
-        await use(data.tenantDomain);
-        return;
-      }
-    } catch {}
-    await use(process.env['TENANT_DOMAIN']);
-  },
   database: async ({}, use) => {
     const database = drizzle({
       connection: process.env['DATABASE_URL']!,
@@ -95,5 +83,17 @@ export const test = base.extend<BaseFixtures>({
       }
     });
     await use(page);
+  },
+  tenantDomain: async ({}, use) => {
+    try {
+      const runtimePath = path.resolve('.e2e-runtime.json');
+      if (fs.existsSync(runtimePath)) {
+        const raw = fs.readFileSync(runtimePath, 'utf8');
+        const data = JSON.parse(raw) as { tenantDomain?: string };
+        await use(data.tenantDomain);
+        return;
+      }
+    } catch {}
+    await use(process.env['TENANT_DOMAIN']);
   },
 });
