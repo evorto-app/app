@@ -1,26 +1,22 @@
+import { database as databaseClient } from '@db/database-client';
+import { relations } from '@db/relations';
+import * as schema from '@db/schema';
+import { users } from '@db/schema';
 import { randEmail, randFirstName, randLastName } from '@ngneat/falso';
 import consola from 'consola';
 import { InferInsertModel } from 'drizzle-orm';
 import { NeonDatabase } from 'drizzle-orm/neon-serverless';
 
-import { addEvents } from '../../helpers/add-events';
-import { addIcons } from '../../helpers/add-icons';
-import { addRegistrations } from '../../helpers/add-registrations';
-import {
-  addExampleUsers,
-  addRoles,
-  addUsersToRoles,
-} from '../../helpers/add-roles';
-import { addTaxRates } from '../../helpers/add-tax-rates';
-import { addTemplateCategories } from '../../helpers/add-template-categories';
-import { addTemplates } from '../../helpers/add-templates';
-import { createTenant } from '../../helpers/create-tenant';
-import { usersToAuthenticate } from '../../helpers/user-data';
-import { database as databaseClient } from './database-client';
-import { relations } from './relations';
-import { resetDatabaseSchema } from './reset';
-import * as schema from './schema';
-import { users } from './schema';
+import { addEvents } from './add-events';
+import { addIcons } from './add-icons';
+import { addRegistrations } from './add-registrations';
+import { addExampleUsers, addRoles, addUsersToRoles } from './add-roles';
+import { addTaxRates } from './add-tax-rates';
+import { addTemplateCategories } from './add-template-categories';
+import { addTemplates } from './add-templates';
+import { createTenant } from './create-tenant';
+import { resetDatabaseSchema } from './reset-db';
+import { usersToAuthenticate } from './user-data';
 
 export type Database = NeonDatabase<Record<string, never>, typeof relations>;
 
@@ -117,7 +113,9 @@ export async function setupDatabase(
     );
     const exampleUsersStart = Date.now();
     await addExampleUsers(database, roles, developmentTenant);
-    consola.success(`Example users added in ${Date.now() - exampleUsersStart}ms`);
+    consola.success(
+      `Example users added in ${Date.now() - exampleUsersStart}ms`,
+    );
     const categories = await addTemplateCategories(
       database,
       developmentTenant,
@@ -128,10 +126,14 @@ export async function setupDatabase(
     consola.info(`Inserted ${templates.length} templates`);
     const eventsStart = Date.now();
     const events = await addEvents(database, templates, roles);
-    consola.success(`Inserted ${events.length} events in ${Date.now() - eventsStart}ms`);
+    consola.success(
+      `Inserted ${events.length} events in ${Date.now() - eventsStart}ms`,
+    );
     const regsStart = Date.now();
     await addRegistrations(database, events);
     consola.success(`Registrations seeded in ${Date.now() - regsStart}ms`);
-    consola.success(`Tenant ${tenant.domain} ready in ${Date.now() - tenantStart}ms`);
+    consola.success(
+      `Tenant ${tenant.domain} ready in ${Date.now() - tenantStart}ms`,
+    );
   }
 }

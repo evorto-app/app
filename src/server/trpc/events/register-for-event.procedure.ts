@@ -71,11 +71,11 @@ export const registerForEventProcedure = authenticatedProcedure
       let appliedDiscountType: 'esnCard' | null = null;
       let appliedDiscountedPrice: number | null = null;
       let discountAmount: number | null = null;
-      
+
       // Determine effective price (apply best discount if any)
       let effectivePrice = registrationOption.price;
       const basePriceAtRegistration = registrationOption.price;
-      
+
       // Find verified user cards for tenant
       const cards = await tx.query.userDiscountCards.findMany({
         where: {
@@ -84,7 +84,7 @@ export const registerForEventProcedure = authenticatedProcedure
           userId: ctx.user.id,
         },
       });
-      
+
       if (cards.length > 0) {
         // Only apply discounts for providers enabled on this tenant
         const tenant = await tx.query.tenants.findFirst({
@@ -93,14 +93,14 @@ export const registerForEventProcedure = authenticatedProcedure
         const providerConfig = (tenant as any)?.discountProviders ?? {};
         const enabledTypes = new Set(
           Object.entries(providerConfig)
-            .filter(([, v]) => (v as any)?.status === 'enabled')
+            .filter(([, v]) => (v as any)?.enabled === true)
             .map(([k]) => k as string),
         );
-        
+
         // Use new JSONB discounts field instead of separate table
         const discounts = registrationOption.discounts || [];
         const eventStart = registrationOption.event?.start ?? new Date();
-        
+
         const eligible = discounts.filter((d) =>
           cards.some(
             (c) =>
@@ -109,11 +109,11 @@ export const registerForEventProcedure = authenticatedProcedure
               (!c.validTo || c.validTo > eventStart),
           ),
         );
-        
+
         if (eligible.length > 0) {
           // Find the lowest price
           const lowestPrice = Math.min(...eligible.map((e) => e.discountedPrice));
-          
+
           // Tie-breaker: if lowest equals base price, prefer base; otherwise use discount
           if (lowestPrice < basePriceAtRegistration) {
             effectivePrice = lowestPrice;
@@ -121,7 +121,7 @@ export const registerForEventProcedure = authenticatedProcedure
             const selectedDiscount = eligible
               .filter((e) => e.discountedPrice === lowestPrice)
               .sort((a, b) => a.discountType.localeCompare(b.discountType))[0];
-            
+
             appliedDiscountType = selectedDiscount.discountType;
             appliedDiscountedPrice = selectedDiscount.discountedPrice;
             discountAmount = basePriceAtRegistration - selectedDiscount.discountedPrice;
@@ -197,7 +197,7 @@ export const registerForEventProcedure = authenticatedProcedure
           const providerConfig = (tenant as any)?.discountProviders ?? {};
           const enabledTypes = new Set(
             Object.entries(providerConfig)
-              .filter(([, v]) => (v as any)?.status === 'enabled')
+              .filter(([, v]) => (v as any)?.enabled === true)
               .map(([k]) => k as string),
           );
           // Use new JSONB discounts field instead of separate table
@@ -222,7 +222,7 @@ export const registerForEventProcedure = authenticatedProcedure
         // Check if discount reduced price to zero or negative - treat as free
         if (effectivePrice <= 0) {
           consola.info(`Effective price ${effectivePrice} <= 0 for registration ${userRegistration.id}, treating as free`);
-          
+
           // Update registration status to confirmed (no payment needed)
           await database
             .update(schema.eventRegistrations)

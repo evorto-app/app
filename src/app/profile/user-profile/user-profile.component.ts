@@ -74,7 +74,7 @@ export class UserProfileComponent {
   protected readonly esnEnabled = computed(() => {
     const providers = this.discountProvidersQuery.data();
     if (!providers) return false;
-    return providers.find((p) => p.type === 'esnCard')?.status === 'enabled';
+    return providers.find((p) => p.type === 'esnCard')?.enabled === true;
   });
   protected readonly deleteCardMutation = injectMutation(() =>
     this.trpc.discounts.deleteMyCard.mutationOptions({

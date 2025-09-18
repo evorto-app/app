@@ -6,18 +6,17 @@ import {
   defaultStateFile,
   userStateFile,
 } from '../../../../../helpers/user-data';
-import { createId } from '../../../../../src/db/create-id';
 import * as schema from '../../../../../src/db/schema';
-import { expect, test as base } from '../../../../fixtures/parallel-test';
-import { runWithStorageState } from '../../../utils/auth-context';
+import { test as base, expect } from '../../../../fixtures/parallel-test';
+import { runWithStorageState } from '../../../../utils/auth-context';
 
 interface DiscountTemplateFixture {
   categoryTitle: string;
+  discountedPrice: number;
+  fullPrice: number;
+  optionTitle: string;
   templateId: string;
   templateTitle: string;
-  optionTitle: string;
-  fullPrice: number;
-  discountedPrice: number;
 }
 
 const centsToCurrency = (cents: number) =>
@@ -59,8 +58,8 @@ const test = base.extend<{
 
     const discountConfiguration = [
       {
-        discountType: 'esnCard' as const,
         discountedPrice: Math.max(0, (participantOption.price ?? 0) - 1000),
+        discountType: 'esnCard' as const,
       },
     ];
 
@@ -110,22 +109,18 @@ const verifyTransactionAmount = async (
   eventTitle: string,
   expectedAmount: number,
 ) => {
-  await runWithStorageState(
-    browser,
-    adminStateFile,
-    async (financePage) => {
-      await financePage.goto('/finance/transactions', {
-        waitUntil: 'domcontentloaded',
-      });
+  await runWithStorageState(browser, adminStateFile, async (financePage) => {
+    await financePage.goto('/finance/transactions', {
+      waitUntil: 'domcontentloaded',
+    });
 
-      const expectedText = centsToCurrency(expectedAmount);
-      const row = financePage
-        .getByRole('row', { name: new RegExp(eventTitle, 'i') })
-        .first();
-      await expect(row).toBeVisible();
-      await expect(row.getByRole('cell').first()).toContainText(expectedText);
-    },
-  );
+    const expectedText = centsToCurrency(expectedAmount);
+    const row = financePage
+      .getByRole('row', { name: new RegExp(eventTitle, 'i') })
+      .first();
+    await expect(row).toBeVisible();
+    await expect(row.getByRole('cell').first()).toContainText(expectedText);
+  });
 };
 
 test.describe.configure({ tag: '@contracts' });
@@ -158,7 +153,9 @@ test.fixme(
     await createEventButton.click();
 
     await expect(page).toHaveURL(/create-event$/);
-    await expect(page.getByLabel('Event title')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByLabel('Event title')).toBeVisible({
+      timeout: 15_000,
+    });
 
     const eventDetails = page.locator('app-event-general-form');
 

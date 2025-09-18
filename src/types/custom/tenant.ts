@@ -5,6 +5,11 @@ export class Tenant extends Schema.Class<Tenant>('Tenant')({
   defaultLocation: Schema.optionalWith(Schema.Any, {
     nullable: true,
   }),
+  // Expose tenant-wide discount provider configuration to clients
+  // Shape example: { esnCard?: { enabled: boolean; config?: { ctaEnabled?: boolean; ctaLink?: string } } }
+  discountProviders: Schema.optionalWith(Schema.Any, {
+    nullable: true,
+  }),
   domain: Schema.NonEmptyString,
   id: Schema.NonEmptyString,
   locale: Schema.NonEmptyString,

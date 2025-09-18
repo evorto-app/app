@@ -54,17 +54,15 @@ export class GeneralSettingsComponent {
       (r) => r.inclusive && r.active,
     ),
   );
-  protected readonly discountProvidersQuery = injectQuery(() =>
-    this.trpc.discounts.getTenantProviders.queryOptions(),
+  protected readonly tenantQuery = injectQuery(() =>
+    this.trpc.config.tenant.queryOptions(),
   );
   protected readonly discountOverview = computed(() => {
-    const providers = this.discountProvidersQuery.data() ?? [];
-    let enabledCount = 0;
-    for (const provider of providers) {
-      if (provider.status === 'enabled') {
-        enabledCount += 1;
-      }
-    }
+    const tenant = this.tenantQuery.data() as any;
+    const providers = [
+      { type: 'esnCard', enabled: !!tenant?.discountProviders?.esnCard?.enabled },
+    ];
+    const enabledCount = providers.filter((p) => p.enabled === true).length;
     return {
       enabledCount,
       providers,

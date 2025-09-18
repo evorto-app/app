@@ -1,6 +1,5 @@
-import { and, eq } from 'drizzle-orm';
-
 import * as schema from '@db/schema';
+import { and, eq } from 'drizzle-orm';
 
 import {
   adminStateFile,
@@ -18,28 +17,20 @@ test.describe('Documentation: Discount provider journey — admin setup', () => 
   test.use({ storageState: adminStateFile });
 
   test('Admin enables ESN discount provider', async ({ page }, testInfo) => {
-    await page.goto('/admin/settings/discounts', {
-      waitUntil: 'domcontentloaded',
+    await page.goto('/admin/settings/discounts');
+
+    testInfo.attach('markdown', {
+      body: `
+    The platform supports discount providers that can be enabled and configured in the admin settings. Currently supported providers are:
+    - ESNcard: If enabled, users can enter their ESNcard number to prove their membership. Once the discount is active, secondary prices for cardholders can be entered.
+
+    # Activate the ESN provider`,
     });
 
-    const providerToggle = page
-      .getByTestId('enable-esn-provider')
-      .getByRole('switch');
-    if ((await providerToggle.getAttribute('aria-checked')) !== 'true') {
-      await providerToggle.click();
-      await expect(providerToggle).toHaveAttribute('aria-checked', 'true');
-    }
+    await page.getByRole('switch', { name: 'Disabled' }).click();
+    await page.getByRole('switch', { name: 'Show buy ESNcard link' }).click();
 
-    const ctaToggle = page
-      .getByTestId('esn-show-cta-toggle')
-      .getByRole('switch');
-    await expect(ctaToggle).toBeVisible();
-    if ((await ctaToggle.getAttribute('aria-checked')) !== 'true') {
-      await ctaToggle.click();
-      await expect(ctaToggle).toHaveAttribute('aria-checked', 'true');
-    }
-
-    await page.getByTestId('save-discount-settings').click();
+    await page.getByRole('button', { name: 'Save Settings' }).click();
     await expect(page.locator(SNACKBAR)).toContainText(
       'Discount settings saved successfully',
     );
@@ -53,7 +44,11 @@ test.describe('Documentation: Discount provider journey — admin setup', () => 
     );
 
     await testInfo.attach('markdown', {
-      body: `\n## Enable the ESN provider\n\n1. Visit **Admin → Settings → Discounts**.\n2. Toggle on the **ESN provider** and the optional CTA.\n3. Save changes to make the CTA available for members.\n`,
+      body: `
+
+      1. Visit **Admin → Settings → Discounts**.
+      2. Toggle on the **ESN provider**. You can decide if there should be a link to to buy the ESNcard shown to users who don't have one.
+      3. Save changes to make the CTA available for members.`,
     });
   });
 });
@@ -61,10 +56,11 @@ test.describe('Documentation: Discount provider journey — admin setup', () => 
 test.describe('Documentation: Discount provider journey — user experience', () => {
   test.use({ seedDiscounts: false, storageState: userStateFile });
 
-  test('User reviews ESN discount card states', async (
-    { database, page, tenant },
-    testInfo,
-  ) => {
+  test('User reviews ESN discount card states', async ({
+    database,
+    page,
+    tenant,
+  }, testInfo) => {
     const user = usersToAuthenticate.find(
       (candidate) => candidate.stateFile === userStateFile,
     );
@@ -127,12 +123,7 @@ test.describe('Documentation: Discount provider journey — user experience', ()
       .locator('..');
     await expect(cardPanel).toContainText(identifier);
     await expect(cardPanel).toContainText('Verified');
-    await takeScreenshot(
-      testInfo,
-      cardPanel,
-      page,
-      'Verified ESNcard on file',
-    );
+    await takeScreenshot(testInfo, cardPanel, page, 'Verified ESNcard on file');
 
     page.once('dialog', (dialog) => dialog.accept());
     await page.getByTestId('delete-esn-card').click();

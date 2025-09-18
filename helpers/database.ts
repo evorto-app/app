@@ -1,7 +1,7 @@
 import { seed as seedFalso } from '@ngneat/falso';
 import consola from 'consola';
 
-import { setupDatabase } from '../src/db/setup-database';
+import { setupDatabase } from './setup-database';
 
 /**
  * Database Seeding

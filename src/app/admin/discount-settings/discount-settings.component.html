@@ -1,0 +1,71 @@
+<div class="flex flex-row items-center gap-2 px-4">
+  <a routerLink=".." mat-icon-button>
+    <fa-duotone-icon [icon]="faArrowLeft"></fa-duotone-icon>
+  </a>
+  <h1 class="title-large">Discount settings</h1>
+  <div class="grow"></div>
+</div>
+<div class="p-4">
+  <!-- We fetch current tenant to read discount provider config (hard-coded ESNcard UI) -->
+  @if (tenantQuery.isLoading()) {
+    <div class="py-8 text-center">Loading discount providers...</div>
+  } @else if (tenantQuery.isError()) {
+    <div class="py-8 text-center text-red-500">
+      Failed to load discount providers: {{ tenantQuery.error()?.message }}
+    </div>
+  } @else {
+    <div class="space-y-6">
+      <mat-card class="p-6">
+        <div class="flex items-start justify-between">
+          <div>
+            <h3 class="text-lg font-semibold">ESNcard</h3>
+            <p class="mt-1 text-gray-600">
+              Validate ESNcard credentials and provide discounts to ESN members
+            </p>
+          </div>
+
+          <form [formGroup]="esnCardForm" class="w-full max-w-2xl space-y-4">
+            <div class="flex items-center justify-end gap-4">
+              <mat-slide-toggle formControlName="enabled">
+                {{ esnCardForm.get("enabled")?.value ? "Enabled" : "Disabled" }}
+              </mat-slide-toggle>
+            </div>
+
+            @if (esnCardForm.get("enabled")?.value) {
+              <div class="ml-4 space-y-2">
+                <mat-slide-toggle formControlName="ctaEnabled">
+                  Show buy ESNcard link
+                </mat-slide-toggle>
+
+                @if (esnCardForm.get("ctaEnabled")?.value) {
+                  <mat-form-field class="w-full">
+                    <mat-label>CTA link (Get ESNcard URL)</mat-label>
+                    <input
+                      matInput
+                      formControlName="ctaLink"
+                      placeholder="https://example.com/get-esncard"
+                    />
+                  </mat-form-field>
+                }
+              </div>
+            }
+          </form>
+        </div>
+      </mat-card>
+    </div>
+
+    <div class="mt-6 flex justify-end">
+      <button
+        mat-flat-button
+        (click)="saveSettings()"
+        [disabled]="updateMutation.isPending()"
+      >
+        @if (updateMutation.isPending()) {
+          Saving...
+        } @else {
+          Save Settings
+        }
+      </button>
+    </div>
+  }
+</div>

@@ -46,8 +46,8 @@ export class EventRegistrationOptionComponent {
   protected readonly userCardsQuery = injectQuery(() =>
     this.trpc.discounts.getMyCards.queryOptions(),
   );
-  protected readonly discountProvidersQuery = injectQuery(() =>
-    this.trpc.discounts.getTenantProviders.queryOptions(),
+  protected readonly tenantQuery = injectQuery(() =>
+    this.trpc.config.tenant.queryOptions(),
   );
   private queryClient = inject(QueryClient);
 
@@ -55,7 +55,12 @@ export class EventRegistrationOptionComponent {
   protected readonly bestDiscount = computed(() => {
     const option = this.registrationOption();
     const userCards = this.userCardsQuery.data() ?? [];
-    const providers = this.discountProvidersQuery.data() ?? [];
+    const tenant = this.tenantQuery.data() as any;
+    const enabledSet = new Set(
+      Object.entries(tenant?.discountProviders ?? {})
+        .filter(([, v]: any) => v?.enabled === true)
+        .map(([k]) => k as string),
+    );
     const discounts = option.discounts ?? [];
 
     if (!option.isPaid || discounts.length === 0) {
@@ -64,13 +69,12 @@ export class EventRegistrationOptionComponent {
 
     // Find valid discounts the user is eligible for
     const eligibleDiscounts = discounts.filter(discount => {
-      // Check if provider is enabled
-      const provider = providers.find(p => p.type === discount.discountType && p.status === 'enabled');
-      if (!provider) return false;
+      // Check if provider is enabled on the tenant
+      if (!enabledSet.has(discount.discountType)) return false;
 
       // Check if user has a valid card for this provider
-      const userCard = userCards.find(card => 
-        card.type === discount.discountType && 
+      const userCard = userCards.find(card =>
+        card.type === discount.discountType &&
         card.status === 'verified'
       );
       if (!userCard) return false;
@@ -85,7 +89,7 @@ export class EventRegistrationOptionComponent {
     }
 
     // Return the lowest priced discount (best deal)
-    return eligibleDiscounts.reduce((best, current) => 
+    return eligibleDiscounts.reduce((best, current) =>
       current.discountedPrice < best.discountedPrice ? current : best
     );
   });
@@ -122,17 +126,22 @@ export class EventRegistrationOptionComponent {
   protected readonly availableDiscounts = computed(() => {
     const option = this.registrationOption();
     const userCards = this.userCardsQuery.data() ?? [];
-    const providers = this.discountProvidersQuery.data() ?? [];
+    const tenant = this.tenantQuery.data() as any;
+    const enabledSet = new Set(
+      Object.entries(tenant?.discountProviders ?? {})
+        .filter(([, v]: any) => v?.enabled === true)
+        .map(([k]) => k as string),
+    );
     const discounts = option.discounts ?? [];
 
     return discounts.map(discount => {
-      const provider = providers.find(p => p.type === discount.discountType);
+      const isProviderEnabled = enabledSet.has(discount.discountType);
       const userCard = userCards.find(card => card.type === discount.discountType);
-      
+
       let status: 'eligible' | 'no_card' | 'invalid_card' | 'provider_disabled' = 'no_card';
       let message = '';
 
-      if (!provider || provider.status !== 'enabled') {
+      if (!isProviderEnabled) {
         status = 'provider_disabled';
         message = 'This discount is currently not available';
       } else if (!userCard) {

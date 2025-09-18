@@ -14,18 +14,20 @@ export async function addDiscountProviders(
 ) {
   const discountProvidersConfig = {
     esnCard: {
-      status: 'enabled' as const,
+      enabled: true as const,
       config: {
         apiKey: 'test-key', // For testing purposes
         apiUrl: 'https://esncard.org/services/1.0/card.json',
+        ctaEnabled: true,
+        ctaLink: 'https://esncard.org',
       },
     },
-  };
+  } as const;
 
   await database
     .update(tenants)
     .set({ discountProviders: discountProvidersConfig })
     .where(eq(tenants.id, tenantId));
-  
+
   return discountProvidersConfig;
 }

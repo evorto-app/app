@@ -74,7 +74,7 @@ export class RegistrationOptionForm implements OnDestroy, OnInit {
   private sub?: Subscription;
 
   get enabledProviders() {
-    return this.discountProvidersQuery.data()?.filter(p => p.status === 'enabled') ?? [];
+    return this.discountProvidersQuery.data()?.filter(p => p.enabled === true) ?? [];
   }
 
   get currentDiscounts() {
@@ -84,7 +84,7 @@ export class RegistrationOptionForm implements OnDestroy, OnInit {
   addDiscountForProvider(providerType: 'esnCard') {
     const currentDiscounts = this.currentDiscounts;
     const basePrice = this.registrationOptionForm().controls.price.value ?? 0;
-    
+
     // Check if discount already exists for this provider
     if (currentDiscounts.some(d => d.discountType === providerType)) {
       return;
@@ -111,13 +111,13 @@ export class RegistrationOptionForm implements OnDestroy, OnInit {
   updateDiscountPrice(providerType: 'esnCard', price: number) {
     const currentDiscounts = this.currentDiscounts;
     const basePrice = this.registrationOptionForm().controls.price.value ?? 0;
-    
+
     // Validate: discounted price must be <= base price
     const validatedPrice = Math.min(Math.max(0, price), basePrice);
-    
+
     this.registrationOptionForm().controls.discounts.setValue(
-      currentDiscounts.map(d => 
-        d.discountType === providerType 
+      currentDiscounts.map(d =>
+        d.discountType === providerType
           ? { ...d, discountedPrice: validatedPrice }
           : d
       )

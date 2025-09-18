@@ -1,5 +1,5 @@
-import { sql, is } from 'drizzle-orm';
-import { PgTable, getTableConfig, type PgDatabase } from 'drizzle-orm/pg-core';
+import { is, sql } from 'drizzle-orm';
+import { getTableConfig, type PgDatabase, PgTable } from 'drizzle-orm/pg-core';
 
 /**
  * Drops all data from every Postgres table declared in the provided schema.
@@ -27,6 +27,8 @@ export async function resetDatabaseSchema(
   });
 
   await database.execute(
-    sql.raw(`truncate ${qualifiedTableNames.join(', ')} restart identity cascade;`),
+    sql.raw(
+      `truncate ${qualifiedTableNames.join(', ')} restart identity cascade;`,
+    ),
   );
 }

@@ -26,22 +26,21 @@ import { injectTRPC } from '../../core/trpc-client';
   template: `
     <div class="p-6">
       <h1 class="text-2xl font-bold mb-6">Discount Cards</h1>
-      
-      @if (providersQuery.data(); as providers) {
-        @for (provider of providers; track provider.type) {
-          @if (provider.status === 'enabled') {
+
+      @if (tenantQuery.data(); as tenant) {
+        @if (tenant.discountProviders?.esnCard?.enabled === true) {
             <mat-card class="mb-6">
               <div class="p-6">
                 <div class="flex items-center gap-4 mb-4">
                   <mat-icon class="text-blue-600">credit_card</mat-icon>
                   <div>
-                    <h3 class="text-lg font-semibold">{{ getProviderDisplayName(provider.type) }}</h3>
-                    <p class="text-gray-600">{{ getProviderDescription(provider.type) }}</p>
+                    <h3 class="text-lg font-semibold">{{ getProviderDisplayName('esnCard') }}</h3>
+                    <p class="text-gray-600">{{ getProviderDescription('esnCard') }}</p>
                   </div>
                 </div>
-                
+
                 @if (cardsQuery.data(); as cards) {
-                  @if (getUserCard(cards, provider.type); as card) {
+                  @if (getUserCard(cards, 'esnCard'); as card) {
                     <!-- User has a card -->
                     <div class="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
                       <div class="flex items-center justify-between">
@@ -55,10 +54,10 @@ import { injectTRPC } from '../../core/trpc-client';
                           </p>
                         </div>
                         <div class="flex gap-2">
-                          <button 
-                            mat-stroked-button 
+                          <button
+                            mat-stroked-button
                             color="primary"
-                            (click)="refreshCard(provider.type)"
+                            (click)="refreshCard('esnCard')"
                             [disabled]="refreshMutation.isPending()"
                             data-testid="refresh-esn-card">
                             @if (refreshMutation.isPending()) {
@@ -67,10 +66,10 @@ import { injectTRPC } from '../../core/trpc-client';
                               Refresh
                             }
                           </button>
-                          <button 
-                            mat-stroked-button 
+                          <button
+                            mat-stroked-button
                             color="warn"
-                            (click)="deleteCard(provider.type)"
+                            (click)="deleteCard('esnCard')"
                             [disabled]="deleteMutation.isPending()"
                             data-testid="delete-esn-card">
                             Delete
@@ -80,13 +79,13 @@ import { injectTRPC } from '../../core/trpc-client';
                     </div>
                   } @else {
                     <!-- User doesn't have a card -->
-                    @if (provider.config?.showCta) {
+                    @if (tenant.discountProviders?.esnCard?.config?.ctaEnabled === true && tenant.discountProviders?.esnCard?.config?.ctaLink) {
                       <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4" data-testid="esn-cta-section">
                         <p class="text-blue-800 mb-2">
-                          Get discounts on events with your {{ getProviderDisplayName(provider.type) }}!
+                          Get discounts on events with your {{ getProviderDisplayName('esnCard') }}!
                         </p>
-                        <a 
-                          href="https://esncard.org"
+                        <a
+                          [href]="tenant.discountProviders?.esnCard?.config?.ctaLink"
                           target="_blank"
                           class="text-blue-600 hover:text-blue-800 underline"
                           data-testid="get-esncard-link">
@@ -94,22 +93,22 @@ import { injectTRPC } from '../../core/trpc-client';
                         </a>
                       </div>
                     }
-                    
+
                     <div class="space-y-4">
                       <mat-form-field class="w-full">
-                        <mat-label>{{ getProviderDisplayName(provider.type) }} Number</mat-label>
-                        <input 
-                          matInput 
-                          [formControl]="getCardControl(provider.type)"
+                        <mat-label>{{ getProviderDisplayName('esnCard') }} Number</mat-label>
+                        <input
+                          matInput
+                          [formControl]="getCardControl('esnCard')"
                           placeholder="Enter your card number"
                           data-testid="esn-card-input">
                       </mat-form-field>
-                      
-                      <button 
-                        mat-raised-button 
+
+                      <button
+                        mat-raised-button
                         color="primary"
-                        (click)="addCard(provider.type)"
-                        [disabled]="!getCardControl(provider.type).valid || upsertMutation.isPending()"
+                        (click)="addCard('esnCard')"
+                        [disabled]="!getCardControl('esnCard').valid || upsertMutation.isPending()"
                         data-testid="add-esn-card-button">
                         @if (upsertMutation.isPending()) {
                           Adding Card...
@@ -124,13 +123,12 @@ import { injectTRPC } from '../../core/trpc-client';
             </mat-card>
           }
         }
-      }
-      
-      @if (cardsQuery.isLoading() || providersQuery.isLoading()) {
+
+      @if (cardsQuery.isLoading() || tenantQuery.isLoading()) {
         <div class="text-center py-8">Loading discount cards...</div>
       }
-      
-      @if (cardsQuery.isError() || providersQuery.isError()) {
+
+      @if (cardsQuery.isError() || tenantQuery.isError()) {
         <div class="text-red-500 text-center py-8">
           Failed to load discount information
         </div>
@@ -142,9 +140,9 @@ import { injectTRPC } from '../../core/trpc-client';
 export class DiscountCardsComponent {
   private snackBar = inject(MatSnackBar);
   private trpc = injectTRPC();
-  
-  providersQuery = injectQuery(() =>
-    this.trpc.discounts.getTenantProviders.queryOptions(),
+
+  tenantQuery = injectQuery(() =>
+    this.trpc.config.tenant.queryOptions(),
   );
 
   cardsQuery = injectQuery(() =>

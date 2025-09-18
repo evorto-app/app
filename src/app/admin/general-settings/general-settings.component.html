@@ -17,7 +17,7 @@
         Only included (VAT-style) and active tax rates are compatible. You can import compatible tax rates from your Stripe account to use below.
       </p>
       <p class="text-xs text-gray-600 mb-3">
-        Manage your tax rates in the Stripe Dashboard: 
+        Manage your tax rates in the Stripe Dashboard:
         <a
           href="https://dashboard.stripe.com/test/tax-rates"
           target="_blank"
@@ -98,9 +98,9 @@
     <p class="text-xs text-on-surface-variant mb-4">
       Keep tenant-wide discount providers, like the ESNcard, aligned with your current event pricing strategy.
     </p>
-    @if (discountProvidersQuery.isPending()) {
+    @if (tenantQuery.isPending()) {
       <p>Loading discount providers ...</p>
-    } @else if (discountProvidersQuery.isError()) {
+    } @else if (tenantQuery.isError()) {
       <p class="text-error">Failed to load discount providers.</p>
     } @else {
       @if (discountOverview(); as overview) {
@@ -120,10 +120,10 @@
                 </div>
                 <span
                   class="text-xs font-semibold uppercase"
-                  [class.text-success]="provider.status === 'enabled'"
-                  [class.text-on-surface-variant]="provider.status === 'disabled'"
+                  [class.text-success]="provider.enabled === true"
+                  [class.text-on-surface-variant]="provider.enabled !== true"
                 >
-                  {{ provider.status === 'enabled' ? 'Enabled' : 'Disabled' }}
+                  {{ provider.enabled === true ? 'Enabled' : 'Disabled' }}
                 </span>
               </div>
             }

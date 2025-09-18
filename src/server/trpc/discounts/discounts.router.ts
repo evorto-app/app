@@ -34,11 +34,16 @@ export const discountsRouter = router({
     const config = (tenant as any)?.discountProviders ?? {};
     // Normalize to full providers list
     return (Object.keys(PROVIDERS) as (keyof typeof PROVIDERS)[]).map(
-      (type) => ({
-        config: config?.[type]?.config ?? {},
-        status: (config?.[type]?.status ?? 'disabled') as 'disabled' | 'enabled',
-        type,
-      }),
+      (type) => {
+        const entry = (config?.[type] ?? {}) as any;
+        // Backwards compatibility: map legacy { status } to new { enabled }
+        const enabled = typeof entry.enabled === 'boolean' ? entry.enabled : entry.status === 'enabled';
+        return {
+          config: entry?.config ?? {},
+          enabled,
+          type,
+        } as const;
+      },
     );
   }),
 
@@ -49,8 +54,8 @@ export const discountsRouter = router({
         where: { id: ctx.tenant.id },
       });
       const providers = (tenant as any)?.discountProviders ?? {};
-      const provider = providers?.[input.type];
-      if (!provider || provider.status !== 'enabled') {
+      const provider = providers?.[input.type] as any;
+      if (!provider || provider.enabled !== true) {
         throw new Error('Provider not enabled for this tenant');
       }
       const card = await database.query.userDiscountCards.findFirst({
@@ -83,7 +88,7 @@ export const discountsRouter = router({
           providers: Schema.Array(
             Schema.Struct({
               config: Schema.Any,
-              status: Schema.Literal('enabled', 'disabled'),
+              enabled: Schema.Boolean,
               type: Schema.Literal(...Object.keys(PROVIDERS) as any),
             }),
           ),
@@ -96,11 +101,11 @@ export const discountsRouter = router({
       });
       const current = ((tenant as any)?.discountProviders ?? {}) as Record<
         string,
-        { config: unknown; status: 'disabled' | 'enabled'; }
+        { config: unknown; enabled: boolean } & { status?: 'disabled' | 'enabled' }
       >;
-      const updated = { ...current };
+      const updated = { ...current } as Record<string, any>;
       for (const p of input.providers) {
-        updated[p.type] = { config: p.config, status: p.status } as any;
+        updated[p.type] = { config: p.config, enabled: p.enabled } as any;
       }
       await database
         .update(schema.tenants)
@@ -122,8 +127,8 @@ export const discountsRouter = router({
         where: { id: ctx.tenant.id },
       });
       const providers = (tenant as any)?.discountProviders ?? {};
-      const provider = providers?.[input.type];
-      if (!provider || provider.status !== 'enabled') {
+      const provider = providers?.[input.type] as any;
+      if (!provider || provider.enabled !== true) {
         throw new Error('Provider not enabled for this tenant');
       }
 
@@ -169,7 +174,7 @@ export const discountsRouter = router({
         return upserted;
       }
       const result = await adapter.validate({ config: provider.config, identifier: input.identifier });
-      const [updated] = 
+      const [updated] =
         await database
           .update(schema.userDiscountCards)
           .set({
