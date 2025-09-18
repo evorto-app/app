@@ -1,17 +1,20 @@
 import {
   boolean,
   integer,
+  jsonb,
   pgTable,
   text,
   timestamp,
   varchar,
 } from 'drizzle-orm/pg-core';
 
+import { CancellationPolicy } from '../../types/cancellation';
 import { createId } from '../create-id';
 import { eventInstances } from './event-instances';
 import { registrationModes } from './global-enums';
 
 export const eventRegistrationOptions = pgTable('event_registration_options', {
+  cancellationPolicy: jsonb('cancellation_policy').$type<CancellationPolicy>(),
   checkedInSpots: integer().notNull().default(0),
   closeRegistrationTime: timestamp().notNull(),
   confirmedSpots: integer().notNull().default(0),
@@ -38,5 +41,6 @@ export const eventRegistrationOptions = pgTable('event_registration_options', {
     .notNull()
     .defaultNow()
     .$onUpdate(() => new Date()),
+  useTenantCancellationPolicy: boolean().notNull().default(true),
   waitlistSpots: integer().notNull().default(0),
 });

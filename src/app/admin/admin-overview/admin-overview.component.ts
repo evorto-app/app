@@ -12,6 +12,7 @@ import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import {
   faCalendarCheck,
+  faCancel,
   faFolderUser,
   faGlobe,
   faReceipt,
@@ -38,6 +39,7 @@ import { injectTRPC } from '../../core/trpc-client';
 })
 export class AdminOverviewComponent {
   protected readonly faCalendarCheck = faCalendarCheck;
+  protected readonly faCancel = faCancel;
   protected readonly faFolderUser = faFolderUser;
   protected readonly faGlobe = faGlobe;
   protected readonly faReceipt = faReceipt;

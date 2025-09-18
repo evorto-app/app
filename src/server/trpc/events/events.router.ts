@@ -14,12 +14,15 @@ import {
   router,
 } from '../trpc-server';
 import { cancelPendingRegistrationProcedure } from './cancel-pending-registration.procedure';
+import { cancelRegistrationProcedure } from './cancel-registration.procedure';
 import { eventListProcedure } from './event-list.procedure';
 import { registerForEventProcedure } from './register-for-event.procedure';
 import { registrationScannedProcedure } from './registration-scanned.procedure';
 
 export const eventRouter = router({
   cancelPendingRegistration: cancelPendingRegistrationProcedure,
+
+  cancelRegistration: cancelRegistrationProcedure,
 
   create: authenticatedProcedure
     .meta({ requiredPermissions: ['events:create'] })
@@ -34,6 +37,17 @@ export const eventRouter = router({
           }),
           registrationOptions: Schema.Array(
             Schema.Struct({
+              cancellationPolicy: Schema.optional(
+                Schema.NullOr(
+                  Schema.Struct({
+                    allowCancellation: Schema.Boolean,
+                    includeTransactionFees: Schema.Boolean,
+                    includeAppFees: Schema.Boolean,
+                    cutoffDays: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
+                    cutoffHours: Schema.Number.pipe(Schema.int(), Schema.between(0, 23)),
+                  }),
+                ),
+              ),
               closeRegistrationTime: Schema.ValidDateFromSelf,
               description: Schema.NullOr(Schema.NonEmptyString),
               isPaid: Schema.Boolean,
@@ -47,6 +61,7 @@ export const eventRouter = router({
                 Schema.NullOr(Schema.NonEmptyString),
               ),
               title: Schema.NonEmptyString,
+              useTenantCancellationPolicy: Schema.optional(Schema.Boolean),
             }),
           ),
           start: Schema.ValidDateFromSelf,
@@ -101,6 +116,7 @@ export const eventRouter = router({
         .insert(schema.eventRegistrationOptions)
         .values(
           input.registrationOptions.map((option) => ({
+            cancellationPolicy: option.cancellationPolicy ?? null,
             closeRegistrationTime: option.closeRegistrationTime,
             description: option.description,
             eventId: event.id,
@@ -113,6 +129,7 @@ export const eventRouter = router({
             spots: option.spots,
             stripeTaxRateId: option.stripeTaxRateId ?? null,
             title: option.title,
+            useTenantCancellationPolicy: option.useTenantCancellationPolicy ?? true,
           })),
         )
         .returning();

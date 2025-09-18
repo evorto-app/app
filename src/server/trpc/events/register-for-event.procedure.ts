@@ -9,8 +9,40 @@ import { DateTime } from 'luxon';
 import { database } from '../../../db';
 import { createId } from '../../../db/create-id';
 import * as schema from '../../../db/schema';
+import type { CancellationPolicy, PolicyVariant } from '../../../types/cancellation';
 import { stripe } from '../../stripe-client';
 import { authenticatedProcedure } from '../trpc-server';
+
+function getPolicyVariant(isPaid: boolean, organizingRegistration: boolean): PolicyVariant {
+  if (isPaid && organizingRegistration) return 'paid-organizer';
+  if (isPaid && !organizingRegistration) return 'paid-regular';
+  if (!isPaid && organizingRegistration) return 'free-organizer';
+  return 'free-regular';
+}
+
+async function getEffectiveCancellationPolicy(
+  registrationOption: any,
+  tenantId: string,
+): Promise<{ policy: CancellationPolicy | null; source: 'tenant' | 'option' }> {
+  if (registrationOption.useTenantCancellationPolicy) {
+    // Use tenant default policy
+    const tenant = await database.query.tenants.findFirst({
+      columns: { cancellationPolicies: true },
+      where: { id: tenantId },
+    });
+
+    if (tenant?.cancellationPolicies) {
+      const variant = getPolicyVariant(registrationOption.isPaid, registrationOption.organizingRegistration);
+      const policy = tenant.cancellationPolicies[variant];
+      return { policy: policy || null, source: 'tenant' };
+    }
+  } else if (registrationOption.cancellationPolicy) {
+    // Use option-specific policy
+    return { policy: registrationOption.cancellationPolicy, source: 'option' };
+  }
+
+  return { policy: null, source: 'tenant' };
+}
 
 export const registerForEventProcedure = authenticatedProcedure
   .input(
@@ -67,10 +99,18 @@ export const registerForEventProcedure = authenticatedProcedure
         });
       }
 
+      // Get effective cancellation policy for this registration
+      const { policy: effectivePolicy, source: policySource } = await getEffectiveCancellationPolicy(
+        registrationOption,
+        ctx.tenant.id,
+      );
+
       // Register user for event
       const userRegistration = await tx
         .insert(schema.eventRegistrations)
         .values({
+          effectiveCancellationPolicy: effectivePolicy,
+          effectivePolicySource: policySource,
           eventId: input.eventId,
           registrationOptionId: registrationOption.id,
           status: registrationOption.isPaid ? 'PENDING' : 'CONFIRMED',

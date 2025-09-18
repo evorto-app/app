@@ -41,6 +41,13 @@ export const ADMIN_ROUTES: Routes = [
         path: 'settings',
       },
       {
+        loadComponent: () =>
+          import('./cancellation-settings/cancellation-settings.component').then(
+            (m) => m.CancellationSettingsComponent,
+          ),
+        path: 'cancellation-settings',
+      },
+      {
         canActivate: [permissionGuard],
         data: {
           permissions: ['admin:manageTaxes'],
