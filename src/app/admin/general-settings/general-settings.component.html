@@ -70,7 +70,7 @@
       </div>
 
       <div class="mb-4">
-        <label class="text-sm font-medium mb-2 block">Default Location</label>
+        <h3 class="text-sm font-medium mb-2">Default location</h3>
         <p class="text-xs text-gray-600 mb-2">
           Set a default location to improve Google Places search results for your events.
           This location will be used as the center point for location searches.
@@ -88,24 +88,56 @@
       <!-- Tax rates are selected per paid registration option. Import them here,
            then choose the appropriate rate when editing registration options. -->
 
-      <h3 class="title-small mb-2 mt-6">Discount providers</h3>
-      @if (discountProvidersQuery.isPending()) {
-        <p>Loading discount providers ...</p>
-      } @else if (discountProvidersQuery.isSuccess()) {
-        <div class="mb-4">
-          <mat-slide-toggle
-            [checked]="esnEnabled()"
-            (change)="setEsnEnabled($event.checked)"
-          >
-            ESN Card discounts
-          </mat-slide-toggle>
-        </div>
-      } @else {
-        <p>Failed to load discount providers.</p>
-      }
       <button mat-flat-button type="submit" [disabled]="settingsForm.invalid">
         Save
       </button>
     </form>
+  </div>
+  <div class="bg-surface text-on-surface rounded-2xl p-4">
+    <h2 class="title-medium mb-2">Discounts</h2>
+    <p class="text-xs text-on-surface-variant mb-4">
+      Keep tenant-wide discount providers, like the ESN card, aligned with your current event pricing strategy.
+    </p>
+    @if (discountProvidersQuery.isPending()) {
+      <p>Loading discount providers ...</p>
+    } @else if (discountProvidersQuery.isError()) {
+      <p class="text-error">Failed to load discount providers.</p>
+    } @else {
+      @if (discountOverview(); as overview) {
+        @if (overview.totalCount === 0) {
+          <p class="text-xs text-on-surface-variant">
+            No discount providers are available for this tenant yet.
+          </p>
+        } @else {
+          <div class="space-y-3">
+            @for (provider of overview.providers; track provider.type) {
+              <div class="flex items-start justify-between gap-4">
+                <div>
+                  <p class="text-sm font-medium">{{ providerName(provider.type) }}</p>
+                  <p class="text-xs text-on-surface-variant">
+                    {{ providerDescription(provider.type) }}
+                  </p>
+                </div>
+                <span
+                  class="text-xs font-semibold uppercase"
+                  [class.text-success]="provider.status === 'enabled'"
+                  [class.text-on-surface-variant]="provider.status === 'disabled'"
+                >
+                  {{ provider.status === 'enabled' ? 'Enabled' : 'Disabled' }}
+                </span>
+              </div>
+            }
+          </div>
+          <p class="text-xs text-on-surface-variant mt-4">
+            {{ overview.enabledCount }} of {{ overview.totalCount }} providers enabled.
+          </p>
+        }
+      }
+    }
+    <div class="mt-6">
+      <a mat-stroked-button routerLink="/admin/settings/discounts">
+        Configure discount providers
+      </a>
+    </div>
   </div>
 </div>

@@ -19,25 +19,27 @@ import { test as base } from './base-test';
 interface BaseFixtures {
   discounts?: void;
   events: {
-    id: string;
-    start: Date;
     end: Date;
-    tenantId?: string;
+    id: string;
     registrationOptions: {
-      description?: string | null;
       closeRegistrationTime: Date;
+      description?: null | string;
+      discounts?:
+        | null
+        | {
+            discountedPrice: number;
+            discountType: 'esnCard';
+          }[];
       id: string;
       isPaid: boolean;
-      organizingRegistration: boolean;
       openRegistrationTime: Date;
-      price?: number | null;
-      discounts?: {
-        discountType: 'esnCard';
-        discountedPrice: number;
-      }[] | null;
+      organizingRegistration: boolean;
+      price?: null | number;
       title: string;
     }[];
+    start: Date;
     status: 'APPROVED' | 'DRAFT' | 'PENDING_REVIEW' | 'REJECTED';
+    tenantId?: string;
     title: string;
     unlisted: boolean;
   }[];
@@ -75,7 +77,11 @@ interface BaseFixtures {
   };
 }
 
-export const test = base.extend<BaseFixtures>({
+interface ParallelOptions {
+  seedDiscounts: boolean;
+}
+
+export const test = base.extend<BaseFixtures & ParallelOptions>({
   context: async ({ context, tenant }, use) => {
     await context.addCookies([
       {
@@ -88,10 +94,13 @@ export const test = base.extend<BaseFixtures>({
     ]);
     await use(context);
   },
-
   // Seed discount provider and a verified ESN card for the regular user
   discounts: [
-    async ({ database, tenant }, use) => {
+    async ({ database, seedDiscounts, tenant }, use) => {
+      if (!seedDiscounts) {
+        await use();
+        return;
+      }
       // Enable ESN provider for tenant (stored on tenant model)
       const currentTenant = await database.query.tenants.findFirst({
         where: { id: tenant.id },
@@ -126,6 +135,7 @@ export const test = base.extend<BaseFixtures>({
     },
     { auto: true },
   ],
+
   events: [
     async ({ database, roles, templates }, use) => {
       const events = await addEvents(database, templates, roles);
@@ -211,6 +221,7 @@ export const test = base.extend<BaseFixtures>({
     },
     { auto: true },
   ],
+  seedDiscounts: [true, { option: true }],
   templateCategories: async ({ database, tenant }, use) => {
     const icons = await addIcons(database, tenant);
     const templateCategories = await addTemplateCategories(

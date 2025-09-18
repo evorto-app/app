@@ -4,16 +4,14 @@ import {
   effect,
   inject,
 } from '@angular/core';
-import { computed, signal } from '@angular/core';
+import { computed } from '@angular/core';
 import { NonNullableFormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
-import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatDialog } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
-import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
@@ -35,8 +33,6 @@ import { ImportTaxRatesDialogComponent } from '../components/import-tax-rates-di
     FontAwesomeModule,
     RouterLink,
     MatButtonModule,
-    MatSlideToggleModule,
-    MatCheckboxModule,
     MatChipsModule,
     MatFormFieldModule,
     MatInputModule,
@@ -61,31 +57,43 @@ export class GeneralSettingsComponent {
   protected readonly discountProvidersQuery = injectQuery(() =>
     this.trpc.discounts.getTenantProviders.queryOptions(),
   );
-  // Derived state for ESN provider
-  protected readonly esnEnabled = computed(() => {
-    const providers = this.discountProvidersQuery.data();
-    if (!providers) return false;
-    return providers.find((p) => p.type === 'esnCard')?.status === 'enabled';
+  protected readonly discountOverview = computed(() => {
+    const providers = this.discountProvidersQuery.data() ?? [];
+    let enabledCount = 0;
+    for (const provider of providers) {
+      if (provider.status === 'enabled') {
+        enabledCount += 1;
+      }
+    }
+    return {
+      enabledCount,
+      providers,
+      totalCount: providers.length,
+    };
   });
   protected readonly faArrowLeft = faArrowLeft;
-  private readonly queryClient = inject(QueryClient);
-  protected readonly setProvidersMutation = injectMutation(() =>
-    this.trpc.discounts.setTenantProviders.mutationOptions({
-      onSuccess: async () => {
-        await this.queryClient.invalidateQueries({
-          queryKey: this.trpc.discounts.getTenantProviders.pathKey(),
-        });
-      },
-    }),
-  );
   private readonly formBuilder = inject(NonNullableFormBuilder);
   protected readonly settingsForm = this.formBuilder.group({
-    defaultLocation: this.formBuilder.control<GoogleLocationType | null>(null),
+    defaultLocation: this.formBuilder.control<GoogleLocationType | undefined>(
+      void 0,
+    ),
     theme: this.formBuilder.control<'esn' | 'evorto'>('evorto'),
   });
-
   private readonly configService = inject(ConfigService);
   private readonly dialog = inject(MatDialog);
+
+  private readonly providerMetadata: Record<
+    string,
+    { description: string; name: string }
+  > = {
+    esnCard: {
+      description:
+        'Offer automatic discounts to members with a verified ESN card.',
+      name: 'ESN Card',
+    },
+  };
+
+  private readonly queryClient = inject(QueryClient);
 
   private updateSettingsMutation = injectMutation(() =>
     this.trpc.admin.tenant.updateSettings.mutationOptions(),
@@ -96,7 +104,7 @@ export class GeneralSettingsComponent {
       const currentTenant = this.configService.tenant;
       if (currentTenant) {
         this.settingsForm.patchValue({
-          defaultLocation: currentTenant.defaultLocation,
+          defaultLocation: currentTenant.defaultLocation ?? undefined,
           theme: currentTenant.theme,
         });
       }
@@ -128,15 +136,15 @@ export class GeneralSettingsComponent {
     });
   }
 
-  protected setEsnEnabled(checked: boolean) {
-    this.setProvidersMutation.mutate({
-      providers: [
-        {
-          config: {},
-          status: checked ? 'enabled' : 'disabled',
-          type: 'esnCard',
-        },
-      ],
-    });
+  protected providerDescription(providerType: string): string {
+    return (
+      this.providerMetadata[providerType]?.description ??
+      'Configure availability and messaging for this discount provider.'
+    );
   }
+
+  protected providerName(providerType: string): string {
+    return this.providerMetadata[providerType]?.name ?? providerType;
+  }
+
 }

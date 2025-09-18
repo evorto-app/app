@@ -36,8 +36,8 @@ import * as Sentry from '@sentry/angular';
 import {
   provideTanStackQuery,
   QueryClient,
-  withDevtools,
 } from '@tanstack/angular-query-experimental';
+import { withDevtools } from '@tanstack/angular-query-experimental/devtools';
 import { createTRPCClient } from '@trpc/client';
 import superjson from 'superjson';
 
@@ -76,7 +76,7 @@ export const appConfig: ApplicationConfig = {
     // Enable TanStack Query devtools only in dev mode
     provideTanStackQuery(
       new QueryClient(),
-      ...(isDevMode() ? [withDevtools()] as const : ([] as const)),
+      ...(isDevMode() ? ([withDevtools()] as const) : ([] as const)),
     ),
     provideLuxonDateAdapter(),
     // provideCloudflareLoader(

@@ -18,10 +18,8 @@ import { MatChipsModule } from '@angular/material/chips';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faCircleXmark } from '@fortawesome/duotone-regular-svg-icons';
-import {
-  injectQueries,
-  injectQuery,
-} from '@tanstack/angular-query-experimental';
+import { injectQuery } from '@tanstack/angular-query-experimental';
+import { injectQueries } from '@tanstack/angular-query-experimental/inject-queries-experimental';
 import { startWith, Subscription } from 'rxjs';
 
 import { injectTRPC } from '../../../../core/trpc-client';

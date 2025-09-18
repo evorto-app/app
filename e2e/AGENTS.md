@@ -30,3 +30,14 @@ All storage states live under `e2e/.auth/**`; reuse these logins instead of crea
 The tests run `e2e/setup/authentication.setup.ts` to set up the test accounts.
 
 Follow these principles to keep the suite stable, deterministic, and aligned with how people actually use Evorto.
+
+## Documentation Tests
+
+Documentation scenarios double as living docs; author them so the custom reporter in `e2e/reporters/documentation-reporter.ts` can turn the run into publishable markdown artifacts.
+
+- **Organize by test title.** The reporter slugifies the `test.title` into the output folder and page front matter (`test-results/docs/<slug>/page.md`). Keep titles short, descriptive, and free of punctuation that would be awkward in URLs.
+- **Use the provided helpers.** Call `await takeScreenshot(testInfo, locator, page, caption?)` to highlight UI focus points and emit the `image`/`image-caption` attachments the reporter expects. When highlighting multiple elements, pass an array of locators so they stay visible in the capture.
+- **Stream content with markdown attachments.** Add narrative context in the order it should appear: `await testInfo.attach('markdown', { body })`. Optional YAML front matter at the top of the attachment is stripped from the body, and list items inside it populate the “User permissions” callout automatically.
+- **Declare permissions explicitly.** If the scenario depends on specific roles, either include them as list items in the markdown front matter or attach a separate `permissions` blob with one role per line. The reporter merges both sources into the callout.
+- **Anchor each step to evidence.** Pair important navigation or state changes with a concise screenshot or short markdown block so the generated docs stay focused—skip redundant captures that don't add context.
+- **Verify assets locally.** After adding or updating documentation tests, run `yarn e2e:docs` (or the targeted suite) and inspect `test-results/docs/**` to confirm images render, captions align with the correct screenshots, and no stale folders linger.
