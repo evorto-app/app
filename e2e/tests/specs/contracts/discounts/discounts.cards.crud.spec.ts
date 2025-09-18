@@ -65,9 +65,8 @@ async function updateProvider(options: {
   browser: Browser;
   enabled: boolean;
   showCta?: boolean;
-  tenantDomain: string;
 }) {
-  const { browser, enabled, showCta = true, tenantDomain } = options;
+  const { browser, enabled, showCta = true } = options;
   await runWithStorageState(
     browser,
     adminStateFile,
@@ -116,7 +115,6 @@ test.describe('Contract: discounts.cards CRUD (getMyCards, upsertMyCard, deleteM
     await updateProvider({
       browser,
       enabled: true,
-      tenantDomain: tenant.domain,
     });
   });
 

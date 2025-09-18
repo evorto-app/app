@@ -1,5 +1,3 @@
-import { promises as fs } from 'node:fs';
-
 import { Page } from '@playwright/test';
 import { eq } from 'drizzle-orm';
 
@@ -11,6 +9,7 @@ import {
 import { createId } from '../../../../../src/db/create-id';
 import * as schema from '../../../../../src/db/schema';
 import { expect, test as base } from '../../../../fixtures/parallel-test';
+import { runWithStorageState } from '../../../utils/auth-context';
 
 interface DiscountTemplateFixture {
   categoryTitle: string;
@@ -26,35 +25,6 @@ const centsToCurrency = (cents: number) =>
     currency: 'EUR',
     style: 'currency',
   }).format(cents / 100);
-
-const loadState = async (statePath: string, tenantDomain: string) => {
-  const raw = await fs.readFile(statePath, 'utf-8');
-  const state = JSON.parse(raw) as {
-    cookies: Array<{
-      domain: string;
-      expires?: number;
-      name: string;
-      path: string;
-      value: string;
-    }>;
-    origins: unknown[];
-  };
-
-  const cookie = {
-    domain: 'localhost',
-    expires: -1,
-    httpOnly: false,
-    name: 'evorto-tenant',
-    path: '/',
-    sameSite: 'Lax' as const,
-    secure: false,
-    value: tenantDomain,
-  };
-
-  state.cookies = state.cookies.filter((c) => c.name !== 'evorto-tenant');
-  state.cookies.push(cookie);
-  return state;
-};
 
 const test = base.extend<{
   discountTemplate: DiscountTemplateFixture;
@@ -137,28 +107,25 @@ const ensureRegistrationSectionResets = async (page: Page) => {
 
 const verifyTransactionAmount = async (
   browser: Parameters<typeof test>[0]['browser'],
-  tenantDomain: string,
   eventTitle: string,
   expectedAmount: number,
 ) => {
-  const context = await browser.newContext({
-    storageState: await loadState(adminStateFile, tenantDomain),
-  });
-  const financePage = await context.newPage();
-  try {
-    await financePage.goto('/finance/transactions', {
-      waitUntil: 'domcontentloaded',
-    });
+  await runWithStorageState(
+    browser,
+    adminStateFile,
+    async (financePage) => {
+      await financePage.goto('/finance/transactions', {
+        waitUntil: 'domcontentloaded',
+      });
 
-    const expectedText = centsToCurrency(expectedAmount);
-    const row = financePage
-      .getByRole('row', { name: new RegExp(eventTitle, 'i') })
-      .first();
-    await expect(row).toBeVisible();
-    await expect(row.getByRole('cell').first()).toContainText(expectedText);
-  } finally {
-    await context.close();
-  }
+      const expectedText = centsToCurrency(expectedAmount);
+      const row = financePage
+        .getByRole('row', { name: new RegExp(eventTitle, 'i') })
+        .first();
+      await expect(row).toBeVisible();
+      await expect(row.getByRole('cell').first()).toContainText(expectedText);
+    },
+  );
 };
 
 test.describe.configure({ tag: '@contracts' });
@@ -206,58 +173,55 @@ test.fixme(
 
     const eventUrl = page.url();
 
-    const userContext = await browser.newContext({
-      storageState: await loadState(userStateFile, tenant.domain),
-    });
-    const userPage = await userContext.newPage();
+    await runWithStorageState(
+      browser,
+      userStateFile,
+      async (userPage) => {
+        await userPage.goto(eventUrl, { waitUntil: 'domcontentloaded' });
+        await ensureRegistrationSectionResets(userPage);
 
-    try {
-      await userPage.goto(eventUrl, { waitUntil: 'domcontentloaded' });
-      await ensureRegistrationSectionResets(userPage);
+        const optionCard = userPage
+          .locator('app-event-registration-option')
+          .filter({ hasText: discountTemplate.optionTitle });
+        await expect(optionCard).toBeVisible();
 
-      const optionCard = userPage
-        .locator('app-event-registration-option')
-        .filter({ hasText: discountTemplate.optionTitle });
-      await expect(optionCard).toBeVisible();
+        const payButton = optionCard.getByRole('button', {
+          name: /Pay .* and register/i,
+        });
+        await expect(payButton).toContainText(
+          centsToCurrency(discountTemplate.fullPrice),
+        );
+        await payButton.click();
 
-      const payButton = optionCard.getByRole('button', {
-        name: /Pay .* and register/i,
-      });
-      await expect(payButton).toContainText(
-        centsToCurrency(discountTemplate.fullPrice),
-      );
-      await payButton.click();
+        const loadingStatus = userPage
+          .getByText('Loading registration status')
+          .first();
+        await loadingStatus.waitFor({ state: 'attached' }).catch(() => {
+          /* noop */
+        });
+        await loadingStatus.waitFor({ state: 'detached' });
 
-      const loadingStatus = userPage
-        .getByText('Loading registration status')
-        .first();
-      await loadingStatus.waitFor({ state: 'attached' }).catch(() => {
-        /* noop */
-      });
-      await loadingStatus.waitFor({ state: 'detached' });
+        await verifyTransactionAmount(
+          browser,
+          uniqueTitle,
+          discountTemplate.discountedPrice,
+        );
 
-      await verifyTransactionAmount(
-        browser,
-        tenant.domain,
-        uniqueTitle,
-        discountTemplate.discountedPrice,
-      );
+        const cancelButton = userPage
+          .locator('app-event-active-registration')
+          .getByRole('button', { name: 'Cancel registration' })
+          .first();
+        await expect(cancelButton).toBeVisible();
+        await cancelButton.click();
 
-      const cancelButton = userPage
-        .locator('app-event-active-registration')
-        .getByRole('button', { name: 'Cancel registration' })
-        .first();
-      await expect(cancelButton).toBeVisible();
-      await cancelButton.click();
+        await loadingStatus.waitFor({ state: 'attached' }).catch(() => {
+          /* noop */
+        });
+        await loadingStatus.waitFor({ state: 'detached' });
 
-      await loadingStatus.waitFor({ state: 'attached' }).catch(() => {
-        /* noop */
-      });
-      await loadingStatus.waitFor({ state: 'detached' });
-
-      await expect(optionCard).toBeVisible();
-    } finally {
-      await userContext.close();
-    }
+        await expect(optionCard).toBeVisible();
+      },
+      tenant.domain,
+    );
   },
 );

@@ -8,6 +8,9 @@ The discount-suite refactor highlighted a few non-negotiables for writing Playwr
 - Infrastructure verifications (reporters, screenshot helpers, seed invariants) belong in `e2e/tests/specs/tooling` or `e2e/tests/specs/seed` so they do not pollute domain folders.
 - Name files and `test()` titles as user outcomes (“creates template in empty category”) so generated docs, dashboards, and slugs stay legible.
 - Avoid adding new top-level folders unless the product area is genuinely new—extend existing domains wherever possible.
+- Authentication lives in setup storage states. Prefer `test.use({ storageState: path })` (or project-level `storageState`) over bespoke helpers, and only create a secondary context when the scenario truly needs simultaneous roles.
+- Tenant context cookies come from shared fixtures—don’t reimplement cookie injection unless a test purposely overrides it.
+- If a scenario truly needs its own session, reuse the helpers in `e2e/utils/auth-context.ts` rather than hand-rolling `browser.newContext` logic.
 
 ### Authoring workflow
 1. **Pick the folder first.** Docs → `docs/<domain>/journey.doc.ts`; regression/contract → `specs/<domain>/scenario.test.ts` (or `.spec.ts` for contracts); infrastructure → `specs/tooling/*`.
