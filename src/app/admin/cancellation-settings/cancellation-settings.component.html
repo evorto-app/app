@@ -72,14 +72,14 @@
             </button>
 
             @if (showAdvanced()) {
-              <mat-expansion-panel-group>
+              <div class="space-y-4">
                 @for (variant of ['paid-regular', 'paid-organizer', 'free-regular', 'free-organizer']; track variant) {
                   <mat-expansion-panel>
                     <mat-expansion-panel-header>
                       <mat-panel-title>{{ getVariantLabel(variant) }}</mat-panel-title>
                     </mat-expansion-panel-header>
 
-                    <form [formGroup]="variantForms[variant]" class="space-y-4">
+                    <form [formGroup]="getVariantForm(variant)" class="space-y-4">
                       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <mat-checkbox formControlName="allowCancellation">
                           Allow cancellation
@@ -87,7 +87,7 @@
                         
                         <div></div> <!-- Empty cell for grid alignment -->
 
-                        @if (variantForms[variant].get('allowCancellation')?.value) {
+                        @if (getVariantAllowsCancellation(variant)) {
                           <mat-form-field>
                             <mat-label>Cutoff days before event</mat-label>
                             <input matInput type="number" formControlName="cutoffDays" min="0">
@@ -112,7 +112,7 @@
                     </form>
                   </mat-expansion-panel>
                 }
-              </mat-expansion-panel-group>
+              </div>
             }
           </div>
         }
@@ -123,9 +123,9 @@
           mat-flat-button
           color="primary"
           (click)="savePolicies()"
-          [disabled]="updatePoliciesMutation.isPending()"
+          [disabled]="updatePoliciesPending"
         >
-          {{ updatePoliciesMutation.isPending() ? 'Saving...' : 'Save Policies' }}
+          {{ updatePoliciesPending ? 'Saving...' : 'Save Policies' }}
         </button>
       </mat-card-actions>
     </mat-card>
@@ -157,4 +157,3 @@
       </mat-card-content>
     </mat-card>
   }
-}

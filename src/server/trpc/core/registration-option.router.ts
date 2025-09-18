@@ -25,14 +25,22 @@ export const registrationOptionRouter = router({
           where: {
             id: input.optionId,
           },
-          with: {
-            template: {
-              columns: { tenantId: true },
-            },
-          },
         });
 
-        if (!option || option.template.tenantId !== ctx.tenant.id) {
+        if (!option) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'Template registration option not found',
+          });
+        }
+
+        // Check tenant ownership via template
+        const template = await database.query.eventTemplates.findFirst({
+          where: { id: option.templateId },
+          columns: { tenantId: true },
+        });
+
+        if (!template || template.tenantId !== ctx.tenant.id) {
           throw new TRPCError({
             code: 'NOT_FOUND',
             message: 'Template registration option not found',
@@ -43,14 +51,22 @@ export const registrationOptionRouter = router({
           where: {
             id: input.optionId,
           },
-          with: {
-            event: {
-              columns: { tenantId: true },
-            },
-          },
         });
 
-        if (!option || option.event.tenantId !== ctx.tenant.id) {
+        if (!option) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'Event registration option not found',
+          });
+        }
+
+        // Check tenant ownership via event
+        const event = await database.query.eventInstances.findFirst({
+          where: { id: option.eventId },
+          columns: { tenantId: true },
+        });
+
+        if (!event || event.tenantId !== ctx.tenant.id) {
           throw new TRPCError({
             code: 'NOT_FOUND',
             message: 'Event registration option not found',
@@ -84,14 +100,22 @@ export const registrationOptionRouter = router({
         // Verify ownership and update template option
         const option = await database.query.templateRegistrationOptions.findFirst({
           where: { id: input.optionId },
-          with: {
-            template: {
-              columns: { tenantId: true },
-            },
-          },
         });
 
-        if (!option || option.template.tenantId !== ctx.tenant.id) {
+        if (!option) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'Template registration option not found',
+          });
+        }
+
+        // Check tenant ownership via template
+        const template = await database.query.eventTemplates.findFirst({
+          where: { id: option.templateId },
+          columns: { tenantId: true },
+        });
+
+        if (!template || template.tenantId !== ctx.tenant.id) {
           throw new TRPCError({
             code: 'NOT_FOUND',
             message: 'Template registration option not found',
@@ -106,14 +130,22 @@ export const registrationOptionRouter = router({
         // Verify ownership and update event option
         const option = await database.query.eventRegistrationOptions.findFirst({
           where: { id: input.optionId },
-          with: {
-            event: {
-              columns: { tenantId: true },
-            },
-          },
         });
 
-        if (!option || option.event.tenantId !== ctx.tenant.id) {
+        if (!option) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'Event registration option not found',
+          });
+        }
+
+        // Check tenant ownership via event
+        const event = await database.query.eventInstances.findFirst({
+          where: { id: option.eventId },
+          columns: { tenantId: true },
+        });
+
+        if (!event || event.tenantId !== ctx.tenant.id) {
           throw new TRPCError({
             code: 'NOT_FOUND',
             message: 'Event registration option not found',

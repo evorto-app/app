@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  effect,
   inject,
   signal,
 } from '@angular/core';
@@ -37,7 +38,7 @@ import type { CancellationPolicy, PolicyVariant, TenantCancellationPolicies } fr
 export class CancellationSettingsComponent {
   private readonly fb = new FormBuilder();
   private readonly trpc = injectTRPC();
-  private readonly snackBar = MatSnackBar;
+  private readonly snackBar = inject(MatSnackBar);
 
   // Form state
   protected readonly applyToAllMode = signal(true);
@@ -45,12 +46,16 @@ export class CancellationSettingsComponent {
 
   // Queries and mutations
   protected readonly policiesQuery = injectQuery(() =>
-    this.trpc.tenants.getCancellationPolicies.queryOptions()
+    this.trpc.admin.tenant.getCancellationPolicies.queryOptions()
   );
 
   private readonly updatePoliciesMutation = injectMutation(() =>
-    this.trpc.tenants.setCancellationPolicies.mutationOptions()
+    this.trpc.admin.tenant.setCancellationPolicies.mutationOptions()
   );
+
+  protected get updatePoliciesPending(): boolean {
+    return this.updatePoliciesMutation.isPending();
+  }
 
   // Form
   protected readonly commonForm = this.fb.nonNullable.group({
@@ -97,7 +102,8 @@ export class CancellationSettingsComponent {
 
   constructor() {
     // Load existing policies when data is available
-    this.policiesQuery.data.subscribe((data) => {
+    effect(() => {
+      const data = this.policiesQuery.data();
       if (data?.policies) {
         this.loadPolicies(data.policies);
       }
@@ -106,7 +112,7 @@ export class CancellationSettingsComponent {
 
   private loadPolicies(policies: TenantCancellationPolicies): void {
     // Check if we can use "apply to all" mode (all variants are the same)
-    const variants = Object.keys(this.variantForms) as PolicyVariant[];
+    const variants: PolicyVariant[] = ['paid-regular', 'paid-organizer', 'free-regular', 'free-organizer'];
     const firstPolicy = policies[variants[0]];
     const allSame = variants.every(variant => {
       const policy = policies[variant];
@@ -171,7 +177,8 @@ export class CancellationSettingsComponent {
       if (!allValid) return;
 
       const overrides: TenantCancellationPolicies = {};
-      (Object.keys(this.variantForms) as PolicyVariant[]).forEach(variant => {
+      const variants: PolicyVariant[] = ['paid-regular', 'paid-organizer', 'free-regular', 'free-organizer'];
+      variants.forEach(variant => {
         overrides[variant] = this.variantForms[variant].value as CancellationPolicy;
       });
 
@@ -197,8 +204,18 @@ export class CancellationSettingsComponent {
     });
   }
 
-  protected getVariantLabel(variant: PolicyVariant): string {
-    switch (variant) {
+  protected getVariantForm(variant: string) {
+    return this.variantForms[variant as PolicyVariant];
+  }
+
+  protected getVariantAllowsCancellation(variant: string): boolean {
+    const form = this.variantForms[variant as PolicyVariant];
+    const control = form.controls['allowCancellation'];
+    return control?.value === true;
+  }
+
+  protected getVariantLabel(variant: string): string {
+    switch (variant as PolicyVariant) {
       case 'paid-regular': return 'Paid - Regular participants';
       case 'paid-organizer': return 'Paid - Organizers';
       case 'free-regular': return 'Free - Regular participants';

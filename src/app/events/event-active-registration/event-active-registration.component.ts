@@ -46,6 +46,10 @@ export class EventActiveRegistrationComponent {
     this.trpc.events.cancelRegistration.mutationOptions(),
   );
 
+  protected get cancelRegistrationPending(): boolean {
+    return this.cancelRegistrationMutation.isPending();
+  }
+
   cancelPendingRegistration(registration: { id: string }) {
     this.cancelPendingRegistrationMutation.mutate(
       {
