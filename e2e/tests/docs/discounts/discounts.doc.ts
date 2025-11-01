@@ -77,19 +77,42 @@ test.describe('Documentation: Discount provider journey — user experience', ()
         ),
       );
 
+    // Ensure ESNcard discount provider is enabled for this tenant (and CTA visible)
+    const existing = await database
+      .select({ discountProviders: schema.tenants.discountProviders })
+      .from(schema.tenants)
+      .where(eq(schema.tenants.id, tenant.id));
+
+    const currentProviders = (existing[0]?.discountProviders ?? {}) as any;
+    const nextProviders = {
+      ...currentProviders,
+      esnCard: {
+        ...currentProviders?.esnCard,
+        config: {
+          ...(currentProviders?.esnCard?.config as any),
+          ctaEnabled: true,
+          ctaLink: 'https://example.com/buy-esncard',
+        },
+        enabled: true,
+      },
+    } as const;
+
+    await database
+      .update(schema.tenants)
+      .set({ discountProviders: nextProviders as any })
+      .where(eq(schema.tenants.id, tenant.id));
+
     await page.goto('/profile', {
       waitUntil: 'domcontentloaded',
     });
-
-    const discountSection = page.locator('section', {
-      hasText: 'Discount Cards',
-    });
-    await expect(discountSection).toBeVisible();
+    await expect(
+      page.getByText('Get discounts on events with your ESNcard!'),
+    ).toBeVisible();
     await takeScreenshot(
       testInfo,
-      discountSection,
+      page.getByText('Get discounts on events with your ESNcard!'),
       page,
-      'Profile entry point to discount cards',
+      "Callout for users who don't have an ESNcard yet",
     );
 
     await discountSection.getByRole('link', { name: 'Manage Cards' }).click();

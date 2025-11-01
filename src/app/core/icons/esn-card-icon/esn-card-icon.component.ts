@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component } from '@angular/core';
 
 @Component({
   selector: 'app-esn-card-icon',
+  standalone: true,
   imports: [],
   template: `
     <svg

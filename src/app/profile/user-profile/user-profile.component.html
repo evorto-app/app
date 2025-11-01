@@ -142,7 +142,40 @@
           <div class="mt-4 text-sm text-on-surface-variant">
             No cards configured yet
           </div>
+
+          @if (esnProvider()?.config?.ctaEnabled === true && esnProvider()?.config?.ctaLink) {
+            <div class="bg-primary-container text-on-primary-container rounded-lg p-4 mt-4" data-testid="profile-esn-cta">
+              <p class="mb-2">Get discounts on events with your ESNcard!</p>
+              <a
+                [href]="esnProvider()?.config?.ctaLink"
+                target="_blank"
+                class="underline"
+                data-testid="get-esncard-link"
+                >Get your ESNcard →</a
+              >
+            </div>
+          }
         }
+      }
+    </section>
+  } @else {
+    <section class="bg-surface text-on-surface rounded-2xl p-6">
+      <div class="mb-4">
+        <h2 class="text-lg font-semibold">Discount Cards</h2>
+      </div>
+      @if (esnProvider()?.config?.ctaLink) {
+        <div class="bg-primary-container text-on-primary-container rounded-lg p-4" data-testid="profile-esn-cta">
+          <p class="mb-2">Get discounts on events with your ESNcard!</p>
+          <a
+            [href]="esnProvider()?.config?.ctaLink"
+            target="_blank"
+            class="underline"
+            data-testid="get-esncard-link"
+            >Get your ESNcard →</a
+          >
+        </div>
+      } @else {
+        <p class="text-on-surface-variant text-sm">Get discounts on events with your ESNcard!</p>
       }
     </section>
   }

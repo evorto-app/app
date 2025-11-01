@@ -1,0 +1,130 @@
+<div class="flex flex-row items-center gap-2 px-4">
+  <a routerLink=".." mat-icon-button>
+    <fa-duotone-icon [icon]="faArrowLeft"></fa-duotone-icon>
+  </a>
+  <h1 class="title-large">Discount Cards</h1>
+  <div class="grow"></div>
+</div>
+
+<div class="p-4">
+  @if (tenantQuery.data(); as tenant) {
+    @if (tenant.discountProviders?.esnCard?.enabled === true) {
+      <mat-card class="mb-6">
+        <div class="p-6">
+          <div class="mb-4 flex items-center gap-4">
+            <app-esn-card-icon class="h-16" />
+            <div>
+              <h3 class="text-lg font-semibold">ESNcard</h3>
+              <p class="text-gray-600">
+                European Student Network membership card
+              </p>
+            </div>
+          </div>
+
+          @if (cardsQuery.data(); as cards) {
+            @if (getUserCard(cards, "esnCard"); as card) {
+              <!-- User has a card -->
+              <div
+                class="mb-4 rounded-lg border border-green-200 bg-green-50 p-4"
+              >
+                <div class="flex items-center justify-between">
+                  <div>
+                    <p class="font-medium text-green-800">
+                      Card: {{ card.identifier }}
+                    </p>
+                    <p class="text-sm text-green-600">
+                      Status: {{ getStatusDisplay(card.status) }}
+                      @if (card.validTo) {
+                        | Valid until: {{ card.validTo | date }}
+                      }
+                    </p>
+                  </div>
+                  <div class="flex gap-2">
+                    <button
+                      mat-stroked-button
+                      color="primary"
+                      (click)="refreshCard('esnCard')"
+                      [disabled]="refreshMutation.isPending()"
+                      data-testid="refresh-esn-card"
+                    >
+                      @if (refreshMutation.isPending()) {
+                        Refreshing...
+                      } @else {
+                        Refresh
+                      }
+                    </button>
+                    <button
+                      mat-stroked-button
+                      color="warn"
+                      (click)="deleteCard('esnCard')"
+                      [disabled]="deleteMutation.isPending()"
+                      data-testid="delete-esn-card"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              </div>
+            } @else {
+              <!-- User doesn't have a card -->
+              @if (
+                tenant.discountProviders?.esnCard?.config?.ctaEnabled ===
+                  true && tenant.discountProviders?.esnCard?.config?.ctaLink
+              ) {
+                <div
+                  class="bg-primary-container text-on-primary-container mb-4 rounded-lg p-4"
+                >
+                  <p class="mb-2">Get discounts on events with your ESNcard!</p>
+                  <a
+                    [href]="tenant.discountProviders?.esnCard?.config?.ctaLink"
+                    target="_blank"
+                    class="underline"
+                    data-testid="get-esncard-link"
+                    >Get your ESNcard →</a
+                  >
+                </div>
+              }
+
+              <div class="space-y-4">
+                <mat-form-field class="w-full">
+                  <mat-label>ESNcard Number</mat-label>
+                  <input
+                    matInput
+                    [formControl]="getCardControl('esnCard')"
+                    placeholder="Enter your card number"
+                  />
+                </mat-form-field>
+
+                <button
+                  mat-raised-button
+                  color="primary"
+                  (click)="addCard('esnCard')"
+                  [disabled]="
+                    !getCardControl('esnCard').valid ||
+                    upsertMutation.isPending()
+                  "
+                >
+                  @if (upsertMutation.isPending()) {
+                    Adding Card...
+                  } @else {
+                    Add Card
+                  }
+                </button>
+              </div>
+            }
+          }
+        </div>
+      </mat-card>
+    }
+  }
+
+  @if (cardsQuery.isLoading() || tenantQuery.isLoading()) {
+    <div class="py-8 text-center">Loading discount cards...</div>
+  }
+
+  @if (cardsQuery.isError() || tenantQuery.isError()) {
+    <div class="py-8 text-center text-red-500">
+      Failed to load discount information
+    </div>
+  }
+</div>
