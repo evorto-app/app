@@ -1,6 +1,45 @@
-# Repository Guidelines
+# AGENTS.md
 
-## Angular Agent Prompt
+## About Spec Kit & Specify
+
+GitHub Spec Kit provides the project structure, templates, and workflows that power our Spec-Driven Development (SDD) process. The Specify CLI bootstraps these assets, keeps them up to date, and integrates with multiple coding assistants (Codex CLI, Claude Code, Gemini CLI, Copilot, Windsurf, and more). Each agent receives the same core workflow:
+
+1. `/speckit.constitution` – establish project principles and quality gates.
+2. `/speckit.specify` – capture user intent as structured specs.
+3. `/speckit.plan` – produce implementation plans and technical decisions.
+4. `/speckit.tasks` – generate executable task lists (tests first).
+5. `/speckit.implement` – execute the plan while respecting the constitution.
+
+When working outside a Git branch (e.g., detached head, sandbox, downloaded archive), set the `SPECIFY_FEATURE` environment variable to the feature directory name (for example: `SPECIFY_FEATURE=001-inclusive-tax-rates`). This allows the scripts under `scripts/bash/` to resolve the correct paths.
+
+## Supported AI Agents (Quick Reference)
+
+| Agent | Directory | Format | CLI Tool | Notes |
+|-------|-----------|--------|----------|-------|
+| Claude Code | `.claude/commands/` | Markdown | `claude` | Anthropic CLI |
+| Gemini CLI | `.gemini/commands/` | TOML | `gemini` | Google CLI |
+| GitHub Copilot | `.github/prompts/` | Markdown | — | VS Code IDE |
+| Cursor | `.cursor/commands/` | Markdown | `cursor-agent` | Cursor CLI |
+| Qwen Code | `.qwen/commands/` | TOML | `qwen` | Alibaba CLI |
+| opencode | `.opencode/command/` | Markdown | `opencode` | opencode CLI |
+| Codex CLI | `.codex/commands/` | Markdown | `codex` | This environment |
+| Windsurf | `.windsurf/workflows/` | Markdown | — | Windsurf IDE |
+| Kilo Code | `.kilocode/rules/` | Markdown | — | Kilo Code IDE |
+| Auggie CLI | `.augment/rules/` | Markdown | `auggie` | Augment CLI |
+| Roo Code | `.roo/rules/` | Markdown | — | Roo IDE |
+| CodeBuddy CLI | `.codebuddy/commands/` | Markdown | `codebuddy` | CodeBuddy CLI |
+| Amazon Q Developer | `.amazonq/prompts/` | Markdown | `q` | Amazon Q CLI |
+| Amp | `.agents/commands/` | Markdown | `amp` | Amp CLI |
+
+All scripts referenced by the command files live under `scripts/bash/` (POSIX) or `scripts/powershell/`. Ensure execute permissions are preserved (`chmod +x scripts/bash/*.sh`) when updating from upstream.
+
+## Codex CLI Notes
+
+- Set `CODEX_HOME=$(pwd)/.codex` before using slash commands locally.
+- Commands such as `/speckit.plan` invoke the Bash scripts in `scripts/bash/` and copy results into `specs/<feature>/`.
+- Optional enhancement commands `/speckit.clarify`, `/speckit.analyze`, and `/speckit.checklist` are available once the core loop is healthy.
+
+## Evorto Repository Agent Prompt
 
 You are an expert in TypeScript, Angular, and scalable web application development. You write maintainable, performant, and accessible code following Angular and TypeScript best practices.
 
@@ -113,7 +152,7 @@ You are an expert in TypeScript, Angular, and scalable web application developme
 ## Research Before You Code
 
 - For Angular work, retrieve and review the current Angular Best Practices before making changes.
-  - Verify usage of: standalone components, typed (non‑nullable) reactive forms, and modern control flow (`@if`, `@for`, `@switch`).
+  - Verify usage of standalone components, typed (non‑nullable) reactive forms, and modern control flow (`@if`, `@for`, `@switch`).
 - Confirm type safety end‑to‑end for any affected path (tRPC schemas, Drizzle models, client types).
 - Scan the workspace for adjacent patterns to keep implementations consistent (permissions, routing, data loading).
 - Use the Context7 documentation tools to pull the latest guidance for any library or dependency that is part of the current task before making changes.
