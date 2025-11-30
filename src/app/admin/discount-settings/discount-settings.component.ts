@@ -1,4 +1,4 @@
-import { CommonModule } from '@angular/common';
+
 import {
   ChangeDetectionStrategy,
   Component,
@@ -31,7 +31,6 @@ interface ProviderForm {
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    CommonModule,
     ReactiveFormsModule,
     MatCardModule,
     MatFormFieldModule,
@@ -39,8 +38,8 @@ interface ProviderForm {
     MatSlideToggleModule,
     MatButtonModule,
     FontAwesomeModule,
-    RouterLink,
-  ],
+    RouterLink
+],
   selector: 'app-discount-settings',
   templateUrl: './discount-settings.component.html',
 })
