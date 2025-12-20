@@ -4,30 +4,23 @@
       <div class="title-medium lg:col-span-2">
         {{ registration.registrationOptionTitle }}
       </div>
-      @if (registration.status === "PENDING") {
+      @if (registration.status === 'PENDING') {
         @if (registration.paymentPending) {
           <div class="text-warning lg:col-span-2">
             To finalize your registration you have to pay the registration fee.
           </div>
           @if (registration.checkoutUrl) {
-            <a href="{{ registration.checkoutUrl }}" mat-flat-button>
-              Pay now
-            </a>
+            <a href="{{ registration.checkoutUrl }}" mat-flat-button> Pay now </a>
           }
         } @else {
-          <div class="text-warning lg:col-span-2">
-            Your registration is pending confirmation
-          </div>
+          <div class="text-warning lg:col-span-2">Your registration is pending confirmation</div>
         }
-        <button
-          mat-stroked-button
-          (click)="cancelPendingRegistration(registration)"
-        >
+        <button mat-stroked-button (click)="cancelPendingRegistration(registration)">
           Cancel registration
         </button>
-      } @else if (registration.status === "WAITLIST") {
+      } @else if (registration.status === 'WAITLIST') {
         <div class="text-warning">You are currently on the waitlist</div>
-      } @else if (registration.status === "CONFIRMED") {
+      } @else if (registration.status === 'CONFIRMED') {
         @if (registration.registeredDescription) {
           <div
             class="prose dark:prose-invert max-w-none"

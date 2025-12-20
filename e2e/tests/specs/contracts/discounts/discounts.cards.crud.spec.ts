@@ -15,9 +15,7 @@ if (!primaryUser) {
   throw new Error('Expected regular user credentials to be present.');
 }
 
-const secondaryUser = usersToAuthenticate.find(
-  (user) => user.email === 'testuser2@evorto.app',
-);
+const secondaryUser = usersToAuthenticate.find((user) => user.email === 'testuser2@evorto.app');
 if (!secondaryUser) {
   throw new Error('Expected secondary test user credentials to be present.');
 }
@@ -55,50 +53,38 @@ const test = base.extend<{
 
 test.use({ seedDiscounts: false, storageState: userStateFile });
 
-const providerSwitch = (page: Page) =>
-  page.getByTestId('enable-esn-provider').getByRole('switch');
+const providerSwitch = (page: Page) => page.getByTestId('enable-esn-provider').getByRole('switch');
 
-const ctaSwitch = (page: Page) =>
-  page.getByTestId('esn-show-cta-toggle').getByRole('switch');
+const ctaSwitch = (page: Page) => page.getByTestId('esn-show-cta-toggle').getByRole('switch');
 
-async function updateProvider(options: {
-  browser: Browser;
-  enabled: boolean;
-  showCta?: boolean;
-}) {
+async function updateProvider(options: { browser: Browser; enabled: boolean; showCta?: boolean }) {
   const { browser, enabled, showCta = true } = options;
-  await runWithStorageState(
-    browser,
-    adminStateFile,
-    async (page) => {
-      await page.goto('/admin/settings/discounts', {
-        waitUntil: 'domcontentloaded',
-      });
+  await runWithStorageState(browser, adminStateFile, async (page) => {
+    await page.goto('/admin/settings/discounts', {
+      waitUntil: 'domcontentloaded',
+    });
 
-      const providerToggle = providerSwitch(page);
-      const desired = enabled ? 'true' : 'false';
-      if ((await providerToggle.getAttribute('aria-checked')) !== desired) {
-        await providerToggle.click();
-        await expect(providerToggle).toHaveAttribute('aria-checked', desired);
+    const providerToggle = providerSwitch(page);
+    const desired = enabled ? 'true' : 'false';
+    if ((await providerToggle.getAttribute('aria-checked')) !== desired) {
+      await providerToggle.click();
+      await expect(providerToggle).toHaveAttribute('aria-checked', desired);
+    }
+
+    if (enabled) {
+      const ctaToggle = ctaSwitch(page);
+      const ctaDesired = showCta ? 'true' : 'false';
+      await expect(ctaToggle).toBeVisible();
+      if ((await ctaToggle.getAttribute('aria-checked')) !== ctaDesired) {
+        await ctaToggle.click();
+        await expect(ctaToggle).toHaveAttribute('aria-checked', ctaDesired);
       }
+    }
 
-      if (enabled) {
-        const ctaToggle = ctaSwitch(page);
-        const ctaDesired = showCta ? 'true' : 'false';
-        await expect(ctaToggle).toBeVisible();
-        if ((await ctaToggle.getAttribute('aria-checked')) !== ctaDesired) {
-          await ctaToggle.click();
-          await expect(ctaToggle).toHaveAttribute('aria-checked', ctaDesired);
-        }
-      }
-
-      await page.getByTestId('save-discount-settings').click();
-      await expect(page.locator(SNACKBAR)).toContainText(
-        'Discount settings saved successfully',
-      );
-      await page.locator(SNACKBAR).waitFor({ state: 'detached' });
-    },
-  );
+    await page.getByTestId('save-discount-settings').click();
+    await expect(page.locator(SNACKBAR)).toContainText('Discount settings saved successfully');
+    await page.locator(SNACKBAR).waitFor({ state: 'detached' });
+  });
 }
 
 test.describe('Contract: discounts.cards CRUD (getMyCards, upsertMyCard, deleteMyCard)', () => {
@@ -126,10 +112,7 @@ test.describe('Contract: discounts.cards CRUD (getMyCards, upsertMyCard, deleteM
   });
 
   test('rejects invalid ESNcard numbers', async ({ page }) => {
-    test.skip(
-      true,
-      'ESNcard validation requires reliable upstream test numbers.',
-    );
+    test.skip(true, 'ESNcard validation requires reliable upstream test numbers.');
     await page.goto('/profile/discount-cards', {
       waitUntil: 'domcontentloaded',
     });
@@ -142,10 +125,7 @@ test.describe('Contract: discounts.cards CRUD (getMyCards, upsertMyCard, deleteM
     page,
     seedSecondaryCard,
   }) => {
-    test.skip(
-      true,
-      'ESNcard validation requires reliable upstream test numbers.',
-    );
+    test.skip(true, 'ESNcard validation requires reliable upstream test numbers.');
     const duplicateId = `ESN-DUP-${Date.now()}`;
 
     await seedSecondaryCard(duplicateId);
@@ -155,20 +135,11 @@ test.describe('Contract: discounts.cards CRUD (getMyCards, upsertMyCard, deleteM
     });
     await page.getByTestId('esn-card-input').fill(duplicateId);
     await page.getByTestId('add-esn-card-button').click();
-    await expect(page.locator(SNACKBAR)).toContainText(
-      'Card is already in use by another user',
-    );
+    await expect(page.locator(SNACKBAR)).toContainText('Card is already in use by another user');
   });
 
-  test('blocks card creation when provider is disabled', async ({
-    browser,
-    page,
-    tenant,
-  }) => {
-    test.skip(
-      true,
-      'ESNcard validation requires reliable upstream test numbers.',
-    );
+  test('blocks card creation when provider is disabled', async ({ browser, page, tenant }) => {
+    test.skip(true, 'ESNcard validation requires reliable upstream test numbers.');
     await updateProvider({
       browser,
       enabled: false,
@@ -180,9 +151,7 @@ test.describe('Contract: discounts.cards CRUD (getMyCards, upsertMyCard, deleteM
     });
     await page.getByTestId('esn-card-input').fill(`ESN-DIS-${Date.now()}`);
     await page.getByTestId('add-esn-card-button').click();
-    await expect(page.locator(SNACKBAR)).toContainText(
-      'Provider not enabled for this tenant',
-    );
+    await expect(page.locator(SNACKBAR)).toContainText('Provider not enabled for this tenant');
 
     await updateProvider({
       browser,
@@ -192,10 +161,7 @@ test.describe('Contract: discounts.cards CRUD (getMyCards, upsertMyCard, deleteM
   });
 
   test('allows adding and deleting a verified card', async ({ page }) => {
-    test.skip(
-      true,
-      'ESNcard validation requires reliable upstream test numbers.',
-    );
+    test.skip(true, 'ESNcard validation requires reliable upstream test numbers.');
     const identifier = `ESN-SUCCESS-${Date.now()}`;
 
     await page.goto('/profile/discount-cards', {
@@ -203,24 +169,16 @@ test.describe('Contract: discounts.cards CRUD (getMyCards, upsertMyCard, deleteM
     });
     await page.getByTestId('esn-card-input').fill(identifier);
     await page.getByTestId('add-esn-card-button').click();
-    await expect(page.locator(SNACKBAR)).toContainText(
-      'Card added successfully',
-    );
+    await expect(page.locator(SNACKBAR)).toContainText('Card added successfully');
     await page.locator(SNACKBAR).waitFor({ state: 'detached' });
 
-    const cardSection = page
-      .locator(CARD_IDENTIFIER_CELL)
-      .first()
-      .locator('..')
-      .locator('..');
+    const cardSection = page.locator(CARD_IDENTIFIER_CELL).first().locator('..').locator('..');
     await expect(cardSection).toContainText(identifier);
     await expect(cardSection).toContainText('Verified');
 
     page.once('dialog', (dialog) => dialog.accept());
     await page.getByTestId('delete-esn-card').click();
-    await expect(page.locator(SNACKBAR)).toContainText(
-      'Card deleted successfully',
-    );
+    await expect(page.locator(SNACKBAR)).toContainText('Card deleted successfully');
     await page.locator(SNACKBAR).waitFor({ state: 'detached' });
     await expect(page.locator(CARD_IDENTIFIER_CELL)).toHaveCount(0);
   });

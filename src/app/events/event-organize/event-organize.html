@@ -3,12 +3,12 @@
     <a [routerLink]="['/events', eventId()]" mat-icon-button>
       <fa-duotone-icon [icon]="faArrowLeft"></fa-duotone-icon>
     </a>
-    <h1 class="title-large">{{ event()?.title || "Loading..." }}</h1>
+    <h1 class="title-large">{{ event()?.title || 'Loading...' }}</h1>
     <div class="grow"></div>
     @if (event()) {
       <span class="text-surface-variant text-sm">
-        {{ event()!.start | date: "shortDate" }} •
-        {{ event()!.start | date: "shortTime" }}
+        {{ event()!.start | date: 'shortDate' }} •
+        {{ event()!.start | date: 'shortTime' }}
       </span>
     }
   </div>
@@ -26,17 +26,13 @@
             </div>
             <div class="text-sm">Registered</div>
           </div>
-          <div
-            class="bg-surface-container flex flex-col justify-center rounded-lg p-4 text-center"
-          >
+          <div class="bg-surface-container flex flex-col justify-center rounded-lg p-4 text-center">
             <div class="text-2xl font-bold">{{ stats().checkedIn }}</div>
             <div class="text-sm">Checked In</div>
           </div>
-          <div
-            class="bg-surface-container flex flex-col justify-center rounded-lg p-4 text-center"
-          >
+          <div class="bg-surface-container flex flex-col justify-center rounded-lg p-4 text-center">
             <div class="text-2xl font-bold">
-              {{ stats().capacityPercentage | percent: "1.0-0" }}
+              {{ stats().capacityPercentage | percent: '1.0-0' }}
             </div>
             <div class="text-sm">Capacity</div>
           </div>
@@ -50,9 +46,7 @@
           registrationOption of organizerOverviewQuery.data();
           track registrationOption.registrationOptionId
         ) {
-          <div
-            class="bg-surface-container text-on-surface-container grid gap-2 rounded-lg p-4"
-          >
+          <div class="bg-surface-container text-on-surface-container grid gap-2 rounded-lg p-4">
             <h3 class="title-medium">
               {{ registrationOption.registrationOptionTitle }}
             </h3>

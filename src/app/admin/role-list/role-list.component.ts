@@ -18,7 +18,5 @@ import { injectTRPC } from '../../core/trpc-client';
 export class RoleListComponent {
   protected readonly faArrowLeft = faArrowLeft;
   private readonly trpc = injectTRPC();
-  protected readonly roleQuery = injectQuery(() =>
-    this.trpc.admin.roles.findMany.queryOptions({}),
-  );
+  protected readonly roleQuery = injectQuery(() => this.trpc.admin.roles.findMany.queryOptions({}));
 }

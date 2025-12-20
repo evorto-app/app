@@ -3,12 +3,15 @@
 Purpose: List provider (Stripe) tax rates for the tenant's connected Stripe account for admin import UI.
 
 Input Schema:
+
 ```
 {}
 ```
+
 (Auth via session; requires permission `admin:manageTaxes`)
 
 Output Schema (array):
+
 ```
 [
   {
@@ -24,5 +27,6 @@ Output Schema (array):
 ```
 
 Errors:
+
 - NOT_AUTHORIZED (missing permission or missing tenant stripe account)
 - PROVIDER_ERROR (Stripe API failure)

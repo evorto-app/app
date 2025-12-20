@@ -52,11 +52,7 @@ export const addRoles = (
         description: 'Helpers of the section',
         id: getId(),
         name: 'Helper',
-        permissions: [
-          'events:viewPublic',
-          'templates:view',
-          'internal:viewInternalPages',
-        ],
+        permissions: ['events:viewPublic', 'templates:view', 'internal:viewInternalPages'],
         tenantId: tenant.id,
       },
       {
@@ -115,12 +111,8 @@ export const addExampleUsers = async (
   tenant: { id: string },
 ) => {
   const usersToAdd: InferInsertModel<typeof schema.users>[] = [];
-  const tenantAssignmentsToAdd: InferInsertModel<
-    typeof schema.usersToTenants
-  >[] = [];
-  const roleAssignmentsToAdd: InferInsertModel<
-    typeof schema.rolesToTenantUsers
-  >[] = [];
+  const tenantAssignmentsToAdd: InferInsertModel<typeof schema.usersToTenants>[] = [];
+  const roleAssignmentsToAdd: InferInsertModel<typeof schema.rolesToTenantUsers>[] = [];
   const defaultUserRole = roles.find((role) => role.defaultUserRole);
   if (!defaultUserRole) {
     throw new Error('Default user role not found');

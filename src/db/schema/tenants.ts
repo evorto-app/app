@@ -22,11 +22,15 @@ export const tenants = pgTable('tenants', {
   // Stores per-tenant discount provider configuration, e.g. enabling ESNcard discounts.
   // New shape: { esnCard?: { enabled: boolean; config: { ctaEnabled?: boolean; ctaLink?: string } | unknown } }
   // Additional providers can be added under their type key.
-  discountProviders: jsonb('discount_providers').$type<
-    Partial<
-      Record<'esnCard', { config: { ctaEnabled?: boolean; ctaLink?: string } | unknown; enabled: boolean }>
-    >
-  >(),
+  discountProviders:
+    jsonb('discount_providers').$type<
+      Partial<
+        Record<
+          'esnCard',
+          { config: unknown | { ctaEnabled?: boolean; ctaLink?: string }; enabled: boolean }
+        >
+      >
+    >(),
   domain: text().unique().notNull(),
   id: varchar({ length: 20 })
     .$defaultFn(() => createId())

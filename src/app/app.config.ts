@@ -1,9 +1,4 @@
-import {
-  HttpClient,
-  provideHttpClient,
-  withFetch,
-  withInterceptors,
-} from '@angular/common/http';
+import { HttpClient, provideHttpClient, withFetch, withInterceptors } from '@angular/common/http';
 import {
   ApplicationConfig,
   DEFAULT_CURRENCY_CODE,
@@ -15,10 +10,7 @@ import {
 import { isDevMode } from '@angular/core';
 import { provideLuxonDateAdapter } from '@angular/material-luxon-adapter';
 import { MAT_FORM_FIELD_DEFAULT_OPTIONS } from '@angular/material/form-field';
-import {
-  provideClientHydration,
-  withEventReplay,
-} from '@angular/platform-browser';
+import { provideClientHydration, withEventReplay } from '@angular/platform-browser';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import {
   provideRouter,
@@ -27,16 +19,10 @@ import {
   withRouterConfig,
   withViewTransitions,
 } from '@angular/router';
-import {
-  createTRPCClientFactory,
-  provideTRPC,
-} from '@heddendorp/tanstack-angular-query';
+import { createTRPCClientFactory, provideTRPC } from '@heddendorp/tanstack-angular-query';
 import { angularHttpLink } from '@heddendorp/trpc-link-angular';
 import * as Sentry from '@sentry/angular';
-import {
-  provideTanStackQuery,
-  QueryClient,
-} from '@tanstack/angular-query-experimental';
+import { provideTanStackQuery, QueryClient } from '@tanstack/angular-query-experimental';
 import { withDevtools } from '@tanstack/angular-query-experimental/devtools';
 import { createTRPCClient } from '@trpc/client';
 import superjson from 'superjson';

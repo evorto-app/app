@@ -1,9 +1,4 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  effect,
-  inject,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, effect, inject } from '@angular/core';
 import { computed } from '@angular/core';
 import { NonNullableFormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -15,11 +10,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
-import {
-  injectMutation,
-  injectQuery,
-  QueryClient,
-} from '@tanstack/angular-query-experimental';
+import { injectMutation, injectQuery, QueryClient } from '@tanstack/angular-query-experimental';
 
 import { GoogleLocationType } from '../../../types/location';
 import { ConfigService } from '../../core/config.service';
@@ -50,18 +41,12 @@ export class GeneralSettingsComponent {
     this.trpc.admin.tenant.listImportedTaxRates.queryOptions(),
   );
   protected readonly compatibleImportedRates = computed(() =>
-    (this.importedTaxRatesQuery.data() ?? []).filter(
-      (r) => r.inclusive && r.active,
-    ),
+    (this.importedTaxRatesQuery.data() ?? []).filter((r) => r.inclusive && r.active),
   );
-  protected readonly tenantQuery = injectQuery(() =>
-    this.trpc.config.tenant.queryOptions(),
-  );
+  protected readonly tenantQuery = injectQuery(() => this.trpc.config.tenant.queryOptions());
   protected readonly discountOverview = computed(() => {
     const tenant = this.tenantQuery.data() as any;
-    const providers = [
-      { type: 'esnCard', enabled: !!tenant?.discountProviders?.esnCard?.enabled },
-    ];
+    const providers = [{ enabled: !!tenant?.discountProviders?.esnCard?.enabled, type: 'esnCard' }];
     const enabledCount = providers.filter((p) => p.enabled === true).length;
     return {
       enabledCount,
@@ -72,21 +57,15 @@ export class GeneralSettingsComponent {
   protected readonly faArrowLeft = faArrowLeft;
   private readonly formBuilder = inject(NonNullableFormBuilder);
   protected readonly settingsForm = this.formBuilder.group({
-    defaultLocation: this.formBuilder.control<GoogleLocationType | undefined>(
-      void 0,
-    ),
+    defaultLocation: this.formBuilder.control<GoogleLocationType | undefined>(void 0),
     theme: this.formBuilder.control<'esn' | 'evorto'>('evorto'),
   });
   private readonly configService = inject(ConfigService);
   private readonly dialog = inject(MatDialog);
 
-  private readonly providerMetadata: Record<
-    string,
-    { description: string; name: string }
-  > = {
+  private readonly providerMetadata: Record<string, { description: string; name: string }> = {
     esnCard: {
-      description:
-        'Offer automatic discounts to members with a verified ESNcard.',
+      description: 'Offer automatic discounts to members with a verified ESNcard.',
       name: 'ESNcard',
     },
   };
@@ -144,5 +123,4 @@ export class GeneralSettingsComponent {
   protected providerName(providerType: string): string {
     return this.providerMetadata[providerType]?.name ?? providerType;
   }
-
 }

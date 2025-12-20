@@ -3,12 +3,15 @@
 Purpose: List imported tax rates for tenant admin visibility.
 
 Input Schema:
+
 ```
 {}
 ```
+
 Permissions: `admin:manageTaxes`
 
 Output Schema (array):
+
 ```
 [
   {
@@ -25,4 +28,5 @@ Output Schema (array):
 ```
 
 Errors:
+
 - NOT_AUTHORIZED

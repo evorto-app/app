@@ -1,11 +1,7 @@
 import * as schema from '@db/schema';
 import { and, eq } from 'drizzle-orm';
 
-import {
-  adminStateFile,
-  userStateFile,
-  usersToAuthenticate,
-} from '../../../../helpers/user-data';
+import { adminStateFile, userStateFile, usersToAuthenticate } from '../../../../helpers/user-data';
 import { expect, test } from '../../../fixtures/parallel-test';
 import { takeScreenshot } from '../../../reporters/documentation-reporter';
 
@@ -31,9 +27,7 @@ test.describe('Documentation: Discount provider journey — admin setup', () => 
     await page.getByRole('switch', { name: 'Show buy ESNcard link' }).click();
 
     await page.getByRole('button', { name: 'Save Settings' }).click();
-    await expect(page.locator(SNACKBAR)).toContainText(
-      'Discount settings saved successfully',
-    );
+    await expect(page.locator(SNACKBAR)).toContainText('Discount settings saved successfully');
     await page.locator(SNACKBAR).waitFor({ state: 'detached' });
 
     await takeScreenshot(
@@ -56,14 +50,8 @@ test.describe('Documentation: Discount provider journey — admin setup', () => 
 test.describe('Documentation: Discount provider journey — user experience', () => {
   test.use({ seedDiscounts: false, storageState: userStateFile });
 
-  test('User reviews ESN discount card states', async ({
-    database,
-    page,
-    tenant,
-  }, testInfo) => {
-    const user = usersToAuthenticate.find(
-      (candidate) => candidate.stateFile === userStateFile,
-    );
+  test('User reviews ESN discount card states', async ({ database, page, tenant }, testInfo) => {
+    const user = usersToAuthenticate.find((candidate) => candidate.stateFile === userStateFile);
     if (!user) {
       throw new Error('Documentation test requires seeded regular user');
     }
@@ -105,9 +93,7 @@ test.describe('Documentation: Discount provider journey — user experience', ()
     await page.goto('/profile', {
       waitUntil: 'domcontentloaded',
     });
-    await expect(
-      page.getByText('Get discounts on events with your ESNcard!'),
-    ).toBeVisible();
+    await expect(page.getByText('Get discounts on events with your ESNcard!')).toBeVisible();
     await takeScreenshot(
       testInfo,
       page.getByText('Get discounts on events with your ESNcard!'),
@@ -118,12 +104,7 @@ test.describe('Documentation: Discount provider journey — user experience', ()
     await discountSection.getByRole('link', { name: 'Manage Cards' }).click();
     await page.waitForURL('**/profile/discount-cards');
     await expect(page.locator(CTA_SECTION)).toBeVisible();
-    await takeScreenshot(
-      testInfo,
-      page.locator(CTA_SECTION),
-      page,
-      'Discount cards CTA and form',
-    );
+    await takeScreenshot(testInfo, page.locator(CTA_SECTION), page, 'Discount cards CTA and form');
 
     const identifier = `ESN-DOC-${Date.now()}`;
     await database.insert(schema.userDiscountCards).values({
@@ -139,20 +120,14 @@ test.describe('Documentation: Discount provider journey — user experience', ()
 
     await page.reload({ waitUntil: 'domcontentloaded' });
 
-    const cardPanel = page
-      .locator(CARD_IDENTIFIER_CELL)
-      .first()
-      .locator('..')
-      .locator('..');
+    const cardPanel = page.locator(CARD_IDENTIFIER_CELL).first().locator('..').locator('..');
     await expect(cardPanel).toContainText(identifier);
     await expect(cardPanel).toContainText('Verified');
     await takeScreenshot(testInfo, cardPanel, page, 'Verified ESNcard on file');
 
     page.once('dialog', (dialog) => dialog.accept());
     await page.getByTestId('delete-esn-card').click();
-    await expect(page.locator(SNACKBAR)).toContainText(
-      'Card deleted successfully',
-    );
+    await expect(page.locator(SNACKBAR)).toContainText('Card deleted successfully');
     await page.locator(SNACKBAR).waitFor({ state: 'detached' });
     await expect(page.locator(CARD_IDENTIFIER_CELL)).toHaveCount(0);
     await expect(page.locator(CTA_SECTION)).toBeVisible();

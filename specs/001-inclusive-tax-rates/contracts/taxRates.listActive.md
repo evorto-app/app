@@ -5,11 +5,13 @@ Purpose: Provide creators (and optionally anonymous) with compatible imported ta
 Auth: Optional. If authenticated, requires `templates:view`. Anonymous allowed.
 
 Input Schema:
+
 ```
 {}
 ```
 
 Output Schema (array ordered by displayName asc, stripeTaxRateId asc):
+
 ```
 [
   {
@@ -23,4 +25,5 @@ Output Schema (array ordered by displayName asc, stripeTaxRateId asc):
 Filter: inclusive=true AND active=true
 
 Errors:
+
 - PERMISSION_DENIED (if authenticated but lacks permission)

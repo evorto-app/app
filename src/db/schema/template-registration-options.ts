@@ -16,41 +16,38 @@ import { templateEventAddons } from './template-event-addons';
 
 // Type for discount configurations
 export interface TemplateDiscountConfig {
-  discountType: 'esnCard';
   discountedPrice: number;
+  discountType: 'esnCard';
 }
 
-export const templateRegistrationOptions = pgTable(
-  'template_registration_options',
-  {
-    closeRegistrationOffset: integer().notNull(),
-    createdAt: timestamp().notNull().defaultNow(),
-    description: text(),
-    // Discounts configuration stored as JSONB array
-    discounts: jsonb('discounts').$type<TemplateDiscountConfig[]>(),
-    id: varchar({ length: 20 })
-      .$defaultFn(() => createId())
-      .primaryKey(),
-    isPaid: boolean().notNull(),
-    openRegistrationOffset: integer().notNull(),
-    organizingRegistration: boolean().notNull(),
-    price: integer().notNull(),
-    registeredDescription: text(),
-    registrationMode: registrationModes().notNull().default('fcfs'),
-    roleIds: varchar({ length: 20 }).array().notNull().default([]),
-    spots: integer().notNull(),
-    stripeTaxRateId: varchar(),
-    templateId: varchar({ length: 20 })
-      .notNull()
-      .references(() => eventTemplates.id),
-    title: text().notNull(),
-    untouchedSinceMigration: boolean().notNull().default(false),
-    updatedAt: timestamp()
-      .notNull()
-      .defaultNow()
-      .$onUpdate(() => new Date()),
-  },
-);
+export const templateRegistrationOptions = pgTable('template_registration_options', {
+  closeRegistrationOffset: integer().notNull(),
+  createdAt: timestamp().notNull().defaultNow(),
+  description: text(),
+  // Discounts configuration stored as JSONB array
+  discounts: jsonb('discounts').$type<TemplateDiscountConfig[]>(),
+  id: varchar({ length: 20 })
+    .$defaultFn(() => createId())
+    .primaryKey(),
+  isPaid: boolean().notNull(),
+  openRegistrationOffset: integer().notNull(),
+  organizingRegistration: boolean().notNull(),
+  price: integer().notNull(),
+  registeredDescription: text(),
+  registrationMode: registrationModes().notNull().default('fcfs'),
+  roleIds: varchar({ length: 20 }).array().notNull().default([]),
+  spots: integer().notNull(),
+  stripeTaxRateId: varchar(),
+  templateId: varchar({ length: 20 })
+    .notNull()
+    .references(() => eventTemplates.id),
+  title: text().notNull(),
+  untouchedSinceMigration: boolean().notNull().default(false),
+  updatedAt: timestamp()
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+});
 
 export const addonToTemplateRegistrationOptions = pgTable(
   'addon_to_template_registration_options',

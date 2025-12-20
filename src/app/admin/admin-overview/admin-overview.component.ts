@@ -1,10 +1,4 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  computed,
-  inject,
-  signal,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MatBadgeModule } from '@angular/material/badge';
 import { MatListModule } from '@angular/material/list';
@@ -14,10 +8,10 @@ import {
   faCalendarCheck,
   faFolderUser,
   faGlobe,
+  faPercent,
   faReceipt,
   faUsers,
   faUsersGear,
-  faPercent,
 } from '@fortawesome/duotone-regular-svg-icons';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 import { interval } from 'rxjs';
@@ -47,9 +41,7 @@ export class AdminOverviewComponent {
   protected readonly faUsersGear = faUsersGear;
   protected readonly outletActive = signal(false);
   private readonly trpc = injectTRPC();
-  private readonly selfQuery = injectQuery(() =>
-    this.trpc.users.self.queryOptions(),
-  );
+  private readonly selfQuery = injectQuery(() => this.trpc.users.self.queryOptions());
   private pendingReviewsFilter = computed(() => ({
     includeUnlisted: true,
     limit: 50,

@@ -22,7 +22,12 @@ What this means for you:
   });
 
   // Show the events page from the user perspective
-  await takeScreenshot(testInfo, page.locator('h1:has-text("Events")').first(), page, 'Events list (user view)');
+  await takeScreenshot(
+    testInfo,
+    page.locator('h1:has-text("Events")').first(),
+    page,
+    'Events list (user view)',
+  );
 
   await testInfo.attach('markdown', {
     body: `
@@ -30,4 +35,3 @@ If an event is shared with you directly, open the link you were given to access 
 `,
   });
 });
-

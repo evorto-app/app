@@ -1,9 +1,6 @@
 import { computed, inject, Injectable } from '@angular/core';
 
-import {
-  Permission,
-  PERMISSION_DEPENDENCIES,
-} from '../../shared/permissions/permissions';
+import { Permission, PERMISSION_DEPENDENCIES } from '../../shared/permissions/permissions';
 import { ConfigService } from './config.service';
 
 @Injectable({
@@ -14,21 +11,14 @@ export class PermissionsService {
   private readonly permissions = this.config.permissions;
 
   public hasPermission(...permissions: Permission[]) {
-    return computed(() =>
-      permissions.every((p) => this.includesPermission(p, this.permissions)),
-    );
+    return computed(() => permissions.every((p) => this.includesPermission(p, this.permissions)));
   }
 
   public hasPermissionSync(...permissions: Permission[]) {
-    return permissions.every((p) =>
-      this.includesPermission(p, this.permissions),
-    );
+    return permissions.every((p) => this.includesPermission(p, this.permissions));
   }
 
-  private includesPermission(
-    permission: Permission,
-    permissions: Permission[],
-  ) {
+  private includesPermission(permission: Permission, permissions: Permission[]) {
     // First check if the permission is directly granted
     if (permission.includes(':*')) {
       const [group] = permission.split(':');
@@ -40,13 +30,8 @@ export class PermissionsService {
     }
 
     // Then check if any dependency grants this permission
-    for (const [parentPerm, childPerms] of Object.entries(
-      PERMISSION_DEPENDENCIES,
-    )) {
-      if (
-        permissions.includes(parentPerm as Permission) &&
-        childPerms.includes(permission)
-      ) {
+    for (const [parentPerm, childPerms] of Object.entries(PERMISSION_DEPENDENCIES)) {
+      if (permissions.includes(parentPerm as Permission) && childPerms.includes(permission)) {
         return true;
       }
     }

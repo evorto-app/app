@@ -1,9 +1,9 @@
 <mat-form-field class="w-full">
   <mat-label>Selected Roles</mat-label>
   <mat-chip-grid #chipGrid aria-label="Role selection">
-    @for (role of currentRolesQuery(); track role.data?.id) {
-      <mat-chip-row (removed)="remove(role.data?.id)">
-        {{ role.data?.name }}
+    @for (role of currentRoles(); track role?.id) {
+      <mat-chip-row (removed)="remove(role?.id)">
+        {{ role?.name }}
         <button matChipRemove [attr.aria-label]="'remove ' + role">
           <fa-duotone-icon [icon]="faCircleXmark"></fa-duotone-icon>
         </button>

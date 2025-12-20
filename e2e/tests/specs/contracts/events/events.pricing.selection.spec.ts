@@ -82,9 +82,7 @@ const findDiscountedEvent = (events: any[], registrations: any[]) => {
         return false;
       }
       const discounts = (option.discounts ?? []) as DiscountOption[];
-      return discounts.some(
-        (discount) => discount.discountedPrice < (option.price ?? 0),
-      );
+      return discounts.some((discount) => discount.discountedPrice < (option.price ?? 0));
     });
   });
 };
@@ -118,9 +116,7 @@ const verifyTransactionAmount = async (
     });
 
     const expectedText = centsToCurrency(expectedAmount);
-    const row = financePage
-      .getByRole('row', { name: new RegExp(eventTitle, 'i') })
-      .first();
+    const row = financePage.getByRole('row', { name: new RegExp(eventTitle, 'i') }).first();
     await expect(row).toBeVisible();
     await expect(row.getByRole('cell').first()).toContainText(expectedText);
   });
@@ -143,9 +139,7 @@ test('Contract: events.pricing.selection applies ESN discount @slow', async ({
       return false;
     }
     const discounts = (candidate.discounts ?? []) as DiscountOption[];
-    return discounts.some(
-      (discount) => discount.discountedPrice < (candidate.price ?? 0),
-    );
+    return discounts.some((discount) => discount.discountedPrice < (candidate.price ?? 0));
   });
 
   if (!option || option.price == undefined) {
@@ -164,9 +158,7 @@ test('Contract: events.pricing.selection applies ESN discount @slow', async ({
       return candidate;
     }
     if (candidate.discountedPrice === best.discountedPrice) {
-      return candidate.discountType.localeCompare(best.discountType) < 0
-        ? candidate
-        : best;
+      return candidate.discountType.localeCompare(best.discountType) < 0 ? candidate : best;
     }
     return best;
   }, null);
@@ -250,9 +242,7 @@ test('Contract: events.pricing.selection falls back to base price for expired ES
   await expect(eventLink).toBeVisible();
   await eventLink.click();
 
-  const warning = page.getByText(
-    'Your discount card expires before the event starts',
-  );
+  const warning = page.getByText('Your discount card expires before the event starts');
   await expect(warning).toBeVisible();
 
   await ensureRegistrationSectionResets(page);

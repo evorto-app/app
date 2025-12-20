@@ -39,18 +39,17 @@ export const registerForEventProcedure = authenticatedProcedure
       }
 
       // Check if event is full
-      const registrationOption =
-        await tx.query.eventRegistrationOptions.findFirst({
-          where: { eventId: input.eventId, id: input.registrationOptionId },
-          with: {
-            event: {
-              columns: {
-                start: true,
-                title: true,
-              },
+      const registrationOption = await tx.query.eventRegistrationOptions.findFirst({
+        where: { eventId: input.eventId, id: input.registrationOptionId },
+        with: {
+          event: {
+            columns: {
+              start: true,
+              title: true,
             },
           },
-        });
+        },
+      });
       if (!registrationOption) {
         throw new TRPCError({
           code: 'NOT_FOUND',
@@ -69,8 +68,8 @@ export const registerForEventProcedure = authenticatedProcedure
 
       // Register user for event with pricing snapshot
       let appliedDiscountType: 'esnCard' | null = null;
-      let appliedDiscountedPrice: number | null = null;
-      let discountAmount: number | null = null;
+      let appliedDiscountedPrice: null | number = null;
+      let discountAmount: null | number = null;
 
       // Determine effective price (apply best discount if any)
       let effectivePrice = registrationOption.price;
@@ -132,8 +131,8 @@ export const registerForEventProcedure = authenticatedProcedure
       const userRegistration = await tx
         .insert(schema.eventRegistrations)
         .values({
-          appliedDiscountType,
           appliedDiscountedPrice,
+          appliedDiscountType,
           basePriceAtRegistration,
           discountAmount,
           eventId: input.eventId,
@@ -169,9 +168,7 @@ export const registerForEventProcedure = authenticatedProcedure
       try {
         const transactionId = createId();
         const eventUrl = `${ctx.request.protocol}://${ctx.request.headers.host}/events/${input.eventId}`;
-        consola.debug(
-          `Creating Stripe session for event ${input.eventId} with URL ${eventUrl}`,
-        );
+        consola.debug(`Creating Stripe session for event ${input.eventId} with URL ${eventUrl}`);
         const stripeAccount = ctx.tenant.stripeAccountId;
         if (!stripeAccount) {
           throw new TRPCError({
@@ -221,7 +218,9 @@ export const registerForEventProcedure = authenticatedProcedure
 
         // Check if discount reduced price to zero or negative - treat as free
         if (effectivePrice <= 0) {
-          consola.info(`Effective price ${effectivePrice} <= 0 for registration ${userRegistration.id}, treating as free`);
+          consola.info(
+            `Effective price ${effectivePrice} <= 0 for registration ${userRegistration.id}, treating as free`,
+          );
 
           // Update registration status to confirmed (no payment needed)
           await database
@@ -248,19 +247,22 @@ export const registerForEventProcedure = authenticatedProcedure
         if (selectedTaxRateId) {
           const taxRate = await database.query.tenantStripeTaxRates.findFirst({
             where: {
-              tenantId: ctx.tenant.id,
               stripeTaxRateId: selectedTaxRateId,
+              tenantId: ctx.tenant.id,
             },
           });
 
           if (!taxRate || !taxRate.active || !taxRate.inclusive) {
-            consola.warn(`WARN_INACTIVE_TAX_RATE: Tax rate ${selectedTaxRateId} is not active or compatible for registration ${userRegistration.id}`, {
-              taxRateId: selectedTaxRateId,
-              registrationId: userRegistration.id,
-              tenantId: ctx.tenant.id,
-              active: taxRate?.active,
-              inclusive: taxRate?.inclusive,
-            });
+            consola.warn(
+              `WARN_INACTIVE_TAX_RATE: Tax rate ${selectedTaxRateId} is not active or compatible for registration ${userRegistration.id}`,
+              {
+                active: taxRate?.active,
+                inclusive: taxRate?.inclusive,
+                registrationId: userRegistration.id,
+                taxRateId: selectedTaxRateId,
+                tenantId: ctx.tenant.id,
+              },
+            );
             // Continue with checkout but log the warning
           }
         }
@@ -268,9 +270,7 @@ export const registerForEventProcedure = authenticatedProcedure
         const sessionCreateParameters: Stripe.Checkout.SessionCreateParams = {
           cancel_url: `${eventUrl}?registrationStatus=cancel`,
           customer_email: ctx.user.email,
-          expires_at: Math.ceil(
-            DateTime.local().plus({ minutes: 30 }).toSeconds(),
-          ),
+          expires_at: Math.ceil(DateTime.local().plus({ minutes: 30 }).toSeconds()),
           line_items: [
             {
               price_data: {
@@ -282,9 +282,7 @@ export const registerForEventProcedure = authenticatedProcedure
                 unit_amount: effectivePrice,
               },
               // Apply tax rate if configured/selected
-              ...(selectedTaxRateId
-                ? { tax_rates: [selectedTaxRateId] as string[] }
-                : {}),
+              ...(selectedTaxRateId ? { tax_rates: [selectedTaxRateId] as string[] } : {}),
               quantity: 1,
             },
           ],
@@ -300,10 +298,9 @@ export const registerForEventProcedure = authenticatedProcedure
           success_url: `${eventUrl}?registrationStatus=success`,
         };
 
-        const session = await stripe.checkout.sessions.create(
-          sessionCreateParameters,
-          { stripeAccount },
-        );
+        const session = await stripe.checkout.sessions.create(sessionCreateParameters, {
+          stripeAccount,
+        });
 
         const transactionResponse = await database
           .insert(schema.transactions)
@@ -333,13 +330,12 @@ export const registerForEventProcedure = authenticatedProcedure
         return { transaction: transactionResponse[0], userRegistration };
       } catch (error) {
         await database.transaction(async (tx) => {
-          const registrationOption =
-            await tx.query.eventRegistrationOptions.findFirst({
-              where: {
-                eventId: input.eventId,
-                id: input.registrationOptionId,
-              },
-            });
+          const registrationOption = await tx.query.eventRegistrationOptions.findFirst({
+            where: {
+              eventId: input.eventId,
+              id: input.registrationOptionId,
+            },
+          });
           if (!registrationOption) {
             throw new TRPCError({
               cause: error,

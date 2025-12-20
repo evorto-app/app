@@ -1,10 +1,6 @@
 import { DateTime } from 'luxon';
 
-import {
-  adminStateFile,
-  defaultStateFile,
-  userStateFile,
-} from '../../../../helpers/user-data';
+import { adminStateFile, defaultStateFile, userStateFile } from '../../../../helpers/user-data';
 import { fillTestCard } from '../../../fill-test-card';
 import { expect, test } from '../../../fixtures/parallel-test';
 import { takeScreenshot } from '../../../reporters/documentation-reporter';
@@ -27,19 +23,13 @@ Click on _Create category_ to create a new category.`,
   });
   await page.getByRole('link', { name: 'Templates' }).click();
   await page.getByRole('link', { name: 'Manage categories' }).click();
-  await takeScreenshot(
-    testInfo,
-    page.getByRole('button', { name: 'Create category' }),
-    page,
-  );
+  await takeScreenshot(testInfo, page.getByRole('button', { name: 'Create category' }), page);
   await page.getByRole('button', { name: 'Create category' }).click();
   await testInfo.attach('markdown', {
     body: `
 You can now enter the name for your category and save it. The new category will be created and added to the list.`,
   });
-  await page
-    .getByRole('textbox', { name: 'Category title' })
-    .fill('Test category');
+  await page.getByRole('textbox', { name: 'Category title' }).fill('Test category');
   await page.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByText('Test category')).toBeVisible();
   await testInfo.attach('markdown', {
@@ -52,9 +42,7 @@ After you have changed the name, click on _Save_ to save your changes.`,
     .filter({ hasText: 'Test category' })
     .getByRole('button', { name: 'Edit' })
     .click();
-  await page
-    .getByRole('textbox', { name: 'Category title' })
-    .fill('Test category edited');
+  await page.getByRole('textbox', { name: 'Category title' }).fill('Test category edited');
   await page.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByText('Test category edited')).toBeVisible();
 });

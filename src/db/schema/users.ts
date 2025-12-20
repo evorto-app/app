@@ -110,9 +110,7 @@ const queryBuilder = new QueryBuilder();
 
 const organizingRegistration = queryBuilder
   .select({
-    optionCount: count(eventRegistrationOptions.id)
-      .mapWith(Boolean)
-      .as('optionCount'),
+    optionCount: count(eventRegistrationOptions.id).mapWith(Boolean).as('optionCount'),
     tenantId: eventRegistrations.tenantId,
     userId: eventRegistrations.userId,
   })

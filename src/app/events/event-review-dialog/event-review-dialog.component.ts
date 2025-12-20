@@ -32,9 +32,7 @@ import { MatInputModule } from '@angular/material/input';
       </mat-dialog-content>
       <mat-dialog-actions align="end">
         <button mat-button mat-dialog-close>Cancel</button>
-        <button mat-flat-button type="submit" [disabled]="!reviewForm.valid">
-          Reject Event
-        </button>
+        <button mat-flat-button type="submit" [disabled]="!reviewForm.valid">Reject Event</button>
       </mat-dialog-actions>
     </form>
   `,

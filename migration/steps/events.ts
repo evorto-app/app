@@ -1,13 +1,5 @@
 import consola from 'consola';
-import {
-  and,
-  count,
-  eq,
-  exists,
-  InferInsertModel,
-  InferSelectModel,
-  sql,
-} from 'drizzle-orm';
+import { and, count, eq, exists, InferInsertModel, InferSelectModel, sql } from 'drizzle-orm';
 import { DateTime } from 'luxon';
 import { marked } from 'marked';
 
@@ -38,10 +30,7 @@ export const migrateEvents = async (
           .from(oldSchema.eventTemplate)
           .where(
             and(
-              eq(
-                oldSchema.tumiEvent.eventTemplateId,
-                oldSchema.eventTemplate.id,
-              ),
+              eq(oldSchema.tumiEvent.eventTemplateId, oldSchema.eventTemplate.id),
               eq(oldSchema.eventTemplate.tenantId, oldTenant.id),
             ),
           ),
@@ -67,10 +56,7 @@ export const migrateEvents = async (
             .from(oldSchema.eventTemplate)
             .where(
               and(
-                eq(
-                  oldSchema.tumiEvent.eventTemplateId,
-                  oldSchema.eventTemplate.id,
-                ),
+                eq(oldSchema.tumiEvent.eventTemplateId, oldSchema.eventTemplate.id),
                 eq(oldSchema.eventTemplate.tenantId, oldTenant.id),
               ),
             ),
@@ -83,10 +69,7 @@ export const migrateEvents = async (
     const joinedOldEvents = await oldDatabase
       .select()
       .from(oldSchema.tumiEvent)
-      .innerJoin(
-        eventIdSubquery,
-        eq(oldSchema.tumiEvent.id, eventIdSubquery.id),
-      )
+      .innerJoin(eventIdSubquery, eq(oldSchema.tumiEvent.id, eventIdSubquery.id))
       .orderBy(oldSchema.tumiEvent.id)
       .leftJoin(
         oldSchema.eventRegistration,
@@ -113,15 +96,10 @@ export const migrateEvents = async (
     const oldEvents = [...groupedEvents.values()];
 
     if (oldEvents.length != migrationStepSize) {
-      consola.info(
-        `Migrating ${oldEvents.length} events from ${joinedOldEvents.length} rows`,
-      );
+      consola.info(`Migrating ${oldEvents.length} events from ${joinedOldEvents.length} rows`);
     }
 
-    await maybeInsertIcons(
-      newTenant.id,
-      ...oldEvents.map((event) => event.icon),
-    );
+    await maybeInsertIcons(newTenant.id, ...oldEvents.map((event) => event.icon));
 
     // Filter valid events with a proper template mapping
     const validEvents = oldEvents.filter((event) => {
@@ -181,9 +159,7 @@ export const migrateEvents = async (
       .returning();
 
     // Build event registration options for each valid event
-    const registrationOptions: InferInsertModel<
-      typeof schema.eventRegistrationOptions
-    >[] = [];
+    const registrationOptions: InferInsertModel<typeof schema.eventRegistrationOptions>[] = [];
     for (const [index_, oldEvent] of validEvents.entries()) {
       const newEvent = newEvents[index_];
       const regStart = DateTime.fromSQL(oldEvent.registrationStart);
@@ -204,16 +180,10 @@ export const migrateEvents = async (
       );
 
       let price = 0;
-      if (
-        typeof oldEvent.prices?.options === 'object' &&
-        Array.isArray(oldEvent.prices.options)
-      ) {
+      if (typeof oldEvent.prices?.options === 'object' && Array.isArray(oldEvent.prices.options)) {
         const option = oldEvent.prices.options.find(
-          (opt: {
-            allowedStatusList: string[];
-            amount: number;
-            esnCardRequired: boolean;
-          }) => !opt.esnCardRequired && opt.allowedStatusList.includes('NONE'),
+          (opt: { allowedStatusList: string[]; amount: number; esnCardRequired: boolean }) =>
+            !opt.esnCardRequired && opt.allowedStatusList.includes('NONE'),
         );
         if (option) {
           price = Math.round(option.amount * 100);
@@ -223,14 +193,12 @@ export const migrateEvents = async (
       // Participant option
       registrationOptions.push(
         {
-          checkedInSpots: oldEvent.registrations.filter(
-            (registration) => registration.checkInTime,
-          ).length,
+          checkedInSpots: oldEvent.registrations.filter((registration) => registration.checkInTime)
+            .length,
           closeRegistrationTime: eventStart.plus({ hours: 1 }).toJSDate(),
           confirmedSpots: oldEvent.registrations.filter(
             (registration) =>
-              registration.type === 'PARTICIPANT' &&
-              registration.status === 'SUCCESSFUL',
+              registration.type === 'PARTICIPANT' && registration.status === 'SUCCESSFUL',
           ).length,
           createdAt: new Date(oldEvent.createdAt),
           eventId: newEvent.id,
@@ -244,8 +212,7 @@ export const migrateEvents = async (
           registrationMode: 'fcfs',
           reservedSpots: oldEvent.registrations.filter(
             (registration) =>
-              registration.type === 'PARTICIPANT' &&
-              registration.status === 'PENDING',
+              registration.type === 'PARTICIPANT' && registration.status === 'PENDING',
           ).length,
           roleIds: participantRoleIds,
           spots: oldEvent.participantLimit,
@@ -256,14 +223,12 @@ export const migrateEvents = async (
         {
           checkedInSpots: oldEvent.registrations.filter(
             (registration) =>
-              registration.type === 'ORGANIZER' &&
-              registration.status === 'SUCCESSFUL',
+              registration.type === 'ORGANIZER' && registration.status === 'SUCCESSFUL',
           ).length,
           closeRegistrationTime: eventStart.plus({ hours: 1 }).toJSDate(),
           confirmedSpots: oldEvent.registrations.filter(
             (registration) =>
-              registration.type === 'ORGANIZER' &&
-              registration.status === 'SUCCESSFUL',
+              registration.type === 'ORGANIZER' && registration.status === 'SUCCESSFUL',
           ).length,
           createdAt: new Date(oldEvent.createdAt),
           description: marked.parse(oldEvent.organizerText, { async: false }),
@@ -285,9 +250,7 @@ export const migrateEvents = async (
     }
 
     if (registrationOptions.length > 0) {
-      await database
-        .insert(schema.eventRegistrationOptions)
-        .values(registrationOptions);
+      await database.insert(schema.eventRegistrationOptions).values(registrationOptions);
     }
   }
 

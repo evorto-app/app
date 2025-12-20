@@ -1,9 +1,6 @@
 import { getId } from '../get-id';
 
-export const getWeekendTripTemplates = (weekendTripsCategory: {
-  id: string;
-  tenantId: string;
-}) => [
+export const getWeekendTripTemplates = (weekendTripsCategory: { id: string; tenantId: string }) => [
   {
     categoryId: weekendTripsCategory.id,
     description:

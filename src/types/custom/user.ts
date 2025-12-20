@@ -1,6 +1,6 @@
 import { Schema } from 'effect';
 
-import { PermissionSchema } from '../../shared/permissions/permissions';
+import { PermissionSchema } from '../../server/schemas/permission.schema';
 
 export class User extends Schema.Class<User>('User')({
   attributes: Schema.Array(Schema.Literal('events:organizesSome')),

@@ -6,12 +6,7 @@ import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    MatDialogModule,
-    MatSlideToggleModule,
-    MatButtonModule,
-    ReactiveFormsModule,
-  ],
+  imports: [MatDialogModule, MatSlideToggleModule, MatButtonModule, ReactiveFormsModule],
   selector: 'app-update-visibility-dialog',
   styles: ``,
   templateUrl: './update-visibility-dialog.component.html',
@@ -19,8 +14,7 @@ import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 export class UpdateVisibilityDialogComponent {
   protected readonly data: { event: { title: string; unlisted: boolean } } =
     inject(MAT_DIALOG_DATA);
-  protected readonly unlistedControl = new FormControl<boolean>(
-    this.data.event.unlisted,
-    { nonNullable: true },
-  );
+  protected readonly unlistedControl = new FormControl<boolean>(this.data.event.unlisted, {
+    nonNullable: true,
+  });
 }

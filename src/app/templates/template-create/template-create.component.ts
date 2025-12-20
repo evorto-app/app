@@ -1,19 +1,9 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  computed,
-  inject,
-  input,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { Router, RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
-import {
-  injectMutation,
-  injectQuery,
-  QueryClient,
-} from '@tanstack/angular-query-experimental';
+import { injectMutation, injectQuery, QueryClient } from '@tanstack/angular-query-experimental';
 import { PartialDeep } from 'type-fest';
 
 import { injectTRPC } from '../../core/trpc-client';
@@ -24,12 +14,7 @@ import {
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    MatButtonModule,
-    FontAwesomeModule,
-    RouterLink,
-    TemplateFormComponent,
-  ],
+  imports: [MatButtonModule, FontAwesomeModule, RouterLink, TemplateFormComponent],
   selector: 'app-template-create',
   styles: ``,
   templateUrl: './template-create.component.html',
@@ -47,22 +32,17 @@ export class TemplateCreateComponent {
   private defaultUserRolesQuery = injectQuery(() =>
     this.trpc.admin.roles.findMany.queryOptions({ defaultUserRole: true }),
   );
-  protected readonly initialFormData = computed<PartialDeep<TemplateFormData>>(
-    () => {
-      return {
-        categoryId: this.categoryId() || '',
-        organizerRegistration: {
-          roleIds:
-            this.defaultOrganizerRolesQuery.data()?.map((role) => role.id) ||
-            [],
-        },
-        participantRegistration: {
-          roleIds:
-            this.defaultUserRolesQuery.data()?.map((role) => role.id) || [],
-        },
-      };
-    },
-  );
+  protected readonly initialFormData = computed<PartialDeep<TemplateFormData>>(() => {
+    return {
+      categoryId: this.categoryId() || '',
+      organizerRegistration: {
+        roleIds: this.defaultOrganizerRolesQuery.data()?.map((role) => role.id) || [],
+      },
+      participantRegistration: {
+        roleIds: this.defaultUserRolesQuery.data()?.map((role) => role.id) || [],
+      },
+    };
+  });
 
   private queryClient = inject(QueryClient);
   private router = inject(Router);

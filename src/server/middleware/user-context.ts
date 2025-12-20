@@ -4,11 +4,7 @@ import { NextFunction, Request, Response } from 'express';
 import { getUser, userAttributes } from '../../db';
 import { ALL_PERMISSIONS } from '../../shared/permissions/permissions';
 
-export const addUserContext = async (
-  request: Request,
-  response: Response,
-  next: NextFunction,
-) => {
+export const addUserContext = async (request: Request, response: Response, next: NextFunction) => {
   if (!request?.oidc?.isAuthenticated()) {
     next();
     return;
@@ -36,9 +32,7 @@ export const addUserContext = async (
         })
         .then((response) => response[0]);
       const attributes = [
-        ...(attributeResponse?.organizesSome
-          ? (['events:organizesSome'] as const)
-          : []),
+        ...(attributeResponse?.organizesSome ? (['events:organizesSome'] as const) : []),
       ];
       request.user = {
         ...user,

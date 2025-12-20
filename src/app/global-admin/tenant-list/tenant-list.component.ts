@@ -12,7 +12,5 @@ import { injectTRPC } from '../../core/trpc-client';
 })
 export class TenantListComponent {
   private trpc = injectTRPC();
-  protected tenantQuery = injectQuery(() =>
-    this.trpc.globalAdmin.tenants.findMany.queryOptions(),
-  );
+  protected tenantQuery = injectQuery(() => this.trpc.globalAdmin.tenants.findMany.queryOptions());
 }

@@ -18,6 +18,4 @@ Sentry.init({
   tracesSampleRate: 1,
 });
 
-bootstrapApplication(AppComponent, appConfig).catch((error) =>
-  console.error(error),
-);
+bootstrapApplication(AppComponent, appConfig).catch((error) => console.error(error));

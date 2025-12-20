@@ -1,10 +1,4 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  effect,
-  input,
-  signal,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, effect, input, signal } from '@angular/core';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -99,9 +93,7 @@ export class Shape {
     },
   ] as const;
 
-  protected readonly current = signal<{ d: string; viewBox: string }>(
-    this.shapes[0],
-  );
+  protected readonly current = signal<{ d: string; viewBox: string }>(this.shapes[0]);
 
   constructor() {
     effect(() => {

@@ -21,11 +21,7 @@ export const tenantRouter = router({
 
   importStripeTaxRates: authenticatedProcedure
     .meta({ requiredPermissions: ['admin:manageTaxes'] })
-    .input(
-      Schema.standardSchemaV1(
-        Schema.Struct({ ids: Schema.Array(Schema.NonEmptyString) }),
-      ),
-    )
+    .input(Schema.standardSchemaV1(Schema.Struct({ ids: Schema.Array(Schema.NonEmptyString) })))
     .mutation(async ({ ctx, input }) => {
       const stripeAccount = ctx.tenant.stripeAccountId;
       if (!stripeAccount) return;
@@ -94,10 +90,7 @@ export const tenantRouter = router({
         percentage: r.percentage ?? null,
         state: r.state ?? null,
       });
-      return [
-        ...activeRates.data.map(mapRate),
-        ...archivedRates.data.map(mapRate),
-      ];
+      return [...activeRates.data.map(mapRate), ...archivedRates.data.map(mapRate)];
     }),
 
   updateSettings: authenticatedProcedure

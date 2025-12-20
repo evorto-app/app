@@ -35,21 +35,11 @@ export const addTemplates = async (
   const vat19 = taxRates.find((r) => r.percentage === '19');
   const vat7 = taxRates.find((r) => r.percentage === '7');
   const defaultRate = vat19 ?? vat7 ?? taxRates[0];
-  const hikingCategory = categories.find(
-    (category) => category.title === 'Hikes',
-  );
-  const cityToursCategory = categories.find(
-    (category) => category.title === 'City tours',
-  );
-  const cityTripsCategory = categories.find(
-    (category) => category.title === 'City Trips',
-  );
-  const sportsCategory = categories.find(
-    (category) => category.title === 'Sports',
-  );
-  const weekendTripsCategory = categories.find(
-    (category) => category.title === 'Weekend Trips',
-  );
+  const hikingCategory = categories.find((category) => category.title === 'Hikes');
+  const cityToursCategory = categories.find((category) => category.title === 'City tours');
+  const cityTripsCategory = categories.find((category) => category.title === 'City Trips');
+  const sportsCategory = categories.find((category) => category.title === 'Sports');
+  const weekendTripsCategory = categories.find((category) => category.title === 'Weekend Trips');
   const exampleConfigsCategory = categories.find(
     (category) => category.title === 'Example configurations',
   );
@@ -66,9 +56,7 @@ export const addTemplates = async (
   }
 
   const defaultUserRoles = roles.filter((role) => role.defaultUserRole);
-  const defaultOrganizerRoles = roles.filter(
-    (role) => role.defaultOrganizerRole,
-  );
+  const defaultOrganizerRoles = roles.filter((role) => role.defaultOrganizerRole);
 
   const createIconObject = (iconName: string) => {
     const icon = icons.find((index) => index.commonName === iconName);
@@ -119,42 +107,39 @@ export const addTemplates = async (
     throw new Error('Failed to create freeTemplates');
   }
 
-  const registrationOptionsToAdd: InferInsertModel<
-    typeof schema.templateRegistrationOptions
-  >[] = createdFreeTemplates
-    .flatMap((template) => [
-      {
-        closeRegistrationOffset: 1,
-        description: 'Organizer registration',
-        isPaid: false,
-        openRegistrationOffset: 168,
-        organizingRegistration: true,
-        price: 0,
-        registrationMode: 'fcfs' as const,
-        roleIds: defaultOrganizerRoles.map((role) => role.id),
-        spots: 1,
-        templateId: template.id,
-        title: 'Organizer',
-      },
-      {
-        closeRegistrationOffset: 1,
-        description: 'Participant registration',
-        isPaid: false,
-        openRegistrationOffset: 168,
-        organizingRegistration: false,
-        price: 0,
-        registrationMode: 'fcfs' as const,
-        roleIds: defaultUserRoles.map((role) => role.id),
-        spots: 20,
-        templateId: template.id,
-        title: 'Participant',
-      },
-    ])
-    .map((registrationOption) => ({ ...registrationOption, id: getId() }));
+  const registrationOptionsToAdd: InferInsertModel<typeof schema.templateRegistrationOptions>[] =
+    createdFreeTemplates
+      .flatMap((template) => [
+        {
+          closeRegistrationOffset: 1,
+          description: 'Organizer registration',
+          isPaid: false,
+          openRegistrationOffset: 168,
+          organizingRegistration: true,
+          price: 0,
+          registrationMode: 'fcfs' as const,
+          roleIds: defaultOrganizerRoles.map((role) => role.id),
+          spots: 1,
+          templateId: template.id,
+          title: 'Organizer',
+        },
+        {
+          closeRegistrationOffset: 1,
+          description: 'Participant registration',
+          isPaid: false,
+          openRegistrationOffset: 168,
+          organizingRegistration: false,
+          price: 0,
+          registrationMode: 'fcfs' as const,
+          roleIds: defaultUserRoles.map((role) => role.id),
+          spots: 20,
+          templateId: template.id,
+          title: 'Participant',
+        },
+      ])
+      .map((registrationOption) => ({ ...registrationOption, id: getId() }));
 
-  await database
-    .insert(schema.templateRegistrationOptions)
-    .values(registrationOptionsToAdd);
+  await database.insert(schema.templateRegistrationOptions).values(registrationOptionsToAdd);
   consola.success(`Inserted ${registrationOptionsToAdd.length} free template registration options`);
 
   const paidTemplates =

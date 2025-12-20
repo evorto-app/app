@@ -7,11 +7,7 @@
 
     <mat-form-field class="w-full">
       <mat-label>Description</mat-label>
-      <textarea
-        matInput
-        formControlName="description"
-        [readonly]="isSubmitting()"
-      ></textarea>
+      <textarea matInput formControlName="description" [readonly]="isSubmitting()"></textarea>
     </mat-form-field>
 
     <mat-checkbox formControlName="defaultUserRole">
@@ -32,10 +28,7 @@
       </mat-checkbox>
     }
 
-    <div
-      class="grid grid-cols-1 gap-4 lg:col-span-2 lg:grid-cols-4"
-      formGroupName="permissions"
-    >
+    <div class="grid grid-cols-1 gap-4 lg:col-span-2 lg:grid-cols-4" formGroupName="permissions">
       @for (group of groupStates(); track group.key) {
         <div class="bg-surface text-on-surface rounded-2xl p-2">
           <mat-checkbox
@@ -60,7 +53,7 @@
                 @if (getDependentPermissions(permission.key).length > 0) {
                   <div class="text-on-surface-variant ml-6 text-xs">
                     Includes:
-                    {{ getDependentPermissions(permission.key).join(", ") }}
+                    {{ getDependentPermissions(permission.key).join(', ') }}
                   </div>
                 }
               </div>
@@ -70,11 +63,7 @@
       }
     </div>
   </div>
-  <button
-    type="submit"
-    mat-button
-    [disabled]="permissionForm.invalid || isSubmitting()"
-  >
+  <button type="submit" mat-button [disabled]="permissionForm.invalid || isSubmitting()">
     {{ submitLabel() }}
   </button>
 </form>

@@ -1,6 +1,4 @@
-<div
-  class="grid grid-cols-1 lg:relative lg:h-full lg:grid-cols-[400px_1fr] lg:gap-4"
->
+<div class="grid grid-cols-1 lg:relative lg:h-full lg:grid-cols-[400px_1fr] lg:gap-4">
   <div class="lg:h-full lg:overflow-y-auto lg:rounded-t-lg lg:p-4">
     <div
       class="mb-4 {{
@@ -28,24 +26,14 @@
         <fa-duotone-icon [icon]="faEllipsisVertical"></fa-duotone-icon>
       </button>
       <mat-menu #menu="matMenu">
-        <a
-          routerLink="/templates"
-          mat-menu-item
-          *appIfAnyPermission="['events:create']"
-        >
+        <a routerLink="/templates" mat-menu-item *appIfAnyPermission="['events:create']">
           Create Event
         </a>
       </mat-menu>
     </div>
-    <nav
-      class="{{
-        outletActive() ? 'hidden' : 'flex'
-      }} lg:flex flex-col gap-2 px-2 lg:px-0"
-    >
+    <nav class="{{ outletActive() ? 'hidden' : 'flex' }} lg:flex flex-col gap-2 px-2 lg:px-0">
       @if (eventQuery.isPending()) {
-        <div
-          class="bg-surface text-on-surface animate-pulse rounded-2xl px-4 py-2"
-        >
+        <div class="bg-surface text-on-surface animate-pulse rounded-2xl px-4 py-2">
           <p class="headline-small">Loading...</p>
         </div>
       } @else if (eventQuery.isError()) {
@@ -66,7 +54,7 @@
               routerLinkActive="bg-secondary-container! text-on-secondary-container!"
             >
               @switch (event.status) {
-                @case ("DRAFT") {
+                @case ('DRAFT') {
                   <div class="absolute right-0 top-0 h-16 w-16">
                     <div
                       class="body-small bg-warn text-on-warn absolute -right-9 top-3 w-28 rotate-45 transform py-1 text-center"
@@ -75,7 +63,7 @@
                     </div>
                   </div>
                 }
-                @case ("PENDING_REVIEW") {
+                @case ('PENDING_REVIEW') {
                   <div class="absolute right-0 top-0 h-16 w-16">
                     <div
                       class="body-small bg-tertiary-container text-on-tertiary-container absolute -right-9 top-3 w-28 rotate-45 transform py-1 text-center"
@@ -84,7 +72,7 @@
                     </div>
                   </div>
                 }
-                @case ("REJECTED") {
+                @case ('REJECTED') {
                   <div class="absolute right-0 top-0 h-16 w-16">
                     <div
                       class="body-small bg-error-container text-on-error-container absolute -right-9 top-3 w-28 rotate-45 transform py-1 text-center"
@@ -101,14 +89,14 @@
                   <div class="flex flex-row flex-wrap items-center gap-4">
                     <div class="flex flex-row items-center gap-2">
                       <fa-duotone-icon [icon]="faClock"></fa-duotone-icon>
-                      <p>{{ event.start | date: "shortTime" }}</p>
+                      <p>{{ event.start | date: 'shortTime' }}</p>
                     </div>
-            @if (event.unlisted) {
-              <div class="flex flex-row items-center gap-2">
-                <fa-duotone-icon [icon]="faEyeSlash"></fa-duotone-icon>
-                <p>unlisted</p>
-              </div>
-            }
+                    @if (event.unlisted) {
+                      <div class="flex flex-row items-center gap-2">
+                        <fa-duotone-icon [icon]="faEyeSlash"></fa-duotone-icon>
+                        <p>unlisted</p>
+                      </div>
+                    }
                   </div>
                 </div>
               </div>

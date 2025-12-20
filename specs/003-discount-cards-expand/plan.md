@@ -1,10 +1,10 @@
 # Implementation Plan: Tenant‑wide Discount Enablement with ESNcard
 
-
 **Branch**: `003-discount-cards-expand` | **Date**: 2025-09-16 | **Spec**: `/Users/hedde/code/evorto/specs/003-discount-cards-expand/spec.md`
 **Input**: Feature specification from `/specs/003-discount-cards-expand/spec.md`
 
 ## Execution Flow (/plan command scope)
+
 ```
 1. Load feature spec from Input path
    → If not found: ERROR "No feature spec at {path}"
@@ -26,13 +26,16 @@
 ```
 
 **IMPORTANT**: The /plan command STOPS at step 7. Phases 2-4 are executed by other commands:
+
 - Phase 2: /tasks command creates tasks.md
 - Phase 3-4: Implementation execution (manual or via tools)
 
 ## Summary
+
 Enable tenant‑wide discount providers with ESNcard as the first implementation. Keep a hard‑coded provider catalog, store tenant enablement in `tenants.discount_providers`, allow users to manage a single credential per provider with platform‑wide uniqueness, and apply the lowest eligible discounted price at registration. From research, we will consolidate provider discounts into a JSON field on registration options (templates + events), add a minimal snapshot to `event_registrations` for reporting, remove the “refresh” flow (upsert validates immediately), refine pricing tie‑breakers and validity‑on‑start, and complete UI/contract coverage with tests and documentation.
 
 ## Technical Context
+
 **Language/Version**: TypeScript (Node.js 20+, Angular 20)  
 **Primary Dependencies**: Angular Material 3, Tailwind, TanStack Query, tRPC, Effect Schema, Drizzle ORM, Postgres, Playwright  
 **Storage**: Postgres via Drizzle; JSONB for tenant provider config; enums for provider/status  
@@ -44,46 +47,56 @@ Enable tenant‑wide discount providers with ESNcard as the first implementation
 **Scale/Scope**: Single tenant at a time, typical org sizes; few providers initially
 
 ## Constitution Check
-*GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
+
+_GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
 
 **Simplicity**:
+
 - Projects: 1 web app (frontend+backend combined repo) + tests
 - Using framework directly (Angular, tRPC, Drizzle) – no wrappers
 - Single data model end‑to‑end; no DTOs beyond Effect Schema
 - Avoiding extra patterns; reuse existing modules
 
 **Architecture**:
+
 - Feature code integrated in existing folders: `src/server/discounts/**`, `src/server/trpc/**`, `src/app/**`, `src/db/schema/**`
 - No CLI needed; E2E tests drive validation
 - Docs generated via documentation tests per constitution
 
 **Testing (NON-NEGOTIABLE)**:
+
 - RED‑GREEN‑Refactor: Yes – add failing Playwright scenarios first
 - Order: E2E → Contract → Integration → Unit
 - Documentation tests will generate user‑facing docs for settings/profile/registration
 - Real dependencies: real DB and esncard.org call via adapter (with timeouts/handling)
 
 **Legacy Migration (data‑only)**:
+
 - Migration Impact: Data will be migrated from the old schema (source) to the planned target structures via TypeScript steps (no raw SQL files). Focus areas: (1) user ESNcards → `user_discount_cards`, (2) event price tiers → consolidated option discounts, (3) registration snapshots from old registrations/transactions. See `migration.md` for the precise TS migration approach and verification. No full data migration executed during development; runs post‑deploy per tenant.
 
 **Observability**:
+
 - Structured logs for provider toggles, validation calls (status, timings), and pricing selection
 - Clear error messages surfaced to UI
 
 **Design System & UI Standards**:
+
 - Angular Material 3 + Tailwind tokens (`src/styles.scss`); `<fa-duotone-icon>` icons
 - Accessibility: keyboardable forms, clear warnings, proper roles/labels
 - Integrate in existing settings/profile/event screens per screen strategy
 
 **Documentation & Knowledge Sharing**:
+
 - Documentation tests planned; output lives in `e2e/tests/**.doc.ts` (admin toggle, profile add card, registration pricing). Include a feature README with M3 references and screenshots; attach PR preview of generated docs per constitution.
 
 **Versioning**:
+
 - Internal BUILD increments; no external API breaking changes
 
 ## Project Structure
 
 ### Documentation (this feature)
+
 ```
 specs/[###-feature]/
 ├── plan.md              # This file (/plan command output)
@@ -96,6 +109,7 @@ specs/[###-feature]/
 ```
 
 ### Source Code (repository root)
+
 ```
 # Option 1: Single project (DEFAULT)
 src/
@@ -135,12 +149,14 @@ ios/ or android/
 **Structure Decision**: Web application (frontend + backend in single repo)
 
 ## Phase 0: Outline & Research
+
 1. **Extract unknowns from Technical Context** above:
    - For each NEEDS CLARIFICATION → research task
    - For each dependency → best practices task
    - For each integration → patterns task
 
 2. **Generate and dispatch research agents**:
+
    ```
    For each unknown in Technical Context:
      Task: "Research {unknown} for {feature context}"
@@ -156,7 +172,8 @@ ios/ or android/
 **Output**: `research.md` with all NEEDS CLARIFICATION resolved
 
 ## Phase 1: Design & Contracts
-*Prerequisites: research.md complete*
+
+_Prerequisites: research.md complete_
 
 1. **Extract entities from feature spec** → `data-model.md`:
    - Entity name, fields, relationships
@@ -188,21 +205,25 @@ ios/ or android/
 **Output**: `data-model.md`, `/contracts/*`, quickstart.md, agent-specific file
 
 ### Optional: Migration Plan (if legacy data involved)
+
 - Create `migration.md` including: data mapping rules (old → new), defaults/backfills for new fields, idempotency and verification, failure handling/(optional) rollback, and required seed data updates.
 
 ## Phase 2: Task Planning Approach
-*This section describes what the /tasks command will do - DO NOT execute during /plan*
+
+_This section describes what the /tasks command will do - DO NOT execute during /plan_
 
 **Task Generation Strategy**:
+
 - Load `/templates/tasks-template.md` as base
 - Generate tasks from Phase 1 design docs (contracts, data model, quickstart)
 - Each contract → contract test task [P]
-- Each entity → model creation task [P] 
+- Each entity → model creation task [P]
 - Each user story → integration test task
 - Implementation tasks to make tests pass
 
 **Ordering Strategy**:
-- TDD order: Tests before implementation 
+
+- TDD order: Tests before implementation
 - Dependency order: Models before services before UI
 - Mark [P] for parallel execution (independent files)
 
@@ -211,25 +232,28 @@ ios/ or android/
 **IMPORTANT**: This phase is executed by the /tasks command, NOT by /plan
 
 ## Phase 3+: Future Implementation
-*These phases are beyond the scope of the /plan command*
+
+_These phases are beyond the scope of the /plan command_
 
 **Phase 3**: Task execution (/tasks command creates tasks.md)  
 **Phase 4**: Implementation (execute tasks.md following constitutional principles)  
 **Phase 5**: Validation (run tests, execute quickstart.md, performance validation)
 
 ## Complexity Tracking
-*Fill ONLY if Constitution Check has violations that must be justified*
 
-| Violation | Why Needed | Simpler Alternative Rejected Because |
-|-----------|------------|-------------------------------------|
-| [e.g., 4th project] | [current need] | [why 3 projects insufficient] |
-| [e.g., Repository pattern] | [specific problem] | [why direct DB access insufficient] |
+_Fill ONLY if Constitution Check has violations that must be justified_
 
+| Violation                  | Why Needed         | Simpler Alternative Rejected Because |
+| -------------------------- | ------------------ | ------------------------------------ |
+| [e.g., 4th project]        | [current need]     | [why 3 projects insufficient]        |
+| [e.g., Repository pattern] | [specific problem] | [why direct DB access insufficient]  |
 
 ## Progress Tracking
-*This checklist is updated during execution flow*
+
+_This checklist is updated during execution flow_
 
 **Phase Status**:
+
 - [x] Phase 0: Research complete (/plan command)
 - [x] Phase 1: Design complete (/plan command)
 - [x] Phase 2: Task planning complete (/plan command - describe approach only)
@@ -238,10 +262,12 @@ ios/ or android/
 - [ ] Phase 5: Validation passed
 
 **Gate Status**:
+
 - [x] Initial Constitution Check: PASS
 - [x] Post-Design Constitution Check: PASS
 - [x] All NEEDS CLARIFICATION resolved
 - [ ] Complexity deviations documented
 
 ---
-*Based on Constitution 1.1.3 - See `.specify/memory/constitution.md`*
+
+_Based on Constitution 1.1.3 - See `.specify/memory/constitution.md`_

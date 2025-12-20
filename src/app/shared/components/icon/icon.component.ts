@@ -17,9 +17,7 @@ import {
   templateUrl: './icon.component.html',
 })
 export class IconComponent {
-  public iconCommonName = input.required<
-    string | { iconColor: number; iconName: string }
-  >();
+  public iconCommonName = input.required<string | { iconColor: number; iconName: string }>();
   public size = input(24, {
     transform: numberAttribute,
   });

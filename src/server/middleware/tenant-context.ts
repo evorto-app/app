@@ -12,8 +12,7 @@ export const addTenantContext = async (
 ) => {
   const cause = { domain: '', tenantCookie: '' };
   const tenantCookie =
-    request.signedCookies?.['evorto-tenant'] ??
-    request.cookies?.['evorto-tenant'];
+    request.signedCookies?.['evorto-tenant'] ?? request.cookies?.['evorto-tenant'];
   let tenant;
   if (tenantCookie) {
     tenant = await getTenant.execute({ domain: tenantCookie });

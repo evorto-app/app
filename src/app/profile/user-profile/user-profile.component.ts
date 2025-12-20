@@ -1,11 +1,5 @@
 import { DatePipe } from '@angular/common';
-import {
-  ChangeDetectionStrategy,
-  Component,
-  inject,
-  signal,
-  computed,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -23,11 +17,7 @@ import {
   faRightFromBracket,
   faUser,
 } from '@fortawesome/duotone-regular-svg-icons';
-import {
-  injectMutation,
-  injectQuery,
-  QueryClient,
-} from '@tanstack/angular-query-experimental';
+import { injectMutation, injectQuery, QueryClient } from '@tanstack/angular-query-experimental';
 
 import { NotificationService } from '../../core/notification.service';
 import { injectTRPC } from '../../core/trpc-client';
@@ -68,18 +58,6 @@ export class UserProfileComponent {
   private readonly notifications = inject(NotificationService);
   private readonly queryClient = inject(QueryClient);
   private readonly trpc = injectTRPC();
-  protected readonly discountProvidersQuery = injectQuery(() =>
-    this.trpc.discounts.getTenantProviders.queryOptions(),
-  );
-  protected readonly esnEnabled = computed(() => {
-    const providers = this.discountProvidersQuery.data();
-    if (!providers) return false;
-    return providers.find((p) => p.type === 'esnCard')?.enabled === true;
-  });
-  protected readonly esnProvider = computed(() => {
-    const providers = this.discountProvidersQuery.data();
-    return providers?.find((p) => p.type === 'esnCard');
-  });
   protected readonly deleteCardMutation = injectMutation(() =>
     this.trpc.discounts.deleteMyCard.mutationOptions({
       onSuccess: async () => {
@@ -90,11 +68,23 @@ export class UserProfileComponent {
       },
     }),
   );
+  protected readonly discountProvidersQuery = injectQuery(() =>
+    this.trpc.discounts.getTenantProviders.queryOptions(),
+  );
   protected displayName = signal('');
-
   protected readonly esnCardControl = new FormControl<string>('', {
     nonNullable: true,
     validators: [Validators.pattern(/^[A-Za-z0-9]{8,16}$/)],
+  });
+  protected readonly esnEnabled = computed(() => {
+    const providers = this.discountProvidersQuery.data();
+    if (!providers) return false;
+    return providers.find((p) => p.type === 'esnCard')?.enabled === true;
+  });
+
+  protected readonly esnProvider = computed(() => {
+    const providers = this.discountProvidersQuery.data();
+    return providers?.find((p) => p.type === 'esnCard');
   });
   protected readonly faCalendarDays = faCalendarDays;
 
@@ -137,9 +127,7 @@ export class UserProfileComponent {
   protected readonly userEventsQuery = injectQuery(() =>
     this.trpc.users.events.findMany.queryOptions(),
   );
-  protected readonly userQuery = injectQuery(() =>
-    this.trpc.users.self.queryOptions(),
-  );
+  protected readonly userQuery = injectQuery(() => this.trpc.users.self.queryOptions());
 
   protected cancelEditing(): void {
     this.isEditing.set(false);
@@ -173,9 +161,7 @@ export class UserProfileComponent {
       },
       {
         onError: (error) => {
-          this.notifications.showError(
-            'Failed to update profile: ' + error.message,
-          );
+          this.notifications.showError('Failed to update profile: ' + error.message);
         },
         onSuccess: async () => {
           await this.queryClient.invalidateQueries({
@@ -192,9 +178,7 @@ export class UserProfileComponent {
   }
 
   protected startEditing(): void {
-    this.displayName.set(
-      this.userQuery.data()?.firstName + ' ' + this.userQuery.data()?.lastName,
-    );
+    this.displayName.set(this.userQuery.data()?.firstName + ' ' + this.userQuery.data()?.lastName);
     this.isEditing.set(true);
   }
 }

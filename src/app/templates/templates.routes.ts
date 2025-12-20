@@ -33,24 +33,20 @@ export const TEMPLATE_ROUTES: Routes = [
       },
       {
         loadComponent: () =>
-          import('./template-edit/template-edit.component').then(
-            (m) => m.TemplateEditComponent,
-          ),
+          import('./template-edit/template-edit.component').then((m) => m.TemplateEditComponent),
 
         path: ':templateId/edit',
       },
       {
         loadComponent: () =>
-          import(
-            './template-create-event/template-create-event.component'
-          ).then((m) => m.TemplateCreateEventComponent),
+          import('./template-create-event/template-create-event.component').then(
+            (m) => m.TemplateCreateEventComponent,
+          ),
         path: ':templateId/create-event',
       },
     ],
     loadComponent: () =>
-      import('./template-list/template-list.component').then(
-        (m) => m.TemplateListComponent,
-      ),
+      import('./template-list/template-list.component').then((m) => m.TemplateListComponent),
     path: '',
   },
 ];

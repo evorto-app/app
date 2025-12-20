@@ -1,9 +1,5 @@
 import { SelectionModel } from '@angular/cdk/collections';
-import {
-  ChangeDetectionStrategy,
-  Component,
-  signal,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatChipsModule } from '@angular/material/chips';
@@ -12,11 +8,7 @@ import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatTableModule } from '@angular/material/table';
 import { RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
-import {
-  faArrowLeft,
-  faEdit,
-  faEllipsisVertical,
-} from '@fortawesome/duotone-regular-svg-icons';
+import { faArrowLeft, faEdit, faEllipsisVertical } from '@fortawesome/duotone-regular-svg-icons';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 import consola from 'consola/browser';
 
@@ -87,8 +79,6 @@ export class UserListComponent {
   toggleAllRows() {
     this.isAllSelected()
       ? this.selection.clear()
-      : this.usersQuery
-          .data()
-          ?.users?.forEach((row) => this.selection.select(row));
+      : this.usersQuery.data()?.users?.forEach((row) => this.selection.select(row));
   }
 }

@@ -16,7 +16,12 @@ import { MatMenuModule } from '@angular/material/menu';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
-import { faClock, faEllipsisVertical, faEyeSlash, faFilter } from '@fortawesome/duotone-regular-svg-icons';
+import {
+  faClock,
+  faEllipsisVertical,
+  faEyeSlash,
+  faFilter,
+} from '@fortawesome/duotone-regular-svg-icons';
 import consola from 'consola/browser';
 import { firstValueFrom } from 'rxjs';
 
@@ -61,8 +66,7 @@ export class EventListComponent {
   protected readonly faFilter = faFilter;
   protected readonly outletActive = signal(false);
   protected readonly startFilter = this.eventListService.startFilter;
-  protected readonly statusFilterControl =
-    this.eventListService.statusFilterControl;
+  protected readonly statusFilterControl = this.eventListService.statusFilterControl;
   private readonly config = inject(ConfigService);
   private readonly dialog = inject(MatDialog);
   private readonly taskService = inject(PendingTasks);

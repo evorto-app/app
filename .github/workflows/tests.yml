@@ -9,7 +9,7 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
 jobs:
   playwright:
-    name: "Playwright Tests"
+    name: 'Playwright Tests'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

@@ -1,11 +1,4 @@
-import {
-  jsonb,
-  pgEnum,
-  pgTable,
-  timestamp,
-  unique,
-  varchar,
-} from 'drizzle-orm/pg-core';
+import { jsonb, pgEnum, pgTable, timestamp, unique, varchar } from 'drizzle-orm/pg-core';
 
 import { createId } from '../create-id';
 import { discountTypes } from './global-enums';

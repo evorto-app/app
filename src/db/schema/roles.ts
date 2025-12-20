@@ -1,12 +1,5 @@
 import { modelOfTenant } from '@db/schema/model';
-import {
-  boolean,
-  integer,
-  jsonb,
-  pgTable,
-  text,
-  unique,
-} from 'drizzle-orm/pg-core';
+import { boolean, integer, jsonb, pgTable, text, unique } from 'drizzle-orm/pg-core';
 
 import { Permission } from '../../shared/permissions/permissions';
 

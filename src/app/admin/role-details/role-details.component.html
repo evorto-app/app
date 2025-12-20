@@ -4,10 +4,7 @@
   </a>
   <h1 class="title-large">{{ roleQuery.data()?.name }}</h1>
   <div class="grow"></div>
-  <a
-    [routerLink]="['/admin/roles', roleQuery.data()?.id, 'edit']"
-    mat-icon-button
-  >
+  <a [routerLink]="['/admin/roles', roleQuery.data()?.id, 'edit']" mat-icon-button>
     <fa-icon [icon]="faEdit"></fa-icon>
   </a>
 </div>

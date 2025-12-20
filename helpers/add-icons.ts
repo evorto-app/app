@@ -55,10 +55,7 @@ export const addIcons = async (
       } as const;
     }),
   );
-  const inserted = await database
-    .insert(schema.icons)
-    .values(values)
-    .returning();
+  const inserted = await database.insert(schema.icons).values(values).returning();
   consola.success(`Inserted ${inserted.length} icons`);
   return inserted;
 };

@@ -33,18 +33,17 @@ export const discountsRouter = router({
     });
     const config = (tenant as any)?.discountProviders ?? {};
     // Normalize to full providers list
-    return (Object.keys(PROVIDERS) as (keyof typeof PROVIDERS)[]).map(
-      (type) => {
-        const entry = (config?.[type] ?? {}) as any;
-        // Backwards compatibility: map legacy { status } to new { enabled }
-        const enabled = typeof entry.enabled === 'boolean' ? entry.enabled : entry.status === 'enabled';
-        return {
-          config: entry?.config ?? {},
-          enabled,
-          type,
-        } as const;
-      },
-    );
+    return (Object.keys(PROVIDERS) as (keyof typeof PROVIDERS)[]).map((type) => {
+      const entry = (config?.[type] ?? {}) as any;
+      // Backwards compatibility: map legacy { status } to new { enabled }
+      const enabled =
+        typeof entry.enabled === 'boolean' ? entry.enabled : entry.status === 'enabled';
+      return {
+        config: entry?.config ?? {},
+        enabled,
+        type,
+      } as const;
+    });
   }),
 
   refreshMyCard: authenticatedProcedure
@@ -64,7 +63,10 @@ export const discountsRouter = router({
       if (!card) throw new Error('No card on file');
       const adapter = (await import('../../discounts/providers')).Adapters[input.type];
       if (!adapter) return card;
-      const result = await adapter.validate({ config: provider.config, identifier: card.identifier });
+      const result = await adapter.validate({
+        config: provider.config,
+        identifier: card.identifier,
+      });
       return (
         await database
           .update(schema.userDiscountCards)
@@ -89,7 +91,7 @@ export const discountsRouter = router({
             Schema.Struct({
               config: Schema.Any,
               enabled: Schema.Boolean,
-              type: Schema.Literal(...Object.keys(PROVIDERS) as any),
+              type: Schema.Literal(...(Object.keys(PROVIDERS) as any)),
             }),
           ),
         }),
@@ -173,20 +175,21 @@ export const discountsRouter = router({
       if (!adapter) {
         return upserted;
       }
-      const result = await adapter.validate({ config: provider.config, identifier: input.identifier });
-      const [updated] =
-        await database
-          .update(schema.userDiscountCards)
-          .set({
-            lastCheckedAt: new Date(),
-            metadata: result.metadata as any,
-            status: result.status as any,
-            validFrom: result.validFrom ?? null,
-            validTo: result.validTo ?? null,
-          })
-          .where(eq(schema.userDiscountCards.id, upserted.id))
-          .returning()
-      ;
+      const result = await adapter.validate({
+        config: provider.config,
+        identifier: input.identifier,
+      });
+      const [updated] = await database
+        .update(schema.userDiscountCards)
+        .set({
+          lastCheckedAt: new Date(),
+          metadata: result.metadata as any,
+          status: result.status as any,
+          validFrom: result.validFrom ?? null,
+          validTo: result.validTo ?? null,
+        })
+        .where(eq(schema.userDiscountCards.id, upserted.id))
+        .returning();
       if (updated.status !== 'verified') {
         throw new Error(
           'Card is not active. It is either expired or was not activated on esncard.org',

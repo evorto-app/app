@@ -5,115 +5,66 @@ import consola from 'consola';
  * These provide audit trails and debugging information
  */
 
-export interface TaxRateLogContext {
-  tenantId: string;
-  userId?: string;
-  timestamp?: Date;
+export interface CheckoutLogData extends TaxRateLogContext {
+  effectivePrice: number;
+  eventId: string;
+  originalPrice: number;
+  registrationId: string;
+  stripeTaxRateId?: null | string;
+  taxRateStatus?: 'active' | 'inactive' | 'missing';
+  treatAsFree?: boolean;
 }
 
 export interface ImportLogData extends TaxRateLogContext {
-  stripeTaxRateIds: string[];
+  errors?: string[];
   importedCount: number;
   skippedCount: number;
-  errors?: string[];
-}
-
-export interface ValidationLogData extends TaxRateLogContext {
-  optionType: 'template' | 'event';
-  optionId: string;
-  optionTitle?: string;
-  stripeTaxRateId?: string | null;
-  isPaid: boolean;
-  validationResult: 'success' | 'error';
-  errorCode?: string;
-  errorMessage?: string;
-}
-
-export interface CheckoutLogData extends TaxRateLogContext {
-  registrationId: string;
-  eventId: string;
-  stripeTaxRateId?: string | null;
-  originalPrice: number;
-  effectivePrice: number;
-  treatAsFree?: boolean;
-  taxRateStatus?: 'active' | 'inactive' | 'missing';
+  stripeTaxRateIds: string[];
 }
 
 export interface LabelLogData extends TaxRateLogContext {
-  stripeTaxRateId?: string | null;
   fallbackUsed: boolean;
   requestedData?: {
-    percentage?: string | null;
-    displayName?: string | null;
+    displayName?: null | string;
+    percentage?: null | string;
   };
   resolvedLabel: string;
+  stripeTaxRateId?: null | string;
 }
 
 export interface MigrationLogData extends TaxRateLogContext {
-  optionType: 'template' | 'event';
-  optionId: string;
-  previousTaxRateId?: string | null;
-  assignedTaxRateId?: string | null;
+  assignedTaxRateId?: null | string;
   migrationStep: string;
+  optionId: string;
+  optionType: 'event' | 'template';
+  previousTaxRateId?: null | string;
+}
+
+export interface TaxRateLogContext {
+  tenantId: string;
+  timestamp?: Date;
+  userId?: string;
+}
+
+export interface ValidationLogData extends TaxRateLogContext {
+  errorCode?: string;
+  errorMessage?: string;
+  isPaid: boolean;
+  optionId: string;
+  optionTitle?: string;
+  optionType: 'event' | 'template';
+  stripeTaxRateId?: null | string;
+  validationResult: 'error' | 'success';
 }
 
 /**
  * Tax rate operation logger with structured events
  */
-export class TaxRateLogger {
-  /**
-   * Log successful tax rate import operation
-   */
-  static logImportSuccess(data: ImportLogData): void {
-    consola.info('tax-rates.import.success', {
-      ...data,
-      timestamp: new Date(),
-    });
-  }
-
-  /**
-   * Log tax rate import failure
-   */
-  static logImportError(data: ImportLogData & { error: Error }): void {
-    consola.error('tax-rates.import.error', {
-      ...data,
-      errorMessage: data.error.message,
-      errorStack: data.error.stack,
-      timestamp: new Date(),
-    });
-  }
-
-  /**
-   * Log tax rate validation events
-   */
-  static logValidation(data: ValidationLogData): void {
-    if (data.validationResult === 'error') {
-      consola.error('tax-rates.validation.error', {
-        ...data,
-        timestamp: new Date(),
-      });
-    } else {
-      consola.debug('tax-rates.validation.success', {
-        ...data,
-        timestamp: new Date(),
-      });
-    }
-  }
-
-  /**
-   * Log checkout tax rate warnings
-   */
-  static logCheckoutWarning(data: CheckoutLogData & { warning: string }): void {
-    consola.warn('tax-rates.checkout.warning', {
-      ...data,
-      timestamp: new Date(),
-    });
-  }
-
+export const TaxRateLogger = {
   /**
    * Log checkout tax rate events
    */
-  static logCheckoutEvent(data: CheckoutLogData): void {
+  logCheckoutEvent(data: CheckoutLogData): void {
     if (data.treatAsFree) {
       consola.info('tax-rates.checkout.treat-as-free', {
         ...data,
@@ -125,44 +76,95 @@ export class TaxRateLogger {
         timestamp: new Date(),
       });
     }
-  }
+  },
+
+  /**
+   * Log checkout tax rate warnings
+   */
+  logCheckoutWarning(data: CheckoutLogData & { warning: string }): void {
+    consola.warn('tax-rates.checkout.warning', {
+      ...data,
+      timestamp: new Date(),
+    });
+  },
+
+  /**
+   * Log tax rate import failure
+   */
+  logImportError(data: ImportLogData & { error: Error }): void {
+    consola.error('tax-rates.import.error', {
+      ...data,
+      errorMessage: data.error.message,
+      errorStack: data.error.stack,
+      timestamp: new Date(),
+    });
+  },
+
+  /**
+   * Log successful tax rate import operation
+   */
+  logImportSuccess(data: ImportLogData): void {
+    consola.info('tax-rates.import.success', {
+      ...data,
+      timestamp: new Date(),
+    });
+  },
 
   /**
    * Log fallback label usage
    */
-  static logLabelFallback(data: LabelLogData): void {
+  logLabelFallback(data: LabelLogData): void {
     if (data.fallbackUsed) {
       consola.debug('tax-rates.label.fallback-used', {
         ...data,
         timestamp: new Date(),
       });
     }
-  }
+  },
 
   /**
    * Log migration operations
    */
-  static logMigration(data: MigrationLogData): void {
+  logMigration(data: MigrationLogData): void {
     consola.info('tax-rates.migration.assignment', {
       ...data,
       timestamp: new Date(),
     });
-  }
+  },
 
   /**
    * Log when imported rate becomes unavailable
    */
-  static logRateUnavailable(data: TaxRateLogContext & {
-    stripeTaxRateId: string;
-    reason: string;
-    affectedOptions?: Array<{ optionId: string; optionType: 'template' | 'event' }>;
-  }): void {
+  logRateUnavailable(
+    data: TaxRateLogContext & {
+      affectedOptions?: { optionId: string; optionType: 'event' | 'template' }[];
+      reason: string;
+      stripeTaxRateId: string;
+    },
+  ): void {
     consola.warn('tax-rates.rate.unavailable', {
       ...data,
       timestamp: new Date(),
     });
-  }
-}
+  },
+
+  /**
+   * Log tax rate validation events
+   */
+  logValidation(data: ValidationLogData): void {
+    if (data.validationResult === 'error') {
+      consola.error('tax-rates.validation.error', {
+        ...data,
+        timestamp: new Date(),
+      });
+    } else {
+      consola.debug('tax-rates.validation.success', {
+        ...data,
+        timestamp: new Date(),
+      });
+    }
+  },
+};
 
 /**
  * Helper function to create base log context from common parameters
@@ -172,10 +174,10 @@ export function createLogContext(tenantId: string, userId?: string): TaxRateLogC
     tenantId,
     timestamp: new Date(),
   };
-  
+
   if (userId) {
     context.userId = userId;
   }
-  
+
   return context;
 }

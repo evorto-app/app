@@ -84,8 +84,7 @@ export async function seedBaseline(
             if (data.roles === 'user') return role.defaultUserRole;
             if (data.roles === 'organizer')
               return role.defaultUserRole || role.defaultOrganizerRole;
-            if (data.roles === 'admin')
-              return role.defaultUserRole || role.name === 'Admin';
+            if (data.roles === 'admin') return role.defaultUserRole || role.name === 'Admin';
             return false;
           })
           .map((role) => ({ roleId: role.id, userId: data.id })),

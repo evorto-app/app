@@ -6,10 +6,7 @@
  * - For suspected social media crawlers, skips silent login to avoid unnecessary authentication.
  */
 
-import {
-  AngularNodeAppEngine,
-  writeResponseToNodeResponse,
-} from '@angular/ssr/node';
+import { AngularNodeAppEngine, writeResponseToNodeResponse } from '@angular/ssr/node';
 import * as Sentry from '@sentry/node';
 import * as trpcExpress from '@trpc/server/adapters/express';
 import compression from 'compression';
@@ -32,10 +29,7 @@ import { appRouter } from './trpc/app-router';
 import { webhookRouter } from './webhooks';
 
 const serverDistributionFolder = path.dirname(fileURLToPath(import.meta.url));
-const browserDistributionFolder = path.resolve(
-  serverDistributionFolder,
-  '../browser',
-);
+const browserDistributionFolder = path.resolve(serverDistributionFolder, '../browser');
 
 const config: ConfigParams = {
   auth0Logout: true,
@@ -135,9 +129,7 @@ app.use('/{*splat}', (request, expressResponse, next) => {
     angularApp
       .handle(request, requestContext.right)
       .then((response) =>
-        response
-          ? writeResponseToNodeResponse(response, expressResponse)
-          : next(),
+        response ? writeResponseToNodeResponse(response, expressResponse) : next(),
       )
       .catch(next);
   };
@@ -156,7 +148,7 @@ Sentry.setupExpressErrorHandler(app);
 
 // Final error handler: redirect to /500 for HTML requests
 // Must be the last handler
-const finalErrorHandler: ErrorRequestHandler = (error, request, response) => {
+const finalErrorHandler: ErrorRequestHandler = (error, request, response, _next) => {
   try {
     consola.error(error);
     if (response.headersSent) return;

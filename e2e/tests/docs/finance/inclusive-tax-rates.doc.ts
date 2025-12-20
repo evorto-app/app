@@ -1,8 +1,4 @@
-import {
-  adminStateFile,
-  userStateFile,
-  usersToAuthenticate,
-} from '../../../../helpers/user-data';
+import { adminStateFile, userStateFile, usersToAuthenticate } from '../../../../helpers/user-data';
 import { expect, test } from '../../../fixtures/parallel-test';
 import { takeScreenshot } from '../../../reporters/documentation-reporter';
 
@@ -40,7 +36,7 @@ The admin overview links to all configuration areas. Select **Tax Rates** to man
       testInfo,
       page.locator('app-tax-rates-settings'),
       page,
-      'Tax rates overview'
+      'Tax rates overview',
     );
 
     await testInfo.attach('markdown', {
@@ -63,7 +59,7 @@ The admin overview links to all configuration areas. Select **Tax Rates** to man
       testInfo,
       page.locator('mat-dialog-container'),
       page,
-      'Import Stripe tax rates dialog'
+      'Import Stripe tax rates dialog',
     );
 
     await testInfo.attach('markdown', {
@@ -105,9 +101,7 @@ Navigate to **Templates** and open an existing paid template to see the enforced
     await expect(soccerTemplateLink).toBeVisible();
     await soccerTemplateLink.click();
 
-    await expect(
-      page.getByRole('heading', { level: 1, name: 'Soccer Match' })
-    ).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'Soccer Match' })).toBeVisible();
 
     const registrationSection = page
       .locator('section')
@@ -117,7 +111,7 @@ Navigate to **Templates** and open an existing paid template to see the enforced
       testInfo,
       registrationSection,
       page,
-      'Template registration options with inclusive labels'
+      'Template registration options with inclusive labels',
     );
 
     await testInfo.attach('markdown', {
@@ -137,7 +131,7 @@ Each paid registration displays the final price together with its inclusive tax 
       testInfo,
       organizerSection,
       page,
-      'Organizer registration tax rate selector'
+      'Organizer registration tax rate selector',
     );
 
     await testInfo.attach('markdown', {
@@ -150,7 +144,7 @@ Paid organizer registrations require a compatible inclusive tax rate. The dropdo
       testInfo,
       participantSection,
       page,
-      'Participant registration tax rate selector'
+      'Participant registration tax rate selector',
     );
 
     await testInfo.attach('markdown', {
@@ -166,9 +160,7 @@ Participant registrations follow the same rule—if payment is enabled, the tax 
     await expect(soccerEventLink).toBeVisible();
     await soccerEventLink.click();
 
-    await expect(
-      page.getByRole('heading', { level: 1, name: /Soccer Match 1/i })
-    ).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: /Soccer Match 1/i })).toBeVisible();
 
     await testInfo.attach('markdown', {
       body: `
@@ -184,15 +176,10 @@ Event editors can revisit the same controls when updating a live event. Use **Ed
     await expect(eventEditForm).toBeVisible();
 
     const eventEditTax = eventEditForm.locator(
-      'app-registration-option-form mat-select[formcontrolname="stripeTaxRateId"]'
+      'app-registration-option-form mat-select[formcontrolname="stripeTaxRateId"]',
     );
 
-    await takeScreenshot(
-      testInfo,
-      eventEditTax.first(),
-      page,
-      'Event edit tax rate selector'
-    );
+    await takeScreenshot(testInfo, eventEditTax.first(), page, 'Event edit tax rate selector');
 
     await testInfo.attach('markdown', {
       body: `
@@ -205,9 +192,13 @@ Existing paid registrations keep their inclusive tax requirements. Update the se
 test.describe('Inclusive tax rates documentation (participants)', () => {
   test.use({ storageState: userStateFile });
 
-  test('See inclusive pricing during registration', async ({ events, page, registrations, tenant }, testInfo) => {
-    const regularUserId =
-      usersToAuthenticate.find((entry) => entry.roles === 'user')?.id;
+  test('See inclusive pricing during registration', async ({
+    events,
+    page,
+    registrations,
+    tenant,
+  }, testInfo) => {
+    const regularUserId = usersToAuthenticate.find((entry) => entry.roles === 'user')?.id;
 
     const paidEvent = events.find((event) => {
       if (event.tenantId !== tenant.id) return false;
@@ -234,15 +225,11 @@ test.describe('Inclusive tax rates documentation (participants)', () => {
     await page.goto('/events');
     await expect(page.getByRole('heading', { name: 'Events' })).toBeVisible();
 
-    const eventLink = page
-      .getByRole('link', { name: paidEvent!.title })
-      .first();
+    const eventLink = page.getByRole('link', { name: paidEvent!.title }).first();
     await expect(eventLink).toBeVisible();
     await eventLink.click();
 
-    await expect(
-      page.getByRole('heading', { level: 1, name: paidEvent!.title })
-    ).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: paidEvent!.title })).toBeVisible();
 
     await testInfo.attach('markdown', {
       body: `
@@ -271,7 +258,7 @@ Participants always see tax-inclusive pricing. The registration card shows the f
       testInfo,
       screenshotTarget,
       page,
-      'Participant registration with inclusive pricing'
+      'Participant registration with inclusive pricing',
     );
 
     await testInfo.attach('markdown', {
@@ -292,9 +279,7 @@ Participants always see tax-inclusive pricing. The registration card shows the f
       await payAndRegisterButton.click();
       await expect(activeRegistration).toBeVisible();
 
-      const payNowLink = activeRegistration
-        .first()
-        .getByRole('link', { name: /Pay now/i });
+      const payNowLink = activeRegistration.first().getByRole('link', { name: /Pay now/i });
       await expect(payNowLink).toHaveCount(1);
       if ((await payNowLink.count()) > 0) {
         const popupPromise = page
@@ -317,7 +302,7 @@ Participants always see tax-inclusive pricing. The registration card shows the f
           testInfo,
           checkoutPage.locator('body'),
           checkoutPage,
-          'Stripe checkout summary'
+          'Stripe checkout summary',
         );
 
         await testInfo.attach('markdown', {
@@ -334,9 +319,7 @@ The Stripe-hosted checkout shows the same tax-inclusive price, and the tax rate 
             .filter((fragment) => fragment.length > 1);
 
           for (const fragment of fragments) {
-            await expect(
-              checkoutPage.getByText(new RegExp(fragment, 'i')),
-            ).toBeVisible();
+            await expect(checkoutPage.getByText(new RegExp(fragment, 'i'))).toBeVisible();
           }
         }
 

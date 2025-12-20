@@ -1,5 +1,5 @@
 import { inject, Injectable } from '@angular/core';
-import { Loader } from '@googlemaps/js-api-loader';
+import { importLibrary, setOptions } from '@googlemaps/js-api-loader';
 
 import { GoogleLocationType } from '../../types/location';
 import { ConfigService } from './config.service';
@@ -11,10 +11,8 @@ export class LocationSearch {
   private _autocompleteService?: typeof google.maps.places.AutocompleteSuggestion;
   private _sessionToken?: google.maps.places.AutocompleteSessionToken;
   private readonly config = inject(ConfigService);
-  private loader?: Loader;
-  async getPlaceDetails(
-    place: google.maps.places.Place,
-  ): Promise<GoogleLocationType> {
+  private optionsConfigured = false;
+  async getPlaceDetails(place: google.maps.places.Place): Promise<GoogleLocationType> {
     await place.fetchFields({
       fields: ['displayName', 'formattedAddress', 'location'],
     });
@@ -56,30 +54,30 @@ export class LocationSearch {
       };
     }
 
-    return service
-      .fetchAutocompleteSuggestions(request)
-      .then((result) => result.suggestions ?? []);
+    return service.fetchAutocompleteSuggestions(request).then((result) => result.suggestions ?? []);
   }
 
   private async initAutocomplete(): Promise<{
     service: typeof google.maps.places.AutocompleteSuggestion;
     token: google.maps.places.AutocompleteSessionToken;
   }> {
-    if (!this.loader) {
-      this.loader = new Loader({
-        apiKey: this.config.publicConfig.googleMapsApiKey ?? '',
-        version: 'weekly',
+    if (!this.optionsConfigured) {
+      setOptions({
+        key: this.config.publicConfig.googleMapsApiKey ?? '',
+        v: 'weekly',
       });
+      this.optionsConfigured = true;
     }
     if (!this._autocompleteService || !this._sessionToken) {
-      const { AutocompleteSessionToken, AutocompleteSuggestion } =
-        await this.loader.importLibrary('places');
+      const { AutocompleteSessionToken, AutocompleteSuggestion } = (await importLibrary(
+        'places',
+      )) as google.maps.PlacesLibrary;
       this._autocompleteService = AutocompleteSuggestion;
       this._sessionToken = new AutocompleteSessionToken();
     }
     return {
-      service: this._autocompleteService,
-      token: this._sessionToken,
+      service: this._autocompleteService!,
+      token: this._sessionToken!,
     };
   }
 }

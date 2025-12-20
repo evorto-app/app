@@ -23,19 +23,8 @@ export const enrollmentStatus = pgEnum('EnrollmentStatus', [
   'NONE',
   'OTHER',
 ]);
-export const homePageStrategy = pgEnum('HomePageStrategy', [
-  'LINK',
-  'STATIC',
-  'MARKDOWN',
-  'NONE',
-]);
-export const logSeverity = pgEnum('LogSeverity', [
-  'SILLY',
-  'DEBUG',
-  'INFO',
-  'WARNING',
-  'ERROR',
-]);
+export const homePageStrategy = pgEnum('HomePageStrategy', ['LINK', 'STATIC', 'MARKDOWN', 'NONE']);
+export const logSeverity = pgEnum('LogSeverity', ['SILLY', 'DEBUG', 'INFO', 'WARNING', 'ERROR']);
 export const membershipStatus = pgEnum('MembershipStatus', [
   'NONE',
   'TRIAL',
@@ -52,23 +41,14 @@ export const publicationState = pgEnum('PublicationState', [
   'PUBLIC',
   'ORGANIZERS',
 ]);
-export const purchaseStatus = pgEnum('PurchaseStatus', [
-  'PENDING',
-  'PAID',
-  'SENT',
-  'CANCELLED',
-]);
+export const purchaseStatus = pgEnum('PurchaseStatus', ['PENDING', 'PAID', 'SENT', 'CANCELLED']);
 export const registrationCodeStatus = pgEnum('RegistrationCodeStatus', [
   'OPEN',
   'PENDING',
   'SUCCESSFUL',
   'CANCELLED',
 ]);
-export const registrationMode = pgEnum('RegistrationMode', [
-  'STRIPE',
-  'ONLINE',
-  'EXTERNAL',
-]);
+export const registrationMode = pgEnum('RegistrationMode', ['STRIPE', 'ONLINE', 'EXTERNAL']);
 export const registrationStatus = pgEnum('RegistrationStatus', [
   'PENDING',
   'SUCCESSFUL',
@@ -106,17 +86,8 @@ export const transactionDirection = pgEnum('TransactionDirection', [
   'EXTERNAL_TO_USER',
   'USER_TO_USER',
 ]);
-export const transactionStatus = pgEnum('TransactionStatus', [
-  'PENDING',
-  'CONFIRMED',
-  'CANCELLED',
-]);
-export const transactionType = pgEnum('TransactionType', [
-  'CASH',
-  'STRIPE',
-  'TRANSFER',
-  'PAYPAL',
-]);
+export const transactionStatus = pgEnum('TransactionStatus', ['PENDING', 'CONFIRMED', 'CANCELLED']);
+export const transactionType = pgEnum('TransactionType', ['CASH', 'STRIPE', 'TRANSFER', 'PAYPAL']);
 
 export const activityLog = pgTable('ActivityLog', {
   id: uuid().notNull(),
@@ -572,9 +543,7 @@ export const stripeUserData = pgTable(
     paymentMethodId: text(),
   },
   (table) => [
-    uniqueIndex(
-      'StripeUserData_usersOfTenantsUserId_usersOfTenantsTenantId_key',
-    ).using(
+    uniqueIndex('StripeUserData_usersOfTenantsUserId_usersOfTenantsTenantId_key').using(
       'btree',
       table.usersOfTenantsUserId.asc().nullsLast().op('uuid_ops'),
       table.usersOfTenantsTenantId.asc().nullsLast().op('uuid_ops'),
@@ -672,9 +641,7 @@ export const shoppingCart = pgTable(
     usersOfTenantsUserId: uuid().notNull(),
   },
   (table) => [
-    uniqueIndex(
-      'ShoppingCart_usersOfTenantsUserId_usersOfTenantsTenantId_key',
-    ).using(
+    uniqueIndex('ShoppingCart_usersOfTenantsUserId_usersOfTenantsTenantId_key').using(
       'btree',
       table.usersOfTenantsUserId.asc().nullsLast().op('uuid_ops'),
       table.usersOfTenantsTenantId.asc().nullsLast().op('uuid_ops'),
@@ -899,10 +866,7 @@ export const user = pgTable(
     telegramUsername: text(),
   },
   (table) => [
-    uniqueIndex('User_authId_key').using(
-      'btree',
-      table.authId.asc().nullsLast().op('text_ops'),
-    ),
+    uniqueIndex('User_authId_key').using('btree', table.authId.asc().nullsLast().op('text_ops')),
     uniqueIndex('User_calendarToken_key').using(
       'btree',
       table.calendarToken.asc().nullsLast().op('uuid_ops'),
@@ -949,9 +913,7 @@ export const prismaMigrations = pgTable('_prisma_migrations', {
     withTimezone: true,
     mode: 'string',
   }),
-  startedAt: timestamp('started_at', { withTimezone: true, mode: 'string' })
-    .defaultNow()
-    .notNull(),
+  startedAt: timestamp('started_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
   appliedStepsCount: integer('applied_steps_count').default(0).notNull(),
 });
 
@@ -1015,9 +977,7 @@ export const tenant = pgTable(
     contractEnd: timestamp({ precision: 3, mode: 'string' }).notNull(),
     hardContractEnd: boolean().default(false).notNull(),
     seoDescription: text()
-      .default(
-        'Here you can find events for international students around the city',
-      )
+      .default('Here you can find events for international students around the city')
       .notNull(),
     seoTitle: text().default('ESN App').notNull(),
   },

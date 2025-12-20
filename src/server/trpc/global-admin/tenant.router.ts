@@ -29,10 +29,7 @@ export const tenantRouter = router({
       ),
     )
     .mutation(async ({ ctx, input }) => {
-      return await database
-        .delete(tenants)
-        .where(eq(tenants.id, input.id))
-        .returning();
+      return await database.delete(tenants).where(eq(tenants.id, input.id)).returning();
     }),
 
   findMany: authenticatedProcedure.query(async ({ ctx }) => {
@@ -75,10 +72,6 @@ export const tenantRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const { id, ...data } = input;
-      return await database
-        .update(tenants)
-        .set(data)
-        .where(eq(tenants.id, id))
-        .returning();
+      return await database.update(tenants).set(data).where(eq(tenants.id, id)).returning();
     }),
 });

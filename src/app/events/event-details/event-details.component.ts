@@ -1,11 +1,4 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  computed,
-  effect,
-  inject,
-  input,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, input } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
 import { MatMenuModule } from '@angular/material/menu';
@@ -14,15 +7,8 @@ import { IconComponent } from '@app/shared/components/icon/icon.component';
 import { Shape } from '@app/shared/components/shape/shape';
 import { MaterialThemeDirective } from '@app/shared/directives/material-theme.directive';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
-import {
-  faArrowLeft,
-  faEllipsisVertical,
-} from '@fortawesome/duotone-regular-svg-icons';
-import {
-  injectMutation,
-  injectQuery,
-  QueryClient,
-} from '@tanstack/angular-query-experimental';
+import { faArrowLeft, faEllipsisVertical } from '@fortawesome/duotone-regular-svg-icons';
+import { injectMutation, injectQuery, QueryClient } from '@tanstack/angular-query-experimental';
 import { convert } from 'html-to-text';
 import { firstValueFrom } from 'rxjs';
 
@@ -79,13 +65,10 @@ export class EventDetailsComponent {
   protected readonly eventQuery = injectQuery(() =>
     this.trpc.events.findOne.queryOptions({ id: this.eventId() }),
   );
-  protected readonly selfQery = injectQuery(() =>
-    this.trpc.users.maybeSelf.queryOptions(),
-  );
+  protected readonly selfQery = injectQuery(() => this.trpc.users.maybeSelf.queryOptions());
   private permissions = inject(PermissionsService);
   protected readonly canEdit = computed(() => {
-    const editAllPermission =
-      this.permissions.hasPermission('events:editAll')();
+    const editAllPermission = this.permissions.hasPermission('events:editAll')();
     if (editAllPermission) {
       return true;
     }
@@ -100,15 +83,13 @@ export class EventDetailsComponent {
     return false;
   });
   protected readonly canOrganize = computed(() => {
-    const organizeAllPermission =
-      this.permissions.hasPermission('events:organizeAll')();
+    const organizeAllPermission = this.permissions.hasPermission('events:organizeAll')();
     if (organizeAllPermission) {
       return true;
     }
     return false; // TODO: Implement logic to check if the user can organize this event
   });
-  protected readonly canReview =
-    this.permissions.hasPermission('events:review');
+  protected readonly canReview = this.permissions.hasPermission('events:review');
   protected readonly canSeeStatus = computed(() => {
     const canReview = this.permissions.hasPermission('events:review')();
     const canEdit = this.canEdit();

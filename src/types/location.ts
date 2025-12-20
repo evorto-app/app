@@ -12,14 +12,14 @@ const BasePhysicalLocation = Schema.extend(
       lat: Schema.Number,
       lng: Schema.Number,
     }),
-  })
+  }),
 );
 
 export const CoordinateLocation = Schema.extend(
   BasePhysicalLocation,
   Schema.Struct({
     type: Schema.Literal('coordinate'),
-  })
+  }),
 );
 
 export const GoogleLocation = Schema.extend(
@@ -27,7 +27,7 @@ export const GoogleLocation = Schema.extend(
   Schema.Struct({
     placeId: Schema.String,
     type: Schema.Literal('google'),
-  })
+  }),
 );
 
 export const OnlineLocation = Schema.extend(
@@ -38,18 +38,14 @@ export const OnlineLocation = Schema.extend(
       Schema.Literal('googleMeet'),
       Schema.Literal('other'),
       Schema.Literal('teams'),
-      Schema.Literal('zoom')
+      Schema.Literal('zoom'),
     ),
     meetingUrl: Schema.String,
     type: Schema.Literal('online'),
-  })
+  }),
 );
 
-export const EventLocation = Schema.Union(
-  CoordinateLocation,
-  GoogleLocation,
-  OnlineLocation
-);
+export const EventLocation = Schema.Union(CoordinateLocation, GoogleLocation, OnlineLocation);
 
 export type CoordinateLocationType = typeof CoordinateLocation.Type;
 export type EventLocationType = typeof EventLocation.Type;

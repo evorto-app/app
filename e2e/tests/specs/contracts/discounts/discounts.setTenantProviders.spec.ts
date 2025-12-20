@@ -1,25 +1,17 @@
 import { Page } from '@playwright/test';
 
-import {
-  adminStateFile,
-  userStateFile,
-} from '../../../../../helpers/user-data';
+import { adminStateFile, userStateFile } from '../../../../../helpers/user-data';
 import { expect, test } from '../../../../fixtures/parallel-test';
 import { runWithStorageState } from '../../../../utils/auth-context';
 
 const SNACKBAR = 'mat-snack-bar-container';
 const CTA_SECTION = '[data-testid="esn-cta-section"]';
-const providerSwitch = (page: Page) =>
-  page.getByTestId('enable-esn-provider').getByRole('switch');
+const providerSwitch = (page: Page) => page.getByTestId('enable-esn-provider').getByRole('switch');
 
-const ctaSwitch = (page: Page) =>
-  page.getByTestId('esn-show-cta-toggle').getByRole('switch');
+const ctaSwitch = (page: Page) => page.getByTestId('esn-show-cta-toggle').getByRole('switch');
 
 test.describe('Contract: discounts.setTenantProviders', () => {
-  test('updates tenant providers and reflects on the user profile', async ({
-    browser,
-    tenant,
-  }) => {
+  test('updates tenant providers and reflects on the user profile', async ({ browser, tenant }) => {
     await runWithStorageState(browser, adminStateFile, async (page) => {
       await page.goto('/admin/settings/discounts', {
         waitUntil: 'domcontentloaded',
@@ -39,9 +31,7 @@ test.describe('Contract: discounts.setTenantProviders', () => {
       }
 
       await page.getByTestId('save-discount-settings').click();
-      await expect(page.locator(SNACKBAR)).toContainText(
-        'Discount settings saved successfully',
-      );
+      await expect(page.locator(SNACKBAR)).toContainText('Discount settings saved successfully');
       await page.locator(SNACKBAR).waitFor({ state: 'detached' });
     });
 
@@ -61,9 +51,7 @@ test.describe('Contract: discounts.setTenantProviders', () => {
         await ctaToggle.click();
         await expect(ctaToggle).toHaveAttribute('aria-checked', 'true');
         await page.getByTestId('save-discount-settings').click();
-        await expect(page.locator(SNACKBAR)).toContainText(
-          'Discount settings saved successfully',
-        );
+        await expect(page.locator(SNACKBAR)).toContainText('Discount settings saved successfully');
         await page.locator(SNACKBAR).waitFor({ state: 'detached' });
       }
     });

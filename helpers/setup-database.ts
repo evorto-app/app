@@ -24,10 +24,7 @@ export async function setupDatabase(
   database: NeonDatabase<
     Record<string, never>,
     typeof relations
-  > = databaseClient as unknown as NeonDatabase<
-    Record<string, never>,
-    typeof relations
-  >,
+  > = databaseClient as unknown as NeonDatabase<Record<string, never>, typeof relations>,
   onlyDevelopmentTenants = false,
 ) {
   consola.start('Reset database schema');
@@ -51,14 +48,13 @@ export async function setupDatabase(
     .execute();
 
   // Setup default development tenants
-  const developmentTenants: Partial<InferInsertModel<typeof schema.tenants>>[] =
-    [
-      {
-        domain: 'localhost',
-        name: 'Development',
-        stripeAccountId: 'acct_1Qs6S5PPcz51fqyK',
-      },
-    ];
+  const developmentTenants: Partial<InferInsertModel<typeof schema.tenants>>[] = [
+    {
+      domain: 'localhost',
+      name: 'Development',
+      stripeAccountId: 'acct_1Qs6S5PPcz51fqyK',
+    },
+  ];
   if (!onlyDevelopmentTenants) {
     developmentTenants.push(
       {
@@ -113,27 +109,17 @@ export async function setupDatabase(
     );
     const exampleUsersStart = Date.now();
     await addExampleUsers(database, roles, developmentTenant);
-    consola.success(
-      `Example users added in ${Date.now() - exampleUsersStart}ms`,
-    );
-    const categories = await addTemplateCategories(
-      database,
-      developmentTenant,
-      icons,
-    );
+    consola.success(`Example users added in ${Date.now() - exampleUsersStart}ms`);
+    const categories = await addTemplateCategories(database, developmentTenant, icons);
     consola.info(`Inserted ${categories.length} template categories`);
     const templates = await addTemplates(database, categories, roles);
     consola.info(`Inserted ${templates.length} templates`);
     const eventsStart = Date.now();
     const events = await addEvents(database, templates, roles);
-    consola.success(
-      `Inserted ${events.length} events in ${Date.now() - eventsStart}ms`,
-    );
+    consola.success(`Inserted ${events.length} events in ${Date.now() - eventsStart}ms`);
     const regsStart = Date.now();
     await addRegistrations(database, events);
     consola.success(`Registrations seeded in ${Date.now() - regsStart}ms`);
-    consola.success(
-      `Tenant ${tenant.domain} ready in ${Date.now() - tenantStart}ms`,
-    );
+    consola.success(`Tenant ${tenant.domain} ready in ${Date.now() - tenantStart}ms`);
   }
 }

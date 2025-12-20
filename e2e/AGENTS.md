@@ -3,6 +3,7 @@
 The discount-suite refactor highlighted a few non-negotiables for writing Playwright specs in this repo:
 
 ## Test layout
+
 - Documentation journeys live under `e2e/tests/docs/<domain>/*.doc.ts`; pick the domain that matches the user-facing area (events, finance, profile, etc.).
 - Regression and contract coverage sits in `e2e/tests/specs/<domain>/**/*.test.ts` (or `.spec.ts` for contract suites). Keep slow contract checks grouped under `specs/contracts/*`.
 - Infrastructure verifications (reporters, screenshot helpers, seed invariants) belong in `e2e/tests/specs/tooling` or `e2e/tests/specs/seed` so they do not pollute domain folders.
@@ -13,6 +14,7 @@ The discount-suite refactor highlighted a few non-negotiables for writing Playwr
 - If a scenario truly needs its own session, reuse the helpers in `e2e/utils/auth-context.ts` rather than hand-rolling `browser.newContext` logic.
 
 ### Authoring workflow
+
 1. **Pick the folder first.** Docs → `docs/<domain>/journey.doc.ts`; regression/contract → `specs/<domain>/scenario.test.ts` (or `.spec.ts` for contracts); infrastructure → `specs/tooling/*`.
 2. **Use shared fixtures.** Always import `test`/`expect` from `e2e/fixtures/*` (parallel/base/permissions) so seeded data, auth, and helpers stay consistent.
 3. **Write outcomes, not steps.** Keep titles and assertions anchored on observable user value. Prefer web-first expectations and resilient locators.
@@ -21,6 +23,7 @@ The discount-suite refactor highlighted a few non-negotiables for writing Playwr
 6. **Run locally before landing.** Execute the targeted Playwright command and eyeball `test-results` (for docs) to confirm attachments look right.
 
 ### Running suites
+
 - `yarn e2e` — full regression run across `specs/**`.
 - `yarn e2e:docs` — generate documentation output from every `*.doc.ts` under `docs/**`.
 - `yarn e2e -- --grep "@tag"` — run tagged scenarios (for example `@finance`).

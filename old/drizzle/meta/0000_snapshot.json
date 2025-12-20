@@ -2931,16 +2931,7 @@
     },
     "public.MembershipStatus": {
       "name": "MembershipStatus",
-      "values": [
-        "NONE",
-        "TRIAL",
-        "FULL",
-        "SPONSOR",
-        "ALUMNI",
-        "SELECTED",
-        "HELPER",
-        "BLACKLISTED"
-      ],
+      "values": ["NONE", "TRIAL", "FULL", "SPONSOR", "ALUMNI", "SELECTED", "HELPER", "BLACKLISTED"],
       "schema": "public"
     },
     "public.PublicationState": {

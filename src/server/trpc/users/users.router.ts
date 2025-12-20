@@ -5,11 +5,7 @@ import { Schema } from 'effect';
 
 import { database } from '../../../db';
 import * as schema from '../../../db/schema';
-import {
-  authenticatedProcedure,
-  publicProcedure,
-  router,
-} from '../trpc-server';
+import { authenticatedProcedure, publicProcedure, router } from '../trpc-server';
 
 export const userRouter = router({
   authData: publicProcedure.query(async ({ ctx }) => {
@@ -162,10 +158,7 @@ export const userRouter = router({
           schema.rolesToTenantUsers,
           eq(schema.usersToTenants.id, schema.rolesToTenantUsers.userTenantId),
         )
-        .leftJoin(
-          schema.roles,
-          eq(schema.rolesToTenantUsers.roleId, schema.roles.id),
-        );
+        .leftJoin(schema.roles, eq(schema.rolesToTenantUsers.roleId, schema.roles.id));
       const userMap = users.reduce(
         (accumulator, user) => {
           if (accumulator[user.id]) {

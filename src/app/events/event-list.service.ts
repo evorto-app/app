@@ -18,15 +18,12 @@ export class EventListService {
 
   private readonly pageConfig = signal({ limit: 100, offset: 0 });
 
-  private readonly selfQuery = injectQuery(() =>
-    this.trpc.users.maybeSelf.queryOptions(),
-  );
+  private readonly selfQuery = injectQuery(() => this.trpc.users.maybeSelf.queryOptions());
 
   private readonly includeUnlisted = signal(false);
 
   readonly canSeeDrafts = this.permissions.hasPermission('events:seeDrafts');
-  readonly canSeeUnlisted =
-    this.permissions.hasPermission('events:seeUnlisted');
+  readonly canSeeUnlisted = this.permissions.hasPermission('events:seeUnlisted');
 
   readonly startFilter = signal(new Date());
 
@@ -34,18 +31,15 @@ export class EventListService {
     ('APPROVED' | 'DRAFT' | 'PENDING_REVIEW' | 'REJECTED')[]
   >(['APPROVED', 'DRAFT', 'PENDING_REVIEW', 'REJECTED']);
 
-  private readonly statusFilterValue = toSignal(
-    this.statusFilterControl.valueChanges,
-    { initialValue: this.statusFilterControl.value },
-  );
+  private readonly statusFilterValue = toSignal(this.statusFilterControl.valueChanges, {
+    initialValue: this.statusFilterControl.value,
+  });
 
   private readonly filterInput = computed(() => {
     const pageConfig = this.pageConfig();
     const self = this.selfQuery.data();
     const startAfter = this.startFilter();
-    const status = this.canSeeDrafts()
-      ? this.statusFilterValue()
-      : (['APPROVED'] as const);
+    const status = this.canSeeDrafts() ? this.statusFilterValue() : (['APPROVED'] as const);
     const includeUnlisted = this.canSeeUnlisted();
     const userId = self?.id;
     consola.info({

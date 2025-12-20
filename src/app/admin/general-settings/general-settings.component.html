@@ -7,14 +7,11 @@
 </div>
 <div class="grid grid-cols-1 gap-4">
   <div class="bg-surface text-on-surface rounded-2xl p-4">
-    <form
-      class="grid grid-cols-1"
-      [formGroup]="settingsForm"
-      (ngSubmit)="saveSettings()"
-    >
+    <form class="grid grid-cols-1" [formGroup]="settingsForm" (ngSubmit)="saveSettings()">
       <h2 class="title-medium mb-2">Stripe tax rates</h2>
       <p class="text-xs text-gray-600 mb-1">
-        Only included (VAT-style) and active tax rates are compatible. You can import compatible tax rates from your Stripe account to use below.
+        Only included (VAT-style) and active tax rates are compatible. You can import compatible tax
+        rates from your Stripe account to use below.
       </p>
       <p class="text-xs text-gray-600 mb-3">
         Manage your tax rates in the Stripe Dashboard:
@@ -72,8 +69,8 @@
       <div class="mb-4">
         <h3 class="text-sm font-medium mb-2">Default location</h3>
         <p class="text-xs text-gray-600 mb-2">
-          Set a default location to improve Google Places search results for your events.
-          This location will be used as the center point for location searches.
+          Set a default location to improve Google Places search results for your events. This
+          location will be used as the center point for location searches.
         </p>
         <app-location-selector-field formControlName="defaultLocation" />
       </div>
@@ -88,15 +85,14 @@
       <!-- Tax rates are selected per paid registration option. Import them here,
            then choose the appropriate rate when editing registration options. -->
 
-      <button mat-flat-button type="submit" [disabled]="settingsForm.invalid">
-        Save
-      </button>
+      <button mat-flat-button type="submit" [disabled]="settingsForm.invalid">Save</button>
     </form>
   </div>
   <div class="bg-surface text-on-surface rounded-2xl p-4">
     <h2 class="title-medium mb-2">Discounts</h2>
     <p class="text-xs text-on-surface-variant mb-4">
-      Keep tenant-wide discount providers, like the ESNcard, aligned with your current event pricing strategy.
+      Keep tenant-wide discount providers, like the ESNcard, aligned with your current event pricing
+      strategy.
     </p>
     @if (tenantQuery.isPending()) {
       <p>Loading discount providers ...</p>

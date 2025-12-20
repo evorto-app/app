@@ -26,7 +26,12 @@ Unlisted events are hidden from public lists. Admins can toggle an event's unlis
   });
 
   // Show the event on the list before toggling
-  await takeScreenshot(testInfo, page.getByRole('link', { name: target.title }), page, 'Listed event before toggling');
+  await takeScreenshot(
+    testInfo,
+    page.getByRole('link', { name: target.title }),
+    page,
+    'Listed event before toggling',
+  );
   await page.getByRole('link', { name: target.title }).click();
   await page.waitForSelector(`h1:has-text("${target.title}")`);
   await takeScreenshot(testInfo, page.locator('h1').first(), page, 'Event details (before)');
@@ -35,7 +40,12 @@ Unlisted events are hidden from public lists. Admins can toggle an event's unlis
   await page.getByRole('button', { name: 'menu' }).click();
   await page.getByRole('menuitem', { name: 'Update listing' }).click();
   await page.getByRole('switch', { name: /Unlisted/ }).click();
-  await takeScreenshot(testInfo, page.locator('mat-dialog-container').first(), page, 'Update listing dialog');
+  await takeScreenshot(
+    testInfo,
+    page.locator('mat-dialog-container').first(),
+    page,
+    'Update listing dialog',
+  );
   await page.getByRole('button', { name: 'Save' }).click();
 
   // Back to list and verify badge is visible for admins

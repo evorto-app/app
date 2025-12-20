@@ -1,10 +1,6 @@
 import { DateTime } from 'luxon';
 
-import {
-  adminStateFile,
-  defaultStateFile,
-  userStateFile,
-} from '../../../../helpers/user-data';
+import { adminStateFile, defaultStateFile, userStateFile } from '../../../../helpers/user-data';
 import { fillTestCard } from '../../../fill-test-card';
 import { expect, test } from '../../../fixtures/parallel-test';
 import { takeScreenshot } from '../../../reporters/documentation-reporter';
@@ -29,11 +25,7 @@ Click on _Create role_ to create a new role.`,
   });
   await page.getByRole('link', { name: 'Admin Tools' }).click();
   await page.getByRole('link', { name: 'User roles' }).click();
-  await takeScreenshot(
-    testInfo,
-    page.getByRole('link', { name: 'Create role' }),
-    page,
-  );
+  await takeScreenshot(testInfo, page.getByRole('link', { name: 'Create role' }), page);
   await page.getByRole('link', { name: 'Create role' }).click();
   await testInfo.attach('markdown', {
     body: `
@@ -48,9 +40,7 @@ You can also add permissions to the role. The permissions are grouped by categor
 `,
   });
   await page.getByRole('textbox', { name: 'Name' }).fill('Test role');
-  await page
-    .getByRole('textbox', { name: 'Description' })
-    .fill('Test role description');
+  await page.getByRole('textbox', { name: 'Description' }).fill('Test role description');
   await page.getByRole('checkbox', { name: 'Events' }).click();
   await takeScreenshot(testInfo, [], page);
   await page.getByRole('button', { name: 'Save role' }).click();

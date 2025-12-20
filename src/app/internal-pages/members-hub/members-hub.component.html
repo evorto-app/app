@@ -3,9 +3,7 @@
 <div class="bg-surface text-on-surface @container rounded-md p-2">
   <h2 class="title-medium mb-4">Who's who</h2>
   @if (rolesQuery.isError()) {
-    <div class="text-error p-4">
-      Error loading roles: {{ rolesQuery.error().message }}
-    </div>
+    <div class="text-error p-4">Error loading roles: {{ rolesQuery.error().message }}</div>
   } @else if (rolesQuery.isSuccess()) {
     <div class="@lg:grid-cols-3 @md:grid-cols-2 grid gap-4">
       @for (role of rolesQuery.data(); track role.id) {
@@ -28,10 +26,7 @@
               <div class="flex flex-wrap gap-2">
                 @for (user of role.users; track $index; let last = $last) {
                   @if (user) {
-                    <span>
-                      {{ user.firstName }} {{ user.lastName
-                      }}{{ last ? "" : ", " }}
-                    </span>
+                    <span> {{ user.firstName }} {{ user.lastName }}{{ last ? '' : ', ' }} </span>
                   }
                 }
               </div>

@@ -1,10 +1,6 @@
 import { DateTime } from 'luxon';
 
-import {
-  adminStateFile,
-  defaultStateFile,
-  userStateFile,
-} from '../../../../helpers/user-data';
+import { adminStateFile, defaultStateFile, userStateFile } from '../../../../helpers/user-data';
 import { fillTestCard } from '../../../fill-test-card';
 import { expect, test } from '../../../fixtures/parallel-test';
 import { takeScreenshot } from '../../../reporters/documentation-reporter';
@@ -29,11 +25,7 @@ Start by navigating to **Templates**. Here you can see an overview of the existi
 Click on _Create template_ to create a new template.`,
   });
   await page.getByRole('link', { name: 'Templates' }).click();
-  await takeScreenshot(
-    testInfo,
-    page.getByRole('link', { name: 'Create template' }),
-    page,
-  );
+  await takeScreenshot(testInfo, page.getByRole('link', { name: 'Create template' }), page);
   await page.getByRole('link', { name: 'Create template' }).click();
   await testInfo.attach('markdown', {
     body: `
@@ -47,11 +39,7 @@ There are a few general settings that are required for templates:
 - **Template description**: Lastly, the description of the template. To open the full editor, click the field for the description.
 `,
   });
-  await takeScreenshot(
-    testInfo,
-    page.locator('app-template-create form div').first(),
-    page,
-  );
+  await takeScreenshot(testInfo, page.locator('app-template-create form div').first(), page);
   await testInfo.attach('markdown', {
     body: `
 #### Registration settings

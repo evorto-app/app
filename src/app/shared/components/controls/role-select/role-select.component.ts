@@ -23,7 +23,6 @@ import { injectQueries } from '@tanstack/angular-query-experimental/inject-queri
 import { startWith, Subscription } from 'rxjs';
 
 import { injectTRPC } from '../../../../core/trpc-client';
-import { injectTRPCClient } from '../../../../core/trpc-client';
 import { injectNgControl } from '../../../../utils';
 import { NoopValueAccessorDirective } from '../../../directives/noop-value-accessor.directive';
 
@@ -44,24 +43,19 @@ import { NoopValueAccessorDirective } from '../../../directives/noop-value-acces
 export class RoleSelectComponent implements AfterViewInit, OnDestroy {
   readonly separatorKeysCodes: number[] = [ENTER, COMMA];
   private currentValue = signal<string[]>([]);
-  private trpcClient = injectTRPCClient();
-  protected currentRolesQuery = injectQueries({
-    queries: computed(() => {
-      const roleIds = this.currentValue();
-      return roleIds.map((roleId: string) => ({
-        queryFn: () =>
-          this.trpcClient.admin.roles.findOne.query({ id: roleId }),
-        queryKey: ['roles', roleId],
-      }));
-    }),
-  });
+  private trpc = injectTRPC();
+  protected currentRoles = injectQueries(() => ({
+    combine: (results) => results.map((queryResult) => queryResult.data()),
+    queries: this.currentValue().map((roleId: string) =>
+      this.trpc.admin.roles.findOne.queryOptions({ id: roleId }),
+    ),
+  }));
   protected faCircleXmark = faCircleXmark;
   protected ngControl = injectNgControl();
   protected searchInput = new FormControl('', { nonNullable: true });
   protected searchValue = toSignal(this.searchInput.valueChanges, {
     initialValue: '',
   });
-  private trpc = injectTRPC();
   protected searchRoleQuery = injectQuery(() =>
     this.trpc.admin.roles.search.queryOptions({ search: this.searchValue() }),
   );
@@ -71,9 +65,7 @@ export class RoleSelectComponent implements AfterViewInit, OnDestroy {
     const currentOptions = this.searchRoleQuery.data();
     if (currentOptions?.length === 1) {
       this.ngControl.control.patchValue([
-        ...this.ngControl.value.filter(
-          (value: string) => value !== currentOptions[0].id,
-        ),
+        ...this.ngControl.value.filter((value: string) => value !== currentOptions[0].id),
         currentOptions[0].id,
       ]);
       this.searchInput.setValue('');
@@ -84,7 +76,7 @@ export class RoleSelectComponent implements AfterViewInit, OnDestroy {
     this.signalSubscription = this.ngControl.valueChanges
       ?.pipe(startWith(this.ngControl.value))
       .subscribe((roleIds) => {
-        this.currentValue.set(roleIds);
+        this.currentValue.set(roleIds ?? []);
       });
   }
 
@@ -102,9 +94,7 @@ export class RoleSelectComponent implements AfterViewInit, OnDestroy {
 
   selected(event: MatAutocompleteSelectedEvent) {
     this.ngControl.control.patchValue([
-      ...this.ngControl.value.filter(
-        (roleId: string) => roleId !== event.option.value,
-      ),
+      ...this.ngControl.value.filter((roleId: string) => roleId !== event.option.value),
       event.option.value,
     ]);
     this.searchInput.setValue('');

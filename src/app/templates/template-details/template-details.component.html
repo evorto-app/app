@@ -3,23 +3,16 @@
     <fa-duotone-icon [icon]="faArrowLeft"></fa-duotone-icon>
   </a>
   <h1 class="title-large">
-    {{ templateQuery.data()?.title ?? "Loading ..." }}
+    {{ templateQuery.data()?.title ?? 'Loading ...' }}
   </h1>
   <div class="grow"></div>
-  <button
-    title="menu"
-    mat-icon-button
-    [matMenuTriggerFor]="menu"
-    class="lg:hidden! block"
-  >
+  <button title="menu" mat-icon-button [matMenuTriggerFor]="menu" class="lg:hidden! block">
     <fa-duotone-icon [icon]="faEllipsisVertical"></fa-duotone-icon>
   </button>
   <mat-menu #menu="matMenu">
     <a mat-menu-item routerLink="edit">Edit template</a>
   </mat-menu>
-  <button mat-button routerLink="edit" class="hidden! lg:block!">
-    Edit template
-  </button>
+  <button mat-button routerLink="edit" class="hidden! lg:block!">Edit template</button>
 </div>
 
 @if (templateQuery.isError()) {
@@ -45,24 +38,15 @@
       }
     </section>
 
-    <section
-      class="bg-surface-container-high text-on-surface-container-high rounded-2xl p-4"
-    >
+    <section class="bg-surface-container-high text-on-surface-container-high rounded-2xl p-4">
       <h2 class="mb-6 text-lg font-semibold">Registration Options</h2>
 
       <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        @for (
-          option of templateQuery.data().registrationOptions;
-          track option.id
-        ) {
-          <div
-            class="bg-surface text-on-surface flex flex-col gap-4 rounded-xl p-4"
-          >
+        @for (option of templateQuery.data().registrationOptions; track option.id) {
+          <div class="bg-surface text-on-surface flex flex-col gap-4 rounded-xl p-4">
             <div class="flex items-center gap-2">
               <h3 class="text-lg font-medium">{{ option.title }}</h3>
-              <div
-                class="bg-primary-container flex items-center gap-1 rounded px-2 py-0.5 text-sm"
-              >
+              <div class="bg-primary-container flex items-center gap-1 rounded px-2 py-0.5 text-sm">
                 <span>{{ option.spots }}</span>
                 <span>spots</span>
               </div>
@@ -70,19 +54,15 @@
 
             <div class="grid gap-3">
               <div class="flex flex-col">
-                <span class="text-on-surface-variant text-sm">
-                  Registration
-                </span>
+                <span class="text-on-surface-variant text-sm"> Registration </span>
                 <div class="flex items-center gap-1">
-                  <span class="font-medium">{{
-                    option.registrationMode | titlecase
-                  }}</span>
+                  <span class="font-medium">{{ option.registrationMode | titlecase }}</span>
                   <span class="text-on-surface-variant">·</span>
                   @if (option.isPaid) {
                     <span>{{ option.price / 100 | currency }}</span>
                     @if (
-                      taxRatesQuery.isSuccess() &&
-                        findRateByStripeId(option.stripeTaxRateId); as rate
+                      taxRatesQuery.isSuccess() && findRateByStripeId(option.stripeTaxRateId);
+                      as rate
                     ) {
                       <span class="text-on-surface-variant">·</span>
                       <span class="text-on-surface-variant">
@@ -98,9 +78,7 @@
 
               <div class="grid gap-3">
                 <div class="flex flex-col">
-                  <span class="text-on-surface-variant text-sm">
-                    Allowed roles
-                  </span>
+                  <span class="text-on-surface-variant text-sm"> Allowed roles </span>
                   <mat-chip-set role="list">
                     @for (role of option.roles; track role.id) {
                       <mat-chip role="listitem">{{ role.name }}</mat-chip>

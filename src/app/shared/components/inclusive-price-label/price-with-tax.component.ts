@@ -1,12 +1,32 @@
 import { CurrencyPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 
-import { TaxRateInfo, formatInclusiveTaxLabel } from '../../../../shared/price/format-inclusive-tax-label';
+import {
+  formatInclusiveTaxLabel,
+  TaxRateInfo,
+} from '../../../../shared/price/format-inclusive-tax-label';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CurrencyPipe],
   selector: 'app-price-with-tax',
+  styles: [
+    `
+      .price-with-tax {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 0.25rem;
+      }
+
+      .price-amount {
+        font-weight: 600;
+      }
+
+      .tax-label {
+        font-weight: 500;
+      }
+    `,
+  ],
   template: `
     <span class="price-with-tax">
       <span class="price-amount">{{ formattedAmount() }}</span>
@@ -15,21 +35,6 @@ import { TaxRateInfo, formatInclusiveTaxLabel } from '../../../../shared/price/f
       </span>
     </span>
   `,
-  styles: [`
-    .price-with-tax {
-      display: inline-flex;
-      align-items: baseline;
-      gap: 0.25rem;
-    }
-    
-    .price-amount {
-      font-weight: 600;
-    }
-    
-    .tax-label {
-      font-weight: 500;
-    }
-  `]
 })
 export class PriceWithTaxComponent {
   /**
@@ -43,14 +48,14 @@ export class PriceWithTaxComponent {
   currency = input<string>('EUR');
 
   /**
-   * Tax rate information for formatting the label
-   */
-  taxRate = input<TaxRateInfo | null | undefined>();
-
-  /**
    * Whether this is a free option (shows "Free" instead of formatted price)
    */
   isFree = input<boolean>(false);
+
+  /**
+   * Tax rate information for formatting the label
+   */
+  taxRate = input<null | TaxRateInfo | undefined>();
 
   /**
    * Computed formatted amount
@@ -59,14 +64,16 @@ export class PriceWithTaxComponent {
     if (this.isFree() || this.amount() <= 0) {
       return 'Free';
     }
-    
+
     const currencyPipe = new CurrencyPipe('en-US');
-    return currencyPipe.transform(
-      this.amount() / 100, // Convert cents to main currency unit
-      this.currency(),
-      'symbol',
-      '1.2-2'
-    ) || '€0.00';
+    return (
+      currencyPipe.transform(
+        this.amount() / 100, // Convert cents to main currency unit
+        this.currency(),
+        'symbol',
+        '1.2-2',
+      ) || '€0.00'
+    );
   });
 
   /**
@@ -76,7 +83,7 @@ export class PriceWithTaxComponent {
     if (this.isFree() || this.amount() <= 0) {
       return '';
     }
-    
+
     return formatInclusiveTaxLabel(this.taxRate());
   });
 }

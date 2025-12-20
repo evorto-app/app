@@ -8,9 +8,9 @@ import { users } from './users';
 
 export const eventRegistrations = pgTable('event_registrations', {
   ...modelOfTenant,
+  appliedDiscountedPrice: integer(),
   // Snapshot fields for pricing at registration time
   appliedDiscountType: discountTypes(),
-  appliedDiscountedPrice: integer(),
   basePriceAtRegistration: integer().notNull(),
   checkInTime: timestamp(),
   discountAmount: integer(),

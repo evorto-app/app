@@ -18,7 +18,12 @@ test('allows check-in for confirmed registration scan', async ({ page, database 
   const regs = await database
     .select()
     .from(schema.eventRegistrations)
-    .where(and(eq(schema.eventRegistrations.tenantId, tenant.id), eq(schema.eventRegistrations.status, 'CONFIRMED')))
+    .where(
+      and(
+        eq(schema.eventRegistrations.tenantId, tenant.id),
+        eq(schema.eventRegistrations.status, 'CONFIRMED'),
+      ),
+    )
     .limit(1);
   const reg = regs[0];
   if (!reg) test.skip(true, 'No confirmed registration available');

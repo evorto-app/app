@@ -7,6 +7,7 @@ Spec: `/Users/hedde/code/evorto/specs/003-discount-cards-expand/spec.md`
 ## Context & Existing Implementation
 
 A partial implementation already exists in the Evorto stack:
+
 - DB (Drizzle):
   - `user_discount_cards` with fields: `type` (`discount_type` enum: `'esnCard'`), `identifier`, `status` (`discount_card_status` enum), `validFrom/validTo`, `lastCheckedAt`, `metadata`, uniqueness: `(type, identifier)` platform‑wide and `(tenantId, userId, type)` per user.
   - `template_registration_option_discounts` and `event_registration_option_discounts` with `discountType` (enum) and `discountedPrice` per registration option.

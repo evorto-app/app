@@ -17,21 +17,14 @@ test('creates template category', async ({ isMobile, page }) => {
     await page.getByRole('menuitem', { name: 'Template categories' }).click();
   }
   await expect(page).toHaveURL(/\/templates\/categories/);
-  await page
-    .getByRole('button', { name: 'Create a new category' })
-    .first()
-    .click();
+  await page.getByRole('button', { name: 'Create a new category' }).first().click();
   await expect(page.getByRole('heading', { name: 'Create a new category' })).toBeVisible();
   await page.getByLabel('Category title').fill('Mountain trips');
   await page.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByText('Mountain trips')).toBeVisible();
 });
 
-test('edits existing template category', async ({
-  isMobile,
-  page,
-  templateCategories,
-}) => {
+test('edits existing template category', async ({ isMobile, page, templateCategories }) => {
   await page.goto('.');
   await page.getByRole('link', { name: 'Templates' }).click();
   await expect(page).toHaveURL(/\/templates/);

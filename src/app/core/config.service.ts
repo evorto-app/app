@@ -41,7 +41,7 @@ export class ConfigService {
   private _missingContext = false;
   private _permissions!: Permission[];
 
-  private _publicConfig: { googleMapsApiKey: null | string; sentryDsn: null | string; } = {
+  private _publicConfig: { googleMapsApiKey: null | string; sentryDsn: null | string } = {
     googleMapsApiKey: null,
     sentryDsn: null,
   };
@@ -49,9 +49,7 @@ export class ConfigService {
 
   private trpc = injectTRPC();
 
-  private currentTenantQuery = injectQuery(() =>
-    this.trpc.config.tenant.queryOptions(),
-  );
+  private currentTenantQuery = injectQuery(() => this.trpc.config.tenant.queryOptions());
 
   private document = inject(DOCUMENT);
   private readonly meta = inject(Meta);
@@ -70,16 +68,10 @@ export class ConfigService {
       const currentTenant = this.currentTenantQuery.data();
       if (currentTenant) {
         if (this.tenant) {
-          this.renderer.removeClass(
-            this.document.documentElement,
-            `theme-${this.tenant.theme}`,
-          );
+          this.renderer.removeClass(this.document.documentElement, `theme-${this.tenant.theme}`);
         }
         this._tenant = currentTenant;
-        this.renderer.addClass(
-          this.document.documentElement,
-          `theme-${this.tenant.theme}`,
-        );
+        this.renderer.addClass(this.document.documentElement, `theme-${this.tenant.theme}`);
       }
     });
   }

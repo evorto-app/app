@@ -15,23 +15,17 @@
             <app-esn-card-icon class="h-16" />
             <div>
               <h3 class="text-lg font-semibold">ESNcard</h3>
-              <p class="text-gray-600">
-                European Student Network membership card
-              </p>
+              <p class="text-gray-600">European Student Network membership card</p>
             </div>
           </div>
 
           @if (cardsQuery.data(); as cards) {
-            @if (getUserCard(cards, "esnCard"); as card) {
+            @if (getUserCard(cards, 'esnCard'); as card) {
               <!-- User has a card -->
-              <div
-                class="mb-4 rounded-lg border border-green-200 bg-green-50 p-4"
-              >
+              <div class="mb-4 rounded-lg border border-green-200 bg-green-50 p-4">
                 <div class="flex items-center justify-between">
                   <div>
-                    <p class="font-medium text-green-800">
-                      Card: {{ card.identifier }}
-                    </p>
+                    <p class="font-medium text-green-800">Card: {{ card.identifier }}</p>
                     <p class="text-sm text-green-600">
                       Status: {{ getStatusDisplay(card.status) }}
                       @if (card.validTo) {
@@ -68,12 +62,10 @@
             } @else {
               <!-- User doesn't have a card -->
               @if (
-                tenant.discountProviders?.esnCard?.config?.ctaEnabled ===
-                  true && tenant.discountProviders?.esnCard?.config?.ctaLink
+                tenant.discountProviders?.esnCard?.config?.ctaEnabled === true &&
+                tenant.discountProviders?.esnCard?.config?.ctaLink
               ) {
-                <div
-                  class="bg-primary-container text-on-primary-container mb-4 rounded-lg p-4"
-                >
+                <div class="bg-primary-container text-on-primary-container mb-4 rounded-lg p-4">
                   <p class="mb-2">Get discounts on events with your ESNcard!</p>
                   <a
                     [href]="tenant.discountProviders?.esnCard?.config?.ctaLink"
@@ -99,10 +91,7 @@
                   mat-raised-button
                   color="primary"
                   (click)="addCard('esnCard')"
-                  [disabled]="
-                    !getCardControl('esnCard').valid ||
-                    upsertMutation.isPending()
-                  "
+                  [disabled]="!getCardControl('esnCard').valid || upsertMutation.isPending()"
                 >
                   @if (upsertMutation.isPending()) {
                     Adding Card...
@@ -123,8 +112,6 @@
   }
 
   @if (cardsQuery.isError() || tenantQuery.isError()) {
-    <div class="py-8 text-center text-red-500">
-      Failed to load discount information
-    </div>
+    <div class="py-8 text-center text-red-500">Failed to load discount information</div>
   }
 </div>

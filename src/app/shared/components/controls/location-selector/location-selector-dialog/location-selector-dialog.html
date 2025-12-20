@@ -14,15 +14,10 @@
       [displayWith]="displayFunction"
       (optionSelected)="selectOption($event)"
     >
-      @for (
-        option of locationOptions$ | async;
-        track option.placePrediction?.placeId
-      ) {
+      @for (option of locationOptions$ | async; track option.placePrediction?.placeId) {
         <mat-option [value]="option">
           <span>{{ option.placePrediction?.mainText }}</span> <br />
-          <span class="body-small">{{
-            option.placePrediction?.secondaryText
-          }}</span>
+          <span class="body-small">{{ option.placePrediction?.secondaryText }}</span>
         </mat-option>
       }
     </mat-autocomplete>

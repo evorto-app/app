@@ -74,13 +74,9 @@ stripeRouter.post(
           return;
         }
         const appFee =
-          balanceTransaction.fee_details.find(
-            (fee) => fee.type === 'application_fee',
-          )?.amount ?? 0;
+          balanceTransaction.fee_details.find((fee) => fee.type === 'application_fee')?.amount ?? 0;
         const stripeFee =
-          balanceTransaction.fee_details.find(
-            (fee) => fee.type === 'stripe_fee',
-          )?.amount ?? 0;
+          balanceTransaction.fee_details.find((fee) => fee.type === 'stripe_fee')?.amount ?? 0;
         const netValue = balanceTransaction.net;
 
         consola.debug(balanceTransaction);
@@ -98,8 +94,7 @@ stripeRouter.post(
       }
       case 'checkout.session.completed': {
         const eventSession = event.data.object;
-        const { registrationId, tenantId, transactionId } =
-          eventSession.metadata ?? {};
+        const { registrationId, tenantId, transactionId } = eventSession.metadata ?? {};
         if (!registrationId || !transactionId || !tenantId) {
           response.status(400).send('Missing metadata');
           return;
@@ -158,8 +153,7 @@ stripeRouter.post(
       }
       case 'checkout.session.expired': {
         const eventSession = event.data.object;
-        const { registrationId, tenantId, transactionId } =
-          eventSession.metadata ?? {};
+        const { registrationId, tenantId, transactionId } = eventSession.metadata ?? {};
         if (!registrationId || !transactionId || !tenantId) {
           response.status(400).send('Missing metadata');
           return;
@@ -177,11 +171,9 @@ stripeRouter.post(
         }
 
         // Get session from stripe to verify status
-        const session = await stripe.checkout.sessions.retrieve(
-          eventSession.id,
-          undefined,
-          { stripeAccount },
-        );
+        const session = await stripe.checkout.sessions.retrieve(eventSession.id, undefined, {
+          stripeAccount,
+        });
         if (session.status !== 'expired') {
           console.info(`Session ${session.id} not expired, skipping`);
           response.status(200).send('Session not expired, skipping');

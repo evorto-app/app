@@ -10,10 +10,7 @@ import { createTenant } from '../../helpers/create-tenant';
 import { usersToAuthenticate } from '../../helpers/user-data';
 import { createId } from '../../src/db/create-id';
 import * as schema from '../../src/db/schema';
-import {
-  applyPermissionDiff,
-  PermissionDiff,
-} from '../utils/permissions-override';
+import { applyPermissionDiff, PermissionDiff } from '../utils/permissions-override';
 import { test as base } from './base-test';
 
 interface BaseFixtures {
@@ -163,10 +160,7 @@ export const test = base.extend<BaseFixtures & ParallelOptions>({
         title: event.title,
       }));
 
-      const registrationsFromDatabase = await addRegistrations(
-        database,
-        eventInputs,
-      );
+      const registrationsFromDatabase = await addRegistrations(database, eventInputs);
 
       // Ensure all registrations have valid IDs to satisfy the fixture type
       const registrations = registrationsFromDatabase.map((reg) => ({
@@ -220,11 +214,7 @@ export const test = base.extend<BaseFixtures & ParallelOptions>({
   seedDiscounts: [true, { option: true }],
   templateCategories: async ({ database, tenant }, use) => {
     const icons = await addIcons(database, tenant);
-    const templateCategories = await addTemplateCategories(
-      database,
-      tenant,
-      icons,
-    );
+    const templateCategories = await addTemplateCategories(database, tenant, icons);
     await use(templateCategories);
   },
   templates: async ({ database, roles, templateCategories }, use) => {

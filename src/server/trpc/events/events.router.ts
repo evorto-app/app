@@ -1,18 +1,14 @@
 import { TRPCError } from '@trpc/server';
+import consola from 'consola';
 import { and, arrayOverlaps, eq, inArray } from 'drizzle-orm';
 import { Schema } from 'effect';
 import { groupBy } from 'es-toolkit';
 import { DateTime } from 'luxon';
-import consola from 'consola';
 
 import { database } from '../../../db';
 import * as schema from '../../../db/schema';
 import { validateTaxRate } from '../../utils/validate-tax-rate';
-import {
-  authenticatedProcedure,
-  publicProcedure,
-  router,
-} from '../trpc-server';
+import { authenticatedProcedure, publicProcedure, router } from '../trpc-server';
 import { cancelPendingRegistrationProcedure } from './cancel-pending-registration.procedure';
 import { eventListProcedure } from './event-list.procedure';
 import { registerForEventProcedure } from './register-for-event.procedure';
@@ -43,9 +39,7 @@ export const eventRouter = router({
               registeredDescription: Schema.NullOr(Schema.NonEmptyString),
               registrationMode: Schema.Literal('fcfs', 'random', 'application'),
               spots: Schema.Number.pipe(Schema.nonNegative()),
-              stripeTaxRateId: Schema.optional(
-                Schema.NullOr(Schema.NonEmptyString),
-              ),
+              stripeTaxRateId: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
               title: Schema.NonEmptyString,
             }),
           ),
@@ -65,7 +59,10 @@ export const eventRouter = router({
         });
 
         if (!validation.success) {
-          consola.error(`Registration option ${index} tax rate validation failed:`, validation.error);
+          consola.error(
+            `Registration option ${index} tax rate validation failed:`,
+            validation.error,
+          );
           throw new TRPCError({
             code: 'BAD_REQUEST',
             message: `Registration option "${option.title}": ${validation.error.message}`,
@@ -118,10 +115,9 @@ export const eventRouter = router({
         .returning();
 
       // Copy discounts from template registration options to event options
-      const templateOptions =
-        await database.query.templateRegistrationOptions.findMany({
-          where: { templateId: input.templateId },
-        });
+      const templateOptions = await database.query.templateRegistrationOptions.findMany({
+        where: { templateId: input.templateId },
+      });
       if (templateOptions.length > 0) {
         const templateDiscounts = await database
           .select()
@@ -133,13 +129,9 @@ export const eventRouter = router({
             ),
           );
         if (templateDiscounts.length > 0) {
-          const key = (title: string, organizing: boolean) =>
-            `${title}__${organizing ? '1' : '0'}`;
+          const key = (title: string, organizing: boolean) => `${title}__${organizing ? '1' : '0'}`;
           const tMap = new Map(
-            templateOptions.map((t) => [
-              key(t.title, t.organizingRegistration),
-              t,
-            ]),
+            templateOptions.map((t) => [key(t.title, t.organizingRegistration), t]),
           );
           const inserts: {
             discountedPrice: number;
@@ -147,9 +139,7 @@ export const eventRouter = router({
             registrationOptionId: string;
           }[] = [];
           for (const event_ of createdOptions) {
-            const t = tMap.get(
-              key(event_.title, event_.organizingRegistration),
-            );
+            const t = tMap.get(key(event_.title, event_.organizingRegistration));
             if (!t) continue;
             for (const d of templateDiscounts) {
               if (d.registrationOptionId === t.id) {
@@ -162,9 +152,7 @@ export const eventRouter = router({
             }
           }
           if (inserts.length > 0) {
-            await database
-              .insert(schema.eventRegistrationOptionDiscounts)
-              .values(inserts as any);
+            await database.insert(schema.eventRegistrationOptionDiscounts).values(inserts as any);
           }
         }
       }
@@ -187,9 +175,7 @@ export const eventRouter = router({
   }),
 
   findOne: publicProcedure
-    .input(
-      Schema.standardSchemaV1(Schema.Struct({ id: Schema.NonEmptyString })),
-    )
+    .input(Schema.standardSchemaV1(Schema.Struct({ id: Schema.NonEmptyString })))
     .query(async ({ ctx, input }) => {
       const rolesToFilterBy = (ctx.user?.roleIds ??
         (await database.query.roles
@@ -225,9 +211,7 @@ export const eventRouter = router({
     }),
 
   findOneForEdit: authenticatedProcedure
-    .input(
-      Schema.standardSchemaV1(Schema.Struct({ id: Schema.NonEmptyString })),
-    )
+    .input(Schema.standardSchemaV1(Schema.Struct({ id: Schema.NonEmptyString })))
     .query(async ({ ctx, input }) => {
       const event = await database.query.eventInstances.findFirst({
         where: { id: input.id, tenantId: ctx.tenant.id },
@@ -251,17 +235,12 @@ export const eventRouter = router({
     }),
 
   getOrganizeOverview: authenticatedProcedure
-    .input(
-      Schema.standardSchemaV1(
-        Schema.Struct({ eventId: Schema.NonEmptyString }),
-      ),
-    )
+    .input(Schema.standardSchemaV1(Schema.Struct({ eventId: Schema.NonEmptyString })))
     .query(async ({ ctx, input }) => {
       const registrations = await database
         .select({
           checkInTime: schema.eventRegistrations.checkInTime,
-          organizingRegistration:
-            schema.eventRegistrationOptions.organizingRegistration,
+          organizingRegistration: schema.eventRegistrationOptions.organizingRegistration,
           registrationOptionId: schema.eventRegistrations.registrationOptionId,
           registrationOptionTitle: schema.eventRegistrationOptions.title,
           userEmail: schema.users.email,
@@ -272,15 +251,9 @@ export const eventRouter = router({
         .from(schema.eventRegistrations)
         .innerJoin(
           schema.eventRegistrationOptions,
-          eq(
-            schema.eventRegistrations.registrationOptionId,
-            schema.eventRegistrationOptions.id,
-          ),
+          eq(schema.eventRegistrations.registrationOptionId, schema.eventRegistrationOptions.id),
         )
-        .innerJoin(
-          schema.users,
-          eq(schema.eventRegistrations.userId, schema.users.id),
-        )
+        .innerJoin(schema.users, eq(schema.eventRegistrations.userId, schema.users.id))
         .where(
           and(
             eq(schema.eventRegistrations.eventId, input.eventId),
@@ -290,26 +263,17 @@ export const eventRouter = router({
         );
 
       // Group by registration option and sort
-      const groupedRegistrations = groupBy(
-        registrations,
-        (reg) => reg.registrationOptionId,
-      );
+      const groupedRegistrations = groupBy(registrations, (reg) => reg.registrationOptionId);
 
       // Sort registration options: organizing first, then by title
-      const sortedOptions = Object.entries(groupedRegistrations).sort(
-        ([, regsA], [, regsB]) => {
-          // First sort by organizing registration (true first)
-          if (
-            regsA[0].organizingRegistration !== regsB[0].organizingRegistration
-          ) {
-            return regsB[0].organizingRegistration ? 1 : -1;
-          }
-          // Then sort by title
-          return regsA[0].registrationOptionTitle.localeCompare(
-            regsB[0].registrationOptionTitle,
-          );
-        },
-      );
+      const sortedOptions = Object.entries(groupedRegistrations).sort(([, regsA], [, regsB]) => {
+        // First sort by organizing registration (true first)
+        if (regsA[0].organizingRegistration !== regsB[0].organizingRegistration) {
+          return regsB[0].organizingRegistration ? 1 : -1;
+        }
+        // Then sort by title
+        return regsA[0].registrationOptionTitle.localeCompare(regsB[0].registrationOptionTitle);
+      });
 
       return sortedOptions.map(([optionId, regs]) => {
         // Sort users within each option: not checked in first, then by name
@@ -320,9 +284,7 @@ export const eventRouter = router({
               return a.checkInTime === null ? -1 : 1;
             }
             // Then by first name
-            const firstNameCompare = a.userFirstName.localeCompare(
-              b.userFirstName,
-            );
+            const firstNameCompare = a.userFirstName.localeCompare(b.userFirstName);
             if (firstNameCompare !== 0) return firstNameCompare;
             // Finally by last name
             return a.userLastName.localeCompare(b.userLastName);
@@ -359,11 +321,7 @@ export const eventRouter = router({
     }),
 
   getRegistrationStatus: publicProcedure
-    .input(
-      Schema.standardSchemaV1(
-        Schema.Struct({ eventId: Schema.NonEmptyString }),
-      ),
-    )
+    .input(Schema.standardSchemaV1(Schema.Struct({ eventId: Schema.NonEmptyString })))
     .query(async ({ ctx, input }) => {
       if (!ctx.user) {
         return {
@@ -388,15 +346,12 @@ export const eventRouter = router({
         isRegistered: registrations.length > 0,
         registrations: registrations.map((reg) => ({
           checkoutUrl: reg.transactions.find(
-            (transaction) =>
-              transaction.method === 'stripe' &&
-              transaction.type === 'registration',
+            (transaction) => transaction.method === 'stripe' && transaction.type === 'registration',
           )?.stripeCheckoutUrl,
           id: reg.id,
           paymentPending: reg.transactions.some(
             (transaction) =>
-              transaction.status === 'pending' &&
-              transaction.type === 'registration',
+              transaction.status === 'pending' && transaction.type === 'registration',
           ),
           // TODO: Fix once drizzle fixes this type
           registeredDescription: reg.registrationOption!.registeredDescription,

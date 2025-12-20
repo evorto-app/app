@@ -88,8 +88,7 @@ export async function addRegistrations(
   }
 
   // Prepare batch operation arrays
-  const registrations: InferInsertModel<typeof schema.eventRegistrations>[] =
-    [];
+  const registrations: InferInsertModel<typeof schema.eventRegistrations>[] = [];
   const transactions: InferInsertModel<typeof schema.transactions>[] = [];
   const optionUpdates = new Map<
     string,
@@ -148,7 +147,6 @@ export async function addRegistrations(
   const MAX_REGISTRATIONS_PER_USER = 4;
   const MAX_REGISTRATIONS_PER_TEST_USER = 1;
 
-
   // Process each event with varied registration patterns
   for (const [eventIndex, event] of events.entries()) {
     // Skip events without valid data
@@ -161,8 +159,7 @@ export async function addRegistrations(
     const now = new Date();
     const isPastEvent = eventDate < now;
     const isUpcomingEvent =
-      eventDate > now &&
-      eventDate < new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+      eventDate > now && eventDate < new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
     // Create varied registration patterns based on event type and timing
     let fillPercentage = 0.7; // Default 70%
@@ -227,16 +224,9 @@ export async function addRegistrations(
       }
 
       // Calculate registrations and waitlist
-      const regularSpots = Math.floor(
-        option.spots * Math.min(fillPercentage, 1),
-      );
-      const waitlistSpots = shouldHaveWaitlist
-        ? Math.floor(option.spots * 0.2)
-        : 0;
-      const totalRegistrations = Math.min(
-        regularSpots + waitlistSpots,
-        eligibleUsers.length,
-      );
+      const regularSpots = Math.floor(option.spots * Math.min(fillPercentage, 1));
+      const waitlistSpots = shouldHaveWaitlist ? Math.floor(option.spots * 0.2) : 0;
+      const totalRegistrations = Math.min(regularSpots + waitlistSpots, eligibleUsers.length);
 
       let confirmedCount = 0;
       let waitlistCount = 0;
@@ -271,9 +261,7 @@ export async function addRegistrations(
         const user = selectedUsers[index];
 
         // Get userTenant relationship for this specific tenant
-        const userTenantRelation = user.tenantAssignments?.find(
-          (t) => t.tenantId === tenantId,
-        );
+        const userTenantRelation = user.tenantAssignments?.find((t) => t.tenantId === tenantId);
 
         // Generate IDs for the registration and transaction
         const registrationId = createId();
@@ -324,21 +312,15 @@ export async function addRegistrations(
           // Check-in time between event start and 30 minutes after
           const eventStart = new Date(event.start);
           const checkInWindow = 30 * 60 * 1000; // 30 minutes in milliseconds
-          const offset = Math.floor(
-            randFloat({ fraction: 0, max: checkInWindow, min: 0 }),
-          );
+          const offset = Math.floor(randFloat({ fraction: 0, max: checkInWindow, min: 0 }));
           checkInTime = new Date(eventStart.getTime() + offset);
           checkedInCount++;
         }
 
         const basePriceAtRegistration = option.price ?? 0;
-        let appliedDiscountType: EventRegistrationInsert['appliedDiscountType'] =
-          null;
-        let appliedDiscountedPrice:
-          | EventRegistrationInsert['appliedDiscountedPrice']
-          | null = null;
-        let discountAmount: EventRegistrationInsert['discountAmount'] | null =
-          null;
+        let appliedDiscountType: EventRegistrationInsert['appliedDiscountType'] = null;
+        let appliedDiscountedPrice: EventRegistrationInsert['appliedDiscountedPrice'] | null = null;
+        let discountAmount: EventRegistrationInsert['discountAmount'] | null = null;
 
         const canApplyDiscount =
           option.isPaid &&
@@ -392,8 +374,7 @@ export async function addRegistrations(
             id: createId(),
             method: 'stripe',
             status: transactionStatus as 'cancelled' | 'pending' | 'successful',
-            stripeChargeId:
-              transactionStatus === 'successful' ? createId() : null,
+            stripeChargeId: transactionStatus === 'successful' ? createId() : null,
             stripePaymentIntentId: createId(),
             targetUserId: user.id,
             tenantId,
@@ -410,7 +391,6 @@ export async function addRegistrations(
       });
     }
   }
-
 
   // Execute all operations in a transaction for atomicity
   try {

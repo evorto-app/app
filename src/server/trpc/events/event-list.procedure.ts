@@ -1,16 +1,6 @@
 import { TRPCError } from '@trpc/server';
 import consola from 'consola';
-import {
-  and,
-  arrayOverlaps,
-  asc,
-  eq,
-  exists,
-  gt,
-  inArray,
-  not,
-  sql,
-} from 'drizzle-orm';
+import { and, arrayOverlaps, asc, eq, exists, gt, inArray, not, sql } from 'drizzle-orm';
 import { Schema } from 'effect';
 import { isEqual } from 'es-toolkit';
 import { Writable } from 'type-fest';
@@ -34,10 +24,9 @@ export const eventListProcedure = publicProcedure
         startAfter: Schema.optionalWith(Schema.ValidDateFromSelf, {
           default: () => new Date(),
         }),
-        status: Schema.optionalWith(
-          Schema.Array(Schema.Literal(...eventReviewStatus.enumValues)),
-          { default: () => [] },
-        ),
+        status: Schema.optionalWith(Schema.Array(Schema.Literal(...eventReviewStatus.enumValues)), {
+          default: () => [],
+        }),
         userId: Schema.optional(Schema.NonEmptyString),
       }),
     ),
@@ -54,20 +43,14 @@ export const eventListProcedure = publicProcedure
         );
       }
 
-      if (
-        !isEqual(status, ['APPROVED']) &&
-        !ctx.user?.permissions?.includes('events:seeDrafts')
-      ) {
+      if (!isEqual(status, ['APPROVED']) && !ctx.user?.permissions?.includes('events:seeDrafts')) {
         throw new TRPCError({
           code: 'FORBIDDEN',
           message: `User tried to see events with status ${status} but is missing the 'events:seeDrafts' permission!`,
         });
       }
 
-      if (
-        includeUnlisted &&
-        !ctx.user?.permissions?.includes('events:seeUnlisted')
-      ) {
+      if (includeUnlisted && !ctx.user?.permissions?.includes('events:seeUnlisted')) {
         consola.debug('User permissions', ctx.user?.permissions);
         throw new TRPCError({
           code: 'FORBIDDEN',
@@ -103,10 +86,7 @@ export const eventListProcedure = publicProcedure
               .from(schema.eventRegistrations)
               .where(
                 and(
-                  eq(
-                    schema.eventRegistrations.eventId,
-                    schema.eventInstances.id,
-                  ),
+                  eq(schema.eventRegistrations.eventId, schema.eventInstances.id),
                   eq(schema.eventRegistrations.userId, ctx.user?.id ?? ''),
                   not(eq(schema.eventRegistrations.status, 'CANCELLED')),
                 ),
@@ -118,23 +98,15 @@ export const eventListProcedure = publicProcedure
           and(
             gt(schema.eventInstances.start, startAfter),
             eq(schema.eventInstances.tenantId, ctx.tenant.id),
-            inArray(
-              schema.eventInstances.status,
-              status as Writable<typeof status>,
-            ),
-            ...(includeUnlisted
-              ? []
-              : [eq(schema.eventInstances.unlisted, false)]),
+            inArray(schema.eventInstances.status, status as Writable<typeof status>),
+            ...(includeUnlisted ? [] : [eq(schema.eventInstances.unlisted, false)]),
             exists(
               database
                 .select()
                 .from(schema.eventRegistrationOptions)
                 .where(
                   and(
-                    eq(
-                      schema.eventRegistrationOptions.eventId,
-                      schema.eventInstances.id,
-                    ),
+                    eq(schema.eventRegistrationOptions.eventId, schema.eventInstances.id),
                     arrayOverlaps(
                       schema.eventRegistrationOptions.roleIds,
                       rolesToFilterBy.length > 0 ? rolesToFilterBy : [''],

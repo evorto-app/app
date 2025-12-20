@@ -13,8 +13,8 @@ export async function addDiscountCards(
   tenantId: string,
 ) {
   // Add a verified ESNcard for one test user to enable discount testing
-  const testUser = usersToAuthenticate.find(u => u.roles === 'user' && u.addToDb);
-  
+  const testUser = usersToAuthenticate.find((u) => u.roles === 'user' && u.addToDb);
+
   if (!testUser) {
     return [];
   }
@@ -33,12 +33,12 @@ export async function addDiscountCards(
       metadata: {
         holderName: 'Test User',
         university: 'Test University',
-        country: 'TestLand'
+        country: 'TestLand',
       },
-    }
+    },
   ];
 
   await database.insert(userDiscountCards).values(discountCards).execute();
-  
+
   return discountCards;
 }

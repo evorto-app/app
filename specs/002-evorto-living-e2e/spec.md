@@ -6,6 +6,7 @@
 **Input**: User description: "Create “Evorto Living E2E Baseline,” a foundation of end‑to‑end tests that both verify the core user journeys ... (full prompt captured internally)"
 
 ## Execution Flow (main)
+
 ```
 1. Parse user description from Input
 	→ If empty: ERROR "No feature description provided"
@@ -28,16 +29,19 @@
 ---
 
 ## ⚡ Quick Guidelines
+
 - ✅ Focus on WHAT users need and WHY
 - ❌ Avoid HOW to implement (no tech stack, APIs, code structure)
 - 👥 Written for business stakeholders, not developers
 
 ### Section Requirements
+
 - **Mandatory sections**: Must be completed for every feature
 - **Optional sections**: Include only when relevant to the feature
 - When a section doesn't apply, remove it entirely (don't leave as "N/A")
 
 ### For AI Generation
+
 1. **Mark all ambiguities**: Use [NEEDS CLARIFICATION: specific question]
 2. **Don't guess** beyond what prompt supports
 3. **Think like a tester**: Each requirement must be observable in UI or measurable outcome
@@ -45,13 +49,16 @@
 
 ---
 
-## User Scenarios & Testing *(mandatory)*
+## User Scenarios & Testing _(mandatory)_
 
 ### Primary User Story
+
 Platform stakeholders need a living, trustworthy baseline of core user journeys that simultaneously (a) validates critical multi‑tenant event lifecycle behaviors and (b) produces human‑readable narrative documentation that always reflects real, current product behavior. This baseline reduces regression risk, accelerates onboarding, and creates an authoritative source of truth for how roles, event creation, visibility, and registration flows work. Finance, tax, and discount functionality are explicitly out of scope for this initial baseline.
 
 ### Journeys (Living Documentation `.doc` Flows)
+
 Each journey produces: narrative steps (user value framing), assertions of visible outcomes, and selective screenshots illustrating key states.
+
 1. Create your account (first‑time unauthenticated visitor → account creation / first login → onboarding → profile confirmation)
 2. Manage templates (authenticated organizer/admin: create a template, explain general + registration settings, save, re-open to verify persistence)
 3. Manage template categories (admin: create category, edit existing category, verify listing order/presence)
@@ -61,7 +68,9 @@ Each journey produces: narrative steps (user value framing), assertions of visib
 7. Admin: manage roles (admin: create a role, configure permission flags, assign to a user, verify gated access appears)
 8. Unlisted events: admin vs user (admin can view/manage unlisted; regular user cannot discover them via listings; direct link access is allowed for anyone with the URL)
 9. Scanning (authorized role accesses check‑in / scanning interface; sees event attendance context & status transitions for a registration)
+
 ### Acceptance Scenarios (Representative; each journey will enumerate Given/When/Then in test assets)
+
 1. Given a fresh tenant seed, when baseline data seeding runs, then there exist: template categories (>=2), at least one free template, one paid template, upcoming free event (open registration), upcoming paid event (open registration), and at least one past (finished) event.
 2. Given a first‑time visitor, when they create an account and complete onboarding, then their profile is initialized and accessible upon next sign‑in without additional setup.
 3. Given an organizer, when they create a new template and configure registration settings, then it appears in the template list and retains all entered metadata on re-open.
@@ -76,15 +85,17 @@ Each journey produces: narrative steps (user value framing), assertions of visib
 12. Given past events exist, when a user views event listings, then past events are excluded from the default upcoming list while remaining accessible via management interfaces for authorized roles.
 
 ### Edge Cases
+
 - Registration window boundary: event becomes open exactly at seeded start – ensure open/closed handling at boundary.
 - Capacity full after last free registration – ensure further registration attempt blocks and communicates reason.
 - Direct link access to unlisted event is allowed: ensure no listing exposure but direct navigation succeeds.
 - Role deletion while assigned – all currently assigned users immediately lose associated permissions; related gated areas become inaccessible on next authorization check.
 - Time zone handling – tests run using the system (tenant) timezone; all seeded event times relative to that timezone.
 
-## Requirements *(mandatory)*
+## Requirements _(mandatory)_
 
 ### Functional Requirements
+
 - **FR-001**: Provide a per-run isolated tenant so test outcomes are deterministic.
 - **FR-002**: Seed baseline data: categories (>=2), free template, paid template, upcoming free event (open registration), upcoming paid event (open registration), at least one past (finished) event.
 - **FR-003**: Ensure seeded events' start/end times are relative to current time so they remain “upcoming” during execution (except the explicit past event).
@@ -128,8 +139,8 @@ Each journey produces: narrative steps (user value framing), assertions of visib
 - **FR-041**: Render permission callout exactly with required structure (title, bullet list of permissions).
 - **FR-042**: Treat screenshot filenames as opaque provided references resolve within the journey folder.
 
-
 ### Key Entities
+
 - **Tenant**: Logical isolation boundary for seeded test data and operations.
 - **User**: Actor with authentication identity and associated role(s); includes unauthenticated visitor state.
 - **Role**: Named permission bundle controlling access to administrative / scanning capabilities.
@@ -140,30 +151,36 @@ Each journey produces: narrative steps (user value framing), assertions of visib
 - **Registration**: User’s enrollment record for an event (free or paid) with state (pending, confirmed, potentially future states like canceled / attended).
 - **Documentation Artifact**: Narrative + screenshot bundle (overwrites canonical artifacts) containing ONLY a `title` front matter field and optional permissions callout; screenshots live in a single folder per journey with arbitrary filenames referenced in markdown.
 - **Scanning Record (Attendance State)**: Association marking presence / check-in outcome for a registration.
+
 ---
 
 ## Review & Acceptance Checklist
-*GATE: Automated checks run during main() execution*
+
+_GATE: Automated checks run during main() execution_
 
 ### Content Quality
+
 - [ ] No implementation details (languages, frameworks, APIs)
 - [ ] Focused on user value and business needs
 - [ ] Written for non-technical stakeholders
 - [ ] All mandatory sections completed
 
 ### Requirement Completeness
+
 - [ ] No [NEEDS CLARIFICATION] markers remain
-- [ ] Requirements are testable and unambiguous  
+- [ ] Requirements are testable and unambiguous
 - [ ] Success criteria are measurable
 - [ ] Scope is clearly bounded
 - [ ] Dependencies and assumptions identified
 
 ### Testability & Validation Surface
+
 - [ ] Primary user journey can be validated via E2E tests
 - [ ] Non‑functional constraints (auth/roles, performance budgets, a11y where applicable) are stated for E2E validation
 - [ ] Documentation test journey is feasible for `.doc.ts`
 
 ### Legacy Data Migration (if applicable)
+
 - [ ] Data mapping rules (old DB → new DB) documented
 - [ ] Defaults/backfills for new fields identified; idempotency and verification checks noted
 - [ ] Required seed data updates listed so feature is testable without full migration
@@ -172,7 +189,8 @@ Each journey produces: narrative steps (user value framing), assertions of visib
 ---
 
 ## Execution Status
-*Updated by main() during processing*
+
+_Updated by main() during processing_
 
 - [x] User description parsed
 - [x] Key concepts extracted
@@ -183,7 +201,7 @@ Each journey produces: narrative steps (user value framing), assertions of visib
 - [ ] Review checklist passed
 
 ---
-*Based on Constitution 1.0.0 - See `/memory/constitution.md`*
+
+_Based on Constitution 1.0.0 - See `/memory/constitution.md`_
 
 ---
-

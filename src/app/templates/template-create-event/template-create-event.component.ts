@@ -1,16 +1,6 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  effect,
-  inject,
-  input,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, effect, inject, input } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
-import {
-  FormArray,
-  NonNullableFormBuilder,
-  ReactiveFormsModule,
-} from '@angular/forms';
+import { FormArray, NonNullableFormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatNativeDateModule } from '@angular/material/core';
@@ -22,11 +12,7 @@ import { MatTimepickerModule } from '@angular/material/timepicker';
 import { Router, RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
-import {
-  injectMutation,
-  injectQuery,
-  QueryClient,
-} from '@tanstack/angular-query-experimental';
+import { injectMutation, injectQuery, QueryClient } from '@tanstack/angular-query-experimental';
 import consola from 'consola/browser';
 import { DateTime } from 'luxon';
 
@@ -79,18 +65,12 @@ export class TemplateCreateEventComponent {
     this.trpc.events.create.mutationOptions(),
   );
   protected readonly faArrowLeft = faArrowLeft;
-  protected readonly registrationModes = [
-    'fcfs',
-    'random',
-    'application',
-  ] as const;
+  protected readonly registrationModes = ['fcfs', 'random', 'application'] as const;
   protected readonly templateId = input.required<string>();
   protected readonly templateQuery = injectQuery(() =>
     this.trpc.templates.findOne.queryOptions({ id: this.templateId() }),
   );
-  private eventStartValue = toSignal(
-    this.createEventForm.controls.start.valueChanges,
-  );
+  private eventStartValue = toSignal(this.createEventForm.controls.start.valueChanges);
 
   private readonly queryClient = inject(QueryClient);
   private readonly router = inject(Router);
@@ -149,12 +129,8 @@ export class TemplateCreateEventComponent {
             'registrationOptions',
           ) as FormArray;
           const registrationOption = registrationOptionsFormArray.at(index);
-          registrationOption
-            ?.get('openRegistrationTime')
-            ?.patchValue(openRegistrationTime);
-          registrationOption
-            ?.get('closeRegistrationTime')
-            ?.patchValue(closeRegistrationTime);
+          registrationOption?.get('openRegistrationTime')?.patchValue(openRegistrationTime);
+          registrationOption?.get('closeRegistrationTime')?.patchValue(closeRegistrationTime);
         }
       }
     });

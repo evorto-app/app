@@ -21,9 +21,7 @@ export const transformAuthId = (authId: string) => {
   return migrationConfig.authIdMap[authId] ?? authId;
 };
 
-export const resolveUserId = async (
-  oldUserId: string,
-): Promise<string | undefined> => {
+export const resolveUserId = async (oldUserId: string): Promise<string | undefined> => {
   // Check cache first
   if (migrationConfig.userIdCache.has(oldUserId)) {
     const cached = migrationConfig.userIdCache.get(oldUserId);
@@ -68,7 +66,7 @@ export const resolveIcon = async (
   tenantId: string,
 ): Promise<{ iconColor: number; iconName: string }> => {
   const cacheKey = `${iconName}:${tenantId}`;
-  
+
   // Check cache first
   if (migrationConfig.iconCache.has(cacheKey)) {
     const cached = migrationConfig.iconCache.get(cacheKey);
@@ -81,15 +79,12 @@ export const resolveIcon = async (
   try {
     // Find icon by commonName and tenantId
     const [icon] = await database
-      .select({ 
+      .select({
         commonName: newSchema.icons.commonName,
-        sourceColor: newSchema.icons.sourceColor 
+        sourceColor: newSchema.icons.sourceColor,
       })
       .from(newSchema.icons)
-      .where(and(
-        eq(newSchema.icons.commonName, iconName),
-        eq(newSchema.icons.tenantId, tenantId)
-      ))
+      .where(and(eq(newSchema.icons.commonName, iconName), eq(newSchema.icons.tenantId, tenantId)))
       .limit(1);
 
     if (!icon) {

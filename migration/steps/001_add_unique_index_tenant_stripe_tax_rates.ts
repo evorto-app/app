@@ -5,7 +5,7 @@ import { database } from '../../src/db';
 
 export const addUniqueIndexTenantStripeTaxRates = async () => {
   consola.info('Adding unique index for (tenantId, stripeTaxRateId) on tenant_stripe_tax_rates');
-  
+
   try {
     // Check if index already exists
     const indexExists = await database.execute(sql`
@@ -24,7 +24,7 @@ export const addUniqueIndexTenantStripeTaxRates = async () => {
       CREATE UNIQUE INDEX CONCURRENTLY tenant_stripe_tax_rates_tenant_rate_uidx 
       ON tenant_stripe_tax_rates(tenantId, stripeTaxRateId)
     `);
-    
+
     consola.success('Successfully added unique index tenant_stripe_tax_rates_tenant_rate_uidx');
   } catch (error) {
     consola.error('Failed to add unique index:', error);

@@ -15,12 +15,10 @@ test('Register for a free event', async ({ events, page }, testInfo) => {
       event.unlisted === false &&
       event.registrationOptions.some((option) => {
         return (
-          DateTime.fromJSDate(option.openRegistrationTime).diffNow()
-            .milliseconds < 0 &&
+          DateTime.fromJSDate(option.openRegistrationTime).diffNow().milliseconds < 0 &&
           !option.isPaid &&
           option.title === 'Participant registration' &&
-          DateTime.fromJSDate(option.closeRegistrationTime).diffNow()
-            .milliseconds > 0
+          DateTime.fromJSDate(option.closeRegistrationTime).diffNow().milliseconds > 0
         );
       })
     );
@@ -35,11 +33,7 @@ test('Register for a free event', async ({ events, page }, testInfo) => {
   To register for an event, open the app and browse the events available to you.
   Click one that interests you to learn more and see the registration options.`,
   });
-  await takeScreenshot(
-    testInfo,
-    page.getByRole('link', { name: freeEvent.title }),
-    page,
-  );
+  await takeScreenshot(testInfo, page.getByRole('link', { name: freeEvent.title }), page);
   await page.getByRole('link', { name: freeEvent.title }).click();
   await testInfo.attach('markdown', {
     body: `
@@ -49,11 +43,7 @@ test('Register for a free event', async ({ events, page }, testInfo) => {
   ## Free events
   Here we will make a distinction for free events and paid events (covered further down)`,
   });
-  await takeScreenshot(
-    testInfo,
-    page.locator('section').filter({ hasText: 'Registration' }),
-    page,
-  );
+  await takeScreenshot(testInfo, page.locator('section').filter({ hasText: 'Registration' }), page);
   await testInfo.attach('markdown', {
     body: `
   After selecting a free event, all left to do is press the **Register** button for the option you chose. After that, you will see your confirmation and ticket QR code.`,
@@ -89,12 +79,10 @@ test('Register for a paid event', async ({ events, page }, testInfo) => {
       event.unlisted === false &&
       event.registrationOptions.some((option) => {
         return (
-          DateTime.fromJSDate(option.openRegistrationTime).diffNow()
-            .milliseconds < 0 &&
+          DateTime.fromJSDate(option.openRegistrationTime).diffNow().milliseconds < 0 &&
           option.isPaid &&
           option.title === 'Participant registration' &&
-          DateTime.fromJSDate(option.closeRegistrationTime).diffNow()
-            .milliseconds > 0
+          DateTime.fromJSDate(option.closeRegistrationTime).diffNow().milliseconds > 0
         );
       })
     );
@@ -108,22 +96,14 @@ test('Register for a paid event', async ({ events, page }, testInfo) => {
   To register for a paid event, you have to pay the registration fee.`,
   });
   await page.getByRole('link', { name: paidEvent.title }).click();
-  await takeScreenshot(
-    testInfo,
-    page.locator('section').filter({ hasText: 'Registration' }),
-    page,
-  );
+  await takeScreenshot(testInfo, page.locator('section').filter({ hasText: 'Registration' }), page);
   await page.getByRole('button', { name: 'Pay' }).click();
   await testInfo.attach('markdown', {
     body: `
   By clicking the **Pay and register** button, you are starting the payment process.
   Afterwards, you can either finish the registration by paying or cancel your payment and registration in case you changed your mind.`,
   });
-  await takeScreenshot(
-    testInfo,
-    page.locator('section').filter({ hasText: 'Registration' }),
-    page,
-  );
+  await takeScreenshot(testInfo, page.locator('section').filter({ hasText: 'Registration' }), page);
   await page.getByRole('link', { name: 'Pay now' }).click();
   await page.waitForTimeout(2000);
   await takeScreenshot(testInfo, page.locator('main'), page);

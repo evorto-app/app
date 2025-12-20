@@ -1,11 +1,4 @@
-import {
-  boolean,
-  integer,
-  pgEnum,
-  pgTable,
-  text,
-  varchar,
-} from 'drizzle-orm/pg-core';
+import { boolean, integer, pgEnum, pgTable, text, varchar } from 'drizzle-orm/pg-core';
 
 import { eventInstances } from './event-instances';
 import { eventRegistrations } from './event-registrations';
@@ -26,11 +19,7 @@ export const transactionMethod = pgEnum('transaction_method', [
   'cash',
 ]);
 
-export const transactionType = pgEnum('transaction_type', [
-  'registration',
-  'refund',
-  'other',
-]);
+export const transactionType = pgEnum('transaction_type', ['registration', 'refund', 'other']);
 
 export const transactions = pgTable('transactions', {
   ...modelOfTenant,
@@ -39,9 +28,7 @@ export const transactions = pgTable('transactions', {
   comment: text(),
   currency: currencyEnum().notNull(),
   eventId: varchar({ length: 20 }).references(() => eventInstances.id),
-  eventRegistrationId: varchar({ length: 20 }).references(
-    () => eventRegistrations.id,
-  ),
+  eventRegistrationId: varchar({ length: 20 }).references(() => eventRegistrations.id),
   executiveUserId: varchar({ length: 20 }).references(() => users.id),
   manuallyCreated: boolean().default(false),
   method: transactionMethod().notNull(),

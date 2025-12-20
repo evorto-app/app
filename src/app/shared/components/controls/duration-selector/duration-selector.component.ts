@@ -22,11 +22,7 @@ interface DurationValue {
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    MatFormFieldModule,
-    MatInputModule,
-    ReactiveFormsModule,
-  ],
+  imports: [MatFormFieldModule, MatInputModule, ReactiveFormsModule],
   providers: [
     {
       multi: true,
@@ -41,9 +37,9 @@ interface DurationValue {
 export class DurationSelectorComponent implements ControlValueAccessor {
   public readonly hint = input<string>('');
   public readonly label = input<string>('Duration');
-  
+
   protected disabled = signal(false);
-  
+
   private fb = inject(NonNullableFormBuilder);
 
   protected readonly durationForm = this.fb.group({
@@ -79,11 +75,14 @@ export class DurationSelectorComponent implements ControlValueAccessor {
     if (totalHours !== null && totalHours !== undefined) {
       const days = Math.floor(totalHours / 24);
       const hours = totalHours % 24;
-      
-      this.durationForm.patchValue({
-        days,
-        hours,
-      }, { emitEvent: false });
+
+      this.durationForm.patchValue(
+        {
+          days,
+          hours,
+        },
+        { emitEvent: false },
+      );
     }
   }
 

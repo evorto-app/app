@@ -1,9 +1,6 @@
 import { getId } from '../get-id';
 
-export const getCityTripTemplates = (cityTripsCategory: {
-  id: string;
-  tenantId: string;
-}) => [
+export const getCityTripTemplates = (cityTripsCategory: { id: string; tenantId: string }) => [
   {
     categoryId: cityTripsCategory.id,
     description:

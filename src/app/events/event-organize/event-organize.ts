@@ -45,10 +45,7 @@ export class EventOrganize {
   stats = computed(() => {
     const eventData = this.event();
     const registrationOptions = eventData?.registrationOptions || [];
-    const totalCapacity = registrationOptions.reduce(
-      (sum, option) => sum + option.spots,
-      0,
-    );
+    const totalCapacity = registrationOptions.reduce((sum, option) => sum + option.spots, 0);
     const totalRegistered = registrationOptions.reduce(
       (sum, option) => sum + option.confirmedSpots,
       0,
@@ -60,8 +57,7 @@ export class EventOrganize {
 
     return {
       capacity: totalCapacity,
-      capacityPercentage:
-        totalCapacity > 0 ? totalRegistered / totalCapacity : 0,
+      capacityPercentage: totalCapacity > 0 ? totalRegistered / totalCapacity : 0,
       checkedIn: totalCheckedIn,
       registered: totalRegistered,
     };
@@ -75,11 +71,7 @@ export class EventOrganize {
     }),
   );
 
-  protected readonly organizerTableColumns = signal([
-    'name',
-    'email',
-    'checkin',
-  ]);
+  protected readonly organizerTableColumns = signal(['name', 'email', 'checkin']);
   protected readonly organizerTableContent = computed(() => {
     const overview = this.organizerOverviewQuery.data();
     if (!overview) return [];
@@ -107,13 +99,9 @@ export class EventOrganize {
     });
   }
 
-  protected readonly showOrganizerRow = (
-    index: number,
-    row: { type?: string },
-  ) => row?.type !== 'Registration Option';
+  protected readonly showOrganizerRow = (index: number, row: { type?: string }) =>
+    row?.type !== 'Registration Option';
 
-  protected readonly showRegistrationOptionRow = (
-    index: number,
-    row: { type?: string },
-  ) => row?.type === 'Registration Option';
+  protected readonly showRegistrationOptionRow = (index: number, row: { type?: string }) =>
+    row?.type === 'Registration Option';
 }

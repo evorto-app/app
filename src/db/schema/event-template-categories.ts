@@ -6,9 +6,7 @@ import { tenants } from './tenants';
 export const eventTemplateCategories = pgTable('event_template_categories', {
   createdAt: timestamp().notNull().defaultNow(),
   description: text(),
-  icon: jsonb('icon')
-    .$type<{ iconColor: number; iconName: string }>()
-    .notNull(),
+  icon: jsonb('icon').$type<{ iconColor: number; iconName: string }>().notNull(),
   id: varchar({ length: 20 })
     .$defaultFn(() => createId())
     .primaryKey(),

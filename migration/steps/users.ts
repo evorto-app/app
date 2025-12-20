@@ -12,9 +12,7 @@ const numberFormat = new Intl.NumberFormat();
 
 export const migrateUsers = async () => {
   consola.start('Migrating users');
-  const userCountResult = await oldDatabase
-    .select({ count: count() })
-    .from(oldSchema.user);
+  const userCountResult = await oldDatabase.select({ count: count() }).from(oldSchema.user);
   const userCount = userCountResult[0].count;
   consola.info(`Found ${numberFormat.format(userCount)} users`);
   for (let index = 0; index < userCount; index += migrationStepSize) {
@@ -39,9 +37,7 @@ export const migrateUsers = async () => {
       )
       .onConflictDoNothing({ target: [schema.users.auth0Id] });
   }
-  const newUserCountResult = await database
-    .select({ count: count() })
-    .from(schema.users);
+  const newUserCountResult = await database.select({ count: count() }).from(schema.users);
   const newUserCount = newUserCountResult[0].count;
   consola.success(
     `Migrated ${numberFormat.format(newUserCount)}/${numberFormat.format(userCount)} users`,

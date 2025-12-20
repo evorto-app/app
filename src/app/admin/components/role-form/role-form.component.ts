@@ -60,9 +60,10 @@ export class RoleFormComponent {
     description: [''],
     name: [''],
     permissions: this.formBuilder.group(
-      Object.fromEntries(
-        ALL_PERMISSIONS.map((permission) => [permission, [false]]),
-      ) as Record<Permission, [boolean]>,
+      Object.fromEntries(ALL_PERMISSIONS.map((permission) => [permission, [false]])) as Record<
+        Permission,
+        [boolean]
+      >,
     ),
     showInHub: [false],
   });
@@ -73,15 +74,12 @@ export class RoleFormComponent {
     const currentPermissions = this.formValue()?.permissions ?? {};
     return this.permissionGroups.map((group) => {
       const groupPermissions = group.permissions.map((p) => p.key);
-      const selectedCount = groupPermissions.filter(
-        (p) => currentPermissions[p],
-      ).length;
+      const selectedCount = groupPermissions.filter((p) => currentPermissions[p]).length;
 
       return {
         ...group,
         checked: selectedCount === groupPermissions.length,
-        indeterminate:
-          selectedCount > 0 && selectedCount < groupPermissions.length,
+        indeterminate: selectedCount > 0 && selectedCount < groupPermissions.length,
       };
     });
   });
@@ -112,20 +110,13 @@ export class RoleFormComponent {
       const rawValue = this.permissionForm.getRawValue();
       this.formSubmit.emit({
         ...rawValue,
-        permissions: ALL_PERMISSIONS.filter(
-          (p) => rawValue.permissions[p],
-        ) as Permission[],
+        permissions: ALL_PERMISSIONS.filter((p) => rawValue.permissions[p]) as Permission[],
       });
     }
   }
 
-  toggleGroup(
-    group: { permissions: { key: Permission }[] },
-    checked: boolean,
-  ): void {
-    const updates = Object.fromEntries(
-      group.permissions.map((p) => [p.key, checked]),
-    );
+  toggleGroup(group: { permissions: { key: Permission }[] }, checked: boolean): void {
+    const updates = Object.fromEntries(group.permissions.map((p) => [p.key, checked]));
 
     this.permissionForm.patchValue({
       permissions: {
@@ -149,9 +140,7 @@ export class RoleFormComponent {
   protected getPermissionTooltip(permission: Permission): string {
     if (this.isPermissionDisabled(permission)) {
       // Find which permission grants this one
-      for (const [parentPerm, childPerms] of Object.entries(
-        PERMISSION_DEPENDENCIES,
-      )) {
+      for (const [parentPerm, childPerms] of Object.entries(PERMISSION_DEPENDENCIES)) {
         if (childPerms.includes(permission)) {
           return `Automatically granted by ${parentPerm}`;
         }
@@ -163,13 +152,8 @@ export class RoleFormComponent {
   protected isPermissionDisabled(permission: Permission): boolean {
     const currentPermissions = this.formValue()?.permissions ?? {};
     // Check if this permission is already granted through a dependency
-    for (const [parentPerm, childPerms] of Object.entries(
-      PERMISSION_DEPENDENCIES,
-    )) {
-      if (
-        currentPermissions[parentPerm as Permission] &&
-        childPerms.includes(permission)
-      ) {
+    for (const [parentPerm, childPerms] of Object.entries(PERMISSION_DEPENDENCIES)) {
+      if (currentPermissions[parentPerm as Permission] && childPerms.includes(permission)) {
         return true;
       }
     }

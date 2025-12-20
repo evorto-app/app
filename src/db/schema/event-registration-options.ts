@@ -1,12 +1,4 @@
-import {
-  boolean,
-  integer,
-  jsonb,
-  pgTable,
-  text,
-  timestamp,
-  varchar,
-} from 'drizzle-orm/pg-core';
+import { boolean, integer, jsonb, pgTable, text, timestamp, varchar } from 'drizzle-orm/pg-core';
 
 import { createId } from '../create-id';
 import { eventInstances } from './event-instances';
@@ -14,8 +6,8 @@ import { registrationModes } from './global-enums';
 
 // Type for discount configurations - must match template definition
 export interface EventDiscountConfig {
-  discountType: 'esnCard';
   discountedPrice: number;
+  discountType: 'esnCard';
 }
 
 export const eventRegistrationOptions = pgTable('event_registration_options', {

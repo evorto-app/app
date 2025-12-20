@@ -3,7 +3,7 @@ import { Schema } from 'effect';
 
 import { database } from '../../../db';
 import { roles } from '../../../db/schema';
-import { PermissionSchema } from '../../../shared/permissions/permissions';
+import { PermissionSchema } from '../../schemas/permission.schema';
 import { authenticatedProcedure, router } from '../trpc-server';
 
 export const roleRouter = router({

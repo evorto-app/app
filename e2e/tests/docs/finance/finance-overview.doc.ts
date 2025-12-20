@@ -30,7 +30,7 @@ To access the finance overview, navigate to the **Finance** section from the mai
     testInfo,
     page.locator('app-finance-overview'),
     page,
-    'Finance overview page'
+    'Finance overview page',
   );
 
   await testInfo.attach('markdown', {
@@ -61,7 +61,7 @@ You can view a detailed list of all transactions by clicking on the **Transactio
     testInfo,
     page.locator('app-transaction-list'),
     page,
-    'Transaction list page'
+    'Transaction list page',
   );
 
   await testInfo.attach('markdown', {
@@ -90,12 +90,7 @@ Click on any transaction to view its details.
 
   // Assuming there's at least one transaction in the list
   await page.locator('app-transaction-list tr').first().click();
-  await takeScreenshot(
-    testInfo,
-    page.locator('dialog'),
-    page,
-    'Transaction details dialog'
-  );
+  await takeScreenshot(testInfo, page.locator('dialog'), page, 'Transaction details dialog');
 
   await testInfo.attach('markdown', {
     body: `

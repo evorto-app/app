@@ -1,11 +1,5 @@
 import consola from 'consola';
-import {
-  count,
-  eq,
-  InferInsertModel,
-  InferSelectModel,
-  sql,
-} from 'drizzle-orm';
+import { count, eq, InferInsertModel, InferSelectModel, sql } from 'drizzle-orm';
 import { DateTime } from 'luxon';
 import { marked } from 'marked';
 
@@ -48,8 +42,7 @@ export const migrateTemplates = async (
         try {
           const resolvedIcon = await resolveIcon(template.icon, newTenant.id);
           return {
-            categoryId:
-              categoryIdMap.get(template.categoryId ?? 'none') ?? 'remove',
+            categoryId: categoryIdMap.get(template.categoryId ?? 'none') ?? 'remove',
             createdAt: new Date(template.createdAt),
             description: marked.parse(template.description, { async: false }),
             icon: resolvedIcon,
@@ -70,7 +63,9 @@ export const migrateTemplates = async (
             untouchedSinceMigration: true,
           };
         } catch (error) {
-          consola.warn(`Failed to resolve icon "${template.icon}" for template "${template.title}": ${error}`);
+          consola.warn(
+            `Failed to resolve icon "${template.icon}" for template "${template.title}": ${error}`,
+          );
           return null;
         }
       })
@@ -79,10 +74,7 @@ export const migrateTemplates = async (
 
   const newTemplates = await database
     .insert(schema.eventTemplates)
-    .values(
-      templateValues
-        .filter((t) => t !== null && t.categoryId !== 'remove')
-    )
+    .values(templateValues.filter((t) => t !== null && t.categoryId !== 'remove'))
     .returning();
 
   const templateIdMap = new Map<string, string>();
@@ -135,9 +127,7 @@ export const migrateTemplates = async (
         ) {
           price =
             (eventInstance.prices.options.find(
-              (price) =>
-                !price.esnCardRequired &&
-                price.allowedStatusList.includes('NONE'),
+              (price) => !price.esnCardRequired && price.allowedStatusList.includes('NONE'),
             )?.amount ?? 0) * 100;
         }
         return [

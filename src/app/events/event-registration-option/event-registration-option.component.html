@@ -1,15 +1,13 @@
 <div
   class="flex flex-col gap-2 rounded-2xl bg-surface p-4 text-on-surface {{
-    registrationMutation.isPending()
-      ? 'animate-pulse cursor-progress pointer-events-none'
-      : ''
+    registrationMutation.isPending() ? 'animate-pulse cursor-progress pointer-events-none' : ''
   }}"
 >
   <div class="flex flex-row items-center gap-4">
     <h3 class="title-medium">{{ registrationOption().title }}</h3>
     @if (registrationOption().isPaid) {
       <div class="grow"></div>
-      
+
       <!-- Pricing Display with Discounts -->
       @if (discountInfo().hasDiscount) {
         <div class="flex flex-col items-end">
@@ -22,8 +20,9 @@
             </span>
           </div>
           <div class="text-xs text-primary">
-            Save {{ discountInfo().savings / 100 | currency }} 
-            ({{ discountInfo().savingsPercentage }}% off)
+            Save {{ discountInfo().savings / 100 | currency }} ({{
+              discountInfo().savingsPercentage
+            }}% off)
           </div>
         </div>
       } @else {
@@ -40,32 +39,38 @@
   ></div>
 
   <!-- Discount Information Section -->
-  @if (registrationOption().isPaid && authenticationQuery.data() && (registrationOption().discounts?.length ?? 0) > 0) {
+  @if (
+    registrationOption().isPaid &&
+    authenticationQuery.data() &&
+    (registrationOption().discounts?.length ?? 0) > 0
+  ) {
     <div class="bg-surface-variant rounded-lg p-3 text-sm">
       <div class="flex items-center gap-2 mb-2">
         <mat-icon class="text-base">local_offer</mat-icon>
         <span class="font-medium">Available Discounts</span>
       </div>
-      
+
       @if (discountInfo().hasDiscount) {
         <div class="text-primary font-medium mb-2">
-          ✓ You're getting {{ discountInfo().savingsPercentage }}% off with your 
+          ✓ You're getting {{ discountInfo().savingsPercentage }}% off with your
           @switch (discountInfo().discountType) {
-            @case ('esnCard') { ESNcard }
+            @case ('esnCard') {
+              ESNcard
+            }
           }
         </div>
       }
-      
+
       @for (discount of availableDiscounts(); track discount.discountType) {
         <div class="flex items-center justify-between py-1">
           <div class="flex items-center gap-2">
             @switch (discount.discountType) {
-              @case ('esnCard') { 
+              @case ('esnCard') {
                 <mat-icon class="text-base">credit_card</mat-icon>
                 <span>ESNcard</span>
               }
             }
-            
+
             @switch (discount.status) {
               @case ('eligible') {
                 <mat-icon class="text-green-600 text-base">check_circle</mat-icon>
@@ -81,7 +86,7 @@
               }
             }
           </div>
-          
+
           <div class="text-right">
             <div class="font-medium">{{ discount.discountedPrice / 100 | currency }}</div>
             <div class="text-xs text-on-surface-variant">
@@ -90,7 +95,7 @@
           </div>
         </div>
       }
-      
+
       @if (availableDiscounts().length > 0) {
         @if (hasManageableDiscounts()) {
           <div class="mt-2 pt-2 border-t border-outline">
@@ -105,7 +110,7 @@
 
   @if (authenticationQuery.data()) {
     @switch (registrationOpen()) {
-      @case ("open") {
+      @case ('open') {
         @if (registrationOption().isPaid) {
           @if (discountInfo().hasDiscount) {
             <button
@@ -135,27 +140,22 @@
           </button>
         }
       }
-      @case ("tooEarly") {
+      @case ('tooEarly') {
         <p class="body-large">
           Registration is not open yet, it will open
-          {{ registrationOption().openRegistrationTime | date: "medium" }}
+          {{ registrationOption().openRegistrationTime | date: 'medium' }}
         </p>
       }
-      @case ("tooLate") {
+      @case ('tooLate') {
         <p class="body-large">
           Registration is closed, it closed
-          {{ registrationOption().closeRegistrationTime | date: "medium" }}
+          {{ registrationOption().closeRegistrationTime | date: 'medium' }}
         </p>
       }
     }
   } @else {
     <p class="body-large">You can only register after logging in</p>
-    <a
-      href="/forward-login?redirectUrl=/events/{{
-        registrationOption().eventId
-      }}"
-      mat-flat-button
-    >
+    <a href="/forward-login?redirectUrl=/events/{{ registrationOption().eventId }}" mat-flat-button>
       Log in now
     </a>
   }

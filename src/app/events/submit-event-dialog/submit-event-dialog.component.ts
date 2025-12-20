@@ -12,15 +12,13 @@ import { MatDialogModule } from '@angular/material/dialog';
     <mat-dialog-content>
       <p>Are you sure you want to submit this event for review?</p>
       <p class="text-on-surface-variant mt-2">
-        Once submitted, the event will be locked for editing until it is either
-        approved or rejected.
+        Once submitted, the event will be locked for editing until it is either approved or
+        rejected.
       </p>
     </mat-dialog-content>
     <mat-dialog-actions align="end">
       <button mat-button mat-dialog-close>Cancel</button>
-      <button mat-flat-button [mat-dialog-close]="true">
-        Submit for Review
-      </button>
+      <button mat-flat-button [mat-dialog-close]="true">Submit for Review</button>
     </mat-dialog-actions>
   `,
 })

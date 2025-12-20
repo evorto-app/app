@@ -40,7 +40,9 @@ test('registers for available free event', async ({ page, database }) => {
   )!;
 
   // Capture confirmedSpots before
-  const before = await database.query.eventRegistrationOptions.findFirst({ where: { id: option.id } });
+  const before = await database.query.eventRegistrationOptions.findFirst({
+    where: { id: option.id },
+  });
   const confirmedBefore = before?.confirmedSpots ?? 0;
 
   // Navigate to event and register
@@ -66,7 +68,9 @@ test('registers for available free event', async ({ page, database }) => {
   });
   expect(registration).toBeTruthy();
 
-  const after = await database.query.eventRegistrationOptions.findFirst({ where: { id: option.id } });
+  const after = await database.query.eventRegistrationOptions.findFirst({
+    where: { id: option.id },
+  });
   const confirmedAfter = after?.confirmedSpots ?? confirmedBefore;
   expect(confirmedAfter).toBeGreaterThanOrEqual(confirmedBefore + 1);
 });

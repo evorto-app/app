@@ -40,11 +40,7 @@ return database
       description: 'Helpers of the section',
       id: getId(),
       name: 'Helper',
-      permissions: [
-        'events:viewPublic',
-        'templates:view',
-        'internal:viewInternalPages',
-      ],
+      permissions: ['events:viewPublic', 'templates:view', 'internal:viewInternalPages'],
       tenantId: tenant.id,
     },
     {

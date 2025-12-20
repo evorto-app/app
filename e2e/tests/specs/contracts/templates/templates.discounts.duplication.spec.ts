@@ -1,11 +1,7 @@
 import { Page } from '@playwright/test';
 import { eq } from 'drizzle-orm';
 
-import {
-  adminStateFile,
-  defaultStateFile,
-  userStateFile,
-} from '../../../../../helpers/user-data';
+import { adminStateFile, defaultStateFile, userStateFile } from '../../../../../helpers/user-data';
 import * as schema from '../../../../../src/db/schema';
 import { test as base, expect } from '../../../../fixtures/parallel-test';
 import { runWithStorageState } from '../../../../utils/auth-context';
@@ -38,9 +34,7 @@ const test = base.extend<{
     });
 
     const template = templates.find((entry) =>
-      entry.registrationOptions.some(
-        (option) => option.isPaid && !option.organizingRegistration,
-      ),
+      entry.registrationOptions.some((option) => option.isPaid && !option.organizingRegistration),
     );
 
     if (!template) {
@@ -115,9 +109,7 @@ const verifyTransactionAmount = async (
     });
 
     const expectedText = centsToCurrency(expectedAmount);
-    const row = financePage
-      .getByRole('row', { name: new RegExp(eventTitle, 'i') })
-      .first();
+    const row = financePage.getByRole('row', { name: new RegExp(eventTitle, 'i') }).first();
     await expect(row).toBeVisible();
     await expect(row.getByRole('cell').first()).toContainText(expectedText);
   });
@@ -127,98 +119,89 @@ test.describe.configure({ tag: '@contracts' });
 
 test.use({ storageState: defaultStateFile });
 
-test.fixme(
-  'Contract: templates.createEventFromTemplate keeps ESN discount configuration @slow',
-  async ({ browser, discountTemplate, page, tenant }) => {
-    // TODO: event approval flow is required to expose registration options to end users.
-    const uniqueTitle = `Discounted event ${Date.now()}`;
+test.fixme('Contract: templates.createEventFromTemplate keeps ESN discount configuration @slow', async ({
+  browser,
+  discountTemplate,
+  page,
+  tenant,
+}) => {
+  // TODO: event approval flow is required to expose registration options to end users.
+  const uniqueTitle = `Discounted event ${Date.now()}`;
 
-    await page.goto('/templates');
-    await page
-      .getByText('Loading ...', { exact: false })
-      .first()
-      .waitFor({ state: 'detached' });
-    const templateLink = page
-      .getByRole('link', {
-        name: new RegExp(discountTemplate.templateTitle, 'i'),
-      })
-      .first();
+  await page.goto('/templates');
+  await page.getByText('Loading ...', { exact: false }).first().waitFor({ state: 'detached' });
+  const templateLink = page
+    .getByRole('link', {
+      name: new RegExp(discountTemplate.templateTitle, 'i'),
+    })
+    .first();
 
-    await expect(templateLink).toBeVisible({ timeout: 15_000 });
-    await templateLink.scrollIntoViewIfNeeded();
-    await templateLink.click();
+  await expect(templateLink).toBeVisible({ timeout: 15_000 });
+  await templateLink.scrollIntoViewIfNeeded();
+  await templateLink.click();
 
-    const createEventButton = page.getByRole('link', { name: 'Create event' });
-    await expect(createEventButton).toBeVisible({ timeout: 10_000 });
-    await createEventButton.click();
+  const createEventButton = page.getByRole('link', { name: 'Create event' });
+  await expect(createEventButton).toBeVisible({ timeout: 10_000 });
+  await createEventButton.click();
 
-    await expect(page).toHaveURL(/create-event$/);
-    await expect(page.getByLabel('Event title')).toBeVisible({
-      timeout: 15_000,
-    });
+  await expect(page).toHaveURL(/create-event$/);
+  await expect(page.getByLabel('Event title')).toBeVisible({
+    timeout: 15_000,
+  });
 
-    const eventDetails = page.locator('app-event-general-form');
+  const eventDetails = page.locator('app-event-general-form');
 
-    await eventDetails.getByLabel('Event title').fill(uniqueTitle);
-    await eventDetails.getByLabel('Start date').fill('12/31/2030');
-    await eventDetails.getByLabel('Start time').fill('09:00');
-    await eventDetails.getByLabel('End date').fill('01/01/2031');
-    await eventDetails.getByLabel('End time').fill('18:00');
+  await eventDetails.getByLabel('Event title').fill(uniqueTitle);
+  await eventDetails.getByLabel('Start date').fill('12/31/2030');
+  await eventDetails.getByLabel('Start time').fill('09:00');
+  await eventDetails.getByLabel('End date').fill('01/01/2031');
+  await eventDetails.getByLabel('End time').fill('18:00');
 
-    await page.getByRole('button', { name: 'Create event' }).click();
-    await page.waitForURL(/\/events\/[^/]+$/);
+  await page.getByRole('button', { name: 'Create event' }).click();
+  await page.waitForURL(/\/events\/[^/]+$/);
 
-    const eventUrl = page.url();
+  const eventUrl = page.url();
 
-    await runWithStorageState(
-      browser,
-      userStateFile,
-      async (userPage) => {
-        await userPage.goto(eventUrl, { waitUntil: 'domcontentloaded' });
-        await ensureRegistrationSectionResets(userPage);
+  await runWithStorageState(
+    browser,
+    userStateFile,
+    async (userPage) => {
+      await userPage.goto(eventUrl, { waitUntil: 'domcontentloaded' });
+      await ensureRegistrationSectionResets(userPage);
 
-        const optionCard = userPage
-          .locator('app-event-registration-option')
-          .filter({ hasText: discountTemplate.optionTitle });
-        await expect(optionCard).toBeVisible();
+      const optionCard = userPage
+        .locator('app-event-registration-option')
+        .filter({ hasText: discountTemplate.optionTitle });
+      await expect(optionCard).toBeVisible();
 
-        const payButton = optionCard.getByRole('button', {
-          name: /Pay .* and register/i,
-        });
-        await expect(payButton).toContainText(
-          centsToCurrency(discountTemplate.fullPrice),
-        );
-        await payButton.click();
+      const payButton = optionCard.getByRole('button', {
+        name: /Pay .* and register/i,
+      });
+      await expect(payButton).toContainText(centsToCurrency(discountTemplate.fullPrice));
+      await payButton.click();
 
-        const loadingStatus = userPage
-          .getByText('Loading registration status')
-          .first();
-        await loadingStatus.waitFor({ state: 'attached' }).catch(() => {
-          /* noop */
-        });
-        await loadingStatus.waitFor({ state: 'detached' });
+      const loadingStatus = userPage.getByText('Loading registration status').first();
+      await loadingStatus.waitFor({ state: 'attached' }).catch(() => {
+        /* noop */
+      });
+      await loadingStatus.waitFor({ state: 'detached' });
 
-        await verifyTransactionAmount(
-          browser,
-          uniqueTitle,
-          discountTemplate.discountedPrice,
-        );
+      await verifyTransactionAmount(browser, uniqueTitle, discountTemplate.discountedPrice);
 
-        const cancelButton = userPage
-          .locator('app-event-active-registration')
-          .getByRole('button', { name: 'Cancel registration' })
-          .first();
-        await expect(cancelButton).toBeVisible();
-        await cancelButton.click();
+      const cancelButton = userPage
+        .locator('app-event-active-registration')
+        .getByRole('button', { name: 'Cancel registration' })
+        .first();
+      await expect(cancelButton).toBeVisible();
+      await cancelButton.click();
 
-        await loadingStatus.waitFor({ state: 'attached' }).catch(() => {
-          /* noop */
-        });
-        await loadingStatus.waitFor({ state: 'detached' });
+      await loadingStatus.waitFor({ state: 'attached' }).catch(() => {
+        /* noop */
+      });
+      await loadingStatus.waitFor({ state: 'detached' });
 
-        await expect(optionCard).toBeVisible();
-      },
-      tenant.domain,
-    );
-  },
-);
+      await expect(optionCard).toBeVisible();
+    },
+    tenant.domain,
+  );
+});

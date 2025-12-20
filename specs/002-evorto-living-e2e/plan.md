@@ -1,10 +1,10 @@
 # Implementation Plan: Evorto Living E2E Baseline
 
-
 **Branch**: `002-evorto-living-e2e` | **Date**: 2025-09-13 | **Spec**: `/Users/hedde/code/evorto/specs/002-evorto-living-e2e/spec.md`
 **Input**: Feature specification from `/specs/002-evorto-living-e2e/spec.md`
 
 ## Execution Flow (/plan command scope)
+
 ```
 1. Load feature spec from Input path
    → If not found: ERROR "No feature spec at {path}"
@@ -26,13 +26,16 @@
 ```
 
 **IMPORTANT**: The /plan command STOPS at step 7. Phases 2-4 are executed by other commands:
+
 - Phase 2: /tasks command creates tasks.md
 - Phase 3-4: Implementation execution (manual or via tools)
 
 ## Summary
+
 Establish a deterministic, isolated multi-tenant Playwright baseline that: (1) validates core user journeys (account, templates, categories, events, free registration, roles/permissions, unlisted visibility, profile, scanning) and (2) generates living narrative documentation (markdown + screenshots) via `.doc.ts` tests. Finance, tax, discount, and paid registration flows are excluded initially. Technical approach: per-run tenant seeding with time-relative events, storage state reuse, environment-tagged optional first-time journey, reporter parameterization via DOCS_OUT_DIR / DOCS_IMG_OUT_DIR, resilient role/text selectors, and tagging to exclude out-of-scope tests.
 
 ## Technical Context
+
 **Language/Version**: TypeScript (Node 18+/Angular 17/20 range per repo)  
 **Primary Dependencies**: Angular SSR stack, Playwright, Drizzle ORM, tRPC + Effect Schema, custom documentation reporter  
 **Storage**: PostgreSQL (DATABASE_URL)  
@@ -44,21 +47,25 @@ Establish a deterministic, isolated multi-tenant Playwright baseline that: (1) v
 **Scale/Scope**: Baseline ~8-9 journeys (.doc) + ~5-6 regression tests; seeding < 100 inserted rows per run
 
 ## Constitution Check
-*GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
+
+_GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
 
 **Simplicity**:
+
 - Projects: 1 (app + e2e tests) — within limit
 - Using framework directly? Yes (Angular + tRPC direct)
 - Single data model? Yes (shared types via Drizzle/tRPC schemas)
 - Avoiding patterns? Yes (no repository/UoW added)
 
 **Architecture**:
+
 - EVERY feature as library? Existing modular folders; no new abstractions
 - Libraries listed: reuse `src/app/...` feature modules & `src/server` procedures; add only seed/permission helper under `e2e/utils`
 - CLI per library: Not required
 - Library docs: Not needed (test-focused feature)
 
 **Testing (NON-NEGOTIABLE)**:
+
 - RED-GREEN-Refactor: Enforced — add failing tests before seed/helper adjustments
 - Commit order: Will show tests first
 - Order: E2E primary; contract/integration optional later
@@ -68,14 +75,17 @@ Establish a deterministic, isolated multi-tenant Playwright baseline that: (1) v
 - FORBIDDEN violations: None planned
 
 **Legacy Migration (data‑only)**:
+
 - Not applicable (no legacy transformation). No migration.md created.
 
 **Observability**:
+
 - Structured logging: Existing; seed helper will log tenant + entity map
 - Unified logs: Existing SSR + backend maintained
 - Error context: Enhanced by printing seed summary on failure
 
 **Versioning**:
+
 - Internal tests; no version bump required
 - No breaking API surfaces added
 - Future contract versioning deferred until externalized
@@ -83,6 +93,7 @@ Establish a deterministic, isolated multi-tenant Playwright baseline that: (1) v
 ## Project Structure
 
 ### Documentation (this feature)
+
 ```
 specs/[###-feature]/
 ├── plan.md              # This file (/plan command output)
@@ -95,6 +106,7 @@ specs/[###-feature]/
 ```
 
 ### Source Code (repository root)
+
 ```
 # Option 1: Single project (DEFAULT)
 src/
@@ -134,9 +146,11 @@ ios/ or android/
 **Structure Decision**: Option 1 (single project) retained
 
 ## Implementation Sequence (Explicit Execution Order)
+
 This sequence supersedes the generic Phase 2 description and directly maps to concrete repo locations. It is authoritative while `tasks.md` is intentionally absent.
 
 ### Block A: Inventory & Tagging
+
 1. Inventory existing doc + test coverage (create `e2e/tests/test-inventory.md`).
 2. Tag finance/discount out-of-scope tests with `@finance`: paths `e2e/tests/finance/**`, `e2e/tests/profile/discounts.doc.ts`.
 3. In `e2e/tests/events/register.doc.ts`, isolate paid flow steps and tag with `@finance` so free path remains baseline.
@@ -144,29 +158,36 @@ This sequence supersedes the generic Phase 2 description and directly maps to co
    `test.skip(!process.env.AUTH0_CLIENT_ID, 'Auth0 creds missing')`.
 
 ### Block B: Seeding & Isolation
+
 5. Create `e2e/utils/seed.ts` exporting `seedBaseline({ runId }): Promise<SeedResult>` performing: tenant creation, categories (>=2), templates (free + paid), events (upcoming free, upcoming paid, past), initial registration for scanning.
 6. Deterministic naming: base names + `runId` suffix; log JSON map via `console.info('[seed-map]', JSON.stringify(map))`.
 7. Extend existing Playwright global setup (file: `e2e/setup/database.setup.ts`—create or augment) to call `seedBaseline` once; persist `runId` & `tenantId` to `.e2e-runtime.json`.
 8. Add fixture in `e2e/fixtures/base-test.ts` to set `evorto-tenant` cookie using persisted `tenantId`.
 
 ### Block C: Storage State Refresh
+
 9. Update `helpers/user-data.ts` adding freshness check (mtime < 24h) and tenant match (if tenant encoded in state; else always reuse).
 10. Add script `e2e/utils/generate-states.ts` to (re)login roles when stale; invoked manually or from package script.
 
 ### Block D: Permission Overrides
+
 11. Create `e2e/utils/permissions-override.ts` with `applyPermissionDiff({ roleName, add, remove })` using DB helper in `helpers/database.ts`.
 12. Expose a test fixture `permissionOverride` (file: `e2e/fixtures/parallel-test.ts`) applying overrides before page navigation when used.
 
 ### Block E: Reporter Refactor
+
 13. Refactor `e2e/reporters/documentation-reporter.ts`:
-   - Read `DOCS_OUT_DIR` (default `test-results/docs`) & `DOCS_IMG_OUT_DIR` (default `test-results/docs/images`).
-   - Remove hard-coded absolute paths.
-   - Create folder per test slug under docs root; images all inside a unified images folder OR per-journey subfolder (choose per current code: keep per-journey for isolation).
+
+- Read `DOCS_OUT_DIR` (default `test-results/docs`) & `DOCS_IMG_OUT_DIR` (default `test-results/docs/images`).
+- Remove hard-coded absolute paths.
+- Create folder per test slug under docs root; images all inside a unified images folder OR per-journey subfolder (choose per current code: keep per-journey for isolation).
+
 14. Add optional permissions callout support: if first attached markdown block contains a YAML front matter style `Permissions:` list or a separate attachment named `permissions`, render standardized callout block.
 15. Ensure front matter contains ONLY `title` line; strip extraneous content.
 16. Log resolved paths at `onBegin` for observability.
 
 ### Block F: Test Adjustments / Additions
+
 17. Add scanning functional regression test `e2e/tests/scanning/scanner.test.ts` (assert attendance transition) distinct from doc test.
 18. Add smoke test `e2e/tests/smoke/app-load.test.ts` (homepage + templates list visible).
 19. Add unlisted listing restriction functional test if not present (`e2e/tests/events/unlisted-visibility.test.ts`).
@@ -174,40 +195,46 @@ This sequence supersedes the generic Phase 2 description and directly maps to co
 21. Ensure free registration regression test exists or create `e2e/tests/events/free-registration.test.ts` (assert success state & capacity decrement if available).
 
 ### Block G: Screenshot & Attachment Discipline
+
 22. Introduce lightweight helper `e2e/utils/doc-screenshot.ts` factoring current `takeScreenshot` highlight logic; keep existing API re-export for backward compatibility.
 23. Update doc tests incrementally to use new helper (optional, non-breaking).
 
 ### Block H: CI Workflow Integration
+
 24. (If absent) create workflow `.github/workflows/e2e-baseline.yml` running: install → docker services → global seed (implicit) → functional tests → docs tests → upload `playwright-report/` + `test-results/docs`.
 25. Add grep invert for `@finance` in docs project run on CI (config or CLI arg).
 26. Enforce single worker on CI via config conditional `process.env.CI`.
 
 ### Block I: Verification & Hardening
+
 27. Execute two consecutive local runs verifying deterministic artifact replacement.
 28. Update `quickstart.md` with reporter env variable examples & tag usage.
 29. Capture observed run durations; add to `research.md` (Performance note) once collected.
 30. Mark plan Gate 'Complexity deviations' as PASS (none) or document if adjustments introduced.
 
 ## Cross-References
-| Concern | Primary File(s) | Related Plan Decision |
-|---------|-----------------|-----------------------|
-| Seeding & isolation | `e2e/utils/seed.ts`, `e2e/setup/database.setup.ts` | D1, D2, D11 |
-| Time-relative events | `e2e/utils/seed.ts` | D2 |
-| Reporter env param | `e2e/reporters/documentation-reporter.ts` | D4, D12 |
-| Permissions overrides | `e2e/utils/permissions-override.ts` | D7 |
-| Storage state freshness | `helpers/user-data.ts`, `e2e/utils/generate-states.ts` | D5 |
-| Tagging & skips | `e2e/tests/*/*.doc.ts`, Playwright config | D6, D13 |
-| Screenshot discipline | `e2e/utils/doc-screenshot.ts` | D9 |
-| Deterministic naming map | `e2e/utils/seed.ts` | D11 |
-| Scanning coverage | `e2e/tests/scanning/scanner.test.ts` | D14 |
+
+| Concern                  | Primary File(s)                                        | Related Plan Decision |
+| ------------------------ | ------------------------------------------------------ | --------------------- |
+| Seeding & isolation      | `e2e/utils/seed.ts`, `e2e/setup/database.setup.ts`     | D1, D2, D11           |
+| Time-relative events     | `e2e/utils/seed.ts`                                    | D2                    |
+| Reporter env param       | `e2e/reporters/documentation-reporter.ts`              | D4, D12               |
+| Permissions overrides    | `e2e/utils/permissions-override.ts`                    | D7                    |
+| Storage state freshness  | `helpers/user-data.ts`, `e2e/utils/generate-states.ts` | D5                    |
+| Tagging & skips          | `e2e/tests/*/*.doc.ts`, Playwright config              | D6, D13               |
+| Screenshot discipline    | `e2e/utils/doc-screenshot.ts`                          | D9                    |
+| Deterministic naming map | `e2e/utils/seed.ts`                                    | D11                   |
+| Scanning coverage        | `e2e/tests/scanning/scanner.test.ts`                   | D14                   |
 
 ## Phase 0: Outline & Research
+
 1. **Extract unknowns from Technical Context** above:
    - For each NEEDS CLARIFICATION → research task
    - For each dependency → best practices task
    - For each integration → patterns task
 
 2. **Generate and dispatch research agents**:
+
    ```
    For each unknown in Technical Context:
      Task: "Research {unknown} for {feature context}"
@@ -223,7 +250,8 @@ This sequence supersedes the generic Phase 2 description and directly maps to co
 **Output**: research.md with all NEEDS CLARIFICATION resolved
 
 ## Phase 1: Design & Contracts
-*Prerequisites: research.md complete*
+
+_Prerequisites: research.md complete_
 
 1. **Extract entities from feature spec** → `data-model.md`:
    - Entity name, fields, relationships
@@ -252,24 +280,28 @@ This sequence supersedes the generic Phase 2 description and directly maps to co
    - Keep under 150 lines for token efficiency
    - Output to repository root
 
-**Output**: data-model.md, /contracts/*, failing tests, quickstart.md, agent-specific file
+**Output**: data-model.md, /contracts/\*, failing tests, quickstart.md, agent-specific file
 
 ### Optional: Migration Plan (if legacy data involved)
+
 - Create `migration.md` including: data mapping rules (old → new), defaults/backfills for new fields, idempotency and verification, failure handling/(optional) rollback, and required seed data updates.
 
 ## Phase 2: Task Planning Approach
-*This section describes what the /tasks command will do - DO NOT execute during /plan*
+
+_This section describes what the /tasks command will do - DO NOT execute during /plan_
 
 **Task Generation Strategy**:
+
 - Load `/templates/tasks-template.md` as base
 - Generate tasks from Phase 1 design docs (contracts, data model, quickstart)
 - Each contract → contract test task [P]
-- Each entity → model creation task [P] 
+- Each entity → model creation task [P]
 - Each user story → integration test task
 - Implementation tasks to make tests pass
 
 **Ordering Strategy**:
-- TDD order: Tests before implementation 
+
+- TDD order: Tests before implementation
 - Dependency order: Models before services before UI
 - Mark [P] for parallel execution (independent files)
 
@@ -278,25 +310,28 @@ This sequence supersedes the generic Phase 2 description and directly maps to co
 **IMPORTANT**: This phase is executed by the /tasks command, NOT by /plan
 
 ## Phase 3+: Future Implementation
-*These phases are beyond the scope of the /plan command*
+
+_These phases are beyond the scope of the /plan command_
 
 **Phase 3**: Task execution (/tasks command creates tasks.md)  
 **Phase 4**: Implementation (execute tasks.md following constitutional principles)  
 **Phase 5**: Validation (run tests, execute quickstart.md, performance validation)
 
 ## Complexity Tracking
-*Fill ONLY if Constitution Check has violations that must be justified*
 
-| Violation | Why Needed | Simpler Alternative Rejected Because |
-|-----------|------------|-------------------------------------|
-| [e.g., 4th project] | [current need] | [why 3 projects insufficient] |
-| [e.g., Repository pattern] | [specific problem] | [why direct DB access insufficient] |
+_Fill ONLY if Constitution Check has violations that must be justified_
 
+| Violation                  | Why Needed         | Simpler Alternative Rejected Because |
+| -------------------------- | ------------------ | ------------------------------------ |
+| [e.g., 4th project]        | [current need]     | [why 3 projects insufficient]        |
+| [e.g., Repository pattern] | [specific problem] | [why direct DB access insufficient]  |
 
 ## Progress Tracking
-*This checklist is updated during execution flow*
+
+_This checklist is updated during execution flow_
 
 **Phase Status**:
+
 - [x] Phase 0: Research complete (/plan command)
 - [x] Phase 1: Design complete (/plan command)
 - [x] Phase 2: Task planning complete (/plan command - describe approach only)
@@ -305,10 +340,12 @@ This sequence supersedes the generic Phase 2 description and directly maps to co
 - [ ] Phase 5: Validation passed
 
 **Gate Status**:
+
 - [x] Initial Constitution Check: PASS
 - [x] Post-Design Constitution Check: PASS
 - [x] All NEEDS CLARIFICATION resolved
 - [ ] Complexity deviations documented (none needed)
 
 ---
-*Based on Constitution 1.0.0 - See `/memory/constitution.md`*
+
+_Based on Constitution 1.0.0 - See `/memory/constitution.md`_

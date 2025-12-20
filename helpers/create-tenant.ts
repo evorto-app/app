@@ -27,9 +27,7 @@ export const createTenant = async (
       name: tenantData?.name ?? 'ESN Murnau',
     })
     .returning();
-  consola.success(
-    `Created tenant ${tenant[0].domain} (${tenant[0].id}) in ${Date.now() - t0}ms`,
-  );
+  consola.success(`Created tenant ${tenant[0].domain} (${tenant[0].id}) in ${Date.now() - t0}ms`);
   // consola.debug(tenant);
   // for (const record of usersToAuthenticate
   //   .filter((data) => data.addToDb && data.addToTenant)

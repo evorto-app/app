@@ -8,11 +8,7 @@ import { stripe } from '../../stripe-client';
 import { authenticatedProcedure } from '../trpc-server';
 
 export const cancelPendingRegistrationProcedure = authenticatedProcedure
-  .input(
-    Schema.standardSchemaV1(
-      Schema.Struct({ registrationId: Schema.NonEmptyString }),
-    ),
-  )
+  .input(Schema.standardSchemaV1(Schema.Struct({ registrationId: Schema.NonEmptyString })))
   .mutation(async ({ ctx, input }) => {
     const registration = await database.query.eventRegistrations.findFirst({
       where: {
@@ -48,16 +44,10 @@ export const cancelPendingRegistrationProcedure = authenticatedProcedure
           // TODO: Fix once drizzle fixes this type
           reservedSpots: registration.registrationOption!.reservedSpots - 1,
         })
-        .where(
-          eq(
-            schema.eventRegistrationOptions.id,
-            registration.registrationOptionId,
-          ),
-        );
+        .where(eq(schema.eventRegistrationOptions.id, registration.registrationOptionId));
 
       const transaction = registration.transactions.find(
-        (transaction) =>
-          transaction.status === 'pending' && transaction.method === 'stripe',
+        (transaction) => transaction.status === 'pending' && transaction.method === 'stripe',
       );
 
       if (transaction) {
@@ -77,13 +67,9 @@ export const cancelPendingRegistrationProcedure = authenticatedProcedure
             });
           }
           try {
-            await stripe.checkout.sessions.expire(
-              transaction.stripeCheckoutSessionId,
-              undefined,
-              {
-                stripeAccount,
-              },
-            );
+            await stripe.checkout.sessions.expire(transaction.stripeCheckoutSessionId, undefined, {
+              stripeAccount,
+            });
           } catch (error) {
             console.error('Error expiring checkout session', error);
           }

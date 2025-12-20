@@ -3,6 +3,7 @@
 For this planning phase, high-level action contracts map to user journeys. Detailed API contract generation (tRPC procedures) will be validated via E2E; explicit REST/OpenAPI specs deferred because feature focuses on test baseline, not new public API surface.
 
 ## Journey → Contract Mapping (High-Level)
+
 - Account Creation: POST /auth/signup (existing provider) + POST /profile/onboarding
 - Template Management: POST /templates, GET /templates/:id
 - Template Category: POST /template-categories, PATCH /template-categories/:id

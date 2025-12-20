@@ -15,8 +15,7 @@ export const addTemplateCategories = async (
   }[],
 ) => {
   const icons =
-    iconsParameter ??
-    (await database.query.icons.findMany({ where: { tenantId: tenant.id } }));
+    iconsParameter ?? (await database.query.icons.findMany({ where: { tenantId: tenant.id } }));
 
   const createIconObject = (iconName: string) => {
     const icon = icons.find((icon) => icon.commonName === iconName);

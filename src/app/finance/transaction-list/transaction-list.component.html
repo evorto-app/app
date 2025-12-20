@@ -1,22 +1,15 @@
 <div class="mb-4 flex flex-row items-center gap-2">
   <h1 class="title-large">All transactions</h1>
   <div class="grow"></div>
-  <button
-    title="menu"
-    mat-icon-button
-    [matMenuTriggerFor]="menu"
-    class="md:hidden! block"
-  >
+  <button title="menu" mat-icon-button [matMenuTriggerFor]="menu" class="md:hidden! block">
     <fa-duotone-icon [icon]="faEllipsisVertical"></fa-duotone-icon>
   </button>
   <mat-menu #menu="matMenu">
     <a mat-menu-item routerLink="edit">Create transaction</a>
   </mat-menu>
-  <button mat-button routerLink="edit" class="hidden! md:block!">
-    Create transaction
-  </button>
+  <button mat-button routerLink="edit" class="hidden! md:block!">Create transaction</button>
 </div>
-@if (transactionsQuery.status() === "pending") {
+@if (transactionsQuery.status() === 'pending') {
   <div
     class="bg-surface text-on-surface flex animate-pulse cursor-progress flex-col gap-2 rounded-2xl p-4"
   >
@@ -51,16 +44,11 @@
           @if ((element.appFee ?? 0) + (element.stripeFee ?? 0) > 0) {
             <p
               class="body-small"
-              title="{{
-                (element.appFee ?? 0) / 100 | currency
-              }} Application fee  {{
+              title="{{ (element.appFee ?? 0) / 100 | currency }} Application fee  {{
                 (element.stripeFee ?? 0) / 100 | currency
               }} Stripe fee"
             >
-              {{
-                ((element.appFee ?? 0) + (element.stripeFee ?? 0)) / 100
-                  | currency
-              }}
+              {{ ((element.appFee ?? 0) + (element.stripeFee ?? 0)) / 100 | currency }}
               fees
             </p>
           }
@@ -71,10 +59,10 @@
         <th mat-header-cell *matHeaderCellDef>Method</th>
         <td mat-cell *matCellDef="let element">
           @switch (element.method) {
-            @case ("stripe") {
+            @case ('stripe') {
               <fa-icon [icon]="faStripe" size="2x"></fa-icon>
             }
-            @case ("paypal") {
+            @case ('paypal') {
               <fa-icon [icon]="faPaypal" size="2x"></fa-icon>
             }
             @default {
@@ -87,7 +75,7 @@
       <ng-container matColumnDef="created">
         <th mat-header-cell *matHeaderCellDef>Created</th>
         <td mat-cell *matCellDef="let element">
-          {{ element.createdAt | date: "short" }}
+          {{ element.createdAt | date: 'short' }}
         </td>
       </ng-container>
 

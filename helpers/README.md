@@ -26,7 +26,7 @@ The seeding approach has been designed to be deterministic while still creating 
 
 1. **Fixed Seed**: We use a fixed seed (`'playwright'`) for the `@ngneat/falso` library to ensure consistent random data generation.
 
-2. **Deterministic Events**: 
+2. **Deterministic Events**:
    - Fixed number of events per template type (3 events × 6 template types = ~18 total events)
    - Events are created relative to the current date:
      - Past events (30+ days ago)
@@ -48,6 +48,7 @@ yarn reset:database
 ```
 
 This will:
+
 1. Push the latest schema to the database (`yarn push:database`)
 2. Run the seeding script (`yarn setup:database`)
 

@@ -5,6 +5,7 @@ Input: Design docs from `/Users/hedde/code/evorto/specs/003-discount-cards-expan
 Prerequisites present: `plan.md` (required), `research.md`, `data-model.md`, `contracts/`, `quickstart.md`
 
 Execution Flow (main)
+
 ```
 1. Load plan.md, research.md, data-model.md, contracts/, quickstart.md
 2. Generate tasks by category (setup → tests → core → integration → polish)
@@ -14,10 +15,12 @@ Execution Flow (main)
 ```
 
 Format: `[ID] [P?] Description`
+
 - [P] = Can run in parallel (different files, no direct dependencies)
 - Every task includes exact absolute file paths
 
 Paths & Tech Context
+
 - Monorepo root: `/Users/hedde/code/evorto`
 - Web app (Angular 20 + Node/tRPC/Drizzle). E2E: Playwright in `/Users/hedde/code/evorto/e2e`
 
@@ -39,6 +42,7 @@ Paths & Tech Context
 ## Phase 3.2: Tests First (E2E‑first TDD) — MUST FAIL before Phase 3.3
 
 Contract tests (1 per contract file)
+
 - [ ] T003 [P] Contract test: discounts.catalog → `getTenantProviders`
   - File: `/Users/hedde/code/evorto/e2e/tests/contracts/discounts/discounts.catalog.spec.ts`
   - Assert output schema: `{ type: 'esnCard', status: 'enabled'|'disabled', config: object }[]`
@@ -61,6 +65,7 @@ Contract tests (1 per contract file)
   - Assert: `template_registration_options.discounts` JSON copied to corresponding `event_registration_options.discounts`.
 
 Integration/E2E documentation tests (user journeys from quickstart)
+
 - [ ] T008 [P] Documentation test: end‑to‑end journey
   - File: `/Users/hedde/code/evorto/e2e/tests/discounts/discounts.doc.ts`
   - Steps: admin enables ESN; user adds/validates ESNcard; create template with ESN discounted price; create event from template; register and see discounted/zero price; participants list shows discount; toggle ESN off then ensure new card upsert blocked.
@@ -75,6 +80,7 @@ Integration/E2E documentation tests (user journeys from quickstart)
   - Assert: tie‑breaker equals base → prefer base; otherwise alphabetical by provider type; validity on event start date filter.
 
 If migrating legacy data (TypeScript ETL)
+
 - [ ] T00A [P] Migration step: consolidate option discounts into JSONB
   - File: `/Users/hedde/code/evorto/migration/steps/discounts-consolidate-option-discounts.ts`
   - Read from `template_registration_option_discounts` and `event_registration_option_discounts`; write deterministic JSON arrays to new `discounts` fields.
@@ -96,6 +102,7 @@ If migrating legacy data (TypeScript ETL)
 ## Phase 3.3: Core Implementation (ONLY after tests are failing)
 
 Data model changes (Drizzle)
+
 - [ ] T011 [P] Add `discounts` JSONB to template options
   - File: `/Users/hedde/code/evorto/src/db/schema/template-registration-options.ts`
   - Field: `discounts?: Array<{ discountType: 'esnCard'; discountedPrice: number }>` (JSONB) with validation helpers.
@@ -113,6 +120,7 @@ Data model changes (Drizzle)
   - Export updated models; add any needed relations/types.
 
 Server (tRPC + services)
+
 - [ ] T015 Implement `discounts.setTenantProviders` with Effect Schema validation and permission checks
   - File: `/Users/hedde/code/evorto/src/server/trpc/discounts/discounts.router.ts`
   - Input schema: `{ providers: Array<{ type: 'esnCard', status: 'enabled'|'disabled', config: unknown }> }`; persist to `tenants.discount_providers`.
@@ -144,6 +152,7 @@ Server (tRPC + services)
   - Files: same as T015–T020; include timings and outcomes.
 
 Client (Angular 20)
+
 - [ ] T023 Admin: Discounts settings UI (enable/disable + config)
   - Add component: `/Users/hedde/code/evorto/src/app/admin/discounts-settings/discounts-settings.component.ts`
   - Wire route & navigation: `/Users/hedde/code/evorto/src/app/admin/admin.routes.ts`
@@ -197,6 +206,7 @@ Client (Angular 20)
 ---
 
 ## Dependencies
+
 - Phase 3.2 tests (T003–T010) before Phase 3.3 implementation (T011+)
 - Data model tasks (T011–T014) unblock server tasks (T015–T022)
 - Server tasks unblock client UI tasks (T023–T026)
@@ -208,6 +218,7 @@ Client (Angular 20)
 ## Parallel Execution Examples
 
 Launch contract tests together ([P] tasks on different files):
+
 ```
 Task: "Create /Users/hedde/code/evorto/e2e/tests/contracts/discounts/discounts.catalog.spec.ts and implement assertions"
 Task: "Create /Users/hedde/code/evorto/e2e/tests/contracts/discounts/discounts.setTenantProviders.spec.ts and implement assertions"
@@ -217,6 +228,7 @@ Task: "Create /Users/hedde/code/evorto/e2e/tests/contracts/templates/templates.d
 ```
 
 Build core DB model changes in parallel ([P], different files):
+
 ```
 Task: "Update /Users/hedde/code/evorto/src/db/schema/template-registration-options.ts to add discounts JSONB"
 Task: "Update /Users/hedde/code/evorto/src/db/schema/event-registration-options.ts to add discounts JSONB"
@@ -224,6 +236,7 @@ Task: "Update /Users/hedde/code/evorto/src/db/schema/event-registrations.ts to a
 ```
 
 Run E2E suites in parallel ([P]):
+
 ```
 Task: "Run Playwright doc test /Users/hedde/code/evorto/e2e/tests/discounts/discounts.doc.ts"
 Task: "Run Playwright spec /Users/hedde/code/evorto/e2e/tests/discounts/discounts-permissions.spec.ts"
@@ -233,11 +246,11 @@ Task: "Run Playwright spec /Users/hedde/code/evorto/e2e/tests/discounts/discount
 ---
 
 ## Validation Checklist
+
 - All contracts have corresponding tests (T003–T007)
 - All entities/fields have model tasks (T011–T014)
 - All tests scheduled before implementation
 - [P] tasks touch different files only
 - Every task specifies absolute file path(s)
 - Migration steps planned with verification (T00A–T00D)
-
 ````

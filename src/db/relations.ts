@@ -116,9 +116,7 @@ export const relations = defineRelations(schema, (r) => ({
       to: r.eventTemplates.id,
     }),
     templateRegistrationOptions: r.many.templateRegistrationOptions({
-      from: r.templateEventAddons.id.through(
-        r.addonToTemplateRegistrationOptions.addonId,
-      ),
+      from: r.templateEventAddons.id.through(r.addonToTemplateRegistrationOptions.addonId),
       to: r.templateRegistrationOptions.id.through(
         r.addonToTemplateRegistrationOptions.registrationOptionId,
       ),

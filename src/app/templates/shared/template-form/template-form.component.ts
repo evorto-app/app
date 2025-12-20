@@ -1,11 +1,4 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  effect,
-  inject,
-  input,
-  output,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, effect, inject, input, output } from '@angular/core';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatInputModule } from '@angular/material/input';
@@ -75,11 +68,7 @@ export class TemplateFormComponent {
 
   public readonly submitLabel = input('Save template');
   protected formSubmit = output<TemplateFormData>();
-  protected readonly registrationModes: RegistrationMode[] = [
-    'fcfs',
-    'random',
-    'application',
-  ];
+  protected readonly registrationModes: RegistrationMode[] = ['fcfs', 'random', 'application'];
 
   private trpc = injectTRPC();
   protected readonly taxRatesQuery = injectQuery(() =>

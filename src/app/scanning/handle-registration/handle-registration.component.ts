@@ -1,11 +1,5 @@
 import { DatePipe } from '@angular/common';
-import {
-  ChangeDetectionStrategy,
-  Component,
-  computed,
-  inject,
-  input,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { RouterLink } from '@angular/router';
 import { FaDuotoneIconComponent } from '@fortawesome/angular-fontawesome';
@@ -34,9 +28,7 @@ export class HandleRegistrationComponent {
   protected readonly startsSoon = computed(() => {
     const scanResult = this.scanResultQuery.data();
     if (!scanResult) return false;
-    return (
-      DateTime.fromJSDate(scanResult.event.start).diffNow('hours').hours < 1
-    );
+    return DateTime.fromJSDate(scanResult.event.start).diffNow('hours').hours < 1;
   });
 
   checkIn() {}

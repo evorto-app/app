@@ -13,10 +13,7 @@
       <mat-form-field>
         <mat-label>Template Category</mat-label>
         <mat-select formControlName="categoryId">
-          @for (
-            templateCategory of templateCategoriesQuery.data();
-            track templateCategory.id
-          ) {
+          @for (templateCategory of templateCategoriesQuery.data(); track templateCategory.id) {
             <mat-option [value]="templateCategory.id">
               {{ templateCategory.title }}
             </mat-option>
@@ -34,19 +31,17 @@
   <div class="bg-surface rounded-2xl p-4">
     <h2 class="mb-4 text-lg font-semibold">Simple Registration Setup</h2>
     <p class="mb-4 text-sm">
-      This is the simple registration mode, which creates one registration
-      option for organizers and one for participants.
+      This is the simple registration mode, which creates one registration option for organizers and
+      one for participants.
     </p>
 
     <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
       <div>
         <h3 class="mb-3 font-medium">Organizer Registration</h3>
         <div class="grid gap-4 p-4" formGroupName="organizerRegistration">
-          <mat-slide-toggle formControlName="isPaid"
-            >Enable Payment
-          </mat-slide-toggle>
+          <mat-slide-toggle formControlName="isPaid">Enable Payment </mat-slide-toggle>
 
-          @if (templateForm.get("organizerRegistration.isPaid")?.value) {
+          @if (templateForm.get('organizerRegistration.isPaid')?.value) {
             <mat-form-field>
               <mat-label>Price (in cents)</mat-label>
               <input matInput type="number" formControlName="price" min="0" />
@@ -60,8 +55,7 @@
                 } @else if (taxRatesQuery.isSuccess()) {
                   @for (rate of taxRatesQuery.data(); track rate.id) {
                     <mat-option [value]="rate.stripeTaxRateId">
-                      {{ rate.displayName || rate.stripeTaxRateId }} —
-                      {{ rate.percentage ?? '?' }}%
+                      {{ rate.displayName || rate.stripeTaxRateId }} — {{ rate.percentage ?? '?' }}%
                     </mat-option>
                   }
                 } @else {
@@ -113,11 +107,9 @@
       <div>
         <h3 class="mb-3 font-medium">Participant Registration</h3>
         <div class="grid gap-4 p-4" formGroupName="participantRegistration">
-          <mat-slide-toggle formControlName="isPaid"
-            >Enable Payment
-          </mat-slide-toggle>
+          <mat-slide-toggle formControlName="isPaid">Enable Payment </mat-slide-toggle>
 
-          @if (templateForm.get("participantRegistration.isPaid")?.value) {
+          @if (templateForm.get('participantRegistration.isPaid')?.value) {
             <mat-form-field>
               <mat-label>Price (in cents)</mat-label>
               <input matInput type="number" formControlName="price" min="0" />
@@ -131,8 +123,7 @@
                 } @else if (taxRatesQuery.isSuccess()) {
                   @for (rate of taxRatesQuery.data(); track rate.id) {
                     <mat-option [value]="rate.stripeTaxRateId">
-                      {{ rate.displayName || rate.stripeTaxRateId }} —
-                      {{ rate.percentage ?? '?' }}%
+                      {{ rate.displayName || rate.stripeTaxRateId }} — {{ rate.percentage ?? '?' }}%
                     </mat-option>
                   }
                 } @else {
@@ -183,11 +174,7 @@
     </div>
   </div>
 
-  <button
-    type="submit"
-    mat-button
-    [disabled]="templateForm.invalid || isSubmitting()"
-  >
+  <button type="submit" mat-button [disabled]="templateForm.invalid || isSubmitting()">
     {{ submitLabel() }}
   </button>
 </form>

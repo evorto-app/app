@@ -5,33 +5,23 @@ export const EVENT_ROUTES: Routes = [
     children: [
       {
         loadComponent: () =>
-          import('./event-details/event-details.component').then(
-            (m) => m.EventDetailsComponent,
-          ),
+          import('./event-details/event-details.component').then((m) => m.EventDetailsComponent),
         path: ':eventId',
       },
       {
         canActivate: [
-          () => import('./guards/event-organizer.guard').then(
-            (m) => m.eventOrganizerGuard,
-          ),
+          () => import('./guards/event-organizer.guard').then((m) => m.eventOrganizerGuard),
         ],
-        loadComponent: () =>
-          import('./event-organize/event-organize').then(
-            (m) => m.EventOrganize,
-          ),
+        loadComponent: () => import('./event-organize/event-organize').then((m) => m.EventOrganize),
         path: ':eventId/organize',
       },
       {
-        loadComponent: () =>
-          import('./event-edit/event-edit').then((m) => m.EventEdit),
+        loadComponent: () => import('./event-edit/event-edit').then((m) => m.EventEdit),
         path: ':eventId/edit',
       },
     ],
     loadComponent: () =>
-      import('./event-list/event-list.component').then(
-        (m) => m.EventListComponent,
-      ),
+      import('./event-list/event-list.component').then((m) => m.EventListComponent),
     path: '',
   },
 ] as const;

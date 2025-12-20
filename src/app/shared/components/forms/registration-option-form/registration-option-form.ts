@@ -7,15 +7,15 @@ import {
   ReactiveFormsModule,
   Validators,
 } from '@angular/forms';
+import { MatButtonModule } from '@angular/material/button';
+import { MatCardModule } from '@angular/material/card';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTimepickerModule } from '@angular/material/timepicker';
-import { MatCardModule } from '@angular/material/card';
-import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 import { Subscription } from 'rxjs';
@@ -26,7 +26,7 @@ import { EditorComponent } from '../../controls/editor/editor.component';
 export type RegistrationOptionFormGroup = FormGroup<{
   closeRegistrationTime: FormControl<Date>;
   description: FormControl<string>;
-  discounts: FormControl<Array<{ discountType: 'esnCard'; discountedPrice: number }>>;
+  discounts: FormControl<{ discountedPrice: number; discountType: 'esnCard' }[]>;
   isPaid: FormControl<boolean>;
   openRegistrationTime: FormControl<Date>;
   organizingRegistration: FormControl<boolean>;
@@ -63,69 +63,43 @@ export type RegistrationOptionFormGroup = FormGroup<{
 export class RegistrationOptionForm implements OnDestroy, OnInit {
   public registrationModes = input.required<readonly string[]>();
   public registrationOptionForm = input.required<RegistrationOptionFormGroup>();
+  get currentDiscounts() {
+    return this.registrationOptionForm().controls.discounts.value ?? [];
+  }
+  get enabledProviders() {
+    return this.discountProvidersQuery.data()?.filter((p) => p.enabled === true) ?? [];
+  }
   private trpc = injectTRPC();
-  protected readonly taxRatesQuery = injectQuery(() =>
-    this.trpc.taxRates.listActive.queryOptions(),
-  );
+
   protected readonly discountProvidersQuery = injectQuery(() =>
     this.trpc.discounts.getTenantProviders.queryOptions(),
   );
 
+  protected readonly taxRatesQuery = injectQuery(() =>
+    this.trpc.taxRates.listActive.queryOptions(),
+  );
+
   private sub?: Subscription;
-
-  get enabledProviders() {
-    return this.discountProvidersQuery.data()?.filter(p => p.enabled === true) ?? [];
-  }
-
-  get currentDiscounts() {
-    return this.registrationOptionForm().controls.discounts.value ?? [];
-  }
 
   addDiscountForProvider(providerType: 'esnCard') {
     const currentDiscounts = this.currentDiscounts;
     const basePrice = this.registrationOptionForm().controls.price.value ?? 0;
 
     // Check if discount already exists for this provider
-    if (currentDiscounts.some(d => d.discountType === providerType)) {
+    if (currentDiscounts.some((d) => d.discountType === providerType)) {
       return;
     }
 
     const newDiscount = {
+      discountedPrice: Math.max(0, basePrice - Math.floor(basePrice * 0.1)), // Default 10% discount
       discountType: providerType,
-      discountedPrice: Math.max(0, basePrice - Math.floor(basePrice * 0.1)) // Default 10% discount
     };
 
-    this.registrationOptionForm().controls.discounts.setValue([
-      ...currentDiscounts,
-      newDiscount
-    ]);
-  }
-
-  removeDiscountForProvider(providerType: 'esnCard') {
-    const currentDiscounts = this.currentDiscounts;
-    this.registrationOptionForm().controls.discounts.setValue(
-      currentDiscounts.filter(d => d.discountType !== providerType)
-    );
-  }
-
-  updateDiscountPrice(providerType: 'esnCard', price: number) {
-    const currentDiscounts = this.currentDiscounts;
-    const basePrice = this.registrationOptionForm().controls.price.value ?? 0;
-
-    // Validate: discounted price must be <= base price
-    const validatedPrice = Math.min(Math.max(0, price), basePrice);
-
-    this.registrationOptionForm().controls.discounts.setValue(
-      currentDiscounts.map(d =>
-        d.discountType === providerType
-          ? { ...d, discountedPrice: validatedPrice }
-          : d
-      )
-    );
+    this.registrationOptionForm().controls.discounts.setValue([...currentDiscounts, newDiscount]);
   }
 
   getDiscountForProvider(providerType: 'esnCard') {
-    return this.currentDiscounts.find(d => d.discountType === providerType);
+    return this.currentDiscounts.find((d) => d.discountType === providerType);
   }
 
   getSavingsAmount(providerType: 'esnCard'): number {
@@ -162,5 +136,26 @@ export class RegistrationOptionForm implements OnDestroy, OnInit {
 
     apply(!!isPaid.value);
     this.sub = isPaid.valueChanges.subscribe((v) => apply(!!v));
+  }
+
+  removeDiscountForProvider(providerType: 'esnCard') {
+    const currentDiscounts = this.currentDiscounts;
+    this.registrationOptionForm().controls.discounts.setValue(
+      currentDiscounts.filter((d) => d.discountType !== providerType),
+    );
+  }
+
+  updateDiscountPrice(providerType: 'esnCard', price: number) {
+    const currentDiscounts = this.currentDiscounts;
+    const basePrice = this.registrationOptionForm().controls.price.value ?? 0;
+
+    // Validate: discounted price must be <= base price
+    const validatedPrice = Math.min(Math.max(0, price), basePrice);
+
+    this.registrationOptionForm().controls.discounts.setValue(
+      currentDiscounts.map((d) =>
+        d.discountType === providerType ? { ...d, discountedPrice: validatedPrice } : d,
+      ),
+    );
   }
 }

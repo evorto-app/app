@@ -23,8 +23,7 @@ import QrScanner from 'qr-scanner';
 export class ScannerComponent implements OnDestroy {
   protected readonly errorMessage = signal('');
   protected readonly faArrowLeft = faArrowLeft;
-  protected readonly videoRef =
-    viewChild<ElementRef<HTMLVideoElement>>('videoElement');
+  protected readonly videoRef = viewChild<ElementRef<HTMLVideoElement>>('videoElement');
   private readonly router = inject(Router);
   private readonly scanner = signal<null | QrScanner>(null);
 

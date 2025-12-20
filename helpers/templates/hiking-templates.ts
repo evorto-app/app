@@ -1,9 +1,6 @@
 import { getId } from '../get-id';
 
-export const getHikingTemplates = (hikingCategory: {
-  id: string;
-  tenantId: string;
-}) => [
+export const getHikingTemplates = (hikingCategory: { id: string; tenantId: string }) => [
   {
     categoryId: hikingCategory.id,
     description:

@@ -12,8 +12,7 @@ interface AxeFixture {
 // a consistently configured AxeBuilder instance.
 export const test = base.extend<AxeFixture>({
   makeAxeBuilder: async ({ page }, use) => {
-    const makeAxeBuilder = () =>
-      new AxeBuilder({ page }).withTags(['EN-301-549']);
+    const makeAxeBuilder = () => new AxeBuilder({ page }).withTags(['EN-301-549']);
 
     await use(makeAxeBuilder);
   },

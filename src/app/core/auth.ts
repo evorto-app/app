@@ -18,13 +18,9 @@ export class Auth {
   // Convert queries to signals
   isAuthenticated = this.isAuthenticatedQuery.data();
 
-  private userQuery = injectQuery(() =>
-    this.trpcClient.users.maybeSelf.queryOptions(),
-  );
+  private userQuery = injectQuery(() => this.trpcClient.users.maybeSelf.queryOptions());
   user = this.userQuery.data();
-  private permissionsQuery = injectQuery(() =>
-    this.trpcClient.config.permissions.queryOptions(),
-  );
+  private permissionsQuery = injectQuery(() => this.trpcClient.config.permissions.queryOptions());
 
   private requestContext = inject(REQUEST_CONTEXT) as Context | null;
 

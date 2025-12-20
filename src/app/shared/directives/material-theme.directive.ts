@@ -1,8 +1,5 @@
 import { computed, Directive, HostBinding, input } from '@angular/core';
-import {
-  hexFromArgb,
-  themeFromSourceColor,
-} from '@material/material-color-utilities';
+import { hexFromArgb, themeFromSourceColor } from '@material/material-color-utilities';
 
 @Directive({
   selector: '[appMaterialTheme]',
@@ -43,8 +40,6 @@ export class MaterialThemeDirective {
   });
 
   private camelToKebab(string_: string): string {
-    return string_
-      .replaceAll(/([a-z0-9]|(?=[A-Z]))([A-Z])/g, '$1-$2')
-      .toLowerCase();
+    return string_.replaceAll(/([a-z0-9]|(?=[A-Z]))([A-Z])/g, '$1-$2').toLowerCase();
   }
 }

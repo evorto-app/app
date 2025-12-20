@@ -6,23 +6,23 @@ import * as schema from '../../src/db/schema';
 
 export const addAdminManageTaxesPermission = async (tenantId: string) => {
   consola.info(`Adding admin:manageTaxes permission to admin roles for tenant ${tenantId}`);
-  
+
   try {
     // Find all roles that currently have 'admin:changeSettings' permission
     const adminRoles = await database.query.roles.findMany({
       where: and(
         eq(schema.roles.tenantId, tenantId),
-        sql`permissions @> '["admin:changeSettings"]'`
+        sql`permissions @> '["admin:changeSettings"]'`,
       ),
     });
 
     for (const role of adminRoles) {
       const currentPermissions = role.permissions || [];
-      
+
       // Add 'admin:manageTaxes' if not already present
       if (!currentPermissions.includes('admin:manageTaxes')) {
         const updatedPermissions = [...currentPermissions, 'admin:manageTaxes'];
-        
+
         await database
           .update(schema.roles)
           .set({ permissions: updatedPermissions })

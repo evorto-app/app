@@ -1,9 +1,10 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [],
   selector: 'app-esn-card-icon',
   standalone: true,
-  imports: [],
   template: `
     <svg
       aria-hidden="true"
@@ -22,6 +23,5 @@ import { ChangeDetectionStrategy, Component } from '@angular/core';
       ></path>
     </svg>
   `,
-  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class EsnCardIconComponent {}

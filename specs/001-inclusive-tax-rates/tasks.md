@@ -4,11 +4,13 @@
 **Prerequisites**: `plan.md` (required), `research.md`, `data-model.md`, `contracts/`, `quickstart.md`, `e2e-plan.md`, `migration.md`
 
 ## Legend & Conventions
+
 `[P]` = Can execute in parallel (different files / no direct dependency). Tasks without `[P]` are ordered and must complete before dependents.
 Each task lists primary file(s) it creates or edits. If multiple tasks would touch same file, only the first is `[ ]` (sequential) and later related tasks omit `[P]` to avoid parallel conflicts.
 Numbering: T001, T002 ... (no gaps). Migration / validation / implementation strictly follow TDD: write failing tests first (E2E + contract) before implementing.
 
 ## High‑Level Dependency Order
+
 1. Setup & Migration Scaffolding
 2. Failing E2E Scenarios (RED)
 3. Contract Tests (RED)
@@ -21,6 +23,7 @@ Numbering: T001, T002 ... (no gaps). Migration / validation / implementation str
 10. Polish (unit tests, performance, docs)
 
 ---
+
 ## Phase 3.1: Setup & Migration Foundation
 
 - [ ] T001 Create unique index DDL & idempotent migration step `migration/steps/001_add_unique_index_tenant_stripe_tax_rates.ts` (unique `(tenantId,stripeTaxRateId)`) and register in `migration/index.ts`.
@@ -29,6 +32,7 @@ Numbering: T001, T002 ... (no gaps). Migration / validation / implementation str
 - [ ] T004 [P] Update documentation: append migration details section to `migration.md` summarizing new steps (add verification queries) & link in `plan.md` Progress Tracking.
 
 ## Phase 3.2: Tests First (E2E Scenarios RED)
+
 Write E2E tests exactly as spec; they MUST fail before implementation. Use new folder `e2e/tests/finance/tax-rates/` for organization where applicable.
 
 - [ ] T005 E2E: Admin imports rates `e2e/tests/finance/tax-rates/admin-import-tax-rates.spec.ts` (covers FR-001,002,004,006,007,016,024). Ensure permission denial path.
@@ -42,6 +46,7 @@ Write E2E tests exactly as spec; they MUST fail before implementation. Use new f
 - [ ] T013 [P] E2E: Audit & logging import/unavailability `e2e/tests/finance/audit-logging-import-and-unavailability.spec.ts` (FR-021,023) capturing structured logs.
 
 ## Phase 3.3: Contract / Schema Tests (RED)
+
 Each contract file gets a failing contract test exercising validation boundaries & permission errors. (Already some implementation exists; ensure tests assert required future behaviors like permission `admin:manageTaxes` not `admin:changeSettings`.)
 
 - [ ] T014 Contract test: `admin.tenant.listStripeTaxRates` `tests/contract/tax-rates/admin.tenant.listStripeTaxRates.spec.ts` ensure permission gate, shape, includes incompatible (inactive/exclusive) flagged.
@@ -89,6 +94,7 @@ Each contract file gets a failing contract test exercising validation boundaries
 - [ ] T044 Final verification run: all E2E + contract + unit tests green; update Progress Tracking in `plan.md` Phase 3 + 5 marks.
 
 ## Dependency Summary
+
 - Migration steps (T001-T003) precede E2E if tests rely on schema/permission (run once; tests assume presence).
 - All E2E (T005-T013) & contract tests (T014-T020) fail first before implementation tasks T021+.
 - Permission switch (T022) required before contract tests expecting new permission pass (tests initially fail against old behavior).
@@ -100,19 +106,23 @@ Each contract file gets a failing contract test exercising validation boundaries
 ## Parallel Execution Guidance Examples
 
 Example 1 (After T020 complete, start implementation wave):
+
 ```
 Parallel Batch A:
   Run T023 (validation utility)
   Run T027 (label helper)
   Run T028 (active list optimization)
 ```
+
 Then sequentially apply dependent tasks:
+
 ```
 After T023 -> T024, T025 can proceed.
 After T024+T025 -> T026.
 ```
 
 Example 2 (Frontend wave after server stable):
+
 ```
 Parallel Batch B:
   T029 Admin page
@@ -121,9 +131,11 @@ Parallel Batch B:
   T032 Event form
   T033 Label component
 ```
+
 Then integrate labels into detail views (T034) once components exist.
 
 Example 3 (Polish batch):
+
 ```
 Parallel Batch C:
   T038 Unit tests
@@ -134,15 +146,19 @@ Parallel Batch C:
 ```
 
 ## Task Agent Command Samples
+
 (Adjust ID to execute specific tasks)
+
 ```
 /specify run task T005
 /specify run task T014
 /specify run task T029
 ```
+
 Where each task command would: open referenced file(s), implement described change, run relevant tests.
 
 ## Validation Checklist (Filled by Executor)
+
 - [ ] All contracts have tests (T014-T020)
 - [ ] All entities have model tasks (tenant_stripe_tax_rates already exists; index & validation tasks present T021-T023)
 - [ ] All tests precede implementation (ordering maintained)
@@ -152,9 +168,11 @@ Where each task command would: open referenced file(s), implement described chan
 - [ ] Edge cases (0%, discount to zero, fallback) covered in tests
 
 ## Notes
+
 - Some endpoint base implementations exist; contract tests intentionally assert enhanced permission & validation to drive refactors.
 - If Stripe credentials absent in CI, E2E tests should stub provider layer (inject mock or boundary intercept) focusing on payload shapes and DB side-effects.
 - Keep test data isolated per file (unique tenant slugs) for parallel safety.
 
 ---
-*Generated via tasks.prompt.md using Constitution 1.0.0 guidelines.*
+
+_Generated via tasks.prompt.md using Constitution 1.0.0 guidelines._

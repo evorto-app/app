@@ -2,8 +2,7 @@ import { Routes } from '@angular/router';
 
 export const SCANNING_ROUTES: Routes = [
   {
-    loadComponent: () =>
-      import('./scanner/scanner.component').then((m) => m.ScannerComponent),
+    loadComponent: () => import('./scanner/scanner.component').then((m) => m.ScannerComponent),
     path: '',
     pathMatch: 'full',
   },

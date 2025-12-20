@@ -4,9 +4,7 @@ import { InferSelectModel } from 'drizzle-orm';
 import { database } from '../../src/db';
 import * as schema from '../../src/db/schema';
 
-export const setupDefaultRoles = async (
-  tenant: InferSelectModel<typeof schema.tenants>,
-) => {
+export const setupDefaultRoles = async (tenant: InferSelectModel<typeof schema.tenants>) => {
   consola.info('Setting up default roles');
   const newRoles = await database
     .insert(schema.roles)
@@ -62,11 +60,7 @@ export const setupDefaultRoles = async (
       {
         description: 'Helpers of the section',
         name: 'Helper',
-        permissions: [
-          'events:viewPublic',
-          'templates:view',
-          'internal:viewInternalPages',
-        ],
+        permissions: ['events:viewPublic', 'templates:view', 'internal:viewInternalPages'],
         tenantId: tenant.id,
       },
       {
@@ -93,12 +87,8 @@ export const maybeAddPositionRole = async (
 ) => {
   // Extract number from beginning of position name for sort order
   const numberMatch = position.match(/^(\d+)(.*)$/);
-  const sortOrder = numberMatch
-    ? Number.parseInt(numberMatch[1], 10)
-    : Number.MAX_SAFE_INTEGER;
-  const cleanName = (numberMatch ? numberMatch[2] : position)
-    .replace(/^[\s\-.]+/, '')
-    .trim();
+  const sortOrder = numberMatch ? Number.parseInt(numberMatch[1], 10) : Number.MAX_SAFE_INTEGER;
+  const cleanName = (numberMatch ? numberMatch[2] : position).replace(/^[\s\-.]+/, '').trim();
 
   return database.transaction(async (tx) => {
     const result = await tx

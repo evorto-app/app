@@ -2,7 +2,7 @@
   <!-- Profile Header -->
   <div class="mb-2 flex flex-row items-center gap-4">
     <h1 class="text-primary text-3xl font-extrabold tracking-tight">
-      Hello, {{ userQuery.data()?.firstName ?? "..." }}
+      Hello, {{ userQuery.data()?.firstName ?? '...' }}
     </h1>
     <div class="flex-grow"></div>
   </div>
@@ -13,11 +13,7 @@
       @if (!isEditing()) {
         <div class="mb-4 flex items-center justify-between">
           <h2 class="text-xl font-bold">Profile Information</h2>
-          <button
-            mat-raised-button
-            (click)="startEditing()"
-            id="edit-profile-btn"
-          >
+          <button mat-raised-button (click)="startEditing()" id="edit-profile-btn">
             <fa-duotone-icon [icon]="faPencil" class="mr-2"></fa-duotone-icon>
             Edit profile
           </button>
@@ -58,9 +54,7 @@
     } @else if (userQuery.isLoading()) {
       <p>Loading profile information...</p>
     } @else {
-      <p class="text-error">
-        Failed to load profile information. Please try again later.
-      </p>
+      <p class="text-error">Failed to load profile information. Please try again later.</p>
     }
   </section>
 
@@ -71,14 +65,12 @@
       @if (userEventsQuery.data().length) {
         <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
           @for (event of userEventsQuery.data(); track event.id) {
-            <div
-              class="bg-surface-container-high flex flex-col gap-2 rounded-xl p-4"
-            >
+            <div class="bg-surface-container-high flex flex-col gap-2 rounded-xl p-4">
               <h3 class="text-primary text-lg font-semibold">
                 {{ event.title }}
               </h3>
               <p class="text-on-surface-variant text-sm">
-                {{ event.start | date: "medium" }}
+                {{ event.start | date: 'medium' }}
               </p>
             </div>
           }
@@ -89,9 +81,7 @@
     } @else if (userEventsQuery.isLoading()) {
       <p>Loading your events...</p>
     } @else {
-      <p class="text-error">
-        Failed to load your events. Please try again later.
-      </p>
+      <p class="text-error">Failed to load your events. Please try again later.</p>
     }
   </section>
 
@@ -139,12 +129,13 @@
             card{{ myCardsQuery.data().length === 1 ? '' : 's' }} configured
           </div>
         } @else {
-          <div class="mt-4 text-sm text-on-surface-variant">
-            No cards configured yet
-          </div>
+          <div class="mt-4 text-sm text-on-surface-variant">No cards configured yet</div>
 
           @if (esnProvider()?.config?.ctaEnabled === true && esnProvider()?.config?.ctaLink) {
-            <div class="bg-primary-container text-on-primary-container rounded-lg p-4 mt-4" data-testid="profile-esn-cta">
+            <div
+              class="bg-primary-container text-on-primary-container rounded-lg p-4 mt-4"
+              data-testid="profile-esn-cta"
+            >
               <p class="mb-2">Get discounts on events with your ESNcard!</p>
               <a
                 [href]="esnProvider()?.config?.ctaLink"
@@ -164,7 +155,10 @@
         <h2 class="text-lg font-semibold">Discount Cards</h2>
       </div>
       @if (esnProvider()?.config?.ctaLink) {
-        <div class="bg-primary-container text-on-primary-container rounded-lg p-4" data-testid="profile-esn-cta">
+        <div
+          class="bg-primary-container text-on-primary-container rounded-lg p-4"
+          data-testid="profile-esn-cta"
+        >
           <p class="mb-2">Get discounts on events with your ESNcard!</p>
           <a
             [href]="esnProvider()?.config?.ctaLink"
@@ -184,10 +178,7 @@
   <section class="mt-8 flex flex-col items-start gap-4">
     <h2 class="text-on-surface mb-2 text-xl font-bold">Account Actions</h2>
     <a href="/logout" mat-stroked-button class="flex items-center gap-2">
-      <fa-duotone-icon
-        [icon]="faRightFromBracket"
-        class="mr-2"
-      ></fa-duotone-icon>
+      <fa-duotone-icon [icon]="faRightFromBracket" class="mr-2"></fa-duotone-icon>
       Logout
     </a>
   </section>

@@ -1,25 +1,13 @@
 import { DatePipe } from '@angular/common';
-import {
-  ChangeDetectionStrategy,
-  Component,
-  computed,
-  inject,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
 import { RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
-import {
-  faArrowLeft,
-  faArrowUpRightFromSquare,
-} from '@fortawesome/duotone-regular-svg-icons';
-import {
-  injectMutation,
-  injectQuery,
-  QueryClient,
-} from '@tanstack/angular-query-experimental';
+import { faArrowLeft, faArrowUpRightFromSquare } from '@fortawesome/duotone-regular-svg-icons';
+import { injectMutation, injectQuery, QueryClient } from '@tanstack/angular-query-experimental';
 import { firstValueFrom, interval } from 'rxjs';
 
 import { NotificationService } from '../../core/notification.service';
@@ -28,13 +16,7 @@ import { EventReviewDialogComponent } from '../../events/event-review-dialog/eve
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    MatButtonModule,
-    MatIconModule,
-    RouterLink,
-    FontAwesomeModule,
-    DatePipe,
-  ],
+  imports: [MatButtonModule, MatIconModule, RouterLink, FontAwesomeModule, DatePipe],
   selector: 'app-event-reviews',
   standalone: true,
   template: `
@@ -61,22 +43,14 @@ import { EventReviewDialogComponent } from '../../events/event-review-dialog/eve
       } @else {
         <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
           @for (event of pendingReviewsQuery.data(); track event.id) {
-            <div
-              class="bg-surface text-on-surface flex flex-col gap-2 rounded-2xl p-4"
-            >
+            <div class="bg-surface text-on-surface flex flex-col gap-2 rounded-2xl p-4">
               <div class="flex items-center justify-between">
                 <h2 class="title-medium">{{ event.title }}</h2>
                 <div class="flex gap-2">
-                  <button
-                    mat-stroked-button
-                    (click)="reviewEvent(event.id, event.title, false)"
-                  >
+                  <button mat-stroked-button (click)="reviewEvent(event.id, event.title, false)">
                     Reject
                   </button>
-                  <button
-                    mat-flat-button
-                    (click)="reviewEvent(event.id, event.title, true)"
-                  >
+                  <button mat-flat-button (click)="reviewEvent(event.id, event.title, true)">
                     Approve
                   </button>
                 </div>
@@ -96,9 +70,7 @@ import { EventReviewDialogComponent } from '../../events/event-review-dialog/eve
                 <!--                }-->
               </div>
               <a mat-button routerLink="/events/{{ event.id }}">
-                <fa-duotone-icon
-                  [icon]="faArrowUpRightFromSquare"
-                ></fa-duotone-icon>
+                <fa-duotone-icon [icon]="faArrowUpRightFromSquare"></fa-duotone-icon>
                 Open Event
               </a>
             </div>
@@ -112,9 +84,7 @@ export class EventReviewsComponent {
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faArrowUpRightFromSquare = faArrowUpRightFromSquare;
   private readonly trpc = injectTRPC();
-  private readonly selfQuery = injectQuery(() =>
-    this.trpc.users.self.queryOptions(),
-  );
+  private readonly selfQuery = injectQuery(() => this.trpc.users.self.queryOptions());
   private pendingReviewsFilter = computed(() => ({
     includeUnlisted: true,
     limit: 50,

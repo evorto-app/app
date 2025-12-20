@@ -7,20 +7,11 @@ import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
 import { injectMutation, QueryClient } from '@tanstack/angular-query-experimental';
 
 import { injectTRPC } from '../../core/trpc-client';
-import {
-  RoleFormComponent,
-  RoleFormData,
-} from '../components/role-form/role-form.component';
+import { RoleFormComponent, RoleFormData } from '../components/role-form/role-form.component';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    FontAwesomeModule,
-    MatButtonModule,
-    RouterLink,
-    ReactiveFormsModule,
-    RoleFormComponent,
-  ],
+  imports: [FontAwesomeModule, MatButtonModule, RouterLink, ReactiveFormsModule, RoleFormComponent],
   selector: 'app-role-create',
   standalone: true,
   templateUrl: './role-create.component.html',

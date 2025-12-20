@@ -1,6 +1,6 @@
+import consola from 'consola';
 import { and, eq } from 'drizzle-orm';
 import { Schema } from 'effect';
-import consola from 'consola';
 
 import { database } from '../../../db';
 import { createId } from '../../../db/create-id';
@@ -11,8 +11,8 @@ import {
   templateRegistrationOptions,
 } from '../../../db/schema';
 import { computeIconSourceColor } from '../../utils/icon-color';
+import { createLogContext, TaxRateLogger } from '../../utils/tax-rate-logging';
 import { validateTaxRate } from '../../utils/validate-tax-rate';
-import { TaxRateLogger, createLogContext } from '../../utils/tax-rate-logging';
 import { authenticatedProcedure, router } from '../trpc-server';
 
 const registrationOptionSchema = Schema.Struct({
@@ -32,11 +32,11 @@ export const templateRouter = router({
     .input(
       Schema.standardSchemaV1(
         Schema.Struct({
+          description: Schema.optional(Schema.NonEmptyString),
+          end: Schema.ValidDateFromSelf,
+          start: Schema.ValidDateFromSelf,
           templateId: Schema.NonEmptyString,
           title: Schema.NonEmptyString,
-          start: Schema.ValidDateFromSelf,
-          end: Schema.ValidDateFromSelf,
-          description: Schema.optional(Schema.NonEmptyString),
         }),
       ),
     )
@@ -58,15 +58,15 @@ export const templateRouter = router({
         const event = await tx
           .insert(eventInstances)
           .values({
-            tenantId: ctx.tenant.id,
-            templateId: template.id,
             creatorId: ctx.user.id,
-            title: input.title,
             description: input.description || template.description,
-            start: input.start,
             end: input.end,
             icon: template.icon,
             location: template.location,
+            start: input.start,
+            templateId: template.id,
+            tenantId: ctx.tenant.id,
+            title: input.title,
           })
           .returning()
           .then((result) => result[0]);
@@ -74,35 +74,37 @@ export const templateRouter = router({
         // Duplicate each template registration option to event registration options
         for (const templateOption of template.registrationOptions) {
           await tx.insert(eventRegistrationOptions).values({
-            eventId: event.id,
-            title: templateOption.title,
+            closeRegistrationTime: new Date(
+              input.start.getTime() + templateOption.closeRegistrationOffset * 60 * 60 * 1000,
+            ),
             description: templateOption.description,
-            price: templateOption.price,
-            isPaid: templateOption.isPaid,
-            spots: templateOption.spots,
-            organizingRegistration: templateOption.organizingRegistration,
-            registrationMode: templateOption.registrationMode,
-            roleIds: templateOption.roleIds,
-            stripeTaxRateId: templateOption.stripeTaxRateId,
-            registeredDescription: templateOption.registeredDescription,
             // Copy discounts JSON array from template to event
             discounts: templateOption.discounts,
+            eventId: event.id,
+            isPaid: templateOption.isPaid,
             // Calculate registration times based on offsets
             openRegistrationTime: new Date(
-              input.start.getTime() + templateOption.openRegistrationOffset * 60 * 60 * 1000
+              input.start.getTime() + templateOption.openRegistrationOffset * 60 * 60 * 1000,
             ),
-            closeRegistrationTime: new Date(
-              input.start.getTime() + templateOption.closeRegistrationOffset * 60 * 60 * 1000
-            ),
+            organizingRegistration: templateOption.organizingRegistration,
+            price: templateOption.price,
+            registeredDescription: templateOption.registeredDescription,
+            registrationMode: templateOption.registrationMode,
+            roleIds: templateOption.roleIds,
+            spots: templateOption.spots,
+            stripeTaxRateId: templateOption.stripeTaxRateId,
+            title: templateOption.title,
           });
         }
 
-        consola.info(`Created event ${event.id} from template ${template.id} with ${template.registrationOptions.length} registration options`);
-        
+        consola.info(
+          `Created event ${event.id} from template ${template.id} with ${template.registrationOptions.length} registration options`,
+        );
+
         return event;
       });
     }),
-    
+
   createSimpleTemplate: authenticatedProcedure
     .input(
       Schema.standardSchemaV1(
@@ -128,7 +130,10 @@ export const templateRouter = router({
       });
 
       if (!organizerValidation.success) {
-        consola.error('Organizer registration tax rate validation failed:', organizerValidation.error);
+        consola.error(
+          'Organizer registration tax rate validation failed:',
+          organizerValidation.error,
+        );
         throw new Error(`Organizer registration: ${organizerValidation.error.message}`);
       }
 
@@ -139,7 +144,10 @@ export const templateRouter = router({
       });
 
       if (!participantValidation.success) {
-        consola.error('Participant registration tax rate validation failed:', participantValidation.error);
+        consola.error(
+          'Participant registration tax rate validation failed:',
+          participantValidation.error,
+        );
         throw new Error(`Participant registration: ${participantValidation.error.message}`);
       }
 
@@ -159,11 +167,9 @@ export const templateRouter = router({
 
         // Create organizer registration option
         await tx.insert(templateRegistrationOptions).values({
-          closeRegistrationOffset:
-            input.organizerRegistration.closeRegistrationOffset,
+          closeRegistrationOffset: input.organizerRegistration.closeRegistrationOffset,
           isPaid: input.organizerRegistration.isPaid,
-          openRegistrationOffset:
-            input.organizerRegistration.openRegistrationOffset,
+          openRegistrationOffset: input.organizerRegistration.openRegistrationOffset,
           organizingRegistration: true,
           price: input.organizerRegistration.price,
           registrationMode: input.organizerRegistration.registrationMode,
@@ -176,11 +182,9 @@ export const templateRouter = router({
 
         // Create participant registration option
         await tx.insert(templateRegistrationOptions).values({
-          closeRegistrationOffset:
-            input.participantRegistration.closeRegistrationOffset,
+          closeRegistrationOffset: input.participantRegistration.closeRegistrationOffset,
           isPaid: input.participantRegistration.isPaid,
-          openRegistrationOffset:
-            input.participantRegistration.openRegistrationOffset,
+          openRegistrationOffset: input.participantRegistration.openRegistrationOffset,
           organizingRegistration: false,
           price: input.participantRegistration.price,
           registrationMode: input.participantRegistration.registrationMode,
@@ -202,9 +206,7 @@ export const templateRouter = router({
     });
   }),
   findOne: authenticatedProcedure
-    .input(
-      Schema.standardSchemaV1(Schema.Struct({ id: Schema.NonEmptyString })),
-    )
+    .input(Schema.standardSchemaV1(Schema.Struct({ id: Schema.NonEmptyString })))
     .query(async ({ ctx, input }) => {
       const template = await database.query.eventTemplates.findFirst({
         where: { id: input.id, tenantId: ctx.tenant.id },
@@ -215,8 +217,9 @@ export const templateRouter = router({
       if (!template) {
         throw new Error('Template not found');
       }
-      const combinedRegistrationOptionRoleIds =
-        template.registrationOptions.flatMap((option) => option.roleIds);
+      const combinedRegistrationOptionRoleIds = template.registrationOptions.flatMap(
+        (option) => option.roleIds,
+      );
       const roles = await database.query.roles.findMany({
         where: {
           id: { in: combinedRegistrationOptionRoleIds },
@@ -268,7 +271,10 @@ export const templateRouter = router({
       });
 
       if (!organizerValidation.success) {
-        consola.error('Organizer registration tax rate validation failed:', organizerValidation.error);
+        consola.error(
+          'Organizer registration tax rate validation failed:',
+          organizerValidation.error,
+        );
         throw new Error(`Organizer registration: ${organizerValidation.error.message}`);
       }
 
@@ -279,14 +285,16 @@ export const templateRouter = router({
       });
 
       if (!participantValidation.success) {
-        consola.error('Participant registration tax rate validation failed:', participantValidation.error);
+        consola.error(
+          'Participant registration tax rate validation failed:',
+          participantValidation.error,
+        );
         throw new Error(`Participant registration: ${participantValidation.error.message}`);
       }
 
       return await database.transaction(async (tx) => {
         const iconColor =
-          input.icon.iconColor ??
-          (await computeIconSourceColor(input.icon.iconName));
+          input.icon.iconColor ?? (await computeIconSourceColor(input.icon.iconName));
         const template = await tx
           .update(eventTemplates)
           .set({
@@ -308,17 +316,14 @@ export const templateRouter = router({
         await tx
           .update(templateRegistrationOptions)
           .set({
-            closeRegistrationOffset:
-              input.organizerRegistration.closeRegistrationOffset,
+            closeRegistrationOffset: input.organizerRegistration.closeRegistrationOffset,
             isPaid: input.organizerRegistration.isPaid,
-            openRegistrationOffset:
-              input.organizerRegistration.openRegistrationOffset,
+            openRegistrationOffset: input.organizerRegistration.openRegistrationOffset,
             price: input.organizerRegistration.price,
             registrationMode: input.organizerRegistration.registrationMode,
             roleIds: input.organizerRegistration.roleIds,
             spots: input.organizerRegistration.spots,
-            stripeTaxRateId:
-              input.organizerRegistration.stripeTaxRateId ?? null,
+            stripeTaxRateId: input.organizerRegistration.stripeTaxRateId ?? null,
           })
           .where(
             and(
@@ -331,17 +336,14 @@ export const templateRouter = router({
         await tx
           .update(templateRegistrationOptions)
           .set({
-            closeRegistrationOffset:
-              input.participantRegistration.closeRegistrationOffset,
+            closeRegistrationOffset: input.participantRegistration.closeRegistrationOffset,
             isPaid: input.participantRegistration.isPaid,
-            openRegistrationOffset:
-              input.participantRegistration.openRegistrationOffset,
+            openRegistrationOffset: input.participantRegistration.openRegistrationOffset,
             price: input.participantRegistration.price,
             registrationMode: input.participantRegistration.registrationMode,
             roleIds: input.participantRegistration.roleIds,
             spots: input.participantRegistration.spots,
-            stripeTaxRateId:
-              input.participantRegistration.stripeTaxRateId ?? null,
+            stripeTaxRateId: input.participantRegistration.stripeTaxRateId ?? null,
           })
           .where(
             and(

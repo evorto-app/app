@@ -1,19 +1,9 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  computed,
-  inject,
-  input,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { Router, RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
-import {
-  injectMutation,
-  injectQuery,
-  QueryClient,
-} from '@tanstack/angular-query-experimental';
+import { injectMutation, injectQuery, QueryClient } from '@tanstack/angular-query-experimental';
 
 import { injectTRPC } from '../../core/trpc-client';
 import {
@@ -23,12 +13,7 @@ import {
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    MatButtonModule,
-    FontAwesomeModule,
-    RouterLink,
-    TemplateFormComponent,
-  ],
+  imports: [MatButtonModule, FontAwesomeModule, RouterLink, TemplateFormComponent],
   selector: 'app-template-edit',
   styles: ``,
   templateUrl: './template-edit.component.html',
@@ -46,13 +31,9 @@ export class TemplateEditComponent {
     const templateData = this.templateQuery.data();
     if (!templateData) return templateData;
     const organizerRegistration =
-      templateData.registrationOptions.find(
-        (option) => option.organizingRegistration,
-      ) ?? {};
+      templateData.registrationOptions.find((option) => option.organizingRegistration) ?? {};
     const participantRegistration =
-      templateData.registrationOptions.find(
-        (option) => !option.organizingRegistration,
-      ) ?? {};
+      templateData.registrationOptions.find((option) => !option.organizingRegistration) ?? {};
     return {
       ...templateData,
       organizerRegistration,

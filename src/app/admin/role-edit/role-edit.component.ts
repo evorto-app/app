@@ -1,24 +1,12 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  inject,
-  input,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, input } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { Router, RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
-import {
-  injectMutation,
-  injectQuery,
-  QueryClient,
-} from '@tanstack/angular-query-experimental';
+import { injectMutation, injectQuery, QueryClient } from '@tanstack/angular-query-experimental';
 
 import { injectTRPC } from '../../core/trpc-client';
-import {
-  RoleFormComponent,
-  RoleFormData,
-} from '../components/role-form/role-form.component';
+import { RoleFormComponent, RoleFormData } from '../components/role-form/role-form.component';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,

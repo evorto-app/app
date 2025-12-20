@@ -1,20 +1,11 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  computed,
-  inject,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
-import {
-  injectMutation,
-  injectQuery,
-  QueryClient,
-} from '@tanstack/angular-query-experimental';
+import { injectMutation, injectQuery, QueryClient } from '@tanstack/angular-query-experimental';
 import { debounceTime } from 'rxjs';
 
 import { injectTRPC } from '../../../../../core/trpc-client';
@@ -37,12 +28,9 @@ import { IconComponent } from '../../../icon/icon.component';
 })
 export class IconSelectorDialogComponent {
   protected searchControl = new FormControl('', { nonNullable: true });
-  protected searchValue = toSignal(
-    this.searchControl.valueChanges.pipe(debounceTime(400)),
-    {
-      initialValue: '',
-    },
-  );
+  protected searchValue = toSignal(this.searchControl.valueChanges.pipe(debounceTime(400)), {
+    initialValue: '',
+  });
   private trpc = injectTRPC();
   protected readonly iconSearchQuery = injectQuery(() =>
     this.trpc.icons.search.queryOptions({ search: this.searchValue() }),

@@ -7,7 +7,6 @@ import {
   faUser,
 } from '@fortawesome/duotone-regular-svg-icons';
 import { IconDefinition } from '@fortawesome/fontawesome-common-types';
-import { Schema } from 'effect';
 
 // Define the permission groups as const
 const ADMIN_GROUP = {
@@ -31,13 +30,7 @@ const EVENTS_GROUP = {
 
 const TEMPLATES_GROUP = {
   key: 'templates',
-  permissions: [
-    'create',
-    'delete',
-    'editAll',
-    'manageCategories',
-    'view',
-  ] as const,
+  permissions: ['create', 'delete', 'editAll', 'manageCategories', 'view'] as const,
 } as const;
 
 const USERS_GROUP = {
@@ -231,40 +224,32 @@ export const ALL_PERMISSIONS = PERMISSION_GROUPS.flatMap((group) =>
   group.permissions.map((perm) => perm.key),
 ) satisfies Permission[];
 
-export const PermissionSchema = Schema.declare(
-  (input: unknown): input is Permission => {
-    if (typeof input !== 'string') {
-      return false;
-    }
-    return [
-      'globalAdmin:*',
-      'globalAdmin:manageTenants',
-      ...ALL_PERMISSIONS,
-    ].includes(input as Permission);
-  },
-);
+export const ALL_PERMISSION_VALUES: Permission[] = [
+  'globalAdmin:*',
+  'globalAdmin:manageTenants',
+  ...ALL_PERMISSIONS,
+];
 
-export const PERMISSION_DEPENDENCIES: Record<Permission, Permission[]> =
-  Object.fromEntries(
-    PERMISSION_GROUPS.flatMap((group) =>
-      group.permissions.map((perm) => {
-        switch (perm.key) {
-          case 'events:changeListing': {
-            return [perm.key, ['events:seeUnlisted']];
-          }
-          case 'events:create': {
-            return [perm.key, ['templates:view']];
-          }
-          case 'events:review': {
-            return [perm.key, ['events:seeDrafts', 'events:seeUnlisted']];
-          }
-          case 'users:assignRoles': {
-            return [perm.key, ['users:viewAll']];
-          }
-          default: {
-            return [perm.key, []];
-          }
+export const PERMISSION_DEPENDENCIES: Record<Permission, Permission[]> = Object.fromEntries(
+  PERMISSION_GROUPS.flatMap((group) =>
+    group.permissions.map((perm) => {
+      switch (perm.key) {
+        case 'events:changeListing': {
+          return [perm.key, ['events:seeUnlisted']];
         }
-      }),
-    ),
-  ) as Record<Permission, Permission[]>;
+        case 'events:create': {
+          return [perm.key, ['templates:view']];
+        }
+        case 'events:review': {
+          return [perm.key, ['events:seeDrafts', 'events:seeUnlisted']];
+        }
+        case 'users:assignRoles': {
+          return [perm.key, ['users:viewAll']];
+        }
+        default: {
+          return [perm.key, []];
+        }
+      }
+    }),
+  ),
+) as Record<Permission, Permission[]>;

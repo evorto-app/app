@@ -19,9 +19,7 @@ export const eventInstances = pgTable('event_instances', {
     .references(() => users.id),
   description: text().notNull(),
   end: timestamp().notNull(),
-  icon: jsonb('icon')
-    .$type<{ iconColor: number; iconName: string }>()
-    .notNull(),
+  icon: jsonb('icon').$type<{ iconColor: number; iconName: string }>().notNull(),
   location: jsonb('location').$type<EventLocationType>(),
   reviewedAt: timestamp(),
   reviewedBy: varchar({ length: 20 }).references(() => users.id),

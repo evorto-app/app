@@ -1,28 +1,11 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  effect,
-  inject,
-  input,
-} from '@angular/core';
-import {
-  FormArray,
-  NonNullableFormBuilder,
-  ReactiveFormsModule,
-} from '@angular/forms';
+import { ChangeDetectionStrategy, Component, effect, inject, input } from '@angular/core';
+import { FormArray, NonNullableFormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatMenuModule } from '@angular/material/menu';
 import { Router, RouterLink } from '@angular/router';
 import { FaDuotoneIconComponent } from '@fortawesome/angular-fontawesome';
-import {
-  faArrowLeft,
-  faEllipsisVertical,
-} from '@fortawesome/duotone-regular-svg-icons';
-import {
-  injectMutation,
-  injectQuery,
-  QueryClient,
-} from '@tanstack/angular-query-experimental';
+import { faArrowLeft, faEllipsisVertical } from '@fortawesome/duotone-regular-svg-icons';
+import { injectMutation, injectQuery, QueryClient } from '@tanstack/angular-query-experimental';
 import consola from 'consola/browser';
 
 import { EventLocationType } from '../../../types/location';
@@ -73,11 +56,7 @@ export class EventEdit {
   );
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faEllipsisVertical = faEllipsisVertical;
-  protected readonly registrationModes = [
-    'fcfs',
-    'random',
-    'application',
-  ] as const;
+  protected readonly registrationModes = ['fcfs', 'random', 'application'] as const;
   private queryClient = inject(QueryClient);
   private router = inject(Router);
   protected readonly updateEventMutation = injectMutation(() =>
@@ -116,16 +95,12 @@ export class EventEdit {
           registrationOptionsFormArray.push(
             this.fb.group({
               closeRegistrationTime: [
-                option.closeRegistrationTime
-                  ? new Date(option.closeRegistrationTime)
-                  : null,
+                option.closeRegistrationTime ? new Date(option.closeRegistrationTime) : null,
               ],
               description: [option.description],
               isPaid: [option.isPaid],
               openRegistrationTime: [
-                option.openRegistrationTime
-                  ? new Date(option.openRegistrationTime)
-                  : null,
+                option.openRegistrationTime ? new Date(option.openRegistrationTime) : null,
               ],
               organizingRegistration: [option.organizingRegistration],
               price: [option.price],

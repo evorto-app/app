@@ -27,8 +27,6 @@ export async function resetDatabaseSchema(
   });
 
   await database.execute(
-    sql.raw(
-      `truncate ${qualifiedTableNames.join(', ')} restart identity cascade;`,
-    ),
+    sql.raw(`truncate ${qualifiedTableNames.join(', ')} restart identity cascade;`),
   );
 }

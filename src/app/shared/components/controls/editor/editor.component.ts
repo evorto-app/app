@@ -5,10 +5,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faEdit } from '@fortawesome/duotone-regular-svg-icons';
 import { WA_WINDOW } from '@ng-web-apis/common';
-import {
-  EditorComponent as TinyEditor,
-  TINYMCE_SCRIPT_SRC,
-} from '@tinymce/tinymce-angular';
+import { EditorComponent as TinyEditor, TINYMCE_SCRIPT_SRC } from '@tinymce/tinymce-angular';
 
 import { injectNgControl } from '../../../../utils';
 import { NoopValueAccessorDirective } from '../../../directives/noop-value-accessor.directive';
@@ -16,16 +13,8 @@ import { NoopValueAccessorDirective } from '../../../directives/noop-value-acces
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   hostDirectives: [NoopValueAccessorDirective],
-  imports: [
-    ReactiveFormsModule,
-    TinyEditor,
-    MatButtonModule,
-    FontAwesomeModule,
-    MatIconModule,
-  ],
-  providers: [
-    { provide: TINYMCE_SCRIPT_SRC, useValue: 'tinymce/tinymce.min.js' },
-  ],
+  imports: [ReactiveFormsModule, TinyEditor, MatButtonModule, FontAwesomeModule, MatIconModule],
+  providers: [{ provide: TINYMCE_SCRIPT_SRC, useValue: 'tinymce/tinymce.min.js' }],
   selector: 'app-editor',
   styles: `
     :host {

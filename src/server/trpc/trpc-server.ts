@@ -27,8 +27,8 @@ const enforceAuth = t.middleware(async ({ ctx, meta, next, path }) => {
   }
 
   if (meta?.requiredPermissions?.length) {
-    const hasRequiredPermissions = meta.requiredPermissions.every(
-      (permission) => ctx.user?.permissions.includes(permission),
+    const hasRequiredPermissions = meta.requiredPermissions.every((permission) =>
+      ctx.user?.permissions.includes(permission),
     );
 
     if (!hasRequiredPermissions) {

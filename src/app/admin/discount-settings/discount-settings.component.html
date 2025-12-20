@@ -11,7 +11,7 @@
     <div class="py-8 text-center">Loading discount providers...</div>
   } @else if (tenantQuery.isError()) {
     <div class="py-8 text-center text-red-500">
-      Failed to load discount providers: {{ tenantQuery.error()?.message }}
+      Failed to load discount providers: {{ tenantQuery.error().message }}
     </div>
   } @else {
     <div class="space-y-6">
@@ -27,17 +27,17 @@
           <form [formGroup]="esnCardForm" class="w-full max-w-2xl space-y-4">
             <div class="flex items-center justify-end gap-4">
               <mat-slide-toggle formControlName="enabled">
-                {{ esnCardForm.get("enabled")?.value ? "Enabled" : "Disabled" }}
+                {{ esnCardForm.get('enabled')?.value ? 'Enabled' : 'Disabled' }}
               </mat-slide-toggle>
             </div>
 
-            @if (esnCardForm.get("enabled")?.value) {
+            @if (esnCardForm.get('enabled')?.value) {
               <div class="ml-4 space-y-2">
                 <mat-slide-toggle formControlName="ctaEnabled">
                   Show buy ESNcard link
                 </mat-slide-toggle>
 
-                @if (esnCardForm.get("ctaEnabled")?.value) {
+                @if (esnCardForm.get('ctaEnabled')?.value) {
                   <mat-form-field class="w-full">
                     <mat-label>CTA link (Get ESNcard URL)</mat-label>
                     <input
@@ -55,11 +55,7 @@
     </div>
 
     <div class="mt-6 flex justify-end">
-      <button
-        mat-flat-button
-        (click)="saveSettings()"
-        [disabled]="updateMutation.isPending()"
-      >
+      <button mat-flat-button (click)="saveSettings()" [disabled]="updateMutation.isPending()">
         @if (updateMutation.isPending()) {
           Saving...
         } @else {

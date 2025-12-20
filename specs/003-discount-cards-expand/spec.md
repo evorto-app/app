@@ -21,6 +21,7 @@ issues. Educate users about ESNcard eligibility and provide a “get your card�
 Try to not blow up the data model if possible. (See <attachments> above for file contents. You may not need to search or read the file again.)"
 
 ## Execution Flow (main)
+
 ```
 1. Parse user description from Input
 	→ If empty: ERROR "No feature description provided"
@@ -43,33 +44,38 @@ Try to not blow up the data model if possible. (See <attachments> above for file
 ---
 
 ## ⚡ Quick Guidelines
+
 - ✅ Focus on WHAT users need and WHY
 - ❌ Avoid HOW to implement (no tech stack, APIs, code structure)
 - 👥 Written for business stakeholders, not developers
 
 ### Section Requirements
+
 - Mandatory sections: Must be completed for every feature
 - Optional sections: Include only when relevant to the feature
 - When a section doesn't apply, remove it entirely (don't leave as "N/A")
 
 ### For AI Generation
+
 When creating this spec from a user prompt:
+
 1. Mark all ambiguities: Use [NEEDS CLARIFICATION: specific question] for any assumption you'd need to make
 2. Don't guess: If the prompt doesn't specify something, mark it
 3. Think like a tester: Every vague requirement should fail the "testable and unambiguous" checklist item
 4. Common underspecified areas:
-	- User types and permissions
-	- Data retention/deletion policies
-	- Performance targets and scale
-	- Error handling behaviors
-	- Integration requirements
-	- Security/compliance needs
+   - User types and permissions
+   - Data retention/deletion policies
+   - Performance targets and scale
+   - Error handling behaviors
+   - Integration requirements
+   - Security/compliance needs
 
 ---
 
 ## User Scenarios & Testing (mandatory)
 
 ### Primary User Story
+
 As a tenant admin, I want to enable or disable discount providers for my tenant so that participants automatically receive the best eligible discounted price during registration, and providers that are disabled are fully hidden and inactive in participant flows.
 
 As an authenticated participant, I want to save and verify my discount card(s) per provider so that my eligible discounts are applied automatically to event registrations, including zero-priced outcomes where appropriate.
@@ -77,6 +83,7 @@ As an authenticated participant, I want to save and verify my discount card(s) p
 As an event organizer, I want to define provider‑specific discounted prices on registration options so that participants with valid, verified credentials see the correct lowest price and free registrations are auto‑confirmed.
 
 ### Acceptance Scenarios
+
 1. Given a tenant has ESNcard provider enabled, When a participant with an active, verified ESNcard views an event, Then eligible discounted prices are shown and the lowest price is preselected during registration.
 2. Given ESNcard is disabled by a tenant admin, When participants browse profile, events, or registration, Then ESNcard fields, warnings, and prices are hidden and new ESNcard numbers cannot be added.
 3. Given a participant has multiple verified discount credentials (future providers), When registering, Then the system selects the lowest eligible discounted price among enabled providers.
@@ -92,6 +99,7 @@ As an event organizer, I want to define provider‑specific discounted prices on
 13. Given an organizer views the event’s participant/user list, When registrations include discounts, Then each registration row indicates whether a discount was used and shows the discount amount (difference between base price and discounted price).
 
 ### Edge Cases
+
 - Duplicate card entry attempts across different accounts → must be prevented platform‑wide with clear messaging.
 - ESNcard expiring exactly on the event start date → still eligible for discount on that date.
 - Provider toggled off between browsing and checkout → price must re‑evaluate; show delta if changed at confirmation.
@@ -103,6 +111,7 @@ As an event organizer, I want to define provider‑specific discounted prices on
 ## Requirements (mandatory)
 
 ### Functional Requirements
+
 - FR‑001: The system MUST provide a discount provider catalog containing each provider’s type identifier, display name, and description; the catalog MAY be hard‑coded.
 - FR‑002: The set of enabled providers for a tenant MUST be stored in tenant configuration and be changeable by tenant admins.
 - FR‑003: Tenant admins MUST have a single control surface to enable/disable providers; other clients MAY require a reload to see changes. Business rules during registration MUST always use the current configuration at the time of checkout.
@@ -132,6 +141,7 @@ As an event organizer, I want to define provider‑specific discounted prices on
 - FR‑026: The system MUST reject any discounted price configuration that results in a price higher than the base price.
 
 ### Key Entities
+
 - Discount Provider (Catalog Entry): Describes a provider available in the product, including type identifier (stable key), display name, and description. Initial scope includes ESNcard; the catalog is fixed (admins toggle availability; they do not create providers).
 - Tenant Discount Settings: Captures which providers are enabled for a given tenant; changes are immediate and affect all user journeys.
 - Discount Credential (User‑Provider Credential): A user‑owned record containing the provider type, credential identifier (e.g., card number), verification status, validity window, last‑checked timestamp, and diagnostic metadata; enforces platform‑wide uniqueness of identifier usage.
@@ -143,12 +153,14 @@ As an event organizer, I want to define provider‑specific discounted prices on
 ## Review & Acceptance Checklist
 
 ### Content Quality
+
 - [x] No implementation details (languages, frameworks, APIs)
 - [x] Focused on user value and business needs
 - [x] Written for non‑technical stakeholders
 - [x] All mandatory sections completed
 
 ### Requirement Completeness
+
 - [x] No [NEEDS CLARIFICATION] markers remain
 - [x] Requirements are testable and unambiguous where specified
 - [x] Success criteria are measurable
@@ -156,6 +168,7 @@ As an event organizer, I want to define provider‑specific discounted prices on
 - [x] Dependencies and assumptions identified
 
 ### Testability & Validation Surface
+
 - [x] Primary user journey can be validated via E2E tests
 - [x] Non‑functional constraints (auth/roles, reliability of external validation) are captured for E2E consideration
 - [x] Documentation test journey is feasible for `.doc.ts` (admin toggling, user adding card, registration with discount)
@@ -163,10 +176,12 @@ As an event organizer, I want to define provider‑specific discounted prices on
 - [x] PR preview assets (screenshots or rendered markdown snippets) can be produced from documentation tests
 
 ### Design System Alignment (if UI involved)
+
 - [x] Material‑style control surfaces (toggles, list‑detail) implied; specifics to be defined in design
 - [x] Accessibility, responsive behavior, and clear warnings are required
 
 ### Legacy Data Migration (if applicable)
+
 - [x] Data mapping rules: reuse existing entities where possible and add minimal fields
 - [x] Defaults/backfills for new fields identified conceptually (credentials start Unverified)
 - [x] Seed data limited to provider catalog entries
@@ -185,5 +200,5 @@ As an event organizer, I want to define provider‑specific discounted prices on
 - [x] Review checklist passed
 
 ---
-*Based on Constitution 1.1.3*
 
+_Based on Constitution 1.1.3_

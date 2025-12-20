@@ -27,15 +27,11 @@ export class NotificationService {
   }
 
   showEventSubmitted(eventTitle: string): void {
-    this.snackBar.open(
-      `Event "${eventTitle}" has been submitted for review`,
-      'Close',
-      {
-        duration: 0,
+    this.snackBar.open(`Event "${eventTitle}" has been submitted for review`, 'Close', {
+      duration: 0,
 
-        panelClass: 'info-snackbar',
-      },
-    );
+      panelClass: 'info-snackbar',
+    });
   }
 
   showSuccess(message: string): void {

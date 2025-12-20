@@ -183,12 +183,7 @@ Note: The event created from the template starts in "Draft" status.
 
   // Take a screenshot of the event status section
   await page.waitForTimeout(1000);
-  await takeScreenshot(
-    testInfo,
-    page.getByText('Draft').first(),
-    page,
-    'Event status section',
-  );
+  await takeScreenshot(testInfo, page.getByText('Draft').first(), page, 'Event status section');
 
   await testInfo.attach('markdown', {
     body: `

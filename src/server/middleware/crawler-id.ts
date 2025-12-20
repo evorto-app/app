@@ -1,11 +1,7 @@
 // Add this to your middleware folder (e.g., src/server/middleware/social-crawler-bypass.ts)
 import { NextFunction, Request, Response } from 'express';
 
-export const socialCrawlerBypass = (
-  request: Request,
-  response: Response,
-  next: NextFunction,
-) => {
+export const socialCrawlerBypass = (request: Request, response: Response, next: NextFunction) => {
   const userAgent = request.headers['user-agent'] || '';
 
   // List of known social media crawler user agents

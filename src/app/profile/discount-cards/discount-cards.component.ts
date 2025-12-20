@@ -7,15 +7,12 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { RouterLink } from '@angular/router';
+import { EsnCardIconComponent } from '@app/core/icons/esn-card-icon/esn-card-icon.component';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faArrowLeft, faIdCard } from '@fortawesome/duotone-regular-svg-icons';
-import {
-  injectMutation,
-  injectQuery,
-} from '@tanstack/angular-query-experimental';
+import { injectMutation, injectQuery } from '@tanstack/angular-query-experimental';
 
 import { injectTRPC } from '../../core/trpc-client';
-import { EsnCardIconComponent } from '@app/core/icons/esn-card-icon/esn-card-icon.component';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -57,11 +54,7 @@ export class DiscountCardsComponent {
   refreshMutation = injectMutation(() =>
     this.trpc.discounts.refreshMyCard.mutationOptions({
       onError: (error: any) => {
-        this.snackBar.open(
-          `Failed to refresh card: ${error.message}`,
-          'Close',
-          { duration: 5000 },
-        );
+        this.snackBar.open(`Failed to refresh card: ${error.message}`, 'Close', { duration: 5000 });
       },
       onSuccess: () => {
         this.snackBar.open('Card refreshed successfully', 'Close', {

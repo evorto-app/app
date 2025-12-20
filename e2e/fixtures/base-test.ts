@@ -60,10 +60,7 @@ export const test = base.extend<BaseFixtures>({
       if (url && url.includes('localhost')) {
         throw error;
       } else {
-        console.warn(
-          'Page error occurred but not throwing (non-localhost environment):',
-          error,
-        );
+        console.warn('Page error occurred but not throwing (non-localhost environment):', error);
       }
     });
     await use(page);

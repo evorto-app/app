@@ -7,9 +7,7 @@ import { authenticatedProcedure, router } from '../trpc-server';
 
 export const iconRouter = router({
   addIcon: authenticatedProcedure
-    .input(
-      Schema.standardSchemaV1(Schema.Struct({ icon: Schema.NonEmptyString })),
-    )
+    .input(Schema.standardSchemaV1(Schema.Struct({ icon: Schema.NonEmptyString })))
     .mutation(async ({ ctx, input }) => {
       const [name, set] = input.icon.split(':');
       let friendlyName = name;

@@ -7,15 +7,8 @@
     >
       <h1 class="title-large">Event templates</h1>
       <div class="grow"></div>
-      <a mat-button routerLink="categories" class="hidden! lg:flex!">
-        Manage categories
-      </a>
-      <button
-        class="lg:hidden!"
-        title="menu"
-        mat-icon-button
-        [matMenuTriggerFor]="menu"
-      >
+      <a mat-button routerLink="categories" class="hidden! lg:flex!"> Manage categories </a>
+      <button class="lg:hidden!" title="menu" mat-icon-button [matMenuTriggerFor]="menu">
         <fa-duotone-icon [icon]="faEllipsisVertical"></fa-duotone-icon>
       </button>
       <mat-menu #menu="matMenu">
@@ -23,9 +16,7 @@
         <!-- <a routerLink="../create" mat-menu-item>Create template</a> -->
       </mat-menu>
     </div>
-    <nav
-      class="{{ outletActive() ? 'hidden' : 'flex' }} lg:flex flex-col gap-4"
-    >
+    <nav class="{{ outletActive() ? 'hidden' : 'flex' }} lg:flex flex-col gap-4">
       @if (templateQuery.isPending()) {
         <div
           class="bg-surface text-on-surface flex animate-pulse cursor-progress flex-col gap-2 rounded-2xl p-4"
@@ -35,21 +26,11 @@
       } @else if (templateQuery.isError()) {
         <p>Error: {{ templateQuery.error().message }}</p>
       } @else if (templateQuery.isSuccess()) {
-        <a mat-flat-button routerLink="create" class="hidden! lg:flex!">
-          Create template
-        </a>
-        @for (
-          templateCategory of templateQuery.data();
-          track templateCategory.id
-        ) {
-          <div
-            class="bg-surface text-on-surface flex flex-col gap-2 rounded-2xl p-4"
-          >
+        <a mat-flat-button routerLink="create" class="hidden! lg:flex!"> Create template </a>
+        @for (templateCategory of templateQuery.data(); track templateCategory.id) {
+          <div class="bg-surface text-on-surface flex flex-col gap-2 rounded-2xl p-4">
             <div class="mb-4 flex flex-row items-start gap-4">
-              <app-icon
-                [iconCommonName]="templateCategory.icon"
-                size="28"
-              ></app-icon>
+              <app-icon [iconCommonName]="templateCategory.icon" size="28"></app-icon>
               <h2 class="title-large">{{ templateCategory.title }}</h2>
             </div>
             @for (template of templateCategory.templates; track template.id) {

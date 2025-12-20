@@ -99,10 +99,7 @@ export const relations = defineRelations(schema, (r) => ({
   shoppingCart: {
     lineItems: r.many.lineItem(),
     usersOfTenant: r.one.usersOfTenants({
-      from: [
-        r.shoppingCart.usersOfTenantsUserId,
-        r.shoppingCart.usersOfTenantsTenantId,
-      ],
+      from: [r.shoppingCart.usersOfTenantsUserId, r.shoppingCart.usersOfTenantsTenantId],
       to: [r.usersOfTenants.userId, r.usersOfTenants.tenantId],
     }),
   },
@@ -183,10 +180,7 @@ export const relations = defineRelations(schema, (r) => ({
   },
   stripeUserData: {
     usersOfTenant: r.one.usersOfTenants({
-      from: [
-        r.stripeUserData.usersOfTenantsUserId,
-        r.stripeUserData.usersOfTenantsTenantId,
-      ],
+      from: [r.stripeUserData.usersOfTenantsUserId, r.stripeUserData.usersOfTenantsTenantId],
       to: [r.usersOfTenants.userId, r.usersOfTenants.tenantId],
     }),
   },

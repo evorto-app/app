@@ -118,10 +118,7 @@
   @if (authenticationQuery.data()) {
     <a href="/logout" class="hidden flex-col items-center gap-1 lg:flex">
       <div class="flex min-w-16 flex-row justify-center rounded-full py-1">
-        <fa-duotone-icon
-          [icon]="faRightFromBracket"
-          size="xl"
-        ></fa-duotone-icon>
+        <fa-duotone-icon [icon]="faRightFromBracket" size="xl"></fa-duotone-icon>
       </div>
       <span class="body-medium text-center">Logout</span>
     </a>
@@ -151,11 +148,7 @@
       </div>
       <span class="body-medium text-center">Global admin</span>
     </a>
-    <a
-      routerLink="/scan"
-      class="flex flex-col items-center gap-1"
-      (click)="closeSheet()"
-    >
+    <a routerLink="/scan" class="flex flex-col items-center gap-1" (click)="closeSheet()">
       <div
         class="flex min-w-16 flex-row justify-center rounded-full py-1"
         routerLinkActive="bg-secondary-container text-on-secondary-container"

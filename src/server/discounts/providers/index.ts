@@ -1,10 +1,7 @@
 import { Schema } from 'effect';
 
 export interface ProviderAdapter<TConfig> {
-  validate: (arguments_: {
-    config: TConfig;
-    identifier: string;
-  }) => Promise<ValidationResult>;
+  validate: (arguments_: { config: TConfig; identifier: string }) => Promise<ValidationResult>;
 }
 
 export interface ProviderConfig<TConfig extends Schema.Schema<any> = any> {

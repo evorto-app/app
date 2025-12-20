@@ -9,15 +9,11 @@ import { getId } from './get-id';
 import { usersToAuthenticate } from './user-data';
 
 const fallbackId = usersToAuthenticate[0].id;
-const adminUser =
-  usersToAuthenticate.find((user) => user.roles === 'admin')?.id ?? fallbackId;
-const demoUser =
-  usersToAuthenticate.find((user) => user.roles === 'all')?.id ?? fallbackId;
+const adminUser = usersToAuthenticate.find((user) => user.roles === 'admin')?.id ?? fallbackId;
+const demoUser = usersToAuthenticate.find((user) => user.roles === 'all')?.id ?? fallbackId;
 const organizerUser =
-  usersToAuthenticate.find((user) => user.roles === 'organizer')?.id ??
-  fallbackId;
-const regularUser =
-  usersToAuthenticate.find((user) => user.roles === 'user')?.id ?? fallbackId;
+  usersToAuthenticate.find((user) => user.roles === 'organizer')?.id ?? fallbackId;
+const regularUser = usersToAuthenticate.find((user) => user.roles === 'user')?.id ?? fallbackId;
 
 export const addEvents = async (
   database: NeonDatabase<Record<string, never>, typeof relations>,
@@ -35,24 +31,16 @@ export const addEvents = async (
     name: string;
   }[],
 ) => {
-  const hikeTemplates = templates.filter((template) =>
-    template.title.includes('hike'),
-  );
-  const cityToursTemplates = templates.filter((template) =>
-    template.title.includes('City Tour'),
-  );
-  const cityTripsTemplates = templates.filter((template) =>
-    template.title.includes('Trip'),
-  );
+  const hikeTemplates = templates.filter((template) => template.title.includes('hike'));
+  const cityToursTemplates = templates.filter((template) => template.title.includes('City Tour'));
+  const cityTripsTemplates = templates.filter((template) => template.title.includes('Trip'));
   const sportsTemplates = templates.filter(
     (template) =>
       template.title.includes('Match') ||
       template.title.includes('Game') ||
       template.title.includes('Tournament'),
   );
-  const weekendTripsTemplates = templates.filter((template) =>
-    template.title.includes('Trip'),
-  );
+  const weekendTripsTemplates = templates.filter((template) => template.title.includes('Trip'));
   const exampleConfigsTemplates = templates.filter((template) =>
     template.title.includes('Example'),
   );
@@ -69,9 +57,7 @@ export const addEvents = async (
   }
 
   const defaultUserRoles = roles.filter((role) => role.defaultUserRole);
-  const defaultOrganizerRoles = roles.filter(
-    (role) => role.defaultOrganizerRole,
-  );
+  const defaultOrganizerRoles = roles.filter((role) => role.defaultOrganizerRole);
 
   const hikeEvents = await createEvents(
     database,
@@ -133,9 +119,7 @@ export const addEvents = async (
   const t0 = Date.now();
   await database.insert(schema.eventInstances).values(allEvents);
   consola.success(`Events inserted in ${Date.now() - t0}ms`);
-  await database
-    .insert(schema.eventRegistrationOptions)
-    .values(allRegistrationOptions);
+  await database.insert(schema.eventRegistrationOptions).values(allRegistrationOptions);
   consola.success(`Inserted ${allRegistrationOptions.length} event registration options`);
 
   // Seed discounts for paid participant registration options (ESNcard)
@@ -153,13 +137,15 @@ export const addEvents = async (
             discountedPrice,
           },
         ];
-        
+
         await database
           .update(schema.eventRegistrationOptions)
           .set({ discounts })
           .where(eq(schema.eventRegistrationOptions.id, opt.id));
       }
-      consola.success(`Added discount configurations to ${paidOptions.length} paid registration options`);
+      consola.success(
+        `Added discount configurations to ${paidOptions.length} paid registration options`,
+      );
     }
   } catch (error) {
     console.warn('Failed to seed event discounts', error);
@@ -191,14 +177,12 @@ const createEvents = async (
   defaultUserRoles: { id: string }[],
   defaultOrganizerRoles: { id: string }[],
   paid = false,
- ): Promise<{
+): Promise<{
   events: InferInsertModel<typeof schema.eventInstances>[];
   registrationOptions: InferInsertModel<typeof schema.eventRegistrationOptions>[];
- }> => {
+}> => {
   const events: InferInsertModel<typeof schema.eventInstances>[] = [];
-  const registrationOptions: InferInsertModel<
-    typeof schema.eventRegistrationOptions
-  >[] = [];
+  const registrationOptions: InferInsertModel<typeof schema.eventRegistrationOptions>[] = [];
 
   // Use a fixed number of events per template type
   // This ensures a consistent number of events are created
@@ -288,9 +272,7 @@ const createEvents = async (
       // - closeRegistrationTime is always in the future (30 days from now)
       // This ensures events are always available for registration in tests
       const openRegistrationTime = DateTime.now().minus({ days: 5 }).toJSDate();
-      const closeRegistrationTime = DateTime.now()
-        .plus({ days: 30 })
-        .toJSDate();
+      const closeRegistrationTime = DateTime.now().plus({ days: 30 }).toJSDate();
 
       registrationOptions.push(
         {
@@ -302,9 +284,7 @@ const createEvents = async (
           openRegistrationTime,
           organizingRegistration: false,
           price: paid ? 100 * 25 : 0,
-          stripeTaxRateId: paid
-            ? (vat19 ?? defaultRate)?.stripeTaxRateId ?? null
-            : null,
+          stripeTaxRateId: paid ? ((vat19 ?? defaultRate)?.stripeTaxRateId ?? null) : null,
           registeredDescription: 'You are registered',
           registrationMode: 'fcfs',
           roleIds: defaultUserRoles.map((role) => role.id),
@@ -320,9 +300,7 @@ const createEvents = async (
           openRegistrationTime,
           organizingRegistration: true,
           price: paid ? 100 * 10 : 0,
-          stripeTaxRateId: paid
-            ? (vat7 ?? defaultRate)?.stripeTaxRateId ?? null
-            : null,
+          stripeTaxRateId: paid ? ((vat7 ?? defaultRate)?.stripeTaxRateId ?? null) : null,
           registeredDescription: 'You are registered',
           registrationMode: 'fcfs',
           roleIds: defaultOrganizerRoles.map((role) => role.id),

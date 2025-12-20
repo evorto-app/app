@@ -12,10 +12,7 @@ import * as fs from 'node:fs';
 import path from 'node:path';
 
 // Helpers
-const ensureDirectory = (
-  directoryPath: string,
-  options?: { empty?: boolean },
-) => {
+const ensureDirectory = (directoryPath: string, options?: { empty?: boolean }) => {
   if (options?.empty && fs.existsSync(directoryPath)) {
     fs.rmSync(directoryPath, { force: true, recursive: true });
   }
@@ -36,8 +33,7 @@ class DocumentationReporter implements Reporter {
   }
 
   private imagesRoot(): string {
-    const root =
-      process.env.DOCS_IMG_OUT_DIR || path.resolve('test-results/docs/images');
+    const root = process.env.DOCS_IMG_OUT_DIR || path.resolve('test-results/docs/images');
     ensureDirectory(root);
     return root;
   }
@@ -58,14 +54,10 @@ class DocumentationReporter implements Reporter {
     );
     if (relevant.length === 0) return;
 
-    const testFolder = ensureDirectory(
-      path.join(this.docsRoot(), testFolderName),
-      { empty: true },
-    );
-    const picturesFolder = ensureDirectory(
-      path.join(this.imagesRoot(), testFolderName),
-      { empty: true },
-    );
+    const testFolder = ensureDirectory(path.join(this.docsRoot(), testFolderName), { empty: true });
+    const picturesFolder = ensureDirectory(path.join(this.imagesRoot(), testFolderName), {
+      empty: true,
+    });
 
     const fileContent: string[] = [`---\ntitle: ${test.title}\n---`];
 
@@ -104,7 +96,8 @@ class DocumentationReporter implements Reporter {
           if (!last.startsWith('![')) break;
           const imageUrl = last.split('(')[1]?.split(')')[0] ?? '';
           const caption = attachment.body.toString();
-          fileContent[fileContent.length - 1] = `{% figure src="${imageUrl}" caption="${caption}" /%}`;
+          fileContent[fileContent.length - 1] =
+            `{% figure src="${imageUrl}" caption="${caption}" /%}`;
           break;
         }
         case 'markdown': {

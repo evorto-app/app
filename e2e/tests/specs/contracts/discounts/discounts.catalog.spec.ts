@@ -5,8 +5,7 @@ import { adminStateFile } from '../../../../../helpers/user-data';
 
 const SNACKBAR = 'mat-snack-bar-container';
 
-const providerSwitch = (page: Page) =>
-  page.getByTestId('enable-esn-provider').getByRole('switch');
+const providerSwitch = (page: Page) => page.getByTestId('enable-esn-provider').getByRole('switch');
 
 async function toggleProvider(page: Page, enabled: boolean) {
   const toggle = providerSwitch(page);
@@ -25,9 +24,7 @@ test.describe('Contract: discounts.catalog → getTenantProviders', () => {
 
     await expect(providerSwitch(page)).toHaveAttribute('aria-checked', 'true');
 
-    const ctaToggle = page
-      .getByTestId('esn-show-cta-toggle')
-      .getByRole('switch');
+    const ctaToggle = page.getByTestId('esn-show-cta-toggle').getByRole('switch');
 
     // Turn the CTA off and verify the persisted state.
     if ((await ctaToggle.getAttribute('aria-checked')) !== 'false') {

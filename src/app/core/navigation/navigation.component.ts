@@ -1,14 +1,5 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  inject,
-  TemplateRef,
-  viewChild,
-} from '@angular/core';
-import {
-  MatBottomSheet,
-  MatBottomSheetModule,
-} from '@angular/material/bottom-sheet';
+import { ChangeDetectionStrategy, Component, inject, TemplateRef, viewChild } from '@angular/core';
+import { MatBottomSheet, MatBottomSheetModule } from '@angular/material/bottom-sheet';
 import { MatButtonModule } from '@angular/material/button';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
@@ -60,8 +51,7 @@ export class NavigationComponent {
   protected readonly faRightToBracket = faRightToBracket;
   protected readonly faScannerGun = faScannerGun;
   protected readonly faUser = faUser;
-  protected readonly sheetTemplate =
-    viewChild<TemplateRef<unknown>>('navigationSheet');
+  protected readonly sheetTemplate = viewChild<TemplateRef<unknown>>('navigationSheet');
 
   private readonly bottomSheet = inject(MatBottomSheet);
 

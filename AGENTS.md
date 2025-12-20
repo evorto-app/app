@@ -14,22 +14,22 @@ When working outside a Git branch (e.g., detached head, sandbox, downloaded arch
 
 ## Supported AI Agents (Quick Reference)
 
-| Agent | Directory | Format | CLI Tool | Notes |
-|-------|-----------|--------|----------|-------|
-| Claude Code | `.claude/commands/` | Markdown | `claude` | Anthropic CLI |
-| Gemini CLI | `.gemini/commands/` | TOML | `gemini` | Google CLI |
-| GitHub Copilot | `.github/prompts/` | Markdown | — | VS Code IDE |
-| Cursor | `.cursor/commands/` | Markdown | `cursor-agent` | Cursor CLI |
-| Qwen Code | `.qwen/commands/` | TOML | `qwen` | Alibaba CLI |
-| opencode | `.opencode/command/` | Markdown | `opencode` | opencode CLI |
-| Codex CLI | `.codex/commands/` | Markdown | `codex` | This environment |
-| Windsurf | `.windsurf/workflows/` | Markdown | — | Windsurf IDE |
-| Kilo Code | `.kilocode/rules/` | Markdown | — | Kilo Code IDE |
-| Auggie CLI | `.augment/rules/` | Markdown | `auggie` | Augment CLI |
-| Roo Code | `.roo/rules/` | Markdown | — | Roo IDE |
-| CodeBuddy CLI | `.codebuddy/commands/` | Markdown | `codebuddy` | CodeBuddy CLI |
-| Amazon Q Developer | `.amazonq/prompts/` | Markdown | `q` | Amazon Q CLI |
-| Amp | `.agents/commands/` | Markdown | `amp` | Amp CLI |
+| Agent              | Directory              | Format   | CLI Tool       | Notes            |
+| ------------------ | ---------------------- | -------- | -------------- | ---------------- |
+| Claude Code        | `.claude/commands/`    | Markdown | `claude`       | Anthropic CLI    |
+| Gemini CLI         | `.gemini/commands/`    | TOML     | `gemini`       | Google CLI       |
+| GitHub Copilot     | `.github/prompts/`     | Markdown | —              | VS Code IDE      |
+| Cursor             | `.cursor/commands/`    | Markdown | `cursor-agent` | Cursor CLI       |
+| Qwen Code          | `.qwen/commands/`      | TOML     | `qwen`         | Alibaba CLI      |
+| opencode           | `.opencode/command/`   | Markdown | `opencode`     | opencode CLI     |
+| Codex CLI          | `.codex/commands/`     | Markdown | `codex`        | This environment |
+| Windsurf           | `.windsurf/workflows/` | Markdown | —              | Windsurf IDE     |
+| Kilo Code          | `.kilocode/rules/`     | Markdown | —              | Kilo Code IDE    |
+| Auggie CLI         | `.augment/rules/`      | Markdown | `auggie`       | Augment CLI      |
+| Roo Code           | `.roo/rules/`          | Markdown | —              | Roo IDE          |
+| CodeBuddy CLI      | `.codebuddy/commands/` | Markdown | `codebuddy`    | CodeBuddy CLI    |
+| Amazon Q Developer | `.amazonq/prompts/`    | Markdown | `q`            | Amazon Q CLI     |
+| Amp                | `.agents/commands/`    | Markdown | `amp`          | Amp CLI          |
 
 All scripts referenced by the command files live under `scripts/bash/` (POSIX) or `scripts/powershell/`. Ensure execute permissions are preserved (`chmod +x scripts/bash/*.sh`) when updating from upstream.
 

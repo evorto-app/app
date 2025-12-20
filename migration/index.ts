@@ -18,13 +18,7 @@ import { migrateTenant } from './steps/tenant';
 import { migrateUserTenantAssignments } from './steps/user-assignments';
 import { migrateUsers } from './steps/users';
 
-type Features =
-  | 'assignments'
-  | 'events'
-  | 'roles'
-  | 'templates'
-  | 'tenants'
-  | 'users';
+type Features = 'assignments' | 'events' | 'roles' | 'templates' | 'tenants' | 'users';
 
 async function main() {
   const migrationStart = DateTime.local();
@@ -80,14 +74,7 @@ async function main() {
 }
 
 function parseFeatures(environment: string | undefined): Features[] {
-  const all: Features[] = [
-    'users',
-    'tenants',
-    'roles',
-    'assignments',
-    'templates',
-    'events',
-  ];
+  const all: Features[] = ['users', 'tenants', 'roles', 'assignments', 'templates', 'events'];
   if (!environment) return all;
   const parts = environment
     .split(',')
@@ -128,8 +115,7 @@ async function runForTenant(
     return;
   }
 
-  const newTenant =
-    existingTenant ?? (await migrateTenant(newDomain, oldTenant));
+  const newTenant = existingTenant ?? (await migrateTenant(newDomain, oldTenant));
 
   const roleMap = options.features.includes('roles')
     ? await setupDefaultRoles(newTenant)
@@ -146,12 +132,7 @@ async function runForTenant(
 
   let templateIdMap = new Map<string, string>();
   if (options.features.includes('templates')) {
-    templateIdMap = await migrateTemplates(
-      oldTenant,
-      newTenant,
-      categoryIdMap,
-      roleMap,
-    );
+    templateIdMap = await migrateTemplates(oldTenant, newTenant, categoryIdMap, roleMap);
   }
 
   if (options.features.includes('events')) {

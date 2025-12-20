@@ -13,9 +13,7 @@ import {
  * - Derives the URL the same way as the icon component
  * - Downloads the image and returns its bytes
  */
-export async function iconStringToImageBytes(
-  iconCommonName: string,
-): Promise<Uint8ClampedArray> {
+export async function iconStringToImageBytes(iconCommonName: string): Promise<Uint8ClampedArray> {
   const url = deriveIconUrl(iconCommonName);
   return fetchBytes(url);
 }
@@ -32,10 +30,7 @@ export async function main(): Promise<number> {
   const blueComponent = blueFromArgb(color);
   const hex = `#${redComponent
     .toString(16)
-    .padStart(
-      2,
-      '0',
-    )}${greenComponent.toString(16).padStart(2, '0')}${blueComponent
+    .padStart(2, '0')}${greenComponent.toString(16).padStart(2, '0')}${blueComponent
     .toString(16)
     .padStart(2, '0')}`;
   console.log('Source color (ARGB int):', color, 'hex:', hex);
@@ -95,11 +90,7 @@ async function fetchBytes(url: string): Promise<Uint8ClampedArray> {
 }
 
 // If executed directly with tsx/node, run main.
-if (
-  typeof process !== 'undefined' &&
-  Array.isArray(process.argv) &&
-  process.argv[1]
-) {
+if (typeof process !== 'undefined' && Array.isArray(process.argv) && process.argv[1]) {
   (async () => {
     try {
       const { pathToFileURL } = await import('node:url');

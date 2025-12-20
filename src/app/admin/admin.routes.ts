@@ -7,30 +7,22 @@ export const ADMIN_ROUTES: Routes = [
     children: [
       {
         loadComponent: () =>
-          import('./role-list/role-list.component').then(
-            (m) => m.RoleListComponent,
-          ),
+          import('./role-list/role-list.component').then((m) => m.RoleListComponent),
         path: 'roles',
       },
       {
         loadComponent: () =>
-          import('./role-create/role-create.component').then(
-            (m) => m.RoleCreateComponent,
-          ),
+          import('./role-create/role-create.component').then((m) => m.RoleCreateComponent),
         path: 'roles/create',
       },
       {
         loadComponent: () =>
-          import('./role-details/role-details.component').then(
-            (m) => m.RoleDetailsComponent,
-          ),
+          import('./role-details/role-details.component').then((m) => m.RoleDetailsComponent),
         path: 'roles/:roleId',
       },
       {
         loadComponent: () =>
-          import('./role-edit/role-edit.component').then(
-            (m) => m.RoleEditComponent,
-          ),
+          import('./role-edit/role-edit.component').then((m) => m.RoleEditComponent),
         path: 'roles/:roleId/edit',
       },
       {
@@ -64,9 +56,7 @@ export const ADMIN_ROUTES: Routes = [
       },
       {
         loadComponent: () =>
-          import('./user-list/user-list.component').then(
-            (m) => m.UserListComponent,
-          ),
+          import('./user-list/user-list.component').then((m) => m.UserListComponent),
         path: 'users',
       },
       {
@@ -75,16 +65,12 @@ export const ADMIN_ROUTES: Routes = [
           permissions: ['events:review'],
         },
         loadComponent: () =>
-          import('./event-reviews/event-reviews.component').then(
-            (m) => m.EventReviewsComponent,
-          ),
+          import('./event-reviews/event-reviews.component').then((m) => m.EventReviewsComponent),
         path: 'event-reviews',
       },
     ],
     loadComponent: () =>
-      import('./admin-overview/admin-overview.component').then(
-        (m) => m.AdminOverviewComponent,
-      ),
+      import('./admin-overview/admin-overview.component').then((m) => m.AdminOverviewComponent),
     path: '',
   },
 ];

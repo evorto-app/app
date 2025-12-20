@@ -25,9 +25,7 @@ import { IconSelectorDialogComponent } from '../icon-selector-dialog/icon-select
   templateUrl: './icon-selector-field.component.html',
 })
 export class IconSelectorFieldComponent implements AfterViewInit, OnDestroy {
-  protected iconValue = signal<
-    string | { iconColor: number; iconName: string }
-  >('');
+  protected iconValue = signal<string | { iconColor: number; iconName: string }>('');
 
   protected ngControl = injectNgControl();
 
@@ -38,9 +36,7 @@ export class IconSelectorFieldComponent implements AfterViewInit, OnDestroy {
     this.signalSubscription = this.ngControl.valueChanges
       ?.pipe(startWith(this.ngControl.value))
       .subscribe((icon) => {
-        this.iconValue.set(
-          icon as string | { iconColor: number; iconName: string },
-        );
+        this.iconValue.set(icon as string | { iconColor: number; iconName: string });
       });
   }
 
@@ -50,9 +46,7 @@ export class IconSelectorFieldComponent implements AfterViewInit, OnDestroy {
 
   async openSelectionDialog() {
     const icon = await firstValueFrom(
-      this.dialog
-        .open(IconSelectorDialogComponent, { minWidth: '70dvw' })
-        .afterClosed(),
+      this.dialog.open(IconSelectorDialogComponent, { minWidth: '70dvw' }).afterClosed(),
     );
     if (icon) {
       this.ngControl.control.patchValue(icon);

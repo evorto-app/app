@@ -8,9 +8,7 @@
       <h1 class="title-large">Admin settings</h1>
       <div class="grow"></div>
     </div>
-    <nav
-      class="{{ outletActive() ? 'hidden' : 'flex' }} lg:flex flex-col gap-4"
-    >
+    <nav class="{{ outletActive() ? 'hidden' : 'flex' }} lg:flex flex-col gap-4">
       <a
         routerLink="users"
         class="bg-surface text-on-surface rounded-2xl p-4"
@@ -60,9 +58,7 @@
           <fa-duotone-icon [icon]="faCalendarCheck" size="xl"></fa-duotone-icon>
           <h2 class="title-medium">Event Reviews</h2>
           @if (pendingReviewsCount() > 0) {
-            <span
-              class="bg-warning text-on-warning ml-auto rounded-full px-2 py-1 text-xs"
-            >
+            <span class="bg-warning text-on-warning ml-auto rounded-full px-2 py-1 text-xs">
               {{ pendingReviewsCount() }}
             </span>
           }

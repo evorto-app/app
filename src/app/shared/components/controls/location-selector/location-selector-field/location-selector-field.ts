@@ -1,20 +1,11 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  forwardRef,
-  inject,
-  signal,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, forwardRef, inject, signal } from '@angular/core';
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
 import { MatButton } from '@angular/material/button';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import consola from 'consola/browser';
 import { firstValueFrom } from 'rxjs';
 
-import {
-  EventLocationType,
-  GoogleLocationType,
-} from '../../../../../../types/location';
+import { EventLocationType, GoogleLocationType } from '../../../../../../types/location';
 import { LocationSelectorDialog } from '../location-selector-dialog/location-selector-dialog';
 
 @Component({

@@ -1,7 +1,7 @@
 import { Pipe, PipeTransform } from '@angular/core';
 
 @Pipe({
-  name: 'registrationStartOffset'
+  name: 'registrationStartOffset',
 })
 export class RegistrationStartOffsetPipe implements PipeTransform {
   transform(offsetInHours: null | number | undefined): string {
@@ -27,7 +27,7 @@ export class RegistrationStartOffsetPipe implements PipeTransform {
     const remainingHours = hours % 24;
 
     const dayText = days === 1 ? 'day' : 'days';
-    
+
     if (remainingHours === 0) {
       return `${days} ${dayText} ${timing} event start`;
     }
