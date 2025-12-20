@@ -94,68 +94,39 @@ export const eventRouter = router({
         throw new Error('Failed to create event');
       }
 
-      const createdOptions = await database
-        .insert(schema.eventRegistrationOptions)
-        .values(
-          input.registrationOptions.map((option) => ({
-            closeRegistrationTime: option.closeRegistrationTime,
-            description: option.description,
-            eventId: event.id,
-            isPaid: option.isPaid,
-            openRegistrationTime: option.openRegistrationTime,
-            organizingRegistration: option.organizingRegistration,
-            price: option.price,
-            registeredDescription: option.registeredDescription,
-            registrationMode: option.registrationMode,
-            spots: option.spots,
-            stripeTaxRateId: option.stripeTaxRateId ?? null,
-            title: option.title,
-          })),
-        )
-        .returning();
-
-      // Copy discounts from template registration options to event options
       const templateOptions = await database.query.templateRegistrationOptions.findMany({
         where: { templateId: input.templateId },
       });
-      if (templateOptions.length > 0) {
-        const templateDiscounts = await database
-          .select()
-          .from(schema.templateRegistrationOptionDiscounts)
-          .where(
-            inArray(
-              schema.templateRegistrationOptionDiscounts.registrationOptionId,
-              templateOptions.map((t) => t.id),
-            ),
-          );
-        if (templateDiscounts.length > 0) {
-          const key = (title: string, organizing: boolean) => `${title}__${organizing ? '1' : '0'}`;
-          const tMap = new Map(
-            templateOptions.map((t) => [key(t.title, t.organizingRegistration), t]),
-          );
-          const inserts: {
-            discountedPrice: number;
-            discountType: any;
-            registrationOptionId: string;
-          }[] = [];
-          for (const event_ of createdOptions) {
-            const t = tMap.get(key(event_.title, event_.organizingRegistration));
-            if (!t) continue;
-            for (const d of templateDiscounts) {
-              if (d.registrationOptionId === t.id) {
-                inserts.push({
-                  discountedPrice: d.discountedPrice,
-                  discountType: d.discountType as any,
-                  registrationOptionId: event_.id,
-                });
-              }
-            }
-          }
-          if (inserts.length > 0) {
-            await database.insert(schema.eventRegistrationOptionDiscounts).values(inserts as any);
-          }
-        }
-      }
+      const key = (title: string, organizing: boolean) => `${title}__${organizing ? '1' : '0'}`;
+      const templateMap = new Map(
+        templateOptions.map((option) => [key(option.title, option.organizingRegistration), option]),
+      );
+
+      const createdOptions = await database
+        .insert(schema.eventRegistrationOptions)
+        .values(
+          input.registrationOptions.map((option) => {
+            const templateOption = templateMap.get(
+              key(option.title, option.organizingRegistration),
+            );
+            return {
+              closeRegistrationTime: option.closeRegistrationTime,
+              description: option.description,
+              discounts: templateOption?.discounts ?? null,
+              eventId: event.id,
+              isPaid: option.isPaid,
+              openRegistrationTime: option.openRegistrationTime,
+              organizingRegistration: option.organizingRegistration,
+              price: option.price,
+              registeredDescription: option.registeredDescription,
+              registrationMode: option.registrationMode,
+              spots: option.spots,
+              stripeTaxRateId: option.stripeTaxRateId ?? null,
+              title: option.title,
+            };
+          }),
+        )
+        .returning();
 
       return event;
     }),
