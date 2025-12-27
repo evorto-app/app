@@ -59,17 +59,18 @@ export const eventListProcedure = publicProcedure
         });
       }
 
-      const rolesToFilterBy = (ctx.user?.roleIds ??
-        (await database.query.roles
-          .findMany({
-            columns: { id: true },
-            where: {
-              defaultUserRole: true,
-              tenantId: ctx.tenant.id,
-            },
-          })
-          .then((roles) => roles.map((role) => role.id))) ??
-        []) as string[];
+      const fallbackRoles = await database.query.roles
+        .findMany({
+          columns: { id: true },
+          where: {
+            defaultUserRole: true,
+            tenantId: ctx.tenant.id,
+          },
+        })
+        .then((roles) => roles.map((role) => role.id));
+      const rolesToFilterBy = Array.from(
+        ctx.user?.roleIds && ctx.user.roleIds.length > 0 ? ctx.user.roleIds : fallbackRoles,
+      );
 
       const queryResult = await database
         .select({

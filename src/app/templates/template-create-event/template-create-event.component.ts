@@ -97,6 +97,7 @@ export class TemplateCreateEventComponent {
               closeRegistrationTime: [],
               description: [option.description],
               discounts: [option.discounts ?? []],
+              id: [''],
               isPaid: [option.isPaid],
               openRegistrationTime: [],
               organizingRegistration: [option.organizingRegistration],

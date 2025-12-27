@@ -10,13 +10,20 @@ import {
   eventTemplates,
   templateRegistrationOptions,
 } from '../../../db/schema';
+import { validateDiscountConfiguration } from '../../utils/validate-discounts';
 import { computeIconSourceColor } from '../../utils/icon-color';
 import { createLogContext, TaxRateLogger } from '../../utils/tax-rate-logging';
 import { validateTaxRate } from '../../utils/validate-tax-rate';
 import { authenticatedProcedure, router } from '../trpc-server';
 
+const discountSchema = Schema.Struct({
+  discountedPrice: Schema.Number.pipe(Schema.nonNegative()),
+  discountType: Schema.Literal('esnCard'),
+});
+
 const registrationOptionSchema = Schema.Struct({
   closeRegistrationOffset: Schema.Number.pipe(Schema.nonNegative()),
+  discounts: Schema.optional(Schema.Array(discountSchema)),
   isPaid: Schema.Boolean,
   openRegistrationOffset: Schema.Number.pipe(Schema.nonNegative()),
   price: Schema.Number.pipe(Schema.nonNegative()),
@@ -122,6 +129,19 @@ export const templateRouter = router({
       ),
     )
     .mutation(async ({ ctx, input }) => {
+      validateDiscountConfiguration({
+        discounts: input.organizerRegistration.discounts,
+        isPaid: input.organizerRegistration.isPaid,
+        price: input.organizerRegistration.price,
+        title: 'Organizer registration',
+      });
+      validateDiscountConfiguration({
+        discounts: input.participantRegistration.discounts,
+        isPaid: input.participantRegistration.isPaid,
+        price: input.participantRegistration.price,
+        title: 'Participant registration',
+      });
+
       // Validate tax rates for both registration options before proceeding
       const organizerValidation = await validateTaxRate({
         isPaid: input.organizerRegistration.isPaid,
@@ -165,9 +185,17 @@ export const templateRouter = router({
           .returning();
         const templateId = templateResponse[0].id;
 
+        const organizerDiscounts = input.organizerRegistration.discounts
+          ? input.organizerRegistration.discounts.map((discount) => ({ ...discount }))
+          : null;
+        const participantDiscounts = input.participantRegistration.discounts
+          ? input.participantRegistration.discounts.map((discount) => ({ ...discount }))
+          : null;
+
         // Create organizer registration option
         await tx.insert(templateRegistrationOptions).values({
           closeRegistrationOffset: input.organizerRegistration.closeRegistrationOffset,
+          discounts: organizerDiscounts,
           isPaid: input.organizerRegistration.isPaid,
           openRegistrationOffset: input.organizerRegistration.openRegistrationOffset,
           organizingRegistration: true,
@@ -183,6 +211,7 @@ export const templateRouter = router({
         // Create participant registration option
         await tx.insert(templateRegistrationOptions).values({
           closeRegistrationOffset: input.participantRegistration.closeRegistrationOffset,
+          discounts: participantDiscounts,
           isPaid: input.participantRegistration.isPaid,
           openRegistrationOffset: input.participantRegistration.openRegistrationOffset,
           organizingRegistration: false,
@@ -263,6 +292,19 @@ export const templateRouter = router({
       ),
     )
     .mutation(async ({ ctx, input }) => {
+      validateDiscountConfiguration({
+        discounts: input.organizerRegistration.discounts,
+        isPaid: input.organizerRegistration.isPaid,
+        price: input.organizerRegistration.price,
+        title: 'Organizer registration',
+      });
+      validateDiscountConfiguration({
+        discounts: input.participantRegistration.discounts,
+        isPaid: input.participantRegistration.isPaid,
+        price: input.participantRegistration.price,
+        title: 'Participant registration',
+      });
+
       // Validate tax rates for both registration options before proceeding
       const organizerValidation = await validateTaxRate({
         isPaid: input.organizerRegistration.isPaid,
@@ -313,18 +355,32 @@ export const templateRouter = router({
           .returning();
 
         // Update organizer registration option
+        const organizerHasDiscounts = Object.prototype.hasOwnProperty.call(
+          input.organizerRegistration,
+          'discounts',
+        );
+        const organizerDiscounts =
+          input.organizerRegistration.discounts &&
+          input.organizerRegistration.discounts.length > 0
+            ? input.organizerRegistration.discounts.map((discount) => ({ ...discount }))
+            : null;
+        const organizerUpdate = {
+          closeRegistrationOffset: input.organizerRegistration.closeRegistrationOffset,
+          isPaid: input.organizerRegistration.isPaid,
+          openRegistrationOffset: input.organizerRegistration.openRegistrationOffset,
+          price: input.organizerRegistration.price,
+          registrationMode: input.organizerRegistration.registrationMode,
+          roleIds: input.organizerRegistration.roleIds,
+          spots: input.organizerRegistration.spots,
+          stripeTaxRateId: input.organizerRegistration.stripeTaxRateId ?? null,
+          ...(organizerHasDiscounts
+            ? { discounts: organizerDiscounts }
+            : {}),
+        };
+
         await tx
           .update(templateRegistrationOptions)
-          .set({
-            closeRegistrationOffset: input.organizerRegistration.closeRegistrationOffset,
-            isPaid: input.organizerRegistration.isPaid,
-            openRegistrationOffset: input.organizerRegistration.openRegistrationOffset,
-            price: input.organizerRegistration.price,
-            registrationMode: input.organizerRegistration.registrationMode,
-            roleIds: input.organizerRegistration.roleIds,
-            spots: input.organizerRegistration.spots,
-            stripeTaxRateId: input.organizerRegistration.stripeTaxRateId ?? null,
-          })
+          .set(organizerUpdate)
           .where(
             and(
               eq(templateRegistrationOptions.templateId, input.id),
@@ -333,18 +389,32 @@ export const templateRouter = router({
           );
 
         // Update participant registration option
+        const participantHasDiscounts = Object.prototype.hasOwnProperty.call(
+          input.participantRegistration,
+          'discounts',
+        );
+        const participantDiscounts =
+          input.participantRegistration.discounts &&
+          input.participantRegistration.discounts.length > 0
+            ? input.participantRegistration.discounts.map((discount) => ({ ...discount }))
+            : null;
+        const participantUpdate = {
+          closeRegistrationOffset: input.participantRegistration.closeRegistrationOffset,
+          isPaid: input.participantRegistration.isPaid,
+          openRegistrationOffset: input.participantRegistration.openRegistrationOffset,
+          price: input.participantRegistration.price,
+          registrationMode: input.participantRegistration.registrationMode,
+          roleIds: input.participantRegistration.roleIds,
+          spots: input.participantRegistration.spots,
+          stripeTaxRateId: input.participantRegistration.stripeTaxRateId ?? null,
+          ...(participantHasDiscounts
+            ? { discounts: participantDiscounts }
+            : {}),
+        };
+
         await tx
           .update(templateRegistrationOptions)
-          .set({
-            closeRegistrationOffset: input.participantRegistration.closeRegistrationOffset,
-            isPaid: input.participantRegistration.isPaid,
-            openRegistrationOffset: input.participantRegistration.openRegistrationOffset,
-            price: input.participantRegistration.price,
-            registrationMode: input.participantRegistration.registrationMode,
-            roleIds: input.participantRegistration.roleIds,
-            spots: input.participantRegistration.spots,
-            stripeTaxRateId: input.participantRegistration.stripeTaxRateId ?? null,
-          })
+          .set(participantUpdate)
           .where(
             and(
               eq(templateRegistrationOptions.templateId, input.id),

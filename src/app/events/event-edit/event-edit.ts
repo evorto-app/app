@@ -99,6 +99,7 @@ export class EventEdit {
               ],
               description: [option.description],
               discounts: [option.discounts ?? []],
+              id: [option.id],
               isPaid: [option.isPaid],
               openRegistrationTime: [
                 option.openRegistrationTime ? new Date(option.openRegistrationTime) : null,
@@ -121,7 +122,7 @@ export class EventEdit {
       return;
     }
 
-    const formValue = this.editEventForm.value;
+    const formValue = this.editEventForm.getRawValue();
 
     if (
       !formValue.description ||
@@ -133,12 +134,20 @@ export class EventEdit {
       return;
     }
 
+    const registrationOptions = formValue.registrationOptions
+      .filter((option) => option.id)
+      .map((option) => ({
+        discounts: option.discounts ?? [],
+        id: option.id,
+      }));
+
     this.updateEventMutation.mutate({
       description: formValue.description,
       end: formValue.end,
       eventId: this.eventId(),
       icon: formValue.icon,
       location: formValue.location,
+      registrationOptions,
       start: formValue.start,
       title: formValue.title,
     });

@@ -27,6 +27,7 @@ export type RegistrationOptionFormGroup = FormGroup<{
   closeRegistrationTime: FormControl<Date>;
   description: FormControl<string>;
   discounts: FormControl<{ discountedPrice: number; discountType: 'esnCard' }[]>;
+  id: FormControl<string>;
   isPaid: FormControl<boolean>;
   openRegistrationTime: FormControl<Date>;
   organizingRegistration: FormControl<boolean>;

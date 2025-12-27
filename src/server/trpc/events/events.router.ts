@@ -7,6 +7,7 @@ import { DateTime } from 'luxon';
 
 import { database } from '../../../db';
 import * as schema from '../../../db/schema';
+import { validateDiscountConfiguration } from '../../utils/validate-discounts';
 import { validateTaxRate } from '../../utils/validate-tax-rate';
 import { authenticatedProcedure, publicProcedure, router } from '../trpc-server';
 import { cancelPendingRegistrationProcedure } from './cancel-pending-registration.procedure';
@@ -59,32 +60,12 @@ export const eventRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       for (const option of input.registrationOptions) {
-        const discounts = option.discounts ?? [];
-        if (discounts.length === 0) continue;
-
-        if (!option.isPaid) {
-          throw new TRPCError({
-            code: 'BAD_REQUEST',
-            message: `Registration option "${option.title}": discounts require a paid option.`,
-          });
-        }
-
-        const seenTypes = new Set<string>();
-        for (const discount of discounts) {
-          if (discount.discountedPrice > option.price) {
-            throw new TRPCError({
-              code: 'BAD_REQUEST',
-              message: `Registration option "${option.title}": discount price must be <= base price.`,
-            });
-          }
-          if (seenTypes.has(discount.discountType)) {
-            throw new TRPCError({
-              code: 'BAD_REQUEST',
-              message: `Registration option "${option.title}": duplicate discount type "${discount.discountType}".`,
-            });
-          }
-          seenTypes.add(discount.discountType);
-        }
+        validateDiscountConfiguration({
+          discounts: option.discounts,
+          isPaid: option.isPaid,
+          price: option.price,
+          title: option.title,
+        });
       }
 
       // Validate tax rates for all registration options before proceeding
@@ -134,6 +115,12 @@ export const eventRouter = router({
       const templateOptions = await database.query.templateRegistrationOptions.findMany({
         where: { templateId: input.templateId },
       });
+      const defaultUserRoleIds = await database.query.roles
+        .findMany({
+          columns: { id: true },
+          where: { defaultUserRole: true, tenantId: ctx.tenant.id },
+        })
+        .then((roles) => roles.map((role) => role.id));
       const key = (title: string, organizing: boolean) => `${title}__${organizing ? '1' : '0'}`;
       const templateMap = new Map(
         templateOptions.map((option) => [key(option.title, option.organizingRegistration), option]),
@@ -161,6 +148,7 @@ export const eventRouter = router({
               price: option.price,
               registeredDescription: option.registeredDescription,
               registrationMode: option.registrationMode,
+              roleIds: templateOption?.roleIds ?? defaultUserRoleIds,
               spots: option.spots,
               stripeTaxRateId: option.stripeTaxRateId ?? null,
               title: option.title,
@@ -189,14 +177,15 @@ export const eventRouter = router({
   findOne: publicProcedure
     .input(Schema.standardSchemaV1(Schema.Struct({ id: Schema.NonEmptyString })))
     .query(async ({ ctx, input }) => {
-      const rolesToFilterBy = (ctx.user?.roleIds ??
-        (await database.query.roles
-          .findMany({
-            columns: { id: true },
-            where: { defaultUserRole: true, tenantId: ctx.tenant.id },
-          })
-          .then((roles) => roles.map((role) => role.id))) ??
-        []) as string[];
+      const fallbackRoles = await database.query.roles
+        .findMany({
+          columns: { id: true },
+          where: { defaultUserRole: true, tenantId: ctx.tenant.id },
+        })
+        .then((roles) => roles.map((role) => role.id));
+      const rolesToFilterBy = Array.from(
+        ctx.user?.roleIds && ctx.user.roleIds.length > 0 ? ctx.user.roleIds : fallbackRoles,
+      );
       const event = await database.query.eventInstances.findFirst({
         where: { id: input.id, tenantId: ctx.tenant.id },
         with: {
@@ -452,6 +441,21 @@ export const eventRouter = router({
             iconName: Schema.NonEmptyString,
           }),
           location: Schema.NullOr(Schema.Any),
+          registrationOptions: Schema.optional(
+            Schema.Array(
+              Schema.Struct({
+                discounts: Schema.optional(
+                  Schema.Array(
+                    Schema.Struct({
+                      discountedPrice: Schema.Number.pipe(Schema.nonNegative()),
+                      discountType: Schema.Literal('esnCard'),
+                    }),
+                  ),
+                ),
+                id: Schema.NonEmptyString,
+              }),
+            ),
+          ),
           start: Schema.ValidDateFromSelf,
           title: Schema.NonEmptyString,
         }),
@@ -472,26 +476,72 @@ export const eventRouter = router({
           message: 'Event not found',
         });
       }
+      return await database.transaction(async (tx) => {
+        const updatedEvent = (
+          await tx
+            .update(schema.eventInstances)
+            .set({
+              description: input.description,
+              end: input.end,
+              icon: input.icon,
+              location: input.location,
+              start: input.start,
+              title: input.title,
+            })
+            .where(
+              and(
+                eq(schema.eventInstances.id, input.eventId),
+                eq(schema.eventInstances.tenantId, ctx.tenant.id),
+              ),
+            )
+            .returning()
+        )[0];
 
-      return (
-        await database
-          .update(schema.eventInstances)
-          .set({
-            description: input.description,
-            end: input.end,
-            icon: input.icon,
-            location: input.location,
-            start: input.start,
-            title: input.title,
-          })
-          .where(
-            and(
-              eq(schema.eventInstances.id, input.eventId),
-              eq(schema.eventInstances.tenantId, ctx.tenant.id),
-            ),
-          )
-          .returning()
-      )[0];
+        const updates = input.registrationOptions ?? [];
+        if (updates.length > 0) {
+          const existingOptions = await tx.query.eventRegistrationOptions.findMany({
+            where: {
+              eventId: input.eventId,
+              id: { in: updates.map((option) => option.id) },
+            },
+          });
+          const byId = new Map(existingOptions.map((option) => [option.id, option]));
+
+          for (const update of updates) {
+            const existingOption = byId.get(update.id);
+            if (!existingOption) {
+              throw new TRPCError({
+                code: 'NOT_FOUND',
+                message: `Registration option "${update.id}" not found.`,
+              });
+            }
+
+            validateDiscountConfiguration({
+              discounts: update.discounts,
+              isPaid: existingOption.isPaid,
+              price: existingOption.price,
+              title: existingOption.title,
+            });
+
+            const normalizedDiscounts =
+              update.discounts && update.discounts.length > 0
+                ? update.discounts.map((discount) => ({ ...discount }))
+                : null;
+
+            await tx
+              .update(schema.eventRegistrationOptions)
+              .set({ discounts: normalizedDiscounts })
+              .where(
+                and(
+                  eq(schema.eventRegistrationOptions.id, existingOption.id),
+                  eq(schema.eventRegistrationOptions.eventId, input.eventId),
+                ),
+              );
+          }
+        }
+
+        return updatedEvent;
+      });
     }),
 
   updateListing: authenticatedProcedure

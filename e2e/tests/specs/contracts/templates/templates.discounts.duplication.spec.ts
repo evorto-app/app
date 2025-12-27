@@ -1,10 +1,12 @@
 import { Page } from '@playwright/test';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 
-import { adminStateFile, defaultStateFile, userStateFile } from '../../../../../helpers/user-data';
+import { addTaxRates } from '../../../../../helpers/add-tax-rates';
+import { defaultStateFile, userStateFile, usersToAuthenticate } from '../../../../../helpers/user-data';
 import * as schema from '../../../../../src/db/schema';
 import { test as base, expect } from '../../../../fixtures/parallel-test';
 import { runWithStorageState } from '../../../../utils/auth-context';
+import { fillTestCard } from '../../../../fill-test-card';
 
 interface DiscountTemplateFixture {
   categoryTitle: string;
@@ -16,10 +18,17 @@ interface DiscountTemplateFixture {
 }
 
 const centsToCurrency = (cents: number) =>
-  new Intl.NumberFormat('de-DE', {
+  new Intl.NumberFormat('en-US', {
     currency: 'EUR',
     style: 'currency',
   }).format(cents / 100);
+
+const formatDateInput = (date: Date) => {
+  const month = `${date.getMonth() + 1}`.padStart(2, '0');
+  const day = `${date.getDate()}`.padStart(2, '0');
+  const year = date.getFullYear();
+  return `${month}/${day}/${year}`;
+};
 
 const test = base.extend<{
   discountTemplate: DiscountTemplateFixture;
@@ -46,6 +55,36 @@ const test = base.extend<{
     );
     if (!participantOption) {
       throw new Error('Unable to locate participant registration option');
+    }
+
+    let existingTaxRate = await database.query.tenantStripeTaxRates.findFirst({
+      where: { tenantId: tenant.id, active: true, inclusive: true },
+    });
+    if (!existingTaxRate) {
+      await addTaxRates(database as any, tenant);
+      existingTaxRate = await database.query.tenantStripeTaxRates.findFirst({
+        where: { tenantId: tenant.id, active: true, inclusive: true },
+      });
+      if (!existingTaxRate) {
+        throw new Error('No compatible tax rate available for paid template options');
+      }
+    }
+
+    const paidOptions = template.registrationOptions.filter((option) => option.isPaid);
+    const originalPaidTaxRates = paidOptions.map((option) => ({
+      id: option.id,
+      stripeTaxRateId: option.stripeTaxRateId ?? null,
+    }));
+    if (paidOptions.length > 0) {
+      await database
+        .update(schema.templateRegistrationOptions)
+        .set({ stripeTaxRateId: existingTaxRate.stripeTaxRateId })
+        .where(
+          and(
+            eq(schema.templateRegistrationOptions.templateId, template.id),
+            eq(schema.templateRegistrationOptions.isPaid, true),
+          ),
+        );
     }
 
     const originalDiscounts = participantOption.discounts ?? [];
@@ -76,6 +115,14 @@ const test = base.extend<{
         .update(schema.templateRegistrationOptions)
         .set({ discounts: originalDiscounts })
         .where(eq(schema.templateRegistrationOptions.id, participantOption.id));
+      if (paidOptions.length > 0) {
+        for (const option of originalPaidTaxRates) {
+          await database
+            .update(schema.templateRegistrationOptions)
+            .set({ stripeTaxRateId: option.stripeTaxRateId })
+            .where(eq(schema.templateRegistrationOptions.id, option.id));
+        }
+      }
     }
   },
 });
@@ -98,35 +145,28 @@ const ensureRegistrationSectionResets = async (page: Page) => {
   }
 };
 
-const verifyTransactionAmount = async (
-  browser: Parameters<typeof test>[0]['browser'],
-  eventTitle: string,
-  expectedAmount: number,
-) => {
-  await runWithStorageState(browser, adminStateFile, async (financePage) => {
-    await financePage.goto('/finance/transactions', {
-      waitUntil: 'domcontentloaded',
-    });
-
-    const expectedText = centsToCurrency(expectedAmount);
-    const row = financePage.getByRole('row', { name: new RegExp(eventTitle, 'i') }).first();
-    await expect(row).toBeVisible();
-    await expect(row.getByRole('cell').first()).toContainText(expectedText);
-  });
-};
-
 test.describe.configure({ tag: '@contracts' });
 
-test.use({ storageState: defaultStateFile });
+test.use({ seedDiscounts: true, storageState: defaultStateFile });
 
-test.fixme('Contract: templates.createEventFromTemplate keeps ESN discount configuration @slow', async ({
+test('Contract: templates.createEventFromTemplate keeps ESN discount configuration @slow', async ({
   browser,
+  database,
   discountTemplate,
   page,
   tenant,
 }) => {
-  // TODO: event approval flow is required to expose registration options to end users.
+  test.setTimeout(120_000);
   const uniqueTitle = `Discounted event ${Date.now()}`;
+
+  await page.context().addCookies([
+    {
+      domain: 'localhost',
+      name: 'evorto-tenant',
+      path: '/',
+      value: tenant.domain,
+    },
+  ]);
 
   await page.goto('/templates');
   await page.getByText('Loading ...', { exact: false }).first().waitFor({ state: 'detached' });
@@ -151,21 +191,65 @@ test.fixme('Contract: templates.createEventFromTemplate keeps ESN discount confi
 
   const eventDetails = page.locator('app-event-general-form');
 
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() + 1);
+  const endDate = new Date(startDate);
+  endDate.setDate(endDate.getDate() + 1);
+
   await eventDetails.getByLabel('Event title').fill(uniqueTitle);
-  await eventDetails.getByLabel('Start date').fill('12/31/2030');
-  await eventDetails.getByLabel('Start time').fill('09:00');
-  await eventDetails.getByLabel('End date').fill('01/01/2031');
-  await eventDetails.getByLabel('End time').fill('18:00');
+  await eventDetails.getByLabel('Start date').fill(formatDateInput(startDate));
+  await eventDetails.getByLabel('Start time').fill('23:00');
+  await eventDetails.getByLabel('End date').fill(formatDateInput(endDate));
+  await eventDetails.getByLabel('End time').fill('01:00');
+
+  const taxRateSelects = page.locator('mat-select[formcontrolname="stripeTaxRateId"]');
+  const taxRateCount = await taxRateSelects.count();
+  for (let index = 0; index < taxRateCount; index += 1) {
+    const select = taxRateSelects.nth(index);
+    if (await select.isDisabled()) {
+      continue;
+    }
+    await select.click();
+    const option = page
+      .locator('mat-option[role="option"]')
+      .filter({ hasNotText: /Loading tax rates|Failed to load tax rates/ })
+      .first();
+    await expect(option).toBeVisible({ timeout: 5_000 });
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('Enter');
+  }
 
   await page.getByRole('button', { name: 'Create event' }).click();
   await page.waitForURL(/\/events\/[^/]+$/);
 
   const eventUrl = page.url();
+  const eventId = eventUrl.split('/').pop();
+  if (!eventId) {
+    throw new Error('Unable to resolve created event id.');
+  }
+
+  await database
+    .update(schema.eventInstances)
+    .set({ status: 'APPROVED', unlisted: false })
+    .where(
+      and(
+        eq(schema.eventInstances.id, eventId),
+        eq(schema.eventInstances.tenantId, tenant.id),
+      ),
+    );
 
   await runWithStorageState(
     browser,
     userStateFile,
     async (userPage) => {
+      await userPage.context().addCookies([
+        {
+          domain: 'localhost',
+          name: 'evorto-tenant',
+          path: '/',
+          value: tenant.domain,
+        },
+      ]);
       await userPage.goto(eventUrl, { waitUntil: 'domcontentloaded' });
       await ensureRegistrationSectionResets(userPage);
 
@@ -177,31 +261,63 @@ test.fixme('Contract: templates.createEventFromTemplate keeps ESN discount confi
       const payButton = optionCard.getByRole('button', {
         name: /Pay .* and register/i,
       });
-      await expect(payButton).toContainText(centsToCurrency(discountTemplate.fullPrice));
+      await expect(optionCard).toContainText(centsToCurrency(discountTemplate.fullPrice));
+      await expect(optionCard).toContainText(centsToCurrency(discountTemplate.discountedPrice));
+      await expect(payButton).toContainText(centsToCurrency(discountTemplate.discountedPrice));
+
       await payButton.click();
 
-      const loadingStatus = userPage.getByText('Loading registration status').first();
-      await loadingStatus.waitFor({ state: 'attached' }).catch(() => {
-        /* noop */
-      });
-      await loadingStatus.waitFor({ state: 'detached' });
+      const activeRegistration = userPage.locator('app-event-active-registration');
+      await expect(activeRegistration).toBeVisible({ timeout: 15_000 });
 
-      await verifyTransactionAmount(browser, uniqueTitle, discountTemplate.discountedPrice);
+      const payNowLink = activeRegistration.getByRole('link', { name: /Pay now/i });
+      await expect(payNowLink).toBeVisible({ timeout: 15_000 });
 
-      const cancelButton = userPage
-        .locator('app-event-active-registration')
-        .getByRole('button', { name: 'Cancel registration' })
-        .first();
-      await expect(cancelButton).toBeVisible();
-      await cancelButton.click();
+      const popupPromise = userPage.waitForEvent('popup', { timeout: 10_000 }).catch(() => null);
+      await payNowLink.click();
 
-      await loadingStatus.waitFor({ state: 'attached' }).catch(() => {
-        /* noop */
-      });
-      await loadingStatus.waitFor({ state: 'detached' });
+      let checkoutPage = await popupPromise;
+      if (!checkoutPage) {
+        await userPage.waitForURL(/https:\/\/checkout\.stripe\.com\//, { timeout: 30_000 });
+        checkoutPage = userPage;
+      }
+      await checkoutPage.waitForLoadState('domcontentloaded');
 
-      await expect(optionCard).toBeVisible();
+      await fillTestCard(checkoutPage);
+      await checkoutPage.getByTestId('hosted-payment-submit-button').click();
+
+      if (checkoutPage !== userPage) {
+        await checkoutPage.waitForEvent('close', { timeout: 30_000 }).catch(() => null);
+      } else {
+        await userPage.waitForURL(/\/events\/[^/]+$/, { timeout: 45_000 });
+      }
+
+      await expect(userPage.getByText('You are registered')).toBeVisible({ timeout: 45_000 });
     },
     tenant.domain,
   );
+
+  const userId = usersToAuthenticate.find((entry) => entry.roles === 'user')?.id;
+  if (!userId) {
+    throw new Error('Unable to resolve test user for transaction verification');
+  }
+
+  await expect.poll(
+    async () => {
+      const tx = await database.query.transactions.findFirst({
+        where: {
+          eventId,
+          status: 'successful',
+          targetUserId: userId,
+          tenantId: tenant.id,
+          type: 'registration',
+        },
+      });
+      if (!tx) {
+        return null;
+      }
+      return { amount: tx.amount, status: tx.status };
+    },
+    { timeout: 45_000 },
+  ).toEqual({ amount: discountTemplate.discountedPrice, status: 'successful' });
 });
