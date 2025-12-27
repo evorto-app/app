@@ -98,6 +98,7 @@ export class EventEdit {
                 option.closeRegistrationTime ? new Date(option.closeRegistrationTime) : null,
               ],
               description: [option.description],
+              discounts: [option.discounts ?? []],
               isPaid: [option.isPaid],
               openRegistrationTime: [
                 option.openRegistrationTime ? new Date(option.openRegistrationTime) : null,

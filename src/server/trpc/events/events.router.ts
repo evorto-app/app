@@ -32,6 +32,14 @@ export const eventRouter = router({
             Schema.Struct({
               closeRegistrationTime: Schema.ValidDateFromSelf,
               description: Schema.NullOr(Schema.NonEmptyString),
+              discounts: Schema.optional(
+                Schema.Array(
+                  Schema.Struct({
+                    discountedPrice: Schema.Number.pipe(Schema.nonNegative()),
+                    discountType: Schema.Literal('esnCard'),
+                  }),
+                ),
+              ),
               isPaid: Schema.Boolean,
               openRegistrationTime: Schema.ValidDateFromSelf,
               organizingRegistration: Schema.Boolean,
@@ -50,6 +58,35 @@ export const eventRouter = router({
       ),
     )
     .mutation(async ({ ctx, input }) => {
+      for (const option of input.registrationOptions) {
+        const discounts = option.discounts ?? [];
+        if (discounts.length === 0) continue;
+
+        if (!option.isPaid) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: `Registration option "${option.title}": discounts require a paid option.`,
+          });
+        }
+
+        const seenTypes = new Set<string>();
+        for (const discount of discounts) {
+          if (discount.discountedPrice > option.price) {
+            throw new TRPCError({
+              code: 'BAD_REQUEST',
+              message: `Registration option "${option.title}": discount price must be <= base price.`,
+            });
+          }
+          if (seenTypes.has(discount.discountType)) {
+            throw new TRPCError({
+              code: 'BAD_REQUEST',
+              message: `Registration option "${option.title}": duplicate discount type "${discount.discountType}".`,
+            });
+          }
+          seenTypes.add(discount.discountType);
+        }
+      }
+
       // Validate tax rates for all registration options before proceeding
       for (const [index, option] of input.registrationOptions.entries()) {
         const validation = await validateTaxRate({
@@ -109,10 +146,14 @@ export const eventRouter = router({
             const templateOption = templateMap.get(
               key(option.title, option.organizingRegistration),
             );
+            const discounts =
+              option.discounts?.map((discount) => ({ ...discount })) ??
+              templateOption?.discounts ??
+              null;
             return {
               closeRegistrationTime: option.closeRegistrationTime,
               description: option.description,
-              discounts: templateOption?.discounts ?? null,
+              discounts,
               eventId: event.id,
               isPaid: option.isPaid,
               openRegistrationTime: option.openRegistrationTime,

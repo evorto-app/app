@@ -96,6 +96,7 @@ export class TemplateCreateEventComponent {
             this.fb.group({
               closeRegistrationTime: [],
               description: [option.description],
+              discounts: [option.discounts ?? []],
               isPaid: [option.isPaid],
               openRegistrationTime: [],
               organizingRegistration: [option.organizingRegistration],
