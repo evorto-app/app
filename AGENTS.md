@@ -47,6 +47,7 @@ You are an expert in TypeScript, Angular, and scalable web application developme
 
 - Prefer expanding Effect usage across the app, especially server-side. Favor Effect when it improves correctness, composability, or observability.
 - Consider Effect-based alternatives to tRPC where it makes sense, but keep Angular client conventions and UX correctness as the top priority.
+- Avoid unit and contract tests unless absolutely necessary; prioritize E2E coverage. It is acceptable to seed DB state via fixtures, validate UI behavior, and optionally verify DB outcomes in E2E suites.
 
 ### TypeScript Best Practices
 
