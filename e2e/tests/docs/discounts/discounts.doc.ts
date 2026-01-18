@@ -2,12 +2,77 @@ import * as schema from '@db/schema';
 import { and, eq } from 'drizzle-orm';
 
 import { adminStateFile, userStateFile, usersToAuthenticate } from '../../../../helpers/user-data';
-import { expect, test } from '../../../fixtures/parallel-test';
+import { expect, test as base } from '../../../fixtures/parallel-test';
 import { takeScreenshot } from '../../../reporters/documentation-reporter';
 
 const SNACKBAR = 'mat-snack-bar-container';
 const CTA_SECTION = '[data-testid="esn-cta-section"]';
 const CARD_IDENTIFIER_CELL = '[data-testid="refresh-esn-card"]';
+
+const docUser = usersToAuthenticate.find((candidate) => candidate.stateFile === userStateFile);
+if (!docUser) {
+  throw new Error('Documentation test requires seeded regular user');
+}
+
+const test = base.extend<{
+  clearUserCards: () => Promise<void>;
+  enableEsnProvider: () => Promise<void>;
+  seedVerifiedCard: (identifier: string) => Promise<void>;
+}>({
+  clearUserCards: async ({ database, tenant }, use) => {
+    await use(async () => {
+      await database
+        .delete(schema.userDiscountCards)
+        .where(
+          and(
+            eq(schema.userDiscountCards.tenantId, tenant.id),
+            eq(schema.userDiscountCards.userId, docUser.id),
+          ),
+        );
+    });
+  },
+  enableEsnProvider: async ({ database, tenant }, use) => {
+    await use(async () => {
+      const existing = await database
+        .select({ discountProviders: schema.tenants.discountProviders })
+        .from(schema.tenants)
+        .where(eq(schema.tenants.id, tenant.id));
+
+      const currentProviders = (existing[0]?.discountProviders ?? {}) as any;
+      const nextProviders = {
+        ...currentProviders,
+        esnCard: {
+          ...currentProviders?.esnCard,
+          config: {
+            ...(currentProviders?.esnCard?.config as any),
+            ctaEnabled: true,
+            ctaLink: 'https://example.com/buy-esncard',
+          },
+          enabled: true,
+        },
+      } as const;
+
+      await database
+        .update(schema.tenants)
+        .set({ discountProviders: nextProviders as any })
+        .where(eq(schema.tenants.id, tenant.id));
+    });
+  },
+  seedVerifiedCard: async ({ database, tenant }, use) => {
+    await use(async (identifier: string) => {
+      await database.insert(schema.userDiscountCards).values({
+        identifier,
+        lastCheckedAt: new Date(),
+        status: 'verified',
+        tenantId: tenant.id,
+        type: 'esnCard',
+        userId: docUser.id,
+        validFrom: new Date(),
+        validTo: new Date(Date.now() + 1000 * 60 * 60 * 24 * 180),
+      });
+    });
+  },
+});
 
 test.describe('Documentation: Discount provider journey — admin setup', () => {
   test.use({ storageState: adminStateFile });
@@ -50,45 +115,12 @@ test.describe('Documentation: Discount provider journey — admin setup', () => 
 test.describe('Documentation: Discount provider journey — user experience', () => {
   test.use({ seedDiscounts: false, storageState: userStateFile });
 
-  test('User reviews ESN discount card states', async ({ database, page, tenant }, testInfo) => {
-    const user = usersToAuthenticate.find((candidate) => candidate.stateFile === userStateFile);
-    if (!user) {
-      throw new Error('Documentation test requires seeded regular user');
-    }
-
-    await database
-      .delete(schema.userDiscountCards)
-      .where(
-        and(
-          eq(schema.userDiscountCards.tenantId, tenant.id),
-          eq(schema.userDiscountCards.userId, user.id),
-        ),
-      );
-
-    // Ensure ESNcard discount provider is enabled for this tenant (and CTA visible)
-    const existing = await database
-      .select({ discountProviders: schema.tenants.discountProviders })
-      .from(schema.tenants)
-      .where(eq(schema.tenants.id, tenant.id));
-
-    const currentProviders = (existing[0]?.discountProviders ?? {}) as any;
-    const nextProviders = {
-      ...currentProviders,
-      esnCard: {
-        ...currentProviders?.esnCard,
-        config: {
-          ...(currentProviders?.esnCard?.config as any),
-          ctaEnabled: true,
-          ctaLink: 'https://example.com/buy-esncard',
-        },
-        enabled: true,
-      },
-    } as const;
-
-    await database
-      .update(schema.tenants)
-      .set({ discountProviders: nextProviders as any })
-      .where(eq(schema.tenants.id, tenant.id));
+  test('User reviews ESN discount card states', async (
+    { clearUserCards, enableEsnProvider, page, seedVerifiedCard },
+    testInfo,
+  ) => {
+    await clearUserCards();
+    await enableEsnProvider();
 
     await page.goto('/profile', {
       waitUntil: 'domcontentloaded',
@@ -101,22 +133,13 @@ test.describe('Documentation: Discount provider journey — user experience', ()
       "Callout for users who don't have an ESNcard yet",
     );
 
-    await discountSection.getByRole('link', { name: 'Manage Cards' }).click();
+    await page.getByRole('link', { name: 'Manage Cards' }).click();
     await page.waitForURL('**/profile/discount-cards');
     await expect(page.locator(CTA_SECTION)).toBeVisible();
     await takeScreenshot(testInfo, page.locator(CTA_SECTION), page, 'Discount cards CTA and form');
 
     const identifier = `ESN-DOC-${Date.now()}`;
-    await database.insert(schema.userDiscountCards).values({
-      identifier,
-      lastCheckedAt: new Date(),
-      status: 'verified',
-      tenantId: tenant.id,
-      type: 'esnCard',
-      userId: user.id,
-      validFrom: new Date(),
-      validTo: new Date(Date.now() + 1000 * 60 * 60 * 24 * 180),
-    });
+    await seedVerifiedCard(identifier);
 
     await page.reload({ waitUntil: 'domcontentloaded' });
 

@@ -25,8 +25,23 @@ const CTA_SECTION = '[data-testid="esn-cta-section"]';
 const CARD_IDENTIFIER_CELL = '[data-testid="refresh-esn-card"]';
 
 const test = base.extend<{
+  clearPrimaryCards: void;
   seedSecondaryCard: (identifier: string) => Promise<void>;
 }>({
+  clearPrimaryCards: [
+    async ({ database, tenant }, use) => {
+      await database
+        .delete(schema.userDiscountCards)
+        .where(
+          and(
+            eq(schema.userDiscountCards.tenantId, tenant.id),
+            eq(schema.userDiscountCards.userId, primaryUser.id),
+          ),
+        );
+      await use();
+    },
+    { auto: true },
+  ],
   seedSecondaryCard: async ({ database, tenant }, use) => {
     await use(async (identifier: string) => {
       await database
@@ -88,16 +103,7 @@ async function updateProvider(options: { browser: Browser; enabled: boolean; sho
 }
 
 test.describe('Contract: discounts.cards CRUD (getMyCards, upsertMyCard, deleteMyCard)', () => {
-  test.beforeEach(async ({ browser, database, tenant }) => {
-    await database
-      .delete(schema.userDiscountCards)
-      .where(
-        and(
-          eq(schema.userDiscountCards.tenantId, tenant.id),
-          eq(schema.userDiscountCards.userId, primaryUser.id),
-        ),
-      );
-
+  test.beforeEach(async ({ browser }) => {
     await updateProvider({
       browser,
       enabled: true,

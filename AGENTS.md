@@ -146,7 +146,17 @@ You are an expert in TypeScript, Angular, and scalable web application developme
 
 ## Testing Guidelines
 
-- E2E: author Playwright tests in `e2e/**`; use `yarn e2e:ui` to debug; attach screenshots for UI changes.
+- E2E tests are Playwright-based and split by intent:
+  - Documentation journeys in `e2e/tests/docs/**` (`*.doc.ts`) that generate user-facing docs.
+  - Requirement/regression specs in `e2e/tests/specs/**` (`*.test.ts`/`*.spec.ts`) that validate user stories.
+- Run through Angular CLI so the dev server is managed automatically:
+  - `yarn e2e` for the full regression sweep (uses `ng e2e`).
+  - `yarn e2e --project=local-chrome` for a single Playwright project.
+  - `yarn e2e --grep "@tag"` to focus on a user-story tag.
+  - `yarn e2e:ui` for interactive debugging.
+  - `yarn e2e:docs` to generate documentation artifacts, then review `test-results/docs/**`.
+- Tests must mirror user behavior: navigate via UI, assert visible outcomes, and keep DB/TRPC usage inside fixtures for setup/teardown or seed invariants only.
+- Keep `e2e/tests/test-inventory.md` current so requirements-to-tests coverage stays explicit.
 - Discount card validation requires external ESN data that we cannot seed. Leave any ESN-number-dependent scenarios skipped/fixme'd until stable fixtures exist.
 
 ## Research Before You Code

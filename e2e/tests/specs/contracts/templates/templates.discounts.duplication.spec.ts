@@ -31,8 +31,27 @@ const formatDateInput = (date: Date) => {
 };
 
 const test = base.extend<{
+  approveEvent: (eventId: string) => Promise<void>;
   discountTemplate: DiscountTemplateFixture;
+  waitForSuccessfulRegistration: (options: {
+    eventId: string;
+    expectedAmount: number;
+    userId: string;
+  }) => Promise<void>;
 }>({
+  approveEvent: async ({ database, tenant }, use) => {
+    await use(async (eventId: string) => {
+      await database
+        .update(schema.eventInstances)
+        .set({ status: 'APPROVED', unlisted: false })
+        .where(
+          and(
+            eq(schema.eventInstances.id, eventId),
+            eq(schema.eventInstances.tenantId, tenant.id),
+          ),
+        );
+    });
+  },
   discountTemplate: async ({ database, tenant }, use) => {
     const templates = await database.query.eventTemplates.findMany({
       where: { tenantId: tenant.id },
@@ -125,6 +144,28 @@ const test = base.extend<{
       }
     }
   },
+  waitForSuccessfulRegistration: async ({ database, tenant }, use) => {
+    await use(async ({ eventId, expectedAmount, userId }) => {
+      await expect.poll(
+        async () => {
+          const tx = await database.query.transactions.findFirst({
+            where: {
+              eventId,
+              status: 'successful',
+              targetUserId: userId,
+              tenantId: tenant.id,
+              type: 'registration',
+            },
+          });
+          if (!tx) {
+            return null;
+          }
+          return { amount: tx.amount, status: tx.status };
+        },
+        { timeout: 45_000 },
+      ).toEqual({ amount: expectedAmount, status: 'successful' });
+    });
+  },
 });
 
 const ensureRegistrationSectionResets = async (page: Page) => {
@@ -151,10 +192,11 @@ test.use({ seedDiscounts: true, storageState: defaultStateFile });
 
 test('Contract: templates.createEventFromTemplate keeps ESN discount configuration @slow', async ({
   browser,
-  database,
   discountTemplate,
   page,
   tenant,
+  approveEvent,
+  waitForSuccessfulRegistration,
 }) => {
   test.setTimeout(120_000);
   const uniqueTitle = `Discounted event ${Date.now()}`;
@@ -228,15 +270,7 @@ test('Contract: templates.createEventFromTemplate keeps ESN discount configurati
     throw new Error('Unable to resolve created event id.');
   }
 
-  await database
-    .update(schema.eventInstances)
-    .set({ status: 'APPROVED', unlisted: false })
-    .where(
-      and(
-        eq(schema.eventInstances.id, eventId),
-        eq(schema.eventInstances.tenantId, tenant.id),
-      ),
-    );
+  await approveEvent(eventId);
 
   await runWithStorageState(
     browser,
@@ -302,22 +336,9 @@ test('Contract: templates.createEventFromTemplate keeps ESN discount configurati
     throw new Error('Unable to resolve test user for transaction verification');
   }
 
-  await expect.poll(
-    async () => {
-      const tx = await database.query.transactions.findFirst({
-        where: {
-          eventId,
-          status: 'successful',
-          targetUserId: userId,
-          tenantId: tenant.id,
-          type: 'registration',
-        },
-      });
-      if (!tx) {
-        return null;
-      }
-      return { amount: tx.amount, status: tx.status };
-    },
-    { timeout: 45_000 },
-  ).toEqual({ amount: discountTemplate.discountedPrice, status: 'successful' });
+  await waitForSuccessfulRegistration({
+    eventId,
+    expectedAmount: discountTemplate.discountedPrice,
+    userId,
+  });
 });

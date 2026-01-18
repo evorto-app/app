@@ -2,6 +2,13 @@
 
 The discount-suite refactor highlighted a few non-negotiables for writing Playwright specs in this repo:
 
+## Testing strategy
+
+- **Documentation journeys** (`e2e/tests/docs/**`, `*.doc.ts`) are the living product guides; keep them concise, visual, and aligned to user stories.
+- **Requirement/regression specs** (`e2e/tests/specs/**`) validate outcomes a user can observe. "Contract" specs should still assert user-visible behavior; avoid API-only checks in E2E.
+- **User-first execution**: data setup belongs in fixtures and seeded storage states. Once the scenario starts, interact only through the UI.
+- **Keep coverage explicit**: add new scenarios to `e2e/tests/test-inventory.md` and tag them by feature (`@finance`, `@templates`, etc.) to track requirements.
+
 ## Test layout
 
 - Documentation journeys live under `e2e/tests/docs/<domain>/*.doc.ts`; pick the domain that matches the user-facing area (events, finance, profile, etc.).
@@ -20,13 +27,16 @@ The discount-suite refactor highlighted a few non-negotiables for writing Playwr
 3. **Write outcomes, not steps.** Keep titles and assertions anchored on observable user value. Prefer web-first expectations and resilient locators.
 4. **Documentation tests stay lean.** Pair each important step with `takeScreenshot()` + concise markdown; declare permissions in the opening callout so the reporter can surface them automatically.
 5. **Keep specs isolated.** Seed or clean up via fixtures; don’t reach into the database directly from the test body; ensure navigation happens via the UI.
-6. **Run locally before landing.** Execute the targeted Playwright command and eyeball `test-results` (for docs) to confirm attachments look right.
+6. **Update coverage mapping.** Add the new test to `e2e/tests/test-inventory.md` with a short user-story description.
+7. **Run locally before landing.** Execute the targeted Playwright command and eyeball `test-results` (for docs) to confirm attachments look right.
 
 ### Running suites
 
-- `yarn e2e` — full regression run across `specs/**`.
+- `yarn e2e` — full regression run across `specs/**` (uses `ng e2e` so the dev server is managed automatically).
+- `yarn e2e --project=local-chrome` — run a single Playwright project (matches CI usage).
+- `yarn e2e --grep "@tag"` — run tagged scenarios (for example `@finance`).
+- `yarn e2e:ui` — interactive UI mode for debugging (also uses `ng e2e`).
 - `yarn e2e:docs` — generate documentation output from every `*.doc.ts` under `docs/**`.
-- `yarn e2e -- --grep "@tag"` — run tagged scenarios (for example `@finance`).
 
 - **Use Yarn v4 tooling only.** All scripts assume the Yarn 4 (Berry) runtime—do not run `npm`, `pnpm`, or global Playwright commands. Always invoke scripts through `yarn <script>` so the repo-managed binaries and constraints apply.
 - **Stay user-facing end to end.** Configure the application by exercising the same flows real users do. Skip direct database access, ad-hoc TRPC fetches, or manually crafted HTTP calls—if data is required, create it through the UI or dedicated fixtures that reuse seeded storage states.
