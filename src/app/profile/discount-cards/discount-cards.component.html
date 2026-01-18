@@ -65,7 +65,10 @@
                 tenant.discountProviders?.esnCard?.config?.ctaEnabled === true &&
                 tenant.discountProviders?.esnCard?.config?.ctaLink
               ) {
-                <div class="bg-primary-container text-on-primary-container mb-4 rounded-lg p-4">
+                <div
+                  class="bg-primary-container text-on-primary-container mb-4 rounded-lg p-4"
+                  data-testid="esn-cta-section"
+                >
                   <p class="mb-2">Get discounts on events with your ESNcard!</p>
                   <a
                     [href]="tenant.discountProviders?.esnCard?.config?.ctaLink"
@@ -84,6 +87,7 @@
                     matInput
                     [formControl]="getCardControl('esnCard')"
                     placeholder="Enter your card number"
+                    data-testid="esn-card-input"
                   />
                 </mat-form-field>
 
@@ -92,6 +96,7 @@
                   color="primary"
                   (click)="addCard('esnCard')"
                   [disabled]="!getCardControl('esnCard').valid || upsertMutation.isPending()"
+                  data-testid="add-esn-card-button"
                 >
                   @if (upsertMutation.isPending()) {
                     Adding Card...

@@ -1,14 +1,13 @@
-import { Browser, Page } from '@playwright/test';
+import type { NeonDatabase } from 'drizzle-orm/neon-serverless';
 import { and, eq } from 'drizzle-orm';
 
 import {
-  adminStateFile,
   userStateFile,
   usersToAuthenticate,
 } from '../../../../../helpers/user-data';
+import { relations } from '../../../../../src/db/relations';
 import * as schema from '../../../../../src/db/schema';
 import { test as base, expect } from '../../../../fixtures/parallel-test';
-import { runWithStorageState } from '../../../../utils/auth-context';
 
 const primaryUser = usersToAuthenticate.find((user) => user.roles === 'user');
 if (!primaryUser) {
@@ -21,8 +20,7 @@ if (!secondaryUser) {
 }
 
 const SNACKBAR = 'mat-snack-bar-container';
-const CTA_SECTION = '[data-testid="esn-cta-section"]';
-const CARD_IDENTIFIER_CELL = '[data-testid="refresh-esn-card"]';
+const CTA_LINK_TEXT = 'Get your ESNcard →';
 
 const test = base.extend<{
   clearPrimaryCards: void;
@@ -68,45 +66,49 @@ const test = base.extend<{
 
 test.use({ seedDiscounts: false, storageState: userStateFile });
 
-const providerSwitch = (page: Page) => page.getByTestId('enable-esn-provider').getByRole('switch');
+type Database = NeonDatabase<Record<string, never>, typeof relations>;
 
-const ctaSwitch = (page: Page) => page.getByTestId('esn-show-cta-toggle').getByRole('switch');
-
-async function updateProvider(options: { browser: Browser; enabled: boolean; showCta?: boolean }) {
-  const { browser, enabled, showCta = true } = options;
-  await runWithStorageState(browser, adminStateFile, async (page) => {
-    await page.goto('/admin/settings/discounts', {
-      waitUntil: 'domcontentloaded',
-    });
-
-    const providerToggle = providerSwitch(page);
-    const desired = enabled ? 'true' : 'false';
-    if ((await providerToggle.getAttribute('aria-checked')) !== desired) {
-      await providerToggle.click();
-      await expect(providerToggle).toHaveAttribute('aria-checked', desired);
-    }
-
-    if (enabled) {
-      const ctaToggle = ctaSwitch(page);
-      const ctaDesired = showCta ? 'true' : 'false';
-      await expect(ctaToggle).toBeVisible();
-      if ((await ctaToggle.getAttribute('aria-checked')) !== ctaDesired) {
-        await ctaToggle.click();
-        await expect(ctaToggle).toHaveAttribute('aria-checked', ctaDesired);
-      }
-    }
-
-    await page.getByTestId('save-discount-settings').click();
-    await expect(page.locator(SNACKBAR)).toContainText('Discount settings saved successfully');
-    await page.locator(SNACKBAR).waitFor({ state: 'detached' });
+async function updateProvider(options: {
+  database: Database;
+  enabled: boolean;
+  showCta?: boolean;
+  tenantId: string;
+}) {
+  const { database, enabled, showCta = true, tenantId } = options;
+  const currentTenant = await database.query.tenants.findFirst({
+    where: { id: tenantId },
   });
+  const currentProviders = (currentTenant?.discountProviders ?? {}) as Record<
+    string,
+    { config?: { ctaEnabled?: boolean; ctaLink?: string }; enabled?: boolean }
+  >;
+  const nextProviders = {
+    ...currentProviders,
+    esnCard: {
+      enabled,
+      config: enabled
+        ? {
+            ctaEnabled: showCta,
+            ctaLink: showCta ? 'https://example.com/esncard' : undefined,
+          }
+        : {
+            ctaEnabled: false,
+            ctaLink: undefined,
+          },
+    },
+  };
+  await database
+    .update(schema.tenants)
+    .set({ discountProviders: nextProviders as typeof currentProviders })
+    .where(eq(schema.tenants.id, tenantId));
 }
 
 test.describe('Contract: discounts.cards CRUD (getMyCards, upsertMyCard, deleteMyCard)', () => {
-  test.beforeEach(async ({ browser }) => {
+  test.beforeEach(async ({ database, tenant }) => {
     await updateProvider({
-      browser,
+      database,
       enabled: true,
+      tenantId: tenant.id,
     });
   });
 
@@ -114,7 +116,7 @@ test.describe('Contract: discounts.cards CRUD (getMyCards, upsertMyCard, deleteM
     await page.goto('/profile/discount-cards', {
       waitUntil: 'domcontentloaded',
     });
-    await expect(page.locator(CTA_SECTION)).toBeVisible();
+    await expect(page.getByRole('link', { name: CTA_LINK_TEXT })).toBeVisible();
   });
 
   test('rejects invalid ESNcard numbers', async ({ page }) => {
@@ -144,12 +146,12 @@ test.describe('Contract: discounts.cards CRUD (getMyCards, upsertMyCard, deleteM
     await expect(page.locator(SNACKBAR)).toContainText('Card is already in use by another user');
   });
 
-  test('blocks card creation when provider is disabled', async ({ browser, page, tenant }) => {
+  test('blocks card creation when provider is disabled', async ({ database, page, tenant }) => {
     test.skip(true, 'ESNcard validation requires reliable upstream test numbers.');
     await updateProvider({
-      browser,
+      database,
       enabled: false,
-      tenantDomain: tenant.domain,
+      tenantId: tenant.id,
     });
 
     await page.goto('/profile/discount-cards', {
@@ -160,9 +162,9 @@ test.describe('Contract: discounts.cards CRUD (getMyCards, upsertMyCard, deleteM
     await expect(page.locator(SNACKBAR)).toContainText('Provider not enabled for this tenant');
 
     await updateProvider({
-      browser,
+      database,
       enabled: true,
-      tenantDomain: tenant.domain,
+      tenantId: tenant.id,
     });
   });
 
@@ -178,14 +180,14 @@ test.describe('Contract: discounts.cards CRUD (getMyCards, upsertMyCard, deleteM
     await expect(page.locator(SNACKBAR)).toContainText('Card added successfully');
     await page.locator(SNACKBAR).waitFor({ state: 'detached' });
 
-    const cardSection = page.locator(CARD_IDENTIFIER_CELL).first().locator('..').locator('..');
+    const cardSection = page.getByText(`Card: ${identifier}`).locator('..').locator('..');
     await expect(cardSection).toContainText(identifier);
     await expect(cardSection).toContainText('Verified');
 
     page.once('dialog', (dialog) => dialog.accept());
-    await page.getByTestId('delete-esn-card').click();
+    await cardSection.getByRole('button', { name: 'Delete' }).click();
     await expect(page.locator(SNACKBAR)).toContainText('Card deleted successfully');
     await page.locator(SNACKBAR).waitFor({ state: 'detached' });
-    await expect(page.locator(CARD_IDENTIFIER_CELL)).toHaveCount(0);
+    await expect(page.getByText(`Card: ${identifier}`)).toHaveCount(0);
   });
 });

@@ -5,14 +5,22 @@ import { expect, test } from '../../../../fixtures/parallel-test';
 import { runWithStorageState } from '../../../../utils/auth-context';
 
 const SNACKBAR = 'mat-snack-bar-container';
-const CTA_SECTION = '[data-testid="esn-cta-section"]';
-const providerSwitch = (page: Page) => page.getByTestId('enable-esn-provider').getByRole('switch');
-
-const ctaSwitch = (page: Page) => page.getByTestId('esn-show-cta-toggle').getByRole('switch');
+const CTA_LINK_TEXT = 'Get your ESNcard →';
+const providerSection = (page: Page) =>
+  page.getByRole('heading', { name: 'ESNcard' }).locator('..').locator('..');
+const providerSwitch = (page: Page) => providerSection(page).getByRole('switch').first();
+const ctaSwitch = (page: Page) =>
+  providerSection(page).getByRole('switch', { name: 'Show buy ESNcard link' }).first();
+const saveButton = (page: Page) => page.getByRole('button', { name: 'Save Settings' });
 
 test.describe('Contract: discounts.setTenantProviders', () => {
+  test.use({ seedDiscounts: false });
+
   test('updates tenant providers and reflects on the user profile', async ({ browser, tenant }) => {
-    await runWithStorageState(browser, adminStateFile, async (page) => {
+    await runWithStorageState(
+      browser,
+      adminStateFile,
+      async (page) => {
       await page.goto('/admin/settings/discounts', {
         waitUntil: 'domcontentloaded',
       });
@@ -30,19 +38,29 @@ test.describe('Contract: discounts.setTenantProviders', () => {
         await expect(ctaToggle).toHaveAttribute('aria-checked', 'false');
       }
 
-      await page.getByTestId('save-discount-settings').click();
+      await saveButton(page).click();
       await expect(page.locator(SNACKBAR)).toContainText('Discount settings saved successfully');
       await page.locator(SNACKBAR).waitFor({ state: 'detached' });
-    });
+    },
+      tenant.domain,
+    );
 
-    await runWithStorageState(browser, userStateFile, async (page) => {
+    await runWithStorageState(
+      browser,
+      userStateFile,
+      async (page) => {
       await page.goto('/profile/discount-cards', {
         waitUntil: 'domcontentloaded',
       });
-      await expect(page.locator(CTA_SECTION)).toHaveCount(0);
-    });
+      await expect(page.getByRole('link', { name: CTA_LINK_TEXT })).toHaveCount(0);
+    },
+      tenant.domain,
+    );
 
-    await runWithStorageState(browser, adminStateFile, async (page) => {
+    await runWithStorageState(
+      browser,
+      adminStateFile,
+      async (page) => {
       await page.goto('/admin/settings/discounts', {
         waitUntil: 'domcontentloaded',
       });
@@ -50,17 +68,25 @@ test.describe('Contract: discounts.setTenantProviders', () => {
       if ((await ctaToggle.getAttribute('aria-checked')) !== 'true') {
         await ctaToggle.click();
         await expect(ctaToggle).toHaveAttribute('aria-checked', 'true');
-        await page.getByTestId('save-discount-settings').click();
-        await expect(page.locator(SNACKBAR)).toContainText('Discount settings saved successfully');
-        await page.locator(SNACKBAR).waitFor({ state: 'detached' });
       }
-    });
+      await page.getByLabel('CTA link (Get ESNcard URL)').fill('https://example.com/esncard');
+      await saveButton(page).click();
+      await expect(page.locator(SNACKBAR)).toContainText('Discount settings saved successfully');
+      await page.locator(SNACKBAR).waitFor({ state: 'detached' });
+    },
+      tenant.domain,
+    );
 
-    await runWithStorageState(browser, userStateFile, async (page) => {
+    await runWithStorageState(
+      browser,
+      userStateFile,
+      async (page) => {
       await page.goto('/profile/discount-cards', {
         waitUntil: 'domcontentloaded',
       });
-      await expect(page.locator(CTA_SECTION)).toBeVisible();
-    });
+      await expect(page.getByRole('link', { name: CTA_LINK_TEXT })).toBeVisible();
+    },
+      tenant.domain,
+    );
   });
 });

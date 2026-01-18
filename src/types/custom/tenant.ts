@@ -1,7 +1,5 @@
 import { Schema } from 'effect';
 
-import type { DiscountProvidersConfig } from '../discounts';
-
 export class Tenant extends Schema.Class<Tenant>('Tenant')({
   currency: Schema.Literal('EUR', 'CZK', 'AUD'),
   defaultLocation: Schema.optionalWith(Schema.Any, {
@@ -21,7 +19,7 @@ export class Tenant extends Schema.Class<Tenant>('Tenant')({
           enabled: Schema.Boolean,
         }),
       ),
-    }) satisfies Schema.Schema<DiscountProvidersConfig>,
+    }),
     { nullable: true },
   ),
   domain: Schema.NonEmptyString,

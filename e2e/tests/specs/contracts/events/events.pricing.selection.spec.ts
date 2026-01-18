@@ -107,10 +107,14 @@ const ensureRegistrationSectionResets = async (page: Page) => {
 
 const verifyTransactionAmount = async (
   browser: Parameters<typeof test>[0]['browser'],
+  tenantDomain: string,
   eventTitle: string,
   expectedAmount: number,
 ) => {
-  await runWithStorageState(browser, adminStateFile, async (financePage) => {
+  await runWithStorageState(
+    browser,
+    adminStateFile,
+    async (financePage) => {
     await financePage.goto('/finance/transactions', {
       waitUntil: 'domcontentloaded',
     });
@@ -119,7 +123,9 @@ const verifyTransactionAmount = async (
     const row = financePage.getByRole('row', { name: new RegExp(eventTitle, 'i') }).first();
     await expect(row).toBeVisible();
     await expect(row.getByRole('cell').first()).toContainText(expectedText);
-  });
+  },
+    tenantDomain,
+  );
 };
 
 test('Contract: events.pricing.selection applies ESN discount @slow', async ({
@@ -194,7 +200,7 @@ test('Contract: events.pricing.selection applies ESN discount @slow', async ({
   const activeRegistration = page.locator('app-event-active-registration');
   await expect(activeRegistration).toBeVisible();
 
-  await verifyTransactionAmount(browser, event.title, lowest.discountedPrice);
+  await verifyTransactionAmount(browser, tenant.domain, event.title, lowest.discountedPrice);
 
   const cancelButton = activeRegistration
     .getByRole('button', { name: 'Cancel registration' })

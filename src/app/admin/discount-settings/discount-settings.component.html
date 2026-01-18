@@ -26,14 +26,14 @@
 
           <form [formGroup]="esnCardForm" class="w-full max-w-2xl space-y-4">
             <div class="flex items-center justify-end gap-4">
-              <mat-slide-toggle formControlName="enabled">
+              <mat-slide-toggle formControlName="enabled" data-testid="enable-esn-provider">
                 {{ esnCardForm.get('enabled')?.value ? 'Enabled' : 'Disabled' }}
               </mat-slide-toggle>
             </div>
 
             @if (esnCardForm.get('enabled')?.value) {
               <div class="ml-4 space-y-2">
-                <mat-slide-toggle formControlName="ctaEnabled">
+                <mat-slide-toggle formControlName="ctaEnabled" data-testid="esn-show-cta-toggle">
                   Show buy ESNcard link
                 </mat-slide-toggle>
 
@@ -44,6 +44,7 @@
                       matInput
                       formControlName="ctaLink"
                       placeholder="https://example.com/get-esncard"
+                      data-testid="esn-cta-link-input"
                     />
                   </mat-form-field>
                 }
@@ -55,7 +56,12 @@
     </div>
 
     <div class="mt-6 flex justify-end">
-      <button mat-flat-button (click)="saveSettings()" [disabled]="updateMutation.isPending()">
+      <button
+        mat-flat-button
+        (click)="saveSettings()"
+        [disabled]="updateMutation.isPending()"
+        data-testid="save-discount-settings"
+      >
         @if (updateMutation.isPending()) {
           Saving...
         } @else {

@@ -51,6 +51,8 @@ export class DiscountSettingsComponent {
         this.snackBar.open('Discount settings saved successfully', 'Close', {
           duration: 3000,
         });
+        this.esnCardForm.markAsPristine();
+        this.esnCardForm.markAsUntouched();
         this.tenantQuery.refetch();
       },
     }),
@@ -63,6 +65,7 @@ export class DiscountSettingsComponent {
     const tenant = this.tenantQuery.data();
     const esn = (tenant as any)?.discountProviders?.esnCard;
     if (!esn) return;
+    if (this.esnCardForm.dirty) return;
     this.esnCardForm.patchValue(
       {
         ctaEnabled: !!esn.config?.ctaEnabled,

@@ -6,8 +6,8 @@ import { expect, test as base } from '../../../fixtures/parallel-test';
 import { takeScreenshot } from '../../../reporters/documentation-reporter';
 
 const SNACKBAR = 'mat-snack-bar-container';
-const CTA_SECTION = '[data-testid="esn-cta-section"]';
-const CARD_IDENTIFIER_CELL = '[data-testid="refresh-esn-card"]';
+const CTA_CALL_OUT_TEXT = 'Get discounts on events with your ESNcard!';
+const CTA_LINK_TEXT = 'Get your ESNcard →';
 
 const docUser = usersToAuthenticate.find((candidate) => candidate.stateFile === userStateFile);
 if (!docUser) {
@@ -125,35 +125,36 @@ test.describe('Documentation: Discount provider journey — user experience', ()
     await page.goto('/profile', {
       waitUntil: 'domcontentloaded',
     });
-    await expect(page.getByText('Get discounts on events with your ESNcard!')).toBeVisible();
+    await expect(page.getByText(CTA_CALL_OUT_TEXT)).toBeVisible();
     await takeScreenshot(
       testInfo,
-      page.getByText('Get discounts on events with your ESNcard!'),
+      page.getByText(CTA_CALL_OUT_TEXT),
       page,
       "Callout for users who don't have an ESNcard yet",
     );
 
     await page.getByRole('link', { name: 'Manage Cards' }).click();
     await page.waitForURL('**/profile/discount-cards');
-    await expect(page.locator(CTA_SECTION)).toBeVisible();
-    await takeScreenshot(testInfo, page.locator(CTA_SECTION), page, 'Discount cards CTA and form');
+    const ctaPanel = page.getByRole('link', { name: CTA_LINK_TEXT }).locator('..');
+    await expect(ctaPanel).toBeVisible();
+    await takeScreenshot(testInfo, ctaPanel, page, 'Discount cards CTA and form');
 
     const identifier = `ESN-DOC-${Date.now()}`;
     await seedVerifiedCard(identifier);
 
     await page.reload({ waitUntil: 'domcontentloaded' });
 
-    const cardPanel = page.locator(CARD_IDENTIFIER_CELL).first().locator('..').locator('..');
+    const cardPanel = page.getByText(`Card: ${identifier}`).locator('..').locator('..');
     await expect(cardPanel).toContainText(identifier);
     await expect(cardPanel).toContainText('Verified');
     await takeScreenshot(testInfo, cardPanel, page, 'Verified ESNcard on file');
 
     page.once('dialog', (dialog) => dialog.accept());
-    await page.getByTestId('delete-esn-card').click();
+    await cardPanel.getByRole('button', { name: 'Delete' }).click();
     await expect(page.locator(SNACKBAR)).toContainText('Card deleted successfully');
     await page.locator(SNACKBAR).waitFor({ state: 'detached' });
-    await expect(page.locator(CARD_IDENTIFIER_CELL)).toHaveCount(0);
-    await expect(page.locator(CTA_SECTION)).toBeVisible();
+    await expect(page.getByText(`Card: ${identifier}`)).toHaveCount(0);
+    await expect(page.getByRole('link', { name: CTA_LINK_TEXT })).toBeVisible();
 
     await testInfo.attach('markdown', {
       body: `\n## Member manages ESNcards\n\n1. Navigate to **Profile → Discount cards** to access the CTA and form.\n2. Seed a verified ESNcard (documentation helper) and review the card details.\n3. Remove the card to confirm the CTA reappears for future entries.\n`,
