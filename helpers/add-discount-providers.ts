@@ -16,8 +16,6 @@ export async function addDiscountProviders(
     esnCard: {
       enabled: true as const,
       config: {
-        apiKey: 'test-key', // For testing purposes
-        apiUrl: 'https://esncard.org/services/1.0/card.json',
         ctaEnabled: true,
         ctaLink: 'https://esncard.org',
       },

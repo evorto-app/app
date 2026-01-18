@@ -3,7 +3,7 @@ import { Schema } from 'effect';
 
 import { database } from '../../../db';
 import * as schema from '../../../db/schema';
-import { PROVIDERS } from '../../discounts/providers';
+import { validateEsnCard } from '../../discounts/providers';
 import { authenticatedProcedure, router } from '../trpc-server';
 
 export const discountsRouter = router({
@@ -32,18 +32,16 @@ export const discountsRouter = router({
       where: { id: ctx.tenant.id },
     });
     const config = (tenant as any)?.discountProviders ?? {};
-    // Normalize to full providers list
-    return (Object.keys(PROVIDERS) as (keyof typeof PROVIDERS)[]).map((type) => {
-      const entry = (config?.[type] ?? {}) as any;
-      // Backwards compatibility: map legacy { status } to new { enabled }
-      const enabled =
-        typeof entry.enabled === 'boolean' ? entry.enabled : entry.status === 'enabled';
-      return {
+    const entry = (config?.esnCard ?? {}) as any;
+    // Backwards compatibility: map legacy { status } to new { enabled }
+    const enabled = typeof entry.enabled === 'boolean' ? entry.enabled : entry.status === 'enabled';
+    return [
+      {
         config: entry?.config ?? {},
         enabled,
-        type,
-      } as const;
-    });
+        type: 'esnCard' as const,
+      },
+    ];
   }),
 
   refreshMyCard: authenticatedProcedure
@@ -61,12 +59,7 @@ export const discountsRouter = router({
         where: { tenantId: ctx.tenant.id, type: input.type, userId: ctx.user.id },
       });
       if (!card) throw new Error('No card on file');
-      const adapter = (await import('../../discounts/providers')).Adapters[input.type];
-      if (!adapter) return card;
-      const result = await adapter.validate({
-        config: provider.config,
-        identifier: card.identifier,
-      });
+      const result = await validateEsnCard(card.identifier);
       return (
         await database
           .update(schema.userDiscountCards)
@@ -87,13 +80,11 @@ export const discountsRouter = router({
     .input(
       Schema.standardSchemaV1(
         Schema.Struct({
-          providers: Schema.Array(
-            Schema.Struct({
-              config: Schema.Any,
-              enabled: Schema.Boolean,
-              type: Schema.Literal(...(Object.keys(PROVIDERS) as any)),
-            }),
-          ),
+          esnCard: Schema.Struct({
+            ctaEnabled: Schema.optional(Schema.Boolean),
+            ctaLink: Schema.optional(Schema.NonEmptyString),
+            enabled: Schema.Boolean,
+          }),
         }),
       ),
     )
@@ -101,14 +92,19 @@ export const discountsRouter = router({
       const tenant = await database.query.tenants.findFirst({
         where: { id: ctx.tenant.id },
       });
-      const current = ((tenant as any)?.discountProviders ?? {}) as Record<
-        string,
-        { config: unknown; enabled: boolean } & { status?: 'disabled' | 'enabled' }
-      >;
-      const updated = { ...current } as Record<string, any>;
-      for (const p of input.providers) {
-        updated[p.type] = { config: p.config, enabled: p.enabled } as any;
-      }
+      const current = ((tenant as any)?.discountProviders ?? {}) as {
+        esnCard?: { config?: { ctaEnabled?: boolean; ctaLink?: string }; enabled?: boolean };
+      };
+      const updated = {
+        ...current,
+        esnCard: {
+          enabled: input.esnCard.enabled,
+          config: {
+            ctaEnabled: input.esnCard.ctaEnabled,
+            ctaLink: input.esnCard.ctaLink?.trim() || undefined,
+          },
+        },
+      };
       await database
         .update(schema.tenants)
         .set({ discountProviders: updated as any })
@@ -170,15 +166,8 @@ export const discountsRouter = router({
               .returning()
           )[0];
 
-      // Validate immediately via provider adapter
-      const adapter = (await import('../../discounts/providers')).Adapters[input.type];
-      if (!adapter) {
-        return upserted;
-      }
-      const result = await adapter.validate({
-        config: provider.config,
-        identifier: input.identifier,
-      });
+      // Validate immediately via ESNcard verification
+      const result = await validateEsnCard(input.identifier);
       const [updated] = await database
         .update(schema.userDiscountCards)
         .set({

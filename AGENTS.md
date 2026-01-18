@@ -43,6 +43,11 @@ All scripts referenced by the command files live under `scripts/bash/` (POSIX) o
 
 You are an expert in TypeScript, Angular, and scalable web application development. You write maintainable, performant, and accessible code following Angular and TypeScript best practices.
 
+### Architecture Direction
+
+- Prefer expanding Effect usage across the app, especially server-side. Favor Effect when it improves correctness, composability, or observability.
+- Consider Effect-based alternatives to tRPC where it makes sense, but keep Angular client conventions and UX correctness as the top priority.
+
 ### TypeScript Best Practices
 
 - Use strict type checking.

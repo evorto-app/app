@@ -1,5 +1,6 @@
 import { jsonb, pgEnum, pgTable, text, timestamp, varchar } from 'drizzle-orm/pg-core';
 
+import { DiscountProvidersConfig } from '../../types/discounts';
 import { GoogleLocationType } from '../../types/location';
 import { createId } from '../create-id';
 
@@ -20,17 +21,8 @@ export const tenants = pgTable('tenants', {
   currency: currencyEnum().notNull().default('EUR'),
   defaultLocation: jsonb('default_location').$type<GoogleLocationType>(),
   // Stores per-tenant discount provider configuration, e.g. enabling ESNcard discounts.
-  // New shape: { esnCard?: { enabled: boolean; config: { ctaEnabled?: boolean; ctaLink?: string } | unknown } }
-  // Additional providers can be added under their type key.
-  discountProviders:
-    jsonb('discount_providers').$type<
-      Partial<
-        Record<
-          'esnCard',
-          { config: unknown | { ctaEnabled?: boolean; ctaLink?: string }; enabled: boolean }
-        >
-      >
-    >(),
+  // Shape: { esnCard?: { enabled: boolean; config?: { ctaEnabled?: boolean; ctaLink?: string } } }
+  discountProviders: jsonb('discount_providers').$type<DiscountProvidersConfig>(),
   domain: text().unique().notNull(),
   id: varchar({ length: 20 })
     .$defaultFn(() => createId())

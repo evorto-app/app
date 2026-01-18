@@ -13,12 +13,6 @@ import { injectMutation, injectQuery } from '@tanstack/angular-query-experimenta
 
 import { injectTRPC } from '../../core/trpc-client';
 
-interface ProviderForm {
-  // Boolean form control mapped to API status "enabled" | "disabled"
-  enabled: FormControl<boolean>;
-  showCta: FormControl<boolean>;
-}
-
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -100,16 +94,14 @@ export class DiscountSettingsComponent {
 
     const enabled = this.esnCardForm.controls.enabled.value;
     const ctaEnabled = this.esnCardForm.controls.ctaEnabled.value;
-    const ctaLink = this.esnCardForm.controls.ctaLink.value?.trim();
+    const ctaLink = this.esnCardForm.controls.ctaLink.value?.trim() || undefined;
 
-    const updates = [
-      {
-        config: { ...esn?.config, ctaEnabled, ctaLink },
+    this.updateMutation.mutate({
+      esnCard: {
+        ctaEnabled,
+        ctaLink,
         enabled,
-        type: 'esnCard' as const,
       },
-    ];
-
-    this.updateMutation.mutate({ providers: updates });
+    });
   }
 }
