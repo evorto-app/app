@@ -1,7 +1,7 @@
 # Plan: ESNcard Discounts + Validation (Finish & Align)
 
 ## Phase 1: Audit & Alignment
-- [ ] Task: Inventory current ESNcard-related flows (server + client)
+- [x] Task: Inventory current ESNcard-related flows (server + client) (51449da)
     - [ ] Identify external validation service integration and data flow
     - [ ] Map event pricing, registration, and scanning behavior
 - [ ] Task: Define minimal data model adjustments (if needed)
