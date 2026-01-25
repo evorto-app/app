@@ -7,13 +7,13 @@
 - [x] Task: Define minimal data model adjustments (if needed) (3b29e8e)
     - [ ] Confirm storage for card number, expiry, and discount marker
     - [ ] Identify any breaking changes and migration steps
-- [~] Task: Document integration intent in root feature folders
+- [x] Task: Document integration intent in root feature folders (0f55072)
     - [ ] Add/update root-level notes for server-side ESNcard integration
     - [ ] Add/update root-level notes for client-side ESNcard UX intent
-- [ ] Task: Conductor - User Manual Verification 'Phase 1' (Protocol in workflow.md)
+- [ ] Task: Conductor - User Manual Verification 'Phase 1' (Protocol in workflow.md) (deferred to Phase 4 per user)
 
 ## Phase 2: Backend & Integration
-- [ ] Task: Implement section-level toggle gating ESNcard flows
+- [~] Task: Implement section-level toggle gating ESNcard flows
 - [ ] Task: Validate ESNcard on profile save and persist expiry
 - [ ] Task: Expose ESNcard pricing for event editors (RPC + schema)
 - [ ] Task: Resolve lowest price at registration and mark ESNcard usage
