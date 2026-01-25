@@ -36,6 +36,7 @@ export class EventRegistrationOptionComponent {
     price: number;
     title: string;
   }>();
+  public readonly eventStart = input<Date | null>();
   private trpc = injectTRPC();
   protected readonly authenticationQuery = injectQuery(() =>
     this.trpc.config.isAuthenticated.queryOptions(),
@@ -53,6 +54,7 @@ export class EventRegistrationOptionComponent {
   protected readonly availableDiscounts = computed(() => {
     const option = this.registrationOption();
     const userCards = this.userCardsQuery.data() ?? [];
+    const eventStart = this.eventStart() ?? new Date();
     const enabledSet = this.enabledProviderSet();
     const discounts = option.discounts ?? [];
     if (enabledSet.size === 0) {
@@ -72,12 +74,15 @@ export class EventRegistrationOptionComponent {
       } else if (!userCard) {
         status = 'no_card';
         message = 'Add your card to get this discount';
-      } else if (userCard.status === 'verified') {
-        status = 'eligible';
-        message = 'You are eligible for this discount';
-      } else {
+      } else if (userCard.status !== 'verified') {
         status = 'invalid_card';
         message = 'Your card needs verification';
+      } else if (userCard.validTo && userCard.validTo <= eventStart) {
+        status = 'invalid_card';
+        message = 'Your card expires before this event';
+      } else {
+        status = 'eligible';
+        message = 'You are eligible for this discount';
       }
 
       return {
@@ -97,6 +102,7 @@ export class EventRegistrationOptionComponent {
   protected readonly bestDiscount = computed(() => {
     const option = this.registrationOption();
     const userCards = this.userCardsQuery.data() ?? [];
+    const eventStart = this.eventStart() ?? new Date();
     const enabledSet = this.enabledProviderSet();
     const discounts = option.discounts ?? [];
 
@@ -118,8 +124,8 @@ export class EventRegistrationOptionComponent {
       );
       if (!userCard) return false;
 
-      // TODO: Add event start date validation (card must be valid on event start)
-      // For now, just check it's verified
+      if (userCard.validTo && userCard.validTo <= eventStart) return false;
+
       return true;
     });
 
