@@ -44,16 +44,20 @@ export class EventRegistrationOptionComponent {
   protected readonly userCardsQuery = injectQuery(() =>
     this.trpc.discounts.getMyCards.queryOptions(),
   );
+  protected readonly enabledProviderSet = computed(() => {
+    const tenant = this.tenantQuery.data();
+    const providers = tenant?.discountProviders ?? {};
+    const enabledProviders = Object.entries(providers).filter(([, provider]) => provider?.enabled);
+    return new Set(enabledProviders.map(([key]) => key as 'esnCard'));
+  });
   protected readonly availableDiscounts = computed(() => {
     const option = this.registrationOption();
     const userCards = this.userCardsQuery.data() ?? [];
-    const tenant = this.tenantQuery.data() as any;
-    const enabledSet = new Set(
-      Object.entries(tenant?.discountProviders ?? {})
-        .filter(([, v]: any) => v?.enabled === true)
-        .map(([k]) => k as string),
-    );
+    const enabledSet = this.enabledProviderSet();
     const discounts = option.discounts ?? [];
+    if (enabledSet.size === 0) {
+      return [];
+    }
 
     return discounts.map((discount) => {
       const isProviderEnabled = enabledSet.has(discount.discountType);
@@ -93,15 +97,13 @@ export class EventRegistrationOptionComponent {
   protected readonly bestDiscount = computed(() => {
     const option = this.registrationOption();
     const userCards = this.userCardsQuery.data() ?? [];
-    const tenant = this.tenantQuery.data() as any;
-    const enabledSet = new Set(
-      Object.entries(tenant?.discountProviders ?? {})
-        .filter(([, v]: any) => v?.enabled === true)
-        .map(([k]) => k as string),
-    );
+    const enabledSet = this.enabledProviderSet();
     const discounts = option.discounts ?? [];
 
     if (!option.isPaid || discounts.length === 0) {
+      return null;
+    }
+    if (enabledSet.size === 0) {
       return null;
     }
 
@@ -165,6 +167,7 @@ export class EventRegistrationOptionComponent {
       (d) => d.status === 'no_card' || d.status === 'invalid_card',
     );
   });
+  protected readonly hasEnabledDiscounts = computed(() => this.availableDiscounts().length > 0);
 
   private queryClient = inject(QueryClient);
   protected readonly registrationMutation = injectMutation(() =>

@@ -39,11 +39,7 @@
   ></div>
 
   <!-- Discount Information Section -->
-  @if (
-    registrationOption().isPaid &&
-    authenticationQuery.data() &&
-    (registrationOption().discounts?.length ?? 0) > 0
-  ) {
+  @if (registrationOption().isPaid && authenticationQuery.data() && hasEnabledDiscounts()) {
     <div class="bg-surface-variant rounded-lg p-3 text-sm">
       <div class="flex items-center gap-2 mb-2">
         <mat-icon class="text-base">local_offer</mat-icon>

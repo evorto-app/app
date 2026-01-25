@@ -99,10 +99,16 @@ export class EventDetailsComponent {
   protected readonly myCardsQuery = injectQuery(() =>
     this.trpc.discounts.getMyCards.queryOptions(),
   );
+  protected readonly tenantQuery = injectQuery(() => this.trpc.config.tenant.queryOptions());
+  protected readonly esnProviderEnabled = computed(() => {
+    const tenant = this.tenantQuery.data();
+    return tenant?.discountProviders?.esnCard?.enabled === true;
+  });
   protected readonly cardExpiresBeforeEvent = computed(() => {
     const event = this.eventQuery.data();
     const cards = this.myCardsQuery.data();
     if (!event || !cards) return false;
+    if (!this.esnProviderEnabled()) return false;
     const verified = cards.filter((c) => c.status === 'verified');
     if (verified.length === 0) return false;
     const latestValidTo = verified
