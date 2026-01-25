@@ -16,8 +16,8 @@
 - [x] Task: Implement section-level toggle gating ESNcard flows (93d4bed)
 - [x] Task: Validate ESNcard on profile save and persist expiry (ade941d)
 - [x] Task: Expose ESNcard pricing for event editors (RPC + schema) (c17c993)
-- [~] Task: Resolve lowest price at registration and mark ESNcard usage
-- [ ] Task: Expose discount marker to scanning/organizer views
+- [x] Task: Resolve lowest price at registration and mark ESNcard usage (d24ccd8)
+- [~] Task: Expose discount marker to scanning/organizer views
 - [ ] Task: Conductor - User Manual Verification 'Phase 2' (Protocol in workflow.md)
 
 ## Phase 3: UI & User Flows
