@@ -100,6 +100,14 @@ export class UserProfileComponent {
   protected readonly myCardsQuery = injectQuery(() =>
     this.trpc.discounts.getMyCards.queryOptions(),
   );
+  protected readonly hasValidEsnCard = computed(() => {
+    const cards = this.myCardsQuery.data() ?? [];
+    const card = cards.find((entry) => entry.type === 'esnCard');
+    if (!card) return false;
+    if (card.status !== 'verified') return false;
+    if (!card.validTo) return true;
+    return card.validTo > new Date();
+  });
 
   protected readonly refreshCardMutation = injectMutation(() =>
     this.trpc.discounts.refreshMyCard.mutationOptions({

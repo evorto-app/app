@@ -144,8 +144,27 @@ export class DiscountCardsComponent {
     return statusDisplay[status] || status;
   }
 
-  getUserCard(cards: any[], providerType: string) {
+  getUserCard(cards: { type: string }[], providerType: string) {
     return cards.find((card) => card.type === providerType);
+  }
+
+  isCardValid(card: { status: string; validTo?: Date | null }): boolean {
+    if (card.status !== 'verified') {
+      return false;
+    }
+    if (!card.validTo) {
+      return true;
+    }
+    return card.validTo > new Date();
+  }
+
+  hasValidCard(
+    cards: { type: string; status: string; validTo?: Date | null }[],
+    providerType: string,
+  ) {
+    const card = this.getUserCard(cards, providerType);
+    if (!card) return false;
+    return this.isCardValid(card);
   }
 
   refreshCard(providerType: string): void {

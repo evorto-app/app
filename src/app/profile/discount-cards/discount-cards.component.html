@@ -59,6 +59,25 @@
                   </div>
                 </div>
               </div>
+              @if (
+                !hasValidCard(cards, 'esnCard') &&
+                tenant.discountProviders?.esnCard?.config?.ctaEnabled === true &&
+                tenant.discountProviders?.esnCard?.config?.ctaLink
+              ) {
+                <div
+                  class="bg-primary-container text-on-primary-container mb-4 rounded-lg p-4"
+                  data-testid="esn-cta-section"
+                >
+                  <p class="mb-2">Need a valid ESNcard?</p>
+                  <a
+                    [href]="tenant.discountProviders?.esnCard?.config?.ctaLink"
+                    target="_blank"
+                    class="underline"
+                    data-testid="get-esncard-link"
+                    >Get your ESNcard →</a
+                  >
+                </div>
+              }
             } @else {
               <!-- User doesn't have a card -->
               @if (
