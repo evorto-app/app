@@ -40,6 +40,9 @@
   - `src/app/events/event-registration-option/*` computes best discount client-side and displays price, savings, and eligibility messaging.
   - `src/app/events/event-details/event-details.component.*` warns when card expires before event start.
 - Scanning/organizer:
-  - `src/app/scanning/handle-registration/*` shows registration details but does not surface `appliedDiscountType`.
-  - `src/app/events/event-organize/*` does not surface discount markers.
+- `src/app/scanning/handle-registration/*` shows registration details but does not surface `appliedDiscountType`.
+- `src/app/events/event-organize/*` does not surface discount markers.
 
+## Data Model Adjustments
+- No new fields required; current schema covers card validity (`user_discount_cards.validTo`) and discount snapshots (`event_registrations.appliedDiscountType`, `appliedDiscountedPrice`, `discountAmount`).
+- No migrations identified for this phase.
