@@ -39,7 +39,7 @@
 
       <ng-container matColumnDef="amount">
         <th mat-header-cell *matHeaderCellDef>Amount</th>
-        <td mat-cell *matCellDef="let element">
+        <td mat-cell *matCellDef="let element" class="cursor-pointer" (click)="openTransactionDetails(element)">
           <p class="body-medium">{{ element.amount / 100 | currency }}</p>
           @if ((element.appFee ?? 0) + (element.stripeFee ?? 0) > 0) {
             <p
@@ -57,7 +57,7 @@
 
       <ng-container matColumnDef="method">
         <th mat-header-cell *matHeaderCellDef>Method</th>
-        <td mat-cell *matCellDef="let element">
+        <td mat-cell *matCellDef="let element" class="cursor-pointer" (click)="openTransactionDetails(element)">
           @switch (element.method) {
             @case ('stripe') {
               <fa-icon [icon]="faStripe" size="2x"></fa-icon>
@@ -74,19 +74,23 @@
 
       <ng-container matColumnDef="created">
         <th mat-header-cell *matHeaderCellDef>Created</th>
-        <td mat-cell *matCellDef="let element">
+        <td mat-cell *matCellDef="let element" class="cursor-pointer" (click)="openTransactionDetails(element)">
           {{ element.createdAt | date: 'short' }}
         </td>
       </ng-container>
 
       <ng-container matColumnDef="status">
         <th mat-header-cell *matHeaderCellDef>Status</th>
-        <td mat-cell *matCellDef="let element">{{ element.status }}</td>
+        <td mat-cell *matCellDef="let element" class="cursor-pointer" (click)="openTransactionDetails(element)">
+          {{ element.status }}
+        </td>
       </ng-container>
 
       <ng-container matColumnDef="comment">
         <th mat-header-cell *matHeaderCellDef>Comment</th>
-        <td mat-cell *matCellDef="let element">{{ element.comment }}</td>
+        <td mat-cell *matCellDef="let element" class="cursor-pointer" (click)="openTransactionDetails(element)">
+          {{ element.comment }}
+        </td>
       </ng-container>
 
       <!--      <ng-container matColumnDef="role">-->
@@ -110,7 +114,12 @@
       <!--      </ng-container>-->
 
       <tr mat-header-row *matHeaderRowDef="columnsToDisplay()"></tr>
-      <tr mat-row *matRowDef="let row; columns: columnsToDisplay()"></tr>
+      <tr
+        mat-row
+        *matRowDef="let row; columns: columnsToDisplay()"
+        class="cursor-pointer"
+        (click)="openTransactionDetails(row)"
+      ></tr>
     </table>
     <mat-paginator
       [pageSizeOptions]="[50, 100, 200, 500]"
@@ -122,4 +131,17 @@
     >
     </mat-paginator>
   </div>
+}
+@if (transactionsQuery.status() === 'success') {
+  @if ((selectedTransaction() ?? transactionsQuery.data()?.data?.[0]); as selected) {
+    <div
+      role="dialog"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-surface-variant/40 p-6"
+    >
+      <app-transaction-details-dialog
+        [data]="selected"
+        (closeRequested)="closeTransactionDetails()"
+      />
+    </div>
+  }
 }

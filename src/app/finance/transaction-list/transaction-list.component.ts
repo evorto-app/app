@@ -12,6 +12,10 @@ import { injectQuery } from '@tanstack/angular-query-experimental';
 import consola from 'consola/browser';
 
 import { injectTRPC } from '../../core/trpc-client';
+import {
+  TransactionDetailsData,
+  TransactionDetailsDialogComponent,
+} from '../transaction-details-dialog/transaction-details-dialog.component';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -25,6 +29,7 @@ import { injectTRPC } from '../../core/trpc-client';
     CurrencyPipe,
     FaIconComponent,
     DatePipe,
+    TransactionDetailsDialogComponent,
   ],
   selector: 'app-transaction-list',
   styles: ``,
@@ -52,10 +57,19 @@ export class TransactionListComponent {
   });
 
   private readonly trpc = injectTRPC();
+  readonly selectedTransaction = signal<TransactionDetailsData | null>(null);
 
   protected readonly transactionsQuery = injectQuery(() =>
     this.trpc.finance.transactions.findMany.queryOptions(this.filterInput()),
   );
+
+  openTransactionDetails(row: TransactionDetailsData): void {
+    this.selectedTransaction.set(row);
+  }
+
+  closeTransactionDetails(): void {
+    this.selectedTransaction.set(null);
+  }
 
   handlePageChange(event: PageEvent) {
     this.filterInput.update((old) => ({

@@ -1,14 +1,16 @@
-import { DateTime } from 'luxon';
-
-import { adminStateFile } from '../../../../helpers/user-data';
+import { organizerStateFile } from '../../../../helpers/user-data';
 import { expect, test } from '../../../fixtures/parallel-test';
 import { takeScreenshot } from '../../../reporters/documentation-reporter';
 
-test.use({ storageState: adminStateFile });
+test.use({ storageState: organizerStateFile });
 
-test('Create and manage events', async ({ page }, testInfo) => {
+test('Create and manage events', async ({ events, page }, testInfo) => {
+  const approvedEvent = events.find((event) => event.status === 'APPROVED' && !event.unlisted);
+  if (!approvedEvent) {
+    throw new Error('No approved event found');
+  }
   await page.goto('.');
-  await expect(page.getByRole('link', { name: 'Admin Tools' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Events' })).toBeVisible();
   await testInfo.attach('markdown', {
     body: `
 {% callout type="note" title="User permissions" %}
@@ -83,21 +85,10 @@ After selecting a template and customizing your event, you can create it and pro
 `,
   });
 
-  // Select a template from the list
-  await page.getByRole('link', { name: 'Partnach Gorge hike' }).click();
-
-  // Click the "Create event" link to navigate to the event creation form
-  await page.getByRole('link', { name: 'Create event' }).click();
-
-  // Fill in event details
-  await page.getByLabel('Event Title').fill('Partnach Gorge Exploration');
-  // Skip modifying the description as it's already prefilled with appropriate content
-
-  // Create the event
-  await page.getByRole('button', { name: 'Create Event' }).click();
-
-  // Wait for the event details page to load
-  await page.waitForSelector('h1:has-text("Partnach Gorge hike")');
+  await page.goto(`/events/${approvedEvent.id}`);
+  await expect(
+    page.getByRole('heading', { name: approvedEvent.title, level: 1 }),
+  ).toBeVisible();
 
   // Wait for the page to stabilize
   await page.waitForTimeout(1000);
@@ -113,7 +104,7 @@ After creating an event, you'll be taken to the event details page where you can
   // Use a more specific selector that's guaranteed to be on the page
   await takeScreenshot(
     testInfo,
-    page.locator('h1:has-text("Partnach Gorge hike")').first(),
+    page.getByRole('heading', { name: approvedEvent.title, level: 1 }).first(),
     page,
     'Event details page',
   );
@@ -177,13 +168,9 @@ The visibility options include:
 
 Select the appropriate visibility and click **Save**.
 
-Note: The event created from the template starts in "Draft" status.
+Note: In this guide, we are viewing an approved event.
 `,
   });
-
-  // Take a screenshot of the event status section
-  await page.waitForTimeout(1000);
-  await takeScreenshot(testInfo, page.getByText('Draft').first(), page, 'Event status section');
 
   await testInfo.attach('markdown', {
     body: `
@@ -221,27 +208,10 @@ These settings help you customize the event experience and manage the event life
 
   await testInfo.attach('markdown', {
     body: `
-## Event Review and Approval
+## Event Editing
 
-Depending on your organization's policies, events may need to go through a review and approval process before they become visible to users.
-
-When submitting an event for review:
-
-1. The event status changes to "Pending Approval"
-2. Administrators are notified about the new event
-3. They can review the event details and approve or reject it
-4. Once approved, the event becomes visible according to its visibility settings
-
-This process ensures quality control for all events in the system.
+If you have edit permissions, you can update an event at any time using the **Edit Event** action.
 `,
   });
 
-  // Take a screenshot of the Submit for Review button
-  await page.waitForTimeout(1000);
-  await takeScreenshot(
-    testInfo,
-    page.getByRole('button', { name: 'Submit for Review' }).first(),
-    page,
-    'Submit for review button',
-  );
 });

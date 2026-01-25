@@ -77,8 +77,35 @@ const test = base.extend<{
 test.describe('Documentation: Discount provider journey — admin setup', () => {
   test.use({ storageState: adminStateFile });
 
-  test('Admin enables ESN discount provider', async ({ page }, testInfo) => {
-    await page.goto('/admin/settings/discounts');
+  test('Admin enables ESN discount provider', async ({ database, page, tenant }, testInfo) => {
+    const existing = await database
+      .select({ discountProviders: schema.tenants.discountProviders })
+      .from(schema.tenants)
+      .where(eq(schema.tenants.id, tenant.id));
+
+    const currentProviders = (existing[0]?.discountProviders ?? {}) as any;
+    const nextProviders = {
+      ...currentProviders,
+      esnCard: {
+        ...currentProviders?.esnCard,
+        config: {
+          ...(currentProviders?.esnCard?.config as any),
+          ctaEnabled: false,
+          ctaLink:
+            currentProviders?.esnCard?.config?.ctaLink ?? 'https://example.com/buy-esncard',
+        },
+        enabled: false,
+      },
+    } as const;
+
+    await database
+      .update(schema.tenants)
+      .set({ discountProviders: nextProviders as any })
+      .where(eq(schema.tenants.id, tenant.id));
+    await page.goto('/admin/settings');
+    await expect(page.getByRole('heading', { name: 'General settings', level: 1 })).toBeVisible();
+    await page.getByRole('link', { name: 'Configure discount providers' }).click();
+    await page.waitForURL('**/admin/settings/discounts');
 
     testInfo.attach('markdown', {
       body: `

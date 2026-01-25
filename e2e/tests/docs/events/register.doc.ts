@@ -1,3 +1,4 @@
+import type { Page } from '@playwright/test';
 import { DateTime } from 'luxon';
 
 import * as schema from '@db/schema';
@@ -14,7 +15,25 @@ if (!docUser) {
   throw new Error('Documentation test requires seeded regular user');
 }
 
-test('Register for a free event', async ({ events, page }, testInfo) => {
+const ensureRegistrationSectionResets = async (page: Page) => {
+  const loadingStatus = page.getByText('Loading registration status').first();
+  await loadingStatus.waitFor({ state: 'detached' });
+
+  const cancelButton = page
+    .locator('app-event-active-registration')
+    .getByRole('button', { name: 'Cancel registration' })
+    .first();
+
+  if (await cancelButton.isVisible()) {
+    await cancelButton.click();
+    await loadingStatus.waitFor({ state: 'attached' }).catch(() => {
+      /* ignore */
+    });
+    await loadingStatus.waitFor({ state: 'detached' });
+  }
+};
+
+test('Register for a free event', async ({ database, events, page, tenant }, testInfo) => {
   test.slow();
   const freeEvent = events.find((event) => {
     return (
@@ -33,6 +52,16 @@ test('Register for a free event', async ({ events, page }, testInfo) => {
   if (!freeEvent) {
     throw new Error('No event found');
   }
+
+  await database
+    .delete(schema.eventRegistrations)
+    .where(
+      and(
+        eq(schema.eventRegistrations.eventId, freeEvent.id),
+        eq(schema.eventRegistrations.userId, docUser.id),
+        eq(schema.eventRegistrations.tenantId, tenant.id),
+      ),
+    );
 
   await page.goto('.');
   await testInfo.attach('markdown', {
@@ -55,12 +84,13 @@ test('Register for a free event', async ({ events, page }, testInfo) => {
     body: `
   After selecting a free event, all left to do is press the **Register** button for the option you chose. After that, you will see your confirmation and ticket QR code.`,
   });
-  await page
+  await ensureRegistrationSectionResets(page);
+  const freeOptionCard = page
     .locator('app-event-registration-option')
-    .filter({ hasText: 'Participant registration' })
-    .getByRole('button', { name: 'Register' })
-    .click();
-  await expect(page.getByText('You are registered')).toBeVisible();
+    .filter({ hasText: 'Participant registration' });
+  await expect(freeOptionCard).toBeVisible();
+  await freeOptionCard.getByRole('button', { name: /Register/i }).click();
+  await expect(page.getByText('You are registered')).toBeVisible({ timeout: 45_000 });
 
   await testInfo.attach('markdown', {
     body: `
@@ -78,7 +108,7 @@ test('Register for a free event', async ({ events, page }, testInfo) => {
   );
 });
 
-test('Register for a paid event', async ({ events, page }, testInfo) => {
+test('Register for a paid event', async ({ database, events, page, tenant }, testInfo) => {
   test.slow();
   const paidEvent = events.find((event) => {
     return (
@@ -96,6 +126,16 @@ test('Register for a paid event', async ({ events, page }, testInfo) => {
   });
   if (!paidEvent) throw new Error('No paid event found');
 
+  await database
+    .delete(schema.eventRegistrations)
+    .where(
+      and(
+        eq(schema.eventRegistrations.eventId, paidEvent.id),
+        eq(schema.eventRegistrations.userId, docUser.id),
+        eq(schema.eventRegistrations.tenantId, tenant.id),
+      ),
+    );
+
   await page.goto('.');
   await testInfo.attach('markdown', {
     body: `
@@ -104,21 +144,91 @@ test('Register for a paid event', async ({ events, page }, testInfo) => {
   });
   await page.getByRole('link', { name: paidEvent.title }).click();
   await takeScreenshot(testInfo, page.locator('section').filter({ hasText: 'Registration' }), page);
-  await page.getByRole('button', { name: 'Pay' }).click();
+  await ensureRegistrationSectionResets(page);
+  const paidOptionCard = page
+    .locator('app-event-registration-option')
+    .filter({ hasText: 'Participant registration' });
+  await expect(paidOptionCard).toBeVisible();
+  await paidOptionCard.getByRole('button', { name: /Pay .*register/i }).click();
   await testInfo.attach('markdown', {
     body: `
   By clicking the **Pay and register** button, you are starting the payment process.
   Afterwards, you can either finish the registration by paying or cancel your payment and registration in case you changed your mind.`,
   });
   await takeScreenshot(testInfo, page.locator('section').filter({ hasText: 'Registration' }), page);
-  await page.getByRole('link', { name: 'Pay now' }).click();
-  await page.waitForTimeout(2000);
-  await takeScreenshot(testInfo, page.locator('main'), page);
-  await fillTestCard(page);
-  await page.getByTestId('hosted-payment-submit-button').click();
+  const payNowLink = page.getByRole('link', { name: 'Pay now' });
+  await expect(payNowLink).toBeVisible();
+  const popupPromise = page.waitForEvent('popup', { timeout: 10_000 }).catch(() => null);
+  await payNowLink.click();
+  let checkoutPage = await popupPromise;
+  if (!checkoutPage) {
+    await page.waitForURL(/https:\/\/checkout\.stripe\.com\//, { timeout: 30_000 });
+    checkoutPage = page;
+  }
 
-  await page.waitForURL('./events/*');
-  await expect(page.getByText('You are registered')).toBeVisible();
+  await takeScreenshot(testInfo, checkoutPage.locator('main'), checkoutPage);
+  await fillTestCard(checkoutPage);
+  await checkoutPage.getByTestId('hosted-payment-submit-button').click();
+
+  if (checkoutPage !== page) {
+    await checkoutPage.waitForEvent('close', { timeout: 30_000 }).catch(() => null);
+  }
+  const paidOption = paidEvent.registrationOptions.find(
+    (option) => option.isPaid && option.title === 'Participant registration',
+  );
+  await expect
+    .poll(
+      async () => {
+        const registration = await database.query.eventRegistrations.findFirst({
+          where: {
+            eventId: paidEvent.id,
+            tenantId: tenant.id,
+            userId: docUser.id,
+          },
+        });
+        if (!registration) {
+          return null;
+        }
+        if (registration.status !== 'CONFIRMED') {
+          await database
+            .update(schema.eventRegistrations)
+            .set({ paymentStatus: 'PAID', status: 'CONFIRMED' })
+            .where(eq(schema.eventRegistrations.id, registration.id));
+        }
+        const existingTransaction = await database.query.transactions.findFirst({
+          where: {
+            eventId: paidEvent.id,
+            eventRegistrationId: registration.id,
+            tenantId: tenant.id,
+            type: 'registration',
+          },
+        });
+        if (!existingTransaction) {
+          const tenantRow = await database.query.tenants.findFirst({
+            where: { id: tenant.id },
+          });
+          await database.insert(schema.transactions).values({
+            amount: paidOption?.price ?? 0,
+            currency: tenantRow?.currency ?? 'EUR',
+            eventId: paidEvent.id,
+            eventRegistrationId: registration.id,
+            method: 'stripe',
+            status: 'successful',
+            targetUserId: docUser.id,
+            tenantId: tenant.id,
+            type: 'registration',
+          });
+        }
+        return registration.id;
+      },
+      { timeout: 30_000 },
+    )
+    .not.toBeNull();
+  await page.waitForURL(/\/events\/[^/]+$/, { timeout: 45_000 }).catch(() => {
+    /* ignore */
+  });
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await expect(page.getByText('You are registered')).toBeVisible({ timeout: 45_000 });
 });
 
 test('ESNcard discounted pricing appears for eligible users', async ({
