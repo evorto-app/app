@@ -6,12 +6,14 @@ Scope: Playwright coverage split between documentation journeys (`docs/**`) and 
 
 - `docs/discounts/discounts.doc.ts` — Admin configures ESN provider and a member registers a card.
 - `docs/events/event-management.doc.ts` — Create and manage events end to end.
+- `docs/events/esncard-pricing.doc.ts` — Configure ESNcard discount pricing in event editor.
 - `docs/events/register.doc.ts` — Register for free and paid events.
 - `docs/events/unlisted-admin.doc.ts` — Admin perspective on unlisted events.
 - `docs/events/unlisted-user.doc.ts` — Member understanding of unlisted events.
 - `docs/finance/finance-overview.doc.ts` — Finance dashboard management (`@finance`).
 - `docs/finance/inclusive-tax-rates.doc.ts` — Import and apply inclusive tax rates.
 - `docs/profile/discounts.doc.ts` — Manage ESN discount card from profile (`@finance`).
+- `docs/scanning/esncard-scan.doc.ts` — Scan flow shows ESNcard discount marker.
 - `docs/profile/user-profile.doc.ts` — Manage personal profile settings.
 - `docs/roles/roles.doc.ts` — Create and configure custom roles.
 - `docs/template-categories/categories.doc.ts` — Maintain template categories.
@@ -35,6 +37,7 @@ Scope: Playwright coverage split between documentation journeys (`docs/**`) and 
 ### Events
 
 - `specs/events/create-event-from-template.test.ts` — Creates event from template.
+- `specs/events/esncard-discounts.spec.ts` — ESNcard pricing eligibility (valid vs expired card).
 - `specs/events/free-event-registration.test.ts` — Registers for an available free event.
 - `specs/events/price-labels-inclusive.spec.ts` — Inclusive price label coverage across events and templates (`@events @taxRates @priceLabels`).
 - `specs/events/unlisted-visibility-matrix.test.ts` — Visibility matrix for unlisted events (member vs admin).

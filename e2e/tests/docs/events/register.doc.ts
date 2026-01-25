@@ -1,11 +1,18 @@
 import { DateTime } from 'luxon';
 
-import { userStateFile } from '../../../../helpers/user-data';
+import * as schema from '@db/schema';
+import { and, eq } from 'drizzle-orm';
+import { userStateFile, usersToAuthenticate } from '../../../../helpers/user-data';
 import { fillTestCard } from '../../../fill-test-card';
 import { expect, test } from '../../../fixtures/parallel-test';
 import { takeScreenshot } from '../../../reporters/documentation-reporter';
 
 test.use({ storageState: userStateFile });
+
+const docUser = usersToAuthenticate.find((candidate) => candidate.stateFile === userStateFile);
+if (!docUser) {
+  throw new Error('Documentation test requires seeded regular user');
+}
 
 test('Register for a free event', async ({ events, page }, testInfo) => {
   test.slow();
@@ -112,4 +119,47 @@ test('Register for a paid event', async ({ events, page }, testInfo) => {
 
   await page.waitForURL('./events/*');
   await expect(page.getByText('You are registered')).toBeVisible();
+});
+
+test('ESNcard discounted pricing appears for eligible users', async (
+  { database, events, page, tenant },
+  testInfo,
+) => {
+  const discountedEvent = events.find((event) => {
+    return (
+      event.status === 'APPROVED' &&
+      event.unlisted === false &&
+      event.registrationOptions.some((option) => {
+        return (
+          option.isPaid &&
+          option.title === 'Participant registration' &&
+          (option.discounts?.length ?? 0) > 0
+        );
+      })
+    );
+  });
+
+  if (!discountedEvent) {
+    throw new Error('No discounted event found');
+  }
+
+  await database
+    .delete(schema.eventRegistrations)
+    .where(
+      and(
+        eq(schema.eventRegistrations.eventId, discountedEvent.id),
+        eq(schema.eventRegistrations.userId, docUser.id),
+        eq(schema.eventRegistrations.tenantId, tenant.id),
+      ),
+    );
+
+  await page.goto(`/events/${discountedEvent.id}`);
+  await expect(page.getByText('Registration')).toBeVisible();
+  await expect(page.getByText('You are eligible for this discount')).toBeVisible();
+  await takeScreenshot(
+    testInfo,
+    page.locator('app-event-registration-option').filter({ hasText: 'Participant registration' }),
+    page,
+    'ESNcard discount shown on registration option',
+  );
 });
