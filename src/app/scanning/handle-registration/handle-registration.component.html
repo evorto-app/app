@@ -55,6 +55,11 @@
       <p class="px-2">
         {{ scanResultQuery.data().registrationOption.title }}
       </p>
+      @if (scanResultQuery.data().appliedDiscountType === 'esnCard') {
+        <div class="bg-secondary-container text-on-secondary-container mt-2 rounded px-2 py-1">
+          ESNcard discount applied
+        </div>
+      }
       @if (scanResultQuery.data().registrationStatusIssue) {
         <div class="bg-error text-on-error mt-2 rounded p-2">
           <p class="title-small">Registration is not confirmed</p>

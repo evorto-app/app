@@ -53,6 +53,13 @@
             @for (user of registrationOption.users; track user.userId) {
               <div class="flex gap-2">
                 <p>{{ user.firstName }} {{ user.lastName }}</p>
+                @if (user.appliedDiscountType === 'esnCard') {
+                  <span
+                    class="bg-secondary-container text-on-secondary-container rounded-full px-2 py-0.5 text-xs"
+                  >
+                    ESNcard discount
+                  </span>
+                }
               </div>
             }
           </div>

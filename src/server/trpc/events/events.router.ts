@@ -240,6 +240,7 @@ export const eventRouter = router({
     .query(async ({ ctx, input }) => {
       const registrations = await database
         .select({
+          appliedDiscountType: schema.eventRegistrations.appliedDiscountType,
           checkInTime: schema.eventRegistrations.checkInTime,
           organizingRegistration: schema.eventRegistrationOptions.organizingRegistration,
           registrationOptionId: schema.eventRegistrations.registrationOptionId,
@@ -291,6 +292,7 @@ export const eventRouter = router({
             return a.userLastName.localeCompare(b.userLastName);
           })
           .map((reg) => ({
+            appliedDiscountType: reg.appliedDiscountType,
             checkedIn: reg.checkInTime !== null,
             checkInTime: reg.checkInTime,
             email: reg.userEmail,
