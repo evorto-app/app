@@ -121,10 +121,12 @@ test('Register for a paid event', async ({ events, page }, testInfo) => {
   await expect(page.getByText('You are registered')).toBeVisible();
 });
 
-test('ESNcard discounted pricing appears for eligible users', async (
-  { database, events, page, tenant },
-  testInfo,
-) => {
+test('ESNcard discounted pricing appears for eligible users', async ({
+  database,
+  events,
+  page,
+  tenant,
+}, testInfo) => {
   const discountedEvent = events.find((event) => {
     return (
       event.status === 'APPROVED' &&
@@ -154,7 +156,7 @@ test('ESNcard discounted pricing appears for eligible users', async (
     );
 
   await page.goto(`/events/${discountedEvent.id}`);
-  await expect(page.getByText('Registration')).toBeVisible();
+  await expect(page.locator('section').filter({ hasText: 'Registration' }).first()).toBeVisible();
   await expect(page.getByText('You are eligible for this discount')).toBeVisible();
   await takeScreenshot(
     testInfo,

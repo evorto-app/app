@@ -36,7 +36,13 @@ When the ESNcard provider is enabled for the tenant, event editors can configure
 `,
   });
 
-  const discountSection = page.locator('mat-card').filter({ hasText: 'Discount Pricing' });
+  const discountSection = page
+    .locator('app-registration-option-form')
+    .filter({ hasText: 'Participant registration' })
+    .first()
+    .locator('mat-card')
+    .filter({ hasText: 'Discount Pricing' })
+    .first();
   await expect(discountSection).toBeVisible();
   await takeScreenshot(testInfo, discountSection, page, 'ESNcard discount pricing in editor');
 });
