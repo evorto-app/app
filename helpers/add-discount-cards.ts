@@ -19,16 +19,17 @@ export async function addDiscountCards(
     return [];
   }
 
+  const identifierSuffix = tenantId.slice(0, 6).toUpperCase();
   const discountCards = [
     {
-      id: 'test-esncard-001',
+      id: `test-esncard-${identifierSuffix}`,
       tenantId,
       userId: testUser.id,
       type: 'esnCard' as const,
-      identifier: 'TEST123456',
+      identifier: `TEST-${identifierSuffix}`,
       status: 'verified' as const,
       validFrom: new Date('2024-01-01'),
-      validTo: new Date('2025-12-31'),
+      validTo: new Date('2026-12-31'),
       lastCheckedAt: new Date(),
       metadata: {
         holderName: 'Test User',

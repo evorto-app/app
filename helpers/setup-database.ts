@@ -9,6 +9,8 @@ import { NeonDatabase } from 'drizzle-orm/neon-serverless';
 
 import { addEvents } from './add-events';
 import { addIcons } from './add-icons';
+import { addDiscountCards } from './add-discount-cards';
+import { addDiscountProviders } from './add-discount-providers';
 import { addRegistrations } from './add-registrations';
 import { addExampleUsers, addRoles, addUsersToRoles } from './add-roles';
 import { addTaxRates } from './add-tax-rates';
@@ -107,6 +109,8 @@ export async function setupDatabase(
         ),
       developmentTenant,
     );
+    await addDiscountProviders(database, developmentTenant.id);
+    await addDiscountCards(database, developmentTenant.id);
     const exampleUsersStart = Date.now();
     await addExampleUsers(database, roles, developmentTenant);
     consola.success(`Example users added in ${Date.now() - exampleUsersStart}ms`);
