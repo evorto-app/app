@@ -21,9 +21,9 @@
 - [ ] Task: Conductor - User Manual Verification 'Phase 2' (Protocol in workflow.md) (deferred to Phase 4 per user)
 
 ## Phase 3: UI & User Flows
-- [~] Task: Event editor UI for ESNcard-specific prices (feature-enabled only)
-- [ ] Task: Profile UI to add ESNcard number + conditional “Buy ESNcard” CTA
-- [ ] Task: Registration UI shows lowest price + discount notice when applied
+- [x] Task: Event editor UI for ESNcard-specific prices (feature-enabled only) (a8a306e)
+- [x] Task: Profile UI to add ESNcard number + conditional “Buy ESNcard” CTA (ab96892)
+- [~] Task: Registration UI shows lowest price + discount notice when applied
 - [ ] Task: Scanning UI indicates ESNcard-discounted registration
 - [ ] Task: Conductor - User Manual Verification 'Phase 3' (Protocol in workflow.md)
 
