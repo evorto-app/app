@@ -4,10 +4,10 @@
 - [x] Task: Inventory current ESNcard-related flows (server + client) (51449da)
     - [ ] Identify external validation service integration and data flow
     - [ ] Map event pricing, registration, and scanning behavior
-- [ ] Task: Define minimal data model adjustments (if needed)
+- [x] Task: Define minimal data model adjustments (if needed) (3b29e8e)
     - [ ] Confirm storage for card number, expiry, and discount marker
     - [ ] Identify any breaking changes and migration steps
-- [ ] Task: Document integration intent in root feature folders
+- [~] Task: Document integration intent in root feature folders
     - [ ] Add/update root-level notes for server-side ESNcard integration
     - [ ] Add/update root-level notes for client-side ESNcard UX intent
 - [ ] Task: Conductor - User Manual Verification 'Phase 1' (Protocol in workflow.md)
