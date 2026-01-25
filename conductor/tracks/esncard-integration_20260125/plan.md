@@ -13,8 +13,8 @@
 - [ ] Task: Conductor - User Manual Verification 'Phase 1' (Protocol in workflow.md) (deferred to Phase 4 per user)
 
 ## Phase 2: Backend & Integration
-- [~] Task: Implement section-level toggle gating ESNcard flows
-- [ ] Task: Validate ESNcard on profile save and persist expiry
+- [x] Task: Implement section-level toggle gating ESNcard flows (93d4bed)
+- [~] Task: Validate ESNcard on profile save and persist expiry
 - [ ] Task: Expose ESNcard pricing for event editors (RPC + schema)
 - [ ] Task: Resolve lowest price at registration and mark ESNcard usage
 - [ ] Task: Expose discount marker to scanning/organizer views
