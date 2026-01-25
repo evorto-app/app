@@ -29,8 +29,8 @@
 
 ## Phase 4: Documentation & Tests
 - [x] Task: Create/refresh realistic seed data (empty DB baseline for dev, demos, tests) (c8232f4)
-- [~] Task: Add/refresh doc tests for ESNcard flows (profile, event editor, registration, scanning)
-- [ ] Task: Add/refresh Playwright e2e coverage for validation + pricing behavior
-- [ ] Task: Run full quality gates (lint/build/e2e/docs) and capture outputs
+- [x] Task: Add/refresh doc tests for ESNcard flows (profile, event editor, registration, scanning) (f3f68c5)
+- [x] Task: Add/refresh Playwright e2e coverage for validation + pricing behavior (f3f68c5)
+- [~] Task: Run full quality gates (lint/build/e2e/docs) and capture outputs
 - [ ] Task: Update Knope change notes for the phase
 - [ ] Task: Conductor - User Manual Verification 'Phase 4' (Protocol in workflow.md)
