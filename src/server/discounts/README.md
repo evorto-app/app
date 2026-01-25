@@ -3,7 +3,7 @@
 ## ESNcard integration intent
 - ESNcard is an optional, tenant-scoped provider configured via `tenants.discountProviders.esnCard`.
 - User cards live in `user_discount_cards` with validation status and validity window (`validTo`).
-- Validation calls `https://esncard.org/services/1.0/card.json?code=...` on save/refresh only.
+- Validation calls `https://esncard.org/services/1.0/card.json?code=...` on save/refresh only and persists expiry to `validTo`.
 - Registration options store optional provider discounts in JSON (`discountedPrice`, `discountType`).
 - Registration writes a pricing snapshot (`appliedDiscountType`, `appliedDiscountedPrice`, `discountAmount`) for scan-time visibility.
 
