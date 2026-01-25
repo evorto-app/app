@@ -23,12 +23,12 @@
 ## Phase 3: UI & User Flows
 - [x] Task: Event editor UI for ESNcard-specific prices (feature-enabled only) (a8a306e)
 - [x] Task: Profile UI to add ESNcard number + conditional “Buy ESNcard” CTA (ab96892)
-- [~] Task: Registration UI shows lowest price + discount notice when applied
-- [ ] Task: Scanning UI indicates ESNcard-discounted registration
-- [ ] Task: Conductor - User Manual Verification 'Phase 3' (Protocol in workflow.md)
+- [x] Task: Registration UI shows lowest price + discount notice when applied (7a5facf)
+- [x] Task: Scanning UI indicates ESNcard-discounted registration (8c94c57)
+- [ ] Task: Conductor - User Manual Verification 'Phase 3' (Protocol in workflow.md) (deferred to Phase 4 per user)
 
 ## Phase 4: Documentation & Tests
-- [ ] Task: Create/refresh realistic seed data (empty DB baseline for dev, demos, tests)
+- [~] Task: Create/refresh realistic seed data (empty DB baseline for dev, demos, tests)
 - [ ] Task: Add/refresh doc tests for ESNcard flows (profile, event editor, registration, scanning)
 - [ ] Task: Add/refresh Playwright e2e coverage for validation + pricing behavior
 - [ ] Task: Run full quality gates (lint/build/e2e/docs) and capture outputs
