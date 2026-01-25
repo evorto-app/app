@@ -1,16 +1,16 @@
 import { TRPCError } from '@trpc/server';
 
-export type DiscountConfig = {
+export interface DiscountConfig {
   discountedPrice: number;
   discountType: 'esnCard';
-};
+}
 
-type ValidateDiscountsInput = {
-  discounts?: readonly DiscountConfig[] | null | undefined;
+interface ValidateDiscountsInput {
+  discounts?: null | readonly DiscountConfig[] | undefined;
   isPaid: boolean;
   price: number;
   title: string;
-};
+}
 
 export const validateDiscountConfiguration = ({
   discounts,

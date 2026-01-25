@@ -13,6 +13,16 @@ const webServer = process.env['NO_WEBSERVER']
       url: 'http://localhost:4200',
     } as const);
 
+const globalTimeout = process.env['PLAYWRIGHT_GLOBAL_TIMEOUT']
+  ? Number(process.env['PLAYWRIGHT_GLOBAL_TIMEOUT'])
+  : undefined;
+const grep = process.env['PLAYWRIGHT_GREP']
+  ? new RegExp(process.env['PLAYWRIGHT_GREP'])
+  : undefined;
+const workers = process.env['PLAYWRIGHT_WORKERS']
+  ? Number(process.env['PLAYWRIGHT_WORKERS'])
+  : undefined;
+
 // Configure reporters: avoid blocking HTML server opening; prefer terminal output
 const reporters: any[] = [];
 if (process.env['CI']) {
@@ -94,6 +104,7 @@ export default defineConfig({
   reporter: reporters,
   /* Retry on CI only */
   retries: process.env['CI'] ? 2 : 0,
+  ...(workers ? { workers } : {}),
   testDir: './e2e',
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
@@ -110,6 +121,9 @@ export default defineConfig({
   },
 
   ...(webServer ? { webServer } : {}),
+  ...(globalTimeout ? { globalTimeout } : {}),
+  ...(grep ? { grep } : {}),
+  ...(workers ? { workers } : {}),
 
   /* Opt out of parallel tests on CI. */
   // ...(process.env['CI'] ? { workers: 1 } : {}),

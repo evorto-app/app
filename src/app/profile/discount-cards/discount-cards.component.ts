@@ -14,6 +14,9 @@ import { injectMutation, injectQuery } from '@tanstack/angular-query-experimenta
 
 import { injectTRPC } from '../../core/trpc-client';
 
+const validDiscountCardStatuses = ['expired', 'invalid', 'unverified', 'verified'] as const;
+const discountCardProviderTypes = ['esnCard'] as const;
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -37,8 +40,8 @@ export class DiscountCardsComponent {
   private snackBar = inject(MatSnackBar);
   deleteMutation = injectMutation(() =>
     this.trpc.discounts.deleteMyCard.mutationOptions({
-      onError: (error: any) => {
-        this.snackBar.open(`Failed to delete card: ${error.message}`, 'Close', {
+      onError: (error: unknown) => {
+        this.snackBar.open(`Failed to delete card: ${this.getErrorMessage(error)}`, 'Close', {
           duration: 5000,
         });
       },
@@ -53,8 +56,10 @@ export class DiscountCardsComponent {
 
   refreshMutation = injectMutation(() =>
     this.trpc.discounts.refreshMyCard.mutationOptions({
-      onError: (error: any) => {
-        this.snackBar.open(`Failed to refresh card: ${error.message}`, 'Close', { duration: 5000 });
+      onError: (error: unknown) => {
+        this.snackBar.open(`Failed to refresh card: ${this.getErrorMessage(error)}`, 'Close', {
+          duration: 5000,
+        });
       },
       onSuccess: () => {
         this.snackBar.open('Card refreshed successfully', 'Close', {
@@ -71,8 +76,8 @@ export class DiscountCardsComponent {
 
   upsertMutation = injectMutation(() =>
     this.trpc.discounts.upsertMyCard.mutationOptions({
-      onError: (error: any) => {
-        this.snackBar.open(`Failed to add card: ${error.message}`, 'Close', {
+      onError: (error: unknown) => {
+        this.snackBar.open(`Failed to add card: ${this.getErrorMessage(error)}`, 'Close', {
           duration: 5000,
         });
       },
@@ -108,16 +113,16 @@ export class DiscountCardsComponent {
   }
 
   getCardControl(providerType: string): FormControl<string> {
-    if (!this.cardControls.has(providerType)) {
-      this.cardControls.set(
-        providerType,
-        new FormControl('', {
-          nonNullable: true,
-          validators: [Validators.required, Validators.minLength(3)],
-        }),
-      );
+    const existingControl = this.cardControls.get(providerType);
+    if (existingControl) {
+      return existingControl;
     }
-    return this.cardControls.get(providerType)!;
+    const control = new FormControl('', {
+      nonNullable: true,
+      validators: [Validators.required, Validators.minLength(3)],
+    });
+    this.cardControls.set(providerType, control);
+    return control;
   }
 
   getProviderDescription(type: string): string {
@@ -144,11 +149,20 @@ export class DiscountCardsComponent {
     return statusDisplay[status] || status;
   }
 
-  getUserCard(cards: { type: string }[], providerType: string) {
+  getUserCard(cards: DiscountCard[], providerType: DiscountCardType) {
     return cards.find((card) => card.type === providerType);
   }
 
-  isCardValid(card: { status: string; validTo?: Date | null }): boolean {
+  hasValidCard(
+    cards: DiscountCard[],
+    providerType: DiscountCardType,
+  ) {
+    const card = this.getUserCard(cards, providerType);
+    if (!card) return false;
+    return this.isCardValid(card);
+  }
+
+  isCardValid(card: DiscountCard): boolean {
     if (card.status !== 'verified') {
       return false;
     }
@@ -158,16 +172,26 @@ export class DiscountCardsComponent {
     return card.validTo > new Date();
   }
 
-  hasValidCard(
-    cards: { type: string; status: string; validTo?: Date | null }[],
-    providerType: string,
-  ) {
-    const card = this.getUserCard(cards, providerType);
-    if (!card) return false;
-    return this.isCardValid(card);
-  }
-
   refreshCard(providerType: string): void {
     this.refreshMutation.mutate({ type: providerType as 'esnCard' });
   }
+
+  private getErrorMessage(error: unknown): string {
+    if (error && typeof error === 'object' && 'message' in error) {
+      const message = (error as { message?: unknown }).message;
+      if (typeof message === 'string') {
+        return message;
+      }
+    }
+    return 'Unknown error';
+  }
 }
+
+type DiscountCardType = (typeof discountCardProviderTypes)[number] | string;
+
+type DiscountCard = {
+  identifier: string;
+  status: (typeof validDiscountCardStatuses)[number];
+  type: DiscountCardType;
+  validTo?: Date | null;
+};

@@ -95,7 +95,6 @@ export class UserProfileComponent {
   protected readonly faRightFromBracket = faRightFromBracket;
 
   protected readonly faUser = faUser;
-  protected isEditing = signal(false);
   // Discounts
   protected readonly myCardsQuery = injectQuery(() =>
     this.trpc.discounts.getMyCards.queryOptions(),
@@ -108,6 +107,7 @@ export class UserProfileComponent {
     if (!card.validTo) return true;
     return card.validTo > new Date();
   });
+  protected isEditing = signal(false);
 
   protected readonly refreshCardMutation = injectMutation(() =>
     this.trpc.discounts.refreshMyCard.mutationOptions({

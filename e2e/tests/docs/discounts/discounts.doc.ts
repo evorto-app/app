@@ -115,10 +115,12 @@ test.describe('Documentation: Discount provider journey — admin setup', () => 
 test.describe('Documentation: Discount provider journey — user experience', () => {
   test.use({ seedDiscounts: false, storageState: userStateFile });
 
-  test('User reviews ESN discount card states', async (
-    { clearUserCards, enableEsnProvider, page, seedVerifiedCard },
-    testInfo,
-  ) => {
+  test('User reviews ESN discount card states', async ({
+    clearUserCards,
+    enableEsnProvider,
+    page,
+    seedVerifiedCard,
+  }, testInfo) => {
     await clearUserCards();
     await enableEsnProvider();
 

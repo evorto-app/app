@@ -41,6 +41,7 @@ export default defineConfig(
         },
       ],
       'unicorn/consistent-function-scoping': 'off',
+      'unicorn/no-null': 'off',
     },
   },
   // Prevent src/ code from importing helpers (development/testing only)

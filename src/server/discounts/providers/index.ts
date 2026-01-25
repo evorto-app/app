@@ -1,9 +1,9 @@
-export type EsnCardValidationResult = {
+export interface EsnCardValidationResult {
   metadata?: unknown;
   status: 'expired' | 'invalid' | 'unverified' | 'verified';
   validFrom?: Date | null;
   validTo?: Date | null;
-};
+}
 
 export const validateEsnCard = async (identifier: string): Promise<EsnCardValidationResult> => {
   if (!identifier) return { status: 'invalid' };

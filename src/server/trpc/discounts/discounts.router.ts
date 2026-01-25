@@ -98,11 +98,11 @@ export const discountsRouter = router({
       const updated = {
         ...current,
         esnCard: {
-          enabled: input.esnCard.enabled,
           config: {
             ctaEnabled: input.esnCard.ctaEnabled,
             ctaLink: input.esnCard.ctaLink?.trim() || undefined,
           },
+          enabled: input.esnCard.enabled,
         },
       };
       await database

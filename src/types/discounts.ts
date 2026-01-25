@@ -1,13 +1,13 @@
+export interface DiscountProvidersConfig {
+  esnCard?: EsnCardProviderSettings;
+}
+
 export type DiscountProviderType = 'esnCard';
 
-export type EsnCardProviderSettings = {
-  enabled: boolean;
+export interface EsnCardProviderSettings {
   config?: {
     ctaEnabled?: boolean;
     ctaLink?: string;
   };
-};
-
-export type DiscountProvidersConfig = {
-  esnCard?: EsnCardProviderSettings;
-};
+  enabled: boolean;
+}

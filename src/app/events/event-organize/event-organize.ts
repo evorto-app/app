@@ -70,10 +70,11 @@ export class EventOrganize {
       eventId: this.eventId(),
     }),
   );
+  protected readonly organizerOverview = computed(() => this.organizerOverviewQuery.data() ?? []);
 
   protected readonly organizerTableColumns = signal(['name', 'email', 'checkin']);
   protected readonly organizerTableContent = computed(() => {
-    const overview = this.organizerOverviewQuery.data();
+    const overview = this.organizerOverview();
     if (!overview) return [];
     return overview
       .filter((registrationOption) => registrationOption.organizingRegistration)

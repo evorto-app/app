@@ -99,11 +99,6 @@ export class EventDetailsComponent {
   protected readonly myCardsQuery = injectQuery(() =>
     this.trpc.discounts.getMyCards.queryOptions(),
   );
-  protected readonly tenantQuery = injectQuery(() => this.trpc.config.tenant.queryOptions());
-  protected readonly esnProviderEnabled = computed(() => {
-    const tenant = this.tenantQuery.data();
-    return tenant?.discountProviders?.esnCard?.enabled === true;
-  });
   protected readonly cardExpiresBeforeEvent = computed(() => {
     const event = this.eventQuery.data();
     const cards = this.myCardsQuery.data();
@@ -111,12 +106,22 @@ export class EventDetailsComponent {
     if (!this.esnProviderEnabled()) return false;
     const verified = cards.filter((c) => c.status === 'verified');
     if (verified.length === 0) return false;
-    const latestValidTo = verified
-      .map((c) => c.validTo)
-      .filter((d): d is Date => !!d)
-      .sort((a, b) => b.getTime() - a.getTime())[0];
+    let latestValidTo: Date | undefined;
+    for (const entry of verified) {
+      if (!entry.validTo) {
+        continue;
+      }
+      if (!latestValidTo || entry.validTo > latestValidTo) {
+        latestValidTo = entry.validTo;
+      }
+    }
     if (!latestValidTo) return false;
     return latestValidTo <= event.start;
+  });
+  protected readonly tenantQuery = injectQuery(() => this.trpc.config.tenant.queryOptions());
+  protected readonly esnProviderEnabled = computed(() => {
+    const tenant = this.tenantQuery.data();
+    return tenant?.discountProviders?.esnCard?.enabled === true;
   });
 
   protected readonly eventIconColor = computed(() => {

@@ -3,7 +3,7 @@
 ## Guiding Principles
 
 1. **The Plan is the Source of Truth:** All work must be tracked in `plan.md`
-2. **The Tech Stack is Deliberate:** Changes to the tech stack must be documented in `tech-stack.md` *before* implementation
+2. **The Tech Stack is Deliberate:** Changes to the tech stack must be documented in `tech-stack.md` _before_ implementation
 3. **E2E + Docs First:** Prefer Playwright e2e and doc tests; unit tests only when necessary
 4. **User Experience First:** Every decision should prioritize user experience
 5. **Non-Interactive & CI-Aware:** Prefer non-interactive commands. Use `CI=true` for watch-mode tools (tests, linters) to ensure single execution
@@ -42,12 +42,12 @@ All tasks follow a strict lifecycle:
    - Perform the commit.
 
 8. **Attach Task Summary with Git Notes:**
-   - **Step 8.1: Get Commit Hash:** Obtain the hash of the *just-completed commit* (`git log -1 --format="%H"`).
+   - **Step 8.1: Get Commit Hash:** Obtain the hash of the _just-completed commit_ (`git log -1 --format="%H"`).
    - **Step 8.2: Draft Note Content:** Create a detailed summary for the completed task. Include the task name, summary of changes, list of created/modified files, and the core "why".
    - **Step 8.3: Attach Note:** Use `git notes add -m "<note content>" <commit_hash>`.
 
 9. **Get and Record Task Commit SHA:**
-   - **Step 9.1: Update Plan:** Read `plan.md`, find the line for the completed task, update its status from `[~]` to `[x]`, and append the first 7 characters of the *just-completed commit's* hash.
+   - **Step 9.1: Update Plan:** Read `plan.md`, find the line for the completed task, update its status from `[~]` to `[x]`, and append the first 7 characters of the _just-completed commit's_ hash.
    - **Step 9.2: Write Plan:** Write the updated content back to `plan.md`.
 
 10. **Commit Plan Update:**
@@ -109,12 +109,14 @@ Before marking any task complete, verify:
 ## Development Commands
 
 ### Setup
+
 ```bash
 yarn install
 yarn setup:database
 ```
 
 ### Daily Development
+
 ```bash
 yarn start
 yarn lint
@@ -124,6 +126,7 @@ yarn e2e:docs
 ```
 
 ### Before Committing
+
 ```bash
 yarn lint
 yarn build
@@ -134,11 +137,13 @@ yarn e2e:docs
 ## Testing Requirements
 
 ### E2E + Doc Testing
+
 - Prefer user-journey coverage using Playwright.
 - Doc tests must generate screenshots and text for user-facing documentation.
 - Use fixtures for setup/teardown where needed.
 
 ### Unit Testing
+
 - Only when e2e/doc tests cannot reasonably validate a logic path.
 
 ## Definition of Done

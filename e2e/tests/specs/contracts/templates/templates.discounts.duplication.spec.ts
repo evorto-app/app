@@ -2,7 +2,11 @@ import { Page } from '@playwright/test';
 import { and, eq } from 'drizzle-orm';
 
 import { addTaxRates } from '../../../../../helpers/add-tax-rates';
-import { defaultStateFile, userStateFile, usersToAuthenticate } from '../../../../../helpers/user-data';
+import {
+  defaultStateFile,
+  userStateFile,
+  usersToAuthenticate,
+} from '../../../../../helpers/user-data';
 import * as schema from '../../../../../src/db/schema';
 import { test as base, expect } from '../../../../fixtures/parallel-test';
 import { runWithStorageState } from '../../../../utils/auth-context';
@@ -45,10 +49,7 @@ const test = base.extend<{
         .update(schema.eventInstances)
         .set({ status: 'APPROVED', unlisted: false })
         .where(
-          and(
-            eq(schema.eventInstances.id, eventId),
-            eq(schema.eventInstances.tenantId, tenant.id),
-          ),
+          and(eq(schema.eventInstances.id, eventId), eq(schema.eventInstances.tenantId, tenant.id)),
         );
     });
   },
@@ -146,24 +147,26 @@ const test = base.extend<{
   },
   waitForSuccessfulRegistration: async ({ database, tenant }, use) => {
     await use(async ({ eventId, expectedAmount, userId }) => {
-      await expect.poll(
-        async () => {
-          const tx = await database.query.transactions.findFirst({
-            where: {
-              eventId,
-              status: 'successful',
-              targetUserId: userId,
-              tenantId: tenant.id,
-              type: 'registration',
-            },
-          });
-          if (!tx) {
-            return null;
-          }
-          return { amount: tx.amount, status: tx.status };
-        },
-        { timeout: 45_000 },
-      ).toEqual({ amount: expectedAmount, status: 'successful' });
+      await expect
+        .poll(
+          async () => {
+            const tx = await database.query.transactions.findFirst({
+              where: {
+                eventId,
+                status: 'successful',
+                targetUserId: userId,
+                tenantId: tenant.id,
+                type: 'registration',
+              },
+            });
+            if (!tx) {
+              return null;
+            }
+            return { amount: tx.amount, status: tx.status };
+          },
+          { timeout: 45_000 },
+        )
+        .toEqual({ amount: expectedAmount, status: 'successful' });
     });
   },
 });

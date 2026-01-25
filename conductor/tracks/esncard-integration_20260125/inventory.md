@@ -1,6 +1,7 @@
 # ESNcard Integration Inventory
 
 ## Data Model
+
 - `src/db/schema/user-discount-cards.ts`: Stores discount card records per user/tenant with `identifier`, `status`, `validFrom`, `validTo`, `metadata`, and `type` (enum includes `esnCard`).
 - `src/db/schema/tenants.ts`: `discountProviders` JSONB stores per-tenant enablement + CTA config.
 - `src/db/schema/event-registration-options.ts`: `discounts` JSONB array with `{ discountedPrice, discountType }`.
@@ -8,6 +9,7 @@
 - `src/db/schema/event-registrations.ts`: Pricing snapshot fields `appliedDiscountType`, `appliedDiscountedPrice`, `discountAmount`, `basePriceAtRegistration`.
 
 ## Server Flows
+
 - Provider validation: `src/server/discounts/providers/index.ts` calls `https://esncard.org/services/1.0/card.json?code=...` and returns `verified/expired/invalid/unverified` + `validTo`.
 - Tenant configuration:
   - `src/server/trpc/discounts/discounts.router.ts`:
@@ -28,6 +30,7 @@
   - `src/server/trpc/templates/template.router.ts` and `src/server/trpc/events/events.router.ts` accept and persist `discounts`.
 
 ## Client Flows
+
 - Admin toggle + CTA:
   - `src/app/admin/discount-settings/discount-settings.component.*` manages ESNcard enablement + CTA link.
   - `src/app/admin/general-settings/general-settings.component.*` surfaces provider overview.
@@ -44,5 +47,6 @@
 - `src/app/events/event-organize/*` does not surface discount markers.
 
 ## Data Model Adjustments
+
 - No new fields required; current schema covers card validity (`user_discount_cards.validTo`) and discount snapshots (`event_registrations.appliedDiscountType`, `appliedDiscountedPrice`, `discountAmount`).
 - No migrations identified for this phase.

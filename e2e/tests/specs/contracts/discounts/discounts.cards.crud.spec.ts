@@ -1,10 +1,7 @@
 import type { NeonDatabase } from 'drizzle-orm/neon-serverless';
 import { and, eq } from 'drizzle-orm';
 
-import {
-  userStateFile,
-  usersToAuthenticate,
-} from '../../../../../helpers/user-data';
+import { userStateFile, usersToAuthenticate } from '../../../../../helpers/user-data';
 import { relations } from '../../../../../src/db/relations';
 import * as schema from '../../../../../src/db/schema';
 import { test as base, expect } from '../../../../fixtures/parallel-test';

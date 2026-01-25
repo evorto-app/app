@@ -21,27 +21,27 @@ test.describe('Contract: discounts.setTenantProviders', () => {
       browser,
       adminStateFile,
       async (page) => {
-      await page.goto('/admin/settings/discounts', {
-        waitUntil: 'domcontentloaded',
-      });
+        await page.goto('/admin/settings/discounts', {
+          waitUntil: 'domcontentloaded',
+        });
 
-      const providerToggle = providerSwitch(page);
-      if ((await providerToggle.getAttribute('aria-checked')) !== 'true') {
-        await providerToggle.click();
-        await expect(providerToggle).toHaveAttribute('aria-checked', 'true');
-      }
+        const providerToggle = providerSwitch(page);
+        if ((await providerToggle.getAttribute('aria-checked')) !== 'true') {
+          await providerToggle.click();
+          await expect(providerToggle).toHaveAttribute('aria-checked', 'true');
+        }
 
-      const ctaToggle = ctaSwitch(page);
-      await expect(ctaToggle).toHaveCount(1);
-      if ((await ctaToggle.getAttribute('aria-checked')) === 'true') {
-        await ctaToggle.click();
-        await expect(ctaToggle).toHaveAttribute('aria-checked', 'false');
-      }
+        const ctaToggle = ctaSwitch(page);
+        await expect(ctaToggle).toHaveCount(1);
+        if ((await ctaToggle.getAttribute('aria-checked')) === 'true') {
+          await ctaToggle.click();
+          await expect(ctaToggle).toHaveAttribute('aria-checked', 'false');
+        }
 
-      await saveButton(page).click();
-      await expect(page.locator(SNACKBAR)).toContainText('Discount settings saved successfully');
-      await page.locator(SNACKBAR).waitFor({ state: 'detached' });
-    },
+        await saveButton(page).click();
+        await expect(page.locator(SNACKBAR)).toContainText('Discount settings saved successfully');
+        await page.locator(SNACKBAR).waitFor({ state: 'detached' });
+      },
       tenant.domain,
     );
 
@@ -49,11 +49,11 @@ test.describe('Contract: discounts.setTenantProviders', () => {
       browser,
       userStateFile,
       async (page) => {
-      await page.goto('/profile/discount-cards', {
-        waitUntil: 'domcontentloaded',
-      });
-      await expect(page.getByRole('link', { name: CTA_LINK_TEXT })).toHaveCount(0);
-    },
+        await page.goto('/profile/discount-cards', {
+          waitUntil: 'domcontentloaded',
+        });
+        await expect(page.getByRole('link', { name: CTA_LINK_TEXT })).toHaveCount(0);
+      },
       tenant.domain,
     );
 
@@ -61,19 +61,19 @@ test.describe('Contract: discounts.setTenantProviders', () => {
       browser,
       adminStateFile,
       async (page) => {
-      await page.goto('/admin/settings/discounts', {
-        waitUntil: 'domcontentloaded',
-      });
-      const ctaToggle = ctaSwitch(page);
-      if ((await ctaToggle.getAttribute('aria-checked')) !== 'true') {
-        await ctaToggle.click();
-        await expect(ctaToggle).toHaveAttribute('aria-checked', 'true');
-      }
-      await page.getByLabel('CTA link (Get ESNcard URL)').fill('https://example.com/esncard');
-      await saveButton(page).click();
-      await expect(page.locator(SNACKBAR)).toContainText('Discount settings saved successfully');
-      await page.locator(SNACKBAR).waitFor({ state: 'detached' });
-    },
+        await page.goto('/admin/settings/discounts', {
+          waitUntil: 'domcontentloaded',
+        });
+        const ctaToggle = ctaSwitch(page);
+        if ((await ctaToggle.getAttribute('aria-checked')) !== 'true') {
+          await ctaToggle.click();
+          await expect(ctaToggle).toHaveAttribute('aria-checked', 'true');
+        }
+        await page.getByLabel('CTA link (Get ESNcard URL)').fill('https://example.com/esncard');
+        await saveButton(page).click();
+        await expect(page.locator(SNACKBAR)).toContainText('Discount settings saved successfully');
+        await page.locator(SNACKBAR).waitFor({ state: 'detached' });
+      },
       tenant.domain,
     );
 
@@ -81,11 +81,11 @@ test.describe('Contract: discounts.setTenantProviders', () => {
       browser,
       userStateFile,
       async (page) => {
-      await page.goto('/profile/discount-cards', {
-        waitUntil: 'domcontentloaded',
-      });
-      await expect(page.getByRole('link', { name: CTA_LINK_TEXT })).toBeVisible();
-    },
+        await page.goto('/profile/discount-cards', {
+          waitUntil: 'domcontentloaded',
+        });
+        await expect(page.getByRole('link', { name: CTA_LINK_TEXT })).toBeVisible();
+      },
       tenant.domain,
     );
   });

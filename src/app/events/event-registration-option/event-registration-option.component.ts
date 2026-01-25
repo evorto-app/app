@@ -25,6 +25,7 @@ import { injectTRPC } from '../../core/trpc-client';
   templateUrl: './event-registration-option.component.html',
 })
 export class EventRegistrationOptionComponent {
+  public readonly eventStart = input<Date | null>();
   public readonly registrationOption = input.required<{
     closeRegistrationTime: Date;
     description: null | string;
@@ -36,21 +37,20 @@ export class EventRegistrationOptionComponent {
     price: number;
     title: string;
   }>();
-  public readonly eventStart = input<Date | null>();
   private trpc = injectTRPC();
   protected readonly authenticationQuery = injectQuery(() =>
     this.trpc.config.isAuthenticated.queryOptions(),
   );
   protected readonly tenantQuery = injectQuery(() => this.trpc.config.tenant.queryOptions());
-  protected readonly userCardsQuery = injectQuery(() =>
-    this.trpc.discounts.getMyCards.queryOptions(),
-  );
   protected readonly enabledProviderSet = computed(() => {
     const tenant = this.tenantQuery.data();
     const providers = tenant?.discountProviders ?? {};
     const enabledProviders = Object.entries(providers).filter(([, provider]) => provider?.enabled);
     return new Set(enabledProviders.map(([key]) => key as 'esnCard'));
   });
+  protected readonly userCardsQuery = injectQuery(() =>
+    this.trpc.discounts.getMyCards.queryOptions(),
+  );
   protected readonly availableDiscounts = computed(() => {
     const option = this.registrationOption();
     const userCards = this.userCardsQuery.data() ?? [];
@@ -134,9 +134,13 @@ export class EventRegistrationOptionComponent {
     }
 
     // Return the lowest priced discount (best deal)
-    return eligibleDiscounts.reduce((best, current) =>
-      current.discountedPrice < best.discountedPrice ? current : best,
-    );
+    let bestDiscount: (typeof eligibleDiscounts)[number] | null = null;
+    for (const discount of eligibleDiscounts) {
+      if (!bestDiscount || discount.discountedPrice < bestDiscount.discountedPrice) {
+        bestDiscount = discount;
+      }
+    }
+    return bestDiscount;
   });
 
   protected readonly discountInfo = computed(() => {
@@ -168,12 +172,12 @@ export class EventRegistrationOptionComponent {
     };
   });
 
+  protected readonly hasEnabledDiscounts = computed(() => this.availableDiscounts().length > 0);
   protected readonly hasManageableDiscounts = computed(() => {
     return this.availableDiscounts().some(
       (d) => d.status === 'no_card' || d.status === 'invalid_card',
     );
   });
-  protected readonly hasEnabledDiscounts = computed(() => this.availableDiscounts().length > 0);
 
   private queryClient = inject(QueryClient);
   protected readonly registrationMutation = injectMutation(() =>

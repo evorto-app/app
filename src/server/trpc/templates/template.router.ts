@@ -10,9 +10,9 @@ import {
   eventTemplates,
   templateRegistrationOptions,
 } from '../../../db/schema';
-import { validateDiscountConfiguration } from '../../utils/validate-discounts';
 import { computeIconSourceColor } from '../../utils/icon-color';
 import { createLogContext, TaxRateLogger } from '../../utils/tax-rate-logging';
+import { validateDiscountConfiguration } from '../../utils/validate-discounts';
 import { validateTaxRate } from '../../utils/validate-tax-rate';
 import { authenticatedProcedure, router } from '../trpc-server';
 
@@ -360,8 +360,7 @@ export const templateRouter = router({
           'discounts',
         );
         const organizerDiscounts =
-          input.organizerRegistration.discounts &&
-          input.organizerRegistration.discounts.length > 0
+          input.organizerRegistration.discounts && input.organizerRegistration.discounts.length > 0
             ? input.organizerRegistration.discounts.map((discount) => ({ ...discount }))
             : null;
         const organizerUpdate = {
@@ -373,9 +372,7 @@ export const templateRouter = router({
           roleIds: input.organizerRegistration.roleIds,
           spots: input.organizerRegistration.spots,
           stripeTaxRateId: input.organizerRegistration.stripeTaxRateId ?? null,
-          ...(organizerHasDiscounts
-            ? { discounts: organizerDiscounts }
-            : {}),
+          ...(organizerHasDiscounts ? { discounts: organizerDiscounts } : {}),
         };
 
         await tx
@@ -407,9 +404,7 @@ export const templateRouter = router({
           roleIds: input.participantRegistration.roleIds,
           spots: input.participantRegistration.spots,
           stripeTaxRateId: input.participantRegistration.stripeTaxRateId ?? null,
-          ...(participantHasDiscounts
-            ? { discounts: participantDiscounts }
-            : {}),
+          ...(participantHasDiscounts ? { discounts: participantDiscounts } : {}),
         };
 
         await tx

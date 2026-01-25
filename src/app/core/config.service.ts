@@ -56,7 +56,7 @@ export class ConfigService {
 
   private readonly platformId = inject(PLATFORM_ID);
 
-  // eslint-disable-next-line unicorn/no-null
+   
   private renderer = inject(RendererFactory2).createRenderer(null, null);
   private readonly requestContext = inject(REQUEST_CONTEXT) as Context | null;
 

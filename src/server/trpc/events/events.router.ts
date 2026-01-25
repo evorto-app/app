@@ -126,7 +126,7 @@ export const eventRouter = router({
         templateOptions.map((option) => [key(option.title, option.organizingRegistration), option]),
       );
 
-      const createdOptions = await database
+      await database
         .insert(schema.eventRegistrationOptions)
         .values(
           input.registrationOptions.map((option) => {
@@ -183,9 +183,7 @@ export const eventRouter = router({
           where: { defaultUserRole: true, tenantId: ctx.tenant.id },
         })
         .then((roles) => roles.map((role) => role.id));
-      const rolesToFilterBy = Array.from(
-        ctx.user?.roleIds && ctx.user.roleIds.length > 0 ? ctx.user.roleIds : fallbackRoles,
-      );
+      const rolesToFilterBy = [...ctx.user?.roleIds && ctx.user.roleIds.length > 0 ? ctx.user.roleIds : fallbackRoles];
       const event = await database.query.eventInstances.findFirst({
         where: { id: input.id, tenantId: ctx.tenant.id },
         with: {
@@ -268,38 +266,50 @@ export const eventRouter = router({
       const groupedRegistrations = groupBy(registrations, (reg) => reg.registrationOptionId);
 
       // Sort registration options: organizing first, then by title
-      const sortedOptions = Object.entries(groupedRegistrations).sort(([, regsA], [, regsB]) => {
-        // First sort by organizing registration (true first)
-        if (regsA[0].organizingRegistration !== regsB[0].organizingRegistration) {
-          return regsB[0].organizingRegistration ? 1 : -1;
+      const sortByComparator = <T>(items: T[], compare: (a: T, b: T) => number) => {
+        const sorted: T[] = [];
+        for (const item of items) {
+          let index = 0;
+          while (index < sorted.length && compare(sorted[index], item) <= 0) {
+            index += 1;
+          }
+          sorted.splice(index, 0, item);
         }
-        // Then sort by title
-        return regsA[0].registrationOptionTitle.localeCompare(regsB[0].registrationOptionTitle);
-      });
+        return sorted;
+      };
+      const sortedOptions = sortByComparator(
+        Object.entries(groupedRegistrations),
+        ([, regsA], [, regsB]) => {
+          // First sort by organizing registration (true first)
+          if (regsA[0].organizingRegistration !== regsB[0].organizingRegistration) {
+            return regsB[0].organizingRegistration ? 1 : -1;
+          }
+          // Then sort by title
+          return regsA[0].registrationOptionTitle.localeCompare(regsB[0].registrationOptionTitle);
+        },
+      );
 
       return sortedOptions.map(([optionId, regs]) => {
         // Sort users within each option: not checked in first, then by name
-        const sortedUsers = regs
-          .sort((a, b) => {
-            // First: not checked in users first (checkInTime === null)
-            if ((a.checkInTime === null) !== (b.checkInTime === null)) {
-              return a.checkInTime === null ? -1 : 1;
-            }
-            // Then by first name
-            const firstNameCompare = a.userFirstName.localeCompare(b.userFirstName);
-            if (firstNameCompare !== 0) return firstNameCompare;
-            // Finally by last name
-            return a.userLastName.localeCompare(b.userLastName);
-          })
-          .map((reg) => ({
-            appliedDiscountType: reg.appliedDiscountType,
-            checkedIn: reg.checkInTime !== null,
-            checkInTime: reg.checkInTime,
-            email: reg.userEmail,
-            firstName: reg.userFirstName,
-            lastName: reg.userLastName,
-            userId: reg.userId,
-          }));
+        const sortedUsers = sortByComparator(regs, (a, b) => {
+          // First: not checked in users first (checkInTime === null)
+          if ((a.checkInTime === null) !== (b.checkInTime === null)) {
+            return a.checkInTime === null ? -1 : 1;
+          }
+          // Then by first name
+          const firstNameCompare = a.userFirstName.localeCompare(b.userFirstName);
+          if (firstNameCompare !== 0) return firstNameCompare;
+          // Finally by last name
+          return a.userLastName.localeCompare(b.userLastName);
+        }).map((reg) => ({
+          appliedDiscountType: reg.appliedDiscountType,
+          checkedIn: reg.checkInTime !== null,
+          checkInTime: reg.checkInTime,
+          email: reg.userEmail,
+          firstName: reg.userFirstName,
+          lastName: reg.userLastName,
+          userId: reg.userId,
+        }));
 
         return {
           organizingRegistration: regs[0].organizingRegistration,
@@ -347,22 +357,24 @@ export const eventRouter = router({
 
       return {
         isRegistered: registrations.length > 0,
-        registrations: registrations.map((reg) => ({
-          checkoutUrl: reg.transactions.find(
-            (transaction) => transaction.method === 'stripe' && transaction.type === 'registration',
-          )?.stripeCheckoutUrl,
-          id: reg.id,
-          paymentPending: reg.transactions.some(
-            (transaction) =>
-              transaction.status === 'pending' && transaction.type === 'registration',
-          ),
-          // TODO: Fix once drizzle fixes this type
-          registeredDescription: reg.registrationOption!.registeredDescription,
-          registrationOptionId: reg.registrationOptionId,
-          // TODO: Fix once drizzle fixes this type
-          registrationOptionTitle: reg.registrationOption!.title,
-          status: reg.status,
-        })),
+        registrations: registrations.map((reg) => {
+          const registrationOption = reg.registrationOption;
+          return {
+            checkoutUrl: reg.transactions.find(
+              (transaction) =>
+                transaction.method === 'stripe' && transaction.type === 'registration',
+            )?.stripeCheckoutUrl,
+            id: reg.id,
+            paymentPending: reg.transactions.some(
+              (transaction) =>
+                transaction.status === 'pending' && transaction.type === 'registration',
+            ),
+            registeredDescription: registrationOption?.registeredDescription ?? '',
+            registrationOptionId: reg.registrationOptionId,
+            registrationOptionTitle: registrationOption?.title ?? '',
+            status: reg.status,
+          };
+        }),
       };
     }),
 
@@ -479,7 +491,7 @@ export const eventRouter = router({
         });
       }
       return await database.transaction(async (tx) => {
-        const updatedEvent = (
+        const [updatedEvent] = 
           await tx
             .update(schema.eventInstances)
             .set({
@@ -497,7 +509,7 @@ export const eventRouter = router({
               ),
             )
             .returning()
-        )[0];
+        ;
 
         const updates = input.registrationOptions ?? [];
         if (updates.length > 0) {
