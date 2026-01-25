@@ -17,11 +17,11 @@
 - [x] Task: Validate ESNcard on profile save and persist expiry (ade941d)
 - [x] Task: Expose ESNcard pricing for event editors (RPC + schema) (c17c993)
 - [x] Task: Resolve lowest price at registration and mark ESNcard usage (d24ccd8)
-- [~] Task: Expose discount marker to scanning/organizer views
-- [ ] Task: Conductor - User Manual Verification 'Phase 2' (Protocol in workflow.md)
+- [x] Task: Expose discount marker to scanning/organizer views (8c94c57)
+- [ ] Task: Conductor - User Manual Verification 'Phase 2' (Protocol in workflow.md) (deferred to Phase 4 per user)
 
 ## Phase 3: UI & User Flows
-- [ ] Task: Event editor UI for ESNcard-specific prices (feature-enabled only)
+- [~] Task: Event editor UI for ESNcard-specific prices (feature-enabled only)
 - [ ] Task: Profile UI to add ESNcard number + conditional “Buy ESNcard” CTA
 - [ ] Task: Registration UI shows lowest price + discount notice when applied
 - [ ] Task: Scanning UI indicates ESNcard-discounted registration
