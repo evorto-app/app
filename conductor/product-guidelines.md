@@ -27,3 +27,5 @@
 - Favor clear, predictable UX with minimal cognitive load.
 - Use progressive disclosure for complex workflows.
 - Follow Material Design guidelines for UI patterns, layout, and motion.
+- For non-admin pages, prioritize mobile UX with an acceptable desktop version; desktop-only pages are allowed only for data-heavy, limited-access sections.
+- Ensure every feature is reachable through a click path; nothing should require typing a full URL to discover.
