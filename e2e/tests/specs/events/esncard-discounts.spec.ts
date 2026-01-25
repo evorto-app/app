@@ -51,7 +51,7 @@ test('applies ESNcard pricing when card is valid', async ({ database, events, pa
 
   await page.goto(`/events/${discountedEvent.id}`);
   await expect(page.getByText("You're getting")).toBeVisible();
-  await expect(page.getByText('ESNcard')).toBeVisible();
+  await expect(page.getByText('ESNcard', { exact: true })).toBeVisible();
 });
 
 test('does not apply ESNcard pricing when card is expired', async ({
