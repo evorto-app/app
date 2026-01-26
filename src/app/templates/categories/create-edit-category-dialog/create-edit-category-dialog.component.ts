@@ -1,11 +1,12 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
-import { FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
+import { NonNullableFormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import {
   MAT_DIALOG_DATA,
   MatDialogActions,
   MatDialogClose,
   MatDialogContent,
+  MatDialogRef,
   MatDialogTitle,
 } from '@angular/material/dialog';
 import { MatInputModule } from '@angular/material/input';
@@ -26,14 +27,16 @@ import { MatInputModule } from '@angular/material/input';
   templateUrl: './create-edit-category-dialog.component.html',
 })
 export class CreateEditCategoryDialogComponent {
-  protected readonly categoryForm = new FormGroup({
-    icon: new FormControl('icon'),
-    title: new FormControl(''),
+  private readonly formBuilder = inject(NonNullableFormBuilder);
+  private readonly dialogRef = inject(MatDialogRef<CreateEditCategoryDialogComponent>);
+  protected readonly categoryForm = this.formBuilder.group({
+    icon: this.formBuilder.control({ iconColor: 0, iconName: 'ticket--v1' }),
+    title: this.formBuilder.control(''),
   });
   protected readonly data = inject(MAT_DIALOG_DATA) as
     | {
         category: {
-          icon: string;
+          icon: { iconColor: number; iconName: string };
           id: string;
           title: string;
         };
@@ -50,5 +53,9 @@ export class CreateEditCategoryDialogComponent {
         title: this.data.category.title,
       });
     }
+  }
+
+  protected saveCategory() {
+    this.dialogRef.close(this.categoryForm.getRawValue());
   }
 }

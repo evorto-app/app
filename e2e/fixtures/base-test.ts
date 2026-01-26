@@ -9,6 +9,8 @@ import { relations } from '../../src/db/relations';
 
 const dedupeLength = 4;
 const createDedupeId = init({ length: dedupeLength });
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
 
 const auth0 = new ManagementClient({
   clientId: process.env['AUTH0_MANAGEMENT_CLIENT_ID']!,
@@ -51,8 +53,27 @@ export const test = base.extend<BaseFixtures>({
         localTest: true,
       },
     });
+    const directId = isRecord(user) ? user['user_id'] : undefined;
+    const data = isRecord(user) ? user['data'] : undefined;
+    const dataId = isRecord(data) ? data['user_id'] : undefined;
+    const userId =
+      typeof directId === 'string'
+        ? directId
+        : directId instanceof String
+          ? directId.toString()
+          : typeof dataId === 'string'
+            ? dataId
+            : dataId instanceof String
+              ? dataId.toString()
+              : undefined;
     await use({ email, firstName, lastName, password });
-    await auth0.users.delete({ id: user.data.user_id });
+    if (typeof userId === 'string' && userId.includes('|')) {
+      try {
+        await auth0.users.delete({ id: userId });
+      } catch (error) {
+        console.warn('Auth0 cleanup failed for test user:', error);
+      }
+    }
   },
   page: async ({ page }, use) => {
     page.on('pageerror', (error) => {

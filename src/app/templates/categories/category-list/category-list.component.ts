@@ -37,13 +37,38 @@ export class CategoryListComponent {
     this.trpc.templateCategories.update.mutationOptions(),
   );
 
+  private normalizeIcon(icon: unknown): { iconColor: number; iconName: string } {
+    if (
+      typeof icon === 'object' &&
+      icon !== null &&
+      'iconColor' in icon &&
+      'iconName' in icon
+    ) {
+      const candidate = icon as { iconColor: number; iconName: string };
+      if (candidate.iconName.trim().length > 0) {
+        return candidate;
+      }
+    }
+    if (typeof icon === 'string' && icon.trim().length > 0) {
+      return { iconColor: 0, iconName: icon };
+    }
+    return { iconColor: 0, iconName: 'ticket--v1' };
+  }
+
   async openCategoryCreationDialog() {
     const dialogReference = this.dialog.open(CreateEditCategoryDialogComponent, {
       data: { mode: 'create' },
     });
     const result = await firstValueFrom(dialogReference.afterClosed());
     if (result) {
-      await this.createCategoryMutation.mutateAsync(result);
+      const title = result.title?.trim();
+      if (!title) {
+        return;
+      }
+      await this.createCategoryMutation.mutateAsync({
+        title,
+        icon: this.normalizeIcon(result.icon),
+      });
       await this.queryClient.invalidateQueries({
         queryKey: this.trpc.templateCategories.findMany.pathKey(),
       });
@@ -53,15 +78,23 @@ export class CategoryListComponent {
     }
   }
 
-  async openCategoryEditDialog(category: { id: string; title: string }) {
+  async openCategoryEditDialog(category: {
+    icon: { iconColor: number; iconName: string };
+    id: string;
+    title: string;
+  }) {
     const dialogReference = this.dialog.open(CreateEditCategoryDialogComponent, {
       data: { category, mode: 'edit' },
     });
     const result = await firstValueFrom(dialogReference.afterClosed());
     if (result) {
+      const title = result.title?.trim();
+      if (!title) {
+        return;
+      }
       await this.updateCategoryMutation.mutateAsync({
         id: category.id,
-        ...result,
+        title,
       });
       await this.queryClient.invalidateQueries({
         queryKey: this.trpc.templateCategories.findMany.pathKey(),

@@ -20,7 +20,7 @@ Inclusive (VAT-style) tax rates are configured under **Admin → Tax Rates**. St
 `,
     });
 
-    await page.getByRole('link', { name: 'Admin' }).click();
+    await page.getByRole('link', { name: 'Global Settings' }).click();
     await expect(page.getByRole('heading', { name: /Admin settings/i })).toBeVisible();
 
     await testInfo.attach('markdown', {

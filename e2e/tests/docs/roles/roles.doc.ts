@@ -23,7 +23,8 @@ You can also use roles to group users, for example to make some events only avai
 Start by navigating to the **User roles** page under **Admin tools**. Here you can see an overview of the existing roles.
 Click on _Create role_ to create a new role.`,
   });
-  await page.getByRole('link', { name: 'Admin Tools' }).click();
+  await page.goto('/admin');
+  await expect(page.getByRole('heading', { name: /Admin settings/i })).toBeVisible();
   await page.getByRole('link', { name: 'User roles' }).click();
   await takeScreenshot(testInfo, page.getByRole('link', { name: 'Create role' }), page);
   await page.getByRole('link', { name: 'Create role' }).click();

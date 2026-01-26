@@ -11,17 +11,24 @@ export const templateCategoryRouter = router({
     .input(
       Schema.standardSchemaV1(
         Schema.Struct({
-          icon: Schema.Struct({
-            iconColor: Schema.Number,
-            iconName: Schema.NonEmptyString,
-          }),
+          icon: Schema.Union(
+            Schema.Struct({
+              iconColor: Schema.Number,
+              iconName: Schema.NonEmptyString,
+            }),
+            Schema.NonEmptyString,
+          ),
           title: Schema.NonEmptyString,
         }),
       ),
     )
     .mutation(async ({ ctx, input }) => {
+      const icon =
+        typeof input.icon === 'string'
+          ? { iconColor: 0, iconName: input.icon }
+          : input.icon;
       return await database.insert(eventTemplateCategories).values({
-        icon: input.icon,
+        icon,
         tenantId: ctx.tenant.id,
         title: input.title,
       });

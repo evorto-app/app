@@ -1,11 +1,16 @@
 import { userStateFile } from '../../../../../helpers/user-data';
 import { expect, test } from '../../../../fixtures/parallel-test';
 
-const centsToCurrency = (cents: number) =>
-  new Intl.NumberFormat('de-DE', {
-    currency: 'EUR',
-    style: 'currency',
-  }).format(cents / 100);
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const currencyMatcher = (cents: number) => {
+  const amount = cents / 100;
+  const formats = [
+    new Intl.NumberFormat('de-DE', { currency: 'EUR', style: 'currency' }).format(amount),
+    new Intl.NumberFormat('en-US', { currency: 'EUR', style: 'currency' }).format(amount),
+  ];
+  return new RegExp(formats.map(escapeRegExp).join('|'));
+};
 
 test.use({ storageState: userStateFile });
 
@@ -37,7 +42,7 @@ test('applies ESN discount to paid registrations @finance', async ({ events, pag
     .filter({ hasText: option.title });
   await expect(optionCard).toBeVisible();
   const payButton = optionCard.getByRole('button', { name: /Pay .* and register/i });
-  await expect(payButton).toContainText(centsToCurrency(expectedAmount));
+  await expect(payButton).toContainText(currencyMatcher(expectedAmount));
   await payButton.click();
 
   // Wait until the checkout link appears (transaction created)

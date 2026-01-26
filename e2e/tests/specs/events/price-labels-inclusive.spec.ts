@@ -1,15 +1,26 @@
-import { defaultStateFile } from '../../../../helpers/user-data';
+import { defaultStateFile, usersToAuthenticate } from '../../../../helpers/user-data';
 import { expect, test } from '../../../fixtures/parallel-test';
 
 test.use({ storageState: defaultStateFile });
 
 test.describe('Inclusive Price Labels', () => {
+  const defaultUser = usersToAuthenticate.find((user) => user.stateFile === defaultStateFile);
+
   test('paid prices display inclusive tax labels @events @taxRates @priceLabels', async ({
     page,
     events,
+    registrations,
   }) => {
     // Find an event with paid registration options
-    const paidEvent = events.find((e) => e.registrationOptions.some((o) => o.isPaid));
+    const registeredEventIds = new Set(
+      registrations
+        .filter((registration) => registration.userId === defaultUser?.id)
+        .map((registration) => registration.eventId),
+    );
+    const paidEvent = events.find(
+      (event) =>
+        !registeredEventIds.has(event.id) && event.registrationOptions.some((o) => o.isPaid),
+    );
 
     if (!paidEvent) {
       test.skip('No paid events available for testing');
@@ -24,6 +35,9 @@ test.describe('Inclusive Price Labels', () => {
     // Find and click on the paid event
     await page.getByRole('link', { name: paidEvent.title }).click();
     await expect(page).toHaveURL(`/events/${paidEvent.id}`);
+    await expect(
+      page.getByRole('heading', { level: 1, name: paidEvent.title, exact: true }),
+    ).toBeVisible();
 
     // Check that paid registration options show inclusive tax labels
     // Format should be "Incl. <percentage>% <name>" next to price
@@ -33,7 +47,7 @@ test.describe('Inclusive Price Labels', () => {
 
     for (const option of paidOptions) {
       // Look for the registration option and its price label
-      const optionLocator = page.getByText(option.title);
+      const optionLocator = page.getByRole('heading', { level: 3, name: option.title });
       await expect(optionLocator).toBeVisible();
 
       // TODO: Verify inclusive tax label is displayed
@@ -42,15 +56,26 @@ test.describe('Inclusive Price Labels', () => {
     }
 
     // Placeholder assertion - will be updated when inclusive labels are implemented
-    await expect(page.getByRole('heading', { name: paidEvent.title })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { level: 1, name: paidEvent.title, exact: true }),
+    ).toBeVisible();
   });
 
   test('free prices do not show tax labels @events @taxRates @priceLabels', async ({
     page,
     events,
+    registrations,
   }) => {
     // Find an event with free registration options
-    const eventWithFreeOptions = events.find((e) => e.registrationOptions.some((o) => !o.isPaid));
+    const registeredEventIds = new Set(
+      registrations
+        .filter((registration) => registration.userId === defaultUser?.id)
+        .map((registration) => registration.eventId),
+    );
+    const eventWithFreeOptions = events.find(
+      (event) =>
+        !registeredEventIds.has(event.id) && event.registrationOptions.some((o) => !o.isPaid),
+    );
 
     if (!eventWithFreeOptions) {
       test.skip('No events with free options available for testing');
@@ -60,11 +85,14 @@ test.describe('Inclusive Price Labels', () => {
 
     await page.getByRole('link', { name: 'Events' }).click();
     await page.getByRole('link', { name: eventWithFreeOptions.title }).click();
+    await expect(
+      page.getByRole('heading', { level: 1, name: eventWithFreeOptions.title, exact: true }),
+    ).toBeVisible();
 
     const freeOptions = eventWithFreeOptions.registrationOptions.filter((o) => !o.isPaid);
 
     for (const option of freeOptions) {
-      const optionLocator = page.getByText(option.title);
+      const optionLocator = page.getByRole('heading', { level: 3, name: option.title });
       await expect(optionLocator).toBeVisible();
 
       // TODO: Verify that free options do NOT show tax labels
@@ -72,7 +100,9 @@ test.describe('Inclusive Price Labels', () => {
     }
 
     // Placeholder assertion
-    await expect(page.getByRole('heading', { name: eventWithFreeOptions.title })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { level: 1, name: eventWithFreeOptions.title, exact: true }),
+    ).toBeVisible();
   });
 
   test('zero percent tax rate shows "Tax free" label @events @taxRates @priceLabels', async ({
@@ -90,16 +120,25 @@ test.describe('Inclusive Price Labels', () => {
     await page.getByRole('link', { name: 'Events' }).click();
 
     // Placeholder assertion - will be updated when 0% rate handling is implemented
-    await expect(page.getByRole('heading', { name: 'Events' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'Events' })).toBeVisible();
   });
 
   test('fallback label shown when tax rate unavailable @events @taxRates @priceLabels', async ({
     page,
     events,
+    registrations,
   }) => {
     // This test validates FR-017: fallback "Incl. Tax" when rate details unavailable
 
-    const paidEvent = events.find((e) => e.registrationOptions.some((o) => o.isPaid));
+    const registeredEventIds = new Set(
+      registrations
+        .filter((registration) => registration.userId === defaultUser?.id)
+        .map((registration) => registration.eventId),
+    );
+    const paidEvent = events.find(
+      (event) =>
+        !registeredEventIds.has(event.id) && event.registrationOptions.some((o) => o.isPaid),
+    );
 
     if (!paidEvent) {
       test.skip('No paid events available for testing');
@@ -108,23 +147,39 @@ test.describe('Inclusive Price Labels', () => {
     await page.goto('.');
 
     await page.getByRole('link', { name: 'Events' }).click();
+    await expect(page.getByRole('heading', { level: 1, name: 'Events' })).toBeVisible();
     await page.getByRole('link', { name: paidEvent.title }).click();
+    await expect(page).toHaveURL(`/events/${paidEvent.id}`);
+    await expect(
+      page.getByRole('heading', { level: 1, name: paidEvent.title, exact: true }),
+    ).toBeVisible();
 
     // TODO: Simulate scenario where tax rate details cannot be resolved
     // Should show generic "Incl. Tax" label instead of specific percentage/name
     // This might require mocking or setting up specific test data
 
     // For now, just verify the event loads
-    await expect(page.getByRole('heading', { name: paidEvent.title })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { level: 1, name: paidEvent.title, exact: true }),
+    ).toBeVisible();
   });
 
   test('price labels consistent across all pages @events @taxRates @priceLabels', async ({
     page,
     events,
+    registrations,
   }) => {
     // This test validates FR-011: consistent labeling across listings, detail pages, carts, checkout
 
-    const paidEvent = events.find((e) => e.registrationOptions.some((o) => o.isPaid));
+    const registeredEventIds = new Set(
+      registrations
+        .filter((registration) => registration.userId === defaultUser?.id)
+        .map((registration) => registration.eventId),
+    );
+    const paidEvent = events.find(
+      (event) =>
+        !registeredEventIds.has(event.id) && event.registrationOptions.some((o) => o.isPaid),
+    );
 
     if (!paidEvent) {
       test.skip('No paid events available for testing');
@@ -134,26 +189,41 @@ test.describe('Inclusive Price Labels', () => {
 
     // Check event listing page
     await page.getByRole('link', { name: 'Events' }).click();
+    await expect(page.getByRole('heading', { level: 1, name: 'Events' })).toBeVisible();
     // TODO: Verify price labels are shown in event cards/list items
 
     // Check event detail page
     await page.getByRole('link', { name: paidEvent.title }).click();
+    await expect(
+      page.getByRole('heading', { level: 1, name: paidEvent.title, exact: true }),
+    ).toBeVisible();
     // TODO: Verify same price labels are shown in detail view
 
     // TODO: Check cart/checkout pages when implementing registration flow
     // Should show consistent "Incl. X% Y" format throughout
 
     // Placeholder assertion
-    await expect(page.getByRole('heading', { name: paidEvent.title })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { level: 1, name: paidEvent.title, exact: true }),
+    ).toBeVisible();
   });
 
   test('discounted prices maintain inclusive tax labels @events @taxRates @priceLabels', async ({
     page,
     events,
+    registrations,
   }) => {
     // This test validates FR-014: discounts reduce final price while retaining original tax label
 
-    const paidEvent = events.find((e) => e.registrationOptions.some((o) => o.isPaid));
+    const registeredEventIds = new Set(
+      registrations
+        .filter((registration) => registration.userId === defaultUser?.id)
+        .map((registration) => registration.eventId),
+    );
+    const paidEvent = events.find(
+      (event) =>
+        !registeredEventIds.has(event.id) && event.registrationOptions.some((o) => o.isPaid),
+    );
 
     if (!paidEvent) {
       test.skip('No paid events available for testing');
@@ -163,6 +233,9 @@ test.describe('Inclusive Price Labels', () => {
 
     await page.getByRole('link', { name: 'Events' }).click();
     await page.getByRole('link', { name: paidEvent.title }).click();
+    await expect(
+      page.getByRole('heading', { level: 1, name: paidEvent.title, exact: true }),
+    ).toBeVisible();
 
     // TODO: Apply a discount code and verify:
     // - Reduced price is shown
@@ -171,7 +244,9 @@ test.describe('Inclusive Price Labels', () => {
 
     // This requires discount functionality to be available
     // For now, placeholder assertion
-    await expect(page.getByRole('heading', { name: paidEvent.title })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { level: 1, name: paidEvent.title, exact: true }),
+    ).toBeVisible();
   });
 
   test('template detail view shows inclusive labels for paid options @templates @taxRates @priceLabels', async ({
@@ -184,6 +259,9 @@ test.describe('Inclusive Price Labels', () => {
 
     await page.getByRole('link', { name: 'Templates' }).click();
     await expect(page).toHaveURL(/\/templates/);
+    await expect(
+      page.getByRole('heading', { level: 1, name: /event templates/i }),
+    ).toBeVisible();
 
     // Find a template (assuming templates have registration options)
     const template = templates[0];
@@ -194,6 +272,8 @@ test.describe('Inclusive Price Labels', () => {
     // Format should be consistent with event pages
 
     // Placeholder assertion
-    await expect(page.getByRole('heading', { name: template.title })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { level: 1, name: template.title, exact: true }),
+    ).toBeVisible();
   });
 });

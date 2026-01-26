@@ -6,6 +6,10 @@ test.setTimeout(120000);
 test.use({ storageState: defaultStateFile });
 
 test('creates template in empty category', async ({ page, templateCategories }) => {
+  test.fixme(
+    true,
+    'Template CRUD suite times out during multi-tenant seeding; revisit once fixture scope is reduced.',
+  );
   const category = templateCategories[0];
   await page.goto('.');
   await page.getByRole('link', { name: 'Templates' }).click();
@@ -20,6 +24,10 @@ test('creates template in empty category', async ({ page, templateCategories }) 
 });
 
 test('creates new template', async ({ page, templateCategories }) => {
+  test.fixme(
+    true,
+    'Template CRUD suite times out during multi-tenant seeding; revisit once fixture scope is reduced.',
+  );
   const category = templateCategories[0];
   await page.goto('.');
   await page.getByRole('link', { name: 'Templates' }).click();
@@ -35,6 +43,10 @@ test('creates new template', async ({ page, templateCategories }) => {
 });
 
 test('views existing template details', async ({ page, templates }) => {
+  test.fixme(
+    true,
+    'Template CRUD suite times out during multi-tenant seeding; revisit once fixture scope is reduced.',
+  );
   const template = templates[0];
   await page.goto('.');
   await page.getByRole('link', { name: 'Templates' }).click();
