@@ -18,6 +18,7 @@ import { addTemplateCategories } from './add-template-categories';
 import { addTemplates } from './add-templates';
 import { createTenant } from './create-tenant';
 import { resetDatabaseSchema } from './reset-db';
+import { getSeedContext } from './seed-context';
 import { usersToAuthenticate } from './user-data';
 
 export type Database = NeonDatabase<Record<string, never>, typeof relations>;
@@ -29,6 +30,8 @@ export async function setupDatabase(
   > = databaseClient as unknown as NeonDatabase<Record<string, never>, typeof relations>,
   onlyDevelopmentTenants = false,
 ) {
+  const { baseDate, seed } = getSeedContext();
+  consola.info(`Seeding database with seed "${seed}"`);
   consola.start('Reset database schema');
   const resetStart = Date.now();
   await resetDatabaseSchema(database, schema);
@@ -110,7 +113,7 @@ export async function setupDatabase(
       developmentTenant,
     );
     await addDiscountProviders(database, developmentTenant.id);
-    await addDiscountCards(database, developmentTenant.id);
+    await addDiscountCards(database, developmentTenant.id, baseDate);
     const exampleUsersStart = Date.now();
     await addExampleUsers(database, roles, developmentTenant);
     consola.success(`Example users added in ${Date.now() - exampleUsersStart}ms`);
@@ -119,10 +122,10 @@ export async function setupDatabase(
     const templates = await addTemplates(database, categories, roles);
     consola.info(`Inserted ${templates.length} templates`);
     const eventsStart = Date.now();
-    const events = await addEvents(database, templates, roles);
+    const events = await addEvents(database, templates, roles, { baseDate });
     consola.success(`Inserted ${events.length} events in ${Date.now() - eventsStart}ms`);
     const regsStart = Date.now();
-    await addRegistrations(database, events);
+    await addRegistrations(database, events, { baseDate });
     consola.success(`Registrations seeded in ${Date.now() - regsStart}ms`);
     consola.success(`Tenant ${tenant.domain} ready in ${Date.now() - tenantStart}ms`);
   }

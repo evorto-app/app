@@ -1,5 +1,6 @@
 import { randChanceBoolean, randFloat, randNumber } from '@ngneat/falso';
 import consola from 'consola';
+import { DateTime } from 'luxon';
 /**
  * Registration Helper
  *
@@ -44,6 +45,10 @@ export interface EventRegistrationInput {
   title?: string;
 }
 
+export interface RegistrationSeedOptions {
+  baseDate?: DateTime;
+}
+
 /**
  * Adds realistic event registrations to the database.
  *
@@ -61,7 +66,9 @@ export interface EventRegistrationInput {
 export async function addRegistrations(
   database: NeonDatabase<Record<string, never>, typeof relations>,
   events: EventRegistrationInput[],
+  options: RegistrationSeedOptions = {},
 ) {
+  const baseDate = options.baseDate ?? DateTime.now().startOf('day');
   // Query all users with their tenant relationships and roles
   const usersRaw = await database.query.users.findMany({
     with: {
@@ -155,11 +162,9 @@ export async function addRegistrations(
     }
 
     // Determine event popularity and registration patterns
-    const eventDate = new Date(event.start);
-    const now = new Date();
-    const isPastEvent = eventDate < now;
-    const isUpcomingEvent =
-      eventDate > now && eventDate < new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const eventDate = DateTime.fromJSDate(new Date(event.start)).startOf('day');
+    const now = baseDate;
+    const isPastEvent = eventDate.toMillis() < now.toMillis();
 
     // Create varied registration patterns based on event type and timing
     let fillPercentage = 0.7; // Default 70%

@@ -7,11 +7,14 @@ import { addRoles, addUsersToRoles } from '../../helpers/add-roles';
 import { addTemplateCategories } from '../../helpers/add-template-categories';
 import { addTemplates } from '../../helpers/add-templates';
 import { createTenant } from '../../helpers/create-tenant';
+import { getSeedContext } from '../../helpers/seed-context';
 import { usersToAuthenticate } from '../../helpers/user-data';
 import { createId } from '../../src/db/create-id';
 import * as schema from '../../src/db/schema';
 import { applyPermissionDiff, PermissionDiff } from '../utils/permissions-override';
 import { test as base } from './base-test';
+
+const { baseDate } = getSeedContext();
 
 interface BaseFixtures {
   discounts?: void;
@@ -123,8 +126,8 @@ export const test = base.extend<BaseFixtures & ParallelOptions>({
           tenantId: tenant.id,
           type: 'esnCard',
           userId: regularUser.id,
-          validFrom: new Date(),
-          validTo: new Date(Date.now() + 1000 * 60 * 60 * 24 * 180), // ~6 months
+          validFrom: baseDate.toJSDate(),
+          validTo: baseDate.plus({ days: 180 }).toJSDate(),
         });
       }
       await use();
@@ -134,7 +137,7 @@ export const test = base.extend<BaseFixtures & ParallelOptions>({
 
   events: [
     async ({ database, roles, templates }, use) => {
-      const events = await addEvents(database, templates, roles);
+      const events = await addEvents(database, templates, roles, { baseDate });
       await use(events);
     },
     // Increase timeout to allow seeding events to finish in slower environments
@@ -163,7 +166,7 @@ export const test = base.extend<BaseFixtures & ParallelOptions>({
         title: event.title,
       }));
 
-      const registrationsFromDatabase = await addRegistrations(database, eventInputs);
+      const registrationsFromDatabase = await addRegistrations(database, eventInputs, { baseDate });
 
       // Ensure all registrations have valid IDs to satisfy the fixture type
       const registrations = registrationsFromDatabase.map((reg) => ({

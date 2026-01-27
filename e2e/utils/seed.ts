@@ -14,6 +14,7 @@ import { addTemplates } from '../../helpers/add-templates';
 import { addDiscountCards } from '../../helpers/add-discount-cards';
 import { addDiscountProviders } from '../../helpers/add-discount-providers';
 import { createTenant } from '../../helpers/create-tenant';
+import { getSeedContext } from '../../helpers/seed-context';
 import { usersToAuthenticate } from '../../helpers/user-data';
 import { users } from '../../src/db/schema';
 
@@ -46,6 +47,8 @@ export async function seedBaseline(
   database: NeonDatabase<Record<string, never>, typeof relations>,
   { runId, domain }: SeedOptions,
 ): Promise<SeedResult> {
+  const { baseDate, seed } = getSeedContext();
+  consola.info(`Seeding baseline with seed "${seed}"`);
   // Ensure base users exist BEFORE creating tenant (createTenant links users to tenant)
   await database
     .insert(users)
@@ -94,12 +97,12 @@ export async function seedBaseline(
 
   const templateCategories = await addTemplateCategories(database, tenant, icons);
   const templates = await addTemplates(database, templateCategories, roles);
-  const events = await addEvents(database, templates, roles);
-  await addRegistrations(database, events);
+  const events = await addEvents(database, templates, roles, { baseDate });
+  await addRegistrations(database, events, { baseDate });
 
   // Add discount functionality for testing
   await addDiscountProviders(database, tenant.id);
-  await addDiscountCards(database, tenant.id);
+  await addDiscountCards(database, tenant.id, baseDate);
 
   // Build a compact, deterministic map for quick debugging
   const map = {

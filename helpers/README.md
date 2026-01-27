@@ -24,11 +24,11 @@ The database seeding process is designed to create a deterministic set of data t
 
 The seeding approach has been designed to be deterministic while still creating realistic data:
 
-1. **Fixed Seed**: We use a fixed seed (`'playwright'`) for the `@ngneat/falso` library to ensure consistent random data generation.
+1. **Day-Based Seed**: We seed `@ngneat/falso` using the current day (ISO date) by default. Set `SEED` or `SEED_DATE` to lock the data to a specific day.
 
 2. **Deterministic Events**:
    - Fixed number of events per template type (3 events × 6 template types = ~18 total events)
-   - Events are created relative to the current date:
+   - Events are created relative to the current day (start-of-day anchoring):
      - Past events (30+ days ago)
      - Current/upcoming events (7+ days in the future)
      - Future events (30+ days in the future)
