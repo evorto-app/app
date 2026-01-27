@@ -1,6 +1,6 @@
 # Playwright Specs + Track Linking Plan
 
-Status: planning only. No project changes have been made yet.
+Status: in progress. Root `tests/` + `specs/` scaffolding is in place; `e2e/` remains legacy reference.
 
 ## Goals
 - Follow Playwright agent layout: root `tests/` for runnable Playwright tests and root `specs/` for human-readable spec files.
@@ -10,14 +10,15 @@ Status: planning only. No project changes have been made yet.
 
 ## Target structure (Option A)
 - `tests/` (new root directory)
-  - all Playwright tests (formerly in `e2e/tests/**`)
+  - all new Playwright tests (legacy tests remain in `e2e/tests/**`)
   - shared fixtures, helpers, and page objects
   - any Playwright test utilities currently under `e2e/**`
 - `specs/` (new root directory)
   - markdown specs that map to Conductor tracks
   - each spec links to the Conductor track and lists test files covering its requirements
 - `e2e/` (legacy)
-  - should be emptied or left only for non-test assets if truly needed (decide during migration)
+  - keep existing tests as reference; not run by default
+  - keep shared helpers/reporters until migrated
 
 ## Conductor linkage conventions (proposed)
 - Each Conductor track: `conductor/tracks/<track_id>/spec.md`
@@ -44,7 +45,7 @@ Conductor Track: conductor/tracks/<track_id>/spec.md
 - tests/<path-to-test-file>.test.ts
 
 ## Doc tests implementing this spec
-- e2e/tests/docs/<path-to-doc-test>.doc.ts
+- tests/docs/<path-to-doc-test>.doc.ts
 
 ## Notes
 - <anything special about setup, fixtures, or data>
@@ -56,8 +57,8 @@ Conductor Track: conductor/tracks/<track_id>/spec.md
 - Confirm the final tag format (examples: `@track(001-foo_20250125)` and `@req(payments-01)`).
 - Decide what requirement IDs look like (track spec section IDs, explicit IDs in track spec, or free-form slugs).
 - Decide where Playwright shared helpers live after migration (likely `tests/_support` or `tests/fixtures`).
-- Decide if doc tests remain under `e2e/tests/docs/**` or also move under `tests/docs/**`.
-- Decide whether to keep `e2e/` as a legacy directory or remove it after migration.
+- Doc tests for new work live under `tests/docs/**`.
+- Keep `e2e/` as a legacy directory; do not move existing tests in this track.
 
 ### 2) Inventory current layout and references
 - List current test locations under `e2e/tests/**`.
@@ -74,11 +75,9 @@ Conductor Track: conductor/tracks/<track_id>/spec.md
 - Confirm that doc test runner still finds doc tests after the chosen location is set.
 
 ### 4) File moves (planned)
-- Move Playwright tests from `e2e/tests/**` to `tests/**`.
-- Move fixtures/helpers to `tests/**` (or a dedicated subfolder).
-- Update all import paths in moved files.
-- Update any snapshots or output directories if Playwright derives them from file paths.
-- Decide the fate of `e2e/` (empty it, remove it, or keep only non-test assets).
+- Do not move legacy tests in this track; keep `e2e/tests/**` as reference.
+- New tests and helpers belong under `tests/**` going forward.
+- Revisit any migrations of fixtures/helpers as a separate track when ready.
 
 ### 5) Introduce `specs/` workflow (planned)
 - Create `specs/` directory.
@@ -104,7 +103,4 @@ Conductor Track: conductor/tracks/<track_id>/spec.md
   - restore old paths
 
 ## Open decisions (need user confirmation before implementation)
-- Final tag formats for tracks, requirements, and docs.
-- Whether doc tests move to `tests/docs/**` or remain in `e2e/tests/docs/**`.
-- Whether to keep or remove `e2e/` after migration.
-
+- None for this track; revisit any migration of legacy tests in a future track.
