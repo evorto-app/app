@@ -38,12 +38,7 @@ export class CategoryListComponent {
   );
 
   private normalizeIcon(icon: unknown): { iconColor: number; iconName: string } {
-    if (
-      typeof icon === 'object' &&
-      icon !== null &&
-      'iconColor' in icon &&
-      'iconName' in icon
-    ) {
+    if (typeof icon === 'object' && icon !== null && 'iconColor' in icon && 'iconName' in icon) {
       const candidate = icon as { iconColor: number; iconName: string };
       if (candidate.iconName.trim().length > 0) {
         return candidate;

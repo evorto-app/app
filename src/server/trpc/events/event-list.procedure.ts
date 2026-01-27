@@ -68,7 +68,9 @@ export const eventListProcedure = publicProcedure
           },
         })
         .then((roles) => roles.map((role) => role.id));
-      const rolesToFilterBy = [...ctx.user?.roleIds && ctx.user.roleIds.length > 0 ? ctx.user.roleIds : fallbackRoles];
+      const rolesToFilterBy = [
+        ...(ctx.user?.roleIds && ctx.user.roleIds.length > 0 ? ctx.user.roleIds : fallbackRoles),
+      ];
 
       const queryResult = await database
         .select({

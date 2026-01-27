@@ -24,9 +24,7 @@ export const templateCategoryRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const icon =
-        typeof input.icon === 'string'
-          ? { iconColor: 0, iconName: input.icon }
-          : input.icon;
+        typeof input.icon === 'string' ? { iconColor: 0, iconName: input.icon } : input.icon;
       return await database.insert(eventTemplateCategories).values({
         icon,
         tenantId: ctx.tenant.id,

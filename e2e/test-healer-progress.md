@@ -1,12 +1,14 @@
 # Playwright Test Healer Progress
 
 ## Status Key
+
 - [ ] pending
 - [~] in progress
 - [x] fixed/passing
 - [!] fixme/blocked
 
 ## Test Inventory
+
 - [x] `e2e/tests/docs/discounts/discounts.doc.ts`
 - [x] `e2e/tests/docs/events/esncard-pricing.doc.ts`
 - [x] `e2e/tests/docs/events/event-management.doc.ts`

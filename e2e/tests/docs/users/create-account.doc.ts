@@ -51,9 +51,7 @@ The next step is simple. Just fill in the data requested and click on **Create a
   await page.locator('form').waitFor({ state: 'visible' });
   await takeScreenshot(testInfo, page.locator('form'), page);
   await page.getByRole('button', { exact: true, name: 'Create Account' }).click();
-  await expect(
-    page.getByRole('heading', { name: `Hello, ${newUser.firstName}` }),
-  ).toBeVisible();
+  await expect(page.getByRole('heading', { name: `Hello, ${newUser.firstName}` })).toBeVisible();
   await testInfo.attach('markdown', {
     body: `
 You should now be on your profile page and are ready to start using the app.

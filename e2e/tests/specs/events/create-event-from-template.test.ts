@@ -23,7 +23,5 @@ test('creates event from template', async ({ page, templates }) => {
   await expect(firstRegistration.getByLabel('Start date')).not.toHaveValue('');
   await page.getByRole('button', { name: 'Create event' }).click();
   await expect(page).toHaveURL(/\/events/);
-  await expect(
-    page.getByRole('heading', { name: template.title, exact: true }),
-  ).toBeVisible();
+  await expect(page.getByRole('heading', { name: template.title, exact: true })).toBeVisible();
 });

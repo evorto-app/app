@@ -10,10 +10,7 @@ let activeSeed: null | string = null;
 
 export const getSeedContext = (seedOverride?: string): SeedContext => {
   const seed =
-    seedOverride ??
-    process.env['SEED'] ??
-    process.env['SEED_DATE'] ??
-    DateTime.now().toISODate();
+    seedOverride ?? process.env['SEED'] ?? process.env['SEED_DATE'] ?? DateTime.now().toISODate();
   if (activeSeed !== seed) {
     seedFalso(seed);
     activeSeed = seed;

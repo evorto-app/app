@@ -90,10 +90,10 @@ test.describe('Tax Rates Tenant Isolation', () => {
     await expect(page.getByRole('heading', { level: 1, name: 'Admin settings' })).toBeVisible();
   });
 
-  test('tax rate selection in templates respects tenant isolation @permissions @taxRates @isolation', async (
-    { page, permissionOverride },
-    testInfo,
-  ) => {
+  test('tax rate selection in templates respects tenant isolation @permissions @taxRates @isolation', async ({
+    page,
+    permissionOverride,
+  }, testInfo) => {
     if (testInfo.project.name === 'Mobile Chrome') {
       test.skip(true, 'Template creation route returns 404 in the mobile viewport.');
     }

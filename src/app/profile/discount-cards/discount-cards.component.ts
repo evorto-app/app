@@ -153,10 +153,7 @@ export class DiscountCardsComponent {
     return cards.find((card) => card.type === providerType);
   }
 
-  hasValidCard(
-    cards: DiscountCard[],
-    providerType: DiscountCardType,
-  ) {
+  hasValidCard(cards: DiscountCard[], providerType: DiscountCardType) {
     const card = this.getUserCard(cards, providerType);
     if (!card) return false;
     return this.isCardValid(card);

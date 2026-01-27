@@ -86,9 +86,7 @@ After selecting a template and customizing your event, you can create it and pro
   });
 
   await page.goto(`/events/${approvedEvent.id}`);
-  await expect(
-    page.getByRole('heading', { name: approvedEvent.title, level: 1 }),
-  ).toBeVisible();
+  await expect(page.getByRole('heading', { name: approvedEvent.title, level: 1 })).toBeVisible();
 
   // Wait for the page to stabilize
   await page.waitForTimeout(1000);
@@ -213,5 +211,4 @@ These settings help you customize the event experience and manage the event life
 If you have edit permissions, you can update an event at any time using the **Edit Event** action.
 `,
   });
-
 });

@@ -12,5 +12,5 @@
 
 ---
 
-- [ ] **Track: Playwright specs + Conductor track linking**
+- [~] **Track: Playwright specs + Conductor track linking**
   _Link: [./tracks/playwright-specs-track-linking_20260126/](./tracks/playwright-specs-track-linking_20260126/)_

@@ -40,15 +40,17 @@ export interface TransactionDetailsData {
         <div class="flex items-center justify-between gap-4">
           <span class="text-on-surface-variant">Amount</span>
           <span class="font-medium">
-            {{ data().amount / 100 | currency: (data().currency ?? 'EUR') }}
+            {{ data().amount / 100 | currency: data().currency ?? 'EUR' }}
           </span>
         </div>
         @if (data().appFee != null || data().stripeFee != null) {
           <div class="flex items-center justify-between gap-4">
             <span class="text-on-surface-variant">Fees</span>
             <span class="font-medium">
-              {{ ((data().appFee ?? 0) + (data().stripeFee ?? 0)) / 100
-                | currency: (data().currency ?? 'EUR') }}
+              {{
+                ((data().appFee ?? 0) + (data().stripeFee ?? 0)) / 100
+                  | currency: data().currency ?? 'EUR'
+              }}
             </span>
           </div>
         }

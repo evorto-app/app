@@ -91,8 +91,7 @@ test.describe('Documentation: Discount provider journey — admin setup', () => 
         config: {
           ...(currentProviders?.esnCard?.config as any),
           ctaEnabled: false,
-          ctaLink:
-            currentProviders?.esnCard?.config?.ctaLink ?? 'https://example.com/buy-esncard',
+          ctaLink: currentProviders?.esnCard?.config?.ctaLink ?? 'https://example.com/buy-esncard',
         },
         enabled: false,
       },

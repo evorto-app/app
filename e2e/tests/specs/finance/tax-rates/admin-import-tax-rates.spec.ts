@@ -43,9 +43,7 @@ test.describe('Admin Tax Rates Import', () => {
     });
   });
 
-  test('admin can list imported tax rates @finance @taxRates', async ({
-    page,
-  }) => {
+  test('admin can list imported tax rates @finance @taxRates', async ({ page }) => {
     await page.goto('.');
 
     await openTaxRates(page);
@@ -53,14 +51,14 @@ test.describe('Admin Tax Rates Import', () => {
     await expect(taxRatesSection).toBeVisible();
     await expect(
       taxRatesSection
-        .getByRole('heading', { name: /Compatible Tax Rates|Incompatible Rates|No tax rates imported/ })
+        .getByRole('heading', {
+          name: /Compatible Tax Rates|Incompatible Rates|No tax rates imported/,
+        })
         .first(),
     ).toBeVisible();
   });
 
-  test('admin can view stripe tax rates from provider @finance @taxRates', async ({
-    page,
-  }) => {
+  test('admin can view stripe tax rates from provider @finance @taxRates', async ({ page }) => {
     await page.goto('.');
 
     await openTaxRates(page);
@@ -90,9 +88,7 @@ test.describe('Admin Tax Rates Import', () => {
     await expect(dialog.getByText(/included|excluded \\(not compatible\\)/i).first()).toBeVisible();
   });
 
-  test('imported rates are tenant-isolated @finance @taxRates', async ({
-    page,
-  }) => {
+  test('imported rates are tenant-isolated @finance @taxRates', async ({ page }) => {
     await page.goto('.');
 
     await openTaxRates(page);
@@ -100,7 +96,9 @@ test.describe('Admin Tax Rates Import', () => {
     await expect(taxRatesSection).toBeVisible();
     await expect(
       taxRatesSection
-        .getByRole('heading', { name: /Compatible Tax Rates|Incompatible Rates|No tax rates imported/ })
+        .getByRole('heading', {
+          name: /Compatible Tax Rates|Incompatible Rates|No tax rates imported/,
+        })
         .first(),
     ).toBeVisible();
   });

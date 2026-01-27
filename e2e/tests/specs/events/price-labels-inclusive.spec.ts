@@ -259,9 +259,7 @@ test.describe('Inclusive Price Labels', () => {
 
     await page.getByRole('link', { name: 'Templates' }).click();
     await expect(page).toHaveURL(/\/templates/);
-    await expect(
-      page.getByRole('heading', { level: 1, name: /event templates/i }),
-    ).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: /event templates/i })).toBeVisible();
 
     // Find a template (assuming templates have registration options)
     const template = templates[0];

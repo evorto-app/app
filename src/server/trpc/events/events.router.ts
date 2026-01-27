@@ -183,7 +183,9 @@ export const eventRouter = router({
           where: { defaultUserRole: true, tenantId: ctx.tenant.id },
         })
         .then((roles) => roles.map((role) => role.id));
-      const rolesToFilterBy = [...ctx.user?.roleIds && ctx.user.roleIds.length > 0 ? ctx.user.roleIds : fallbackRoles];
+      const rolesToFilterBy = [
+        ...(ctx.user?.roleIds && ctx.user.roleIds.length > 0 ? ctx.user.roleIds : fallbackRoles),
+      ];
       const event = await database.query.eventInstances.findFirst({
         where: { id: input.id, tenantId: ctx.tenant.id },
         with: {
@@ -491,26 +493,23 @@ export const eventRouter = router({
         });
       }
       return await database.transaction(async (tx) => {
-        const [updatedEvent] = 
-          await tx
-            .update(schema.eventInstances)
-            .set({
-              description: input.description,
-              end: input.end,
-              icon: input.icon,
-              location: input.location,
-              start: input.start,
-              title: input.title,
-            })
-            .where(
-              and(
-                eq(schema.eventInstances.id, input.eventId),
-                eq(schema.eventInstances.tenantId, ctx.tenant.id),
-              ),
-            )
-            .returning()
-        ;
-
+        const [updatedEvent] = await tx
+          .update(schema.eventInstances)
+          .set({
+            description: input.description,
+            end: input.end,
+            icon: input.icon,
+            location: input.location,
+            start: input.start,
+            title: input.title,
+          })
+          .where(
+            and(
+              eq(schema.eventInstances.id, input.eventId),
+              eq(schema.eventInstances.tenantId, ctx.tenant.id),
+            ),
+          )
+          .returning();
         const updates = input.registrationOptions ?? [];
         if (updates.length > 0) {
           const existingOptions = await tx.query.eventRegistrationOptions.findMany({
