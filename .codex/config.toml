@@ -6,6 +6,9 @@ args = ["playwright", "run-test-mcp-server"]
 command = "npx"
 args = ["-y", "@angular/cli@latest", "mcp", "-E", "modernize"]
 
+[mcp_servers.git-grep]
+url = "https://mcp.grep.app"
+
 [features]
 unified_exec = true
 shell_snapshot = true
