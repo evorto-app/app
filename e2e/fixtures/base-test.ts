@@ -7,6 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import ws from 'ws';
 
+import { seedFalsoForScope } from '../../helpers/seed-falso';
 import { relations } from '../../src/db/relations';
 
 const dedupeLength = 4;
@@ -20,6 +21,7 @@ const auth0 = new ManagementClient({
 
 interface BaseFixtures {
   database: NeonDatabase<Record<string, never>, typeof relations>;
+  falsoSeed: string;
   newUser: {
     email: string;
     firstName: string;
@@ -30,6 +32,18 @@ interface BaseFixtures {
 }
 
 export const test = base.extend<BaseFixtures>({
+  falsoSeed: [
+    async ({}, use, testInfo) => {
+      const scope = [
+        testInfo.project.name,
+        testInfo.file,
+        ...testInfo.titlePath(),
+      ].join(':');
+      const seed = seedFalsoForScope(scope);
+      await use(seed);
+    },
+    { auto: true },
+  ],
   tenantDomain: async ({}, use) => {
     try {
       const runtimePath = path.resolve('.e2e-runtime.json');

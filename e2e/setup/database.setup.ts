@@ -1,12 +1,10 @@
 import { init } from '@paralleldrive/cuid2';
 import { reset } from 'drizzle-seed';
-import type { NeonDatabase } from 'drizzle-orm/neon-serverless';
 import fs from 'node:fs';
 import path from 'node:path';
 
 import { test as setup } from './../fixtures/base-test';
-import { seedBaseline } from '../utils/seed';
-import { relations } from '../../src/db/relations';
+import { seedTenant } from '../../helpers/seed-tenant';
 import * as schema from '../../src/db/schema';
 
 setup('Setup database', async ({ database }) => {
@@ -15,10 +13,12 @@ setup('Setup database', async ({ database }) => {
   // @ts-expect-error drizzle-seed missing proper types
   await reset(database, schema);
   const runId = init({ length: 10 })();
-  const result = await seedBaseline(
-    database as NeonDatabase<Record<string, never>, typeof relations>,
-    { runId, domain: 'localhost' },
-  );
+  const result = await seedTenant(database, {
+    domain: 'localhost',
+    ensureUsers: true,
+    logSeedMap: true,
+    runId,
+  });
 
   // Persist runtime info for other tests (tenant cookie injection, etc.)
   const runtimePath = path.resolve('.e2e-runtime.json');

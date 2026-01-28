@@ -1,14 +1,8 @@
 import { eq } from 'drizzle-orm';
 
-import { addEvents } from '../../helpers/add-events';
-import { addIcons } from '../../helpers/add-icons';
-import { addRegistrations } from '../../helpers/add-registrations';
-import { addRoles, addUsersToRoles } from '../../helpers/add-roles';
-import { addTemplateCategories } from '../../helpers/add-template-categories';
-import { addTemplates } from '../../helpers/add-templates';
-import { createTenant } from '../../helpers/create-tenant';
+import { getId } from '../../helpers/get-id';
+import { seedTenant, type SeedTenantResult } from '../../helpers/seed-tenant';
 import { usersToAuthenticate } from '../../helpers/user-data';
-import { createId } from '../../src/db/create-id';
 import * as schema from '../../src/db/schema';
 import {
   applyPermissionDiff,
@@ -20,11 +14,15 @@ interface BaseFixtures {
   discounts?: void;
   events: {
     id: string;
+    tenantId: string;
     registrationOptions: {
       closeRegistrationTime: Date;
       id: string;
       isPaid: boolean;
       openRegistrationTime: Date;
+      price: number;
+      roleIds: string[];
+      spots: number;
       title: string;
     }[];
     status: 'APPROVED' | 'DRAFT' | 'PENDING_REVIEW' | 'REJECTED';
@@ -63,20 +61,48 @@ interface BaseFixtures {
     id: string;
     name: string;
   };
+  tenantDomain: string;
 }
 
-export const test = base.extend<BaseFixtures>({
-  context: async ({ context, tenant }, use) => {
-    await context.addCookies([
-      {
-        domain: 'localhost',
-        expires: -1,
-        name: 'evorto-tenant',
-        path: '/',
-        value: tenant.domain,
-      },
-    ]);
-    await use(context);
+export const test = base.extend<BaseFixtures & { seeded: SeedTenantResult }>({
+  seeded: [
+    async ({ database, falsoSeed }, use) => {
+      void falsoSeed;
+      const runId = getId().slice(0, 10);
+      const result = await seedTenant(database, {
+        domain: `e2e-${runId}`,
+        runId,
+      });
+      await use(result);
+    },
+    // Increase timeout to allow seeding events to finish in slower environments
+    { auto: true, timeout: 20_000 },
+  ],
+  tenant: async ({ seeded }, use) => {
+    await use(seeded.tenant);
+  },
+  tenantDomain: async ({ tenant }, use) => {
+    await use(tenant.domain);
+  },
+  roles: async ({ seeded }, use) => {
+    await use(seeded.roles);
+  },
+  templateCategories: async ({ seeded }, use) => {
+    await use(seeded.templateCategories);
+  },
+  templates: async ({ seeded }, use) => {
+    await use(seeded.templates);
+  },
+  events: async ({ seeded }, use) => {
+    await use(seeded.events);
+  },
+  registrations: async ({ seeded }, use) => {
+    await use(seeded.registrations);
+  },
+  permissionOverride: async ({ database, tenant }, use) => {
+    await use(async (diff: PermissionDiff) => {
+      await applyPermissionDiff(database as any, tenant, diff);
+    });
   },
 
   // Seed discount provider and a verified ESN card for the regular user
@@ -116,113 +142,5 @@ export const test = base.extend<BaseFixtures>({
     },
     { auto: true },
   ],
-  events: [
-    async ({ database, roles, templates }, use) => {
-      const events = await addEvents(database, templates, roles);
-      await use(events);
-    },
-    // Increase timeout to allow seeding events to finish in slower environments
-    { auto: true, timeout: 20_000 },
-  ],
-  permissionOverride: async ({ database, tenant }, use) => {
-    await use(async (diff: PermissionDiff) => {
-      await applyPermissionDiff(database as any, tenant, diff);
-    });
-  },
-  registrations: [
-    async ({ database, events, tenant }, use) => {
-      // Create a minimal input format for each event with its registration options
-      const eventInputs = events.map((event) => ({
-        id: event.id,
-        registrationOptions: event.registrationOptions.map((option) => ({
-          confirmedSpots: 0,
-          id: option.id,
-          isPaid: option.isPaid,
-          price: option.isPaid ? 1000 : 0,
-          roleIds: option.roleIds ?? [],
-          spots: 20,
-        })),
-        start: event.start as unknown as Date,
-        tenantId: tenant.id,
-        title: event.title,
-      }));
-
-      const registrationsFromDatabase = await addRegistrations(
-        database,
-        eventInputs,
-      );
-
-      // Ensure all registrations have valid IDs to satisfy the fixture type
-      const registrations = registrationsFromDatabase.map((reg) => ({
-        eventId: reg.eventId,
-        id: reg.id || createId(), // Provide fallback ID if undefined
-        registrationOptionId: reg.registrationOptionId,
-        status: reg.status,
-        tenantId: reg.tenantId,
-        userId: reg.userId,
-      }));
-
-      await use(registrations);
-    },
-    { auto: true },
-  ],
-  roles: [
-    async ({ database, tenant }, use) => {
-      const roles = await addRoles(database, tenant);
-      await addUsersToRoles(
-        database,
-        usersToAuthenticate
-          .filter((data) => data.addToTenant && data.addToDb)
-          .flatMap((data) =>
-            roles
-              .filter((role) => {
-                if (data.roles === 'none') {
-                  return false;
-                }
-                if (data.roles === 'all') {
-                  return true;
-                }
-                if (data.roles === 'user') {
-                  return role.defaultUserRole;
-                }
-                if (data.roles === 'organizer') {
-                  return role.defaultUserRole || role.defaultOrganizerRole;
-                }
-                if (data.roles === 'admin') {
-                  return role.defaultUserRole || role.name === 'Admin';
-                }
-                return false;
-              })
-              .map((role) => ({ roleId: role.id, userId: data.id })),
-          ),
-        tenant,
-      );
-      await use(roles);
-    },
-    { auto: true },
-  ],
-  templateCategories: async ({ database, tenant }, use) => {
-    const icons = await addIcons(database, tenant);
-    const templateCategories = await addTemplateCategories(
-      database,
-      tenant,
-      icons,
-    );
-    await use(templateCategories);
-  },
-  templates: async ({ database, roles, templateCategories }, use) => {
-    const templates = await addTemplates(database, templateCategories, roles);
-    await use(templates);
-  },
-  tenant: async ({ database }, use) => {
-    const tenant = await createTenant(database, {
-      stripeAccountId: 'acct_1Qs6S5PPcz51fqyK',
-    });
-    base.info().annotations.push({
-      description: tenant.domain,
-      type: 'tenant',
-    });
-    await use(tenant);
-  },
 });
 export { expect } from '@playwright/test';
