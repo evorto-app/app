@@ -19,3 +19,8 @@
 
 - [ ] **Track: Align project with fresh Angular CLI + Bun baseline, remove Node/Express runtime, and introduce Effect across server/data/shared utilities**
 *Link: [./tracks/bun-angular-alignment_20260128/](./tracks/bun-angular-alignment_20260128/)*
+
+---
+
+- [ ] **Track: Tax rates (Stripe-synced, read-only) — admin sync, event pricing, payments**
+*Link: [./tracks/tax-rates_20260128/](./tracks/tax-rates_20260128/)*
