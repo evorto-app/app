@@ -19,9 +19,9 @@ import consola from 'consola';
 import { InferInsertModel, SQL, inArray, sql } from 'drizzle-orm';
 import { NeonDatabase } from 'drizzle-orm/neon-serverless';
 
-import { createId } from '../src/db/create-id';
 import { relations } from '../src/db/relations';
 import * as schema from '../src/db/schema';
+import { getId } from './get-id';
 import { usersToAuthenticate } from './user-data';
 
 /**
@@ -274,7 +274,7 @@ export async function addRegistrations(
         );
 
         // Generate IDs for the registration and transaction
-        const registrationId = createId();
+        const registrationId = getId();
 
         // Determine registration status based on various factors
         let status: 'CANCELLED' | 'CONFIRMED' | 'PENDING' | 'WAITLIST';
@@ -360,12 +360,12 @@ export async function addRegistrations(
             eventId: event.id,
             eventRegistrationId: registrationId,
             executiveUserId: user.id,
-            id: createId(),
+            id: getId(),
             method: 'stripe',
             status: transactionStatus as 'cancelled' | 'pending' | 'successful',
             stripeChargeId:
-              transactionStatus === 'successful' ? createId() : null,
-            stripePaymentIntentId: createId(),
+              transactionStatus === 'successful' ? getId() : null,
+            stripePaymentIntentId: getId(),
             targetUserId: user.id,
             tenantId,
             type: 'registration',

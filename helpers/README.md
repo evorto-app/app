@@ -14,6 +14,7 @@ The database seeding process is designed to create a deterministic set of data t
 ## Key Files
 
 - `database.ts`: Main entry point for database setup and seeding
+- `seed-tenant.ts`: Shared tenant seeding logic used by tests, development, and demos
 - `add-events.ts`: Creates events with deterministic dates, statuses, and visibilities
 - `add-roles.ts`: Sets up user roles and permissions
 - `add-templates.ts`: Creates event templates
@@ -24,7 +25,7 @@ The database seeding process is designed to create a deterministic set of data t
 
 The seeding approach has been designed to be deterministic while still creating realistic data:
 
-1. **Fixed Seed**: We use a fixed seed (`'playwright'`) for the `@ngneat/falso` library to ensure consistent random data generation.
+1. **Daily Seed**: We seed `@ngneat/falso` with the current day (YYYY-MM-DD) so data stays deterministic for a given day while still refreshing over time.
 
 2. **Deterministic Events**: 
    - Fixed number of events per template type (3 events × 6 template types = ~18 total events)
