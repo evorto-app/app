@@ -22,6 +22,7 @@ import { NeonDatabase } from 'drizzle-orm/neon-serverless';
 import { relations } from '../src/db/relations';
 import * as schema from '../src/db/schema';
 import { getId } from './get-id';
+import { getSeedDate } from './seed-clock';
 import { usersToAuthenticate } from './user-data';
 
 /**
@@ -59,6 +60,7 @@ export interface EventRegistrationInput {
 export async function addRegistrations(
   database: NeonDatabase<Record<string, never>, typeof relations>,
   events: EventRegistrationInput[],
+  seedDate?: Date,
 ) {
   // Query all users with their tenant relationships and roles
   const usersRaw = await database.query.users.findMany({
@@ -156,7 +158,7 @@ export async function addRegistrations(
 
     // Determine event popularity and registration patterns
     const eventDate = new Date(event.start);
-    const now = new Date();
+    const now = getSeedDate(seedDate ?? new Date());
     const isPastEvent = eventDate < now;
     const isUpcomingEvent =
       eventDate > now &&

@@ -3,6 +3,7 @@ import { InferInsertModel } from 'drizzle-orm';
 import { NeonDatabase } from 'drizzle-orm/neon-serverless';
 import { reset } from 'drizzle-seed';
 
+import { getSeedDate } from '../../helpers/seed-clock';
 import { seedFalsoForScope } from '../../helpers/seed-falso';
 import { seedBaseUsers, seedTenant } from '../../helpers/seed-tenant';
 import { database as databaseClient } from './database-client';
@@ -21,7 +22,8 @@ export async function setupDatabase(
   >,
   onlyDevelopmentTenants = false,
 ) {
-  const seed = seedFalsoForScope('setup-database');
+  const seedDate = getSeedDate();
+  const seed = seedFalsoForScope('setup-database', seedDate);
   consola.info(`Seeded falso with daily seed "${seed}"`);
   consola.start('Reset database schema');
   const resetStart = Date.now();
@@ -62,6 +64,7 @@ export async function setupDatabase(
       includeExampleUsers: true,
       includeRegistrations: true,
       name: tenant.name,
+      seedDate,
       stripeAccountId: tenant.stripeAccountId,
     });
     consola.success(`Tenant ${tenant.domain} ready in ${Date.now() - tenantStart}ms`);

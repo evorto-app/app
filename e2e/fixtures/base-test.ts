@@ -7,6 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import ws from 'ws';
 
+import { getSeedDate } from '../../helpers/seed-clock';
 import { seedFalsoForScope } from '../../helpers/seed-falso';
 import { relations } from '../../src/db/relations';
 
@@ -22,6 +23,7 @@ const auth0 = new ManagementClient({
 interface BaseFixtures {
   database: NeonDatabase<Record<string, never>, typeof relations>;
   falsoSeed: string;
+  seedDate: Date;
   newUser: {
     email: string;
     firstName: string;
@@ -32,14 +34,20 @@ interface BaseFixtures {
 }
 
 export const test = base.extend<BaseFixtures>({
+  seedDate: [
+    async ({}, use) => {
+      await use(getSeedDate());
+    },
+    { auto: true },
+  ],
   falsoSeed: [
-    async ({}, use, testInfo) => {
+    async ({ seedDate }, use, testInfo) => {
       const scope = [
         testInfo.project.name,
         testInfo.file,
         ...testInfo.titlePath(),
       ].join(':');
-      const seed = seedFalsoForScope(scope);
+      const seed = seedFalsoForScope(scope, seedDate);
       await use(seed);
     },
     { auto: true },

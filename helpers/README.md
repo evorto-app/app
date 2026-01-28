@@ -26,8 +26,9 @@ The database seeding process is designed to create a deterministic set of data t
 The seeding approach has been designed to be deterministic while still creating realistic data:
 
 1. **Daily Seed**: We seed `@ngneat/falso` with the current day (YYYY-MM-DD) so data stays deterministic for a given day while still refreshing over time.
+2. **Seed Clock (UTC)**: Time-based fixtures use the start of the current day in UTC to keep dates stable within the day.
 
-2. **Deterministic Events**: 
+3. **Deterministic Events**: 
    - Fixed number of events per template type (3 events × 6 template types = ~18 total events)
    - Events are created relative to the current date:
      - Past events (30+ days ago)

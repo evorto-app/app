@@ -1,12 +1,9 @@
 import { seed as seedFalso } from '@ngneat/falso';
 
-const pad = (value: number) => String(value).padStart(2, '0');
+import { getSeedDayKey } from './seed-clock';
 
 export const getDailySeed = (date: Date = new Date()) => {
-  const year = date.getFullYear();
-  const month = pad(date.getMonth() + 1);
-  const day = pad(date.getDate());
-  return `${year}-${month}-${day}`;
+  return getSeedDayKey(date);
 };
 
 export const buildSeed = (scope?: string, date: Date = new Date()) => {

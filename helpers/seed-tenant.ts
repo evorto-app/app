@@ -16,6 +16,7 @@ import { addTaxRates } from './add-tax-rates';
 import { addTemplateCategories } from './add-template-categories';
 import { addTemplates } from './add-templates';
 import { createTenant } from './create-tenant';
+import { getSeedDate } from './seed-clock';
 import { usersToAuthenticate } from './user-data';
 
 const defaultStripeAccountId = 'acct_1Qs6S5PPcz51fqyK';
@@ -28,6 +29,7 @@ export interface SeedTenantOptions {
   logSeedMap?: boolean;
   name?: string;
   runId?: string;
+  seedDate?: Date;
   stripeAccountId?: string;
 }
 
@@ -99,6 +101,7 @@ export async function seedTenant(
     logSeedMap = false,
     name,
     runId,
+    seedDate,
     stripeAccountId = defaultStripeAccountId,
   }: SeedTenantOptions,
 ): Promise<SeedTenantResult> {
@@ -108,6 +111,8 @@ export async function seedTenant(
 
   const resolvedDomain = domain ?? (runId ? `e2e-${runId}` : undefined);
   const resolvedName = name ?? (runId ? `E2E ${runId}` : undefined);
+
+  const resolvedSeedDate = seedDate ?? getSeedDate();
 
   const tenant = await createTenant(database, {
     domain: resolvedDomain,
@@ -145,9 +150,9 @@ export async function seedTenant(
 
   const templateCategories = await addTemplateCategories(database, tenant, icons);
   const templates = await addTemplates(database, templateCategories, roles);
-  const events = await addEvents(database, templates, roles);
+  const events = await addEvents(database, templates, roles, resolvedSeedDate);
   const registrations = includeRegistrations
-    ? await addRegistrations(database, events)
+    ? await addRegistrations(database, events, resolvedSeedDate)
     : [];
 
   if (logSeedMap) {

@@ -6,6 +6,7 @@ import { DateTime } from 'luxon';
 import { relations } from '../src/db/relations';
 import * as schema from '../src/db/schema';
 import { getId } from './get-id';
+import { getSeedDate } from './seed-clock';
 import { usersToAuthenticate } from './user-data';
 
 const fallbackId = usersToAuthenticate[0].id;
@@ -34,6 +35,7 @@ export const addEvents = async (
     id: string;
     name: string;
   }[],
+  seedDate?: Date,
 ) => {
   const hikeTemplates = templates.filter((template) =>
     template.title.includes('hike'),
@@ -72,6 +74,9 @@ export const addEvents = async (
   const defaultOrganizerRoles = roles.filter(
     (role) => role.defaultOrganizerRole,
   );
+  const seedNow = DateTime.fromJSDate(seedDate ?? getSeedDate(), {
+    zone: 'utc',
+  });
 
   const hikeEvents = await createEvents(
     database,
@@ -219,7 +224,7 @@ const createEvents = async (
       if (index === 0) {
         // First event should be a future event so it's visible in the UI
         // This ensures events like "Hörnle hike 1" are visible
-        eventStart = DateTime.now()
+        eventStart = seedNow
           .plus({ days: 5 + index * 2 })
           .toJSDate();
         status = 'APPROVED';
@@ -227,7 +232,7 @@ const createEvents = async (
         creatorId = organizerUser;
       } else if (index === 1) {
         // Current/upcoming event
-        eventStart = DateTime.now()
+        eventStart = seedNow
           .plus({ days: 7 + index * 3 })
           .toJSDate();
         status = 'APPROVED';
@@ -237,7 +242,7 @@ const createEvents = async (
         creatorId = organizerUser;
       } else {
         // Future event
-        eventStart = DateTime.now()
+        eventStart = seedNow
           .plus({ days: 30 + index * 10 })
           .toJSDate();
 
@@ -280,8 +285,8 @@ const createEvents = async (
       // - openRegistrationTime is always in the past (5 days before now)
       // - closeRegistrationTime is always in the future (30 days from now)
       // This ensures events are always available for registration in tests
-      const openRegistrationTime = DateTime.now().minus({ days: 5 }).toJSDate();
-      const closeRegistrationTime = DateTime.now()
+      const openRegistrationTime = seedNow.minus({ days: 5 }).toJSDate();
+      const closeRegistrationTime = seedNow
         .plus({ days: 30 })
         .toJSDate();
 

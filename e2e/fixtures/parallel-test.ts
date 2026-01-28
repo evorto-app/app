@@ -66,12 +66,13 @@ interface BaseFixtures {
 
 export const test = base.extend<BaseFixtures & { seeded: SeedTenantResult }>({
   seeded: [
-    async ({ database, falsoSeed }, use) => {
+    async ({ database, falsoSeed, seedDate }, use) => {
       void falsoSeed;
       const runId = getId().slice(0, 10);
       const result = await seedTenant(database, {
         domain: `e2e-${runId}`,
         runId,
+        seedDate,
       });
       await use(result);
     },

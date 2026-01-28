@@ -7,7 +7,7 @@ import { test as setup } from './../fixtures/base-test';
 import { seedTenant } from '../../helpers/seed-tenant';
 import * as schema from '../../src/db/schema';
 
-setup('Setup database', async ({ database }) => {
+setup('Setup database', async ({ database, seedDate }) => {
   setup.setTimeout(120_000);
   // Reset DB and seed a single baseline tenant for this run
   // @ts-expect-error drizzle-seed missing proper types
@@ -18,6 +18,7 @@ setup('Setup database', async ({ database }) => {
     ensureUsers: true,
     logSeedMap: true,
     runId,
+    seedDate,
   });
 
   // Persist runtime info for other tests (tenant cookie injection, etc.)
