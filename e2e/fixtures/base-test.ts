@@ -45,7 +45,7 @@ export const test = base.extend<BaseFixtures>({
       const scope = [
         testInfo.project.name,
         testInfo.file,
-        ...testInfo.titlePath(),
+        ...testInfo.titlePath,
       ].join(':');
       const seed = seedFalsoForScope(scope, seedDate);
       await use(seed);

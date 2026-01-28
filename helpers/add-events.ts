@@ -83,24 +83,28 @@ export const addEvents = async (
     hikeTemplates,
     defaultUserRoles,
     defaultOrganizerRoles,
+    seedNow,
   );
   const cityToursEvents = await createEvents(
     database,
     cityToursTemplates,
     defaultUserRoles,
     defaultOrganizerRoles,
+    seedNow,
   );
   const cityTripsEvents = await createEvents(
     database,
     cityTripsTemplates,
     defaultUserRoles,
     defaultOrganizerRoles,
+    seedNow,
   );
   const sportsEvents = await createEvents(
     database,
     sportsTemplates,
     defaultUserRoles,
     defaultOrganizerRoles,
+    seedNow,
     true,
   );
   const weekendTripsEvents = await createEvents(
@@ -108,12 +112,14 @@ export const addEvents = async (
     weekendTripsTemplates,
     defaultUserRoles,
     defaultOrganizerRoles,
+    seedNow,
   );
   const exampleConfigsEvents = await createEvents(
     database,
     exampleConfigsTemplates,
     defaultUserRoles,
     defaultOrganizerRoles,
+    seedNow,
   );
 
   const allEvents = [
@@ -188,6 +194,7 @@ const createEvents = async (
   }[],
   defaultUserRoles: { id: string }[],
   defaultOrganizerRoles: { id: string }[],
+  seedNow: DateTime,
   paid = false,
  ): Promise<{
   events: InferInsertModel<typeof schema.eventInstances>[];
