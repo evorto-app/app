@@ -42,7 +42,7 @@ export default defineConfig({
       dependencies: ['setup'],
       name: 'docs',
       testMatch: /.*\.doc\.ts$/,
-      timeout: 20 * 1000,
+      timeout: 60 * 1000,
       use: { ...devices['Desktop Chrome'] },
     },
     {

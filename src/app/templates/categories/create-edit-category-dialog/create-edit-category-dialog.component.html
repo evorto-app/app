@@ -5,7 +5,8 @@
 }
 <mat-dialog-content>
   <div>
-    <form [formGroup]="categoryForm" class="mt-4">
+    <form [formGroup]="categoryForm" class="mt-4 flex flex-col gap-4">
+      <app-icon-selector-field formControlName="icon"></app-icon-selector-field>
       <mat-form-field class="w-full">
         <mat-label>Category title</mat-label>
         <input matInput type="text" formControlName="title" />
@@ -17,7 +18,7 @@
   <button mat-button mat-dialog-close>Cancel</button>
   <button
     mat-button
-    [mat-dialog-close]="categoryForm.value"
+    [mat-dialog-close]="categoryForm.getRawValue()"
     [disabled]="categoryForm.invalid"
   >
     Save

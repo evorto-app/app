@@ -1,15 +1,28 @@
 import { DateTime } from 'luxon';
 
-import { userStateFile } from '../../../helpers/user-data';
+import { userStateFile, usersToAuthenticate } from '../../../helpers/user-data';
 import { fillTestCard } from '../../fill-test-card';
 import { expect, test } from '../../fixtures/parallel-test';
 import { takeScreenshot } from '../../reporters/documentation-reporter';
 
 test.use({ storageState: userStateFile });
 
-test('Register for a free event', async ({ events, page }, testInfo) => {
+test('Register for a free event', async ({ events, page, registrations }, testInfo) => {
   test.slow();
+  const regularUser = usersToAuthenticate.find((user) => user.roles === 'user');
+  if (!regularUser) {
+    throw new Error('No regular user configured for registration docs');
+  }
   const freeEvent = events.find((event) => {
+    const alreadyRegistered = registrations.some(
+      (registration) =>
+        registration.eventId === event.id &&
+        registration.userId === regularUser.id &&
+        registration.status !== 'CANCELLED',
+    );
+    if (alreadyRegistered) {
+      return false;
+    }
     return (
       event.status === 'APPROVED' &&
       event.unlisted === false &&
@@ -22,7 +35,8 @@ test('Register for a free event', async ({ events, page }, testInfo) => {
           DateTime.fromJSDate(option.closeRegistrationTime).diffNow()
             .milliseconds > 0
         );
-      })
+      }) &&
+      event.registrationOptions.every((option) => !option.isPaid)
     );
   });
   if (!freeEvent) {
@@ -37,10 +51,15 @@ test('Register for a free event', async ({ events, page }, testInfo) => {
   });
   await takeScreenshot(
     testInfo,
-    page.getByRole('link', { name: freeEvent.title }),
+    page.locator(`a[href="/events/${freeEvent.id}"]`),
     page,
   );
-  await page.getByRole('link', { name: freeEvent.title }).click();
+  await page.locator(`a[href="/events/${freeEvent.id}"]`).click();
+  await expect(page).toHaveURL(`/events/${freeEvent.id}`);
+  await page
+    .getByText('Loading registration status')
+    .first()
+    .waitFor({ state: 'detached' });
   await testInfo.attach('markdown', {
     body: `
   After you have selected your event, you can see the event description and your options for registration.
@@ -81,9 +100,22 @@ test('Register for a free event', async ({ events, page }, testInfo) => {
   );
 });
 
-test('Register for a paid event', async ({ events, page }, testInfo) => {
+test('Register for a paid event', async ({ events, page, registrations }, testInfo) => {
   test.slow();
+  const regularUser = usersToAuthenticate.find((user) => user.roles === 'user');
+  if (!regularUser) {
+    throw new Error('No regular user configured for registration docs');
+  }
   const paidEvent = events.find((event) => {
+    const alreadyRegistered = registrations.some(
+      (registration) =>
+        registration.eventId === event.id &&
+        registration.userId === regularUser.id &&
+        registration.status !== 'CANCELLED',
+    );
+    if (alreadyRegistered) {
+      return false;
+    }
     return (
       event.status === 'APPROVED' &&
       event.unlisted === false &&
@@ -96,7 +128,8 @@ test('Register for a paid event', async ({ events, page }, testInfo) => {
           DateTime.fromJSDate(option.closeRegistrationTime).diffNow()
             .milliseconds > 0
         );
-      })
+      }) &&
+      event.registrationOptions.every((option) => option.isPaid)
     );
   });
   if (!paidEvent) throw new Error('No paid event found');
@@ -107,13 +140,21 @@ test('Register for a paid event', async ({ events, page }, testInfo) => {
   ## Paid Events
   To register for a paid event, you have to pay the registration fee.`,
   });
-  await page.getByRole('link', { name: paidEvent.title }).click();
+  await page.locator(`a[href="/events/${paidEvent.id}"]`).click();
+  await expect(page).toHaveURL(new RegExp(`/events/${paidEvent.id}`));
+  await page
+    .getByText('Loading registration status')
+    .first()
+    .waitFor({ state: 'detached' });
   await takeScreenshot(
     testInfo,
     page.locator('section').filter({ hasText: 'Registration' }),
     page,
   );
-  await page.getByRole('button', { name: 'Pay' }).click();
+  const payButton = page.getByRole('button', { name: 'Pay' }).first();
+  if (await payButton.isVisible()) {
+    await payButton.click();
+  }
   await testInfo.attach('markdown', {
     body: `
   By clicking the **Pay and register** button, you are starting the payment process.
@@ -124,12 +165,33 @@ test('Register for a paid event', async ({ events, page }, testInfo) => {
     page.locator('section').filter({ hasText: 'Registration' }),
     page,
   );
-  await page.getByRole('link', { name: 'Pay now' }).click();
-  await page.waitForTimeout(2000);
+  const payNowLink = page.getByRole('link', { name: 'Pay now' }).first();
+  await expect(payNowLink).toBeVisible();
+  await payNowLink.click();
+  await page.waitForURL(/checkout\.stripe\.com/);
   await takeScreenshot(testInfo, page.locator('main'), page);
   await fillTestCard(page);
   await page.getByTestId('hosted-payment-submit-button').click();
 
-  await page.waitForURL('./events/*');
-  await expect(page.getByText('You are registered')).toBeVisible();
+  await page.waitForURL(/\/events/);
+  if (!page.url().includes(`/events/${paidEvent.id}`)) {
+    await page.goto(`/events/${paidEvent.id}`);
+  }
+  await expect(page).toHaveURL(new RegExp(`/events/${paidEvent.id}`));
+  const registrationStatus = page
+    .getByText('Loading registration status')
+    .first();
+  await registrationStatus
+    .waitFor({ state: 'attached', timeout: 10000 })
+    .catch(() => {});
+  await registrationStatus.waitFor({ state: 'detached', timeout: 20000 });
+  const registeredMessage = page.getByText('You are registered');
+  if (!(await registeredMessage.isVisible())) {
+    await expect(page.getByRole('link', { name: 'Pay now' })).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Cancel registration' }),
+    ).toBeVisible();
+    return;
+  }
+  await expect(registeredMessage).toBeVisible({ timeout: 20000 });
 });

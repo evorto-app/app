@@ -1,17 +1,10 @@
-import { DateTime } from 'luxon';
-
-import {
-  adminStateFile,
-  defaultStateFile,
-  userStateFile,
-} from '../../../helpers/user-data';
-import { fillTestCard } from '../../fill-test-card';
+import { adminStateFile } from '../../../helpers/user-data';
 import { expect, test } from '../../fixtures/parallel-test';
 import { takeScreenshot } from '../../reporters/documentation-reporter';
 
 test.use({ storageState: adminStateFile });
 
-test('Manage template categories', async ({ events, page }, testInfo) => {
+test('Manage template categories', async ({ page }, testInfo) => {
   await page.goto('.');
   await testInfo.attach('markdown', {
     body: `
@@ -41,7 +34,9 @@ You can now enter the name for your category and save it. The new category will 
     .getByRole('textbox', { name: 'Category title' })
     .fill('Test category');
   await page.getByRole('button', { name: 'Save' }).click();
-  await expect(page.getByText('Test category')).toBeVisible();
+  await expect(
+    page.locator('.category', { hasText: 'Test category' }),
+  ).toBeVisible();
   await testInfo.attach('markdown', {
     body: `
 To edit the name of a category, just find it in the list and click the _Edit_ button.
@@ -56,5 +51,7 @@ After you have changed the name, click on _Save_ to save your changes.`,
     .getByRole('textbox', { name: 'Category title' })
     .fill('Test category edited');
   await page.getByRole('button', { name: 'Save' }).click();
-  await expect(page.getByText('Test category edited')).toBeVisible();
+  await expect(
+    page.locator('.category', { hasText: 'Test category edited' }),
+  ).toBeVisible();
 });

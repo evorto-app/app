@@ -1,13 +1,13 @@
-import { expect } from '@playwright/test';
-
 import { usersToAuthenticate } from '../../../helpers/user-data';
-import { test } from '../../fixtures/base-test';
+import { expect, test } from '../../fixtures/parallel-test';
 
 test.use({ storageState: usersToAuthenticate.find((u) => u.roles === 'user')!.stateFile });
 
-test('register for a free event as regular user', async ({ page, database }) => {
-  const tenant = await database.query.tenants.findFirst({ where: { domain: 'localhost' } });
-  if (!tenant) test.skip(true, 'No tenant found');
+test('register for a free event as regular user', async ({ page, database, tenant }) => {
+  if (!tenant) {
+    test.skip(true, 'No tenant found');
+    return;
+  }
 
   // Find an approved, listed event with a free participant option
   const events = await database.query.eventInstances.findMany({
@@ -34,7 +34,10 @@ test('register for a free event as regular user', async ({ page, database }) => 
       break;
     }
   }
-  if (!target) test.skip(true, 'No suitable free event found');
+  if (!target) {
+    test.skip(true, 'No suitable free event found');
+    return;
+  }
   const option = target.registrationOptions.find(
     (o) => !o.isPaid && !o.organizingRegistration && o.title === 'Participant registration',
   )!;
@@ -44,7 +47,9 @@ test('register for a free event as regular user', async ({ page, database }) => 
   const confirmedBefore = before?.confirmedSpots ?? 0;
 
   // Navigate to event and register
-  await page.goto(`/events/${target.id}`);
+  await page.goto('/events');
+  await page.locator(`a[href="/events/${target.id}"]`).click();
+  await expect(page).toHaveURL(`/events/${target.id}`);
   // wait until loading state is gone before interacting
   await page.getByText('Loading registration status').first().waitFor({ state: 'detached' });
   await page.getByRole('button', { name: 'Register' }).first().click();

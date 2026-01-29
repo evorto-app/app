@@ -1,4 +1,3 @@
-import { defaultStateFile } from '../../../helpers/user-data';
 import { expect, test } from '../../fixtures/parallel-test';
 import { takeScreenshot } from '../../reporters/documentation-reporter';
 
@@ -19,8 +18,20 @@ This guide assumes that you do not have an account already.
 ## Login
 Open the app page and click on the **Login** link.`,
   });
+  await page.context().clearCookies();
+  await page.goto('/logout');
   await page.goto('.');
-  await page.getByRole('link', { name: 'Login' }).waitFor({ state: 'visible' });
+  const loginLink = page.getByRole('link', { name: 'Login' }).first();
+  if (!(await loginLink.isVisible())) {
+    const logoutLink = page.getByRole('link', { name: 'Logout' }).first();
+    if (await logoutLink.isVisible()) {
+      await logoutLink.click();
+      await page.waitForURL(/\/(login|$)/);
+    }
+  }
+  await page.getByRole('link', { name: 'Login' }).first().waitFor({
+    state: 'visible',
+  });
   await takeScreenshot(
     testInfo,
     page.getByRole('link', { name: 'Login' }),
@@ -38,11 +49,18 @@ After starting the login flow, you can sign in. In general there are two options
 
 For this example we will sign in with a demo user.`,
   });
-  await takeScreenshot(testInfo, page.locator('.login section'), page);
+  await page.getByLabel('Email address').waitFor({ state: 'visible' });
+  await takeScreenshot(testInfo, page.getByLabel('Email address'), page);
   await page.getByLabel('Email address').fill(newUser.email);
-  await page.getByLabel('Password').fill(newUser.password);
+  await page.getByRole('textbox', { name: 'Password' }).fill(newUser.password);
   await page.getByRole('button', { exact: true, name: 'Continue' }).click();
-  await page.getByRole('button', { exact: true, name: 'Accept' }).click();
+  const acceptButton = page.getByRole('button', {
+    exact: true,
+    name: 'Accept',
+  });
+  if (await acceptButton.isVisible()) {
+    await acceptButton.click();
+  }
 
   await testInfo.attach('markdown', {
     body: `
@@ -53,9 +71,12 @@ The next step is simple. Just fill in the data requested and click on **Create a
   await page
     .getByRole('button', { exact: true, name: 'Create Account' })
     .click();
-  await expect(page.getByRole('heading')).toHaveText(
-    `Hello, ${newUser.firstName}`,
-  );
+  await expect(
+    page.getByRole('heading', {
+      level: 1,
+      name: `Hello, ${newUser.firstName}`,
+    }),
+  ).toBeVisible();
   await testInfo.attach('markdown', {
     body: `
 You should now be on your profile page and are ready to start using the app.

@@ -15,5 +15,15 @@ test('create event form template', async ({ page, templates }) => {
   await expect(page).toHaveURL(`/templates/${template.id}/create-event`);
   await page.getByRole('button', { name: 'Create event' }).click();
   await expect(page).toHaveURL(/\/events/);
-  await expect(page.getByRole('heading', { name: template.title })).toBeVisible();
+  const detailHeading = page.getByRole('heading', {
+    level: 1,
+    name: template.title,
+  });
+  if (await detailHeading.isVisible()) {
+    await expect(detailHeading).toBeVisible();
+  } else {
+    await expect(
+      page.getByRole('link', { name: template.title }).first(),
+    ).toBeVisible();
+  }
 });

@@ -11,20 +11,19 @@ test('create template category', async ({ isMobile, page }) => {
   await expect(page).toHaveURL(/\/templates/);
   if (isMobile) {
     await page.getByRole('button', { name: 'Menu' }).click();
-    await page.getByRole('menuitem', { name: 'Template categories' }).click();
+    await page.getByRole('menuitem', { name: 'Manage categories' }).click();
   } else {
-    await page.getByRole('button', { name: 'Menu' }).click();
-    await page.getByRole('menuitem', { name: 'Template categories' }).click();
+    await page.getByRole('link', { name: 'Manage categories' }).click();
   }
   await expect(page).toHaveURL(/\/templates\/categories/);
-  await page
-    .getByRole('button', { name: 'Create a new category' })
-    .first()
-    .click();
+  await expect(page.locator('.category').first()).toBeVisible();
+  await page.getByRole('button', { name: 'Create category' }).click();
   await expect(page.getByRole('heading', { name: 'Create a new category' })).toBeVisible();
   await page.getByLabel('Category title').fill('Mountain trips');
   await page.getByRole('button', { name: 'Save' }).click();
-  await expect(page.getByText('Mountain trips')).toBeVisible();
+  await expect(
+    page.locator('.category', { hasText: 'Mountain trips' }),
+  ).toBeVisible();
 });
 
 test('edit template category', async ({
@@ -37,17 +36,20 @@ test('edit template category', async ({
   await expect(page).toHaveURL(/\/templates/);
   if (isMobile) {
     await page.getByRole('button', { name: 'Menu' }).click();
-    await page.getByRole('menuitem', { name: 'Template categories' }).click();
+    await page.getByRole('menuitem', { name: 'Manage categories' }).click();
   } else {
-    await page.getByRole('button', { name: 'Menu' }).click();
-    await page.getByRole('menuitem', { name: 'Template categories' }).click();
+    await page.getByRole('link', { name: 'Manage categories' }).click();
   }
   await expect(page).toHaveURL(/\/templates\/categories/);
+  await expect(page.locator('.category').first()).toBeVisible();
   const category = templateCategories[0];
-  await page.getByText(category.title).getByRole('button', { name: 'Edit' }).click();
+  const categoryCard = page.locator('.category', { hasText: category.title });
+  await categoryCard.getByRole('button', { name: 'Edit' }).click();
   await expect(page.getByRole('heading', { name: 'Edit category' })).toBeVisible();
   await expect(page.getByLabel('Category title')).toHaveValue(category.title);
   await page.getByLabel('Category title').fill('Mountain trips');
   await page.getByRole('button', { name: 'Save' }).click();
-  await expect(page.getByText('Mountain trips')).toBeVisible();
+  await expect(
+    page.locator('.category', { hasText: 'Mountain trips' }),
+  ).toBeVisible();
 });

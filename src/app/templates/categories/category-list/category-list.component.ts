@@ -24,6 +24,29 @@ import { injectTRPC } from '../../../core/trpc-client';
 import { IconComponent } from '../../../shared/components/icon/icon.component';
 import { CreateEditCategoryDialogComponent } from '../create-edit-category-dialog/create-edit-category-dialog.component';
 
+type IconValue = { iconColor: number; iconName: string };
+const fallbackIcon: IconValue = { iconColor: 0, iconName: 'city' };
+
+const isIconValue = (value: unknown): value is IconValue => {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+  const record = value as { iconColor?: unknown; iconName?: unknown };
+  return (
+    typeof record.iconColor === 'number' && typeof record.iconName === 'string'
+  );
+};
+
+const resolveIcon = (value: unknown, fallback: IconValue): IconValue => {
+  if (isIconValue(value)) {
+    return value;
+  }
+  if (typeof value === 'string' && value.trim().length > 0) {
+    return { iconColor: fallback.iconColor, iconName: value };
+  }
+  return fallback;
+};
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -56,13 +79,24 @@ export class CategoryListComponent {
   );
 
   async openCategoryCreationDialog() {
-    const dialogReference = this.dialog.open(
-      CreateEditCategoryDialogComponent,
-      { data: { mode: 'create' } },
+    const defaultIcon = resolveIcon(
+      this.templateCategoriesQuery.data()?.[0]?.icon,
+      fallbackIcon,
     );
+    const dialogReference = this.dialog.open<
+      CreateEditCategoryDialogComponent,
+      { defaultIcon: IconValue; mode: 'create' },
+      { icon: IconValue | string; title: string }
+    >(CreateEditCategoryDialogComponent, {
+      data: { defaultIcon, mode: 'create' },
+    });
     const result = await firstValueFrom(dialogReference.afterClosed());
-    if (result) {
-      await this.createCategoryMutation.mutateAsync(result);
+    if (result?.title) {
+      const icon = resolveIcon(result.icon, defaultIcon);
+      await this.createCategoryMutation.mutateAsync({
+        icon,
+        title: result.title,
+      });
       await this.queryClient.invalidateQueries({
         queryKey: this.trpc.templateCategories.findMany.pathKey(),
       });
@@ -72,18 +106,24 @@ export class CategoryListComponent {
     }
   }
 
-  async openCategoryEditDialog(category: { id: string; title: string }) {
+  async openCategoryEditDialog(category: {
+    icon: IconValue;
+    id: string;
+    title: string;
+  }) {
     const dialogReference = this.dialog.open(
       CreateEditCategoryDialogComponent,
       {
         data: { category, mode: 'edit' },
       },
     );
-    const result = await firstValueFrom(dialogReference.afterClosed());
-    if (result) {
+    const result = (await firstValueFrom(dialogReference.afterClosed())) as
+      | { title: string }
+      | undefined;
+    if (result?.title) {
       await this.updateCategoryMutation.mutateAsync({
         id: category.id,
-        ...result,
+        title: result.title,
       });
       await this.queryClient.invalidateQueries({
         queryKey: this.trpc.templateCategories.findMany.pathKey(),

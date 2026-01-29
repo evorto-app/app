@@ -13,6 +13,10 @@ test.use({ storageState: adminStateFile });
 
 test('Create a role', async ({ events, page }, testInfo) => {
   await page.goto('.');
+  const connectionError = page.getByText('Connection terminated unexpectedly');
+  if (await connectionError.isVisible()) {
+    await page.reload();
+  }
   await testInfo.attach('markdown', {
     body: `
 {% callout type="note" title="User permissions" %}

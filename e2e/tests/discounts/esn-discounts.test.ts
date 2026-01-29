@@ -16,8 +16,10 @@ test('applies ESN discount to paid registrations @finance', async ({ database, e
   const expectedAmount = Math.max(0, option.price - 500); // seeded discount is price - 500
 
   await page.goto('/events', { waitUntil: 'domcontentloaded' });
-  await page.getByRole('link', { name: paidEvent.title }).click();
-  await page.getByRole('button', { name: 'Pay' }).click();
+  await expect(page).toHaveURL(/\/events/);
+  await page.locator(`a[href="/events/${paidEvent.id}"]`).click();
+  await expect(page).toHaveURL(`/events/${paidEvent.id}`);
+  await page.getByRole('button', { name: 'Pay' }).first().click();
 
   // Wait until the checkout link appears (transaction created)
   await page.getByRole('link', { name: 'Pay now' }).waitFor({ state: 'visible' });

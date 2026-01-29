@@ -26,8 +26,9 @@ Unlisted events are hidden from public lists. Admins can toggle an event's unlis
   });
 
   // Show the event on the list before toggling
-  await takeScreenshot(testInfo, page.getByRole('link', { name: target.title }), page, 'Listed event before toggling');
-  await page.getByRole('link', { name: target.title }).click();
+  const targetLink = page.locator(`a[href="/events/${target.id}"]`);
+  await takeScreenshot(testInfo, targetLink, page, 'Listed event before toggling');
+  await targetLink.click();
   await page.waitForSelector(`h1:has-text("${target.title}")`);
   await takeScreenshot(testInfo, page.locator('h1').first(), page, 'Event details (before)');
 
@@ -40,7 +41,7 @@ Unlisted events are hidden from public lists. Admins can toggle an event's unlis
 
   // Back to list and verify badge is visible for admins
   await page.goto('./events');
-  const adminEventCard = page.getByRole('link', { name: target.title });
+  const adminEventCard = page.locator(`a[href="/events/${target.id}"]`);
   await expect(adminEventCard).toBeVisible();
   await expect(adminEventCard.getByText('unlisted', { exact: true })).toBeVisible();
   await takeScreenshot(testInfo, adminEventCard, page, 'Unlisted badge visible to admins');

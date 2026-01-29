@@ -1,7 +1,5 @@
-import { DateTime } from 'luxon';
-
 import { adminStateFile } from '../../../helpers/user-data';
-import { expect, test } from '../../fixtures/parallel-test';
+import { test } from '../../fixtures/parallel-test';
 import { takeScreenshot } from '../../reporters/documentation-reporter';
 
 test.use({ storageState: adminStateFile });
@@ -22,10 +20,10 @@ The finance management feature allows you to track and manage all financial tran
 
 ## Accessing Finance Overview
 
-To access the finance overview, navigate to the **Finance** section from the main menu.
+To access the finance overview, navigate to the **Finances** section from the main menu.
 `,
   });
-  await page.getByRole('link', { name: 'Finance' }).click();
+  await page.getByRole('link', { name: 'Finances' }).click();
   await takeScreenshot(
     testInfo,
     page.locator('app-finance-overview'),
@@ -80,34 +78,4 @@ You can filter and sort this list to find specific transactions.
 `,
   });
 
-  await testInfo.attach('markdown', {
-    body: `
-## Transaction Details
-
-Click on any transaction to view its details.
-`,
-  });
-
-  // Assuming there's at least one transaction in the list
-  await page.locator('app-transaction-list tr').first().click();
-  await takeScreenshot(
-    testInfo,
-    page.locator('dialog'),
-    page,
-    'Transaction details dialog'
-  );
-
-  await testInfo.attach('markdown', {
-    body: `
-The transaction details dialog shows all information about a specific transaction, including:
-
-- Complete payment information
-- Related user details
-- Related event details (if applicable)
-- Payment processing logs
-- Refund options (if applicable)
-
-This detailed view helps you understand and manage individual transactions.
-`,
-  });
 });
