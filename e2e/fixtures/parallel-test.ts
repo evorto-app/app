@@ -1,6 +1,6 @@
-import { eq } from 'drizzle-orm';
+import crypto from 'node:crypto';
 
-import { getId } from '../../helpers/get-id';
+import { eq } from 'drizzle-orm';
 import { seedTenant, type SeedTenantResult } from '../../helpers/seed-tenant';
 import { usersToAuthenticate } from '../../helpers/user-data';
 import * as schema from '../../src/db/schema';
@@ -9,6 +9,9 @@ import {
   PermissionDiff,
 } from '../utils/permissions-override';
 import { test as base } from './base-test';
+
+const buildRunId = (seed: string) =>
+  crypto.createHash('sha256').update(seed).digest('hex').slice(0, 10);
 
 interface BaseFixtures {
   discounts?: void;
@@ -67,8 +70,7 @@ interface BaseFixtures {
 export const test = base.extend<BaseFixtures & { seeded: SeedTenantResult }>({
   seeded: [
     async ({ database, falsoSeed, seedDate }, use) => {
-      void falsoSeed;
-      const runId = getId().slice(0, 10);
+      const runId = buildRunId(falsoSeed);
       const result = await seedTenant(database, {
         domain: `e2e-${runId}`,
         runId,
@@ -77,7 +79,7 @@ export const test = base.extend<BaseFixtures & { seeded: SeedTenantResult }>({
       await use(result);
     },
     // Increase timeout to allow seeding events to finish in slower environments
-    { auto: true, timeout: 20_000 },
+    { auto: true, timeout: 60_000 },
   ],
   tenant: async ({ seeded }, use) => {
     await use(seeded.tenant);
