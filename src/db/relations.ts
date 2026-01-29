@@ -132,11 +132,19 @@ export const relations = defineRelations(schema, (r) => ({
     }),
     templateEventAddons: r.many.templateEventAddons(),
   },
+  tenantStripeTaxRates: {
+    tenant: r.one.tenants({
+      from: r.tenantStripeTaxRates.tenantId,
+      optional: false,
+      to: r.tenants.id,
+    }),
+  },
   tenants: {
     eventRegistrations: r.many.eventRegistrations(),
     events: r.many.eventInstances(),
     icons: r.many.icons(),
     roles: r.many.roles(),
+    stripeTaxRates: r.many.tenantStripeTaxRates(),
     templateCategories: r.many.eventTemplateCategories(),
     transactions: r.many.transactions(),
     users: r.many.users({

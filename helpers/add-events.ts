@@ -1,4 +1,4 @@
-import { InferInsertModel } from 'drizzle-orm';
+import { InferInsertModel, InferSelectModel } from 'drizzle-orm';
 import consola from 'consola';
 import { NeonDatabase } from 'drizzle-orm/neon-serverless';
 import { DateTime } from 'luxon';
@@ -19,6 +19,48 @@ const organizerUser =
   fallbackId;
 const regularUser =
   usersToAuthenticate.find((user) => user.roles === 'user')?.id ?? fallbackId;
+
+type TenantStripeTaxRate = InferSelectModel<
+  typeof schema.tenantStripeTaxRates
+>;
+
+type TaxRateSelection = {
+  defaultRateId: null | string;
+  vat19Id: null | string;
+  vat7Id: null | string;
+};
+
+const resolveTaxRateSelection = (
+  taxRates: TenantStripeTaxRate[],
+): TaxRateSelection => {
+  const vat19 = taxRates.find((rate) => rate.percentage === '19');
+  const vat7 = taxRates.find((rate) => rate.percentage === '7');
+  const defaultRate = vat19 ?? vat7 ?? taxRates[0];
+  return {
+    defaultRateId: defaultRate?.stripeTaxRateId ?? null,
+    vat19Id: vat19?.stripeTaxRateId ?? null,
+    vat7Id: vat7?.stripeTaxRateId ?? null,
+  };
+};
+
+const fetchTenantTaxRates = async (
+  database: NeonDatabase<Record<string, never>, typeof relations>,
+  tenantId: string,
+): Promise<TenantStripeTaxRate[]> => {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      return await database.query.tenantStripeTaxRates.findMany({
+        where: { tenantId },
+      });
+    } catch (error) {
+      if (attempt === 2) {
+        throw error;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)));
+    }
+  }
+  return [];
+};
 
 export const addEvents = async (
   database: NeonDatabase<Record<string, never>, typeof relations>,
@@ -77,49 +119,51 @@ export const addEvents = async (
   const seedNow = DateTime.fromJSDate(seedDate ?? getSeedDate(), {
     zone: 'utc',
   });
+  const taxRates = await fetchTenantTaxRates(database, templates[0].tenantId);
+  const taxRateSelection = resolveTaxRateSelection(taxRates);
 
   const hikeEvents = await createEvents(
-    database,
     hikeTemplates,
     defaultUserRoles,
     defaultOrganizerRoles,
     seedNow,
+    taxRateSelection,
   );
   const cityToursEvents = await createEvents(
-    database,
     cityToursTemplates,
     defaultUserRoles,
     defaultOrganizerRoles,
     seedNow,
+    taxRateSelection,
   );
   const cityTripsEvents = await createEvents(
-    database,
     cityTripsTemplates,
     defaultUserRoles,
     defaultOrganizerRoles,
     seedNow,
+    taxRateSelection,
   );
   const sportsEvents = await createEvents(
-    database,
     sportsTemplates,
     defaultUserRoles,
     defaultOrganizerRoles,
     seedNow,
+    taxRateSelection,
     true,
   );
   const weekendTripsEvents = await createEvents(
-    database,
     weekendTripsTemplates,
     defaultUserRoles,
     defaultOrganizerRoles,
     seedNow,
+    taxRateSelection,
   );
   const exampleConfigsEvents = await createEvents(
-    database,
     exampleConfigsTemplates,
     defaultUserRoles,
     defaultOrganizerRoles,
     seedNow,
+    taxRateSelection,
   );
 
   const allEvents = [
@@ -183,8 +227,7 @@ export const addEvents = async (
   return createdEvents;
 };
 
-const createEvents = async (
-  database: NeonDatabase<Record<string, never>, typeof relations>,
+const createEvents = (
   templates: {
     description: string;
     icon: { iconColor: number; iconName: string };
@@ -195,11 +238,12 @@ const createEvents = async (
   defaultUserRoles: { id: string }[],
   defaultOrganizerRoles: { id: string }[],
   seedNow: DateTime,
+  taxRateSelection: TaxRateSelection,
   paid = false,
- ): Promise<{
+): {
   events: InferInsertModel<typeof schema.eventInstances>[];
   registrationOptions: InferInsertModel<typeof schema.eventRegistrationOptions>[];
- }> => {
+} => {
   const events: InferInsertModel<typeof schema.eventInstances>[] = [];
   const registrationOptions: InferInsertModel<
     typeof schema.eventRegistrationOptions
@@ -208,18 +252,16 @@ const createEvents = async (
   // Use a fixed number of events per template type
   // This ensures a consistent number of events are created
   const eventsPerTemplate = 3;
+  const participantTaxRateId = paid
+    ? (taxRateSelection.vat19Id ?? taxRateSelection.defaultRateId)
+    : null;
+  const organizerTaxRateId = paid
+    ? (taxRateSelection.vat7Id ?? taxRateSelection.defaultRateId)
+    : null;
 
   for (const template of templates) {
-    // Choose tax rates per tenant
-    const taxRates = (database as any).query.tenantStripeTaxRates
-      ? await (database as any).query.tenantStripeTaxRates.findMany({
-          where: { tenantId: template.tenantId },
-        })
-      : [];
-    const vat19 = taxRates.find((r: any) => r.percentage === '19');
-    const vat7 = taxRates.find((r: any) => r.percentage === '7');
-    const defaultRate = vat19 ?? vat7 ?? taxRates[0];
     for (let index = 0; index < eventsPerTemplate; index++) {
+      const isLast = index === eventsPerTemplate - 1;
       // Create events relative to the current date
       // Some in the past, some in the present, some in the future
       let eventStart: Date;
@@ -254,7 +296,11 @@ const createEvents = async (
           .toJSDate();
 
         // Mix of statuses for future events
-        if (index % 3 === 0) {
+        if (isLast) {
+          status = 'APPROVED';
+          unlisted = true;
+          creatorId = organizerUser;
+        } else if (index % 3 === 0) {
           status = 'DRAFT';
           unlisted = true;
           creatorId = organizerUser;
@@ -307,9 +353,7 @@ const createEvents = async (
           openRegistrationTime,
           organizingRegistration: false,
           price: paid ? 100 * 25 : 0,
-          stripeTaxRateId: paid
-            ? (vat19 ?? defaultRate)?.stripeTaxRateId ?? null
-            : null,
+          stripeTaxRateId: participantTaxRateId,
           registeredDescription: 'You are registered',
           registrationMode: 'fcfs',
           roleIds: defaultUserRoles.map((role) => role.id),
@@ -325,9 +369,7 @@ const createEvents = async (
           openRegistrationTime,
           organizingRegistration: true,
           price: paid ? 100 * 10 : 0,
-          stripeTaxRateId: paid
-            ? (vat7 ?? defaultRate)?.stripeTaxRateId ?? null
-            : null,
+          stripeTaxRateId: organizerTaxRateId,
           registeredDescription: 'You are registered',
           registrationMode: 'fcfs',
           roleIds: defaultOrganizerRoles.map((role) => role.id),
