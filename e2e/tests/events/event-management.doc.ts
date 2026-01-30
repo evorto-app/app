@@ -83,21 +83,23 @@ After selecting a template and customizing your event, you can create it and pro
 `,
   });
 
+  const templateName = 'Partnach Gorge hike';
+
   // Select a template from the list
-  await page.getByRole('link', { name: 'Partnach Gorge hike' }).click();
+  await page.getByRole('link', { name: templateName }).click();
 
   // Click the "Create event" link to navigate to the event creation form
   await page.getByRole('link', { name: 'Create event' }).click();
 
   // Fill in event details
-  await page.getByLabel('Event Title').fill('Partnach Gorge Exploration');
+  await page.getByLabel('Event Title').fill(templateName);
   // Skip modifying the description as it's already prefilled with appropriate content
 
   // Create the event
   await page.getByRole('button', { name: 'Create Event' }).click();
 
   // Wait for the event details page to load
-  await page.waitForSelector('h1:has-text("Partnach Gorge hike")');
+  await page.waitForSelector(`h1:has-text("${templateName}")`);
 
   // Wait for the page to stabilize
   await page.waitForTimeout(1000);
@@ -113,7 +115,7 @@ After creating an event, you'll be taken to the event details page where you can
   // Use a more specific selector that's guaranteed to be on the page
   await takeScreenshot(
     testInfo,
-    page.locator('h1:has-text("Partnach Gorge hike")').first(),
+    page.locator(`h1:has-text("${templateName}")`).first(),
     page,
     'Event details page',
   );

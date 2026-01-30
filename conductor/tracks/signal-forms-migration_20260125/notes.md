@@ -1,0 +1,13 @@
+# Notes: Signal Forms Migration (Track Support)
+
+## Test Architecture Observations (2026-01-30)
+
+- `e2e/setup/database.setup.ts` resets the DB once per Playwright run and seeds a baseline tenant (`localhost`) plus base users, then writes `.e2e-runtime.json` for cookie-based tenant selection.
+- `e2e/fixtures/parallel-test.ts` seeds a dedicated tenant per test using `seedTenant` with `domain: e2e-${runId}` where `runId` is derived from a deterministic per-test `falsoSeed` value.
+- When Playwright retries a failing test (`CI=true` enables retries), the deterministic domain is re-used, causing `tenants_domain_unique` violations in `helpers/create-tenant.ts`.
+- This shows up as doc test failures (duplicate domain) even after a clean DB reset.
+
+## Retry Isolation Follow-up (2026-01-30)
+
+- `e2e/fixtures/base-test.ts` now includes `testInfo.retry` in the `falsoSeed` scope so random IDs differ per retry, avoiding `tenants_pkey` collisions.
+- `e2e/fixtures/parallel-test.ts` derives the runId with a retry suffix to keep tenant domains unique across retries.

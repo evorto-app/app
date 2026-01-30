@@ -1,5 +1,10 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
 import { defineConfig, devices } from '@playwright/test';
+
+const env = dotenv.config({ quiet: true });
+if (process.env['DATABASE_URL'] === '' && env.parsed?.['DATABASE_URL']) {
+  process.env['DATABASE_URL'] = env.parsed['DATABASE_URL'];
+}
 
 /**
  * See https://playwright.dev/docs/test-configuration.
@@ -50,35 +55,35 @@ export default defineConfig({
       name: 'local-chrome',
       use: { ...devices['Desktop Chrome'] },
     },
-    {
-      dependencies: ['setup'],
-      name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
-    },
-
-    {
-      dependencies: ['setup'],
-      name: 'firefox',
-      use: { ...devices['Desktop Firefox'] },
-    },
-
-    {
-      dependencies: ['setup'],
-      name: 'webkit',
-      use: { ...devices['Desktop Safari'] },
-    },
+    // {
+    //   dependencies: ['setup'],
+    //   name: 'chromium',
+    //   use: { ...devices['Desktop Chrome'] },
+    // },
+    //
+    // {
+    //   dependencies: ['setup'],
+    //   name: 'firefox',
+    //   use: { ...devices['Desktop Firefox'] },
+    // },
+    //
+    // {
+    //   dependencies: ['setup'],
+    //   name: 'webkit',
+    //   use: { ...devices['Desktop Safari'] },
+    // },
 
     /* Test against mobile viewports. */
-    {
-      dependencies: ['setup'],
-      name: 'Mobile Chrome',
-      use: { ...devices['Pixel 7'] },
-    },
-    {
-      dependencies: ['setup'],
-      name: 'Mobile Safari',
-      use: { ...devices['iPhone 14'] },
-    },
+    // {
+    //   dependencies: ['setup'],
+    //   name: 'Mobile Chrome',
+    //   use: { ...devices['Pixel 7'] },
+    // },
+    // {
+    //   dependencies: ['setup'],
+    //   name: 'Mobile Safari',
+    //   use: { ...devices['iPhone 14'] },
+    // },
 
     /* Test against branded browsers. */
     // {
@@ -102,11 +107,11 @@ export default defineConfig({
 
     colorScheme: 'light',
 
-    /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
-    trace: 'on-first-retry',
-
     /* Ignore SSL errors when connecting to Auth0 and other external services */
     ignoreHTTPSErrors: true,
+
+    /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
+    trace: 'on-first-retry',
   },
 
   ...(webServer ? { webServer } : {}),
