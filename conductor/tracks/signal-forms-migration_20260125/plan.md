@@ -2,9 +2,9 @@
 
 ## Phase 1: Audit & Migration Map
 
-- [ ] Task: Inventory all forms and custom controls
-  - [ ] List all reactive forms, validators, and async flows
-  - [ ] Identify all custom controls and any CVA-based controls
+- [x] Task: Inventory all forms and custom controls (4891566)
+  - [x] List all reactive forms, validators, and async flows
+  - [x] Identify all custom controls and any CVA-based controls
 - [ ] Task: Define migration order and compatForm usage
   - [ ] Decide where compatForm is required vs native Signal Forms
   - [ ] Note any high-risk forms that need special handling
