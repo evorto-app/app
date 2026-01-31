@@ -11,3 +11,7 @@
 
 - `e2e/fixtures/base-test.ts` now includes `testInfo.retry` in the `falsoSeed` scope so random IDs differ per retry, avoiding `tenants_pkey` collisions.
 - `e2e/fixtures/parallel-test.ts` derives the runId with a retry suffix to keep tenant domains unique across retries.
+
+## Manual Verification (2026-01-31)
+
+- Phase 1 manual verification completed by user confirmation.
