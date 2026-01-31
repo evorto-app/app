@@ -17,7 +17,10 @@ import { MatInputModule } from '@angular/material/input';
 
 import { IconSelectorFieldComponent } from '../../../shared/components/controls/icon-selector/icon-selector-field/icon-selector-field.component';
 
-interface IconValue { iconColor: number; iconName: string }
+interface IconValue {
+  iconColor: number;
+  iconName: string;
+}
 const fallbackIcon: IconValue = { iconColor: 0, iconName: 'city' };
 
 @Component({

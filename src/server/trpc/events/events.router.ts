@@ -65,7 +65,10 @@ export const eventRouter = router({
         });
 
         if (!validation.success) {
-          consola.error(`Registration option ${index} tax rate validation failed:`, validation.error);
+          consola.error(
+            `Registration option ${index} tax rate validation failed:`,
+            validation.error,
+          );
           throw new TRPCError({
             code: 'BAD_REQUEST',
             message: `Registration option "${option.title}": ${validation.error.message}`,

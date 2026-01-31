@@ -6,7 +6,11 @@ import {
   input,
   output,
 } from '@angular/core';
-import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import {
+  NonNullableFormBuilder,
+  ReactiveFormsModule,
+  Validators,
+} from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
@@ -143,13 +147,17 @@ export class TemplateFormComponent {
     });
 
     // Always require, and toggle enable/disable based on isPaid
-    const orgTax = this.templateForm.controls.organizerRegistration.controls.stripeTaxRateId;
-    const partTax = this.templateForm.controls.participantRegistration.controls.stripeTaxRateId;
+    const orgTax =
+      this.templateForm.controls.organizerRegistration.controls.stripeTaxRateId;
+    const partTax =
+      this.templateForm.controls.participantRegistration.controls
+        .stripeTaxRateId;
     orgTax.addValidators([Validators.required]);
     partTax.addValidators([Validators.required]);
 
     effect(() => {
-      const orgPaid = this.templateForm.controls.organizerRegistration.controls.isPaid.value;
+      const orgPaid =
+        this.templateForm.controls.organizerRegistration.controls.isPaid.value;
       if (orgPaid) {
         orgTax.enable({ emitEvent: false });
       } else {
@@ -158,7 +166,9 @@ export class TemplateFormComponent {
     });
 
     effect(() => {
-      const partPaid = this.templateForm.controls.participantRegistration.controls.isPaid.value;
+      const partPaid =
+        this.templateForm.controls.participantRegistration.controls.isPaid
+          .value;
       if (partPaid) {
         partTax.enable({ emitEvent: false });
       } else {

@@ -1,5 +1,5 @@
 <div class="mb-4 flex w-full flex-row items-center gap-2">
-  <a routerLink="/events/{{eventId()}}" mat-icon-button>
+  <a routerLink="/events/{{ eventId() }}" mat-icon-button>
     <fa-duotone-icon [icon]="faArrowLeft"></fa-duotone-icon>
   </a>
   <h1 class="title-large">{{ eventQuery.data()?.title ?? "Loading ..." }}</h1>
@@ -34,13 +34,16 @@
           class="grid grid-cols-1 gap-6 lg:grid-cols-2"
           [formArrayName]="'registrationOptions'"
         >
-          @for ( option of registrationOptions.controls; track option; let i =
-          $index ) {
-          <app-registration-option-form
-            class="bg-surface text-on-surface flex flex-col gap-4 rounded-xl p-4"
-            [registrationOptionForm]="option"
-            [registrationModes]="registrationModes"
-          />
+          @for (
+            option of registrationOptions.controls;
+            track option;
+            let i = $index
+          ) {
+            <app-registration-option-form
+              class="bg-surface text-on-surface flex flex-col gap-4 rounded-xl p-4"
+              [registrationOptionForm]="option"
+              [registrationModes]="registrationModes"
+            />
           }
         </div>
       </section>
@@ -49,9 +52,7 @@
         <button
           type="submit"
           mat-button
-          [disabled]="
-              editEventForm.invalid || updateEventMutation.isPending()
-            "
+          [disabled]="editEventForm.invalid || updateEventMutation.isPending()"
         >
           @if (updateEventMutation.isPending()) {
             Saving...

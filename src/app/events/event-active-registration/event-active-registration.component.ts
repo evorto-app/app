@@ -6,7 +6,10 @@ import {
   input,
 } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
-import { injectMutation, QueryClient } from '@tanstack/angular-query-experimental';
+import {
+  injectMutation,
+  QueryClient,
+} from '@tanstack/angular-query-experimental';
 
 import { injectTRPC } from '../../core/trpc-client';
 

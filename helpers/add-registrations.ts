@@ -148,7 +148,6 @@ export async function addRegistrations(
   const MAX_REGISTRATIONS_PER_USER = 4;
   const MAX_REGISTRATIONS_PER_TEST_USER = 1;
 
-
   // Process each event with varied registration patterns
   for (const [eventIndex, event] of events.entries()) {
     // Skip events without valid data
@@ -365,8 +364,7 @@ export async function addRegistrations(
             id: getId(),
             method: 'stripe',
             status: transactionStatus as 'cancelled' | 'pending' | 'successful',
-            stripeChargeId:
-              transactionStatus === 'successful' ? getId() : null,
+            stripeChargeId: transactionStatus === 'successful' ? getId() : null,
             stripePaymentIntentId: getId(),
             targetUserId: user.id,
             tenantId,
@@ -383,7 +381,6 @@ export async function addRegistrations(
       });
     }
   }
-
 
   // Execute all operations in a transaction for atomicity
   try {

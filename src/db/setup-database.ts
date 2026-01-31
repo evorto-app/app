@@ -67,6 +67,8 @@ export async function setupDatabase(
       seedDate,
       stripeAccountId: tenant.stripeAccountId,
     });
-    consola.success(`Tenant ${tenant.domain} ready in ${Date.now() - tenantStart}ms`);
+    consola.success(
+      `Tenant ${tenant.domain} ready in ${Date.now() - tenantStart}ms`,
+    );
   }
 }

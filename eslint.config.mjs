@@ -53,17 +53,25 @@ export default defineConfig(
         {
           patterns: [
             {
-              group: ["@helpers/*", "../helpers/*", "../../helpers/*", "../../../helpers/*", "../../../../helpers/*"],
-              message: "Helpers are only for development and testing. Production code in src/ cannot import helpers."
+              group: [
+                "@helpers/*",
+                "../helpers/*",
+                "../../helpers/*",
+                "../../../helpers/*",
+                "../../../../helpers/*",
+              ],
+              message:
+                "Helpers are only for development and testing. Production code in src/ cannot import helpers.",
             },
             {
               group: ["helpers/*"],
-              message: "Helpers are only for development and testing. Production code in src/ cannot import helpers."
-            }
-          ]
-        }
-      ]
-    }
+              message:
+                "Helpers are only for development and testing. Production code in src/ cannot import helpers.",
+            },
+          ],
+        },
+      ],
+    },
   },
   // Client-side restrictions (Angular app)
   {
@@ -74,24 +82,37 @@ export default defineConfig(
         {
           patterns: [
             {
-              group: ["@server/*", "../server/*", "../../server/*", "../../../server/*"],
-              message: "Client code cannot import server-side modules. Use tRPC client instead.",
-              allowImportNames: ["AppRouter"]
+              group: [
+                "@server/*",
+                "../server/*",
+                "../../server/*",
+                "../../../server/*",
+              ],
+              message:
+                "Client code cannot import server-side modules. Use tRPC client instead.",
+              allowImportNames: ["AppRouter"],
             },
             {
               group: ["express*", "@trpc/server*", "drizzle-orm*"],
-              message: "Client code cannot import server-only dependencies."
+              message: "Client code cannot import server-only dependencies.",
             },
             {
-              group: ["@helpers/*", "../helpers/*", "../../helpers/*", "../../../helpers/*", "../../../../helpers/*"],
-              message: "Helpers are only for development and testing. Production code cannot import helpers."
-            }
-          ]
-        }
-      ]
-    }
+              group: [
+                "@helpers/*",
+                "../helpers/*",
+                "../../helpers/*",
+                "../../../helpers/*",
+                "../../../../helpers/*",
+              ],
+              message:
+                "Helpers are only for development and testing. Production code cannot import helpers.",
+            },
+          ],
+        },
+      ],
+    },
   },
-  // Server-side restrictions  
+  // Server-side restrictions
   {
     files: ["src/server/**/*.ts"],
     rules: {
@@ -101,38 +122,45 @@ export default defineConfig(
           patterns: [
             {
               group: ["@app/*", "../app/*", "../../app/*"],
-              message: "Server code cannot import client-side Angular modules."
+              message: "Server code cannot import client-side Angular modules.",
             },
             {
-              group: ["@helpers/*", "../helpers/*", "../../helpers/*", "../../../helpers/*", "../../../../helpers/*"],
-              message: "Helpers are only for development and testing. Production code cannot import helpers."
-            }
+              group: [
+                "@helpers/*",
+                "../helpers/*",
+                "../../helpers/*",
+                "../../../helpers/*",
+                "../../../../helpers/*",
+              ],
+              message:
+                "Helpers are only for development and testing. Production code cannot import helpers.",
+            },
           ],
           paths: [
             {
               name: "@angular/core",
-              message: "Server code cannot import Angular core modules."
+              message: "Server code cannot import Angular core modules.",
             },
             {
               name: "@angular/common",
-              message: "Server code cannot import Angular common modules."
+              message: "Server code cannot import Angular common modules.",
             },
             {
               name: "@angular/forms",
-              message: "Server code cannot import Angular forms modules."
+              message: "Server code cannot import Angular forms modules.",
             },
             {
               name: "@angular/router",
-              message: "Server code cannot import Angular router modules."
+              message: "Server code cannot import Angular router modules.",
             },
             {
               name: "@angular/material",
-              message: "Server code cannot import Angular Material modules."
-            }
-          ]
-        }
-      ]
-    }
+              message: "Server code cannot import Angular Material modules.",
+            },
+          ],
+        },
+      ],
+    },
   },
   // Database layer restrictions
   {
@@ -144,20 +172,28 @@ export default defineConfig(
           patterns: [
             {
               group: ["@app/*", "../app/*", "../../app/*"],
-              message: "Database layer cannot import client-side Angular modules."
+              message:
+                "Database layer cannot import client-side Angular modules.",
             },
             {
               group: ["@angular/*", "express*"],
-              message: "Database layer should remain framework-agnostic."
+              message: "Database layer should remain framework-agnostic.",
             },
             {
-              group: ["@helpers/*", "../helpers/*", "../../helpers/*", "../../../helpers/*", "../../../../helpers/*"],
-              message: "Helpers are only for development and testing. Production code cannot import helpers."
-            }
-          ]
-        }
-      ]
-    }
+              group: [
+                "@helpers/*",
+                "../helpers/*",
+                "../../helpers/*",
+                "../../../helpers/*",
+                "../../../../helpers/*",
+              ],
+              message:
+                "Helpers are only for development and testing. Production code cannot import helpers.",
+            },
+          ],
+        },
+      ],
+    },
   },
   {
     files: ["**/*.html"],

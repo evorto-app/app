@@ -49,8 +49,13 @@ export const templateRouter = router({
       });
 
       if (!organizerValidation.success) {
-        consola.error('Organizer registration tax rate validation failed:', organizerValidation.error);
-        throw new Error(`Organizer registration: ${organizerValidation.error.message}`);
+        consola.error(
+          'Organizer registration tax rate validation failed:',
+          organizerValidation.error,
+        );
+        throw new Error(
+          `Organizer registration: ${organizerValidation.error.message}`,
+        );
       }
 
       const participantValidation = await validateTaxRate({
@@ -60,8 +65,13 @@ export const templateRouter = router({
       });
 
       if (!participantValidation.success) {
-        consola.error('Participant registration tax rate validation failed:', participantValidation.error);
-        throw new Error(`Participant registration: ${participantValidation.error.message}`);
+        consola.error(
+          'Participant registration tax rate validation failed:',
+          participantValidation.error,
+        );
+        throw new Error(
+          `Participant registration: ${participantValidation.error.message}`,
+        );
       }
 
       const template = await database.transaction(async (tx) => {
@@ -107,7 +117,8 @@ export const templateRouter = router({
           registrationMode: input.participantRegistration.registrationMode,
           roleIds: input.participantRegistration.roleIds,
           spots: input.participantRegistration.spots,
-          stripeTaxRateId: input.participantRegistration.stripeTaxRateId ?? null,
+          stripeTaxRateId:
+            input.participantRegistration.stripeTaxRateId ?? null,
           templateId,
           title: 'Participant registration',
         });
@@ -189,8 +200,13 @@ export const templateRouter = router({
       });
 
       if (!organizerValidation.success) {
-        consola.error('Organizer registration tax rate validation failed:', organizerValidation.error);
-        throw new Error(`Organizer registration: ${organizerValidation.error.message}`);
+        consola.error(
+          'Organizer registration tax rate validation failed:',
+          organizerValidation.error,
+        );
+        throw new Error(
+          `Organizer registration: ${organizerValidation.error.message}`,
+        );
       }
 
       const participantValidation = await validateTaxRate({
@@ -200,8 +216,13 @@ export const templateRouter = router({
       });
 
       if (!participantValidation.success) {
-        consola.error('Participant registration tax rate validation failed:', participantValidation.error);
-        throw new Error(`Participant registration: ${participantValidation.error.message}`);
+        consola.error(
+          'Participant registration tax rate validation failed:',
+          participantValidation.error,
+        );
+        throw new Error(
+          `Participant registration: ${participantValidation.error.message}`,
+        );
       }
 
       return await database.transaction(async (tx) => {

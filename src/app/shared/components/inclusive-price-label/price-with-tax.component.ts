@@ -1,27 +1,37 @@
 import { CurrencyPipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  input,
+} from '@angular/core';
 
-import { formatInclusiveTaxLabel, TaxRateInfo } from '../../../../shared/price/format-inclusive-tax-label';
+import {
+  formatInclusiveTaxLabel,
+  TaxRateInfo,
+} from '../../../../shared/price/format-inclusive-tax-label';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CurrencyPipe],
   selector: 'app-price-with-tax',
-  styles: [`
-    .price-with-tax {
-      display: inline-flex;
-      align-items: baseline;
-      gap: 0.25rem;
-    }
-    
-    .price-amount {
-      font-weight: 600;
-    }
-    
-    .tax-label {
-      font-weight: 500;
-    }
-  `],
+  styles: [
+    `
+      .price-with-tax {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 0.25rem;
+      }
+
+      .price-amount {
+        font-weight: 600;
+      }
+
+      .tax-label {
+        font-weight: 500;
+      }
+    `,
+  ],
   template: `
     <span class="price-with-tax">
       <span class="price-amount">{{ formattedAmount() }}</span>
@@ -29,7 +39,7 @@ import { formatInclusiveTaxLabel, TaxRateInfo } from '../../../../shared/price/f
         {{ taxLabel() }}
       </span>
     </span>
-  `
+  `,
 })
 export class PriceWithTaxComponent {
   /**
@@ -59,14 +69,16 @@ export class PriceWithTaxComponent {
     if (this.isFree() || this.amount() <= 0) {
       return 'Free';
     }
-    
+
     const currencyPipe = new CurrencyPipe('en-US');
-    return currencyPipe.transform(
-      this.amount() / 100, // Convert cents to main currency unit
-      this.currency(),
-      'symbol',
-      '1.2-2'
-    ) || '€0.00';
+    return (
+      currencyPipe.transform(
+        this.amount() / 100, // Convert cents to main currency unit
+        this.currency(),
+        'symbol',
+        '1.2-2',
+      ) || '€0.00'
+    );
   });
 
   /**
@@ -76,7 +88,7 @@ export class PriceWithTaxComponent {
     if (this.isFree() || this.amount() <= 0) {
       return '';
     }
-    
+
     return formatInclusiveTaxLabel(this.taxRate());
   });
 }

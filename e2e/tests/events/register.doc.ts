@@ -7,7 +7,11 @@ import { takeScreenshot } from '../../reporters/documentation-reporter';
 
 test.use({ storageState: userStateFile });
 
-test.fixme('Register for a free event', async ({ events, page, registrations }, testInfo) => {
+test.fixme('Register for a free event', async ({
+  events,
+  page,
+  registrations,
+}, testInfo) => {
   test.slow();
   const regularUser = usersToAuthenticate.find((user) => user.roles === 'user');
   if (!regularUser) {
@@ -100,7 +104,11 @@ test.fixme('Register for a free event', async ({ events, page, registrations }, 
   );
 });
 
-test('Register for a paid event', async ({ events, page, registrations }, testInfo) => {
+test('Register for a paid event', async ({
+  events,
+  page,
+  registrations,
+}, testInfo) => {
   test.slow();
   const regularUser = usersToAuthenticate.find((user) => user.roles === 'user');
   if (!regularUser) {

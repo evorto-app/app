@@ -20,9 +20,7 @@ const organizerUser =
 const regularUser =
   usersToAuthenticate.find((user) => user.roles === 'user')?.id ?? fallbackId;
 
-type TenantStripeTaxRate = InferSelectModel<
-  typeof schema.tenantStripeTaxRates
->;
+type TenantStripeTaxRate = InferSelectModel<typeof schema.tenantStripeTaxRates>;
 
 type TaxRateSelection = {
   defaultRateId: null | string;
@@ -191,7 +189,9 @@ export const addEvents = async (
   await database
     .insert(schema.eventRegistrationOptions)
     .values(allRegistrationOptions);
-  consola.success(`Inserted ${allRegistrationOptions.length} event registration options`);
+  consola.success(
+    `Inserted ${allRegistrationOptions.length} event registration options`,
+  );
 
   // Seed discounts for paid participant registration options (ESN card)
   try {
@@ -199,15 +199,13 @@ export const addEvents = async (
       (opt) => opt.isPaid && !opt.organizingRegistration,
     );
     if (paidOptions.length > 0) {
-      await database
-        .insert(schema.eventRegistrationOptionDiscounts)
-        .values(
-          paidOptions.map((opt) => ({
-            discountedPrice: Math.max(0, (opt.price ?? 0) - 500), // simple discount of 5€
-            discountType: 'esnCard' as const,
-            registrationOptionId: opt.id,
-          })),
-        );
+      await database.insert(schema.eventRegistrationOptionDiscounts).values(
+        paidOptions.map((opt) => ({
+          discountedPrice: Math.max(0, (opt.price ?? 0) - 500), // simple discount of 5€
+          discountType: 'esnCard' as const,
+          registrationOptionId: opt.id,
+        })),
+      );
     }
   } catch (error) {
     console.warn('Failed to seed event discounts', error);
@@ -242,7 +240,9 @@ const createEvents = (
   paid = false,
 ): {
   events: InferInsertModel<typeof schema.eventInstances>[];
-  registrationOptions: InferInsertModel<typeof schema.eventRegistrationOptions>[];
+  registrationOptions: InferInsertModel<
+    typeof schema.eventRegistrationOptions
+  >[];
 } => {
   const events: InferInsertModel<typeof schema.eventInstances>[] = [];
   const registrationOptions: InferInsertModel<
@@ -273,17 +273,13 @@ const createEvents = (
       if (index === 0) {
         // First event should be a future event so it's visible in the UI
         // This ensures events like "Hörnle hike 1" are visible
-        eventStart = seedNow
-          .plus({ days: 5 + index * 2 })
-          .toJSDate();
+        eventStart = seedNow.plus({ days: 5 + index * 2 }).toJSDate();
         status = 'APPROVED';
         unlisted = false;
         creatorId = organizerUser;
       } else if (index === 1) {
         // Current/upcoming event
-        eventStart = seedNow
-          .plus({ days: 7 + index * 3 })
-          .toJSDate();
+        eventStart = seedNow.plus({ days: 7 + index * 3 }).toJSDate();
         status = 'APPROVED';
         unlisted = false;
         // Use organizerUser for current/upcoming events
@@ -291,9 +287,7 @@ const createEvents = (
         creatorId = organizerUser;
       } else {
         // Future event
-        eventStart = seedNow
-          .plus({ days: 30 + index * 10 })
-          .toJSDate();
+        eventStart = seedNow.plus({ days: 30 + index * 10 }).toJSDate();
 
         // Mix of statuses for future events
         if (isLast) {
@@ -339,9 +333,7 @@ const createEvents = (
       // - closeRegistrationTime is always in the future (30 days from now)
       // This ensures events are always available for registration in tests
       const openRegistrationTime = seedNow.minus({ days: 5 }).toJSDate();
-      const closeRegistrationTime = seedNow
-        .plus({ days: 30 })
-        .toJSDate();
+      const closeRegistrationTime = seedNow.plus({ days: 30 }).toJSDate();
 
       registrationOptions.push(
         {

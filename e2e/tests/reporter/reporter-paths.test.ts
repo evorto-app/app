@@ -4,7 +4,7 @@ import { expect, test } from '@playwright/test';
 
 import DocumentationReporter from '../../reporters/documentation-reporter';
 
-test('documentation reporter respects DOCS_* env and writes files', async ({} , testInfo) => {
+test('documentation reporter respects DOCS_* env and writes files', async ({}, testInfo) => {
   const docsRoot = testInfo.outputPath('docs-out');
   const imgsRoot = testInfo.outputPath('docs-img');
   process.env.DOCS_OUT_DIR = docsRoot;
@@ -21,9 +21,17 @@ test('documentation reporter respects DOCS_* env and writes files', async ({} , 
   const png = Buffer.from([137, 80, 78, 71]); // not a valid PNG, but enough for file write
   const result = {
     attachments: [
-      { name: 'markdown', contentType: 'text/markdown', body: Buffer.from('Hello world') },
+      {
+        name: 'markdown',
+        contentType: 'text/markdown',
+        body: Buffer.from('Hello world'),
+      },
       { name: 'image', contentType: 'image/png', body: png },
-      { name: 'image-caption', contentType: 'text/plain', body: Buffer.from('An image') },
+      {
+        name: 'image-caption',
+        contentType: 'text/plain',
+        body: Buffer.from('An image'),
+      },
     ],
   } as any;
 
@@ -55,7 +63,11 @@ test('front matter normalization with permissions callout', async ({}, testInfo)
   const mdBlock = `---\nPermissions:\n - admin:manage\n - events:view\n---\nBody text`;
   const result = {
     attachments: [
-      { name: 'markdown', contentType: 'text/markdown', body: Buffer.from(mdBlock) },
+      {
+        name: 'markdown',
+        contentType: 'text/markdown',
+        body: Buffer.from(mdBlock),
+      },
     ],
   } as any;
 
@@ -69,4 +81,3 @@ test('front matter normalization with permissions callout', async ({}, testInfo)
   expect(md).toContain('- events:view');
   expect(md).toContain('Body text');
 });
-

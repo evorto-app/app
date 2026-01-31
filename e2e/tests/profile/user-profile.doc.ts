@@ -26,13 +26,13 @@ To access your profile, click on the **Profile** link in the navigation bar at t
     testInfo,
     page.locator('.navigation'),
     page,
-    'Navigation bar with Profile link'
+    'Navigation bar with Profile link',
   );
   await takeScreenshot(
     testInfo,
     page.locator('app-user-profile'),
     page,
-    'User profile page'
+    'User profile page',
   );
 
   await testInfo.attach('markdown', {
@@ -58,7 +58,7 @@ You can view your profile information at any time by clicking on the Profile lin
     testInfo,
     page.locator('app-user-profile'),
     page,
-    'Profile information section'
+    'Profile information section',
   );
 
   await testInfo.attach('markdown', {

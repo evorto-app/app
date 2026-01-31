@@ -13,7 +13,10 @@ const findUnlistedEvent = (
 test.describe('Unlisted events visibility', () => {
   test.use({ storageState: userStateFile });
 
-  test('regular user does not see unlisted in list', async ({ events, page }) => {
+  test('regular user does not see unlisted in list', async ({
+    events,
+    page,
+  }) => {
     const unlisted = findUnlistedEvent(events);
     if (!unlisted) {
       test.skip(true, 'No unlisted event seeded');
@@ -21,14 +24,19 @@ test.describe('Unlisted events visibility', () => {
     }
     await page.goto('/events');
     // Should not appear in listing for regular user
-    await expect(page.getByRole('link', { name: unlisted.title })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: unlisted.title })).toHaveCount(
+      0,
+    );
     // No unlisted badges for regular users
     await expect(
       page.locator('app-event-list nav').getByText('unlisted'),
     ).toHaveCount(0);
   });
 
-  test('regular user can open unlisted via direct link', async ({ events, page }) => {
+  test('regular user can open unlisted via direct link', async ({
+    events,
+    page,
+  }) => {
     const unlisted = findUnlistedEvent(events);
     if (!unlisted) {
       test.skip(true, 'No unlisted event seeded');
@@ -36,14 +44,19 @@ test.describe('Unlisted events visibility', () => {
     }
     await page.goto(`/events/${unlisted.id}`);
     // Title should be visible on event details page
-    await expect(page.getByRole('heading', { name: unlisted.title })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: unlisted.title }),
+    ).toBeVisible();
   });
 });
 
 test.describe('Admin can see unlisted', () => {
   test.use({ storageState: adminStateFile });
 
-  test('admin sees unlisted in list with indicator', async ({ events, page }) => {
+  test('admin sees unlisted in list with indicator', async ({
+    events,
+    page,
+  }) => {
     const unlisted = findUnlistedEvent(events);
     if (!unlisted) {
       test.skip(true, 'No unlisted event seeded');
@@ -53,6 +66,8 @@ test.describe('Admin can see unlisted', () => {
     const eventCard = page.locator(`a[href="/events/${unlisted.id}"]`);
     await expect(eventCard).toBeVisible();
     // The card contains an "unlisted" indicator element
-    await expect(eventCard.getByText('unlisted', { exact: true })).toBeVisible();
+    await expect(
+      eventCard.getByText('unlisted', { exact: true }),
+    ).toBeVisible();
   });
 });

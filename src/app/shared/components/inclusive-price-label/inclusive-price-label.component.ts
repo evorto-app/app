@@ -1,20 +1,30 @@
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  input,
+} from '@angular/core';
 
-import { formatInclusiveTaxLabel, TaxRateInfo } from '../../../../shared/price/format-inclusive-tax-label';
+import {
+  formatInclusiveTaxLabel,
+  TaxRateInfo,
+} from '../../../../shared/price/format-inclusive-tax-label';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-inclusive-price-label',
-  styles: [`
-    .inclusive-tax-label {
-      font-weight: 500;
-    }
-  `],
+  styles: [
+    `
+      .inclusive-tax-label {
+        font-weight: 500;
+      }
+    `,
+  ],
   template: `
     <span class="inclusive-tax-label text-sm text-muted-foreground">
       {{ taxLabel() }}
     </span>
-  `
+  `,
 })
 export class InclusivePriceLabelComponent {
   /**

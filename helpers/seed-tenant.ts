@@ -7,11 +7,7 @@ import * as schema from '../src/db/schema';
 import { addEvents } from './add-events';
 import { addIcons } from './add-icons';
 import { addRegistrations } from './add-registrations';
-import {
-  addExampleUsers,
-  addRoles,
-  addUsersToRoles,
-} from './add-roles';
+import { addExampleUsers, addRoles, addUsersToRoles } from './add-roles';
 import { addTaxRates } from './add-tax-rates';
 import { addTemplateCategories } from './add-template-categories';
 import { addTemplates } from './add-templates';
@@ -35,9 +31,20 @@ export interface SeedTenantOptions {
 
 export interface SeedTenantResult {
   tenant: { id: string; domain: string; name: string };
-  roles: { id: string; name: string; defaultUserRole: boolean; defaultOrganizerRole: boolean }[];
+  roles: {
+    id: string;
+    name: string;
+    defaultUserRole: boolean;
+    defaultOrganizerRole: boolean;
+  }[];
   templateCategories: { id: string; tenantId: string; title: string }[];
-  templates: { id: string; tenantId: string; title: string; description: string; icon: string }[];
+  templates: {
+    id: string;
+    tenantId: string;
+    title: string;
+    description: string;
+    icon: string;
+  }[];
   events: {
     id: string;
     tenantId: string;
@@ -84,10 +91,7 @@ export const seedBaseUsers = async (
     return;
   }
 
-  await database
-    .insert(schema.users)
-    .values(values)
-    .onConflictDoNothing();
+  await database.insert(schema.users).values(values).onConflictDoNothing();
   consola.success(`Seeded ${values.length} base users (skipping existing)`);
 };
 
@@ -148,7 +152,11 @@ export async function seedTenant(
     await addExampleUsers(database, roles, tenant);
   }
 
-  const templateCategories = await addTemplateCategories(database, tenant, icons);
+  const templateCategories = await addTemplateCategories(
+    database,
+    tenant,
+    icons,
+  );
   const templates = await addTemplates(database, templateCategories, roles);
   const events = await addEvents(database, templates, roles, resolvedSeedDate);
   const registrations = includeRegistrations

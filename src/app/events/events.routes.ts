@@ -12,9 +12,10 @@ export const EVENT_ROUTES: Routes = [
       },
       {
         canActivate: [
-          () => import('./guards/event-organizer.guard').then(
-            (m) => m.eventOrganizerGuard,
-          ),
+          () =>
+            import('./guards/event-organizer.guard').then(
+              (m) => m.eventOrganizerGuard,
+            ),
         ],
         loadComponent: () =>
           import('./event-organize/event-organize').then(

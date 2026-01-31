@@ -103,12 +103,12 @@
                       <fa-duotone-icon [icon]="faClock"></fa-duotone-icon>
                       <p>{{ event.start | date: "shortTime" }}</p>
                     </div>
-            @if (event.unlisted) {
-              <div class="flex flex-row items-center gap-2">
-                <fa-duotone-icon [icon]="faEyeSlash"></fa-duotone-icon>
-                <p>unlisted</p>
-              </div>
-            }
+                    @if (event.unlisted) {
+                      <div class="flex flex-row items-center gap-2">
+                        <fa-duotone-icon [icon]="faEyeSlash"></fa-duotone-icon>
+                        <p>unlisted</p>
+                      </div>
+                    }
                   </div>
                 </div>
               </div>

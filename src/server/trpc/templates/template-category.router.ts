@@ -6,7 +6,10 @@ import { database } from '../../../db';
 import { eventTemplateCategories } from '../../../db/schema';
 import { authenticatedProcedure, router } from '../trpc-server';
 
-interface IconValue { iconColor: number; iconName: string }
+interface IconValue {
+  iconColor: number;
+  iconName: string;
+}
 
 const iconSchema = Schema.Unknown;
 

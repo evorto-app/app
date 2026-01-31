@@ -24,7 +24,10 @@ import { injectTRPC } from '../../../core/trpc-client';
 import { IconComponent } from '../../../shared/components/icon/icon.component';
 import { CreateEditCategoryDialogComponent } from '../create-edit-category-dialog/create-edit-category-dialog.component';
 
-interface IconValue { iconColor: number; iconName: string }
+interface IconValue {
+  iconColor: number;
+  iconName: string;
+}
 const fallbackIcon: IconValue = { iconColor: 0, iconName: 'city' };
 
 const isIconValue = (value: unknown): value is IconValue => {

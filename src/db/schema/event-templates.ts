@@ -1,4 +1,11 @@
-import { boolean, jsonb, pgTable, text, timestamp, varchar } from 'drizzle-orm/pg-core';
+import {
+  boolean,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  varchar,
+} from 'drizzle-orm/pg-core';
 
 import { EventLocationType } from '../../types/location';
 import { createId } from '../create-id';

@@ -4,7 +4,10 @@ import { MatButtonModule } from '@angular/material/button';
 import { Router, RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
-import { injectMutation, QueryClient } from '@tanstack/angular-query-experimental';
+import {
+  injectMutation,
+  QueryClient,
+} from '@tanstack/angular-query-experimental';
 
 import { injectTRPC } from '../../core/trpc-client';
 import {

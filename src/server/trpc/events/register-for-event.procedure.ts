@@ -158,8 +158,10 @@ export const registerForEventProcedure = authenticatedProcedure
 
         // Check if discount reduced price to zero or negative - treat as free
         if (effectivePrice <= 0) {
-          consola.info(`Effective price ${effectivePrice} <= 0 for registration ${userRegistration.id}, treating as free`);
-          
+          consola.info(
+            `Effective price ${effectivePrice} <= 0 for registration ${userRegistration.id}, treating as free`,
+          );
+
           // Update registration status to confirmed (no payment needed)
           await database
             .update(schema.eventRegistrations)
@@ -173,9 +175,16 @@ export const registerForEventProcedure = authenticatedProcedure
               confirmedSpots: registrationOption.confirmedSpots + 1,
               reservedSpots: Math.max(0, registrationOption.reservedSpots - 1),
             })
-            .where(eq(schema.eventRegistrationOptions.id, registrationOption.id));
+            .where(
+              eq(schema.eventRegistrationOptions.id, registrationOption.id),
+            );
 
-          return { userRegistration: { ...userRegistration, status: 'CONFIRMED' as const } };
+          return {
+            userRegistration: {
+              ...userRegistration,
+              status: 'CONFIRMED' as const,
+            },
+          };
         }
 
         const applicationFee = Math.round(effectivePrice * 0.035);
@@ -191,13 +200,16 @@ export const registerForEventProcedure = authenticatedProcedure
           });
 
           if (!taxRate || !taxRate.active || !taxRate.inclusive) {
-            consola.warn(`WARN_INACTIVE_TAX_RATE: Tax rate ${selectedTaxRateId} is not active or compatible for registration ${userRegistration.id}`, {
-              active: taxRate?.active,
-              inclusive: taxRate?.inclusive,
-              registrationId: userRegistration.id,
-              taxRateId: selectedTaxRateId,
-              tenantId: ctx.tenant.id,
-            });
+            consola.warn(
+              `WARN_INACTIVE_TAX_RATE: Tax rate ${selectedTaxRateId} is not active or compatible for registration ${userRegistration.id}`,
+              {
+                active: taxRate?.active,
+                inclusive: taxRate?.inclusive,
+                registrationId: userRegistration.id,
+                taxRateId: selectedTaxRateId,
+                tenantId: ctx.tenant.id,
+              },
+            );
             // Continue with checkout but log the warning
           }
         }

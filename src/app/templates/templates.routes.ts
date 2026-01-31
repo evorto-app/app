@@ -41,9 +41,9 @@ export const TEMPLATE_ROUTES: Routes = [
       },
       {
         loadComponent: () =>
-          import(
-            './template-create-event/template-create-event.component'
-          ).then((m) => m.TemplateCreateEventComponent),
+          import('./template-create-event/template-create-event.component').then(
+            (m) => m.TemplateCreateEventComponent,
+          ),
         path: ':templateId/create-event',
       },
     ],

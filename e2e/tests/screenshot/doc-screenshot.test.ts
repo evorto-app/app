@@ -15,7 +15,9 @@ test.setTimeout(120000);
 
 test.use({ storageState: defaultStateFile });
 
-test('doc-screenshot returns a relative path and writes image', async ({ page }, testInfo) => {
+test('doc-screenshot returns a relative path and writes image', async ({
+  page,
+}, testInfo) => {
   // Put images into a predictable temp folder for the test
   const imgRoot = path.resolve('test-results/tmp-doc-images');
   process.env.DOCS_IMG_OUT_DIR = imgRoot;

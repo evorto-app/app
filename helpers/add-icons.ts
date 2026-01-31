@@ -34,7 +34,10 @@ export const addIcons = async (
     { commonName: 'discount--v1', friendlyName: 'Discount' },
     { commonName: 'ticket--v1', friendlyName: 'Ticket' },
     { commonName: 'easy', friendlyName: 'Easy' },
-    { commonName: 'group-background-selected', friendlyName: 'Group Background Selected' },
+    {
+      commonName: 'group-background-selected',
+      friendlyName: 'Group Background Selected',
+    },
     {
       commonName:
         'external-canyon-landscape-vitaliy-gorbachev-flat-vitaly-gorbachev-1:external-vitaliy-gorbachev-flat-vitaly-gorbachev',
@@ -45,7 +48,9 @@ export const addIcons = async (
     seed.map(async (icon) => {
       const t0 = Date.now();
       const sourceColor = await computeIconSourceColor(icon.commonName);
-      consola.debug(`Computed color for ${icon.commonName} in ${Date.now() - t0}ms`);
+      consola.debug(
+        `Computed color for ${icon.commonName} in ${Date.now() - t0}ms`,
+      );
       return {
         commonName: icon.commonName,
         friendlyName: icon.friendlyName,

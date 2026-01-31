@@ -2,14 +2,19 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { expect, test } from '@playwright/test';
 
-import { isStorageStateFresh, readStorageState } from '../../utils/storage-state';
+import {
+  isStorageStateFresh,
+  readStorageState,
+} from '../../utils/storage-state';
 
 test('storage state freshness - age and tenant cookie checks', async ({}, testInfo) => {
   const statePath = testInfo.outputPath('state.json');
   // Write a minimal valid storage state
   fs.writeFileSync(
     statePath,
-    JSON.stringify({ cookies: [{ name: 'evorto-tenant', value: 'wrong-tenant' }] }),
+    JSON.stringify({
+      cookies: [{ name: 'evorto-tenant', value: 'wrong-tenant' }],
+    }),
     'utf-8',
   );
 
@@ -20,25 +25,38 @@ test('storage state freshness - age and tenant cookie checks', async ({}, testIn
 
   // Freshness should fail due to age
   expect(
-    isStorageStateFresh({ pathname: statePath, tenantDomain: 'localhost', maxAgeMs: 24 * 60 * 60 * 1000 }),
+    isStorageStateFresh({
+      pathname: statePath,
+      tenantDomain: 'localhost',
+      maxAgeMs: 24 * 60 * 60 * 1000,
+    }),
   ).toBe(false);
 
   // Update mtime to now but keep wrong cookie
   const now = new Date();
   fs.utimesSync(statePath, now, now);
   expect(
-    isStorageStateFresh({ pathname: statePath, tenantDomain: 'localhost', maxAgeMs: 24 * 60 * 60 * 1000 }),
+    isStorageStateFresh({
+      pathname: statePath,
+      tenantDomain: 'localhost',
+      maxAgeMs: 24 * 60 * 60 * 1000,
+    }),
   ).toBe(false);
 
   // Fix cookie to match tenant
   fs.writeFileSync(
     statePath,
-    JSON.stringify({ cookies: [{ name: 'evorto-tenant', value: 'localhost' }] }),
+    JSON.stringify({
+      cookies: [{ name: 'evorto-tenant', value: 'localhost' }],
+    }),
     'utf-8',
   );
   fs.utimesSync(statePath, now, now);
   expect(
-    isStorageStateFresh({ pathname: statePath, tenantDomain: 'localhost', maxAgeMs: 24 * 60 * 60 * 1000 }),
+    isStorageStateFresh({
+      pathname: statePath,
+      tenantDomain: 'localhost',
+      maxAgeMs: 24 * 60 * 60 * 1000,
+    }),
   ).toBe(true);
 });
-

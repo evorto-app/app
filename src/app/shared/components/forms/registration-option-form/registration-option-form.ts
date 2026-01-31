@@ -1,5 +1,11 @@
 import { CurrencyPipe, TitleCasePipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, input, OnDestroy, OnInit } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  input,
+  OnDestroy,
+  OnInit,
+} from '@angular/core';
 import {
   AbstractControl,
   FormControl,
@@ -68,7 +74,9 @@ export class RegistrationOptionForm implements OnDestroy, OnInit {
   ngOnInit(): void {
     const group = this.registrationOptionForm();
     const isPaid = group.controls.isPaid;
-    const tax = group.controls.stripeTaxRateId as AbstractControl<null | string>;
+    const tax = group.controls.stripeTaxRateId as AbstractControl<
+      null | string
+    >;
 
     // Always require the tax rate when enabled
     tax.addValidators([Validators.required]);

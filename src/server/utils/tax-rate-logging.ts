@@ -135,11 +135,16 @@ export const TaxRateLogger = {
   /**
    * Log when imported rate becomes unavailable
    */
-  logRateUnavailable(data: TaxRateLogContext & {
-    affectedOptions?: { optionId: string; optionType: 'event' | 'template' }[];
-    reason: string;
-    stripeTaxRateId: string;
-  }): void {
+  logRateUnavailable(
+    data: TaxRateLogContext & {
+      affectedOptions?: {
+        optionId: string;
+        optionType: 'event' | 'template';
+      }[];
+      reason: string;
+      stripeTaxRateId: string;
+    },
+  ): void {
     consola.warn('tax-rates.rate.unavailable', {
       ...data,
       timestamp: new Date(),
@@ -167,15 +172,18 @@ export const TaxRateLogger = {
 /**
  * Helper function to create base log context from common parameters
  */
-export function createLogContext(tenantId: string, userId?: string): TaxRateLogContext {
+export function createLogContext(
+  tenantId: string,
+  userId?: string,
+): TaxRateLogContext {
   const context: TaxRateLogContext = {
     tenantId,
     timestamp: new Date(),
   };
-  
+
   if (userId) {
     context.userId = userId;
   }
-  
+
   return context;
 }

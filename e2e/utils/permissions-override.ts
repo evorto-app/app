@@ -19,7 +19,12 @@ export async function applyPermissionDiff(
   const rows = await database
     .select()
     .from(schema.roles)
-    .where(and(eq(schema.roles.tenantId, tenant.id), eq(schema.roles.name, diff.roleName)))
+    .where(
+      and(
+        eq(schema.roles.tenantId, tenant.id),
+        eq(schema.roles.name, diff.roleName),
+      ),
+    )
     .limit(1);
   const role = rows[0];
   if (!role) throw new Error(`Role not found: ${diff.roleName}`);
@@ -30,5 +35,7 @@ export async function applyPermissionDiff(
   await database
     .update(schema.roles)
     .set({ permissions: next as any })
-    .where(and(eq(schema.roles.id, role.id), eq(schema.roles.tenantId, tenant.id)));
+    .where(
+      and(eq(schema.roles.id, role.id), eq(schema.roles.tenantId, tenant.id)),
+    );
 }
