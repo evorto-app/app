@@ -1,6 +1,6 @@
 # Implementation Plan
 
-## Phase 1: Scaffold new structure and guidance
+## Phase 1: Scaffold new structure and guidance [checkpoint: 1acfaab]
 
 - [x] Task: Create root `tests/` and `specs/` scaffolding (9ae8961) ac3b01e
   - [x] Add `tests/` with a short README describing scope and tag requirements
@@ -8,7 +8,7 @@
 - [x] Task: Document layout and conventions (c798f35) 711fcb4
   - [x] Update existing docs or workflow references to point to `tests/` and `specs/`
   - [x] Note that `e2e/tests/**` is legacy reference and not run by default
-- [~] Task: Conductor - User Manual Verification 'Phase 1' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 1' (Protocol in workflow.md) 1acfaab
 
 ## Phase 2: Playwright configuration
 
