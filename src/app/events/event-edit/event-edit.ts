@@ -4,12 +4,9 @@ import {
   effect,
   inject,
   input,
+  signal,
 } from '@angular/core';
-import {
-  FormArray,
-  NonNullableFormBuilder,
-  ReactiveFormsModule,
-} from '@angular/forms';
+import { form } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import { MatMenuModule } from '@angular/material/menu';
 import { Router, RouterLink } from '@angular/router';
@@ -25,13 +22,17 @@ import {
 } from '@tanstack/angular-query-experimental';
 import consola from 'consola/browser';
 
-import { EventLocationType } from '../../../types/location';
 import { injectTRPC } from '../../core/trpc-client';
 import { EventGeneralForm } from '../../shared/components/forms/event-general-form/event-general-form';
 import {
+  createEventGeneralFormModel,
+  EventGeneralFormModel,
+  eventGeneralFormSchema,
+} from '../../shared/components/forms/event-general-form/event-general-form.schema';
+import {
   RegistrationOptionForm,
-  RegistrationOptionFormGroup,
 } from '../../shared/components/forms/registration-option-form/registration-option-form';
+import { createRegistrationOptionFormModel } from '../../shared/components/forms/registration-option-form/registration-option-form.schema';
 import { IfAnyPermissionDirective } from '../../shared/directives/if-any-permission.directive';
 
 @Component({
@@ -43,7 +44,6 @@ import { IfAnyPermissionDirective } from '../../shared/directives/if-any-permiss
     MatMenuModule,
     RouterLink,
     EventGeneralForm,
-    ReactiveFormsModule,
     RegistrationOptionForm,
   ],
   selector: 'app-event-edit',
@@ -52,21 +52,13 @@ import { IfAnyPermissionDirective } from '../../shared/directives/if-any-permiss
 })
 export class EventEdit {
   public eventId = input.required<string>();
-  get registrationOptions() {
-    return this.editEventForm.get(
-      'registrationOptions',
-    ) as (typeof this.editEventForm)['controls']['registrationOptions'];
-  }
-  private fb = inject(NonNullableFormBuilder);
-  protected readonly editEventForm = this.fb.group({
-    description: this.fb.control(''),
-    end: this.fb.control<Date>(new Date()),
-    icon: this.fb.control<null | { iconColor: number; iconName: string }>(null),
-    location: this.fb.control<EventLocationType | null>(null),
-    registrationOptions: this.fb.array<RegistrationOptionFormGroup>([]),
-    start: this.fb.control<Date>(new Date()),
-    title: this.fb.control(''),
-  });
+  protected readonly editEventModel = signal<EventGeneralFormModel>(
+    createEventGeneralFormModel(),
+  );
+  protected readonly editEventForm = form(
+    this.editEventModel,
+    eventGeneralFormSchema,
+  );
   private trpc = injectTRPC();
   protected readonly eventQuery = injectQuery(() =>
     this.trpc.events.findOneForEdit.queryOptions({ id: this.eventId() }),
@@ -97,55 +89,44 @@ export class EventEdit {
     effect(() => {
       const event = this.eventQuery.data();
       if (event) {
-        // Use patchValue instead of reset for better control over form updates
-        this.editEventForm.patchValue({
-          description: event.description,
-          end: event.end ? new Date(event.end) : new Date(),
-          icon: event.icon,
-          location: event.location || null,
-          start: event.start ? new Date(event.start) : new Date(),
-          title: event.title,
-        });
-
-        // Update registration options
-        const registrationOptionsFormArray = this.editEventForm.get(
-          'registrationOptions',
-        ) as FormArray;
-        registrationOptionsFormArray.clear();
-        for (const option of event.registrationOptions) {
-          registrationOptionsFormArray.push(
-            this.fb.group({
-              closeRegistrationTime: [
-                option.closeRegistrationTime
+        this.editEventModel.set(
+          createEventGeneralFormModel({
+            description: event.description,
+            end: event.end ? new Date(event.end) : new Date(),
+            icon: event.icon,
+            location: event.location || null,
+            registrationOptions: event.registrationOptions.map((option) =>
+              createRegistrationOptionFormModel({
+                closeRegistrationTime: option.closeRegistrationTime
                   ? new Date(option.closeRegistrationTime)
-                  : null,
-              ],
-              description: [option.description],
-              isPaid: [option.isPaid],
-              openRegistrationTime: [
-                option.openRegistrationTime
+                  : new Date(),
+                description: option.description ?? '',
+                isPaid: option.isPaid,
+                openRegistrationTime: option.openRegistrationTime
                   ? new Date(option.openRegistrationTime)
-                  : null,
-              ],
-              organizingRegistration: [option.organizingRegistration],
-              price: [option.price],
-              registeredDescription: [option.registeredDescription],
-              registrationMode: [option.registrationMode],
-              spots: [option.spots],
-              stripeTaxRateId: [option.stripeTaxRateId ?? null],
-              title: [option.title],
-            }),
-          );
-        }
+                  : new Date(),
+                organizingRegistration: option.organizingRegistration,
+                price: option.price,
+                registeredDescription: option.registeredDescription ?? '',
+                registrationMode: option.registrationMode,
+                spots: option.spots,
+                stripeTaxRateId: option.stripeTaxRateId ?? null,
+                title: option.title,
+              }),
+            ),
+            start: event.start ? new Date(event.start) : new Date(),
+            title: event.title,
+          }),
+        );
       }
     });
   }
   protected saveEvent() {
-    if (this.editEventForm.invalid) {
+    if (this.editEventForm().invalid()) {
       return;
     }
 
-    const formValue = this.editEventForm.value;
+    const formValue = this.editEventForm().value();
 
     if (
       !formValue.description ||
