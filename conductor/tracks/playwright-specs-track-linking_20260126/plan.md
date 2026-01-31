@@ -12,11 +12,11 @@
 
 ## Phase 2: Playwright configuration
 
-- [ ] Task: Update Playwright config to new layout
-  - [ ] Set `testDir` to `./tests`
-  - [ ] Ensure doc-test project (or equivalent) targets `tests/docs/**`
-  - [ ] Ensure legacy `e2e/tests/**` is excluded from default runs
-  - [ ] Update any scripts/builders referencing old paths
+- [x] Task: Update Playwright config to new layout 68594b5
+  - [x] Set `testDir` to `./tests`
+  - [x] Ensure doc-test project (or equivalent) targets `tests/docs/**`
+  - [x] Ensure legacy `e2e/tests/**` is excluded from default runs
+  - [x] Update any scripts/builders referencing old paths
 - [ ] Task: Add a minimal doc-test template in `tests/docs/**`
   - [ ] Provide a tagged, skipped example to confirm discovery without breaking CI
 - [ ] Task: Conductor - User Manual Verification 'Phase 2' (Protocol in workflow.md)
