@@ -9,7 +9,7 @@
   - [x] Migration map captured in `conductor/tracks/signal-forms-migration_20260125/migration-map.md`
   - [x] Decide where compatForm is required vs native Signal Forms
   - [x] Note any high-risk forms that need special handling
-- [ ] Task: Conductor - User Manual Verification 'Phase 1' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 1' (Protocol in workflow.md) (e9a4288)
 
 ## Phase 2: Core Form Model Migration
 
