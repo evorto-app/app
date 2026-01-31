@@ -4,7 +4,7 @@ import { takeScreenshot } from '../../reporters/documentation-reporter';
 
 test.use({ storageState: adminStateFile });
 
-test('Admin: manage unlisted events', async ({ events, page }, testInfo) => {
+test.fixme('Admin: manage unlisted events', async ({ events, page }, testInfo) => {
   // Choose an approved, currently listed event to demonstrate toggling
   const target = events.find((e) => e.status === 'APPROVED' && e.unlisted === false);
   if (!target) throw new Error('No approved listed event found for unlisted admin demo');

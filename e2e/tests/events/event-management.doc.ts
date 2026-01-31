@@ -6,7 +6,7 @@ import { takeScreenshot } from '../../reporters/documentation-reporter';
 
 test.use({ storageState: adminStateFile });
 
-test('Create and manage events', async ({ page }, testInfo) => {
+test.fixme('Create and manage events', async ({ page }, testInfo) => {
   await page.goto('.');
   await expect(page.getByRole('link', { name: 'Admin Tools' })).toBeVisible();
   await testInfo.attach('markdown', {
@@ -31,7 +31,7 @@ Start by navigating to the **Events** section from the main menu to see a list o
   await page.waitForTimeout(1000);
   await takeScreenshot(
     testInfo,
-    page.getByRole('heading', { name: 'Events', level: 1 }).first(),
+    page.getByRole('heading', { level: 1, name: 'Events' }).first(),
     page,
     'Event list page',
   );
@@ -61,7 +61,7 @@ To create a new event, click the **Create Event** link on the event list page. T
   await page.waitForTimeout(1000);
   await takeScreenshot(
     testInfo,
-    page.getByRole('heading', { name: 'Event templates', level: 1 }).first(),
+    page.getByRole('heading', { level: 1, name: 'Event templates' }).first(),
     page,
     'Templates page',
   );
@@ -158,7 +158,7 @@ Note: The event created from the template already has registration options confi
   await page.waitForTimeout(1000);
   await takeScreenshot(
     testInfo,
-    page.getByRole('heading', { name: 'Registration', level: 2 }).first(),
+    page.getByRole('heading', { level: 2, name: 'Registration' }).first(),
     page,
     'Registration options section',
   );

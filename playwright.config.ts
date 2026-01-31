@@ -1,9 +1,9 @@
-import dotenv from 'dotenv';
 import { defineConfig, devices } from '@playwright/test';
+import dotenv from 'dotenv';
 
-const env = dotenv.config({ quiet: true });
-if (process.env['DATABASE_URL'] === '' && env.parsed?.['DATABASE_URL']) {
-  process.env['DATABASE_URL'] = env.parsed['DATABASE_URL'];
+const environment = dotenv.config({ quiet: true });
+if (process.env['DATABASE_URL'] === '' && environment.parsed?.['DATABASE_URL']) {
+  process.env['DATABASE_URL'] = environment.parsed['DATABASE_URL'];
 }
 
 /**
@@ -48,12 +48,12 @@ export default defineConfig({
       name: 'docs',
       testMatch: /.*\.doc\.ts$/,
       timeout: 60 * 1000,
-      use: { ...devices['Desktop Chrome'] },
+      use: { ...devices['Desktop Chrome'], channel: 'chromium' },
     },
     {
       dependencies: ['setup'],
       name: 'local-chrome',
-      use: { ...devices['Desktop Chrome'] },
+      use: { ...devices['Desktop Chrome'], channel: 'chromium' },
     },
     // {
     //   dependencies: ['setup'],

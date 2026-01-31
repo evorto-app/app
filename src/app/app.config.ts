@@ -36,8 +36,8 @@ import * as Sentry from '@sentry/angular';
 import {
   provideTanStackQuery,
   QueryClient,
-  withDevtools,
 } from '@tanstack/angular-query-experimental';
+import { withDevtools } from '@tanstack/angular-query-experimental/devtools'
 import { createTRPCClient } from '@trpc/client';
 import superjson from 'superjson';
 

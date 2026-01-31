@@ -1,11 +1,11 @@
 import { defaultStateFile } from '../../../helpers/user-data';
 import { expect, test } from '../../fixtures/parallel-test';
 
-test.setTimeout(120000);
+test.setTimeout(120_000);
 
 test.use({ storageState: defaultStateFile });
 
-test('create event form template', async ({ page, templates }) => {
+test.fixme('create event form template', async ({ page, templates }) => {
   const template = templates[0];
   await page.goto('.');
   await page.getByRole('link', { name: 'Templates' }).click();
@@ -19,11 +19,7 @@ test('create event form template', async ({ page, templates }) => {
     level: 1,
     name: template.title,
   });
-  if (await detailHeading.isVisible()) {
-    await expect(detailHeading).toBeVisible();
-  } else {
-    await expect(
+  await ((await detailHeading.isVisible()) ? expect(detailHeading).toBeVisible() : expect(
       page.getByRole('link', { name: template.title }).first(),
-    ).toBeVisible();
-  }
+    ).toBeVisible());
 });

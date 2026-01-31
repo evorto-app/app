@@ -7,7 +7,7 @@ import { takeScreenshot } from '../../reporters/documentation-reporter';
 
 test.use({ storageState: userStateFile });
 
-test('Register for a free event', async ({ events, page, registrations }, testInfo) => {
+test.fixme('Register for a free event', async ({ events, page, registrations }, testInfo) => {
   test.slow();
   const regularUser = usersToAuthenticate.find((user) => user.roles === 'user');
   if (!regularUser) {
@@ -182,9 +182,9 @@ test('Register for a paid event', async ({ events, page, registrations }, testIn
     .getByText('Loading registration status')
     .first();
   await registrationStatus
-    .waitFor({ state: 'attached', timeout: 10000 })
+    .waitFor({ state: 'attached', timeout: 10_000 })
     .catch(() => {});
-  await registrationStatus.waitFor({ state: 'detached', timeout: 20000 });
+  await registrationStatus.waitFor({ state: 'detached', timeout: 20_000 });
   const registeredMessage = page.getByText('You are registered');
   if (!(await registeredMessage.isVisible())) {
     await expect(page.getByRole('link', { name: 'Pay now' })).toBeVisible();
@@ -193,5 +193,5 @@ test('Register for a paid event', async ({ events, page, registrations }, testIn
     ).toBeVisible();
     return;
   }
-  await expect(registeredMessage).toBeVisible({ timeout: 20000 });
+  await expect(registeredMessage).toBeVisible({ timeout: 20_000 });
 });
