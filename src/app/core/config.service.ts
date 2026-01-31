@@ -41,7 +41,10 @@ export class ConfigService {
   private _missingContext = false;
   private _permissions!: Permission[];
 
-  private _publicConfig: { googleMapsApiKey: null | string; sentryDsn: null | string; } = {
+  private _publicConfig: {
+    googleMapsApiKey: null | string;
+    sentryDsn: null | string;
+  } = {
     googleMapsApiKey: null,
     sentryDsn: null,
   };

@@ -30,10 +30,7 @@ export function hasTenantCookie(
   );
 }
 
-export function isFreshByMtime(
-  pathname: string,
-  maxAgeMs: number,
-): boolean {
+export function isFreshByMtime(pathname: string, maxAgeMs: number): boolean {
   try {
     const stat = fs.statSync(pathname);
     return stat.mtimeMs > Date.now() - maxAgeMs;
@@ -53,4 +50,3 @@ export function isStorageStateFresh(params: {
   const state = readStorageState(pathname);
   return hasTenantCookie(state, tenantDomain);
 }
-

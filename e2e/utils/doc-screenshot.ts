@@ -7,11 +7,13 @@ function ensureDir(dir: string) {
 }
 
 function slugify(input: string) {
-  return input
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)+/g, '')
-    .slice(0, 64) || 'shot';
+  return (
+    input
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)+/g, '')
+      .slice(0, 64) || 'shot'
+  );
 }
 
 /**
@@ -25,7 +27,8 @@ export async function docScreenshot(
   _page: Page,
   name?: string,
 ): Promise<string> {
-  const imagesRoot = process.env.DOCS_IMG_OUT_DIR || path.resolve('test-results/docs/images');
+  const imagesRoot =
+    process.env.DOCS_IMG_OUT_DIR || path.resolve('test-results/docs/images');
   ensureDir(imagesRoot);
 
   // organize by test folder for readability

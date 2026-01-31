@@ -67,7 +67,10 @@ export const migrateUserTenantAssignments = async (
       .where(inArray(schema.users.auth0Id, transformedAuthIds));
     const userIdSet = new Set(userRows.map((u) => u.id));
     const assignments = await database
-      .select({ id: schema.usersToTenants.id, userId: schema.usersToTenants.userId })
+      .select({
+        id: schema.usersToTenants.id,
+        userId: schema.usersToTenants.userId,
+      })
       .from(schema.usersToTenants)
       .where(
         and(
@@ -75,60 +78,59 @@ export const migrateUserTenantAssignments = async (
           inArray(schema.usersToTenants.userId, Array.from(userIdSet)),
         ),
       );
-    const assignmentByUserId = new Map(assignments.map((a) => [a.userId, a.id]));
+    const assignmentByUserId = new Map(
+      assignments.map((a) => [a.userId, a.id]),
+    );
 
-    const rolesToAddPromises = oldUserAssignments.map(
-      async (oldAssignment) => {
-        // Resolve user for this assignment
-        const transformedId = transformAuthId(oldAssignment.user.authId);
-        const userId = userRows.find((u) => u.auth0Id === transformedId)?.id;
-        if (!userId) return [] as { roleId: string; userTenantId: string }[];
-        const assignmentId = assignmentByUserId.get(userId);
-        if (!assignmentId) return [] as { roleId: string; userTenantId: string }[];
-        const defaultUserRole = roleMap.get('NONE');
-        const rolesToAdd = defaultUserRole ? [defaultUserRole] : [];
+    const rolesToAddPromises = oldUserAssignments.map(async (oldAssignment) => {
+      // Resolve user for this assignment
+      const transformedId = transformAuthId(oldAssignment.user.authId);
+      const userId = userRows.find((u) => u.auth0Id === transformedId)?.id;
+      if (!userId) return [] as { roleId: string; userTenantId: string }[];
+      const assignmentId = assignmentByUserId.get(userId);
+      if (!assignmentId)
+        return [] as { roleId: string; userTenantId: string }[];
+      const defaultUserRole = roleMap.get('NONE');
+      const rolesToAdd = defaultUserRole ? [defaultUserRole] : [];
 
-        if (oldAssignment.role === 'ADMIN') {
-          const adminRole = roleMap.get('ADMIN');
-          if (adminRole) {
-            rolesToAdd.push(adminRole);
-          } else {
-            consola.warn('Could not find admin role');
-          }
+      if (oldAssignment.role === 'ADMIN') {
+        const adminRole = roleMap.get('ADMIN');
+        if (adminRole) {
+          rolesToAdd.push(adminRole);
+        } else {
+          consola.warn('Could not find admin role');
         }
-        const statusRole = roleMap.get(oldAssignment.status);
-        if (statusRole) {
-          rolesToAdd.push(statusRole);
+      }
+      const statusRole = roleMap.get(oldAssignment.status);
+      if (statusRole) {
+        rolesToAdd.push(statusRole);
+      } else {
+        consola.warn(`Could not find status role for ${oldAssignment.status}`);
+      }
+
+      if (oldAssignment.position) {
+        console.info(
+          'Migrating position to custom role:',
+          oldAssignment.position,
+        );
+        const positionRole = await maybeAddPositionRole(
+          oldAssignment.position,
+          newTenant,
+        );
+        if (positionRole) {
+          rolesToAdd.push(positionRole);
         } else {
           consola.warn(
-            `Could not find status role for ${oldAssignment.status}`,
+            `Could not find position role for ${oldAssignment.position}`,
           );
         }
+      }
 
-        if (oldAssignment.position) {
-          console.info(
-            'Migrating position to custom role:',
-            oldAssignment.position,
-          );
-          const positionRole = await maybeAddPositionRole(
-            oldAssignment.position,
-            newTenant,
-          );
-          if (positionRole) {
-            rolesToAdd.push(positionRole);
-          } else {
-            consola.warn(
-              `Could not find position role for ${oldAssignment.position}`,
-            );
-          }
-        }
-
-        return uniq(rolesToAdd).map((role) => ({
-          roleId: role,
-          userTenantId: assignmentId,
-        }));
-      },
-    );
+      return uniq(rolesToAdd).map((role) => ({
+        roleId: role,
+        userTenantId: assignmentId,
+      }));
+    });
 
     const rolesToAdd = (await Promise.all(rolesToAddPromises)).flat();
 
@@ -137,7 +139,10 @@ export const migrateUserTenantAssignments = async (
         .insert(schema.rolesToTenantUsers)
         .values(rolesToAdd)
         .onConflictDoNothing({
-          target: [schema.rolesToTenantUsers.roleId, schema.rolesToTenantUsers.userTenantId],
+          target: [
+            schema.rolesToTenantUsers.roleId,
+            schema.rolesToTenantUsers.userTenantId,
+          ],
         });
     }
   }

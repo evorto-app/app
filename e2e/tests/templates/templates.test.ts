@@ -41,7 +41,10 @@ test('create template in empty category', async ({
 });
 
 test('create a new template', async ({ page, templateCategories }) => {
-  test.fixme(true, 'TinyMCE editor iframe does not load in e2e; template creation blocked.');
+  test.fixme(
+    true,
+    'TinyMCE editor iframe does not load in e2e; template creation blocked.',
+  );
   const category = templateCategories[0];
   const templateTitle = 'Historical tour';
   await page.goto('.');
@@ -56,9 +59,7 @@ test('create a new template', async ({ page, templateCategories }) => {
   });
   await page.getByRole('button', { name: 'Save template' }).click();
   await expect(page).toHaveURL(/\/templates/);
-  await expect(
-    page.getByRole('link', { name: templateTitle }),
-  ).toBeVisible();
+  await expect(page.getByRole('link', { name: templateTitle })).toBeVisible();
 });
 
 test('view a template', async ({ page, templates }) => {

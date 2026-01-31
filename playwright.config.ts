@@ -2,7 +2,10 @@ import { defineConfig, devices } from '@playwright/test';
 import dotenv from 'dotenv';
 
 const environment = dotenv.config({ quiet: true });
-if (process.env['DATABASE_URL'] === '' && environment.parsed?.['DATABASE_URL']) {
+if (
+  process.env['DATABASE_URL'] === '' &&
+  environment.parsed?.['DATABASE_URL']
+) {
   process.env['DATABASE_URL'] = environment.parsed['DATABASE_URL'];
 }
 

@@ -1,9 +1,11 @@
 # Track Spec: Align with fresh Angular + Bun baseline; introduce Effect across server
 
 ## Overview
+
 Align the project with a fresh Angular CLI `ng new` setup using Bun as the package manager, remove Node/Express-based runtime parts, and introduce Effect-based code patterns across server, data access, and shared utilities while preserving existing SSR routes, RPC structure, and database schema.
 
 ## Functional Requirements
+
 1. Baseline Alignment
    - Compare the current repo against a fresh Angular CLI project configured to use Bun.
    - Align configuration files and tooling to the fresh baseline where appropriate.
@@ -23,11 +25,13 @@ Align the project with a fresh Angular CLI `ng new` setup using Bun as the packa
    - Preserve database schema and migration setup.
 
 ## Non-Functional Requirements
+
 - Maintain end-to-end type safety (Effect Schema, Drizzle types, Angular strict types).
 - No regressions in SSR output or route handling.
 - Keep changes aligned with current tech stack and Conductor workflow.
 
 ## Acceptance Criteria
+
 - Project configuration and scripts match a fresh Angular CLI + Bun baseline where relevant.
 - All Node/Express runtime artifacts are removed, and SSR runs on Bun.
 - Effect is present and used across server, data access, and shared utilities.
@@ -35,6 +39,7 @@ Align the project with a fresh Angular CLI `ng new` setup using Bun as the packa
 - Build and lint still pass (as per project workflow gates).
 
 ## Out of Scope
+
 - Product feature changes beyond migration/alignment work.
 - Schema changes or new migrations.
 - Large UI refactors unrelated to the alignment effort.

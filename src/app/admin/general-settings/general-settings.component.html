@@ -14,10 +14,11 @@
     >
       <h2 class="title-medium mb-2">Stripe tax rates</h2>
       <p class="text-xs text-gray-600 mb-1">
-        Only included (VAT-style) and active tax rates are compatible. You can import compatible tax rates from your Stripe account to use below.
+        Only included (VAT-style) and active tax rates are compatible. You can
+        import compatible tax rates from your Stripe account to use below.
       </p>
       <p class="text-xs text-gray-600 mb-3">
-        Manage your tax rates in the Stripe Dashboard: 
+        Manage your tax rates in the Stripe Dashboard:
         <a
           href="https://dashboard.stripe.com/test/tax-rates"
           target="_blank"
@@ -39,14 +40,16 @@
           <p>Loading imported tax rates ...</p>
         } @else if (importedTaxRatesQuery.isSuccess()) {
           @if (importedTaxRatesQuery.data().length === 0) {
-            <p class="text-xs text-on-surface-variant">No imported tax rates yet.</p>
+            <p class="text-xs text-on-surface-variant">
+              No imported tax rates yet.
+            </p>
           } @else {
             <div class="flex flex-col gap-2">
               @for (rate of importedTaxRatesQuery.data(); track rate.id) {
                 <div class="flex items-center gap-3">
                   <span>
                     {{ rate.displayName || rate.stripeTaxRateId }}
-                    — {{ rate.percentage ?? '?' }}%
+                    — {{ rate.percentage ?? "?" }}%
                   </span>
                   <mat-chip-set>
                     @if (rate.inclusive) {
@@ -72,8 +75,9 @@
       <div class="mb-4">
         <label class="text-sm font-medium mb-2 block">Default Location</label>
         <p class="text-xs text-gray-600 mb-2">
-          Set a default location to improve Google Places search results for your events.
-          This location will be used as the center point for location searches.
+          Set a default location to improve Google Places search results for
+          your events. This location will be used as the center point for
+          location searches.
         </p>
         <app-location-selector-field formControlName="defaultLocation" />
       </div>

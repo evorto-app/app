@@ -8,7 +8,7 @@
 ---
 
 - [~] **Track: Signal Forms Migration (Top-Down, compatForm When Needed)**
-      _Link: [./tracks/signal-forms-migration_20260125/](./tracks/signal-forms-migration_20260125/)_
+  _Link: [./tracks/signal-forms-migration_20260125/](./tracks/signal-forms-migration_20260125/)_
 
 ---
 
@@ -18,9 +18,9 @@
 ---
 
 - [ ] **Track: Align project with fresh Angular CLI + Bun baseline, remove Node/Express runtime, and introduce Effect across server/data/shared utilities**
-*Link: [./tracks/bun-angular-alignment_20260128/](./tracks/bun-angular-alignment_20260128/)*
+      _Link: [./tracks/bun-angular-alignment_20260128/](./tracks/bun-angular-alignment_20260128/)_
 
 ---
 
 - [ ] **Track: Tax rates (Stripe-synced, read-only) — admin sync, event pricing, payments**
-*Link: [./tracks/tax-rates_20260128/](./tracks/tax-rates_20260128/)*
+      _Link: [./tracks/tax-rates_20260128/](./tracks/tax-rates_20260128/)_

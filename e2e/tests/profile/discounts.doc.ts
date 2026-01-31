@@ -14,8 +14,15 @@ Add your ESN card to receive discounted prices on eligible events. Your card is 
 `,
   });
 
-  await expect(page.getByRole('heading', { name: 'Discount Cards' })).toBeVisible();
-  await takeScreenshot(testInfo, page.getByRole('heading', { name: 'Discount Cards' }), page, 'Discount cards section');
+  await expect(
+    page.getByRole('heading', { name: 'Discount Cards' }),
+  ).toBeVisible();
+  await takeScreenshot(
+    testInfo,
+    page.getByRole('heading', { name: 'Discount Cards' }),
+    page,
+    'Discount cards section',
+  );
 
   await testInfo.attach('markdown', {
     body: `

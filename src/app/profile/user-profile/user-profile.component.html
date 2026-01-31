@@ -133,19 +133,30 @@
               <div class="flex flex-col gap-1">
                 <div class="flex items-center gap-2">
                   <span class="font-medium">ESN card</span>
-                  <span class="text-xs text-on-surface-variant">{{ card.identifier }}</span>
+                  <span class="text-xs text-on-surface-variant">{{
+                    card.identifier
+                  }}</span>
                 </div>
                 <div class="text-sm">
                   Status: {{ card.status }}
                   @if (card.validTo) {
-                    — valid until {{ card.validTo | date: 'mediumDate' }}
+                    — valid until {{ card.validTo | date: "mediumDate" }}
                   }
                 </div>
                 <div class="mt-2 flex gap-2">
-                  <button mat-stroked-button (click)="refreshEsnCard()" [disabled]="refreshCardMutation.isPending()">
+                  <button
+                    mat-stroked-button
+                    (click)="refreshEsnCard()"
+                    [disabled]="refreshCardMutation.isPending()"
+                  >
                     Refresh
                   </button>
-                  <button mat-stroked-button color="warn" (click)="deleteEsnCard()" [disabled]="deleteCardMutation.isPending()">
+                  <button
+                    mat-stroked-button
+                    color="warn"
+                    (click)="deleteEsnCard()"
+                    [disabled]="deleteCardMutation.isPending()"
+                  >
                     Remove
                   </button>
                 </div>
@@ -164,13 +175,28 @@
       <div class="mt-2 max-w-md">
         <mat-form-field class="w-full" appearance="outline">
           <mat-label>ESN card number</mat-label>
-          <input matInput [formControl]="esnCardControl" placeholder="11-char alphanumeric" />
+          <input
+            matInput
+            [formControl]="esnCardControl"
+            placeholder="11-char alphanumeric"
+          />
         </mat-form-field>
         <div class="flex gap-2">
-          <button mat-raised-button color="primary" (click)="saveEsnCard()" [disabled]="upsertCardMutation.isPending()">
+          <button
+            mat-raised-button
+            color="primary"
+            (click)="saveEsnCard()"
+            [disabled]="upsertCardMutation.isPending()"
+          >
             Save ESN card
           </button>
-          <a class="underline text-sm self-center" href="https://esncard.org/" target="_blank" rel="noopener noreferrer">Get an ESN card</a>
+          <a
+            class="underline text-sm self-center"
+            href="https://esncard.org/"
+            target="_blank"
+            rel="noopener noreferrer"
+            >Get an ESN card</a
+          >
         </div>
         @if (upsertCardMutation.isError()) {
           <p class="text-error mt-2">

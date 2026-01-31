@@ -7,7 +7,7 @@
         <mat-label>Registration mode</mat-label>
         <mat-select formControlName="registrationMode">
           @for (mode of registrationModes(); track mode) {
-          <mat-option [value]="mode">{{ mode | titlecase }} </mat-option>
+            <mat-option [value]="mode">{{ mode | titlecase }} </mat-option>
           }
         </mat-select>
       </mat-form-field>
@@ -78,32 +78,32 @@
         </mat-checkbox>
 
         @if (registrationOptionForm().value.isPaid) {
-        <mat-form-field>
-          <mat-label>Price (in cents)</mat-label>
-          <input matInput type="number" formControlName="price" />
-          <mat-hint
-            >{{ registrationOptionForm().value.price | currency }}
-          </mat-hint>
-        </mat-form-field>
+          <mat-form-field>
+            <mat-label>Price (in cents)</mat-label>
+            <input matInput type="number" formControlName="price" />
+            <mat-hint
+              >{{ registrationOptionForm().value.price | currency }}
+            </mat-hint>
+          </mat-form-field>
 
-        <mat-form-field>
-          <mat-label>Tax rate</mat-label>
-          <mat-select formControlName="stripeTaxRateId" required>
-            @if (taxRatesQuery.isPending()) {
-              <mat-option disabled>Loading tax rates...</mat-option>
-            } @else if (taxRatesQuery.isSuccess()) {
-              @for (rate of taxRatesQuery.data(); track rate.id) {
-                <mat-option [value]="rate.stripeTaxRateId">
-                  {{ rate.displayName || rate.stripeTaxRateId }} —
-                  {{ rate.percentage ?? '?' }}%
-                </mat-option>
+          <mat-form-field>
+            <mat-label>Tax rate</mat-label>
+            <mat-select formControlName="stripeTaxRateId" required>
+              @if (taxRatesQuery.isPending()) {
+                <mat-option disabled>Loading tax rates...</mat-option>
+              } @else if (taxRatesQuery.isSuccess()) {
+                @for (rate of taxRatesQuery.data(); track rate.id) {
+                  <mat-option [value]="rate.stripeTaxRateId">
+                    {{ rate.displayName || rate.stripeTaxRateId }} —
+                    {{ rate.percentage ?? "?" }}%
+                  </mat-option>
+                }
+              } @else {
+                <mat-option disabled>Failed to load tax rates</mat-option>
               }
-            } @else {
-              <mat-option disabled>Failed to load tax rates</mat-option>
-            }
-          </mat-select>
-          <mat-hint>Inclusive tax; shown price is final</mat-hint>
-        </mat-form-field>
+            </mat-select>
+            <mat-hint>Inclusive tax; shown price is final</mat-hint>
+          </mat-form-field>
         }
 
         <mat-checkbox formControlName="organizingRegistration">

@@ -4,10 +4,16 @@ import { takeScreenshot } from '../../reporters/documentation-reporter';
 
 test.use({ storageState: adminStateFile });
 
-test.fixme('Admin: manage unlisted events', async ({ events, page }, testInfo) => {
+test.fixme('Admin: manage unlisted events', async ({
+  events,
+  page,
+}, testInfo) => {
   // Choose an approved, currently listed event to demonstrate toggling
-  const target = events.find((e) => e.status === 'APPROVED' && e.unlisted === false);
-  if (!target) throw new Error('No approved listed event found for unlisted admin demo');
+  const target = events.find(
+    (e) => e.status === 'APPROVED' && e.unlisted === false,
+  );
+  if (!target)
+    throw new Error('No approved listed event found for unlisted admin demo');
 
   await page.goto('./events');
 
@@ -27,24 +33,46 @@ Unlisted events are hidden from public lists. Admins can toggle an event's unlis
 
   // Show the event on the list before toggling
   const targetLink = page.locator(`a[href="/events/${target.id}"]`);
-  await takeScreenshot(testInfo, targetLink, page, 'Listed event before toggling');
+  await takeScreenshot(
+    testInfo,
+    targetLink,
+    page,
+    'Listed event before toggling',
+  );
   await targetLink.click();
   await page.waitForSelector(`h1:has-text("${target.title}")`);
-  await takeScreenshot(testInfo, page.locator('h1').first(), page, 'Event details (before)');
+  await takeScreenshot(
+    testInfo,
+    page.locator('h1').first(),
+    page,
+    'Event details (before)',
+  );
 
   // Open menu and update listing
   await page.getByRole('button', { name: 'menu' }).click();
   await page.getByRole('menuitem', { name: 'Update listing' }).click();
   await page.getByRole('switch', { name: /Unlisted/ }).click();
-  await takeScreenshot(testInfo, page.locator('mat-dialog-container').first(), page, 'Update listing dialog');
+  await takeScreenshot(
+    testInfo,
+    page.locator('mat-dialog-container').first(),
+    page,
+    'Update listing dialog',
+  );
   await page.getByRole('button', { name: 'Save' }).click();
 
   // Back to list and verify badge is visible for admins
   await page.goto('./events');
   const adminEventCard = page.locator(`a[href="/events/${target.id}"]`);
   await expect(adminEventCard).toBeVisible();
-  await expect(adminEventCard.getByText('unlisted', { exact: true })).toBeVisible();
-  await takeScreenshot(testInfo, adminEventCard, page, 'Unlisted badge visible to admins');
+  await expect(
+    adminEventCard.getByText('unlisted', { exact: true }),
+  ).toBeVisible();
+  await takeScreenshot(
+    testInfo,
+    adminEventCard,
+    page,
+    'Unlisted badge visible to admins',
+  );
 
   // Restore original state (toggle back to listed) to keep environment clean
   await adminEventCard.click();

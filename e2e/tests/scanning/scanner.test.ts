@@ -3,7 +3,11 @@ import { adminStateFile } from '../../../helpers/user-data';
 
 test.use({ storageState: adminStateFile });
 
-test('scan confirmed registration shows allow check-in', async ({ page, registrations, tenant }) => {
+test('scan confirmed registration shows allow check-in', async ({
+  page,
+  registrations,
+  tenant,
+}) => {
   const confirmedRegistration = registrations.find(
     (registration) =>
       registration.status === 'CONFIRMED' &&
@@ -14,6 +18,10 @@ test('scan confirmed registration shows allow check-in', async ({ page, registra
     return;
   }
   await page.goto(`/scan/registration/${confirmedRegistration.id}`);
-  await expect(page.getByRole('heading', { name: 'Registration scanned' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Confirm Check In' })).toBeEnabled();
+  await expect(
+    page.getByRole('heading', { name: 'Registration scanned' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Confirm Check In' }),
+  ).toBeEnabled();
 });

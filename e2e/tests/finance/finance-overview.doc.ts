@@ -28,7 +28,7 @@ To access the finance overview, navigate to the **Finances** section from the ma
     testInfo,
     page.locator('app-finance-overview'),
     page,
-    'Finance overview page'
+    'Finance overview page',
   );
 
   await testInfo.attach('markdown', {
@@ -59,7 +59,7 @@ You can view a detailed list of all transactions by clicking on the **Transactio
     testInfo,
     page.locator('app-transaction-list'),
     page,
-    'Transaction list page'
+    'Transaction list page',
   );
 
   await testInfo.attach('markdown', {
@@ -77,5 +77,4 @@ The transaction list shows all financial transactions with details such as:
 You can filter and sort this list to find specific transactions.
 `,
   });
-
 });

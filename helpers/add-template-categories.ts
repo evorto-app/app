@@ -74,6 +74,8 @@ export const addTemplateCategories = async (
       },
     ])
     .returning();
-  consola.success(`Inserted ${inserted.length} template categories for tenant ${tenant.id}`);
+  consola.success(
+    `Inserted ${inserted.length} template categories for tenant ${tenant.id}`,
+  );
   return inserted;
 };

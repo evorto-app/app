@@ -18,7 +18,9 @@ test('create template category', async ({ isMobile, page }) => {
   await expect(page).toHaveURL(/\/templates\/categories/);
   await expect(page.locator('.category').first()).toBeVisible();
   await page.getByRole('button', { name: 'Create category' }).click();
-  await expect(page.getByRole('heading', { name: 'Create a new category' })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Create a new category' }),
+  ).toBeVisible();
   await page.getByLabel('Category title').fill('Mountain trips');
   await page.getByRole('button', { name: 'Save' }).click();
   await expect(
@@ -45,7 +47,9 @@ test('edit template category', async ({
   const category = templateCategories[0];
   const categoryCard = page.locator('.category', { hasText: category.title });
   await categoryCard.getByRole('button', { name: 'Edit' }).click();
-  await expect(page.getByRole('heading', { name: 'Edit category' })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Edit category' }),
+  ).toBeVisible();
   await expect(page.getByLabel('Category title')).toHaveValue(category.title);
   await page.getByLabel('Category title').fill('Mountain trips');
   await page.getByRole('button', { name: 'Save' }).click();

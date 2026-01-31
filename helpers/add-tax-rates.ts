@@ -41,20 +41,28 @@ export const addTaxRates = async (
 
   const toInsert = seedRates
     .filter((r) => !existingIds.has(r.stripeTaxRateId))
-    .map((r) => ({
-      active: true,
-      country: null,
-      displayName: r.displayName,
-      inclusive: true,
-      percentage: r.percentage,
-      state: null,
-      stripeTaxRateId: r.stripeTaxRateId,
-      tenantId: tenant.id,
-    } satisfies Omit<typeof schema.tenantStripeTaxRates.$inferInsert, 'id'>));
+    .map(
+      (r) =>
+        ({
+          active: true,
+          country: null,
+          displayName: r.displayName,
+          inclusive: true,
+          percentage: r.percentage,
+          state: null,
+          stripeTaxRateId: r.stripeTaxRateId,
+          tenantId: tenant.id,
+        }) satisfies Omit<
+          typeof schema.tenantStripeTaxRates.$inferInsert,
+          'id'
+        >,
+    );
 
   if (toInsert.length > 0) {
     await database.insert(schema.tenantStripeTaxRates).values(toInsert as any);
-    consola.success(`Imported ${toInsert.length} default tax rates for tenant ${tenant.id}`);
+    consola.success(
+      `Imported ${toInsert.length} default tax rates for tenant ${tenant.id}`,
+    );
   } else {
     consola.info(`No default tax rates to import for tenant ${tenant.id}`);
   }

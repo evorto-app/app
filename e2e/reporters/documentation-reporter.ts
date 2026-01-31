@@ -71,7 +71,9 @@ class DocumentationReporter implements Reporter {
 
     // collect permissions lines from attachment and/or front matter in markdown
     const permissionsLines: string[] = [];
-    const permissionsAttachment = relevant.find((a) => a.name === 'permissions');
+    const permissionsAttachment = relevant.find(
+      (a) => a.name === 'permissions',
+    );
     if (permissionsAttachment?.body) {
       const raw = permissionsAttachment.body.toString();
       for (const line of raw.split(/\r?\n/)) {
@@ -87,12 +89,17 @@ class DocumentationReporter implements Reporter {
             console.warn(`Missing body for image attachment in ${test.title}`);
             continue;
           }
-          const hash = crypto.createHash('sha256').update(attachment.body).digest('hex');
+          const hash = crypto
+            .createHash('sha256')
+            .update(attachment.body)
+            .digest('hex');
           const id = hash.slice(0, 16);
           const ext = attachment.contentType.split('/')[1] || 'png';
           const imgName = `${attachment.name}-${id}.${ext}`;
           writeFile(path.join(picturesFolder, imgName), attachment.body);
-          fileContent.push(`![${attachment.name}](${testFolderName}/${imgName})`);
+          fileContent.push(
+            `![${attachment.name}](${testFolderName}/${imgName})`,
+          );
           break;
         }
         case 'image-caption': {
@@ -104,7 +111,8 @@ class DocumentationReporter implements Reporter {
           if (!last.startsWith('![')) break;
           const imageUrl = last.split('(')[1]?.split(')')[0] ?? '';
           const caption = attachment.body.toString();
-          fileContent[fileContent.length - 1] = `{% figure src="${imageUrl}" caption="${caption}" /%}`;
+          fileContent[fileContent.length - 1] =
+            `{% figure src="${imageUrl}" caption="${caption}" /%}`;
           break;
         }
         case 'markdown': {

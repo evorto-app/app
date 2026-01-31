@@ -1,9 +1,9 @@
 import { TRPCError } from '@trpc/server';
+import consola from 'consola';
 import { and, arrayOverlaps, eq, inArray } from 'drizzle-orm';
 import { Schema } from 'effect';
 import { groupBy } from 'es-toolkit';
 import { DateTime } from 'luxon';
-import consola from 'consola';
 
 import { database } from '../../../db';
 import * as schema from '../../../db/schema';
@@ -65,7 +65,10 @@ export const eventRouter = router({
         });
 
         if (!validation.success) {
-          consola.error(`Registration option ${index} tax rate validation failed:`, validation.error);
+          consola.error(
+            `Registration option ${index} tax rate validation failed:`,
+            validation.error,
+          );
           throw new TRPCError({
             code: 'BAD_REQUEST',
             message: `Registration option "${option.title}": ${validation.error.message}`,

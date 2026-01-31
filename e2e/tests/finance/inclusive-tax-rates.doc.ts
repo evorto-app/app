@@ -25,7 +25,9 @@ Inclusive (VAT-style) tax rates are configured under **Admin → Tax Rates**. St
     });
 
     await page.getByRole('link', { name: 'Admin' }).click();
-    await expect(page.getByRole('heading', { name: /Admin settings/i })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: /Admin settings/i }),
+    ).toBeVisible();
 
     await testInfo.attach('markdown', {
       body: `
@@ -34,13 +36,15 @@ The admin overview links to all configuration areas. Select **Tax Rates** to man
     });
 
     await page.getByRole('link', { name: 'Tax Rates' }).click();
-    await expect(page.getByRole('heading', { name: 'Tax Rates' })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'Tax Rates' }),
+    ).toBeVisible();
 
     await takeScreenshot(
       testInfo,
       page.locator('app-tax-rates-settings'),
       page,
-      'Tax rates overview'
+      'Tax rates overview',
     );
 
     await testInfo.attach('markdown', {
@@ -53,17 +57,21 @@ The admin overview links to all configuration areas. Select **Tax Rates** to man
 `,
     });
 
-    const importButton = page.getByRole('button', { name: 'Import Tax Rates' }).first();
+    const importButton = page
+      .getByRole('button', { name: 'Import Tax Rates' })
+      .first();
     await expect(importButton).toBeVisible();
     await importButton.click();
 
-    await expect(page.getByRole('heading', { name: 'Import Stripe tax rates' })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'Import Stripe tax rates' }),
+    ).toBeVisible();
 
     await takeScreenshot(
       testInfo,
       page.locator('mat-dialog-container'),
       page,
-      'Import Stripe tax rates dialog'
+      'Import Stripe tax rates dialog',
     );
 
     await testInfo.attach('markdown', {
@@ -85,7 +93,9 @@ Select the rates you need and choose **Import selected** to refresh the compatib
 test.describe('Inclusive tax rates documentation (creators)', () => {
   test.use({ storageState: adminStateFile });
 
-  test('Assign compatible tax rates to paid registrations', async ({ page }, testInfo) => {
+  test('Assign compatible tax rates to paid registrations', async ({
+    page,
+  }, testInfo) => {
     await page.goto('.');
 
     await testInfo.attach('markdown', {
@@ -99,14 +109,18 @@ Navigate to **Templates** and open an existing paid template to see the enforced
     });
 
     await page.getByRole('link', { name: 'Templates' }).click();
-    await expect(page.getByRole('heading', { name: 'Event templates' })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'Event templates' }),
+    ).toBeVisible();
 
-    const soccerTemplateLink = page.locator('a', { hasText: 'Soccer Match' }).first();
+    const soccerTemplateLink = page
+      .locator('a', { hasText: 'Soccer Match' })
+      .first();
     await expect(soccerTemplateLink).toBeVisible();
     await soccerTemplateLink.click();
 
     await expect(
-      page.getByRole('heading', { level: 1, name: 'Soccer Match' })
+      page.getByRole('heading', { level: 1, name: 'Soccer Match' }),
     ).toBeVisible();
 
     const registrationSection = page
@@ -117,7 +131,7 @@ Navigate to **Templates** and open an existing paid template to see the enforced
       testInfo,
       registrationSection,
       page,
-      'Template registration options with inclusive labels'
+      'Template registration options with inclusive labels',
     );
 
     await testInfo.attach('markdown', {
@@ -130,14 +144,18 @@ Each paid registration displays the final price together with its inclusive tax 
     const editForm = page.locator('app-template-edit form');
     await expect(editForm).toBeVisible();
 
-    const organizerSection = editForm.locator('[formgroupname="organizerRegistration"]');
-    const participantSection = editForm.locator('[formgroupname="participantRegistration"]');
+    const organizerSection = editForm.locator(
+      '[formgroupname="organizerRegistration"]',
+    );
+    const participantSection = editForm.locator(
+      '[formgroupname="participantRegistration"]',
+    );
 
     await takeScreenshot(
       testInfo,
       organizerSection,
       page,
-      'Organizer registration tax rate selector'
+      'Organizer registration tax rate selector',
     );
 
     await testInfo.attach('markdown', {
@@ -150,7 +168,7 @@ Paid organizer registrations require a compatible inclusive tax rate. The dropdo
       testInfo,
       participantSection,
       page,
-      'Participant registration tax rate selector'
+      'Participant registration tax rate selector',
     );
 
     await testInfo.attach('markdown', {
@@ -162,12 +180,14 @@ Participant registrations follow the same rule—if payment is enabled, the tax 
     await page.getByRole('link', { name: 'Events' }).click();
     await expect(page.getByRole('heading', { name: 'Events' })).toBeVisible();
 
-    const soccerEventLink = page.getByRole('link', { name: /Soccer Match 1/i }).first();
+    const soccerEventLink = page
+      .getByRole('link', { name: /Soccer Match 1/i })
+      .first();
     await expect(soccerEventLink).toBeVisible();
     await soccerEventLink.click();
 
     await expect(
-      page.getByRole('heading', { level: 1, name: /Soccer Match 1/i })
+      page.getByRole('heading', { level: 1, name: /Soccer Match 1/i }),
     ).toBeVisible();
 
     await testInfo.attach('markdown', {
@@ -184,14 +204,14 @@ Event editors can revisit the same controls when updating a live event. Use **Ed
     await expect(eventEditForm).toBeVisible();
 
     const eventEditTax = eventEditForm.locator(
-      'app-registration-option-form mat-select[formcontrolname="stripeTaxRateId"]'
+      'app-registration-option-form mat-select[formcontrolname="stripeTaxRateId"]',
     );
 
     await takeScreenshot(
       testInfo,
       eventEditTax.first(),
       page,
-      'Event edit tax rate selector'
+      'Event edit tax rate selector',
     );
 
     await testInfo.attach('markdown', {
@@ -205,9 +225,15 @@ Existing paid registrations keep their inclusive tax requirements. Update the se
 test.describe('Inclusive tax rates documentation (participants)', () => {
   test.use({ storageState: userStateFile });
 
-  test('See inclusive pricing during registration', async ({ events, page, registrations, tenant }, testInfo) => {
-    const regularUserId =
-      usersToAuthenticate.find((entry) => entry.roles === 'user')?.id;
+  test('See inclusive pricing during registration', async ({
+    events,
+    page,
+    registrations,
+    tenant,
+  }, testInfo) => {
+    const regularUserId = usersToAuthenticate.find(
+      (entry) => entry.roles === 'user',
+    )?.id;
 
     const paidEvent = events.find((event) => {
       if (event.tenantId !== tenant.id) return false;
@@ -241,7 +267,7 @@ test.describe('Inclusive tax rates documentation (participants)', () => {
     await eventLink.click();
 
     await expect(
-      page.getByRole('heading', { level: 1, name: paidEvent!.title })
+      page.getByRole('heading', { level: 1, name: paidEvent!.title }),
     ).toBeVisible();
 
     await testInfo.attach('markdown', {
@@ -271,7 +297,7 @@ Participants always see tax-inclusive pricing. The registration card shows the f
       testInfo,
       screenshotTarget,
       page,
-      'Participant registration with inclusive pricing'
+      'Participant registration with inclusive pricing',
     );
 
     await testInfo.attach('markdown', {
@@ -317,7 +343,7 @@ Participants always see tax-inclusive pricing. The registration card shows the f
           testInfo,
           checkoutPage.locator('body'),
           checkoutPage,
-          'Stripe checkout summary'
+          'Stripe checkout summary',
         );
 
         await testInfo.attach('markdown', {
@@ -327,7 +353,9 @@ The Stripe-hosted checkout shows the same tax-inclusive price, and the tax rate 
         });
 
         if (inclusiveLabelText) {
-          const normalized = inclusiveLabelText.replace(/^Incl\.\s*/i, '').trim();
+          const normalized = inclusiveLabelText
+            .replace(/^Incl\.\s*/i, '')
+            .trim();
           const fragments = normalized
             .split(/\s+/)
             .map((fragment) => fragment.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))

@@ -1,4 +1,11 @@
-import { jsonb, pgEnum, pgTable, text, timestamp, varchar } from 'drizzle-orm/pg-core';
+import {
+  jsonb,
+  pgEnum,
+  pgTable,
+  text,
+  timestamp,
+  varchar,
+} from 'drizzle-orm/pg-core';
 
 import { GoogleLocationType } from '../../types/location';
 import { createId } from '../create-id';
@@ -22,9 +29,12 @@ export const tenants = pgTable('tenants', {
   // Stores per-tenant discount provider configuration, e.g. enabling ESN card discounts.
   // Shape: { esnCard?: { status: 'enabled' | 'disabled'; config: unknown } }
   // Additional providers can be added under their type key.
-  discountProviders: jsonb('discount_providers').$type<
-    Partial<Record<'esnCard', { config: unknown; status: 'disabled' | 'enabled'; }>>
-  >(),
+  discountProviders:
+    jsonb('discount_providers').$type<
+      Partial<
+        Record<'esnCard', { config: unknown; status: 'disabled' | 'enabled' }>
+      >
+    >(),
   domain: text().unique().notNull(),
   id: varchar({ length: 20 })
     .$defaultFn(() => createId())

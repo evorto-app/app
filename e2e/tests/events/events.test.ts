@@ -19,7 +19,9 @@ test.fixme('create event form template', async ({ page, templates }) => {
     level: 1,
     name: template.title,
   });
-  await ((await detailHeading.isVisible()) ? expect(detailHeading).toBeVisible() : expect(
-      page.getByRole('link', { name: template.title }).first(),
-    ).toBeVisible());
+  await ((await detailHeading.isVisible())
+    ? expect(detailHeading).toBeVisible()
+    : expect(
+        page.getByRole('link', { name: template.title }).first(),
+      ).toBeVisible());
 });

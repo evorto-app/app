@@ -70,7 +70,9 @@ export const migrateTemplates = async (
             untouchedSinceMigration: true,
           };
         } catch (error) {
-          consola.warn(`Failed to resolve icon "${template.icon}" for template "${template.title}": ${error}`);
+          consola.warn(
+            `Failed to resolve icon "${template.icon}" for template "${template.title}": ${error}`,
+          );
           return null;
         }
       })
@@ -80,8 +82,7 @@ export const migrateTemplates = async (
   const newTemplates = await database
     .insert(schema.eventTemplates)
     .values(
-      templateValues
-        .filter((t) => t !== null && t.categoryId !== 'remove')
+      templateValues.filter((t) => t !== null && t.categoryId !== 'remove'),
     )
     .returning();
 
