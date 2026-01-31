@@ -1,6 +1,6 @@
+import consola from 'consola';
 import { and, eq } from 'drizzle-orm';
 import { Schema } from 'effect';
-import consola from 'consola';
 
 import { database } from '../../../db';
 import {
@@ -8,8 +8,8 @@ import {
   templateRegistrationOptions,
 } from '../../../db/schema';
 import { computeIconSourceColor } from '../../utils/icon-color';
+import { createLogContext, TaxRateLogger } from '../../utils/tax-rate-logging';
 import { validateTaxRate } from '../../utils/validate-tax-rate';
-import { TaxRateLogger, createLogContext } from '../../utils/tax-rate-logging';
 import { authenticatedProcedure, router } from '../trpc-server';
 
 const registrationOptionSchema = Schema.Struct({

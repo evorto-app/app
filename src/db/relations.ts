@@ -132,13 +132,6 @@ export const relations = defineRelations(schema, (r) => ({
     }),
     templateEventAddons: r.many.templateEventAddons(),
   },
-  tenantStripeTaxRates: {
-    tenant: r.one.tenants({
-      from: r.tenantStripeTaxRates.tenantId,
-      optional: false,
-      to: r.tenants.id,
-    }),
-  },
   tenants: {
     eventRegistrations: r.many.eventRegistrations(),
     events: r.many.eventInstances(),
@@ -150,6 +143,13 @@ export const relations = defineRelations(schema, (r) => ({
     users: r.many.users({
       from: r.tenants.id.through(r.usersToTenants.tenantId),
       to: r.users.id.through(r.usersToTenants.userId),
+    }),
+  },
+  tenantStripeTaxRates: {
+    tenant: r.one.tenants({
+      from: r.tenantStripeTaxRates.tenantId,
+      optional: false,
+      to: r.tenants.id,
     }),
   },
   transactions: {

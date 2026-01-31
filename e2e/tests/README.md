@@ -14,27 +14,33 @@ This directory contains Playwright tests that are used to automatically generate
 The application has the following documentation tests:
 
 ### User Management
+
 - `users/create-account.doc.ts`: Creating a new user account
 - `roles/roles.doc.ts`: Managing user roles and permissions
 
 ### Events
+
 - `events/register.doc.ts`: Registering for events (free and paid)
 - `events/event-management.doc.ts`: Creating and managing events
 - `events/unlisted-admin.doc.ts`: Admin view — toggling and seeing unlisted events
 - `events/unlisted-user.doc.ts`: User view — understanding unlisted events
 
 ### Templates
+
 - `templates/templates.doc.ts`: Working with event templates
 - `template-categories/categories.doc.ts`: Managing template categories
 
 ### Finance
+
 - `finance/finance-overview.doc.ts`: Managing financial transactions
 
 ### Profile
+
 - `profile/user-profile.doc.ts`: Managing user profiles
 - `profile/discounts.doc.ts`: Managing ESN discount cards
 
 ### Scanning
+
 - `scanning/scanner.doc.ts`: Using the QR code scanner for event check-ins
 
 ## Running Documentation Tests

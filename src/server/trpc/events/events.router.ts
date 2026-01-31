@@ -1,9 +1,9 @@
 import { TRPCError } from '@trpc/server';
+import consola from 'consola';
 import { and, arrayOverlaps, eq, inArray } from 'drizzle-orm';
 import { Schema } from 'effect';
 import { groupBy } from 'es-toolkit';
 import { DateTime } from 'luxon';
-import consola from 'consola';
 
 import { database } from '../../../db';
 import * as schema from '../../../db/schema';

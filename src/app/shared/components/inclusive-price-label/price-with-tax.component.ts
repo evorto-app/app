@@ -1,20 +1,12 @@
 import { CurrencyPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 
-import { TaxRateInfo, formatInclusiveTaxLabel } from '../../../../shared/price/format-inclusive-tax-label';
+import { formatInclusiveTaxLabel, TaxRateInfo } from '../../../../shared/price/format-inclusive-tax-label';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CurrencyPipe],
   selector: 'app-price-with-tax',
-  template: `
-    <span class="price-with-tax">
-      <span class="price-amount">{{ formattedAmount() }}</span>
-      <span class="tax-label text-sm text-muted-foreground ml-1">
-        {{ taxLabel() }}
-      </span>
-    </span>
-  `,
   styles: [`
     .price-with-tax {
       display: inline-flex;
@@ -29,7 +21,15 @@ import { TaxRateInfo, formatInclusiveTaxLabel } from '../../../../shared/price/f
     .tax-label {
       font-weight: 500;
     }
-  `]
+  `],
+  template: `
+    <span class="price-with-tax">
+      <span class="price-amount">{{ formattedAmount() }}</span>
+      <span class="tax-label text-sm text-muted-foreground ml-1">
+        {{ taxLabel() }}
+      </span>
+    </span>
+  `
 })
 export class PriceWithTaxComponent {
   /**
@@ -43,14 +43,14 @@ export class PriceWithTaxComponent {
   currency = input<string>('EUR');
 
   /**
-   * Tax rate information for formatting the label
-   */
-  taxRate = input<TaxRateInfo | null | undefined>();
-
-  /**
    * Whether this is a free option (shows "Free" instead of formatted price)
    */
   isFree = input<boolean>(false);
+
+  /**
+   * Tax rate information for formatting the label
+   */
+  taxRate = input<null | TaxRateInfo | undefined>();
 
   /**
    * Computed formatted amount

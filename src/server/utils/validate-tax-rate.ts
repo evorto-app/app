@@ -5,31 +5,31 @@ import * as schema from '../../db/schema';
 
 // Error codes for tax rate validation
 export const TAX_RATE_ERROR_CODES = {
+  ERR_FREE_CANNOT_HAVE_TAX_RATE: 'ERR_FREE_CANNOT_HAVE_TAX_RATE',
+  ERR_INCOMPATIBLE_TAX_RATE: 'ERR_INCOMPATIBLE_TAX_RATE', 
   ERR_PAID_REQUIRES_TAX_RATE: 'ERR_PAID_REQUIRES_TAX_RATE',
-  ERR_FREE_CANNOT_HAVE_TAX_RATE: 'ERR_FREE_CANNOT_HAVE_TAX_RATE', 
-  ERR_INCOMPATIBLE_TAX_RATE: 'ERR_INCOMPATIBLE_TAX_RATE',
 } as const;
 
 export type TaxRateErrorCode = typeof TAX_RATE_ERROR_CODES[keyof typeof TAX_RATE_ERROR_CODES];
 
-// Validation result types
-export type TaxRateValidationSuccess = {
-  success: true;
-  data: {
-    stripeTaxRateId: string | null;
-    isPaid: boolean;
-  };
-};
-
-export type TaxRateValidationError = {
-  success: false;
+export interface TaxRateValidationError {
   error: {
     code: TaxRateErrorCode;
     message: string;
   };
-};
+  success: false;
+}
 
-export type TaxRateValidationResult = TaxRateValidationSuccess | TaxRateValidationError;
+export type TaxRateValidationResult = TaxRateValidationError | TaxRateValidationSuccess;
+
+// Validation result types
+export interface TaxRateValidationSuccess {
+  data: {
+    isPaid: boolean;
+    stripeTaxRateId: null | string;
+  };
+  success: true;
+}
 
 // Input schema for validation
 export const TaxRateValidationInput = Schema.Struct({
@@ -39,6 +39,31 @@ export const TaxRateValidationInput = Schema.Struct({
 });
 
 export type TaxRateValidationInputType = Schema.Schema.Type<typeof TaxRateValidationInput>;
+
+/**
+ * Get all compatible (inclusive & active) tax rates for a tenant
+ */
+export async function getCompatibleTaxRates(tenantId: string) {
+  return database.query.tenantStripeTaxRates.findMany({
+    orderBy: (table: typeof schema.tenantStripeTaxRates, { asc }: any) => [
+      asc(table.displayName),
+      asc(table.stripeTaxRateId),
+    ],
+    where: {
+      active: true,
+      inclusive: true,
+      tenantId: tenantId,
+    },
+  });
+}
+
+/**
+ * Check if tenant has any compatible tax rates available
+ */
+export async function hasCompatibleTaxRates(tenantId: string): Promise<boolean> {
+  const rates = await getCompatibleTaxRates(tenantId);
+  return rates.length > 0;
+}
 
 /**
  * Validates tax rate assignment rules for registration options
@@ -55,22 +80,22 @@ export async function validateTaxRate(
     // Rule: Free options cannot have tax rate
     if (!input.isPaid && input.stripeTaxRateId !== null) {
       return {
-        success: false,
         error: {
           code: TAX_RATE_ERROR_CODES.ERR_FREE_CANNOT_HAVE_TAX_RATE,
           message: 'Free registration options cannot have a tax rate assigned',
         },
+        success: false,
       };
     }
 
     // Rule: Paid options must have tax rate
     if (input.isPaid && !input.stripeTaxRateId) {
       return {
-        success: false,
         error: {
           code: TAX_RATE_ERROR_CODES.ERR_PAID_REQUIRES_TAX_RATE,
           message: 'Paid registration options must have a compatible tax rate assigned',
         },
+        success: false,
       };
     }
 
@@ -78,73 +103,48 @@ export async function validateTaxRate(
     if (input.isPaid && input.stripeTaxRateId) {
       const taxRate = await database.query.tenantStripeTaxRates.findFirst({
         where: {
-          tenantId: input.tenantId,
           stripeTaxRateId: input.stripeTaxRateId,
+          tenantId: input.tenantId,
         },
       });
 
       if (!taxRate) {
         return {
-          success: false,
           error: {
             code: TAX_RATE_ERROR_CODES.ERR_INCOMPATIBLE_TAX_RATE,
             message: 'Selected tax rate is not available for this tenant',
           },
+          success: false,
         };
       }
 
       // Check if rate is compatible (inclusive and active)
       if (!taxRate.inclusive || !taxRate.active) {
         return {
-          success: false,
           error: {
             code: TAX_RATE_ERROR_CODES.ERR_INCOMPATIBLE_TAX_RATE,
             message: 'Selected tax rate is not compatible (must be inclusive and active)',
           },
+          success: false,
         };
       }
     }
 
     // Validation passed
     return {
-      success: true,
       data: {
-        stripeTaxRateId: input.stripeTaxRateId,
         isPaid: input.isPaid,
+        stripeTaxRateId: input.stripeTaxRateId,
       },
+      success: true,
     };
   } catch (error) {
     return {
-      success: false,
       error: {
         code: TAX_RATE_ERROR_CODES.ERR_INCOMPATIBLE_TAX_RATE,
         message: 'Failed to validate tax rate: ' + (error instanceof Error ? error.message : 'Unknown error'),
       },
+      success: false,
     };
   }
-}
-
-/**
- * Get all compatible (inclusive & active) tax rates for a tenant
- */
-export async function getCompatibleTaxRates(tenantId: string) {
-  return database.query.tenantStripeTaxRates.findMany({
-    where: {
-      tenantId: tenantId,
-      inclusive: true,
-      active: true,
-    },
-    orderBy: (table: typeof schema.tenantStripeTaxRates, { asc }: any) => [
-      asc(table.displayName),
-      asc(table.stripeTaxRateId),
-    ],
-  });
-}
-
-/**
- * Check if tenant has any compatible tax rates available
- */
-export async function hasCompatibleTaxRates(tenantId: string): Promise<boolean> {
-  const rates = await getCompatibleTaxRates(tenantId);
-  return rates.length > 0;
 }

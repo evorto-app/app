@@ -6,7 +6,7 @@ import { database } from '../../../db';
 import { eventTemplateCategories } from '../../../db/schema';
 import { authenticatedProcedure, router } from '../trpc-server';
 
-type IconValue = { iconColor: number; iconName: string };
+interface IconValue { iconColor: number; iconName: string }
 
 const iconSchema = Schema.Unknown;
 
@@ -34,7 +34,7 @@ const resolveIconInput = async (
     });
   }
   const iconRecord = await database.query.icons.findFirst({
-    where: { tenantId, commonName: icon },
+    where: { commonName: icon, tenantId },
   });
   return {
     iconColor: iconRecord?.sourceColor ?? 0,
