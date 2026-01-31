@@ -5,9 +5,9 @@
 - [x] Task: Create root `tests/` and `specs/` scaffolding (9ae8961) ac3b01e
   - [x] Add `tests/` with a short README describing scope and tag requirements
   - [x] Add `specs/` with a spec template file for track-based requirements
-- [ ] Task: Document layout and conventions (c798f35)
-  - [ ] Update existing docs or workflow references to point to `tests/` and `specs/`
-  - [ ] Note that `e2e/tests/**` is legacy reference and not run by default
+- [x] Task: Document layout and conventions (c798f35) 711fcb4
+  - [x] Update existing docs or workflow references to point to `tests/` and `specs/`
+  - [x] Note that `e2e/tests/**` is legacy reference and not run by default
 - [ ] Task: Conductor - User Manual Verification 'Phase 1' (Protocol in workflow.md)
 
 ## Phase 2: Playwright configuration
