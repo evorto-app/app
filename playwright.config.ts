@@ -43,13 +43,14 @@ export default defineConfig({
   projects: [
     {
       name: 'setup',
+      testDir: './e2e/setup',
       testMatch: /.*\.setup\.ts$/,
       use: { ...devices['Desktop Chrome'] },
     },
     {
       dependencies: ['setup'],
       name: 'docs',
-      testMatch: /.*\.doc\.ts$/,
+      testMatch: /docs\/.*\.doc\.ts$/,
       timeout: 60 * 1000,
       use: { ...devices['Desktop Chrome'], channel: 'chromium' },
     },
@@ -102,7 +103,7 @@ export default defineConfig({
   reporter: reporters,
   /* Retry on CI only */
   retries: process.env['CI'] ? 2 : 0,
-  testDir: './e2e',
+  testDir: './tests',
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     /* Base URL to use in actions like `await page.goto('/')`. */
