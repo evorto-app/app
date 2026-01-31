@@ -17,8 +17,8 @@
   - [x] Ensure doc-test project (or equivalent) targets `tests/docs/**`
   - [x] Ensure legacy `e2e/tests/**` is excluded from default runs
   - [x] Update any scripts/builders referencing old paths
-- [ ] Task: Add a minimal doc-test template in `tests/docs/**`
-  - [ ] Provide a tagged, skipped example to confirm discovery without breaking CI
+- [x] Task: Add a minimal doc-test template in `tests/docs/**` 312dcbc
+  - [x] Provide a tagged, skipped example to confirm discovery without breaking CI
 - [ ] Task: Conductor - User Manual Verification 'Phase 2' (Protocol in workflow.md)
 
 ## Phase 3: Tag lint/check enforcement
