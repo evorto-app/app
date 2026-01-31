@@ -1,6 +1,6 @@
-# Documentation Tests
+# Legacy Documentation Tests
 
-This directory contains Playwright tests that are used to automatically generate markdown documentation for the application. These tests navigate through the application, take screenshots, and provide explanatory text that is compiled into comprehensive documentation.
+This directory contains legacy Playwright documentation tests. It remains as reference only and is not run by default. New documentation tests live under `tests/docs/**`.
 
 ## How Documentation Tests Work
 
@@ -54,20 +54,26 @@ yarn e2e:docs
 To run a specific documentation test:
 
 ```bash
-npx playwright test e2e/tests/path/to/test.doc.ts --project=docs
+npx playwright test tests/docs/path/to/test.doc.ts --project=docs
 ```
 
 ## Creating New Documentation Tests
 
 When creating new documentation tests:
 
-1. Create a new file with the `.doc.ts` extension in the appropriate subdirectory
+1. Create a new file with the `.doc.ts` extension in `tests/docs/**`
 2. Use the existing tests as templates for structure
 3. Include appropriate permissions in a callout at the beginning
 4. Structure the test to follow a logical user journey
 5. Use `testInfo.attach('markdown', ...)` to add explanatory text
 6. Use `takeScreenshot()` to capture important UI elements
 7. Make sure to cover all important aspects of the feature
+
+## New Structure References
+
+- Active tests: `tests/**`
+- Doc tests: `tests/docs/**`
+- Track spec template: `specs/track-spec-template.md`
 
 ## Best Practices
 

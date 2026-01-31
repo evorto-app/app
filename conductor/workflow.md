@@ -141,6 +141,8 @@ yarn e2e:docs
 - Prefer user-journey coverage using Playwright.
 - Doc tests must generate screenshots and text for user-facing documentation.
 - Use fixtures for setup/teardown where needed.
+- New Playwright tests live in `tests/**` (doc tests in `tests/docs/**`); legacy `e2e/tests/**` is reference-only.
+- Track specs should use `specs/track-spec-template.md` and live at `specs/<track_id>-<slug>.md`.
 
 ### Unit Testing
 
