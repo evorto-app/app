@@ -2,9 +2,9 @@ import { DatePipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
   inject,
   signal,
-  computed,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -65,14 +65,6 @@ export class UserProfileComponent {
   private readonly notifications = inject(NotificationService);
   private readonly queryClient = inject(QueryClient);
   private readonly trpc = injectTRPC();
-  protected readonly discountProvidersQuery = injectQuery(() =>
-    this.trpc.discounts.getTenantProviders.queryOptions(),
-  );
-  protected readonly esnEnabled = computed(() => {
-    const providers = this.discountProvidersQuery.data();
-    if (!providers) return false;
-    return providers.find((p) => p.type === 'esnCard')?.status === 'enabled';
-  });
   protected readonly deleteCardMutation = injectMutation(() =>
     this.trpc.discounts.deleteMyCard.mutationOptions({
       onSuccess: async () => {
@@ -83,11 +75,19 @@ export class UserProfileComponent {
       },
     }),
   );
+  protected readonly discountProvidersQuery = injectQuery(() =>
+    this.trpc.discounts.getTenantProviders.queryOptions(),
+  );
   protected displayName = signal('');
-
   protected readonly esnCardControl = new FormControl<string>('', {
     nonNullable: true,
     validators: [Validators.pattern(/^[A-Za-z0-9]{8,16}$/)],
+  });
+
+  protected readonly esnEnabled = computed(() => {
+    const providers = this.discountProvidersQuery.data();
+    if (!providers) return false;
+    return providers.find((p) => p.type === 'esnCard')?.status === 'enabled';
   });
   protected readonly faCalendarDays = faCalendarDays;
 

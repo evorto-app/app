@@ -185,18 +185,18 @@ export const registerForEventProcedure = authenticatedProcedure
         if (selectedTaxRateId) {
           const taxRate = await database.query.tenantStripeTaxRates.findFirst({
             where: {
-              tenantId: ctx.tenant.id,
               stripeTaxRateId: selectedTaxRateId,
+              tenantId: ctx.tenant.id,
             },
           });
 
           if (!taxRate || !taxRate.active || !taxRate.inclusive) {
             consola.warn(`WARN_INACTIVE_TAX_RATE: Tax rate ${selectedTaxRateId} is not active or compatible for registration ${userRegistration.id}`, {
-              taxRateId: selectedTaxRateId,
-              registrationId: userRegistration.id,
-              tenantId: ctx.tenant.id,
               active: taxRate?.active,
               inclusive: taxRate?.inclusive,
+              registrationId: userRegistration.id,
+              taxRateId: selectedTaxRateId,
+              tenantId: ctx.tenant.id,
             });
             // Continue with checkout but log the warning
           }

@@ -2,9 +2,9 @@
  * Tax rate information for formatting inclusive labels
  */
 export interface TaxRateInfo {
-  percentage?: string | null;
-  displayName?: string | null;
-  stripeTaxRateId?: string | null;
+  displayName?: null | string;
+  percentage?: null | string;
+  stripeTaxRateId?: null | string;
 }
 
 /**
@@ -18,7 +18,7 @@ export interface TaxRateInfo {
  * @param taxRate Tax rate information or null/undefined if unavailable
  * @returns Formatted inclusive tax label string
  */
-export function formatInclusiveTaxLabel(taxRate?: TaxRateInfo | null): string {
+export function formatInclusiveTaxLabel(taxRate?: null | TaxRateInfo): string {
   // If no tax rate info available, use fallback
   if (!taxRate || (!taxRate.percentage && !taxRate.displayName)) {
     return 'Incl. Tax';
@@ -58,14 +58,14 @@ export function formatInclusiveTaxLabel(taxRate?: TaxRateInfo | null): string {
  */
 export function formatPriceWithTax(
   amount: number,
-  currency: string = 'EUR',
-  taxRate?: TaxRateInfo | null
+  currency = 'EUR',
+  taxRate?: null | TaxRateInfo
 ): string {
   // Format the price amount
   const formatter = new Intl.NumberFormat('en-US', {
-    style: 'currency',
     currency: currency.toUpperCase(),
     minimumFractionDigits: 2,
+    style: 'currency',
   });
 
   const formattedAmount = formatter.format(amount / 100); // Assuming amount is in cents
@@ -75,21 +75,21 @@ export function formatPriceWithTax(
 }
 
 /**
- * Checks if a tax rate should be considered as zero/free
- */
-export function isZeroTaxRate(taxRate?: TaxRateInfo | null): boolean {
-  if (!taxRate?.percentage) return false;
-  
-  const percentage = parseFloat(taxRate.percentage);
-  return percentage === 0;
-}
-
-/**
  * Validates that a tax rate info object has minimum required data for labeling
  */
-export function hasValidTaxRateInfo(taxRate?: TaxRateInfo | null): boolean {
+export function hasValidTaxRateInfo(taxRate?: null | TaxRateInfo): boolean {
   if (!taxRate) return false;
   
   // Valid if we have either percentage or display name
   return !!(taxRate.percentage || taxRate.displayName);
+}
+
+/**
+ * Checks if a tax rate should be considered as zero/free
+ */
+export function isZeroTaxRate(taxRate?: null | TaxRateInfo): boolean {
+  if (!taxRate?.percentage) return false;
+  
+  const percentage = Number.parseFloat(taxRate.percentage);
+  return percentage === 0;
 }

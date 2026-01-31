@@ -28,7 +28,7 @@ The seeding approach has been designed to be deterministic while still creating 
 1. **Daily Seed**: We seed `@ngneat/falso` with the current day (YYYY-MM-DD) so data stays deterministic for a given day while still refreshing over time.
 2. **Seed Clock (UTC)**: Time-based fixtures use the start of the current day in UTC to keep dates stable within the day.
 
-3. **Deterministic Events**: 
+3. **Deterministic Events**:
    - Fixed number of events per template type (3 events × 6 template types = ~18 total events)
    - Events are created relative to the current date:
      - Past events (30+ days ago)
@@ -36,7 +36,7 @@ The seeding approach has been designed to be deterministic while still creating 
      - Future events (30+ days in the future)
    - Deterministic assignment of status, visibility, and creator
 
-3. **Realistic Data Structure**:
+4. **Realistic Data Structure**:
    - Events have appropriate registration options
    - Users have appropriate roles and permissions
    - Templates and categories are properly linked
@@ -50,6 +50,7 @@ yarn reset:database
 ```
 
 This will:
+
 1. Push the latest schema to the database (`yarn push:database`)
 2. Run the seeding script (`yarn setup:database`)
 

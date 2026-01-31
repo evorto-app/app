@@ -29,6 +29,7 @@ import { ImportTaxRatesDialogComponent } from '../components/import-tax-rates-di
     MatTableModule,
   ],
   selector: 'app-tax-rates-settings',
+  styles: [``],
   template: `
     <!-- Header with navigation -->
     <div class="mb-4 flex flex-row items-center gap-2">
@@ -226,13 +227,9 @@ import { ImportTaxRatesDialogComponent } from '../components/import-tax-rates-di
         }
       }
     </div>
-  `,
-  styles: [``]
+  `
 })
 export class TaxRatesSettingsComponent {
-  private readonly trpc = injectTRPC();
-  private readonly dialog = inject(MatDialog);
-
   protected readonly displayedColumns = [
     'displayName',
     'percentage', 
@@ -240,6 +237,7 @@ export class TaxRatesSettingsComponent {
     'status',
     'stripeTaxRateId'
   ];
+  private readonly trpc = injectTRPC();
 
   protected readonly importedQuery = injectQuery(() =>
     this.trpc.admin.tenant.listImportedTaxRates.queryOptions()
@@ -255,13 +253,15 @@ export class TaxRatesSettingsComponent {
     return rates.filter(rate => !rate.inclusive || !rate.active);
   });
 
+  private readonly dialog = inject(MatDialog);
+
   protected openImportDialog(): void {
-    const dialogRef = this.dialog.open(ImportTaxRatesDialogComponent, {
-      width: '800px',
+    const dialogReference = this.dialog.open(ImportTaxRatesDialogComponent, {
       disableClose: true,
+      width: '800px',
     });
 
-    dialogRef.afterClosed().subscribe((result) => {
+    dialogReference.afterClosed().subscribe((result) => {
       if (result) {
         // Refresh the imported rates list
         this.importedQuery.refetch();
