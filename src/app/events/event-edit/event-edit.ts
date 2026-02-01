@@ -6,7 +6,7 @@ import {
   input,
   signal,
 } from '@angular/core';
-import { form } from '@angular/forms/signals';
+import { form, submit } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import { MatMenuModule } from '@angular/material/menu';
 import { Router, RouterLink } from '@angular/router';
@@ -121,31 +121,30 @@ export class EventEdit {
       }
     });
   }
-  protected saveEvent() {
-    if (this.editEventForm().invalid()) {
-      return;
-    }
+  protected async saveEvent(event: Event) {
+    event.preventDefault();
+    await submit(this.editEventForm, async (formState) => {
+      const formValue = formState.value();
 
-    const formValue = this.editEventForm().value();
+      if (
+        !formValue.description ||
+        !formValue.end ||
+        !formValue.icon ||
+        !formValue.start ||
+        !formValue.title
+      ) {
+        return;
+      }
 
-    if (
-      !formValue.description ||
-      !formValue.end ||
-      !formValue.icon ||
-      !formValue.start ||
-      !formValue.title
-    ) {
-      return;
-    }
-
-    this.updateEventMutation.mutate({
-      description: formValue.description,
-      end: formValue.end,
-      eventId: this.eventId(),
-      icon: formValue.icon,
-      location: formValue.location,
-      start: formValue.start,
-      title: formValue.title,
+      this.updateEventMutation.mutate({
+        description: formValue.description,
+        end: formValue.end,
+        eventId: this.eventId(),
+        icon: formValue.icon,
+        location: formValue.location,
+        start: formValue.start,
+        title: formValue.title,
+      });
     });
   }
 }

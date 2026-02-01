@@ -7,7 +7,7 @@
 
 <main class="flex flex-col gap-6">
   @if (templateQuery.isSuccess()) {
-    <form (ngSubmit)="onSubmit()">
+    <form (submit)="onSubmit($event)">
       <div class="grid gap-6">
         <section class="bg-surface text-on-surface rounded-2xl p-4">
           <h2 class="title-large mb-4">Event Details</h2>
