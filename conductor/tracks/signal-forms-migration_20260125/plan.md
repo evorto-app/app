@@ -13,7 +13,7 @@
 
 ## Phase 2: Core Form Model Migration
 
-- [ ] Task: Migrate form models to Signal Forms (top-down)
+- [~] Task: Migrate form models to Signal Forms (top-down)
   - [ ] Replace FormBuilder/FormGroup/FormControl with signal forms models
   - [ ] Ensure validators and async flows are preserved
 - [ ] Task: Introduce compatForm only where needed
