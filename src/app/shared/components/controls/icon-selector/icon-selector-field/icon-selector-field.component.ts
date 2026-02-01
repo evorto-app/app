@@ -21,9 +21,12 @@ import { IconSelectorDialogComponent } from '../icon-selector-dialog/icon-select
   templateUrl: './icon-selector-field.component.html',
 })
 export class IconSelectorFieldComponent
-  implements FormValueControl<string | { iconColor: number; iconName: string }>
+  implements
+    FormValueControl<string | { iconColor: number; iconName: string } | null>
 {
-  readonly value = model<string | { iconColor: number; iconName: string }>('');
+  readonly value = model<
+    string | { iconColor: number; iconName: string } | null
+  >(null);
   readonly touched = model<boolean>(false);
   readonly disabled = input<boolean>(false);
   readonly readonly = input<boolean>(false);

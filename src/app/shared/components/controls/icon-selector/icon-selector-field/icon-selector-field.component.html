@@ -2,8 +2,8 @@
   <div
     class="border-outline mb-5 flex items-center justify-between gap-4 rounded border px-4 py-2"
   >
-    @if (value()) {
-      <app-icon size="40" [iconCommonName]="value()" />
+  @if (value(); as iconValue) {
+      <app-icon size="40" [iconCommonName]="iconValue" />
     }
 
     <button
