@@ -1,5 +1,5 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
-import { ReactiveFormsModule } from '@angular/forms';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { form } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import { Router, RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
@@ -10,10 +10,12 @@ import {
 } from '@tanstack/angular-query-experimental';
 
 import { injectTRPC } from '../../core/trpc-client';
+import { RoleFormComponent } from '../components/role-form/role-form.component';
 import {
-  RoleFormComponent,
+  createRoleFormModel,
+  roleFormSchema,
   RoleFormData,
-} from '../components/role-form/role-form.component';
+} from '../components/role-form/role-form.schema';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -21,7 +23,6 @@ import {
     FontAwesomeModule,
     MatButtonModule,
     RouterLink,
-    ReactiveFormsModule,
     RoleFormComponent,
   ],
   selector: 'app-role-create',
@@ -30,6 +31,8 @@ import {
 })
 export class RoleCreateComponent {
   private readonly trpc = injectTRPC();
+  private readonly roleModel = signal(createRoleFormModel());
+  protected readonly roleForm = form(this.roleModel, roleFormSchema);
   protected readonly createRoleMutation = injectMutation(() =>
     this.trpc.admin.roles.create.mutationOptions(),
   );

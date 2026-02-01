@@ -9,6 +9,7 @@
   class="bg-surface-container-low text-on-surface-container-low flex flex-col gap-4 rounded-2xl p-4"
 >
   <app-role-form
+    [roleForm]="roleForm"
     [isSubmitting]="createRoleMutation.isPending()"
     (formSubmit)="onSubmit($event)"
   ></app-role-form>
