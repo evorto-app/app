@@ -33,7 +33,7 @@ import { LocationSearch } from '../../../../../core/location-search';
 })
 export class LocationSelectorDialog {
   private readonly searchModel = signal<{
-    query: string | google.maps.places.AutocompleteSuggestion;
+    query: google.maps.places.AutocompleteSuggestion | string;
   }>({ query: '' });
   protected readonly searchForm = form(this.searchModel, (schema) => {
     debounce(schema, 300);

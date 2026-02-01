@@ -1,7 +1,32 @@
 import { apply, hidden, min, required, schema } from '@angular/forms/signals';
+
 import { EventLocationType } from '../../../../types/location';
 
 export type RegistrationMode = 'application' | 'fcfs' | 'random';
+
+export interface TemplateFormData {
+  categoryId: string;
+  description: string;
+  icon: null | { iconColor: number; iconName: string };
+  location: EventLocationType | null;
+  organizerRegistration: TemplateRegistrationFormModel;
+  participantRegistration: TemplateRegistrationFormModel;
+  title: string;
+}
+
+export type TemplateFormOverrides = Partial<
+  Pick<
+    TemplateFormData,
+    'categoryId' | 'description' | 'icon' | 'location' | 'title'
+  >
+> & {
+  organizerRegistration?: Partial<TemplateRegistrationFormModel>;
+  participantRegistration?: Partial<TemplateRegistrationFormModel>;
+};
+
+export type TemplateFormSubmitData = Omit<TemplateFormData, 'icon'> & {
+  icon: { iconColor: number; iconName: string };
+};
 
 export interface TemplateRegistrationFormModel {
   closeRegistrationOffset: number;
@@ -13,30 +38,6 @@ export interface TemplateRegistrationFormModel {
   spots: number;
   stripeTaxRateId: null | string;
 }
-
-export interface TemplateFormData {
-  categoryId: string;
-  description: string;
-  icon: { iconColor: number; iconName: string } | null;
-  location: EventLocationType | null;
-  organizerRegistration: TemplateRegistrationFormModel;
-  participantRegistration: TemplateRegistrationFormModel;
-  title: string;
-}
-
-export type TemplateFormSubmitData = Omit<TemplateFormData, 'icon'> & {
-  icon: { iconColor: number; iconName: string };
-};
-
-export type TemplateFormOverrides = Partial<
-  Pick<
-    TemplateFormData,
-    'categoryId' | 'description' | 'icon' | 'location' | 'title'
-  >
-> & {
-  organizerRegistration?: Partial<TemplateRegistrationFormModel>;
-  participantRegistration?: Partial<TemplateRegistrationFormModel>;
-};
 
 export const createTemplateRegistrationFormModel = (
   overrides: Partial<TemplateRegistrationFormModel> = {},
@@ -67,11 +68,11 @@ export const createTemplateFormModel = (
 
   const organizerRegistration = createTemplateRegistrationFormModel({
     ...base.organizerRegistration,
-    ...(overrides.organizerRegistration ?? {}),
+    ...overrides.organizerRegistration,
   });
   const participantRegistration = createTemplateRegistrationFormModel({
     ...base.participantRegistration,
-    ...(overrides.participantRegistration ?? {}),
+    ...overrides.participantRegistration,
   });
 
   return {

@@ -4,7 +4,7 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { FormField, form, required, submit } from '@angular/forms/signals';
+import { form, FormField, required, submit } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';

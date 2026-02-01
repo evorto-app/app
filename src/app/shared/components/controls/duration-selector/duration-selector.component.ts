@@ -1,9 +1,9 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
   input,
   model,
-  computed,
 } from '@angular/core';
 import { FormValueControl } from '@angular/forms/signals';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -17,13 +17,13 @@ import { MatInputModule } from '@angular/material/input';
   templateUrl: './duration-selector.component.html',
 })
 export class DurationSelectorComponent implements FormValueControl<number> {
+  readonly disabled = input<boolean>(false);
+  readonly hidden = input<boolean>(false);
   public readonly hint = input<string>('');
   public readonly label = input<string>('Duration');
-  readonly value = model<number>(0);
-  readonly touched = model<boolean>(false);
-  readonly disabled = input<boolean>(false);
   readonly readonly = input<boolean>(false);
-  readonly hidden = input<boolean>(false);
+  readonly touched = model<boolean>(false);
+  readonly value = model<number>(0);
 
   protected readonly days = computed(() =>
     Math.max(0, Math.floor(this.value() / 24)),
@@ -31,6 +31,10 @@ export class DurationSelectorComponent implements FormValueControl<number> {
   protected readonly hours = computed(() =>
     Math.max(0, this.value() % 24),
   );
+
+  protected markTouched(): void {
+    this.touched.set(true);
+  }
 
   protected updateDays(event: Event): void {
     const nextDays = this.parseNumber(event);
@@ -40,10 +44,6 @@ export class DurationSelectorComponent implements FormValueControl<number> {
   protected updateHours(event: Event): void {
     const nextHours = Math.min(23, this.parseNumber(event));
     this.value.set(this.days() * 24 + nextHours);
-  }
-
-  protected markTouched(): void {
-    this.touched.set(true);
   }
 
   private parseNumber(event: Event): number {

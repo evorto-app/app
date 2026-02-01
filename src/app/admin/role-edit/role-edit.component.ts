@@ -20,10 +20,10 @@ import { injectTRPC } from '../../core/trpc-client';
 import { RoleFormComponent } from '../components/role-form/role-form.component';
 import {
   mergeRoleFormOverrides,
-  roleFormSchema,
   RoleFormData,
   RoleFormModel,
   RoleFormOverrides,
+  roleFormSchema,
 } from '../components/role-form/role-form.schema';
 
 @Component({
@@ -45,9 +45,9 @@ export class RoleEditComponent {
     RoleFormOverrides | undefined,
     RoleFormModel
   >({
-    source: () => this.roleQuery.data(),
     computation: (data, previous) =>
       mergeRoleFormOverrides(data ?? {}, previous?.value),
+    source: () => this.roleQuery.data(),
   });
   protected readonly roleForm = form(this.roleModel, roleFormSchema);
   protected readonly updateRoleMutation = injectMutation(() =>

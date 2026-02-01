@@ -39,9 +39,6 @@ export interface EditProfileDialogResult {
   templateUrl: './edit-profile-dialog.component.html',
 })
 export class EditProfileDialogComponent {
-  private readonly dialogRef = inject(
-    MatDialogRef<EditProfileDialogComponent>,
-  );
   protected readonly data = inject(MAT_DIALOG_DATA) as EditProfileDialogData;
   protected readonly profileModel = signal({
     firstName: this.data.firstName ?? '',
@@ -51,6 +48,9 @@ export class EditProfileDialogComponent {
     required(schemaPath.firstName);
     required(schemaPath.lastName);
   });
+  private readonly dialogRef = inject(
+    MatDialogRef<EditProfileDialogComponent>,
+  );
 
   async onSubmit(event: Event): Promise<void> {
     event.preventDefault();

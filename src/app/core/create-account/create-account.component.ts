@@ -5,7 +5,7 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { FormField, form, required, submit } from '@angular/forms/signals';
+import { form, FormField, required, submit } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import { MatInputModule } from '@angular/material/input';
 import { Router } from '@angular/router';

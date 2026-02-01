@@ -55,13 +55,7 @@ import {
 export class UserProfileComponent {
   private readonly notifications = inject(NotificationService);
   private readonly queryClient = inject(QueryClient);
-  private readonly dialog = inject(MatDialog);
   private readonly trpc = injectTRPC();
-  private readonly esnCardModel = signal({ identifier: '' });
-  protected readonly esnCardForm = form(this.esnCardModel, (schemaPath) => {
-    required(schemaPath.identifier);
-    pattern(schemaPath.identifier, /^[A-Za-z0-9]{8,16}$/);
-  });
   protected readonly deleteCardMutation = injectMutation(() =>
     this.trpc.discounts.deleteMyCard.mutationOptions({
       onSuccess: async () => {
@@ -75,14 +69,18 @@ export class UserProfileComponent {
   protected readonly discountProvidersQuery = injectQuery(() =>
     this.trpc.discounts.getTenantProviders.queryOptions(),
   );
-
+  private readonly esnCardModel = signal({ identifier: '' });
+  protected readonly esnCardForm = form(this.esnCardModel, (schemaPath) => {
+    required(schemaPath.identifier);
+    pattern(schemaPath.identifier, /^[A-Za-z0-9]{8,16}$/);
+  });
   protected readonly esnEnabled = computed(() => {
     const providers = this.discountProvidersQuery.data();
     if (!providers) return false;
     return providers.find((p) => p.type === 'esnCard')?.status === 'enabled';
   });
-  protected readonly faCalendarDays = faCalendarDays;
 
+  protected readonly faCalendarDays = faCalendarDays;
   protected readonly faPencil = faPencil;
 
   protected readonly faRightFromBracket = faRightFromBracket;
@@ -102,6 +100,7 @@ export class UserProfileComponent {
       },
     }),
   );
+
   protected readonly updateProfileMutation = injectMutation(() =>
     this.trpc.users.updateProfile.mutationOptions(),
   );
@@ -122,24 +121,11 @@ export class UserProfileComponent {
   protected readonly userQuery = injectQuery(() =>
     this.trpc.users.self.queryOptions(),
   );
+  private readonly dialog = inject(MatDialog);
 
   protected deleteEsnCard() {
     this.deleteCardMutation.mutate({ type: 'esnCard' });
   }
-  protected refreshEsnCard() {
-    this.refreshCardMutation.mutate({ type: 'esnCard' });
-  }
-
-  protected async saveEsnCard(event: Event) {
-    event.preventDefault();
-    await submit(this.esnCardForm, async (formState) => {
-      this.upsertCardMutation.mutate({
-        identifier: formState().value().identifier.trim(),
-        type: 'esnCard',
-      });
-    });
-  }
-
   protected async openEditProfileDialog(): Promise<void> {
     const user = this.userQuery.data();
     if (!user) return;
@@ -168,6 +154,20 @@ export class UserProfileComponent {
         });
         this.notifications.showSuccess('Profile updated successfully');
       },
+    });
+  }
+
+  protected refreshEsnCard() {
+    this.refreshCardMutation.mutate({ type: 'esnCard' });
+  }
+
+  protected async saveEsnCard(event: Event) {
+    event.preventDefault();
+    await submit(this.esnCardForm, async (formState) => {
+      this.upsertCardMutation.mutate({
+        identifier: formState().value().identifier.trim(),
+        type: 'esnCard',
+      });
     });
   }
 }

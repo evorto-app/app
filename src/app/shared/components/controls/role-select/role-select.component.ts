@@ -3,7 +3,6 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
-  inject,
   input,
   model,
   signal,
@@ -42,12 +41,12 @@ import { injectTRPC, injectTRPCClient } from '../../../../core/trpc-client';
   templateUrl: './role-select.component.html',
 })
 export class RoleSelectComponent implements FormValueControl<string[]> {
-  readonly separatorKeysCodes: number[] = [ENTER, COMMA];
-  readonly value = model<string[]>([]);
-  readonly touched = model<boolean>(false);
   readonly disabled = input<boolean>(false);
-  readonly readonly = input<boolean>(false);
   readonly hidden = input<boolean>(false);
+  readonly readonly = input<boolean>(false);
+  readonly separatorKeysCodes: number[] = [ENTER, COMMA];
+  readonly touched = model<boolean>(false);
+  readonly value = model<string[]>([]);
 
   private trpcClient = injectTRPCClient();
   protected currentRolesQuery = injectQueries(() => ({

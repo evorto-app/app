@@ -6,16 +6,6 @@ import {
   PERMISSION_DEPENDENCIES,
 } from '../../../../shared/permissions/permissions';
 
-export interface RoleFormModel {
-  collapseMembersInHup: boolean;
-  defaultOrganizerRole: boolean;
-  defaultUserRole: boolean;
-  description: string;
-  name: string;
-  permissions: Record<Permission, boolean>;
-  showInHub: boolean;
-}
-
 export interface RoleFormData {
   collapseMembersInHup: boolean;
   defaultOrganizerRole: boolean;
@@ -26,10 +16,20 @@ export interface RoleFormData {
   showInHub: boolean;
 }
 
+export interface RoleFormModel {
+  collapseMembersInHup: boolean;
+  defaultOrganizerRole: boolean;
+  defaultUserRole: boolean;
+  description: string;
+  name: string;
+  permissions: Record<Permission, boolean>;
+  showInHub: boolean;
+}
+
 export interface RoleFormOverrides
-  extends Partial<Omit<RoleFormModel, 'permissions' | 'description'>> {
+  extends Partial<Omit<RoleFormModel, 'description' | 'permissions'>> {
   description?: null | string;
-  permissions?: Permission[] | Partial<Record<Permission, boolean>>;
+  permissions?: Partial<Record<Permission, boolean>> | Permission[];
 }
 
 const emptyPermissions = Object.fromEntries(
@@ -37,7 +37,7 @@ const emptyPermissions = Object.fromEntries(
 ) as Record<Permission, boolean>;
 
 const buildPermissions = (
-  selected?: Permission[] | Partial<Record<Permission, boolean>>,
+  selected?: Partial<Record<Permission, boolean>> | Permission[],
 ): Record<Permission, boolean> => {
   const next = { ...emptyPermissions };
   if (Array.isArray(selected)) {
@@ -81,13 +81,10 @@ export const mergeRoleFormOverrides = (
   });
 };
 
-const dependentPermissionParents = ALL_PERMISSIONS.reduce(
-  (acc, permission) => {
-    acc[permission] = [];
-    return acc;
-  },
-  {} as Record<Permission, Permission[]>,
-);
+const dependentPermissionParents: Record<Permission, Permission[]> = {};
+for (const permission of ALL_PERMISSIONS) {
+  dependentPermissionParents[permission] = [];
+}
 
 for (const [permission, dependencies] of Object.entries(
   PERMISSION_DEPENDENCIES,

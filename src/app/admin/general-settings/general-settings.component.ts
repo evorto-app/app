@@ -50,14 +50,6 @@ import { ImportTaxRatesDialogComponent } from '../components/import-tax-rates-di
   templateUrl: './general-settings.component.html',
 })
 export class GeneralSettingsComponent {
-  protected readonly settingsModel = signal<{
-    defaultLocation: GoogleLocationType | null;
-    theme: 'esn' | 'evorto';
-  }>({
-    defaultLocation: null,
-    theme: 'evorto',
-  });
-  protected readonly settingsForm = form(this.settingsModel);
   private readonly trpc = injectTRPC();
   protected readonly importedTaxRatesQuery = injectQuery(() =>
     this.trpc.admin.tenant.listImportedTaxRates.queryOptions(),
@@ -87,6 +79,14 @@ export class GeneralSettingsComponent {
       },
     }),
   );
+  protected readonly settingsModel = signal<{
+    defaultLocation: GoogleLocationType | null;
+    theme: 'esn' | 'evorto';
+  }>({
+    defaultLocation: null,
+    theme: 'evorto',
+  });
+  protected readonly settingsForm = form(this.settingsModel);
 
   private readonly configService = inject(ConfigService);
   private readonly dialog = inject(MatDialog);

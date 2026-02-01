@@ -13,8 +13,8 @@ import { injectTRPC } from '../../core/trpc-client';
 import { RoleFormComponent } from '../components/role-form/role-form.component';
 import {
   createRoleFormModel,
-  roleFormSchema,
   RoleFormData,
+  roleFormSchema,
 } from '../components/role-form/role-form.schema';
 
 @Component({
@@ -31,12 +31,12 @@ import {
 })
 export class RoleCreateComponent {
   private readonly trpc = injectTRPC();
-  private readonly roleModel = signal(createRoleFormModel());
-  protected readonly roleForm = form(this.roleModel, roleFormSchema);
   protected readonly createRoleMutation = injectMutation(() =>
     this.trpc.admin.roles.create.mutationOptions(),
   );
   protected readonly faArrowLeft = faArrowLeft;
+  private readonly roleModel = signal(createRoleFormModel());
+  protected readonly roleForm = form(this.roleModel, roleFormSchema);
 
   private readonly queryClient = inject(QueryClient);
   private readonly router = inject(Router);

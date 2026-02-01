@@ -1,18 +1,16 @@
 import {
   ChangeDetectionStrategy,
   Component,
-  inject,
   input,
   linkedSignal,
   output,
 } from '@angular/core';
-import { FormField, form, submit } from '@angular/forms/signals';
+import { form, FormField, submit } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { injectQuery } from '@tanstack/angular-query-experimental';
-import { PartialDeep } from 'type-fest';
 
 import { injectTRPC } from '../../../core/trpc-client';
 import { DurationSelectorComponent } from '../../../shared/components/controls/duration-selector/duration-selector.component';
@@ -25,8 +23,8 @@ import {
   RegistrationMode,
   TemplateFormData,
   TemplateFormOverrides,
-  TemplateFormSubmitData,
   templateFormSchema,
+  TemplateFormSubmitData,
 } from './template-form.schema';
 
 @Component({
@@ -72,9 +70,9 @@ export class TemplateFormComponent {
     TemplateFormOverrides,
     TemplateFormData
   >({
-    source: () => this.initialData(),
     computation: (data, previous) =>
       mergeTemplateFormOverrides(data, previous?.value),
+    source: () => this.initialData(),
   });
 
   protected readonly templateForm = form(

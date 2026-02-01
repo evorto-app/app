@@ -35,8 +35,8 @@ import { RoleFormData, RoleFormModel } from './role-form.schema';
   templateUrl: './role-form.component.html',
 })
 export class RoleFormComponent {
-  public readonly roleForm = input.required<FieldTree<RoleFormModel>>();
   public readonly isSubmitting = input(false);
+  public readonly roleForm = input.required<FieldTree<RoleFormModel>>();
   public readonly submitLabel = input('Save role');
   protected formSubmit = output<RoleFormData>();
 

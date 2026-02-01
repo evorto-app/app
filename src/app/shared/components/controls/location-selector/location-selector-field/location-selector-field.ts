@@ -24,11 +24,11 @@ import { LocationSelectorDialog } from '../location-selector-dialog/location-sel
 export class LocationSelectorField
   implements FormValueControl<EventLocationType | null>
 {
-  readonly value = model<EventLocationType | null>(null);
-  readonly touched = model<boolean>(false);
   readonly disabled = input<boolean>(false);
-  readonly readonly = input<boolean>(false);
   readonly hidden = input<boolean>(false);
+  readonly readonly = input<boolean>(false);
+  readonly touched = model<boolean>(false);
+  readonly value = model<EventLocationType | null>(null);
 
   private readonly dialog = inject(MatDialog);
 

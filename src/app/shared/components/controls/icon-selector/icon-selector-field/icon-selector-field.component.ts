@@ -22,15 +22,15 @@ import { IconSelectorDialogComponent } from '../icon-selector-dialog/icon-select
 })
 export class IconSelectorFieldComponent
   implements
-    FormValueControl<string | { iconColor: number; iconName: string } | null>
+    FormValueControl<null | string | { iconColor: number; iconName: string }>
 {
-  readonly value = model<
-    string | { iconColor: number; iconName: string } | null
-  >(null);
-  readonly touched = model<boolean>(false);
   readonly disabled = input<boolean>(false);
-  readonly readonly = input<boolean>(false);
   readonly hidden = input<boolean>(false);
+  readonly readonly = input<boolean>(false);
+  readonly touched = model<boolean>(false);
+  readonly value = model<
+    null | string | { iconColor: number; iconName: string }
+  >(null);
 
   private dialog = inject(MatDialog);
 

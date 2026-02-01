@@ -12,8 +12,8 @@ import {
   MatDialogActions,
   MatDialogClose,
   MatDialogContent,
-  MatDialogTitle,
   MatDialogRef,
+  MatDialogTitle,
 } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
@@ -44,9 +44,6 @@ const fallbackIcon: IconValue = { iconColor: 0, iconName: 'city' };
   templateUrl: './create-edit-category-dialog.component.html',
 })
 export class CreateEditCategoryDialogComponent {
-  private readonly dialogRef = inject(
-    MatDialogRef<CreateEditCategoryDialogComponent>,
-  );
   protected readonly categoryModel = signal({
     icon: fallbackIcon,
     title: '',
@@ -70,6 +67,9 @@ export class CreateEditCategoryDialogComponent {
         defaultIcon?: IconValue;
         mode: 'create';
       };
+  private readonly dialogRef = inject(
+    MatDialogRef<CreateEditCategoryDialogComponent>,
+  );
 
   constructor() {
     if (this.data.mode === 'edit') {
