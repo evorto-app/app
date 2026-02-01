@@ -22,7 +22,7 @@
 
 ## Phase 3: Custom Controls Migration
 
-- [ ] Task: Migrate custom controls to Signal Forms interfaces
+- [~] Task: Migrate custom controls to Signal Forms interfaces
   - [ ] Implement FormValueControl/FormCheckboxControl
   - [ ] Replace CVA usage where applicable
   - [ ] Ensure [formField] bindings work for all controls
