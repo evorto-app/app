@@ -13,19 +13,19 @@
 
 ## Phase 2: Core Form Model Migration
 
-- [~] Task: Migrate form models to Signal Forms (top-down)
-  - [ ] Replace FormBuilder/FormGroup/FormControl with signal forms models
-  - [ ] Ensure validators and async flows are preserved
-- [ ] Task: Introduce compatForm only where needed
-  - [ ] Bridge legacy controls/groups that cannot be migrated yet
+- [x] Task: Migrate form models to Signal Forms (top-down) (debce74)
+  - [x] Replace FormBuilder/FormGroup/FormControl with signal forms models
+  - [x] Ensure validators and async flows are preserved
+- [x] Task: Introduce compatForm only where needed (n/a)
+  - [x] Bridge legacy controls/groups that cannot be migrated yet
 - [ ] Task: Conductor - User Manual Verification 'Phase 2' (Protocol in workflow.md)
 
 ## Phase 3: Custom Controls Migration
 
-- [~] Task: Migrate custom controls to Signal Forms interfaces
-  - [ ] Implement FormValueControl/FormCheckboxControl
-  - [ ] Replace CVA usage where applicable
-  - [ ] Ensure [formField] bindings work for all controls
+- [x] Task: Migrate custom controls to Signal Forms interfaces (533e419)
+  - [x] Implement FormValueControl/FormCheckboxControl
+  - [x] Replace CVA usage where applicable
+  - [x] Ensure [formField] bindings work for all controls
 - [ ] Task: Conductor - User Manual Verification 'Phase 3' (Protocol in workflow.md)
 
 ## Phase 4: Template & Styling Alignment
