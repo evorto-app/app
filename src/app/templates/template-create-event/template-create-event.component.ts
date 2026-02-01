@@ -105,8 +105,9 @@ export class TemplateCreateEventComponent {
       if (!template || !eventStart || registrationOptions.length === 0) return;
       consola.info(eventStart);
       consola.info(DateTime.isDateTime(eventStart));
+      const startDate = this.toJsDate(eventStart);
       const previousStart = this.lastStart();
-      this.lastStart.set(eventStart);
+      this.lastStart.set(startDate);
 
       const endField = this.createEventForm.end;
       const endState = endField();
@@ -115,13 +116,13 @@ export class TemplateCreateEventComponent {
         !endState.dirty() &&
         !endState.touched()
       ) {
-        const currentEnd = endState.value();
+        const currentEnd = this.toJsDate(endState.value());
         const durationMs = currentEnd.getTime() - previousStart.getTime();
-        const nextEnd = new Date(eventStart.getTime() + durationMs);
+        const nextEnd = new Date(startDate.getTime() + durationMs);
         this.updateIfPristine(endField, nextEnd);
       }
 
-      const startDateTime = DateTime.fromJSDate(eventStart);
+      const startDateTime = DateTime.fromJSDate(startDate);
       template.registrationOptions.forEach((option, index) => {
         const optionForm = this.createEventForm.registrationOptions[index];
         if (!optionForm) return;
@@ -142,6 +143,10 @@ export class TemplateCreateEventComponent {
         );
       });
     });
+  }
+
+  private toJsDate(value: Date | DateTime): Date {
+    return DateTime.isDateTime(value) ? value.toJSDate() : value;
   }
 
   private updateIfPristine(field: FieldTree<Date>, nextValue: Date): void {
