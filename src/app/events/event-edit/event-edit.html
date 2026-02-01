@@ -46,7 +46,9 @@
           type="submit"
           mat-button
           [disabled]="
-            editEventForm().invalid() || updateEventMutation.isPending()
+            editEventForm().invalid() ||
+            editEventForm().submitting() ||
+            updateEventMutation.isPending()
           "
         >
           @if (updateEventMutation.isPending()) {

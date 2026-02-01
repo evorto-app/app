@@ -22,6 +22,8 @@ import {
   mergeRoleFormOverrides,
   roleFormSchema,
   RoleFormData,
+  RoleFormModel,
+  RoleFormOverrides,
 } from '../components/role-form/role-form.schema';
 
 @Component({
@@ -39,7 +41,10 @@ export class RoleEditComponent {
       id: this.roleId(),
     }),
   );
-  private readonly roleModel = linkedSignal({
+  private readonly roleModel = linkedSignal<
+    RoleFormOverrides | undefined,
+    RoleFormModel
+  >({
     source: () => this.roleQuery.data(),
     computation: (data, previous) =>
       mergeRoleFormOverrides(data ?? {}, previous?.value),

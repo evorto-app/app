@@ -110,7 +110,7 @@ export class GeneralSettingsComponent {
   async saveSettings(event: Event) {
     event.preventDefault();
     await submit(this.settingsForm, async (formState) => {
-      const settings = formState.value();
+      const settings = formState().value();
       this.updateSettingsMutation.mutate(settings, {
         onSuccess: async () => {
           await this.queryClient.invalidateQueries({

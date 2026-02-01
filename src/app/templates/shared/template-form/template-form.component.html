@@ -235,7 +235,11 @@
   <button
     type="submit"
     mat-button
-    [disabled]="templateForm().invalid() || isSubmitting()"
+    [disabled]="
+      templateForm().invalid() ||
+      templateForm().submitting() ||
+      isSubmitting()
+    "
   >
     {{ submitLabel() }}
   </button>

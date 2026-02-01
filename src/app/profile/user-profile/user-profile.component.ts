@@ -123,9 +123,6 @@ export class UserProfileComponent {
     this.trpc.users.self.queryOptions(),
   );
 
-  protected cancelEditing(): void {
-    this.isEditing.set(false);
-  }
   protected deleteEsnCard() {
     this.deleteCardMutation.mutate({ type: 'esnCard' });
   }
@@ -137,7 +134,7 @@ export class UserProfileComponent {
     event.preventDefault();
     await submit(this.esnCardForm, async (formState) => {
       this.upsertCardMutation.mutate({
-        identifier: formState.value().identifier.trim(),
+        identifier: formState().value().identifier.trim(),
         type: 'esnCard',
       });
     });

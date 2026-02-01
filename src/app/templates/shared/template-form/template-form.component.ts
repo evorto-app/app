@@ -85,7 +85,7 @@ export class TemplateFormComponent {
   async onSubmit(event: Event) {
     event.preventDefault();
     await submit(this.templateForm, async (formState) => {
-      const formValue = formState.value();
+      const formValue = formState().value();
       if (!formValue.icon) {
         return;
       }

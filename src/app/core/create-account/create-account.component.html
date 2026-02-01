@@ -38,7 +38,7 @@
         <button
           mat-flat-button
           type="submit"
-          [disabled]="accountForm().invalid()"
+          [disabled]="accountForm().invalid() || accountForm().submitting()"
         >
           Create Account
         </button>

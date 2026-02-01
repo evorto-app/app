@@ -15,7 +15,7 @@
     <button
       mat-button
       type="submit"
-      [disabled]="profileForm().invalid()"
+      [disabled]="profileForm().invalid() || profileForm().submitting()"
     >
       Save
     </button>

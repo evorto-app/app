@@ -62,7 +62,7 @@ export class RoleFormComponent {
   async onSubmit(event: Event): Promise<void> {
     event.preventDefault();
     await submit(this.roleForm(), async (formState) => {
-      const formValue = formState.value();
+      const formValue = formState().value();
       this.formSubmit.emit({
         ...formValue,
         description: formValue.description || null,

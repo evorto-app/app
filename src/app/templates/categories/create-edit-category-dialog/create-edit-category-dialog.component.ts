@@ -88,7 +88,7 @@ export class CreateEditCategoryDialogComponent {
   async onSubmit(event: Event): Promise<void> {
     event.preventDefault();
     await submit(this.categoryForm, async (formState) => {
-      this.dialogRef.close(formState.value());
+      this.dialogRef.close(formState().value());
     });
   }
 }

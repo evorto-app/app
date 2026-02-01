@@ -55,7 +55,7 @@ export class EditProfileDialogComponent {
   async onSubmit(event: Event): Promise<void> {
     event.preventDefault();
     await submit(this.profileForm, async (formState) => {
-      const formValue = formState.value();
+      const formValue = formState().value();
       this.dialogRef.close({
         firstName: formValue.firstName.trim(),
         lastName: formValue.lastName.trim(),

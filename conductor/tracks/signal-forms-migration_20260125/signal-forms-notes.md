@@ -46,6 +46,10 @@ Last updated: 2026-01-31
 - Use `submit(form, async () => { ... })` to run async work and let Signal Forms
   manage submission state. It only runs when the form is valid and marks fields
   as touched for error display. citeturn0search0turn0search2
+- Use `form().submitting()` to disable submit buttons while the `submit()` helper
+  is running.
+- To disable the entire form while submitting, add a schema-level `disabled()`
+  rule on the root form based on `formState.submitting()`.
 
 Example:
 

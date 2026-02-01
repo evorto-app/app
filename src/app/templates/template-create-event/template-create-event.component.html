@@ -34,7 +34,9 @@
             type="submit"
             mat-button
             [disabled]="
-              createEventForm().invalid() || createEventMutation.isPending()
+              createEventForm().invalid() ||
+              createEventForm().submitting() ||
+              createEventMutation.isPending()
             "
           >
             Create event

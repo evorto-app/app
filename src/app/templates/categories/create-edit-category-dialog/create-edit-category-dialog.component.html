@@ -17,7 +17,11 @@
   </mat-dialog-content>
   <mat-dialog-actions align="end" class="gap-2">
     <button mat-button mat-dialog-close>Cancel</button>
-    <button mat-button type="submit" [disabled]="categoryForm().invalid()">
+    <button
+      mat-button
+      type="submit"
+      [disabled]="categoryForm().invalid() || categoryForm().submitting()"
+    >
       Save
     </button>
   </mat-dialog-actions>

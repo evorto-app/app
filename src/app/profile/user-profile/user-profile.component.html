@@ -140,7 +140,11 @@
             mat-raised-button
             color="primary"
             type="submit"
-            [disabled]="esnCardForm().invalid() || upsertCardMutation.isPending()"
+            [disabled]="
+              esnCardForm().invalid() ||
+              esnCardForm().submitting() ||
+              upsertCardMutation.isPending()
+            "
           >
             Save ESN card
           </button>

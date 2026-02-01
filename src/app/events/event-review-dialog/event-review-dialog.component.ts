@@ -40,7 +40,7 @@ import { MatInputModule } from '@angular/material/input';
         <button
           mat-flat-button
           type="submit"
-          [disabled]="reviewForm().invalid()"
+          [disabled]="reviewForm().invalid() || reviewForm().submitting()"
         >
           Reject Event
         </button>
@@ -59,7 +59,7 @@ export class EventReviewDialogComponent {
   protected async onSubmit(event: Event): Promise<void> {
     event.preventDefault();
     await submit(this.reviewForm, async (formState) => {
-      this.dialogRef.close(formState.value().comment);
+      this.dialogRef.close(formState().value().comment);
     });
   }
 }

@@ -124,7 +124,7 @@ export class EventEdit {
   protected async saveEvent(event: Event) {
     event.preventDefault();
     await submit(this.editEventForm, async (formState) => {
-      const formValue = formState.value();
+      const formValue = formState().value();
 
       if (
         !formValue.description ||
