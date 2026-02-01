@@ -1,5 +1,5 @@
 import { inject, Injectable } from '@angular/core';
-import { Loader } from '@googlemaps/js-api-loader';
+import { importLibrary, Loader, setOptions } from '@googlemaps/js-api-loader';
 
 import { GoogleLocationType } from '../../types/location';
 import { ConfigService } from './config.service';
@@ -73,14 +73,14 @@ export class LocationSearch {
     token: google.maps.places.AutocompleteSessionToken;
   }> {
     if (!this.loader) {
-      this.loader = new Loader({
-        apiKey: this.config.publicConfig.googleMapsApiKey ?? '',
-        version: 'weekly',
+      this.loader = new Loader();
+      setOptions({
+        key: this.config.publicConfig.googleMapsApiKey ?? '',
+        v: 'weekly',
       });
     }
     if (!this._autocompleteService || !this._sessionToken) {
-      await this.loader.load();
-      const library = await google.maps.importLibrary('places');
+      const library = await importLibrary('places');
       if (!isPlacesLibrary(library)) {
         throw new Error('Google Maps Places library failed to load');
       }
