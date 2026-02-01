@@ -1,9 +1,11 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import {
-  NonNullableFormBuilder,
-  ReactiveFormsModule,
-  Validators,
-} from '@angular/forms';
+  disabled,
+  form,
+  FormField,
+  required,
+  submit,
+} from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import {
   MAT_DIALOG_DATA,
@@ -11,6 +13,7 @@ import {
   MatDialogClose,
   MatDialogContent,
   MatDialogTitle,
+  MatDialogRef,
 } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
@@ -28,12 +31,12 @@ const fallbackIcon: IconValue = { iconColor: 0, iconName: 'city' };
   imports: [
     MatDialogTitle,
     MatDialogContent,
-    ReactiveFormsModule,
     MatFormFieldModule,
     MatInputModule,
     MatDialogActions,
     MatButtonModule,
     MatDialogClose,
+    FormField,
     IconSelectorFieldComponent,
   ],
   selector: 'app-create-edit-category-dialog',
@@ -41,10 +44,18 @@ const fallbackIcon: IconValue = { iconColor: 0, iconName: 'city' };
   templateUrl: './create-edit-category-dialog.component.html',
 })
 export class CreateEditCategoryDialogComponent {
-  private readonly formBuilder = inject(NonNullableFormBuilder);
-  protected readonly categoryForm = this.formBuilder.group({
-    icon: this.formBuilder.control<IconValue>(fallbackIcon),
-    title: this.formBuilder.control('', { validators: [Validators.required] }),
+  private readonly dialogRef = inject(
+    MatDialogRef<CreateEditCategoryDialogComponent>,
+  );
+  protected readonly categoryModel = signal({
+    icon: fallbackIcon,
+    title: '',
+  });
+  protected readonly categoryForm = form(this.categoryModel, (schemaPath) => {
+    required(schemaPath.title);
+    if (this.data.mode === 'edit') {
+      disabled(schemaPath.icon, 'Icon is locked for edits');
+    }
   });
   protected readonly data = inject(MAT_DIALOG_DATA) as
     | {
@@ -62,15 +73,22 @@ export class CreateEditCategoryDialogComponent {
 
   constructor() {
     if (this.data.mode === 'edit') {
-      this.categoryForm.setValue({
+      this.categoryModel.set({
         icon: this.data.category.icon,
         title: this.data.category.title,
       });
-      this.categoryForm.controls.icon.disable({ emitEvent: false });
     } else {
-      this.categoryForm.controls.icon.setValue(
-        this.data.defaultIcon ?? fallbackIcon,
-      );
+      this.categoryModel.set({
+        icon: this.data.defaultIcon ?? fallbackIcon,
+        title: '',
+      });
     }
+  }
+
+  async onSubmit(event: Event): Promise<void> {
+    event.preventDefault();
+    await submit(this.categoryForm, async (formState) => {
+      this.dialogRef.close(formState.value());
+    });
   }
 }
