@@ -1,5 +1,5 @@
 import { inject, Injectable } from '@angular/core';
-import { importLibrary, Loader, setOptions } from '@googlemaps/js-api-loader';
+import { importLibrary, setOptions } from '@googlemaps/js-api-loader';
 
 import { GoogleLocationType } from '../../types/location';
 import { ConfigService } from './config.service';
@@ -18,7 +18,7 @@ export class LocationSearch {
   private _autocompleteService?: typeof google.maps.places.AutocompleteSuggestion;
   private _sessionToken?: google.maps.places.AutocompleteSessionToken;
   private readonly config = inject(ConfigService);
-  private loader?: Loader;
+  private optionsSet = false;
   async getPlaceDetails(
     place: google.maps.places.Place,
   ): Promise<GoogleLocationType> {
@@ -72,12 +72,12 @@ export class LocationSearch {
     service: typeof google.maps.places.AutocompleteSuggestion;
     token: google.maps.places.AutocompleteSessionToken;
   }> {
-    if (!this.loader) {
-      this.loader = new Loader();
+    if (!this.optionsSet) {
       setOptions({
         key: this.config.publicConfig.googleMapsApiKey ?? '',
         v: 'weekly',
       });
+      this.optionsSet = true;
     }
     if (!this._autocompleteService || !this._sessionToken) {
       const library = await importLibrary('places');
