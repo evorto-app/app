@@ -1,4 +1,5 @@
 import { applyEach, schema } from '@angular/forms/signals';
+import { DateTime } from 'luxon';
 
 import { EventLocationType } from '../../../../../types/location';
 import {
@@ -8,11 +9,11 @@ import {
 
 export interface EventGeneralFormModel {
   description: string;
-  end: Date;
+  end: DateTime;
   icon: null | { iconColor: number; iconName: string };
   location: EventLocationType | null;
   registrationOptions: RegistrationOptionFormModel[];
-  start: Date;
+  start: DateTime;
   title: string;
 }
 
@@ -20,11 +21,11 @@ export const createEventGeneralFormModel = (
   overrides: Partial<EventGeneralFormModel> = {},
 ): EventGeneralFormModel => ({
   description: '',
-  end: new Date(),
+  end: DateTime.now(),
   icon: null,
   location: null,
   registrationOptions: [],
-  start: new Date(),
+  start: DateTime.now(),
   title: '',
   ...overrides,
 });

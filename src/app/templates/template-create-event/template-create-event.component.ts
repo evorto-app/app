@@ -80,10 +80,10 @@ export class TemplateCreateEventComponent {
             location: template.location,
             registrationOptions: template.registrationOptions.map((option) =>
               createRegistrationOptionFormModel({
-                closeRegistrationTime: new Date(),
+                closeRegistrationTime: DateTime.now(),
                 description: option.description ?? '',
                 isPaid: option.isPaid,
-                openRegistrationTime: new Date(),
+                openRegistrationTime: DateTime.now(),
                 organizingRegistration: option.organizingRegistration,
                 price: option.price,
                 registeredDescription: option.registeredDescription ?? '',
@@ -119,18 +119,16 @@ export class TemplateCreateEventComponent {
         const currentEnd = this.toDateTime(endState.value());
         const durationMs = currentEnd.toMillis() - previousStart.toMillis();
         const nextEnd = startDateTime.plus({ milliseconds: durationMs });
-        this.updateIfPristine(endField, nextEnd.toJSDate());
+        this.updateIfPristine(endField, nextEnd);
       }
 
       template.registrationOptions.forEach((option, index) => {
         const optionForm = this.createEventForm.registrationOptions[index];
         if (!optionForm) return;
         const openRegistrationTime = startDateTime
-          .minus({ hours: option.openRegistrationOffset })
-          .toJSDate();
+          .minus({ hours: option.openRegistrationOffset });
         const closeRegistrationTime = startDateTime
-          .minus({ hours: option.closeRegistrationOffset })
-          .toJSDate();
+          .minus({ hours: option.closeRegistrationOffset });
 
         this.updateIfPristine(
           optionForm.openRegistrationTime,
@@ -148,11 +146,14 @@ export class TemplateCreateEventComponent {
     return DateTime.isDateTime(value) ? value : DateTime.fromJSDate(value);
   }
 
-  private updateIfPristine(field: FieldTree<Date>, nextValue: Date): void {
+  private updateIfPristine(
+    field: FieldTree<DateTime>,
+    nextValue: DateTime,
+  ): void {
     const state = field();
     if (state.dirty() || state.touched()) return;
     const currentValue = state.value();
-    if (currentValue.getTime() === nextValue.getTime()) return;
+    if (currentValue.toMillis() === nextValue.toMillis()) return;
     state.reset(nextValue);
   }
 
@@ -167,6 +168,17 @@ export class TemplateCreateEventComponent {
         {
           ...formValue,
           icon: formValue.icon,
+          end: this.toDateTime(formValue.end).toJSDate(),
+          registrationOptions: formValue.registrationOptions.map((option) => ({
+            ...option,
+            closeRegistrationTime: this.toDateTime(
+              option.closeRegistrationTime,
+            ).toJSDate(),
+            openRegistrationTime: this.toDateTime(
+              option.openRegistrationTime,
+            ).toJSDate(),
+          })),
+          start: this.toDateTime(formValue.start).toJSDate(),
           templateId: this.templateId(),
         },
         {

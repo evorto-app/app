@@ -1,10 +1,11 @@
 import { hidden, min, required, schema } from '@angular/forms/signals';
+import { DateTime } from 'luxon';
 
 export interface RegistrationOptionFormModel {
-  closeRegistrationTime: Date;
+  closeRegistrationTime: DateTime;
   description: string;
   isPaid: boolean;
-  openRegistrationTime: Date;
+  openRegistrationTime: DateTime;
   organizingRegistration: boolean;
   price: number;
   registeredDescription: string;
@@ -17,10 +18,10 @@ export interface RegistrationOptionFormModel {
 export const createRegistrationOptionFormModel = (
   overrides: Partial<RegistrationOptionFormModel> = {},
 ): RegistrationOptionFormModel => ({
-  closeRegistrationTime: new Date(),
+  closeRegistrationTime: DateTime.now(),
   description: '',
   isPaid: false,
-  openRegistrationTime: new Date(),
+  openRegistrationTime: DateTime.now(),
   organizingRegistration: false,
   price: 0,
   registeredDescription: '',
