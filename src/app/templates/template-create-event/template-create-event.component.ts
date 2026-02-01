@@ -64,7 +64,7 @@ export class TemplateCreateEventComponent {
   protected readonly templateQuery = injectQuery(() =>
     this.trpc.templates.findOne.queryOptions({ id: this.templateId() }),
   );
-  private readonly lastStart = signal<Date | null>(null);
+  private readonly lastStart = signal<DateTime | null>(null);
 
   private readonly queryClient = inject(QueryClient);
   private readonly router = inject(Router);
@@ -105,9 +105,9 @@ export class TemplateCreateEventComponent {
       if (!template || !eventStart || registrationOptions.length === 0) return;
       consola.info(eventStart);
       consola.info(DateTime.isDateTime(eventStart));
-      const startDate = this.toJsDate(eventStart);
+      const startDateTime = this.toDateTime(eventStart);
       const previousStart = this.lastStart();
-      this.lastStart.set(startDate);
+      this.lastStart.set(startDateTime);
 
       const endField = this.createEventForm.end;
       const endState = endField();
@@ -116,13 +116,12 @@ export class TemplateCreateEventComponent {
         !endState.dirty() &&
         !endState.touched()
       ) {
-        const currentEnd = this.toJsDate(endState.value());
-        const durationMs = currentEnd.getTime() - previousStart.getTime();
-        const nextEnd = new Date(startDate.getTime() + durationMs);
-        this.updateIfPristine(endField, nextEnd);
+        const currentEnd = this.toDateTime(endState.value());
+        const durationMs = currentEnd.toMillis() - previousStart.toMillis();
+        const nextEnd = startDateTime.plus({ milliseconds: durationMs });
+        this.updateIfPristine(endField, nextEnd.toJSDate());
       }
 
-      const startDateTime = DateTime.fromJSDate(startDate);
       template.registrationOptions.forEach((option, index) => {
         const optionForm = this.createEventForm.registrationOptions[index];
         if (!optionForm) return;
@@ -145,8 +144,8 @@ export class TemplateCreateEventComponent {
     });
   }
 
-  private toJsDate(value: Date | DateTime): Date {
-    return DateTime.isDateTime(value) ? value.toJSDate() : value;
+  private toDateTime(value: Date | DateTime): DateTime {
+    return DateTime.isDateTime(value) ? value : DateTime.fromJSDate(value);
   }
 
   private updateIfPristine(field: FieldTree<Date>, nextValue: Date): void {
