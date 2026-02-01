@@ -7,11 +7,8 @@
 </div>
 <div class="grid grid-cols-1 gap-4">
   <div class="bg-surface text-on-surface rounded-2xl p-4">
-    <form
-      class="grid grid-cols-1"
-      [formGroup]="settingsForm"
-      (ngSubmit)="saveSettings()"
-    >
+    @let settings = settingsForm();
+    <form class="grid grid-cols-1" (submit)="saveSettings($event)">
       <h2 class="title-medium mb-2">Stripe tax rates</h2>
       <p class="text-xs text-gray-600 mb-1">
         Only included (VAT-style) and active tax rates are compatible. You can
@@ -79,11 +76,11 @@
           your events. This location will be used as the center point for
           location searches.
         </p>
-        <app-location-selector-field formControlName="defaultLocation" />
+        <app-location-selector-field [formField]="settings.defaultLocation" />
       </div>
       <mat-form-field>
         <mat-label>Site theme</mat-label>
-        <mat-select formControlName="theme">
+        <mat-select [formField]="settings.theme">
           <mat-option value="evorto">Default theme</mat-option>
           <mat-option value="esn">ESN theme</mat-option>
         </mat-select>
@@ -107,7 +104,11 @@
       } @else {
         <p>Failed to load discount providers.</p>
       }
-      <button mat-flat-button type="submit" [disabled]="settingsForm.invalid">
+      <button
+        mat-flat-button
+        type="submit"
+        [disabled]="settingsForm().invalid()"
+      >
         Save
       </button>
     </form>

@@ -3,9 +3,10 @@ import {
   Component,
   effect,
   inject,
+  signal,
 } from '@angular/core';
-import { computed, signal } from '@angular/core';
-import { NonNullableFormBuilder, ReactiveFormsModule } from '@angular/forms';
+import { computed } from '@angular/core';
+import { form, FormField, submit } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatChipsModule } from '@angular/material/chips';
@@ -41,7 +42,7 @@ import { ImportTaxRatesDialogComponent } from '../components/import-tax-rates-di
     MatFormFieldModule,
     MatInputModule,
     MatSelectModule,
-    ReactiveFormsModule,
+    FormField,
     LocationSelectorField,
   ],
   selector: 'app-general-settings',
@@ -49,6 +50,14 @@ import { ImportTaxRatesDialogComponent } from '../components/import-tax-rates-di
   templateUrl: './general-settings.component.html',
 })
 export class GeneralSettingsComponent {
+  protected readonly settingsModel = signal<{
+    defaultLocation: GoogleLocationType | null;
+    theme: 'esn' | 'evorto';
+  }>({
+    defaultLocation: null,
+    theme: 'evorto',
+  });
+  protected readonly settingsForm = form(this.settingsModel);
   private readonly trpc = injectTRPC();
   protected readonly importedTaxRatesQuery = injectQuery(() =>
     this.trpc.admin.tenant.listImportedTaxRates.queryOptions(),
@@ -78,11 +87,6 @@ export class GeneralSettingsComponent {
       },
     }),
   );
-  private readonly formBuilder = inject(NonNullableFormBuilder);
-  protected readonly settingsForm = this.formBuilder.group({
-    defaultLocation: this.formBuilder.control<GoogleLocationType | null>(null),
-    theme: this.formBuilder.control<'esn' | 'evorto'>('evorto'),
-  });
 
   private readonly configService = inject(ConfigService);
   private readonly dialog = inject(MatDialog);
@@ -95,7 +99,7 @@ export class GeneralSettingsComponent {
     effect(() => {
       const currentTenant = this.configService.tenant;
       if (currentTenant) {
-        this.settingsForm.patchValue({
+        this.settingsModel.set({
           defaultLocation: currentTenant.defaultLocation,
           theme: currentTenant.theme,
         });
@@ -103,17 +107,17 @@ export class GeneralSettingsComponent {
     });
   }
 
-  saveSettings() {
-    if (this.settingsForm.invalid) {
-      return;
-    }
-    const settings = this.settingsForm.getRawValue();
-    this.updateSettingsMutation.mutate(settings, {
-      onSuccess: async () => {
-        await this.queryClient.invalidateQueries({
-          queryKey: this.trpc.config.tenant.pathKey(),
-        });
-      },
+  async saveSettings(event: Event) {
+    event.preventDefault();
+    await submit(this.settingsForm, async (formState) => {
+      const settings = formState.value();
+      this.updateSettingsMutation.mutate(settings, {
+        onSuccess: async () => {
+          await this.queryClient.invalidateQueries({
+            queryKey: this.trpc.config.tenant.pathKey(),
+          });
+        },
+      });
     });
   }
 
