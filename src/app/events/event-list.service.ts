@@ -1,6 +1,5 @@
 import { computed, inject, Injectable, signal } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
-import { NonNullableFormBuilder } from '@angular/forms';
+import { form } from '@angular/forms/signals';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 import consola from 'consola/browser';
 
@@ -12,7 +11,6 @@ import { injectTRPC } from '../core/trpc-client';
 })
 /* eslint-disable perfectionist/sort-classes */
 export class EventListService {
-  private readonly formBuilder = inject(NonNullableFormBuilder);
   private readonly permissions = inject(PermissionsService);
   private readonly trpc = injectTRPC();
 
@@ -29,22 +27,19 @@ export class EventListService {
     this.permissions.hasPermission('events:seeUnlisted');
 
   readonly startFilter = signal(new Date());
-
-  readonly statusFilterControl = this.formBuilder.control<
-    ('APPROVED' | 'DRAFT' | 'PENDING_REVIEW' | 'REJECTED')[]
-  >(['APPROVED', 'DRAFT', 'PENDING_REVIEW', 'REJECTED']);
-
-  private readonly statusFilterValue = toSignal(
-    this.statusFilterControl.valueChanges,
-    { initialValue: this.statusFilterControl.value },
-  );
+  private readonly statusFilterModel = signal<{
+    status: ('APPROVED' | 'DRAFT' | 'PENDING_REVIEW' | 'REJECTED')[];
+  }>({
+    status: ['APPROVED', 'DRAFT', 'PENDING_REVIEW', 'REJECTED'],
+  });
+  readonly statusFilterForm = form(this.statusFilterModel);
 
   private readonly filterInput = computed(() => {
     const pageConfig = this.pageConfig();
     const self = this.selfQuery.data();
     const startAfter = this.startFilter();
     const status = this.canSeeDrafts()
-      ? this.statusFilterValue()
+      ? this.statusFilterForm().value().status
       : (['APPROVED'] as const);
     const includeUnlisted = this.canSeeUnlisted();
     const userId = self?.id;

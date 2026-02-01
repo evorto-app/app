@@ -7,7 +7,6 @@ import {
   PendingTasks,
   signal,
 } from '@angular/core';
-import { ReactiveFormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatChipsModule } from '@angular/material/chips';
@@ -44,7 +43,6 @@ import { EventListService } from '../event-list.service';
     DatePipe,
     MatButtonToggleModule,
     MatTooltipModule,
-    ReactiveFormsModule,
     MatDialogModule,
     MatChipsModule,
     IfAnyPermissionDirective,
@@ -66,8 +64,6 @@ export class EventListComponent {
   protected readonly faFilter = faFilter;
   protected readonly outletActive = signal(false);
   protected readonly startFilter = this.eventListService.startFilter;
-  protected readonly statusFilterControl =
-    this.eventListService.statusFilterControl;
   private readonly config = inject(ConfigService);
   private readonly dialog = inject(MatDialog);
   private readonly taskService = inject(PendingTasks);
