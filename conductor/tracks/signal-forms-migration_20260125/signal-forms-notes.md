@@ -20,6 +20,9 @@ Last updated: 2026-01-31
   the parent schema, then pass the nested `FieldTree` into the child component.
 - Prefer extracting larger schemas into standalone files and reusing them via
   `apply()`/`applyEach()` for maintainability. citeturn2view0turn3view2
+- Child-form pattern (Angular Buch Part 3): define a dedicated child model +
+  initial state + schema; apply the child schema in the parent schema with
+  `apply()` and pass the nested `FieldTree` via `input()` to the child component.
 
 ## Conditional UI
 
@@ -36,7 +39,9 @@ Last updated: 2026-01-31
   loops. Prefer `linkedSignal` to derive a writable model from input signals and
   keep the form in sync without repeated patching.
 - If you need to reset child fields based on another field, use explicit event
-  handlers (e.g., `change`) rather than `effect` when effects cause loops.
+  handlers (e.g., `change`) rather than `effect` when effects cause loops. In
+  child forms, reset dependent fields with `field().value.set('')` and
+  `field().reset()` to clear touched/dirty state.
 - The child-form guidance warns about `effect`-driven resets causing loops; use
   event handlers for dependent field resets instead. citeturn1view0
 
