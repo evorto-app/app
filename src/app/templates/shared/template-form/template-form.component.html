@@ -1,18 +1,19 @@
 <form
-  [formGroup]="templateForm"
-  (ngSubmit)="onSubmit()"
+  (submit)="onSubmit($event)"
   class="text-on-surface flex flex-col gap-6"
 >
   <div class="bg-surface rounded-2xl p-4">
     <div class="grid grid-cols-1 gap-2 lg:grid-cols-[auto_1fr_1fr]">
-      <app-icon-selector-field formControlName="icon"></app-icon-selector-field>
+      <app-icon-selector-field
+        [formField]="templateForm.icon"
+      ></app-icon-selector-field>
       <mat-form-field>
         <mat-label>Template title</mat-label>
-        <input matInput formControlName="title" />
+        <input matInput [formField]="templateForm.title" />
       </mat-form-field>
       <mat-form-field>
         <mat-label>Template Category</mat-label>
-        <mat-select formControlName="categoryId">
+        <mat-select [formField]="templateForm.categoryId">
           @for (
             templateCategory of templateCategoriesQuery.data();
             track templateCategory.id
@@ -26,9 +27,9 @@
         </mat-select>
       </mat-form-field>
     </div>
-    <app-location-selector-field formControlName="location" />
+    <app-location-selector-field [formField]="templateForm.location" />
 
-    <app-editor formControlName="description"></app-editor>
+    <app-editor [formField]="templateForm.description"></app-editor>
   </div>
 
   <div class="bg-surface rounded-2xl p-4">
@@ -41,20 +42,26 @@
     <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
       <div>
         <h3 class="mb-3 font-medium">Organizer Registration</h3>
-        <div class="grid gap-4 p-4" formGroupName="organizerRegistration">
-          <mat-slide-toggle formControlName="isPaid"
+        <div class="grid gap-4 p-4">
+          <mat-slide-toggle [formField]="templateForm.organizerRegistration.isPaid"
             >Enable Payment
           </mat-slide-toggle>
 
-          @if (templateForm.get("organizerRegistration.isPaid")?.value) {
+          @if (!templateForm.organizerRegistration.price().hidden()) {
             <mat-form-field>
               <mat-label>Price (in cents)</mat-label>
-              <input matInput type="number" formControlName="price" min="0" />
+              <input
+                matInput
+                type="number"
+                [formField]="templateForm.organizerRegistration.price"
+              />
             </mat-form-field>
 
             <mat-form-field>
               <mat-label>Tax rate</mat-label>
-              <mat-select formControlName="stripeTaxRateId" required>
+              <mat-select
+                [formField]="templateForm.organizerRegistration.stripeTaxRateId"
+              >
                 @if (taxRatesQuery.isPending()) {
                   <mat-option disabled>Loading tax rates ...</mat-option>
                 } @else if (taxRatesQuery.isSuccess()) {
@@ -74,15 +81,23 @@
 
           <mat-form-field>
             <mat-label>Number of Spots</mat-label>
-            <input matInput type="number" formControlName="spots" min="1" />
+            <input
+              matInput
+              type="number"
+              [formField]="templateForm.organizerRegistration.spots"
+            />
             <mat-hint>How many organizers can register</mat-hint>
           </mat-form-field>
 
-          <app-role-select formControlName="roleIds"></app-role-select>
+          <app-role-select
+            [formField]="templateForm.organizerRegistration.roleIds"
+          ></app-role-select>
 
           <mat-form-field>
             <mat-label>Registration Mode</mat-label>
-            <mat-select formControlName="registrationMode">
+            <mat-select
+              [formField]="templateForm.organizerRegistration.registrationMode"
+            >
               @for (mode of registrationModes; track mode) {
                 <mat-option [value]="mode">
                   {{ mode }}
@@ -97,7 +112,9 @@
               >Registration Opens Before Event</label
             >
             <app-duration-selector
-              formControlName="openRegistrationOffset"
+              [formField]="
+                templateForm.organizerRegistration.openRegistrationOffset
+              "
               hint="How long before the event should registration open"
             ></app-duration-selector>
           </div>
@@ -107,7 +124,9 @@
               >Registration Closes Before Event</label
             >
             <app-duration-selector
-              formControlName="closeRegistrationOffset"
+              [formField]="
+                templateForm.organizerRegistration.closeRegistrationOffset
+              "
               hint="How long before the event should registration close"
             ></app-duration-selector>
           </div>
@@ -116,20 +135,30 @@
 
       <div>
         <h3 class="mb-3 font-medium">Participant Registration</h3>
-        <div class="grid gap-4 p-4" formGroupName="participantRegistration">
-          <mat-slide-toggle formControlName="isPaid"
-            >Enable Payment
+        <div class="grid gap-4 p-4">
+          <mat-slide-toggle
+            [formField]="templateForm.participantRegistration.isPaid"
+          >
+            Enable Payment
           </mat-slide-toggle>
 
-          @if (templateForm.get("participantRegistration.isPaid")?.value) {
+          @if (!templateForm.participantRegistration.price().hidden()) {
             <mat-form-field>
               <mat-label>Price (in cents)</mat-label>
-              <input matInput type="number" formControlName="price" min="0" />
+              <input
+                matInput
+                type="number"
+                [formField]="templateForm.participantRegistration.price"
+              />
             </mat-form-field>
 
             <mat-form-field>
               <mat-label>Tax rate</mat-label>
-              <mat-select formControlName="stripeTaxRateId" required>
+              <mat-select
+                [formField]="
+                  templateForm.participantRegistration.stripeTaxRateId
+                "
+              >
                 @if (taxRatesQuery.isPending()) {
                   <mat-option disabled>Loading tax rates ...</mat-option>
                 } @else if (taxRatesQuery.isSuccess()) {
@@ -149,15 +178,23 @@
 
           <mat-form-field>
             <mat-label>Number of Spots</mat-label>
-            <input matInput type="number" formControlName="spots" min="1" />
+            <input
+              matInput
+              type="number"
+              [formField]="templateForm.participantRegistration.spots"
+            />
             <mat-hint>How many participants can register</mat-hint>
           </mat-form-field>
 
-          <app-role-select formControlName="roleIds"></app-role-select>
+          <app-role-select
+            [formField]="templateForm.participantRegistration.roleIds"
+          ></app-role-select>
 
           <mat-form-field>
             <mat-label>Registration Mode</mat-label>
-            <mat-select formControlName="registrationMode">
+            <mat-select
+              [formField]="templateForm.participantRegistration.registrationMode"
+            >
               @for (mode of registrationModes; track mode) {
                 <mat-option [value]="mode">
                   {{ mode }}
@@ -172,7 +209,9 @@
               >Registration Opens Before Event</label
             >
             <app-duration-selector
-              formControlName="openRegistrationOffset"
+              [formField]="
+                templateForm.participantRegistration.openRegistrationOffset
+              "
               hint="How long before the event should registration open"
             ></app-duration-selector>
           </div>
@@ -182,7 +221,9 @@
               >Registration Closes Before Event</label
             >
             <app-duration-selector
-              formControlName="closeRegistrationOffset"
+              [formField]="
+                templateForm.participantRegistration.closeRegistrationOffset
+              "
               hint="How long before the event should registration close"
             ></app-duration-selector>
           </div>
@@ -194,7 +235,7 @@
   <button
     type="submit"
     mat-button
-    [disabled]="templateForm.invalid || isSubmitting()"
+    [disabled]="templateForm().invalid() || isSubmitting()"
   >
     {{ submitLabel() }}
   </button>

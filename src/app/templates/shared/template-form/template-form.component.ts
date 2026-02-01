@@ -1,16 +1,12 @@
 import {
   ChangeDetectionStrategy,
   Component,
-  effect,
   inject,
   input,
+  linkedSignal,
   output,
 } from '@angular/core';
-import {
-  NonNullableFormBuilder,
-  ReactiveFormsModule,
-  Validators,
-} from '@angular/forms';
+import { FormField, form, submit } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
@@ -24,40 +20,19 @@ import { EditorComponent } from '../../../shared/components/controls/editor/edit
 import { IconSelectorFieldComponent } from '../../../shared/components/controls/icon-selector/icon-selector-field/icon-selector-field.component';
 import { LocationSelectorField } from '../../../shared/components/controls/location-selector/location-selector-field/location-selector-field';
 import { RoleSelectComponent } from '../../../shared/components/controls/role-select/role-select.component';
-
-export type RegistrationMode = 'application' | 'fcfs' | 'random';
-
-export interface TemplateFormData {
-  categoryId: string;
-  description: string;
-  icon: { iconColor: number; iconName: string };
-  organizerRegistration: {
-    closeRegistrationOffset: number;
-    isPaid: boolean;
-    openRegistrationOffset: number;
-    price: number;
-    registrationMode: RegistrationMode;
-    roleIds: string[];
-    spots: number;
-    stripeTaxRateId: null | string;
-  };
-  participantRegistration: {
-    closeRegistrationOffset: number;
-    isPaid: boolean;
-    openRegistrationOffset: number;
-    price: number;
-    registrationMode: RegistrationMode;
-    roleIds: string[];
-    spots: number;
-    stripeTaxRateId: null | string;
-  };
-  title: string;
-}
+import {
+  mergeTemplateFormOverrides,
+  RegistrationMode,
+  TemplateFormData,
+  TemplateFormOverrides,
+  TemplateFormSubmitData,
+  templateFormSchema,
+} from './template-form.schema';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    ReactiveFormsModule,
+    FormField,
     MatInputModule,
     MatButtonModule,
     MatSelectModule,
@@ -73,12 +48,12 @@ export interface TemplateFormData {
   templateUrl: './template-form.component.html',
 })
 export class TemplateFormComponent {
-  public readonly initialData = input<PartialDeep<TemplateFormData>>({});
+  public readonly initialData = input<TemplateFormOverrides>({});
 
   public readonly isSubmitting = input(false);
 
   public readonly submitLabel = input('Save template');
-  protected formSubmit = output<TemplateFormData>();
+  protected formSubmit = output<TemplateFormSubmitData>();
   protected readonly registrationModes: RegistrationMode[] = [
     'fcfs',
     'random',
@@ -93,96 +68,31 @@ export class TemplateFormComponent {
     this.trpc.templateCategories.findMany.queryOptions(),
   );
 
-  private formBuilder = inject(NonNullableFormBuilder);
-
-  protected templateForm = this.formBuilder.group({
-    categoryId: [''],
-    description: [''],
-    icon: this.formBuilder.control<null | {
-      iconColor: number;
-      iconName: string;
-    }>(null),
-    location: [undefined],
-    organizerRegistration: this.formBuilder.group({
-      closeRegistrationOffset: [1],
-      isPaid: [false],
-      openRegistrationOffset: [168],
-      price: [0],
-      registrationMode: this.formBuilder.control<RegistrationMode>('fcfs'),
-      roleIds: this.formBuilder.control<string[]>([]),
-      spots: [1],
-      stripeTaxRateId: this.formBuilder.control<null | string>(null),
-    }),
-    participantRegistration: this.formBuilder.group({
-      closeRegistrationOffset: [1],
-      isPaid: [false],
-      openRegistrationOffset: [168],
-      price: [0],
-      registrationMode: this.formBuilder.control<RegistrationMode>('fcfs'),
-      roleIds: this.formBuilder.control<string[]>([]),
-      spots: [20],
-      stripeTaxRateId: this.formBuilder.control<null | string>(null),
-    }),
-    title: [''],
+  private readonly templateModel = linkedSignal<
+    TemplateFormOverrides,
+    TemplateFormData
+  >({
+    source: () => this.initialData(),
+    computation: (data, previous) =>
+      mergeTemplateFormOverrides(data, previous?.value),
   });
 
-  constructor() {
-    effect(() => {
-      const data = this.initialData();
-      if (data) {
-        this.templateForm.patchValue(
-          {
-            ...data,
-            icon:
-              data.icon?.iconColor && data.icon?.iconName
-                ? {
-                    iconColor: data.icon.iconColor,
-                    iconName: data.icon.iconName,
-                  }
-                : null,
-          },
-          { emitEvent: true },
-        );
+  protected readonly templateForm = form(
+    this.templateModel,
+    templateFormSchema,
+  );
+
+  async onSubmit(event: Event) {
+    event.preventDefault();
+    await submit(this.templateForm, async (formState) => {
+      const formValue = formState.value();
+      if (!formValue.icon) {
+        return;
       }
-    });
-
-    // Always require, and toggle enable/disable based on isPaid
-    const orgTax =
-      this.templateForm.controls.organizerRegistration.controls.stripeTaxRateId;
-    const partTax =
-      this.templateForm.controls.participantRegistration.controls
-        .stripeTaxRateId;
-    orgTax.addValidators([Validators.required]);
-    partTax.addValidators([Validators.required]);
-
-    effect(() => {
-      const orgPaid =
-        this.templateForm.controls.organizerRegistration.controls.isPaid.value;
-      if (orgPaid) {
-        orgTax.enable({ emitEvent: false });
-      } else {
-        orgTax.disable({ emitEvent: false });
-      }
-    });
-
-    effect(() => {
-      const partPaid =
-        this.templateForm.controls.participantRegistration.controls.isPaid
-          .value;
-      if (partPaid) {
-        partTax.enable({ emitEvent: false });
-      } else {
-        partTax.disable({ emitEvent: false });
-      }
-    });
-  }
-
-  onSubmit() {
-    if (this.templateForm.invalid) return;
-    const formValue = this.templateForm.getRawValue();
-    this.formSubmit.emit({
-      ...formValue,
-      icon: formValue.icon!,
+      this.formSubmit.emit({
+        ...formValue,
+        icon: formValue.icon,
+      });
     });
   }
 }
