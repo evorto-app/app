@@ -1,0 +1,23 @@
+<h1 mat-dialog-title>Edit profile</h1>
+<form (submit)="onSubmit($event)">
+  <mat-dialog-content class="flex flex-col gap-4">
+    <mat-form-field>
+      <mat-label>First name</mat-label>
+      <input matInput [formField]="profileForm.firstName" />
+    </mat-form-field>
+    <mat-form-field>
+      <mat-label>Last name</mat-label>
+      <input matInput [formField]="profileForm.lastName" />
+    </mat-form-field>
+  </mat-dialog-content>
+  <mat-dialog-actions align="end" class="gap-2">
+    <button mat-button mat-dialog-close>Cancel</button>
+    <button
+      mat-button
+      type="submit"
+      [disabled]="profileForm().invalid()"
+    >
+      Save
+    </button>
+  </mat-dialog-actions>
+</form>
