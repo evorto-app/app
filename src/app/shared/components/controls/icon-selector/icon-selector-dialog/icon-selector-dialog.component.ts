@@ -5,8 +5,7 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { form, FormField } from '@angular/forms/signals';
+import { debounce, form, FormField } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialogModule } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -16,7 +15,6 @@ import {
   injectQuery,
   QueryClient,
 } from '@tanstack/angular-query-experimental';
-import { debounceTime } from 'rxjs';
 
 import { injectTRPC } from '../../../../../core/trpc-client';
 import { IconComponent } from '../../../icon/icon.component';
@@ -38,10 +36,11 @@ import { IconComponent } from '../../../icon/icon.component';
 })
 export class IconSelectorDialogComponent {
   protected readonly searchModel = signal({ query: '' });
-  protected readonly searchForm = form(this.searchModel);
-  protected readonly searchValue = toSignal(
-    toObservable(this.searchForm.query().value).pipe(debounceTime(400)),
-    { initialValue: '' },
+  protected readonly searchForm = form(this.searchModel, (schema) => {
+    debounce(schema, 300);
+  });
+  protected readonly searchValue = computed(
+    () => this.searchForm().value().query,
   );
   private trpc = injectTRPC();
   protected readonly iconSearchQuery = injectQuery(() =>
@@ -57,7 +56,7 @@ export class IconSelectorDialogComponent {
   private readonly queryClient = inject(QueryClient);
 
   async saveIconDirectly() {
-    const icon = this.searchModel().query;
+    const icon = this.searchValue();
     this.addIconMutation.mutate(
       { icon },
       {

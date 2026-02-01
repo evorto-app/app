@@ -2,13 +2,14 @@ import { COMMA, ENTER } from '@angular/cdk/keycodes';
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
   inject,
   input,
   model,
   signal,
 } from '@angular/core';
-import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import {
+  debounce,
   disabled,
   form,
   FormField,
@@ -58,11 +59,11 @@ export class RoleSelectComponent implements FormValueControl<string[]> {
   protected faCircleXmark = faCircleXmark;
   protected readonly searchModel = signal({ query: '' });
   protected readonly searchForm = form(this.searchModel, (schema) => {
+    debounce(schema, 300);
     disabled(schema.query, () => this.disabled() || this.readonly());
   });
-  protected readonly searchValue = toSignal(
-    toObservable(this.searchForm.query().value),
-    { initialValue: '' },
+  protected readonly searchValue = computed(
+    () => this.searchForm().value().query,
   );
   private trpc = injectTRPC();
   protected searchRoleQuery = injectQuery(() =>
