@@ -1,8 +1,9 @@
-@if (!hidden()) {
+@let field = control;
+@if (!field().hidden()) {
   @defer (on interaction) {
     <editor
       [init]="config!"
-      [formControl]="editorControl"
+      [formField]="field"
       apiKey="c6qweyqnnyptnx064b9qmnmo0bh5n2e1t8db4wt7p4igwoi9"
     />
   } @loading {
@@ -10,7 +11,7 @@
       <div class="group relative">
         <div
           class="border-outline min-h-[100px] cursor-pointer rounded border p-2 opacity-80"
-          [innerHTML]="value()"
+          [innerHTML]="field().value()"
           role="button"
           tabindex="0"
           aria-label="Click to edit content"
@@ -22,7 +23,7 @@
       <div class="group relative">
         <div
           class="border-outline min-h-[100px] cursor-pointer rounded border p-2 opacity-80"
-          [innerHTML]="value()"
+          [innerHTML]="field().value()"
           role="button"
           tabindex="0"
           aria-label="Click to edit content"

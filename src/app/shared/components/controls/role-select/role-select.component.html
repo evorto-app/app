@@ -15,7 +15,7 @@
       name="currentRoles"
       placeholder="Add Role..."
       #roleInput
-      [formControl]="searchInput"
+      [formField]="searchForm.query"
       [matChipInputFor]="chipGrid"
       [matAutocomplete]="auto"
       [matChipInputSeparatorKeyCodes]="separatorKeysCodes"

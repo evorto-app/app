@@ -1,6 +1,7 @@
 import { AsyncPipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
-import { FormControl, ReactiveFormsModule } from '@angular/forms';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { toObservable } from '@angular/core/rxjs-interop';
+import { form, FormField } from '@angular/forms/signals';
 import {
   MatAutocompleteModule,
   MatAutocompleteSelectedEvent,
@@ -10,7 +11,7 @@ import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import consola from 'consola/browser';
-import { catchError, debounceTime, from, of, switchMap, tap } from 'rxjs';
+import { catchError, debounceTime, from, of, switchMap } from 'rxjs';
 
 import { ConfigService } from '../../../../../core/config.service';
 import { LocationSearch } from '../../../../../core/location-search';
@@ -24,19 +25,22 @@ import { LocationSearch } from '../../../../../core/location-search';
     MatInputModule,
     MatAutocompleteModule,
     AsyncPipe,
-    ReactiveFormsModule,
+    FormField,
   ],
   selector: 'app-location-selector-dialog',
   styles: ``,
   templateUrl: './location-selector-dialog.html',
 })
 export class LocationSelectorDialog {
-  protected locationControl = new FormControl();
+  private readonly searchModel = signal<{
+    query: string | google.maps.places.AutocompleteSuggestion;
+  }>({ query: '' });
+  protected readonly searchForm = form(this.searchModel);
   private readonly configService = inject(ConfigService);
 
   private readonly locationSearch = inject(LocationSearch);
 
-  protected locationOptions$ = this.locationControl.valueChanges.pipe(
+  protected locationOptions$ = toObservable(this.searchForm.query().value).pipe(
     debounceTime(300), // Debounce input to reduce API calls
     // Use switchMap to handle the asynchronous search
     switchMap((query) => {

@@ -2,14 +2,18 @@ import { COMMA, ENTER } from '@angular/cdk/keycodes';
 import {
   ChangeDetectionStrategy,
   Component,
-  effect,
   inject,
   input,
   model,
+  signal,
 } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
-import { FormControl, ReactiveFormsModule } from '@angular/forms';
-import { FormValueControl } from '@angular/forms/signals';
+import { toObservable, toSignal } from '@angular/core/rxjs-interop';
+import {
+  disabled,
+  form,
+  FormField,
+  FormValueControl,
+} from '@angular/forms/signals';
 import {
   MatAutocompleteModule,
   MatAutocompleteSelectedEvent,
@@ -30,7 +34,7 @@ import { injectTRPC, injectTRPCClient } from '../../../../core/trpc-client';
     MatFormFieldModule,
     MatAutocompleteModule,
     MatChipsModule,
-    ReactiveFormsModule,
+    FormField,
   ],
   selector: 'app-role-select',
   styles: ``,
@@ -52,24 +56,18 @@ export class RoleSelectComponent implements FormValueControl<string[]> {
     })),
   }));
   protected faCircleXmark = faCircleXmark;
-  protected searchInput = new FormControl('', { nonNullable: true });
-  protected searchValue = toSignal(this.searchInput.valueChanges, {
-    initialValue: '',
+  protected readonly searchModel = signal({ query: '' });
+  protected readonly searchForm = form(this.searchModel, (schema) => {
+    disabled(schema.query, () => this.disabled() || this.readonly());
   });
+  protected readonly searchValue = toSignal(
+    toObservable(this.searchForm.query().value),
+    { initialValue: '' },
+  );
   private trpc = injectTRPC();
   protected searchRoleQuery = injectQuery(() =>
     this.trpc.admin.roles.search.queryOptions({ search: this.searchValue() }),
   );
-
-  constructor() {
-    effect(() => {
-      if (this.disabled() || this.readonly()) {
-        this.searchInput.disable({ emitEvent: false });
-      } else {
-        this.searchInput.enable({ emitEvent: false });
-      }
-    });
-  }
 
   add() {
     if (this.disabled() || this.readonly()) return;
@@ -81,7 +79,7 @@ export class RoleSelectComponent implements FormValueControl<string[]> {
       ];
       this.value.set(next);
       this.touched.set(true);
-      this.searchInput.setValue('');
+      this.searchForm.query().value.set('');
     }
   }
 
@@ -100,7 +98,7 @@ export class RoleSelectComponent implements FormValueControl<string[]> {
       event.option.value,
     ]);
     this.touched.set(true);
-    this.searchInput.setValue('');
+    this.searchForm.query().value.set('');
     event.option.deselect();
   }
 }
