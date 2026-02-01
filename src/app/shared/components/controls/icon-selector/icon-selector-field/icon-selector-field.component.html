@@ -1,16 +1,18 @@
-<div
-  class="border-outline mb-5 flex items-center justify-between gap-4 rounded border px-4 py-2"
->
-  @if (iconValue()) {
-    <app-icon size="40" [iconCommonName]="iconValue()" />
-  }
-
-  <button
-    type="button"
-    mat-button
-    (click)="openSelectionDialog()"
-    [disabled]="ngControl.control.disabled"
+@if (!hidden()) {
+  <div
+    class="border-outline mb-5 flex items-center justify-between gap-4 rounded border px-4 py-2"
   >
-    Change Icon
-  </button>
-</div>
+    @if (value()) {
+      <app-icon size="40" [iconCommonName]="value()" />
+    }
+
+    <button
+      type="button"
+      mat-button
+      (click)="openSelectionDialog()"
+      [disabled]="disabled() || readonly()"
+    >
+      Change Icon
+    </button>
+  </div>
+}

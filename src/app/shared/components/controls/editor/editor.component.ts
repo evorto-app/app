@@ -1,5 +1,13 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
-import { ReactiveFormsModule } from '@angular/forms';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  effect,
+  inject,
+  input,
+  model,
+} from '@angular/core';
+import { FormControl, ReactiveFormsModule } from '@angular/forms';
+import { FormValueControl } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
@@ -10,12 +18,8 @@ import {
   TINYMCE_SCRIPT_SRC,
 } from '@tinymce/tinymce-angular';
 
-import { injectNgControl } from '../../../../utils';
-import { NoopValueAccessorDirective } from '../../../directives/noop-value-accessor.directive';
-
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
-  hostDirectives: [NoopValueAccessorDirective],
   imports: [
     ReactiveFormsModule,
     TinyEditor,
@@ -34,7 +38,14 @@ import { NoopValueAccessorDirective } from '../../../directives/noop-value-acces
   `,
   templateUrl: './editor.component.html',
 })
-export class EditorComponent {
+export class EditorComponent implements FormValueControl<string> {
+  readonly value = model<string>('');
+  readonly touched = model<boolean>(false);
+  readonly disabled = input<boolean>(false);
+  readonly readonly = input<boolean>(false);
+  readonly hidden = input<boolean>(false);
+
+  protected editorControl = new FormControl('', { nonNullable: true });
   private window = inject(WA_WINDOW);
   private canMatchMedia = typeof this.window.matchMedia === 'function';
   private useDarkMode = this.canMatchMedia
@@ -51,5 +62,26 @@ export class EditorComponent {
       'undo redo | blocks | bold italic | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | link image',
   };
   protected faPencil = faEdit;
-  protected ngControl = injectNgControl();
+
+  constructor() {
+    effect(() => {
+      const nextValue = this.value();
+      if (this.editorControl.value !== nextValue) {
+        this.editorControl.setValue(nextValue, { emitEvent: false });
+      }
+    });
+
+    effect(() => {
+      if (this.disabled() || this.readonly()) {
+        this.editorControl.disable({ emitEvent: false });
+      } else {
+        this.editorControl.enable({ emitEvent: false });
+      }
+    });
+
+    this.editorControl.valueChanges.subscribe((value) => {
+      this.value.set(value);
+      this.touched.set(true);
+    });
+  }
 }

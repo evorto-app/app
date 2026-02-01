@@ -1,61 +1,46 @@
 import {
-  AfterViewInit,
   ChangeDetectionStrategy,
   Component,
   inject,
   input,
-  OnDestroy,
-  signal,
+  model,
 } from '@angular/core';
+import { FormValueControl } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
-import { firstValueFrom, startWith, Subscription } from 'rxjs';
+import { firstValueFrom } from 'rxjs';
 
-import { injectNgControl } from '../../../../../utils';
-import { NoopValueAccessorDirective } from '../../../../directives/noop-value-accessor.directive';
 import { IconComponent } from '../../../icon/icon.component';
 import { IconSelectorDialogComponent } from '../icon-selector-dialog/icon-selector-dialog.component';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
-  hostDirectives: [NoopValueAccessorDirective],
   imports: [IconComponent, MatButtonModule, MatDialogModule],
   selector: 'app-icon-selector-field',
   styles: ``,
   templateUrl: './icon-selector-field.component.html',
 })
-export class IconSelectorFieldComponent implements AfterViewInit, OnDestroy {
-  protected iconValue = signal<
-    string | { iconColor: number; iconName: string }
-  >('');
-
-  protected ngControl = injectNgControl();
+export class IconSelectorFieldComponent
+  implements FormValueControl<string | { iconColor: number; iconName: string }>
+{
+  readonly value = model<string | { iconColor: number; iconName: string }>('');
+  readonly touched = model<boolean>(false);
+  readonly disabled = input<boolean>(false);
+  readonly readonly = input<boolean>(false);
+  readonly hidden = input<boolean>(false);
 
   private dialog = inject(MatDialog);
-  private signalSubscription: Subscription | undefined;
-
-  ngAfterViewInit(): void {
-    this.signalSubscription = this.ngControl.valueChanges
-      ?.pipe(startWith(this.ngControl.value))
-      .subscribe((icon) => {
-        this.iconValue.set(
-          icon as string | { iconColor: number; iconName: string },
-        );
-      });
-  }
-
-  ngOnDestroy(): void {
-    this.signalSubscription?.unsubscribe();
-  }
 
   async openSelectionDialog() {
+    if (this.disabled() || this.readonly()) return;
     const icon = await firstValueFrom(
       this.dialog
         .open(IconSelectorDialogComponent, { minWidth: '70dvw' })
         .afterClosed(),
     );
     if (icon) {
-      this.ngControl.control.patchValue(icon);
+      this.value.set(icon);
+      this.touched.set(true);
     }
   }
 }
