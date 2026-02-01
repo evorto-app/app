@@ -16,27 +16,30 @@
   } @else if (authDataQuery.isSuccess()) {
     @if (authDataQuery.data().email_verified) {
       <form
-        [formGroup]="accountForm"
         class="bg-surface text-on-surface flex flex-col gap-4 rounded-2xl p-4"
-        (ngSubmit)="createAccount()"
+        (submit)="onSubmit($event)"
       >
         <mat-form-field>
           <mat-label>First name</mat-label>
-          <input matInput formControlName="firstName" />
+          <input matInput [formField]="accountForm.firstName" />
         </mat-form-field>
 
         <mat-form-field>
           <mat-label>Last name</mat-label>
-          <input matInput formControlName="lastName" />
+          <input matInput [formField]="accountForm.lastName" />
         </mat-form-field>
 
         <mat-form-field>
           <mat-label>Email</mat-label>
-          <input matInput formControlName="communicationEmail" />
+          <input matInput [formField]="accountForm.communicationEmail" />
           <mat-hint> Address where you receive information</mat-hint>
         </mat-form-field>
 
-        <button mat-flat-button type="submit" [disabled]="accountForm.invalid">
+        <button
+          mat-flat-button
+          type="submit"
+          [disabled]="accountForm().invalid()"
+        >
           Create Account
         </button>
       </form>
