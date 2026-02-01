@@ -149,9 +149,7 @@ export class TemplateCreateEventComponent {
     if (state.dirty() || state.touched()) return;
     const currentValue = state.value();
     if (currentValue.getTime() === nextValue.getTime()) return;
-    state.value.set(nextValue);
-    state.markAsPristine();
-    state.markAsUntouched();
+    state.reset(nextValue);
   }
 
   async onSubmit(event: Event) {

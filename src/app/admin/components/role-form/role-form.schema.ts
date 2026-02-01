@@ -81,10 +81,9 @@ export const mergeRoleFormOverrides = (
   });
 };
 
-export const DEPENDENT_PERMISSION_PARENTS: Record<Permission, Permission[]> = {};
-for (const permission of ALL_PERMISSIONS) {
-  DEPENDENT_PERMISSION_PARENTS[permission] = [];
-}
+export const DEPENDENT_PERMISSION_PARENTS = Object.fromEntries(
+  ALL_PERMISSIONS.map((permission) => [permission, [] as Permission[]]),
+) as Record<Permission, Permission[]>;
 
 for (const [permission, dependencies] of Object.entries(
   PERMISSION_DEPENDENCIES,

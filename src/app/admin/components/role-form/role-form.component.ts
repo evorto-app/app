@@ -72,12 +72,7 @@ export class RoleFormComponent {
       const hasParent = parents.some((perm) => form.permissions[perm]().value());
       const field = form.permissions[permission]();
       if (!hasParent || field.value()) continue;
-      const wasPristine = !field.dirty() && !field.touched();
-      field.value.set(true);
-      if (wasPristine) {
-        field.markAsPristine();
-        field.markAsUntouched();
-      }
+      field.reset(true);
     }
   });
 
