@@ -3,7 +3,9 @@ import {
   Component,
   inject,
   input,
+  linkedSignal,
 } from '@angular/core';
+import { form } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import { Router, RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
@@ -15,10 +17,14 @@ import {
 } from '@tanstack/angular-query-experimental';
 
 import { injectTRPC } from '../../core/trpc-client';
+import { RoleFormComponent } from '../components/role-form/role-form.component';
 import {
-  RoleFormComponent,
+  mergeRoleFormOverrides,
   RoleFormData,
-} from '../components/role-form/role-form.component';
+  RoleFormModel,
+  RoleFormOverrides,
+  roleFormSchema,
+} from '../components/role-form/role-form.schema';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -35,6 +41,15 @@ export class RoleEditComponent {
       id: this.roleId(),
     }),
   );
+  private readonly roleModel = linkedSignal<
+    RoleFormOverrides | undefined,
+    RoleFormModel
+  >({
+    computation: (data, previous) =>
+      mergeRoleFormOverrides(data ?? {}, previous?.value),
+    source: () => this.roleQuery.data(),
+  });
+  protected readonly roleForm = form(this.roleModel, roleFormSchema);
   protected readonly updateRoleMutation = injectMutation(() =>
     this.trpc.admin.roles.update.mutationOptions(),
   );

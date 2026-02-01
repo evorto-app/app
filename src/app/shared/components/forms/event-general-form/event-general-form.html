@@ -1,18 +1,19 @@
-<div class="grid gap-4" [formGroup]="generalForm()">
+@let form = generalForm();
+<div class="grid gap-4">
   <div class="grid grid-cols-1 gap-4 lg:grid-cols-[auto_1fr]">
-    <app-icon-selector-field formControlName="icon"></app-icon-selector-field>
+    <app-icon-selector-field [formField]="form.icon"></app-icon-selector-field>
 
     <mat-form-field>
       <mat-label>Event title</mat-label>
-      <input matInput formControlName="title" />
+      <input matInput [formField]="form.title" />
     </mat-form-field>
   </div>
 
-  <app-location-selector-field formControlName="location" />
+  <app-location-selector-field [formField]="form.location" />
 
   <div class="flex flex-col gap-2">
     <label class="text-on-surface-variant text-sm">Description</label>
-    <app-editor formControlName="description"></app-editor>
+    <app-editor [control]="form.description"></app-editor>
   </div>
 
   <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -21,7 +22,7 @@
       <input
         matInput
         [matDatepicker]="startDatePicker"
-        formControlName="start"
+        [formField]="form.start"
       />
       <mat-hint>MM/DD/YYYY</mat-hint>
       <mat-datepicker-toggle
@@ -35,7 +36,7 @@
       <input
         matInput
         [matTimepicker]="startTimePicker"
-        formControlName="start"
+        [formField]="form.start"
       />
       <mat-timepicker #startTimePicker />
       <mat-timepicker-toggle matSuffix [for]="startTimePicker" />
@@ -43,7 +44,7 @@
 
     <mat-form-field>
       <mat-label>End date</mat-label>
-      <input matInput [matDatepicker]="endDatePicker" formControlName="end" />
+      <input matInput [matDatepicker]="endDatePicker" [formField]="form.end" />
       <mat-hint>MM/DD/YYYY</mat-hint>
       <mat-datepicker-toggle
         matIconSuffix
@@ -53,7 +54,7 @@
     </mat-form-field>
     <mat-form-field>
       <mat-label>End time</mat-label>
-      <input matInput [matTimepicker]="endTimePicker" formControlName="end" />
+      <input matInput [matTimepicker]="endTimePicker" [formField]="form.end" />
       <mat-timepicker #endTimePicker />
       <mat-timepicker-toggle matSuffix [for]="endTimePicker" />
     </mat-form-field>

@@ -16,10 +16,11 @@ import {
 } from '@tanstack/angular-query-experimental';
 
 import { injectTRPC } from '../../core/trpc-client';
+import { TemplateFormComponent } from '../shared/template-form/template-form.component';
 import {
-  TemplateFormComponent,
   TemplateFormData,
-} from '../shared/template-form/template-form.component';
+  TemplateFormSubmitData,
+} from '../shared/template-form/template-form.schema';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -67,7 +68,7 @@ export class TemplateEditComponent {
   private queryClient = inject(QueryClient);
   private router = inject(Router);
 
-  onSubmit(formData: TemplateFormData) {
+  onSubmit(formData: TemplateFormSubmitData) {
     const id = this.templateId();
     this.updateTemplateMutation.mutate(
       { id, ...formData },

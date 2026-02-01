@@ -1,20 +1,21 @@
-<ng-container [formGroup]="registrationOptionForm()">
+@let form = registrationOptionForm();
+<ng-container>
   <div class="flex flex-col gap-4">
-    <h3 class="title-medium">{{ registrationOptionForm().value.title }}</h3>
+    <h3 class="title-medium">{{ form.title().value() }}</h3>
 
     <div class="grid grid-cols-2 gap-4">
       <mat-form-field>
         <mat-label>Registration mode</mat-label>
-        <mat-select formControlName="registrationMode">
+        <mat-select [formField]="form.registrationMode">
           @for (mode of registrationModes(); track mode) {
-            <mat-option [value]="mode">{{ mode | titlecase }} </mat-option>
+          <mat-option [value]="mode">{{ mode | titlecase }} </mat-option>
           }
         </mat-select>
       </mat-form-field>
 
       <mat-form-field>
         <mat-label>Spots</mat-label>
-        <input matInput type="number" formControlName="spots" min="1" />
+        <input matInput type="number" [formField]="form.spots" />
       </mat-form-field>
     </div>
 
@@ -27,7 +28,7 @@
           <input
             matInput
             [matDatepicker]="startDatePicker"
-            formControlName="openRegistrationTime"
+            [formField]="form.openRegistrationTime"
           />
           <mat-hint>MM/DD/YYYY</mat-hint>
           <mat-datepicker-toggle
@@ -41,7 +42,7 @@
           <input
             matInput
             [matTimepicker]="startTimePicker"
-            formControlName="openRegistrationTime"
+            [formField]="form.openRegistrationTime"
           />
           <mat-timepicker #startTimePicker />
           <mat-timepicker-toggle matSuffix [for]="startTimePicker" />
@@ -51,7 +52,7 @@
           <input
             matInput
             [matDatepicker]="endDatePicker"
-            formControlName="closeRegistrationTime"
+            [formField]="form.closeRegistrationTime"
           />
           <mat-hint>MM/DD/YYYY</mat-hint>
           <mat-datepicker-toggle
@@ -65,7 +66,7 @@
           <input
             matInput
             [matTimepicker]="endTimePicker"
-            formControlName="closeRegistrationTime"
+            [formField]="form.closeRegistrationTime"
           />
           <mat-timepicker #endTimePicker />
           <mat-timepicker-toggle matSuffix [for]="endTimePicker" />
@@ -73,22 +74,20 @@
       </div>
 
       <div class="flex flex-col gap-4">
-        <mat-checkbox formControlName="isPaid">
+        <mat-checkbox [formField]="form.isPaid">
           Paid registration
         </mat-checkbox>
 
-        @if (registrationOptionForm().value.isPaid) {
+        @if (!form.price().hidden()) {
           <mat-form-field>
             <mat-label>Price (in cents)</mat-label>
-            <input matInput type="number" formControlName="price" />
-            <mat-hint
-              >{{ registrationOptionForm().value.price | currency }}
-            </mat-hint>
+            <input matInput type="number" [formField]="form.price" />
+            <mat-hint>{{ form.price().value() | currency }}</mat-hint>
           </mat-form-field>
 
           <mat-form-field>
             <mat-label>Tax rate</mat-label>
-            <mat-select formControlName="stripeTaxRateId" required>
+          <mat-select [formField]="form.stripeTaxRateId">
               @if (taxRatesQuery.isPending()) {
                 <mat-option disabled>Loading tax rates...</mat-option>
               } @else if (taxRatesQuery.isSuccess()) {
@@ -106,21 +105,21 @@
           </mat-form-field>
         }
 
-        <mat-checkbox formControlName="organizingRegistration">
+        <mat-checkbox [formField]="form.organizingRegistration">
           Organizing registration
         </mat-checkbox>
       </div>
 
       <div class="flex flex-col gap-2">
         <label class="text-on-surface-variant text-sm">Description</label>
-        <app-editor formControlName="description"></app-editor>
+        <app-editor [control]="form.description"></app-editor>
       </div>
 
       <div class="flex flex-col gap-2">
         <label class="text-on-surface-variant text-sm"
           >Description for registered users</label
         >
-        <app-editor formControlName="registeredDescription"></app-editor>
+        <app-editor [control]="form.registeredDescription"></app-editor>
       </div>
     </div>
   </div>

@@ -4,21 +4,10 @@ import {
   effect,
   inject,
   input,
+  signal,
 } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
-import {
-  FormArray,
-  NonNullableFormBuilder,
-  ReactiveFormsModule,
-} from '@angular/forms';
+import { form, submit } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
-import { MatCheckboxModule } from '@angular/material/checkbox';
-import { MatNativeDateModule } from '@angular/material/core';
-import { MatDatepickerModule } from '@angular/material/datepicker';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
-import { MatSelectModule } from '@angular/material/select';
-import { MatTimepickerModule } from '@angular/material/timepicker';
 import { Router, RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
@@ -30,50 +19,37 @@ import {
 import consola from 'consola/browser';
 import { DateTime } from 'luxon';
 
-import { EventLocationType } from '../../../types/location';
 import { injectTRPC } from '../../core/trpc-client';
 import { EventGeneralForm } from '../../shared/components/forms/event-general-form/event-general-form';
 import {
+  createEventGeneralFormModel,
+  EventGeneralFormModel,
+  eventGeneralFormSchema,
+} from '../../shared/components/forms/event-general-form/event-general-form.schema';
+import {
   RegistrationOptionForm,
-  RegistrationOptionFormGroup,
 } from '../../shared/components/forms/registration-option-form/registration-option-form';
+import { createRegistrationOptionFormModel } from '../../shared/components/forms/registration-option-form/registration-option-form.schema';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     FontAwesomeModule,
     MatButtonModule,
-    MatCheckboxModule,
-    MatDatepickerModule,
-    MatFormFieldModule,
-    MatInputModule,
-    MatNativeDateModule,
-    MatSelectModule,
-    MatTimepickerModule,
-    ReactiveFormsModule,
     RouterLink,
     RegistrationOptionForm,
     EventGeneralForm,
   ],
-  standalone: true,
   templateUrl: './template-create-event.component.html',
 })
 export class TemplateCreateEventComponent {
-  get registrationOptions() {
-    return this.createEventForm.get(
-      'registrationOptions',
-    ) as (typeof this.createEventForm)['controls']['registrationOptions'];
-  }
-  private fb = inject(NonNullableFormBuilder);
-  protected readonly createEventForm = this.fb.group({
-    description: this.fb.control(''),
-    end: this.fb.control<Date>(new Date()),
-    icon: this.fb.control<null | { iconColor: number; iconName: string }>(null),
-    location: this.fb.control<EventLocationType | null>(null),
-    registrationOptions: this.fb.array<RegistrationOptionFormGroup>([]),
-    start: this.fb.control<Date>(new Date()),
-    title: this.fb.control(''),
-  });
+  protected readonly createEventModel = signal<EventGeneralFormModel>(
+    createEventGeneralFormModel(),
+  );
+  protected readonly createEventForm = form(
+    this.createEventModel,
+    eventGeneralFormSchema,
+  );
   private trpc = injectTRPC();
   protected readonly createEventMutation = injectMutation(() =>
     this.trpc.events.create.mutationOptions(),
@@ -88,9 +64,6 @@ export class TemplateCreateEventComponent {
   protected readonly templateQuery = injectQuery(() =>
     this.trpc.templates.findOne.queryOptions({ id: this.templateId() }),
   );
-  private eventStartValue = toSignal(
-    this.createEventForm.controls.start.valueChanges,
-  );
 
   private readonly queryClient = inject(QueryClient);
   private readonly router = inject(Router);
@@ -99,74 +72,87 @@ export class TemplateCreateEventComponent {
     effect(() => {
       const template = this.templateQuery.data();
       if (template) {
-        // Set basic template info
-        this.createEventForm.patchValue({
-          description: template.description,
-          icon: template.icon as any,
-          location: template.location,
-          title: template.title,
-        });
-
-        const registrationOptionsFormArray = this.createEventForm.get(
-          'registrationOptions',
-        ) as FormArray;
-        registrationOptionsFormArray.clear();
-        for (const option of template.registrationOptions) {
-          registrationOptionsFormArray?.push(
-            this.fb.group({
-              closeRegistrationTime: [],
-              description: [option.description],
-              isPaid: [option.isPaid],
-              openRegistrationTime: [],
-              organizingRegistration: [option.organizingRegistration],
-              price: [option.price],
-              registeredDescription: [option.registeredDescription],
-              registrationMode: [option.registrationMode],
-              spots: [option.spots],
-              stripeTaxRateId: [(option as any).stripeTaxRateId ?? null],
-              title: [option.title],
-            }),
-          );
-        }
+        this.createEventModel.set(
+          createEventGeneralFormModel({
+            description: template.description,
+            icon: template.icon,
+            location: template.location,
+            registrationOptions: template.registrationOptions.map((option) =>
+              createRegistrationOptionFormModel({
+                closeRegistrationTime: new Date(),
+                description: option.description ?? '',
+                isPaid: option.isPaid,
+                openRegistrationTime: new Date(),
+                organizingRegistration: option.organizingRegistration,
+                price: option.price,
+                registeredDescription: option.registeredDescription ?? '',
+                registrationMode: option.registrationMode,
+                spots: option.spots,
+                stripeTaxRateId: option.stripeTaxRateId ?? null,
+                title: option.title,
+              }),
+            ),
+            title: template.title,
+          }),
+        );
       }
     });
     effect(() => {
       const template = this.templateQuery.data();
-      const eventStart = this.eventStartValue();
+      const eventStart = this.createEventForm.start().value();
       if (template && eventStart) {
         consola.info(eventStart);
         consola.info(DateTime.isDateTime(eventStart));
         const startDateTime = DateTime.fromJSDate(eventStart);
-        for (const [index, option] of template.registrationOptions.entries()) {
-          const openRegistrationTime = startDateTime
-            .minus({ hours: option.openRegistrationOffset })
-            .toJSDate();
-          const closeRegistrationTime = startDateTime
-            .minus({ hours: option.closeRegistrationOffset })
-            .toJSDate();
+        const updatedOptions = template.registrationOptions.map(
+          (option, index) => {
+            const openRegistrationTime = startDateTime
+              .minus({ hours: option.openRegistrationOffset })
+              .toJSDate();
+            const closeRegistrationTime = startDateTime
+              .minus({ hours: option.closeRegistrationOffset })
+              .toJSDate();
+            const currentOption =
+              this.createEventModel().registrationOptions[index] ??
+              createRegistrationOptionFormModel({
+                description: option.description ?? '',
+                isPaid: option.isPaid,
+                organizingRegistration: option.organizingRegistration,
+                price: option.price,
+                registeredDescription: option.registeredDescription ?? '',
+                registrationMode: option.registrationMode,
+                spots: option.spots,
+                stripeTaxRateId: option.stripeTaxRateId ?? null,
+                title: option.title,
+              });
 
-          const registrationOptionsFormArray = this.createEventForm.get(
-            'registrationOptions',
-          ) as FormArray;
-          const registrationOption = registrationOptionsFormArray.at(index);
-          registrationOption
-            ?.get('openRegistrationTime')
-            ?.patchValue(openRegistrationTime);
-          registrationOption
-            ?.get('closeRegistrationTime')
-            ?.patchValue(closeRegistrationTime);
-        }
+            return {
+              ...currentOption,
+              closeRegistrationTime,
+              openRegistrationTime,
+            };
+          },
+        );
+
+        this.createEventModel.update((current) => ({
+          ...current,
+          registrationOptions: updatedOptions,
+        }));
       }
     });
   }
 
-  async onSubmit() {
-    if (this.createEventForm.valid) {
-      const formValue = this.createEventForm.getRawValue();
+  async onSubmit(event: Event) {
+    event.preventDefault();
+    await submit(this.createEventForm, async (formState) => {
+      const formValue = formState().value();
+      if (!formValue.icon) {
+        return;
+      }
       this.createEventMutation.mutate(
         {
           ...formValue,
-          icon: formValue.icon!,
+          icon: formValue.icon,
           templateId: this.templateId(),
         },
         {
@@ -178,6 +164,6 @@ export class TemplateCreateEventComponent {
           },
         },
       );
-    }
+    });
   }
 }

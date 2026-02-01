@@ -41,6 +41,7 @@ export default defineConfig(
         },
       ],
       "unicorn/consistent-function-scoping": "off",
+      "unicorn/no-null": "warn",
     },
   },
   // Prevent src/ code from importing helpers (development/testing only)
@@ -108,6 +109,21 @@ export default defineConfig(
                 "Helpers are only for development and testing. Production code cannot import helpers.",
             },
           ],
+        },
+      ],
+      "no-restricted-syntax": [
+        "warn",
+        {
+          selector:
+            "ImportDeclaration[source.value='@angular/forms']:has(ImportSpecifier[imported.name=/^(FormsModule|NgForm|NgModel|NgModelGroup)$/])",
+          message:
+            "Template forms import detected. Migrate to signal forms APIs.",
+        },
+        {
+          selector:
+            "ImportDeclaration[source.value='@angular/forms']:has(ImportSpecifier[imported.name=/^(ReactiveFormsModule|FormBuilder|NonNullableFormBuilder|FormGroup|FormControl|FormArray|FormRecord|AbstractControl|Validators|FormGroupDirective|FormControlDirective|FormControlName|FormGroupName|FormArrayName|NgControl|UntypedFormBuilder|UntypedFormGroup|UntypedFormControl|UntypedFormArray)$/])",
+          message:
+            "Reactive forms import detected. Migrate to signal forms APIs.",
         },
       ],
     },

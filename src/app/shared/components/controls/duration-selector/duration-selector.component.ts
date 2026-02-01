@@ -1,96 +1,56 @@
 import {
   ChangeDetectionStrategy,
   Component,
-  forwardRef,
-  inject,
+  computed,
   input,
-  signal,
+  model,
 } from '@angular/core';
-import {
-  ControlValueAccessor,
-  NG_VALUE_ACCESSOR,
-  NonNullableFormBuilder,
-  ReactiveFormsModule,
-} from '@angular/forms';
+import { FormValueControl } from '@angular/forms/signals';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 
-interface DurationValue {
-  days: number;
-  hours: number;
-}
-
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [MatFormFieldModule, MatInputModule, ReactiveFormsModule],
-  providers: [
-    {
-      multi: true,
-      provide: NG_VALUE_ACCESSOR,
-      useExisting: forwardRef(() => DurationSelectorComponent),
-    },
-  ],
+  imports: [MatFormFieldModule, MatInputModule],
   selector: 'app-duration-selector',
   standalone: true,
   templateUrl: './duration-selector.component.html',
 })
-export class DurationSelectorComponent implements ControlValueAccessor {
+export class DurationSelectorComponent implements FormValueControl<number> {
+  readonly disabled = input<boolean>(false);
+  readonly hidden = input<boolean>(false);
   public readonly hint = input<string>('');
   public readonly label = input<string>('Duration');
+  readonly readonly = input<boolean>(false);
+  readonly touched = model<boolean>(false);
+  readonly value = model<number>(0);
 
-  protected disabled = signal(false);
+  protected readonly days = computed(() =>
+    Math.max(0, Math.floor(this.value() / 24)),
+  );
+  protected readonly hours = computed(() =>
+    Math.max(0, this.value() % 24),
+  );
 
-  private fb = inject(NonNullableFormBuilder);
-
-  protected readonly durationForm = this.fb.group({
-    days: [0],
-    hours: [0],
-  });
-  constructor() {
-    // Subscribe to form changes and emit the total hours
-    this.durationForm.valueChanges.subscribe((value) => {
-      const totalHours = (value.days || 0) * 24 + (value.hours || 0);
-      this.onChange(totalHours);
-    });
-  }
-  registerOnChange(function_: (value: number) => void): void {
-    this.onChange = function_;
+  protected markTouched(): void {
+    this.touched.set(true);
   }
 
-  registerOnTouched(function_: () => void): void {
-    this.onTouched = function_;
+  protected updateDays(event: Event): void {
+    const nextDays = this.parseNumber(event);
+    this.value.set(nextDays * 24 + this.hours());
   }
 
-  setDisabledState(isDisabled: boolean): void {
-    this.disabled.set(isDisabled);
-    if (isDisabled) {
-      this.durationForm.disable();
-    } else {
-      this.durationForm.enable();
-    }
+  protected updateHours(event: Event): void {
+    const nextHours = Math.min(23, this.parseNumber(event));
+    this.value.set(this.days() * 24 + nextHours);
   }
 
-  // ControlValueAccessor implementation
-  writeValue(totalHours: number): void {
-    if (totalHours !== null && totalHours !== undefined) {
-      const days = Math.floor(totalHours / 24);
-      const hours = totalHours % 24;
-
-      this.durationForm.patchValue(
-        {
-          days,
-          hours,
-        },
-        { emitEvent: false },
-      );
-    }
+  private parseNumber(event: Event): number {
+    const value = Number.parseInt(
+      (event.target as HTMLInputElement | null)?.value ?? '0',
+      10,
+    );
+    return Number.isNaN(value) ? 0 : Math.max(0, value);
   }
-
-  protected onBlur(): void {
-    this.onTouched();
-  }
-
-  private onChange = (value: number) => {};
-
-  private onTouched = () => {};
 }

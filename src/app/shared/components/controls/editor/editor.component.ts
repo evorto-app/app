@@ -1,5 +1,5 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
-import { ReactiveFormsModule } from '@angular/forms';
+import { ChangeDetectionStrategy, Component, inject, input } from '@angular/core';
+import { FieldTree, FormField } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
@@ -10,14 +10,10 @@ import {
   TINYMCE_SCRIPT_SRC,
 } from '@tinymce/tinymce-angular';
 
-import { injectNgControl } from '../../../../utils';
-import { NoopValueAccessorDirective } from '../../../directives/noop-value-accessor.directive';
-
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
-  hostDirectives: [NoopValueAccessorDirective],
   imports: [
-    ReactiveFormsModule,
+    FormField,
     TinyEditor,
     MatButtonModule,
     FontAwesomeModule,
@@ -35,6 +31,7 @@ import { NoopValueAccessorDirective } from '../../../directives/noop-value-acces
   templateUrl: './editor.component.html',
 })
 export class EditorComponent {
+  readonly control = input.required<FieldTree<string>>();
   private window = inject(WA_WINDOW);
   private canMatchMedia = typeof this.window.matchMedia === 'function';
   private useDarkMode = this.canMatchMedia
@@ -51,5 +48,4 @@ export class EditorComponent {
       'undo redo | blocks | bold italic | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | link image',
   };
   protected faPencil = faEdit;
-  protected ngControl = injectNgControl();
 }

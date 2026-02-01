@@ -1,60 +1,28 @@
-<div class="mx-auto flex max-w-3xl flex-col gap-8 p-4 md:gap-12 md:p-8">
-  <!-- Profile Header -->
-  <div class="mb-2 flex flex-row items-center gap-4">
-    <h1 class="text-primary text-3xl font-extrabold tracking-tight">
-      Hello, {{ userQuery.data()?.firstName ?? "..." }}
-    </h1>
-    <div class="flex-grow"></div>
-  </div>
-
-  <!-- Profile Information -->
+<div class="mx-auto flex max-w-4xl flex-col gap-8 px-4 py-6 md:px-8">
   <section class="bg-surface-container-high text-on-surface rounded-2xl p-6">
     @if (userQuery.isSuccess()) {
-      @if (!isEditing()) {
-        <div class="mb-4 flex items-center justify-between">
-          <h2 class="text-xl font-bold">Profile Information</h2>
-          <button
-            mat-raised-button
-            (click)="startEditing()"
-            id="edit-profile-btn"
-          >
-            <fa-duotone-icon [icon]="faPencil" class="mr-2"></fa-duotone-icon>
-            Edit profile
-          </button>
+      <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div class="space-y-1">
+          <p class="text-on-surface-variant text-xs uppercase tracking-wide">
+            Profile
+          </p>
+          <h1 class="text-2xl font-semibold">
+            {{ userQuery.data().firstName }} {{ userQuery.data().lastName }}
+          </h1>
+          <p class="text-on-surface-variant text-sm">
+            {{ userQuery.data().email }}
+          </p>
         </div>
-        <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
-          <div>
-            <p class="text-on-surface-variant mb-1 text-xs">Name</p>
-            <p class="text-base font-medium">
-              {{ userQuery.data().firstName }}
-              {{ userQuery.data().lastName }}
-            </p>
-          </div>
-          <div>
-            <p class="text-on-surface-variant mb-1 text-xs">Email</p>
-            <p class="text-base font-medium">
-              {{ userQuery.data().email }}
-            </p>
-          </div>
-        </div>
-      } @else {
-        <h2 class="mb-4 text-xl font-bold">Edit Profile</h2>
-        <form class="flex flex-col gap-6">
-          <mat-form-field appearance="outline" class="w-full">
-            <mat-label>Display name</mat-label>
-            <input
-              matInput
-              [ngModel]="displayName()"
-              (ngModelChange)="displayName.set($event)"
-              name="displayName"
-            />
-          </mat-form-field>
-          <div class="flex justify-end gap-3">
-            <button mat-stroked-button (click)="cancelEditing()">Cancel</button>
-            <button mat-raised-button (click)="saveProfile()">Save</button>
-          </div>
-        </form>
-      }
+        <button
+          mat-stroked-button
+          (click)="openEditProfileDialog()"
+          [disabled]="updateProfileMutation.isPending()"
+          id="edit-profile-btn"
+        >
+          <fa-duotone-icon [icon]="faPencil" class="mr-2"></fa-duotone-icon>
+          Edit profile
+        </button>
+      </div>
     } @else if (userQuery.isLoading()) {
       <p>Loading profile information...</p>
     } @else {
@@ -64,9 +32,11 @@
     }
   </section>
 
-  <!-- Event Registrations -->
   <section class="bg-surface text-on-surface rounded-2xl p-6">
-    <h2 class="mb-6 text-lg font-semibold">Your Event Registrations</h2>
+    <div class="mb-4 flex items-center gap-2">
+      <fa-duotone-icon [icon]="faCalendarDays"></fa-duotone-icon>
+      <h2 class="text-lg font-semibold">Your Event Registrations</h2>
+    </div>
     @if (userEventsQuery.isSuccess()) {
       @if (userEventsQuery.data().length) {
         <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
@@ -95,40 +65,16 @@
     }
   </section>
 
-  <!-- Settings -->
-  <section class="bg-surface-container-high text-on-surface rounded-2xl p-6">
-    <h2 class="mb-6 text-lg font-semibold">Account Settings</h2>
-    <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
-      <div>
-        <h3 class="mb-2 font-semibold">Email Preferences</h3>
-        <p>Manage your email notification preferences.</p>
-      </div>
-      <div>
-        <h3 class="mb-2 font-semibold">Password</h3>
-        <p>Change your account password.</p>
-      </div>
-      <div>
-        <h3 class="mb-2 font-semibold">Language</h3>
-        <p>Set your preferred language.</p>
-      </div>
-      <div>
-        <h3 class="mb-2 font-semibold">Privacy</h3>
-        <p>Manage your privacy settings.</p>
-      </div>
-    </div>
-  </section>
-
-  <!-- Discount Cards -->
   @if (esnEnabled()) {
     <section class="bg-surface text-on-surface rounded-2xl p-6">
-      <h2 class="mb-4 text-lg font-semibold">Discount Cards</h2>
-      <p class="text-on-surface-variant mb-3 text-sm">
+      <h2 class="mb-2 text-lg font-semibold">Discount Cards</h2>
+      <p class="text-on-surface-variant mb-4 text-sm">
         Add your ESN card to receive discounted prices on eligible events.
       </p>
 
       @if (myCardsQuery.isSuccess()) {
         @if (myCardsQuery.data().length > 0) {
-          <div class="mb-4 rounded-md bg-surface-container-high p-4">
+          <div class="mb-4 rounded-xl bg-surface-container-high p-4">
             @for (card of myCardsQuery.data(); track card.id) {
               <div class="flex flex-col gap-1">
                 <div class="flex items-center gap-2">
@@ -143,7 +89,7 @@
                     — valid until {{ card.validTo | date: "mediumDate" }}
                   }
                 </div>
-                <div class="mt-2 flex gap-2">
+                <div class="mt-3 flex flex-wrap gap-2">
                   <button
                     mat-stroked-button
                     (click)="refreshEsnCard()"
@@ -172,26 +118,38 @@
         <p class="text-error">Failed to load discount cards.</p>
       }
 
-      <div class="mt-2 max-w-md">
+      <form class="mt-4 max-w-md space-y-3" (submit)="saveEsnCard($event)">
         <mat-form-field class="w-full" appearance="outline">
           <mat-label>ESN card number</mat-label>
           <input
             matInput
-            [formControl]="esnCardControl"
-            placeholder="11-char alphanumeric"
+            [formField]="esnCardForm.identifier"
+            placeholder="8-16 letters or numbers"
           />
         </mat-form-field>
-        <div class="flex gap-2">
+        @if (
+          esnCardForm.identifier().touched() &&
+          esnCardForm.identifier().invalid()
+        ) {
+          <p class="text-error text-sm">
+            Enter a valid ESN card number (8-16 letters or numbers).
+          </p>
+        }
+        <div class="flex flex-wrap items-center gap-3">
           <button
             mat-raised-button
             color="primary"
-            (click)="saveEsnCard()"
-            [disabled]="upsertCardMutation.isPending()"
+            type="submit"
+            [disabled]="
+              esnCardForm().invalid() ||
+              esnCardForm().submitting() ||
+              upsertCardMutation.isPending()
+            "
           >
             Save ESN card
           </button>
           <a
-            class="underline text-sm self-center"
+            class="text-sm underline"
             href="https://esncard.org/"
             target="_blank"
             rel="noopener noreferrer"
@@ -199,17 +157,16 @@
           >
         </div>
         @if (upsertCardMutation.isError()) {
-          <p class="text-error mt-2">
+          <p class="text-error text-sm">
             {{ upsertCardMutation.error().message }}
           </p>
         }
-      </div>
+      </form>
     </section>
   }
 
-  <!-- Account Actions -->
-  <section class="mt-8 flex flex-col items-start gap-4">
-    <h2 class="text-on-surface mb-2 text-xl font-bold">Account Actions</h2>
+  <section class="flex flex-col items-start gap-4">
+    <h2 class="text-on-surface text-lg font-semibold">Account Actions</h2>
     <a href="/logout" mat-stroked-button class="flex items-center gap-2">
       <fa-duotone-icon
         [icon]="faRightFromBracket"

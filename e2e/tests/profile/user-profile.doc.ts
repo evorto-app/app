@@ -12,7 +12,7 @@ test('Manage user profile', async ({ page }, testInfo) => {
     body: `
 # User Profile Management
 
-Your user profile contains your personal information and preferences. You can view and edit your profile at any time.
+Your user profile contains your personal information and a quick overview of your recent activity. You can view and edit your profile at any time.
 
 ## Accessing Your Profile
 
@@ -43,10 +43,8 @@ The profile page displays your personal information, including:
 
 - Name
 - Email address
-- Contact information
-- Preferences
 
-You can view your profile information at any time by clicking on the Profile link in the navigation bar.
+From here you can open the edit dialog to update your profile details.
 `,
   });
 
@@ -65,7 +63,7 @@ You can view your profile information at any time by clicking on the Profile lin
     body: `
 ## Summary
 
-The user profile page provides a central place to view and manage your personal information, event registrations, and account settings. This makes it easy to keep track of your activity and customize your experience with the application.
+The user profile page provides a central place to view your personal information, event registrations, and account actions. This makes it easy to keep track of your activity and manage your account.
 `,
   });
 });
