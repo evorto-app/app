@@ -1,14 +1,18 @@
 <h2 mat-dialog-title>Update {{ data.event.title }}</h2>
 <mat-dialog-content>
   <div class="mt-2 w-full">
-    <mat-slide-toggle [formControl]="unlistedControl">
+    <mat-slide-toggle [formField]="visibilityForm.unlisted">
       Unlisted (hide from public lists)
     </mat-slide-toggle>
   </div>
 </mat-dialog-content>
 <mat-dialog-actions align="end">
   <button mat-button mat-dialog-close>Cancel</button>
-  <button mat-button [mat-dialog-close]="unlistedControl.value" cdkFocusInitial>
+  <button
+    mat-button
+    [mat-dialog-close]="visibilityForm.unlisted().value()"
+    cdkFocusInitial
+  >
     Save
   </button>
 </mat-dialog-actions>

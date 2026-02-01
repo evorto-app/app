@@ -1,5 +1,10 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
-import { FormControl, ReactiveFormsModule } from '@angular/forms';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  inject,
+  signal,
+} from '@angular/core';
+import { FormField, form } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import { MAT_DIALOG_DATA, MatDialogModule } from '@angular/material/dialog';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
@@ -10,7 +15,7 @@ import { MatSlideToggleModule } from '@angular/material/slide-toggle';
     MatDialogModule,
     MatSlideToggleModule,
     MatButtonModule,
-    ReactiveFormsModule,
+    FormField,
   ],
   selector: 'app-update-visibility-dialog',
   styles: ``,
@@ -19,8 +24,8 @@ import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 export class UpdateVisibilityDialogComponent {
   protected readonly data: { event: { title: string; unlisted: boolean } } =
     inject(MAT_DIALOG_DATA);
-  protected readonly unlistedControl = new FormControl<boolean>(
-    this.data.event.unlisted,
-    { nonNullable: true },
-  );
+  private readonly visibilityModel = signal({
+    unlisted: this.data.event.unlisted,
+  });
+  protected readonly visibilityForm = form(this.visibilityModel);
 }
