@@ -31,7 +31,7 @@
 - [x] Task: Wire tag check into lint workflow a20341f
   - [x] Ensure lint patterns include `tests/**/*.ts`
   - [x] Ensure `yarn lint` runs the tag check through ESLint
-- [ ] Task: Conductor - User Manual Verification 'Phase 3' (Protocol in workflow.md)
+- [~] Task: Conductor - User Manual Verification 'Phase 3' (Protocol in workflow.md)
 
 ## Phase 4: Verification and wrap-up
 
