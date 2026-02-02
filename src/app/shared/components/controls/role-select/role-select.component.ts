@@ -68,10 +68,19 @@ export class RoleSelectComponent implements FormValueControl<string[]> {
   protected searchRoleQuery = injectQuery(() =>
     this.trpc.admin.roles.search.queryOptions({ search: this.searchValue() }),
   );
+  protected readonly selectedRoleIds = computed(() => {
+    const selected = new Set((this.value() ?? []).filter(Boolean));
+    for (const role of this.currentRolesQuery()) {
+      const roleId = role.data()?.id;
+      if (roleId) {
+        selected.add(roleId);
+      }
+    }
+    return selected;
+  });
   protected readonly availableRoles = computed(() => {
-    const selected = new Set(this.value());
     return (this.searchRoleQuery.data() ?? []).filter(
-      (role) => !selected.has(role.id),
+      (role) => !this.selectedRoleIds().has(role.id),
     );
   });
 

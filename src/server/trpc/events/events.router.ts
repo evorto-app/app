@@ -42,6 +42,7 @@ export const eventRouter = router({
               price: Schema.Number.pipe(Schema.nonNegative()),
               registeredDescription: Schema.NullOr(Schema.NonEmptyString),
               registrationMode: Schema.Literal('fcfs', 'random', 'application'),
+              roleIds: Schema.mutable(Schema.Array(Schema.NonEmptyString)),
               spots: Schema.Number.pipe(Schema.nonNegative()),
               stripeTaxRateId: Schema.optional(
                 Schema.NullOr(Schema.NonEmptyString),
@@ -113,6 +114,7 @@ export const eventRouter = router({
             price: option.price,
             registeredDescription: option.registeredDescription,
             registrationMode: option.registrationMode,
+            roleIds: option.roleIds,
             spots: option.spots,
             stripeTaxRateId: option.stripeTaxRateId ?? null,
             title: option.title,

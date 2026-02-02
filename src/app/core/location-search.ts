@@ -1,5 +1,6 @@
 import { inject, Injectable } from '@angular/core';
 import { importLibrary, setOptions } from '@googlemaps/js-api-loader';
+import consola from 'consola/browser';
 
 import { GoogleLocationType } from '../../types/location';
 import { ConfigService } from './config.service';
@@ -72,11 +73,19 @@ export class LocationSearch {
     service: typeof google.maps.places.AutocompleteSuggestion;
     token: google.maps.places.AutocompleteSessionToken;
   }> {
+    const mapsApiKey = this.config.publicConfig.googleMapsApiKey?.trim();
+    if (!mapsApiKey) {
+      throw new Error(
+        'Google Maps API key is missing. Set PUBLIC_GOOGLE_MAPS_API_KEY (or GOOGLE_MAPS_API_KEY) in the server environment.',
+      );
+    }
+
     if (!this.optionsSet) {
       setOptions({
-        key: this.config.publicConfig.googleMapsApiKey ?? '',
+        key: mapsApiKey,
         v: 'weekly',
       });
+      consola.debug('Google Maps loader initialized');
       this.optionsSet = true;
     }
     if (!this._autocompleteService || !this._sessionToken) {

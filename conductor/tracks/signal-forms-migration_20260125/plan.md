@@ -18,7 +18,7 @@
   - [x] Ensure validators and async flows are preserved
 - [x] Task: Introduce compatForm only where needed (n/a)
   - [x] Bridge legacy controls/groups that cannot be migrated yet
-- [ ] Task: Conductor - User Manual Verification 'Phase 2' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 2' (Protocol in workflow.md) (f060dfd)
 
 ## Phase 3: Custom Controls Migration
 
@@ -26,16 +26,16 @@
   - [x] Implement FormValueControl/FormCheckboxControl
   - [x] Replace CVA usage where applicable
   - [x] Ensure [formField] bindings work for all controls
-- [ ] Task: Conductor - User Manual Verification 'Phase 3' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 3' (Protocol in workflow.md) (19c4078)
 
 ## Phase 4: Template & Styling Alignment
 
-- [ ] Task: Update templates to Signal Forms bindings
-  - [ ] Replace formGroup/formControlName usage
-  - [ ] Ensure validation messaging still works
-- [ ] Task: Remove legacy status class reliance
-  - [ ] Update styles and UI logic that depended on ng-\* classes
-- [ ] Task: Conductor - User Manual Verification 'Phase 4' (Protocol in workflow.md)
+- [x] Task: Update templates to Signal Forms bindings (5998b3f)
+  - [x] Replace formGroup/formControlName usage
+  - [x] Ensure validation messaging still works
+- [x] Task: Remove legacy status class reliance (0fc083e)
+  - [x] Update styles and UI logic that depended on ng-\* classes
+- [x] Task: Conductor - User Manual Verification 'Phase 4' (Protocol in workflow.md) (1d5cbb7)
 
 ## Phase 5: Documentation & Tests
 

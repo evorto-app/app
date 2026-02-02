@@ -75,8 +75,12 @@ export class LocationSelectorDialog {
   }
 
   protected readonly displayFunction = (
-    location: google.maps.places.AutocompletePrediction,
+    location: google.maps.places.AutocompleteSuggestion | string | null,
   ) => {
-    return location?.structured_formatting?.main_text;
+    if (typeof location === 'string') {
+      return location;
+    }
+
+    return `${location?.placePrediction?.mainText ?? ''}`;
   };
 }

@@ -15,3 +15,37 @@
 ## Manual Verification (2026-01-31)
 
 - Phase 1 manual verification completed by user confirmation.
+
+## Manual Verification (2026-02-02)
+
+- Phase 2 manual verification completed and approved by user confirmation.
+- Verified areas: role dependency behavior (readonly + auto-check), role selector
+  filtering for already selected roles, and create-event time synchronization for
+  end/open/close fields when untouched.
+
+## Manual Verification (2026-02-02, Phase 3)
+
+- Phase 3 manual verification completed and approved by user confirmation.
+- Verified and fixed during manual pass:
+  - role autocomplete excludes selected role ids,
+  - create-event registration option role selection restored,
+  - create-event default start set to one week ahead,
+  - initialization loop in create-event form resolved.
+
+## Phase 4 Audit (2026-02-02)
+
+- Template binding audit across `src/app` found no remaining legacy form
+  bindings (`formGroup`, `formControlName`, `[formControl]`, `ngModel`).
+- Legacy Angular form status class audit across `src/` found no references to
+  `ng-valid`, `ng-invalid`, `ng-dirty`, `ng-pristine`, `ng-touched`, or
+  `ng-untouched`.
+- Result: no style or template rewrites were required for legacy status classes
+  because the migration already removed those dependencies.
+
+## Manual Verification (2026-02-02, Phase 4)
+
+- Phase 4 manual verification completed and approved by user confirmation.
+- Verified areas:
+  - location selector input no longer clears while typing,
+  - Google Maps/Places key wiring works again after runtime env fix,
+  - template bindings and styling remain aligned with Signal Forms.
