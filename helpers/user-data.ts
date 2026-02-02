@@ -1,9 +1,9 @@
-export const defaultStateFile = 'e2e/.auth/default.json';
-export const adminStateFile = 'e2e/.auth/admin-user.json';
-export const gaStateFile = 'e2e/.auth/global-admin-user.json';
-export const userStateFile = 'e2e/.auth/regular-user.json';
-export const organizerStateFile = 'e2e/.auth/organizer-user.json';
-export const emptyStateFile = 'e2e/.auth/empty-user.json';
+export const defaultStateFile = 'tests/.auth/default.json';
+export const adminStateFile = 'tests/.auth/admin-user.json';
+export const gaStateFile = 'tests/.auth/global-admin-user.json';
+export const userStateFile = 'tests/.auth/regular-user.json';
+export const organizerStateFile = 'tests/.auth/organizer-user.json';
+export const emptyStateFile = 'tests/.auth/empty-user.json';
 
 export const usersToAuthenticate = [
   {

@@ -1,9 +1,9 @@
 import { DateTime } from 'luxon';
 
 import { userStateFile, usersToAuthenticate } from '../../../helpers/user-data';
-import { fillTestCard } from '../../../e2e/fill-test-card';
-import { expect, test } from '../../../e2e/fixtures/parallel-test';
-import { takeScreenshot } from '../../../e2e/reporters/documentation-reporter';
+import { fillTestCard } from '../../fill-test-card';
+import { expect, test } from '../../fixtures/parallel-test';
+import { takeScreenshot } from '../../reporters/documentation-reporter';
 
 test.use({ storageState: userStateFile });
 

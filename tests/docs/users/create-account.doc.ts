@@ -1,5 +1,5 @@
-import { expect, test } from '../../../e2e/fixtures/parallel-test';
-import { takeScreenshot } from '../../../e2e/reporters/documentation-reporter';
+import { expect, test } from '../../fixtures/parallel-test';
+import { takeScreenshot } from '../../reporters/documentation-reporter';
 
 // test.use({ storageState: defaultStateFile });
 

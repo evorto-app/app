@@ -5,7 +5,7 @@ import { expect, test } from '@playwright/test';
 import {
   isStorageStateFresh,
   readStorageState,
-} from '../../e2e/utils/storage-state';
+} from '../utils/storage-state';
 
 test('storage state freshness - age and tenant cookie checks @track(playwright-specs-track-linking_20260126) @req(STORAGE-STATE-REFRESH-TEST-01)', async ({}, testInfo) => {
   const statePath = testInfo.outputPath('state.json');

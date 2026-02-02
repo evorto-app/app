@@ -66,5 +66,5 @@ Notes:
 
 ## Notes
 
-- Current fixtures in `e2e/fixtures/parallel-test.ts` already seed tenant, categories, templates, events, and registrations per test run.
+- Current fixtures in `tests/fixtures/parallel-test.ts` already seed tenant, categories, templates, events, and registrations per test run.
 - Base fixture enhancement to read `.e2e-runtime.json` enables cookie injection for tests not using parallel fixtures (T008).

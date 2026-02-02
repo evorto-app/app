@@ -1,6 +1,6 @@
 import { userStateFile, usersToAuthenticate } from '../../helpers/user-data';
 import * as schema from '../../src/db/schema';
-import { expect, test } from '../../e2e/fixtures/parallel-test';
+import { expect, test } from '../fixtures/parallel-test';
 
 test.use({ storageState: userStateFile });
 

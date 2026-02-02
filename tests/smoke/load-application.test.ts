@@ -1,4 +1,4 @@
-import { expect, test } from '../../e2e/fixtures/parallel-test';
+import { expect, test } from '../fixtures/parallel-test';
 
 test('load application @track(playwright-specs-track-linking_20260126) @req(LOAD-APPLICATION-TEST-01)', async ({ page }) => {
   await page.goto('.');

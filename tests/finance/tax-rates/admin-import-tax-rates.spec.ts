@@ -1,6 +1,6 @@
 import { adminStateFile } from '../../../helpers/user-data';
-import { expect, test } from '../../../e2e/fixtures/permissions-test';
-import { openAdminTools } from '../../../e2e/utils/admin-tools';
+import { expect, test } from '../../fixtures/permissions-test';
+import { openAdminTools } from '../../utils/admin-tools';
 
 test.use({ storageState: adminStateFile });
 

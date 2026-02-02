@@ -1,5 +1,5 @@
 import { adminStateFile, userStateFile } from '../../helpers/user-data';
-import { expect, test } from '../../e2e/fixtures/parallel-test';
+import { expect, test } from '../fixtures/parallel-test';
 
 const findUnlistedEvent = (
   events: {

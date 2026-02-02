@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test';
 
 import { defaultStateFile } from '../../helpers/user-data';
-import { expect, test } from '../../e2e/fixtures/parallel-test';
+import { expect, test } from '../fixtures/parallel-test';
 
 test.use({ storageState: defaultStateFile });
 

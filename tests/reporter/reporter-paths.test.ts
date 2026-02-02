@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { expect, test } from '@playwright/test';
 
-import DocumentationReporter from '../../e2e/reporters/documentation-reporter';
+import DocumentationReporter from '../reporters/documentation-reporter';
 
 test('documentation reporter respects DOCS_* env and writes files @track(playwright-specs-track-linking_20260126) @req(REPORTER-PATHS-TEST-01)', async ({}, testInfo) => {
   const docsRoot = testInfo.outputPath('docs-out');

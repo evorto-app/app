@@ -1,5 +1,5 @@
 import { userStateFile } from '../../helpers/user-data';
-import { expect, test } from '../../e2e/fixtures/permissions-test';
+import { expect, test } from '../fixtures/permissions-test';
 
 test.use({ storageState: userStateFile });
 

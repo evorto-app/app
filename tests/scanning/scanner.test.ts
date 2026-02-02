@@ -1,4 +1,4 @@
-import { expect, test } from '../../e2e/fixtures/parallel-test';
+import { expect, test } from '../fixtures/parallel-test';
 import { adminStateFile } from '../../helpers/user-data';
 
 test.use({ storageState: adminStateFile });

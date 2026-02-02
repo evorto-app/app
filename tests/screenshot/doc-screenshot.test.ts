@@ -3,10 +3,10 @@ import path from 'node:path';
 import { expect } from '@playwright/test';
 
 import { defaultStateFile } from '../../helpers/user-data';
-import { test } from '../../e2e/fixtures/parallel-test';
+import { test } from '../fixtures/parallel-test';
 
 // T023: Failing test for screenshot helper
-// This defines the contract for the upcoming e2e/utils/doc-screenshot.ts helper:
+// This defines the contract for the upcoming tests/utils/doc-screenshot.ts helper:
 // - It should wrap Locator.screenshot (focused element capture)
 // - It should return a relative image path (not absolute)
 // - The returned path is relative to the images root (DOCS_IMG_OUT_DIR or default)

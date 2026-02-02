@@ -1,6 +1,6 @@
 import { defaultStateFile } from '../../helpers/user-data';
-import { expect, test } from '../../e2e/fixtures/parallel-test';
-import { fillTemplateBasics } from '../../e2e/utils/template-form';
+import { expect, test } from '../fixtures/parallel-test';
+import { fillTemplateBasics } from '../utils/template-form';
 
 test.use({ storageState: defaultStateFile });
 

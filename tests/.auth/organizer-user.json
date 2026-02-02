@@ -1,0 +1,75 @@
+{
+  "cookies": [
+    {
+      "name": "evorto-tenant",
+      "value": "localhost",
+      "domain": "localhost",
+      "path": "/",
+      "expires": -1,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "did",
+      "value": "s%3Av0%3Af341ebf8-d7f7-473c-88c2-2eaa9d765e70%3Ad269887ea9433070a566020d50a07fb4e22e7c3766be6f9306e7ec524323546e.E4ZKvIIg4szfDanXZqsQ%2Fh6VJi7kYbBqw67%2F%2BJ6jhP4",
+      "domain": "tumi-dev.eu.auth0.com",
+      "path": "/",
+      "expires": 1801582457.921594,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "None"
+    },
+    {
+      "name": "did_compat",
+      "value": "s%3Av0%3Af341ebf8-d7f7-473c-88c2-2eaa9d765e70%3Ad269887ea9433070a566020d50a07fb4e22e7c3766be6f9306e7ec524323546e.E4ZKvIIg4szfDanXZqsQ%2Fh6VJi7kYbBqw67%2F%2BJ6jhP4",
+      "domain": "tumi-dev.eu.auth0.com",
+      "path": "/",
+      "expires": 1801582457.921831,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "auth0",
+      "value": "s%3ASGFeKjq2fQIIR3PpSfB0iun7NVgzY3ra.9uI25Bds8PInJD2sYnWTevFkrQ2ON67GBo3TvwvTUhk",
+      "domain": "tumi-dev.eu.auth0.com",
+      "path": "/",
+      "expires": 1770284058.447334,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "None"
+    },
+    {
+      "name": "auth0_compat",
+      "value": "s%3ASGFeKjq2fQIIR3PpSfB0iun7NVgzY3ra.9uI25Bds8PInJD2sYnWTevFkrQ2ON67GBo3TvwvTUhk",
+      "domain": "tumi-dev.eu.auth0.com",
+      "path": "/",
+      "expires": 1770284058.447463,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "__cf_bm",
+      "value": "aOlTzeqI9NvkN80L8T06FO9J.t4elH9e2OHAFqEhj.I-1770024857.928741-1.0.1.1-C6Ovxbja__XWQUVaumjD1fXI27_Pk53U7uhAnbyV0vr9CxbYulwhW6awxk3XWqtbuZs4TTGi8CpT6ytdoUZZHZKxeuUMCNMiF_Pr.4XX44K_onxsL6r4cE9CDtoIazac",
+      "domain": ".eu.auth0.com",
+      "path": "/",
+      "expires": 1770026658.447535,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "appSession",
+      "value": "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIiwiaWF0IjoxNzcwMDI0ODU4LCJ1YXQiOjE3NzAwMjQ4NTksImV4cCI6MTc3MDExMTI1OX0..e9AmgKUKnCVSMKRz.JpaLInjpD1RX2vTsam6sVOq0wOg-V9my-hA7ytPVO94eoUjmewK2NNT1Y4zS6SMJ2lWIDHWq81-ELBlfS8UAjys6eaLa3fdYLZBvCwdnyCZtPp_OHKzMaGq_vTxOmqyeO4Gu3YbQ2WAO6eRVCZNk4KFZNdMUjhm2CjeS5KUkqagYHCv-DKtJhgMgWJZfeFo8YhvhcvPdOBCHu601G6DzsxVBIMOTmp-XKzgey43xG_U27-sYichrGdQaOV0D2QI34GuboFnI3102SNHHWdwo3QJb0JFFNgm_wkISlYMVGqodbgx0izLN9pzdbvp-Jnr6XtuP6bxqYAgWpRILGoCw3CL6uuNIROTgbRnzIqjgZI54lDxLiLazU_zyNfgcKbrJ3Fs1npjFSktMgjdA14Sv-TK1oZKN_F64oDv1ozLj4OwQFR-DXa0DL_EtRHjevuoD81lV75lvQIDWl239ZR2Vq8CkwmUUa-wGxC-tUlNcYxCU2WqzxQDtAJKouv1oZutfN0-DeSn0oNnH1KyB1e-9FUmY6Y1548ml6MiaaO__8Gvd8KyeaiNXvMkN2Qdwg5TikXIjM_lT78RK-rOXI84AfnfEvMqF506TjeUR1Cz4cSCBvsWbKsjw_oaqUs3H6UYnz6fDJ61JMOPs77loQa1fns0qoOgQLtXHeQjPzkgZmPa4jw4jLXudYglP8U2kZbJ2nbY47TJyxU3Oht93s7LrxnpaYIodE9p2FGhMISavCTpam14pPyl77bVRzAoNRqYEE5-oxDAYuzxDMldDu10fcW3lkH-p8vHnUUeDvpvCS-dwpqlEJDOZocxB-O5PbW6HP1eprZwZRj3-drTCkmP7lKSYju6jwUl3L6Ox0GKUwWLWpIK9mv-I-fsab3mnZDXahWuYg9Mh4AvD2uaL2HULsXRtV5f27Rl8aD3y0PSiBAzoYqiU_BmT8m4KHd2Ul2plGA2f8gKDzMjb1Zg5FUttyNvk73bqLCB7tj2AMbFNTZ1oyFnl34O3iNDDhECMX480kv9od0C_OTq8P9Bxylm23C3ZZz8VKpI3WVPbGxD6FCJI7x8V-NtqfpU94_oQXMkSEZQfN53UHoxRxafg8RWBwSJfPtuHITk4oWM7bzynHlZFGhSHShdUnImqBVJI7qy9yGVHS2VoDhHo0LAMrcsixEVm8BA5DbSa5Z94hZ4SCcKtgtXig-yxlQB_Vv4ZJ3NeuZE2Xds3uAUT2y6YeTujoUOtHGcmJguaWoxrhD14M_OMil372yyfeat9-XK7f7Cfep16nHLo8mcbJ3Dmslaafnsfauo_-_lxrF9mR-uowhgousVm7xuPgeCIOs30etyN3fUJZ0irrre0_KXxT2InrEmFSfUJSeUJQ-0ELNQ90Pa22wqfCQ39ywoVdJRTtFgQPiNRAi545ghwi80iUA58NdLlP58HAV8TevroaMAa5-hzGTfe_sVRLNqcSNuJreg59c0puSyKLDPQCRNqHCq5k4DoAJmM9xtUYFlt83vRj1fz7zJlXQHOSTWCs3RFuTdwhp9_DdXSZiQaYvktcxKy3MpPjXhjqI-PHgu7LZ4wJ_vQLOl0vJbyGrNyG-zW-pXns7KiUL00k8eLdq9WeFYTnRDDggW8imG7dUuY3b4E4trAYXVc59QIT8eG7YhRFxeMFK_0F3V5l_jBy8WxODjsWNQ5NaaJkL6bLugwsdxGG4FOAQ.3ad7Zu_78iwRl-F-6AYvMA",
+      "domain": "localhost",
+      "path": "/",
+      "expires": 1770111259.629916,
+      "httpOnly": true,
+      "secure": false,
+      "sameSite": "Lax"
+    }
+  ],
+  "origins": []
+}

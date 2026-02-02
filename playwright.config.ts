@@ -30,7 +30,7 @@ if (process.env['CI']) {
   reporters.push(
     ['html', { open: 'never' }],
     ['dot'],
-    ['./e2e/reporters/documentation-reporter.ts'],
+    ['./tests/reporters/documentation-reporter.ts'],
   );
 }
 
@@ -43,7 +43,7 @@ export default defineConfig({
   projects: [
     {
       name: 'setup',
-      testDir: './e2e/setup',
+      testDir: './tests/setup',
       testMatch: /.*\.setup\.ts$/,
       use: { ...devices['Desktop Chrome'] },
     },

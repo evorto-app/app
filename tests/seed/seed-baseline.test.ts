@@ -1,4 +1,4 @@
-import { expect, test } from '../../e2e/fixtures/parallel-test';
+import { expect, test } from '../fixtures/parallel-test';
 
 // This particular test validates seeded invariants and can take longer
 // due to initial database seeding. Keep the override local to this file.
