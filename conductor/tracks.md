@@ -7,7 +7,7 @@
 
 ---
 
-- [~] **Track: Signal Forms Migration (Top-Down, compatForm When Needed)**
+- [x] **Track: Signal Forms Migration (Top-Down, compatForm When Needed)**
   _Link: [./tracks/signal-forms-migration_20260125/](./tracks/signal-forms-migration_20260125/)_
 
 ---
