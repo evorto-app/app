@@ -22,3 +22,12 @@
 - Verified areas: role dependency behavior (readonly + auto-check), role selector
   filtering for already selected roles, and create-event time synchronization for
   end/open/close fields when untouched.
+
+## Manual Verification (2026-02-02, Phase 3)
+
+- Phase 3 manual verification completed and approved by user confirmation.
+- Verified and fixed during manual pass:
+  - role autocomplete excludes selected role ids,
+  - create-event registration option role selection restored,
+  - create-event default start set to one week ahead,
+  - initialization loop in create-event form resolved.
