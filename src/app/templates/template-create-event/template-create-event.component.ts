@@ -5,6 +5,7 @@ import {
   inject,
   input,
   signal,
+  untracked,
 } from '@angular/core';
 import { FieldTree, form, submit } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
@@ -16,7 +17,6 @@ import {
   injectQuery,
   QueryClient,
 } from '@tanstack/angular-query-experimental';
-import consola from 'consola/browser';
 import { DateTime } from 'luxon';
 
 import { injectTRPC } from '../../core/trpc-client';
@@ -64,6 +64,7 @@ export class TemplateCreateEventComponent {
   protected readonly templateQuery = injectQuery(() =>
     this.trpc.templates.findOne.queryOptions({ id: this.templateId() }),
   );
+  private readonly initializedTemplateId = signal<string | null>(null);
   private readonly lastStart = signal<DateTime | null>(null);
 
   private readonly queryClient = inject(QueryClient);
@@ -72,45 +73,50 @@ export class TemplateCreateEventComponent {
   constructor() {
     effect(() => {
       const template = this.templateQuery.data();
-      if (template) {
-        const currentStart = this.createEventModel().start;
-        this.createEventModel.set(
-          createEventGeneralFormModel({
-            description: template.description,
-            icon: template.icon,
-            location: template.location,
-            registrationOptions: template.registrationOptions.map((option) =>
-              createRegistrationOptionFormModel({
-                closeRegistrationTime: currentStart.minus({
-                  hours: option.closeRegistrationOffset,
-                }),
-                description: option.description ?? '',
-                isPaid: option.isPaid,
-                openRegistrationTime: currentStart.minus({
-                  hours: option.openRegistrationOffset,
-                }),
-                organizingRegistration: option.organizingRegistration,
-                price: option.price,
-                registeredDescription: option.registeredDescription ?? '',
-                registrationMode: option.registrationMode,
-                roleIds: option.roleIds ?? [],
-                spots: option.spots,
-                stripeTaxRateId: option.stripeTaxRateId ?? null,
-                title: option.title,
+      if (!template) return;
+      if (this.initializedTemplateId() === template.id) return;
+
+      const startDateTime = this.toDateTime(
+        untracked(() => this.createEventForm.start().value()),
+      );
+      this.createEventModel.set(
+        createEventGeneralFormModel({
+          description: template.description,
+          end: startDateTime,
+          icon: template.icon,
+          location: template.location,
+          registrationOptions: template.registrationOptions.map((option) =>
+            createRegistrationOptionFormModel({
+              closeRegistrationTime: startDateTime.minus({
+                hours: option.closeRegistrationOffset,
               }),
-            ),
-            title: template.title,
-          }),
-        );
-      }
+              description: option.description ?? '',
+              isPaid: option.isPaid,
+              openRegistrationTime: startDateTime.minus({
+                hours: option.openRegistrationOffset,
+              }),
+              organizingRegistration: option.organizingRegistration,
+              price: option.price,
+              registeredDescription: option.registeredDescription ?? '',
+              registrationMode: option.registrationMode,
+              roleIds: option.roleIds ?? [],
+              spots: option.spots,
+              stripeTaxRateId: option.stripeTaxRateId ?? null,
+              title: option.title,
+            }),
+          ),
+          start: startDateTime,
+          title: template.title,
+        }),
+      );
+      this.lastStart.set(startDateTime);
+      this.initializedTemplateId.set(template.id);
     });
     effect(() => {
       const template = this.templateQuery.data();
       const eventStart = this.createEventForm.start().value();
       const registrationOptions = this.createEventModel().registrationOptions;
       if (!template || !eventStart || registrationOptions.length === 0) return;
-      consola.info(eventStart);
-      consola.info(DateTime.isDateTime(eventStart));
       const startDateTime = this.toDateTime(eventStart);
       const previousStart = this.lastStart();
       this.lastStart.set(startDateTime);
