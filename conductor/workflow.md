@@ -23,6 +23,7 @@ All tasks follow a strict lifecycle:
    - For user-visible changes, add/extend Playwright e2e tests.
    - For doc updates, add/extend doc tests that generate screenshots/text.
    - Use unit tests only when there is logic that cannot be validated via e2e/doc tests.
+   - When moving into test planning or test implementation, use the $playwright-test-planner skill.
 
 4. **Implement:**
    - Implement the minimum code needed to satisfy the task and test intent.
@@ -142,6 +143,7 @@ yarn e2e:docs
 - Doc tests must generate screenshots and text for user-facing documentation.
 - Use fixtures for setup/teardown where needed.
 - New Playwright tests live in `tests/**` (doc tests in `tests/docs/**`); legacy `e2e/tests/**` is reference-only.
+- When planning or implementing Playwright coverage, use the $playwright-test-planner skill.
 - Track specs should use `specs/track-spec-template.md` and live at `specs/<track_id>-<slug>.md`.
 
 ### Unit Testing
