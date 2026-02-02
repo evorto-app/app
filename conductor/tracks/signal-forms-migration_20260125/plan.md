@@ -18,7 +18,7 @@
   - [x] Ensure validators and async flows are preserved
 - [x] Task: Introduce compatForm only where needed (n/a)
   - [x] Bridge legacy controls/groups that cannot be migrated yet
-- [ ] Task: Conductor - User Manual Verification 'Phase 2' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 2' (Protocol in workflow.md) (f060dfd)
 
 ## Phase 3: Custom Controls Migration
 
