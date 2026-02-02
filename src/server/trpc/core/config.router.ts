@@ -16,9 +16,17 @@ export const configRouter = router({
         }),
       ),
     )
-    .query(() => ({
-      googleMapsApiKey: process.env['PUBLIC_GOOGLE_MAPS_API_KEY'] ?? null,
-      sentryDsn: process.env['PUBLIC_SENTRY_DSN'] ?? null,
-    })),
+    .query(() => {
+      const googleMapsApiKey =
+        process.env['PUBLIC_GOOGLE_MAPS_API_KEY'] ??
+        process.env['GOOGLE_MAPS_API_KEY'] ??
+        process.env['GOOGLE_API_KEY'] ??
+        null;
+
+      return {
+        googleMapsApiKey,
+        sentryDsn: process.env['PUBLIC_SENTRY_DSN'] ?? null,
+      };
+    }),
   tenant: publicProcedure.query(({ ctx }) => ctx.tenant),
 });
