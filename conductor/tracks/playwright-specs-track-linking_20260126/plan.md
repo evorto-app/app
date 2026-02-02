@@ -10,7 +10,7 @@
   - [x] Note that `e2e/tests/**` is legacy reference and not run by default
 - [x] Task: Conductor - User Manual Verification 'Phase 1' (Protocol in workflow.md) 1acfaab
 
-## Phase 2: Playwright configuration
+## Phase 2: Playwright configuration [checkpoint: d52f165]
 
 - [x] Task: Update Playwright config to new layout 68594b5
   - [x] Set `testDir` to `./tests`
@@ -19,7 +19,7 @@
   - [x] Update any scripts/builders referencing old paths
 - [x] Task: Add a minimal doc-test template in `tests/docs/**` 312dcbc
   - [x] Provide a tagged, skipped example to confirm discovery without breaking CI
-- [ ] Task: Conductor - User Manual Verification 'Phase 2' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 2' (Protocol in workflow.md) d52f165
 
 ## Phase 3: Tag lint/check enforcement
 
