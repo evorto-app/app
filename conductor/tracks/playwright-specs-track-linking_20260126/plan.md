@@ -21,7 +21,7 @@
   - [x] Provide a tagged, skipped example to confirm discovery without breaking CI
 - [x] Task: Conductor - User Manual Verification 'Phase 2' (Protocol in workflow.md) d52f165
 
-## Phase 3: Tag lint/check enforcement
+## Phase 3: Tag lint/check enforcement [checkpoint: 8123e7f]
 
 - [x] Task: Implement tag lint/check for `tests/**` a20341f
   - [x] Add custom ESLint rule that checks Playwright tests for required tags
@@ -31,7 +31,7 @@
 - [x] Task: Wire tag check into lint workflow a20341f
   - [x] Ensure lint patterns include `tests/**/*.ts`
   - [x] Ensure `yarn lint` runs the tag check through ESLint
-- [~] Task: Conductor - User Manual Verification 'Phase 3' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 3' (Protocol in workflow.md) 8123e7f
 
 ## Phase 4: Verification and wrap-up
 
