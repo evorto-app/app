@@ -30,9 +30,9 @@
 
 ## Phase 4: Template & Styling Alignment
 
-- [ ] Task: Update templates to Signal Forms bindings
-  - [ ] Replace formGroup/formControlName usage
-  - [ ] Ensure validation messaging still works
+- [x] Task: Update templates to Signal Forms bindings (5998b3f)
+  - [x] Replace formGroup/formControlName usage
+  - [x] Ensure validation messaging still works
 - [ ] Task: Remove legacy status class reliance
   - [ ] Update styles and UI logic that depended on ng-\* classes
 - [ ] Task: Conductor - User Manual Verification 'Phase 4' (Protocol in workflow.md)
