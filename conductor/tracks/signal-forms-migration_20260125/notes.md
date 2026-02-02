@@ -31,3 +31,11 @@
   - create-event registration option role selection restored,
   - create-event default start set to one week ahead,
   - initialization loop in create-event form resolved.
+
+## Phase 4 Audit (2026-02-02)
+
+- Template binding audit across `src/app` found no remaining legacy form
+  bindings (`formGroup`, `formControlName`, `[formControl]`, `ngModel`).
+- Legacy Angular form status class audit across `src/` found no references to
+  `ng-valid`, `ng-invalid`, `ng-dirty`, `ng-pristine`, `ng-touched`, or
+  `ng-untouched`.
