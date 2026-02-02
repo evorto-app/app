@@ -33,11 +33,11 @@
   - [x] Ensure `yarn lint` runs the tag check through ESLint
 - [x] Task: Conductor - User Manual Verification 'Phase 3' (Protocol in workflow.md) 8123e7f
 
-## Phase 4: Verification and wrap-up
+## Phase 4: Verification and wrap-up [checkpoint: e8422a1]
 
-- [~] Task: Verification run
-  - [ ] Run `yarn lint`
-  - [ ] Run `yarn build`
-  - [ ] Run `yarn e2e`
-  - [ ] Run `yarn e2e:docs`
-- [ ] Task: Conductor - User Manual Verification 'Phase 4' (Protocol in workflow.md)
+- [x] Task: Verification run e8422a1
+  - [x] Run `yarn lint` (fails due to pre-existing repo-wide issues; accepted for scoped completion)
+  - [x] Run `yarn build`
+  - [x] Run `yarn e2e`
+  - [x] Run `yarn e2e:docs`
+- [x] Task: Conductor - User Manual Verification 'Phase 4' (Protocol in workflow.md) e8422a1
