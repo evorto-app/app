@@ -35,7 +35,7 @@
   - [x] Ensure validation messaging still works
 - [x] Task: Remove legacy status class reliance (0fc083e)
   - [x] Update styles and UI logic that depended on ng-\* classes
-- [ ] Task: Conductor - User Manual Verification 'Phase 4' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 4' (Protocol in workflow.md) (1d5cbb7)
 
 ## Phase 5: Documentation & Tests
 
