@@ -1,0 +1,69 @@
+import { DateTime } from 'luxon';
+
+import { userStateFile } from '../../../helpers/user-data';
+import { expect, test } from '../../../e2e/fixtures/parallel-test';
+import { takeScreenshot } from '../../../e2e/reporters/documentation-reporter';
+
+test.use({ storageState: userStateFile });
+
+test('Manage user profile @track(playwright-specs-track-linking_20260126) @doc(USER-PROFILE-DOC-01)', async ({ page }, testInfo) => {
+  await page.goto('.');
+  await testInfo.attach('markdown', {
+    body: `
+# User Profile Management
+
+Your user profile contains your personal information and a quick overview of your recent activity. You can view and edit your profile at any time.
+
+## Accessing Your Profile
+
+To access your profile, click on the **Profile** link in the navigation bar at the bottom of the screen (or on the left side on larger screens).
+`,
+  });
+
+  // Click on the Profile link in the navigation bar
+  await page.getByRole('link', { name: 'Profile' }).click();
+  await takeScreenshot(
+    testInfo,
+    page.locator('.navigation'),
+    page,
+    'Navigation bar with Profile link',
+  );
+  await takeScreenshot(
+    testInfo,
+    page.locator('app-user-profile'),
+    page,
+    'User profile page',
+  );
+
+  await testInfo.attach('markdown', {
+    body: `
+## Profile Information
+
+The profile page displays your personal information, including:
+
+- Name
+- Email address
+
+From here you can open the edit dialog to update your profile details.
+`,
+  });
+
+  // Wait for the page to stabilize
+  await page.waitForTimeout(1000);
+
+  // Take a screenshot of the entire profile component
+  await takeScreenshot(
+    testInfo,
+    page.locator('app-user-profile'),
+    page,
+    'Profile information section',
+  );
+
+  await testInfo.attach('markdown', {
+    body: `
+## Summary
+
+The user profile page provides a central place to view your personal information, event registrations, and account actions. This makes it easy to keep track of your activity and manage your account.
+`,
+  });
+});

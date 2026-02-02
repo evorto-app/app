@@ -57,6 +57,7 @@ export default defineConfig({
     {
       dependencies: ['setup'],
       name: 'local-chrome',
+      testIgnore: /docs\/.*\.doc\.ts$/,
       use: { ...devices['Desktop Chrome'], channel: 'chromium' },
     },
     // {

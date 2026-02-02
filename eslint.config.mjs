@@ -132,7 +132,7 @@ const playwrightTagPlugin = {
 export default defineConfig(
   {
     files: ["**/*.ts"],
-    ignores: ["old/**/*"],
+    ignores: ["old/**/*", "tests/**/*"],
     extends: [baseConfig, ...angular.configs.tsRecommended],
     processor: angular.processInlineTemplates,
     rules: {
@@ -333,12 +333,14 @@ export default defineConfig(
   },
   {
     files: ["tests/**/*.ts"],
+    languageOptions: {
+      parser: tseslint.parser,
+    },
     plugins: {
       "playwright-tags": playwrightTagPlugin,
     },
     rules: {
       "playwright-tags/require-test-tags": "error",
-      "unicorn/prevent-abbreviations": "off",
     },
   },
 );
