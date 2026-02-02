@@ -33,8 +33,8 @@
 - [x] Task: Update templates to Signal Forms bindings (5998b3f)
   - [x] Replace formGroup/formControlName usage
   - [x] Ensure validation messaging still works
-- [ ] Task: Remove legacy status class reliance
-  - [ ] Update styles and UI logic that depended on ng-\* classes
+- [x] Task: Remove legacy status class reliance (0fc083e)
+  - [x] Update styles and UI logic that depended on ng-\* classes
 - [ ] Task: Conductor - User Manual Verification 'Phase 4' (Protocol in workflow.md)
 
 ## Phase 5: Documentation & Tests
