@@ -23,14 +23,14 @@
 
 ## Phase 3: Tag lint/check enforcement
 
-- [ ] Task: Implement tag lint/check for `tests/**`
-  - [ ] Add a script (Node/TS) that scans Playwright tests for required tags
-  - [ ] Ensure it fails when `@track(...)` is missing
-  - [ ] Ensure `@req(...)` is required for non-doc tests
-  - [ ] Ensure `@doc(...)` is required for doc tests under `tests/docs/**`
-- [ ] Task: Wire tag check into lint workflow
-  - [ ] Add a script entry in `package.json`
-  - [ ] Ensure `yarn lint` (or equivalent) runs the tag check
+- [x] Task: Implement tag lint/check for `tests/**` a20341f
+  - [x] Add custom ESLint rule that checks Playwright tests for required tags
+  - [x] Ensure it fails when `@track(...)` is missing
+  - [x] Ensure `@req(...)` is required for non-doc tests
+  - [x] Ensure `@doc(...)` is required for doc tests under `tests/docs/**`
+- [x] Task: Wire tag check into lint workflow a20341f
+  - [x] Ensure lint patterns include `tests/**/*.ts`
+  - [x] Ensure `yarn lint` runs the tag check through ESLint
 - [ ] Task: Conductor - User Manual Verification 'Phase 3' (Protocol in workflow.md)
 
 ## Phase 4: Verification and wrap-up
