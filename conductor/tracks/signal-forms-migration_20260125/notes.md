@@ -49,3 +49,31 @@
   - location selector input no longer clears while typing,
   - Google Maps/Places key wiring works again after runtime env fix,
   - template bindings and styling remain aligned with Signal Forms.
+
+## Phase 5 Progress (2026-02-02)
+
+- Documentation tests updated for migrated signal forms:
+  - profile edit dialog behavior and submit-state messaging,
+  - template form payment field visibility and role autocomplete de-duplication,
+  - role form dependent permission documentation.
+- Added e2e coverage for template role autocomplete:
+  - `template create form hides selected roles in autocomplete`.
+- Targeted verification:
+  - docs tests for updated docs files passed, with a flaky setup retry on one run,
+  - targeted local-chrome e2e for role-autocomplete hiding passed.
+- Full lint remains red due existing unrelated repository baseline issues
+  (many pre-existing server lint violations outside signal-forms scope).
+
+## Knope Setup (2026-02-02)
+
+- Initialized Knope configuration in repository root (`knope.toml`).
+- Enabled bot-managed releases and configured versioned files/changelog.
+- Added initial project changelog file (`CHANGELOG.md`).
+- Added release workflow scaffold (`.github/workflows/release.yml`) that
+  triggers on merged `knope/release` PRs (or manual dispatch).
+
+## Manual Verification (2026-02-02, Phase 5)
+
+- Phase 5 manual verification approved by user confirmation.
+- User requested to treat remaining quality-gate test execution as handled
+  externally for this closeout.
