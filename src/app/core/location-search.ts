@@ -1,8 +1,15 @@
 import { inject, Injectable } from '@angular/core';
-import { Loader } from '@googlemaps/js-api-loader';
+import { importLibrary, setOptions } from '@googlemaps/js-api-loader';
 
 import { GoogleLocationType } from '../../types/location';
 import { ConfigService } from './config.service';
+
+type GoogleMapsLibrary = Awaited<ReturnType<typeof google.maps.importLibrary>>;
+
+const isPlacesLibrary = (
+  library: GoogleMapsLibrary,
+): library is google.maps.PlacesLibrary =>
+  'AutocompleteSuggestion' in library && 'AutocompleteSessionToken' in library;
 
 @Injectable({
   providedIn: 'root',
@@ -11,7 +18,7 @@ export class LocationSearch {
   private _autocompleteService?: typeof google.maps.places.AutocompleteSuggestion;
   private _sessionToken?: google.maps.places.AutocompleteSessionToken;
   private readonly config = inject(ConfigService);
-  private loader?: Loader;
+  private optionsSet = false;
   async getPlaceDetails(
     place: google.maps.places.Place,
   ): Promise<GoogleLocationType> {
@@ -65,17 +72,23 @@ export class LocationSearch {
     service: typeof google.maps.places.AutocompleteSuggestion;
     token: google.maps.places.AutocompleteSessionToken;
   }> {
-    if (!this.loader) {
-      this.loader = new Loader({
-        apiKey: this.config.publicConfig.googleMapsApiKey ?? '',
-        version: 'weekly',
+    if (!this.optionsSet) {
+      setOptions({
+        key: this.config.publicConfig.googleMapsApiKey ?? '',
+        v: 'weekly',
       });
+      this.optionsSet = true;
     }
     if (!this._autocompleteService || !this._sessionToken) {
-      const { AutocompleteSessionToken, AutocompleteSuggestion } =
-        await this.loader.importLibrary('places');
-      this._autocompleteService = AutocompleteSuggestion;
-      this._sessionToken = new AutocompleteSessionToken();
+      const library = await importLibrary('places');
+      if (!isPlacesLibrary(library)) {
+        throw new Error('Google Maps Places library failed to load');
+      }
+      this._autocompleteService = library.AutocompleteSuggestion;
+      this._sessionToken = new library.AutocompleteSessionToken();
+    }
+    if (!this._autocompleteService || !this._sessionToken) {
+      throw new Error('Google Maps autocomplete service not initialized');
     }
     return {
       service: this._autocompleteService,

@@ -1,4 +1,4 @@
-import { disabled, schema } from '@angular/forms/signals';
+import { readonly, schema } from '@angular/forms/signals';
 
 import {
   ALL_PERMISSIONS,
@@ -81,26 +81,24 @@ export const mergeRoleFormOverrides = (
   });
 };
 
-const dependentPermissionParents: Record<Permission, Permission[]> = {};
-for (const permission of ALL_PERMISSIONS) {
-  dependentPermissionParents[permission] = [];
-}
+export const DEPENDENT_PERMISSION_PARENTS = Object.fromEntries(
+  ALL_PERMISSIONS.map((permission) => [permission, [] as Permission[]]),
+) as Record<Permission, Permission[]>;
 
 for (const [permission, dependencies] of Object.entries(
   PERMISSION_DEPENDENCIES,
 ) as [Permission, Permission[]][]) {
   for (const dependent of dependencies) {
-    dependentPermissionParents[dependent].push(permission);
+    DEPENDENT_PERMISSION_PARENTS[dependent].push(permission);
   }
 }
 
 export const roleFormSchema = schema<RoleFormModel>((form) => {
   for (const permission of ALL_PERMISSIONS) {
-    const parents = dependentPermissionParents[permission];
+    const parents = DEPENDENT_PERMISSION_PARENTS[permission];
     if (parents.length === 0) continue;
-    disabled(form.permissions[permission], ({ valueOf }) => {
-      const parent = parents.find((perm) => valueOf(form.permissions[perm]));
-      return parent ? `Automatically granted by ${parent}` : false;
-    });
+    readonly(form.permissions[permission], ({ valueOf }) =>
+      parents.some((perm) => valueOf(form.permissions[perm])),
+    );
   }
 });

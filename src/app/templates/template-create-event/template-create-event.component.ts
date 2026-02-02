@@ -6,7 +6,7 @@ import {
   input,
   signal,
 } from '@angular/core';
-import { form, submit } from '@angular/forms/signals';
+import { FieldTree, form, submit } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import { Router, RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
@@ -64,6 +64,7 @@ export class TemplateCreateEventComponent {
   protected readonly templateQuery = injectQuery(() =>
     this.trpc.templates.findOne.queryOptions({ id: this.templateId() }),
   );
+  private readonly lastStart = signal<DateTime | null>(null);
 
   private readonly queryClient = inject(QueryClient);
   private readonly router = inject(Router);
@@ -79,10 +80,10 @@ export class TemplateCreateEventComponent {
             location: template.location,
             registrationOptions: template.registrationOptions.map((option) =>
               createRegistrationOptionFormModel({
-                closeRegistrationTime: new Date(),
+                closeRegistrationTime: DateTime.now(),
                 description: option.description ?? '',
                 isPaid: option.isPaid,
-                openRegistrationTime: new Date(),
+                openRegistrationTime: DateTime.now(),
                 organizingRegistration: option.organizingRegistration,
                 price: option.price,
                 registeredDescription: option.registeredDescription ?? '',
@@ -100,46 +101,60 @@ export class TemplateCreateEventComponent {
     effect(() => {
       const template = this.templateQuery.data();
       const eventStart = this.createEventForm.start().value();
-      if (template && eventStart) {
-        consola.info(eventStart);
-        consola.info(DateTime.isDateTime(eventStart));
-        const startDateTime = DateTime.fromJSDate(eventStart);
-        const updatedOptions = template.registrationOptions.map(
-          (option, index) => {
-            const openRegistrationTime = startDateTime
-              .minus({ hours: option.openRegistrationOffset })
-              .toJSDate();
-            const closeRegistrationTime = startDateTime
-              .minus({ hours: option.closeRegistrationOffset })
-              .toJSDate();
-            const currentOption =
-              this.createEventModel().registrationOptions[index] ??
-              createRegistrationOptionFormModel({
-                description: option.description ?? '',
-                isPaid: option.isPaid,
-                organizingRegistration: option.organizingRegistration,
-                price: option.price,
-                registeredDescription: option.registeredDescription ?? '',
-                registrationMode: option.registrationMode,
-                spots: option.spots,
-                stripeTaxRateId: option.stripeTaxRateId ?? null,
-                title: option.title,
-              });
+      const registrationOptions = this.createEventModel().registrationOptions;
+      if (!template || !eventStart || registrationOptions.length === 0) return;
+      consola.info(eventStart);
+      consola.info(DateTime.isDateTime(eventStart));
+      const startDateTime = this.toDateTime(eventStart);
+      const previousStart = this.lastStart();
+      this.lastStart.set(startDateTime);
 
-            return {
-              ...currentOption,
-              closeRegistrationTime,
-              openRegistrationTime,
-            };
-          },
-        );
-
-        this.createEventModel.update((current) => ({
-          ...current,
-          registrationOptions: updatedOptions,
-        }));
+      const endField = this.createEventForm.end;
+      const endState = endField();
+      if (
+        previousStart &&
+        !endState.dirty() &&
+        !endState.touched()
+      ) {
+        const currentEnd = this.toDateTime(endState.value());
+        const durationMs = currentEnd.toMillis() - previousStart.toMillis();
+        const nextEnd = startDateTime.plus({ milliseconds: durationMs });
+        this.updateIfPristine(endField, nextEnd);
       }
+
+      template.registrationOptions.forEach((option, index) => {
+        const optionForm = this.createEventForm.registrationOptions[index];
+        if (!optionForm) return;
+        const openRegistrationTime = startDateTime
+          .minus({ hours: option.openRegistrationOffset });
+        const closeRegistrationTime = startDateTime
+          .minus({ hours: option.closeRegistrationOffset });
+
+        this.updateIfPristine(
+          optionForm.openRegistrationTime,
+          openRegistrationTime,
+        );
+        this.updateIfPristine(
+          optionForm.closeRegistrationTime,
+          closeRegistrationTime,
+        );
+      });
     });
+  }
+
+  private toDateTime(value: Date | DateTime): DateTime {
+    return DateTime.isDateTime(value) ? value : DateTime.fromJSDate(value);
+  }
+
+  private updateIfPristine(
+    field: FieldTree<DateTime>,
+    nextValue: DateTime,
+  ): void {
+    const state = field();
+    if (state.dirty() || state.touched()) return;
+    const currentValue = state.value();
+    if (currentValue.toMillis() === nextValue.toMillis()) return;
+    state.reset(nextValue);
   }
 
   async onSubmit(event: Event) {
@@ -153,6 +168,17 @@ export class TemplateCreateEventComponent {
         {
           ...formValue,
           icon: formValue.icon,
+          end: this.toDateTime(formValue.end).toJSDate(),
+          registrationOptions: formValue.registrationOptions.map((option) => ({
+            ...option,
+            closeRegistrationTime: this.toDateTime(
+              option.closeRegistrationTime,
+            ).toJSDate(),
+            openRegistrationTime: this.toDateTime(
+              option.openRegistrationTime,
+            ).toJSDate(),
+          })),
+          start: this.toDateTime(formValue.start).toJSDate(),
           templateId: this.templateId(),
         },
         {

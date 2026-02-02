@@ -23,23 +23,25 @@ const auth0 = new ManagementClient({
 interface BaseFixtures {
   database: NeonDatabase<Record<string, never>, typeof relations>;
   falsoSeed: string;
-  seedDate: Date;
   newUser: {
     email: string;
     firstName: string;
     lastName: string;
     password: string;
   };
+  seedDate: Date;
   tenantDomain?: string;
 }
 
 export const test = base.extend<BaseFixtures>({
-  seedDate: [
-    async ({}, use) => {
-      await use(getSeedDate());
-    },
-    { auto: true },
-  ],
+  database: async ({}, use) => {
+    const database = drizzle({
+      connection: process.env['DATABASE_URL']!,
+      relations,
+      ws: ws,
+    });
+    await use(database);
+  },
   falsoSeed: [
     async ({ seedDate }, use, testInfo) => {
       const scope = [
@@ -53,31 +55,12 @@ export const test = base.extend<BaseFixtures>({
     },
     { auto: true },
   ],
-  tenantDomain: async ({}, use) => {
-    try {
-      const runtimePath = path.resolve('.e2e-runtime.json');
-      if (fs.existsSync(runtimePath)) {
-        const raw = fs.readFileSync(runtimePath, 'utf-8');
-        const data = JSON.parse(raw) as { tenantDomain?: string };
-        await use(data.tenantDomain);
-        return;
-      }
-    } catch {}
-    await use(process.env['TENANT_DOMAIN']);
-  },
-  database: async ({}, use) => {
-    const database = drizzle({
-      connection: process.env['DATABASE_URL']!,
-      relations,
-      ws: ws,
-    });
-    await use(database);
-  },
   newUser: async ({}, use) => {
     const email = `test-${createDedupeId()}@evorto.app`;
     const password = `notsecure-${createDedupeId()}1!`;
     const firstName = randFirstName();
     const lastName = randLastName();
+
     const user = await auth0.users.create({
       connection: 'Username-Password-Authentication',
       email,
@@ -89,8 +72,13 @@ export const test = base.extend<BaseFixtures>({
         localTest: true,
       },
     });
+
     await use({ email, firstName, lastName, password });
-    await auth0.users.delete({ id: user.data.user_id });
+
+    // v5: non-paginated responses return data directly; delete accepts the user id string
+    if (user.user_id) {
+      await auth0.users.delete(user.user_id);
+    }
   },
   page: async ({ page, tenantDomain }, use) => {
     if (tenantDomain) {
@@ -118,5 +106,23 @@ export const test = base.extend<BaseFixtures>({
       }
     });
     await use(page);
+  },
+  seedDate: [
+    async ({}, use) => {
+      await use(getSeedDate());
+    },
+    { auto: true },
+  ],
+  tenantDomain: async ({}, use) => {
+    try {
+      const runtimePath = path.resolve('.e2e-runtime.json');
+      if (fs.existsSync(runtimePath)) {
+        const raw = fs.readFileSync(runtimePath, 'utf8');
+        const data = JSON.parse(raw) as { tenantDomain?: string };
+        await use(data.tenantDomain);
+        return;
+      }
+    } catch {}
+    await use(process.env['TENANT_DOMAIN']);
   },
 });

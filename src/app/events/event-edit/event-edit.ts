@@ -21,6 +21,7 @@ import {
   QueryClient,
 } from '@tanstack/angular-query-experimental';
 import consola from 'consola/browser';
+import { DateTime } from 'luxon';
 
 import { injectTRPC } from '../../core/trpc-client';
 import { EventGeneralForm } from '../../shared/components/forms/event-general-form/event-general-form';
@@ -92,19 +93,21 @@ export class EventEdit {
         this.editEventModel.set(
           createEventGeneralFormModel({
             description: event.description,
-            end: event.end ? new Date(event.end) : new Date(),
+            end: event.end
+              ? DateTime.fromJSDate(new Date(event.end))
+              : DateTime.now(),
             icon: event.icon,
             location: event.location || null,
             registrationOptions: event.registrationOptions.map((option) =>
               createRegistrationOptionFormModel({
                 closeRegistrationTime: option.closeRegistrationTime
-                  ? new Date(option.closeRegistrationTime)
-                  : new Date(),
+                  ? DateTime.fromJSDate(new Date(option.closeRegistrationTime))
+                  : DateTime.now(),
                 description: option.description ?? '',
                 isPaid: option.isPaid,
                 openRegistrationTime: option.openRegistrationTime
-                  ? new Date(option.openRegistrationTime)
-                  : new Date(),
+                  ? DateTime.fromJSDate(new Date(option.openRegistrationTime))
+                  : DateTime.now(),
                 organizingRegistration: option.organizingRegistration,
                 price: option.price,
                 registeredDescription: option.registeredDescription ?? '',
@@ -114,7 +117,9 @@ export class EventEdit {
                 title: option.title,
               }),
             ),
-            start: event.start ? new Date(event.start) : new Date(),
+            start: event.start
+              ? DateTime.fromJSDate(new Date(event.start))
+              : DateTime.now(),
             title: event.title,
           }),
         );
@@ -138,11 +143,11 @@ export class EventEdit {
 
       this.updateEventMutation.mutate({
         description: formValue.description,
-        end: formValue.end,
+        end: formValue.end.toJSDate(),
         eventId: this.eventId(),
         icon: formValue.icon,
         location: formValue.location,
-        start: formValue.start,
+        start: formValue.start.toJSDate(),
         title: formValue.title,
       });
     });

@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  effect,
   input,
   output,
 } from '@angular/core';
@@ -18,7 +19,11 @@ import {
   PERMISSION_DEPENDENCIES,
   PERMISSION_GROUPS,
 } from '../../../../shared/permissions/permissions';
-import { RoleFormData, RoleFormModel } from './role-form.schema';
+import {
+  DEPENDENT_PERMISSION_PARENTS,
+  RoleFormData,
+  RoleFormModel,
+} from './role-form.schema';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -59,6 +64,18 @@ export class RoleFormComponent {
     });
   });
 
+  private readonly syncDependentPermissions = effect(() => {
+    const form = this.roleForm();
+    for (const permission of ALL_PERMISSIONS) {
+      const parents = DEPENDENT_PERMISSION_PARENTS[permission];
+      if (parents.length === 0) continue;
+      const hasParent = parents.some((perm) => form.permissions[perm]().value());
+      const field = form.permissions[permission]();
+      if (!hasParent || field.value()) continue;
+      field.reset(true);
+    }
+  });
+
   async onSubmit(event: Event): Promise<void> {
     event.preventDefault();
     await submit(this.roleForm(), async (formState) => {
@@ -91,6 +108,15 @@ export class RoleFormComponent {
 
   protected getPermissionTooltip(permission: Permission): string {
     const form = this.roleForm();
-    return form.permissions[permission]().disabledReasons()[0]?.message ?? '';
+    const parents = DEPENDENT_PERMISSION_PARENTS[permission];
+    if (parents.length === 0) return '';
+    const activeParents = parents.filter((perm) =>
+      form.permissions[perm]().value(),
+    );
+    if (activeParents.length === 0) return '';
+    if (activeParents.length === 1) {
+      return `Automatically granted by ${activeParents[0]}`;
+    }
+    return `Automatically granted by ${activeParents.join(', ')}`;
   }
 }
