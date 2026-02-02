@@ -35,7 +35,7 @@
 
 ## Phase 4: Verification and wrap-up
 
-- [ ] Task: Verification run
+- [~] Task: Verification run
   - [ ] Run `yarn lint`
   - [ ] Run `yarn build`
   - [ ] Run `yarn e2e`
