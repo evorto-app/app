@@ -15,3 +15,10 @@
 ## Manual Verification (2026-01-31)
 
 - Phase 1 manual verification completed by user confirmation.
+
+## Manual Verification (2026-02-02)
+
+- Phase 2 manual verification completed and approved by user confirmation.
+- Verified areas: role dependency behavior (readonly + auto-check), role selector
+  filtering for already selected roles, and create-event time synchronization for
+  end/open/close fields when untouched.
