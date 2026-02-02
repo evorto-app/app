@@ -39,3 +39,5 @@
 - Legacy Angular form status class audit across `src/` found no references to
   `ng-valid`, `ng-invalid`, `ng-dirty`, `ng-pristine`, `ng-touched`, or
   `ng-untouched`.
+- Result: no style or template rewrites were required for legacy status classes
+  because the migration already removed those dependencies.
