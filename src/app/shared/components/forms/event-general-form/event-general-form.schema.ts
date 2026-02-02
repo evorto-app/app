@@ -19,16 +19,19 @@ export interface EventGeneralFormModel {
 
 export const createEventGeneralFormModel = (
   overrides: Partial<EventGeneralFormModel> = {},
-): EventGeneralFormModel => ({
-  description: '',
-  end: DateTime.now(),
-  icon: null,
-  location: null,
-  registrationOptions: [],
-  start: DateTime.now(),
-  title: '',
-  ...overrides,
-});
+): EventGeneralFormModel => {
+  const defaultStart = DateTime.now().plus({ weeks: 1 });
+  return {
+    description: '',
+    end: defaultStart,
+    icon: null,
+    location: null,
+    registrationOptions: [],
+    start: defaultStart,
+    title: '',
+    ...overrides,
+  };
+};
 
 export const eventGeneralFormSchema = schema<EventGeneralFormModel>((form) => {
   applyEach(form.registrationOptions, registrationOptionFormSchema);
