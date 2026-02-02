@@ -73,6 +73,7 @@ export class TemplateCreateEventComponent {
     effect(() => {
       const template = this.templateQuery.data();
       if (template) {
+        const currentStart = this.createEventModel().start;
         this.createEventModel.set(
           createEventGeneralFormModel({
             description: template.description,
@@ -80,14 +81,19 @@ export class TemplateCreateEventComponent {
             location: template.location,
             registrationOptions: template.registrationOptions.map((option) =>
               createRegistrationOptionFormModel({
-                closeRegistrationTime: DateTime.now(),
+                closeRegistrationTime: currentStart.minus({
+                  hours: option.closeRegistrationOffset,
+                }),
                 description: option.description ?? '',
                 isPaid: option.isPaid,
-                openRegistrationTime: DateTime.now(),
+                openRegistrationTime: currentStart.minus({
+                  hours: option.openRegistrationOffset,
+                }),
                 organizingRegistration: option.organizingRegistration,
                 price: option.price,
                 registeredDescription: option.registeredDescription ?? '',
                 registrationMode: option.registrationMode,
+                roleIds: option.roleIds ?? [],
                 spots: option.spots,
                 stripeTaxRateId: option.stripeTaxRateId ?? null,
                 title: option.title,

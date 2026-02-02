@@ -112,6 +112,7 @@ export class EventEdit {
                 price: option.price,
                 registeredDescription: option.registeredDescription ?? '',
                 registrationMode: option.registrationMode,
+                roleIds: option.roleIds ?? [],
                 spots: option.spots,
                 stripeTaxRateId: option.stripeTaxRateId ?? null,
                 title: option.title,

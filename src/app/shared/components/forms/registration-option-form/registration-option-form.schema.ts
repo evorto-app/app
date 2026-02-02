@@ -10,6 +10,7 @@ export interface RegistrationOptionFormModel {
   price: number;
   registeredDescription: string;
   registrationMode: 'application' | 'fcfs' | 'random';
+  roleIds: string[];
   spots: number;
   stripeTaxRateId: null | string;
   title: string;
@@ -26,6 +27,7 @@ export const createRegistrationOptionFormModel = (
   price: 0,
   registeredDescription: '',
   registrationMode: 'fcfs',
+  roleIds: [],
   spots: 1,
   stripeTaxRateId: null,
   title: '',

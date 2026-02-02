@@ -11,6 +11,7 @@ import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import { injectTRPC } from '../../../../core/trpc-client';
 import { EditorComponent } from '../../controls/editor/editor.component';
+import { RoleSelectComponent } from '../../controls/role-select/role-select.component';
 import { RegistrationOptionFormModel } from './registration-option-form.schema';
 
 @Component({
@@ -26,6 +27,7 @@ import { RegistrationOptionFormModel } from './registration-option-form.schema';
     MatFormFieldModule,
     MatInputModule,
     TitleCasePipe,
+    RoleSelectComponent,
   ],
   selector: 'app-registration-option-form',
   styles: ``,

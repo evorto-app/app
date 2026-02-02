@@ -17,6 +17,10 @@
         <mat-label>Spots</mat-label>
         <input matInput type="number" [formField]="form.spots" />
       </mat-form-field>
+
+      <div class="col-span-2">
+        <app-role-select [formField]="form.roleIds"></app-role-select>
+      </div>
     </div>
 
     <h4 class="title-medium">Registration Period</h4>
