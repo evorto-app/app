@@ -73,6 +73,10 @@
 - PRs: include purpose, scope, linked issues, and screenshots/GIFs for UI changes. Note any schema or migration impacts.
 - CI passes required: build, lint, unit, and e2e (where applicable).
 
+## Git Workflow
+
+- We use Git Town to manage the repository workflow. Prefer `git town` commands for branching, syncing, and shipping.
+
 ## Security & Configuration
 
 - Copy environment from `.env`/`.env.local`; never commit secrets. Stripe/Sentry helpers exist (`stripe:listen`, `sentry:sourcemaps`).
