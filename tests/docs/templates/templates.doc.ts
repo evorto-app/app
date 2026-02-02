@@ -1,17 +1,10 @@
-import { DateTime } from 'luxon';
-
-import {
-  adminStateFile,
-  defaultStateFile,
-  userStateFile,
-} from '../../../helpers/user-data';
-import { fillTestCard } from '../../fill-test-card';
+import { adminStateFile } from '../../../helpers/user-data';
 import { expect, test } from '../../fixtures/parallel-test';
 import { takeScreenshot } from '../../reporters/documentation-reporter';
 
 test.use({ storageState: adminStateFile });
 
-test('Manage templates @track(playwright-specs-track-linking_20260126) @doc(TEMPLATES-DOC-01)', async ({ events, page }, testInfo) => {
+test('Manage templates @track(playwright-specs-track-linking_20260126) @doc(TEMPLATES-DOC-01)', async ({ page }, testInfo) => {
   await page.goto('.');
   await testInfo.attach('markdown', {
     body: `
@@ -68,6 +61,7 @@ The registration consists of the following settings:
   - Application: Users can sign up for the event, but they will not be automatically registered. The event owner has to approve the registration.
 - **Registration start**: The offset in hours for when the registration should start. For example 168 hours means that the registration will start 7 days before the event starts.
 - **Registration end**: The offset in hours for when the registration should end. For example 24 hours means that the registration will end 1 day before the event starts.
+- **Role picker behavior**: Roles that are already selected are hidden from autocomplete suggestions to prevent duplicates.
 `,
   });
   await takeScreenshot(
@@ -77,6 +71,55 @@ The registration consists of the following settings:
       .locator('div', { hasText: 'Simple Registration Setup' }),
     page,
   );
+
+  await testInfo.attach('markdown', {
+    body: `
+In the migrated form, payment-specific fields are conditionally shown.
+When **Enable Payment** is on, the price and tax-rate fields appear for that registration block.
+`,
+  });
+  await page.getByRole('switch', { name: 'Enable Payment' }).first().click();
+  await expect(page.getByLabel('Price (in cents)').first()).toBeVisible();
+  await takeScreenshot(
+    testInfo,
+    page
+      .locator('app-template-create form')
+      .locator('div', { hasText: 'Organizer Registration' }),
+    page,
+    'Organizer payment fields visible',
+  );
+
+  await testInfo.attach('markdown', {
+    body: `
+Role selection also avoids duplicate entries by hiding already selected roles from the autocomplete list.
+`,
+  });
+  const organizerRoleInput = page.getByPlaceholder('Add Role...').first();
+  await organizerRoleInput.click();
+  const roleOptions = page.locator('mat-option');
+  if ((await roleOptions.count()) > 0) {
+    const firstRoleOption = roleOptions.first();
+    const firstRoleText = await firstRoleOption.textContent();
+    const selectedRoleName = firstRoleText?.trim();
+    await firstRoleOption.click();
+    await organizerRoleInput.click();
+    if (selectedRoleName) {
+      await expect(
+        page.getByRole('option', {
+          exact: true,
+          name: selectedRoleName,
+        }),
+      ).toHaveCount(0);
+    }
+    await takeScreenshot(
+      testInfo,
+      page
+        .locator('app-template-create form')
+        .locator('div', { hasText: 'Organizer Registration' }),
+      page,
+      'Role autocomplete hides selected entries',
+    );
+  }
   await testInfo.attach('markdown', {
     body: `
 Once you are happy with your template, click _Save template_ to save your changes.
