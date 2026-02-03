@@ -39,8 +39,8 @@
 
 ## Phase 5: Documentation & Tests
 
-- [ ] Task: Update doc tests and screenshots for migrated forms
-- [ ] Task: Update Playwright e2e coverage for key form flows
-- [ ] Task: Run full quality gates (lint/build/e2e/docs) and capture outputs
-- [ ] Task: Update Knope change notes for the phase
-- [ ] Task: Conductor - User Manual Verification 'Phase 5' (Protocol in workflow.md)
+- [x] Task: Update doc tests and screenshots for migrated forms (f0f5190)
+- [x] Task: Update Playwright e2e coverage for key form flows (f0f5190)
+- [x] Task: Run full quality gates (lint/build/e2e/docs) and capture outputs (920a783)
+- [x] Task: Update Knope change notes for the phase (64ea6a8)
+- [x] Task: Conductor - User Manual Verification 'Phase 5' (Protocol in workflow.md) (920a783)

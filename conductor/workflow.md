@@ -37,21 +37,25 @@ All tasks follow a strict lifecycle:
    - Add a dated note explaining the change
    - Resume implementation
 
-7. **Commit Code Changes:**
+7. **Add Knope Change File:**
+   - For every user-facing or release-relevant change, add a change file in `.changeset/*.md`.
+   - Change files are required; do not use conventional commits/PR titles as a substitute for release documentation.
+
+8. **Commit Code Changes:**
    - Stage all code changes related to the task.
    - Propose a clear, concise commit message e.g., `feat(ui): Create basic HTML structure for calculator`.
    - Perform the commit.
 
-8. **Attach Task Summary with Git Notes:**
-   - **Step 8.1: Get Commit Hash:** Obtain the hash of the _just-completed commit_ (`git log -1 --format="%H"`).
-   - **Step 8.2: Draft Note Content:** Create a detailed summary for the completed task. Include the task name, summary of changes, list of created/modified files, and the core "why".
-   - **Step 8.3: Attach Note:** Use `git notes add -m "<note content>" <commit_hash>`.
+9. **Attach Task Summary with Git Notes:**
+   - **Step 9.1: Get Commit Hash:** Obtain the hash of the _just-completed commit_ (`git log -1 --format="%H"`).
+   - **Step 9.2: Draft Note Content:** Create a detailed summary for the completed task. Include the task name, summary of changes, list of created/modified files, and the core "why".
+   - **Step 9.3: Attach Note:** Use `git notes add -m "<note content>" <commit_hash>`.
 
-9. **Get and Record Task Commit SHA:**
-   - **Step 9.1: Update Plan:** Read `plan.md`, find the line for the completed task, update its status from `[~]` to `[x]`, and append the first 7 characters of the _just-completed commit's_ hash.
-   - **Step 9.2: Write Plan:** Write the updated content back to `plan.md`.
+10. **Get and Record Task Commit SHA:**
+   - **Step 10.1: Update Plan:** Read `plan.md`, find the line for the completed task, update its status from `[~]` to `[x]`, and append the first 7 characters of the _just-completed commit's_ hash.
+   - **Step 10.2: Write Plan:** Write the updated content back to `plan.md`.
 
-10. **Commit Plan Update:**
+11. **Commit Plan Update:**
     - Stage the modified `plan.md`.
     - Commit with a descriptive message (e.g., `conductor(plan): Mark task 'Create user model' as complete`).
 
