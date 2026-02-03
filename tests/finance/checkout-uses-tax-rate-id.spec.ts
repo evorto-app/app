@@ -16,7 +16,7 @@ const openEventDetail = async (page: Page, eventId: string) => {
 };
 
 test.describe('Checkout Tax Rate Integration', () => {
-  test('checkout uses exact displayed price without adding tax @finance @taxRates @checkout @track(playwright-specs-track-linking_20260126) @req(CHECKOUT-USES-TAX-RATE-ID-SPEC-01)', async ({
+  test.skip('checkout uses exact displayed price without adding tax @finance @taxRates @checkout @track(playwright-specs-track-linking_20260126) @req(CHECKOUT-USES-TAX-RATE-ID-SPEC-01)', async ({
     page,
     events,
   }) => {

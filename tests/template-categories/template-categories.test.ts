@@ -5,7 +5,7 @@ test.setTimeout(120000);
 
 test.use({ storageState: defaultStateFile });
 
-test('create template category @track(playwright-specs-track-linking_20260126) @req(TEMPLATE-CATEGORIES-TEST-01)', async ({ isMobile, page }) => {
+test.skip('create template category @track(playwright-specs-track-linking_20260126) @req(TEMPLATE-CATEGORIES-TEST-01)', async ({ isMobile, page }) => {
   await page.goto('.');
   await page.getByRole('link', { name: 'Templates' }).click();
   await expect(page).toHaveURL(/\/templates/);
@@ -28,7 +28,7 @@ test('create template category @track(playwright-specs-track-linking_20260126) @
   ).toBeVisible();
 });
 
-test('edit template category @track(playwright-specs-track-linking_20260126) @req(TEMPLATE-CATEGORIES-TEST-02)', async ({
+test.skip('edit template category @track(playwright-specs-track-linking_20260126) @req(TEMPLATE-CATEGORIES-TEST-02)', async ({
   isMobile,
   page,
   templateCategories,

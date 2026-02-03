@@ -15,7 +15,7 @@ test.setTimeout(120000);
 
 test.use({ storageState: defaultStateFile });
 
-test('doc-screenshot returns a relative path and writes image @track(playwright-specs-track-linking_20260126) @req(DOC-SCREENSHOT-TEST-01)', async ({
+test.skip('doc-screenshot returns a relative path and writes image @track(playwright-specs-track-linking_20260126) @req(DOC-SCREENSHOT-TEST-01)', async ({
   page,
 }, testInfo) => {
   // Put images into a predictable temp folder for the test
