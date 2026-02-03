@@ -1,0 +1,79 @@
+# Notes: Signal Forms Migration (Track Support)
+
+## Test Architecture Observations (2026-01-30)
+
+- `e2e/setup/database.setup.ts` resets the DB once per Playwright run and seeds a baseline tenant (`localhost`) plus base users, then writes `.e2e-runtime.json` for cookie-based tenant selection.
+- `e2e/fixtures/parallel-test.ts` seeds a dedicated tenant per test using `seedTenant` with `domain: e2e-${runId}` where `runId` is derived from a deterministic per-test `falsoSeed` value.
+- When Playwright retries a failing test (`CI=true` enables retries), the deterministic domain is re-used, causing `tenants_domain_unique` violations in `helpers/create-tenant.ts`.
+- This shows up as doc test failures (duplicate domain) even after a clean DB reset.
+
+## Retry Isolation Follow-up (2026-01-30)
+
+- `e2e/fixtures/base-test.ts` now includes `testInfo.retry` in the `falsoSeed` scope so random IDs differ per retry, avoiding `tenants_pkey` collisions.
+- `e2e/fixtures/parallel-test.ts` derives the runId with a retry suffix to keep tenant domains unique across retries.
+
+## Manual Verification (2026-01-31)
+
+- Phase 1 manual verification completed by user confirmation.
+
+## Manual Verification (2026-02-02)
+
+- Phase 2 manual verification completed and approved by user confirmation.
+- Verified areas: role dependency behavior (readonly + auto-check), role selector
+  filtering for already selected roles, and create-event time synchronization for
+  end/open/close fields when untouched.
+
+## Manual Verification (2026-02-02, Phase 3)
+
+- Phase 3 manual verification completed and approved by user confirmation.
+- Verified and fixed during manual pass:
+  - role autocomplete excludes selected role ids,
+  - create-event registration option role selection restored,
+  - create-event default start set to one week ahead,
+  - initialization loop in create-event form resolved.
+
+## Phase 4 Audit (2026-02-02)
+
+- Template binding audit across `src/app` found no remaining legacy form
+  bindings (`formGroup`, `formControlName`, `[formControl]`, `ngModel`).
+- Legacy Angular form status class audit across `src/` found no references to
+  `ng-valid`, `ng-invalid`, `ng-dirty`, `ng-pristine`, `ng-touched`, or
+  `ng-untouched`.
+- Result: no style or template rewrites were required for legacy status classes
+  because the migration already removed those dependencies.
+
+## Manual Verification (2026-02-02, Phase 4)
+
+- Phase 4 manual verification completed and approved by user confirmation.
+- Verified areas:
+  - location selector input no longer clears while typing,
+  - Google Maps/Places key wiring works again after runtime env fix,
+  - template bindings and styling remain aligned with Signal Forms.
+
+## Phase 5 Progress (2026-02-02)
+
+- Documentation tests updated for migrated signal forms:
+  - profile edit dialog behavior and submit-state messaging,
+  - template form payment field visibility and role autocomplete de-duplication,
+  - role form dependent permission documentation.
+- Added e2e coverage for template role autocomplete:
+  - `template create form hides selected roles in autocomplete`.
+- Targeted verification:
+  - docs tests for updated docs files passed, with a flaky setup retry on one run,
+  - targeted local-chrome e2e for role-autocomplete hiding passed.
+- Full lint remains red due existing unrelated repository baseline issues
+  (many pre-existing server lint violations outside signal-forms scope).
+
+## Knope Setup (2026-02-02)
+
+- Initialized Knope configuration in repository root (`knope.toml`).
+- Enabled bot-managed releases and configured versioned files/changelog.
+- Added initial project changelog file (`CHANGELOG.md`).
+- Added release workflow scaffold (`.github/workflows/release.yml`) that
+  triggers on merged `knope/release` PRs (or manual dispatch).
+
+## Manual Verification (2026-02-02, Phase 5)
+
+- Phase 5 manual verification approved by user confirmation.
+- User requested to treat remaining quality-gate test execution as handled
+  externally for this closeout.
