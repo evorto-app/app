@@ -71,6 +71,8 @@
 
 - Messages: imperative mood, concise summary; reference tickets (e.g., `Sa-186: implement google places`).
 - PRs: include purpose, scope, linked issues, and screenshots/GIFs for UI changes. Note any schema or migration impacts.
+- For release documentation, always add a Knope change file in `.changeset/*.md`.
+- Do not rely on PR titles or conventional commit prefixes as the only release documentation.
 - CI passes required: build, lint, unit, and e2e (where applicable).
 
 ## Git Workflow
