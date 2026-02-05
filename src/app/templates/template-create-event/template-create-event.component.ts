@@ -175,9 +175,21 @@ export class TemplateCreateEventComponent {
             closeRegistrationTime: this.toDateTime(
               option.closeRegistrationTime,
             ).toJSDate(),
+            description: option.description?.trim()
+              ? option.description
+              : // eslint-disable-next-line unicorn/no-null
+                null,
             openRegistrationTime: this.toDateTime(
               option.openRegistrationTime,
             ).toJSDate(),
+            registeredDescription: option.registeredDescription?.trim()
+              ? option.registeredDescription
+              : // eslint-disable-next-line unicorn/no-null
+                null,
+            stripeTaxRateId: option.stripeTaxRateId?.trim()
+              ? option.stripeTaxRateId
+              : // eslint-disable-next-line unicorn/no-null
+                null,
           })),
           start: this.toDateTime(formValue.start).toJSDate(),
           templateId: this.templateId(),

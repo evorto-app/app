@@ -41,10 +41,6 @@ test('create template in empty category @track(playwright-specs-track-linking_20
 });
 
 test('create a new template @track(playwright-specs-track-linking_20260126) @req(TEMPLATES-TEST-02)', async ({ page, templateCategories }) => {
-  test.fixme(
-    true,
-    'TinyMCE editor iframe does not load in e2e; template creation blocked.',
-  );
   const category = templateCategories[0];
   const templateTitle = 'Historical tour';
   await page.goto('.');

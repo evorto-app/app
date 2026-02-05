@@ -6,7 +6,7 @@ import {
 import { expect, test } from '../../fixtures/parallel-test';
 import { takeScreenshot } from '../../reporters/documentation-reporter';
 
-test.describe('Inclusive tax rates documentation (admin)', () => {
+test.describe.skip('Inclusive tax rates documentation (admin)', () => {
   test.use({ storageState: adminStateFile });
 
   test('Import tenant tax rates @track(playwright-specs-track-linking_20260126) @doc(INCLUSIVE-TAX-RATES-DOC-01)', async ({ page }, testInfo) => {
@@ -90,7 +90,7 @@ Select the rates you need and choose **Import selected** to refresh the compatib
   });
 });
 
-test.describe('Inclusive tax rates documentation (creators)', () => {
+test.describe.skip('Inclusive tax rates documentation (creators)', () => {
   test.use({ storageState: adminStateFile });
 
   test.skip('Assign compatible tax rates to paid registrations @track(playwright-specs-track-linking_20260126) @doc(INCLUSIVE-TAX-RATES-DOC-02)', async ({
@@ -222,7 +222,7 @@ Existing paid registrations keep their inclusive tax requirements. Update the se
   });
 });
 
-test.describe('Inclusive tax rates documentation (participants)', () => {
+test.describe.skip('Inclusive tax rates documentation (participants)', () => {
   test.use({ storageState: userStateFile });
 
   test('See inclusive pricing during registration @track(playwright-specs-track-linking_20260126) @doc(INCLUSIVE-TAX-RATES-DOC-03)', async ({

@@ -25,33 +25,21 @@ export const fillTemplateBasics = async (
   await expect(
     page.getByRole('heading', { name: 'Select an Icon' }),
   ).toBeVisible();
-  await page.locator('[mat-dialog-close]').first().click();
+  await page.locator('app-icon-selector-dialog').getByText('Alps').click();
 
-  const descriptionSet = await page.evaluate((value) => {
-    const appEditor = document.querySelector('app-template-form');
-    const ng = (
-      window as typeof window & { ng?: { getComponent?: (el: Element) => any } }
-    ).ng;
-    if (!ng?.getComponent || !appEditor) return false;
-    const component = ng.getComponent(appEditor);
-    const control = component?.templateForm?.controls?.description;
-    if (!control?.setValue) return false;
-    control.setValue(value);
-    return true;
+  const placeholder = page.getByRole('button', {
+    name: 'Click to edit content',
+  });
+  await placeholder.first().click();
+
+  await page.waitForFunction(
+    () => (window as typeof window & { tinymce?: any }).tinymce?.activeEditor,
+    { timeout: 1000 },
+  );
+
+  await page.evaluate((value) => {
+    const tinymce = (window as typeof window & { tinymce?: any }).tinymce;
+    tinymce.activeEditor.setContent(value);
+    // tinymce.activeEditor.fire('change');
   }, description);
-
-  if (!descriptionSet) {
-    const placeholder = page.getByRole('button', {
-      name: 'Click to edit content',
-    });
-    if (await placeholder.count()) {
-      await placeholder.first().click();
-    }
-
-    const editorBody = page
-      .frameLocator('iframe[title="Rich Text Area"]')
-      .locator('body');
-    await editorBody.waitFor({ timeout: 5000 });
-    await editorBody.fill(description);
-  }
 };

@@ -107,3 +107,9 @@
 - Every feature must include `.doc.ts` documentation tests that generate the relevant user-facing documentation updates.
 - Run `yarn e2e:docs` (or targeted doc test commands) during implementation to refresh the generated docs.
 - Capture a preview of the generated documentation (screenshot or rendered markdown snippet) and attach it to the feature PR so reviewers can validate content.
+
+## Playwright Learnings
+
+- Playwright runs against a Docker web server (`yarn docker:start-test`) with `reuseExistingServer: true`. If UI changes are not picked up in tests, restart containers (`yarn docker:stop`) before rerunning `yarn e2e` to rebuild and reload the app.
+- `events.create` rejects empty strings for optional fields. Normalize empty string optional fields (like descriptions or tax rate ids) to `null` before submitting.
+- Test seeding logs are noisy; `tests/setup/database.setup.ts` sets `consola.level = 4` to keep Playwright output quiet. Local dev seeding stays verbose.

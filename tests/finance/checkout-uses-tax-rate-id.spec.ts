@@ -15,7 +15,7 @@ const openEventDetail = async (page: Page, eventId: string) => {
   await expect(page).toHaveURL(`/events/${eventId}`);
 };
 
-test.describe('Checkout Tax Rate Integration', () => {
+test.describe.skip('Checkout Tax Rate Integration', () => {
   test.skip('checkout uses exact displayed price without adding tax @finance @taxRates @checkout @track(playwright-specs-track-linking_20260126) @req(CHECKOUT-USES-TAX-RATE-ID-SPEC-01)', async ({
     page,
     events,

@@ -49,17 +49,10 @@ const fallbackIcon: IconValue = { iconColor: 0, iconName: 'city' };
   templateUrl: './create-edit-category-dialog.component.html',
 })
 export class CreateEditCategoryDialogComponent {
-  protected readonly categoryModel = signal({
-    icon: fallbackIcon,
-    title: '',
-  });
-  protected readonly categoryForm = form(this.categoryModel, (schemaPath) => {
-    required(schemaPath.title);
-    if (this.data.mode === 'edit') {
-      disabled(schemaPath.icon, 'Icon is locked for edits');
-    }
-  });
-  protected readonly data = inject(MAT_DIALOG_DATA) as
+  protected readonly data = (inject(MAT_DIALOG_DATA, { optional: true }) ??
+    ({
+      mode: 'create',
+    } satisfies { mode: 'create' })) as
     | {
         category: {
           icon: IconValue;
@@ -72,6 +65,16 @@ export class CreateEditCategoryDialogComponent {
         defaultIcon?: IconValue;
         mode: 'create';
       };
+  protected readonly categoryModel = signal({
+    icon: fallbackIcon,
+    title: '',
+  });
+  protected readonly categoryForm = form(this.categoryModel, (schemaPath) => {
+    required(schemaPath.title);
+    if (this.data.mode === 'edit') {
+      disabled(schemaPath.icon, 'Icon is locked for edits');
+    }
+  });
   private readonly dialogRef = inject(
     MatDialogRef<CreateEditCategoryDialogComponent>,
   );

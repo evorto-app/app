@@ -11,7 +11,7 @@ if (
   test.skip(true, 'Auth0 creds missing');
 }
 
-test.skip('Create your account @needs-auth0 @track(playwright-specs-track-linking_20260126) @doc(CREATE-ACCOUNT-DOC-01)', async ({
+test('Create your account @needs-auth0 @track(playwright-specs-track-linking_20260126) @doc(CREATE-ACCOUNT-DOC-01)', async ({
   newUser,
   page,
   roles,
@@ -81,7 +81,7 @@ The next step is simple. Just fill in the data requested and click on **Create a
   await expect(
     page.getByRole('heading', {
       level: 1,
-      name: `Hello, ${newUser.firstName}`,
+      name: `${newUser.firstName} ${newUser.lastName}`,
     }),
   ).toBeVisible();
   await testInfo.attach('markdown', {

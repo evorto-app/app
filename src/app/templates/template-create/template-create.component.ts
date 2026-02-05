@@ -62,12 +62,17 @@ export class TemplateCreateComponent {
   private router = inject(Router);
 
   onSubmit(formData: TemplateFormSubmitData) {
+    console.info('[template-create] submit', formData);
     this.createTemplateMutation.mutate(formData, {
       onSuccess: async () => {
+        console.info('[template-create] submit success');
         await this.queryClient.invalidateQueries({
           queryKey: this.trpc.templates.groupedByCategory.pathKey(),
         });
         this.router.navigate(['/templates']);
+      },
+      onError: (error) => {
+        console.error('[template-create] submit error', error);
       },
     });
   }
