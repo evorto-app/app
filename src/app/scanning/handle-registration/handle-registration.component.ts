@@ -3,7 +3,6 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
-  inject,
   input,
 } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
@@ -39,5 +38,8 @@ export class HandleRegistrationComponent {
     );
   });
 
-  checkIn() {}
+  checkIn() {
+    const scanResult = this.scanResultQuery.data();
+    if (!scanResult?.allowCheckin) return;
+  }
 }

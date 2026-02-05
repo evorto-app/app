@@ -46,7 +46,17 @@ export const cancelPendingRegistrationProcedure = authenticatedProcedure
         .update(schema.eventRegistrationOptions)
         .set({
           // TODO: Fix once drizzle fixes this type
-          reservedSpots: registration.registrationOption!.reservedSpots - 1,
+          reservedSpots: (() => {
+            const reservedSpots =
+              registration.registrationOption?.reservedSpots;
+            if (reservedSpots === undefined) {
+              throw new TRPCError({
+                code: 'INTERNAL_SERVER_ERROR',
+                message: 'Registration option not found for registration',
+              });
+            }
+            return reservedSpots - 1;
+          })(),
         })
         .where(
           eq(

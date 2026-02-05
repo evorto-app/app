@@ -46,3 +46,10 @@ This document summarizes key rules and best practices from the Google TypeScript
 - **Add Information:** Comments must add information, not just restate the code.
 
 _Source: [Google TypeScript Style Guide](https://google.github.io/styleguide/tsguide.html)_
+
+## Evorto Repo Notes
+
+- `Array#toSorted()` requires TypeScript `lib` to include `ES2023`. Keep `tsconfig.json` aligned if you adopt `toSorted` over `sort`.
+- Angular `signal()` requires an initial value. For nullable state, use `signal<T | null>(null)` and add a targeted `// eslint-disable-next-line unicorn/no-null` when needed.
+- Signal Forms expect nullable fields to use `null` rather than `undefined` (for example, form models and `FormValueControl` types). Using `undefined` leads to `MaybeFieldTree` template type errors. Use targeted `unicorn/no-null` disables where `null` is required by the form API.
+- tRPC `authData` is `Record<string, unknown>`; guard with `typeof value === 'string'` before assigning to string form fields.

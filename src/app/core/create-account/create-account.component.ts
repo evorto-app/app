@@ -55,10 +55,13 @@ export class CreateAccountComponent {
       const authData = this.authDataQuery.data();
       if (!authData) return;
       if (this.accountForm().touched()) return;
+      const getString = (value: unknown) =>
+        typeof value === 'string' ? value : undefined;
       this.accountModel.update((current) => ({
-        communicationEmail: authData.email ?? current.communicationEmail,
-        firstName: authData.given_name ?? current.firstName,
-        lastName: authData.family_name ?? current.lastName,
+        communicationEmail:
+          getString(authData['email']) ?? current.communicationEmail,
+        firstName: getString(authData['given_name']) ?? current.firstName,
+        lastName: getString(authData['family_name']) ?? current.lastName,
       }));
     });
   }

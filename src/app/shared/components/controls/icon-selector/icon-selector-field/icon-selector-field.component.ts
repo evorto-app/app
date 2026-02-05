@@ -20,17 +20,19 @@ import { IconSelectorDialogComponent } from '../icon-selector-dialog/icon-select
   styles: ``,
   templateUrl: './icon-selector-field.component.html',
 })
-export class IconSelectorFieldComponent
-  implements
-    FormValueControl<null | string | { iconColor: number; iconName: string }>
-{
+export class IconSelectorFieldComponent implements FormValueControl<
+  null | string | { iconColor: number; iconName: string }
+> {
   readonly disabled = input<boolean>(false);
   readonly hidden = input<boolean>(false);
   readonly readonly = input<boolean>(false);
   readonly touched = model<boolean>(false);
   readonly value = model<
     null | string | { iconColor: number; iconName: string }
-  >(null);
+  >(
+    // eslint-disable-next-line unicorn/no-null
+    null,
+  );
 
   private dialog = inject(MatDialog);
 

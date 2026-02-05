@@ -16,7 +16,7 @@ export const tenantRouter = router({
         }),
       ),
     )
-    .mutation(async ({ ctx, input }) => {
+    .mutation(async ({ input }) => {
       return await database.insert(tenants).values(input).returning();
     }),
 
@@ -28,14 +28,14 @@ export const tenantRouter = router({
         }),
       ),
     )
-    .mutation(async ({ ctx, input }) => {
+    .mutation(async ({ input }) => {
       return await database
         .delete(tenants)
         .where(eq(tenants.id, input.id))
         .returning();
     }),
 
-  findMany: authenticatedProcedure.query(async ({ ctx }) => {
+  findMany: authenticatedProcedure.query(async () => {
     throw new Error('Not implemented');
     return await database.query.tenants.findMany({
       orderBy: (tenants, { asc }) => [asc(tenants.name)],
@@ -50,7 +50,7 @@ export const tenantRouter = router({
         }),
       ),
     )
-    .query(async ({ ctx, input }) => {
+    .query(async ({ input }) => {
       const tenant = await database.query.tenants.findFirst({
         where: { id: input.id },
       });
@@ -73,7 +73,7 @@ export const tenantRouter = router({
         }),
       ),
     )
-    .mutation(async ({ ctx, input }) => {
+    .mutation(async ({ input }) => {
       const { id, ...data } = input;
       return await database
         .update(tenants)

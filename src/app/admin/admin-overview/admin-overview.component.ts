@@ -2,7 +2,6 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
-  inject,
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -33,7 +32,6 @@ import { injectTRPC } from '../../core/trpc-client';
     MatListModule,
     MatBadgeModule,
   ],
-  standalone: true,
   templateUrl: './admin-overview.component.html',
 })
 export class AdminOverviewComponent {

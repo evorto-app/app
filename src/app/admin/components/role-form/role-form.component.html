@@ -8,10 +8,7 @@
 
     <mat-form-field class="w-full">
       <mat-label>Description</mat-label>
-      <textarea
-        matInput
-        [formField]="form.description"
-      ></textarea>
+      <textarea matInput [formField]="form.description"></textarea>
     </mat-form-field>
 
     <mat-checkbox [formField]="form.defaultUserRole">
@@ -32,9 +29,7 @@
       </mat-checkbox>
     }
 
-    <div
-      class="grid grid-cols-1 gap-4 lg:col-span-2 lg:grid-cols-4"
-    >
+    <div class="grid grid-cols-1 gap-4 lg:col-span-2 lg:grid-cols-4">
       @for (group of groupStates(); track group.key) {
         <div class="bg-surface text-on-surface rounded-2xl p-2">
           <mat-checkbox

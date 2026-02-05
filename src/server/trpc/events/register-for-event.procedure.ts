@@ -12,6 +12,15 @@ import * as schema from '../../../db/schema';
 import { stripe } from '../../stripe-client';
 import { authenticatedProcedure } from '../trpc-server';
 
+interface DiscountProviderConfig {
+  config: unknown;
+  status: 'disabled' | 'enabled';
+}
+
+interface DiscountProviders {
+  esnCard?: DiscountProviderConfig;
+}
+
 export const registerForEventProcedure = authenticatedProcedure
   .input(
     Schema.standardSchemaV1(
@@ -55,6 +64,12 @@ export const registerForEventProcedure = authenticatedProcedure
         throw new TRPCError({
           code: 'NOT_FOUND',
           message: 'Registration option not found',
+        });
+      }
+      if (!registrationOption.event) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Event metadata missing for registration option',
         });
       }
       if (
@@ -129,18 +144,19 @@ export const registerForEventProcedure = authenticatedProcedure
           const tenant = await database.query.tenants.findFirst({
             where: { id: ctx.tenant.id },
           });
-          const providerConfig = (tenant as any)?.discountProviders ?? {};
-          const enabledTypes = new Set(
-            Object.entries(providerConfig)
-              .filter(([, v]) => (v as any)?.status === 'enabled')
-              .map(([k]) => k as string),
-          );
+        const providerConfig: DiscountProviders =
+          tenant?.discountProviders ?? {};
+        const enabledTypes = new Set(
+          Object.entries(providerConfig)
+            .filter(([, provider]) => provider?.status === 'enabled')
+            .map(([key]) => key),
+        );
           // Fetch event-level discounts for this registration option
           const discounts =
             await database.query.eventRegistrationOptionDiscounts.findMany({
               where: { registrationOptionId: registrationOption.id },
             });
-          const eventStart = registrationOption.event?.start ?? new Date();
+          const eventStart = registrationOption.event.start ?? new Date();
           const eligible = discounts.filter((d) =>
             cards.some(
               (c) =>
@@ -151,7 +167,7 @@ export const registerForEventProcedure = authenticatedProcedure
           );
           if (eligible.length > 0) {
             effectivePrice = Math.min(
-              ...eligible.map((e) => e.discountedPrice),
+              ...eligible.map((discount) => discount.discountedPrice),
             );
           }
         }
@@ -188,7 +204,8 @@ export const registerForEventProcedure = authenticatedProcedure
         }
 
         const applicationFee = Math.round(effectivePrice * 0.035);
-        const selectedTaxRateId = registrationOption.stripeTaxRateId || null;
+        const selectedTaxRateId =
+          registrationOption.stripeTaxRateId ?? undefined;
 
         // Log warning if tax rate exists but may be inactive
         if (selectedTaxRateId) {
@@ -226,7 +243,7 @@ export const registerForEventProcedure = authenticatedProcedure
                 currency: ctx.tenant.currency,
                 product_data: {
                   // TODO: Fix once drizzle fixes this type
-                  name: `Registration fee for ${registrationOption.event!.title}`,
+                  name: `Registration fee for ${registrationOption.event.title}`,
                 },
                 unit_amount: effectivePrice,
               },
@@ -259,7 +276,7 @@ export const registerForEventProcedure = authenticatedProcedure
           .values({
             amount: effectivePrice,
             // TODO: Fix once drizzle fixes this type
-            comment: `Registration for event ${registrationOption.event!.title} ${registrationOption.eventId}`,
+            comment: `Registration for event ${registrationOption.event.title} ${registrationOption.eventId}`,
             currency: ctx.tenant.currency,
             eventId: registrationOption.eventId,
             eventRegistrationId: userRegistration.id,

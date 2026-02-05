@@ -7,7 +7,9 @@ export interface ProviderAdapter<TConfig> {
   }) => Promise<ValidationResult>;
 }
 
-export interface ProviderConfig<TConfig extends Schema.Schema<any> = any> {
+export interface ProviderConfig<
+  TConfig extends Schema.Schema.Any = Schema.Schema.Any,
+> {
   configSchema: TConfig;
   description?: string;
   displayName: string;
@@ -19,8 +21,8 @@ export type ProviderType = 'esnCard';
 export interface ValidationResult {
   metadata?: unknown;
   status: 'expired' | 'invalid' | 'unverified' | 'verified';
-  validFrom?: Date | null;
-  validTo?: Date | null;
+  validFrom?: Date;
+  validTo?: Date;
 }
 
 // ESN Card example config schema (placeholder)
@@ -38,7 +40,9 @@ export const PROVIDERS: Record<ProviderType, ProviderConfig> = {
   },
 };
 
-export const Adapters: Partial<Record<ProviderType, ProviderAdapter<any>>> = {
+export const Adapters: Partial<
+  Record<ProviderType, ProviderAdapter<unknown>>
+> = {
   esnCard: {
     async validate({ identifier }) {
       if (!identifier) return { status: 'invalid' };
@@ -48,16 +52,30 @@ export const Adapters: Partial<Record<ProviderType, ProviderAdapter<any>>> = {
         if (!response.ok) {
           return { status: 'unverified' };
         }
-        const data = (await response.json()) as any[];
-        const card = Array.isArray(data) ? data[0] : undefined;
+        const data = (await response.json()) as unknown;
+        if (!Array.isArray(data)) {
+          return { status: 'invalid' };
+        }
+        const card = data[0] as Record<string, unknown> | undefined;
         if (!card) return { status: 'invalid' };
-        const status = String(card.status ?? '').toLowerCase();
+        const status = String(card['status'] ?? '').toLowerCase();
         if (status !== 'active') {
           return { status: status === 'expired' ? 'expired' : 'invalid' };
         }
-        const expiration = card['expiration-date'] ?? card['expiration_date'];
-        const validTo = expiration ? new Date(expiration) : null;
-        return { metadata: card, status: 'verified', validFrom: null, validTo };
+        const expiration =
+          card['expiration-date'] ?? card['expiration_date'];
+        const validTo =
+          typeof expiration === 'string' || typeof expiration === 'number'
+            ? new Date(expiration)
+            : undefined;
+        const result: ValidationResult = {
+          metadata: card,
+          status: 'verified',
+        };
+        if (validTo) {
+          result.validTo = validTo;
+        }
+        return result;
       } catch {
         return { status: 'unverified' };
       }

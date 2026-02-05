@@ -21,7 +21,6 @@ import {
   faEyeSlash,
   faFilter,
 } from '@fortawesome/duotone-regular-svg-icons';
-import consola from 'consola/browser';
 import { firstValueFrom } from 'rxjs';
 
 import { ConfigService } from '../../core/config.service';
@@ -80,7 +79,7 @@ export class EventListComponent {
   }
 
   protected async openFilterPanel() {
-    const filters = await firstValueFrom(
+    await firstValueFrom(
       this.dialog.open(EventFilterDialogComponent).afterClosed(),
     );
   }

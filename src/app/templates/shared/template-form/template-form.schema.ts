@@ -49,6 +49,7 @@ export const createTemplateRegistrationFormModel = (
   registrationMode: 'fcfs',
   roleIds: [],
   spots: 1,
+  // eslint-disable-next-line unicorn/no-null
   stripeTaxRateId: null,
   ...overrides,
 });
@@ -59,7 +60,9 @@ export const createTemplateFormModel = (
   const base: TemplateFormData = {
     categoryId: '',
     description: '',
+    // eslint-disable-next-line unicorn/no-null
     icon: null,
+    // eslint-disable-next-line unicorn/no-null
     location: null,
     organizerRegistration: createTemplateRegistrationFormModel({ spots: 1 }),
     participantRegistration: createTemplateRegistrationFormModel({ spots: 20 }),
@@ -96,7 +99,8 @@ export const mergeTemplateFormOverrides = (
             iconColor: overrides.icon.iconColor,
             iconName: overrides.icon.iconName,
           }
-        : null;
+        : // eslint-disable-next-line unicorn/no-null
+          null;
 
   const organizerRegistration = overrides.organizerRegistration
     ? {

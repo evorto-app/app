@@ -1,4 +1,9 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  inject,
+  signal,
+} from '@angular/core';
 import { form, FormField, required, submit } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import {
@@ -48,9 +53,7 @@ export class EditProfileDialogComponent {
     required(schemaPath.firstName);
     required(schemaPath.lastName);
   });
-  private readonly dialogRef = inject(
-    MatDialogRef<EditProfileDialogComponent>,
-  );
+  private readonly dialogRef = inject(MatDialogRef<EditProfileDialogComponent>);
 
   async onSubmit(event: Event): Promise<void> {
     event.preventDefault();

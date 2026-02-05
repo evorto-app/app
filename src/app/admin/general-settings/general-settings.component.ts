@@ -83,6 +83,7 @@ export class GeneralSettingsComponent {
     defaultLocation: GoogleLocationType | null;
     theme: 'esn' | 'evorto';
   }>({
+    // eslint-disable-next-line unicorn/no-null
     defaultLocation: null,
     theme: 'evorto',
   });
@@ -100,7 +101,8 @@ export class GeneralSettingsComponent {
       const currentTenant = this.configService.tenant;
       if (currentTenant) {
         this.settingsModel.set({
-          defaultLocation: currentTenant.defaultLocation,
+          // eslint-disable-next-line unicorn/no-null
+          defaultLocation: currentTenant.defaultLocation ?? null,
           theme: currentTenant.theme,
         });
       }

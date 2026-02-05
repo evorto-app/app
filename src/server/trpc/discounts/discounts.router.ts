@@ -3,8 +3,17 @@ import { Schema } from 'effect';
 
 import { database } from '../../../db';
 import * as schema from '../../../db/schema';
-import { PROVIDERS } from '../../discounts/providers';
+import { PROVIDERS, ProviderType } from '../../discounts/providers';
 import { authenticatedProcedure, router } from '../trpc-server';
+
+interface DiscountProviderConfig {
+  config: unknown;
+  status: 'disabled' | 'enabled';
+}
+
+interface DiscountProviders {
+  esnCard?: DiscountProviderConfig;
+}
 
 export const discountsRouter = router({
   deleteMyCard: authenticatedProcedure
@@ -35,17 +44,13 @@ export const discountsRouter = router({
     const tenant = await database.query.tenants.findFirst({
       where: { id: ctx.tenant.id },
     });
-    const config = (tenant as any)?.discountProviders ?? {};
+    const config: DiscountProviders = tenant?.discountProviders ?? {};
     // Normalize to full providers list
-    return (Object.keys(PROVIDERS) as (keyof typeof PROVIDERS)[]).map(
-      (type) => ({
-        config: config?.[type]?.config ?? {},
-        status: (config?.[type]?.status ?? 'disabled') as
-          | 'disabled'
-          | 'enabled',
-        type,
-      }),
-    );
+    return (Object.keys(PROVIDERS) as ProviderType[]).map((type) => ({
+      config: config[type]?.config ?? {},
+      status: config[type]?.status ?? 'disabled',
+      type,
+    }));
   }),
 
   refreshMyCard: authenticatedProcedure
@@ -58,7 +63,7 @@ export const discountsRouter = router({
       const tenant = await database.query.tenants.findFirst({
         where: { id: ctx.tenant.id },
       });
-      const providers = (tenant as any)?.discountProviders ?? {};
+      const providers: DiscountProviders = tenant?.discountProviders ?? {};
       const provider = providers?.[input.type];
       if (!provider || provider.status !== 'enabled') {
         throw new Error('Provider not enabled for this tenant');
@@ -71,27 +76,25 @@ export const discountsRouter = router({
         },
       });
       if (!card) throw new Error('No card on file');
-      const adapter = (await import('../../discounts/providers')).Adapters[
-        input.type
-      ];
+      const { Adapters } = await import('../../discounts/providers');
+      const adapter = Adapters[input.type];
       if (!adapter) return card;
       const result = await adapter.validate({
         config: provider.config,
         identifier: card.identifier,
       });
-      return (
-        await database
-          .update(schema.userDiscountCards)
-          .set({
-            lastCheckedAt: new Date(),
-            metadata: result.metadata as any,
-            status: result.status as any,
-            validFrom: result.validFrom ?? null,
-            validTo: result.validTo ?? null,
-          })
-          .where(eq(schema.userDiscountCards.id, card.id))
-          .returning()
-      )[0];
+      const [updatedCard] = await database
+        .update(schema.userDiscountCards)
+        .set({
+          lastCheckedAt: new Date(),
+          metadata: result.metadata,
+          status: result.status,
+          validFrom: result.validFrom ?? undefined,
+          validTo: result.validTo ?? undefined,
+        })
+        .where(eq(schema.userDiscountCards.id, card.id))
+        .returning();
+      return updatedCard;
     }),
 
   setTenantProviders: authenticatedProcedure
@@ -101,9 +104,11 @@ export const discountsRouter = router({
         Schema.Struct({
           providers: Schema.Array(
             Schema.Struct({
-              config: Schema.Any,
+              config: Schema.Unknown,
               status: Schema.Literal('enabled', 'disabled'),
-              type: Schema.Literal(...(Object.keys(PROVIDERS) as any)),
+              type: Schema.Literal(
+                ...(Object.keys(PROVIDERS) as ProviderType[]),
+              ),
             }),
           ),
         }),
@@ -113,17 +118,14 @@ export const discountsRouter = router({
       const tenant = await database.query.tenants.findFirst({
         where: { id: ctx.tenant.id },
       });
-      const current = ((tenant as any)?.discountProviders ?? {}) as Record<
-        string,
-        { config: unknown; status: 'disabled' | 'enabled' }
-      >;
+      const current: DiscountProviders = tenant?.discountProviders ?? {};
       const updated = { ...current };
       for (const p of input.providers) {
-        updated[p.type] = { config: p.config, status: p.status } as any;
+        updated[p.type] = { config: p.config, status: p.status };
       }
       await database
         .update(schema.tenants)
-        .set({ discountProviders: updated as any })
+        .set({ discountProviders: updated })
         .where(eq(schema.tenants.id, ctx.tenant.id));
     }),
   upsertMyCard: authenticatedProcedure
@@ -140,7 +142,7 @@ export const discountsRouter = router({
       const tenant = await database.query.tenants.findFirst({
         where: { id: ctx.tenant.id },
       });
-      const providers = (tenant as any)?.discountProviders ?? {};
+      const providers: DiscountProviders = tenant?.discountProviders ?? {};
       const provider = providers?.[input.type];
       if (!provider || provider.status !== 'enabled') {
         throw new Error('Provider not enabled for this tenant');
@@ -162,30 +164,30 @@ export const discountsRouter = router({
         },
       });
       // Upsert first
-      const upserted = existing
-        ? (
-            await database
-              .update(schema.userDiscountCards)
-              .set({ identifier: input.identifier })
-              .where(eq(schema.userDiscountCards.id, existing.id))
-              .returning()
-          )[0]
-        : (
-            await database
-              .insert(schema.userDiscountCards)
-              .values({
-                identifier: input.identifier,
-                tenantId: ctx.tenant.id,
-                type: input.type,
-                userId: ctx.user.id,
-              })
-              .returning()
-          )[0];
+      let upserted: typeof schema.userDiscountCards.$inferSelect;
+      if (existing) {
+        const [updated] = await database
+          .update(schema.userDiscountCards)
+          .set({ identifier: input.identifier })
+          .where(eq(schema.userDiscountCards.id, existing.id))
+          .returning();
+        upserted = updated;
+      } else {
+        const [inserted] = await database
+          .insert(schema.userDiscountCards)
+          .values({
+            identifier: input.identifier,
+            tenantId: ctx.tenant.id,
+            type: input.type,
+            userId: ctx.user.id,
+          })
+          .returning();
+        upserted = inserted;
+      }
 
       // Validate immediately via provider adapter
-      const adapter = (await import('../../discounts/providers')).Adapters[
-        input.type
-      ];
+      const { Adapters } = await import('../../discounts/providers');
+      const adapter = Adapters[input.type];
       if (!adapter) {
         return upserted;
       }
@@ -197,10 +199,10 @@ export const discountsRouter = router({
         .update(schema.userDiscountCards)
         .set({
           lastCheckedAt: new Date(),
-          metadata: result.metadata as any,
-          status: result.status as any,
-          validFrom: result.validFrom ?? null,
-          validTo: result.validTo ?? null,
+          metadata: result.metadata,
+          status: result.status,
+          validFrom: result.validFrom ?? undefined,
+          validTo: result.validTo ?? undefined,
         })
         .where(eq(schema.userDiscountCards.id, upserted.id))
         .returning();

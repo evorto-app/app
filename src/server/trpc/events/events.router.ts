@@ -18,6 +18,9 @@ import { eventListProcedure } from './event-list.procedure';
 import { registerForEventProcedure } from './register-for-event.procedure';
 import { registrationScannedProcedure } from './registration-scanned.procedure';
 
+type EventRegistrationOptionDiscountInsert =
+  typeof schema.eventRegistrationOptionDiscounts.$inferInsert;
+
 export const eventRouter = router({
   cancelPendingRegistration: cancelPendingRegistrationProcedure,
 
@@ -61,6 +64,7 @@ export const eventRouter = router({
       for (const [index, option] of input.registrationOptions.entries()) {
         const validation = await validateTaxRate({
           isPaid: option.isPaid,
+          // eslint-disable-next-line unicorn/no-null
           stripeTaxRateId: option.stripeTaxRateId ?? null,
           tenantId: ctx.tenant.id,
         });
@@ -116,6 +120,7 @@ export const eventRouter = router({
             registrationMode: option.registrationMode,
             roleIds: option.roleIds,
             spots: option.spots,
+            // eslint-disable-next-line unicorn/no-null
             stripeTaxRateId: option.stripeTaxRateId ?? null,
             title: option.title,
           })),
@@ -146,11 +151,7 @@ export const eventRouter = router({
               t,
             ]),
           );
-          const inserts: {
-            discountedPrice: number;
-            discountType: any;
-            registrationOptionId: string;
-          }[] = [];
+          const inserts: EventRegistrationOptionDiscountInsert[] = [];
           for (const event_ of createdOptions) {
             const t = tMap.get(
               key(event_.title, event_.organizingRegistration),
@@ -160,7 +161,7 @@ export const eventRouter = router({
               if (d.registrationOptionId === t.id) {
                 inserts.push({
                   discountedPrice: d.discountedPrice,
-                  discountType: d.discountType as any,
+                  discountType: d.discountType,
                   registrationOptionId: event_.id,
                 });
               }
@@ -169,7 +170,7 @@ export const eventRouter = router({
           if (inserts.length > 0) {
             await database
               .insert(schema.eventRegistrationOptionDiscounts)
-              .values(inserts as any);
+              .values(inserts);
           }
         }
       }
@@ -295,14 +296,16 @@ export const eventRouter = router({
         );
 
       // Group by registration option and sort
+      type Registration = (typeof registrations)[number];
       const groupedRegistrations = groupBy(
         registrations,
         (reg) => reg.registrationOptionId,
-      );
+      ) as Record<string, Registration[]>;
 
       // Sort registration options: organizing first, then by title
-      const sortedOptions = Object.entries(groupedRegistrations).sort(
-        ([, regsA], [, regsB]) => {
+      const sortedOptions = (
+        Object.entries(groupedRegistrations) as [string, Registration[]][]
+      ).toSorted(([, regsA], [, regsB]) => {
           // First sort by organizing registration (true first)
           if (
             regsA[0].organizingRegistration !== regsB[0].organizingRegistration
@@ -319,7 +322,7 @@ export const eventRouter = router({
       return sortedOptions.map(([optionId, regs]) => {
         // Sort users within each option: not checked in first, then by name
         const sortedUsers = regs
-          .sort((a, b) => {
+          .toSorted((a, b) => {
             // First: not checked in users first (checkInTime === null)
             if ((a.checkInTime === null) !== (b.checkInTime === null)) {
               return a.checkInTime === null ? -1 : 1;
@@ -389,9 +392,14 @@ export const eventRouter = router({
         },
       });
 
-      return {
-        isRegistered: registrations.length > 0,
-        registrations: registrations.map((reg) => ({
+      const registrationSummaries = registrations.map((reg) => {
+        const registrationOption = reg.registrationOption;
+        if (!registrationOption) {
+          throw new Error(
+            `Registration option missing for registration ${reg.id}`,
+          );
+        }
+        return {
           checkoutUrl: reg.transactions.find(
             (transaction) =>
               transaction.method === 'stripe' &&
@@ -404,12 +412,17 @@ export const eventRouter = router({
               transaction.type === 'registration',
           ),
           // TODO: Fix once drizzle fixes this type
-          registeredDescription: reg.registrationOption!.registeredDescription,
+          registeredDescription: registrationOption.registeredDescription,
           registrationOptionId: reg.registrationOptionId,
           // TODO: Fix once drizzle fixes this type
-          registrationOptionTitle: reg.registrationOption!.title,
+          registrationOptionTitle: registrationOption.title,
           status: reg.status,
-        })),
+        };
+      });
+
+      return {
+        isRegistered: registrations.length > 0,
+        registrations: registrationSummaries,
       };
     }),
 
@@ -435,6 +448,7 @@ export const eventRouter = router({
           reviewedAt: new Date(),
           reviewedBy: ctx.user.id,
           status: input.approved ? 'APPROVED' : 'REJECTED',
+          // eslint-disable-next-line unicorn/no-null
           statusComment: input.comment || null,
         })
         .where(
@@ -461,9 +475,12 @@ export const eventRouter = router({
       return await database
         .update(schema.eventInstances)
         .set({
+          // eslint-disable-next-line unicorn/no-null
           reviewedAt: null,
+          // eslint-disable-next-line unicorn/no-null
           reviewedBy: null,
           status: 'PENDING_REVIEW',
+          // eslint-disable-next-line unicorn/no-null
           statusComment: null,
         })
         .where(
@@ -511,25 +528,24 @@ export const eventRouter = router({
         });
       }
 
-      return (
-        await database
-          .update(schema.eventInstances)
-          .set({
-            description: input.description,
-            end: input.end,
-            icon: input.icon,
-            location: input.location,
-            start: input.start,
-            title: input.title,
-          })
-          .where(
-            and(
-              eq(schema.eventInstances.id, input.eventId),
-              eq(schema.eventInstances.tenantId, ctx.tenant.id),
-            ),
-          )
-          .returning()
-      )[0];
+      const [updatedEvent] = await database
+        .update(schema.eventInstances)
+        .set({
+          description: input.description,
+          end: input.end,
+          icon: input.icon,
+          location: input.location,
+          start: input.start,
+          title: input.title,
+        })
+        .where(
+          and(
+            eq(schema.eventInstances.id, input.eventId),
+            eq(schema.eventInstances.tenantId, ctx.tenant.id),
+          ),
+        )
+        .returning();
+      return updatedEvent;
     }),
 
   updateListing: authenticatedProcedure

@@ -11,12 +11,7 @@ import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    MatDialogModule,
-    MatSlideToggleModule,
-    MatButtonModule,
-    FormField,
-  ],
+  imports: [MatDialogModule, MatSlideToggleModule, MatButtonModule, FormField],
   selector: 'app-update-visibility-dialog',
   styles: ``,
   templateUrl: './update-visibility-dialog.component.html',

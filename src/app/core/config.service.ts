@@ -45,7 +45,9 @@ export class ConfigService {
     googleMapsApiKey: null | string;
     sentryDsn: null | string;
   } = {
+    // eslint-disable-next-line unicorn/no-null
     googleMapsApiKey: null,
+    // eslint-disable-next-line unicorn/no-null
     sentryDsn: null,
   };
   private _tenant!: Tenant;

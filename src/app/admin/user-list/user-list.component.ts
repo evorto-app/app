@@ -81,10 +81,13 @@ export class UserListComponent {
 
   /** Selects all rows if they are not all selected; otherwise clear selection. */
   toggleAllRows() {
-    this.isAllSelected()
-      ? this.selection.clear()
-      : this.usersQuery
-          .data()
-          ?.users?.forEach((row) => this.selection.select(row));
+    if (this.isAllSelected()) {
+      this.selection.clear();
+      return;
+    }
+    const users = this.usersQuery.data()?.users ?? [];
+    for (const row of users) {
+      this.selection.select(row);
+    }
   }
 }

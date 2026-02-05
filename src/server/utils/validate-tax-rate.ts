@@ -1,7 +1,6 @@
 import { Schema } from 'effect';
 
 import { database } from '../../db';
-import * as schema from '../../db/schema';
 
 // Error codes for tax rate validation
 export const TAX_RATE_ERROR_CODES = {
@@ -50,7 +49,7 @@ export type TaxRateValidationInputType = Schema.Schema.Type<
  */
 export async function getCompatibleTaxRates(tenantId: string) {
   return database.query.tenantStripeTaxRates.findMany({
-    orderBy: (table: typeof schema.tenantStripeTaxRates, { asc }: any) => [
+    orderBy: (table, { asc }) => [
       asc(table.displayName),
       asc(table.stripeTaxRateId),
     ],

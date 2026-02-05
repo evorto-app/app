@@ -48,14 +48,6 @@ export class RoleSelectComponent implements FormValueControl<string[]> {
   readonly touched = model<boolean>(false);
   readonly value = model<string[]>([]);
 
-  private trpcClient = injectTRPCClient();
-  protected currentRolesQuery = injectQueries(() => ({
-    queries: this.value().map((roleId) => ({
-      queryFn: () => this.trpcClient.admin.roles.findOne.query({ id: roleId }),
-      queryKey: ['roles', roleId],
-    })),
-  }));
-  protected faCircleXmark = faCircleXmark;
   protected readonly searchModel = signal({ query: '' });
   protected readonly searchForm = form(this.searchModel, (schema) => {
     debounce(schema, 300);
@@ -68,6 +60,13 @@ export class RoleSelectComponent implements FormValueControl<string[]> {
   protected searchRoleQuery = injectQuery(() =>
     this.trpc.admin.roles.search.queryOptions({ search: this.searchValue() }),
   );
+  private trpcClient = injectTRPCClient();
+  protected currentRolesQuery = injectQueries(() => ({
+    queries: this.value().map((roleId) => ({
+      queryFn: () => this.trpcClient.admin.roles.findOne.query({ id: roleId }),
+      queryKey: ['roles', roleId],
+    })),
+  }));
   protected readonly selectedRoleIds = computed(() => {
     const selected = new Set((this.value() ?? []).filter(Boolean));
     for (const role of this.currentRolesQuery()) {
@@ -83,6 +82,7 @@ export class RoleSelectComponent implements FormValueControl<string[]> {
       (role) => !this.selectedRoleIds().has(role.id),
     );
   });
+  protected faCircleXmark = faCircleXmark;
 
   add() {
     if (this.disabled() || this.readonly()) return;

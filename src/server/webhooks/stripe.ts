@@ -18,7 +18,11 @@ stripeRouter.post(
       return;
     }
 
-    const endpointSecret = process.env['STRIPE_WEBHOOK_SECRET']!;
+    const endpointSecret = process.env['STRIPE_WEBHOOK_SECRET'];
+    if (!endpointSecret) {
+      response.status(500).send('Stripe webhook secret not configured');
+      return;
+    }
 
     let event;
 

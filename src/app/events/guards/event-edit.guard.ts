@@ -1,6 +1,5 @@
 import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
-import { firstValueFrom } from 'rxjs';
 
 import { PermissionsService } from '../../core/permissions.service';
 import { injectTRPCClient } from '../../core/trpc-client';

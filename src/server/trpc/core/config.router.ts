@@ -21,10 +21,12 @@ export const configRouter = router({
         process.env['PUBLIC_GOOGLE_MAPS_API_KEY'] ??
         process.env['GOOGLE_MAPS_API_KEY'] ??
         process.env['GOOGLE_API_KEY'] ??
+        // eslint-disable-next-line unicorn/no-null
         null;
 
       return {
         googleMapsApiKey,
+        // eslint-disable-next-line unicorn/no-null
         sentryDsn: process.env['PUBLIC_SENTRY_DSN'] ?? null,
       };
     }),

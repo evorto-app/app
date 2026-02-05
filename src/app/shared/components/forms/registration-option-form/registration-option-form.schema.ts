@@ -29,15 +29,17 @@ export const createRegistrationOptionFormModel = (
   registrationMode: 'fcfs',
   roleIds: [],
   spots: 1,
+  // eslint-disable-next-line unicorn/no-null
   stripeTaxRateId: null,
   title: '',
   ...overrides,
 });
 
-export const registrationOptionFormSchema =
-  schema<RegistrationOptionFormModel>((form) => {
+export const registrationOptionFormSchema = schema<RegistrationOptionFormModel>(
+  (form) => {
     hidden(form.price, ({ valueOf }) => !valueOf(form.isPaid));
     hidden(form.stripeTaxRateId, ({ valueOf }) => !valueOf(form.isPaid));
     min(form.spots, 1);
     required(form.stripeTaxRateId);
-  });
+  },
+);

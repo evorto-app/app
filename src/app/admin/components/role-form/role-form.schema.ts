@@ -26,8 +26,9 @@ export interface RoleFormModel {
   showInHub: boolean;
 }
 
-export interface RoleFormOverrides
-  extends Partial<Omit<RoleFormModel, 'description' | 'permissions'>> {
+export interface RoleFormOverrides extends Partial<
+  Omit<RoleFormModel, 'description' | 'permissions'>
+> {
   description?: null | string;
   permissions?: Partial<Record<Permission, boolean>> | Permission[];
 }
