@@ -144,13 +144,13 @@ export const registerForEventProcedure = authenticatedProcedure
           const tenant = await database.query.tenants.findFirst({
             where: { id: ctx.tenant.id },
           });
-        const providerConfig: DiscountProviders =
-          tenant?.discountProviders ?? {};
-        const enabledTypes = new Set(
-          Object.entries(providerConfig)
-            .filter(([, provider]) => provider?.status === 'enabled')
-            .map(([key]) => key),
-        );
+          const providerConfig: DiscountProviders =
+            tenant?.discountProviders ?? {};
+          const enabledTypes = new Set(
+            Object.entries(providerConfig)
+              .filter(([, provider]) => provider?.status === 'enabled')
+              .map(([key]) => key),
+          );
           // Fetch event-level discounts for this registration option
           const discounts =
             await database.query.eventRegistrationOptionDiscounts.findMany({

@@ -1,3 +1,5 @@
+import type { IconValue } from '@shared/types/icon';
+
 import {
   boolean,
   jsonb,
@@ -18,9 +20,7 @@ export const eventTemplates = pgTable('event_templates', {
     .references(() => eventTemplateCategories.id),
   createdAt: timestamp().notNull().defaultNow(),
   description: text().notNull(),
-  icon: jsonb('icon')
-    .$type<{ iconColor: number; iconName: string }>()
-    .notNull(),
+  icon: jsonb('icon').$type<IconValue>().notNull(),
   id: varchar({ length: 20 })
     .$defaultFn(() => createId())
     .primaryKey(),

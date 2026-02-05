@@ -1,16 +1,12 @@
+import type { IconValue } from '@shared/types/icon';
+
 import {
   ChangeDetectionStrategy,
   Component,
   inject,
   signal,
 } from '@angular/core';
-import {
-  disabled,
-  form,
-  FormField,
-  required,
-  submit,
-} from '@angular/forms/signals';
+import { form, FormField, required, submit } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import {
   MAT_DIALOG_DATA,
@@ -25,10 +21,6 @@ import { MatInputModule } from '@angular/material/input';
 
 import { IconSelectorFieldComponent } from '../../../shared/components/controls/icon-selector/icon-selector-field/icon-selector-field.component';
 
-interface IconValue {
-  iconColor: number;
-  iconName: string;
-}
 const fallbackIcon: IconValue = { iconColor: 0, iconName: 'city' };
 
 @Component({
@@ -49,6 +41,14 @@ const fallbackIcon: IconValue = { iconColor: 0, iconName: 'city' };
   templateUrl: './create-edit-category-dialog.component.html',
 })
 export class CreateEditCategoryDialogComponent {
+  protected readonly categoryModel = signal({
+    icon: fallbackIcon,
+    title: '',
+  });
+  protected readonly categoryForm = form(this.categoryModel, (schemaPath) => {
+    required(schemaPath.title);
+    required(schemaPath.icon);
+  });
   protected readonly data = (inject(MAT_DIALOG_DATA, { optional: true }) ??
     ({
       mode: 'create',
@@ -65,16 +65,6 @@ export class CreateEditCategoryDialogComponent {
         defaultIcon?: IconValue;
         mode: 'create';
       };
-  protected readonly categoryModel = signal({
-    icon: fallbackIcon,
-    title: '',
-  });
-  protected readonly categoryForm = form(this.categoryModel, (schemaPath) => {
-    required(schemaPath.title);
-    if (this.data.mode === 'edit') {
-      disabled(schemaPath.icon, 'Icon is locked for edits');
-    }
-  });
   private readonly dialogRef = inject(
     MatDialogRef<CreateEditCategoryDialogComponent>,
   );

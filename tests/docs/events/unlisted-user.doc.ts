@@ -4,7 +4,9 @@ import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 
 test.use({ storageState: userStateFile });
 
-test('User: understanding unlisted events @track(playwright-specs-track-linking_20260126) @doc(UNLISTED-USER-DOC-01)', async ({ page }, testInfo) => {
+test('User: understanding unlisted events @track(playwright-specs-track-linking_20260126) @doc(UNLISTED-USER-DOC-01)', async ({
+  page,
+}, testInfo) => {
   await page.goto('./events');
 
   await testInfo.attach('markdown', {

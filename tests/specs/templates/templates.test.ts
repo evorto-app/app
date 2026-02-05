@@ -40,7 +40,10 @@ test('create template in empty category @track(playwright-specs-track-linking_20
   await expect(page.getByLabel('Template Category')).toHaveText(category.title);
 });
 
-test('create a new template @track(playwright-specs-track-linking_20260126) @req(TEMPLATES-TEST-02)', async ({ page, templateCategories }) => {
+test('create a new template @track(playwright-specs-track-linking_20260126) @req(TEMPLATES-TEST-02)', async ({
+  page,
+  templateCategories,
+}) => {
   const category = templateCategories[0];
   const templateTitle = 'Historical tour';
   await page.goto('.');
@@ -58,7 +61,10 @@ test('create a new template @track(playwright-specs-track-linking_20260126) @req
   await expect(page.getByRole('link', { name: templateTitle })).toBeVisible();
 });
 
-test('view a template @track(playwright-specs-track-linking_20260126) @req(TEMPLATES-TEST-03)', async ({ page, templates }) => {
+test('view a template @track(playwright-specs-track-linking_20260126) @req(TEMPLATES-TEST-03)', async ({
+  page,
+  templates,
+}) => {
   const template = templates[0];
   await page.goto('.');
   await page.getByRole('link', { name: 'Templates' }).click();

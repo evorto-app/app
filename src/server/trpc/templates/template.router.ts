@@ -1,3 +1,4 @@
+import { iconSchema } from '@shared/types/icon';
 import consola from 'consola';
 import { and, eq } from 'drizzle-orm';
 import { Schema } from 'effect';
@@ -7,7 +8,6 @@ import {
   eventTemplates,
   templateRegistrationOptions,
 } from '../../../db/schema';
-import { computeIconSourceColor } from '../../utils/icon-color';
 import { validateTaxRate } from '../../utils/validate-tax-rate';
 import { authenticatedProcedure, router } from '../trpc-server';
 
@@ -29,10 +29,7 @@ export const templateRouter = router({
         Schema.Struct({
           categoryId: Schema.NonEmptyString,
           description: Schema.NonEmptyString,
-          icon: Schema.Struct({
-            iconColor: Schema.Number,
-            iconName: Schema.NonEmptyString,
-          }),
+          icon: iconSchema,
           organizerRegistration: registrationOptionSchema,
           participantRegistration: registrationOptionSchema,
           title: Schema.NonEmptyString,
@@ -183,10 +180,7 @@ export const templateRouter = router({
         Schema.Struct({
           categoryId: Schema.NonEmptyString,
           description: Schema.NonEmptyString,
-          icon: Schema.Struct({
-            iconColor: Schema.optional(Schema.Number),
-            iconName: Schema.NonEmptyString,
-          }),
+          icon: iconSchema,
           id: Schema.NonEmptyString,
           organizerRegistration: registrationOptionSchema,
           participantRegistration: registrationOptionSchema,
@@ -231,18 +225,12 @@ export const templateRouter = router({
       }
 
       return await database.transaction(async (tx) => {
-        const iconColor =
-          input.icon.iconColor ??
-          (await computeIconSourceColor(input.icon.iconName));
-        if (iconColor === undefined) {
-          throw new Error('Unable to resolve icon color');
-        }
         const template = await tx
           .update(eventTemplates)
           .set({
             categoryId: input.categoryId,
             description: input.description,
-            icon: { iconColor, iconName: input.icon.iconName },
+            icon: input.icon,
             title: input.title,
           })
           .where(

@@ -21,9 +21,7 @@ import { LocationSelectorDialog } from '../location-selector-dialog/location-sel
   styles: ``,
   templateUrl: './location-selector-field.html',
 })
-export class LocationSelectorField
-  implements FormValueControl<EventLocationType | null>
-{
+export class LocationSelectorField implements FormValueControl<EventLocationType | null> {
   readonly disabled = input<boolean>(false);
   readonly hidden = input<boolean>(false);
   readonly readonly = input<boolean>(false);

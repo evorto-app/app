@@ -9,7 +9,9 @@ import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 test.describe.skip('Inclusive tax rates documentation (admin)', () => {
   test.use({ storageState: adminStateFile });
 
-  test('Import tenant tax rates @track(playwright-specs-track-linking_20260126) @doc(INCLUSIVE-TAX-RATES-DOC-01)', async ({ page }, testInfo) => {
+  test('Import tenant tax rates @track(playwright-specs-track-linking_20260126) @doc(INCLUSIVE-TAX-RATES-DOC-01)', async ({
+    page,
+  }, testInfo) => {
     await page.goto('.');
 
     await testInfo.attach('markdown', {

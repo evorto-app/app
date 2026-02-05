@@ -1,3 +1,5 @@
+import type { IconValue } from '@shared/types/icon';
+
 import {
   ChangeDetectionStrategy,
   Component,
@@ -42,6 +44,10 @@ export class IconSelectorDialogComponent {
   protected readonly searchValue = computed(
     () => this.searchForm().value().query,
   );
+  protected readonly directAccessIcon = computed<IconValue>(() => ({
+    iconColor: 0,
+    iconName: this.searchValue(),
+  }));
   private trpc = injectTRPC();
   protected readonly iconSearchQuery = injectQuery(() =>
     this.trpc.icons.search.queryOptions({ search: this.searchValue() }),
@@ -49,6 +55,16 @@ export class IconSelectorDialogComponent {
   protected displayDirectAccess = computed(() => {
     const iconData = this.iconSearchQuery.data();
     return !!(iconData && iconData.length === 0);
+  });
+  protected readonly iconChoices = computed(() => {
+    const icons = this.iconSearchQuery.data() ?? [];
+    return icons.map((icon) => ({
+      ...icon,
+      value: {
+        iconColor: icon.sourceColor ?? 0,
+        iconName: icon.commonName,
+      } satisfies IconValue,
+    }));
   });
   private readonly addIconMutation = injectMutation(() =>
     this.trpc.icons.addIcon.mutationOptions(),

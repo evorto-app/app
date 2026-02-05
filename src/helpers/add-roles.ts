@@ -7,10 +7,7 @@ import { ALL_PERMISSIONS } from '../shared/permissions/permissions';
 
 export type Database = NeonDatabase<Record<string, never>, typeof relations>;
 
-export async function addRoles(
-  database: Database,
-  tenant: { id: string },
-) {
+export async function addRoles(database: Database, tenant: { id: string }) {
   return database
     .insert(schema.roles)
     .values([

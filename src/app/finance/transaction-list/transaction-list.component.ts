@@ -1,9 +1,5 @@
 import { CurrencyPipe, DatePipe } from '@angular/common';
-import {
-  ChangeDetectionStrategy,
-  Component,
-  signal,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';

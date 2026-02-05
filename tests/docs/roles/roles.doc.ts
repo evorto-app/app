@@ -4,7 +4,9 @@ import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 
 test.use({ storageState: adminStateFile });
 
-test('Create a role @track(playwright-specs-track-linking_20260126) @doc(ROLES-DOC-01)', async ({ page }, testInfo) => {
+test('Create a role @track(playwright-specs-track-linking_20260126) @doc(ROLES-DOC-01)', async ({
+  page,
+}, testInfo) => {
   await page.goto('.');
   const connectionError = page.getByText('Connection terminated unexpectedly');
   if (await connectionError.isVisible()) {

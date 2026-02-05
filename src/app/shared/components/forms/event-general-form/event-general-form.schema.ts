@@ -1,3 +1,5 @@
+import type { IconValue } from '@shared/types/icon';
+
 import { applyEach, schema } from '@angular/forms/signals';
 import { DateTime } from 'luxon';
 
@@ -10,7 +12,7 @@ import {
 export interface EventGeneralFormModel {
   description: string;
   end: DateTime;
-  icon: null | { iconColor: number; iconName: string };
+  icon: IconValue | null;
   location: EventLocationType | null;
   registrationOptions: RegistrationOptionFormModel[];
   start: DateTime;

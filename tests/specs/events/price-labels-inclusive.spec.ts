@@ -29,7 +29,9 @@ test.describe.skip('Inclusive Price Labels', () => {
     );
 
     if (!paidEvent) {
-      test.skip('No paid events available for testing @track(playwright-specs-track-linking_20260126) @req(PRICE-LABELS-INCLUSIVE-SPEC-02)');
+      test.skip(
+        'No paid events available for testing @track(playwright-specs-track-linking_20260126) @req(PRICE-LABELS-INCLUSIVE-SPEC-02)',
+      );
     }
 
     await page.goto('.');
@@ -76,7 +78,9 @@ test.describe.skip('Inclusive Price Labels', () => {
     );
 
     if (!eventWithFreeOptions) {
-      test.skip('No events with free options available for testing @track(playwright-specs-track-linking_20260126) @req(PRICE-LABELS-INCLUSIVE-SPEC-04)');
+      test.skip(
+        'No events with free options available for testing @track(playwright-specs-track-linking_20260126) @req(PRICE-LABELS-INCLUSIVE-SPEC-04)',
+      );
     }
 
     await page.goto('.');
@@ -133,7 +137,9 @@ test.describe.skip('Inclusive Price Labels', () => {
     );
 
     if (!paidEvent) {
-      test.skip('No paid events available for testing @track(playwright-specs-track-linking_20260126) @req(PRICE-LABELS-INCLUSIVE-SPEC-07)');
+      test.skip(
+        'No paid events available for testing @track(playwright-specs-track-linking_20260126) @req(PRICE-LABELS-INCLUSIVE-SPEC-07)',
+      );
     }
 
     await page.goto('.');
@@ -164,7 +170,9 @@ test.describe.skip('Inclusive Price Labels', () => {
     );
 
     if (!paidEvent) {
-      test.skip('No paid events available for testing @track(playwright-specs-track-linking_20260126) @req(PRICE-LABELS-INCLUSIVE-SPEC-09)');
+      test.skip(
+        'No paid events available for testing @track(playwright-specs-track-linking_20260126) @req(PRICE-LABELS-INCLUSIVE-SPEC-09)',
+      );
     }
 
     await page.goto('.');
@@ -201,7 +209,9 @@ test.describe.skip('Inclusive Price Labels', () => {
     );
 
     if (!paidEvent) {
-      test.skip('No paid events available for testing @track(playwright-specs-track-linking_20260126) @req(PRICE-LABELS-INCLUSIVE-SPEC-11)');
+      test.skip(
+        'No paid events available for testing @track(playwright-specs-track-linking_20260126) @req(PRICE-LABELS-INCLUSIVE-SPEC-11)',
+      );
     }
 
     await page.goto('.');

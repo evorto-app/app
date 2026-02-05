@@ -6,7 +6,9 @@ import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 
 test.use({ storageState: adminStateFile });
 
-test('Create and manage events @track(playwright-specs-track-linking_20260126) @doc(EVENT-MANAGEMENT-DOC-01)', async ({ page }, testInfo) => {
+test('Create and manage events @track(playwright-specs-track-linking_20260126) @doc(EVENT-MANAGEMENT-DOC-01)', async ({
+  page,
+}, testInfo) => {
   await page.goto('.');
   await expect(page.getByRole('link', { name: 'Admin Tools' })).toBeVisible();
   await testInfo.attach('markdown', {

@@ -1,3 +1,4 @@
+import { iconSchema } from '@shared/types/icon';
 import { TRPCError } from '@trpc/server';
 import consola from 'consola';
 import { and, arrayOverlaps, eq, inArray } from 'drizzle-orm';
@@ -31,10 +32,7 @@ export const eventRouter = router({
         Schema.Struct({
           description: Schema.NonEmptyString,
           end: Schema.ValidDateFromSelf,
-          icon: Schema.Struct({
-            iconColor: Schema.Number,
-            iconName: Schema.NonEmptyString,
-          }),
+          icon: iconSchema,
           registrationOptions: Schema.Array(
             Schema.Struct({
               closeRegistrationTime: Schema.ValidDateFromSelf,
@@ -306,18 +304,17 @@ export const eventRouter = router({
       const sortedOptions = (
         Object.entries(groupedRegistrations) as [string, Registration[]][]
       ).toSorted(([, regsA], [, regsB]) => {
-          // First sort by organizing registration (true first)
-          if (
-            regsA[0].organizingRegistration !== regsB[0].organizingRegistration
-          ) {
-            return regsB[0].organizingRegistration ? 1 : -1;
-          }
-          // Then sort by title
-          return regsA[0].registrationOptionTitle.localeCompare(
-            regsB[0].registrationOptionTitle,
-          );
-        },
-      );
+        // First sort by organizing registration (true first)
+        if (
+          regsA[0].organizingRegistration !== regsB[0].organizingRegistration
+        ) {
+          return regsB[0].organizingRegistration ? 1 : -1;
+        }
+        // Then sort by title
+        return regsA[0].registrationOptionTitle.localeCompare(
+          regsB[0].registrationOptionTitle,
+        );
+      });
 
       return sortedOptions.map(([optionId, regs]) => {
         // Sort users within each option: not checked in first, then by name
@@ -502,10 +499,7 @@ export const eventRouter = router({
           description: Schema.NonEmptyString,
           end: Schema.ValidDateFromSelf,
           eventId: Schema.NonEmptyString,
-          icon: Schema.Struct({
-            iconColor: Schema.Number,
-            iconName: Schema.NonEmptyString,
-          }),
+          icon: iconSchema,
           location: Schema.NullOr(Schema.Any),
           start: Schema.ValidDateFromSelf,
           title: Schema.NonEmptyString,

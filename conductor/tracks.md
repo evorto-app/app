@@ -18,4 +18,4 @@
 ---
 
 - [ ] **Track: Finance receipts + refunds**
-*Link: [./tracks/finance-receipts_20260205/](./tracks/finance-receipts_20260205/)*
+      _Link: [./tracks/finance-receipts_20260205/](./tracks/finance-receipts_20260205/)_

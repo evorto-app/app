@@ -1,3 +1,5 @@
+import type { IconValue } from '@shared/types/icon';
+
 import { apply, hidden, min, required, schema } from '@angular/forms/signals';
 
 import { EventLocationType } from '../../../../types/location';
@@ -7,7 +9,7 @@ export type RegistrationMode = 'application' | 'fcfs' | 'random';
 export interface TemplateFormData {
   categoryId: string;
   description: string;
-  icon: null | { iconColor: number; iconName: string };
+  icon: IconValue | null;
   location: EventLocationType | null;
   organizerRegistration: TemplateRegistrationFormModel;
   participantRegistration: TemplateRegistrationFormModel;
@@ -25,7 +27,7 @@ export type TemplateFormOverrides = Partial<
 };
 
 export type TemplateFormSubmitData = Omit<TemplateFormData, 'icon'> & {
-  icon: { iconColor: number; iconName: string };
+  icon: IconValue;
 };
 
 export interface TemplateRegistrationFormModel {
@@ -91,16 +93,7 @@ export const mergeTemplateFormOverrides = (
   previous?: TemplateFormData,
 ): TemplateFormData => {
   const base = previous ?? createTemplateFormModel();
-  const mergedIcon =
-    overrides.icon === undefined
-      ? base.icon
-      : overrides.icon?.iconColor && overrides.icon?.iconName
-        ? {
-            iconColor: overrides.icon.iconColor,
-            iconName: overrides.icon.iconName,
-          }
-        : // eslint-disable-next-line unicorn/no-null
-          null;
+  const mergedIcon = overrides.icon === undefined ? base.icon : overrides.icon;
 
   const organizerRegistration = overrides.organizerRegistration
     ? {

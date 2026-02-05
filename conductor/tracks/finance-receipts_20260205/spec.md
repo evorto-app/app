@@ -1,9 +1,11 @@
 # Track Spec: Finance Receipts + Refunds
 
 ## Overview
+
 Enable event organizers to submit receipt photos and metadata for event expenses, allow authorized users to validate/approve receipts, and process refunds grouped by recipient. Receipts are tenant-scoped and linked to events. Refund issuance creates a financial transaction tied to the recipient and event(s).
 
 ## Functional Requirements
+
 - Receipt submission
   - Allow submission for:
     - Users with an organizing registration on the event.
@@ -47,11 +49,13 @@ Enable event organizers to submit receipt photos and metadata for event expenses
   - Reuse existing transaction flows and schemas where possible, extending them only as needed.
 
 ## Non-Functional Requirements
+
 - Tenant isolation for all receipt, approval, and refund operations.
 - Maintain strict end-to-end typing across client, server, and database.
 - Use Angular standalone components, signals, and modern control flow.
 
 ## Acceptance Criteria
+
 - Organizers or users with `receipt.manage` can submit a receipt with an attachment and required fields.
 - Receipt attachments can be images or PDFs, and have a fast preview image.
 - Receipts are visible in the event organization screen with an add action.
@@ -64,6 +68,7 @@ Enable event organizers to submit receipt photos and metadata for event expenses
 - All operations are tenant-scoped and permission-gated.
 
 ## Out of Scope
+
 - Automatic OCR or auto-validation of receipt photos.
 - Multi-currency conversion or tax calculations beyond storing the entered tax rate.
 - External payout automation (bank transfer initiation).

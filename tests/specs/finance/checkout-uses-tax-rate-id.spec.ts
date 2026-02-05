@@ -30,7 +30,9 @@ test.describe.skip('Checkout Tax Rate Integration', () => {
     );
 
     if (!paidEvent) {
-      test.skip('No paid events available for testing @track(playwright-specs-track-linking_20260126) @req(CHECKOUT-USES-TAX-RATE-ID-SPEC-02)');
+      test.skip(
+        'No paid events available for testing @track(playwright-specs-track-linking_20260126) @req(CHECKOUT-USES-TAX-RATE-ID-SPEC-02)',
+      );
     }
 
     await page.goto('.');
@@ -77,7 +79,9 @@ test.describe.skip('Checkout Tax Rate Integration', () => {
     );
 
     if (!paidEvent) {
-      test.skip('No paid events available for testing @track(playwright-specs-track-linking_20260126) @req(CHECKOUT-USES-TAX-RATE-ID-SPEC-04)');
+      test.skip(
+        'No paid events available for testing @track(playwright-specs-track-linking_20260126) @req(CHECKOUT-USES-TAX-RATE-ID-SPEC-04)',
+      );
     }
 
     await page.goto('.');
@@ -110,7 +114,9 @@ test.describe.skip('Checkout Tax Rate Integration', () => {
     );
 
     if (!paidEvent) {
-      test.skip('No paid events available for testing @track(playwright-specs-track-linking_20260126) @req(CHECKOUT-USES-TAX-RATE-ID-SPEC-06)');
+      test.skip(
+        'No paid events available for testing @track(playwright-specs-track-linking_20260126) @req(CHECKOUT-USES-TAX-RATE-ID-SPEC-06)',
+      );
     }
 
     await page.goto('.');
@@ -163,7 +169,9 @@ test.describe.skip('Checkout Tax Rate Integration', () => {
     });
 
     if (!eventWithFreeOptions) {
-      test.skip('No events with free options available for testing @track(playwright-specs-track-linking_20260126) @req(CHECKOUT-USES-TAX-RATE-ID-SPEC-08)');
+      test.skip(
+        'No events with free options available for testing @track(playwright-specs-track-linking_20260126) @req(CHECKOUT-USES-TAX-RATE-ID-SPEC-08)',
+      );
     }
 
     await page.goto('.');
@@ -200,7 +208,9 @@ test.describe.skip('Checkout Tax Rate Integration', () => {
     );
 
     if (!paidEvent) {
-      test.skip('No paid events available for testing @track(playwright-specs-track-linking_20260126) @req(CHECKOUT-USES-TAX-RATE-ID-SPEC-10)');
+      test.skip(
+        'No paid events available for testing @track(playwright-specs-track-linking_20260126) @req(CHECKOUT-USES-TAX-RATE-ID-SPEC-10)',
+      );
     }
 
     await page.goto('.');
@@ -234,7 +244,9 @@ test.describe.skip('Checkout Tax Rate Integration', () => {
     );
 
     if (!paidEvent) {
-      test.skip('No paid events available for testing @track(playwright-specs-track-linking_20260126) @req(CHECKOUT-USES-TAX-RATE-ID-SPEC-12)');
+      test.skip(
+        'No paid events available for testing @track(playwright-specs-track-linking_20260126) @req(CHECKOUT-USES-TAX-RATE-ID-SPEC-12)',
+      );
     }
 
     await page.goto('.');
@@ -272,7 +284,9 @@ test.describe.skip('Checkout Tax Rate Integration', () => {
     );
 
     if (!paidEvent) {
-      test.skip('No paid events available for testing @track(playwright-specs-track-linking_20260126) @req(CHECKOUT-USES-TAX-RATE-ID-SPEC-14)');
+      test.skip(
+        'No paid events available for testing @track(playwright-specs-track-linking_20260126) @req(CHECKOUT-USES-TAX-RATE-ID-SPEC-14)',
+      );
     }
 
     await page.goto('.');

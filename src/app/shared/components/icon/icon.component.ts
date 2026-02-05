@@ -1,3 +1,5 @@
+import type { IconValue } from '@shared/types/icon';
+
 import { NgOptimizedImage } from '@angular/common';
 import {
   ChangeDetectionStrategy,
@@ -17,22 +19,18 @@ import {
   templateUrl: './icon.component.html',
 })
 export class IconComponent {
-  public iconCommonName = input.required<
-    string | { iconColor: number; iconName: string }
-  >();
+  public iconCommonName = input.required<IconValue>();
   public size = input(24, {
     transform: numberAttribute,
   });
   protected iconName = computed(() => {
-    const value = this.iconCommonName();
-    const commonName = typeof value === 'string' ? value : value.iconName;
-    const [name] = (commonName ?? '').split(':');
+    const commonName = this.iconCommonName().iconName;
+    const [name] = commonName.split(':');
     return name || 'nothing-found';
   });
   protected iconSet = computed(() => {
-    const value = this.iconCommonName();
-    const commonName = typeof value === 'string' ? value : value.iconName;
-    const [, set] = (commonName ?? '').split(':');
+    const commonName = this.iconCommonName().iconName;
+    const [, set] = commonName.split(':');
     return set || 'fluent';
   });
   protected iconUrl = computed(() => {

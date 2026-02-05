@@ -4,7 +4,9 @@ import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 
 test.use({ storageState: userStateFile });
 
-test.skip('Manage ESN discount card @finance @track(playwright-specs-track-linking_20260126) @doc(DISCOUNTS-DOC-01)', async ({ page }, testInfo) => {
+test.skip('Manage ESN discount card @finance @track(playwright-specs-track-linking_20260126) @doc(DISCOUNTS-DOC-01)', async ({
+  page,
+}, testInfo) => {
   await page.goto('./profile');
   await testInfo.attach('markdown', {
     body: `

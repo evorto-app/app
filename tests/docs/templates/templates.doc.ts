@@ -4,7 +4,9 @@ import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 
 test.use({ storageState: adminStateFile });
 
-test('Manage templates @track(playwright-specs-track-linking_20260126) @doc(TEMPLATES-DOC-01)', async ({ page }, testInfo) => {
+test('Manage templates @track(playwright-specs-track-linking_20260126) @doc(TEMPLATES-DOC-01)', async ({
+  page,
+}, testInfo) => {
   await page.goto('.');
   await testInfo.attach('markdown', {
     body: `

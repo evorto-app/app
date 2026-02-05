@@ -1,7 +1,10 @@
 import crypto from 'node:crypto';
 
 import { eq } from 'drizzle-orm';
-import { seedTenant, type SeedTenantResult } from '../../../helpers/seed-tenant';
+import {
+  seedTenant,
+  type SeedTenantResult,
+} from '../../../helpers/seed-tenant';
 import { usersToAuthenticate } from '../../../helpers/user-data';
 import * as schema from '../../../src/db/schema';
 import {
