@@ -3,8 +3,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { usersToAuthenticate } from '../../helpers/user-data';
-import { test as setup } from './../fixtures/base-test';
-import { isStorageStateFresh, readStorageState } from '../utils/storage-state';
+import { test as setup } from '../support/fixtures/base-test';
+import {
+  isStorageStateFresh,
+  readStorageState,
+} from '../support/utils/storage-state';
 
 for (const userData of usersToAuthenticate) {
   setup(`authenticate ${userData.email}`, async ({ page }) => {

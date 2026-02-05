@@ -4,10 +4,10 @@ This directory contains the active Playwright suite.
 
 ## Structure
 
-- Functional/e2e tests: `tests/**`
+- Functional/e2e tests: `tests/specs/**`
 - Documentation tests: `tests/docs/**`
 - Setup/auth/database bootstrapping lives in `tests/setup/**`
-- Shared fixtures/utilities/reporter live in `tests/fixtures/**`, `tests/utils/**`, `tests/reporters/**`
+- Shared fixtures/utilities/reporters live in `tests/support/fixtures/**`, `tests/support/utils/**`, `tests/support/reporters/**`
 
 ## Required Tags
 

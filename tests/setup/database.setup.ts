@@ -4,7 +4,7 @@ import { reset } from 'drizzle-seed';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { test as setup } from './../fixtures/base-test';
+import { test as setup } from '../support/fixtures/base-test';
 import { seedTenant } from '../../helpers/seed-tenant';
 import * as schema from '../../src/db/schema';
 

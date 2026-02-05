@@ -3,8 +3,8 @@ import {
   userStateFile,
   usersToAuthenticate,
 } from '../../../helpers/user-data';
-import { expect, test } from '../../fixtures/parallel-test';
-import { takeScreenshot } from '../../reporters/documentation-reporter';
+import { expect, test } from '../../support/fixtures/parallel-test';
+import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 
 test.describe.skip('Inclusive tax rates documentation (admin)', () => {
   test.use({ storageState: adminStateFile });

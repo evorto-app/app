@@ -52,7 +52,11 @@
         <p>Error: {{ eventQuery.error().message }}</p>
       } @else if (eventQuery.isSuccess()) {
         @for (day of eventQuery.data(); track day.day) {
-          <p class="title-medium">{{ day.day | date }}</p>
+          <p
+            class="title-medium sticky top-0 lg:-top-4 z-10 bg-surface-container px-4 py-2"
+          >
+            {{ day.day | date }}
+          </p>
           @for (event of day.events; track event.id) {
             <a
               routerLink="{{ event.id }}"

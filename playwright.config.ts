@@ -30,7 +30,7 @@ if (process.env['CI']) {
   reporters.push(
     ['html', { open: 'never' }],
     ['dot'],
-    ['./tests/reporters/documentation-reporter.ts'],
+    ['./tests/support/reporters/documentation-reporter.ts'],
   );
 }
 

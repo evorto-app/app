@@ -1,8 +1,8 @@
 import { DateTime } from 'luxon';
 
 import { adminStateFile } from '../../../helpers/user-data';
-import { expect, test } from '../../fixtures/parallel-test';
-import { takeScreenshot } from '../../reporters/documentation-reporter';
+import { expect, test } from '../../support/fixtures/parallel-test';
+import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 
 test.use({ storageState: adminStateFile });
 

@@ -68,8 +68,8 @@ export class CategoryListComponent {
   protected readonly faEllipsisVertical = faEllipsisVertical;
   protected readonly outletActive = signal(false);
   private trpc = injectTRPC();
-  protected templateCategoriesQuery = injectQuery(() =>
-    this.trpc.templateCategories.findMany.queryOptions(),
+  protected templateCategoryGroupsQuery = injectQuery(() =>
+    this.trpc.templates.groupedByCategory.queryOptions(),
   );
   private createCategoryMutation = injectMutation(() =>
     this.trpc.templateCategories.create.mutationOptions(),
@@ -83,7 +83,7 @@ export class CategoryListComponent {
 
   async openCategoryCreationDialog() {
     const defaultIcon = resolveIcon(
-      this.templateCategoriesQuery.data()?.[0]?.icon,
+      this.templateCategoryGroupsQuery.data()?.[0]?.icon,
       fallbackIcon,
     );
     const dialogReference = this.dialog.open<
