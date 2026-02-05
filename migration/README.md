@@ -52,5 +52,5 @@ Notes
 
 - Tests document and verify the new platform features; no parity tests are required.
 - Migration is data‑only (TypeScript ETL old → new). No schema DDL, redirects, routing changes, or feature flags in this phase.
-- Where a 1:1 mapping is not possible, document defaults/backfills in `specs/<feature>/migration.md`.
+- Where a 1:1 mapping is not possible, document defaults/backfills in `conductor/tracks/<track_id>/spec.md` (Migration Notes section).
 - Each feature should update seed data so the feature is testable without running the migration.

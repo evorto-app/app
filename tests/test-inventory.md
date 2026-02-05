@@ -44,7 +44,7 @@ Generated: 2025-09-13
 
 ## Planned: Inclusive Tax Rates (TAX-RATES)
 
-Source: `/specs/001-inclusive-tax-rates/e2e-plan.md`
+Source: `conductor/tracks/tax-rates_20260128/spec.md`
 
 Proposed files (Playwright):
 
