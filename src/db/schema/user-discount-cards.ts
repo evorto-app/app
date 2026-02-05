@@ -7,7 +7,6 @@ import {
   varchar,
 } from 'drizzle-orm/pg-core';
 
-import { createId } from '../create-id';
 import { discountTypes } from './global-enums';
 import { modelOfTenant } from './model';
 import { users } from './users';

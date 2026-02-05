@@ -105,7 +105,7 @@ export class Shape {
 
   constructor() {
     effect(() => {
-      const _ = this.changeSignal();
+      this.changeSignal();
       const newShapeIndex = Math.floor(Math.random() * this.shapes.length);
       this.current.set(this.shapes[newShapeIndex]);
     });

@@ -1,5 +1,10 @@
 import { AsyncPipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  inject,
+  signal,
+} from '@angular/core';
 import { toObservable } from '@angular/core/rxjs-interop';
 import { debounce, form, FormField } from '@angular/forms/signals';
 import {
@@ -75,7 +80,7 @@ export class LocationSelectorDialog {
   }
 
   protected readonly displayFunction = (
-    location: google.maps.places.AutocompleteSuggestion | string | null,
+    location: google.maps.places.AutocompleteSuggestion | null | string,
   ) => {
     if (typeof location === 'string') {
       return location;

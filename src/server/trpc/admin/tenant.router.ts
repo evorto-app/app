@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { Schema } from 'effect';
 
 import { database } from '../../../db';
@@ -41,11 +41,11 @@ export const tenantRouter = router({
         });
         const values = {
           active: !!r.active,
-          country: r.country ?? null,
-          displayName: r.display_name ?? null,
+          country: r.country ?? undefined,
+          displayName: r.display_name ?? undefined,
           inclusive: !!r.inclusive,
           percentage: String(r.percentage ?? ''),
-          state: r.state ?? null,
+          state: r.state ?? undefined,
           stripeTaxRateId: r.id,
           tenantId: ctx.tenant.id,
         } satisfies Omit<typeof schema.tenantStripeTaxRates.$inferInsert, 'id'>;
@@ -54,7 +54,7 @@ export const tenantRouter = router({
               .update(schema.tenantStripeTaxRates)
               .set(values)
               .where(eq(schema.tenantStripeTaxRates.id, existing.id))
-          : database.insert(schema.tenantStripeTaxRates).values(values as any));
+          : database.insert(schema.tenantStripeTaxRates).values(values));
       }
     }),
 
@@ -72,13 +72,13 @@ export const tenantRouter = router({
       const stripeAccount = ctx.tenant.stripeAccountId;
       if (!stripeAccount) {
         return [] as {
-          active: boolean | null;
-          country: null | string;
-          displayName: null | string;
+          active?: boolean;
+          country?: string;
+          displayName?: string;
           id: string;
-          inclusive: boolean | null;
-          percentage: null | number;
-          state: null | string;
+          inclusive?: boolean;
+          percentage?: number;
+          state?: string;
         }[];
       }
       const [activeRates, archivedRates] = await Promise.all([
@@ -86,17 +86,17 @@ export const tenantRouter = router({
         stripe.taxRates.list({ active: false, limit: 100 }, { stripeAccount }),
       ]);
       const mapRate = (r: (typeof activeRates)['data'][number]) => ({
-        active: r.active ?? null,
-        country: r.country ?? null,
-        displayName: r.display_name ?? null,
+        active: r.active ?? undefined,
+        country: r.country ?? undefined,
+        displayName: r.display_name ?? undefined,
         id: r.id,
-        inclusive: r.inclusive ?? null,
-        percentage: r.percentage ?? null,
-        state: r.state ?? null,
+        inclusive: r.inclusive ?? undefined,
+        percentage: r.percentage ?? undefined,
+        state: r.state ?? undefined,
       });
       return [
-        ...activeRates.data.map(mapRate),
-        ...archivedRates.data.map(mapRate),
+        ...activeRates.data.map((rate) => mapRate(rate)),
+        ...archivedRates.data.map((rate) => mapRate(rate)),
       ];
     }),
 

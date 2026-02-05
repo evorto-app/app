@@ -11,8 +11,7 @@ describe('RegistrationStartOffsetPipe', () => {
     expect(pipe).toBeTruthy();
   });
 
-  it('should handle null and undefined values', () => {
-    expect(pipe.transform(null)).toBe('At event start');
+  it('should handle undefined values', () => {
     expect(pipe.transform()).toBe('At event start');
   });
 

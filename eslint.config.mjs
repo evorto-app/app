@@ -40,6 +40,10 @@ export default defineConfig(
           style: "kebab-case",
         },
       ],
+      "@typescript-eslint/no-extraneous-class": [
+        "error",
+        { allowWithDecorator: true },
+      ],
       "unicorn/consistent-function-scoping": "off",
       "unicorn/no-null": "warn",
     },
@@ -209,6 +213,18 @@ export default defineConfig(
           ],
         },
       ],
+    },
+  },
+  {
+    files: ["src/db/setup-database.ts"],
+    rules: {
+      "no-restricted-imports": "off",
+    },
+  },
+  {
+    files: ["src/main.ts"],
+    rules: {
+      "unicorn/prefer-top-level-await": "off",
     },
   },
   {

@@ -1,3 +1,8 @@
 import Stripe from 'stripe';
 
-export const stripe = new Stripe(process.env['STRIPE_API_KEY']!);
+const stripeApiKey = process.env['STRIPE_API_KEY'];
+if (!stripeApiKey) {
+  throw new Error('STRIPE_API_KEY is not set');
+}
+
+export const stripe = new Stripe(stripeApiKey);

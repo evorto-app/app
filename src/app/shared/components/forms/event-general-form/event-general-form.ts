@@ -27,5 +27,6 @@ import { EventGeneralFormModel } from './event-general-form.schema';
   templateUrl: './event-general-form.html',
 })
 export class EventGeneralForm {
-  public readonly generalForm = input.required<FieldTree<EventGeneralFormModel>>();
+  public readonly generalForm =
+    input.required<FieldTree<EventGeneralFormModel>>();
 }

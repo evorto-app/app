@@ -28,9 +28,7 @@ export class DurationSelectorComponent implements FormValueControl<number> {
   protected readonly days = computed(() =>
     Math.max(0, Math.floor(this.value() / 24)),
   );
-  protected readonly hours = computed(() =>
-    Math.max(0, this.value() % 24),
-  );
+  protected readonly hours = computed(() => Math.max(0, this.value() % 24));
 
   protected markTouched(): void {
     this.touched.set(true);

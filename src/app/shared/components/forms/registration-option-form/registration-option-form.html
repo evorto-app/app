@@ -8,7 +8,7 @@
         <mat-label>Registration mode</mat-label>
         <mat-select [formField]="form.registrationMode">
           @for (mode of registrationModes(); track mode) {
-          <mat-option [value]="mode">{{ mode | titlecase }} </mat-option>
+            <mat-option [value]="mode">{{ mode | titlecase }} </mat-option>
           }
         </mat-select>
       </mat-form-field>
@@ -91,7 +91,7 @@
 
           <mat-form-field>
             <mat-label>Tax rate</mat-label>
-          <mat-select [formField]="form.stripeTaxRateId">
+            <mat-select [formField]="form.stripeTaxRateId">
               @if (taxRatesQuery.isPending()) {
                 <mat-option disabled>Loading tax rates...</mat-option>
               } @else if (taxRatesQuery.isSuccess()) {
@@ -115,13 +115,13 @@
       </div>
 
       <div class="flex flex-col gap-2">
-        <label class="text-on-surface-variant text-sm">Description</label>
+        <span class="text-on-surface-variant text-sm">Description</span>
         <app-editor [control]="form.description"></app-editor>
       </div>
 
       <div class="flex flex-col gap-2">
-        <label class="text-on-surface-variant text-sm"
-          >Description for registered users</label
+        <span class="text-on-surface-variant text-sm"
+          >Description for registered users</span
         >
         <app-editor [control]="form.registeredDescription"></app-editor>
       </div>

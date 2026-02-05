@@ -8,7 +8,6 @@ import {
   templateRegistrationOptions,
 } from '../../../db/schema';
 import { computeIconSourceColor } from '../../utils/icon-color';
-import { createLogContext, TaxRateLogger } from '../../utils/tax-rate-logging';
 import { validateTaxRate } from '../../utils/validate-tax-rate';
 import { authenticatedProcedure, router } from '../trpc-server';
 
@@ -44,6 +43,7 @@ export const templateRouter = router({
       // Validate tax rates for both registration options before proceeding
       const organizerValidation = await validateTaxRate({
         isPaid: input.organizerRegistration.isPaid,
+        // eslint-disable-next-line unicorn/no-null
         stripeTaxRateId: input.organizerRegistration.stripeTaxRateId ?? null,
         tenantId: ctx.tenant.id,
       });
@@ -60,6 +60,7 @@ export const templateRouter = router({
 
       const participantValidation = await validateTaxRate({
         isPaid: input.participantRegistration.isPaid,
+        // eslint-disable-next-line unicorn/no-null
         stripeTaxRateId: input.participantRegistration.stripeTaxRateId ?? null,
         tenantId: ctx.tenant.id,
       });
@@ -100,6 +101,7 @@ export const templateRouter = router({
           registrationMode: input.organizerRegistration.registrationMode,
           roleIds: input.organizerRegistration.roleIds,
           spots: input.organizerRegistration.spots,
+          // eslint-disable-next-line unicorn/no-null
           stripeTaxRateId: input.organizerRegistration.stripeTaxRateId ?? null,
           templateId,
           title: 'Organizer registration',
@@ -118,6 +120,7 @@ export const templateRouter = router({
           roleIds: input.participantRegistration.roleIds,
           spots: input.participantRegistration.spots,
           stripeTaxRateId:
+            // eslint-disable-next-line unicorn/no-null
             input.participantRegistration.stripeTaxRateId ?? null,
           templateId,
           title: 'Participant registration',
@@ -195,6 +198,7 @@ export const templateRouter = router({
       // Validate tax rates for both registration options before proceeding
       const organizerValidation = await validateTaxRate({
         isPaid: input.organizerRegistration.isPaid,
+        // eslint-disable-next-line unicorn/no-null
         stripeTaxRateId: input.organizerRegistration.stripeTaxRateId ?? null,
         tenantId: ctx.tenant.id,
       });
@@ -211,6 +215,7 @@ export const templateRouter = router({
 
       const participantValidation = await validateTaxRate({
         isPaid: input.participantRegistration.isPaid,
+        // eslint-disable-next-line unicorn/no-null
         stripeTaxRateId: input.participantRegistration.stripeTaxRateId ?? null,
         tenantId: ctx.tenant.id,
       });
@@ -229,12 +234,15 @@ export const templateRouter = router({
         const iconColor =
           input.icon.iconColor ??
           (await computeIconSourceColor(input.icon.iconName));
+        if (iconColor === undefined) {
+          throw new Error('Unable to resolve icon color');
+        }
         const template = await tx
           .update(eventTemplates)
           .set({
             categoryId: input.categoryId,
             description: input.description,
-            icon: { iconColor: iconColor!, iconName: input.icon.iconName },
+            icon: { iconColor, iconName: input.icon.iconName },
             title: input.title,
           })
           .where(
@@ -260,6 +268,7 @@ export const templateRouter = router({
             roleIds: input.organizerRegistration.roleIds,
             spots: input.organizerRegistration.spots,
             stripeTaxRateId:
+              // eslint-disable-next-line unicorn/no-null
               input.organizerRegistration.stripeTaxRateId ?? null,
           })
           .where(
@@ -283,6 +292,7 @@ export const templateRouter = router({
             roleIds: input.participantRegistration.roleIds,
             spots: input.participantRegistration.spots,
             stripeTaxRateId:
+              // eslint-disable-next-line unicorn/no-null
               input.participantRegistration.stripeTaxRateId ?? null,
           })
           .where(

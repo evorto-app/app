@@ -30,9 +30,7 @@ import {
   EventGeneralFormModel,
   eventGeneralFormSchema,
 } from '../../shared/components/forms/event-general-form/event-general-form.schema';
-import {
-  RegistrationOptionForm,
-} from '../../shared/components/forms/registration-option-form/registration-option-form';
+import { RegistrationOptionForm } from '../../shared/components/forms/registration-option-form/registration-option-form';
 import { createRegistrationOptionFormModel } from '../../shared/components/forms/registration-option-form/registration-option-form.schema';
 import { IfAnyPermissionDirective } from '../../shared/directives/if-any-permission.directive';
 
@@ -97,7 +95,8 @@ export class EventEdit {
               ? DateTime.fromJSDate(new Date(event.end))
               : DateTime.now(),
             icon: event.icon,
-            location: event.location || null,
+            // eslint-disable-next-line unicorn/no-null
+            location: event.location ?? null,
             registrationOptions: event.registrationOptions.map((option) =>
               createRegistrationOptionFormModel({
                 closeRegistrationTime: option.closeRegistrationTime
@@ -114,6 +113,7 @@ export class EventEdit {
                 registrationMode: option.registrationMode,
                 roleIds: option.roleIds ?? [],
                 spots: option.spots,
+                // eslint-disable-next-line unicorn/no-null
                 stripeTaxRateId: option.stripeTaxRateId ?? null,
                 title: option.title,
               }),

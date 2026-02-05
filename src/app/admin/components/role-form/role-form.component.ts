@@ -36,7 +36,6 @@ import {
     FormField,
   ],
   selector: 'app-role-form',
-  standalone: true,
   templateUrl: './role-form.component.html',
 })
 export class RoleFormComponent {
@@ -51,8 +50,8 @@ export class RoleFormComponent {
     const form = this.roleForm();
     return this.permissionGroups.map((group) => {
       const groupPermissions = group.permissions.map((p) => p.key);
-      const selectedCount = groupPermissions.filter(
-        (permission) => form.permissions[permission]().value(),
+      const selectedCount = groupPermissions.filter((permission) =>
+        form.permissions[permission]().value(),
       ).length;
 
       return {
@@ -69,7 +68,9 @@ export class RoleFormComponent {
     for (const permission of ALL_PERMISSIONS) {
       const parents = DEPENDENT_PERMISSION_PARENTS[permission];
       if (parents.length === 0) continue;
-      const hasParent = parents.some((perm) => form.permissions[perm]().value());
+      const hasParent = parents.some((perm) =>
+        form.permissions[perm]().value(),
+      );
       const field = form.permissions[permission]();
       if (!hasParent || field.value()) continue;
       field.reset(true);
@@ -82,6 +83,7 @@ export class RoleFormComponent {
       const formValue = formState().value();
       this.formSubmit.emit({
         ...formValue,
+        // eslint-disable-next-line unicorn/no-null
         description: formValue.description || null,
         permissions: ALL_PERMISSIONS.filter(
           (permission) => formValue.permissions[permission],

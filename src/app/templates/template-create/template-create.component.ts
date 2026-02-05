@@ -18,7 +18,6 @@ import {
 import { injectTRPC } from '../../core/trpc-client';
 import { TemplateFormComponent } from '../shared/template-form/template-form.component';
 import {
-  TemplateFormData,
   TemplateFormOverrides,
   TemplateFormSubmitData,
 } from '../shared/template-form/template-form.schema';

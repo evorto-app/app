@@ -14,7 +14,7 @@ import {
 export const userRouter = router({
   authData: publicProcedure.query(async ({ ctx }) => {
     consola.info('Auth data', ctx.request.oidc.user);
-    return ctx.request.oidc.user as Record<string, any>;
+    return ctx.request.oidc.user as Record<string, unknown>;
   }),
 
   createAccount: publicProcedure
@@ -166,31 +166,28 @@ export const userRouter = router({
           schema.roles,
           eq(schema.rolesToTenantUsers.roleId, schema.roles.id),
         );
-      const userMap = users.reduce(
-        (accumulator, user) => {
-          if (accumulator[user.id]) {
-            if (user.role) {
-              accumulator[user.id].roles.push(user.role);
-            }
-          } else {
-            accumulator[user.id] = {
-              ...user,
-              roles: user.role ? [user.role] : [],
-            };
+      const userMap: Record<
+        string,
+        {
+          email: string;
+          firstName: string;
+          id: string;
+          lastName: string;
+          roles: string[];
+        }
+      > = {};
+      for (const user of users) {
+        if (userMap[user.id]) {
+          if (user.role) {
+            userMap[user.id].roles.push(user.role);
           }
-          return accumulator;
-        },
-        {} as Record<
-          string,
-          {
-            email: string;
-            firstName: string;
-            id: string;
-            lastName: string;
-            roles: string[];
-          }
-        >,
-      );
+          continue;
+        }
+        userMap[user.id] = {
+          ...user,
+          roles: user.role ? [user.role] : [],
+        };
+      }
       return { users: Object.values(userMap), usersCount };
     }),
 
@@ -203,7 +200,7 @@ export const userRouter = router({
         }),
       ),
     )
-    .query(async ({ ctx, input }) => {
+    .query(async ({ input }) => {
       const result = await database
         .select()
         .from(schema.users)
@@ -213,7 +210,7 @@ export const userRouter = router({
     }),
 
   maybeSelf: publicProcedure.query(async ({ ctx }) => {
-    return ctx.user ?? null;
+    return ctx.user ?? undefined;
   }),
 
   self: authenticatedProcedure.query(async ({ ctx }) => {

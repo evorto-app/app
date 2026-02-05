@@ -28,7 +28,10 @@ export class LocationSelectorField
   readonly hidden = input<boolean>(false);
   readonly readonly = input<boolean>(false);
   readonly touched = model<boolean>(false);
-  readonly value = model<EventLocationType | null>(null);
+  readonly value = model<EventLocationType | null>(
+    // eslint-disable-next-line unicorn/no-null
+    null,
+  );
 
   private readonly dialog = inject(MatDialog);
 

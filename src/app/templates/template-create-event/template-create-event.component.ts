@@ -26,9 +26,7 @@ import {
   EventGeneralFormModel,
   eventGeneralFormSchema,
 } from '../../shared/components/forms/event-general-form/event-general-form.schema';
-import {
-  RegistrationOptionForm,
-} from '../../shared/components/forms/registration-option-form/registration-option-form';
+import { RegistrationOptionForm } from '../../shared/components/forms/registration-option-form/registration-option-form';
 import { createRegistrationOptionFormModel } from '../../shared/components/forms/registration-option-form/registration-option-form.schema';
 
 @Component({
@@ -64,8 +62,14 @@ export class TemplateCreateEventComponent {
   protected readonly templateQuery = injectQuery(() =>
     this.trpc.templates.findOne.queryOptions({ id: this.templateId() }),
   );
-  private readonly initializedTemplateId = signal<string | null>(null);
-  private readonly lastStart = signal<DateTime | null>(null);
+  private readonly initializedTemplateId = signal<null | string>(
+    // eslint-disable-next-line unicorn/no-null
+    null,
+  );
+  private readonly lastStart = signal<DateTime | null>(
+    // eslint-disable-next-line unicorn/no-null
+    null,
+  );
 
   private readonly queryClient = inject(QueryClient);
   private readonly router = inject(Router);
@@ -84,7 +88,8 @@ export class TemplateCreateEventComponent {
           description: template.description,
           end: startDateTime,
           icon: template.icon,
-          location: template.location,
+          // eslint-disable-next-line unicorn/no-null
+          location: template.location ?? null,
           registrationOptions: template.registrationOptions.map((option) =>
             createRegistrationOptionFormModel({
               closeRegistrationTime: startDateTime.minus({
@@ -101,6 +106,7 @@ export class TemplateCreateEventComponent {
               registrationMode: option.registrationMode,
               roleIds: option.roleIds ?? [],
               spots: option.spots,
+              // eslint-disable-next-line unicorn/no-null
               stripeTaxRateId: option.stripeTaxRateId ?? null,
               title: option.title,
             }),
@@ -123,24 +129,22 @@ export class TemplateCreateEventComponent {
 
       const endField = this.createEventForm.end;
       const endState = endField();
-      if (
-        previousStart &&
-        !endState.dirty() &&
-        !endState.touched()
-      ) {
+      if (previousStart && !endState.dirty() && !endState.touched()) {
         const currentEnd = this.toDateTime(endState.value());
         const durationMs = currentEnd.toMillis() - previousStart.toMillis();
         const nextEnd = startDateTime.plus({ milliseconds: durationMs });
         this.updateIfPristine(endField, nextEnd);
       }
 
-      template.registrationOptions.forEach((option, index) => {
+      for (const [index, option] of template.registrationOptions.entries()) {
         const optionForm = this.createEventForm.registrationOptions[index];
-        if (!optionForm) return;
-        const openRegistrationTime = startDateTime
-          .minus({ hours: option.openRegistrationOffset });
-        const closeRegistrationTime = startDateTime
-          .minus({ hours: option.closeRegistrationOffset });
+        if (!optionForm) continue;
+        const openRegistrationTime = startDateTime.minus({
+          hours: option.openRegistrationOffset,
+        });
+        const closeRegistrationTime = startDateTime.minus({
+          hours: option.closeRegistrationOffset,
+        });
 
         this.updateIfPristine(
           optionForm.openRegistrationTime,
@@ -150,23 +154,8 @@ export class TemplateCreateEventComponent {
           optionForm.closeRegistrationTime,
           closeRegistrationTime,
         );
-      });
+      }
     });
-  }
-
-  private toDateTime(value: Date | DateTime): DateTime {
-    return DateTime.isDateTime(value) ? value : DateTime.fromJSDate(value);
-  }
-
-  private updateIfPristine(
-    field: FieldTree<DateTime>,
-    nextValue: DateTime,
-  ): void {
-    const state = field();
-    if (state.dirty() || state.touched()) return;
-    const currentValue = state.value();
-    if (currentValue.toMillis() === nextValue.toMillis()) return;
-    state.reset(nextValue);
   }
 
   async onSubmit(event: Event) {
@@ -179,8 +168,8 @@ export class TemplateCreateEventComponent {
       this.createEventMutation.mutate(
         {
           ...formValue,
-          icon: formValue.icon,
           end: this.toDateTime(formValue.end).toJSDate(),
+          icon: formValue.icon,
           registrationOptions: formValue.registrationOptions.map((option) => ({
             ...option,
             closeRegistrationTime: this.toDateTime(
@@ -203,5 +192,20 @@ export class TemplateCreateEventComponent {
         },
       );
     });
+  }
+
+  private toDateTime(value: Date | DateTime): DateTime {
+    return DateTime.isDateTime(value) ? value : DateTime.fromJSDate(value);
+  }
+
+  private updateIfPristine(
+    field: FieldTree<DateTime>,
+    nextValue: DateTime,
+  ): void {
+    const state = field();
+    if (state.dirty() || state.touched()) return;
+    const currentValue = state.value();
+    if (currentValue.toMillis() === nextValue.toMillis()) return;
+    state.reset(nextValue);
   }
 }

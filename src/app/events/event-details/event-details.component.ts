@@ -53,7 +53,6 @@ import { UpdateVisibilityDialogComponent } from '../update-visibility-dialog/upd
     IconComponent,
     MaterialThemeDirective,
   ],
-  standalone: true,
   styles: `
     header {
       view-transition-name: header;
@@ -127,7 +126,7 @@ export class EventDetailsComponent {
     const latestValidTo = verified
       .map((c) => c.validTo)
       .filter((d): d is Date => !!d)
-      .sort((a, b) => b.getTime() - a.getTime())[0];
+      .toSorted((a, b) => b.getTime() - a.getTime())[0];
     if (!latestValidTo) return false;
     return latestValidTo <= event.start;
   });

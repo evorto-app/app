@@ -1,4 +1,9 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  inject,
+  signal,
+} from '@angular/core';
 import { form } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import { Router, RouterLink } from '@angular/router';
@@ -19,12 +24,7 @@ import {
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    FontAwesomeModule,
-    MatButtonModule,
-    RouterLink,
-    RoleFormComponent,
-  ],
+  imports: [FontAwesomeModule, MatButtonModule, RouterLink, RoleFormComponent],
   selector: 'app-role-create',
   standalone: true,
   templateUrl: './role-create.component.html',
