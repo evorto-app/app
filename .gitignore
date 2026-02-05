@@ -59,6 +59,7 @@ Thumbs.db
 /e2e/.auth
 /tests/.auth
 .e2e-runtime.json
+.playwright-cli
 
 # windsurf rules
 .windsurfrules

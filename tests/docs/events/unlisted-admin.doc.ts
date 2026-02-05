@@ -4,7 +4,7 @@ import { takeScreenshot } from '../../reporters/documentation-reporter';
 
 test.use({ storageState: adminStateFile });
 
-test.fixme('Admin: manage unlisted events @track(playwright-specs-track-linking_20260126) @doc(UNLISTED-ADMIN-DOC-01)', async ({
+test('Admin: manage unlisted events @track(playwright-specs-track-linking_20260126) @doc(UNLISTED-ADMIN-DOC-01)', async ({
   events,
   page,
 }, testInfo) => {

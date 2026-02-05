@@ -3,6 +3,7 @@ import path from 'node:path';
 import { expect } from '@playwright/test';
 
 import { defaultStateFile } from '../../helpers/user-data';
+import { docScreenshot } from '../utils/doc-screenshot';
 import { test } from '../fixtures/parallel-test';
 
 // T023: Failing test for screenshot helper
@@ -15,7 +16,7 @@ test.setTimeout(120000);
 
 test.use({ storageState: defaultStateFile });
 
-test.skip('doc-screenshot returns a relative path and writes image @track(playwright-specs-track-linking_20260126) @req(DOC-SCREENSHOT-TEST-01)', async ({
+test('doc-screenshot returns a relative path and writes image @track(playwright-specs-track-linking_20260126) @req(DOC-SCREENSHOT-TEST-01)', async ({
   page,
 }, testInfo) => {
   // Put images into a predictable temp folder for the test
@@ -24,16 +25,6 @@ test.skip('doc-screenshot returns a relative path and writes image @track(playwr
 
   await page.goto('.');
   const target = page.locator('body');
-
-  // Import the helper under test (will fail until implemented in T024)
-  const { docScreenshot } = (await import('../../utils/doc-screenshot')) as {
-    docScreenshot: (
-      testInfo: any,
-      locator: import('@playwright/test').Locator,
-      page: import('@playwright/test').Page,
-      name?: string,
-    ) => Promise<string>;
-  };
 
   const relPath = await docScreenshot(testInfo, target, page, 'home-body');
 

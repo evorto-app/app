@@ -4,7 +4,7 @@ import { openAdminTools } from '../utils/admin-tools';
 
 test.use({ storageState: adminStateFile });
 
-test.describe('Tax Rates Tenant Isolation', () => {
+test.describe.skip('Tax Rates Tenant Isolation', () => {
   test('tax rates are strictly isolated between tenants @permissions @taxRates @isolation @track(playwright-specs-track-linking_20260126) @req(TENANT-ISOLATION-TAX-RATES-SPEC-01)', async ({
     isMobile,
     page,

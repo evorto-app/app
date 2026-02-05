@@ -8,7 +8,7 @@ test('adds internal:viewInternalPages to Regular user shows Internal link @track
   page,
   permissionOverride,
 }) => {
-  test.fixme(
+  test.skip(
     isMobile,
     'Internal link is not available in the mobile nav without admin permissions.',
   );

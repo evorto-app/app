@@ -7,7 +7,7 @@ import { takeScreenshot } from '../../reporters/documentation-reporter';
 
 test.use({ storageState: userStateFile });
 
-test.fixme('Register for a free event @track(playwright-specs-track-linking_20260126) @doc(REGISTER-DOC-01)', async ({
+test('Register for a free event @track(playwright-specs-track-linking_20260126) @doc(REGISTER-DOC-01)', async ({
   events,
   page,
   registrations,

@@ -4,7 +4,7 @@ import { takeScreenshot } from '../../reporters/documentation-reporter';
 
 test.use({ storageState: adminStateFile });
 
-test.skip('Manage template categories @track(playwright-specs-track-linking_20260126) @doc(CATEGORIES-DOC-01)', async ({ page }, testInfo) => {
+test('Manage template categories @track(playwright-specs-track-linking_20260126) @doc(CATEGORIES-DOC-01)', async ({ page }, testInfo) => {
   await page.goto('.');
   await testInfo.attach('markdown', {
     body: `
@@ -26,6 +26,9 @@ Click on _Create category_ to create a new category.`,
     page,
   );
   await page.getByRole('button', { name: 'Create category' }).click();
+  await expect(
+    page.getByRole('textbox', { name: 'Category title' }),
+  ).toBeVisible();
   await testInfo.attach('markdown', {
     body: `
 You can now enter the name for your category and save it. The new category will be created and added to the list.`,
@@ -47,6 +50,9 @@ After you have changed the name, click on _Save_ to save your changes.`,
     .filter({ hasText: 'Test category' })
     .getByRole('button', { name: 'Edit' })
     .click();
+  await expect(
+    page.getByRole('textbox', { name: 'Category title' }),
+  ).toBeVisible();
   await page
     .getByRole('textbox', { name: 'Category title' })
     .fill('Test category edited');

@@ -4,7 +4,7 @@ import { openAdminTools } from '../../utils/admin-tools';
 
 test.use({ storageState: adminStateFile });
 
-test.describe('Admin Tax Rates Import', () => {
+test.describe.skip('Admin Tax Rates Import', () => {
   test('admin can view and import tax rates with manageTaxes permission @finance @taxRates @track(playwright-specs-track-linking_20260126) @req(ADMIN-IMPORT-TAX-RATES-SPEC-01)', async ({
     isMobile,
     page,

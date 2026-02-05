@@ -5,7 +5,7 @@ test.setTimeout(120000);
 
 test.use({ storageState: defaultStateFile });
 
-test.skip('create template category @track(playwright-specs-track-linking_20260126) @req(TEMPLATE-CATEGORIES-TEST-01)', async ({ isMobile, page }) => {
+test('create template category @track(playwright-specs-track-linking_20260126) @req(TEMPLATE-CATEGORIES-TEST-01)', async ({ isMobile, page }) => {
   await page.goto('.');
   await page.getByRole('link', { name: 'Templates' }).click();
   await expect(page).toHaveURL(/\/templates/);
@@ -18,9 +18,7 @@ test.skip('create template category @track(playwright-specs-track-linking_202601
   await expect(page).toHaveURL(/\/templates\/categories/);
   await expect(page.locator('.category').first()).toBeVisible();
   await page.getByRole('button', { name: 'Create category' }).click();
-  await expect(
-    page.getByRole('heading', { name: 'Create a new category' }),
-  ).toBeVisible();
+  await expect(page.getByLabel('Category title')).toBeVisible();
   await page.getByLabel('Category title').fill('Mountain trips');
   await page.getByRole('button', { name: 'Save' }).click();
   await expect(
@@ -28,7 +26,7 @@ test.skip('create template category @track(playwright-specs-track-linking_202601
   ).toBeVisible();
 });
 
-test.skip('edit template category @track(playwright-specs-track-linking_20260126) @req(TEMPLATE-CATEGORIES-TEST-02)', async ({
+test('edit template category @track(playwright-specs-track-linking_20260126) @req(TEMPLATE-CATEGORIES-TEST-02)', async ({
   isMobile,
   page,
   templateCategories,
@@ -47,9 +45,7 @@ test.skip('edit template category @track(playwright-specs-track-linking_20260126
   const category = templateCategories[0];
   const categoryCard = page.locator('.category', { hasText: category.title });
   await categoryCard.getByRole('button', { name: 'Edit' }).click();
-  await expect(
-    page.getByRole('heading', { name: 'Edit category' }),
-  ).toBeVisible();
+  await expect(page.getByLabel('Category title')).toBeVisible();
   await expect(page.getByLabel('Category title')).toHaveValue(category.title);
   await page.getByLabel('Category title').fill('Mountain trips');
   await page.getByRole('button', { name: 'Save' }).click();

@@ -82,11 +82,21 @@ export class TemplateFormComponent {
 
   async onSubmit(event: Event) {
     event.preventDefault();
+    console.info('[template-form] submit start', {
+      disabled:
+        this.templateForm().invalid() || this.templateForm().submitting(),
+      invalid: this.templateForm().invalid(),
+      submitting: this.templateForm().submitting(),
+    });
     await submit(this.templateForm, async (formState) => {
       const formValue = formState().value();
       if (!formValue.icon) {
+        console.warn('[template-form] submit blocked: missing icon', {
+          value: formValue,
+        });
         return;
       }
+      console.info('[template-form] submit payload', formValue);
       this.formSubmit.emit({
         ...formValue,
         icon: formValue.icon,
