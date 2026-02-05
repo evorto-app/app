@@ -17,10 +17,122 @@ const baseConfig = [
   eslintConfigPrettier,
 ];
 
+const PLAYWRIGHT_TEST_CALL_MODIFIERS = new Set([
+  "fail",
+  "fixme",
+  "only",
+  "skip",
+  "slow",
+]);
+
+function isPlaywrightTestCall(callee) {
+  if (callee.type === "Identifier") {
+    return callee.name === "test";
+  }
+
+  if (callee.type === "MemberExpression") {
+    return (
+      callee.object.type === "Identifier" &&
+      callee.object.name === "test" &&
+      callee.property.type === "Identifier" &&
+      PLAYWRIGHT_TEST_CALL_MODIFIERS.has(callee.property.name)
+    );
+  }
+
+  return false;
+}
+
+function getStaticTitle(firstArgument) {
+  if (!firstArgument) {
+    return undefined;
+  }
+
+  if (
+    firstArgument.type === "Literal" &&
+    typeof firstArgument.value === "string"
+  ) {
+    return firstArgument.value;
+  }
+
+  if (
+    firstArgument.type === "TemplateLiteral" &&
+    firstArgument.expressions.length === 0
+  ) {
+    return firstArgument.quasis[0]?.value.cooked;
+  }
+
+  return undefined;
+}
+
+function isDocTestFile(fileName) {
+  const normalizedFileName = fileName.replaceAll("\\", "/");
+  return (
+    normalizedFileName.startsWith("tests/docs/") ||
+    normalizedFileName.includes("/tests/docs/")
+  );
+}
+
+const playwrightTagPlugin = {
+  rules: {
+    "require-test-tags": {
+      meta: {
+        docs: {
+          description:
+            "Require @track + @req/@doc tags in Playwright test titles under tests/**",
+        },
+        messages: {
+          missingDocTag:
+            "Playwright doc tests under tests/docs/** must include @doc(<id>) in the test title.",
+          missingReqTag:
+            "Playwright non-doc tests under tests/** must include @req(<id>) in the test title.",
+          missingTrackTag:
+            "Playwright tests under tests/** must include @track(<track_id>) in the test title.",
+        },
+        schema: [],
+        type: "problem",
+      },
+      create(context) {
+        const trackPattern = /@track\([^()]+\)/;
+        const reqPattern = /@req\([^()]+\)/;
+        const docPattern = /@doc\([^()]+\)/;
+        const docTest = isDocTestFile(context.filename);
+
+        return {
+          CallExpression(node) {
+            if (!isPlaywrightTestCall(node.callee)) {
+              return;
+            }
+
+            const title = getStaticTitle(node.arguments[0]);
+            if (!title) {
+              return;
+            }
+
+            if (!trackPattern.test(title)) {
+              context.report({ messageId: "missingTrackTag", node });
+            }
+
+            if (docTest) {
+              if (!docPattern.test(title)) {
+                context.report({ messageId: "missingDocTag", node });
+              }
+              return;
+            }
+
+            if (!reqPattern.test(title)) {
+              context.report({ messageId: "missingReqTag", node });
+            }
+          },
+        };
+      },
+    },
+  },
+};
+
 export default defineConfig(
   {
     files: ["**/*.ts"],
-    ignores: ["old/**/*"],
+    ignores: ["old/**/*", "tests/**/*"],
     extends: [baseConfig, ...angular.configs.tsRecommended],
     processor: angular.processInlineTemplates,
     rules: {
@@ -218,5 +330,17 @@ export default defineConfig(
       ...angular.configs.templateAccessibility,
     ],
     rules: {},
+  },
+  {
+    files: ["tests/**/*.ts"],
+    languageOptions: {
+      parser: tseslint.parser,
+    },
+    plugins: {
+      "playwright-tags": playwrightTagPlugin,
+    },
+    rules: {
+      "playwright-tags/require-test-tags": "error",
+    },
   },
 );

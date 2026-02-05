@@ -57,6 +57,7 @@ Thumbs.db
 /playwright-report/
 /playwright/.cache/
 /e2e/.auth
+/tests/.auth
 .e2e-runtime.json
 
 # windsurf rules

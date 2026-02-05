@@ -6,7 +6,7 @@
 - SSR and API: `src/server/**` (tRPC routers, middleware, webhooks) with path aliases like `@server/*`.
 - Data layer: `src/db/**` (Drizzle ORM schema in `src/db/schema`).
 - Shared types/utilities: `src/shared/**` and `src/types/**`.
-- Tests: unit tests co-located as `*.spec.ts` in `src/**`; e2e in `e2e/**` (Playwright).
+- Tests: unit tests co-located as `*.spec.ts` in `src/**`; Playwright tests in `tests/**` (docs in `tests/docs/**`); legacy reference in `e2e/**`.
 - Assets/public: `public/`; theming in `src/styles.scss` and `_theme-colors.scss`.
 
 ## Build, Test, and Development Commands
@@ -58,7 +58,7 @@
 ## Testing Guidelines
 
 - Unit: place `*.spec.ts` next to the unit under test. Keep tests deterministic and fast.
-- E2E: author Playwright tests in `e2e/**`; use `yarn e2e:ui` to debug; attach screenshots for UI changes.
+- E2E: author Playwright tests in `tests/**` (docs in `tests/docs/**`); use `yarn e2e:ui` to debug; attach screenshots for UI changes. Legacy `e2e/**` is reference only.
 
 ## Research Before You Code
 
