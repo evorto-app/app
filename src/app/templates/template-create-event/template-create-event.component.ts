@@ -4,21 +4,11 @@ import {
   effect,
   inject,
   input,
+  signal,
+  untracked,
 } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
-import {
-  FormArray,
-  NonNullableFormBuilder,
-  ReactiveFormsModule,
-} from '@angular/forms';
+import { FieldTree, form, submit } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
-import { MatCheckboxModule } from '@angular/material/checkbox';
-import { MatNativeDateModule } from '@angular/material/core';
-import { MatDatepickerModule } from '@angular/material/datepicker';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
-import { MatSelectModule } from '@angular/material/select';
-import { MatTimepickerModule } from '@angular/material/timepicker';
 import { Router, RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
@@ -27,53 +17,39 @@ import {
   injectQuery,
   QueryClient,
 } from '@tanstack/angular-query-experimental';
-import consola from 'consola/browser';
 import { DateTime } from 'luxon';
 
-import { EventLocationType } from '../../../types/location';
 import { injectTRPC } from '../../core/trpc-client';
 import { EventGeneralForm } from '../../shared/components/forms/event-general-form/event-general-form';
 import {
+  createEventGeneralFormModel,
+  EventGeneralFormModel,
+  eventGeneralFormSchema,
+} from '../../shared/components/forms/event-general-form/event-general-form.schema';
+import {
   RegistrationOptionForm,
-  RegistrationOptionFormGroup,
 } from '../../shared/components/forms/registration-option-form/registration-option-form';
+import { createRegistrationOptionFormModel } from '../../shared/components/forms/registration-option-form/registration-option-form.schema';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     FontAwesomeModule,
     MatButtonModule,
-    MatCheckboxModule,
-    MatDatepickerModule,
-    MatFormFieldModule,
-    MatInputModule,
-    MatNativeDateModule,
-    MatSelectModule,
-    MatTimepickerModule,
-    ReactiveFormsModule,
     RouterLink,
     RegistrationOptionForm,
     EventGeneralForm,
   ],
-  standalone: true,
   templateUrl: './template-create-event.component.html',
 })
 export class TemplateCreateEventComponent {
-  get registrationOptions() {
-    return this.createEventForm.get(
-      'registrationOptions',
-    ) as (typeof this.createEventForm)['controls']['registrationOptions'];
-  }
-  private fb = inject(NonNullableFormBuilder);
-  protected readonly createEventForm = this.fb.group({
-    description: this.fb.control(''),
-    end: this.fb.control<Date>(new Date()),
-    icon: this.fb.control<null | { iconColor: number; iconName: string }>(null),
-    location: this.fb.control<EventLocationType | null>(null),
-    registrationOptions: this.fb.array<RegistrationOptionFormGroup>([]),
-    start: this.fb.control<Date>(new Date()),
-    title: this.fb.control(''),
-  });
+  protected readonly createEventModel = signal<EventGeneralFormModel>(
+    createEventGeneralFormModel(),
+  );
+  protected readonly createEventForm = form(
+    this.createEventModel,
+    eventGeneralFormSchema,
+  );
   private trpc = injectTRPC();
   protected readonly createEventMutation = injectMutation(() =>
     this.trpc.events.create.mutationOptions(),
@@ -88,9 +64,8 @@ export class TemplateCreateEventComponent {
   protected readonly templateQuery = injectQuery(() =>
     this.trpc.templates.findOne.queryOptions({ id: this.templateId() }),
   );
-  private eventStartValue = toSignal(
-    this.createEventForm.controls.start.valueChanges,
-  );
+  private readonly initializedTemplateId = signal<string | null>(null);
+  private readonly lastStart = signal<DateTime | null>(null);
 
   private readonly queryClient = inject(QueryClient);
   private readonly router = inject(Router);
@@ -98,75 +73,124 @@ export class TemplateCreateEventComponent {
   constructor() {
     effect(() => {
       const template = this.templateQuery.data();
-      if (template) {
-        // Set basic template info
-        this.createEventForm.patchValue({
-          description: template.description,
-          icon: template.icon as any,
-          location: template.location,
-          title: template.title,
-        });
+      if (!template) return;
+      if (this.initializedTemplateId() === template.id) return;
 
-        const registrationOptionsFormArray = this.createEventForm.get(
-          'registrationOptions',
-        ) as FormArray;
-        registrationOptionsFormArray.clear();
-        for (const option of template.registrationOptions) {
-          registrationOptionsFormArray?.push(
-            this.fb.group({
-              closeRegistrationTime: [],
-              description: [option.description],
-              isPaid: [option.isPaid],
-              openRegistrationTime: [],
-              organizingRegistration: [option.organizingRegistration],
-              price: [option.price],
-              registeredDescription: [option.registeredDescription],
-              registrationMode: [option.registrationMode],
-              spots: [option.spots],
-              stripeTaxRateId: [(option as any).stripeTaxRateId ?? null],
-              title: [option.title],
+      const startDateTime = this.toDateTime(
+        untracked(() => this.createEventForm.start().value()),
+      );
+      this.createEventModel.set(
+        createEventGeneralFormModel({
+          description: template.description,
+          end: startDateTime,
+          icon: template.icon,
+          location: template.location,
+          registrationOptions: template.registrationOptions.map((option) =>
+            createRegistrationOptionFormModel({
+              closeRegistrationTime: startDateTime.minus({
+                hours: option.closeRegistrationOffset,
+              }),
+              description: option.description ?? '',
+              isPaid: option.isPaid,
+              openRegistrationTime: startDateTime.minus({
+                hours: option.openRegistrationOffset,
+              }),
+              organizingRegistration: option.organizingRegistration,
+              price: option.price,
+              registeredDescription: option.registeredDescription ?? '',
+              registrationMode: option.registrationMode,
+              roleIds: option.roleIds ?? [],
+              spots: option.spots,
+              stripeTaxRateId: option.stripeTaxRateId ?? null,
+              title: option.title,
             }),
-          );
-        }
-      }
+          ),
+          start: startDateTime,
+          title: template.title,
+        }),
+      );
+      this.lastStart.set(startDateTime);
+      this.initializedTemplateId.set(template.id);
     });
     effect(() => {
       const template = this.templateQuery.data();
-      const eventStart = this.eventStartValue();
-      if (template && eventStart) {
-        consola.info(eventStart);
-        consola.info(DateTime.isDateTime(eventStart));
-        const startDateTime = DateTime.fromJSDate(eventStart);
-        for (const [index, option] of template.registrationOptions.entries()) {
-          const openRegistrationTime = startDateTime
-            .minus({ hours: option.openRegistrationOffset })
-            .toJSDate();
-          const closeRegistrationTime = startDateTime
-            .minus({ hours: option.closeRegistrationOffset })
-            .toJSDate();
+      const eventStart = this.createEventForm.start().value();
+      const registrationOptions = this.createEventModel().registrationOptions;
+      if (!template || !eventStart || registrationOptions.length === 0) return;
+      const startDateTime = this.toDateTime(eventStart);
+      const previousStart = this.lastStart();
+      this.lastStart.set(startDateTime);
 
-          const registrationOptionsFormArray = this.createEventForm.get(
-            'registrationOptions',
-          ) as FormArray;
-          const registrationOption = registrationOptionsFormArray.at(index);
-          registrationOption
-            ?.get('openRegistrationTime')
-            ?.patchValue(openRegistrationTime);
-          registrationOption
-            ?.get('closeRegistrationTime')
-            ?.patchValue(closeRegistrationTime);
-        }
+      const endField = this.createEventForm.end;
+      const endState = endField();
+      if (
+        previousStart &&
+        !endState.dirty() &&
+        !endState.touched()
+      ) {
+        const currentEnd = this.toDateTime(endState.value());
+        const durationMs = currentEnd.toMillis() - previousStart.toMillis();
+        const nextEnd = startDateTime.plus({ milliseconds: durationMs });
+        this.updateIfPristine(endField, nextEnd);
       }
+
+      template.registrationOptions.forEach((option, index) => {
+        const optionForm = this.createEventForm.registrationOptions[index];
+        if (!optionForm) return;
+        const openRegistrationTime = startDateTime
+          .minus({ hours: option.openRegistrationOffset });
+        const closeRegistrationTime = startDateTime
+          .minus({ hours: option.closeRegistrationOffset });
+
+        this.updateIfPristine(
+          optionForm.openRegistrationTime,
+          openRegistrationTime,
+        );
+        this.updateIfPristine(
+          optionForm.closeRegistrationTime,
+          closeRegistrationTime,
+        );
+      });
     });
   }
 
-  async onSubmit() {
-    if (this.createEventForm.valid) {
-      const formValue = this.createEventForm.getRawValue();
+  private toDateTime(value: Date | DateTime): DateTime {
+    return DateTime.isDateTime(value) ? value : DateTime.fromJSDate(value);
+  }
+
+  private updateIfPristine(
+    field: FieldTree<DateTime>,
+    nextValue: DateTime,
+  ): void {
+    const state = field();
+    if (state.dirty() || state.touched()) return;
+    const currentValue = state.value();
+    if (currentValue.toMillis() === nextValue.toMillis()) return;
+    state.reset(nextValue);
+  }
+
+  async onSubmit(event: Event) {
+    event.preventDefault();
+    await submit(this.createEventForm, async (formState) => {
+      const formValue = formState().value();
+      if (!formValue.icon) {
+        return;
+      }
       this.createEventMutation.mutate(
         {
           ...formValue,
-          icon: formValue.icon!,
+          icon: formValue.icon,
+          end: this.toDateTime(formValue.end).toJSDate(),
+          registrationOptions: formValue.registrationOptions.map((option) => ({
+            ...option,
+            closeRegistrationTime: this.toDateTime(
+              option.closeRegistrationTime,
+            ).toJSDate(),
+            openRegistrationTime: this.toDateTime(
+              option.openRegistrationTime,
+            ).toJSDate(),
+          })),
+          start: this.toDateTime(formValue.start).toJSDate(),
           templateId: this.templateId(),
         },
         {
@@ -178,6 +202,6 @@ export class TemplateCreateEventComponent {
           },
         },
       );
-    }
+    });
   }
 }

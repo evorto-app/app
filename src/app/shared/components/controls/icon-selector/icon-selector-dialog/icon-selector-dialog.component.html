@@ -6,14 +6,17 @@
       <input
         matInput
         placeholder="Search icons"
-        [formControl]="searchControl"
+        [formField]="searchForm.query"
       />
     </mat-form-field>
     <div class="grid grid-cols-4 gap-1 lg:grid-cols-6 lg:gap-2">
       @for (icon of iconSearchQuery.data(); track icon.id) {
         <div
           class="hover:bg-surface-container-high flex cursor-pointer flex-col items-center gap-2 rounded p-2"
-          [mat-dialog-close]="{ iconColor: icon.sourceColor, iconName: icon.commonName }"
+          [mat-dialog-close]="{
+            iconColor: icon.sourceColor,
+            iconName: icon.commonName,
+          }"
         >
           <app-icon size="30" [iconCommonName]="icon.commonName"></app-icon>
           <span class="bg-surface break-all rounded px-2 text-sm">

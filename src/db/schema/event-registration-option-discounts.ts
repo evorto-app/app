@@ -22,4 +22,3 @@ export const eventRegistrationOptionDiscounts = pgTable(
       .$onUpdate(() => new Date()),
   },
 );
-

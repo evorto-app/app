@@ -86,7 +86,10 @@ export const addUsersToRoles = async (
   }
   const userIds = Array.from(new Set(assignments.map((a) => a.userId)));
   const userTenantRows = await database
-    .select({ id: schema.usersToTenants.id, userId: schema.usersToTenants.userId })
+    .select({
+      id: schema.usersToTenants.id,
+      userId: schema.usersToTenants.userId,
+    })
     .from(schema.usersToTenants)
     .where(
       and(
@@ -102,7 +105,9 @@ export const addUsersToRoles = async (
     if (!userTenantId) {
       throw new Error('User not found');
     }
-    return { roleId: a.roleId, userTenantId } as InferInsertModel<typeof schema.rolesToTenantUsers>;
+    return { roleId: a.roleId, userTenantId } as InferInsertModel<
+      typeof schema.rolesToTenantUsers
+    >;
   });
 
   await database.insert(schema.rolesToTenantUsers).values(roleAssignments);

@@ -1,5 +1,5 @@
 <div class="mb-4 flex w-full flex-row items-center gap-2">
-  <a routerLink="/events/{{eventId()}}" mat-icon-button>
+  <a routerLink="/events/{{ eventId() }}" mat-icon-button>
     <fa-duotone-icon [icon]="faArrowLeft"></fa-duotone-icon>
   </a>
   <h1 class="title-large">{{ eventQuery.data()?.title ?? "Loading ..." }}</h1>
@@ -19,7 +19,7 @@
   </mat-menu>
 </div>
 <main>
-  <form [formGroup]="editEventForm" (ngSubmit)="saveEvent()">
+  <form (submit)="saveEvent($event)">
     <div class="grid gap-6">
       <section class="bg-surface text-on-surface rounded-2xl p-4">
         <h2 class="title-large mb-4">Event Details</h2>
@@ -30,17 +30,13 @@
         class="bg-surface-container-high text-on-surface-container-high rounded-2xl p-2"
       >
         <h2 class="title-large mb-4 p-2">Registration Options</h2>
-        <div
-          class="grid grid-cols-1 gap-6 lg:grid-cols-2"
-          [formArrayName]="'registrationOptions'"
-        >
-          @for ( option of registrationOptions.controls; track option; let i =
-          $index ) {
-          <app-registration-option-form
-            class="bg-surface text-on-surface flex flex-col gap-4 rounded-xl p-4"
-            [registrationOptionForm]="option"
-            [registrationModes]="registrationModes"
-          />
+        <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          @for (option of editEventForm.registrationOptions; track option) {
+            <app-registration-option-form
+              class="bg-surface text-on-surface flex flex-col gap-4 rounded-xl p-4"
+              [registrationOptionForm]="option"
+              [registrationModes]="registrationModes"
+            />
           }
         </div>
       </section>
@@ -50,8 +46,10 @@
           type="submit"
           mat-button
           [disabled]="
-              editEventForm.invalid || updateEventMutation.isPending()
-            "
+            editEventForm().invalid() ||
+            editEventForm().submitting() ||
+            updateEventMutation.isPending()
+          "
         >
           @if (updateEventMutation.isPending()) {
             Saving...

@@ -31,7 +31,7 @@ export async function computeIconSourceColor(
       const img = await loadImage(url);
       const canvas = new Canvas(img.width, img.height);
       const context = canvas.getContext('2d');
-      
+
       // Draw image to canvas to get actual RGBA pixel data
       context.drawImage(img, 0, 0);
       const imageData = context.getImageData(0, 0, img.width, img.height);
@@ -47,9 +47,9 @@ export async function computeIconSourceColor(
         const argb = argbFromRgb(r, g, b);
         pixels.push(argb);
       }
-      
+
       if (pixels.length === 0) return;
-      
+
       // Use Material Color Utilities to find the best source color
       const result = QuantizerCelebi.quantize(pixels, 128);
       const ranked = Score.score(result);

@@ -1,41 +1,25 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
-import {
-  FormArray,
-  FormControl,
-  FormGroup,
-  ReactiveFormsModule,
-} from '@angular/forms';
+import { FieldTree, FormField } from '@angular/forms/signals';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatTimepickerModule } from '@angular/material/timepicker';
 
-import { EventLocationType } from '../../../../../types/location';
 import { EditorComponent } from '../../controls/editor/editor.component';
 import { IconSelectorFieldComponent } from '../../controls/icon-selector/icon-selector-field/icon-selector-field.component';
 import { LocationSelectorField } from '../../controls/location-selector/location-selector-field/location-selector-field';
-
-export type EventGeneralFormGroup = FormGroup<GeneralFormControls>;
-interface GeneralFormControls {
-  description: FormControl<string>;
-  end: FormControl<Date>;
-  icon: FormControl<null | { iconColor: number; iconName: string }>;
-  location: FormControl<EventLocationType | null>;
-  registrationOptions: FormArray;
-  start: FormControl<Date>;
-  title: FormControl<string>;
-}
+import { EventGeneralFormModel } from './event-general-form.schema';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     EditorComponent,
+    FormField,
     IconSelectorFieldComponent,
     MatDatepickerModule,
     MatTimepickerModule,
     MatInputModule,
     MatFormFieldModule,
-    ReactiveFormsModule,
     LocationSelectorField,
   ],
   selector: 'app-event-general-form',
@@ -43,5 +27,5 @@ interface GeneralFormControls {
   templateUrl: './event-general-form.html',
 })
 export class EventGeneralForm {
-  public readonly generalForm = input.required<EventGeneralFormGroup>();
+  public readonly generalForm = input.required<FieldTree<EventGeneralFormModel>>();
 }

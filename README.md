@@ -2,6 +2,17 @@
 
 This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 19.0.6.
 
+## Git workflow
+
+This repository uses Git Town to manage branching, syncing, and shipping. Prefer `git town` commands for daily workflow.
+
+## Release documentation
+
+We use Knope for release notes.
+
+- Always add a change file in `.changeset/*.md` for release-relevant work.
+- Do not rely on conventional commits or PR titles as release documentation.
+
 ## Development server
 
 To start a local development server, run:

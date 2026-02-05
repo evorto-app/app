@@ -14,13 +14,14 @@ import {
   injectQuery,
   QueryClient,
 } from '@tanstack/angular-query-experimental';
-import { PartialDeep } from 'type-fest';
 
 import { injectTRPC } from '../../core/trpc-client';
+import { TemplateFormComponent } from '../shared/template-form/template-form.component';
 import {
-  TemplateFormComponent,
   TemplateFormData,
-} from '../shared/template-form/template-form.component';
+  TemplateFormOverrides,
+  TemplateFormSubmitData,
+} from '../shared/template-form/template-form.schema';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -47,27 +48,21 @@ export class TemplateCreateComponent {
   private defaultUserRolesQuery = injectQuery(() =>
     this.trpc.admin.roles.findMany.queryOptions({ defaultUserRole: true }),
   );
-  protected readonly initialFormData = computed<PartialDeep<TemplateFormData>>(
-    () => {
-      return {
-        categoryId: this.categoryId() || '',
-        organizerRegistration: {
-          roleIds:
-            this.defaultOrganizerRolesQuery.data()?.map((role) => role.id) ||
-            [],
-        },
-        participantRegistration: {
-          roleIds:
-            this.defaultUserRolesQuery.data()?.map((role) => role.id) || [],
-        },
-      };
+  protected readonly initialFormData = computed<TemplateFormOverrides>(() => ({
+    categoryId: this.categoryId() || '',
+    organizerRegistration: {
+      roleIds:
+        this.defaultOrganizerRolesQuery.data()?.map((role) => role.id) || [],
     },
-  );
+    participantRegistration: {
+      roleIds: this.defaultUserRolesQuery.data()?.map((role) => role.id) || [],
+    },
+  }));
 
   private queryClient = inject(QueryClient);
   private router = inject(Router);
 
-  onSubmit(formData: TemplateFormData) {
+  onSubmit(formData: TemplateFormSubmitData) {
     this.createTemplateMutation.mutate(formData, {
       onSuccess: async () => {
         await this.queryClient.invalidateQueries({

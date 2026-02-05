@@ -3,12 +3,9 @@ import {
   Component,
   effect,
   inject,
+  signal,
 } from '@angular/core';
-import {
-  NonNullableFormBuilder,
-  ReactiveFormsModule,
-  Validators,
-} from '@angular/forms';
+import { form, FormField, required, submit } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import { MatInputModule } from '@angular/material/input';
 import { Router } from '@angular/router';
@@ -17,23 +14,26 @@ import {
   injectQuery,
   QueryClient,
 } from '@tanstack/angular-query-experimental';
-import consola from 'consola/browser';
 
 import { injectTRPC, injectTRPCClient } from '../../core/trpc-client';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [MatButtonModule, ReactiveFormsModule, MatInputModule],
+  imports: [FormField, MatButtonModule, MatInputModule],
   selector: 'app-create-account',
   styles: ``,
   templateUrl: './create-account.component.html',
 })
 export class CreateAccountComponent {
-  private formBuilder = inject(NonNullableFormBuilder);
-  protected readonly accountForm = this.formBuilder.group({
-    communicationEmail: ['', Validators.required],
-    firstName: ['', Validators.required],
-    lastName: ['', Validators.required],
+  private readonly accountModel = signal({
+    communicationEmail: '',
+    firstName: '',
+    lastName: '',
+  });
+  protected readonly accountForm = form(this.accountModel, (schema) => {
+    required(schema.communicationEmail);
+    required(schema.firstName);
+    required(schema.lastName);
   });
   // Integration can't be used due to some type weirdness
   private trpcClient = injectTRPCClient();
@@ -54,31 +54,30 @@ export class CreateAccountComponent {
     effect(() => {
       const authData = this.authDataQuery.data();
       if (!authData) return;
-      if (this.accountForm.touched) return;
-      if (authData.given_name) {
-        this.accountForm.patchValue({ firstName: authData.given_name });
-      }
-      if (authData.family_name) {
-        this.accountForm.patchValue({ lastName: authData.family_name });
-      }
-      if (authData.email) {
-        this.accountForm.patchValue({ communicationEmail: authData.email });
-      }
+      if (this.accountForm().touched()) return;
+      this.accountModel.update((current) => ({
+        communicationEmail: authData.email ?? current.communicationEmail,
+        firstName: authData.given_name ?? current.firstName,
+        lastName: authData.family_name ?? current.lastName,
+      }));
     });
   }
 
-  createAccount() {
-    if (this.accountForm.invalid) return;
-    this.createAccountMutation.mutate(this.accountForm.getRawValue(), {
-      onSuccess: async () => {
-        await this.queryClient.invalidateQueries({
-          queryKey: this.trpc.users.self.pathKey(),
-        });
-        await this.queryClient.invalidateQueries({
-          queryKey: this.trpc.users.maybeSelf.pathKey(),
-        });
-        this.router.navigate(['/profile']);
-      },
+  async onSubmit(event: Event) {
+    event.preventDefault();
+    await submit(this.accountForm, async () => {
+      const payload = this.accountModel();
+      this.createAccountMutation.mutate(payload, {
+        onSuccess: async () => {
+          await this.queryClient.invalidateQueries({
+            queryKey: this.trpc.users.self.pathKey(),
+          });
+          await this.queryClient.invalidateQueries({
+            queryKey: this.trpc.users.maybeSelf.pathKey(),
+          });
+          this.router.navigate(['/profile']);
+        },
+      });
     });
   }
 }

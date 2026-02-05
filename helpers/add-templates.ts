@@ -27,7 +27,9 @@ export const addTemplates = async (
     throw new Error('Cannot determine tenantId from categories');
   }
   const icons = await database.query.icons.findMany({ where: { tenantId } });
-  consola.info(`Using ${icons.length} icons for templates (tenant ${tenantId})`);
+  consola.info(
+    `Using ${icons.length} icons for templates (tenant ${tenantId})`,
+  );
   const taxRates = await database.query.tenantStripeTaxRates.findMany({
     where: { tenantId },
   });
@@ -155,7 +157,9 @@ export const addTemplates = async (
   await database
     .insert(schema.templateRegistrationOptions)
     .values(registrationOptionsToAdd);
-  consola.success(`Inserted ${registrationOptionsToAdd.length} free template registration options`);
+  consola.success(
+    `Inserted ${registrationOptionsToAdd.length} free template registration options`,
+  );
 
   const paidTemplates =
     // Sports freeTemplates
@@ -173,41 +177,46 @@ export const addTemplates = async (
     throw new Error('Failed to create paidTemplates');
   }
 
-  const paidOptionValues: InferInsertModel<typeof schema.templateRegistrationOptions>[] =
-    createdPaidTemplates
-      .flatMap((template) => [
-        {
-          closeRegistrationOffset: 1,
-          description: 'Organizer registration',
-          isPaid: true,
-          openRegistrationOffset: 168,
-          organizingRegistration: true,
-          price: 100 * 10,
-          stripeTaxRateId: (vat7 ?? defaultRate)?.stripeTaxRateId ?? null,
-          registrationMode: 'fcfs' as const,
-          roleIds: defaultOrganizerRoles.map((role) => role.id),
-          spots: 1,
-          templateId: template.id,
-          title: 'Organizer',
-        },
-        {
-          closeRegistrationOffset: 1,
-          description: 'Participant registration',
-          isPaid: true,
-          openRegistrationOffset: 168,
-          organizingRegistration: false,
-          price: 100 * 25,
-          stripeTaxRateId: (vat19 ?? defaultRate)?.stripeTaxRateId ?? null,
-          registrationMode: 'fcfs' as const,
-          roleIds: defaultUserRoles.map((role) => role.id),
-          spots: 20,
-          templateId: template.id,
-          title: 'Participant',
-        },
-      ])
-      .map((registrationOption) => ({ ...registrationOption, id: getId() }));
-  await database.insert(schema.templateRegistrationOptions).values(paidOptionValues);
-  consola.success(`Inserted ${paidOptionValues.length} paid template registration options`);
+  const paidOptionValues: InferInsertModel<
+    typeof schema.templateRegistrationOptions
+  >[] = createdPaidTemplates
+    .flatMap((template) => [
+      {
+        closeRegistrationOffset: 1,
+        description: 'Organizer registration',
+        isPaid: true,
+        openRegistrationOffset: 168,
+        organizingRegistration: true,
+        price: 100 * 10,
+        stripeTaxRateId: (vat7 ?? defaultRate)?.stripeTaxRateId ?? null,
+        registrationMode: 'fcfs' as const,
+        roleIds: defaultOrganizerRoles.map((role) => role.id),
+        spots: 1,
+        templateId: template.id,
+        title: 'Organizer',
+      },
+      {
+        closeRegistrationOffset: 1,
+        description: 'Participant registration',
+        isPaid: true,
+        openRegistrationOffset: 168,
+        organizingRegistration: false,
+        price: 100 * 25,
+        stripeTaxRateId: (vat19 ?? defaultRate)?.stripeTaxRateId ?? null,
+        registrationMode: 'fcfs' as const,
+        roleIds: defaultUserRoles.map((role) => role.id),
+        spots: 20,
+        templateId: template.id,
+        title: 'Participant',
+      },
+    ])
+    .map((registrationOption) => ({ ...registrationOption, id: getId() }));
+  await database
+    .insert(schema.templateRegistrationOptions)
+    .values(paidOptionValues);
+  consola.success(
+    `Inserted ${paidOptionValues.length} paid template registration options`,
+  );
 
   return [...createdFreeTemplates, ...createdPaidTemplates];
 };

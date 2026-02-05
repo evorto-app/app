@@ -18,7 +18,13 @@ import { addUniqueIndexTenantStripeTaxRates } from './steps/001_add_unique_index
 import { backfillAndSeedTaxRates } from './steps/002_backfill_and_seed_tax_rates';
 import { addAdminManageTaxesPermission } from './steps/003_add_admin_manage_taxes_permission';
 
-type Features = 'users' | 'tenants' | 'roles' | 'assignments' | 'templates' | 'events';
+type Features =
+  | 'users'
+  | 'tenants'
+  | 'roles'
+  | 'assignments'
+  | 'templates'
+  | 'events';
 
 function parseFeatures(env: string | undefined): Features[] {
   const all: Features[] = [

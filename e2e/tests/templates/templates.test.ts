@@ -41,7 +41,10 @@ test('create template in empty category', async ({
 });
 
 test('create a new template', async ({ page, templateCategories }) => {
-  test.fixme(true, 'TinyMCE editor iframe does not load in e2e; template creation blocked.');
+  test.fixme(
+    true,
+    'TinyMCE editor iframe does not load in e2e; template creation blocked.',
+  );
   const category = templateCategories[0];
   const templateTitle = 'Historical tour';
   await page.goto('.');
@@ -56,9 +59,7 @@ test('create a new template', async ({ page, templateCategories }) => {
   });
   await page.getByRole('button', { name: 'Save template' }).click();
   await expect(page).toHaveURL(/\/templates/);
-  await expect(
-    page.getByRole('link', { name: templateTitle }),
-  ).toBeVisible();
+  await expect(page.getByRole('link', { name: templateTitle })).toBeVisible();
 });
 
 test('view a template', async ({ page, templates }) => {
@@ -68,4 +69,38 @@ test('view a template', async ({ page, templates }) => {
   await expect(page).toHaveURL(/\/templates/);
   await page.getByRole('link', { name: template.title }).click();
   await expect(page).toHaveURL(`/templates/${template.id}`);
+});
+
+test('template create form hides selected roles in autocomplete', async ({
+  page,
+}) => {
+  await page.goto('.');
+  await page.getByRole('link', { name: 'Templates' }).click();
+  await expect(page).toHaveURL(/\/templates/);
+  await page.getByRole('link', { name: 'Create template' }).click();
+  await expect(page).toHaveURL('/templates/create');
+
+  const organizerRoleInput = page.getByPlaceholder('Add Role...').first();
+  await organizerRoleInput.click();
+
+  const roleOptions = page.locator('mat-option');
+  const optionsCount = await roleOptions.count();
+  if (optionsCount === 0) {
+    test.skip(true, 'No roles available for autocomplete test');
+  }
+
+  const firstOption = roleOptions.first();
+  const firstRoleText = await firstOption.textContent();
+  const selectedRoleName = firstRoleText?.trim();
+  await firstOption.click();
+
+  await organizerRoleInput.click();
+  if (selectedRoleName) {
+    await expect(
+      page.getByRole('option', {
+        exact: true,
+        name: selectedRoleName,
+      }),
+    ).toHaveCount(0);
+  }
 });

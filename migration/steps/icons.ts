@@ -34,8 +34,5 @@ export const maybeInsertIcons = async (
       } as const;
     }),
   );
-  return database
-    .insert(schema.icons)
-    .values(values)
-    .onConflictDoNothing();
+  return database.insert(schema.icons).values(values).onConflictDoNothing();
 };

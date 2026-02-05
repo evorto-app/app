@@ -21,6 +21,7 @@ WORKDIR /app
 FROM base AS build
 ENV NG_BUILD_PARTIAL_SSR=1
 COPY --chown=appuser:appuser package.json yarn.lock .yarnrc.yml ./
+COPY --chown=appuser:appuser .yarn/patches/@material-material-color-utilities-npm-0.4.0-9d48ca70b8.patch .yarn/patches/@material-material-color-utilities-npm-0.4.0-9d48ca70b8.patch
 RUN --mount=type=secret,id=FONT_AWESOME_TOKEN,mode=0444 yarn config set npmScopes.fortawesome.npmAuthToken $(cat /run/secrets/FONT_AWESOME_TOKEN)
 RUN yarn install --immutable
 COPY --chown=appuser:appuser . .

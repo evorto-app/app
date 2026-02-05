@@ -6,16 +6,15 @@
 //  $inter-font-path: "/assets/inter-ui/web"
 //);
 
-@use "inter-ui/variable" with (
+@use "inter-ui/variable" as variable with (
   $inter-font-display: swap,
   $inter-font-path: "/inter-ui/variable"
 );
-@import "tailwindcss";
+@use "tailwindcss";
 
 @plugin "@tailwindcss/typography";
 //@import url(https://fonts.bunny.net/css?family=lato:400,700|oswald:400,700);
 
-//@include default.all;
 @include variable.all;
 
 :root {
@@ -139,7 +138,7 @@
   }
 }
 
-@theme {
+@theme inline {
   --font-sans: InterVariable, sans-serif;
 
   --font-body: var(--font-sans);
@@ -180,14 +179,8 @@
   --color-tertiary-container: var(--mat-sys-tertiary-container);
   --color-tertiary: var(--mat-sys-tertiary);
   --color-secondary: var(--mat-sys-secondary);
-  //--color-success: var(--app-success);
-  //--color-on-success: var(--app-on-success);
-  //--color-success-container: var(--app-success-container);
-  //--color-on-success-container: var(--app-on-success-container);
   --color-warn: var(--app-warn);
   --color-on-warn: var(--app-on-warn);
-  //--color-warn-container: var(--app-warn-container);
-  //--color-on-warn-container: var(--app-on-warn-container);
   --radius-none: var(--mat-sys-corner-none);
   --radius-sm: var(--mat-sys-corner-extra-small);
   --radius: var(--mat-sys-corner-small);

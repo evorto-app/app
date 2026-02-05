@@ -1,9 +1,9 @@
 <h2 mat-dialog-title>Import Stripe tax rates</h2>
 <mat-dialog-content>
   <p class="text-xs text-on-surface-variant mb-2">
-    Only inclusive (VAT-style) and active tax rates are compatible for use in paid registration options.
-    Exclusive or archived rates are shown for reference but cannot be imported.
-    Manage tax rates in the Stripe Dashboard:
+    Only inclusive (VAT-style) and active tax rates are compatible for use in
+    paid registration options. Exclusive or archived rates are shown for
+    reference but cannot be imported. Manage tax rates in the Stripe Dashboard:
     <a
       href="https://dashboard.stripe.com/test/tax-rates"
       target="_blank"
@@ -22,14 +22,19 @@
       @for (rate of ratesQuery.data(); track rate.id) {
         <div class="flex items-center gap-3">
           <mat-checkbox
-            [disabled]="!(rate.inclusive && rate.active) || importedIds().has(rate.id)"
-            [checked]="selected().includes(rate.id) || importedIds().has(rate.id)"
+            [disabled]="
+              !(rate.inclusive && rate.active) || importedIds().has(rate.id)
+            "
+            [checked]="
+              selected().includes(rate.id) || importedIds().has(rate.id)
+            "
             (change)="toggle(rate.id, $event.checked)"
           >
-            {{ rate.displayName || 'Unnamed Rate' }} — {{ rate.percentage ?? '?' }}%
+            {{ rate.displayName || "Unnamed Rate" }} —
+            {{ rate.percentage ?? "?" }}%
             @if (rate.country || rate.state) {
               <span class="text-xs text-muted-foreground">
-                ({{ rate.country }}{{ rate.state ? ', ' + rate.state : '' }})
+                ({{ rate.country }}{{ rate.state ? ", " + rate.state : "" }})
               </span>
             }
           </mat-checkbox>
@@ -37,10 +42,14 @@
             @if (rate.inclusive) {
               <mat-chip color="primary" selected>included</mat-chip>
             } @else {
-              <mat-chip color="warn" selected>excluded (not compatible)</mat-chip>
+              <mat-chip color="warn" selected
+                >excluded (not compatible)</mat-chip
+              >
             }
             @if (!rate.active) {
-              <mat-chip color="warn" selected>archived (not compatible)</mat-chip>
+              <mat-chip color="warn" selected
+                >archived (not compatible)</mat-chip
+              >
             }
             @if (importedIds().has(rate.id)) {
               <mat-chip selected>imported</mat-chip>
@@ -53,7 +62,12 @@
 </mat-dialog-content>
 <mat-dialog-actions align="end">
   <button mat-stroked-button mat-dialog-close>Cancel</button>
-  <button mat-flat-button color="primary" (click)="importSelected()" [disabled]="!canImport()">
+  <button
+    mat-flat-button
+    color="primary"
+    (click)="importSelected()"
+    [disabled]="!canImport()"
+  >
     Import selected
   </button>
 </mat-dialog-actions>

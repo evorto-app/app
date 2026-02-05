@@ -1,16 +1,21 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
-import { ReactiveFormsModule } from '@angular/forms';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { form } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import { Router, RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
-import { injectMutation, QueryClient } from '@tanstack/angular-query-experimental';
+import {
+  injectMutation,
+  QueryClient,
+} from '@tanstack/angular-query-experimental';
 
 import { injectTRPC } from '../../core/trpc-client';
+import { RoleFormComponent } from '../components/role-form/role-form.component';
 import {
-  RoleFormComponent,
+  createRoleFormModel,
   RoleFormData,
-} from '../components/role-form/role-form.component';
+  roleFormSchema,
+} from '../components/role-form/role-form.schema';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -18,7 +23,6 @@ import {
     FontAwesomeModule,
     MatButtonModule,
     RouterLink,
-    ReactiveFormsModule,
     RoleFormComponent,
   ],
   selector: 'app-role-create',
@@ -31,6 +35,8 @@ export class RoleCreateComponent {
     this.trpc.admin.roles.create.mutationOptions(),
   );
   protected readonly faArrowLeft = faArrowLeft;
+  private readonly roleModel = signal(createRoleFormModel());
+  protected readonly roleForm = form(this.roleModel, roleFormSchema);
 
   private readonly queryClient = inject(QueryClient);
   private readonly router = inject(Router);

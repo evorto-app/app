@@ -82,12 +82,13 @@
                     <span>{{ option.price / 100 | currency }}</span>
                     @if (
                       taxRatesQuery.isSuccess() &&
-                        findRateByStripeId(option.stripeTaxRateId); as rate
+                        findRateByStripeId(option.stripeTaxRateId);
+                      as rate
                     ) {
                       <span class="text-on-surface-variant">·</span>
                       <span class="text-on-surface-variant">
                         Incl. {{ rate.percentage }}%
-                        {{ rate.displayName || 'Tax' }}
+                        {{ rate.displayName || "Tax" }}
                       </span>
                     }
                   } @else {
@@ -118,7 +119,10 @@
                       class="text-on-surface-variant text-sm"
                     ></fa-duotone-icon>
                     <span>
-                      Opens {{ option.openRegistrationOffset | registrationStartOffset }}
+                      Opens
+                      {{
+                        option.openRegistrationOffset | registrationStartOffset
+                      }}
                     </span>
                   </div>
                   <div class="flex items-center gap-2">
@@ -127,7 +131,10 @@
                       class="text-on-surface-variant text-sm"
                     ></fa-duotone-icon>
                     <span>
-                      Closes {{ option.closeRegistrationOffset | registrationStartOffset }}
+                      Closes
+                      {{
+                        option.closeRegistrationOffset | registrationStartOffset
+                      }}
                     </span>
                   </div>
                 </div>

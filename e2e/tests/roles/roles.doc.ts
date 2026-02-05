@@ -1,17 +1,10 @@
-import { DateTime } from 'luxon';
-
-import {
-  adminStateFile,
-  defaultStateFile,
-  userStateFile,
-} from '../../../helpers/user-data';
-import { fillTestCard } from '../../fill-test-card';
+import { adminStateFile } from '../../../helpers/user-data';
 import { expect, test } from '../../fixtures/parallel-test';
 import { takeScreenshot } from '../../reporters/documentation-reporter';
 
 test.use({ storageState: adminStateFile });
 
-test('Create a role', async ({ events, page }, testInfo) => {
+test('Create a role', async ({ page }, testInfo) => {
   await page.goto('.');
   const connectionError = page.getByText('Connection terminated unexpectedly');
   if (await connectionError.isVisible()) {
@@ -49,6 +42,8 @@ There are some flags you can set:
 - **Show in hub**: This role will be shown in the hub, so users can see who has this role.
 
 You can also add permissions to the role. The permissions are grouped by category. Learn more at [about permissions](/docs/about-permissions).
+
+Permissions that are required by another permission are automatically included and shown as non-editable dependent permissions.
 `,
   });
   await page.getByRole('textbox', { name: 'Name' }).fill('Test role');
@@ -56,7 +51,12 @@ You can also add permissions to the role. The permissions are grouped by categor
     .getByRole('textbox', { name: 'Description' })
     .fill('Test role description');
   await page.getByRole('checkbox', { name: 'Events' }).click();
-  await takeScreenshot(testInfo, [], page);
+  await takeScreenshot(
+    testInfo,
+    page.locator('app-role-form'),
+    page,
+    'Role form with permission groups',
+  );
   await page.getByRole('button', { name: 'Save role' }).click();
   await expect(page.locator('app-role-details')).toHaveText(/Test role.*/);
   await testInfo.attach('markdown', {

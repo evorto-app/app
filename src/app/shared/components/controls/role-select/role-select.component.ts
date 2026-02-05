@@ -1,15 +1,19 @@
 import { COMMA, ENTER } from '@angular/cdk/keycodes';
 import {
-  AfterViewInit,
   ChangeDetectionStrategy,
   Component,
   computed,
-  inject,
-  OnDestroy,
+  input,
+  model,
   signal,
 } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
-import { FormControl, ReactiveFormsModule } from '@angular/forms';
+import {
+  debounce,
+  disabled,
+  form,
+  FormField,
+  FormValueControl,
+} from '@angular/forms/signals';
 import {
   MatAutocompleteModule,
   MatAutocompleteSelectedEvent,
@@ -18,98 +22,98 @@ import { MatChipsModule } from '@angular/material/chips';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faCircleXmark } from '@fortawesome/duotone-regular-svg-icons';
-import {
-  injectQueries,
-  injectQuery,
-} from '@tanstack/angular-query-experimental';
-import { startWith, Subscription } from 'rxjs';
+import { injectQuery } from '@tanstack/angular-query-experimental';
+import { injectQueries } from '@tanstack/angular-query-experimental/inject-queries-experimental';
 
-import { injectTRPC } from '../../../../core/trpc-client';
-import { injectTRPCClient } from '../../../../core/trpc-client';
-import { injectNgControl } from '../../../../utils';
-import { NoopValueAccessorDirective } from '../../../directives/noop-value-accessor.directive';
+import { injectTRPC, injectTRPCClient } from '../../../../core/trpc-client';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
-  hostDirectives: [NoopValueAccessorDirective],
   imports: [
     FontAwesomeModule,
     MatFormFieldModule,
     MatAutocompleteModule,
     MatChipsModule,
-    ReactiveFormsModule,
+    FormField,
   ],
   selector: 'app-role-select',
   styles: ``,
   templateUrl: './role-select.component.html',
 })
-export class RoleSelectComponent implements AfterViewInit, OnDestroy {
+export class RoleSelectComponent implements FormValueControl<string[]> {
+  readonly disabled = input<boolean>(false);
+  readonly hidden = input<boolean>(false);
+  readonly readonly = input<boolean>(false);
   readonly separatorKeysCodes: number[] = [ENTER, COMMA];
-  private currentValue = signal<string[]>([]);
+  readonly touched = model<boolean>(false);
+  readonly value = model<string[]>([]);
+
   private trpcClient = injectTRPCClient();
-  protected currentRolesQuery = injectQueries({
-    queries: computed(() => {
-      const roleIds = this.currentValue();
-      return roleIds.map((roleId: string) => ({
-        queryFn: () =>
-          this.trpcClient.admin.roles.findOne.query({ id: roleId }),
-        queryKey: ['roles', roleId],
-      }));
-    }),
-  });
+  protected currentRolesQuery = injectQueries(() => ({
+    queries: this.value().map((roleId) => ({
+      queryFn: () => this.trpcClient.admin.roles.findOne.query({ id: roleId }),
+      queryKey: ['roles', roleId],
+    })),
+  }));
   protected faCircleXmark = faCircleXmark;
-  protected ngControl = injectNgControl();
-  protected searchInput = new FormControl('', { nonNullable: true });
-  protected searchValue = toSignal(this.searchInput.valueChanges, {
-    initialValue: '',
+  protected readonly searchModel = signal({ query: '' });
+  protected readonly searchForm = form(this.searchModel, (schema) => {
+    debounce(schema, 300);
+    disabled(schema.query, () => this.disabled() || this.readonly());
   });
+  protected readonly searchValue = computed(
+    () => this.searchForm().value().query,
+  );
   private trpc = injectTRPC();
   protected searchRoleQuery = injectQuery(() =>
     this.trpc.admin.roles.search.queryOptions({ search: this.searchValue() }),
   );
-  private signalSubscription: Subscription | undefined;
+  protected readonly selectedRoleIds = computed(() => {
+    const selected = new Set((this.value() ?? []).filter(Boolean));
+    for (const role of this.currentRolesQuery()) {
+      const roleId = role.data()?.id;
+      if (roleId) {
+        selected.add(roleId);
+      }
+    }
+    return selected;
+  });
+  protected readonly availableRoles = computed(() => {
+    return (this.searchRoleQuery.data() ?? []).filter(
+      (role) => !this.selectedRoleIds().has(role.id),
+    );
+  });
 
   add() {
-    const currentOptions = this.searchRoleQuery.data();
+    if (this.disabled() || this.readonly()) return;
+    const currentOptions = this.availableRoles();
     if (currentOptions?.length === 1) {
-      this.ngControl.control.patchValue([
-        ...this.ngControl.value.filter(
-          (value: string) => value !== currentOptions[0].id,
-        ),
+      const next = [
+        ...this.value().filter((value) => value !== currentOptions[0].id),
         currentOptions[0].id,
-      ]);
-      this.searchInput.setValue('');
+      ];
+      this.value.set(next);
+      this.touched.set(true);
+      this.searchForm.query().value.set('');
     }
   }
 
-  ngAfterViewInit(): void {
-    this.signalSubscription = this.ngControl.valueChanges
-      ?.pipe(startWith(this.ngControl.value))
-      .subscribe((roleIds) => {
-        this.currentValue.set(roleIds);
-      });
-  }
-
-  ngOnDestroy(): void {
-    this.signalSubscription?.unsubscribe();
-  }
-
   remove(id?: string) {
+    if (this.disabled() || this.readonly()) return;
     if (id) {
-      this.ngControl.control.patchValue(
-        this.ngControl.value.filter((roleId: string) => roleId !== id),
-      );
+      this.value.set(this.value().filter((roleId) => roleId !== id));
+      this.touched.set(true);
     }
   }
 
   selected(event: MatAutocompleteSelectedEvent) {
-    this.ngControl.control.patchValue([
-      ...this.ngControl.value.filter(
-        (roleId: string) => roleId !== event.option.value,
-      ),
+    if (this.disabled() || this.readonly()) return;
+    this.value.set([
+      ...this.value().filter((roleId) => roleId !== event.option.value),
       event.option.value,
     ]);
-    this.searchInput.setValue('');
+    this.touched.set(true);
+    this.searchForm.query().value.set('');
     event.option.deselect();
   }
 }

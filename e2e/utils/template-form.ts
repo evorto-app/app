@@ -8,7 +8,11 @@ type TemplateFormOptions = {
 
 export const fillTemplateBasics = async (
   page: Page,
-  { title, categoryTitle, description = 'Test template description.' }: TemplateFormOptions,
+  {
+    title,
+    categoryTitle,
+    description = 'Test template description.',
+  }: TemplateFormOptions,
 ) => {
   await page.getByLabel('Template title').fill(title);
   await page.getByLabel('Template Category').locator('svg').click();
@@ -18,12 +22,16 @@ export const fillTemplateBasics = async (
     .click();
 
   await page.getByRole('button', { name: 'Change Icon' }).click();
-  await expect(page.getByRole('heading', { name: 'Select an Icon' })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Select an Icon' }),
+  ).toBeVisible();
   await page.locator('[mat-dialog-close]').first().click();
 
   const descriptionSet = await page.evaluate((value) => {
     const appEditor = document.querySelector('app-template-form');
-    const ng = (window as typeof window & { ng?: { getComponent?: (el: Element) => any } }).ng;
+    const ng = (
+      window as typeof window & { ng?: { getComponent?: (el: Element) => any } }
+    ).ng;
     if (!ng?.getComponent || !appEditor) return false;
     const component = ng.getComponent(appEditor);
     const control = component?.templateForm?.controls?.description;
@@ -33,7 +41,9 @@ export const fillTemplateBasics = async (
   }, description);
 
   if (!descriptionSet) {
-    const placeholder = page.getByRole('button', { name: 'Click to edit content' });
+    const placeholder = page.getByRole('button', {
+      name: 'Click to edit content',
+    });
     if (await placeholder.count()) {
       await placeholder.first().click();
     }

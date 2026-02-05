@@ -24,7 +24,10 @@ import { injectTRPC } from '../../../core/trpc-client';
 import { IconComponent } from '../../../shared/components/icon/icon.component';
 import { CreateEditCategoryDialogComponent } from '../create-edit-category-dialog/create-edit-category-dialog.component';
 
-type IconValue = { iconColor: number; iconName: string };
+interface IconValue {
+  iconColor: number;
+  iconName: string;
+}
 const fallbackIcon: IconValue = { iconColor: 0, iconName: 'city' };
 
 const isIconValue = (value: unknown): value is IconValue => {
@@ -118,8 +121,8 @@ export class CategoryListComponent {
       },
     );
     const result = (await firstValueFrom(dialogReference.afterClosed())) as
-      | { title: string }
-      | undefined;
+      | undefined
+      | { title: string };
     if (result?.title) {
       await this.updateCategoryMutation.mutateAsync({
         id: category.id,

@@ -21,7 +21,7 @@ export const migrateTemplateCategories = async (
   });
   consola.info(`Migrating ${oldCategories.length} template categories`);
   await maybeInsertIcons(newTenant.id, ...oldCategories.map((c) => c.icon));
-  
+
   const categoryValues = await Promise.all(
     oldCategories.map(async (category) => {
       try {
@@ -33,10 +33,12 @@ export const migrateTemplateCategories = async (
           title: category.name,
         };
       } catch (error) {
-        consola.warn(`Failed to resolve icon "${category.icon}" for category "${category.name}": ${error}`);
+        consola.warn(
+          `Failed to resolve icon "${category.icon}" for category "${category.name}": ${error}`,
+        );
         return null;
       }
-    })
+    }),
   );
 
   const newCategories = await database

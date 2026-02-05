@@ -3,12 +3,10 @@ import {
   Component,
   computed,
   effect,
-  inject,
   input,
   output,
 } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
-import { NonNullableFormBuilder, ReactiveFormsModule } from '@angular/forms';
+import { FieldTree, FormField, submit } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatInputModule } from '@angular/material/input';
@@ -21,14 +19,11 @@ import {
   PERMISSION_DEPENDENCIES,
   PERMISSION_GROUPS,
 } from '../../../../shared/permissions/permissions';
-
-export interface RoleFormData {
-  defaultOrganizerRole: boolean;
-  defaultUserRole: boolean;
-  description: null | string;
-  name: string;
-  permissions: Permission[];
-}
+import {
+  DEPENDENT_PERMISSION_PARENTS,
+  RoleFormData,
+  RoleFormModel,
+} from './role-form.schema';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -38,43 +33,26 @@ export interface RoleFormData {
     MatButtonModule,
     MatInputModule,
     MatTooltipModule,
-    ReactiveFormsModule,
+    FormField,
   ],
   selector: 'app-role-form',
   standalone: true,
   templateUrl: './role-form.component.html',
 })
 export class RoleFormComponent {
-  public readonly initialData = input<Partial<RoleFormData>>({});
   public readonly isSubmitting = input(false);
+  public readonly roleForm = input.required<FieldTree<RoleFormModel>>();
   public readonly submitLabel = input('Save role');
   protected formSubmit = output<RoleFormData>();
 
   protected readonly permissionGroups = PERMISSION_GROUPS;
-  private formBuilder = inject(NonNullableFormBuilder);
-
-  protected permissionForm = this.formBuilder.group({
-    collapseMembersInHup: [false],
-    defaultOrganizerRole: [false],
-    defaultUserRole: [false],
-    description: [''],
-    name: [''],
-    permissions: this.formBuilder.group(
-      Object.fromEntries(
-        ALL_PERMISSIONS.map((permission) => [permission, [false]]),
-      ) as Record<Permission, [boolean]>,
-    ),
-    showInHub: [false],
-  });
-
-  private formValue = toSignal(this.permissionForm.valueChanges);
 
   protected readonly groupStates = computed(() => {
-    const currentPermissions = this.formValue()?.permissions ?? {};
+    const form = this.roleForm();
     return this.permissionGroups.map((group) => {
       const groupPermissions = group.permissions.map((p) => p.key);
       const selectedCount = groupPermissions.filter(
-        (p) => currentPermissions[p],
+        (permission) => form.permissions[permission]().value(),
       ).length;
 
       return {
@@ -86,60 +64,42 @@ export class RoleFormComponent {
     });
   });
 
-  constructor() {
-    effect(() => {
-      const data = this.initialData();
-      if (data) {
-        // create permissions object from input
-        const permissions = Object.fromEntries(
-          data.permissions?.map((permission) => [permission, true]) ?? [],
-        );
-        this.permissionForm.patchValue(
-          { ...data, description: data.description ?? '', permissions },
-          { emitEvent: true },
-        );
-      }
-    });
-  }
+  private readonly syncDependentPermissions = effect(() => {
+    const form = this.roleForm();
+    for (const permission of ALL_PERMISSIONS) {
+      const parents = DEPENDENT_PERMISSION_PARENTS[permission];
+      if (parents.length === 0) continue;
+      const hasParent = parents.some((perm) => form.permissions[perm]().value());
+      const field = form.permissions[permission]();
+      if (!hasParent || field.value()) continue;
+      field.reset(true);
+    }
+  });
 
-  isPermissionSelected(permission: Permission): boolean {
-    const permissions = this.formValue()?.permissions ?? {};
-    return permissions[permission] ?? false;
-  }
-
-  onSubmit(): void {
-    if (this.permissionForm.valid) {
-      const rawValue = this.permissionForm.getRawValue();
+  async onSubmit(event: Event): Promise<void> {
+    event.preventDefault();
+    await submit(this.roleForm(), async (formState) => {
+      const formValue = formState().value();
       this.formSubmit.emit({
-        ...rawValue,
+        ...formValue,
+        description: formValue.description || null,
         permissions: ALL_PERMISSIONS.filter(
-          (p) => rawValue.permissions[p],
+          (permission) => formValue.permissions[permission],
         ) as Permission[],
       });
-    }
+    });
   }
 
   toggleGroup(
     group: { permissions: { key: Permission }[] },
     checked: boolean,
   ): void {
-    const updates = Object.fromEntries(
-      group.permissions.map((p) => [p.key, checked]),
-    );
-
-    this.permissionForm.patchValue({
-      permissions: {
-        ...updates,
-      },
-    });
-  }
-
-  togglePermission(permission: Permission, checked: boolean): void {
-    this.permissionForm.patchValue({
-      permissions: {
-        [permission]: checked,
-      },
-    });
+    const form = this.roleForm();
+    for (const permission of group.permissions) {
+      const field = form.permissions[permission.key]();
+      field.value.set(checked);
+      field.markAsDirty();
+    }
   }
 
   protected getDependentPermissions(permission: Permission): Permission[] {
@@ -147,32 +107,16 @@ export class RoleFormComponent {
   }
 
   protected getPermissionTooltip(permission: Permission): string {
-    if (this.isPermissionDisabled(permission)) {
-      // Find which permission grants this one
-      for (const [parentPerm, childPerms] of Object.entries(
-        PERMISSION_DEPENDENCIES,
-      )) {
-        if (childPerms.includes(permission)) {
-          return `Automatically granted by ${parentPerm}`;
-        }
-      }
+    const form = this.roleForm();
+    const parents = DEPENDENT_PERMISSION_PARENTS[permission];
+    if (parents.length === 0) return '';
+    const activeParents = parents.filter((perm) =>
+      form.permissions[perm]().value(),
+    );
+    if (activeParents.length === 0) return '';
+    if (activeParents.length === 1) {
+      return `Automatically granted by ${activeParents[0]}`;
     }
-    return '';
-  }
-
-  protected isPermissionDisabled(permission: Permission): boolean {
-    const currentPermissions = this.formValue()?.permissions ?? {};
-    // Check if this permission is already granted through a dependency
-    for (const [parentPerm, childPerms] of Object.entries(
-      PERMISSION_DEPENDENCIES,
-    )) {
-      if (
-        currentPermissions[parentPerm as Permission] &&
-        childPerms.includes(permission)
-      ) {
-        return true;
-      }
-    }
-    return false;
+    return `Automatically granted by ${activeParents.join(', ')}`;
   }
 }

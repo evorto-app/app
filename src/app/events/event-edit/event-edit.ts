@@ -4,12 +4,9 @@ import {
   effect,
   inject,
   input,
+  signal,
 } from '@angular/core';
-import {
-  FormArray,
-  NonNullableFormBuilder,
-  ReactiveFormsModule,
-} from '@angular/forms';
+import { form, submit } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import { MatMenuModule } from '@angular/material/menu';
 import { Router, RouterLink } from '@angular/router';
@@ -24,14 +21,19 @@ import {
   QueryClient,
 } from '@tanstack/angular-query-experimental';
 import consola from 'consola/browser';
+import { DateTime } from 'luxon';
 
-import { EventLocationType } from '../../../types/location';
 import { injectTRPC } from '../../core/trpc-client';
 import { EventGeneralForm } from '../../shared/components/forms/event-general-form/event-general-form';
 import {
+  createEventGeneralFormModel,
+  EventGeneralFormModel,
+  eventGeneralFormSchema,
+} from '../../shared/components/forms/event-general-form/event-general-form.schema';
+import {
   RegistrationOptionForm,
-  RegistrationOptionFormGroup,
 } from '../../shared/components/forms/registration-option-form/registration-option-form';
+import { createRegistrationOptionFormModel } from '../../shared/components/forms/registration-option-form/registration-option-form.schema';
 import { IfAnyPermissionDirective } from '../../shared/directives/if-any-permission.directive';
 
 @Component({
@@ -43,7 +45,6 @@ import { IfAnyPermissionDirective } from '../../shared/directives/if-any-permiss
     MatMenuModule,
     RouterLink,
     EventGeneralForm,
-    ReactiveFormsModule,
     RegistrationOptionForm,
   ],
   selector: 'app-event-edit',
@@ -52,21 +53,13 @@ import { IfAnyPermissionDirective } from '../../shared/directives/if-any-permiss
 })
 export class EventEdit {
   public eventId = input.required<string>();
-  get registrationOptions() {
-    return this.editEventForm.get(
-      'registrationOptions',
-    ) as (typeof this.editEventForm)['controls']['registrationOptions'];
-  }
-  private fb = inject(NonNullableFormBuilder);
-  protected readonly editEventForm = this.fb.group({
-    description: this.fb.control(''),
-    end: this.fb.control<Date>(new Date()),
-    icon: this.fb.control<null | { iconColor: number; iconName: string }>(null),
-    location: this.fb.control<EventLocationType | null>(null),
-    registrationOptions: this.fb.array<RegistrationOptionFormGroup>([]),
-    start: this.fb.control<Date>(new Date()),
-    title: this.fb.control(''),
-  });
+  protected readonly editEventModel = signal<EventGeneralFormModel>(
+    createEventGeneralFormModel(),
+  );
+  protected readonly editEventForm = form(
+    this.editEventModel,
+    eventGeneralFormSchema,
+  );
   private trpc = injectTRPC();
   protected readonly eventQuery = injectQuery(() =>
     this.trpc.events.findOneForEdit.queryOptions({ id: this.eventId() }),
@@ -97,74 +90,67 @@ export class EventEdit {
     effect(() => {
       const event = this.eventQuery.data();
       if (event) {
-        // Use patchValue instead of reset for better control over form updates
-        this.editEventForm.patchValue({
-          description: event.description,
-          end: event.end ? new Date(event.end) : new Date(),
-          icon: event.icon,
-          location: event.location || null,
-          start: event.start ? new Date(event.start) : new Date(),
-          title: event.title,
-        });
-
-        // Update registration options
-        const registrationOptionsFormArray = this.editEventForm.get(
-          'registrationOptions',
-        ) as FormArray;
-        registrationOptionsFormArray.clear();
-        for (const option of event.registrationOptions) {
-          registrationOptionsFormArray.push(
-            this.fb.group({
-              closeRegistrationTime: [
-                option.closeRegistrationTime
-                  ? new Date(option.closeRegistrationTime)
-                  : null,
-              ],
-              description: [option.description],
-              isPaid: [option.isPaid],
-              openRegistrationTime: [
-                option.openRegistrationTime
-                  ? new Date(option.openRegistrationTime)
-                  : null,
-              ],
-              organizingRegistration: [option.organizingRegistration],
-              price: [option.price],
-              registeredDescription: [option.registeredDescription],
-              registrationMode: [option.registrationMode],
-              spots: [option.spots],
-              stripeTaxRateId: [option.stripeTaxRateId ?? null],
-              title: [option.title],
-            }),
-          );
-        }
+        this.editEventModel.set(
+          createEventGeneralFormModel({
+            description: event.description,
+            end: event.end
+              ? DateTime.fromJSDate(new Date(event.end))
+              : DateTime.now(),
+            icon: event.icon,
+            location: event.location || null,
+            registrationOptions: event.registrationOptions.map((option) =>
+              createRegistrationOptionFormModel({
+                closeRegistrationTime: option.closeRegistrationTime
+                  ? DateTime.fromJSDate(new Date(option.closeRegistrationTime))
+                  : DateTime.now(),
+                description: option.description ?? '',
+                isPaid: option.isPaid,
+                openRegistrationTime: option.openRegistrationTime
+                  ? DateTime.fromJSDate(new Date(option.openRegistrationTime))
+                  : DateTime.now(),
+                organizingRegistration: option.organizingRegistration,
+                price: option.price,
+                registeredDescription: option.registeredDescription ?? '',
+                registrationMode: option.registrationMode,
+                roleIds: option.roleIds ?? [],
+                spots: option.spots,
+                stripeTaxRateId: option.stripeTaxRateId ?? null,
+                title: option.title,
+              }),
+            ),
+            start: event.start
+              ? DateTime.fromJSDate(new Date(event.start))
+              : DateTime.now(),
+            title: event.title,
+          }),
+        );
       }
     });
   }
-  protected saveEvent() {
-    if (this.editEventForm.invalid) {
-      return;
-    }
+  protected async saveEvent(event: Event) {
+    event.preventDefault();
+    await submit(this.editEventForm, async (formState) => {
+      const formValue = formState().value();
 
-    const formValue = this.editEventForm.value;
+      if (
+        !formValue.description ||
+        !formValue.end ||
+        !formValue.icon ||
+        !formValue.start ||
+        !formValue.title
+      ) {
+        return;
+      }
 
-    if (
-      !formValue.description ||
-      !formValue.end ||
-      !formValue.icon ||
-      !formValue.start ||
-      !formValue.title
-    ) {
-      return;
-    }
-
-    this.updateEventMutation.mutate({
-      description: formValue.description,
-      end: formValue.end,
-      eventId: this.eventId(),
-      icon: formValue.icon,
-      location: formValue.location,
-      start: formValue.start,
-      title: formValue.title,
+      this.updateEventMutation.mutate({
+        description: formValue.description,
+        end: formValue.end.toJSDate(),
+        eventId: this.eventId(),
+        icon: formValue.icon,
+        location: formValue.location,
+        start: formValue.start.toJSDate(),
+        title: formValue.title,
+      });
     });
   }
 }
