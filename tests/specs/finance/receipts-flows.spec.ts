@@ -31,6 +31,9 @@ test('submit receipt from event organize page @track(finance-receipts_20260205) 
   await expect(page.getByRole('heading', { name: 'Receipts' })).toBeVisible();
   await page.getByRole('button', { name: 'Add receipt' }).click();
 
+  await expect(page.getByLabel('Deposit amount (EUR)')).not.toBeVisible();
+  await page.getByRole('checkbox', { name: 'Deposit involved' }).check();
+  await expect(page.getByLabel('Deposit amount (EUR)')).toBeVisible();
   await expect(page.getByLabel('Alcohol amount (EUR)')).not.toBeVisible();
   await page.getByRole('checkbox', { name: 'Alcohol purchased' }).check();
   await expect(page.getByLabel('Alcohol amount (EUR)')).toBeVisible();
@@ -67,6 +70,7 @@ test('approve and refund receipts in finance @track(finance-receipts_20260205) @
   if (await page.getByText('No approved receipts are waiting for refund.').isVisible()) {
     return;
   }
+  await expect(page.locator('table[mat-table]')).toBeVisible();
   const rowCheckboxes = page.locator('tr.mat-mdc-row input[type="checkbox"]');
   const rowCount = await rowCheckboxes.count();
   if (rowCount === 0) {

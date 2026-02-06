@@ -39,7 +39,9 @@
             <mat-label>Payout method</mat-label>
             <mat-select
               [value]="getPayoutType(group.submittedByUserId, group.payout)"
-              (valueChange)="setPayoutType(group.submittedByUserId, $event)"
+              (selectionChange)="
+                setPayoutType(group.submittedByUserId, $event.value)
+              "
             >
               @if (group.payout.iban) {
                 <mat-option value="iban">IBAN</mat-option>

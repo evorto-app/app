@@ -9,7 +9,7 @@
 - [x] Task: Design receipt/refund data model changes
   - [x] Define receipt status lifecycle and required fields
   - [x] Define links between receipts, events, users, and transactions
-  - [ ] Define R2 original storage + Cloudflare Images preview metadata
+  - [x] Define R2 original storage + Cloudflare Images preview metadata
 - [x] Task: Plan E2E/doc coverage for new receipt flows
   - [x] Identify user journeys for submit/approve/refund
   - [x] Identify doc tests/screenshots needed
@@ -24,11 +24,11 @@
 - [x] Task: Implement API for receipt submission and retrieval
   - [x] Add Effect Schema inputs/outputs
   - [x] Add permission checks for submission
-  - [ ] Accept image or PDF attachment and store preview reference
+  - [x] Accept image or PDF attachment and store preview reference
 - [x] Task: Event organization UI - receipt list + add receipt flow
   - [x] Add receipt list to existing event organization screen
   - [x] Add receipt submission form with required fields
-  - [ ] Integrate R2 upload + Cloudflare Images preview generation
+  - [x] Integrate R2 upload + Cloudflare Images preview generation
 - [x] Task: Profile UI - receipts list and section-based profile
   - [x] Convert profile to section-based layout
   - [x] Add "Receipts" section with status list

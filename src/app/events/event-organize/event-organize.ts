@@ -136,8 +136,12 @@ export class EventOrganize {
   private readonly config = inject(ConfigService);
 
   private readonly dialog = inject(MatDialog);
-  private readonly imageUploadInitMutation = injectMutation(() =>
-    this.trpc.editorMedia.createImageDirectUpload.mutationOptions(),
+  private pdfWorkerConfigured = false;
+  private readonly receiptOriginalUploadMutation = injectMutation(() =>
+    this.trpc.finance.receiptMedia.uploadOriginal.mutationOptions(),
+  );
+  private readonly receiptPreviewUploadInitMutation = injectMutation(() =>
+    this.trpc.finance.receiptMedia.createPreviewDirectUpload.mutationOptions(),
   );
 
   constructor() {
@@ -197,44 +201,133 @@ export class EventOrganize {
     row: { type?: string },
   ) => row?.type === 'Registration Option';
 
-  private async prepareAttachment(file: File) {
-    if (file.type.startsWith('image/')) {
-      const uploadInit = await this.imageUploadInitMutation.mutateAsync({
-        fileName: file.name,
-        fileSizeBytes: file.size,
-        mimeType: file.type,
-      });
-      const uploadBody = new FormData();
-      uploadBody.append('file', file);
-      const uploadResponse = await fetch(uploadInit.uploadUrl, {
-        body: uploadBody,
-        method: 'POST',
-      });
-      if (!uploadResponse.ok) {
-        throw new Error(`Image upload failed with status ${uploadResponse.status}`);
-      }
-
-      return {
-        fileName: file.name,
-        mimeType: file.type,
-        previewImageId: uploadInit.imageId,
-        previewImageUrl: uploadInit.deliveryUrl,
-        sizeBytes: file.size,
-        storageKey: uploadInit.imageId,
-        storageUrl: uploadInit.deliveryUrl,
-      };
+  private async createPdfPreviewImage(file: File): Promise<File> {
+    const pdfJs = await import('pdfjs-dist');
+    if (!this.pdfWorkerConfigured) {
+      pdfJs.GlobalWorkerOptions.workerSrc = new URL(
+        'pdfjs-dist/build/pdf.worker.mjs',
+        import.meta.url,
+      ).toString();
+      this.pdfWorkerConfigured = true;
     }
 
-    // PDF receipts are currently stored as metadata-only references.
-    // Image preview generation for PDFs will be added when R2 pipeline is available.
+    const loadingTask = pdfJs.getDocument({ data: await file.arrayBuffer() });
+    const pdfDocument = await loadingTask.promise;
+    const page = await pdfDocument.getPage(1);
+    const viewport = page.getViewport({ scale: 1.5 });
+
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.ceil(viewport.width);
+    canvas.height = Math.ceil(viewport.height);
+
+    const canvasContext = canvas.getContext('2d');
+    if (!canvasContext) {
+      throw new Error('Failed to create PDF preview context');
+    }
+
+    await page.render({ canvas, canvasContext, viewport }).promise;
+    const previewBlob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, 'image/jpeg', 0.85),
+    );
+    if (!previewBlob) {
+      throw new Error('Failed to render PDF preview');
+    }
+
+    const baseName = file.name.replace(/\.pdf$/iu, '');
+    return new File([previewBlob], `${baseName}-preview.jpg`, {
+      type: 'image/jpeg',
+    });
+  }
+
+  private async prepareAttachment(file: File) {
+    const originalUpload = await this.uploadReceiptOriginal(file);
+
+    let previewUpload:
+      | null
+      | {
+          deliveryUrl: string;
+          imageId: string;
+        } = null;
+
+    if (file.type.startsWith('image/')) {
+      previewUpload = await this.uploadPreviewImage(file);
+    } else if (file.type === 'application/pdf') {
+      const previewFile = await this.createPdfPreviewImage(file);
+      previewUpload = await this.uploadPreviewImage(previewFile);
+    }
+
     return {
       fileName: file.name,
       mimeType: file.type,
-      previewImageId: null,
-      previewImageUrl: null,
-      sizeBytes: file.size,
-      storageKey: `pdf://${Date.now()}-${file.name}`,
-      storageUrl: null,
+      previewImageId: previewUpload?.imageId ?? null,
+      previewImageUrl: previewUpload?.deliveryUrl ?? null,
+      sizeBytes: originalUpload.sizeBytes,
+      storageKey: originalUpload.storageKey,
+      storageUrl: originalUpload.storageUrl,
     };
+  }
+
+  private async readFileAsBase64(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.addEventListener('error', () => {
+        reject(new Error('Failed to read receipt file'));
+      });
+      reader.addEventListener('load', () => {
+        if (typeof reader.result !== 'string') {
+          reject(new Error('Invalid receipt file payload'));
+          return;
+        }
+        const commaIndex = reader.result.indexOf(',');
+        if (commaIndex === -1) {
+          reject(new Error('Invalid receipt data URL'));
+          return;
+        }
+        resolve(reader.result.slice(commaIndex + 1));
+      });
+      reader.readAsDataURL(file);
+    });
+  }
+
+  private async uploadPreviewImage(file: File): Promise<{
+    deliveryUrl: string;
+    imageId: string;
+  }> {
+    const uploadInit = await this.receiptPreviewUploadInitMutation.mutateAsync({
+      fileName: file.name,
+      fileSizeBytes: file.size,
+      mimeType: file.type,
+    });
+
+    const uploadBody = new FormData();
+    uploadBody.append('file', file);
+    const uploadResponse = await fetch(uploadInit.uploadUrl, {
+      body: uploadBody,
+      method: 'POST',
+    });
+
+    if (!uploadResponse.ok) {
+      throw new Error(
+        `Preview upload failed with status ${uploadResponse.status}`,
+      );
+    }
+
+    return {
+      deliveryUrl: uploadInit.deliveryUrl,
+      imageId: uploadInit.imageId,
+    };
+  }
+
+  private async uploadReceiptOriginal(file: File): Promise<{
+    sizeBytes: number;
+    storageKey: string;
+    storageUrl: string;
+  }> {
+    return this.receiptOriginalUploadMutation.mutateAsync({
+      fileBase64: await this.readFileAsBase64(file),
+      fileName: file.name,
+      fileSizeBytes: file.size,
+      mimeType: file.type,
+    });
   }
 }

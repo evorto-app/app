@@ -11,6 +11,7 @@ import { Schema } from 'effect';
 import { database } from '../../../db';
 import * as schema from '../../../db/schema';
 import { authenticatedProcedure, router } from '../trpc-server';
+import { receiptMediaRouter } from './receipt-media.router';
 
 const receiptAttachmentSchema = Schema.Struct({
   fileName: Schema.NonEmptyString,
@@ -157,6 +158,7 @@ const canManageEventReceipts = async (
 };
 
 export const financeRouter = router({
+  receiptMedia: receiptMediaRouter,
   receipts: router({
     byEvent: authenticatedProcedure
       .input(
