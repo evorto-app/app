@@ -162,22 +162,48 @@ export async function takeScreenshot(
   page: Page,
   caption?: string,
 ) {
-  // let boxShadow = 'none';
-  let zIndex = '1';
   await page.waitForTimeout(1000);
   const focusPoints = Array.isArray(locators) ? locators : [locators];
-  await Promise.all(
-    focusPoints.map(async (locator) => {
-      await locator.first().evaluate((element) => {
-        // boxShadow = element.style.boxShadow;
-        zIndex = element.style.zIndex;
-        element.style.outline = 'thick solid rgb(236, 72, 153)';
-        element.style.zIndex = '10000';
-        return element;
+
+  const isDetachedError = (error: unknown) =>
+    error instanceof Error &&
+    error.message.includes('Element is not attached to the DOM');
+
+  const runWithRetry = async (
+    run: () => Promise<void>,
+    attempts: number = 5,
+  ): Promise<void> => {
+    let lastError: unknown;
+    for (let attempt = 0; attempt < attempts; attempt++) {
+      try {
+        await run();
+        return;
+      } catch (error) {
+        lastError = error;
+        if (!isDetachedError(error) || attempt === attempts - 1) {
+          throw error;
+        }
+        await page.waitForTimeout(100);
+      }
+    }
+    if (lastError) throw lastError;
+  };
+
+  for (const locator of focusPoints) {
+    await runWithRetry(async () => {
+      const target = locator.first();
+      await target.waitFor({ state: 'attached' });
+      await target.evaluate((element) => {
+        const htmlElement = element as HTMLElement;
+        htmlElement.scrollIntoView({ behavior: 'instant', block: 'center' });
+        htmlElement.dataset['docsPrevOutline'] = htmlElement.style.outline ?? '';
+        htmlElement.dataset['docsPrevZIndex'] = htmlElement.style.zIndex ?? '';
+        htmlElement.style.outline = 'thick solid rgb(236, 72, 153)';
+        htmlElement.style.zIndex = '10000';
+        return htmlElement;
       });
-      await locator.first().scrollIntoViewIfNeeded();
-    }),
-  );
+    });
+  }
   await testInfo.attach('image', {
     body: await page.screenshot({
       style: '.tsqd-parent-container { display: none; }',
@@ -189,14 +215,25 @@ export async function takeScreenshot(
       body: caption,
     });
   }
-  await Promise.all(
-    focusPoints.map(async (locator) => {
-      await locator.first().evaluate((element) => {
-        element.style.zIndex = zIndex;
-        // element.style.boxShadow = boxShadow;
-        element.style.outline = 'none';
-        return element;
+  for (const locator of focusPoints) {
+    try {
+      await runWithRetry(async () => {
+        const target = locator.first();
+        await target.waitFor({ state: 'attached' });
+        await target.evaluate((element) => {
+          const htmlElement = element as HTMLElement;
+          htmlElement.style.outline =
+            htmlElement.dataset['docsPrevOutline'] ?? '';
+          htmlElement.style.zIndex = htmlElement.dataset['docsPrevZIndex'] ?? '';
+          delete htmlElement.dataset['docsPrevOutline'];
+          delete htmlElement.dataset['docsPrevZIndex'];
+          return htmlElement;
+        });
       });
-    }),
-  );
+    } catch (error) {
+      if (!isDetachedError(error)) {
+        throw error;
+      }
+    }
+  }
 }

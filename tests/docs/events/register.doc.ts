@@ -47,6 +47,13 @@ test('Register for a free event @track(playwright-specs-track-linking_20260126) 
     throw new Error('No event found');
   }
 
+  const freeEventLink = page
+    .locator('a[href^="/events/"]')
+    .filter({
+      has: page.getByRole('heading', { level: 2, name: freeEvent.title }),
+    })
+    .first();
+
   await page.goto('.');
   await testInfo.attach('markdown', {
     body: `
@@ -55,11 +62,12 @@ test('Register for a free event @track(playwright-specs-track-linking_20260126) 
   });
   await takeScreenshot(
     testInfo,
-    page.locator(`a[href="/events/${freeEvent.id}"]`),
+    freeEventLink,
     page,
   );
-  await page.locator(`a[href="/events/${freeEvent.id}"]`).click();
-  await expect(page).toHaveURL(`/events/${freeEvent.id}`);
+  await freeEventLink.click();
+  await expect(page).toHaveURL(/\/events\/[a-z0-9]+$/i);
+  await expect(page.getByRole('heading', { level: 1, name: freeEvent.title })).toBeVisible();
   await page
     .getByText('Loading registration status')
     .first()
