@@ -4,7 +4,7 @@ import { expect, test } from '../../support/fixtures/parallel-test';
 
 test.use({ storageState: userStateFile });
 
-test.skip('applies ESN discount to paid registrations @finance @track(playwright-specs-track-linking_20260126) @req(ESN-DISCOUNTS-TEST-01)', async ({
+test('applies ESN discount to paid registrations @finance @track(playwright-specs-track-linking_20260126) @req(ESN-DISCOUNTS-TEST-01)', async ({
   database,
   events,
   page,

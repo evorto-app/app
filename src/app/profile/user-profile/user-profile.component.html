@@ -32,7 +32,7 @@
     </section>
 
     <nav class="grid gap-3">
-      @for (section of sectionEntries; track section.key) {
+      @for (section of sectionEntries(); track section.key) {
         <button
           type="button"
           class="{{ sectionButtonClasses(section.key) }} rounded-2xl p-4 text-left"
@@ -176,13 +176,15 @@
                   >
                     Save ESN card
                   </button>
-                  <a
-                    class="text-sm underline"
-                    href="https://esncard.org/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    >Get an ESN card</a
-                  >
+                  @if (!hasVerifiedEsnCard() && buyEsnCardUrl()) {
+                    <a
+                      class="text-sm underline"
+                      [href]="buyEsnCardUrl()!"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      >Get an ESN card</a
+                    >
+                  }
                 </div>
                 @if (upsertCardMutation.isError()) {
                   <p class="text-error text-sm">

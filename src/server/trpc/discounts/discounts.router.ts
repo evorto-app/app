@@ -7,13 +7,33 @@ import { PROVIDERS, ProviderType } from '../../discounts/providers';
 import { authenticatedProcedure, router } from '../trpc-server';
 
 interface DiscountProviderConfig {
-  config: unknown;
+  config: EsnCardProviderConfig;
   status: 'disabled' | 'enabled';
 }
 
 interface DiscountProviders {
   esnCard?: DiscountProviderConfig;
 }
+
+interface EsnCardProviderConfig {
+  buyEsnCardUrl?: string;
+}
+
+const normalizeEsnCardConfig = (config: unknown): EsnCardProviderConfig => {
+  if (!config || typeof config !== 'object') {
+    return {};
+  }
+  const maybeBuyUrl = (
+    config as {
+      buyEsnCardUrl?: unknown;
+    }
+  ).buyEsnCardUrl;
+  if (typeof maybeBuyUrl !== 'string') {
+    return {};
+  }
+  const trimmedBuyUrl = maybeBuyUrl.trim();
+  return trimmedBuyUrl.length > 0 ? { buyEsnCardUrl: trimmedBuyUrl } : {};
+};
 
 export const discountsRouter = router({
   deleteMyCard: authenticatedProcedure
@@ -47,7 +67,7 @@ export const discountsRouter = router({
     const config: DiscountProviders = tenant?.discountProviders ?? {};
     // Normalize to full providers list
     return (Object.keys(PROVIDERS) as ProviderType[]).map((type) => ({
-      config: config[type]?.config ?? {},
+      config: normalizeEsnCardConfig(config[type]?.config),
       status: config[type]?.status ?? 'disabled',
       type,
     }));
@@ -104,7 +124,9 @@ export const discountsRouter = router({
         Schema.Struct({
           providers: Schema.Array(
             Schema.Struct({
-              config: Schema.Unknown,
+              config: Schema.Struct({
+                buyEsnCardUrl: Schema.optional(Schema.String),
+              }),
               status: Schema.Literal('enabled', 'disabled'),
               type: Schema.Literal(
                 ...(Object.keys(PROVIDERS) as ProviderType[]),
@@ -121,7 +143,10 @@ export const discountsRouter = router({
       const current: DiscountProviders = tenant?.discountProviders ?? {};
       const updated = { ...current };
       for (const p of input.providers) {
-        updated[p.type] = { config: p.config, status: p.status };
+        updated[p.type] = {
+          config: normalizeEsnCardConfig(p.config),
+          status: p.status,
+        };
       }
       await database
         .update(schema.tenants)

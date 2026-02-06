@@ -75,11 +75,13 @@ export class GeneralSettingsComponent {
   );
   protected readonly settingsModel = signal<{
     allowOther: boolean;
+    buyEsnCardUrl: string;
     defaultLocation: GoogleLocationType | null;
     receiptCountries: string[];
     theme: 'esn' | 'evorto';
   }>({
     allowOther: false,
+    buyEsnCardUrl: '',
     // eslint-disable-next-line unicorn/no-null
     defaultLocation: null,
     receiptCountries: [...DEFAULT_RECEIPT_COUNTRIES],
@@ -102,6 +104,9 @@ export class GeneralSettingsComponent {
         );
         this.settingsModel.set({
           allowOther: receiptCountrySettings.allowOther,
+          buyEsnCardUrl:
+            currentTenant.discountProviders?.esnCard?.config?.buyEsnCardUrl ??
+            '',
           // eslint-disable-next-line unicorn/no-null
           defaultLocation: currentTenant.defaultLocation ?? null,
           receiptCountries: [...receiptCountrySettings.receiptCountries],
@@ -115,12 +120,31 @@ export class GeneralSettingsComponent {
     event.preventDefault();
     await submit(this.settingsForm, async (formState) => {
       const settings = formState().value();
-      this.updateSettingsMutation.mutate(settings, {
-        onSuccess: async () => {
-          await this.queryClient.invalidateQueries({
-            queryKey: this.trpc.config.tenant.pathKey(),
-          });
+      this.updateSettingsMutation.mutate(
+        {
+          allowOther: settings.allowOther,
+          defaultLocation: settings.defaultLocation,
+          receiptCountries: settings.receiptCountries,
+          theme: settings.theme,
         },
+        {
+          onSuccess: async () => {
+            await this.queryClient.invalidateQueries({
+              queryKey: this.trpc.config.tenant.pathKey(),
+            });
+          },
+        },
+      );
+      this.setProvidersMutation.mutate({
+        providers: [
+          {
+            config: {
+              buyEsnCardUrl: settings.buyEsnCardUrl.trim() || undefined,
+            },
+            status: this.esnEnabled() ? 'enabled' : 'disabled',
+            type: 'esnCard',
+          },
+        ],
       });
     });
   }
@@ -129,7 +153,10 @@ export class GeneralSettingsComponent {
     this.setProvidersMutation.mutate({
       providers: [
         {
-          config: {},
+          config: {
+            buyEsnCardUrl:
+              this.settingsForm.buyEsnCardUrl().value().trim() || undefined,
+          },
           status: checked ? 'enabled' : 'disabled',
           type: 'esnCard',
         },

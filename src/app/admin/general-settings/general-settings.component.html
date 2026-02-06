@@ -65,6 +65,19 @@
             ESN Card discounts
           </mat-slide-toggle>
         </div>
+        @if (esnEnabled()) {
+          <mat-form-field class="mb-4">
+            <mat-label>Buy ESNcard URL</mat-label>
+            <input
+              matInput
+              [formField]="settingsForm.buyEsnCardUrl"
+              placeholder="https://esncard.org/"
+            />
+            <mat-hint>
+              Optional link shown to users without a verified ESNcard.
+            </mat-hint>
+          </mat-form-field>
+        }
       } @else {
         <p>Failed to load discount providers.</p>
       }

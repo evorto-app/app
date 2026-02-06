@@ -26,8 +26,12 @@ import { injectTRPC } from '../../core/trpc-client';
 })
 export class EventRegistrationOptionComponent {
   public readonly registrationOption = input.required<{
+    appliedDiscountType?: 'esnCard' | null;
     closeRegistrationTime: Date;
     description: null | string;
+    discountApplied?: boolean;
+    effectivePrice?: number;
+    esnCardDiscountedPrice?: null | number;
     eventId: string;
     id: string;
     isPaid: boolean;

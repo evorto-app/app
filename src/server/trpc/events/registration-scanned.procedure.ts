@@ -19,6 +19,14 @@ export const registrationScannedProcedure = authenticatedProcedure
       with: {
         event: true,
         registrationOption: true,
+        transactions: {
+          columns: {
+            amount: true,
+          },
+          where: {
+            type: 'registration',
+          },
+        },
         user: true,
       },
     });
@@ -31,9 +39,32 @@ export const registrationScannedProcedure = authenticatedProcedure
     const sameUserIssue = registration.userId === ctx.user.id;
     const registrationStatusIssue = registration.status !== 'CONFIRMED';
     const allowCheckin = !registrationStatusIssue && !sameUserIssue;
+    const discountedTransaction = registration.transactions.find(
+      (transaction) =>
+        transaction.amount < registration.registrationOption.price,
+    );
+    const appliedDiscountedPrice =
+      registration.appliedDiscountedPrice ?? discountedTransaction?.amount ?? null;
+    const appliedDiscountType =
+      registration.appliedDiscountType ??
+      (appliedDiscountedPrice === null ? null : ('esnCard' as const));
+    const basePriceAtRegistration =
+      registration.basePriceAtRegistration ??
+      (appliedDiscountedPrice === null
+        ? null
+        : registration.registrationOption.price);
+    const discountAmount =
+      registration.discountAmount ??
+      (appliedDiscountedPrice === null
+        ? null
+        : registration.registrationOption.price - appliedDiscountedPrice);
     return {
       ...registration,
       allowCheckin,
+      appliedDiscountedPrice,
+      appliedDiscountType,
+      basePriceAtRegistration,
+      discountAmount,
       registrationStatusIssue,
       sameUserIssue,
     };

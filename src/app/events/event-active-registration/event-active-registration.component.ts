@@ -1,4 +1,4 @@
-import { NgOptimizedImage } from '@angular/common';
+import { CurrencyPipe, NgOptimizedImage } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -15,7 +15,7 @@ import { injectTRPC } from '../../core/trpc-client';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [MatButtonModule, NgOptimizedImage],
+  imports: [CurrencyPipe, MatButtonModule, NgOptimizedImage],
   selector: 'app-event-active-registration',
   styles: ``,
   templateUrl: './event-active-registration.component.html',
@@ -23,7 +23,11 @@ import { injectTRPC } from '../../core/trpc-client';
 export class EventActiveRegistrationComponent {
   public readonly registrations = input.required<
     {
+      appliedDiscountedPrice?: null | number;
+      appliedDiscountType?: 'esnCard' | null;
+      basePriceAtRegistration?: null | number;
       checkoutUrl: null | string | undefined;
+      discountAmount?: null | number;
       id: string;
       paymentPending: boolean;
       registeredDescription: null | string | undefined;

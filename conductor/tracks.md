@@ -2,7 +2,7 @@
 
 ---
 
-- [ ] **Track: ESNcard Discounts + Validation (Finish & Align)**
+- [~] **Track: ESNcard Discounts + Validation (Finish & Align)**
       _Link: [./tracks/esncard-integration_20260125/](./tracks/esncard-integration_20260125/)_
 
 ---

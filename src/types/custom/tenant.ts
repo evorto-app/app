@@ -9,7 +9,9 @@ export class Tenant extends Schema.Class<Tenant>('Tenant')({
     Schema.Struct({
       esnCard: Schema.optional(
         Schema.Struct({
-          config: Schema.Unknown,
+          config: Schema.Struct({
+            buyEsnCardUrl: Schema.optional(Schema.NonEmptyString),
+          }),
           status: Schema.Literal('disabled', 'enabled'),
         }),
       ),

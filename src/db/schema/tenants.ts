@@ -27,12 +27,14 @@ export const tenants = pgTable('tenants', {
   currency: currencyEnum().notNull().default('EUR'),
   defaultLocation: jsonb('default_location').$type<GoogleLocationType>(),
   // Stores per-tenant discount provider configuration, e.g. enabling ESN card discounts.
-  // Shape: { esnCard?: { status: 'enabled' | 'disabled'; config: unknown } }
+  // Shape: { esnCard?: { status: 'enabled' | 'disabled'; config: { buyEsnCardUrl?: string } } }
   // Additional providers can be added under their type key.
   discountProviders:
     jsonb('discount_providers').$type<{
       esnCard?: {
-        config: unknown;
+        config: {
+          buyEsnCardUrl?: string;
+        };
         status: 'disabled' | 'enabled';
       };
       financeReceipts?: {

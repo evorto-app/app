@@ -4,7 +4,7 @@ import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 
 test.use({ storageState: userStateFile });
 
-test.skip('Manage ESN discount card @finance @track(playwright-specs-track-linking_20260126) @doc(DISCOUNTS-DOC-01)', async ({
+test('Manage ESN discount card @finance @track(playwright-specs-track-linking_20260126) @doc(DISCOUNTS-DOC-01)', async ({
   page,
 }, testInfo) => {
   await page.goto('./profile');
@@ -15,6 +15,8 @@ test.skip('Manage ESN discount card @finance @track(playwright-specs-track-linki
 Add your ESN card to receive discounted prices on eligible events. Your card is validated against esncard.org and discounts apply only while the card is valid.
 `,
   });
+
+  await page.getByRole('button', { name: 'Discounts' }).click();
 
   await expect(
     page.getByRole('heading', { name: 'Discount Cards' }),

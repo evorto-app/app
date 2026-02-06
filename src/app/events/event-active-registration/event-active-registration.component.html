@@ -4,6 +4,17 @@
       <div class="title-medium lg:col-span-2">
         {{ registration.registrationOptionTitle }}
       </div>
+      @if (registration.appliedDiscountType === "esnCard") {
+        <div
+          class="bg-primary-container text-on-primary-container rounded px-3 py-2 text-sm lg:col-span-2"
+        >
+          ESNcard discount applied
+          @if (registration.basePriceAtRegistration !== null && registration.basePriceAtRegistration !== undefined && registration.appliedDiscountedPrice !== null && registration.appliedDiscountedPrice !== undefined) {
+            ({{ registration.basePriceAtRegistration / 100 | currency }} →
+            {{ registration.appliedDiscountedPrice / 100 | currency }})
+          }
+        </div>
+      }
       @if (registration.status === "PENDING") {
         @if (registration.paymentPending) {
           <div class="text-warning lg:col-span-2">

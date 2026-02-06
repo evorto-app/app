@@ -27,6 +27,36 @@ import { registrationScannedProcedure } from './registration-scanned.procedure';
 type EventRegistrationOptionDiscountInsert =
   typeof schema.eventRegistrationOptionDiscounts.$inferInsert;
 
+const isEsnCardEnabled = (providers: unknown) => {
+  if (!providers || typeof providers !== 'object') {
+    return false;
+  }
+  const esnCard = (
+    providers as {
+      esnCard?: {
+        status?: unknown;
+      };
+    }
+  ).esnCard;
+  return esnCard?.status === 'enabled';
+};
+
+const getEsnCardDiscountedPriceByOptionId = (
+  discounts: typeof schema.eventRegistrationOptionDiscounts.$inferSelect[],
+) => {
+  const map = new Map<string, number>();
+  for (const discount of discounts) {
+    if (discount.discountType !== 'esnCard') {
+      continue;
+    }
+    const current = map.get(discount.registrationOptionId);
+    if (current === undefined || discount.discountedPrice < current) {
+      map.set(discount.registrationOptionId, discount.discountedPrice);
+    }
+  }
+  return map;
+};
+
 export const eventRouter = router({
   cancelPendingRegistration: cancelPendingRegistrationProcedure,
 
@@ -286,7 +316,76 @@ export const eventRouter = router({
           message: `Event with id ${input.id} not found`,
         });
       }
-      return event;
+      const registrationOptionIds = event.registrationOptions.map(
+        (registrationOption) => registrationOption.id,
+      );
+      const optionDiscounts =
+        registrationOptionIds.length === 0
+          ? []
+          : await database
+              .select()
+              .from(schema.eventRegistrationOptionDiscounts)
+              .where(
+                inArray(
+                  schema.eventRegistrationOptionDiscounts.registrationOptionId,
+                  registrationOptionIds,
+                ),
+              );
+      const esnCardDiscountedPriceByOptionId =
+        getEsnCardDiscountedPriceByOptionId(optionDiscounts);
+
+      const esnCardIsEnabledForTenant = isEsnCardEnabled(
+        ctx.tenant.discountProviders ?? null,
+      );
+      let userCanUseEsnCardDiscount = false;
+
+      if (ctx.user && esnCardIsEnabledForTenant) {
+        const cards = await database.query.userDiscountCards.findMany({
+          where: {
+            status: 'verified',
+            tenantId: ctx.tenant.id,
+            type: 'esnCard',
+            userId: ctx.user.id,
+          },
+        });
+        userCanUseEsnCardDiscount = cards.some(
+          (card) => !card.validTo || card.validTo > event.start,
+        );
+      }
+
+      return {
+        ...event,
+        registrationOptions: event.registrationOptions.map(
+          (registrationOption) => {
+            const esnCardDiscountedPrice =
+              esnCardDiscountedPriceByOptionId.get(registrationOption.id) ??
+              null;
+            const userIsEligibleForEsnCardDiscount =
+              registrationOption.isPaid &&
+              esnCardDiscountedPrice !== null &&
+              esnCardIsEnabledForTenant &&
+              userCanUseEsnCardDiscount;
+            const effectivePrice = userIsEligibleForEsnCardDiscount
+              ? Math.min(registrationOption.price, esnCardDiscountedPrice)
+              : registrationOption.price;
+            const discountApplied =
+              userIsEligibleForEsnCardDiscount &&
+              effectivePrice < registrationOption.price;
+
+            return {
+              ...registrationOption,
+              appliedDiscountType: discountApplied
+                ? ('esnCard' as const)
+                : null,
+              discountApplied,
+              effectivePrice,
+              esnCardDiscountedPrice: discountApplied
+                ? esnCardDiscountedPrice
+                : null,
+            };
+          },
+        ),
+      };
     }),
 
   findOneForEdit: authenticatedProcedure
@@ -312,7 +411,41 @@ export const eventRouter = router({
           message: `Event with id ${input.id} not found`,
         });
       }
-      return event;
+      const registrationOptionIds = event.registrationOptions.map(
+        (registrationOption) => registrationOption.id,
+      );
+      const optionDiscounts =
+        registrationOptionIds.length === 0
+          ? []
+          : await database
+              .select()
+              .from(schema.eventRegistrationOptionDiscounts)
+              .where(
+                and(
+                  eq(
+                    schema.eventRegistrationOptionDiscounts.discountType,
+                    'esnCard',
+                  ),
+                  inArray(
+                    schema.eventRegistrationOptionDiscounts.registrationOptionId,
+                    registrationOptionIds,
+                  ),
+                ),
+              );
+      const esnCardDiscountedPriceByOptionId =
+        getEsnCardDiscountedPriceByOptionId(optionDiscounts);
+
+      return {
+        ...event,
+        registrationOptions: event.registrationOptions.map(
+          (registrationOption) => ({
+            ...registrationOption,
+            esnCardDiscountedPrice:
+              esnCardDiscountedPriceByOptionId.get(registrationOption.id) ??
+              null,
+          }),
+        ),
+      };
     }),
 
   getOrganizeOverview: authenticatedProcedure
@@ -322,42 +455,47 @@ export const eventRouter = router({
       ),
     )
     .query(async ({ ctx, input }) => {
-      const registrations = await database
-        .select({
-          checkInTime: schema.eventRegistrations.checkInTime,
-          organizingRegistration:
-            schema.eventRegistrationOptions.organizingRegistration,
-          registrationOptionId: schema.eventRegistrations.registrationOptionId,
-          registrationOptionTitle: schema.eventRegistrationOptions.title,
-          userEmail: schema.users.email,
-          userFirstName: schema.users.firstName,
-          userId: schema.users.id,
-          userLastName: schema.users.lastName,
-        })
-        .from(schema.eventRegistrations)
-        .innerJoin(
-          schema.eventRegistrationOptions,
-          eq(
-            schema.eventRegistrations.registrationOptionId,
-            schema.eventRegistrationOptions.id,
-          ),
-        )
-        .innerJoin(
-          schema.users,
-          eq(schema.eventRegistrations.userId, schema.users.id),
-        )
-        .where(
-          and(
-            eq(schema.eventRegistrations.eventId, input.eventId),
-            eq(schema.eventRegistrations.tenantId, ctx.tenant.id),
-            eq(schema.eventRegistrations.status, 'CONFIRMED'),
-          ),
-        );
+      const registrations = await database.query.eventRegistrations.findMany({
+        where: {
+          eventId: input.eventId,
+          status: 'CONFIRMED',
+          tenantId: ctx.tenant.id,
+        },
+        with: {
+          registrationOption: {
+            columns: {
+              id: true,
+              organizingRegistration: true,
+              price: true,
+              title: true,
+            },
+          },
+          transactions: {
+            columns: {
+              amount: true,
+            },
+            where: {
+              type: 'registration',
+            },
+          },
+          user: {
+            columns: {
+              email: true,
+              firstName: true,
+              id: true,
+              lastName: true,
+            },
+          },
+        },
+      });
+      const registrationsWithRelations = registrations.filter(
+        (registration) => registration.registrationOption && registration.user,
+      );
 
       // Group by registration option and sort
-      type Registration = (typeof registrations)[number];
+      type Registration = (typeof registrationsWithRelations)[number];
       const groupedRegistrations = groupBy(
-        registrations,
+        registrationsWithRelations,
         (reg) => reg.registrationOptionId,
       ) as Record<string, Registration[]>;
 
@@ -367,13 +505,14 @@ export const eventRouter = router({
       ).toSorted(([, regsA], [, regsB]) => {
         // First sort by organizing registration (true first)
         if (
-          regsA[0].organizingRegistration !== regsB[0].organizingRegistration
+          regsA[0].registrationOption.organizingRegistration !==
+          regsB[0].registrationOption.organizingRegistration
         ) {
-          return regsB[0].organizingRegistration ? 1 : -1;
+          return regsB[0].registrationOption.organizingRegistration ? 1 : -1;
         }
         // Then sort by title
-        return regsA[0].registrationOptionTitle.localeCompare(
-          regsB[0].registrationOptionTitle,
+        return regsA[0].registrationOption.title.localeCompare(
+          regsB[0].registrationOption.title,
         );
       });
 
@@ -386,26 +525,50 @@ export const eventRouter = router({
               return a.checkInTime === null ? -1 : 1;
             }
             // Then by first name
-            const firstNameCompare = a.userFirstName.localeCompare(
-              b.userFirstName,
+            const firstNameCompare = a.user.firstName.localeCompare(
+              b.user.firstName,
             );
             if (firstNameCompare !== 0) return firstNameCompare;
             // Finally by last name
-            return a.userLastName.localeCompare(b.userLastName);
+            return a.user.lastName.localeCompare(b.user.lastName);
           })
-          .map((reg) => ({
-            checkedIn: reg.checkInTime !== null,
-            checkInTime: reg.checkInTime,
-            email: reg.userEmail,
-            firstName: reg.userFirstName,
-            lastName: reg.userLastName,
-            userId: reg.userId,
-          }));
+          .map((reg) => {
+            const registrationOption = reg.registrationOption;
+            const discountedPriceFromTransaction = reg.transactions.find(
+              (transaction) => transaction.amount < registrationOption.price,
+            )?.amount;
+            const appliedDiscountedPrice =
+              reg.appliedDiscountedPrice ?? discountedPriceFromTransaction ?? null;
+            const appliedDiscountType =
+              reg.appliedDiscountType ??
+              (appliedDiscountedPrice === null ? null : ('esnCard' as const));
+            const basePriceAtRegistration =
+              reg.basePriceAtRegistration ??
+              (appliedDiscountedPrice === null ? null : registrationOption.price);
+            const discountAmount =
+              reg.discountAmount ??
+              (appliedDiscountedPrice === null
+                ? null
+                : registrationOption.price - appliedDiscountedPrice);
+
+            return {
+              appliedDiscountedPrice,
+              appliedDiscountType,
+              basePriceAtRegistration,
+              checkedIn: reg.checkInTime !== null,
+              checkInTime: reg.checkInTime,
+              discountAmount,
+              email: reg.user.email,
+              firstName: reg.user.firstName,
+              lastName: reg.user.lastName,
+              userId: reg.user.id,
+            };
+          });
 
         return {
-          organizingRegistration: regs[0].organizingRegistration,
+          organizingRegistration: regs[0].registrationOption.organizingRegistration,
           registrationOptionId: optionId,
-          registrationOptionTitle: regs[0].registrationOptionTitle,
+          registrationOptionTitle: regs[0].registrationOption.title,
           users: sortedUsers,
         };
       });
@@ -457,12 +620,34 @@ export const eventRouter = router({
             `Registration option missing for registration ${reg.id}`,
           );
         }
+        const registrationTransaction = reg.transactions.find(
+          (transaction) =>
+            transaction.type === 'registration' &&
+            transaction.amount < registrationOption.price,
+        );
+        const discountedPrice =
+          reg.appliedDiscountedPrice ?? registrationTransaction?.amount ?? null;
+        const appliedDiscountType =
+          reg.appliedDiscountType ??
+          (discountedPrice === null ? null : ('esnCard' as const));
+        const basePriceAtRegistration =
+          reg.basePriceAtRegistration ??
+          (discountedPrice === null ? null : registrationOption.price);
+        const discountAmount =
+          reg.discountAmount ??
+          (discountedPrice === null
+            ? null
+            : registrationOption.price - discountedPrice);
         return {
+          appliedDiscountedPrice: discountedPrice,
+          appliedDiscountType,
+          basePriceAtRegistration,
           checkoutUrl: reg.transactions.find(
             (transaction) =>
               transaction.method === 'stripe' &&
               transaction.type === 'registration',
           )?.stripeCheckoutUrl,
+          discountAmount,
           id: reg.id,
           paymentPending: reg.transactions.some(
             (transaction) =>
@@ -562,6 +747,28 @@ export const eventRouter = router({
           eventId: Schema.NonEmptyString,
           icon: iconSchema,
           location: Schema.NullOr(Schema.Any),
+          registrationOptions: Schema.Array(
+            Schema.Struct({
+              closeRegistrationTime: Schema.ValidDateFromSelf,
+              description: Schema.NullOr(Schema.NonEmptyString),
+              esnCardDiscountedPrice: Schema.optional(
+                Schema.NullOr(Schema.Number.pipe(Schema.nonNegative())),
+              ),
+              id: Schema.NonEmptyString,
+              isPaid: Schema.Boolean,
+              openRegistrationTime: Schema.ValidDateFromSelf,
+              organizingRegistration: Schema.Boolean,
+              price: Schema.Number.pipe(Schema.nonNegative()),
+              registeredDescription: Schema.NullOr(Schema.NonEmptyString),
+              registrationMode: Schema.Literal('fcfs', 'random', 'application'),
+              roleIds: Schema.mutable(Schema.Array(Schema.NonEmptyString)),
+              spots: Schema.Number.pipe(Schema.nonNegative()),
+              stripeTaxRateId: Schema.optional(
+                Schema.NullOr(Schema.NonEmptyString),
+              ),
+              title: Schema.NonEmptyString,
+            }),
+          ),
           start: Schema.ValidDateFromSelf,
           title: Schema.NonEmptyString,
         }),
@@ -575,6 +782,19 @@ export const eventRouter = router({
           message: 'Event description cannot be empty',
         });
       }
+      const sanitizedRegistrationOptions = input.registrationOptions.map(
+        (option) => ({
+          ...option,
+          description: sanitizeOptionalRichTextHtml(option.description),
+          esnCardDiscountedPrice:
+            option.esnCardDiscountedPrice === undefined
+              ? null
+              : option.esnCardDiscountedPrice,
+          registeredDescription: sanitizeOptionalRichTextHtml(
+            option.registeredDescription,
+          ),
+        }),
+      );
 
       // Check if event is in a state that allows editing
       const event = await database.query.eventInstances.findFirst({
@@ -590,24 +810,192 @@ export const eventRouter = router({
           message: 'Event not found',
         });
       }
+      const esnCardEnabledForTenant = isEsnCardEnabled(
+        ctx.tenant.discountProviders ?? null,
+      );
 
-      const [updatedEvent] = await database
-        .update(schema.eventInstances)
-        .set({
-          description: sanitizedDescription,
-          end: input.end,
-          icon: input.icon,
-          location: input.location,
-          start: input.start,
-          title: input.title,
-        })
-        .where(
-          and(
-            eq(schema.eventInstances.id, input.eventId),
-            eq(schema.eventInstances.tenantId, ctx.tenant.id),
+      for (const [index, option] of sanitizedRegistrationOptions.entries()) {
+        const validation = await validateTaxRate({
+          isPaid: option.isPaid,
+          // eslint-disable-next-line unicorn/no-null
+          stripeTaxRateId: option.stripeTaxRateId ?? null,
+          tenantId: ctx.tenant.id,
+        });
+        if (!validation.success) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: `Registration option "${option.title}": ${validation.error.message}`,
+          });
+        }
+
+        if (
+          option.esnCardDiscountedPrice !== null &&
+          option.esnCardDiscountedPrice > option.price
+        ) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: `Registration option "${option.title}": ESNcard discounted price cannot be greater than the base price`,
+          });
+        }
+
+        if (
+          option.esnCardDiscountedPrice !== null &&
+          !esnCardEnabledForTenant &&
+          option.isPaid
+        ) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: `Registration option "${option.title}": ESNcard provider is disabled for this tenant`,
+          });
+        }
+
+        if (option.spots < 0) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: `Registration option at index ${index} has invalid spots`,
+          });
+        }
+      }
+
+      const updatedEvent = await database.transaction(async (tx) => {
+        const [eventRow] = await tx
+          .update(schema.eventInstances)
+          .set({
+            description: sanitizedDescription,
+            end: input.end,
+            icon: input.icon,
+            location: input.location,
+            start: input.start,
+            title: input.title,
+          })
+          .where(
+            and(
+              eq(schema.eventInstances.id, input.eventId),
+              eq(schema.eventInstances.tenantId, ctx.tenant.id),
+            ),
+          )
+          .returning();
+
+        const existingRegistrationOptions =
+          await tx.query.eventRegistrationOptions.findMany({
+            where: {
+              eventId: input.eventId,
+            },
+          });
+        const existingRegistrationOptionIds = new Set(
+          existingRegistrationOptions.map((option) => option.id),
+        );
+        for (const option of sanitizedRegistrationOptions) {
+          if (!existingRegistrationOptionIds.has(option.id)) {
+            throw new TRPCError({
+              code: 'BAD_REQUEST',
+              message: `Registration option "${option.title}" is not part of this event`,
+            });
+          }
+        }
+
+        await Promise.all(
+          sanitizedRegistrationOptions.map((option) =>
+            tx
+              .update(schema.eventRegistrationOptions)
+              .set({
+                closeRegistrationTime: option.closeRegistrationTime,
+                description: option.description,
+                isPaid: option.isPaid,
+                openRegistrationTime: option.openRegistrationTime,
+                organizingRegistration: option.organizingRegistration,
+                price: option.price,
+                registeredDescription: option.registeredDescription,
+                registrationMode: option.registrationMode,
+                roleIds: option.roleIds,
+                spots: option.spots,
+                // eslint-disable-next-line unicorn/no-null
+                stripeTaxRateId: option.stripeTaxRateId ?? null,
+                title: option.title,
+              })
+              .where(
+                and(
+                  eq(schema.eventRegistrationOptions.eventId, input.eventId),
+                  eq(schema.eventRegistrationOptions.id, option.id),
+                ),
+              ),
           ),
-        )
-        .returning();
+        );
+
+        const existingEsnDiscounts =
+          sanitizedRegistrationOptions.length === 0
+            ? []
+            : await tx
+                .select()
+                .from(schema.eventRegistrationOptionDiscounts)
+                .where(
+                  and(
+                    eq(
+                      schema.eventRegistrationOptionDiscounts.discountType,
+                      'esnCard',
+                    ),
+                    inArray(
+                      schema.eventRegistrationOptionDiscounts.registrationOptionId,
+                      sanitizedRegistrationOptions.map((option) => option.id),
+                    ),
+                  ),
+                );
+        const existingEsnDiscountByRegistrationOptionId = new Map(
+          existingEsnDiscounts.map((discount) => [
+            discount.registrationOptionId,
+            discount,
+          ]),
+        );
+
+        for (const option of sanitizedRegistrationOptions) {
+          const existingDiscount = existingEsnDiscountByRegistrationOptionId.get(
+            option.id,
+          );
+          const shouldPersistDiscount =
+            esnCardEnabledForTenant &&
+            option.isPaid &&
+            option.esnCardDiscountedPrice !== null;
+
+          if (!shouldPersistDiscount) {
+            if (existingDiscount) {
+              await tx
+                .delete(schema.eventRegistrationOptionDiscounts)
+                .where(
+                  eq(
+                    schema.eventRegistrationOptionDiscounts.id,
+                    existingDiscount.id,
+                  ),
+                );
+            }
+            continue;
+          }
+
+          const discountedPrice = option.esnCardDiscountedPrice;
+          if (discountedPrice === null) {
+            continue;
+          }
+
+          if (existingDiscount) {
+            await tx
+              .update(schema.eventRegistrationOptionDiscounts)
+              .set({
+                discountedPrice,
+              })
+              .where(
+                eq(schema.eventRegistrationOptionDiscounts.id, existingDiscount.id),
+              );
+            continue;
+          }
+
+          await tx.insert(schema.eventRegistrationOptionDiscounts).values({
+            discountedPrice,
+            discountType: 'esnCard',
+            registrationOptionId: option.id,
+          });
+        }
+
+        return eventRow;
+      });
       return updatedEvent;
     }),
 

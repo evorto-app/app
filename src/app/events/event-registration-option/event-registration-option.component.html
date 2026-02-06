@@ -9,9 +9,17 @@
     <h3 class="title-medium">{{ registrationOption().title }}</h3>
     @if (registrationOption().isPaid) {
       <div class="grow"></div>
-      <p class="title-small">
-        {{ registrationOption().price / 100 | currency }}
-      </p>
+      <div class="flex flex-col items-end gap-1">
+        <p class="title-small">
+          {{ (registrationOption().effectivePrice ?? registrationOption().price) / 100 | currency }}
+        </p>
+        @if (registrationOption().discountApplied) {
+          <p class="text-on-surface-variant text-xs line-through">
+            {{ registrationOption().price / 100 | currency }}
+          </p>
+          <p class="text-primary text-xs">ESNcard discount applied</p>
+        }
+      </div>
     }
   </div>
 
@@ -29,7 +37,12 @@
             mat-flat-button
             [disabled]="registrationMutation.isPending()"
           >
-            Pay {{ registrationOption().price / 100 | currency }} and register
+            Pay
+            {{
+              (registrationOption().effectivePrice ?? registrationOption().price) /
+                100 | currency
+            }}
+            and register
           </button>
         } @else {
           <button

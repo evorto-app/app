@@ -115,7 +115,12 @@ export class EventDetailsComponent {
   protected readonly myCardsQuery = injectQuery(() =>
     this.trpc.discounts.getMyCards.queryOptions(),
   );
+  private readonly config = inject(ConfigService);
+
   protected readonly cardExpiresBeforeEvent = computed(() => {
+    const esnCardEnabled =
+      this.config.tenant.discountProviders?.esnCard?.status === 'enabled';
+    if (!esnCardEnabled) return false;
     const event = this.eventQuery.data();
     const cards = this.myCardsQuery.data();
     if (!event || !cards) return false;
@@ -128,7 +133,6 @@ export class EventDetailsComponent {
     if (!latestValidTo) return false;
     return latestValidTo <= event.start;
   });
-
   protected readonly eventIconColor = computed(() => {
     const event = this.eventQuery.data();
     if (!event) {
@@ -156,7 +160,6 @@ export class EventDetailsComponent {
       },
     }),
   );
-  private readonly config = inject(ConfigService);
   private dialog = inject(MatDialog);
 
   private notifications = inject(NotificationService);
