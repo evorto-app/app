@@ -1,3 +1,4 @@
+import consola from 'consola';
 import { Schema } from 'effect';
 
 const DEFAULT_IMAGE_VARIANT = 'public';
@@ -79,7 +80,29 @@ const resolveCloudflareImagesConfig = (): {
     (process.env['NODE_ENV'] === 'production' ? 'production' : 'testing');
 
   if (!apiToken || !accountId || !deliveryHash) {
-    throw new Error('Cloudflare Images is not configured');
+    const missing: string[] = [];
+    if (!apiToken) {
+      missing.push('CLOUDFLARE_IMAGES_API_TOKEN|CLOUDFLARE_TOKEN');
+    }
+    if (!accountId) {
+      missing.push('CLOUDFLARE_ACCOUNT_ID');
+    }
+    if (!deliveryHash) {
+      missing.push('CLOUDFLARE_IMAGES_DELIVERY_HASH');
+    }
+
+    consola.error('cloudflare-images.config.missing', {
+      hasCloudflareAccountId: Boolean(accountId),
+      hasCloudflareImagesApiToken: Boolean(process.env['CLOUDFLARE_IMAGES_API_TOKEN']),
+      hasCloudflareImagesDeliveryHash: Boolean(deliveryHash),
+      hasCloudflareToken: Boolean(process.env['CLOUDFLARE_TOKEN']),
+      missing,
+      nodeEnv: process.env['NODE_ENV'] ?? 'undefined',
+    });
+
+    throw new Error(
+      `Cloudflare Images is not configured. Missing: ${missing.join(', ')}`,
+    );
   }
 
   return {
