@@ -98,13 +98,11 @@ export class EventDetailsComponent {
     }
     return false;
   });
+  protected readonly canOrganizeQuery = injectQuery(() =>
+    this.trpc.events.canOrganize.queryOptions({ eventId: this.eventId() }),
+  );
   protected readonly canOrganize = computed(() => {
-    const organizeAllPermission =
-      this.permissions.hasPermission('events:organizeAll')();
-    if (organizeAllPermission) {
-      return true;
-    }
-    return false; // TODO: Implement logic to check if the user can organize this event
+    return this.canOrganizeQuery.data() ?? false;
   });
   protected readonly canReview =
     this.permissions.hasPermission('events:review');

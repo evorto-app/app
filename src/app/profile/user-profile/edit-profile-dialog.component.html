@@ -9,6 +9,14 @@
       <mat-label>Last name</mat-label>
       <input matInput [formField]="profileForm.lastName" />
     </mat-form-field>
+    <mat-form-field>
+      <mat-label>IBAN (for refunds)</mat-label>
+      <input matInput [formField]="profileForm.iban" />
+    </mat-form-field>
+    <mat-form-field>
+      <mat-label>PayPal email (for refunds)</mat-label>
+      <input matInput [formField]="profileForm.paypalEmail" />
+    </mat-form-field>
   </mat-dialog-content>
   <mat-dialog-actions align="end" class="gap-2">
     <button mat-button mat-dialog-close>Cancel</button>

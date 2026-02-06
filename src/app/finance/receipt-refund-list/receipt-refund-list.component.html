@@ -1,0 +1,88 @@
+<div class="mb-4 flex items-center justify-between gap-2">
+  <h1 class="title-large">Receipt refunds</h1>
+</div>
+
+@if (refundableReceiptsQuery.isPending()) {
+  <div class="bg-surface text-on-surface rounded-2xl p-4">Loading refundable receipts...</div>
+} @else if (refundableReceiptsQuery.isError()) {
+  <div class="bg-error-container text-on-error-container rounded-2xl p-4">
+    Failed to load refundable receipts.
+  </div>
+} @else if ((refundableReceiptsQuery.data()?.length ?? 0) === 0) {
+  <div class="bg-surface text-on-surface rounded-2xl p-4">
+    No approved receipts are waiting for refund.
+  </div>
+} @else {
+  <div class="grid gap-4">
+    @for (group of refundableReceiptsQuery.data(); track group.submittedByUserId) {
+      <section class="bg-surface text-on-surface rounded-2xl p-4">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 class="title-medium">
+              {{ group.submittedByFirstName }} {{ group.submittedByLastName }}
+            </h2>
+            <p class="text-on-surface-variant text-sm">{{ group.submittedByEmail }}</p>
+          </div>
+          <p class="text-lg font-semibold">
+            Selected total:
+            {{ selectedTotal(group.submittedByUserId) / 100 | number: "1.2-2" }} €
+          </p>
+        </div>
+
+        <div class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+          <mat-form-field>
+            <mat-label>Payout method</mat-label>
+            <mat-select
+              [value]="getPayoutType(group.submittedByUserId, group.payout)"
+              (valueChange)="setPayoutType(group.submittedByUserId, $event)"
+            >
+              @if (group.payout.iban) {
+                <mat-option value="iban">IBAN</mat-option>
+              }
+              @if (group.payout.paypalEmail) {
+                <mat-option value="paypal">PayPal</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+          <div class="bg-surface-container rounded-xl p-3 text-sm">
+            <p>IBAN: {{ group.payout.iban || "not set" }}</p>
+            <p>PayPal: {{ group.payout.paypalEmail || "not set" }}</p>
+          </div>
+        </div>
+
+        <div class="mt-3 grid gap-2">
+          @for (receipt of group.receipts; track receipt.id) {
+            <label class="bg-surface-container flex items-start gap-3 rounded-xl p-3">
+              <input
+                #receiptCheckbox
+                type="checkbox"
+                [checked]="selectedReceiptIds(group.submittedByUserId).includes(receipt.id)"
+                (change)="toggleReceipt(group.submittedByUserId, receipt.id, receiptCheckbox.checked)"
+              />
+              <div class="min-w-0">
+                <p class="font-medium">{{ receipt.attachmentFileName }}</p>
+                <p class="text-on-surface-variant text-sm">
+                  {{ receipt.eventTitle }} · {{ receipt.receiptDate | date: "mediumDate" }}
+                </p>
+              </div>
+              <div class="ml-auto whitespace-nowrap text-sm">
+                {{ receipt.totalAmount / 100 | number: "1.2-2" }} €
+              </div>
+            </label>
+          }
+        </div>
+
+        <div class="mt-4 flex justify-end">
+          <button
+            mat-raised-button
+            color="primary"
+            [disabled]="!canRefund(group.submittedByUserId, group.payout) || refundMutation.isPending()"
+            (click)="refundRecipient(group)"
+          >
+            Issue refund
+          </button>
+        </div>
+      </section>
+    }
+  </div>
+}

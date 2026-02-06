@@ -19,12 +19,16 @@ import { MatInputModule } from '@angular/material/input';
 
 export interface EditProfileDialogData {
   firstName: string;
+  iban: null | string;
   lastName: string;
+  paypalEmail: null | string;
 }
 
 export interface EditProfileDialogResult {
   firstName: string;
+  iban: null | string;
   lastName: string;
+  paypalEmail: null | string;
 }
 
 @Component({
@@ -47,7 +51,9 @@ export class EditProfileDialogComponent {
   protected readonly data = inject(MAT_DIALOG_DATA) as EditProfileDialogData;
   protected readonly profileModel = signal({
     firstName: this.data.firstName ?? '',
+    iban: this.data.iban ?? '',
     lastName: this.data.lastName ?? '',
+    paypalEmail: this.data.paypalEmail ?? '',
   });
   protected readonly profileForm = form(this.profileModel, (schemaPath) => {
     required(schemaPath.firstName);
@@ -61,7 +67,9 @@ export class EditProfileDialogComponent {
       const formValue = formState().value();
       this.dialogRef.close({
         firstName: formValue.firstName.trim(),
+        iban: formValue.iban.trim() || null,
         lastName: formValue.lastName.trim(),
+        paypalEmail: formValue.paypalEmail.trim() || null,
       });
     });
   }

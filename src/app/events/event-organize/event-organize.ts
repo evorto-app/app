@@ -1,4 +1,4 @@
-import { DatePipe, PercentPipe } from '@angular/common';
+import { DatePipe, DecimalPipe, PercentPipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -9,19 +9,31 @@ import {
   signal,
 } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
+import { MatDialog } from '@angular/material/dialog';
 import { MatTableModule } from '@angular/material/table';
 import { RouterLink } from '@angular/router';
 import { FaDuotoneIconComponent } from '@fortawesome/angular-fontawesome';
 import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
-import { injectQuery } from '@tanstack/angular-query-experimental';
+import {
+  injectMutation,
+  injectQuery,
+  QueryClient,
+} from '@tanstack/angular-query-experimental';
+import { firstValueFrom } from 'rxjs';
 
 import { ConfigService } from '../../core/config.service';
+import { NotificationService } from '../../core/notification.service';
 import { injectTRPC } from '../../core/trpc-client';
+import {
+  ReceiptSubmitDialogComponent,
+  ReceiptSubmitDialogResult,
+} from './receipt-submit-dialog.component';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     DatePipe,
+    DecimalPipe,
     FaDuotoneIconComponent,
     MatButtonModule,
     PercentPipe,
@@ -34,15 +46,45 @@ import { injectTRPC } from '../../core/trpc-client';
 export class EventOrganize {
   eventId = input.required<string>();
 
-  private trpc = injectTRPC();
-  // Event data (reuse existing queries)
+  private readonly trpc = injectTRPC();
   protected readonly eventQuery = injectQuery(() =>
     this.trpc.events.findOne.queryOptions({ id: this.eventId() }),
   );
-  event = computed(() => this.eventQuery.data());
+  protected readonly event = computed(() => this.eventQuery.data());
+  protected readonly faArrowLeft = faArrowLeft;
+  protected readonly organizerOverviewQuery = injectQuery(() =>
+    this.trpc.events.getOrganizeOverview.queryOptions({
+      eventId: this.eventId(),
+    }),
+  );
+
+  protected readonly organizerTableColumns = signal([
+    'name',
+    'email',
+    'checkin',
+  ]);
+
+  protected readonly organizerTableContent = computed(() => {
+    const overview = this.organizerOverviewQuery.data();
+    if (!overview) return [];
+    return overview
+      .filter((registrationOption) => registrationOption.organizingRegistration)
+      .flatMap((registrationOption) => [
+        {
+          title: registrationOption.registrationOptionTitle,
+          type: 'Registration Option',
+        },
+        ...registrationOption.users,
+      ]);
+  });
+  protected readonly receiptsByEventQuery = injectQuery(() =>
+    this.trpc.finance.receipts.byEvent.queryOptions({
+      eventId: this.eventId(),
+    }),
+  );
 
   // Basic stats computation
-  stats = computed(() => {
+  protected readonly stats = computed(() => {
     const eventData = this.event();
     const registrationOptions = eventData?.registrationOptions || [];
     const totalCapacity = registrationOptions.reduce(
@@ -66,45 +108,86 @@ export class EventOrganize {
       registered: totalRegistered,
     };
   });
-
-  protected readonly faArrowLeft = faArrowLeft;
-
-  protected readonly organizerOverviewQuery = injectQuery(() =>
-    this.trpc.events.getOrganizeOverview.queryOptions({
-      eventId: this.eventId(),
+  private readonly notifications = inject(NotificationService);
+  private readonly queryClient = inject(QueryClient);
+  protected readonly submitReceiptMutation = injectMutation(() =>
+    this.trpc.finance.receipts.submit.mutationOptions({
+      onSuccess: async () => {
+        await this.queryClient.invalidateQueries({
+          queryKey: this.trpc.finance.receipts.byEvent.queryKey({
+            eventId: this.eventId(),
+          }),
+        });
+        await this.queryClient.invalidateQueries({
+          queryKey: this.trpc.finance.receipts.my.pathKey(),
+        });
+        await this.queryClient.invalidateQueries({
+          queryKey: this.trpc.finance.receipts.pendingApprovalGrouped.pathKey(),
+        });
+        this.notifications.showSuccess('Receipt submitted');
+      },
     }),
   );
+  protected readonly taxRatesQuery = injectQuery(() =>
+    this.trpc.taxRates.listActive.queryOptions(),
+  );
 
-  protected readonly organizerTableColumns = signal([
-    'name',
-    'email',
-    'checkin',
-  ]);
-  protected readonly organizerTableContent = computed(() => {
-    const overview = this.organizerOverviewQuery.data();
-    if (!overview) return [];
-    return overview
-      .filter((registrationOption) => registrationOption.organizingRegistration)
-      .flatMap((registrationOption) => [
-        {
-          title: registrationOption.registrationOptionTitle,
-          type: 'Registration Option',
-        },
-        ...registrationOption.users,
-      ]);
-  });
+  private readonly config = inject(ConfigService);
 
-  private config = inject(ConfigService);
+  private readonly dialog = inject(MatDialog);
+  private readonly imageUploadInitMutation = injectMutation(() =>
+    this.trpc.editorMedia.createImageDirectUpload.mutationOptions(),
+  );
 
   constructor() {
-    // Update page title when event loads
     effect(() => {
       const event = this.event();
       if (event) {
-        console.log(event);
         this.config.updateTitle(`Organize ${event.title}`);
       }
     });
+  }
+
+  protected async openReceiptDialog(): Promise<void> {
+    const taxRates = this.taxRatesQuery.data() ?? [];
+    if (taxRates.length === 0) {
+      this.notifications.showError('No tax rates available for this tenant');
+      return;
+    }
+
+    const dialogReference = this.dialog.open<
+      ReceiptSubmitDialogComponent,
+      {
+        taxRates: {
+          displayName: null | string;
+          percentage: null | string;
+          stripeTaxRateId: string;
+        }[];
+      },
+      ReceiptSubmitDialogResult
+    >(ReceiptSubmitDialogComponent, {
+      data: { taxRates },
+      width: '640px',
+    });
+
+    const result = await firstValueFrom(dialogReference.afterClosed());
+    if (!result) {
+      return;
+    }
+
+    try {
+      const attachment = await this.prepareAttachment(result.file);
+
+      this.submitReceiptMutation.mutate({
+        attachment,
+        eventId: this.eventId(),
+        fields: result.fields,
+      });
+    } catch (error) {
+      this.notifications.showError(
+        error instanceof Error ? error.message : 'Failed to upload receipt file',
+      );
+    }
   }
 
   protected readonly showOrganizerRow = (
@@ -116,4 +199,45 @@ export class EventOrganize {
     index: number,
     row: { type?: string },
   ) => row?.type === 'Registration Option';
+
+  private async prepareAttachment(file: File) {
+    if (file.type.startsWith('image/')) {
+      const uploadInit = await this.imageUploadInitMutation.mutateAsync({
+        fileName: file.name,
+        fileSizeBytes: file.size,
+        mimeType: file.type,
+      });
+      const uploadBody = new FormData();
+      uploadBody.append('file', file);
+      const uploadResponse = await fetch(uploadInit.uploadUrl, {
+        body: uploadBody,
+        method: 'POST',
+      });
+      if (!uploadResponse.ok) {
+        throw new Error(`Image upload failed with status ${uploadResponse.status}`);
+      }
+
+      return {
+        fileName: file.name,
+        mimeType: file.type,
+        previewImageId: uploadInit.imageId,
+        previewImageUrl: uploadInit.deliveryUrl,
+        sizeBytes: file.size,
+        storageKey: uploadInit.imageId,
+        storageUrl: uploadInit.deliveryUrl,
+      };
+    }
+
+    // PDF receipts are currently stored as metadata-only references.
+    // Image preview generation for PDFs will be added when R2 pipeline is available.
+    return {
+      fileName: file.name,
+      mimeType: file.type,
+      previewImageId: null,
+      previewImageUrl: null,
+      sizeBytes: file.size,
+      storageKey: `pdf://${Date.now()}-${file.name}`,
+      storageUrl: null,
+    };
+  }
 }

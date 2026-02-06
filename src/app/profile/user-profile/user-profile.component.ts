@@ -1,4 +1,4 @@
-import { DatePipe } from '@angular/common';
+import { DatePipe, DecimalPipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -17,6 +17,8 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import { MatTabsModule } from '@angular/material/tabs';
+import { ActivatedRoute } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import {
   faCalendarDays,
@@ -47,6 +49,8 @@ import {
     MatInputModule,
     FormField,
     DatePipe,
+    DecimalPipe,
+    MatTabsModule,
   ],
   selector: 'app-user-profile',
   styles: ``,
@@ -79,15 +83,17 @@ export class UserProfileComponent {
     if (!providers) return false;
     return providers.find((p) => p.type === 'esnCard')?.status === 'enabled';
   });
-
   protected readonly faCalendarDays = faCalendarDays;
   protected readonly faPencil = faPencil;
 
   protected readonly faRightFromBracket = faRightFromBracket;
-
   // Discounts
   protected readonly myCardsQuery = injectQuery(() =>
     this.trpc.discounts.getMyCards.queryOptions(),
+  );
+
+  protected readonly myReceiptsQuery = injectQuery(() =>
+    this.trpc.finance.receipts.my.queryOptions(),
   );
 
   protected readonly refreshCardMutation = injectMutation(() =>
@@ -100,6 +106,8 @@ export class UserProfileComponent {
       },
     }),
   );
+
+  protected readonly selectedTabIndex = signal(0);
 
   protected readonly updateProfileMutation = injectMutation(() =>
     this.trpc.users.updateProfile.mutationOptions(),
@@ -122,6 +130,15 @@ export class UserProfileComponent {
     this.trpc.users.self.queryOptions(),
   );
   private readonly dialog = inject(MatDialog);
+  private readonly route = inject(ActivatedRoute);
+
+  constructor() {
+    this.route.fragment.subscribe((fragment) => {
+      if (fragment === 'receipts') {
+        this.selectedTabIndex.set(3);
+      }
+    });
+  }
 
   protected deleteEsnCard() {
     this.deleteCardMutation.mutate({ type: 'esnCard' });
@@ -134,7 +151,12 @@ export class UserProfileComponent {
       EditProfileDialogData,
       EditProfileDialogResult
     >(EditProfileDialogComponent, {
-      data: { firstName: user.firstName, lastName: user.lastName },
+      data: {
+        firstName: user.firstName,
+        iban: user.iban,
+        lastName: user.lastName,
+        paypalEmail: user.paypalEmail,
+      },
       width: '420px',
     });
     const result = await firstValueFrom(dialogReference.afterClosed());
@@ -169,5 +191,9 @@ export class UserProfileComponent {
         type: 'esnCard',
       });
     });
+  }
+
+  protected setSelectedTabIndex(index: number): void {
+    this.selectedTabIndex.set(index);
   }
 }

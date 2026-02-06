@@ -1,0 +1,44 @@
+<div class="mb-4 flex items-center justify-between gap-2">
+  <h1 class="title-large">Receipt approvals</h1>
+</div>
+
+@if (pendingReceiptsQuery.isPending()) {
+  <div class="bg-surface text-on-surface rounded-2xl p-4">Loading receipts...</div>
+} @else if (pendingReceiptsQuery.isError()) {
+  <div class="bg-error-container text-on-error-container rounded-2xl p-4">
+    Failed to load pending receipts.
+  </div>
+} @else if ((pendingReceiptsQuery.data()?.length ?? 0) === 0) {
+  <div class="bg-surface text-on-surface rounded-2xl p-4">
+    No receipts pending approval.
+  </div>
+} @else {
+  <div class="grid gap-4">
+    @for (group of pendingReceiptsQuery.data(); track group.eventId) {
+      <section class="bg-surface text-on-surface rounded-2xl p-4">
+        <h2 class="title-medium">{{ group.eventTitle }}</h2>
+        <p class="text-on-surface-variant text-sm">
+          {{ group.eventStart | date: "mediumDate" }}
+        </p>
+        <div class="mt-3 grid gap-2">
+          @for (receipt of group.receipts; track receipt.id) {
+            <a
+              class="bg-surface-container block rounded-xl p-3"
+              [routerLink]="['/finance/receipts-approval', receipt.id]"
+            >
+              <div class="flex items-center justify-between gap-2">
+                <p class="font-medium">{{ receipt.attachmentFileName }}</p>
+                <span class="text-sm">
+                  {{ receipt.totalAmount / 100 | number: "1.2-2" }} €
+                </span>
+              </div>
+              <p class="text-on-surface-variant text-sm">
+                {{ receipt.submittedByFirstName }} {{ receipt.submittedByLastName }}
+              </p>
+            </a>
+          }
+        </div>
+      </section>
+    }
+  </div>
+}
