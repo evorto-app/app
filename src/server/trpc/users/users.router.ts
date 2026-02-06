@@ -222,7 +222,9 @@ export const userRouter = router({
       Schema.standardSchemaV1(
         Schema.Struct({
           firstName: Schema.NonEmptyString,
+          iban: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
           lastName: Schema.NonEmptyString,
+          paypalEmail: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
         }),
       ),
     )
@@ -231,7 +233,9 @@ export const userRouter = router({
         .update(schema.users)
         .set({
           firstName: input.firstName,
+          iban: input.iban ?? null,
           lastName: input.lastName,
+          paypalEmail: input.paypalEmail ?? null,
         })
         .where(eq(schema.users.id, ctx.user.id))
         .returning();

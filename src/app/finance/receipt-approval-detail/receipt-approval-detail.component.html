@@ -1,0 +1,94 @@
+<div class="mb-2 flex items-center justify-between gap-2">
+  <h1 class="title-large">Review receipt</h1>
+  <a mat-button [routerLink]="['/finance/receipts-approval']">Back</a>
+</div>
+
+@if (receiptQuery.isPending()) {
+  <div class="bg-surface text-on-surface rounded-2xl p-4">Loading receipt...</div>
+} @else if (receiptQuery.isError()) {
+  <div class="bg-error-container text-on-error-container rounded-2xl p-4">
+    Failed to load receipt details.
+  </div>
+} @else {
+  @let receipt = receiptQuery.data();
+  @if (receipt) {
+    <div class="grid gap-3 xl:grid-cols-2">
+      <section class="bg-surface text-on-surface rounded-2xl p-4">
+        <h2 class="title-medium mb-3">Receipt image</h2>
+        @if (receipt.previewImageUrl) {
+          @if (isImagePreview()) {
+            <img
+              [src]="receipt.previewImageUrl"
+              alt="Receipt preview"
+              class="max-h-[28rem] w-full rounded-xl object-contain"
+            />
+          } @else if (isPdfPreview()) {
+            <iframe
+              [src]="safePdfPreviewUrl()"
+              title="Receipt preview"
+              class="h-[28rem] w-full rounded-xl border border-outline-variant"
+            ></iframe>
+          } @else {
+            <a
+              class="inline-block text-sm underline"
+              [href]="receipt.previewImageUrl"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Open receipt file
+            </a>
+          }
+        } @else {
+          <div
+            class="bg-surface-container text-on-surface-variant flex min-h-64 items-center justify-center rounded-xl p-4"
+          >
+            No preview image available
+          </div>
+        }
+        <p class="text-on-surface-variant mt-3 text-sm">
+          {{ receipt.attachmentFileName }}
+        </p>
+      </section>
+
+      <section class="bg-surface text-on-surface rounded-2xl p-3">
+        <h2 class="title-medium mb-3">Receipt data</h2>
+        <app-receipt-form-fields
+          [form]="form"
+          [selectableCountries]="selectableCountries"
+        />
+
+        <mat-form-field class="mt-4 w-full">
+          <mat-label>Rejection reason</mat-label>
+          <textarea
+            #reasonInput
+            matInput
+            rows="3"
+            [value]="rejectionReason()"
+            (input)="updateRejectionReason(reasonInput.value)"
+          ></textarea>
+        </mat-form-field>
+
+        <div class="mt-4 flex flex-wrap justify-end gap-2">
+          <button
+            mat-stroked-button
+            color="warn"
+            (click)="reject()"
+            [disabled]="reviewMutation.isPending()"
+            type="button"
+          >
+            Reject
+          </button>
+          <button
+            mat-raised-button
+            color="primary"
+            (click)="approve()"
+            [disabled]="reviewMutation.isPending()"
+            type="button"
+          >
+            Approve
+          </button>
+        </div>
+      </section>
+    </div>
+  }
+}

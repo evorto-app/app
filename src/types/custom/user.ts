@@ -7,8 +7,10 @@ export class User extends Schema.Class<User>('User')({
   auth0Id: Schema.NonEmptyString,
   email: Schema.NonEmptyString,
   firstName: Schema.NonEmptyString,
+  iban: Schema.NullOr(Schema.NonEmptyString),
   id: Schema.NonEmptyString,
   lastName: Schema.NonEmptyString,
+  paypalEmail: Schema.NullOr(Schema.NonEmptyString),
   permissions: Schema.Array(PermissionSchema),
   roleIds: Schema.Array(Schema.NonEmptyString),
 }) {}

@@ -35,10 +35,12 @@ export const users = pgTable(
     createdAt: timestamp().notNull().defaultNow(),
     email: text().notNull(),
     firstName: text().notNull(),
+    iban: text(),
     id: varchar({ length: 20 })
       .$defaultFn(() => createId())
       .primaryKey(),
     lastName: text().notNull(),
+    paypalEmail: text(),
     searchableInfo: text().generatedAlwaysAs(
       (): SQL =>
         sql`lower(immutable_unaccent(

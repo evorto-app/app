@@ -17,6 +17,11 @@ import { RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
 import {
+  DEFAULT_RECEIPT_COUNTRIES,
+  RECEIPT_COUNTRY_OPTIONS,
+  resolveReceiptCountrySettings,
+} from '@shared/finance/receipt-countries';
+import {
   injectMutation,
   injectQuery,
   QueryClient,
@@ -57,6 +62,7 @@ export class GeneralSettingsComponent {
     return providers.find((p) => p.type === 'esnCard')?.status === 'enabled';
   });
   protected readonly faArrowLeft = faArrowLeft;
+  protected readonly receiptCountryOptions = RECEIPT_COUNTRY_OPTIONS;
   private readonly queryClient = inject(QueryClient);
   protected readonly setProvidersMutation = injectMutation(() =>
     this.trpc.discounts.setTenantProviders.mutationOptions({
@@ -68,11 +74,15 @@ export class GeneralSettingsComponent {
     }),
   );
   protected readonly settingsModel = signal<{
+    allowOther: boolean;
     defaultLocation: GoogleLocationType | null;
+    receiptCountries: string[];
     theme: 'esn' | 'evorto';
   }>({
+    allowOther: false,
     // eslint-disable-next-line unicorn/no-null
     defaultLocation: null,
+    receiptCountries: [...DEFAULT_RECEIPT_COUNTRIES],
     theme: 'evorto',
   });
   protected readonly settingsForm = form(this.settingsModel);
@@ -87,9 +97,14 @@ export class GeneralSettingsComponent {
     effect(() => {
       const currentTenant = this.configService.tenant;
       if (currentTenant) {
+        const receiptCountrySettings = resolveReceiptCountrySettings(
+          currentTenant.discountProviders?.financeReceipts,
+        );
         this.settingsModel.set({
+          allowOther: receiptCountrySettings.allowOther,
           // eslint-disable-next-line unicorn/no-null
           defaultLocation: currentTenant.defaultLocation ?? null,
+          receiptCountries: [...receiptCountrySettings.receiptCountries],
           theme: currentTenant.theme,
         });
       }

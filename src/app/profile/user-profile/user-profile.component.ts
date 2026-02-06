@@ -1,4 +1,4 @@
-import { DatePipe } from '@angular/common';
+import { DatePipe, DecimalPipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -17,11 +17,15 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import { ActivatedRoute } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import {
   faCalendarDays,
   faPencil,
+  faReceipt,
   faRightFromBracket,
+  faTags,
+  faUser,
 } from '@fortawesome/duotone-regular-svg-icons';
 import {
   injectMutation,
@@ -38,15 +42,18 @@ import {
   EditProfileDialogResult,
 } from './edit-profile-dialog.component';
 
+type ProfileSection = 'discounts' | 'events' | 'overview' | 'receipts';
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    MatButtonModule,
+    DatePipe,
+    DecimalPipe,
     FontAwesomeModule,
+    FormField,
+    MatButtonModule,
     MatFormFieldModule,
     MatInputModule,
-    FormField,
-    DatePipe,
   ],
   selector: 'app-user-profile',
   styles: ``,
@@ -79,17 +86,20 @@ export class UserProfileComponent {
     if (!providers) return false;
     return providers.find((p) => p.type === 'esnCard')?.status === 'enabled';
   });
-
   protected readonly faCalendarDays = faCalendarDays;
   protected readonly faPencil = faPencil;
-
+  protected readonly faReceipt = faReceipt;
   protected readonly faRightFromBracket = faRightFromBracket;
+  protected readonly faTags = faTags;
+  protected readonly faUser = faUser;
 
-  // Discounts
   protected readonly myCardsQuery = injectQuery(() =>
     this.trpc.discounts.getMyCards.queryOptions(),
   );
 
+  protected readonly myReceiptsQuery = injectQuery(() =>
+    this.trpc.finance.receipts.my.queryOptions(),
+  );
   protected readonly refreshCardMutation = injectMutation(() =>
     this.trpc.discounts.refreshMyCard.mutationOptions({
       onSuccess: async () => {
@@ -101,6 +111,17 @@ export class UserProfileComponent {
     }),
   );
 
+  protected readonly sectionEntries: {
+    icon: typeof faUser;
+    key: ProfileSection;
+    label: string;
+  }[] = [
+    { icon: faUser, key: 'overview', label: 'Overview' },
+    { icon: faCalendarDays, key: 'events', label: 'Events' },
+    { icon: faTags, key: 'discounts', label: 'Discounts' },
+    { icon: faReceipt, key: 'receipts', label: 'Receipts' },
+  ];
+  protected readonly selectedSection = signal<ProfileSection>('overview');
   protected readonly updateProfileMutation = injectMutation(() =>
     this.trpc.users.updateProfile.mutationOptions(),
   );
@@ -121,11 +142,35 @@ export class UserProfileComponent {
   protected readonly userQuery = injectQuery(() =>
     this.trpc.users.self.queryOptions(),
   );
-  private readonly dialog = inject(MatDialog);
 
-  protected deleteEsnCard() {
+  private readonly dialog = inject(MatDialog);
+  private readonly route = inject(ActivatedRoute);
+
+  constructor() {
+    this.route.fragment.subscribe((fragment) => {
+      if (fragment === 'discounts') {
+        this.selectedSection.set('discounts');
+        return;
+      }
+
+      if (fragment === 'events') {
+        this.selectedSection.set('events');
+        return;
+      }
+
+      if (fragment === 'receipts') {
+        this.selectedSection.set('receipts');
+        return;
+      }
+
+      this.selectedSection.set('overview');
+    });
+  }
+
+  protected deleteEsnCard(): void {
     this.deleteCardMutation.mutate({ type: 'esnCard' });
   }
+
   protected async openEditProfileDialog(): Promise<void> {
     const user = this.userQuery.data();
     if (!user) return;
@@ -134,7 +179,12 @@ export class UserProfileComponent {
       EditProfileDialogData,
       EditProfileDialogResult
     >(EditProfileDialogComponent, {
-      data: { firstName: user.firstName, lastName: user.lastName },
+      data: {
+        firstName: user.firstName,
+        iban: user.iban,
+        lastName: user.lastName,
+        paypalEmail: user.paypalEmail,
+      },
       width: '420px',
     });
     const result = await firstValueFrom(dialogReference.afterClosed());
@@ -152,16 +202,19 @@ export class UserProfileComponent {
         await this.queryClient.invalidateQueries({
           queryKey: this.trpc.users.maybeSelf.pathKey(),
         });
+        await this.queryClient.invalidateQueries({
+          queryKey: this.trpc.finance.receipts.refundableGroupedByRecipient.pathKey(),
+        });
         this.notifications.showSuccess('Profile updated successfully');
       },
     });
   }
 
-  protected refreshEsnCard() {
+  protected refreshEsnCard(): void {
     this.refreshCardMutation.mutate({ type: 'esnCard' });
   }
 
-  protected async saveEsnCard(event: Event) {
+  protected async saveEsnCard(event: Event): Promise<void> {
     event.preventDefault();
     await submit(this.esnCardForm, async (formState) => {
       this.upsertCardMutation.mutate({
@@ -169,5 +222,16 @@ export class UserProfileComponent {
         type: 'esnCard',
       });
     });
+  }
+
+  protected sectionButtonClasses(section: ProfileSection): string {
+    if (this.selectedSection() === section) {
+      return 'bg-secondary-container text-on-secondary-container';
+    }
+    return 'bg-surface text-on-surface';
+  }
+
+  protected setSelectedSection(section: ProfileSection): void {
+    this.selectedSection.set(section);
   }
 }

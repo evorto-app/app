@@ -22,24 +22,27 @@
         </div>
       </a>
       <a
-        routerLink="roles"
+        routerLink="receipts-approval"
         class="bg-surface text-on-surface rounded-2xl p-4"
         routerLinkActive="bg-secondary-container! text-on-secondary-container!"
       >
-        <!--        <div class="flex flex-row items-center gap-4">-->
-        <!--          <fa-duotone-icon [icon]="faFolderUser" size="xl"></fa-duotone-icon>-->
-        <!--          <h2 class="title-medium">User roles</h2>-->
-        <!--        </div>-->
+        <div class="flex flex-row items-center gap-4">
+          <fa-duotone-icon [icon]="faBadgeCheck" size="xl"></fa-duotone-icon>
+          <h2 class="title-medium">Receipt approvals</h2>
+        </div>
       </a>
       <a
-        routerLink="settings"
+        routerLink="receipts-refunds"
         class="bg-surface text-on-surface rounded-2xl p-4"
         routerLinkActive="bg-secondary-container! text-on-secondary-container!"
       >
-        <!--        <div class="flex flex-row items-center gap-4">-->
-        <!--          <fa-duotone-icon [icon]="faGlobe" size="xl"></fa-duotone-icon>-->
-        <!--          <h2 class="title-medium">General settings</h2>-->
-        <!--        </div>-->
+        <div class="flex flex-row items-center gap-4">
+          <fa-duotone-icon
+            [icon]="faRotateExclamation"
+            size="xl"
+          ></fa-duotone-icon>
+          <h2 class="title-medium">Receipt refunds</h2>
+        </div>
       </a>
     </nav>
   </div>

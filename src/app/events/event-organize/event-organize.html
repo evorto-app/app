@@ -110,6 +110,67 @@
         <!--          ></tr>-->
         <!--        </table>-->
       </section>
+
+      <section class="grid gap-4">
+        <div class="flex items-center justify-between gap-4">
+          <h2 class="title-large">Receipts</h2>
+          <button
+            mat-raised-button
+            color="primary"
+            (click)="openReceiptDialog()"
+            [disabled]="submitReceiptMutation.isPending()"
+          >
+            Add receipt
+          </button>
+        </div>
+
+        @if (receiptsByEventQuery.isPending()) {
+          <div class="bg-surface-container rounded-lg p-4">
+            Loading receipts...
+          </div>
+        } @else if (receiptsByEventQuery.isError()) {
+          <div class="bg-error-container text-on-error-container rounded-lg p-4">
+            Failed to load receipts.
+          </div>
+        } @else if (receiptsByEventQuery.data()?.length === 0) {
+          <div class="bg-surface-container rounded-lg p-4">
+            No receipts submitted for this event yet.
+          </div>
+        } @else {
+          <div class="grid gap-3">
+            @for (receipt of receiptsByEventQuery.data(); track receipt.id) {
+              <article class="bg-surface-container rounded-lg p-4">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                  <h3 class="title-medium">{{ receipt.attachmentFileName }}</h3>
+                  <span class="rounded bg-surface px-2 py-1 text-xs uppercase">
+                    {{ receipt.status }}
+                  </span>
+                </div>
+                <p class="text-on-surface-variant text-sm">
+                  Submitted by {{ receipt.submittedByFirstName }}
+                  {{ receipt.submittedByLastName }} on
+                  {{ receipt.createdAt | date: "medium" }}
+                </p>
+                <div class="mt-3 grid grid-cols-1 gap-2 text-sm md:grid-cols-3">
+                  <p>Total: {{ receipt.totalAmount / 100 | number: "1.2-2" }} €</p>
+                  <p>Tax: {{ receipt.taxAmount / 100 | number: "1.2-2" }} €</p>
+                  <p>Date: {{ receipt.receiptDate | date: "mediumDate" }}</p>
+                </div>
+                @if (receipt.previewImageUrl) {
+                  <a
+                    [href]="receipt.previewImageUrl"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="mt-2 inline-block text-sm underline"
+                  >
+                    Open preview
+                  </a>
+                }
+              </article>
+            }
+          </div>
+        }
+      </section>
     </div>
   </main>
 </div>

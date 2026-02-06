@@ -30,11 +30,16 @@ export const tenants = pgTable('tenants', {
   // Shape: { esnCard?: { status: 'enabled' | 'disabled'; config: unknown } }
   // Additional providers can be added under their type key.
   discountProviders:
-    jsonb('discount_providers').$type<
-      Partial<
-        Record<'esnCard', { config: unknown; status: 'disabled' | 'enabled' }>
-      >
-    >(),
+    jsonb('discount_providers').$type<{
+      esnCard?: {
+        config: unknown;
+        status: 'disabled' | 'enabled';
+      };
+      financeReceipts?: {
+        allowOther?: boolean;
+        receiptCountries?: string[];
+      };
+    }>(),
   domain: text().unique().notNull(),
   id: varchar({ length: 20 })
     .$defaultFn(() => createId())

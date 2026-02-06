@@ -30,7 +30,9 @@
     "docker:start": "yarn docker:stop && docker compose up --build -d",
     "docker:start-test": "yarn docker:stop && docker compose up --build",
     "migrate": "yarn tsx migration/index.ts",
-    "check:tiptap-license": "node helpers/check-tiptap-license.mjs"
+    "check:tiptap-license": "node helpers/check-tiptap-license.mjs",
+    "cleanup:testing:receipt-images": "tsx helpers/cleanup-testing-receipt-images.ts",
+    "cleanup:testing:receipt-images:dry-run": "tsx helpers/cleanup-testing-receipt-images.ts --dry-run"
   },
   "private": true,
   "dependencies": {
@@ -47,6 +49,8 @@
     "@angular/platform-server": "^21.1.3",
     "@angular/router": "^21.1.3",
     "@angular/ssr": "^21.1.2",
+    "@aws-sdk/client-s3": "^3.984.0",
+    "@aws-sdk/s3-request-presigner": "^3.984.0",
     "@fortawesome/angular-fontawesome": "4.0.0",
     "@fortawesome/duotone-regular-svg-icons": "^7.1.0",
     "@fortawesome/free-brands-svg-icons": "^7.1.0",
@@ -74,6 +78,7 @@
     "@trpc/client": "^11.9.0",
     "@trpc/server": "^11.9.0",
     "auth0": "^5.3.0",
+    "cloudflare": "^5.2.0",
     "compression": "^1.8.1",
     "consola": "^3.4.2",
     "cookie-parser": "^1.4.7",
@@ -89,6 +94,7 @@
     "inter-ui": "^4.1.1",
     "luxon": "^3.7.2",
     "marked": "^17.0.1",
+    "pdfjs-dist": "^5.4.624",
     "qr-scanner": "^1.4.2",
     "qrcode": "^1.5.4",
     "rxjs": "~7.8.2",

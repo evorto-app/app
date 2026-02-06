@@ -11,6 +11,7 @@ import { addExampleUsers, addRoles, addUsersToRoles } from './add-roles';
 import { addTaxRates } from './add-tax-rates';
 import { addTemplateCategories } from './add-template-categories';
 import { addTemplates } from './add-templates';
+import { addFinanceReceipts } from './add-finance-receipts';
 import { createTenant } from './create-tenant';
 import { getSeedDate } from './seed-clock';
 import { usersToAuthenticate } from './user-data';
@@ -162,6 +163,10 @@ export async function seedTenant(
   const registrations = includeRegistrations
     ? await addRegistrations(database, events, resolvedSeedDate)
     : [];
+  await addFinanceReceipts(database, {
+    eventIds: events.map((event) => event.id),
+    tenantId: tenant.id,
+  });
 
   if (logSeedMap) {
     const map = {

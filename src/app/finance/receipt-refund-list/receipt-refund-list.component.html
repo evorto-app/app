@@ -1,0 +1,150 @@
+<div class="mb-4 flex items-center justify-between gap-2">
+  <h1 class="title-large">Receipt refunds</h1>
+</div>
+
+@if (refundableReceiptsQuery.isPending()) {
+  <div class="bg-surface text-on-surface rounded-2xl p-4">Loading refundable receipts...</div>
+} @else if (refundableReceiptsQuery.isError()) {
+  <div class="bg-error-container text-on-error-container rounded-2xl p-4">
+    Failed to load refundable receipts.
+  </div>
+} @else if ((refundableReceiptsQuery.data()?.length ?? 0) === 0) {
+  <div class="bg-surface text-on-surface rounded-2xl p-4">
+    No approved receipts are waiting for refund.
+  </div>
+} @else {
+  <div class="grid gap-4">
+    @for (group of refundableReceiptsQuery.data(); track group.submittedByUserId) {
+      @let groupReceiptIds = receiptIds(group.receipts);
+      <section class="bg-surface text-on-surface rounded-2xl p-4">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 class="title-medium">
+              {{ group.submittedByFirstName }} {{ group.submittedByLastName }}
+            </h2>
+            <p class="text-on-surface-variant text-sm">{{ group.submittedByEmail }}</p>
+          </div>
+          <p class="text-lg font-semibold">
+            Selected total:
+            {{
+              selectedTotal(group.submittedByUserId, group.receipts) / 100
+                | number: "1.2-2"
+            }}
+            €
+          </p>
+        </div>
+
+        <div class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+          <mat-form-field>
+            <mat-label>Payout method</mat-label>
+            <mat-select
+              [value]="getPayoutType(group.submittedByUserId, group.payout)"
+              (selectionChange)="
+                setPayoutType(group.submittedByUserId, $event.value)
+              "
+            >
+              @if (group.payout.iban) {
+                <mat-option value="iban">IBAN</mat-option>
+              }
+              @if (group.payout.paypalEmail) {
+                <mat-option value="paypal">PayPal</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+          <div class="bg-surface-container rounded-xl p-3 text-sm">
+            <p>IBAN: {{ group.payout.iban || "not set" }}</p>
+            <p>PayPal: {{ group.payout.paypalEmail || "not set" }}</p>
+          </div>
+        </div>
+
+        <div class="mt-3 overflow-x-auto rounded-xl border border-outline-variant">
+          <table
+            mat-table
+            [dataSource]="group.receipts"
+            class="bg-surface-container w-full"
+          >
+            <ng-container matColumnDef="select">
+              <th mat-header-cell *matHeaderCellDef>
+                <mat-checkbox
+                  [checked]="areAllSelected(group.submittedByUserId, groupReceiptIds)"
+                  [indeterminate]="
+                    isPartiallySelected(group.submittedByUserId, groupReceiptIds)
+                  "
+                  (change)="
+                    toggleAllReceipts(
+                      group.submittedByUserId,
+                      groupReceiptIds,
+                      $event.checked
+                    )
+                  "
+                ></mat-checkbox>
+              </th>
+              <td mat-cell *matCellDef="let receipt">
+                <mat-checkbox
+                  [checked]="isReceiptSelected(group.submittedByUserId, receipt.id)"
+                  (change)="
+                    toggleReceipt(group.submittedByUserId, receipt.id, $event.checked)
+                  "
+                ></mat-checkbox>
+              </td>
+            </ng-container>
+
+            <ng-container matColumnDef="fileName">
+              <th mat-header-cell *matHeaderCellDef>File</th>
+              <td mat-cell *matCellDef="let receipt">
+                {{ receipt.attachmentFileName }}
+              </td>
+            </ng-container>
+
+            <ng-container matColumnDef="event">
+              <th mat-header-cell *matHeaderCellDef>Event</th>
+              <td mat-cell *matCellDef="let receipt">{{ receipt.eventTitle }}</td>
+            </ng-container>
+
+            <ng-container matColumnDef="receiptDate">
+              <th mat-header-cell *matHeaderCellDef>Date</th>
+              <td mat-cell *matCellDef="let receipt">
+                {{ receipt.receiptDate | date: "mediumDate" }}
+              </td>
+            </ng-container>
+
+            <ng-container matColumnDef="totalAmount">
+              <th mat-header-cell *matHeaderCellDef class="text-right">Amount</th>
+              <td mat-cell *matCellDef="let receipt" class="text-right">
+                {{ receipt.totalAmount / 100 | number: "1.2-2" }} €
+              </td>
+            </ng-container>
+
+            <ng-container matColumnDef="preview">
+              <th mat-header-cell *matHeaderCellDef>Preview</th>
+              <td mat-cell *matCellDef="let receipt">
+                <button
+                  mat-stroked-button
+                  type="button"
+                  [disabled]="!hasPreviewUrl(receipt)"
+                  (click)="openPreviewDialog(receipt)"
+                >
+                  Show preview
+                </button>
+              </td>
+            </ng-container>
+
+            <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+            <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
+          </table>
+        </div>
+
+        <div class="mt-4 flex justify-end">
+          <button
+            mat-raised-button
+            color="primary"
+            [disabled]="!canRefund(group.submittedByUserId, group.payout) || refundMutation.isPending()"
+            (click)="refundRecipient(group)"
+          >
+            Issue refund
+          </button>
+        </div>
+      </section>
+    }
+  </div>
+}

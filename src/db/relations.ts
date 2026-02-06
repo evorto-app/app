@@ -10,6 +10,7 @@ export const relations = defineRelations(schema, (r) => ({
       optional: false,
       to: r.users.id,
     }),
+    financeReceipts: r.many.financeReceipts(),
     registrationOptions: r.many.eventRegistrationOptions(),
     registrations: r.many.eventRegistrations(),
     reviewer: r.one.users({
@@ -78,6 +79,38 @@ export const relations = defineRelations(schema, (r) => ({
     registrationOptions: r.many.templateRegistrationOptions(),
     templateEventAddons: r.many.templateEventAddons(),
   },
+  financeReceipts: {
+    event: r.one.eventInstances({
+      from: r.financeReceipts.eventId,
+      optional: false,
+      to: r.eventInstances.id,
+    }),
+    refundTransaction: r.one.transactions({
+      from: r.financeReceipts.refundTransactionId,
+      to: r.transactions.id,
+    }),
+    submittedByUser: r.one.users({
+      alias: 'financeReceipts_submittedByUserId_users_id',
+      from: r.financeReceipts.submittedByUserId,
+      optional: false,
+      to: r.users.id,
+    }),
+    tenant: r.one.tenants({
+      from: r.financeReceipts.tenantId,
+      optional: false,
+      to: r.tenants.id,
+    }),
+    user_refundedByUserId: r.one.users({
+      alias: 'financeReceipts_refundedByUserId_users_id',
+      from: r.financeReceipts.refundedByUserId,
+      to: r.users.id,
+    }),
+    user_reviewedByUserId: r.one.users({
+      alias: 'financeReceipts_reviewedByUserId_users_id',
+      from: r.financeReceipts.reviewedByUserId,
+      to: r.users.id,
+    }),
+  },
   icons: {
     tenant: r.one.tenants({
       from: r.icons.tenantId,
@@ -135,6 +168,7 @@ export const relations = defineRelations(schema, (r) => ({
   tenants: {
     eventRegistrations: r.many.eventRegistrations(),
     events: r.many.eventInstances(),
+    financeReceipts: r.many.financeReceipts(),
     icons: r.many.icons(),
     roles: r.many.roles(),
     stripeTaxRates: r.many.tenantStripeTaxRates(),
@@ -161,6 +195,7 @@ export const relations = defineRelations(schema, (r) => ({
       from: r.transactions.eventRegistrationId,
       to: r.eventRegistrations.id,
     }),
+    refundedFinanceReceipts: r.many.financeReceipts(),
     tenant: r.one.tenants({
       from: r.transactions.tenantId,
       optional: false,
@@ -185,6 +220,15 @@ export const relations = defineRelations(schema, (r) => ({
       alias: 'eventInstances_reviewedBy_users_id',
     }),
     eventRegistrations: r.many.eventRegistrations(),
+    financeReceipts_refundedByUserId: r.many.financeReceipts({
+      alias: 'financeReceipts_refundedByUserId_users_id',
+    }),
+    financeReceipts_reviewedByUserId: r.many.financeReceipts({
+      alias: 'financeReceipts_reviewedByUserId_users_id',
+    }),
+    financeReceipts_submittedByUserId: r.many.financeReceipts({
+      alias: 'financeReceipts_submittedByUserId_users_id',
+    }),
     tenantAssignments: r.many.usersToTenants(),
     tenants: r.many.tenants(),
     transactions_executiveUserId: r.many.transactions({

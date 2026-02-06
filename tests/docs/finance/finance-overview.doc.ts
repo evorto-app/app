@@ -1,12 +1,18 @@
-import { adminStateFile } from '../../../helpers/user-data';
+import { organizerStateFile } from '../../../helpers/user-data';
 import { test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 
-test.use({ storageState: adminStateFile });
+test.use({ storageState: organizerStateFile });
 
 test('Manage finances @finance @track(playwright-specs-track-linking_20260126) @doc(FINANCE-OVERVIEW-DOC-01)', async ({
+  permissionOverride,
   page,
 }, testInfo) => {
+  await permissionOverride({
+    add: ['finance:viewTransactions', 'finance:approveReceipts', 'finance:refundReceipts'],
+    roleName: 'Section member',
+  });
+
   await page.goto('.');
   await testInfo.attach('markdown', {
     body: `
@@ -79,4 +85,34 @@ The transaction list shows all financial transactions with details such as:
 You can filter and sort this list to find specific transactions.
 `,
   });
+
+  await testInfo.attach('markdown', {
+    body: `
+## Receipt Approvals
+
+The **Receipt approvals** tab shows all receipts waiting for finance review, grouped by event. Reviewers can open each receipt, validate submitted values, and approve or reject it.
+`,
+  });
+  await page.getByRole('link', { name: 'Receipt approvals' }).click();
+  await takeScreenshot(
+    testInfo,
+    page.locator('app-receipt-approval-list'),
+    page,
+    'Receipt approval list',
+  );
+
+  await testInfo.attach('markdown', {
+    body: `
+## Receipt Refunds
+
+The **Receipt refunds** tab groups approved receipts by recipient and renders each group in a selectable table. Finance users can select one or more rows, verify payout details (IBAN/PayPal), and issue a refund transaction for the selected batch.
+`,
+  });
+  await page.getByRole('link', { name: 'Receipt refunds' }).click();
+  await takeScreenshot(
+    testInfo,
+    page.locator('app-receipt-refund-list'),
+    page,
+    'Receipt refunds list',
+  );
 });

@@ -4,6 +4,7 @@ export * from './event-registration-options';
 export * from './event-registrations';
 export * from './event-template-categories';
 export * from './event-templates';
+export * from './finance-receipts';
 export * from './global-enums';
 export * from './icons';
 export * from './roles';
