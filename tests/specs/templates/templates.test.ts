@@ -72,7 +72,7 @@ test('view a template @track(playwright-specs-track-linking_20260126) @req(TEMPL
   await expect(page).toHaveURL(`/templates/${template.id}`);
 });
 
-test('template create form hides selected roles in autocomplete', async ({
+test('template create form hides selected roles in autocomplete @track(playwright-specs-track-linking_20260126) @req(TEMPLATES-TEST-04)', async ({
   page,
 }) => {
   await page.goto('.');

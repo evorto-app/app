@@ -7,6 +7,7 @@ import {
   ElementRef,
   inject,
   input,
+  OnDestroy,
   PLATFORM_ID,
   signal,
   viewChild,
@@ -18,15 +19,13 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faEdit } from '@fortawesome/duotone-regular-svg-icons';
-import {
-  Editor,
-} from '@tiptap/core';
+import { injectMutation } from '@tanstack/angular-query-experimental';
+import { Editor } from '@tiptap/core';
 import FileHandler from '@tiptap/extension-file-handler';
 import Image from '@tiptap/extension-image';
 import Link from '@tiptap/extension-link';
 import { TableKit } from '@tiptap/extension-table';
 import StarterKit from '@tiptap/starter-kit';
-import { injectMutation } from '@tanstack/angular-query-experimental';
 
 import { injectTRPC } from '../../../../core/trpc-client';
 
@@ -90,11 +89,7 @@ import { injectTRPC } from '../../../../core/trpc-client';
     }
 
     :host ::ng-deep .editor-content .ProseMirror .selectedCell::after {
-      background: color-mix(
-        in srgb,
-        var(--mat-sys-primary) 16%,
-        transparent
-      );
+      background: color-mix(in srgb, var(--mat-sys-primary) 16%, transparent);
       inset: 0;
       pointer-events: none;
       position: absolute;
@@ -102,7 +97,77 @@ import { injectTRPC } from '../../../../core/trpc-client';
   `,
   templateUrl: './editor.component.html',
 })
-export class EditorComponent {
+export class EditorComponent implements OnDestroy {
+  readonly control = input<FieldTree<string>>();
+
+  private editor: Editor | undefined;
+
+  private readonly editorStateTick = signal(0);
+  protected readonly activeTextStyle = computed<
+    (typeof this.textStyleOptions)[number]['value']
+  >(() => {
+    this.editorStateTick();
+
+    if (this.editor?.isActive('heading', { level: 1 })) return 'h1';
+    if (this.editor?.isActive('heading', { level: 2 })) return 'h2';
+    if (this.editor?.isActive('heading', { level: 3 })) return 'h3';
+    if (this.editor?.isActive('heading', { level: 4 })) return 'h4';
+    if (this.editor?.isActive('heading', { level: 5 })) return 'h5';
+    if (this.editor?.isActive('heading', { level: 6 })) return 'h6';
+
+    return 'paragraph';
+  });
+  protected readonly canRedo = computed(() => {
+    this.editorStateTick();
+    return this.editor?.can().chain().focus().redo().run() ?? false;
+  });
+  protected readonly canUndo = computed(() => {
+    this.editorStateTick();
+    return this.editor?.can().chain().focus().undo().run() ?? false;
+  });
+  protected readonly faPencil = faEdit;
+  protected readonly hasEditor = computed(() => {
+    this.editorStateTick();
+    return this.editor !== null;
+  });
+
+  protected readonly isBoldActive = computed(() => {
+    this.editorStateTick();
+    return this.editor?.isActive('bold') ?? false;
+  });
+  protected readonly isBulletListActive = computed(() => {
+    this.editorStateTick();
+    return this.editor?.isActive('bulletList') ?? false;
+  });
+
+  protected readonly isItalicActive = computed(() => {
+    this.editorStateTick();
+    return this.editor?.isActive('italic') ?? false;
+  });
+  protected readonly isLinkActive = computed(() => {
+    this.editorStateTick();
+    return this.editor?.isActive('link') ?? false;
+  });
+
+  protected readonly isMounted = signal(false);
+  protected readonly isOrderedListActive = computed(() => {
+    this.editorStateTick();
+    return this.editor?.isActive('orderedList') ?? false;
+  });
+
+  protected readonly isReadonly = computed(() => {
+    const fieldTree = this.control();
+    if (!fieldTree) {
+      return false;
+    }
+
+    const field = fieldTree();
+    return field.disabled() || field.readonly();
+  });
+  protected readonly pendingUploads = signal(0);
+
+  protected readonly isUploading = computed(() => this.pendingUploads() > 0);
+
   protected readonly textStyleOptions = [
     { label: 'Paragraph', value: 'paragraph' },
     { label: 'Heading 1', value: 'h1' },
@@ -113,29 +178,15 @@ export class EditorComponent {
     { label: 'Heading 6', value: 'h6' },
   ] as const;
 
-  readonly control = input<FieldTree<string>>();
-
-  protected readonly faPencil = faEdit;
-  protected readonly isMounted = signal(false);
   protected readonly uploadErrorMessage = signal('');
-  protected readonly pendingUploads = signal(0);
-  protected readonly isUploading = computed(() => this.pendingUploads() > 0);
-  private readonly editorStateTick = signal(0);
+
+  private readonly editorContainer =
+    viewChild<ElementRef<HTMLDivElement>>('editorContainer');
 
   private readonly platformId = inject(PLATFORM_ID);
+
   private readonly isBrowser = isPlatformBrowser(this.platformId);
 
-  private readonly editorContainer = viewChild<ElementRef<HTMLDivElement>>(
-    'editorContainer',
-  );
-  private readonly fileInput = viewChild<ElementRef<HTMLInputElement>>('fileInput');
-
-  private readonly trpc = injectTRPC();
-  private readonly createImageUploadMutation = injectMutation(() =>
-    this.trpc.editorMedia.createImageDirectUpload.mutationOptions(),
-  );
-
-  private editor: Editor | null = null;
   private isSyncingFromEditor = false;
 
   private readonly createEditorFromStateEffect = effect(() => {
@@ -153,14 +204,15 @@ export class EditorComponent {
 
     this.editor = new Editor({
       content: field.value() || '<p></p>',
+      editable: !(field.disabled() || field.readonly()),
       editorProps: {
         attributes: {
-          class: 'ProseMirror prose prose-sm max-w-none min-h-[200px] outline-none',
-          'data-testid': 'rich-editor-content',
+          class:
+            'ProseMirror prose prose-sm max-w-none min-h-[200px] outline-none',
           'data-placeholder': 'Start writing...',
+          'data-testid': 'rich-editor-content',
         },
       },
-      editable: !(field.disabled() || field.readonly()),
       element: container,
       extensions: [
         StarterKit.configure({
@@ -194,20 +246,29 @@ export class EditorComponent {
       onBlur: () => {
         fieldTree().markAsDirty();
       },
-      onUpdate: ({ editor: currentEditor }) => {
-        this.isSyncingFromEditor = true;
-        fieldTree().value.set(currentEditor.getHTML());
-        fieldTree().markAsDirty();
-        this.isSyncingFromEditor = false;
-      },
       onSelectionUpdate: () => {
         this.editorStateTick.update((value) => value + 1);
       },
       onTransaction: () => {
         this.editorStateTick.update((value) => value + 1);
       },
+      onUpdate: ({ editor: currentEditor }) => {
+        this.isSyncingFromEditor = true;
+        fieldTree().value.set(currentEditor.getHTML());
+        fieldTree().markAsDirty();
+        this.isSyncingFromEditor = false;
+      },
     });
   });
+
+  private readonly trpc = injectTRPC();
+
+  private readonly createImageUploadMutation = injectMutation(() =>
+    this.trpc.editorMedia.createImageDirectUpload.mutationOptions(),
+  );
+
+  private readonly fileInput =
+    viewChild<ElementRef<HTMLInputElement>>('fileInput');
 
   private readonly syncEditorStateEffect = effect(() => {
     const fieldTree = this.control();
@@ -234,20 +295,10 @@ export class EditorComponent {
     }
   });
 
-  protected readonly hasEditor = computed(() => {
-    this.editorStateTick();
-    return this.editor !== null;
-  });
-
-  protected readonly isReadonly = computed(() => {
-    const fieldTree = this.control();
-    if (!fieldTree) {
-      return false;
-    }
-
-    const field = fieldTree();
-    return field.disabled() || field.readonly();
-  });
+  ngOnDestroy(): void {
+    this.editor?.destroy();
+    this.editor = undefined;
+  }
 
   protected activateEditor(): void {
     if (this.isMounted()) {
@@ -258,60 +309,13 @@ export class EditorComponent {
     this.isMounted.set(true);
   }
 
-  protected openImagePicker(): void {
-    if (this.isReadonly()) {
-      return;
-    }
-
-    this.fileInput()?.nativeElement.click();
-  }
-
-  protected onFileInputChange(event: Event): void {
-    const target = event.target as HTMLInputElement | null;
-    const files = target?.files;
-
-    if (!files || !this.editor) {
-      return;
-    }
-
-    void this.handleImageFiles(this.editor, Array.from(files));
-
-    if (target) {
-      target.value = '';
-    }
-  }
-
-  protected toggleBold(): void {
-    this.editor?.chain().focus().toggleBold().run();
-  }
-
-  protected toggleItalic(): void {
-    this.editor?.chain().focus().toggleItalic().run();
-  }
-
-  protected toggleBulletList(): void {
-    this.editor?.chain().focus().toggleBulletList().run();
-  }
-
-  protected toggleOrderedList(): void {
-    this.editor?.chain().focus().toggleOrderedList().run();
-  }
-
-  protected undo(): void {
-    this.editor?.chain().focus().undo().run();
-  }
-
-  protected redo(): void {
-    this.editor?.chain().focus().redo().run();
-  }
-
   protected addLink(): void {
     if (!this.editor) {
       return;
     }
 
     const previousUrl = this.editor.getAttributes('link')['href'];
-    const nextUrl = window.prompt('Enter URL', previousUrl || 'https://');
+    const nextUrl = globalThis.prompt('Enter URL', previousUrl || 'https://');
 
     if (nextUrl === null) {
       return;
@@ -330,6 +334,93 @@ export class EditorComponent {
       .run();
   }
 
+  protected insertTable(): void {
+    this.editor
+      ?.chain()
+      .focus()
+      .insertTable({ cols: 3, rows: 3, withHeaderRow: true })
+      .run();
+  }
+
+  protected onFileInputChange(event: Event): void {
+    const target = event.target as HTMLInputElement | null;
+    const files = target?.files;
+
+    if (!files || !this.editor) {
+      return;
+    }
+
+    void this.handleImageFiles(this.editor, [...files]);
+
+    if (target) {
+      target.value = '';
+    }
+  }
+
+  protected openImagePicker(): void {
+    if (this.isReadonly()) {
+      return;
+    }
+
+    this.fileInput()?.nativeElement.click();
+  }
+
+  protected redo(): void {
+    this.editor?.chain().focus().redo().run();
+  }
+
+  protected setTextStyle(
+    textStyle: (typeof this.textStyleOptions)[number]['value'],
+  ): void {
+    if (!this.editor) {
+      return;
+    }
+
+    const chain = this.editor.chain().focus();
+    switch (textStyle) {
+      case 'h1': {
+        chain.setHeading({ level: 1 }).run();
+        return;
+      }
+      case 'h2': {
+        chain.setHeading({ level: 2 }).run();
+        return;
+      }
+      case 'h3': {
+        chain.setHeading({ level: 3 }).run();
+        return;
+      }
+      case 'h4': {
+        chain.setHeading({ level: 4 }).run();
+        return;
+      }
+      case 'h5': {
+        chain.setHeading({ level: 5 }).run();
+        return;
+      }
+      case 'h6': {
+        chain.setHeading({ level: 6 }).run();
+        return;
+      }
+      case 'paragraph': {
+        chain.setParagraph().run();
+        return;
+      }
+    }
+  }
+
+  protected toggleBold(): void {
+    this.editor?.chain().focus().toggleBold().run();
+  }
+
+  protected toggleBulletList(): void {
+    this.editor?.chain().focus().toggleBulletList().run();
+  }
+
+  protected toggleItalic(): void {
+    this.editor?.chain().focus().toggleItalic().run();
+  }
+
   protected toggleLink(): void {
     if (!this.editor) {
       return;
@@ -343,95 +434,12 @@ export class EditorComponent {
     this.addLink();
   }
 
-  protected insertTable(): void {
-    this.editor
-      ?.chain()
-      .focus()
-      .insertTable({ cols: 3, rows: 3, withHeaderRow: true })
-      .run();
+  protected toggleOrderedList(): void {
+    this.editor?.chain().focus().toggleOrderedList().run();
   }
 
-  protected readonly isBoldActive = computed(() => {
-    this.editorStateTick();
-    return this.editor?.isActive('bold') ?? false;
-  });
-
-  protected readonly isItalicActive = computed(() => {
-    this.editorStateTick();
-    return this.editor?.isActive('italic') ?? false;
-  });
-
-  protected readonly isBulletListActive = computed(() => {
-    this.editorStateTick();
-    return this.editor?.isActive('bulletList') ?? false;
-  });
-
-  protected readonly isOrderedListActive = computed(() => {
-    this.editorStateTick();
-    return this.editor?.isActive('orderedList') ?? false;
-  });
-
-  protected readonly isLinkActive = computed(() => {
-    this.editorStateTick();
-    return this.editor?.isActive('link') ?? false;
-  });
-
-  protected readonly canUndo = computed(() => {
-    this.editorStateTick();
-    return this.editor?.can().chain().focus().undo().run() ?? false;
-  });
-
-  protected readonly canRedo = computed(() => {
-    this.editorStateTick();
-    return this.editor?.can().chain().focus().redo().run() ?? false;
-  });
-
-  protected readonly activeTextStyle = computed<
-    (typeof this.textStyleOptions)[number]['value']
-  >(() => {
-    this.editorStateTick();
-
-    if (this.editor?.isActive('heading', { level: 1 })) return 'h1';
-    if (this.editor?.isActive('heading', { level: 2 })) return 'h2';
-    if (this.editor?.isActive('heading', { level: 3 })) return 'h3';
-    if (this.editor?.isActive('heading', { level: 4 })) return 'h4';
-    if (this.editor?.isActive('heading', { level: 5 })) return 'h5';
-    if (this.editor?.isActive('heading', { level: 6 })) return 'h6';
-
-    return 'paragraph';
-  });
-
-  protected setTextStyle(
-    textStyle: (typeof this.textStyleOptions)[number]['value'],
-  ): void {
-    if (!this.editor) {
-      return;
-    }
-
-    const chain = this.editor.chain().focus();
-    switch (textStyle) {
-      case 'h1':
-        chain.setHeading({ level: 1 }).run();
-        return;
-      case 'h2':
-        chain.setHeading({ level: 2 }).run();
-        return;
-      case 'h3':
-        chain.setHeading({ level: 3 }).run();
-        return;
-      case 'h4':
-        chain.setHeading({ level: 4 }).run();
-        return;
-      case 'h5':
-        chain.setHeading({ level: 5 }).run();
-        return;
-      case 'h6':
-        chain.setHeading({ level: 6 }).run();
-        return;
-      case 'paragraph':
-      default:
-        chain.setParagraph().run();
-    }
+  protected undo(): void {
+    this.editor?.chain().focus().undo().run();
   }
 
   private async handleImageFiles(
@@ -455,49 +463,9 @@ export class EditorComponent {
     }
   }
 
-  private async uploadAndInsertImage(
-    editor: Editor,
-    file: File,
-    position?: number,
-  ): Promise<void> {
-    const blobUrl = URL.createObjectURL(file);
-    this.pendingUploads.update((value) => value + 1);
-
-    try {
-      this.insertImageAtPosition(editor, blobUrl, file.name, position);
-
-      const payload = await this.createImageUploadMutation.mutateAsync({
-        fileName: file.name,
-        fileSizeBytes: file.size,
-        mimeType: file.type,
-      });
-
-      const uploadBody = new FormData();
-      uploadBody.append('file', file);
-
-      const uploadResponse = await fetch(payload.uploadUrl, {
-        body: uploadBody,
-        method: 'POST',
-      });
-
-      if (!uploadResponse.ok) {
-        throw new Error(`Image upload failed with status ${uploadResponse.status}`);
-      }
-
-      this.replaceImageSource(editor, blobUrl, payload.deliveryUrl);
-    } catch (error) {
-      this.removeImageBySource(editor, blobUrl);
-      this.uploadErrorMessage.set('Image upload failed. Please try again.');
-      console.error('Image upload failed', error);
-    } finally {
-      URL.revokeObjectURL(blobUrl);
-      this.pendingUploads.update((value) => Math.max(0, value - 1));
-    }
-  }
-
   private insertImageAtPosition(
     editor: Editor,
-    src: string,
+    source: string,
     alt: string,
     position?: number,
   ): void {
@@ -506,12 +474,12 @@ export class EditorComponent {
         .chain()
         .focus()
         .setTextSelection(position)
-        .setImage({ alt, src })
+        .setImage({ alt, src: source })
         .run();
       return;
     }
 
-    editor.chain().focus().setImage({ alt, src }).run();
+    editor.chain().focus().setImage({ alt, src: source }).run();
   }
 
   private removeImageBySource(editor: Editor, source: string): void {
@@ -553,8 +521,45 @@ export class EditorComponent {
     }
   }
 
-  ngOnDestroy(): void {
-    this.editor?.destroy();
-    this.editor = null;
+  private async uploadAndInsertImage(
+    editor: Editor,
+    file: File,
+    position?: number,
+  ): Promise<void> {
+    const blobUrl = URL.createObjectURL(file);
+    this.pendingUploads.update((value) => value + 1);
+
+    try {
+      this.insertImageAtPosition(editor, blobUrl, file.name, position);
+
+      const payload = await this.createImageUploadMutation.mutateAsync({
+        fileName: file.name,
+        fileSizeBytes: file.size,
+        mimeType: file.type,
+      });
+
+      const uploadBody = new FormData();
+      uploadBody.append('file', file);
+
+      const uploadResponse = await fetch(payload.uploadUrl, {
+        body: uploadBody,
+        method: 'POST',
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error(
+          `Image upload failed with status ${uploadResponse.status}`,
+        );
+      }
+
+      this.replaceImageSource(editor, blobUrl, payload.deliveryUrl);
+    } catch (error) {
+      this.removeImageBySource(editor, blobUrl);
+      this.uploadErrorMessage.set('Image upload failed. Please try again.');
+      console.error('Image upload failed', error);
+    } finally {
+      URL.revokeObjectURL(blobUrl);
+      this.pendingUploads.update((value) => Math.max(0, value - 1));
+    }
   }
 }
