@@ -77,6 +77,7 @@
     "@trpc/client": "^11.9.0",
     "@trpc/server": "^11.9.0",
     "auth0": "^5.3.0",
+    "cloudflare": "^5.2.0",
     "compression": "^1.8.1",
     "consola": "^3.4.2",
     "cookie-parser": "^1.4.7",

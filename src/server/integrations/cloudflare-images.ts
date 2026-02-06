@@ -1,57 +1,8 @@
+import Cloudflare from 'cloudflare';
 import consola from 'consola';
-import { Schema } from 'effect';
 
 const DEFAULT_IMAGE_VARIANT = 'public';
 const TESTING_CLEANUP_CONFIRMATION = 'delete-testing-images-only';
-
-const cloudflareDeleteImageResponseSchema = Schema.Struct({
-  errors: Schema.Array(
-    Schema.Struct({
-      message: Schema.NonEmptyString,
-    }),
-  ),
-  success: Schema.Boolean,
-});
-
-const cloudflareDirectUploadResponseSchema = Schema.Struct({
-  errors: Schema.Array(
-    Schema.Struct({
-      message: Schema.NonEmptyString,
-    }),
-  ),
-  result: Schema.optional(
-    Schema.Struct({
-      id: Schema.NonEmptyString,
-      uploadURL: Schema.NonEmptyString,
-    }),
-  ),
-  success: Schema.Boolean,
-});
-
-const cloudflareListImagesResponseSchema = Schema.Struct({
-  errors: Schema.Array(
-    Schema.Struct({
-      message: Schema.NonEmptyString,
-    }),
-  ),
-  result: Schema.optional(
-    Schema.Struct({
-      continuation_token: Schema.optional(Schema.NullOr(Schema.String)),
-      images: Schema.Array(
-        Schema.Struct({
-          id: Schema.NonEmptyString,
-          meta: Schema.optional(
-            Schema.Record({
-              key: Schema.String,
-              value: Schema.Unknown,
-            }),
-          ),
-        }),
-      ),
-    }),
-  ),
-  success: Schema.Boolean,
-});
 
 export const isCloudflareImagesConfigured = (): boolean =>
   Boolean(
@@ -63,6 +14,7 @@ export const isCloudflareImagesConfigured = (): boolean =>
 
 const resolveCloudflareImagesConfig = (): {
   accountId: string;
+  client: Cloudflare;
   apiToken: string;
   appEnvironment: string;
   deliveryHash: string;
@@ -107,21 +59,15 @@ const resolveCloudflareImagesConfig = (): {
 
   return {
     accountId,
+    client: new Cloudflare({
+      apiToken,
+    }),
     apiToken,
     appEnvironment,
     deliveryHash,
     variant,
   };
 };
-
-const decodeCloudflareResponse = <T,>(
-  schema: Schema.Schema<T>,
-  responseBody: unknown,
-): T =>
-  Schema.decodeUnknownSync(schema, {
-    errors: 'all',
-    onExcessProperty: 'ignore',
-  })(responseBody);
 
 export const createCloudflareImageDirectUpload = async (input: {
   fileName: string;
@@ -136,46 +82,28 @@ export const createCloudflareImageDirectUpload = async (input: {
   uploadUrl: string;
 }> => {
   const config = resolveCloudflareImagesConfig();
-  const response = await fetch(
-    `https://api.cloudflare.com/client/v4/accounts/${config.accountId}/images/v2/direct_upload`,
-    {
-      body: JSON.stringify({
-        metadata: {
-          appEnvironment: config.appEnvironment,
-          fileName: input.fileName,
-          mimeType: input.mimeType,
-          source: input.source,
-          tenantId: input.tenantId,
-          uploadedByUserId: input.uploadedByUserId,
-          ...input.metadata,
-        },
-        requireSignedURLs: false,
-      }),
-      headers: {
-        Authorization: `Bearer ${config.apiToken}`,
-        'Content-Type': 'application/json',
-      },
-      method: 'POST',
+  const directUpload = await config.client.images.v2.directUploads.create({
+    account_id: config.accountId,
+    metadata: {
+      appEnvironment: config.appEnvironment,
+      fileName: input.fileName,
+      mimeType: input.mimeType,
+      source: input.source,
+      tenantId: input.tenantId,
+      uploadedByUserId: input.uploadedByUserId,
+      ...input.metadata,
     },
-  );
+    requireSignedURLs: false,
+  });
 
-  const responseBody = (await response.json()) as unknown;
-  const payload = decodeCloudflareResponse(
-    cloudflareDirectUploadResponseSchema,
-    responseBody,
-  );
-
-  if (!response.ok || !payload.success || !payload.result) {
-    throw new Error(
-      payload.errors.map((error) => error.message).join(', ') ||
-        'Image upload initialization failed',
-    );
+  if (!directUpload.id || !directUpload.uploadURL) {
+    throw new Error('Image upload initialization failed');
   }
 
   return {
-    deliveryUrl: `https://imagedelivery.net/${config.deliveryHash}/${payload.result.id}/${config.variant}`,
-    imageId: payload.result.id,
-    uploadUrl: payload.result.uploadURL,
+    deliveryUrl: `https://imagedelivery.net/${config.deliveryHash}/${directUpload.id}/${config.variant}`,
+    imageId: directUpload.id,
+    uploadUrl: directUpload.uploadURL,
   };
 };
 
@@ -206,39 +134,30 @@ export const cleanupTestingCloudflareImages = async (input: {
   let pageCount = 0;
 
   do {
-    const query = new URLSearchParams({ per_page: '100' });
-    if (continuationToken) {
-      query.set('continuation_token', continuationToken);
-    }
+    const page = await config.client.images.v2.list({
+      account_id: config.accountId,
+      continuation_token: continuationToken,
+      per_page: 100,
+    });
 
-    const response = await fetch(
-      `https://api.cloudflare.com/client/v4/accounts/${config.accountId}/images/v1?${query.toString()}`,
-      {
-        headers: {
-          Authorization: `Bearer ${config.apiToken}`,
-        },
-        method: 'GET',
-      },
-    );
-
-    const responseBody = (await response.json()) as unknown;
-    const payload = decodeCloudflareResponse(
-      cloudflareListImagesResponseSchema,
-      responseBody,
-    );
-
-    if (!response.ok || !payload.success) {
-      throw new Error(
-        payload.errors.map((error) => error.message).join(', ') ||
-          'Failed to list Cloudflare images',
-      );
-    }
-
-    const images = payload.result?.images ?? [];
+    const images = page.images ?? [];
     inspectedCount += images.length;
     for (const image of images) {
-      const source = image.meta?.['source'];
-      const appEnvironment = image.meta?.['appEnvironment'];
+      if (!image.id) {
+        continue;
+      }
+      const metadata = image.meta;
+      if (
+        !metadata ||
+        typeof metadata !== 'object' ||
+        Array.isArray(metadata)
+      ) {
+        continue;
+      }
+
+      const source = (metadata as Record<string, unknown>)['source'];
+      const appEnvironment =
+        (metadata as Record<string, unknown>)['appEnvironment'];
       if (
         source === input.source &&
         appEnvironment === 'testing' &&
@@ -249,7 +168,7 @@ export const cleanupTestingCloudflareImages = async (input: {
       }
     }
 
-    continuationToken = payload.result?.continuation_token ?? null;
+    continuationToken = page.continuation_token ?? null;
     pageCount += 1;
   } while (continuationToken && pageCount < 20);
 
@@ -258,26 +177,9 @@ export const cleanupTestingCloudflareImages = async (input: {
 
   if (!input.dryRun) {
     for (const imageId of toDelete) {
-      const response = await fetch(
-        `https://api.cloudflare.com/client/v4/accounts/${config.accountId}/images/v1/${imageId}`,
-        {
-          headers: {
-            Authorization: `Bearer ${config.apiToken}`,
-          },
-          method: 'DELETE',
-        },
-      );
-      const responseBody = (await response.json()) as unknown;
-      const payload = decodeCloudflareResponse(
-        cloudflareDeleteImageResponseSchema,
-        responseBody,
-      );
-      if (!response.ok || !payload.success) {
-        throw new Error(
-          payload.errors.map((error) => error.message).join(', ') ||
-            `Failed to delete image ${imageId}`,
-        );
-      }
+      await config.client.images.v1.delete(imageId, {
+        account_id: config.accountId,
+      });
     }
   }
 
