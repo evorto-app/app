@@ -22,6 +22,8 @@ Click on _Create category_ to create a new category.`,
   });
   await page.getByRole('link', { name: 'Templates' }).click();
   await page.getByRole('link', { name: 'Manage categories' }).click();
+  const categoriesTable = page.getByRole('table');
+  await expect(categoriesTable).toBeVisible();
   await takeScreenshot(
     testInfo,
     page.getByRole('button', { name: 'Create category' }),
@@ -39,19 +41,19 @@ You can now enter the name for your category and save it. The new category will 
     .getByRole('textbox', { name: 'Category title' })
     .fill('Test category');
   await page.getByRole('button', { name: 'Save' }).click();
-  await expect(
-    page.locator('.category', { hasText: 'Test category' }),
-  ).toBeVisible();
+
+  const testCategoryRow = categoriesTable
+    .getByRole('row')
+    .filter({ hasText: 'Test category' })
+    .first();
+  await expect(testCategoryRow).toBeVisible();
   await testInfo.attach('markdown', {
     body: `
 To edit the name of a category, just find it in the list and click the _Edit_ button.
 After you have changed the name, click on _Save_ to save your changes.`,
   });
-  await page
-    .locator('div.category')
-    .filter({ hasText: 'Test category' })
-    .getByRole('button', { name: 'Edit' })
-    .click();
+
+  await testCategoryRow.getByRole('button', { name: 'Edit' }).click();
   await expect(
     page.getByRole('textbox', { name: 'Category title' }),
   ).toBeVisible();
@@ -60,6 +62,9 @@ After you have changed the name, click on _Save_ to save your changes.`,
     .fill('Test category edited');
   await page.getByRole('button', { name: 'Save' }).click();
   await expect(
-    page.locator('.category', { hasText: 'Test category edited' }),
+    categoriesTable
+      .getByRole('row')
+      .filter({ hasText: 'Test category edited' })
+      .first(),
   ).toBeVisible();
 });

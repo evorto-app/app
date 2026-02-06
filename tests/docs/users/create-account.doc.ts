@@ -65,19 +65,31 @@ For this example we will sign in with a demo user.`,
     exact: true,
     name: 'Accept',
   });
+  const createAccountButton = page.getByRole('button', {
+    exact: true,
+    name: 'Create Account',
+  });
+  await expect(
+    acceptButton.or(createAccountButton).first(),
+  ).toBeVisible({
+    timeout: 15000,
+  });
   if (await acceptButton.isVisible()) {
     await acceptButton.click();
   }
+  await expect(createAccountButton).toBeVisible({ timeout: 15000 });
 
   await testInfo.attach('markdown', {
     body: `
 The next step is simple. Just fill in the data requested and click on **Create account**. _Note_ the data requested can change based on the application settings.`,
   });
-  await page.locator('form').waitFor({ state: 'visible' });
-  await takeScreenshot(testInfo, page.locator('form'), page);
-  await page
-    .getByRole('button', { exact: true, name: 'Create Account' })
-    .click();
+  const createAccountForm = page
+    .locator('form')
+    .filter({ has: createAccountButton })
+    .first();
+  await createAccountForm.waitFor({ state: 'visible' });
+  await takeScreenshot(testInfo, createAccountForm, page);
+  await createAccountButton.click();
   await expect(
     page.getByRole('heading', {
       level: 1,

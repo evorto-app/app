@@ -19,13 +19,17 @@ test('create template category @track(playwright-specs-track-linking_20260126) @
     await page.getByRole('link', { name: 'Manage categories' }).click();
   }
   await expect(page).toHaveURL(/\/templates\/categories/);
-  await expect(page.locator('.category').first()).toBeVisible();
+  const categoriesTable = page.getByRole('table');
+  await expect(categoriesTable).toBeVisible();
   await page.getByRole('button', { name: 'Create category' }).click();
   await expect(page.getByLabel('Category title')).toBeVisible();
   await page.getByLabel('Category title').fill('Mountain trips');
   await page.getByRole('button', { name: 'Save' }).click();
   await expect(
-    page.locator('.category', { hasText: 'Mountain trips' }),
+    categoriesTable
+      .getByRole('row')
+      .filter({ hasText: 'Mountain trips' })
+      .first(),
   ).toBeVisible();
 });
 
@@ -44,15 +48,22 @@ test('edit template category @track(playwright-specs-track-linking_20260126) @re
     await page.getByRole('link', { name: 'Manage categories' }).click();
   }
   await expect(page).toHaveURL(/\/templates\/categories/);
-  await expect(page.locator('.category').first()).toBeVisible();
+  const categoriesTable = page.getByRole('table');
+  await expect(categoriesTable).toBeVisible();
   const category = templateCategories[0];
-  const categoryCard = page.locator('.category', { hasText: category.title });
-  await categoryCard.getByRole('button', { name: 'Edit' }).click();
+  const categoryRow = categoriesTable
+    .getByRole('row')
+    .filter({ hasText: category.title })
+    .first();
+  await categoryRow.getByRole('button', { name: 'Edit' }).click();
   await expect(page.getByLabel('Category title')).toBeVisible();
   await expect(page.getByLabel('Category title')).toHaveValue(category.title);
   await page.getByLabel('Category title').fill('Mountain trips');
   await page.getByRole('button', { name: 'Save' }).click();
   await expect(
-    page.locator('.category', { hasText: 'Mountain trips' }),
+    categoriesTable
+      .getByRole('row')
+      .filter({ hasText: 'Mountain trips' })
+      .first(),
   ).toBeVisible();
 });
