@@ -4,7 +4,7 @@
     <div class="flex flex-col gap-2">
       <div class="group relative">
         <div
-          class="border-outline min-h-[100px] cursor-pointer rounded border p-2 opacity-80"
+          class="prose prose-sm max-w-none border-outline min-h-[100px] cursor-pointer rounded border p-2 opacity-80"
           [innerHTML]="field().value()"
           role="button"
           tabindex="0"
@@ -26,57 +26,59 @@
       </div>
     </div>
   } @else {
-    <div class="border-outline rounded border" data-testid="rich-editor">
+    <div
+      class="border-outline focus-within:border-primary/80 focus-within:ring-primary/20 rounded border focus-within:ring-2"
+      data-testid="rich-editor"
+    >
       <div
-        class="border-outline flex flex-wrap items-center gap-2 border-b p-2"
+        class="editor-toolbar border-outline flex flex-wrap items-center gap-2 border-b p-2"
         role="toolbar"
         aria-label="Rich text editor toolbar"
       >
-        <button
-          mat-button
-          type="button"
+        <mat-form-field appearance="outline" class="w-48">
+          <mat-label>Text style</mat-label>
+          <mat-select
+            [value]="activeTextStyle()"
+            [disabled]="isReadonly()"
+            (selectionChange)="setTextStyle($event.value)"
+          >
+            @for (option of textStyleOptions; track option.value) {
+              <mat-option [value]="option.value">{{ option.label }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+
+        <mat-button-toggle-group
+          multiple
+          aria-label="Text formatting"
           [disabled]="isReadonly()"
-          [class.mat-tonal-button]="isBoldActive()"
-          (click)="toggleBold()"
         >
-          Bold
-        </button>
-        <button
-          mat-button
-          type="button"
-          [disabled]="isReadonly()"
-          [class.mat-tonal-button]="isItalicActive()"
-          (click)="toggleItalic()"
-        >
-          Italic
-        </button>
-        <button
-          mat-button
-          type="button"
-          [disabled]="isReadonly()"
-          [class.mat-tonal-button]="isBulletListActive()"
-          (click)="toggleBulletList()"
-        >
-          Bullets
-        </button>
-        <button
-          mat-button
-          type="button"
-          [disabled]="isReadonly()"
-          [class.mat-tonal-button]="isOrderedListActive()"
-          (click)="toggleOrderedList()"
-        >
-          Numbered
-        </button>
-        <button
-          mat-button
-          type="button"
-          [disabled]="isReadonly()"
-          [class.mat-tonal-button]="isLinkActive()"
-          (click)="addLink()"
-        >
-          Link
-        </button>
+          <mat-button-toggle [checked]="isBoldActive()" (click)="toggleBold()">
+            Bold
+          </mat-button-toggle>
+          <mat-button-toggle
+            [checked]="isItalicActive()"
+            (click)="toggleItalic()"
+          >
+            Italic
+          </mat-button-toggle>
+          <mat-button-toggle
+            [checked]="isBulletListActive()"
+            (click)="toggleBulletList()"
+          >
+            Bullets
+          </mat-button-toggle>
+          <mat-button-toggle
+            [checked]="isOrderedListActive()"
+            (click)="toggleOrderedList()"
+          >
+            Numbered
+          </mat-button-toggle>
+          <mat-button-toggle [checked]="isLinkActive()" (click)="toggleLink()">
+            Link
+          </mat-button-toggle>
+        </mat-button-toggle-group>
+
         <button
           mat-button
           type="button"
