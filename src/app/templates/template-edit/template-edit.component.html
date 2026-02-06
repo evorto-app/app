@@ -34,11 +34,7 @@
       <button
         type="submit"
         mat-button
-        [disabled]="
-          templateForm().invalid() ||
-          templateForm().submitting() ||
-          updateTemplateMutation.isPending()
-        "
+        [disabled]="templateForm().invalid() || templateForm().submitting()"
       >
         Update template
       </button>

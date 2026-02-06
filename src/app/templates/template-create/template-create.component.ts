@@ -23,8 +23,8 @@ import {
   RegistrationMode,
   TemplateFormData,
   TemplateFormOverrides,
-  TemplateFormSubmitData,
   templateFormSchema,
+  TemplateFormSubmitData,
 } from '../shared/template-form/template-form.schema';
 import { TemplateGeneralFormComponent } from '../shared/template-form/template-general-form.component';
 import { TemplateRegistrationOptionFormComponent } from '../shared/template-form/template-registration-option-form.component';
@@ -66,6 +66,12 @@ export class TemplateCreateComponent {
     },
   }));
 
+  protected readonly registrationModes: RegistrationMode[] = [
+    'fcfs',
+    'random',
+    'application',
+  ];
+
   private readonly templateModel = linkedSignal<
     TemplateFormOverrides,
     TemplateFormData
@@ -79,12 +85,6 @@ export class TemplateCreateComponent {
     this.templateModel,
     templateFormSchema,
   );
-
-  protected readonly registrationModes: RegistrationMode[] = [
-    'fcfs',
-    'random',
-    'application',
-  ];
 
   private queryClient = inject(QueryClient);
   private router = inject(Router);
@@ -128,21 +128,18 @@ export class TemplateCreateComponent {
           stripeTaxRateId: formValue.participantRegistration.stripeTaxRateId,
         },
       };
-      this.createTemplateMutation.mutate(
-        payload,
-        {
-          onError: (error) => {
-            console.error('[template-create] submit error', error);
-          },
-          onSuccess: async () => {
-            console.info('[template-create] submit success');
-            await this.queryClient.invalidateQueries({
-              queryKey: this.trpc.templates.groupedByCategory.pathKey(),
-            });
-            this.router.navigate(['/templates']);
-          },
+      await this.createTemplateMutation.mutateAsync(payload, {
+        onError: (error) => {
+          console.error('[template-create] submit error', error);
         },
-      );
+        onSuccess: async () => {
+          console.info('[template-create] submit success');
+          await this.queryClient.invalidateQueries({
+            queryKey: this.trpc.templates.groupedByCategory.pathKey(),
+          });
+          this.router.navigate(['/templates']);
+        },
+      });
     });
   }
 }

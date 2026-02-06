@@ -135,7 +135,7 @@ export class TemplateEditComponent {
           stripeTaxRateId: formValue.participantRegistration.stripeTaxRateId,
         },
       };
-      this.updateTemplateMutation.mutate(
+      await this.updateTemplateMutation.mutateAsync(
         { id, ...payload },
         {
           onSuccess: async () => {
