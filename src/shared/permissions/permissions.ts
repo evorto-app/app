@@ -54,6 +54,7 @@ const FINANCE_GROUP = {
   key: 'finance',
   permissions: [
     'approveReceipts',
+    'manageReceipts',
     'createTransactions',
     'refundReceipts',
     'viewTransactions',
