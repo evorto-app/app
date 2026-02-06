@@ -7,12 +7,42 @@
 
 <main class="flex flex-col gap-4">
   @if (templateQuery.isSuccess()) {
-    <app-template-form
-      [initialData]="simpleTemplateData() ?? {}"
-      [isSubmitting]="updateTemplateMutation.isPending()"
-      submitLabel="Update template"
-      (formSubmit)="onSubmit($event)"
-    ></app-template-form>
+    <form (submit)="onSubmit($event)" class="text-on-surface flex flex-col gap-6">
+      <div class="bg-surface rounded-2xl p-4">
+        <app-template-general-form [generalForm]="templateForm" />
+      </div>
+
+      <div class="bg-surface rounded-2xl p-4">
+        <h2 class="mb-4 text-lg font-semibold">Simple Registration Setup</h2>
+        <p class="mb-4 text-sm">
+          This is the simple registration mode, which creates one registration
+          option for organizers and one for participants.
+        </p>
+
+        <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <app-template-registration-option-form
+            [registrationForm]="templateForm.organizerRegistration"
+            [registrationModes]="registrationModes"
+          />
+          <app-template-registration-option-form
+            [registrationForm]="templateForm.participantRegistration"
+            [registrationModes]="registrationModes"
+          />
+        </div>
+      </div>
+
+      <button
+        type="submit"
+        mat-button
+        [disabled]="
+          templateForm().invalid() ||
+          templateForm().submitting() ||
+          updateTemplateMutation.isPending()
+        "
+      >
+        Update template
+      </button>
+    </form>
   } @else if (templateQuery.isError()) {
     <p class="text-error">Failed to load template</p>
   } @else {

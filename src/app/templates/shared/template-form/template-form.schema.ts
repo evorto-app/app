@@ -26,8 +26,18 @@ export type TemplateFormOverrides = Partial<
   participantRegistration?: Partial<TemplateRegistrationFormModel>;
 };
 
-export type TemplateFormSubmitData = Omit<TemplateFormData, 'icon'> & {
+export type TemplateRegistrationSubmitData = Omit<
+  TemplateRegistrationFormModel,
+  'title'
+>;
+
+export type TemplateFormSubmitData = Omit<
+  TemplateFormData,
+  'icon' | 'organizerRegistration' | 'participantRegistration'
+> & {
   icon: IconValue;
+  organizerRegistration: TemplateRegistrationSubmitData;
+  participantRegistration: TemplateRegistrationSubmitData;
 };
 
 export interface TemplateRegistrationFormModel {
@@ -39,6 +49,7 @@ export interface TemplateRegistrationFormModel {
   roleIds: string[];
   spots: number;
   stripeTaxRateId: null | string;
+  title: string;
 }
 
 export const createTemplateRegistrationFormModel = (
@@ -53,6 +64,7 @@ export const createTemplateRegistrationFormModel = (
   spots: 1,
   // eslint-disable-next-line unicorn/no-null
   stripeTaxRateId: null,
+  title: '',
   ...overrides,
 });
 
@@ -66,8 +78,14 @@ export const createTemplateFormModel = (
     icon: null,
     // eslint-disable-next-line unicorn/no-null
     location: null,
-    organizerRegistration: createTemplateRegistrationFormModel({ spots: 1 }),
-    participantRegistration: createTemplateRegistrationFormModel({ spots: 20 }),
+    organizerRegistration: createTemplateRegistrationFormModel({
+      spots: 1,
+      title: 'Organizer Registration',
+    }),
+    participantRegistration: createTemplateRegistrationFormModel({
+      spots: 20,
+      title: 'Participant Registration',
+    }),
     title: '',
   };
 
