@@ -1,6 +1,8 @@
 @if (!hidden()) {
   <div
-    class="border-outline mb-5 flex items-center justify-between gap-4 rounded border px-4 py-2"
+    class="mb-5 flex items-center justify-between gap-4 rounded border px-4 py-2"
+    [class.border-error]="showError()"
+    [class.border-outline]="!showError()"
   >
     @if (value()) {
       {{ value()?.name }}
