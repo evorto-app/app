@@ -18,10 +18,12 @@
           class="bg-surface-container-high text-on-surface-container-high rounded-2xl p-2"
         >
           <h2 class="title-large mb-4 p-2">Registration Options</h2>
-          <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <div
+            class="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:[grid-template-rows:auto_auto_auto_auto_auto_auto_auto]"
+          >
             @for (option of createEventForm.registrationOptions; track option) {
               <app-registration-option-form
-                class="bg-surface text-on-surface flex flex-col gap-4 rounded-xl p-4"
+                class="bg-surface text-on-surface rounded-xl p-4 grid gap-4 lg:row-span-7 lg:grid-rows-subgrid"
                 [registrationOptionForm]="option"
                 [registrationModes]="registrationModes"
               />

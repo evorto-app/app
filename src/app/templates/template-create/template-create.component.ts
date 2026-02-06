@@ -147,12 +147,12 @@ export class TemplateCreateComponent {
         onError: (error) => {
           console.error('[template-create] submit error', error);
         },
-        onSuccess: async () => {
+        onSuccess: async (template) => {
           console.info('[template-create] submit success');
           await this.queryClient.invalidateQueries({
             queryKey: this.trpc.templates.groupedByCategory.pathKey(),
           });
-          this.router.navigate(['/templates']);
+          this.router.navigate(['/templates', template.id]);
         },
       });
     });

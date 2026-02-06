@@ -3,6 +3,7 @@ import type { IconValue } from '@shared/types/icon';
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
   inject,
   input,
   model,
@@ -25,11 +26,15 @@ import { IconSelectorDialogComponent } from '../icon-selector-dialog/icon-select
 export class IconSelectorFieldComponent implements FormValueControl<IconValue | null> {
   readonly disabled = input<boolean>(false);
   readonly hidden = input<boolean>(false);
+  readonly invalid = input<boolean>(false);
   readonly readonly = input<boolean>(false);
   readonly touched = model<boolean>(false);
   readonly value = model<IconValue | null>(
     // eslint-disable-next-line unicorn/no-null
     null,
+  );
+  protected readonly showError = computed(
+    () => this.touched() && this.invalid(),
   );
 
   private dialog = inject(MatDialog);
@@ -41,9 +46,9 @@ export class IconSelectorFieldComponent implements FormValueControl<IconValue | 
         .open(IconSelectorDialogComponent, { minWidth: '70dvw' })
         .afterClosed(),
     );
+    this.touched.set(true);
     if (icon) {
       this.value.set(icon);
-      this.touched.set(true);
     }
   }
 }
