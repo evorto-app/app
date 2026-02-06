@@ -4,7 +4,6 @@ import { FaDuotoneIconComponent } from '@fortawesome/angular-fontawesome';
 import {
   faBadgeCheck,
   faListTimeline,
-  faReceipt,
   faRotateExclamation,
 } from '@fortawesome/duotone-regular-svg-icons';
 
@@ -18,7 +17,6 @@ import {
 export class FinanceOverviewComponent {
   protected readonly faBadgeCheck = faBadgeCheck;
   protected readonly faListTimeline = faListTimeline;
-  protected readonly faReceipt = faReceipt;
   protected readonly faRotateExclamation = faRotateExclamation;
   protected readonly outletActive = signal(false);
 }

@@ -32,6 +32,27 @@
         </mat-select>
       </mat-form-field>
 
+      <h3 class="title-small mb-2 mt-6">Finance settings</h3>
+      <p class="text-on-surface-variant mb-3 text-sm">
+        Configure which countries can be selected when users submit receipts.
+      </p>
+      <mat-form-field>
+        <mat-label>Allowed receipt countries</mat-label>
+        <mat-select [formField]="settingsForm.receiptCountries" multiple>
+          @for (country of receiptCountryOptions; track country.code) {
+            <mat-option [value]="country.code">
+              {{ country.label }} ({{ country.code }})
+            </mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+      <mat-checkbox [formField]="settingsForm.allowOther">
+        Allow other
+      </mat-checkbox>
+      <p class="text-on-surface-variant mt-1 text-xs">
+        Adds an “Other” option for receipts outside the selected countries.
+      </p>
+
       <h3 class="title-small mb-2 mt-6">Discount providers</h3>
       @if (discountProvidersQuery.isPending()) {
         <p>Loading discount providers ...</p>

@@ -45,9 +45,10 @@ export const financeReceipts = pgTable('finance_receipts', {
   reviewedAt: timestamp(),
   reviewedByUserId: varchar({ length: 20 }).references(() => users.id),
   status: financeReceiptStatus().notNull().default('submitted'),
-  stripeTaxRateId: varchar().notNull(),
+  stripeTaxRateId: varchar(),
   submittedByUserId: varchar({ length: 20 })
     .notNull()
     .references(() => users.id),
+  taxAmount: integer().notNull().default(0),
   totalAmount: integer().notNull(),
 });

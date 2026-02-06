@@ -1,3 +1,9 @@
+import {
+  buildSelectableReceiptCountries,
+  normalizeReceiptCountryCode,
+  OTHER_RECEIPT_COUNTRY_CODE,
+  resolveReceiptCountrySettings,
+} from '@shared/finance/receipt-countries';
 import { TRPCError } from '@trpc/server';
 import { and, count, desc, eq, inArray, not } from 'drizzle-orm';
 import { Schema } from 'effect';
@@ -23,7 +29,7 @@ const receiptFieldsSchema = Schema.Struct({
   hasDeposit: Schema.Boolean,
   purchaseCountry: Schema.NonEmptyString,
   receiptDate: Schema.ValidDateFromSelf,
-  stripeTaxRateId: Schema.NonEmptyString,
+  taxAmount: Schema.Number.pipe(Schema.nonNegative()),
   totalAmount: Schema.Number.pipe(Schema.nonNegative()),
 });
 
@@ -45,14 +51,72 @@ const financeReceiptView = {
   rejectionReason: schema.financeReceipts.rejectionReason,
   reviewedAt: schema.financeReceipts.reviewedAt,
   status: schema.financeReceipts.status,
-  stripeTaxRateId: schema.financeReceipts.stripeTaxRateId,
   submittedByUserId: schema.financeReceipts.submittedByUserId,
+  taxAmount: schema.financeReceipts.taxAmount,
   totalAmount: schema.financeReceipts.totalAmount,
   updatedAt: schema.financeReceipts.updatedAt,
 } as const;
 
 const isAllowedReceiptMimeType = (mimeType: string): boolean =>
   mimeType.startsWith('image/') || mimeType === 'application/pdf';
+
+interface ReceiptCountryConfigTenant {
+  discountProviders?:
+    | null
+    | undefined
+    | {
+        financeReceipts?:
+          | undefined
+          | {
+              allowOther?: boolean | undefined;
+              receiptCountries?: readonly string[] | undefined;
+            };
+      };
+}
+
+const resolveTenantSelectableReceiptCountries = (
+  tenant: ReceiptCountryConfigTenant,
+): string[] =>
+  buildSelectableReceiptCountries(
+    resolveReceiptCountrySettings(tenant.discountProviders?.financeReceipts),
+  );
+
+const validateReceiptCountryForTenant = (
+  tenant: ReceiptCountryConfigTenant,
+  purchaseCountry: string,
+): string => {
+  if (purchaseCountry === OTHER_RECEIPT_COUNTRY_CODE) {
+    const receiptCountrySettings = resolveReceiptCountrySettings(
+      tenant.discountProviders?.financeReceipts,
+    );
+    if (receiptCountrySettings.allowOther) {
+      return OTHER_RECEIPT_COUNTRY_CODE;
+    }
+
+    throw new TRPCError({
+      code: 'BAD_REQUEST',
+      message: 'Purchase country is invalid',
+    });
+  }
+
+  const normalizedCountry = normalizeReceiptCountryCode(purchaseCountry);
+  if (!normalizedCountry) {
+    throw new TRPCError({
+      code: 'BAD_REQUEST',
+      message: 'Purchase country is invalid',
+    });
+  }
+
+  const allowedCountries = resolveTenantSelectableReceiptCountries(tenant);
+  if (!allowedCountries.includes(normalizedCountry)) {
+    throw new TRPCError({
+      code: 'BAD_REQUEST',
+      message: 'Purchase country is not allowed for this tenant',
+    });
+  }
+
+  return normalizedCountry;
+};
 
 const canManageEventReceipts = async (
   tenantId: string,
@@ -90,26 +154,6 @@ const canManageEventReceipts = async (
     .limit(1);
 
   return organizerRegistration.length > 0;
-};
-
-const validateTenantTaxRate = async (
-  tenantId: string,
-  stripeTaxRateId: string,
-): Promise<void> => {
-  const tenantTaxRate = await database.query.tenantStripeTaxRates.findFirst({
-    where: {
-      active: true,
-      stripeTaxRateId,
-      tenantId,
-    },
-  });
-
-  if (!tenantTaxRate) {
-    throw new TRPCError({
-      code: 'BAD_REQUEST',
-      message: 'Tax rate is invalid for this tenant',
-    });
-  }
 };
 
 export const financeRouter = router({
@@ -520,6 +564,10 @@ export const financeRouter = router({
 
         const depositAmount = input.hasDeposit ? input.depositAmount : 0;
         const alcoholAmount = input.hasAlcohol ? input.alcoholAmount : 0;
+        const purchaseCountry = validateReceiptCountryForTenant(
+          ctx.tenant,
+          input.purchaseCountry,
+        );
 
         if (depositAmount + alcoholAmount > input.totalAmount) {
           throw new TRPCError({
@@ -527,8 +575,6 @@ export const financeRouter = router({
             message: 'Deposit and alcohol amounts cannot exceed total amount',
           });
         }
-
-        await validateTenantTaxRate(ctx.tenant.id, input.stripeTaxRateId);
 
         if (input.status === 'rejected' && !input.rejectionReason) {
           throw new TRPCError({
@@ -544,14 +590,14 @@ export const financeRouter = router({
             depositAmount,
             hasAlcohol: input.hasAlcohol,
             hasDeposit: input.hasDeposit,
-            purchaseCountry: input.purchaseCountry,
+            purchaseCountry,
             receiptDate: input.receiptDate,
             rejectionReason:
               input.status === 'rejected' ? (input.rejectionReason ?? null) : null,
             reviewedAt: new Date(),
             reviewedByUserId: ctx.user.id,
             status: input.status,
-            stripeTaxRateId: input.stripeTaxRateId,
+            taxAmount: input.taxAmount,
             totalAmount: input.totalAmount,
           })
           .where(
@@ -613,6 +659,10 @@ export const financeRouter = router({
 
         const depositAmount = input.fields.hasDeposit ? input.fields.depositAmount : 0;
         const alcoholAmount = input.fields.hasAlcohol ? input.fields.alcoholAmount : 0;
+        const purchaseCountry = validateReceiptCountryForTenant(
+          ctx.tenant,
+          input.fields.purchaseCountry,
+        );
 
         if (depositAmount + alcoholAmount > input.fields.totalAmount) {
           throw new TRPCError({
@@ -620,8 +670,6 @@ export const financeRouter = router({
             message: 'Deposit and alcohol amounts cannot exceed total amount',
           });
         }
-
-        await validateTenantTaxRate(ctx.tenant.id, input.fields.stripeTaxRateId);
 
         const [created] = await database
           .insert(schema.financeReceipts)
@@ -638,11 +686,11 @@ export const financeRouter = router({
             hasDeposit: input.fields.hasDeposit,
             previewImageId: input.attachment.previewImageId ?? null,
             previewImageUrl: input.attachment.previewImageUrl ?? null,
-            purchaseCountry: input.fields.purchaseCountry,
+            purchaseCountry,
             receiptDate: input.fields.receiptDate,
             status: 'submitted',
-            stripeTaxRateId: input.fields.stripeTaxRateId,
             submittedByUserId: ctx.user.id,
+            taxAmount: input.fields.taxAmount,
             tenantId: ctx.tenant.id,
             totalAmount: input.fields.totalAmount,
           })

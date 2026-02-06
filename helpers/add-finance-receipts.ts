@@ -1,4 +1,5 @@
 import type { NeonDatabase } from 'drizzle-orm/neon-serverless';
+
 import { eq } from 'drizzle-orm';
 
 import { relations } from '../src/db/relations';
@@ -22,14 +23,7 @@ export const addFinanceReceipts = async (
   const reviewerUserId =
     usersToAuthenticate.find((user) => user.roles === 'admin')?.id ??
     usersToAuthenticate[0].id;
-
-  const taxRate = await database.query.tenantStripeTaxRates.findFirst({
-    where: {
-      active: true,
-      tenantId: options.tenantId,
-    },
-  });
-  if (!taxRate || options.eventIds.length === 0) {
+  if (options.eventIds.length === 0) {
     return;
   }
 
@@ -58,18 +52,18 @@ export const addFinanceReceipts = async (
       purchaseCountry: 'DE',
       receiptDate: now,
       status: 'submitted',
-      stripeTaxRateId: taxRate.stripeTaxRateId,
       submittedByUserId: organizerUserId,
+      taxAmount: 250,
       tenantId: options.tenantId,
-      totalAmount: 15_00,
+      totalAmount: 1500,
     },
     {
-      alcoholAmount: 3_00,
+      alcoholAmount: 300,
       attachmentFileName: 'venue-deposit.pdf',
       attachmentMimeType: 'application/pdf',
       attachmentSizeBytes: 48_000,
       attachmentStorageKey: `seed://${getId()}`,
-      depositAmount: 10_00,
+      depositAmount: 1000,
       eventId: eventB ?? eventA,
       hasAlcohol: true,
       hasDeposit: true,
@@ -78,13 +72,13 @@ export const addFinanceReceipts = async (
       reviewedAt: now,
       reviewedByUserId: reviewerUserId,
       status: 'approved',
-      stripeTaxRateId: taxRate.stripeTaxRateId,
       submittedByUserId: organizerUserId,
+      taxAmount: 400,
       tenantId: options.tenantId,
-      totalAmount: 25_00,
+      totalAmount: 2500,
     },
     {
-      alcoholAmount: 2_00,
+      alcoholAmount: 200,
       attachmentFileName: 'transport-ticket.pdf',
       attachmentMimeType: 'application/pdf',
       attachmentSizeBytes: 21_000,
@@ -98,10 +92,10 @@ export const addFinanceReceipts = async (
       reviewedAt: now,
       reviewedByUserId: reviewerUserId,
       status: 'approved',
-      stripeTaxRateId: taxRate.stripeTaxRateId,
       submittedByUserId: organizerUserId,
+      taxAmount: 150,
       tenantId: options.tenantId,
-      totalAmount: 9_50,
+      totalAmount: 950,
     },
     {
       alcoholAmount: 0,
@@ -116,10 +110,10 @@ export const addFinanceReceipts = async (
       purchaseCountry: 'DE',
       receiptDate: now,
       status: 'submitted',
-      stripeTaxRateId: taxRate.stripeTaxRateId,
       submittedByUserId: regularUserId,
+      taxAmount: 200,
       tenantId: options.tenantId,
-      totalAmount: 12_50,
+      totalAmount: 1250,
     },
   ]);
 };

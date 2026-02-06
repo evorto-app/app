@@ -15,6 +15,10 @@ import { RouterLink } from '@angular/router';
 import { FaDuotoneIconComponent } from '@fortawesome/angular-fontawesome';
 import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
 import {
+  buildSelectableReceiptCountries,
+  resolveReceiptCountrySettings,
+} from '@shared/finance/receipt-countries';
+import {
   injectMutation,
   injectQuery,
   QueryClient,
@@ -128,9 +132,6 @@ export class EventOrganize {
       },
     }),
   );
-  protected readonly taxRatesQuery = injectQuery(() =>
-    this.trpc.taxRates.listActive.queryOptions(),
-  );
 
   private readonly config = inject(ConfigService);
 
@@ -149,24 +150,20 @@ export class EventOrganize {
   }
 
   protected async openReceiptDialog(): Promise<void> {
-    const taxRates = this.taxRatesQuery.data() ?? [];
-    if (taxRates.length === 0) {
-      this.notifications.showError('No tax rates available for this tenant');
-      return;
-    }
+    const receiptCountrySettings = resolveReceiptCountrySettings(
+      this.config.tenant.discountProviders?.financeReceipts,
+    );
+    const countries = buildSelectableReceiptCountries(receiptCountrySettings);
 
     const dialogReference = this.dialog.open<
       ReceiptSubmitDialogComponent,
-      {
-        taxRates: {
-          displayName: null | string;
-          percentage: null | string;
-          stripeTaxRateId: string;
-        }[];
-      },
+      { countries: string[]; defaultCountry: string },
       ReceiptSubmitDialogResult
     >(ReceiptSubmitDialogComponent, {
-      data: { taxRates },
+      data: {
+        countries,
+        defaultCountry: receiptCountrySettings.receiptCountries[0] ?? 'DE',
+      },
       width: '640px',
     });
 

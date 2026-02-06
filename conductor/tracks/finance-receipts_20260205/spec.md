@@ -15,8 +15,8 @@ Enable event organizers to submit receipt photos and metadata for event expenses
     - Receipt date.
     - Deposit involved (yes/no) and deposit amount.
     - Alcohol purchased (yes/no) and alcohol amount.
-    - Purchase country.
-    - Tax rate.
+    - Purchase country (tenant-configurable list, with optional "Other").
+    - Tax amount.
   - Only one attachment per receipt (submit additional receipts for more files).
   - Link each receipt to its event and submitting user.
 - Receipt storage

@@ -89,16 +89,15 @@ The form uses inline validation, and the save button is only enabled when both n
     body: `
 ## Summary
 
-The user profile now uses a tab layout:
+The user profile now uses a two-column layout:
 
-- **Overview** for account actions
-- **Events** for registrations
-- **Discounts** for ESN cards
-- **Receipts** for your submitted finance receipts and statuses
+- Left side: section navigation cards
+- Right side: selected section content
+- Sections include **Overview**, **Events**, **Discounts**, and **Receipts**
 `,
   });
 
-  await page.getByRole('tab', { name: 'Receipts' }).click();
+  await page.getByRole('button', { name: 'Receipts' }).click();
   await takeScreenshot(
     testInfo,
     page.locator('app-user-profile'),

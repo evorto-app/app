@@ -1,7 +1,15 @@
 import { DatePipe, DecimalPipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  effect,
+  inject,
+  signal,
+} from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
+import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatSelectModule } from '@angular/material/select';
+import { MatTableModule } from '@angular/material/table';
 import {
   injectMutation,
   injectQuery,
@@ -15,12 +23,26 @@ type PayoutType = 'iban' | 'paypal';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DatePipe, DecimalPipe, MatButtonModule, MatSelectModule],
+  imports: [
+    DatePipe,
+    DecimalPipe,
+    MatButtonModule,
+    MatCheckboxModule,
+    MatSelectModule,
+    MatTableModule,
+  ],
   selector: 'app-receipt-refund-list',
   styles: ``,
   templateUrl: './receipt-refund-list.component.html',
 })
 export class ReceiptRefundListComponent {
+  protected readonly displayedColumns = [
+    'select',
+    'fileName',
+    'event',
+    'receiptDate',
+    'totalAmount',
+  ];
   private readonly trpc = injectTRPC();
   protected readonly refundableReceiptsQuery = injectQuery(() =>
     this.trpc.finance.receipts.refundableGroupedByRecipient.queryOptions(),
@@ -49,6 +71,41 @@ export class ReceiptRefundListComponent {
     {},
   );
 
+  constructor() {
+    effect(() => {
+      const groups = this.refundableReceiptsQuery.data() ?? [];
+      if (groups.length === 0) {
+        return;
+      }
+
+      this.payoutTypeByRecipient.update((current) => {
+        let hasChanges = false;
+        const next = { ...current };
+
+        for (const group of groups) {
+          if (next[group.submittedByUserId]) {
+            continue;
+          }
+          next[group.submittedByUserId] = group.payout.iban ? 'iban' : 'paypal';
+          hasChanges = true;
+        }
+
+        return hasChanges ? next : current;
+      });
+    });
+  }
+
+  protected areAllSelected(
+    recipientId: string,
+    receiptIds: readonly string[],
+  ): boolean {
+    if (receiptIds.length === 0) {
+      return false;
+    }
+    const selected = this.selectionByRecipient()[recipientId] ?? {};
+    return receiptIds.every((receiptId) => selected[receiptId]);
+  }
+
   protected canRefund(
     recipientId: string,
     payout: { iban: null | string; paypalEmail: null | string },
@@ -64,13 +121,28 @@ export class ReceiptRefundListComponent {
     recipientId: string,
     payout: { iban: null | string; paypalEmail: null | string },
   ): PayoutType {
-    const current = this.payoutTypeByRecipient()[recipientId];
-    if (current) {
-      return current;
+    return this.payoutTypeByRecipient()[recipientId] ?? (payout.iban ? 'iban' : 'paypal');
+  }
+
+  protected isPartiallySelected(
+    recipientId: string,
+    receiptIds: readonly string[],
+  ): boolean {
+    if (receiptIds.length === 0) {
+      return false;
     }
-    const next: PayoutType = payout.iban ? 'iban' : 'paypal';
-    this.setPayoutType(recipientId, next);
-    return next;
+    const selected = this.selectionByRecipient()[recipientId] ?? {};
+    const selectedCount = receiptIds.filter((receiptId) => selected[receiptId]).length;
+    return selectedCount > 0 && selectedCount < receiptIds.length;
+  }
+
+  protected isReceiptSelected(recipientId: string, receiptId: string): boolean {
+    const selected = this.selectionByRecipient()[recipientId] ?? {};
+    return Boolean(selected[receiptId]);
+  }
+
+  protected receiptIds(receipts: readonly { id: string }[]): string[] {
+    return receipts.map((receipt) => receipt.id);
   }
 
   protected async refundRecipient(group: {
@@ -92,7 +164,12 @@ export class ReceiptRefundListComponent {
     }
 
     try {
-      const [firstReceiptId, ...otherReceiptIds] = receiptIds;
+      const firstReceiptId = receiptIds[0];
+      if (!firstReceiptId) {
+        this.notifications.showError('Select at least one receipt');
+        return;
+      }
+      const otherReceiptIds = receiptIds.slice(1);
       await this.refundMutation.mutateAsync({
         payoutReference,
         payoutType,
@@ -117,22 +194,36 @@ export class ReceiptRefundListComponent {
       .map(([receiptId]) => receiptId);
   }
 
-  protected selectedTotal(recipientId: string): number {
+  protected selectedTotal(
+    recipientId: string,
+    receipts: readonly { id: string; totalAmount: number }[],
+  ): number {
     const selectedIds = new Set(this.selectedReceiptIds(recipientId));
-    const recipients = this.refundableReceiptsQuery.data() ?? [];
-    const group = recipients.find((item) => item.submittedByUserId === recipientId);
-    if (!group) {
-      return 0;
-    }
-    return group.receipts
+    return receipts
       .filter((receipt) => selectedIds.has(receipt.id))
       .reduce((sum, receipt) => sum + receipt.totalAmount, 0);
   }
 
-  protected setPayoutType(recipientId: string, payoutType: PayoutType): void {
+  protected setPayoutType(recipientId: string, payoutType: null | string): void {
+    if (payoutType !== 'iban' && payoutType !== 'paypal') {
+      return;
+    }
     this.payoutTypeByRecipient.update((current) => ({
       ...current,
       [recipientId]: payoutType,
+    }));
+  }
+
+  protected toggleAllReceipts(
+    recipientId: string,
+    receiptIds: readonly string[],
+    checked: boolean,
+  ): void {
+    this.selectionByRecipient.update((current) => ({
+      ...current,
+      [recipientId]: Object.fromEntries(
+        receiptIds.map((receiptId) => [receiptId, checked]),
+      ),
     }));
   }
 

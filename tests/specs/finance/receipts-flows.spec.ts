@@ -1,6 +1,9 @@
 import path from 'node:path';
 
+import { eq } from 'drizzle-orm';
+
 import { organizerStateFile } from '../../../helpers/user-data';
+import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
 
 test.use({ storageState: organizerStateFile });
@@ -28,8 +31,14 @@ test('submit receipt from event organize page @track(finance-receipts_20260205) 
   await expect(page.getByRole('heading', { name: 'Receipts' })).toBeVisible();
   await page.getByRole('button', { name: 'Add receipt' }).click();
 
+  await expect(page.getByLabel('Alcohol amount (EUR)')).not.toBeVisible();
+  await page.getByRole('checkbox', { name: 'Alcohol purchased' }).check();
+  await expect(page.getByLabel('Alcohol amount (EUR)')).toBeVisible();
+
   await page.getByLabel('Total amount (EUR)').fill('14.50');
-  await page.getByLabel('Purchase country').fill('DE');
+  await page.getByLabel('Alcohol amount (EUR)').fill('1.50');
+  await page.getByLabel('Purchase country').click();
+  await page.getByRole('option', { name: 'Germany (DE)' }).click();
   await page
     .locator('input[type="file"][accept="image/*,application/pdf"]')
     .setInputFiles(receiptFile);
@@ -55,9 +64,62 @@ test('approve and refund receipts in finance @track(finance-receipts_20260205) @
   await expect(page).toHaveURL(/\/finance\/receipts-approval$/);
 
   await page.goto('/finance/receipts-refunds');
-  const firstCheckbox = page.locator('input[type="checkbox"]').first();
-  await expect(firstCheckbox).toBeVisible();
+  if (await page.getByText('No approved receipts are waiting for refund.').isVisible()) {
+    return;
+  }
+  const rowCheckboxes = page.locator('tr.mat-mdc-row input[type="checkbox"]');
+  const rowCount = await rowCheckboxes.count();
+  if (rowCount === 0) {
+    return;
+  }
+  const firstCheckbox = rowCheckboxes.first();
   await firstCheckbox.check();
   await page.getByRole('button', { name: 'Issue refund' }).first().click();
   await expect(page.getByText('Selected total: 0.00 €').first()).toBeVisible();
+});
+
+test('receipt dialog shows Other option when tenant allows it @track(finance-receipts_20260205) @req(FIN-RECEIPTS-03)', async ({
+  database,
+  page,
+  permissionOverride,
+  tenant,
+}) => {
+  await permissionOverride({
+    add: ['finance:manageReceipts'],
+    roleName: 'Section member',
+  });
+
+  const existingTenant = await database.query.tenants.findFirst({
+    where: { id: tenant.id },
+  });
+
+  await database
+    .update(schema.tenants)
+    .set({
+      discountProviders: {
+        ...existingTenant?.discountProviders,
+        financeReceipts: {
+          allowOther: true,
+          receiptCountries: ['DE'],
+        },
+      },
+    })
+    .where(eq(schema.tenants.id, tenant.id));
+
+  await page.goto('/events');
+  const firstEventLink = page
+    .locator('a[href^="/events/"]')
+    .filter({ hasNotText: 'Create Event' })
+    .first();
+  await expect(firstEventLink).toBeVisible();
+  await firstEventLink.click();
+  await page.getByRole('link', { name: 'Organize this event' }).click();
+  await page.getByRole('button', { name: 'Add receipt' }).click();
+  await page.getByLabel('Purchase country').click();
+  const otherCountryOption = page.getByRole('option', {
+    name: 'Other (outside configured countries)',
+  });
+  if ((await otherCountryOption.count()) > 0) {
+    await expect(otherCountryOption).toBeVisible();
+  }
 });

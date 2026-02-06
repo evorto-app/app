@@ -4,11 +4,7 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import {
-  FormBuilder,
-  ReactiveFormsModule,
-  Validators,
-} from '@angular/forms';
+import { NonNullableFormBuilder } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import {
   MAT_DIALOG_DATA,
@@ -18,9 +14,9 @@ import {
   MatDialogRef,
   MatDialogTitle,
 } from '@angular/material/dialog';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
-import { MatSelectModule } from '@angular/material/select';
+
+import { ReceiptFormFieldsComponent } from '../../finance/shared/receipt-form/receipt-form-fields.component';
+import { createReceiptForm } from '../../finance/shared/receipt-form/receipt-form.model';
 
 export interface ReceiptSubmitDialogResult {
   fields: {
@@ -30,7 +26,7 @@ export interface ReceiptSubmitDialogResult {
     hasDeposit: boolean;
     purchaseCountry: string;
     receiptDate: Date;
-    stripeTaxRateId: string;
+    taxAmount: number;
     totalAmount: number;
   };
   file: File;
@@ -44,10 +40,7 @@ export interface ReceiptSubmitDialogResult {
     MatDialogClose,
     MatDialogContent,
     MatDialogTitle,
-    MatFormFieldModule,
-    MatInputModule,
-    MatSelectModule,
-    ReactiveFormsModule,
+    ReceiptFormFieldsComponent,
   ],
   selector: 'app-receipt-submit-dialog',
   styles: ``,
@@ -55,57 +48,40 @@ export interface ReceiptSubmitDialogResult {
 })
 export class ReceiptSubmitDialogComponent {
   protected readonly data = inject(MAT_DIALOG_DATA) as {
-    taxRates: {
-      displayName: null | string;
-      percentage: null | string;
-      stripeTaxRateId: string;
-    }[];
+    countries: string[];
+    defaultCountry: string;
   };
   protected readonly errorMessage = signal('');
-  protected readonly file = signal<File | null>(null);
 
-  private readonly formBuilder = inject(FormBuilder).nonNullable;
-  protected readonly form = this.formBuilder.group({
-    alcoholAmount: this.formBuilder.control(0, {
-      validators: [Validators.min(0)],
-    }),
-    depositAmount: this.formBuilder.control(0, {
-      validators: [Validators.min(0)],
-    }),
-    hasAlcohol: this.formBuilder.control(false),
-    hasDeposit: this.formBuilder.control(false),
-    purchaseCountry: this.formBuilder.control('DE', {
-      validators: [Validators.required],
-    }),
-    receiptDate: this.formBuilder.control(new Date().toISOString().slice(0, 10), {
-      validators: [Validators.required],
-    }),
-    stripeTaxRateId: this.formBuilder.control(
-      this.data.taxRates[0]?.stripeTaxRateId ?? '',
-      {
-        validators: [Validators.required],
-      },
-    ),
-    totalAmount: this.formBuilder.control(0, {
-      validators: [Validators.min(0)],
-    }),
-  });
+  protected readonly file = signal<File | null>(null);
+  protected readonly selectableCountries = [...this.data.countries];
+  private readonly defaultCountry =
+    this.selectableCountries.find((country) => country === this.data.defaultCountry) ??
+    this.selectableCountries[0] ??
+    'DE';
+  private readonly formBuilder = inject(NonNullableFormBuilder);
+  protected readonly form = createReceiptForm(this.formBuilder, this.defaultCountry);
   private readonly dialogRef = inject(
     MatDialogRef<ReceiptSubmitDialogComponent, ReceiptSubmitDialogResult>,
   );
 
-  protected formatTaxRateLabel(taxRate: {
-    displayName: null | string;
-    percentage: null | string;
-    stripeTaxRateId: string;
-  }): string {
-    const displayName = taxRate.displayName ?? 'Tax rate';
-    const percentage = taxRate.percentage ? `${taxRate.percentage}%` : '';
-    return [displayName, percentage].filter(Boolean).join(' ');
+  protected clearFile(): void {
+    this.file.set(null);
+    this.errorMessage.set('');
+  }
+
+  protected formatFileSize(sizeBytes: number): string {
+    if (sizeBytes >= 1024 * 1024) {
+      return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`;
+    }
+    if (sizeBytes >= 1024) {
+      return `${Math.round(sizeBytes / 1024)} KB`;
+    }
+    return `${sizeBytes} bytes`;
   }
 
   protected onFileSelected(event: Event): void {
-    const target = event.target as HTMLInputElement | null;
+    const target = event.target as HTMLInputElement | undefined;
     const selectedFile = target?.files?.[0] ?? null;
     this.file.set(selectedFile);
     this.errorMessage.set('');
@@ -117,11 +93,14 @@ export class ReceiptSubmitDialogComponent {
 
     const selectedFile = this.file();
     if (!selectedFile) {
-      this.errorMessage.set('Select an image or PDF receipt file.');
+      this.errorMessage.set('Choose an image or PDF receipt file.');
       return;
     }
 
-    if (!selectedFile.type.startsWith('image/') && selectedFile.type !== 'application/pdf') {
+    if (
+      !selectedFile.type.startsWith('image/') &&
+      selectedFile.type !== 'application/pdf'
+    ) {
       this.errorMessage.set('Only image and PDF files are supported.');
       return;
     }
@@ -133,7 +112,13 @@ export class ReceiptSubmitDialogComponent {
     }
 
     const value = this.form.getRawValue();
+    if (!this.selectableCountries.includes(value.purchaseCountry)) {
+      this.errorMessage.set('Selected country is not allowed.');
+      return;
+    }
+
     const totalAmount = Math.round(value.totalAmount * 100);
+    const taxAmount = Math.round(value.taxAmount * 100);
     const depositAmount = value.hasDeposit ? Math.round(value.depositAmount * 100) : 0;
     const alcoholAmount = value.hasAlcohol ? Math.round(value.alcoholAmount * 100) : 0;
 
@@ -142,7 +127,7 @@ export class ReceiptSubmitDialogComponent {
       return;
     }
 
-    const receiptDate = new Date(`${value.receiptDate}T12:00:00.000Z`);
+    const receiptDate = new Date(value.receiptDate);
     if (Number.isNaN(receiptDate.getTime())) {
       this.errorMessage.set('Invalid receipt date.');
       return;
@@ -154,9 +139,9 @@ export class ReceiptSubmitDialogComponent {
         depositAmount,
         hasAlcohol: value.hasAlcohol,
         hasDeposit: value.hasDeposit,
-        purchaseCountry: value.purchaseCountry.trim(),
+        purchaseCountry: value.purchaseCountry,
         receiptDate,
-        stripeTaxRateId: value.stripeTaxRateId,
+        taxAmount,
         totalAmount,
       },
       file: selectedFile,

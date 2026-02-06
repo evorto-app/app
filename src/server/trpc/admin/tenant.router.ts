@@ -1,3 +1,4 @@
+import { resolveAllowedReceiptCountries } from '@shared/finance/receipt-countries';
 import { TRPCError } from '@trpc/server';
 import { eq } from 'drizzle-orm';
 import { Schema } from 'effect';
@@ -112,16 +113,30 @@ export const tenantRouter = router({
     .input(
       Schema.standardSchemaV1(
         Schema.Struct({
+          allowOther: Schema.Boolean,
           defaultLocation: Schema.NullOr(Schema.Any),
+          receiptCountries: Schema.Array(Schema.NonEmptyString),
           theme: Schema.mutable(Schema.Literal('evorto', 'esn')),
         }),
       ),
     )
     .mutation(async ({ ctx, input }) => {
+      const receiptCountries = resolveAllowedReceiptCountries(input.receiptCountries);
+      const tenantBeforeUpdate = await database.query.tenants.findFirst({
+        where: { id: ctx.tenant.id },
+      });
+
       const tenant = await database
         .update(schema.tenants)
         .set({
           defaultLocation: input.defaultLocation,
+          discountProviders: {
+            ...tenantBeforeUpdate?.discountProviders,
+            financeReceipts: {
+              allowOther: input.allowOther,
+              receiptCountries,
+            },
+          },
           theme: input.theme,
         })
         .where(eq(schema.tenants.id, ctx.tenant.id))

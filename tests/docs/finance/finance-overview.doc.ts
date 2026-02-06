@@ -105,7 +105,7 @@ The **Receipt approvals** tab shows all receipts waiting for finance review, gro
     body: `
 ## Receipt Refunds
 
-The **Receipt refunds** tab groups approved receipts by recipient, supports multi-select payout batches, and displays payout details (IBAN/PayPal) before issuing a refund transaction.
+The **Receipt refunds** tab groups approved receipts by recipient and renders each group in a selectable table. Finance users can select one or more rows, verify payout details (IBAN/PayPal), and issue a refund transaction for the selected batch.
 `,
   });
   await page.getByRole('link', { name: 'Receipt refunds' }).click();

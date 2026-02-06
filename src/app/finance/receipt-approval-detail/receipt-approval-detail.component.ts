@@ -6,24 +6,26 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import {
-  FormBuilder,
-  ReactiveFormsModule,
-  Validators,
-} from '@angular/forms';
+import { NonNullableFormBuilder } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
-import { MatSelectModule } from '@angular/material/select';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import {
+  buildSelectableReceiptCountries,
+  resolveReceiptCountrySettings,
+} from '@shared/finance/receipt-countries';
 import {
   injectMutation,
   injectQuery,
   QueryClient,
 } from '@tanstack/angular-query-experimental';
 
+import { ConfigService } from '../../core/config.service';
 import { NotificationService } from '../../core/notification.service';
 import { injectTRPC } from '../../core/trpc-client';
+import { ReceiptFormFieldsComponent } from '../shared/receipt-form/receipt-form-fields.component';
+import { createReceiptForm } from '../shared/receipt-form/receipt-form.model';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -31,8 +33,7 @@ import { injectTRPC } from '../../core/trpc-client';
     MatButtonModule,
     MatFormFieldModule,
     MatInputModule,
-    MatSelectModule,
-    ReactiveFormsModule,
+    ReceiptFormFieldsComponent,
     RouterLink,
   ],
   selector: 'app-receipt-approval-detail',
@@ -40,29 +41,15 @@ import { injectTRPC } from '../../core/trpc-client';
   templateUrl: './receipt-approval-detail.component.html',
 })
 export class ReceiptApprovalDetailComponent {
-  private readonly formBuilder = inject(FormBuilder).nonNullable;
-  protected readonly form = this.formBuilder.group({
-    alcoholAmount: this.formBuilder.control(0, {
-      validators: [Validators.min(0)],
-    }),
-    depositAmount: this.formBuilder.control(0, {
-      validators: [Validators.min(0)],
-    }),
-    hasAlcohol: this.formBuilder.control(false),
-    hasDeposit: this.formBuilder.control(false),
-    purchaseCountry: this.formBuilder.control('', {
-      validators: [Validators.required],
-    }),
-    receiptDate: this.formBuilder.control('', {
-      validators: [Validators.required],
-    }),
-    stripeTaxRateId: this.formBuilder.control('', {
-      validators: [Validators.required],
-    }),
-    totalAmount: this.formBuilder.control(0, {
-      validators: [Validators.min(0)],
-    }),
-  });
+  private readonly config = inject(ConfigService);
+  protected readonly selectableCountries = buildSelectableReceiptCountries(
+    resolveReceiptCountrySettings(this.config.tenant.discountProviders?.financeReceipts),
+  );
+  private readonly formBuilder = inject(NonNullableFormBuilder);
+  protected readonly form = createReceiptForm(
+    this.formBuilder,
+    this.selectableCountries[0] ?? 'DE',
+  );
   private readonly route = inject(ActivatedRoute);
   protected readonly receiptId = computed(
     () => this.route.snapshot.paramMap.get('receiptId') ?? '',
@@ -73,7 +60,6 @@ export class ReceiptApprovalDetailComponent {
       id: this.receiptId(),
     }),
   );
-
   protected readonly rejectionReason = signal('');
   private readonly queryClient = inject(QueryClient);
 
@@ -97,11 +83,7 @@ export class ReceiptApprovalDetailComponent {
       },
     }),
   );
-  protected readonly taxRatesQuery = injectQuery(() =>
-    this.trpc.taxRates.listActive.queryOptions(),
-  );
   private readonly notifications = inject(NotificationService);
-
   private readonly router = inject(Router);
 
   constructor() {
@@ -117,20 +99,20 @@ export class ReceiptApprovalDetailComponent {
         hasAlcohol: receipt.hasAlcohol,
         hasDeposit: receipt.hasDeposit,
         purchaseCountry: receipt.purchaseCountry,
-        receiptDate: receipt.receiptDate.toISOString().slice(0, 10),
-        stripeTaxRateId: receipt.stripeTaxRateId,
+        receiptDate: new Date(receipt.receiptDate),
+        taxAmount: receipt.taxAmount / 100,
         totalAmount: receipt.totalAmount / 100,
       });
       this.rejectionReason.set(receipt.rejectionReason ?? '');
     });
   }
 
-  protected async approve(): Promise<void> {
-    await this.review('approved');
+  protected approve(): Promise<void> {
+    return this.review('approved');
   }
 
-  protected async reject(): Promise<void> {
-    await this.review('rejected');
+  protected reject(): Promise<void> {
+    return this.review('rejected');
   }
 
   protected updateRejectionReason(value: string): void {
@@ -144,7 +126,13 @@ export class ReceiptApprovalDetailComponent {
     }
 
     const value = this.form.getRawValue();
+    if (!this.selectableCountries.includes(value.purchaseCountry)) {
+      this.notifications.showError('Selected purchase country is not allowed');
+      return;
+    }
+
     const totalAmount = Math.round(value.totalAmount * 100);
+    const taxAmount = Math.round(value.taxAmount * 100);
     const depositAmount = value.hasDeposit ? Math.round(value.depositAmount * 100) : 0;
     const alcoholAmount = value.hasAlcohol ? Math.round(value.alcoholAmount * 100) : 0;
     if (depositAmount + alcoholAmount > totalAmount) {
@@ -154,7 +142,7 @@ export class ReceiptApprovalDetailComponent {
       return;
     }
 
-    const receiptDate = new Date(`${value.receiptDate}T12:00:00.000Z`);
+    const receiptDate = new Date(value.receiptDate);
     if (Number.isNaN(receiptDate.getTime())) {
       this.notifications.showError('Invalid receipt date');
       return;
@@ -167,12 +155,12 @@ export class ReceiptApprovalDetailComponent {
         hasAlcohol: value.hasAlcohol,
         hasDeposit: value.hasDeposit,
         id: this.receiptId(),
-        purchaseCountry: value.purchaseCountry.trim(),
+        purchaseCountry: value.purchaseCountry,
         receiptDate,
         rejectionReason:
           status === 'rejected' ? this.rejectionReason().trim() || null : null,
         status,
-        stripeTaxRateId: value.stripeTaxRateId,
+        taxAmount,
         totalAmount,
       });
       this.notifications.showSuccess(
