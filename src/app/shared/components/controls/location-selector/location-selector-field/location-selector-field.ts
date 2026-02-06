@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
   inject,
   input,
   model,
@@ -8,7 +9,6 @@ import {
 import { FormValueControl } from '@angular/forms/signals';
 import { MatButton } from '@angular/material/button';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
-import consola from 'consola/browser';
 import { firstValueFrom } from 'rxjs';
 
 import { EventLocationType } from '../../../../../../types/location';
@@ -24,11 +24,15 @@ import { LocationSelectorDialog } from '../location-selector-dialog/location-sel
 export class LocationSelectorField implements FormValueControl<EventLocationType | null> {
   readonly disabled = input<boolean>(false);
   readonly hidden = input<boolean>(false);
+  readonly invalid = input<boolean>(false);
   readonly readonly = input<boolean>(false);
   readonly touched = model<boolean>(false);
   readonly value = model<EventLocationType | null>(
     // eslint-disable-next-line unicorn/no-null
     null,
+  );
+  protected readonly showError = computed(
+    () => this.touched() && this.invalid(),
   );
 
   private readonly dialog = inject(MatDialog);
@@ -46,10 +50,9 @@ export class LocationSelectorField implements FormValueControl<EventLocationType
       width: '400px',
     });
     const value = await firstValueFrom(dialogReference.afterClosed());
-    consola.info(value);
+    this.touched.set(true);
     if (value) {
       this.value.set(value);
-      this.touched.set(true);
     }
   }
 }
