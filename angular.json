@@ -61,11 +61,6 @@
                 "glob": "**/*",
                 "input": "node_modules/inter-ui/variable/",
                 "output": "/inter-ui/variable/"
-              },
-              {
-                "glob": "**/*",
-                "input": "node_modules/tinymce",
-                "output": "/tinymce/"
               }
             ],
             "styles": ["src/styles.scss"],

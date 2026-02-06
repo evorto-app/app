@@ -1,4 +1,5 @@
-import { hidden, min, required, schema } from '@angular/forms/signals';
+import { hidden, min, required, schema, validate } from '@angular/forms/signals';
+import { hasTemporaryRichTextImageSources } from '@shared/utils/rich-text-media';
 import { DateTime } from 'luxon';
 
 export interface RegistrationOptionFormModel {
@@ -37,6 +38,22 @@ export const createRegistrationOptionFormModel = (
 
 export const registrationOptionFormSchema = schema<RegistrationOptionFormModel>(
   (form) => {
+    validate(form.description, ({ value }) => {
+      return hasTemporaryRichTextImageSources(value())
+        ? {
+            kind: 'richTextPendingUpload',
+            message: 'Wait for image uploads to finish before saving.',
+          }
+        : undefined;
+    });
+    validate(form.registeredDescription, ({ value }) => {
+      return hasTemporaryRichTextImageSources(value())
+        ? {
+            kind: 'richTextPendingUpload',
+            message: 'Wait for image uploads to finish before saving.',
+          }
+        : undefined;
+    });
     hidden(form.price, ({ valueOf }) => !valueOf(form.isPaid));
     hidden(form.stripeTaxRateId, ({ valueOf }) => !valueOf(form.isPaid));
     min(form.spots, 1);

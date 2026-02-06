@@ -1,24 +1,6 @@
 @let field = control();
-@if (!field().hidden()) {
-  @defer (on interaction) {
-    <editor
-      [init]="config!"
-      [formField]="field"
-      apiKey="c6qweyqnnyptnx064b9qmnmo0bh5n2e1t8db4wt7p4igwoi9"
-    />
-  } @loading {
-    <div class="flex animate-pulse flex-col gap-2">
-      <div class="group relative">
-        <div
-          class="border-outline min-h-[100px] cursor-pointer rounded border p-2 opacity-80"
-          [innerHTML]="field().value()"
-          role="button"
-          tabindex="0"
-          aria-label="Click to edit content"
-        ></div>
-      </div>
-    </div>
-  } @placeholder {
+@if (field && !field().hidden()) {
+  @if (!isMounted()) {
     <div class="flex flex-col gap-2">
       <div class="group relative">
         <div
@@ -27,16 +9,127 @@
           role="button"
           tabindex="0"
           aria-label="Click to edit content"
+          data-testid="rich-editor-placeholder"
+          (click)="activateEditor()"
+          (keydown.enter)="activateEditor()"
+          (keydown.space)="activateEditor(); $event.preventDefault()"
         ></div>
         <button
           mat-button
           type="button"
           class="absolute! bottom-2 right-2 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
+          (click)="activateEditor()"
         >
           <fa-duotone-icon [icon]="faPencil"></fa-duotone-icon>
           Edit
         </button>
       </div>
+    </div>
+  } @else {
+    <div class="border-outline rounded border" data-testid="rich-editor">
+      <div
+        class="border-outline flex flex-wrap items-center gap-2 border-b p-2"
+        role="toolbar"
+        aria-label="Rich text editor toolbar"
+      >
+        <button
+          mat-button
+          type="button"
+          [disabled]="isReadonly()"
+          [class.mat-tonal-button]="isBoldActive()"
+          (click)="toggleBold()"
+        >
+          Bold
+        </button>
+        <button
+          mat-button
+          type="button"
+          [disabled]="isReadonly()"
+          [class.mat-tonal-button]="isItalicActive()"
+          (click)="toggleItalic()"
+        >
+          Italic
+        </button>
+        <button
+          mat-button
+          type="button"
+          [disabled]="isReadonly()"
+          [class.mat-tonal-button]="isBulletListActive()"
+          (click)="toggleBulletList()"
+        >
+          Bullets
+        </button>
+        <button
+          mat-button
+          type="button"
+          [disabled]="isReadonly()"
+          [class.mat-tonal-button]="isOrderedListActive()"
+          (click)="toggleOrderedList()"
+        >
+          Numbered
+        </button>
+        <button
+          mat-button
+          type="button"
+          [disabled]="isReadonly()"
+          [class.mat-tonal-button]="isLinkActive()"
+          (click)="addLink()"
+        >
+          Link
+        </button>
+        <button
+          mat-button
+          type="button"
+          [disabled]="isReadonly()"
+          (click)="insertTable()"
+        >
+          Table
+        </button>
+        <button
+          mat-button
+          type="button"
+          [disabled]="isReadonly()"
+          (click)="openImagePicker()"
+        >
+          Image
+        </button>
+        <button
+          mat-button
+          type="button"
+          [disabled]="!canUndo() || isReadonly()"
+          (click)="undo()"
+        >
+          Undo
+        </button>
+        <button
+          mat-button
+          type="button"
+          [disabled]="!canRedo() || isReadonly()"
+          (click)="redo()"
+        >
+          Redo
+        </button>
+      </div>
+
+      <div #editorContainer class="editor-content"></div>
+
+      <input
+        #fileInput
+        type="file"
+        class="hidden"
+        accept="image/gif,image/jpeg,image/png,image/webp"
+        (change)="onFileInputChange($event)"
+      />
+
+      @if (isUploading()) {
+        <div class="text-on-surface-variant px-3 pb-3 text-sm">
+          Uploading image...
+        </div>
+      }
+
+      @if (uploadErrorMessage()) {
+        <div class="text-error px-3 pb-3 text-sm">{{ uploadErrorMessage() }}</div>
+      }
     </div>
   }
 }

@@ -1,4 +1,5 @@
 import { iconSchema } from '@shared/types/icon';
+import { TRPCError } from '@trpc/server';
 import consola from 'consola';
 import { and, eq } from 'drizzle-orm';
 import { Schema } from 'effect';
@@ -8,6 +9,10 @@ import {
   eventTemplates,
   templateRegistrationOptions,
 } from '../../../db/schema';
+import {
+  isMeaningfulRichTextHtml,
+  sanitizeRichTextHtml,
+} from '../../utils/rich-text-sanitize';
 import { validateTaxRate } from '../../utils/validate-tax-rate';
 import { authenticatedProcedure, router } from '../trpc-server';
 
@@ -37,6 +42,14 @@ export const templateRouter = router({
       ),
     )
     .mutation(async ({ ctx, input }) => {
+      const sanitizedDescription = sanitizeRichTextHtml(input.description);
+      if (!isMeaningfulRichTextHtml(sanitizedDescription)) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Template description cannot be empty',
+        });
+      }
+
       // Validate tax rates for both registration options before proceeding
       const organizerValidation = await validateTaxRate({
         isPaid: input.organizerRegistration.isPaid,
@@ -77,7 +90,7 @@ export const templateRouter = router({
           .insert(eventTemplates)
           .values({
             categoryId: input.categoryId,
-            description: input.description,
+            description: sanitizedDescription,
             icon: input.icon,
             simpleModeEnabled: true,
             tenantId: ctx.tenant.id,
@@ -189,6 +202,14 @@ export const templateRouter = router({
       ),
     )
     .mutation(async ({ ctx, input }) => {
+      const sanitizedDescription = sanitizeRichTextHtml(input.description);
+      if (!isMeaningfulRichTextHtml(sanitizedDescription)) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Template description cannot be empty',
+        });
+      }
+
       // Validate tax rates for both registration options before proceeding
       const organizerValidation = await validateTaxRate({
         isPaid: input.organizerRegistration.isPaid,
@@ -229,7 +250,7 @@ export const templateRouter = router({
           .update(eventTemplates)
           .set({
             categoryId: input.categoryId,
-            description: input.description,
+            description: sanitizedDescription,
             icon: input.icon,
             title: input.title,
           })
