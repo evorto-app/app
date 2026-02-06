@@ -8,6 +8,11 @@ import { DateTime } from 'luxon';
 
 import { database } from '../../../db';
 import * as schema from '../../../db/schema';
+import {
+  isMeaningfulRichTextHtml,
+  sanitizeOptionalRichTextHtml,
+  sanitizeRichTextHtml,
+} from '../../utils/rich-text-sanitize';
 import { validateTaxRate } from '../../utils/validate-tax-rate';
 import {
   authenticatedProcedure,
@@ -58,8 +63,26 @@ export const eventRouter = router({
       ),
     )
     .mutation(async ({ ctx, input }) => {
+      const sanitizedDescription = sanitizeRichTextHtml(input.description);
+      if (!isMeaningfulRichTextHtml(sanitizedDescription)) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Event description cannot be empty',
+        });
+      }
+
+      const sanitizedRegistrationOptions = input.registrationOptions.map(
+        (option) => ({
+          ...option,
+          description: sanitizeOptionalRichTextHtml(option.description),
+          registeredDescription: sanitizeOptionalRichTextHtml(
+            option.registeredDescription,
+          ),
+        }),
+      );
+
       // Validate tax rates for all registration options before proceeding
-      for (const [index, option] of input.registrationOptions.entries()) {
+      for (const [index, option] of sanitizedRegistrationOptions.entries()) {
         const validation = await validateTaxRate({
           isPaid: option.isPaid,
           // eslint-disable-next-line unicorn/no-null
@@ -87,7 +110,7 @@ export const eventRouter = router({
         .insert(schema.eventInstances)
         .values({
           creatorId: ctx.user.id,
-          description: input.description,
+          description: sanitizedDescription,
           end: input.end,
           icon: input.icon,
           start: input.start,
@@ -106,7 +129,7 @@ export const eventRouter = router({
       const createdOptions = await database
         .insert(schema.eventRegistrationOptions)
         .values(
-          input.registrationOptions.map((option) => ({
+          sanitizedRegistrationOptions.map((option) => ({
             closeRegistrationTime: option.closeRegistrationTime,
             description: option.description,
             eventId: event.id,
@@ -507,6 +530,14 @@ export const eventRouter = router({
       ),
     )
     .mutation(async ({ ctx, input }) => {
+      const sanitizedDescription = sanitizeRichTextHtml(input.description);
+      if (!isMeaningfulRichTextHtml(sanitizedDescription)) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Event description cannot be empty',
+        });
+      }
+
       // Check if event is in a state that allows editing
       const event = await database.query.eventInstances.findFirst({
         where: {
@@ -525,7 +556,7 @@ export const eventRouter = router({
       const [updatedEvent] = await database
         .update(schema.eventInstances)
         .set({
-          description: input.description,
+          description: sanitizedDescription,
           end: input.end,
           icon: input.icon,
           location: input.location,

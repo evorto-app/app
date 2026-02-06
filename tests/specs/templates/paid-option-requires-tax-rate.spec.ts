@@ -11,7 +11,7 @@ test.describe.skip('Template Tax Rate Validation', () => {
   }) => {
     test.fixme(
       true,
-      'TinyMCE editor iframe does not load in e2e; template creation blocked.',
+      'Rich text editor is not covered in this deferred spec; template creation blocked.',
     );
     const category = templateCategories[0];
 
@@ -24,7 +24,7 @@ test.describe.skip('Template Tax Rate Validation', () => {
     await expect(page).toHaveURL(`/templates/create`);
 
     const templateTitle = 'Paid Event Template';
-    // FIXME: TinyMCE editor never loads in e2e, so description cannot be set and creation fails.
+    // FIXME: Rich text editor interactions are deferred for this spec.
     await fillTemplateBasics(page, {
       categoryTitle: category.title,
       title: templateTitle,
@@ -57,7 +57,7 @@ test.describe.skip('Template Tax Rate Validation', () => {
   }) => {
     test.fixme(
       true,
-      'TinyMCE editor iframe does not load in e2e; template creation blocked.',
+      'Rich text editor is not covered in this deferred spec; template creation blocked.',
     );
     const category = templateCategories[0];
 
@@ -70,7 +70,7 @@ test.describe.skip('Template Tax Rate Validation', () => {
     await expect(page).toHaveURL(`/templates/create`);
 
     const templateTitle = 'Free Event Template';
-    // FIXME: TinyMCE editor never loads in e2e, so description cannot be set and creation fails.
+    // FIXME: Rich text editor interactions are deferred for this spec.
     await fillTemplateBasics(page, {
       categoryTitle: category.title,
       title: templateTitle,
@@ -97,7 +97,7 @@ test.describe.skip('Template Tax Rate Validation', () => {
   }) => {
     test.fixme(
       true,
-      'TinyMCE editor iframe does not load in e2e; template creation blocked.',
+      'Rich text editor is not covered in this deferred spec; template creation blocked.',
     );
     const category = templateCategories[0];
 
@@ -107,7 +107,7 @@ test.describe.skip('Template Tax Rate Validation', () => {
     // Create template and try to save paid option without tax rate
     await page.getByRole('link', { name: 'Create template' }).click();
     const templateTitle = 'Validation Test Template';
-    // FIXME: TinyMCE editor never loads in e2e, so description cannot be set and creation fails.
+    // FIXME: Rich text editor interactions are deferred for this spec.
     await fillTemplateBasics(page, {
       categoryTitle: category.title,
       title: templateTitle,
@@ -134,7 +134,7 @@ test.describe.skip('Template Tax Rate Validation', () => {
   }) => {
     test.fixme(
       true,
-      'TinyMCE editor iframe does not load in e2e; template creation blocked.',
+      'Rich text editor is not covered in this deferred spec; template creation blocked.',
     );
     const category = templateCategories[0];
 
@@ -143,7 +143,7 @@ test.describe.skip('Template Tax Rate Validation', () => {
 
     await page.getByRole('link', { name: 'Create template' }).click();
     const templateTitle = 'Compatible Rate Test Template';
-    // FIXME: TinyMCE editor never loads in e2e, so description cannot be set and creation fails.
+    // FIXME: Rich text editor interactions are deferred for this spec.
     await fillTemplateBasics(page, {
       categoryTitle: category.title,
       title: templateTitle,
@@ -170,7 +170,7 @@ test.describe.skip('Template Tax Rate Validation', () => {
   }) => {
     test.fixme(
       true,
-      'TinyMCE editor iframe does not load in e2e; template creation blocked.',
+      'Rich text editor is not covered in this deferred spec; template creation blocked.',
     );
     const category = templateCategories[0];
 
@@ -181,7 +181,7 @@ test.describe.skip('Template Tax Rate Validation', () => {
 
     await page.getByRole('link', { name: 'Create template' }).click();
     const templateTitle = 'Bulk Operations Test';
-    // FIXME: TinyMCE editor never loads in e2e, so description cannot be set and creation fails.
+    // FIXME: Rich text editor interactions are deferred for this spec.
     await fillTemplateBasics(page, {
       categoryTitle: category.title,
       title: templateTitle,
@@ -208,7 +208,7 @@ test.describe.skip('Template Tax Rate Validation', () => {
   }) => {
     test.fixme(
       true,
-      'TinyMCE editor iframe does not load in e2e; template creation blocked.',
+      'Rich text editor is not covered in this deferred spec; template creation blocked.',
     );
     const category = templateCategories[0];
 
@@ -219,7 +219,7 @@ test.describe.skip('Template Tax Rate Validation', () => {
 
     await page.getByRole('link', { name: 'Create template' }).click();
     const templateTitle = 'No Rates Available Test';
-    // FIXME: TinyMCE editor never loads in e2e, so description cannot be set and creation fails.
+    // FIXME: Rich text editor interactions are deferred for this spec.
     await fillTemplateBasics(page, {
       categoryTitle: category.title,
       title: templateTitle,

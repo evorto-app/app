@@ -51,7 +51,6 @@ test('create a new template @track(playwright-specs-track-linking_20260126) @req
   await expect(page).toHaveURL(/\/templates/);
   await page.getByRole('link', { name: 'Create template' }).click();
   await expect(page).toHaveURL(`/templates/create`);
-  // FIXME: TinyMCE editor never loads in e2e, so description cannot be set and creation fails.
   await fillTemplateBasics(page, {
     categoryTitle: category.title,
     title: templateTitle,

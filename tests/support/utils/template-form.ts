@@ -27,19 +27,10 @@ export const fillTemplateBasics = async (
   ).toBeVisible();
   await page.locator('app-icon-selector-dialog').getByText('Alps').click();
 
-  const placeholder = page.getByRole('button', {
-    name: 'Click to edit content',
-  });
-  await placeholder.first().click();
+  const placeholder = page.getByTestId('rich-editor-placeholder').first();
+  await placeholder.click();
 
-  await page.waitForFunction(
-    () => (window as typeof window & { tinymce?: any }).tinymce?.activeEditor,
-    { timeout: 1000 },
-  );
-
-  await page.evaluate((value) => {
-    const tinymce = (window as typeof window & { tinymce?: any }).tinymce;
-    tinymce.activeEditor.setContent(value);
-    // tinymce.activeEditor.fire('change');
-  }, description);
+  const editor = page.getByTestId('rich-editor-content').first();
+  await expect(editor).toBeVisible();
+  await editor.fill(description);
 };
