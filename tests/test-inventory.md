@@ -51,7 +51,6 @@ Proposed files (Playwright):
 - specs/finance/tax-rates/admin-import-tax-rates.spec.ts
 - specs/templates/paid-option-requires-tax-rate.spec.ts
 - specs/events/price-labels-inclusive.spec.ts
-- specs/finance/checkout-uses-tax-rate-id.spec.ts
 - specs/finance/fallback-unavailable-rate.spec.ts
 - specs/discounts/discount-reduces-inclusive-price.spec.ts
 - specs/permissions/admin-manage-taxes-permission.spec.ts
