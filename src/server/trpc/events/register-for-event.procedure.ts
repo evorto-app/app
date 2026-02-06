@@ -82,6 +82,16 @@ export const registerForEventProcedure = authenticatedProcedure
         });
       }
 
+      const selectedTaxRateId = registrationOption.stripeTaxRateId ?? undefined;
+      const selectedTaxRate = selectedTaxRateId
+        ? await tx.query.tenantStripeTaxRates.findFirst({
+            where: {
+              stripeTaxRateId: selectedTaxRateId,
+              tenantId: ctx.tenant.id,
+            },
+          })
+        : undefined;
+
       // Register user for event
       const userRegistration = await tx
         .insert(schema.eventRegistrations)
@@ -89,6 +99,14 @@ export const registerForEventProcedure = authenticatedProcedure
           eventId: input.eventId,
           registrationOptionId: registrationOption.id,
           status: registrationOption.isPaid ? 'PENDING' : 'CONFIRMED',
+          ...(selectedTaxRateId
+            ? {
+                stripeTaxRateId: selectedTaxRateId,
+                taxRateDisplayName: selectedTaxRate?.displayName,
+                taxRateInclusive: selectedTaxRate?.inclusive,
+                taxRatePercentage: selectedTaxRate?.percentage,
+              }
+            : {}),
           tenantId: ctx.tenant.id,
           userId: ctx.user.id,
         })

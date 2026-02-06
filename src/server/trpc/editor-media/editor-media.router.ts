@@ -58,7 +58,10 @@ export const editorMediaRouter = router({
         });
       }
 
-      if (input.fileSizeBytes <= 0 || input.fileSizeBytes > MAX_IMAGE_SIZE_BYTES) {
+      if (
+        input.fileSizeBytes <= 0 ||
+        input.fileSizeBytes > MAX_IMAGE_SIZE_BYTES
+      ) {
         throw new TRPCError({
           code: 'BAD_REQUEST',
           message: `File size must be between 1 byte and ${MAX_IMAGE_SIZE_BYTES} bytes`,
@@ -101,9 +104,9 @@ export const editorMediaRouter = router({
       );
 
       const responseBody = (await response.json()) as unknown;
-      const decoded = Schema.decodeUnknownEither(cloudflareUploadResponseSchema)(
-        responseBody,
-      );
+      const decoded = Schema.decodeUnknownEither(
+        cloudflareUploadResponseSchema,
+      )(responseBody);
 
       if (Either.isLeft(decoded)) {
         consola.error('editor-media.cloudflare.invalid-upload-response', {

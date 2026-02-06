@@ -8,8 +8,14 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatDialog } from '@angular/material/dialog';
-import { MatIconModule } from '@angular/material/icon';
 import { MatTableModule } from '@angular/material/table';
+import { RouterLink } from '@angular/router';
+import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
+import {
+  faArrowLeft,
+  faCircleExclamation,
+  faReceipt,
+} from '@fortawesome/duotone-regular-svg-icons';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import { injectTRPC } from '../../core/trpc-client';
@@ -18,10 +24,11 @@ import { ImportTaxRatesDialogComponent } from '../components/import-tax-rates-di
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    FontAwesomeModule,
+    RouterLink,
     MatButtonModule,
     MatCardModule,
     MatChipsModule,
-    MatIconModule,
     MatTableModule,
   ],
   selector: 'app-tax-rates-settings',
@@ -30,7 +37,7 @@ import { ImportTaxRatesDialogComponent } from '../components/import-tax-rates-di
     <!-- Header with navigation -->
     <div class="mb-4 flex flex-row items-center gap-2">
       <a routerLink="/admin" mat-icon-button class="lg:hidden! block">
-        <mat-icon>arrow_back</mat-icon>
+        <fa-duotone-icon [icon]="faArrowLeft"></fa-duotone-icon>
       </a>
       <h1 class="title-large">Tax Rates</h1>
     </div>
@@ -43,7 +50,7 @@ import { ImportTaxRatesDialogComponent } from '../components/import-tax-rates-di
       (click)="openImportDialog()"
       [disabled]="importedQuery.isLoading()"
     >
-      <mat-icon>add</mat-icon>
+      <fa-duotone-icon [icon]="faReceipt"></fa-duotone-icon>
       Import Tax Rates
     </button>
 
@@ -62,7 +69,7 @@ import { ImportTaxRatesDialogComponent } from '../components/import-tax-rates-di
       @else if (importedQuery.error()) {
         <div class="bg-error-container text-on-error-container rounded-2xl p-4">
           <div class="flex items-center gap-2">
-            <mat-icon>error</mat-icon>
+            <fa-duotone-icon [icon]="faCircleExclamation"></fa-duotone-icon>
             <span class="body-medium"
               >Failed to load tax rates:
               {{ importedQuery.error()?.message }}</span
@@ -78,9 +85,10 @@ import { ImportTaxRatesDialogComponent } from '../components/import-tax-rates-di
         <div
           class="bg-surface-container-low text-on-surface flex flex-col items-center justify-center rounded-2xl p-8"
         >
-          <mat-icon class="mb-4 text-6xl text-on-surface-variant"
-            >receipt</mat-icon
-          >
+          <fa-duotone-icon
+            [icon]="faReceipt"
+            class="mb-4 text-6xl text-on-surface-variant"
+          ></fa-duotone-icon>
           <h2 class="title-medium mb-2">No tax rates imported</h2>
           <p class="body-medium text-on-surface-variant mb-4 text-center">
             Import tax rates from your payment provider to enable paid
@@ -305,6 +313,9 @@ export class TaxRatesSettingsComponent {
     'status',
     'stripeTaxRateId',
   ];
+  protected readonly faArrowLeft = faArrowLeft;
+  protected readonly faCircleExclamation = faCircleExclamation;
+  protected readonly faReceipt = faReceipt;
   private readonly trpc = injectTRPC();
 
   protected readonly importedQuery = injectQuery(() =>

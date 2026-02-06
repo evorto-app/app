@@ -12,8 +12,8 @@
 
 ---
 
-- [ ] **Track: Tax rates (Stripe-synced, read-only) — admin sync, event pricing, payments**
-      _Link: [./tracks/tax-rates_20260128/](./tracks/tax-rates_20260128/)_
+- [~] **Track: Tax rates (Stripe-synced, read-only) — admin sync, event pricing, payments**
+  _Link: [./tracks/tax-rates_20260128/](./tracks/tax-rates_20260128/)_
 
 ---
 

@@ -71,10 +71,7 @@ export const createTemplateFormModel = (
   if (overrides.title !== undefined) {
     generalOverrides.title = overrides.title;
   }
-  const general = mergeTemplateGeneralFormOverrides(
-    generalOverrides,
-    base,
-  );
+  const general = mergeTemplateGeneralFormOverrides(generalOverrides, base);
 
   return {
     ...general,

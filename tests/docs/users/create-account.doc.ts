@@ -69,9 +69,7 @@ For this example we will sign in with a demo user.`,
     exact: true,
     name: 'Create Account',
   });
-  await expect(
-    acceptButton.or(createAccountButton).first(),
-  ).toBeVisible({
+  await expect(acceptButton.or(createAccountButton).first()).toBeVisible({
     timeout: 15000,
   });
   if (await acceptButton.isVisible()) {

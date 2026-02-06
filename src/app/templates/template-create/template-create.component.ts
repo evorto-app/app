@@ -27,21 +27,13 @@ import {
 import { TemplateGeneralFormComponent } from '../shared/template-form/template-general-form.component';
 import { templateGeneralFormSchema } from '../shared/template-form/template-general-form.schema';
 import { TemplateRegistrationOptionFormComponent } from '../shared/template-form/template-registration-option-form.component';
-import {
-  templateRegistrationOptionFormSchema,
-} from '../shared/template-form/template-registration-option-form.schema';
+import { templateRegistrationOptionFormSchema } from '../shared/template-form/template-registration-option-form.schema';
 import { RegistrationMode } from '../shared/template-form/template-registration-option-form.utilities';
 
 const templateFormSchema = schema<TemplateFormData>((formPath) => {
   apply(formPath, templateGeneralFormSchema);
-  apply(
-    formPath.organizerRegistration,
-    templateRegistrationOptionFormSchema,
-  );
-  apply(
-    formPath.participantRegistration,
-    templateRegistrationOptionFormSchema,
-  );
+  apply(formPath.organizerRegistration, templateRegistrationOptionFormSchema);
+  apply(formPath.participantRegistration, templateRegistrationOptionFormSchema);
 });
 
 @Component({

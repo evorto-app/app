@@ -12,7 +12,7 @@ import { Schema } from 'effect';
 // Define the permission groups as const
 const ADMIN_GROUP = {
   key: 'admin',
-  permissions: ['manageRoles', 'changeSettings', 'manageTaxes'] as const,
+  permissions: ['manageRoles', 'changeSettings', 'tax'] as const,
 } as const;
 
 const EVENTS_GROUP = {
@@ -63,6 +63,7 @@ const FINANCE_GROUP = {
 // Union type of all possible permissions
 export type Permission =
   | AdminPermissions
+  | AdminPermissionsLegacy
   | EventsPermissions
   | FinancePermissions
   | GlobalAdminPermissions
@@ -88,6 +89,7 @@ export interface PermissionMeta {
 type AdminPermissions =
   | `${typeof ADMIN_GROUP.key}:${(typeof ADMIN_GROUP.permissions)[number]}`
   | `${typeof ADMIN_GROUP.key}:*`;
+type AdminPermissionsLegacy = 'admin:manageTaxes';
 
 type EventsPermissions =
   | `${typeof EVENTS_GROUP.key}:${(typeof EVENTS_GROUP.permissions)[number]}`
@@ -237,6 +239,7 @@ export const PermissionSchema = Schema.declare(
       return false;
     }
     return [
+      'admin:manageTaxes',
       'globalAdmin:*',
       'globalAdmin:manageTenants',
       ...ALL_PERMISSIONS,

@@ -8,65 +8,10 @@
 <div class="grid grid-cols-1 gap-4">
   <div class="bg-surface text-on-surface rounded-2xl p-4">
     <form class="grid grid-cols-1" (submit)="saveSettings($event)">
-      <h2 class="title-medium mb-2">Stripe tax rates</h2>
-      <p class="text-xs text-gray-600 mb-1">
-        Only included (VAT-style) and active tax rates are compatible. You can
-        import compatible tax rates from your Stripe account to use below.
+      <p class="text-on-surface-variant mb-4 text-sm">
+        Tax rates are managed on the dedicated
+        <a class="underline" routerLink="/admin/tax-rates">Tax Rates</a> page.
       </p>
-      <p class="text-xs text-gray-600 mb-3">
-        Manage your tax rates in the Stripe Dashboard:
-        <a
-          href="https://dashboard.stripe.com/test/tax-rates"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="underline"
-          >Open test tax rates</a
-        >.
-      </p>
-
-      <div class="mb-2">
-        <button mat-stroked-button type="button" (click)="openImportDialog()">
-          Import from Stripe
-        </button>
-      </div>
-
-      <div class="mb-4">
-        <h3 class="title-small mb-2">Imported tax rates</h3>
-        @if (importedTaxRatesQuery.isPending()) {
-          <p>Loading imported tax rates ...</p>
-        } @else if (importedTaxRatesQuery.isSuccess()) {
-          @if (importedTaxRatesQuery.data().length === 0) {
-            <p class="text-xs text-on-surface-variant">
-              No imported tax rates yet.
-            </p>
-          } @else {
-            <div class="flex flex-col gap-2">
-              @for (rate of importedTaxRatesQuery.data(); track rate.id) {
-                <div class="flex items-center gap-3">
-                  <span>
-                    {{ rate.displayName || rate.stripeTaxRateId }}
-                    — {{ rate.percentage ?? "?" }}%
-                  </span>
-                  <mat-chip-set>
-                    @if (rate.inclusive) {
-                      <mat-chip color="primary" selected>included</mat-chip>
-                    } @else {
-                      <mat-chip color="warn" selected>excluded</mat-chip>
-                    }
-                    @if (rate.active) {
-                      <mat-chip selected>active</mat-chip>
-                    } @else {
-                      <mat-chip color="warn" selected>archived</mat-chip>
-                    }
-                  </mat-chip-set>
-                </div>
-              }
-            </div>
-          }
-        } @else {
-          <p>Failed to load imported tax rates.</p>
-        }
-      </div>
 
       <div class="mb-4">
         <p class="text-sm font-medium mb-2 block">Default Location</p>
@@ -86,9 +31,6 @@
           <mat-option value="esn">ESN theme</mat-option>
         </mat-select>
       </mat-form-field>
-
-      <!-- Tax rates are selected per paid registration option. Import them here,
-           then choose the appropriate rate when editing registration options. -->
 
       <h3 class="title-small mb-2 mt-6">Discount providers</h3>
       @if (discountProvidersQuery.isPending()) {

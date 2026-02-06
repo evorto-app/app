@@ -16,7 +16,7 @@ import { migrateUserTenantAssignments } from './steps/user-assignments';
 import { migrateUsers } from './steps/users';
 import { addUniqueIndexTenantStripeTaxRates } from './steps/001_add_unique_index_tenant_stripe_tax_rates';
 import { backfillAndSeedTaxRates } from './steps/002_backfill_and_seed_tax_rates';
-import { addAdminManageTaxesPermission } from './steps/003_add_admin_manage_taxes_permission';
+import { addAdminTaxPermission } from './steps/003_add_admin_manage_taxes_permission';
 
 type Features =
   | 'users'
@@ -159,7 +159,7 @@ async function runForTenant(
   }
 
   // Run tenant-specific migration steps
-  await addAdminManageTaxesPermission(newTenant.id);
+  await addAdminTaxPermission(newTenant.id);
   await backfillAndSeedTaxRates(newTenant.id, newTenant.stripeAccountId);
 
   consola.success(`Migration ${oldShortName} to ${newDomain} complete`);

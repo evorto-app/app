@@ -29,6 +29,14 @@ export class PermissionsService {
     permission: Permission,
     permissions: Permission[],
   ) {
+    // Backward compatibility for tenants that still store the legacy permission key.
+    if (
+      permission === 'admin:tax' &&
+      permissions.includes('admin:manageTaxes')
+    ) {
+      return true;
+    }
+
     // First check if the permission is directly granted
     if (permission.includes(':*')) {
       const [group] = permission.split(':');

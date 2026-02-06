@@ -1,5 +1,5 @@
-import sanitizeHtml from 'sanitize-html';
 import { hasUsableRichTextImageSources } from '@shared/utils/rich-text-media';
+import sanitizeHtml from 'sanitize-html';
 
 const ALLOWED_TAGS = [
   'a',
@@ -98,7 +98,7 @@ export const isMeaningfulRichTextHtml = (content: string): boolean => {
     allowedAttributes: {},
     allowedTags: [],
   })
-    .replaceAll(/\u00A0/g, ' ')
+    .replaceAll('\u00A0', ' ')
     .trim();
 
   if (plainText.length > 0) {

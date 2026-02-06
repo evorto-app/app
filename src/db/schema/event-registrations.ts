@@ -1,4 +1,10 @@
-import { pgTable, timestamp, varchar } from 'drizzle-orm/pg-core';
+import {
+  boolean,
+  pgTable,
+  text,
+  timestamp,
+  varchar,
+} from 'drizzle-orm/pg-core';
 
 import { eventInstances } from './event-instances';
 import { eventRegistrationOptions } from './event-registration-options';
@@ -18,6 +24,10 @@ export const eventRegistrations = pgTable('event_registrations', {
     .notNull()
     .references(() => eventRegistrationOptions.id),
   status: registrationStatus().notNull(),
+  stripeTaxRateId: varchar('tax_rate_id'),
+  taxRateDisplayName: text('tax_rate_name'),
+  taxRateInclusive: boolean('tax_rate_inclusive'),
+  taxRatePercentage: text('tax_rate_percentage'),
   userId: varchar({ length: 20 })
     .notNull()
     .references(() => users.id),

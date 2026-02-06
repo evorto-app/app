@@ -43,7 +43,7 @@ export const ADMIN_ROUTES: Routes = [
       {
         canActivate: [permissionGuard],
         data: {
-          permissions: ['admin:manageTaxes'],
+          permissions: ['admin:tax'],
         },
         loadComponent: () =>
           import('./tax-rates-settings/tax-rates-settings.component').then(

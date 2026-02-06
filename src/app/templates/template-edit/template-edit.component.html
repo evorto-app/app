@@ -7,7 +7,10 @@
 
 <main class="flex flex-col gap-4">
   @if (templateQuery.isSuccess()) {
-    <form (submit)="onSubmit($event)" class="text-on-surface flex flex-col gap-6">
+    <form
+      (submit)="onSubmit($event)"
+      class="text-on-surface flex flex-col gap-6"
+    >
       <div class="bg-surface rounded-2xl p-4">
         <app-template-general-form [generalForm]="templateForm" />
       </div>

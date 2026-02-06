@@ -1,7 +1,7 @@
 import type { IconValue } from '@shared/types/icon';
-import { hasTemporaryRichTextImageSources } from '@shared/utils/rich-text-media';
 
 import { applyEach, schema, validate } from '@angular/forms/signals';
+import { hasTemporaryRichTextImageSources } from '@shared/utils/rich-text-media';
 import { DateTime } from 'luxon';
 
 import { EventLocationType } from '../../../../../types/location';
