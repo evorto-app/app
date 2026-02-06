@@ -26,7 +26,8 @@
 - TypeScript strict mode and Angular strict templates are enforced (see `tsconfig.json`).
 - Use standalone components, typed forms, and modern control-flow.
 - Indentation: 2 spaces; filenames `kebab-case.ts`; symbols `camelCase` (vars), `PascalCase` (components/types).
-- Run `yarn lint` and `yarn format` before committing.
+- Run `yarn lint:fix` and `yarn format` before committing.
+- Always run `yarn lint:fix` before `yarn lint` to avoid iterating on issues that are auto-fixable.
 - Prefer path aliases: `@app/*`, `@server/*`, `@db/*`, `@shared/*`, `@types/*`.
 
 ### Type Safety (Always Full Types)

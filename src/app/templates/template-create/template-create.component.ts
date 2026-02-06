@@ -6,7 +6,7 @@ import {
   input,
   linkedSignal,
 } from '@angular/core';
-import { form, submit } from '@angular/forms/signals';
+import { apply, form, schema, submit } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import { Router, RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
@@ -20,14 +20,29 @@ import {
 import { injectTRPC } from '../../core/trpc-client';
 import {
   mergeTemplateFormOverrides,
-  RegistrationMode,
   TemplateFormData,
   TemplateFormOverrides,
-  templateFormSchema,
   TemplateFormSubmitData,
-} from '../shared/template-form/template-form.schema';
+} from '../shared/template-form/template-form.utilities';
 import { TemplateGeneralFormComponent } from '../shared/template-form/template-general-form.component';
+import { templateGeneralFormSchema } from '../shared/template-form/template-general-form.schema';
 import { TemplateRegistrationOptionFormComponent } from '../shared/template-form/template-registration-option-form.component';
+import {
+  templateRegistrationOptionFormSchema,
+} from '../shared/template-form/template-registration-option-form.schema';
+import { RegistrationMode } from '../shared/template-form/template-registration-option-form.utilities';
+
+const templateFormSchema = schema<TemplateFormData>((formPath) => {
+  apply(formPath, templateGeneralFormSchema);
+  apply(
+    formPath.organizerRegistration,
+    templateRegistrationOptionFormSchema,
+  );
+  apply(
+    formPath.participantRegistration,
+    templateRegistrationOptionFormSchema,
+  );
+});
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,

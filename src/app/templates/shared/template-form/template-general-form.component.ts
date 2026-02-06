@@ -9,7 +9,7 @@ import { injectTRPC } from '../../../core/trpc-client';
 import { EditorComponent } from '../../../shared/components/controls/editor/editor.component';
 import { IconSelectorFieldComponent } from '../../../shared/components/controls/icon-selector/icon-selector-field/icon-selector-field.component';
 import { LocationSelectorField } from '../../../shared/components/controls/location-selector/location-selector-field/location-selector-field';
-import { TemplateFormData } from './template-form.schema';
+import { TemplateFormData } from './template-form.utilities';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,

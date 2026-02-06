@@ -12,7 +12,7 @@ import { RoleSelectComponent } from '../../../shared/components/controls/role-se
 import {
   RegistrationMode,
   TemplateRegistrationFormModel,
-} from './template-form.schema';
+} from './template-registration-option-form.utilities';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,

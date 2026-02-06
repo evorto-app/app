@@ -6,7 +6,7 @@ import {
   input,
   linkedSignal,
 } from '@angular/core';
-import { form, submit } from '@angular/forms/signals';
+import { apply, form, schema, submit } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import { Router, RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
@@ -20,14 +20,27 @@ import {
 import { injectTRPC } from '../../core/trpc-client';
 import {
   mergeTemplateFormOverrides,
-  RegistrationMode,
   TemplateFormData,
   TemplateFormOverrides,
   TemplateFormSubmitData,
-  templateFormSchema,
-} from '../shared/template-form/template-form.schema';
+} from '../shared/template-form/template-form.utilities';
 import { TemplateGeneralFormComponent } from '../shared/template-form/template-general-form.component';
+import { templateGeneralFormSchema } from '../shared/template-form/template-general-form.schema';
 import { TemplateRegistrationOptionFormComponent } from '../shared/template-form/template-registration-option-form.component';
+import { templateRegistrationOptionFormSchema } from '../shared/template-form/template-registration-option-form.schema';
+import { RegistrationMode } from '../shared/template-form/template-registration-option-form.utilities';
+
+const templateFormSchema = schema<TemplateFormData>((formPath) => {
+  apply(formPath, templateGeneralFormSchema);
+  apply(
+    formPath.organizerRegistration,
+    templateRegistrationOptionFormSchema,
+  );
+  apply(
+    formPath.participantRegistration,
+    templateRegistrationOptionFormSchema,
+  );
+});
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -44,9 +57,15 @@ import { TemplateRegistrationOptionFormComponent } from '../shared/template-form
 })
 export class TemplateEditComponent {
   protected readonly faArrowLeft = faArrowLeft;
-  protected readonly templateId = input.required<string>();
+  protected readonly registrationModes: RegistrationMode[] = [
+    'fcfs',
+    'random',
+    'application',
+  ];
 
+  protected readonly templateId = input.required<string>();
   private trpc = injectTRPC();
+
   protected readonly templateQuery = injectQuery(() =>
     this.trpc.templates.findOne.queryOptions({ id: this.templateId() }),
   );
@@ -69,10 +88,6 @@ export class TemplateEditComponent {
     };
   });
 
-  protected readonly updateTemplateMutation = injectMutation(() =>
-    this.trpc.templates.updateSimpleTemplate.mutationOptions(),
-  );
-
   private readonly templateModel = linkedSignal<
     TemplateFormOverrides,
     TemplateFormData
@@ -87,11 +102,9 @@ export class TemplateEditComponent {
     templateFormSchema,
   );
 
-  protected readonly registrationModes: RegistrationMode[] = [
-    'fcfs',
-    'random',
-    'application',
-  ];
+  protected readonly updateTemplateMutation = injectMutation(() =>
+    this.trpc.templates.updateSimpleTemplate.mutationOptions(),
+  );
 
   private queryClient = inject(QueryClient);
   private router = inject(Router);
