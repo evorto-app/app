@@ -101,7 +101,10 @@ export class EditorComponent {
       editable: !(field.disabled() || field.readonly()),
       element: container,
       extensions: [
-        StarterKit,
+        StarterKit.configure({
+          heading: { levels: [1, 2, 3, 4, 5, 6] },
+          strike: true,
+        }),
         Link.configure({
           defaultProtocol: 'https',
           openOnClick: false,

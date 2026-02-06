@@ -6,11 +6,17 @@ const ALLOWED_TAGS = [
   'b',
   'blockquote',
   'br',
+  'col',
+  'colgroup',
   'code',
+  'del',
   'em',
   'h1',
   'h2',
   'h3',
+  'h4',
+  'h5',
+  'h6',
   'hr',
   'i',
   'img',
@@ -18,6 +24,8 @@ const ALLOWED_TAGS = [
   'ol',
   'p',
   'pre',
+  's',
+  'strike',
   'strong',
   'table',
   'tbody',
@@ -31,12 +39,25 @@ const ALLOWED_TAGS = [
 
 const ALLOWED_ATTRIBUTES: Record<string, string[]> = {
   a: ['href', 'rel', 'target', 'title'],
+  col: ['style'],
   img: ['alt', 'src', 'title'],
-  td: ['colspan', 'rowspan'],
-  th: ['colspan', 'rowspan'],
+  table: ['style'],
+  td: ['colspan', 'colwidth', 'rowspan'],
+  th: ['colspan', 'colwidth', 'rowspan'],
 };
 
 const ALLOWED_SCHEMES = ['http', 'https', 'mailto'];
+const PIXEL_LENGTH_STYLE = [/^\d+(\.\d+)?px$/u];
+const ALLOWED_STYLES = {
+  col: {
+    'min-width': PIXEL_LENGTH_STYLE,
+    width: PIXEL_LENGTH_STYLE,
+  },
+  table: {
+    'min-width': PIXEL_LENGTH_STYLE,
+    width: PIXEL_LENGTH_STYLE,
+  },
+};
 
 const STRUCTURAL_MEDIA_NODE_PATTERN = /<(table|hr)\b/i;
 
@@ -44,6 +65,7 @@ export const sanitizeRichTextHtml = (content: string): string => {
   return sanitizeHtml(content, {
     allowedAttributes: ALLOWED_ATTRIBUTES,
     allowedSchemes: ALLOWED_SCHEMES,
+    allowedStyles: ALLOWED_STYLES,
     allowedTags: [...ALLOWED_TAGS],
     enforceHtmlBoundary: true,
     transformTags: {
