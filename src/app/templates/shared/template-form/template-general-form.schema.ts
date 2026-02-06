@@ -7,7 +7,6 @@ export const templateGeneralFormSchema = schema<TemplateGeneralFormModel>(
     required(form.categoryId);
     required(form.description);
     required(form.icon);
-    required(form.location);
     required(form.title);
   },
 );

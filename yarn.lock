@@ -5048,6 +5048,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/sanitize-html@npm:^2.16.0":
+  version: 2.16.0
+  resolution: "@types/sanitize-html@npm:2.16.0"
+  dependencies:
+    htmlparser2: "npm:^8.0.0"
+  checksum: 10c0/1d5ff68e07815d86a6832fba9b86f21af1824fd1080b765485688dc2777e03c22c6058ae12ba67ac3ee1aa1731f99626ed465e914ed6982bfe7c6c7144b79d45
+  languageName: node
+  linkType: hard
+
 "@types/send@npm:*":
   version: 0.17.4
   resolution: "@types/send@npm:0.17.4"
@@ -7590,6 +7599,7 @@ __metadata:
     "@types/luxon": "npm:^3.7.1"
     "@types/node": "npm:^24.10.11"
     "@types/qrcode": "npm:^1.5.6"
+    "@types/sanitize-html": "npm:^2.16.0"
     "@types/ws": "npm:^8.18.1"
     angular-eslint: "npm:21.2.0"
     auth0: "npm:^5.3.0"

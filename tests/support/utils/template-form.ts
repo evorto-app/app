@@ -28,7 +28,9 @@ export const fillTemplateBasics = async (
   await page.locator('app-icon-selector-dialog').getByText('Alps').click();
 
   const placeholder = page.getByTestId('rich-editor-placeholder').first();
-  await placeholder.click();
+  if (await placeholder.isVisible()) {
+    await placeholder.click();
+  }
 
   const editor = page.getByTestId('rich-editor-content').first();
   await expect(editor).toBeVisible();

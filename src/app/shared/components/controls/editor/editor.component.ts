@@ -107,7 +107,9 @@ export class EditorComponent {
           openOnClick: false,
         }),
         Image,
-        TableKit.configure({ resizable: true }),
+        TableKit.configure({
+          table: { resizable: true },
+        }),
         FileHandler.configure({
           allowedMimeTypes: [
             'image/gif',
