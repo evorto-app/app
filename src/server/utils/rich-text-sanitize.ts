@@ -1,4 +1,5 @@
 import sanitizeHtml from 'sanitize-html';
+import { hasUsableRichTextImageSources } from '@shared/utils/rich-text-media';
 
 const ALLOWED_TAGS = [
   'a',
@@ -37,7 +38,7 @@ const ALLOWED_ATTRIBUTES: Record<string, string[]> = {
 
 const ALLOWED_SCHEMES = ['http', 'https', 'mailto'];
 
-const MEDIA_NODE_PATTERN = /<(img|table|hr)\b/i;
+const STRUCTURAL_MEDIA_NODE_PATTERN = /<(table|hr)\b/i;
 
 export const sanitizeRichTextHtml = (content: string): string => {
   return sanitizeHtml(content, {
@@ -82,5 +83,9 @@ export const isMeaningfulRichTextHtml = (content: string): boolean => {
     return true;
   }
 
-  return MEDIA_NODE_PATTERN.test(content);
+  if (STRUCTURAL_MEDIA_NODE_PATTERN.test(content)) {
+    return true;
+  }
+
+  return hasUsableRichTextImageSources(content);
 };
