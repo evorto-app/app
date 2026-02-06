@@ -43,6 +43,7 @@ The profile page displays your personal information, including:
 
 - Name
 - Email address
+- Payout details (IBAN / PayPal) for finance refunds
 
 From here you can open the edit dialog to update your profile details.
 `,
@@ -88,7 +89,20 @@ The form uses inline validation, and the save button is only enabled when both n
     body: `
 ## Summary
 
-The user profile page provides a central place to view your personal information, event registrations, and account actions. This makes it easy to keep track of your activity and manage your account.
+The user profile now uses a tab layout:
+
+- **Overview** for account actions
+- **Events** for registrations
+- **Discounts** for ESN cards
+- **Receipts** for your submitted finance receipts and statuses
 `,
   });
+
+  await page.getByRole('tab', { name: 'Receipts' }).click();
+  await takeScreenshot(
+    testInfo,
+    page.locator('app-user-profile'),
+    page,
+    'Profile receipts tab',
+  );
 });
