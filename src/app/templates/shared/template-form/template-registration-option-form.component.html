@@ -1,16 +1,17 @@
 @let form = registrationForm();
-<div>
-  <h3 class="mb-3 font-medium">{{ form.title().value() }}</h3>
-  <div class="grid gap-4 p-4">
-    <mat-slide-toggle [formField]="form.isPaid">Enable Payment</mat-slide-toggle>
+<h3 class="font-medium">{{ form.title().value() }}</h3>
 
-    @if (!form.price().hidden()) {
-      <mat-form-field>
+<section class="grid gap-3">
+  <mat-slide-toggle [formField]="form.isPaid">Enable Payment</mat-slide-toggle>
+
+  @if (!form.price().hidden()) {
+    <div class="grid gap-4">
+      <mat-form-field class="w-full">
         <mat-label>Price (in cents)</mat-label>
         <input matInput type="number" [formField]="form.price" />
       </mat-form-field>
 
-      <mat-form-field>
+      <mat-form-field class="w-full">
         <mat-label>Tax rate</mat-label>
         <mat-select [formField]="form.stripeTaxRateId">
           @if (taxRatesQuery.isPending()) {
@@ -28,44 +29,50 @@
         </mat-select>
         <mat-hint>Inclusive tax; shown price is final</mat-hint>
       </mat-form-field>
-    }
-
-    <mat-form-field>
-      <mat-label>Number of Spots</mat-label>
-      <input matInput type="number" [formField]="form.spots" />
-      <mat-hint>How many people can register</mat-hint>
-    </mat-form-field>
-
-    <app-role-select [formField]="form.roleIds"></app-role-select>
-
-    <mat-form-field>
-      <mat-label>Registration Mode</mat-label>
-      <mat-select [formField]="form.registrationMode">
-        @for (mode of registrationModes(); track mode) {
-          <mat-option [value]="mode">{{ mode }}</mat-option>
-        }
-      </mat-select>
-      <mat-hint>How registrations are processed</mat-hint>
-    </mat-form-field>
-
-    <div class="flex flex-col gap-2">
-      <span class="text-on-surface-variant text-sm"
-        >Registration Opens Before Event</span
-      >
-      <app-duration-selector
-        [formField]="form.openRegistrationOffset"
-        hint="How long before the event should registration open"
-      ></app-duration-selector>
     </div>
+  }
+</section>
 
-    <div class="flex flex-col gap-2">
-      <span class="text-on-surface-variant text-sm"
-        >Registration Closes Before Event</span
-      >
-      <app-duration-selector
-        [formField]="form.closeRegistrationOffset"
-        hint="How long before the event should registration close"
-      ></app-duration-selector>
-    </div>
+<section>
+  <app-role-select [formField]="form.roleIds"></app-role-select>
+</section>
+
+<section class="grid gap-4">
+  <mat-form-field class="w-full">
+    <mat-label>Registration Mode</mat-label>
+    <mat-select [formField]="form.registrationMode">
+      @for (mode of registrationModes(); track mode) {
+        <mat-option [value]="mode">{{ mode }}</mat-option>
+      }
+    </mat-select>
+    <mat-hint>How registrations are processed</mat-hint>
+  </mat-form-field>
+
+  <mat-form-field class="w-full">
+    <mat-label>Number of Spots</mat-label>
+    <input matInput type="number" [formField]="form.spots" />
+    <mat-hint>How many people can register</mat-hint>
+  </mat-form-field>
+</section>
+
+<section class="grid gap-4">
+  <div class="flex flex-col gap-2">
+    <span class="text-on-surface-variant text-sm"
+      >Registration Opens Before Event</span
+    >
+    <app-duration-selector
+      [formField]="form.openRegistrationOffset"
+      hint="How long before the event should registration open"
+    ></app-duration-selector>
   </div>
-</div>
+
+  <div class="flex flex-col gap-2">
+    <span class="text-on-surface-variant text-sm"
+      >Registration Closes Before Event</span
+    >
+    <app-duration-selector
+      [formField]="form.closeRegistrationOffset"
+      hint="How long before the event should registration close"
+    ></app-duration-selector>
+  </div>
+</section>
