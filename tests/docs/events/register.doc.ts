@@ -60,14 +60,12 @@ test('Register for a free event @track(playwright-specs-track-linking_20260126) 
   To register for an event, open the app and browse the events available to you.
   Click one that interests you to learn more and see the registration options.`,
   });
-  await takeScreenshot(
-    testInfo,
-    freeEventLink,
-    page,
-  );
+  await takeScreenshot(testInfo, freeEventLink, page);
   await freeEventLink.click();
   await expect(page).toHaveURL(/\/events\/[a-z0-9]+$/i);
-  await expect(page.getByRole('heading', { level: 1, name: freeEvent.title })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { level: 1, name: freeEvent.title }),
+  ).toBeVisible();
   await page
     .getByText('Loading registration status')
     .first()

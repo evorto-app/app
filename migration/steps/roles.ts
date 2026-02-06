@@ -18,7 +18,7 @@ export const setupDefaultRoles = async (
         permissions: [
           'admin:manageRoles',
           'admin:changeSettings',
-          'admin:manageTaxes',
+          'admin:tax',
           'events:create',
           'events:viewDrafts',
           'events:viewPublic',

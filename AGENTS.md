@@ -112,5 +112,6 @@
 ## Playwright Learnings
 
 - Playwright runs against a Docker web server (`yarn docker:start-test`) with `reuseExistingServer: true`. If UI changes are not picked up in tests, restart containers (`yarn docker:stop`) before rerunning `yarn e2e` to rebuild and reload the app.
+- If auth/setup tests time out unexpectedly, ensure the database was reset and re-seeded before running Playwright (for example `yarn setup:database` or a full test-environment reset) so setup fixtures don't use stale state.
 - `events.create` rejects empty strings for optional fields. Normalize empty string optional fields (like descriptions or tax rate ids) to `null` before submitting.
 - Test seeding logs are noisy; `tests/setup/database.setup.ts` sets `consola.level = 4` to keep Playwright output quiet. Local dev seeding stays verbose.

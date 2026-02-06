@@ -4,7 +4,7 @@ import { fillTemplateBasics } from '../../support/utils/template-form';
 
 test.use({ storageState: defaultStateFile });
 
-test.describe.skip('Template Tax Rate Validation', () => {
+test.describe('Template Tax Rate Validation', () => {
   test('creator must select tax rate for paid registration option @templates @taxRates @track(playwright-specs-track-linking_20260126) @req(PAID-OPTION-REQUIRES-TAX-RATE-SPEC-01)', async ({
     page,
     templateCategories,

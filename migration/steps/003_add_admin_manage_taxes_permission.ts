@@ -4,9 +4,9 @@ import { and, eq, sql } from 'drizzle-orm';
 import { database } from '../../src/db';
 import * as schema from '../../src/db/schema';
 
-export const addAdminManageTaxesPermission = async (tenantId: string) => {
+export const addAdminTaxPermission = async (tenantId: string) => {
   consola.info(
-    `Adding admin:manageTaxes permission to admin roles for tenant ${tenantId}`,
+    `Adding admin:tax permission to admin roles for tenant ${tenantId}`,
   );
 
   try {
@@ -21,9 +21,9 @@ export const addAdminManageTaxesPermission = async (tenantId: string) => {
     for (const role of adminRoles) {
       const currentPermissions = role.permissions || [];
 
-      // Add 'admin:manageTaxes' if not already present
-      if (!currentPermissions.includes('admin:manageTaxes')) {
-        const updatedPermissions = [...currentPermissions, 'admin:manageTaxes'];
+      // Add 'admin:tax' if not already present
+      if (!currentPermissions.includes('admin:tax')) {
+        const updatedPermissions = [...currentPermissions, 'admin:tax'];
 
         await database
           .update(schema.roles)
@@ -31,20 +31,18 @@ export const addAdminManageTaxesPermission = async (tenantId: string) => {
           .where(eq(schema.roles.id, role.id));
 
         consola.info(
-          `Added admin:manageTaxes permission to role ${role.name} (${role.id})`,
+          `Added admin:tax permission to role ${role.name} (${role.id})`,
         );
       } else {
-        consola.info(
-          `Role ${role.name} already has admin:manageTaxes permission`,
-        );
+        consola.info(`Role ${role.name} already has admin:tax permission`);
       }
     }
 
     consola.success(
-      `Updated ${adminRoles.length} admin roles with manageTaxes permission`,
+      `Updated ${adminRoles.length} admin roles with tax permission`,
     );
   } catch (error) {
-    consola.error('Failed to add admin:manageTaxes permission:', error);
+    consola.error('Failed to add admin:tax permission:', error);
     throw error;
   }
 };

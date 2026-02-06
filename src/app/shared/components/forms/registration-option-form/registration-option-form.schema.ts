@@ -1,4 +1,10 @@
-import { hidden, min, required, schema, validate } from '@angular/forms/signals';
+import {
+  hidden,
+  min,
+  required,
+  schema,
+  validate,
+} from '@angular/forms/signals';
 import { hasTemporaryRichTextImageSources } from '@shared/utils/rich-text-media';
 import { DateTime } from 'luxon';
 

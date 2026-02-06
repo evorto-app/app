@@ -32,14 +32,8 @@ import { RegistrationMode } from '../shared/template-form/template-registration-
 
 const templateFormSchema = schema<TemplateFormData>((formPath) => {
   apply(formPath, templateGeneralFormSchema);
-  apply(
-    formPath.organizerRegistration,
-    templateRegistrationOptionFormSchema,
-  );
-  apply(
-    formPath.participantRegistration,
-    templateRegistrationOptionFormSchema,
-  );
+  apply(formPath.organizerRegistration, templateRegistrationOptionFormSchema);
+  apply(formPath.participantRegistration, templateRegistrationOptionFormSchema);
 });
 
 @Component({
