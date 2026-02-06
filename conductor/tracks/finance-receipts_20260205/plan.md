@@ -6,7 +6,7 @@
   - [x] Identify current receipt/expense concepts (if any)
   - [x] Identify transaction schema and linking patterns
   - [x] Identify permission system usage for finance actions
-- [x] Task: Design receipt/refund data model changes
+- [x] Task: Design receipt/refund data model changes [05bb914]
   - [x] Define receipt status lifecycle and required fields
   - [x] Define links between receipts, events, users, and transactions
   - [x] Define R2 original storage + Cloudflare Images preview metadata
@@ -21,11 +21,11 @@
   - [x] Add receipt tables/columns and relations
   - [x] Add status + audit fields
   - [x] Enforce single attachment per receipt
-- [x] Task: Implement API for receipt submission and retrieval
+- [x] Task: Implement API for receipt submission and retrieval [05bb914]
   - [x] Add Effect Schema inputs/outputs
   - [x] Add permission checks for submission
   - [x] Accept image or PDF attachment and store preview reference
-- [x] Task: Event organization UI - receipt list + add receipt flow
+- [x] Task: Event organization UI - receipt list + add receipt flow [05bb914]
   - [x] Add receipt list to existing event organization screen
   - [x] Add receipt submission form with required fields
   - [x] Integrate R2 upload + Cloudflare Images preview generation
