@@ -10,6 +10,7 @@ import { NonNullableFormBuilder } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import {
   buildSelectableReceiptCountries,
@@ -60,9 +61,23 @@ export class ReceiptApprovalDetailComponent {
       id: this.receiptId(),
     }),
   );
+  protected readonly isImagePreview = computed(() => {
+    const receipt = this.receiptQuery.data();
+    if (!receipt?.previewImageUrl) {
+      return false;
+    }
+    return receipt.attachmentMimeType.startsWith('image/');
+  });
+  protected readonly isPdfPreview = computed(() => {
+    const receipt = this.receiptQuery.data();
+    if (!receipt?.previewImageUrl) {
+      return false;
+    }
+    return receipt.attachmentMimeType === 'application/pdf';
+  });
+
   protected readonly rejectionReason = signal('');
   private readonly queryClient = inject(QueryClient);
-
   protected readonly reviewMutation = injectMutation(() =>
     this.trpc.finance.receipts.review.mutationOptions({
       onSuccess: async () => {
@@ -83,7 +98,18 @@ export class ReceiptApprovalDetailComponent {
       },
     }),
   );
+  private readonly sanitizer = inject(DomSanitizer);
+
+  protected readonly safePdfPreviewUrl = computed<null | SafeResourceUrl>(() => {
+    const receipt = this.receiptQuery.data();
+    if (!receipt?.previewImageUrl || receipt.attachmentMimeType !== 'application/pdf') {
+      return null;
+    }
+    return this.sanitizer.bypassSecurityTrustResourceUrl(receipt.previewImageUrl);
+  });
+
   private readonly notifications = inject(NotificationService);
+
   private readonly router = inject(Router);
 
   constructor() {

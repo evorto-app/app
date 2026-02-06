@@ -75,7 +75,10 @@
               <fa-icon [icon]="faStripe" size="2x"></fa-icon>
             }
             @case ("paypal") {
-              <fa-icon [icon]="faPaypal" size="2x"></fa-icon>
+              <fa-icon [icon]="faCcPaypal" size="2x"></fa-icon>
+            }
+            @case ("transfer") {
+              <fa-duotone-icon [icon]="faMoneyBillTransfer" size="2x"></fa-duotone-icon>
             }
             @default {
               {{ element.method }}

@@ -16,11 +16,28 @@
       <section class="bg-surface text-on-surface rounded-2xl p-4">
         <h2 class="title-medium mb-3">Receipt image</h2>
         @if (receipt.previewImageUrl) {
-          <img
-            [src]="receipt.previewImageUrl"
-            alt="Receipt preview"
-            class="max-h-[28rem] w-full rounded-xl object-contain"
-          />
+          @if (isImagePreview()) {
+            <img
+              [src]="receipt.previewImageUrl"
+              alt="Receipt preview"
+              class="max-h-[28rem] w-full rounded-xl object-contain"
+            />
+          } @else if (isPdfPreview()) {
+            <iframe
+              [src]="safePdfPreviewUrl()"
+              title="Receipt preview"
+              class="h-[28rem] w-full rounded-xl border border-outline-variant"
+            ></iframe>
+          } @else {
+            <a
+              class="inline-block text-sm underline"
+              [href]="receipt.previewImageUrl"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Open receipt file
+            </a>
+          }
         } @else {
           <div
             class="bg-surface-container text-on-surface-variant flex min-h-64 items-center justify-center rounded-xl p-4"

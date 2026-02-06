@@ -9,8 +9,11 @@ import {
   FaDuotoneIconComponent,
   FaIconComponent,
 } from '@fortawesome/angular-fontawesome';
-import { faEllipsisVertical } from '@fortawesome/duotone-regular-svg-icons';
-import { faPaypal, faStripe } from '@fortawesome/free-brands-svg-icons';
+import {
+  faEllipsisVertical,
+  faMoneyBillTransfer,
+} from '@fortawesome/duotone-regular-svg-icons';
+import { faCcPaypal, faStripe } from '@fortawesome/free-brands-svg-icons';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 import consola from 'consola/browser';
 
@@ -41,8 +44,9 @@ export class TransactionListComponent {
     'method',
     'comment',
   ]);
+  protected readonly faCcPaypal = faCcPaypal;
   protected readonly faEllipsisVertical = faEllipsisVertical;
-  protected readonly faPaypal = faPaypal;
+  protected readonly faMoneyBillTransfer = faMoneyBillTransfer;
   protected readonly faStripe = faStripe;
 
   private readonly filterInput = signal<{

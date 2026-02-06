@@ -8,6 +8,7 @@ import {
 } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
+import { MatDialog } from '@angular/material/dialog';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTableModule } from '@angular/material/table';
 import {
@@ -18,6 +19,7 @@ import {
 
 import { NotificationService } from '../../core/notification.service';
 import { injectTRPC } from '../../core/trpc-client';
+import { ReceiptPreviewDialogComponent } from '../shared/receipt-preview-dialog/receipt-preview-dialog.component';
 
 type PayoutType = 'iban' | 'paypal';
 
@@ -42,6 +44,7 @@ export class ReceiptRefundListComponent {
     'event',
     'receiptDate',
     'totalAmount',
+    'preview',
   ];
   private readonly trpc = injectTRPC();
   protected readonly refundableReceiptsQuery = injectQuery(() =>
@@ -64,6 +67,7 @@ export class ReceiptRefundListComponent {
       },
     }),
   );
+  private readonly dialog = inject(MatDialog);
   private readonly notifications = inject(NotificationService);
 
   private readonly payoutTypeByRecipient = signal<Record<string, PayoutType>>({});
@@ -124,6 +128,10 @@ export class ReceiptRefundListComponent {
     return this.payoutTypeByRecipient()[recipientId] ?? (payout.iban ? 'iban' : 'paypal');
   }
 
+  protected hasPreviewUrl(receipt: { previewImageUrl: null | string }): boolean {
+    return Boolean(receipt.previewImageUrl);
+  }
+
   protected isPartiallySelected(
     recipientId: string,
     receiptIds: readonly string[],
@@ -139,6 +147,27 @@ export class ReceiptRefundListComponent {
   protected isReceiptSelected(recipientId: string, receiptId: string): boolean {
     const selected = this.selectionByRecipient()[recipientId] ?? {};
     return Boolean(selected[receiptId]);
+  }
+
+  protected openPreviewDialog(receipt: {
+    attachmentFileName: string;
+    attachmentMimeType: string;
+    previewImageUrl: null | string;
+  }): void {
+    if (!receipt.previewImageUrl) {
+      this.notifications.showError('Preview is unavailable for this receipt');
+      return;
+    }
+
+    this.dialog.open(ReceiptPreviewDialogComponent, {
+      data: {
+        attachmentFileName: receipt.attachmentFileName,
+        mimeType: receipt.attachmentMimeType,
+        previewUrl: receipt.previewImageUrl,
+      },
+      maxWidth: '95vw',
+      width: '960px',
+    });
   }
 
   protected receiptIds(receipts: readonly { id: string }[]): string[] {

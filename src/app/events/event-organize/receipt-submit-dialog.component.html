@@ -6,6 +6,20 @@
       [selectableCountries]="selectableCountries"
     />
 
+    <mat-form-field>
+      <mat-label>Receipt name</mat-label>
+      <input
+        #attachmentNameInput
+        matInput
+        [value]="attachmentName()"
+        (input)="updateAttachmentName(attachmentNameInput.value)"
+        placeholder="Optional label for this receipt"
+      />
+      <mat-hint>
+        This name is shown in receipt and refund overviews.
+      </mat-hint>
+    </mat-form-field>
+
     <div class="bg-surface-container rounded-xl border border-dashed p-4">
       <p class="mb-2 font-medium">Receipt file</p>
       <p class="text-on-surface-variant mb-3 text-sm">

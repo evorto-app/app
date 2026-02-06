@@ -5,19 +5,19 @@ import {
   resolveReceiptCountrySettings,
 } from '@shared/finance/receipt-countries';
 import { TRPCError } from '@trpc/server';
+import consola from 'consola';
 import { and, count, desc, eq, inArray, not } from 'drizzle-orm';
 import { Schema } from 'effect';
 
 import { database } from '../../../db';
 import * as schema from '../../../db/schema';
+import { getSignedReceiptObjectUrlFromR2 } from '../../integrations/cloudflare-r2';
 import { authenticatedProcedure, router } from '../trpc-server';
 import { receiptMediaRouter } from './receipt-media.router';
 
 const receiptAttachmentSchema = Schema.Struct({
   fileName: Schema.NonEmptyString,
   mimeType: Schema.NonEmptyString,
-  previewImageId: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
-  previewImageUrl: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
   sizeBytes: Schema.Number.pipe(Schema.positive()),
   storageKey: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
   storageUrl: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
@@ -38,6 +38,7 @@ const financeReceiptView = {
   alcoholAmount: schema.financeReceipts.alcoholAmount,
   attachmentFileName: schema.financeReceipts.attachmentFileName,
   attachmentMimeType: schema.financeReceipts.attachmentMimeType,
+  attachmentStorageKey: schema.financeReceipts.attachmentStorageKey,
   createdAt: schema.financeReceipts.createdAt,
   depositAmount: schema.financeReceipts.depositAmount,
   eventId: schema.financeReceipts.eventId,
@@ -57,6 +58,47 @@ const financeReceiptView = {
   totalAmount: schema.financeReceipts.totalAmount,
   updatedAt: schema.financeReceipts.updatedAt,
 } as const;
+
+const RECEIPT_PREVIEW_SIGNED_URL_TTL_SECONDS = 60 * 15;
+
+interface ReceiptWithStoragePreview {
+  attachmentStorageKey: null | string;
+  id: string;
+  previewImageUrl: null | string;
+}
+
+const withSignedReceiptPreviewUrl = async <T extends ReceiptWithStoragePreview>(
+  receipt: T,
+): Promise<T> => {
+  if (!receipt.attachmentStorageKey) {
+    return {
+      ...receipt,
+      previewImageUrl: null,
+    };
+  }
+
+  try {
+    const signedPreviewUrl = await getSignedReceiptObjectUrlFromR2({
+      expiresInSeconds: RECEIPT_PREVIEW_SIGNED_URL_TTL_SECONDS,
+      key: receipt.attachmentStorageKey,
+    });
+    return {
+      ...receipt,
+      previewImageUrl: signedPreviewUrl,
+    };
+  } catch (error) {
+    consola.error('finance.receipt-preview.signing-failed', {
+      error,
+      key: receipt.attachmentStorageKey,
+      receiptId: receipt.id,
+    });
+
+    return {
+      ...receipt,
+      previewImageUrl: null,
+    };
+  }
+};
 
 const isAllowedReceiptMimeType = (mimeType: string): boolean =>
   mimeType.startsWith('image/') || mimeType === 'application/pdf';
@@ -182,7 +224,7 @@ export const financeRouter = router({
           });
         }
 
-        return database
+        const receipts = await database
           .select({
             ...financeReceiptView,
             submittedByEmail: schema.users.email,
@@ -201,6 +243,10 @@ export const financeRouter = router({
             ),
           )
           .orderBy(desc(schema.financeReceipts.createdAt));
+
+        return Promise.all(
+          receipts.map((receipt) => withSignedReceiptPreviewUrl(receipt)),
+        );
       }),
 
     createRefund: authenticatedProcedure
@@ -367,7 +413,7 @@ export const financeRouter = router({
           });
         }
 
-        return receipt;
+        return withSignedReceiptPreviewUrl(receipt);
       }),
 
     my: authenticatedProcedure.query(async ({ ctx }) => {
@@ -485,6 +531,10 @@ export const financeRouter = router({
             desc(schema.financeReceipts.createdAt),
           );
 
+        const signedApprovedReceipts = await Promise.all(
+          approvedReceipts.map((receipt) => withSignedReceiptPreviewUrl(receipt)),
+        );
+
         const groupedByUser = new Map<
           string,
           {
@@ -501,7 +551,7 @@ export const financeRouter = router({
           }
         >();
 
-        for (const receipt of approvedReceipts) {
+        for (const receipt of signedApprovedReceipts) {
           const existing = groupedByUser.get(receipt.submittedByUserId);
           if (existing) {
             existing.receipts.push(receipt);
@@ -686,8 +736,6 @@ export const financeRouter = router({
             eventId: input.eventId,
             hasAlcohol: input.fields.hasAlcohol,
             hasDeposit: input.fields.hasDeposit,
-            previewImageId: input.attachment.previewImageId ?? null,
-            previewImageUrl: input.attachment.previewImageUrl ?? null,
             purchaseCountry,
             receiptDate: input.fields.receiptDate,
             status: 'submitted',

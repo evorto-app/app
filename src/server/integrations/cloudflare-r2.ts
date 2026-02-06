@@ -1,4 +1,5 @@
-import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 const resolveCloudflareR2Config = (): {
   bucket: string;
@@ -55,4 +56,24 @@ export const uploadReceiptOriginalToR2 = async (input: {
     storageKey: input.key,
     storageUrl: `${config.endpoint.replace(/\/$/, '')}/${config.bucket}/${input.key}`,
   };
+};
+
+export const getSignedReceiptObjectUrlFromR2 = async (input: {
+  expiresInSeconds?: number;
+  key: string;
+}): Promise<string> => {
+  const config = resolveCloudflareR2Config();
+  const client = buildS3Client(config);
+
+  return getSignedUrl(
+    client,
+    new GetObjectCommand({
+      Bucket: config.bucket,
+      Key: input.key,
+      ResponseContentDisposition: 'inline',
+    }),
+    {
+      expiresIn: input.expiresInSeconds ?? 60 * 15,
+    },
+  );
 };

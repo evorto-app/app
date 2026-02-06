@@ -136,12 +136,8 @@ export class EventOrganize {
   private readonly config = inject(ConfigService);
 
   private readonly dialog = inject(MatDialog);
-  private pdfWorkerConfigured = false;
   private readonly receiptOriginalUploadMutation = injectMutation(() =>
     this.trpc.finance.receiptMedia.uploadOriginal.mutationOptions(),
-  );
-  private readonly receiptPreviewUploadInitMutation = injectMutation(() =>
-    this.trpc.finance.receiptMedia.createPreviewDirectUpload.mutationOptions(),
   );
 
   constructor() {
@@ -177,7 +173,10 @@ export class EventOrganize {
     }
 
     try {
-      const attachment = await this.prepareAttachment(result.file);
+      const attachment = await this.prepareAttachment(
+        result.file,
+        result.attachmentName,
+      );
 
       this.submitReceiptMutation.mutate({
         attachment,
@@ -201,66 +200,12 @@ export class EventOrganize {
     row: { type?: string },
   ) => row?.type === 'Registration Option';
 
-  private async createPdfPreviewImage(file: File): Promise<File> {
-    const pdfJs = await import('pdfjs-dist');
-    if (!this.pdfWorkerConfigured) {
-      pdfJs.GlobalWorkerOptions.workerSrc = new URL(
-        'pdfjs-dist/build/pdf.worker.mjs',
-        import.meta.url,
-      ).toString();
-      this.pdfWorkerConfigured = true;
-    }
-
-    const loadingTask = pdfJs.getDocument({ data: await file.arrayBuffer() });
-    const pdfDocument = await loadingTask.promise;
-    const page = await pdfDocument.getPage(1);
-    const viewport = page.getViewport({ scale: 1.5 });
-
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.ceil(viewport.width);
-    canvas.height = Math.ceil(viewport.height);
-
-    const canvasContext = canvas.getContext('2d');
-    if (!canvasContext) {
-      throw new Error('Failed to create PDF preview context');
-    }
-
-    await page.render({ canvas, canvasContext, viewport }).promise;
-    const previewBlob = await new Promise<Blob | null>((resolve) =>
-      canvas.toBlob(resolve, 'image/jpeg', 0.85),
-    );
-    if (!previewBlob) {
-      throw new Error('Failed to render PDF preview');
-    }
-
-    const baseName = file.name.replace(/\.pdf$/iu, '');
-    return new File([previewBlob], `${baseName}-preview.jpg`, {
-      type: 'image/jpeg',
-    });
-  }
-
-  private async prepareAttachment(file: File) {
+  private async prepareAttachment(file: File, attachmentName: string) {
     const originalUpload = await this.uploadReceiptOriginal(file);
 
-    let previewUpload:
-      | null
-      | {
-          deliveryUrl: string;
-          imageId: string;
-        } = null;
-
-    if (file.type.startsWith('image/')) {
-      previewUpload = await this.uploadPreviewImage(file);
-    } else if (file.type === 'application/pdf') {
-      const previewFile = await this.createPdfPreviewImage(file);
-      previewUpload = await this.uploadPreviewImage(previewFile);
-    }
-
     return {
-      fileName: file.name,
+      fileName: attachmentName,
       mimeType: file.type,
-      previewImageId: previewUpload?.imageId ?? null,
-      previewImageUrl: previewUpload?.deliveryUrl ?? null,
       sizeBytes: originalUpload.sizeBytes,
       storageKey: originalUpload.storageKey,
       storageUrl: originalUpload.storageUrl,
@@ -287,35 +232,6 @@ export class EventOrganize {
       });
       reader.readAsDataURL(file);
     });
-  }
-
-  private async uploadPreviewImage(file: File): Promise<{
-    deliveryUrl: string;
-    imageId: string;
-  }> {
-    const uploadInit = await this.receiptPreviewUploadInitMutation.mutateAsync({
-      fileName: file.name,
-      fileSizeBytes: file.size,
-      mimeType: file.type,
-    });
-
-    const uploadBody = new FormData();
-    uploadBody.append('file', file);
-    const uploadResponse = await fetch(uploadInit.uploadUrl, {
-      body: uploadBody,
-      method: 'POST',
-    });
-
-    if (!uploadResponse.ok) {
-      throw new Error(
-        `Preview upload failed with status ${uploadResponse.status}`,
-      );
-    }
-
-    return {
-      deliveryUrl: uploadInit.deliveryUrl,
-      imageId: uploadInit.imageId,
-    };
   }
 
   private async uploadReceiptOriginal(file: File): Promise<{

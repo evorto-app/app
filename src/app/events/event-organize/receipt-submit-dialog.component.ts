@@ -14,11 +14,14 @@ import {
   MatDialogRef,
   MatDialogTitle,
 } from '@angular/material/dialog';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
 
 import { ReceiptFormFieldsComponent } from '../../finance/shared/receipt-form/receipt-form-fields.component';
 import { createReceiptForm } from '../../finance/shared/receipt-form/receipt-form.model';
 
 export interface ReceiptSubmitDialogResult {
+  attachmentName: string;
   fields: {
     alcoholAmount: number;
     depositAmount: number;
@@ -40,6 +43,8 @@ export interface ReceiptSubmitDialogResult {
     MatDialogClose,
     MatDialogContent,
     MatDialogTitle,
+    MatFormFieldModule,
+    MatInputModule,
     ReceiptFormFieldsComponent,
   ],
   selector: 'app-receipt-submit-dialog',
@@ -47,19 +52,19 @@ export interface ReceiptSubmitDialogResult {
   templateUrl: './receipt-submit-dialog.component.html',
 })
 export class ReceiptSubmitDialogComponent {
+  protected readonly attachmentName = signal('');
   protected readonly data = inject(MAT_DIALOG_DATA) as {
     countries: string[];
     defaultCountry: string;
   };
   protected readonly errorMessage = signal('');
-
   protected readonly file = signal<File | null>(null);
+  protected readonly formBuilder = inject(NonNullableFormBuilder);
   protected readonly selectableCountries = [...this.data.countries];
   private readonly defaultCountry =
     this.selectableCountries.find((country) => country === this.data.defaultCountry) ??
     this.selectableCountries[0] ??
     'DE';
-  private readonly formBuilder = inject(NonNullableFormBuilder);
   protected readonly form = createReceiptForm(this.formBuilder, this.defaultCountry);
   private readonly dialogRef = inject(
     MatDialogRef<ReceiptSubmitDialogComponent, ReceiptSubmitDialogResult>,
@@ -85,6 +90,12 @@ export class ReceiptSubmitDialogComponent {
     const selectedFile = target?.files?.[0] ?? null;
     this.file.set(selectedFile);
     this.errorMessage.set('');
+    if (
+      selectedFile &&
+      this.attachmentName().trim().length === 0
+    ) {
+      this.attachmentName.set(selectedFile.name);
+    }
   }
 
   protected async onSubmit(event: Event): Promise<void> {
@@ -133,7 +144,10 @@ export class ReceiptSubmitDialogComponent {
       return;
     }
 
+    const attachmentName = this.attachmentName().trim() || selectedFile.name;
+
     this.dialogRef.close({
+      attachmentName,
       fields: {
         alcoholAmount,
         depositAmount,
@@ -146,5 +160,9 @@ export class ReceiptSubmitDialogComponent {
       },
       file: selectedFile,
     });
+  }
+
+  protected updateAttachmentName(value: string): void {
+    this.attachmentName.set(value);
   }
 }
