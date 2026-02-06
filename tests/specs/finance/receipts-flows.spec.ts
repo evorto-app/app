@@ -70,15 +70,40 @@ test('approve and refund receipts in finance @track(finance-receipts_20260205) @
   if (await page.getByText('No approved receipts are waiting for refund.').isVisible()) {
     return;
   }
-  await expect(page.locator('table[mat-table]')).toBeVisible();
-  const rowCheckboxes = page.locator('tr.mat-mdc-row input[type="checkbox"]');
-  const rowCount = await rowCheckboxes.count();
-  if (rowCount === 0) {
+
+  const refundSections = page.locator('section', {
+    has: page.getByRole('button', { name: 'Issue refund' }),
+  });
+  const sectionCount = await refundSections.count();
+  let refundTriggered = false;
+
+  for (let index = 0; index < sectionCount; index += 1) {
+    const section = refundSections.nth(index);
+    const table = section.locator('table[mat-table]');
+    if ((await table.count()) === 0) {
+      continue;
+    }
+    await expect(table.first()).toBeVisible();
+
+    const rowCheckboxes = section.locator('tr.mat-mdc-row input[type="checkbox"]');
+    if ((await rowCheckboxes.count()) === 0) {
+      continue;
+    }
+
+    await rowCheckboxes.first().check();
+
+    const issueRefundButton = section.getByRole('button', { name: 'Issue refund' });
+    if (await issueRefundButton.isEnabled()) {
+      await issueRefundButton.click();
+      refundTriggered = true;
+      break;
+    }
+  }
+
+  if (!refundTriggered) {
     return;
   }
-  const firstCheckbox = rowCheckboxes.first();
-  await firstCheckbox.check();
-  await page.getByRole('button', { name: 'Issue refund' }).first().click();
+
   await expect(page.getByText('Selected total: 0.00 €').first()).toBeVisible();
 });
 

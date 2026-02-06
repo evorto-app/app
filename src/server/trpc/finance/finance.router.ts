@@ -161,20 +161,11 @@ const validateReceiptCountryForTenant = (
   return normalizedCountry;
 };
 
-const canManageEventReceipts = async (
+const hasOrganizingRegistrationForEvent = async (
   tenantId: string,
   user: { id: string; permissions: readonly string[] },
   eventId: string,
 ): Promise<boolean> => {
-  if (
-    user.permissions.includes('events:organizeAll') ||
-    user.permissions.includes('finance:manageReceipts') ||
-    user.permissions.includes('finance:approveReceipts') ||
-    user.permissions.includes('finance:refundReceipts')
-  ) {
-    return true;
-  }
-
   const organizerRegistration = await database
     .select({ id: schema.eventRegistrations.id })
     .from(schema.eventRegistrations)
@@ -199,6 +190,38 @@ const canManageEventReceipts = async (
   return organizerRegistration.length > 0;
 };
 
+const canViewEventReceipts = async (
+  tenantId: string,
+  user: { id: string; permissions: readonly string[] },
+  eventId: string,
+): Promise<boolean> => {
+  if (
+    user.permissions.includes('events:organizeAll') ||
+    user.permissions.includes('finance:manageReceipts') ||
+    user.permissions.includes('finance:approveReceipts') ||
+    user.permissions.includes('finance:refundReceipts')
+  ) {
+    return true;
+  }
+
+  return hasOrganizingRegistrationForEvent(tenantId, user, eventId);
+};
+
+const canSubmitEventReceipts = async (
+  tenantId: string,
+  user: { id: string; permissions: readonly string[] },
+  eventId: string,
+): Promise<boolean> => {
+  if (
+    user.permissions.includes('events:organizeAll') ||
+    user.permissions.includes('finance:manageReceipts')
+  ) {
+    return true;
+  }
+
+  return hasOrganizingRegistrationForEvent(tenantId, user, eventId);
+};
+
 export const financeRouter = router({
   receiptMedia: receiptMediaRouter,
   receipts: router({
@@ -211,13 +234,13 @@ export const financeRouter = router({
         ),
       )
       .query(async ({ ctx, input }) => {
-        const canManage = await canManageEventReceipts(
+        const canView = await canViewEventReceipts(
           ctx.tenant.id,
           ctx.user,
           input.eventId,
         );
 
-        if (!canManage) {
+        if (!canView) {
           throw new TRPCError({
             code: 'FORBIDDEN',
             message: 'You do not have permission to view receipts for this event',
@@ -324,6 +347,21 @@ export const financeRouter = router({
           });
         }
 
+        const expectedPayoutReference =
+          input.payoutType === 'paypal' ? payoutUser.paypalEmail : payoutUser.iban;
+        if (!expectedPayoutReference) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'Recipient payout details are incomplete',
+          });
+        }
+        if (input.payoutReference !== expectedPayoutReference) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'Payout reference does not match recipient payout details',
+          });
+        }
+
         const totalAmount = receipts.reduce(
           (sum, receipt) => sum + receipt.totalAmount,
           0,
@@ -331,37 +369,53 @@ export const financeRouter = router({
         const uniqueEventIds = [...new Set(receipts.map((r) => r.eventId))];
         const eventId = uniqueEventIds.length === 1 ? uniqueEventIds[0] : null;
 
-        const [transaction] = await database
-          .insert(schema.transactions)
-          .values({
-            amount: -Math.abs(totalAmount),
-            comment: `Receipt refund (${input.payoutType} ${input.payoutReference}) for ${receipts.length} receipt(s) across events: ${uniqueEventIds.join(', ')}`,
-            currency: ctx.tenant.currency,
-            eventId,
-            executiveUserId: ctx.user.id,
-            manuallyCreated: true,
-            method: input.payoutType === 'paypal' ? 'paypal' : 'transfer',
-            status: 'successful',
-            targetUserId,
-            tenantId: ctx.tenant.id,
-            type: 'refund',
-          })
-          .returning();
+        const transaction = await database.transaction(async (tx) => {
+          const [createdTransaction] = await tx
+            .insert(schema.transactions)
+            .values({
+              amount: -Math.abs(totalAmount),
+              comment: `Receipt refund (${input.payoutType} ${expectedPayoutReference}) for ${receipts.length} receipt(s) across events: ${uniqueEventIds.join(', ')}`,
+              currency: ctx.tenant.currency,
+              eventId,
+              executiveUserId: ctx.user.id,
+              manuallyCreated: true,
+              method: input.payoutType === 'paypal' ? 'paypal' : 'transfer',
+              status: 'successful',
+              targetUserId,
+              tenantId: ctx.tenant.id,
+              type: 'refund',
+            })
+            .returning();
 
-        await database
-          .update(schema.financeReceipts)
-          .set({
-            refundedAt: new Date(),
-            refundedByUserId: ctx.user.id,
-            refundTransactionId: transaction.id,
-            status: 'refunded',
-          })
-          .where(
-            and(
-              eq(schema.financeReceipts.tenantId, ctx.tenant.id),
-              inArray(schema.financeReceipts.id, input.receiptIds),
-            ),
-          );
+          const updatedReceipts = await tx
+            .update(schema.financeReceipts)
+            .set({
+              refundedAt: new Date(),
+              refundedByUserId: ctx.user.id,
+              refundTransactionId: createdTransaction.id,
+              status: 'refunded',
+            })
+            .where(
+              and(
+                eq(schema.financeReceipts.tenantId, ctx.tenant.id),
+                inArray(schema.financeReceipts.id, input.receiptIds),
+                eq(schema.financeReceipts.status, 'approved'),
+                eq(schema.financeReceipts.submittedByUserId, targetUserId),
+              ),
+            )
+            .returning({
+              id: schema.financeReceipts.id,
+            });
+
+          if (updatedReceipts.length !== input.receiptIds.length) {
+            throw new TRPCError({
+              code: 'BAD_REQUEST',
+              message: 'Only approved receipts can be refunded',
+            });
+          }
+
+          return createdTransaction;
+        });
 
         return {
           receiptCount: receipts.length,
@@ -674,13 +728,13 @@ export const financeRouter = router({
         ),
       )
       .mutation(async ({ ctx, input }) => {
-        const canManage = await canManageEventReceipts(
+        const canSubmit = await canSubmitEventReceipts(
           ctx.tenant.id,
           ctx.user,
           input.eventId,
         );
 
-        if (!canManage) {
+        if (!canSubmit) {
           throw new TRPCError({
             code: 'FORBIDDEN',
             message: 'You do not have permission to submit receipts for this event',

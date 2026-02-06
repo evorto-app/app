@@ -9,7 +9,9 @@ Enable event organizers to submit receipt photos and metadata for event expenses
 - Receipt submission
   - Allow submission for:
     - Users with an organizing registration on the event.
-    - Users with `receipt.manage`.
+    - Users with `finance:manageReceipts`.
+  - Do not allow receipt submission solely via `finance:approveReceipts` or
+    `finance:refundReceipts`.
   - Capture required fields per receipt:
     - Receipt attachment (image or PDF).
     - Receipt date.
