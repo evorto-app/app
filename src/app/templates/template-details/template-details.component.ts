@@ -7,7 +7,6 @@ import {
 } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatChipsModule } from '@angular/material/chips';
-import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
 import { RouterLink, RouterModule } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
@@ -16,6 +15,7 @@ import {
   faClock,
   faClockFour,
   faEllipsisVertical,
+  faPlus,
 } from '@fortawesome/duotone-regular-svg-icons';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
@@ -30,7 +30,6 @@ import { RegistrationStartOffsetPipe } from '../../shared/pipes/registration-sta
     MatButtonModule,
     RouterLink,
     FontAwesomeModule,
-    MatIconModule,
     MatMenuModule,
     CurrencyPipe,
     TitleCasePipe,
@@ -46,6 +45,7 @@ export class TemplateDetailsComponent {
   protected readonly faClock = faClock;
   protected readonly faClockFour = faClockFour;
   protected readonly faEllipsisVertical = faEllipsisVertical;
+  protected readonly faPlus = faPlus;
 
   private trpc = injectTRPC();
   protected readonly taxRatesQuery = injectQuery(() =>

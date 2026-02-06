@@ -26,7 +26,7 @@
   <p>Error: {{ templateQuery.error().message }}</p>
 } @else if (templateQuery.isSuccess()) {
   <a mat-fab extended routerLink="create-event" class="fab-fixed">
-    <mat-icon svgIcon="faPlus"></mat-icon>
+    <fa-duotone-icon [icon]="faPlus"></fa-duotone-icon>
     Create event
   </a>
 

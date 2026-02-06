@@ -1,3 +1,4 @@
+import { TRPCError } from '@trpc/server';
 import { eq } from 'drizzle-orm';
 import { Schema } from 'effect';
 
@@ -20,7 +21,7 @@ export const tenantRouter = router({
     }),
 
   importStripeTaxRates: authenticatedProcedure
-    .meta({ requiredPermissions: ['admin:manageTaxes'] })
+    .meta({ requiredPermissions: ['admin:tax'] })
     .input(
       Schema.standardSchemaV1(
         Schema.Struct({ ids: Schema.Array(Schema.NonEmptyString) }),
@@ -33,6 +34,12 @@ export const tenantRouter = router({
         const r = await stripe.taxRates.retrieve(id, undefined, {
           stripeAccount,
         });
+        if (!r.inclusive) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: `Tax rate ${id} is not inclusive and cannot be imported`,
+          });
+        }
         const existing = await database.query.tenantStripeTaxRates.findFirst({
           where: {
             stripeTaxRateId: id,
@@ -59,7 +66,7 @@ export const tenantRouter = router({
     }),
 
   listImportedTaxRates: authenticatedProcedure
-    .meta({ requiredPermissions: ['admin:manageTaxes'] })
+    .meta({ requiredPermissions: ['admin:tax'] })
     .query(async ({ ctx }) => {
       return database.query.tenantStripeTaxRates.findMany({
         where: { tenantId: ctx.tenant.id },
@@ -67,7 +74,7 @@ export const tenantRouter = router({
     }),
 
   listStripeTaxRates: authenticatedProcedure
-    .meta({ requiredPermissions: ['admin:manageTaxes'] })
+    .meta({ requiredPermissions: ['admin:tax'] })
     .query(async ({ ctx }) => {
       const stripeAccount = ctx.tenant.stripeAccountId;
       if (!stripeAccount) {

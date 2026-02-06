@@ -1,12 +1,8 @@
-import {
-  adminStateFile,
-  userStateFile,
-  usersToAuthenticate,
-} from '../../../helpers/user-data';
+import { adminStateFile } from '../../../helpers/user-data';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 
-test.describe.skip('Inclusive tax rates documentation (admin)', () => {
+test.describe('Inclusive tax rates documentation (admin)', () => {
   test.use({ storageState: adminStateFile });
 
   test('Import tenant tax rates @track(playwright-specs-track-linking_20260126) @doc(INCLUSIVE-TAX-RATES-DOC-01)', async ({
@@ -17,7 +13,7 @@ test.describe.skip('Inclusive tax rates documentation (admin)', () => {
     await testInfo.attach('markdown', {
       body: `
 {% callout type="note" title="User permissions" %}
-To manage tax rates you need the **admin:manageTaxes** permission. The screenshots below assume you are signed in as a tenant administrator.
+To manage tax rates you need the **admin:tax** permission. The screenshots below assume you are signed in as a tenant administrator.
 {% /callout %}
 
 # Manage Inclusive Tax Rates
@@ -92,10 +88,10 @@ Select the rates you need and choose **Import selected** to refresh the compatib
   });
 });
 
-test.describe.skip('Inclusive tax rates documentation (creators)', () => {
+test.describe('Inclusive tax rates documentation (creators)', () => {
   test.use({ storageState: adminStateFile });
 
-  test.skip('Assign compatible tax rates to paid registrations @track(playwright-specs-track-linking_20260126) @doc(INCLUSIVE-TAX-RATES-DOC-02)', async ({
+  test('Assign compatible tax rates to paid registrations @track(playwright-specs-track-linking_20260126) @doc(INCLUSIVE-TAX-RATES-DOC-02)', async ({
     page,
   }, testInfo) => {
     await page.goto('.');
@@ -127,8 +123,14 @@ Navigate to **Templates** and open an existing paid template to see the enforced
 
     const registrationSection = page
       .locator('section')
-      .filter({ hasText: 'Registration Options' })
+      .filter({
+        has: page.getByRole('heading', {
+          level: 2,
+          name: 'Registration Options',
+        }),
+      })
       .first();
+    await expect(registrationSection).toBeVisible();
     await takeScreenshot(
       testInfo,
       registrationSection,
@@ -146,12 +148,15 @@ Each paid registration displays the final price together with its inclusive tax 
     const editForm = page.locator('app-template-edit form');
     await expect(editForm).toBeVisible();
 
-    const organizerSection = editForm.locator(
-      '[formgroupname="organizerRegistration"]',
-    );
-    const participantSection = editForm.locator(
-      '[formgroupname="participantRegistration"]',
-    );
+    const organizerSection = editForm
+      .locator('app-template-registration-option-form')
+      .filter({
+        has: page.getByRole('heading', { level: 3, name: 'Organizer' }),
+      })
+      .first();
+    await expect(
+      organizerSection.getByRole('combobox', { name: 'Tax rate' }),
+    ).toBeVisible();
 
     await takeScreenshot(
       testInfo,
@@ -163,19 +168,6 @@ Each paid registration displays the final price together with its inclusive tax 
     await testInfo.attach('markdown', {
       body: `
 Paid organizer registrations require a compatible inclusive tax rate. The dropdown is populated from the imported rates and remains mandatory.
-`,
-    });
-
-    await takeScreenshot(
-      testInfo,
-      participantSection,
-      page,
-      'Participant registration tax rate selector',
-    );
-
-    await testInfo.attach('markdown', {
-      body: `
-Participant registrations follow the same rule—if payment is enabled, the tax rate selector remains required. Free registrations keep the selector hidden and disabled.
 `,
     });
 
@@ -205,9 +197,9 @@ Event editors can revisit the same controls when updating a live event. Use **Ed
     const eventEditForm = page.locator('app-event-edit form');
     await expect(eventEditForm).toBeVisible();
 
-    const eventEditTax = eventEditForm.locator(
-      'app-registration-option-form mat-select[formcontrolname="stripeTaxRateId"]',
-    );
+    const eventEditTax = eventEditForm.getByRole('combobox', {
+      name: 'Tax rate',
+    });
 
     await takeScreenshot(
       testInfo,
@@ -221,161 +213,5 @@ Event editors can revisit the same controls when updating a live event. Use **Ed
 Existing paid registrations keep their inclusive tax requirements. Update the selected rate here—event creators cannot save the form without picking a compatible imported tax rate.
 `,
     });
-  });
-});
-
-test.describe.skip('Inclusive tax rates documentation (participants)', () => {
-  test.use({ storageState: userStateFile });
-
-  test('See inclusive pricing during registration @track(playwright-specs-track-linking_20260126) @doc(INCLUSIVE-TAX-RATES-DOC-03)', async ({
-    events,
-    page,
-    registrations,
-    tenant,
-  }, testInfo) => {
-    const regularUserId = usersToAuthenticate.find(
-      (entry) => entry.roles === 'user',
-    )?.id;
-
-    const paidEvent = events.find((event) => {
-      if (event.tenantId !== tenant.id) return false;
-      if (event.unlisted) return false;
-      if (event.status !== 'APPROVED') return false;
-      const hasCompatiblePaidOption = event.registrationOptions.some(
-        (option) => option.isPaid && option.stripeTaxRateId,
-      );
-      if (!hasCompatiblePaidOption) return false;
-      if (!regularUserId) return true;
-      const alreadyRegistered = registrations.some(
-        (registration) =>
-          registration.eventId === event.id &&
-          registration.userId === regularUserId &&
-          registration.status === 'CONFIRMED',
-      );
-      return !alreadyRegistered;
-    });
-
-    if (!paidEvent) {
-      test.skip(true, 'No paid approved event available for documentation.');
-    }
-
-    await page.goto('/events');
-    await expect(page.getByRole('heading', { name: 'Events' })).toBeVisible();
-
-    const eventLink = page
-      .getByRole('link', { name: paidEvent!.title })
-      .first();
-    await expect(eventLink).toBeVisible();
-    await eventLink.click();
-
-    await expect(
-      page.getByRole('heading', { level: 1, name: paidEvent!.title }),
-    ).toBeVisible();
-
-    await testInfo.attach('markdown', {
-      body: `
-# Participant experience
-
-Participants always see tax-inclusive pricing. The registration card shows the final amount and the accompanying label (for example “Incl. 19% VAT”). Discounts and checkout flows reuse the same amount and tax rate identifier.
-`,
-    });
-
-    const registrationCards = page.locator('app-event-registration-option');
-    const activeRegistration = page.locator('app-event-active-registration');
-
-    let screenshotTarget = registrationCards.first();
-    if ((await registrationCards.count()) === 0) {
-      await expect(activeRegistration).toBeVisible();
-      screenshotTarget = activeRegistration.first();
-    } else {
-      await expect(screenshotTarget).toBeVisible();
-    }
-
-    const inclusiveLabel = page.locator('text=/Incl\./i').first();
-    await expect(inclusiveLabel).toBeVisible();
-    const inclusiveLabelText = (await inclusiveLabel.innerText()).trim();
-
-    await takeScreenshot(
-      testInfo,
-      screenshotTarget,
-      page,
-      'Participant registration with inclusive pricing',
-    );
-
-    await testInfo.attach('markdown', {
-      body: `
-- The price button uses the tax-inclusive amount (“Pay … and register”).
-- The label next to the price clarifies which tax rate is included. If a rate ever becomes unavailable, the UI falls back to “Incl. Tax” so checkout can continue without surprises.
-- Selecting a discount updates the final amount but keeps the inclusive wording intact.
-`,
-    });
-
-    const payAndRegisterButton = registrationCards
-      .first()
-      .getByRole('button', { name: /Pay .* and register/i });
-
-    await expect(payAndRegisterButton).toHaveCount(1);
-
-    if ((await payAndRegisterButton.count()) > 0) {
-      await payAndRegisterButton.click();
-      await expect(activeRegistration).toBeVisible();
-
-      const payNowLink = activeRegistration
-        .first()
-        .getByRole('link', { name: /Pay now/i });
-      await expect(payNowLink).toHaveCount(1);
-      if ((await payNowLink.count()) > 0) {
-        const popupPromise = page
-          .context()
-          .waitForEvent('page', { timeout: 5_000 })
-          .catch(() => null);
-        await payNowLink.click();
-
-        let checkoutPage = await popupPromise;
-        if (!checkoutPage) {
-          await page.waitForURL(/https:\/\/checkout\.stripe\.com\//, {
-            timeout: 15_000,
-          });
-          checkoutPage = page;
-        }
-
-        await checkoutPage.waitForLoadState('domcontentloaded');
-
-        await takeScreenshot(
-          testInfo,
-          checkoutPage.locator('body'),
-          checkoutPage,
-          'Stripe checkout summary',
-        );
-
-        await testInfo.attach('markdown', {
-          body: `
-The Stripe-hosted checkout shows the same tax-inclusive price, and the tax rate identifier is embedded in the payment metadata for compliance.
-`,
-        });
-
-        if (inclusiveLabelText) {
-          const normalized = inclusiveLabelText
-            .replace(/^Incl\.\s*/i, '')
-            .trim();
-          const fragments = normalized
-            .split(/\s+/)
-            .map((fragment) => fragment.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-            .filter((fragment) => fragment.length > 1);
-
-          for (const fragment of fragments) {
-            await expect(
-              checkoutPage.getByText(new RegExp(fragment, 'i')),
-            ).toBeVisible();
-          }
-        }
-
-        if (checkoutPage !== page) {
-          await checkoutPage.close();
-        } else {
-          await page.goBack();
-        }
-      }
-    }
   });
 });

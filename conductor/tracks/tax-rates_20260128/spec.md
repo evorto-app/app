@@ -45,6 +45,35 @@ Enable admins (or users with `admin:tax`) to manage tenant tax rates in a read-o
 - Registration records include tax_rate_id + snapshot fields.
 - Existing implementation is reviewed and aligned to this spec.
 
+## Requirement to Implementation Mapping (2026-02-06)
+
+- Permissions and access (`admin:tax`):
+  - `src/app/admin/admin.routes.ts`
+  - `src/server/trpc/admin/tenant.router.ts`
+  - Backward compatibility for legacy role data:
+    - `src/server/middleware/user-context.ts`
+    - `src/app/core/permissions.service.ts`
+    - `src/shared/permissions/permissions.ts`
+- Explicit sync and read-only behavior:
+  - Explicit user-triggered sync action:
+    - `src/app/admin/components/import-tax-rates-dialog/import-tax-rates-dialog.component.ts`
+  - Server-side rejection of non-inclusive tax rates:
+    - `src/server/trpc/admin/tenant.router.ts`
+- Event pricing UX and validation:
+  - Paid-only tax-rate requirement in event form schema:
+    - `src/app/shared/components/forms/registration-option-form/registration-option-form.schema.ts`
+  - Inclusive active rate selection source:
+    - `src/server/trpc/tax-rates/tax-rates.router.ts`
+- Payments and registration persistence:
+  - Stripe checkout forwards selected tax rate:
+    - `src/server/trpc/events/register-for-event.procedure.ts`
+  - Registration snapshot persistence fields:
+    - `src/db/schema/event-registrations.ts`
+    - `src/server/trpc/events/register-for-event.procedure.ts`
+- Release and migration notes:
+  - `.changeset/tax-rates-track-alignment.md`
+  - `migration/steps/003_add_admin_manage_taxes_permission.ts`
+
 ## Out of Scope
 
 - Creating or editing tax rates in Evorto.

@@ -1,4 +1,4 @@
-import { iconSchema, type IconValue } from '@shared/types/icon';
+import { iconSchema } from '@shared/types/icon';
 import { and, eq } from 'drizzle-orm';
 import { Schema } from 'effect';
 

@@ -2,7 +2,18 @@ import { uniq } from 'es-toolkit';
 import { NextFunction, Request, Response } from 'express';
 
 import { getUser, userAttributes } from '../../db';
-import { ALL_PERMISSIONS } from '../../shared/permissions/permissions';
+import {
+  ALL_PERMISSIONS,
+  type Permission,
+} from '../../shared/permissions/permissions';
+
+const normalizePermission = (permission: Permission): Permission[] => {
+  if (permission === 'admin:manageTaxes') {
+    return ['admin:manageTaxes', 'admin:tax'];
+  }
+
+  return [permission];
+};
 
 export const addUserContext = async (
   request: Request,
@@ -21,8 +32,8 @@ export const addUserContext = async (
     });
     if (user) {
       const appMetadata = request.oidc.user?.['evorto.app/app_metadata'];
-      const permissions = appMetadata?.globalAdmin
-        ? ([...ALL_PERMISSIONS, 'globalAdmin:manageTenants'] as const)
+      const permissions: Permission[] = appMetadata?.globalAdmin
+        ? [...ALL_PERMISSIONS, 'globalAdmin:manageTenants']
         : user.tenantAssignments
             .flatMap((assignment) => assignment.roles)
             .flatMap((role) => role.permissions);
@@ -43,7 +54,9 @@ export const addUserContext = async (
       request.user = {
         ...user,
         attributes,
-        permissions: uniq(permissions),
+        permissions: uniq(
+          permissions.flatMap((permission) => normalizePermission(permission)),
+        ),
         roleIds,
       };
     }

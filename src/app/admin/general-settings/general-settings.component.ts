@@ -9,8 +9,6 @@ import { computed } from '@angular/core';
 import { form, FormField, submit } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
-import { MatChipsModule } from '@angular/material/chips';
-import { MatDialog } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
@@ -28,7 +26,6 @@ import { GoogleLocationType } from '../../../types/location';
 import { ConfigService } from '../../core/config.service';
 import { injectTRPC } from '../../core/trpc-client';
 import { LocationSelectorField } from '../../shared/components/controls/location-selector/location-selector-field/location-selector-field';
-import { ImportTaxRatesDialogComponent } from '../components/import-tax-rates-dialog/import-tax-rates-dialog.component';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -38,7 +35,6 @@ import { ImportTaxRatesDialogComponent } from '../components/import-tax-rates-di
     MatButtonModule,
     MatSlideToggleModule,
     MatCheckboxModule,
-    MatChipsModule,
     MatFormFieldModule,
     MatInputModule,
     MatSelectModule,
@@ -51,14 +47,6 @@ import { ImportTaxRatesDialogComponent } from '../components/import-tax-rates-di
 })
 export class GeneralSettingsComponent {
   private readonly trpc = injectTRPC();
-  protected readonly importedTaxRatesQuery = injectQuery(() =>
-    this.trpc.admin.tenant.listImportedTaxRates.queryOptions(),
-  );
-  protected readonly compatibleImportedRates = computed(() =>
-    (this.importedTaxRatesQuery.data() ?? []).filter(
-      (r) => r.inclusive && r.active,
-    ),
-  );
   protected readonly discountProvidersQuery = injectQuery(() =>
     this.trpc.discounts.getTenantProviders.queryOptions(),
   );
@@ -90,7 +78,6 @@ export class GeneralSettingsComponent {
   protected readonly settingsForm = form(this.settingsModel);
 
   private readonly configService = inject(ConfigService);
-  private readonly dialog = inject(MatDialog);
 
   private updateSettingsMutation = injectMutation(() =>
     this.trpc.admin.tenant.updateSettings.mutationOptions(),
@@ -120,17 +107,6 @@ export class GeneralSettingsComponent {
           });
         },
       });
-    });
-  }
-
-  protected openImportDialog() {
-    const reference = this.dialog.open(ImportTaxRatesDialogComponent);
-    reference.afterClosed().subscribe(async (imported) => {
-      if (imported) {
-        await this.queryClient.invalidateQueries({
-          queryKey: this.trpc.admin.tenant.listImportedTaxRates.pathKey(),
-        });
-      }
     });
   }
 

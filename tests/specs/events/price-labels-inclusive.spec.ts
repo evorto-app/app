@@ -12,7 +12,7 @@ const openEventDetail = async (page: Page, eventId: string) => {
   await expect(page).toHaveURL(`/events/${eventId}`);
 };
 
-test.describe.skip('Inclusive Price Labels', () => {
+test.describe('Inclusive Price Labels', () => {
   test('paid prices display inclusive tax labels @events @taxRates @priceLabels @track(playwright-specs-track-linking_20260126) @req(PRICE-LABELS-INCLUSIVE-SPEC-01)', async ({
     page,
     events,
