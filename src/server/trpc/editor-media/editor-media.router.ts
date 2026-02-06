@@ -1,4 +1,5 @@
 import { TRPCError } from '@trpc/server';
+import consola from 'consola';
 import { Either, Schema } from 'effect';
 
 import { authenticatedProcedure, router } from '../trpc-server';
@@ -105,18 +106,29 @@ export const editorMediaRouter = router({
       );
 
       if (Either.isLeft(decoded)) {
+        consola.error('editor-media.cloudflare.invalid-upload-response', {
+          decodeError: decoded.left,
+          status: response.status,
+          tenantId: ctx.tenant.id,
+          userId: ctx.user.id,
+        });
         throw new TRPCError({
           code: 'INTERNAL_SERVER_ERROR',
-          message: 'Failed to parse Cloudflare upload response',
+          message: 'Image upload initialization failed. Please try again.',
         });
       }
 
       const payload = decoded.right;
       if (!response.ok || !payload.success || !payload.result) {
-        const cloudflareMessage = payload.errors.map((error) => error.message).join(', ');
+        consola.error('editor-media.cloudflare.direct-upload-failed', {
+          cloudflareErrors: payload.errors,
+          status: response.status,
+          tenantId: ctx.tenant.id,
+          userId: ctx.user.id,
+        });
         throw new TRPCError({
-          code: 'BAD_REQUEST',
-          message: cloudflareMessage || 'Cloudflare direct upload URL request failed',
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Image upload initialization failed. Please try again.',
         });
       }
 
