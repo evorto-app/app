@@ -14,9 +14,9 @@ export const isCloudflareImagesConfigured = (): boolean =>
 
 const resolveCloudflareImagesConfig = (): {
   accountId: string;
-  client: Cloudflare;
   apiToken: string;
   appEnvironment: string;
+  client: Cloudflare;
   deliveryHash: string;
   variant: string;
 } => {
@@ -45,7 +45,9 @@ const resolveCloudflareImagesConfig = (): {
 
     consola.error('cloudflare-images.config.missing', {
       hasCloudflareAccountId: Boolean(accountId),
-      hasCloudflareImagesApiToken: Boolean(process.env['CLOUDFLARE_IMAGES_API_TOKEN']),
+      hasCloudflareImagesApiToken: Boolean(
+        process.env['CLOUDFLARE_IMAGES_API_TOKEN'],
+      ),
       hasCloudflareImagesDeliveryHash: Boolean(deliveryHash),
       hasCloudflareToken: Boolean(process.env['CLOUDFLARE_TOKEN']),
       missing,
@@ -59,11 +61,11 @@ const resolveCloudflareImagesConfig = (): {
 
   return {
     accountId,
+    apiToken,
+    appEnvironment,
     client: new Cloudflare({
       apiToken,
     }),
-    apiToken,
-    appEnvironment,
     deliveryHash,
     variant,
   };
@@ -82,17 +84,18 @@ export const createCloudflareImageDirectUpload = async (input: {
   uploadUrl: string;
 }> => {
   const config = resolveCloudflareImagesConfig();
+  const metadata = {
+    appEnvironment: config.appEnvironment,
+    fileName: input.fileName,
+    mimeType: input.mimeType,
+    source: input.source,
+    tenantId: input.tenantId,
+    uploadedByUserId: input.uploadedByUserId,
+    ...input.metadata,
+  };
   const directUpload = await config.client.images.v2.directUploads.create({
     account_id: config.accountId,
-    metadata: {
-      appEnvironment: config.appEnvironment,
-      fileName: input.fileName,
-      mimeType: input.mimeType,
-      source: input.source,
-      tenantId: input.tenantId,
-      uploadedByUserId: input.uploadedByUserId,
-      ...input.metadata,
-    },
+    metadata: JSON.stringify(metadata),
     requireSignedURLs: false,
   });
 
@@ -108,7 +111,7 @@ export const createCloudflareImageDirectUpload = async (input: {
 };
 
 export const cleanupTestingCloudflareImages = async (input: {
-  confirmPhrase: null | string;
+  confirmPhrase: string | undefined;
   dryRun: boolean;
   maxDeletes?: number;
   source: 'editor' | 'finance-receipt';
@@ -129,14 +132,16 @@ export const cleanupTestingCloudflareImages = async (input: {
 
   const config = resolveCloudflareImagesConfig();
   const matchedImageIds: string[] = [];
-  let continuationToken: null | string = null;
+  let continuationToken: string | undefined;
   let inspectedCount = 0;
   let pageCount = 0;
 
   do {
     const page = await config.client.images.v2.list({
       account_id: config.accountId,
-      continuation_token: continuationToken,
+      ...(continuationToken === undefined
+        ? {}
+        : { continuation_token: continuationToken }),
       per_page: 100,
     });
 
@@ -156,8 +161,9 @@ export const cleanupTestingCloudflareImages = async (input: {
       }
 
       const source = (metadata as Record<string, unknown>)['source'];
-      const appEnvironment =
-        (metadata as Record<string, unknown>)['appEnvironment'];
+      const appEnvironment = (metadata as Record<string, unknown>)[
+        'appEnvironment'
+      ];
       if (
         source === input.source &&
         appEnvironment === 'testing' &&
@@ -168,7 +174,7 @@ export const cleanupTestingCloudflareImages = async (input: {
       }
     }
 
-    continuationToken = page.continuation_token ?? null;
+    continuationToken = page.continuation_token ?? undefined;
     pageCount += 1;
   } while (continuationToken && pageCount < 20);
 

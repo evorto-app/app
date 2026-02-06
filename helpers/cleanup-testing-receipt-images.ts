@@ -2,10 +2,10 @@ import { cleanupTestingCloudflareImages } from '../src/server/integrations/cloud
 
 const DELETE_CONFIRMATION = 'delete-testing-images-only';
 
-const getArgumentValue = (name: string): null | string => {
+const getArgumentValue = (name: string): string | undefined => {
   const prefix = `${name}=`;
-  const arg = process.argv.find((value) => value.startsWith(prefix));
-  return arg ? arg.slice(prefix.length) : null;
+  const argument = process.argv.find((value) => value.startsWith(prefix));
+  return argument ? argument.slice(prefix.length) : undefined;
 };
 
 const hasFlag = (flag: string): boolean => process.argv.includes(flag);
@@ -15,7 +15,7 @@ const run = async (): Promise<void> => {
   const confirmPhrase = getArgumentValue('--confirm');
   const maxDeletesArgument = getArgumentValue('--max-deletes');
   const maxDeletes =
-    maxDeletesArgument === null ? undefined : Number(maxDeletesArgument);
+    maxDeletesArgument === undefined ? undefined : Number(maxDeletesArgument);
 
   if (!dryRun && confirmPhrase !== DELETE_CONFIRMATION) {
     throw new Error(
@@ -26,7 +26,7 @@ const run = async (): Promise<void> => {
   const result = await cleanupTestingCloudflareImages({
     confirmPhrase,
     dryRun,
-    maxDeletes,
+    ...(maxDeletes === undefined ? {} : { maxDeletes }),
     source: 'finance-receipt',
   });
 
@@ -38,13 +38,15 @@ const run = async (): Promise<void> => {
         inspectedCount: result.inspectedCount,
         matchedCount: result.matchedCount,
       },
-      null,
+      undefined,
       2,
     ),
   );
 };
 
-run().catch((error) => {
+try {
+  await run();
+} catch (error) {
   console.error(error instanceof Error ? error.message : String(error));
   process.exitCode = 1;
-});
+}
