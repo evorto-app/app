@@ -27,6 +27,10 @@ import {
   withRouterConfig,
   withViewTransitions,
 } from '@angular/router';
+import { FetchHttpClient } from '@effect/platform';
+import * as RpcClient from '@effect/rpc/RpcClient';
+import * as RpcSerialization from '@effect/rpc/RpcSerialization';
+import { provideEffectRpcQueryClient } from '@heddendorp/effect-angular-query';
 import {
   createTRPCClientFactory,
   provideTRPC,
@@ -39,13 +43,19 @@ import {
 } from '@tanstack/angular-query-experimental';
 import { withDevtools } from '@tanstack/angular-query-experimental/devtools';
 import { createTRPCClient } from '@trpc/client';
+import { Layer } from 'effect';
 import superjson from 'superjson';
 
 import type { AppRouter } from '../server/trpc/app-router';
 
+import { AppRpcs } from '../shared/rpc-contracts/app-rpcs';
 import { routes } from './app.routes';
 import { authTokenInterceptor } from './core/auth-token.interceptor';
 import { ConfigService } from './core/config.service';
+
+const effectRpcLayer = RpcClient.layerProtocolHttp({ url: '/rpc' }).pipe(
+  Layer.provide([RpcSerialization.layerJson, FetchHttpClient.layer]),
+);
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -78,6 +88,11 @@ export const appConfig: ApplicationConfig = {
       new QueryClient(),
       ...(isDevMode() ? ([withDevtools()] as const) : ([] as const)),
     ),
+    provideEffectRpcQueryClient({
+      group: AppRpcs,
+      keyPrefix: 'rpc',
+      rpcLayer: effectRpcLayer,
+    }),
     provideLuxonDateAdapter(),
     // provideCloudflareLoader(
     //   'https://imagedelivery.net/DxTiV2GJoeCDYZ1DN5RPUA/',
