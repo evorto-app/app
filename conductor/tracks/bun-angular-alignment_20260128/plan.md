@@ -73,7 +73,7 @@
 
 ## Phase 5: Effect Migration Foundation (Next Step Within Track) [checkpoint: pending]
 
-- [ ] Task: Draft concrete cutover map from tRPC/Express to Effect HTTP/RPC layers
+- [~] Task: Draft concrete cutover map from tRPC/Express to Effect HTTP/RPC layers
   - [ ] Define test intent (design-only)
   - [ ] Identify module-by-module replacement order under `src/server/**` and `src/app/core/**`
   - [ ] Identify contract-sharing strategy for Angular RPC client helpers
