@@ -44,7 +44,7 @@ import { createReceiptForm } from '../shared/receipt-form/receipt-form.model';
 export class ReceiptApprovalDetailComponent {
   private readonly config = inject(ConfigService);
   protected readonly selectableCountries = buildSelectableReceiptCountries(
-    resolveReceiptCountrySettings(this.config.tenant.discountProviders?.financeReceipts),
+    resolveReceiptCountrySettings(this.config.tenant.receiptSettings),
   );
   private readonly formBuilder = inject(NonNullableFormBuilder);
   protected readonly form = createReceiptForm(

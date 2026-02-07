@@ -3,6 +3,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  effect,
   inject,
   signal,
 } from '@angular/core';
@@ -60,9 +61,28 @@ type ProfileSection = 'discounts' | 'events' | 'overview' | 'receipts';
   templateUrl: './user-profile.component.html',
 })
 export class UserProfileComponent {
+  protected readonly allSectionEntries: {
+    icon: typeof faUser;
+    key: ProfileSection;
+    label: string;
+  }[] = [
+    { icon: faUser, key: 'overview', label: 'Overview' },
+    { icon: faCalendarDays, key: 'events', label: 'Events' },
+    { icon: faTags, key: 'discounts', label: 'Discounts' },
+    { icon: faReceipt, key: 'receipts', label: 'Receipts' },
+  ];
+  private readonly trpc = injectTRPC();
+  protected readonly discountProvidersQuery = injectQuery(() =>
+    this.trpc.discounts.getTenantProviders.queryOptions(),
+  );
+  protected readonly buyEsnCardUrl = computed(() => {
+    const providers = this.discountProvidersQuery.data();
+    if (!providers) return null;
+    const esnProvider = providers.find((provider) => provider.type === 'esnCard');
+    return esnProvider?.config.buyEsnCardUrl?.trim() || null;
+  });
   private readonly notifications = inject(NotificationService);
   private readonly queryClient = inject(QueryClient);
-  private readonly trpc = injectTRPC();
   protected readonly deleteCardMutation = injectMutation(() =>
     this.trpc.discounts.deleteMyCard.mutationOptions({
       onSuccess: async () => {
@@ -72,9 +92,6 @@ export class UserProfileComponent {
         this.notifications.showSuccess('ESN card removed');
       },
     }),
-  );
-  protected readonly discountProvidersQuery = injectQuery(() =>
-    this.trpc.discounts.getTenantProviders.queryOptions(),
   );
   private readonly esnCardModel = signal({ identifier: '' });
   protected readonly esnCardForm = form(this.esnCardModel, (schemaPath) => {
@@ -91,15 +108,21 @@ export class UserProfileComponent {
   protected readonly faReceipt = faReceipt;
   protected readonly faRightFromBracket = faRightFromBracket;
   protected readonly faTags = faTags;
-  protected readonly faUser = faUser;
 
+  protected readonly faUser = faUser;
   protected readonly myCardsQuery = injectQuery(() =>
     this.trpc.discounts.getMyCards.queryOptions(),
   );
 
+  protected readonly hasVerifiedEsnCard = computed(() => {
+    const cards = this.myCardsQuery.data();
+    if (!cards) return false;
+    return cards.some((card) => card.type === 'esnCard' && card.status === 'verified');
+  });
   protected readonly myReceiptsQuery = injectQuery(() =>
     this.trpc.finance.receipts.my.queryOptions(),
   );
+
   protected readonly refreshCardMutation = injectMutation(() =>
     this.trpc.discounts.refreshMyCard.mutationOptions({
       onSuccess: async () => {
@@ -110,17 +133,11 @@ export class UserProfileComponent {
       },
     }),
   );
-
-  protected readonly sectionEntries: {
-    icon: typeof faUser;
-    key: ProfileSection;
-    label: string;
-  }[] = [
-    { icon: faUser, key: 'overview', label: 'Overview' },
-    { icon: faCalendarDays, key: 'events', label: 'Events' },
-    { icon: faTags, key: 'discounts', label: 'Discounts' },
-    { icon: faReceipt, key: 'receipts', label: 'Receipts' },
-  ];
+  protected readonly sectionEntries = computed(() =>
+    this.allSectionEntries.filter(
+      (section) => section.key !== 'discounts' || this.esnEnabled(),
+    ),
+  );
   protected readonly selectedSection = signal<ProfileSection>('overview');
   protected readonly updateProfileMutation = injectMutation(() =>
     this.trpc.users.updateProfile.mutationOptions(),
@@ -147,8 +164,14 @@ export class UserProfileComponent {
   private readonly route = inject(ActivatedRoute);
 
   constructor() {
+    effect(() => {
+      if (!this.esnEnabled() && this.selectedSection() === 'discounts') {
+        this.selectedSection.set('overview');
+      }
+    });
+
     this.route.fragment.subscribe((fragment) => {
-      if (fragment === 'discounts') {
+      if (fragment === 'discounts' && this.esnEnabled()) {
         this.selectedSection.set('discounts');
         return;
       }

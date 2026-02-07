@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
   effect,
   inject,
   input,
@@ -51,6 +52,10 @@ import { IfAnyPermissionDirective } from '../../shared/directives/if-any-permiss
 })
 export class EventEdit {
   public eventId = input.required<string>();
+  private trpc = injectTRPC();
+  protected readonly discountProvidersQuery = injectQuery(() =>
+    this.trpc.discounts.getTenantProviders.queryOptions(),
+  );
   protected readonly editEventModel = signal<EventGeneralFormModel>(
     createEventGeneralFormModel(),
   );
@@ -58,7 +63,11 @@ export class EventEdit {
     this.editEventModel,
     eventGeneralFormSchema,
   );
-  private trpc = injectTRPC();
+  protected readonly esnEnabled = computed(() => {
+    const providers = this.discountProvidersQuery.data();
+    if (!providers) return false;
+    return providers.find((provider) => provider.type === 'esnCard')?.status === 'enabled';
+  });
   protected readonly eventQuery = injectQuery(() =>
     this.trpc.events.findOneForEdit.queryOptions({ id: this.eventId() }),
   );
@@ -103,6 +112,8 @@ export class EventEdit {
                   ? DateTime.fromJSDate(new Date(option.closeRegistrationTime))
                   : DateTime.now(),
                 description: option.description ?? '',
+                esnCardDiscountedPrice: option.esnCardDiscountedPrice ?? '',
+                id: option.id,
                 isPaid: option.isPaid,
                 openRegistrationTime: option.openRegistrationTime
                   ? DateTime.fromJSDate(new Date(option.openRegistrationTime))
@@ -148,6 +159,27 @@ export class EventEdit {
         eventId: this.eventId(),
         icon: formValue.icon,
         location: formValue.location,
+        registrationOptions: formValue.registrationOptions.map((registrationOption) => ({
+          closeRegistrationTime: registrationOption.closeRegistrationTime.toJSDate(),
+          description: registrationOption.description || null,
+          esnCardDiscountedPrice:
+            this.esnEnabled() && registrationOption.isPaid
+              ? registrationOption.esnCardDiscountedPrice === ''
+                ? null
+                : registrationOption.esnCardDiscountedPrice
+              : null,
+          id: registrationOption.id,
+          isPaid: registrationOption.isPaid,
+          openRegistrationTime: registrationOption.openRegistrationTime.toJSDate(),
+          organizingRegistration: registrationOption.organizingRegistration,
+          price: registrationOption.price,
+          registeredDescription: registrationOption.registeredDescription || null,
+          registrationMode: registrationOption.registrationMode,
+          roleIds: registrationOption.roleIds,
+          spots: registrationOption.spots,
+          stripeTaxRateId: registrationOption.stripeTaxRateId,
+          title: registrationOption.title,
+        })),
         start: formValue.start.toJSDate(),
         title: formValue.title,
       });

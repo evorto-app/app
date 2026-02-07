@@ -1,4 +1,7 @@
-import { resolveAllowedReceiptCountries } from '@shared/finance/receipt-countries';
+import {
+  resolveTenantReceiptSettings,
+  type TenantDiscountProviders,
+} from '@shared/tenant-config';
 import { TRPCError } from '@trpc/server';
 import { eq } from 'drizzle-orm';
 import { Schema } from 'effect';
@@ -6,6 +9,7 @@ import { Schema } from 'effect';
 import { database } from '../../../db';
 import * as schema from '../../../db/schema';
 import { stripe } from '../../stripe-client';
+import { normalizeEsnCardConfig } from '../discounts/discount-provider-config';
 import { authenticatedProcedure, router } from '../trpc-server';
 
 export const tenantRouter = router({
@@ -114,29 +118,34 @@ export const tenantRouter = router({
       Schema.standardSchemaV1(
         Schema.Struct({
           allowOther: Schema.Boolean,
+          buyEsnCardUrl: Schema.optional(Schema.String),
           defaultLocation: Schema.NullOr(Schema.Any),
+          esnCardEnabled: Schema.Boolean,
           receiptCountries: Schema.Array(Schema.NonEmptyString),
           theme: Schema.mutable(Schema.Literal('evorto', 'esn')),
         }),
       ),
     )
     .mutation(async ({ ctx, input }) => {
-      const receiptCountries = resolveAllowedReceiptCountries(input.receiptCountries);
-      const tenantBeforeUpdate = await database.query.tenants.findFirst({
-        where: { id: ctx.tenant.id },
-      });
+      const discountProviders: TenantDiscountProviders = {
+        esnCard: {
+          config: normalizeEsnCardConfig(
+            { buyEsnCardUrl: input.buyEsnCardUrl },
+            { rejectInvalidUrl: true },
+          ),
+          status: input.esnCardEnabled ? 'enabled' : 'disabled',
+        },
+      };
 
       const tenant = await database
         .update(schema.tenants)
         .set({
           defaultLocation: input.defaultLocation,
-          discountProviders: {
-            ...tenantBeforeUpdate?.discountProviders,
-            financeReceipts: {
-              allowOther: input.allowOther,
-              receiptCountries,
-            },
-          },
+          discountProviders,
+          receiptSettings: resolveTenantReceiptSettings({
+            allowOther: input.allowOther,
+            receiptCountries: input.receiptCountries,
+          }),
           theme: input.theme,
         })
         .where(eq(schema.tenants.id, ctx.tenant.id))

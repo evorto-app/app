@@ -1,5 +1,6 @@
 import type Stripe from 'stripe';
 
+import { resolveTenantDiscountProviders, type TenantDiscountProviders } from '@shared/tenant-config';
 import { TRPCError } from '@trpc/server';
 import consola from 'consola';
 import { and, eq } from 'drizzle-orm';
@@ -11,15 +12,6 @@ import { createId } from '../../../db/create-id';
 import * as schema from '../../../db/schema';
 import { stripe } from '../../stripe-client';
 import { authenticatedProcedure } from '../trpc-server';
-
-interface DiscountProviderConfig {
-  config: unknown;
-  status: 'disabled' | 'enabled';
-}
-
-interface DiscountProviders {
-  esnCard?: DiscountProviderConfig;
-}
 
 export const registerForEventProcedure = authenticatedProcedure
   .input(
@@ -148,7 +140,12 @@ export const registerForEventProcedure = authenticatedProcedure
           });
         }
         // Determine effective price (apply best discount if any)
+        const basePrice = registrationOption.price;
         let effectivePrice = registrationOption.price;
+        let appliedDiscountType:
+          | null
+          | typeof schema.eventRegistrationOptionDiscounts.$inferSelect.discountType = null;
+        let appliedDiscountedPrice: null | number = null;
         // Find verified user cards for tenant
         const cards = await database.query.userDiscountCards.findMany({
           where: {
@@ -162,8 +159,8 @@ export const registerForEventProcedure = authenticatedProcedure
           const tenant = await database.query.tenants.findFirst({
             where: { id: ctx.tenant.id },
           });
-          const providerConfig: DiscountProviders =
-            tenant?.discountProviders ?? {};
+          const providerConfig: TenantDiscountProviders =
+            resolveTenantDiscountProviders(tenant?.discountProviders);
           const enabledTypes = new Set(
             Object.entries(providerConfig)
               .filter(([, provider]) => provider?.status === 'enabled')
@@ -184,11 +181,31 @@ export const registerForEventProcedure = authenticatedProcedure
             ),
           );
           if (eligible.length > 0) {
-            effectivePrice = Math.min(
-              ...eligible.map((discount) => discount.discountedPrice),
-            );
+            let bestDiscount = eligible[0];
+            for (const candidate of eligible.slice(1)) {
+              if (candidate.discountedPrice < bestDiscount.discountedPrice) {
+                bestDiscount = candidate;
+              }
+            }
+            effectivePrice = bestDiscount.discountedPrice;
+            appliedDiscountType = bestDiscount.discountType;
+            appliedDiscountedPrice = bestDiscount.discountedPrice;
           }
         }
+        const discountAmount =
+          appliedDiscountedPrice === null
+            ? null
+            : Math.max(0, basePrice - appliedDiscountedPrice);
+
+        await database
+          .update(schema.eventRegistrations)
+          .set({
+            appliedDiscountedPrice,
+            appliedDiscountType,
+            basePriceAtRegistration: basePrice,
+            discountAmount,
+          })
+          .where(eq(schema.eventRegistrations.id, userRegistration.id));
 
         // Check if discount reduced price to zero or negative - treat as free
         if (effectivePrice <= 0) {
@@ -199,7 +216,9 @@ export const registerForEventProcedure = authenticatedProcedure
           // Update registration status to confirmed (no payment needed)
           await database
             .update(schema.eventRegistrations)
-            .set({ status: 'CONFIRMED' })
+            .set({
+              status: 'CONFIRMED',
+            })
             .where(eq(schema.eventRegistrations.id, userRegistration.id));
 
           // Update registration option spots

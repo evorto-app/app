@@ -83,20 +83,20 @@ export class EventDetailsComponent {
   );
   private permissions = inject(PermissionsService);
   protected readonly canEdit = computed(() => {
+    const event = this.eventQuery.data();
+    if (!event || (event.status !== 'DRAFT' && event.status !== 'REJECTED')) {
+      return false;
+    }
     const editAllPermission =
       this.permissions.hasPermission('events:editAll')();
     if (editAllPermission) {
       return true;
     }
-    const event = this.eventQuery.data();
     const self = this.selfQery.data();
-    if (!self || !event) {
+    if (!self) {
       return false;
     }
-    if (event.creatorId === self.id) {
-      return event?.status === 'DRAFT' || event?.status === 'REJECTED';
-    }
-    return false;
+    return event.creatorId === self.id;
   });
   protected readonly canOrganizeQuery = injectQuery(() =>
     this.trpc.events.canOrganize.queryOptions({ eventId: this.eventId() }),
@@ -115,7 +115,12 @@ export class EventDetailsComponent {
   protected readonly myCardsQuery = injectQuery(() =>
     this.trpc.discounts.getMyCards.queryOptions(),
   );
+  private readonly config = inject(ConfigService);
+
   protected readonly cardExpiresBeforeEvent = computed(() => {
+    const esnCardEnabled =
+      this.config.tenant.discountProviders?.esnCard?.status === 'enabled';
+    if (!esnCardEnabled) return false;
     const event = this.eventQuery.data();
     const cards = this.myCardsQuery.data();
     if (!event || !cards) return false;
@@ -128,7 +133,6 @@ export class EventDetailsComponent {
     if (!latestValidTo) return false;
     return latestValidTo <= event.start;
   });
-
   protected readonly eventIconColor = computed(() => {
     const event = this.eventQuery.data();
     if (!event) {
@@ -144,6 +148,39 @@ export class EventDetailsComponent {
     }),
   );
   private queryClient = inject(QueryClient);
+  protected readonly reviewMutation = injectMutation(() =>
+    this.trpc.events.reviewEvent.mutationOptions({
+      onSuccess: async () => {
+        await this.queryClient.invalidateQueries({
+          queryKey: this.trpc.events.findOne.queryKey({ id: this.eventId() }),
+        });
+        await this.queryClient.invalidateQueries({
+          queryKey: this.trpc.events.eventList.pathKey(),
+        });
+        await this.queryClient.invalidateQueries({
+          queryKey: this.trpc.events.findMany.pathKey(),
+        });
+        await this.queryClient.invalidateQueries({
+          queryKey: this.trpc.events.getPendingReviews.pathKey(),
+        });
+      },
+    }),
+  );
+  protected readonly submitForReviewMutation = injectMutation(() =>
+    this.trpc.events.submitForReview.mutationOptions({
+      onSuccess: async () => {
+        await this.queryClient.invalidateQueries({
+          queryKey: this.trpc.events.findOne.queryKey({ id: this.eventId() }),
+        });
+        await this.queryClient.invalidateQueries({
+          queryKey: this.trpc.events.eventList.pathKey(),
+        });
+        await this.queryClient.invalidateQueries({
+          queryKey: this.trpc.events.getPendingReviews.pathKey(),
+        });
+      },
+    }),
+  );
   protected readonly updateListingMutation = injectMutation(() =>
     this.trpc.events.updateListing.mutationOptions({
       onSuccess: async () => {
@@ -156,37 +193,8 @@ export class EventDetailsComponent {
       },
     }),
   );
-  private readonly config = inject(ConfigService);
   private dialog = inject(MatDialog);
-
   private notifications = inject(NotificationService);
-  private readonly reviewMutation = injectMutation(() =>
-    this.trpc.events.reviewEvent.mutationOptions({
-      onSuccess: async () => {
-        await this.queryClient.invalidateQueries({
-          queryKey: this.trpc.events.findOne.queryKey({ id: this.eventId() }),
-        });
-        await this.queryClient.invalidateQueries({
-          queryKey: this.trpc.events.eventList.pathKey(),
-        });
-        await this.queryClient.invalidateQueries({
-          queryKey: this.trpc.events.findMany.pathKey(),
-        });
-      },
-    }),
-  );
-  private readonly submitForReviewMutation = injectMutation(() =>
-    this.trpc.events.submitForReview.mutationOptions({
-      onSuccess: async () => {
-        await this.queryClient.invalidateQueries({
-          queryKey: this.trpc.events.findOne.queryKey({ id: this.eventId() }),
-        });
-        await this.queryClient.invalidateQueries({
-          queryKey: this.trpc.events.eventList.pathKey(),
-        });
-      },
-    }),
-  );
 
   constructor() {
     effect(() => {
@@ -215,45 +223,88 @@ export class EventDetailsComponent {
   }
 
   protected async reviewEvent(approved: boolean): Promise<void> {
-    if (approved) {
-      await this.reviewMutation.mutateAsync({
-        approved,
-        eventId: this.eventId(),
-      });
-      const event = this.eventQuery.data();
-      if (event) {
-        this.notifications.showEventReviewed(approved, event.title);
-      }
-    } else {
-      const dialogReference = this.dialog.open(EventReviewDialogComponent);
-      const comment = await firstValueFrom(dialogReference.afterClosed());
-
-      if (comment) {
+    try {
+      if (approved) {
         await this.reviewMutation.mutateAsync({
           approved,
-          comment,
           eventId: this.eventId(),
         });
         const event = this.eventQuery.data();
         if (event) {
           this.notifications.showEventReviewed(approved, event.title);
         }
+      } else {
+        const dialogReference = this.dialog.open(EventReviewDialogComponent);
+        const comment = await firstValueFrom(dialogReference.afterClosed());
+
+        if (comment) {
+          await this.reviewMutation.mutateAsync({
+            approved,
+            comment,
+            eventId: this.eventId(),
+          });
+          const event = this.eventQuery.data();
+          if (event) {
+            this.notifications.showEventReviewed(approved, event.title);
+          }
+        }
       }
+    } catch (error) {
+      await this.handleReviewActionError(error);
     }
   }
 
   protected async submitForReview(): Promise<void> {
-    const dialogReference = this.dialog.open(SubmitEventDialogComponent);
-    const confirmed = await firstValueFrom(dialogReference.afterClosed());
+    try {
+      const dialogReference = this.dialog.open(SubmitEventDialogComponent);
+      const confirmed = await firstValueFrom(dialogReference.afterClosed());
 
-    if (confirmed) {
-      await this.submitForReviewMutation.mutateAsync({
-        eventId: this.eventId(),
-      });
-      const event = this.eventQuery.data();
-      if (event) {
-        this.notifications.showEventSubmitted(event.title);
+      if (confirmed) {
+        await this.submitForReviewMutation.mutateAsync({
+          eventId: this.eventId(),
+        });
+        const event = this.eventQuery.data();
+        if (event) {
+          this.notifications.showEventSubmitted(event.title);
+        }
       }
+    } catch (error) {
+      await this.handleReviewActionError(error);
     }
+  }
+
+  private async handleReviewActionError(error: unknown): Promise<void> {
+    const message =
+      error instanceof Error
+        ? error.message
+        : 'Failed to update event review status';
+    const normalizedMessage = message.toLowerCase();
+    if (
+      normalizedMessage.includes('status changed') ||
+      normalizedMessage.includes('refresh and try again') ||
+      normalizedMessage.includes('no longer pending review')
+    ) {
+      this.notifications.showError(
+        'Event status changed. Refreshed the latest state.',
+      );
+      await this.refreshReviewState();
+      return;
+    }
+    this.notifications.showError(message);
+  }
+
+  private async refreshReviewState(): Promise<void> {
+    await this.queryClient.invalidateQueries({
+      queryKey: this.trpc.events.findOne.queryKey({ id: this.eventId() }),
+    });
+    await this.queryClient.invalidateQueries({
+      queryKey: this.trpc.events.findMany.pathKey(),
+    });
+    await this.queryClient.invalidateQueries({
+      queryKey: this.trpc.events.eventList.pathKey(),
+    });
+    await this.queryClient.invalidateQueries({
+      queryKey: this.trpc.events.getPendingReviews.pathKey(),
+    });
   }
 }

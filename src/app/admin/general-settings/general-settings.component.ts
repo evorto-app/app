@@ -1,11 +1,11 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
   effect,
   inject,
   signal,
 } from '@angular/core';
-import { computed } from '@angular/core';
 import { form, FormField, submit } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
@@ -23,7 +23,6 @@ import {
 } from '@shared/finance/receipt-countries';
 import {
   injectMutation,
-  injectQuery,
   QueryClient,
 } from '@tanstack/angular-query-experimental';
 
@@ -51,43 +50,32 @@ import { LocationSelectorField } from '../../shared/components/controls/location
   templateUrl: './general-settings.component.html',
 })
 export class GeneralSettingsComponent {
-  private readonly trpc = injectTRPC();
-  protected readonly discountProvidersQuery = injectQuery(() =>
-    this.trpc.discounts.getTenantProviders.queryOptions(),
-  );
-  // Derived state for ESN provider
-  protected readonly esnEnabled = computed(() => {
-    const providers = this.discountProvidersQuery.data();
-    if (!providers) return false;
-    return providers.find((p) => p.type === 'esnCard')?.status === 'enabled';
-  });
-  protected readonly faArrowLeft = faArrowLeft;
-  protected readonly receiptCountryOptions = RECEIPT_COUNTRY_OPTIONS;
-  private readonly queryClient = inject(QueryClient);
-  protected readonly setProvidersMutation = injectMutation(() =>
-    this.trpc.discounts.setTenantProviders.mutationOptions({
-      onSuccess: async () => {
-        await this.queryClient.invalidateQueries({
-          queryKey: this.trpc.discounts.getTenantProviders.pathKey(),
-        });
-      },
-    }),
-  );
   protected readonly settingsModel = signal<{
     allowOther: boolean;
+    buyEsnCardUrl: string;
     defaultLocation: GoogleLocationType | null;
+    esnCardEnabled: boolean;
     receiptCountries: string[];
     theme: 'esn' | 'evorto';
   }>({
     allowOther: false,
+    buyEsnCardUrl: '',
     // eslint-disable-next-line unicorn/no-null
     defaultLocation: null,
+    esnCardEnabled: false,
     receiptCountries: [...DEFAULT_RECEIPT_COUNTRIES],
     theme: 'evorto',
   });
+  protected readonly esnEnabled = computed(
+    () => this.settingsModel().esnCardEnabled,
+  );
+  protected readonly faArrowLeft = faArrowLeft;
+  protected readonly receiptCountryOptions = RECEIPT_COUNTRY_OPTIONS;
   protected readonly settingsForm = form(this.settingsModel);
-
   private readonly configService = inject(ConfigService);
+  private readonly queryClient = inject(QueryClient);
+
+  private readonly trpc = injectTRPC();
 
   private updateSettingsMutation = injectMutation(() =>
     this.trpc.admin.tenant.updateSettings.mutationOptions(),
@@ -98,12 +86,17 @@ export class GeneralSettingsComponent {
       const currentTenant = this.configService.tenant;
       if (currentTenant) {
         const receiptCountrySettings = resolveReceiptCountrySettings(
-          currentTenant.discountProviders?.financeReceipts,
+          currentTenant.receiptSettings,
         );
         this.settingsModel.set({
           allowOther: receiptCountrySettings.allowOther,
+          buyEsnCardUrl:
+            currentTenant.discountProviders?.esnCard?.config?.buyEsnCardUrl ??
+            '',
           // eslint-disable-next-line unicorn/no-null
           defaultLocation: currentTenant.defaultLocation ?? null,
+          esnCardEnabled:
+            currentTenant.discountProviders?.esnCard?.status === 'enabled',
           receiptCountries: [...receiptCountrySettings.receiptCountries],
           theme: currentTenant.theme,
         });
@@ -115,25 +108,33 @@ export class GeneralSettingsComponent {
     event.preventDefault();
     await submit(this.settingsForm, async (formState) => {
       const settings = formState().value();
-      this.updateSettingsMutation.mutate(settings, {
-        onSuccess: async () => {
-          await this.queryClient.invalidateQueries({
-            queryKey: this.trpc.config.tenant.pathKey(),
-          });
+      this.updateSettingsMutation.mutate(
+        {
+          allowOther: settings.allowOther,
+          buyEsnCardUrl: settings.buyEsnCardUrl.trim() || undefined,
+          defaultLocation: settings.defaultLocation,
+          esnCardEnabled: settings.esnCardEnabled,
+          receiptCountries: settings.receiptCountries,
+          theme: settings.theme,
         },
-      });
+        {
+          onSuccess: async () => {
+            await this.queryClient.invalidateQueries({
+              queryKey: this.trpc.config.tenant.pathKey(),
+            });
+            await this.queryClient.invalidateQueries({
+              queryKey: this.trpc.discounts.getTenantProviders.pathKey(),
+            });
+          },
+        },
+      );
     });
   }
 
   protected setEsnEnabled(checked: boolean) {
-    this.setProvidersMutation.mutate({
-      providers: [
-        {
-          config: {},
-          status: checked ? 'enabled' : 'disabled',
-          type: 'esnCard',
-        },
-      ],
-    });
+    this.settingsModel.update((current) => ({
+      ...current,
+      esnCardEnabled: checked,
+    }));
   }
 }

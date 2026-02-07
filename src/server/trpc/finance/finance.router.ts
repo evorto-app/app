@@ -104,16 +104,12 @@ const isAllowedReceiptMimeType = (mimeType: string): boolean =>
   mimeType.startsWith('image/') || mimeType === 'application/pdf';
 
 interface ReceiptCountryConfigTenant {
-  discountProviders?:
+  receiptSettings?:
     | null
     | undefined
     | {
-        financeReceipts?:
-          | undefined
-          | {
-              allowOther?: boolean | undefined;
-              receiptCountries?: readonly string[] | undefined;
-            };
+        allowOther?: boolean | undefined;
+        receiptCountries?: readonly string[] | undefined;
       };
 }
 
@@ -121,7 +117,7 @@ const resolveTenantSelectableReceiptCountries = (
   tenant: ReceiptCountryConfigTenant,
 ): string[] =>
   buildSelectableReceiptCountries(
-    resolveReceiptCountrySettings(tenant.discountProviders?.financeReceipts),
+    resolveReceiptCountrySettings(tenant.receiptSettings ?? undefined),
   );
 
 const validateReceiptCountryForTenant = (
@@ -130,7 +126,7 @@ const validateReceiptCountryForTenant = (
 ): string => {
   if (purchaseCountry === OTHER_RECEIPT_COUNTRY_CODE) {
     const receiptCountrySettings = resolveReceiptCountrySettings(
-      tenant.discountProviders?.financeReceipts,
+      tenant.receiptSettings ?? undefined,
     );
     if (receiptCountrySettings.allowOther) {
       return OTHER_RECEIPT_COUNTRY_CODE;

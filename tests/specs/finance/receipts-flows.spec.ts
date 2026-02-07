@@ -125,12 +125,10 @@ test('receipt dialog shows Other option when tenant allows it @track(finance-rec
   await database
     .update(schema.tenants)
     .set({
-      discountProviders: {
-        ...existingTenant?.discountProviders,
-        financeReceipts: {
-          allowOther: true,
-          receiptCountries: ['DE'],
-        },
+      discountProviders: existingTenant?.discountProviders,
+      receiptSettings: {
+        allowOther: true,
+        receiptCountries: ['DE'],
       },
     })
     .where(eq(schema.tenants.id, tenant.id));

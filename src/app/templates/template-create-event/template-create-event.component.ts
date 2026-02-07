@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
   effect,
   inject,
   input,
@@ -52,6 +53,14 @@ export class TemplateCreateEventComponent {
   protected readonly createEventMutation = injectMutation(() =>
     this.trpc.events.create.mutationOptions(),
   );
+  protected readonly discountProvidersQuery = injectQuery(() =>
+    this.trpc.discounts.getTenantProviders.queryOptions(),
+  );
+  protected readonly esnEnabled = computed(() => {
+    const providers = this.discountProvidersQuery.data();
+    if (!providers) return false;
+    return providers.find((provider) => provider.type === 'esnCard')?.status === 'enabled';
+  });
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly registrationModes = [
     'fcfs',
@@ -96,6 +105,8 @@ export class TemplateCreateEventComponent {
                 hours: option.closeRegistrationOffset,
               }),
               description: option.description ?? '',
+              // Preserve source option id only for local form tracking.
+              id: option.id,
               isPaid: option.isPaid,
               openRegistrationTime: startDateTime.minus({
                 hours: option.openRegistrationOffset,
@@ -171,7 +182,6 @@ export class TemplateCreateEventComponent {
           end: this.toDateTime(formValue.end).toJSDate(),
           icon: formValue.icon,
           registrationOptions: formValue.registrationOptions.map((option) => ({
-            ...option,
             closeRegistrationTime: this.toDateTime(
               option.closeRegistrationTime,
             ).toJSDate(),
@@ -179,17 +189,24 @@ export class TemplateCreateEventComponent {
               ? option.description
               : // eslint-disable-next-line unicorn/no-null
                 null,
+            isPaid: option.isPaid,
             openRegistrationTime: this.toDateTime(
               option.openRegistrationTime,
             ).toJSDate(),
+            organizingRegistration: option.organizingRegistration,
+            price: option.price,
             registeredDescription: option.registeredDescription?.trim()
               ? option.registeredDescription
               : // eslint-disable-next-line unicorn/no-null
                 null,
+            registrationMode: option.registrationMode,
+            roleIds: option.roleIds,
+            spots: option.spots,
             stripeTaxRateId: option.stripeTaxRateId?.trim()
               ? option.stripeTaxRateId
               : // eslint-disable-next-line unicorn/no-null
                 null,
+            title: option.title,
           })),
           start: this.toDateTime(formValue.start).toJSDate(),
           templateId: this.templateId(),

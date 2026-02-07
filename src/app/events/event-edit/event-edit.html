@@ -36,6 +36,7 @@
           @for (option of editEventForm.registrationOptions; track option) {
             <app-registration-option-form
               class="bg-surface text-on-surface rounded-xl p-4 grid gap-4 lg:row-span-7 lg:grid-rows-subgrid"
+              [esnEnabled]="esnEnabled()"
               [registrationOptionForm]="option"
               [registrationModes]="registrationModes"
             />

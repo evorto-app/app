@@ -34,6 +34,7 @@ import { RegistrationOptionFormModel } from './registration-option-form.schema';
   templateUrl: './registration-option-form.html',
 })
 export class RegistrationOptionForm {
+  public esnEnabled = input.required<boolean>();
   public registrationModes = input.required<readonly string[]>();
   public registrationOptionForm =
     input.required<FieldTree<RegistrationOptionFormModel>>();

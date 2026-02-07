@@ -7,6 +7,7 @@ Generated: 2025-09-13
 ## Summary
 
 - Documentation journeys (`*.doc.ts`):
+  - docs/events/event-approval.doc.ts
   - docs/events/event-management.doc.ts
   - docs/events/unlisted-admin.doc.ts
   - docs/events/unlisted-user.doc.ts

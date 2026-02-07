@@ -11,6 +11,8 @@ import { DateTime } from 'luxon';
 export interface RegistrationOptionFormModel {
   closeRegistrationTime: DateTime;
   description: string;
+  esnCardDiscountedPrice: '' | number;
+  id: string;
   isPaid: boolean;
   openRegistrationTime: DateTime;
   organizingRegistration: boolean;
@@ -28,6 +30,8 @@ export const createRegistrationOptionFormModel = (
 ): RegistrationOptionFormModel => ({
   closeRegistrationTime: DateTime.now(),
   description: '',
+  esnCardDiscountedPrice: '',
+  id: '',
   isPaid: false,
   openRegistrationTime: DateTime.now(),
   organizingRegistration: false,
@@ -61,8 +65,28 @@ export const registrationOptionFormSchema = schema<RegistrationOptionFormModel>(
         : undefined;
     });
     hidden(form.price, ({ valueOf }) => !valueOf(form.isPaid));
+    hidden(form.esnCardDiscountedPrice, ({ valueOf }) => !valueOf(form.isPaid));
     hidden(form.stripeTaxRateId, ({ valueOf }) => !valueOf(form.isPaid));
     min(form.spots, 1);
     required(form.stripeTaxRateId);
+    validate(form.esnCardDiscountedPrice, ({ value, valueOf }) => {
+      const discountedPrice = value();
+      if (discountedPrice === '') {
+        return;
+      }
+      if (discountedPrice < 0) {
+        return {
+          kind: 'min',
+          message: 'Discounted price must be non-negative.',
+        };
+      }
+      if (discountedPrice > valueOf(form.price)) {
+        return {
+          kind: 'max',
+          message: 'Discounted price cannot exceed the base price.',
+        };
+      }
+      return;
+    });
   },
 );

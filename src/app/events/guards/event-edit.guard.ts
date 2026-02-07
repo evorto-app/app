@@ -8,15 +8,21 @@ export const eventEditGuard: CanActivateFn = async (route) => {
   const router = inject(Router);
   const trpc = injectTRPCClient();
   const permissions = inject(PermissionsService);
-  const eventId = route.params['id'];
+  const eventId = route.params['eventId'] as string | undefined;
 
-  if (!permissions.hasPermissionSync('events:edit')) {
-    return router.createUrlTree(['/403']);
+  if (!eventId) {
+    return router.createUrlTree(['/404']);
   }
 
   try {
+    const self = await trpc.users.maybeSelf.query();
     const event = await trpc.events.findOne.query({ id: eventId });
-    if (event.status !== 'draft' && event.status !== 'rejected') {
+    const canEditAll = permissions.hasPermissionSync('events:editAll');
+    const canEdit = canEditAll || self?.id === event.creatorId;
+    if (!canEdit) {
+      return router.createUrlTree(['/403']);
+    }
+    if (event.status !== 'DRAFT' && event.status !== 'REJECTED') {
       return router.createUrlTree(['/events', eventId], {
         queryParams: { error: 'event-locked' },
       });

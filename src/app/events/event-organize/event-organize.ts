@@ -151,7 +151,7 @@ export class EventOrganize {
 
   protected async openReceiptDialog(): Promise<void> {
     const receiptCountrySettings = resolveReceiptCountrySettings(
-      this.config.tenant.discountProviders?.financeReceipts,
+      this.config.tenant.receiptSettings,
     );
     const countries = buildSelectableReceiptCountries(receiptCountrySettings);
 

@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  inject,
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -20,6 +21,7 @@ import {
 import { injectQuery } from '@tanstack/angular-query-experimental';
 import { interval } from 'rxjs';
 
+import { PermissionsService } from '../../core/permissions.service';
 import { injectTRPC } from '../../core/trpc-client';
 
 @Component({
@@ -35,6 +37,9 @@ import { injectTRPC } from '../../core/trpc-client';
   templateUrl: './admin-overview.component.html',
 })
 export class AdminOverviewComponent {
+  private readonly permissions = inject(PermissionsService);
+  protected readonly canReviewEvents =
+    this.permissions.hasPermission('events:review');
   protected readonly faCalendarCheck = faCalendarCheck;
   protected readonly faFolderUser = faFolderUser;
   protected readonly faGlobe = faGlobe;
@@ -43,22 +48,11 @@ export class AdminOverviewComponent {
   protected readonly faUsersGear = faUsersGear;
   protected readonly outletActive = signal(false);
   private readonly trpc = injectTRPC();
-  private readonly selfQuery = injectQuery(() =>
-    this.trpc.users.self.queryOptions(),
-  );
-  private pendingReviewsFilter = computed(() => ({
-    includeUnlisted: true,
-    limit: 50,
-    offset: 0,
-    startAfter: new Date(),
-    status: ['PENDING_REVIEW'] as const,
-    userId: this.selfQuery.data()?.id,
-  }));
   protected readonly pendingReviewsQuery = injectQuery(() =>
-    this.trpc.events.findMany.queryOptions(this.pendingReviewsFilter()),
+    this.trpc.events.getPendingReviews.queryOptions(),
   );
-  protected readonly pendingReviewsCount = computed(
-    () => this.pendingReviewsQuery.data()?.length ?? 0,
+  protected readonly pendingReviewsCount = computed(() =>
+    this.canReviewEvents() ? (this.pendingReviewsQuery.data()?.length ?? 0) : 0,
   );
 
   constructor() {
