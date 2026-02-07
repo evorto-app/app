@@ -1,5 +1,6 @@
 import type Stripe from 'stripe';
 
+import { resolveTenantDiscountProviders, type TenantDiscountProviders } from '@shared/tenant-config';
 import { TRPCError } from '@trpc/server';
 import consola from 'consola';
 import { and, eq } from 'drizzle-orm';
@@ -11,17 +12,6 @@ import { createId } from '../../../db/create-id';
 import * as schema from '../../../db/schema';
 import { stripe } from '../../stripe-client';
 import { authenticatedProcedure } from '../trpc-server';
-
-interface DiscountProviderConfig {
-  config: {
-    buyEsnCardUrl?: string;
-  };
-  status: 'disabled' | 'enabled';
-}
-
-interface DiscountProviders {
-  esnCard?: DiscountProviderConfig;
-}
 
 export const registerForEventProcedure = authenticatedProcedure
   .input(
@@ -169,8 +159,8 @@ export const registerForEventProcedure = authenticatedProcedure
           const tenant = await database.query.tenants.findFirst({
             where: { id: ctx.tenant.id },
           });
-          const providerConfig: DiscountProviders =
-            tenant?.discountProviders ?? {};
+          const providerConfig: TenantDiscountProviders =
+            resolveTenantDiscountProviders(tenant?.discountProviders);
           const enabledTypes = new Set(
             Object.entries(providerConfig)
               .filter(([, provider]) => provider?.status === 'enabled')

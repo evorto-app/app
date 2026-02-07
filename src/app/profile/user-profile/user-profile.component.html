@@ -176,10 +176,10 @@
                   >
                     Save ESN card
                   </button>
-                  @if (!hasVerifiedEsnCard() && buyEsnCardUrl()) {
+                  @if (!hasVerifiedEsnCard() && buyEsnCardUrl(); as buyEsnCardLink) {
                     <a
                       class="text-sm underline"
-                      [href]="buyEsnCardUrl()!"
+                      [href]="buyEsnCardLink"
                       target="_blank"
                       rel="noopener noreferrer"
                       >Get an ESN card</a

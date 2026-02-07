@@ -1,3 +1,4 @@
+import { resolveTenantDiscountProviders } from '@shared/tenant-config';
 import { and, eq } from 'drizzle-orm';
 import { Schema } from 'effect';
 
@@ -5,35 +6,7 @@ import { database } from '../../../db';
 import * as schema from '../../../db/schema';
 import { PROVIDERS, ProviderType } from '../../discounts/providers';
 import { authenticatedProcedure, router } from '../trpc-server';
-
-interface DiscountProviderConfig {
-  config: EsnCardProviderConfig;
-  status: 'disabled' | 'enabled';
-}
-
-interface DiscountProviders {
-  esnCard?: DiscountProviderConfig;
-}
-
-interface EsnCardProviderConfig {
-  buyEsnCardUrl?: string;
-}
-
-const normalizeEsnCardConfig = (config: unknown): EsnCardProviderConfig => {
-  if (!config || typeof config !== 'object') {
-    return {};
-  }
-  const maybeBuyUrl = (
-    config as {
-      buyEsnCardUrl?: unknown;
-    }
-  ).buyEsnCardUrl;
-  if (typeof maybeBuyUrl !== 'string') {
-    return {};
-  }
-  const trimmedBuyUrl = maybeBuyUrl.trim();
-  return trimmedBuyUrl.length > 0 ? { buyEsnCardUrl: trimmedBuyUrl } : {};
-};
+import { normalizeEsnCardConfig } from './discount-provider-config';
 
 export const discountsRouter = router({
   deleteMyCard: authenticatedProcedure
@@ -64,11 +37,11 @@ export const discountsRouter = router({
     const tenant = await database.query.tenants.findFirst({
       where: { id: ctx.tenant.id },
     });
-    const config: DiscountProviders = tenant?.discountProviders ?? {};
+    const config = resolveTenantDiscountProviders(tenant?.discountProviders);
     // Normalize to full providers list
     return (Object.keys(PROVIDERS) as ProviderType[]).map((type) => ({
-      config: normalizeEsnCardConfig(config[type]?.config),
-      status: config[type]?.status ?? 'disabled',
+      config: normalizeEsnCardConfig(config[type].config),
+      status: config[type].status,
       type,
     }));
   }),
@@ -83,7 +56,7 @@ export const discountsRouter = router({
       const tenant = await database.query.tenants.findFirst({
         where: { id: ctx.tenant.id },
       });
-      const providers: DiscountProviders = tenant?.discountProviders ?? {};
+      const providers = resolveTenantDiscountProviders(tenant?.discountProviders);
       const provider = providers?.[input.type];
       if (!provider || provider.status !== 'enabled') {
         throw new Error('Provider not enabled for this tenant');
@@ -117,42 +90,6 @@ export const discountsRouter = router({
       return updatedCard;
     }),
 
-  setTenantProviders: authenticatedProcedure
-    .meta({ requiredPermissions: ['admin:changeSettings'] })
-    .input(
-      Schema.standardSchemaV1(
-        Schema.Struct({
-          providers: Schema.Array(
-            Schema.Struct({
-              config: Schema.Struct({
-                buyEsnCardUrl: Schema.optional(Schema.String),
-              }),
-              status: Schema.Literal('enabled', 'disabled'),
-              type: Schema.Literal(
-                ...(Object.keys(PROVIDERS) as ProviderType[]),
-              ),
-            }),
-          ),
-        }),
-      ),
-    )
-    .mutation(async ({ ctx, input }) => {
-      const tenant = await database.query.tenants.findFirst({
-        where: { id: ctx.tenant.id },
-      });
-      const current: DiscountProviders = tenant?.discountProviders ?? {};
-      const updated = { ...current };
-      for (const p of input.providers) {
-        updated[p.type] = {
-          config: normalizeEsnCardConfig(p.config),
-          status: p.status,
-        };
-      }
-      await database
-        .update(schema.tenants)
-        .set({ discountProviders: updated })
-        .where(eq(schema.tenants.id, ctx.tenant.id));
-    }),
   upsertMyCard: authenticatedProcedure
     .input(
       Schema.standardSchemaV1(
@@ -167,7 +104,7 @@ export const discountsRouter = router({
       const tenant = await database.query.tenants.findFirst({
         where: { id: ctx.tenant.id },
       });
-      const providers: DiscountProviders = tenant?.discountProviders ?? {};
+      const providers = resolveTenantDiscountProviders(tenant?.discountProviders);
       const provider = providers?.[input.type];
       if (!provider || provider.status !== 'enabled') {
         throw new Error('Provider not enabled for this tenant');

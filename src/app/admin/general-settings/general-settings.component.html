@@ -54,32 +54,26 @@
       </p>
 
       <h3 class="title-small mb-2 mt-6">Discount providers</h3>
-      @if (discountProvidersQuery.isPending()) {
-        <p>Loading discount providers ...</p>
-      } @else if (discountProvidersQuery.isSuccess()) {
-        <div class="mb-4">
-          <mat-slide-toggle
-            [checked]="esnEnabled()"
-            (change)="setEsnEnabled($event.checked)"
-          >
-            ESN Card discounts
-          </mat-slide-toggle>
-        </div>
-        @if (esnEnabled()) {
-          <mat-form-field class="mb-4">
-            <mat-label>Buy ESNcard URL</mat-label>
-            <input
-              matInput
-              [formField]="settingsForm.buyEsnCardUrl"
-              placeholder="https://esncard.org/"
-            />
-            <mat-hint>
-              Optional link shown to users without a verified ESNcard.
-            </mat-hint>
-          </mat-form-field>
-        }
-      } @else {
-        <p>Failed to load discount providers.</p>
+      <div class="mb-4">
+        <mat-slide-toggle
+          [checked]="esnEnabled()"
+          (change)="setEsnEnabled($event.checked)"
+        >
+          ESN Card discounts
+        </mat-slide-toggle>
+      </div>
+      @if (esnEnabled()) {
+        <mat-form-field class="mb-4">
+          <mat-label>Buy ESNcard URL</mat-label>
+          <input
+            matInput
+            [formField]="settingsForm.buyEsnCardUrl"
+            placeholder="https://esncard.org/"
+          />
+          <mat-hint>
+            Optional link shown to users without a verified ESNcard.
+          </mat-hint>
+        </mat-form-field>
       }
       <button
         mat-flat-button
