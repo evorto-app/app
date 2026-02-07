@@ -1,5 +1,4 @@
 import { adminRouter } from './admin/admin.router';
-import { configRouter } from './core/config.router';
 import { discountsRouter } from './discounts/discounts.router';
 import { editorMediaRouter } from './editor-media/editor-media.router';
 import { eventRouter } from './events/events.router';
@@ -14,7 +13,6 @@ import { userRouter } from './users/users.router';
 
 export const appRouter = router({
   admin: adminRouter,
-  config: configRouter,
   discounts: discountsRouter,
   editorMedia: editorMediaRouter,
   events: eventRouter,
