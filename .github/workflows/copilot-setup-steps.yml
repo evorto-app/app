@@ -59,6 +59,8 @@ jobs:
             echo "NEON_API_KEY=${{ secrets.NEON_API_KEY }}";
             echo "STRIPE_API_KEY=${{ secrets.STRIPE_API_KEY }}";
             echo "STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}";
+            echo "CLOUDFLARE_R2_S3_KEY=${{ secrets.CLOUDFLARE_R2_S3_KEY }}";
+            echo "CLOUDFLARE_R2_S3_KEY_ID=${{ secrets.CLOUDFLARE_R2_S3_KEY_ID }}";
             if [ -n "${{ secrets.CLOUDFLARE_TOKEN }}" ]; then echo "CLOUDFLARE_TOKEN=${{ secrets.CLOUDFLARE_TOKEN }}"; fi
             if [ -n "${{ secrets.CLOUDFLARE_IMAGES_API_TOKEN }}" ]; then echo "CLOUDFLARE_IMAGES_API_TOKEN=${{ secrets.CLOUDFLARE_IMAGES_API_TOKEN }}"; fi
           } > .env

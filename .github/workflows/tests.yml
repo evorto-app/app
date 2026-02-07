@@ -34,6 +34,8 @@ jobs:
             echo "STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}";
             echo "AUTH0_MANAGEMENT_CLIENT_ID=${{ secrets.AUTH0_MANAGEMENT_CLIENT_ID }}";
             echo "AUTH0_MANAGEMENT_CLIENT_SECRET=${{ secrets.AUTH0_MANAGEMENT_CLIENT_SECRET }}";
+            echo "CLOUDFLARE_R2_S3_KEY=${{ secrets.CLOUDFLARE_R2_S3_KEY }}";
+            echo "CLOUDFLARE_R2_S3_KEY_ID=${{ secrets.CLOUDFLARE_R2_S3_KEY_ID }}";
             if [ -n "${{ secrets.CLOUDFLARE_TOKEN }}" ]; then echo "CLOUDFLARE_TOKEN=${{ secrets.CLOUDFLARE_TOKEN }}"; fi
             if [ -n "${{ secrets.CLOUDFLARE_IMAGES_API_TOKEN }}" ]; then echo "CLOUDFLARE_IMAGES_API_TOKEN=${{ secrets.CLOUDFLARE_IMAGES_API_TOKEN }}"; fi
             if [ -n "${{ secrets.PUBLIC_GOOGLE_MAPS_API_KEY }}" ]; then echo "PUBLIC_GOOGLE_MAPS_API_KEY=${{ secrets.PUBLIC_GOOGLE_MAPS_API_KEY }}"; fi
