@@ -37,17 +37,17 @@
 
 ## Phase 3: CI + Dev Workflow Bun Alignment [checkpoint: pending]
 
-- [ ] Task: Update GitHub Actions workflows from Yarn/Node assumptions to Bun-first
-  - [ ] Define test intent (workflow syntax + local command parity)
-  - [ ] Replace Yarn install/run steps with Bun install/run
-  - [ ] Keep required secrets/env setup behavior intact
-  - [ ] Commit milestone
+- [x] Task: Update GitHub Actions workflows from Yarn/Node assumptions to Bun-first (919a4ed)
+  - [x] Define test intent (workflow syntax + local command parity)
+  - [x] Replace Yarn install/run steps with Bun install/run
+  - [x] Keep required secrets/env setup behavior intact
+  - [x] Commit milestone
 
-- [ ] Task: Update repository docs and operational commands to Bun-first
-  - [ ] Define test intent (docs consistency)
-  - [ ] Update root docs and workflow references from `yarn ...` to `bun run ...`
-  - [ ] Keep database/testing operational notes accurate
-  - [ ] Commit milestone
+- [x] Task: Update repository docs and operational commands to Bun-first (919a4ed)
+  - [x] Define test intent (docs consistency)
+  - [x] Update root docs and workflow references from `yarn ...` to `bun run ...`
+  - [x] Keep database/testing operational notes accurate
+  - [x] Commit milestone
 
 - [ ] Task: Conductor - User Manual Verification 'Phase 3'
 
