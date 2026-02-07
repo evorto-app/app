@@ -1,9 +1,10 @@
-import { Schema } from 'effect';
+import { Effect, Schema } from 'effect';
 
+import { serverEnvironment } from '../../config/environment';
 import {
-  getPublicGoogleMapsApiKey,
-  serverEnvironment,
-} from '../../config/environment';
+  getPublicConfigEffect,
+  PublicConfig,
+} from '../../effect/config/public-config.effect';
 import { publicProcedure, router } from '../trpc-server';
 
 export const configRouter = router({
@@ -12,23 +13,7 @@ export const configRouter = router({
   ),
   permissions: publicProcedure.query(({ ctx }) => ctx.user?.permissions ?? []),
   public: publicProcedure
-    .output(
-      Schema.standardSchemaV1(
-        Schema.Struct({
-          googleMapsApiKey: Schema.NullOr(Schema.NonEmptyString),
-          sentryDsn: Schema.NullOr(Schema.NonEmptyString),
-        }),
-      ),
-    )
-    .query(() => {
-      const googleMapsApiKey = getPublicGoogleMapsApiKey(serverEnvironment);
-
-      return {
-        // eslint-disable-next-line unicorn/no-null
-        googleMapsApiKey: googleMapsApiKey ?? null,
-        // eslint-disable-next-line unicorn/no-null
-        sentryDsn: serverEnvironment.PUBLIC_SENTRY_DSN ?? null,
-      };
-    }),
+    .output(Schema.standardSchemaV1(PublicConfig))
+    .query(() => Effect.runPromise(getPublicConfigEffect(serverEnvironment))),
   tenant: publicProcedure.query(({ ctx }) => ctx.tenant),
 });

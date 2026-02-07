@@ -2,7 +2,7 @@ import { neonConfig } from '@neondatabase/serverless';
 
 let neonLocalConfigured = false;
 const isBunRuntime =
-  typeof (globalThis as { Bun?: unknown }).Bun !== 'undefined';
+  (globalThis as { Bun?: unknown }).Bun !== undefined;
 
 const localHosts = new Set(['127.0.0.1', 'db', 'localhost']);
 
