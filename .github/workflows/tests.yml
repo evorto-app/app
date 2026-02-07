@@ -18,32 +18,26 @@ jobs:
           node-version: 24
       - name: Enable corepack
         run: corepack enable
+      - name: Enable CI env-file injection
+        run: yarn config set 'injectEnvironmentFiles[2]' '.env.ci?'
       - name: Add font awesome token
         run: yarn config set npmScopes.fortawesome.npmAuthToken ${{ secrets.FONT_AWESOME_TOKEN }} --home
       - name: Install dependencies
         run: yarn install --immutable
-      - name: Create .env file with secrets
+      - name: Create CI .env overrides from secrets
         run: |
-          echo "SECRET=${{ secrets.SECRET }}" >> .env
-          echo "CLIENT_SECRET=${{ secrets.CLIENT_SECRET }}" >> .env
-          echo "CLIENT_ID=${{ secrets.CLIENT_ID }}" >> .env
-          echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> .env
-          echo "ISSUER_BASE_URL=${{ secrets.ISSUER_BASE_URL }}" >> .env
-          echo "BASE_URL=${{ secrets.BASE_URL }}" >> .env
-          if [ -n "${{ secrets.AUDIENCE }}" ]; then echo "AUDIENCE=${{ secrets.AUDIENCE }}" >> .env; fi
-          echo "STRIPE_API_KEY=${{ secrets.STRIPE_API_KEY }}" >> .env
-          echo "STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}" >> .env
-          if [ -n "${{ secrets.CLOUDFLARE_TOKEN }}" ]; then echo "CLOUDFLARE_TOKEN=${{ secrets.CLOUDFLARE_TOKEN }}" >> .env; fi
-          if [ -n "${{ secrets.CLOUDFLARE_IMAGES_API_TOKEN }}" ]; then echo "CLOUDFLARE_IMAGES_API_TOKEN=${{ secrets.CLOUDFLARE_IMAGES_API_TOKEN }}" >> .env; fi
-          echo "CLOUDFLARE_ACCOUNT_ID=${{ secrets.CLOUDFLARE_ACCOUNT_ID }}" >> .env
-          echo "CLOUDFLARE_IMAGES_DELIVERY_HASH=${{ secrets.CLOUDFLARE_IMAGES_DELIVERY_HASH }}" >> .env
-          echo "CLOUDFLARE_R2_S3_ENDPOINT=${{ secrets.CLOUDFLARE_R2_S3_ENDPOINT }}" >> .env
-          echo "CLOUDFLARE_R2_S3_KEY_ID=${{ secrets.CLOUDFLARE_R2_S3_KEY_ID }}" >> .env
-          echo "CLOUDFLARE_R2_S3_KEY=${{ secrets.CLOUDFLARE_R2_S3_KEY }}" >> .env
-          echo "FONT_AWESOME_TOKEN=${{ secrets.FONT_AWESOME_TOKEN }}" >> .env
-          echo "AUTH0_MANAGEMENT_CLIENT_ID=${{ secrets.AUTH0_MANAGEMENT_CLIENT_ID }}" >> .env
-          echo "AUTH0_MANAGEMENT_CLIENT_SECRET=${{ secrets.AUTH0_MANAGEMENT_CLIENT_SECRET }}" >> .env
-          if [ -n "${{ secrets.PUBLIC_GOOGLE_MAPS_API_KEY }}" ]; then echo "PUBLIC_GOOGLE_MAPS_API_KEY=${{ secrets.PUBLIC_GOOGLE_MAPS_API_KEY }}" >> .env; fi
+          {
+            echo "CLIENT_SECRET=${{ secrets.CLIENT_SECRET }}";
+            echo "CLIENT_ID=${{ secrets.CLIENT_ID }}";
+            echo "DATABASE_URL=${{ secrets.DATABASE_URL }}";
+            echo "STRIPE_API_KEY=${{ secrets.STRIPE_API_KEY }}";
+            echo "STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}";
+            echo "AUTH0_MANAGEMENT_CLIENT_ID=${{ secrets.AUTH0_MANAGEMENT_CLIENT_ID }}";
+            echo "AUTH0_MANAGEMENT_CLIENT_SECRET=${{ secrets.AUTH0_MANAGEMENT_CLIENT_SECRET }}";
+            if [ -n "${{ secrets.CLOUDFLARE_TOKEN }}" ]; then echo "CLOUDFLARE_TOKEN=${{ secrets.CLOUDFLARE_TOKEN }}"; fi
+            if [ -n "${{ secrets.CLOUDFLARE_IMAGES_API_TOKEN }}" ]; then echo "CLOUDFLARE_IMAGES_API_TOKEN=${{ secrets.CLOUDFLARE_IMAGES_API_TOKEN }}"; fi
+            if [ -n "${{ secrets.PUBLIC_GOOGLE_MAPS_API_KEY }}" ]; then echo "PUBLIC_GOOGLE_MAPS_API_KEY=${{ secrets.PUBLIC_GOOGLE_MAPS_API_KEY }}"; fi
+          } > .env
       - name: Start docker
         run: yarn docker:start
         env:
