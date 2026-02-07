@@ -24,15 +24,15 @@
     "generate:colors:esn": "bunx --bun ng generate @angular/material:theme-color --include-high-contrast --primary-color=#00aeef --secondary-color=#ec008c --tertiary-color=#7ac143 --interactive=false --directory=src/_esn --force",
     "sentry:sourcemaps": "sentry-cli sourcemaps inject --org lukas-heddendorp --project evorto ./dist && sentry-cli sourcemaps upload --org lukas-heddendorp --project evorto ./dist",
     "push:database": "drizzle-kit push --force",
-    "setup:database": "bunx --bun tsx helpers/database.ts",
+    "setup:database": "bun helpers/database.ts",
     "reset:database": "bun run push:database && bun run setup:database",
     "docker:stop": "bash -lc 'eval \"$(bun helpers/testing/runtime-env.mjs)\" && docker compose down'",
     "docker:start": "bash -lc 'eval \"$(bun helpers/testing/runtime-env.mjs)\" && docker compose down && docker compose up --build -d'",
     "docker:start-test": "bash -lc 'eval \"$(bun helpers/testing/runtime-env.mjs)\" && docker compose down && docker compose up --build'",
-    "migrate": "bunx --bun tsx migration/index.ts",
+    "migrate": "bun migration/index.ts",
     "check:tiptap-license": "bun helpers/check-tiptap-license.mjs",
-    "cleanup:testing:receipt-images": "bunx --bun tsx helpers/cleanup-testing-receipt-images.ts",
-    "cleanup:testing:receipt-images:dry-run": "bunx --bun tsx helpers/cleanup-testing-receipt-images.ts --dry-run"
+    "cleanup:testing:receipt-images": "bun helpers/cleanup-testing-receipt-images.ts",
+    "cleanup:testing:receipt-images:dry-run": "bun helpers/cleanup-testing-receipt-images.ts --dry-run"
   },
   "private": true,
   "dependencies": {

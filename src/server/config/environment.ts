@@ -89,6 +89,19 @@ export type ServerEnvironment = Schema.Schema.Type<typeof ServerEnvironmentSchem
 const formatSchemaError = (error: ParseResult.ParseError): string =>
   ParseResult.TreeFormatter.formatErrorSync(error);
 
+const normalizeEnvironmentInput = (
+  input: NodeJS.ProcessEnv = process.env,
+): NodeJS.ProcessEnv => {
+  const normalized: NodeJS.ProcessEnv = {};
+  for (const [key, value] of Object.entries(input)) {
+    normalized[key] =
+      typeof value === 'string' && value.trim().length === 0
+        ? undefined
+        : value;
+  }
+  return normalized;
+};
+
 const decodeOrThrow = <A, I>(
   schema: Schema.Schema<A, I, never>,
   input: unknown,
@@ -103,7 +116,12 @@ const decodeOrThrow = <A, I>(
 
 export const getServerEnvironment = (
   input: NodeJS.ProcessEnv = process.env,
-): ServerEnvironment => decodeOrThrow(ServerEnvironmentSchema, input, 'server environment');
+): ServerEnvironment =>
+  decodeOrThrow(
+    ServerEnvironmentSchema,
+    normalizeEnvironmentInput(input),
+    'server environment',
+  );
 
 export const serverEnvironment = getServerEnvironment();
 
@@ -114,7 +132,11 @@ export const getServerPort = (
 export const getDatabaseEnvironment = (
   input: NodeJS.ProcessEnv = process.env,
 ): { DATABASE_URL: string } =>
-  decodeOrThrow(DatabaseEnvironmentSchema, input, 'database connection');
+  decodeOrThrow(
+    DatabaseEnvironmentSchema,
+    normalizeEnvironmentInput(input),
+    'database connection',
+  );
 
 export const getOidcEnvironment = (
   input: NodeJS.ProcessEnv = process.env,
@@ -128,7 +150,7 @@ export const getOidcEnvironment = (
 } => {
   const environment = decodeOrThrow(
     OidcEnvironmentSchema,
-    input,
+    normalizeEnvironmentInput(input),
     'OIDC configuration',
   );
 
@@ -145,21 +167,29 @@ export const getOidcEnvironment = (
 export const getStripeApiEnvironment = (
   input: NodeJS.ProcessEnv = process.env,
 ): { STRIPE_API_KEY: string } =>
-  decodeOrThrow(StripeApiEnvironmentSchema, input, 'Stripe API configuration');
+  decodeOrThrow(
+    StripeApiEnvironmentSchema,
+    normalizeEnvironmentInput(input),
+    'Stripe API configuration',
+  );
 
 export const getStripeWebhookEnvironment = (
   input: NodeJS.ProcessEnv = process.env,
 ): { STRIPE_WEBHOOK_SECRET: string } =>
   decodeOrThrow(
     StripeWebhookEnvironmentSchema,
-    input,
+    normalizeEnvironmentInput(input),
     'Stripe webhook configuration',
   );
 
 export const isCloudflareImagesEnvironmentConfigured = (
   input: NodeJS.ProcessEnv = process.env,
 ): boolean =>
-  Either.isRight(Schema.decodeUnknownEither(CloudflareImagesEnvironmentSchema)(input));
+  Either.isRight(
+    Schema.decodeUnknownEither(CloudflareImagesEnvironmentSchema)(
+      normalizeEnvironmentInput(input),
+    ),
+  );
 
 export const getCloudflareImagesEnvironment = (
   input: NodeJS.ProcessEnv = process.env,
@@ -173,7 +203,7 @@ export const getCloudflareImagesEnvironment = (
 } => {
   const environment = decodeOrThrow(
     CloudflareImagesEnvironmentSchema,
-    input,
+    normalizeEnvironmentInput(input),
     'Cloudflare Images configuration',
   );
 
@@ -202,7 +232,12 @@ export const getCloudflareR2Environment = (
   CLOUDFLARE_R2_S3_ENDPOINT: string;
   CLOUDFLARE_R2_S3_KEY: string;
   CLOUDFLARE_R2_S3_KEY_ID: string;
-} => decodeOrThrow(CloudflareR2EnvironmentSchema, input, 'Cloudflare R2 configuration');
+} =>
+  decodeOrThrow(
+    CloudflareR2EnvironmentSchema,
+    normalizeEnvironmentInput(input),
+    'Cloudflare R2 configuration',
+  );
 
 export const getPublicGoogleMapsApiKey = (
   environment: ServerEnvironment = serverEnvironment,

@@ -1,10 +1,9 @@
 services:
   db:
     image: neondatabase/neon_local:latest
-    environment:
-      NEON_API_KEY: ${NEON_API_KEY:-}
-      NEON_PROJECT_ID: ${NEON_PROJECT_ID:-}
-      PARENT_BRANCH_ID: ${PARENT_BRANCH_ID:-}
+    env_file:
+      - .env.local
+      - .env
     ports:
       - "${NEON_LOCAL_HOST_PORT:-55432}:5432"
 
