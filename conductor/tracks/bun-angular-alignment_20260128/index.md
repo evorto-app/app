@@ -3,3 +3,4 @@
 - [Specification](./spec.md)
 - [Implementation Plan](./plan.md)
 - [Metadata](./metadata.json)
+- [Session Handoff 2026-02-07](./handoff-2026-02-07.md)

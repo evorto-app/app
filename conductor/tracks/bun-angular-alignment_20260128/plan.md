@@ -196,3 +196,8 @@
 - `CI=true bun run e2e:docs` passes: `23 passed` (Playwright summary).
 - `tests/specs/templates/templates.test.ts` passes end-to-end with unique title generation and Bun-safe template create/update server path.
 - `tests/docs/profile/discounts.doc.ts` and `tests/docs/events/event-approval.doc.ts` pass under docs project with deterministic navigation/seeding.
+
+## Session Handoff
+
+- Detailed continuation context for this checkpoint is captured in:
+  - `conductor/tracks/bun-angular-alignment_20260128/handoff-2026-02-07.md`
