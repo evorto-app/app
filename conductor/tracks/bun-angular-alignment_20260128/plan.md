@@ -2,18 +2,18 @@
 
 ## Phase 1: Conductor Consolidation + Baseline Lock [checkpoint: pending]
 
-- [ ] Task: Consolidate track artifacts from all provided references
-  - [ ] Define test intent (documentation-only changes)
-  - [ ] Merge prior `plan.md` + `codex-plan.md` into one execution plan
-  - [ ] Update `spec.md` to use repomix baselines as source of truth
-  - [ ] Set track status to in-progress in `conductor/tracks.md`
-  - [ ] Commit milestone
+- [x] Task: Consolidate track artifacts from all provided references (b5902fc)
+  - [x] Define test intent (documentation-only changes)
+  - [x] Merge prior `plan.md` + `codex-plan.md` into one execution plan
+  - [x] Update `spec.md` to use repomix baselines as source of truth
+  - [x] Set track status to in-progress in `conductor/tracks.md`
+  - [x] Commit milestone
 
-- [ ] Task: Capture Bun baseline deltas against current repo
-  - [ ] Define test intent (analysis-only)
-  - [ ] Record script/config deltas from `repomix-output-angular-bun-setup-main.zip.xml`
-  - [ ] Record Effect integration references from `repomix-output-effect-angular-main.zip.xml`
-  - [ ] Commit milestone (if files changed)
+- [x] Task: Capture Bun baseline deltas against current repo (b5902fc)
+  - [x] Define test intent (analysis-only)
+  - [x] Record script/config deltas from `repomix-output-angular-bun-setup-main.zip.xml`
+  - [x] Record Effect integration references from `repomix-output-effect-angular-main.zip.xml`
+  - [x] Commit milestone (if files changed)
 
 - [ ] Task: Conductor - User Manual Verification 'Phase 1'
 
