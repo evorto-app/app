@@ -53,15 +53,21 @@
 
 ## Phase 4: Bun Runtime + Quality Gates [checkpoint: pending]
 
-- [ ] Task: Validate Bun-based lint and build gates
-  - [ ] Define test intent (`bun run lint:fix`, `bun run lint`, `bun run build`)
-  - [ ] Fix migration regressions uncovered by lint/build
-  - [ ] Commit milestone
+- [x] Task: Validate Bun-based lint and build gates (85d8ad7)
+  - [x] Define test intent (`bun run lint:fix`, `bun run lint`, `bun run build`)
+  - [x] Fix migration regressions uncovered by lint/build
+  - [x] Commit milestone
 
-- [ ] Task: Validate Bun SSR startup path
-  - [ ] Define test intent (`bun run serve:ssr:evorto` smoke)
-  - [ ] Verify server starts and health route responds
-  - [ ] Commit milestone (if changes required)
+- [x] Task: Validate Bun SSR startup path (85d8ad7)
+  - [x] Define test intent (`bun run serve:ssr:evorto` smoke)
+  - [x] Verify server starts and health route responds
+  - [x] Commit milestone (if changes required)
+
+- [x] Task: Apply Angular modernize transforms for latest template/class syntax (85d8ad7)
+  - [x] Define test intent (`bun run lint:fix`, `bun run build`)
+  - [x] Run Angular modernize migrations on `src/app`
+  - [x] Verify migrated templates/components compile successfully
+  - [x] Commit milestone
 
 - [ ] Task: Conductor - User Manual Verification 'Phase 4'
 
