@@ -49,6 +49,12 @@
   - [x] Keep database/testing operational notes accurate
   - [x] Commit milestone
 
+- [x] Task: Remove remaining Yarn fallback assumptions from local tooling bootstrap (4dbd486)
+  - [x] Define test intent (`bun run check:tiptap-license`)
+  - [x] Enforce Bun lockfile as the single source in helper validation scripts
+  - [x] Align Codex environment setup bootstrap to `bun install --frozen-lockfile`
+  - [x] Commit milestone
+
 - [ ] Task: Conductor - User Manual Verification 'Phase 3'
 
 ## Phase 4: Bun Runtime + Quality Gates [checkpoint: pending]
