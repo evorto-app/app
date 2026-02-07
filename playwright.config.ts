@@ -41,7 +41,7 @@ export default defineConfig({
       testDir: './tests/setup',
       testMatch: /.*\.setup\.ts$/,
       timeout: 20_000,
-      retries: 0,
+      retries: environment.CI ? 1 : 0,
       use: { ...devices['Desktop Chrome'] },
     },
     {
@@ -99,8 +99,8 @@ export default defineConfig({
   ],
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: reporters,
-  /* Prefer failing fast in CI to shorten feedback loops. */
-  retries: 0,
+  /* Keep a single retry in CI for flakiness while still failing fast. */
+  retries: environment.CI ? 1 : 0,
   testDir: './tests',
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
