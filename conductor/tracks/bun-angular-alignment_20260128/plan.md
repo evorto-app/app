@@ -81,6 +81,15 @@
   - [x] Align `registration-start-offset` pipe signature/spec with strict typing + lint rules
   - [x] Validation note: `bun run e2e --project=setup` still blocked by Neon DB connectivity in current shell environment
 
+- [x] Task: Stabilize Playwright setup path for Bun + Neon local + SSR RPC bridge (f66c383)
+  - [x] Define test intent (`bun run docker:start`, `playwright --project=setup`, targeted local-chrome smoke)
+  - [x] Disable websocket-only Neon paths for local proxy usage in app/test database clients
+  - [x] Remove transaction-only seed registration writes that trigger Neon websocket fallback in local Bun runs
+  - [x] Align runtime test defaults to deterministic local ports (`4200`/`55432`) to avoid callback drift
+  - [x] Resolve Effect RPC SSR transport URL by using absolute server-side `/rpc` origin from `BASE_URL`
+  - [x] Validation result: setup project passes (`7/7`) with Bun + Docker local stack
+  - [x] Validation note: local-chrome currently stops at `tests/specs/discounts/esn-discounts.test.ts` waiting for `Pay now` checkout link
+
 - [ ] Task: Conductor - User Manual Verification 'Phase 4'
 
 ## Phase 5: Effect Migration Foundation (Next Step Within Track) [checkpoint: pending]
@@ -171,7 +180,8 @@
 - `bun run lint` passes with existing repo warnings only.
 - `bun run build` passes.
 - `bun run test` passes after restoring Jasmine type package and strict pipe signature alignment.
-- `bun run e2e --project=setup` currently fails in auth setup:
-  - Timeout waiting for Auth0 login form fields in `tests/setup/authentication.setup.ts`.
-  - When Docker is running, DB seeding starts but emits `WebSocket connection to 'ws://localhost/v2' failed` during registration seeding.
-  - Track as environment/runtime integration blocker for full e2e/docs gate completion.
+- `bunx --bun playwright test --project=setup` passes (`7/7`) with Docker + `NO_WEBSERVER=true`.
+- `bunx --bun playwright test --project=local-chrome --max-failures=1` now progresses beyond setup and first stops at:
+  - `tests/specs/discounts/esn-discounts.test.ts`
+  - Timeout waiting for checkout CTA (`getByRole('link', { name: 'Pay now' })`)
+  - Prior SSR `RpcClient.config.tenant` transport failures are resolved after server-side absolute `/rpc` URL fix.

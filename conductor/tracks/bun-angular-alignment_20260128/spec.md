@@ -51,6 +51,20 @@ The migration mode is explicitly non-backward-compatible. We optimize for a clea
 - Core quality gates run successfully via Bun commands (at minimum lint + build during implementation milestones, full suite at final gate).
 - Conductor artifacts (`spec.md`, `plan.md`, `tracks.md`) reflect actual migration execution status.
 
+## Requirement-to-Test Mapping (Updated 2026-02-07)
+
+- Bun runtime/tooling alignment:
+  - `CI=true bun run lint:fix`
+  - `CI=true bun run lint`
+  - `CI=true bun run build`
+  - `CI=true bun run test`
+- Bun + Neon local e2e setup reliability:
+  - `CI=true bun run docker:start`
+  - `NO_WEBSERVER=true CI=true bunx --bun playwright test --project=setup --workers=1` (passes)
+- Known remaining gate blocker before full e2e/docs close:
+  - `NO_WEBSERVER=true CI=true bunx --bun playwright test --project=local-chrome --workers=1 --max-failures=1`
+  - current first failure in `tests/specs/discounts/esn-discounts.test.ts` waiting for checkout link `Pay now`.
+
 ## Out of Scope (for this track phase)
 
 - Product feature work unrelated to migration.

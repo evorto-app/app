@@ -92,3 +92,10 @@ Replace Express+tRPC request handling and ad-hoc service wiring with Effect-firs
 
 - After migrating all Angular config callsites to Effect RPC, the server-side tRPC `config` namespace was removed from `src/server/trpc/app-router.ts`.
 - Obsolete file `src/server/trpc/core/config.router.ts` was deleted to reduce dual-protocol maintenance and accidental regressions.
+
+## Phase 6 Update (SSR RPC Transport)
+
+- Effect RPC Angular client now resolves `/rpc` differently by runtime:
+  - Browser: relative `/rpc`.
+  - SSR/server: absolute `${BASE_URL}/rpc` (fallback `http://localhost:4200/rpc`).
+- This removes server-side `RpcClientError: Failed to send HTTP request` failures observed in local Docker SSR when resolving `config.tenant` during route rendering.
