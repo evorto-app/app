@@ -1,10 +1,8 @@
 import { Effect, Schema } from 'effect';
 
+import { PublicConfig } from '../../../shared/rpc-contracts/app-rpcs';
 import { serverEnvironment } from '../../config/environment';
-import {
-  getPublicConfigEffect,
-  PublicConfig,
-} from '../../effect/config/public-config.effect';
+import { getPublicConfigEffect } from '../../effect/config/public-config.effect';
 import { publicProcedure, router } from '../trpc-server';
 
 export const configRouter = router({

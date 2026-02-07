@@ -1,16 +1,10 @@
-import { Context, Effect, Layer, Schema } from 'effect';
+import { Context, Effect, Layer } from 'effect';
 
+import { type PublicConfig } from '../../../shared/rpc-contracts/app-rpcs';
 import {
   getPublicGoogleMapsApiKey,
   type ServerEnvironment,
 } from '../../config/environment';
-
-export const PublicConfig = Schema.Struct({
-  googleMapsApiKey: Schema.NullOr(Schema.NonEmptyString),
-  sentryDsn: Schema.NullOr(Schema.NonEmptyString),
-});
-
-export type PublicConfig = Schema.Schema.Type<typeof PublicConfig>;
 
 class RuntimeEnvironment extends Context.Tag('RuntimeEnvironment')<
   RuntimeEnvironment,

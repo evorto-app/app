@@ -25,6 +25,7 @@ import { fileURLToPath } from 'node:url';
 
 import { Context } from '../types/custom/context';
 import { getOidcEnvironment } from './config/environment';
+import { handleAppRpcRequest } from './effect/rpc/app-rpcs.web-handler';
 import { addAuthenticationContext } from './middleware/authentication-context';
 import { addTenantContext } from './middleware/tenant-context';
 import { addUserContext } from './middleware/user-context';
@@ -100,6 +101,14 @@ app.get('/forward-login', async (request, response) => {
     });
   } else {
     response.redirect('/login');
+  }
+});
+
+app.post('/rpc', async (request, response, next) => {
+  try {
+    await handleAppRpcRequest(request, response);
+  } catch (error) {
+    next(error);
   }
 });
 
