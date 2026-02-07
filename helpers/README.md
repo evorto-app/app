@@ -46,20 +46,20 @@ The seeding approach has been designed to be deterministic while still creating 
 To reset and seed the database:
 
 ```bash
-yarn reset:database
+bun run reset:database
 ```
 
 This will:
 
-1. Push the latest schema to the database (`yarn push:database`)
-2. Run the seeding script (`yarn setup:database`)
+1. Push the latest schema to the database (`bun run push:database`)
+2. Run the seeding script (`bun run setup:database`)
 
 ## Modifying the Seeding Process
 
 If you need to modify the seeding process:
 
 1. Make changes to the appropriate file(s) in the `helpers` directory
-2. Test your changes by running `yarn reset:database`
+2. Test your changes by running `bun run reset:database`
 3. Verify that the application displays the expected data
 
 Remember that the goal is to maintain deterministic seeding while creating realistic data.

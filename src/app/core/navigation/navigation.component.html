@@ -6,7 +6,7 @@
       class="flex min-w-16 flex-row justify-center rounded-full py-1"
       routerLinkActive="bg-secondary-container text-on-secondary-container navigation-active"
     >
-      <fa-duotone-icon [icon]="faCalendarDays" size="xl"></fa-duotone-icon>
+      <fa-duotone-icon [icon]="faCalendarDays" size="xl" />
     </div>
     <span class="body-medium text-center">Events</span>
   </a>
@@ -19,7 +19,7 @@
       class="flex min-w-16 flex-row justify-center rounded-full py-1"
       routerLinkActive="bg-secondary-container text-on-secondary-container navigation-active"
     >
-      <fa-duotone-icon [icon]="faFolders" size="xl"></fa-duotone-icon>
+      <fa-duotone-icon [icon]="faFolders" size="xl" />
     </div>
     <span class="body-medium text-center">Templates</span>
   </a>
@@ -29,14 +29,14 @@
         class="flex min-w-16 flex-row justify-center rounded-full py-1"
         routerLinkActive="bg-secondary-container text-on-secondary-container navigation-active"
       >
-        <fa-duotone-icon [icon]="faUser" size="xl"></fa-duotone-icon>
+        <fa-duotone-icon [icon]="faUser" size="xl" />
       </div>
       <span class="body-medium text-center">Profile</span>
     </a>
   } @else {
     <a href="/login" class="flex flex-col items-center gap-1 lg:hidden">
       <div class="flex min-w-16 flex-row justify-center rounded-full py-1">
-        <fa-duotone-icon [icon]="faRightToBracket" size="xl"></fa-duotone-icon>
+        <fa-duotone-icon [icon]="faRightToBracket" size="xl" />
       </div>
       <span class="body-medium text-center">Login</span>
     </a>
@@ -50,7 +50,7 @@
       class="flex min-w-16 flex-row justify-center rounded-full py-1"
       routerLinkActive="bg-secondary-container text-on-secondary-container navigation-active"
     >
-      <fa-duotone-icon [icon]="faHouseChimney" size="xl"></fa-duotone-icon>
+      <fa-duotone-icon [icon]="faHouseChimney" size="xl" />
     </div>
     <span class="body-medium text-center">Internal</span>
   </a>
@@ -63,7 +63,7 @@
       class="flex min-w-16 flex-row justify-center rounded-full py-1"
       routerLinkActive="bg-secondary-container text-on-secondary-container navigation-active"
     >
-      <fa-duotone-icon [icon]="faLockKeyhole" size="xl"></fa-duotone-icon>
+      <fa-duotone-icon [icon]="faLockKeyhole" size="xl" />
     </div>
     <span class="body-medium text-center">Global admin</span>
   </a>
@@ -76,7 +76,7 @@
       class="flex min-w-16 flex-row justify-center rounded-full py-1"
       routerLinkActive="bg-secondary-container text-on-secondary-container navigation-active"
     >
-      <fa-duotone-icon [icon]="faMoneyBill" size="xl"></fa-duotone-icon>
+      <fa-duotone-icon [icon]="faMoneyBill" size="xl" />
     </div>
     <span class="body-medium text-center">Finances</span>
   </a>
@@ -89,7 +89,7 @@
       class="flex min-w-16 flex-row justify-center rounded-full py-1"
       routerLinkActive="bg-secondary-container text-on-secondary-container navigation-active"
     >
-      <fa-duotone-icon [icon]="faFolderGear" size="xl"></fa-duotone-icon>
+      <fa-duotone-icon [icon]="faFolderGear" size="xl" />
     </div>
     <span class="body-medium text-center">Admin Tools</span>
   </a>
@@ -100,7 +100,7 @@
     *appIfPermission="'admin:*'"
   >
     <div class="flex min-w-16 flex-row justify-center rounded-full py-1">
-      <fa-duotone-icon [icon]="faEllipsisVertical" size="xl"></fa-duotone-icon>
+      <fa-duotone-icon [icon]="faEllipsisVertical" size="xl" />
     </div>
     <span class="body-medium text-center">More</span>
   </button>
@@ -111,24 +111,23 @@
       class="flex min-w-16 flex-row justify-center rounded-full py-1"
       routerLinkActive="bg-secondary-container text-on-secondary-container navigation-active"
     >
-      <fa-duotone-icon [icon]="faScannerGun" size="xl"></fa-duotone-icon>
+      <fa-duotone-icon [icon]="faScannerGun" size="xl" />
     </div>
     <span class="body-medium text-center">Scanner</span>
   </a>
   @if (authenticationQuery.data()) {
     <a href="/logout" class="hidden flex-col items-center gap-1 lg:flex">
       <div class="flex min-w-16 flex-row justify-center rounded-full py-1">
-        <fa-duotone-icon
-          [icon]="faRightFromBracket"
+        <fa-duotone-icon [icon]="faRightFromBracket"
           size="xl"
-        ></fa-duotone-icon>
+         />
       </div>
       <span class="body-medium text-center">Logout</span>
     </a>
   } @else {
     <a href="/login" class="hidden flex-col items-center gap-1 lg:flex">
       <div class="flex min-w-16 flex-row justify-center rounded-full py-1">
-        <fa-duotone-icon [icon]="faRightToBracket" size="xl"></fa-duotone-icon>
+        <fa-duotone-icon [icon]="faRightToBracket" size="xl" />
       </div>
       <span class="body-medium text-center">Login</span>
     </a>
@@ -147,7 +146,7 @@
         class="flex min-w-16 flex-row justify-center rounded-full py-1"
         routerLinkActive="bg-secondary-container text-on-secondary-container"
       >
-        <fa-duotone-icon [icon]="faLockKeyhole" size="xl"></fa-duotone-icon>
+        <fa-duotone-icon [icon]="faLockKeyhole" size="xl" />
       </div>
       <span class="body-medium text-center">Global admin</span>
     </a>
@@ -160,7 +159,7 @@
         class="flex min-w-16 flex-row justify-center rounded-full py-1"
         routerLinkActive="bg-secondary-container text-on-secondary-container"
       >
-        <fa-duotone-icon [icon]="faScannerGun" size="xl"></fa-duotone-icon>
+        <fa-duotone-icon [icon]="faScannerGun" size="xl" />
       </div>
       <span class="body-medium text-center">Scanner</span>
     </a>
@@ -174,7 +173,7 @@
         class="flex min-w-16 flex-row justify-center rounded-full py-1"
         routerLinkActive="bg-secondary-container text-on-secondary-container"
       >
-        <fa-duotone-icon [icon]="faMoneyBill" size="xl"></fa-duotone-icon>
+        <fa-duotone-icon [icon]="faMoneyBill" size="xl" />
       </div>
       <span class="body-medium text-center">Finances</span>
     </a>
@@ -188,7 +187,7 @@
         class="flex min-w-16 flex-row justify-center rounded-full py-1"
         routerLinkActive="bg-secondary-container text-on-secondary-container"
       >
-        <fa-duotone-icon [icon]="faHouseChimney" size="xl"></fa-duotone-icon>
+        <fa-duotone-icon [icon]="faHouseChimney" size="xl" />
       </div>
       <span class="body-medium text-center">Internal</span>
     </a>
@@ -202,7 +201,7 @@
         class="flex min-w-16 flex-row justify-center rounded-full py-1"
         routerLinkActive="bg-secondary-container text-on-secondary-container"
       >
-        <fa-duotone-icon [icon]="faFolderGear" size="xl"></fa-duotone-icon>
+        <fa-duotone-icon [icon]="faFolderGear" size="xl" />
       </div>
       <span class="body-medium text-center">Admin Tools</span>
     </a>

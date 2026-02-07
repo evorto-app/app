@@ -65,8 +65,7 @@
           >
             <ng-container matColumnDef="select">
               <th mat-header-cell *matHeaderCellDef>
-                <mat-checkbox
-                  [checked]="areAllSelected(group.submittedByUserId, groupReceiptIds)"
+                <mat-checkbox [checked]="areAllSelected(group.submittedByUserId, groupReceiptIds)"
                   [indeterminate]="
                     isPartiallySelected(group.submittedByUserId, groupReceiptIds)
                   "
@@ -77,15 +76,14 @@
                       $event.checked
                     )
                   "
-                ></mat-checkbox>
+                 />
               </th>
               <td mat-cell *matCellDef="let receipt">
-                <mat-checkbox
-                  [checked]="isReceiptSelected(group.submittedByUserId, receipt.id)"
+                <mat-checkbox [checked]="isReceiptSelected(group.submittedByUserId, receipt.id)"
                   (change)="
                     toggleReceipt(group.submittedByUserId, receipt.id, $event.checked)
                   "
-                ></mat-checkbox>
+                 />
               </td>
             </ng-container>
 

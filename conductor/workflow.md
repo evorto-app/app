@@ -104,10 +104,10 @@ All tasks follow a strict lifecycle:
 
 Before marking any task complete, verify:
 
-- [ ] `yarn lint` passes
-- [ ] `yarn build` passes
-- [ ] `yarn e2e` passes (or targeted project)
-- [ ] `yarn e2e:docs` passes
+- [ ] `bun run lint` passes
+- [ ] `bun run build` passes
+- [ ] `bun run e2e` passes (or targeted project)
+- [ ] `bun run e2e:docs` passes
 - [ ] Documentation updated if needed
 - [ ] Type safety is enforced
 - [ ] No linting/static analysis errors
@@ -118,27 +118,27 @@ Before marking any task complete, verify:
 ### Setup
 
 ```bash
-yarn install
-yarn setup:database
+bun install
+bun run setup:database
 ```
 
 ### Daily Development
 
 ```bash
-yarn start
-yarn lint
-yarn build
-yarn e2e
-yarn e2e:docs
+bun run start
+bun run lint
+bun run build
+bun run e2e
+bun run e2e:docs
 ```
 
 ### Before Committing
 
 ```bash
-yarn lint
-yarn build
-yarn e2e
-yarn e2e:docs
+bun run lint
+bun run build
+bun run e2e
+bun run e2e:docs
 ```
 
 ## Testing Requirements

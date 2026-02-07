@@ -26,22 +26,10 @@ jobs:
         # Use sparse-checkout false to ensure .env and Docker context are available
         uses: actions/checkout@v4
 
-      - name: Enable Corepack
-        run: corepack enable
-
-      - name: Install Yarn 4.x
-        run: corepack prepare yarn@4 --activate
-
-      - name: Setup Node.js 20
-        uses: actions/setup-node@v4
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          node-version: "20"
-          cache: "yarn"
-      - name: Enable CI env-file injection
-        run: yarn config set 'injectEnvironmentFiles[2]' '.env.ci?'
-
-      - name: Configure FontAwesome auth for Yarn
-        run: yarn config set npmScopes.fortawesome.npmAuthToken ${{ secrets.FONT_AWESOME_TOKEN }} --home
+          bun-version: "1.3.7"
 
       - name: Validate required Neon secrets
         run: |
@@ -56,7 +44,7 @@ jobs:
 
       - name: Configure dynamic runtime ports
         run: |
-          eval "$(node helpers/testing/runtime-env.mjs)"
+          eval "$(bun helpers/testing/runtime-env.mjs)"
           {
             echo "APP_HOST_PORT=${APP_HOST_PORT}";
             echo "BASE_URL=${BASE_URL}";
@@ -79,10 +67,10 @@ jobs:
           PLAYWRIGHT_TEST_BASE_URL: ${{ env.PLAYWRIGHT_TEST_BASE_URL }}
 
       - name: Install dependencies
-        run: yarn install --immutable
+        run: bun install --frozen-lockfile
 
       - name: Install Playwright browsers
-        run: yarn playwright install --with-deps
+        run: bunx --bun playwright install --with-deps
 
       - name: Create CI .env overrides from secrets
         run: |
@@ -114,10 +102,10 @@ jobs:
         run: docker compose build --pull
 
       # Functional tests (keep scope minimal for CI speed). The Playwright webServer will
-      # start Docker services via `yarn docker:start-test` from playwright.config.ts.
+      # start Docker services via `bun run docker:start-test` from playwright.config.ts.
       - name: Run functional tests (chromium only)
         run: |
-          yarn e2e --project=local-chrome
+          bun run e2e --project=local-chrome
 
       # Documentation tests: exclude @finance tagged journeys and force the documentation reporter
       # even on CI by overriding reporters via CLI.
@@ -127,8 +115,8 @@ jobs:
           DOCS_OUT_DIR: test-results/docs
           DOCS_IMG_OUT_DIR: test-results/docs/images
         run: |
-          yarn playwright test --project=docs --grep-invert "@finance" \
-            --reporter=github,dot,./e2e/reporters/documentation-reporter.ts
+          bunx --bun playwright test --project=docs --grep-invert "@finance" \
+            --reporter=github,dot,./tests/support/reporters/documentation-reporter.ts
 
       - name: Upload Playwright test results
         if: always()

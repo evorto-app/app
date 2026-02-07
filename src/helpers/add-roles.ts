@@ -25,7 +25,7 @@ export async function addRoles(database: Database, tenant: { id: string }) {
         name: 'Section member',
         permissions: [
           'events:create',
-          'events:edit',
+          'events:editAll',
           'events:seeDrafts',
           'events:viewPublic',
           'templates:view',

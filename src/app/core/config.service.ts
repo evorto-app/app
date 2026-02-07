@@ -15,6 +15,7 @@ import consola from 'consola/browser';
 import { Permission } from '../../shared/permissions/permissions';
 import { Context } from '../../types/custom/context';
 import { Tenant } from '../../types/custom/tenant';
+import { EffectRpcClient } from './effect-rpc-client';
 import { injectTRPC } from './trpc-client';
 import { injectTRPCClient } from './trpc-client';
 
@@ -67,6 +68,7 @@ export class ConfigService {
   private renderer = inject(RendererFactory2).createRenderer(null, null);
   private readonly requestContext = inject(REQUEST_CONTEXT) as Context | null;
 
+  private rpcClient = inject(EffectRpcClient);
   private readonly title = inject(Title);
   private trpcClient = injectTRPCClient();
 
@@ -98,7 +100,7 @@ export class ConfigService {
     const [tenant, permissions, pub] = await Promise.all([
       this.trpcClient.config.tenant.query(),
       this.trpcClient.config.permissions.query(),
-      this.trpcClient.config.public.query(),
+      this.rpcClient.getPublicConfig(),
     ]);
 
     this.title.setTitle(tenant.name);

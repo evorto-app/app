@@ -17,7 +17,7 @@
         routerLinkActive="bg-secondary-container! text-on-secondary-container!"
       >
         <div class="flex flex-row items-center gap-4">
-          <fa-duotone-icon [icon]="faUsers" size="xl"></fa-duotone-icon>
+          <fa-duotone-icon [icon]="faUsers" size="xl" />
           <h2 class="title-medium">Users</h2>
         </div>
       </a>
@@ -27,7 +27,7 @@
         routerLinkActive="bg-secondary-container! text-on-secondary-container!"
       >
         <div class="flex flex-row items-center gap-4">
-          <fa-duotone-icon [icon]="faFolderUser" size="xl"></fa-duotone-icon>
+          <fa-duotone-icon [icon]="faFolderUser" size="xl" />
           <h2 class="title-medium">User roles</h2>
         </div>
       </a>
@@ -37,7 +37,7 @@
         routerLinkActive="bg-secondary-container! text-on-secondary-container!"
       >
         <div class="flex flex-row items-center gap-4">
-          <fa-duotone-icon [icon]="faGlobe" size="xl"></fa-duotone-icon>
+          <fa-duotone-icon [icon]="faGlobe" size="xl" />
           <h2 class="title-medium">General settings</h2>
         </div>
       </a>
@@ -47,7 +47,7 @@
         routerLinkActive="bg-secondary-container! text-on-secondary-container!"
       >
         <div class="flex flex-row items-center gap-4">
-          <fa-duotone-icon [icon]="faReceipt" size="xl"></fa-duotone-icon>
+          <fa-duotone-icon [icon]="faReceipt" size="xl" />
           <h2 class="title-medium">Tax Rates</h2>
         </div>
       </a>
@@ -57,7 +57,7 @@
         routerLinkActive="bg-secondary-container! text-on-secondary-container!"
       >
         <div class="flex flex-row items-center gap-4">
-          <fa-duotone-icon [icon]="faCalendarCheck" size="xl"></fa-duotone-icon>
+          <fa-duotone-icon [icon]="faCalendarCheck" size="xl" />
           <h2 class="title-medium">Event Reviews</h2>
           @if (pendingReviewsCount() > 0) {
             <span
@@ -71,9 +71,8 @@
     </nav>
   </div>
   <div>
-    <router-outlet
-      (activate)="outletActive.set(true)"
+    <router-outlet (activate)="outletActive.set(true)"
       (deactivate)="outletActive.set(false)"
-    ></router-outlet>
+     />
   </div>
 </div>
