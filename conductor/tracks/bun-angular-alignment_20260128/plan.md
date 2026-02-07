@@ -164,3 +164,14 @@
   - [ ] `bun run e2e`
   - [ ] `bun run e2e:docs`
 - [ ] Add/update Knope change file documenting migration status and scope
+
+## Validation Snapshot (2026-02-07)
+
+- `bun run lint:fix` passes with existing repo warnings only.
+- `bun run lint` passes with existing repo warnings only.
+- `bun run build` passes.
+- `bun run test` passes after restoring Jasmine type package and strict pipe signature alignment.
+- `bun run e2e --project=setup` currently fails in auth setup:
+  - Timeout waiting for Auth0 login form fields in `tests/setup/authentication.setup.ts`.
+  - When Docker is running, DB seeding starts but emits `WebSocket connection to 'ws://localhost/v2' failed` during registration seeding.
+  - Track as environment/runtime integration blocker for full e2e/docs gate completion.
