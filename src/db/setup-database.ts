@@ -3,6 +3,8 @@ import { InferInsertModel } from 'drizzle-orm';
 import { NeonDatabase } from 'drizzle-orm/neon-serverless';
 import { reset } from 'drizzle-seed';
 
+import type { SeedTenantOptions } from '../../helpers/seed-tenant';
+
 import { getSeedDate } from '../../helpers/seed-clock';
 import { seedFalsoForScope } from '../../helpers/seed-falso';
 import { seedBaseUsers, seedTenant } from '../../helpers/seed-tenant';
@@ -27,7 +29,6 @@ export async function setupDatabase(
   consola.info(`Seeded falso with daily seed "${seed}"`);
   consola.start('Reset database schema');
   const resetStart = Date.now();
-  // @ts-expect-error - drizzle-seed missing proper types
   await reset(database, schema);
   consola.success(`Database reset in ${Date.now() - resetStart}ms`);
 
@@ -59,14 +60,21 @@ export async function setupDatabase(
   for (const tenant of developmentTenants) {
     consola.start(`Seeding tenant ${tenant.domain}`);
     const tenantStart = Date.now();
-    await seedTenant(database, {
-      domain: tenant.domain,
+    const options: SeedTenantOptions = {
       includeExampleUsers: true,
       includeRegistrations: true,
-      name: tenant.name,
       seedDate,
-      stripeAccountId: tenant.stripeAccountId,
-    });
+    };
+    if (typeof tenant.domain === 'string') {
+      options.domain = tenant.domain;
+    }
+    if (typeof tenant.name === 'string') {
+      options.name = tenant.name;
+    }
+    if (typeof tenant.stripeAccountId === 'string') {
+      options.stripeAccountId = tenant.stripeAccountId;
+    }
+    await seedTenant(database, options);
     consola.success(
       `Tenant ${tenant.domain} ready in ${Date.now() - tenantStart}ms`,
     );

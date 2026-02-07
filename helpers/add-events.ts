@@ -196,7 +196,11 @@ export const addEvents = async (
   // Seed discounts for paid participant registration options (ESN card)
   try {
     const paidOptions = allRegistrationOptions.filter(
-      (opt) => opt.isPaid && !opt.organizingRegistration,
+      (
+        opt,
+      ): opt is typeof opt & {
+        id: string;
+      } => opt.isPaid && !opt.organizingRegistration && typeof opt.id === 'string',
     );
     if (paidOptions.length > 0) {
       await database.insert(schema.eventRegistrationOptionDiscounts).values(

@@ -35,7 +35,7 @@ export const userRouter = router({
           message: 'User not authenticated',
         });
       }
-      const auth0Id = authData.sub;
+      const auth0Id = authData['sub'];
       const existingUser = await database
         .select()
         .from(schema.users)
@@ -55,7 +55,7 @@ export const userRouter = router({
         .values({
           auth0Id,
           communicationEmail: input.communicationEmail,
-          email: authData.email,
+          email: authData['email'],
           firstName: input.firstName,
           lastName: input.lastName,
         })

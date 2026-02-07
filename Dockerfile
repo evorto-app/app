@@ -20,7 +20,7 @@ WORKDIR /app
 FROM base AS build
 ENV NG_BUILD_PARTIAL_SSR=1
 COPY --chown=appuser:appuser package.json bun.lock .npmrc ./
-COPY --chown=appuser:appuser .yarn/patches/@material-material-color-utilities-npm-0.4.0-9d48ca70b8.patch .yarn/patches/@material-material-color-utilities-npm-0.4.0-9d48ca70b8.patch
+COPY --chown=appuser:appuser patches/@material-material-color-utilities-npm-0.4.0-9d48ca70b8.patch patches/@material-material-color-utilities-npm-0.4.0-9d48ca70b8.patch
 RUN bun install --frozen-lockfile
 COPY --chown=appuser:appuser . .
 RUN bun run build
@@ -34,7 +34,7 @@ RUN --mount=type=secret,id=SENTRY_AUTH_TOKEN,mode=0444,required=false \
 
 FROM base AS production-dependencies
 COPY --chown=appuser:appuser package.json bun.lock .npmrc ./
-COPY --chown=appuser:appuser .yarn/patches/@material-material-color-utilities-npm-0.4.0-9d48ca70b8.patch .yarn/patches/@material-material-color-utilities-npm-0.4.0-9d48ca70b8.patch
+COPY --chown=appuser:appuser patches/@material-material-color-utilities-npm-0.4.0-9d48ca70b8.patch patches/@material-material-color-utilities-npm-0.4.0-9d48ca70b8.patch
 RUN bun install --frozen-lockfile --production
 
 FROM base AS production

@@ -57,7 +57,7 @@
     "@googlemaps/js-api-loader": "^2.0.2",
     "@heddendorp/tanstack-angular-query": "0.2.2",
     "@heddendorp/trpc-link-angular": "^0.0.5",
-    "@material/material-color-utilities": "patch:@material/material-color-utilities@npm%3A0.4.0#~/.yarn/patches/@material-material-color-utilities-npm-0.4.0-9d48ca70b8.patch",
+    "@material/material-color-utilities": "patch:@material/material-color-utilities@npm%3A0.4.0#./patches/@material-material-color-utilities-npm-0.4.0-9d48ca70b8.patch",
     "@neondatabase/serverless": "^1.0.2",
     "@ng-web-apis/common": "^5.1.0",
     "@paralleldrive/cuid2": "^3.3.0",

@@ -6,7 +6,7 @@
     "outDir": "./dist/out-tsc",
     "strict": true,
     "noImplicitOverride": true,
-    "noPropertyAccessFromIndexSignature": false,
+    "noPropertyAccessFromIndexSignature": true,
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
     "skipLibCheck": true,
@@ -19,7 +19,7 @@
     "importHelpers": true,
     "typeRoots": ["node_modules/@types"],
     "target": "ES2022",
-    "module": "ES2022",
+    "module": "preserve",
     "baseUrl": ".",
     "paths": {
       "@app/*": ["src/app/*"],

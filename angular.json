@@ -104,8 +104,7 @@
               "buildTarget": "evorto:build:production"
             },
             "development": {
-              "buildTarget": "evorto:build:development",
-              "hmr": false
+              "buildTarget": "evorto:build:development"
             }
           },
           "defaultConfiguration": "development"
