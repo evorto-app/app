@@ -112,6 +112,13 @@
   - [x] Capture integration constraints and next-step guidance in track docs
   - [x] Commit milestone
 
+- [x] Task: Migrate guard-level auth checks from tRPC to Effect RPC (2c64751)
+  - [x] Define test intent (`bun run lint`, `bun run build`)
+  - [x] Replace `config.isAuthenticated` guard calls in `auth.guard.ts`
+  - [x] Replace `config.isAuthenticated` guard calls in `user-account.guard.ts`
+  - [x] Keep unrelated user profile lookups on tRPC until matching RPC procedures are migrated
+  - [x] Commit milestone
+
 - [ ] Task: Conductor - User Manual Verification 'Phase 6'
 
 ## Final Gate
