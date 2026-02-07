@@ -9,6 +9,7 @@ import {
   eventTemplates,
   templateRegistrationOptions,
 } from '../../../db/schema';
+import { EventLocation } from '../../../types/location';
 import {
   isMeaningfulRichTextHtml,
   sanitizeRichTextHtml,
@@ -35,6 +36,7 @@ export const templateRouter = router({
           categoryId: Schema.NonEmptyString,
           description: Schema.NonEmptyString,
           icon: iconSchema,
+          location: Schema.NullOr(EventLocation),
           organizerRegistration: registrationOptionSchema,
           participantRegistration: registrationOptionSchema,
           title: Schema.NonEmptyString,
@@ -85,61 +87,58 @@ export const templateRouter = router({
         );
       }
 
-      const template = await database.transaction(async (tx) => {
-        const templateResponse = await tx
-          .insert(eventTemplates)
-          .values({
-            categoryId: input.categoryId,
-            description: sanitizedDescription,
-            icon: input.icon,
-            simpleModeEnabled: true,
-            tenantId: ctx.tenant.id,
-            title: input.title,
-          })
-          .returning();
-        const templateId = templateResponse[0].id;
+      const templateResponse = await database
+        .insert(eventTemplates)
+        .values({
+          categoryId: input.categoryId,
+          description: sanitizedDescription,
+          icon: input.icon,
+          location: input.location,
+          simpleModeEnabled: true,
+          tenantId: ctx.tenant.id,
+          title: input.title,
+        })
+        .returning();
+      const templateId = templateResponse[0].id;
 
-        // Create organizer registration option
-        await tx.insert(templateRegistrationOptions).values({
-          closeRegistrationOffset:
-            input.organizerRegistration.closeRegistrationOffset,
-          isPaid: input.organizerRegistration.isPaid,
-          openRegistrationOffset:
-            input.organizerRegistration.openRegistrationOffset,
-          organizingRegistration: true,
-          price: input.organizerRegistration.price,
-          registrationMode: input.organizerRegistration.registrationMode,
-          roleIds: input.organizerRegistration.roleIds,
-          spots: input.organizerRegistration.spots,
-          // eslint-disable-next-line unicorn/no-null
-          stripeTaxRateId: input.organizerRegistration.stripeTaxRateId ?? null,
-          templateId,
-          title: 'Organizer registration',
-        });
-
-        // Create participant registration option
-        await tx.insert(templateRegistrationOptions).values({
-          closeRegistrationOffset:
-            input.participantRegistration.closeRegistrationOffset,
-          isPaid: input.participantRegistration.isPaid,
-          openRegistrationOffset:
-            input.participantRegistration.openRegistrationOffset,
-          organizingRegistration: false,
-          price: input.participantRegistration.price,
-          registrationMode: input.participantRegistration.registrationMode,
-          roleIds: input.participantRegistration.roleIds,
-          spots: input.participantRegistration.spots,
-          stripeTaxRateId:
-            // eslint-disable-next-line unicorn/no-null
-            input.participantRegistration.stripeTaxRateId ?? null,
-          templateId,
-          title: 'Participant registration',
-        });
-
-        return templateResponse[0];
+      // Create organizer registration option
+      await database.insert(templateRegistrationOptions).values({
+        closeRegistrationOffset:
+          input.organizerRegistration.closeRegistrationOffset,
+        isPaid: input.organizerRegistration.isPaid,
+        openRegistrationOffset:
+          input.organizerRegistration.openRegistrationOffset,
+        organizingRegistration: true,
+        price: input.organizerRegistration.price,
+        registrationMode: input.organizerRegistration.registrationMode,
+        roleIds: input.organizerRegistration.roleIds,
+        spots: input.organizerRegistration.spots,
+        // eslint-disable-next-line unicorn/no-null
+        stripeTaxRateId: input.organizerRegistration.stripeTaxRateId ?? null,
+        templateId,
+        title: 'Organizer registration',
       });
 
-      return template;
+      // Create participant registration option
+      await database.insert(templateRegistrationOptions).values({
+        closeRegistrationOffset:
+          input.participantRegistration.closeRegistrationOffset,
+        isPaid: input.participantRegistration.isPaid,
+        openRegistrationOffset:
+          input.participantRegistration.openRegistrationOffset,
+        organizingRegistration: false,
+        price: input.participantRegistration.price,
+        registrationMode: input.participantRegistration.registrationMode,
+        roleIds: input.participantRegistration.roleIds,
+        spots: input.participantRegistration.spots,
+        stripeTaxRateId:
+          // eslint-disable-next-line unicorn/no-null
+          input.participantRegistration.stripeTaxRateId ?? null,
+        templateId,
+        title: 'Participant registration',
+      });
+
+      return templateResponse[0];
     }),
   findMany: authenticatedProcedure.query(async ({ ctx }) => {
     return await database.query.eventTemplates.findMany({
@@ -195,6 +194,7 @@ export const templateRouter = router({
           description: Schema.NonEmptyString,
           icon: iconSchema,
           id: Schema.NonEmptyString,
+          location: Schema.NullOr(EventLocation),
           organizerRegistration: registrationOptionSchema,
           participantRegistration: registrationOptionSchema,
           title: Schema.NonEmptyString,
@@ -245,73 +245,72 @@ export const templateRouter = router({
         );
       }
 
-      return await database.transaction(async (tx) => {
-        const template = await tx
-          .update(eventTemplates)
-          .set({
-            categoryId: input.categoryId,
-            description: sanitizedDescription,
-            icon: input.icon,
-            title: input.title,
-          })
-          .where(
-            and(
-              eq(eventTemplates.id, input.id),
-              eq(eventTemplates.tenantId, ctx.tenant.id),
-              eq(eventTemplates.simpleModeEnabled, true),
-            ),
-          )
-          .returning();
+      const template = await database
+        .update(eventTemplates)
+        .set({
+          categoryId: input.categoryId,
+          description: sanitizedDescription,
+          icon: input.icon,
+          location: input.location,
+          title: input.title,
+        })
+        .where(
+          and(
+            eq(eventTemplates.id, input.id),
+            eq(eventTemplates.tenantId, ctx.tenant.id),
+            eq(eventTemplates.simpleModeEnabled, true),
+          ),
+        )
+        .returning();
 
-        // Update organizer registration option
-        await tx
-          .update(templateRegistrationOptions)
-          .set({
-            closeRegistrationOffset:
-              input.organizerRegistration.closeRegistrationOffset,
-            isPaid: input.organizerRegistration.isPaid,
-            openRegistrationOffset:
-              input.organizerRegistration.openRegistrationOffset,
-            price: input.organizerRegistration.price,
-            registrationMode: input.organizerRegistration.registrationMode,
-            roleIds: input.organizerRegistration.roleIds,
-            spots: input.organizerRegistration.spots,
-            stripeTaxRateId:
-              // eslint-disable-next-line unicorn/no-null
-              input.organizerRegistration.stripeTaxRateId ?? null,
-          })
-          .where(
-            and(
-              eq(templateRegistrationOptions.templateId, input.id),
-              eq(templateRegistrationOptions.organizingRegistration, true),
-            ),
-          );
+      // Update organizer registration option
+      await database
+        .update(templateRegistrationOptions)
+        .set({
+          closeRegistrationOffset:
+            input.organizerRegistration.closeRegistrationOffset,
+          isPaid: input.organizerRegistration.isPaid,
+          openRegistrationOffset:
+            input.organizerRegistration.openRegistrationOffset,
+          price: input.organizerRegistration.price,
+          registrationMode: input.organizerRegistration.registrationMode,
+          roleIds: input.organizerRegistration.roleIds,
+          spots: input.organizerRegistration.spots,
+          stripeTaxRateId:
+            // eslint-disable-next-line unicorn/no-null
+            input.organizerRegistration.stripeTaxRateId ?? null,
+        })
+        .where(
+          and(
+            eq(templateRegistrationOptions.templateId, input.id),
+            eq(templateRegistrationOptions.organizingRegistration, true),
+          ),
+        );
 
-        // Update participant registration option
-        await tx
-          .update(templateRegistrationOptions)
-          .set({
-            closeRegistrationOffset:
-              input.participantRegistration.closeRegistrationOffset,
-            isPaid: input.participantRegistration.isPaid,
-            openRegistrationOffset:
-              input.participantRegistration.openRegistrationOffset,
-            price: input.participantRegistration.price,
-            registrationMode: input.participantRegistration.registrationMode,
-            roleIds: input.participantRegistration.roleIds,
-            spots: input.participantRegistration.spots,
-            stripeTaxRateId:
-              // eslint-disable-next-line unicorn/no-null
-              input.participantRegistration.stripeTaxRateId ?? null,
-          })
-          .where(
-            and(
-              eq(templateRegistrationOptions.templateId, input.id),
-              eq(templateRegistrationOptions.organizingRegistration, false),
-            ),
-          );
+      // Update participant registration option
+      await database
+        .update(templateRegistrationOptions)
+        .set({
+          closeRegistrationOffset:
+            input.participantRegistration.closeRegistrationOffset,
+          isPaid: input.participantRegistration.isPaid,
+          openRegistrationOffset:
+            input.participantRegistration.openRegistrationOffset,
+          price: input.participantRegistration.price,
+          registrationMode: input.participantRegistration.registrationMode,
+          roleIds: input.participantRegistration.roleIds,
+          spots: input.participantRegistration.spots,
+          stripeTaxRateId:
+            // eslint-disable-next-line unicorn/no-null
+            input.participantRegistration.stripeTaxRateId ?? null,
+        })
+        .where(
+          and(
+            eq(templateRegistrationOptions.templateId, input.id),
+            eq(templateRegistrationOptions.organizingRegistration, false),
+          ),
+        );
 
-        return template[0];
-      });
+      return template[0];
     }),
 });

@@ -45,6 +45,7 @@ export const configureNeonLocalProxy = (
   const port = databaseUrlObject.port || '5432';
 
   neonConfig.fetchEndpoint = `http://${host}:${port}/sql`;
+  neonConfig.wsProxy = `${host}:${port}/v2`;
   neonConfig.poolQueryViaFetch = true;
   neonConfig.useSecureWebSocket = false;
 
