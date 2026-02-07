@@ -1,14 +1,5 @@
-import dotenv from 'dotenv';
 import path from 'node:path';
 import { Either, ParseResult, Schema } from 'effect';
-
-const dotenvResult = dotenv.config({ quiet: true });
-if (
-  process.env['DATABASE_URL'] === '' &&
-  dotenvResult.parsed?.['DATABASE_URL'] !== undefined
-) {
-  process.env['DATABASE_URL'] = dotenvResult.parsed['DATABASE_URL'];
-}
 
 const optionalNonEmptyString = Schema.optional(Schema.NonEmptyString);
 

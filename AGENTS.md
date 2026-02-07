@@ -83,6 +83,7 @@
 ## Security & Configuration
 
 - Copy environment from `.env`/`.env.local`; never commit secrets. Stripe/Sentry helpers exist (`stripe:listen`, `sentry:sourcemaps`).
+- Yarn injects environment files automatically via `.yarnrc.yml` `injectEnvironmentFiles` (`.env.local?`, `.env?`). Run commands through `yarn` and do not add `dotenv`-based loading in code.
 - When touching DB schema, include migration steps and local verification notes.
 
 ## Angular Best Practices

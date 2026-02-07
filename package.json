@@ -129,7 +129,6 @@
     "@types/sanitize-html": "^2.16.0",
     "@types/ws": "^8.18.1",
     "angular-eslint": "21.2.0",
-    "dotenv": "^17.2.3",
     "drizzle-kit": "1.0.0-beta.14-a36c63d",
     "drizzle-seed": "1.0.0-beta.14-a36c63d",
     "eslint": "^9.39.2",
