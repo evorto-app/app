@@ -19,19 +19,19 @@
 
 ## Phase 2: Bun Tooling Cutover [checkpoint: pending]
 
-- [ ] Task: Convert package manager metadata and lockfiles to Bun
-  - [ ] Define test intent (install + lint/build smoke)
-  - [ ] Set `packageManager` to Bun
-  - [ ] Generate/commit Bun lockfile
-  - [ ] Remove Yarn-specific lock/config artifacts no longer needed
-  - [ ] Commit milestone
+- [x] Task: Convert package manager metadata and lockfiles to Bun (be16879)
+  - [x] Define test intent (install + lint/build smoke)
+  - [x] Set `packageManager` to Bun
+  - [x] Generate/commit Bun lockfile
+  - [x] Remove Yarn-specific lock/config artifacts no longer needed
+  - [x] Commit milestone
 
-- [ ] Task: Align npm scripts to Bun baseline semantics
-  - [ ] Define test intent (script execution smoke)
-  - [ ] Convert Angular scripts to `bunx --bun ng`
-  - [ ] Convert runtime scripts to Bun equivalents (`bun --bun ...`)
-  - [ ] Replace Node-invoked helper scripts with Bun where possible
-  - [ ] Commit milestone
+- [x] Task: Align npm scripts to Bun baseline semantics (be16879)
+  - [x] Define test intent (script execution smoke)
+  - [x] Convert Angular scripts to `bunx --bun ng`
+  - [x] Convert runtime scripts to Bun equivalents (`bun --bun ...`)
+  - [x] Replace Node-invoked helper scripts with Bun where possible
+  - [x] Commit milestone
 
 - [ ] Task: Conductor - User Manual Verification 'Phase 2'
 
