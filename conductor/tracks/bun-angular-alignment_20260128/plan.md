@@ -74,18 +74,36 @@
 ## Phase 5: Effect Migration Foundation (Next Step Within Track) [checkpoint: pending]
 
 - [x] Task: Draft concrete cutover map from tRPC/Express to Effect HTTP/RPC layers (b4ebff0)
-  - [ ] Define test intent (design-only)
-  - [ ] Identify module-by-module replacement order under `src/server/**` and `src/app/core/**`
-  - [ ] Identify contract-sharing strategy for Angular RPC client helpers
-  - [ ] Commit milestone
+  - [x] Define test intent (design-only)
+  - [x] Identify module-by-module replacement order under `src/server/**` and `src/app/core/**`
+  - [x] Identify contract-sharing strategy for Angular RPC client helpers
+  - [x] Commit milestone
 
 - [x] Task: Implement first Effect boundary slice (small vertical) (1343542)
-  - [ ] Define test intent (targeted unit or e2e/doc where applicable)
-  - [ ] Migrate one bounded server route/procedure path to Effect-first structure
-  - [ ] Preserve type safety and tests
-  - [ ] Commit milestone
+  - [x] Define test intent (targeted lint/build + runtime parity)
+  - [x] Migrate one bounded server route/procedure path to Effect-first structure
+  - [x] Preserve type safety and tests
+  - [x] Commit milestone
 
 - [ ] Task: Conductor - User Manual Verification 'Phase 5'
+
+## Phase 6: Effect RPC Protocol + Angular Client Bridge [checkpoint: pending]
+
+- [~] Task: Stand up shared Effect RPC contracts and `/rpc` server endpoint for config bootstrap
+  - [ ] Define test intent (`bun run lint:fix`, `bun run lint`, `bun run build`, SSR health smoke)
+  - [ ] Add shared RPC contract module under `src/shared/**`
+  - [ ] Add Effect RPC handler layer and mount `/rpc` endpoint in server runtime
+  - [ ] Keep existing `/trpc` path running for non-migrated domains
+  - [ ] Commit milestone
+
+- [ ] Task: Migrate Angular config bootstrap to Effect RPC client/helpers
+  - [ ] Define test intent (`bun run lint:fix`, `bun run lint`, `bun run build`)
+  - [ ] Add Angular Effect RPC client wiring in `app.config.ts`
+  - [ ] Replace `config.public` bootstrap call path from tRPC to Effect RPC
+  - [ ] Preserve runtime behavior and strict typing
+  - [ ] Commit milestone
+
+- [ ] Task: Conductor - User Manual Verification 'Phase 6'
 
 ## Final Gate
 
