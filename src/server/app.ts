@@ -24,6 +24,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { Context } from '../types/custom/context';
+import { getOidcEnvironment } from './config/environment';
 import { addAuthenticationContext } from './middleware/authentication-context';
 import { addTenantContext } from './middleware/tenant-context';
 import { addUserContext } from './middleware/user-context';
@@ -36,10 +37,23 @@ const browserDistributionFolder = path.resolve(
   serverDistributionFolder,
   '../browser',
 );
+const oidcEnvironment = getOidcEnvironment();
 
 const config: ConfigParams = {
   auth0Logout: true,
   authRequired: false,
+  baseURL: oidcEnvironment.BASE_URL,
+  clientID: oidcEnvironment.CLIENT_ID,
+  clientSecret: oidcEnvironment.CLIENT_SECRET,
+  issuerBaseURL: oidcEnvironment.ISSUER_BASE_URL,
+  secret: oidcEnvironment.SECRET,
+  ...(oidcEnvironment.AUDIENCE
+    ? {
+        authorizationParams: {
+          audience: oidcEnvironment.AUDIENCE,
+        },
+      }
+    : {}),
 };
 
 export const app = express();

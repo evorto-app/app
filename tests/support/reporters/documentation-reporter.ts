@@ -8,6 +8,7 @@ import type {
 } from '@playwright/test/reporter';
 import path from 'node:path';
 
+import { resolveDocumentationOutputEnvironment } from '../config/environment';
 import { buildSectionContent } from './documentation-reporter/attachments';
 import { DocumentationGroupRegistry } from './documentation-reporter/group-registry';
 import {
@@ -22,14 +23,14 @@ class DocumentationReporter implements Reporter {
   private readonly registry = new DocumentationGroupRegistry();
 
   private docsRoot(options?: { empty?: boolean }): string {
-    const root = process.env.DOCS_OUT_DIR || path.resolve('test-results/docs');
+    const root = resolveDocumentationOutputEnvironment().docsOutputDirectory;
     ensureDirectory(root, options);
     return root;
   }
 
   private imagesRoot(options?: { empty?: boolean }): string {
     const root =
-      process.env.DOCS_IMG_OUT_DIR || path.resolve('test-results/docs/images');
+      resolveDocumentationOutputEnvironment().docsImageOutputDirectory;
     ensureDirectory(root, options);
     return root;
   }
@@ -101,4 +102,3 @@ class DocumentationReporter implements Reporter {
 
 export default DocumentationReporter;
 export { takeScreenshot } from './documentation-reporter/take-screenshot';
-

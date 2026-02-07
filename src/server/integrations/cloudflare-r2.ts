@@ -1,20 +1,19 @@
 import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
+import { getCloudflareR2Environment } from '../config/environment';
+
 const resolveCloudflareR2Config = (): {
   bucket: string;
   endpoint: string;
   keyId: string;
   keySecret: string;
 } => {
-  const endpoint = process.env['CLOUDFLARE_R2_S3_ENDPOINT'];
-  const keyId = process.env['CLOUDFLARE_R2_S3_KEY_ID'];
-  const keySecret = process.env['CLOUDFLARE_R2_S3_KEY'];
-  const bucket = process.env['CLOUDFLARE_R2_BUCKET'] ?? 'testing';
-
-  if (!endpoint || !keyId || !keySecret) {
-    throw new Error('Cloudflare R2 is not configured');
-  }
+  const environment = getCloudflareR2Environment();
+  const endpoint = environment.CLOUDFLARE_R2_S3_ENDPOINT;
+  const keyId = environment.CLOUDFLARE_R2_S3_KEY_ID;
+  const keySecret = environment.CLOUDFLARE_R2_S3_KEY;
+  const bucket = environment.CLOUDFLARE_R2_BUCKET;
 
   return { bucket, endpoint, keyId, keySecret };
 };

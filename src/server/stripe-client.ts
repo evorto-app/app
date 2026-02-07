@@ -1,8 +1,7 @@
 import Stripe from 'stripe';
 
-const stripeApiKey = process.env['STRIPE_API_KEY'];
-if (!stripeApiKey) {
-  throw new Error('STRIPE_API_KEY is not set');
-}
+import { getStripeApiEnvironment } from './config/environment';
+
+const { STRIPE_API_KEY: stripeApiKey } = getStripeApiEnvironment();
 
 export const stripe = new Stripe(stripeApiKey);

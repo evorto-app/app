@@ -4,7 +4,10 @@ import express, { Router } from 'express';
 
 import { database } from '../../db';
 import * as schema from '../../db/schema';
+import { getStripeWebhookEnvironment } from '../config/environment';
 import { stripe } from '../stripe-client';
+
+const { STRIPE_WEBHOOK_SECRET: endpointSecret } = getStripeWebhookEnvironment();
 
 export const stripeRouter = Router();
 stripeRouter.post(
@@ -15,12 +18,6 @@ stripeRouter.post(
 
     if (!sig) {
       response.status(400).send('No signature');
-      return;
-    }
-
-    const endpointSecret = process.env['STRIPE_WEBHOOK_SECRET'];
-    if (!endpointSecret) {
-      response.status(500).send('Stripe webhook secret not configured');
       return;
     }
 

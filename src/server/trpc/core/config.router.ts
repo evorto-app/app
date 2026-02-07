@@ -1,5 +1,9 @@
 import { Schema } from 'effect';
 
+import {
+  getPublicGoogleMapsApiKey,
+  serverEnvironment,
+} from '../../config/environment';
 import { publicProcedure, router } from '../trpc-server';
 
 export const configRouter = router({
@@ -17,17 +21,13 @@ export const configRouter = router({
       ),
     )
     .query(() => {
-      const googleMapsApiKey =
-        process.env['PUBLIC_GOOGLE_MAPS_API_KEY'] ??
-        process.env['GOOGLE_MAPS_API_KEY'] ??
-        process.env['GOOGLE_API_KEY'] ??
-        // eslint-disable-next-line unicorn/no-null
-        null;
+      const googleMapsApiKey = getPublicGoogleMapsApiKey(serverEnvironment);
 
       return {
-        googleMapsApiKey,
         // eslint-disable-next-line unicorn/no-null
-        sentryDsn: process.env['PUBLIC_SENTRY_DSN'] ?? null,
+        googleMapsApiKey: googleMapsApiKey ?? null,
+        // eslint-disable-next-line unicorn/no-null
+        sentryDsn: serverEnvironment.PUBLIC_SENTRY_DSN ?? null,
       };
     }),
   tenant: publicProcedure.query(({ ctx }) => ctx.tenant),

@@ -1,16 +1,15 @@
 import Cloudflare from 'cloudflare';
-import consola from 'consola';
+
+import {
+  getCloudflareImagesEnvironment,
+  isCloudflareImagesEnvironmentConfigured,
+} from '../config/environment';
 
 const DEFAULT_IMAGE_VARIANT = 'public';
 const TESTING_CLEANUP_CONFIRMATION = 'delete-testing-images-only';
 
 export const isCloudflareImagesConfigured = (): boolean =>
-  Boolean(
-    (process.env['CLOUDFLARE_IMAGES_API_TOKEN'] ??
-      process.env['CLOUDFLARE_TOKEN']) &&
-      process.env['CLOUDFLARE_ACCOUNT_ID'] &&
-      process.env['CLOUDFLARE_IMAGES_DELIVERY_HASH'],
-  );
+  isCloudflareImagesEnvironmentConfigured();
 
 const resolveCloudflareImagesConfig = (): {
   accountId: string;
@@ -20,44 +19,14 @@ const resolveCloudflareImagesConfig = (): {
   deliveryHash: string;
   variant: string;
 } => {
-  const apiToken =
-    process.env['CLOUDFLARE_IMAGES_API_TOKEN'] ??
-    process.env['CLOUDFLARE_TOKEN'];
-  const accountId = process.env['CLOUDFLARE_ACCOUNT_ID'];
-  const deliveryHash = process.env['CLOUDFLARE_IMAGES_DELIVERY_HASH'];
-  const variant =
-    process.env['CLOUDFLARE_IMAGES_VARIANT'] ?? DEFAULT_IMAGE_VARIANT;
+  const environment = getCloudflareImagesEnvironment();
+  const apiToken = environment.CLOUDFLARE_TOKEN;
+  const accountId = environment.CLOUDFLARE_ACCOUNT_ID;
+  const deliveryHash = environment.CLOUDFLARE_IMAGES_DELIVERY_HASH;
+  const variant = environment.CLOUDFLARE_IMAGES_VARIANT ?? DEFAULT_IMAGE_VARIANT;
   const appEnvironment =
-    process.env['CLOUDFLARE_IMAGES_ENVIRONMENT'] ??
-    (process.env['NODE_ENV'] === 'production' ? 'production' : 'testing');
-
-  if (!apiToken || !accountId || !deliveryHash) {
-    const missing: string[] = [];
-    if (!apiToken) {
-      missing.push('CLOUDFLARE_IMAGES_API_TOKEN|CLOUDFLARE_TOKEN');
-    }
-    if (!accountId) {
-      missing.push('CLOUDFLARE_ACCOUNT_ID');
-    }
-    if (!deliveryHash) {
-      missing.push('CLOUDFLARE_IMAGES_DELIVERY_HASH');
-    }
-
-    consola.error('cloudflare-images.config.missing', {
-      hasCloudflareAccountId: Boolean(accountId),
-      hasCloudflareImagesApiToken: Boolean(
-        process.env['CLOUDFLARE_IMAGES_API_TOKEN'],
-      ),
-      hasCloudflareImagesDeliveryHash: Boolean(deliveryHash),
-      hasCloudflareToken: Boolean(process.env['CLOUDFLARE_TOKEN']),
-      missing,
-      nodeEnv: process.env['NODE_ENV'] ?? 'undefined',
-    });
-
-    throw new Error(
-      `Cloudflare Images is not configured. Missing: ${missing.join(', ')}`,
-    );
-  }
+    environment.CLOUDFLARE_IMAGES_ENVIRONMENT ??
+    (environment.NODE_ENV === 'production' ? 'production' : 'testing');
 
   return {
     accountId,
@@ -120,7 +89,7 @@ export const cleanupTestingCloudflareImages = async (input: {
   inspectedCount: number;
   matchedCount: number;
 }> => {
-  if (process.env['NODE_ENV'] === 'production') {
+  if (getCloudflareImagesEnvironment().NODE_ENV === 'production') {
     throw new Error('Cleanup is blocked in production');
   }
 

@@ -1,18 +1,12 @@
 import { defineConfig, devices } from '@playwright/test';
-import dotenv from 'dotenv';
+import { validatePlaywrightEnvironment } from './tests/support/config/environment';
 
-const environment = dotenv.config({ quiet: true });
-if (
-  process.env['DATABASE_URL'] === '' &&
-  environment.parsed?.['DATABASE_URL']
-) {
-  process.env['DATABASE_URL'] = environment.parsed['DATABASE_URL'];
-}
+const environment = validatePlaywrightEnvironment();
 
 /**
  * See https://playwright.dev/docs/test-configuration.
  */
-const webServer = process.env['NO_WEBSERVER']
+const webServer = environment.NO_WEBSERVER
   ? undefined
   : ({
       command: 'yarn docker:start-test',
@@ -23,7 +17,7 @@ const webServer = process.env['NO_WEBSERVER']
 
 // Configure reporters: avoid blocking HTML server opening; prefer terminal output
 const reporters: any[] = [];
-if (process.env['CI']) {
+if (environment.CI) {
   reporters.push(['github'], ['dot']);
 } else {
   // Local: never auto-open HTML report; still generate artifacts
@@ -36,7 +30,7 @@ if (process.env['CI']) {
 
 export default defineConfig({
   /* Fail the build on CI if you accidentally left test.only in the source code. */
-  forbidOnly: !!process.env['CI'],
+  forbidOnly: !!environment.CI,
   /* Run tests in files in parallel */
   fullyParallel: true,
   /* Configure projects for major browsers */
@@ -103,12 +97,13 @@ export default defineConfig({
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: reporters,
   /* Retry on CI only */
-  retries: process.env['CI'] ? 2 : 0,
+  retries: environment.CI ? 2 : 0,
   testDir: './tests',
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     /* Base URL to use in actions like `await page.goto('/')`. */
-    baseURL: process.env['PLAYWRIGHT_TEST_BASE_URL'] ?? 'http://localhost:4200',
+    baseURL:
+      environment.PLAYWRIGHT_TEST_BASE_URL ?? 'http://localhost:4200',
 
     colorScheme: 'light',
 

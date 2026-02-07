@@ -1,12 +1,10 @@
 import { drizzle } from 'drizzle-orm/neon-serverless';
 import ws from 'ws';
 
+import { getDatabaseEnvironment } from '../server/config/environment';
 import { relations } from './relations';
 
-const databaseUrl = process.env['DATABASE_URL'];
-if (!databaseUrl) {
-  throw new Error('DATABASE_URL is not set');
-}
+const { DATABASE_URL: databaseUrl } = getDatabaseEnvironment();
 
 export const database = drizzle({
   connection: databaseUrl,

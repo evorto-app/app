@@ -2,13 +2,14 @@ import { createNodeRequestHandler, isMainModule } from '@angular/ssr/node';
 
 // consola.wrapAll();
 import { app } from './server/app';
+import { getServerPort } from './server/config/environment';
 
 /**
  * Start the server if this module is the main entry point.
  * The server listens on the port defined by the `PORT` environment variable, or defaults to 4000.
  */
 if (isMainModule(import.meta.url)) {
-  const port = process.env['PORT'] || 4000;
+  const port = getServerPort();
   app.listen(port, () => {
     console.log(`Node Express server listening on http://localhost:${port}`);
   });

@@ -1,12 +1,12 @@
 import { expect, test } from '../../support/fixtures/parallel-test';
+import { hasAuth0ManagementEnvironment } from '../../support/config/environment';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 
 // test.use({ storageState: defaultStateFile });
 
 // Skip this journey if Auth0 Management credentials are not configured
 if (
-  !process.env['AUTH0_MANAGEMENT_CLIENT_ID'] ||
-  !process.env['AUTH0_MANAGEMENT_CLIENT_SECRET']
+  !hasAuth0ManagementEnvironment()
 ) {
   test.skip(true, 'Auth0 creds missing');
 }

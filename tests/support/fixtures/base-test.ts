@@ -10,15 +10,18 @@ import ws from 'ws';
 import { getSeedDate } from '../../../helpers/seed-clock';
 import { seedFalsoForScope } from '../../../helpers/seed-falso';
 import { relations } from '../../../src/db/relations';
+import {
+  getAuth0ManagementEnvironment,
+  validatePlaywrightEnvironment,
+} from '../config/environment';
 
 const dedupeLength = 4;
 const createDedupeId = init({ length: dedupeLength });
-
-const auth0 = new ManagementClient({
-  clientId: process.env['AUTH0_MANAGEMENT_CLIENT_ID']!,
-  clientSecret: process.env['AUTH0_MANAGEMENT_CLIENT_SECRET']!,
-  domain: 'tumi-dev.eu.auth0.com',
-});
+const environment = validatePlaywrightEnvironment();
+const databaseUrl = environment.DATABASE_URL;
+if (!databaseUrl) {
+  throw new Error('DATABASE_URL must be set for Playwright tests');
+}
 
 interface BaseFixtures {
   database: NeonDatabase<Record<string, never>, typeof relations>;
@@ -36,7 +39,7 @@ interface BaseFixtures {
 export const test = base.extend<BaseFixtures>({
   database: async ({}, use) => {
     const database = drizzle({
-      connection: process.env['DATABASE_URL']!,
+      connection: databaseUrl,
       relations,
       ws: ws,
     });
@@ -56,6 +59,12 @@ export const test = base.extend<BaseFixtures>({
     { auto: true },
   ],
   newUser: async ({}, use) => {
+    const auth0Environment = getAuth0ManagementEnvironment();
+    const auth0 = new ManagementClient({
+      clientId: auth0Environment.AUTH0_MANAGEMENT_CLIENT_ID,
+      clientSecret: auth0Environment.AUTH0_MANAGEMENT_CLIENT_SECRET,
+      domain: 'tumi-dev.eu.auth0.com',
+    });
     const email = `test-${createDedupeId()}@evorto.app`;
     const password = `notsecure-${createDedupeId()}1!`;
     const firstName = randFirstName();
@@ -123,6 +132,6 @@ export const test = base.extend<BaseFixtures>({
         return;
       }
     } catch {}
-    await use(process.env['TENANT_DOMAIN']);
+    await use(environment.TENANT_DOMAIN);
   },
 });

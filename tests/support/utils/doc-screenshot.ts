@@ -2,6 +2,8 @@ import { Locator, Page, TestInfo } from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
+import { resolveDocumentationOutputEnvironment } from '../config/environment';
+
 function ensureDir(dir: string) {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 }
@@ -28,7 +30,7 @@ export async function docScreenshot(
   name?: string,
 ): Promise<string> {
   const imagesRoot =
-    process.env.DOCS_IMG_OUT_DIR || path.resolve('test-results/docs/images');
+    resolveDocumentationOutputEnvironment().docsImageOutputDirectory;
   ensureDir(imagesRoot);
 
   // organize by test folder for readability
