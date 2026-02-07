@@ -90,12 +90,12 @@
   - [x] Validation result: setup project passes (`7/7`) with Bun + Docker local stack
   - [x] Validation note: local-chrome currently stops at `tests/specs/discounts/esn-discounts.test.ts` waiting for `Pay now` checkout link
 
-- [~] Task: Stabilize Stripe checkout registration path for discounts under Bun local-chrome
+- [x] Task: Stabilize Stripe checkout registration path for discounts under Bun local-chrome (875b56d)
   - [x] Define test intent (`bun run lint`, `bun run build`, targeted local-chrome discounts test)
   - [x] Remove Bun-incompatible transaction wrapping in `registerForEvent` and keep explicit rollback behavior
   - [x] Remove temporary diagnostics and keep concise server-side error logging
   - [x] Scope discounts e2e Pay button selection to the intended registration option and increase checkout-link wait budget
-  - [ ] Commit milestone
+  - [x] Commit milestone
 
 - [ ] Task: Conductor - User Manual Verification 'Phase 4'
 
