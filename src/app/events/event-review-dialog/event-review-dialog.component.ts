@@ -31,7 +31,8 @@ import { MatInputModule } from '@angular/material/input';
             matInput
             [formField]="reviewForm.comment"
             rows="4"
-            placeholder="Please provide feedback about why the event was rejected..."
+            autocomplete="off"
+            placeholder="Please provide feedback about why the event was rejected…"
           ></textarea>
         </mat-form-field>
       </mat-dialog-content>

@@ -1,10 +1,5 @@
 import { DatePipe } from '@angular/common';
-import {
-  ChangeDetectionStrategy,
-  Component,
-  computed,
-  inject,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
@@ -39,19 +34,37 @@ import { EventReviewDialogComponent } from '../../events/event-review-dialog/eve
   standalone: true,
   template: `
     <div class="mb-4 flex flex-row items-center gap-2">
-      <a routerLink="/admin" mat-icon-button class="lg:hidden! block">
+      <a
+        routerLink="/admin"
+        mat-icon-button
+        class="lg:hidden! block"
+        aria-label="Back to admin overview"
+      >
         <fa-duotone-icon [icon]="faArrowLeft"></fa-duotone-icon>
       </a>
       <h1 class="title-large">Event Reviews</h1>
       <div class="grow"></div>
-      <button mat-icon-button (click)="pendingReviewsQuery.refetch()">
+      <button
+        mat-icon-button
+        (click)="pendingReviewsQuery.refetch()"
+        aria-label="Refresh pending reviews"
+      >
         <mat-icon>refresh</mat-icon>
       </button>
     </div>
 
     @if (pendingReviewsQuery.isPending()) {
       <div class="flex items-center justify-center p-8">
-        <span class="text-on-surface-variant">Loading...</span>
+        <span class="text-on-surface-variant">Loading…</span>
+      </div>
+    } @else if (pendingReviewsQuery.isError()) {
+      <div class="flex flex-col items-center justify-center gap-2 p-8">
+        <span class="text-on-surface-variant">
+          Failed to load pending reviews.
+        </span>
+        <button mat-stroked-button (click)="pendingReviewsQuery.refetch()">
+          Retry
+        </button>
       </div>
     } @else if (pendingReviewsQuery.isSuccess()) {
       @if (pendingReviewsQuery.data().length === 0) {
@@ -70,12 +83,14 @@ import { EventReviewDialogComponent } from '../../events/event-review-dialog/eve
                   <button
                     mat-stroked-button
                     (click)="reviewEvent(event.id, event.title, false)"
+                    [disabled]="reviewEventMutation.isPending()"
                   >
                     Reject
                   </button>
                   <button
                     mat-flat-button
                     (click)="reviewEvent(event.id, event.title, true)"
+                    [disabled]="reviewEventMutation.isPending()"
                   >
                     Approve
                   </button>
@@ -112,19 +127,8 @@ export class EventReviewsComponent {
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faArrowUpRightFromSquare = faArrowUpRightFromSquare;
   private readonly trpc = injectTRPC();
-  private readonly selfQuery = injectQuery(() =>
-    this.trpc.users.self.queryOptions(),
-  );
-  private pendingReviewsFilter = computed(() => ({
-    includeUnlisted: true,
-    limit: 50,
-    offset: 0,
-    startAfter: new Date(),
-    status: ['PENDING_REVIEW'] as const,
-    userId: this.selfQuery.data()?.id,
-  }));
   protected readonly pendingReviewsQuery = injectQuery(() =>
-    this.trpc.events.findMany.queryOptions(this.pendingReviewsFilter()),
+    this.trpc.events.getPendingReviews.queryOptions(),
   );
   protected readonly reviewEventMutation = injectMutation(() =>
     this.trpc.events.reviewEvent.mutationOptions(),
@@ -148,40 +152,60 @@ export class EventReviewsComponent {
     eventTitle: string,
     approved: boolean,
   ): Promise<void> {
-    if (approved) {
-      this.reviewEventMutation.mutate(
-        { approved, eventId },
-        {
-          onSuccess: async () => {
-            await this.queryClient.invalidateQueries({
-              queryKey: this.trpc.events.findMany.pathKey(),
-            });
-            await this.queryClient.invalidateQueries({
-              queryKey: this.trpc.events.eventList.pathKey(),
-            });
-            this.notifications.showEventReviewed(approved, eventTitle);
-          },
-        },
-      );
-    } else {
-      const dialogReference = this.dialog.open(EventReviewDialogComponent);
-      const comment = await firstValueFrom(dialogReference.afterClosed());
-      if (comment) {
-        this.reviewEventMutation.mutate(
-          { approved, comment, eventId },
-          {
-            onSuccess: async () => {
-              await this.queryClient.invalidateQueries({
-                queryKey: this.trpc.events.findMany.pathKey(),
-              });
-              await this.queryClient.invalidateQueries({
-                queryKey: this.trpc.events.eventList.pathKey(),
-              });
-              this.notifications.showEventReviewed(approved, eventTitle);
-            },
-          },
-        );
+    try {
+      if (approved) {
+        await this.reviewEventMutation.mutateAsync({ approved, eventId });
+      } else {
+        const dialogReference = this.dialog.open(EventReviewDialogComponent);
+        const comment = await firstValueFrom(dialogReference.afterClosed());
+        if (!comment) {
+          return;
+        }
+        await this.reviewEventMutation.mutateAsync({
+          approved,
+          comment,
+          eventId,
+        });
       }
+      await this.refreshReviewState();
+      this.notifications.showEventReviewed(approved, eventTitle);
+    } catch (error) {
+      await this.handleReviewActionError(error);
     }
+  }
+
+  private async handleReviewActionError(error: unknown): Promise<void> {
+    const message =
+      error instanceof Error
+        ? error.message
+        : 'Failed to update event review status';
+    const normalizedMessage = message.toLowerCase();
+    if (
+      normalizedMessage.includes('status changed') ||
+      normalizedMessage.includes('refresh and try again') ||
+      normalizedMessage.includes('no longer pending review')
+    ) {
+      this.notifications.showError(
+        'Event status changed. Refreshed the latest state.',
+      );
+      await this.refreshReviewState();
+      return;
+    }
+    this.notifications.showError(message);
+  }
+
+  private async refreshReviewState(): Promise<void> {
+    await this.queryClient.invalidateQueries({
+      queryKey: this.trpc.events.getPendingReviews.pathKey(),
+    });
+    await this.queryClient.invalidateQueries({
+      queryKey: this.trpc.events.findMany.pathKey(),
+    });
+    await this.queryClient.invalidateQueries({
+      queryKey: this.trpc.events.eventList.pathKey(),
+    });
+    await this.queryClient.invalidateQueries({
+      queryKey: this.trpc.events.findOne.pathKey(),
+    });
   }
 }

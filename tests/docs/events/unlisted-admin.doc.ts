@@ -49,7 +49,7 @@ Unlisted events are hidden from public lists. Admins can toggle an event's unlis
   );
 
   // Open menu and update listing
-  await page.getByRole('button', { name: 'menu' }).click();
+  await page.getByRole('button', { name: /open event actions|menu/i }).click();
   await page.getByRole('menuitem', { name: 'Update listing' }).click();
   await page.getByRole('switch', { name: /Unlisted/ }).click();
   await takeScreenshot(
@@ -77,7 +77,7 @@ Unlisted events are hidden from public lists. Admins can toggle an event's unlis
   // Restore original state (toggle back to listed) to keep environment clean
   await adminEventCard.click();
   await page.waitForSelector(`h1:has-text("${target.title}")`);
-  await page.getByRole('button', { name: 'menu' }).click();
+  await page.getByRole('button', { name: /open event actions|menu/i }).click();
   await page.getByRole('menuitem', { name: 'Update listing' }).click();
   const toggle = page.getByRole('switch', { name: /Unlisted/ });
   if (await toggle.isChecked()) {

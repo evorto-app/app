@@ -171,24 +171,32 @@ Paid organizer registrations require a compatible inclusive tax rate. The dropdo
 `,
     });
 
-    await page.getByRole('link', { name: 'Events' }).click();
-    await expect(page.getByRole('heading', { name: 'Events' })).toBeVisible();
-
-    const soccerEventLink = page
-      .getByRole('link', { name: /Soccer Match 1/i })
-      .first();
-    await expect(soccerEventLink).toBeVisible();
-    await soccerEventLink.click();
-
+    await page.getByRole('link', { name: 'Templates' }).click();
     await expect(
-      page.getByRole('heading', { level: 1, name: /Soccer Match 1/i }),
+      page.getByRole('heading', { name: 'Event templates' }),
+    ).toBeVisible();
+    await page
+      .getByRole('link', { name: /Soccer Match/i })
+      .first()
+      .click();
+    await expect(
+      page.getByRole('heading', { level: 1, name: 'Soccer Match' }),
+    ).toBeVisible();
+    await page.getByRole('link', { name: 'Create event' }).click();
+
+    const draftEventTitle = `Tax Rate Edit ${Date.now()}`;
+    await page.getByLabel('Event Title').fill(draftEventTitle);
+    await page.getByRole('button', { name: 'Create Event' }).click();
+    await expect(
+      page.getByRole('heading', { level: 1, name: draftEventTitle }),
     ).toBeVisible();
 
     await testInfo.attach('markdown', {
       body: `
 ## Update tax rates in existing events
 
-Event editors can revisit the same controls when updating a live event. Use **Edit Event** to adjust tax rates if regulations or pricing change.
+Event editors can revisit the same controls when updating an editable event.
+Open **Edit Event** on a draft event to adjust tax rates if regulations or pricing change.
 `,
     });
 
