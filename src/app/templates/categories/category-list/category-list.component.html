@@ -1,6 +1,6 @@
 <div class="mb-4 flex flex-row items-center gap-2">
   <a routerLink="/templates" mat-icon-button class="lg:hidden! block">
-    <fa-duotone-icon [icon]="faArrowLeft"></fa-duotone-icon>
+    <fa-duotone-icon [icon]="faArrowLeft" />
   </a>
   <h1 class="title-large">Template Categories</h1>
 </div>
@@ -11,7 +11,7 @@
   (click)="openCategoryCreationDialog()"
   class="fab-fixed"
 >
-  <mat-icon svgIcon="faPlus"></mat-icon>
+  <mat-icon svgIcon="faPlus" />
   Create category
 </button>
 
@@ -43,7 +43,7 @@
             </th>
             <td mat-cell *matCellDef="let element">
               <div class="flex items-center gap-3">
-                <app-icon [iconCommonName]="element.icon" size="28"></app-icon>
+                <app-icon [iconCommonName]="element.icon" size="28" />
                 <span class="title-medium">{{ element.title }}</span>
               </div>
             </td>

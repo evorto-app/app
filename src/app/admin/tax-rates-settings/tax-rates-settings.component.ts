@@ -37,7 +37,7 @@ import { ImportTaxRatesDialogComponent } from '../components/import-tax-rates-di
     <!-- Header with navigation -->
     <div class="mb-4 flex flex-row items-center gap-2">
       <a routerLink="/admin" mat-icon-button class="lg:hidden! block">
-        <fa-duotone-icon [icon]="faArrowLeft"></fa-duotone-icon>
+        <fa-duotone-icon [icon]="faArrowLeft" />
       </a>
       <h1 class="title-large">Tax Rates</h1>
     </div>
@@ -50,7 +50,7 @@ import { ImportTaxRatesDialogComponent } from '../components/import-tax-rates-di
       (click)="openImportDialog()"
       [disabled]="importedQuery.isLoading()"
     >
-      <fa-duotone-icon [icon]="faReceipt"></fa-duotone-icon>
+      <fa-duotone-icon [icon]="faReceipt" />
       Import Tax Rates
     </button>
 
@@ -69,7 +69,7 @@ import { ImportTaxRatesDialogComponent } from '../components/import-tax-rates-di
       @else if (importedQuery.error()) {
         <div class="bg-error-container text-on-error-container rounded-2xl p-4">
           <div class="flex items-center gap-2">
-            <fa-duotone-icon [icon]="faCircleExclamation"></fa-duotone-icon>
+            <fa-duotone-icon [icon]="faCircleExclamation" />
             <span class="body-medium"
               >Failed to load tax rates:
               {{ importedQuery.error()?.message }}</span
@@ -85,10 +85,9 @@ import { ImportTaxRatesDialogComponent } from '../components/import-tax-rates-di
         <div
           class="bg-surface-container-low text-on-surface flex flex-col items-center justify-center rounded-2xl p-8"
         >
-          <fa-duotone-icon
-            [icon]="faReceipt"
+          <fa-duotone-icon [icon]="faReceipt"
             class="mb-4 text-6xl text-on-surface-variant"
-          ></fa-duotone-icon>
+           />
           <h2 class="title-medium mb-2">No tax rates imported</h2>
           <p class="body-medium text-on-surface-variant mb-4 text-center">
             Import tax rates from your payment provider to enable paid

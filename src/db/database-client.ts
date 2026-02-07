@@ -7,9 +7,11 @@ import { relations } from './relations';
 
 const { DATABASE_URL: databaseUrl } = getDatabaseEnvironment();
 configureNeonLocalProxy(databaseUrl);
+const isBunRuntime =
+  typeof (globalThis as { Bun?: unknown }).Bun !== 'undefined';
 
 export const database = drizzle({
   connection: databaseUrl,
   relations,
-  ws: ws,
+  ...(isBunRuntime ? {} : { ws: ws }),
 });

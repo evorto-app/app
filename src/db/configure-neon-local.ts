@@ -1,6 +1,8 @@
 import { neonConfig } from '@neondatabase/serverless';
 
 let neonLocalConfigured = false;
+const isBunRuntime =
+  typeof (globalThis as { Bun?: unknown }).Bun !== 'undefined';
 
 const localHosts = new Set(['127.0.0.1', 'db', 'localhost']);
 
@@ -25,6 +27,11 @@ export const configureNeonLocalProxy = (
   input: NodeJS.ProcessEnv = process.env,
 ): void => {
   if (neonLocalConfigured) return;
+
+  // Bun's ws behavior can be flaky with Neon pooled connections; prefer fetch transport.
+  if (isBunRuntime) {
+    neonConfig.poolQueryViaFetch = true;
+  }
 
   const forceNeonLocalProxy = input['NEON_LOCAL_PROXY'] === 'true';
   const databaseUrlObject = shouldConfigureNeonLocal(

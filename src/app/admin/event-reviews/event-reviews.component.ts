@@ -40,7 +40,7 @@ import { EventReviewDialogComponent } from '../../events/event-review-dialog/eve
         class="lg:hidden! block"
         aria-label="Back to admin overview"
       >
-        <fa-duotone-icon [icon]="faArrowLeft"></fa-duotone-icon>
+        <fa-duotone-icon [icon]="faArrowLeft" />
       </a>
       <h1 class="title-large">Event Reviews</h1>
       <div class="grow"></div>
@@ -111,9 +111,8 @@ import { EventReviewDialogComponent } from '../../events/event-review-dialog/eve
                 <!--                }-->
               </div>
               <a mat-button routerLink="/events/{{ event.id }}">
-                <fa-duotone-icon
-                  [icon]="faArrowUpRightFromSquare"
-                ></fa-duotone-icon>
+                <fa-duotone-icon [icon]="faArrowUpRightFromSquare"
+                 />
                 Open Event
               </a>
             </div>

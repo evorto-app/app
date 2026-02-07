@@ -16,7 +16,7 @@
         mat-icon-button
         [matMenuTriggerFor]="menu"
       >
-        <fa-duotone-icon [icon]="faEllipsisVertical"></fa-duotone-icon>
+        <fa-duotone-icon [icon]="faEllipsisVertical" />
       </button>
       <mat-menu #menu="matMenu">
         <a routerLink="categories" mat-menu-item>Manage categories</a>
@@ -46,10 +46,9 @@
             class="bg-surface text-on-surface flex flex-col gap-2 rounded-2xl p-4"
           >
             <div class="mb-4 flex flex-row items-start gap-4">
-              <app-icon
-                [iconCommonName]="templateCategory.icon"
+              <app-icon [iconCommonName]="templateCategory.icon"
                 size="28"
-              ></app-icon>
+               />
               <h2 class="title-large">{{ templateCategory.title }}</h2>
             </div>
             @for (template of templateCategory.templates; track template.id) {
@@ -58,7 +57,7 @@
                 routerLink="{{ template.id }}"
                 routerLinkActive="bg-secondary-container! text-on-secondary-container!"
               >
-                <app-icon [iconCommonName]="template.icon" size="24"></app-icon>
+                <app-icon [iconCommonName]="template.icon" size="24" />
                 <span>{{ template.title }}</span>
               </a>
             } @empty {
@@ -75,10 +74,9 @@
     </nav>
   </div>
   <div class="lg:h-full lg:overflow-y-auto lg:p-4">
-    <router-outlet
-      (activate)="outletActive.set(true)"
+    <router-outlet (activate)="outletActive.set(true)"
       (deactivate)="outletActive.set(false)"
-    ></router-outlet>
+     />
   </div>
 </div>
 
@@ -88,6 +86,6 @@
   mat-fab
   extended
 >
-  <mat-icon svgIcon="faPlus"></mat-icon>
+  <mat-icon svgIcon="faPlus" />
   Create template
 </a>
