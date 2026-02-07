@@ -1,106 +1,93 @@
 # Implementation Plan
 
-## Phase 1: Baseline + Inventory
+## Phase 1: Conductor Consolidation + Baseline Lock [checkpoint: pending]
 
-- [ ] Task: Capture fresh Angular CLI + Bun baseline for comparison
-  - [ ] Define test intent (likely none; analysis-only)
-  - [ ] Generate a fresh Angular CLI project using Bun in a temp directory
-  - [ ] Record a concise diff summary of configs/scripts vs current repo
-  - [ ] Verify the comparison notes are complete and actionable
-  - [ ] Commit changes (notes only, if applicable)
-  - [ ] Attach git notes summary
-  - [ ] Update plan with commit SHA
-  - [ ] Commit plan update
-- [ ] Task: Inventory Node/Express runtime usage
-  - [ ] Define test intent (likely none; analysis-only)
-  - [ ] Identify Node/Express entrypoints, adapters, deps, and config touchpoints
-  - [ ] Map SSR server flow and route handling
-  - [ ] Verify inventory is complete
-  - [ ] Commit changes (notes only, if applicable)
-  - [ ] Attach git notes summary
-  - [ ] Update plan with commit SHA
-  - [ ] Commit plan update
-- [ ] Task: Conductor - User Manual Verification 'Phase 1: Baseline + Inventory' (Protocol in workflow.md)
+- [ ] Task: Consolidate track artifacts from all provided references
+  - [ ] Define test intent (documentation-only changes)
+  - [ ] Merge prior `plan.md` + `codex-plan.md` into one execution plan
+  - [ ] Update `spec.md` to use repomix baselines as source of truth
+  - [ ] Set track status to in-progress in `conductor/tracks.md`
+  - [ ] Commit milestone
 
-## Phase 2: Tooling + Config Alignment
+- [ ] Task: Capture Bun baseline deltas against current repo
+  - [ ] Define test intent (analysis-only)
+  - [ ] Record script/config deltas from `repomix-output-angular-bun-setup-main.zip.xml`
+  - [ ] Record Effect integration references from `repomix-output-effect-angular-main.zip.xml`
+  - [ ] Commit milestone (if files changed)
 
-- [ ] Task: Align package manager + scripts to Bun baseline
-  - [ ] Define test intent (lint/build at end of phase)
-  - [ ] Update scripts/lockfiles to Bun-first workflow
-  - [ ] Remove Node/Express-only scripts and dependencies
-  - [ ] Verify scripts and deps align with baseline where applicable
-  - [ ] Commit changes
-  - [ ] Attach git notes summary
-  - [ ] Update plan with commit SHA
-  - [ ] Commit plan update
-- [ ] Task: Align Angular workspace configs to baseline
-  - [ ] Define test intent (lint/build at end of phase)
-  - [ ] Review Angular Best Practices before changes
-  - [ ] Update angular.json/tsconfig/eslint/prettier config to match baseline where appropriate
-  - [ ] Verify SSR config remains intact
-  - [ ] Commit changes
-  - [ ] Attach git notes summary
-  - [ ] Update plan with commit SHA
-  - [ ] Commit plan update
-- [ ] Task: Conductor - User Manual Verification 'Phase 2: Tooling + Config Alignment' (Protocol in workflow.md)
+- [ ] Task: Conductor - User Manual Verification 'Phase 1'
 
-## Phase 3: Bun-First SSR Runtime (Remove Express)
+## Phase 2: Bun Tooling Cutover [checkpoint: pending]
 
-- [ ] Task: Remove Express runtime wiring and Node-only server code
-  - [ ] Define test intent (build/SSR run)
-  - [ ] Remove Express entrypoints, middleware, and adapters
-  - [ ] Ensure SSR server remains functional under Bun
-  - [ ] Verify route setup and SSR responses remain intact
-  - [ ] Commit changes
-  - [ ] Attach git notes summary
-  - [ ] Update plan with commit SHA
-  - [ ] Commit plan update
-- [ ] Task: Validate SSR routes and server startup under Bun
-  - [ ] Define test intent (SSR smoke run)
-  - [ ] Run SSR server and verify primary routes respond
-  - [ ] Verify no regressions to route setup
-  - [ ] Commit changes (if any)
-  - [ ] Attach git notes summary
-  - [ ] Update plan with commit SHA
-  - [ ] Commit plan update
-- [ ] Task: Conductor - User Manual Verification 'Phase 3: Bun-First SSR Runtime (Remove Express)' (Protocol in workflow.md)
+- [ ] Task: Convert package manager metadata and lockfiles to Bun
+  - [ ] Define test intent (install + lint/build smoke)
+  - [ ] Set `packageManager` to Bun
+  - [ ] Generate/commit Bun lockfile
+  - [ ] Remove Yarn-specific lock/config artifacts no longer needed
+  - [ ] Commit milestone
 
-## Phase 4: Effect Integration Across Server + Data
+- [ ] Task: Align npm scripts to Bun baseline semantics
+  - [ ] Define test intent (script execution smoke)
+  - [ ] Convert Angular scripts to `bunx --bun ng`
+  - [ ] Convert runtime scripts to Bun equivalents (`bun --bun ...`)
+  - [ ] Replace Node-invoked helper scripts with Bun where possible
+  - [ ] Commit milestone
 
-- [ ] Task: Introduce Effect patterns in server RPC boundaries
-  - [ ] Define test intent (if needed)
-  - [ ] Adapt server handlers to Effect-based flow where applicable
-  - [ ] Verify behavior parity with existing RPC procedures
-  - [ ] Commit changes
-  - [ ] Attach git notes summary
-  - [ ] Update plan with commit SHA
-  - [ ] Commit plan update
-- [ ] Task: Adopt Drizzle Effect/SQL integration in data access
-  - [ ] Define test intent (if needed)
-  - [ ] Update DB access paths to use Effect/SQL
-  - [ ] Verify type safety and schema alignment
-  - [ ] Commit changes
-  - [ ] Attach git notes summary
-  - [ ] Update plan with commit SHA
-  - [ ] Commit plan update
-- [ ] Task: Update shared utilities to Effect-friendly patterns
-  - [ ] Define test intent (if needed)
-  - [ ] Refactor shared helpers/types for Effect usage
-  - [ ] Verify no type safety regressions
-  - [ ] Commit changes
-  - [ ] Attach git notes summary
-  - [ ] Update plan with commit SHA
-  - [ ] Commit plan update
-- [ ] Task: Conductor - User Manual Verification 'Phase 4: Effect Integration Across Server + Data' (Protocol in workflow.md)
+- [ ] Task: Conductor - User Manual Verification 'Phase 2'
 
-## Phase 5: Verification + Documentation
+## Phase 3: CI + Dev Workflow Bun Alignment [checkpoint: pending]
 
-- [ ] Task: Run quality gates for full migration
-  - [ ] Define test intent (lint/build/e2e/docs)
-  - [ ] Run lint + build + e2e + e2e:docs per workflow
-  - [ ] Resolve any issues
-  - [ ] Commit changes (if any)
-  - [ ] Attach git notes summary
-  - [ ] Update plan with commit SHA
-  - [ ] Commit plan update
-- [ ] Task: Conductor - User Manual Verification 'Phase 5: Verification + Documentation' (Protocol in workflow.md)
+- [ ] Task: Update GitHub Actions workflows from Yarn/Node assumptions to Bun-first
+  - [ ] Define test intent (workflow syntax + local command parity)
+  - [ ] Replace Yarn install/run steps with Bun install/run
+  - [ ] Keep required secrets/env setup behavior intact
+  - [ ] Commit milestone
+
+- [ ] Task: Update repository docs and operational commands to Bun-first
+  - [ ] Define test intent (docs consistency)
+  - [ ] Update root docs and workflow references from `yarn ...` to `bun run ...`
+  - [ ] Keep database/testing operational notes accurate
+  - [ ] Commit milestone
+
+- [ ] Task: Conductor - User Manual Verification 'Phase 3'
+
+## Phase 4: Bun Runtime + Quality Gates [checkpoint: pending]
+
+- [ ] Task: Validate Bun-based lint and build gates
+  - [ ] Define test intent (`bun run lint:fix`, `bun run lint`, `bun run build`)
+  - [ ] Fix migration regressions uncovered by lint/build
+  - [ ] Commit milestone
+
+- [ ] Task: Validate Bun SSR startup path
+  - [ ] Define test intent (`bun run serve:ssr:evorto` smoke)
+  - [ ] Verify server starts and health route responds
+  - [ ] Commit milestone (if changes required)
+
+- [ ] Task: Conductor - User Manual Verification 'Phase 4'
+
+## Phase 5: Effect Migration Foundation (Next Step Within Track) [checkpoint: pending]
+
+- [ ] Task: Draft concrete cutover map from tRPC/Express to Effect HTTP/RPC layers
+  - [ ] Define test intent (design-only)
+  - [ ] Identify module-by-module replacement order under `src/server/**` and `src/app/core/**`
+  - [ ] Identify contract-sharing strategy for Angular RPC client helpers
+  - [ ] Commit milestone
+
+- [ ] Task: Implement first Effect boundary slice (small vertical)
+  - [ ] Define test intent (targeted unit or e2e/doc where applicable)
+  - [ ] Migrate one bounded server route/procedure path to Effect-first structure
+  - [ ] Preserve type safety and tests
+  - [ ] Commit milestone
+
+- [ ] Task: Conductor - User Manual Verification 'Phase 5'
+
+## Final Gate
+
+- [ ] Run full quality gates in Bun-first mode:
+  - [ ] `bun run lint:fix`
+  - [ ] `bun run lint`
+  - [ ] `bun run build`
+  - [ ] `bun run test`
+  - [ ] `bun run e2e`
+  - [ ] `bun run e2e:docs`
+- [ ] Add/update Knope change file documenting migration status and scope

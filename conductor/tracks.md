@@ -7,7 +7,7 @@
 
 ---
 
-- [ ] **Track: Align project with fresh Angular CLI + Bun baseline, remove Node/Express runtime, and introduce Effect across server/data/shared utilities**
+- [~] **Track: Align project with fresh Angular CLI + Bun baseline, remove Node/Express runtime, and introduce Effect across server/data/shared utilities**
       _Link: [./tracks/bun-angular-alignment_20260128/](./tracks/bun-angular-alignment_20260128/)_
 
 ---

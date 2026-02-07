@@ -1,45 +1,58 @@
-# Track Spec: Align with fresh Angular + Bun baseline; introduce Effect across server
+# Track Spec: Bun-First Angular Alignment + Effect Migration Foundation
 
 ## Overview
 
-Align the project with a fresh Angular CLI `ng new` setup using Bun as the package manager, remove Node/Express-based runtime parts, and introduce Effect-based code patterns across server, data access, and shared utilities while preserving existing SSR routes, RPC structure, and database schema.
+This track performs a Bun-first cutover for Evorto using the provided baseline reference in:
+
+- `conductor/tracks/bun-angular-alignment_20260128/repomix-output-angular-bun-setup-main.zip.xml`
+- `conductor/tracks/bun-angular-alignment_20260128/repomix-output-effect-angular-main.zip.xml`
+- `conductor/tracks/bun-angular-alignment_20260128/codex-plan.md`
+
+The migration mode is explicitly non-backward-compatible. We optimize for a clean Bun-first runtime/tooling path and then prepare for Effect-based RPC/data migrations.
 
 ## Functional Requirements
 
-1. Baseline Alignment
-   - Compare the current repo against a fresh Angular CLI project configured to use Bun.
-   - Align configuration files and tooling to the fresh baseline where appropriate.
-   - Consolidate scripts and lockfiles to Bun.
+1. Bun Tooling and Package Manager Cutover
+   - Replace Yarn-first workflows with Bun-first workflows.
+   - Align `package.json` scripts with the Angular Bun baseline pattern (`bunx --bun ng`, Bun SSR serve command).
+   - Use Bun lockfile/package manager metadata as source of truth.
 
-2. Runtime Migration
-   - Remove Node/Express-based runtime code and wiring.
-   - Ensure SSR server execution is Bun-first and continues to serve existing routes.
+2. Runtime Alignment
+   - Ensure SSR startup and build are executable through Bun commands.
+   - Remove Node-only script assumptions where Bun equivalents exist.
 
-3. Effect Adoption
-   - Introduce Effect across server RPC boundaries and shared utilities.
-   - Use Drizzle's Effect/SQL integrations where applicable for server data access.
+3. CI and Developer Workflow Alignment
+   - Update CI workflows and local developer commands to run with Bun.
+   - Keep required quality gates (lint/build/e2e/docs) runnable in Bun-first form.
 
-4. Compatibility Guarantees
-   - Preserve existing SSR routes and public behavior.
-   - Preserve RPC procedure structure and behavior.
-   - Preserve database schema and migration setup.
+4. Effect Migration Foundation
+   - Preserve and reinforce Effect schema/type usage already present.
+   - Prepare infrastructure for follow-up migration from tRPC/Express toward Effect HTTP + Effect RPC + Effect Postgres.
+   - Use the repomix Effect Angular reference as implementation guidance, not as a direct code transplant.
 
 ## Non-Functional Requirements
 
-- Maintain end-to-end type safety (Effect Schema, Drizzle types, Angular strict types).
-- No regressions in SSR output or route handling.
-- Keep changes aligned with current tech stack and Conductor workflow.
+- Maintain strict typing end-to-end.
+- Keep Angular SSR behavior functionally stable for core user flows.
+- Keep schema/migrations unchanged during Bun cutover work.
+- Every completed milestone is committed for reviewability.
+
+## Explicit Migration Policy
+
+- Backward compatibility is not required for this track.
+- Big-bang changes are allowed when they reduce migration complexity.
+- If Bun runtime parity blocks progress, prioritize Bun-first tooling completion and document remaining runtime gaps in the plan.
 
 ## Acceptance Criteria
 
-- Project configuration and scripts match a fresh Angular CLI + Bun baseline where relevant.
-- All Node/Express runtime artifacts are removed, and SSR runs on Bun.
-- Effect is present and used across server, data access, and shared utilities.
-- Existing SSR routes, RPC procedures, and database schema remain intact and functional.
-- Build and lint still pass (as per project workflow gates).
+- `package.json` and workspace config are Bun-first and aligned with baseline intent.
+- Yarn-specific package manager configuration is removed or made non-authoritative.
+- CI paths use Bun install/run semantics.
+- Core quality gates run successfully via Bun commands (at minimum lint + build during implementation milestones, full suite at final gate).
+- Conductor artifacts (`spec.md`, `plan.md`, `tracks.md`) reflect actual migration execution status.
 
-## Out of Scope
+## Out of Scope (for this track phase)
 
-- Product feature changes beyond migration/alignment work.
-- Schema changes or new migrations.
-- Large UI refactors unrelated to the alignment effort.
+- Product feature work unrelated to migration.
+- Database schema redesign.
+- Large UI refactors not required for Bun/Effect migration.
