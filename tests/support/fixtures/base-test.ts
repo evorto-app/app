@@ -21,6 +21,22 @@ const createDedupeId = init({ length: dedupeLength });
 const environment = validatePlaywrightEnvironment();
 const databaseUrl = environment.DATABASE_URL;
 configureNeonLocalProxy(databaseUrl);
+const isBunRuntime = (globalThis as { Bun?: unknown }).Bun !== undefined;
+const useNeonLocalProxy = (() => {
+  if (process.env['NEON_LOCAL_PROXY'] === 'true') {
+    return true;
+  }
+
+  try {
+    const hostname = new URL(databaseUrl).hostname;
+    return (
+      hostname === 'localhost' || hostname === '127.0.0.1' || hostname === 'db'
+    );
+  } catch {
+    return false;
+  }
+})();
+const shouldProvideWebSocket = !isBunRuntime && !useNeonLocalProxy;
 
 interface BaseFixtures {
   database: NeonDatabase<Record<string, never>, typeof relations>;
@@ -40,7 +56,7 @@ export const test = base.extend<BaseFixtures>({
     const database = drizzle({
       connection: databaseUrl,
       relations,
-      ws: ws,
+      ...(shouldProvideWebSocket ? { ws: ws } : {}),
     });
     await use(database);
   },

@@ -382,58 +382,58 @@ export async function addRegistrations(
     }
   }
 
-  // Execute all operations in a transaction for atomicity
+  // Execute writes without an explicit transaction.
+  // Neon local + fetch transport under Bun can hit websocket-only transaction paths.
+  // Best-effort seed consistency is sufficient for test fixtures.
   try {
-    await database.transaction(async (tx) => {
-      // Insert all registrations in a single statement (no chunking)
-      if (registrations.length > 0) {
-        await tx.insert(schema.eventRegistrations).values(registrations);
-      }
+    // Insert all registrations in a single statement (no chunking)
+    if (registrations.length > 0) {
+      await database.insert(schema.eventRegistrations).values(registrations);
+    }
 
-      // Insert all transactions in a single statement (no chunking)
-      if (transactions.length > 0) {
-        await tx.insert(schema.transactions).values(transactions);
-      }
+    // Insert all transactions in a single statement (no chunking)
+    if (transactions.length > 0) {
+      await database.insert(schema.transactions).values(transactions);
+    }
 
-      // Multi-row UPDATE using CASE expressions in a single request
-      const updatesArray = Array.from(optionUpdates.entries());
-      if (updatesArray.length > 0) {
-        const ids: string[] = [];
-        const checkedSqlChunks: SQL[] = [];
-        const confirmedSqlChunks: SQL[] = [];
-        const waitlistSqlChunks: SQL[] = [];
-        checkedSqlChunks.push(sql`(case`);
-        confirmedSqlChunks.push(sql`(case`);
-        waitlistSqlChunks.push(sql`(case`);
-        for (const [id, c] of updatesArray) {
-          checkedSqlChunks.push(
-            sql`when ${schema.eventRegistrationOptions.id} = ${id} then cast(${c.checkedInSpots} as integer)`,
-          );
-          confirmedSqlChunks.push(
-            sql`when ${schema.eventRegistrationOptions.id} = ${id} then cast(${c.confirmedSpots} as integer)`,
-          );
-          waitlistSqlChunks.push(
-            sql`when ${schema.eventRegistrationOptions.id} = ${id} then cast(${c.waitlistSpots} as integer)`,
-          );
-          ids.push(id);
-        }
-        checkedSqlChunks.push(sql`end)`);
-        confirmedSqlChunks.push(sql`end)`);
-        waitlistSqlChunks.push(sql`end)`);
-        const checkedFinal: SQL = sql.join(checkedSqlChunks, sql.raw(' '));
-        const confirmedFinal: SQL = sql.join(confirmedSqlChunks, sql.raw(' '));
-        const waitlistFinal: SQL = sql.join(waitlistSqlChunks, sql.raw(' '));
-
-        await tx
-          .update(schema.eventRegistrationOptions)
-          .set({
-            checkedInSpots: checkedFinal,
-            confirmedSpots: confirmedFinal,
-            waitlistSpots: waitlistFinal,
-          })
-          .where(inArray(schema.eventRegistrationOptions.id, ids));
+    // Multi-row UPDATE using CASE expressions in a single request
+    const updatesArray = Array.from(optionUpdates.entries());
+    if (updatesArray.length > 0) {
+      const ids: string[] = [];
+      const checkedSqlChunks: SQL[] = [];
+      const confirmedSqlChunks: SQL[] = [];
+      const waitlistSqlChunks: SQL[] = [];
+      checkedSqlChunks.push(sql`(case`);
+      confirmedSqlChunks.push(sql`(case`);
+      waitlistSqlChunks.push(sql`(case`);
+      for (const [id, c] of updatesArray) {
+        checkedSqlChunks.push(
+          sql`when ${schema.eventRegistrationOptions.id} = ${id} then cast(${c.checkedInSpots} as integer)`,
+        );
+        confirmedSqlChunks.push(
+          sql`when ${schema.eventRegistrationOptions.id} = ${id} then cast(${c.confirmedSpots} as integer)`,
+        );
+        waitlistSqlChunks.push(
+          sql`when ${schema.eventRegistrationOptions.id} = ${id} then cast(${c.waitlistSpots} as integer)`,
+        );
+        ids.push(id);
       }
-    });
+      checkedSqlChunks.push(sql`end)`);
+      confirmedSqlChunks.push(sql`end)`);
+      waitlistSqlChunks.push(sql`end)`);
+      const checkedFinal: SQL = sql.join(checkedSqlChunks, sql.raw(' '));
+      const confirmedFinal: SQL = sql.join(confirmedSqlChunks, sql.raw(' '));
+      const waitlistFinal: SQL = sql.join(waitlistSqlChunks, sql.raw(' '));
+
+      await database
+        .update(schema.eventRegistrationOptions)
+        .set({
+          checkedInSpots: checkedFinal,
+          confirmedSpots: confirmedFinal,
+          waitlistSpots: waitlistFinal,
+        })
+        .where(inArray(schema.eventRegistrationOptions.id, ids));
+    }
   } catch (error) {
     consola.error('Failed to create registrations:', error);
     return [];

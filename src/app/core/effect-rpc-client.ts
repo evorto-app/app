@@ -11,9 +11,32 @@ import {
 } from '../../shared/rpc-contracts/app-rpcs';
 import { Tenant } from '../../types/custom/tenant';
 
-const rpcLayer = RpcClient.layerProtocolHttp({ url: '/rpc' }).pipe(
-  Layer.provide([RpcSerialization.layerJson, FetchHttpClient.layer]),
-);
+const normalizeBaseUrl = (value: string): string =>
+  value.endsWith('/') ? value.slice(0, -1) : value;
+
+const resolveServerBaseUrl = (): string => {
+  const processEnvironment = (
+    globalThis as {
+      process?: {
+        env?: Record<string, string | undefined>;
+      };
+    }
+  ).process?.env;
+
+  const configuredBaseUrl = processEnvironment?.['BASE_URL']?.trim();
+  if (configuredBaseUrl) {
+    return normalizeBaseUrl(configuredBaseUrl);
+  }
+
+  return 'http://localhost:4200';
+};
+
+const resolveRpcUrl = (): string =>
+  'window' in globalThis ? '/rpc' : `${resolveServerBaseUrl()}/rpc`;
+
+const rpcLayer = RpcClient.layerProtocolHttp({
+  url: resolveRpcUrl(),
+}).pipe(Layer.provide([RpcSerialization.layerJson, FetchHttpClient.layer]));
 
 type AppRpcContractClient = RpcClient.FromGroup<typeof AppRpcs>;
 

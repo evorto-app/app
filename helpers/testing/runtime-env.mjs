@@ -1,62 +1,59 @@
-import crypto from 'node:crypto';
-import path from 'node:path';
+import crypto from "node:crypto";
+import path from "node:path";
 
-const APP_PORT_MIN = 20000;
-const APP_PORT_SPAN = 10000;
-const DB_PORT_MIN = 32000;
-const DB_PORT_SPAN = 10000;
+const DEFAULT_APP_HOST_PORT = 4200;
+const DEFAULT_NEON_LOCAL_HOST_PORT = 55432;
 
-const databaseName = process.env['NEON_DATABASE_NAME']?.trim() || 'appdb';
+const databaseName = process.env["NEON_DATABASE_NAME"]?.trim() || "appdb";
 
 const deriveSeed = () => {
-  const runId = process.env['GITHUB_RUN_ID']?.trim();
-  const runAttempt = process.env['GITHUB_RUN_ATTEMPT']?.trim();
+  const runId = process.env["GITHUB_RUN_ID"]?.trim();
+  const runAttempt = process.env["GITHUB_RUN_ATTEMPT"]?.trim();
   if (runId) {
-    return `${runId}:${runAttempt || '1'}`;
+    return `${runId}:${runAttempt || "1"}`;
   }
 
   return process.cwd();
 };
 
 const seed = deriveSeed();
-const digest = crypto.createHash('sha256').update(seed).digest();
+const digest = crypto.createHash("sha256").update(seed).digest();
 const seedNumber = digest.readUInt32BE(0);
 
 const parsePort = (value) => {
-  const parsed = Number.parseInt(value ?? '', 10);
+  const parsed = Number.parseInt(value ?? "", 10);
   if (!Number.isInteger(parsed) || parsed < 1024 || parsed > 65_535) {
     return undefined;
   }
   return parsed;
 };
 
-const resolvePort = (name, start, span) =>
-  parsePort(process.env[name]) ?? start + (seedNumber % span);
+const resolvePort = (name, fallback) =>
+  parsePort(process.env[name]) ?? fallback;
 
-const appHostPort = resolvePort('APP_HOST_PORT', APP_PORT_MIN, APP_PORT_SPAN);
+const appHostPort = resolvePort("APP_HOST_PORT", DEFAULT_APP_HOST_PORT);
 const neonLocalHostPort = resolvePort(
-  'NEON_LOCAL_HOST_PORT',
-  DB_PORT_MIN,
-  DB_PORT_SPAN,
+  "NEON_LOCAL_HOST_PORT",
+  DEFAULT_NEON_LOCAL_HOST_PORT,
 );
 
 const sanitizeProjectName = (value) =>
   value
     .toLowerCase()
-    .replaceAll(/[^a-z0-9_-]+/g, '-')
-    .replaceAll(/-+/g, '-')
-    .replaceAll(/^-|-$/g, '')
+    .replaceAll(/[^a-z0-9_-]+/g, "-")
+    .replaceAll(/-+/g, "-")
+    .replaceAll(/^-|-$/g, "")
     .slice(0, 40);
 
 const defaultProjectName = () => {
   const basename = path.basename(process.cwd());
-  const safeBasename = sanitizeProjectName(basename || 'evorto');
-  const suffix = digest.toString('hex').slice(0, 8);
+  const safeBasename = sanitizeProjectName(basename || "evorto");
+  const suffix = digest.toString("hex").slice(0, 8);
   return `${safeBasename}-${suffix}`;
 };
 
 const composeProjectName =
-  process.env['COMPOSE_PROJECT_NAME']?.trim() || defaultProjectName();
+  process.env["COMPOSE_PROJECT_NAME"]?.trim() || defaultProjectName();
 const baseUrl = `http://localhost:${appHostPort}`;
 const databaseUrl = `postgresql://neon:npg@localhost:${neonLocalHostPort}/${databaseName}?sslmode=require`;
 
@@ -69,7 +66,7 @@ const environment = {
   DATABASE_URL: databaseUrl,
   NEON_DATABASE_NAME: databaseName,
   NEON_LOCAL_HOST_PORT: neonLocalHostPort,
-  NEON_LOCAL_PROXY: 'true',
+  NEON_LOCAL_PROXY: "true",
   PLAYWRIGHT_TEST_BASE_URL: baseUrl,
 };
 
