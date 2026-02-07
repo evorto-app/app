@@ -104,6 +104,14 @@
   - [x] Preserve runtime behavior and strict typing
   - [x] Commit milestone
 
+- [x] Task: Extend config bootstrap migration with Effect RPC permissions/auth procedures (394d769)
+  - [x] Define test intent (`bun run lint:fix`, `bun run lint`, `bun run build`)
+  - [x] Add shared RPC contracts for `config.permissions` and `config.isAuthenticated`
+  - [x] Bridge middleware-derived auth/permission context into `/rpc` handler path
+  - [x] Migrate `ConfigService` permissions bootstrap from tRPC to Effect RPC
+  - [x] Capture integration constraints and next-step guidance in track docs
+  - [x] Commit milestone
+
 - [ ] Task: Conductor - User Manual Verification 'Phase 6'
 
 ## Final Gate
