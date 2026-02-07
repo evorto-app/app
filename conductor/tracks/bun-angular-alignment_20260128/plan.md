@@ -140,6 +140,12 @@
   - [x] Commit milestone
   - [x] Validation note: SSR health smoke currently blocked in local shell when OIDC env values (`CLIENT_ID` etc.) are not exported
 
+- [x] Task: Decommission unused tRPC `config` router surface after Effect RPC cutover (e8ac353)
+  - [x] Define test intent (`bun run lint:fix`, `bun run lint`, `bun run build`)
+  - [x] Remove `config` namespace from tRPC app router composition
+  - [x] Delete obsolete `src/server/trpc/core/config.router.ts`
+  - [x] Commit milestone
+
 - [ ] Task: Conductor - User Manual Verification 'Phase 6'
 
 ## Final Gate

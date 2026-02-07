@@ -87,3 +87,8 @@ Replace Express+tRPC request handling and ad-hoc service wiring with Effect-firs
 - Angular `ConfigService` and admin settings invalidation paths now consume `config.tenant` via Effect RPC helpers.
 - Remaining note:
   - SSR runtime smoke in local shell still requires exporting OIDC env vars (`CLIENT_ID`, `CLIENT_SECRET`, `ISSUER_BASE_URL`, `SECRET`) before `bun run serve:ssr:evorto`.
+
+## Phase 6 Update (tRPC Config Decommission)
+
+- After migrating all Angular config callsites to Effect RPC, the server-side tRPC `config` namespace was removed from `src/server/trpc/app-router.ts`.
+- Obsolete file `src/server/trpc/core/config.router.ts` was deleted to reduce dual-protocol maintenance and accidental regressions.
