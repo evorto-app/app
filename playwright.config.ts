@@ -31,6 +31,7 @@ if (environment.CI) {
 export default defineConfig({
   /* Fail the build on CI if you accidentally left test.only in the source code. */
   forbidOnly: !!environment.CI,
+  maxFailures: environment.CI ? 1 : undefined,
   /* Run tests in files in parallel */
   fullyParallel: true,
   /* Configure projects for major browsers */
@@ -39,6 +40,8 @@ export default defineConfig({
       name: 'setup',
       testDir: './tests/setup',
       testMatch: /.*\.setup\.ts$/,
+      timeout: 20_000,
+      retries: 0,
       use: { ...devices['Desktop Chrome'] },
     },
     {
@@ -96,8 +99,8 @@ export default defineConfig({
   ],
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: reporters,
-  /* Retry on CI only */
-  retries: environment.CI ? 2 : 0,
+  /* Prefer failing fast in CI to shorten feedback loops. */
+  retries: 0,
   testDir: './tests',
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {

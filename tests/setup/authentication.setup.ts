@@ -6,7 +6,6 @@ import { usersToAuthenticate } from '../../helpers/user-data';
 import { test as setup } from '../support/fixtures/base-test';
 import {
   isStorageStateFresh,
-  readStorageState,
 } from '../support/utils/storage-state';
 
 for (const userData of usersToAuthenticate) {
@@ -32,7 +31,25 @@ for (const userData of usersToAuthenticate) {
       .getByRole('textbox', { name: 'Password' })
       .fill(userData.password);
     await page.getByRole('button', { exact: true, name: 'Continue' }).click();
-    await page.waitForURL(/\/events(\?.*)?$/);
+
+    const eventsPathPattern = /\/events(\?.*)?$/;
+    const acceptConsentButton = page.getByRole('button', { name: 'Accept' });
+    const reachedEventsWithoutConsent = await page
+      .waitForURL(eventsPathPattern, { timeout: 8000 })
+      .then(() => true)
+      .catch(() => false);
+
+    if (!reachedEventsWithoutConsent) {
+      const consentVisible = await acceptConsentButton
+        .isVisible({ timeout: 4000 })
+        .catch(() => false);
+      if (consentVisible) {
+        await acceptConsentButton.click();
+      }
+
+      await page.waitForURL(eventsPathPattern, { timeout: 8000 });
+    }
+
     // Save state with correct tenant cookie if present
     if (runtime.tenantDomain) {
       await page.context().addCookies([
