@@ -12,7 +12,7 @@ const webServer = environment.NO_WEBSERVER
       command: 'yarn docker:start-test',
       reuseExistingServer: true,
       timeout: 240_000,
-      url: 'http://localhost:4200',
+      url: environment.PLAYWRIGHT_TEST_BASE_URL ?? environment.BASE_URL,
     } as const);
 
 // Configure reporters: avoid blocking HTML server opening; prefer terminal output
@@ -105,8 +105,7 @@ export default defineConfig({
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     /* Base URL to use in actions like `await page.goto('/')`. */
-    baseURL:
-      environment.PLAYWRIGHT_TEST_BASE_URL ?? 'http://localhost:4200',
+    baseURL: environment.PLAYWRIGHT_TEST_BASE_URL ?? environment.BASE_URL,
 
     colorScheme: 'light',
 

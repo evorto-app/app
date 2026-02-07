@@ -9,6 +9,7 @@ import ws from 'ws';
 
 import { getSeedDate } from '../../../helpers/seed-clock';
 import { seedFalsoForScope } from '../../../helpers/seed-falso';
+import { configureNeonLocalProxy } from '../../../src/db/configure-neon-local';
 import { relations } from '../../../src/db/relations';
 import {
   getAuth0ManagementEnvironment,
@@ -19,9 +20,7 @@ const dedupeLength = 4;
 const createDedupeId = init({ length: dedupeLength });
 const environment = validatePlaywrightEnvironment();
 const databaseUrl = environment.DATABASE_URL;
-if (!databaseUrl) {
-  throw new Error('DATABASE_URL must be set for Playwright tests');
-}
+configureNeonLocalProxy(databaseUrl);
 
 interface BaseFixtures {
   database: NeonDatabase<Record<string, never>, typeof relations>;

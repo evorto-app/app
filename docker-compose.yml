@@ -1,10 +1,20 @@
 services:
+  db:
+    image: neondatabase/neon_local:latest
+    environment:
+      NEON_API_KEY: ${NEON_API_KEY:-}
+      NEON_PROJECT_ID: ${NEON_PROJECT_ID:-}
+      PARENT_BRANCH_ID: ${PARENT_BRANCH_ID:-}
+    ports:
+      - "${NEON_LOCAL_HOST_PORT:-55432}:5432"
+
   evorto:
-    container_name: app
     build:
       context: .
       secrets:
         - FONT_AWESOME_TOKEN
+    depends_on:
+      - db
     develop:
       watch:
         - action: rebuild
@@ -15,10 +25,13 @@ services:
       - .env.local
       - .env
     environment:
+      BASE_URL: http://localhost:${APP_HOST_PORT:-4200}
+      DATABASE_URL: postgresql://neon:npg@db:5432/${NEON_DATABASE_NAME:-appdb}?sslmode=require
+      NEON_LOCAL_PROXY: "true"
       #      This secret is for the local stripe cli, it is not a production secret
       STRIPE_WEBHOOK_SECRET: whsec_5cc4e8e60977a2f87895f2fe5484040de96728381f08f33617633205a0cafae3
     ports:
-      - "4200:4200"
+      - "${APP_HOST_PORT:-4200}:4200"
 
   stripe:
     image: stripe/stripe-cli:v1.25.0
