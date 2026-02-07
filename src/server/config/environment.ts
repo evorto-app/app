@@ -22,7 +22,12 @@ const ServerEnvironmentSchema = Schema.Struct({
   GOOGLE_MAPS_API_KEY: optionalNonEmptyString,
   ISSUER_BASE_URL: optionalNonEmptyString,
   NODE_ENV: optionalNonEmptyString,
-  PORT: optionalNonEmptyString,
+  PORT: Schema.optionalWith(
+    Schema.NumberFromString.pipe(Schema.int(), Schema.positive()),
+    {
+      default: () => 4000,
+    },
+  ),
   PUBLIC_GOOGLE_MAPS_API_KEY: optionalNonEmptyString,
   PUBLIC_SENTRY_DSN: optionalNonEmptyString,
   SECRET: optionalNonEmptyString,
@@ -30,75 +35,89 @@ const ServerEnvironmentSchema = Schema.Struct({
   STRIPE_WEBHOOK_SECRET: optionalNonEmptyString,
 });
 
-export type ServerEnvironment = Schema.Schema.Type<typeof ServerEnvironmentSchema>;
+const DatabaseEnvironmentSchema = Schema.Struct({
+  DATABASE_URL: Schema.NonEmptyString,
+});
 
-const decodeServerEnvironment = Schema.decodeUnknownEither(
-  ServerEnvironmentSchema,
+const OidcEnvironmentSchema = Schema.Struct({
+  AUDIENCE: optionalNonEmptyString,
+  BASE_URL: Schema.NonEmptyString,
+  CLIENT_ID: Schema.NonEmptyString,
+  CLIENT_SECRET: Schema.NonEmptyString,
+  ISSUER_BASE_URL: Schema.NonEmptyString,
+  SECRET: Schema.NonEmptyString,
+});
+
+const StripeApiEnvironmentSchema = Schema.Struct({
+  STRIPE_API_KEY: Schema.NonEmptyString,
+});
+
+const StripeWebhookEnvironmentSchema = Schema.Struct({
+  STRIPE_WEBHOOK_SECRET: Schema.NonEmptyString,
+});
+
+const CloudflareImagesTokenEnvironmentSchema = Schema.Union(
+  Schema.Struct({
+    CLOUDFLARE_IMAGES_API_TOKEN: Schema.NonEmptyString,
+    CLOUDFLARE_TOKEN: optionalNonEmptyString,
+  }),
+  Schema.Struct({
+    CLOUDFLARE_IMAGES_API_TOKEN: optionalNonEmptyString,
+    CLOUDFLARE_TOKEN: Schema.NonEmptyString,
+  }),
 );
 
-const normalizeEnvironmentInput = (
-  input: NodeJS.ProcessEnv,
-): NodeJS.ProcessEnv =>
-  Object.fromEntries(
-    Object.entries(input).map(([key, value]) => [
-      key,
-      value === '' ? undefined : value,
-    ]),
-  );
+const CloudflareImagesEnvironmentSchema = Schema.Struct({
+  CLOUDFLARE_ACCOUNT_ID: Schema.NonEmptyString,
+  CLOUDFLARE_IMAGES_DELIVERY_HASH: Schema.NonEmptyString,
+  CLOUDFLARE_IMAGES_ENVIRONMENT: optionalNonEmptyString,
+  CLOUDFLARE_IMAGES_VARIANT: optionalNonEmptyString,
+  NODE_ENV: optionalNonEmptyString,
+}).pipe(Schema.extend(CloudflareImagesTokenEnvironmentSchema));
+
+const CloudflareR2EnvironmentSchema = Schema.Struct({
+  CLOUDFLARE_R2_BUCKET: Schema.optionalWith(Schema.NonEmptyString, {
+    default: () => 'testing',
+  }),
+  CLOUDFLARE_R2_S3_ENDPOINT: Schema.NonEmptyString,
+  CLOUDFLARE_R2_S3_KEY: Schema.NonEmptyString,
+  CLOUDFLARE_R2_S3_KEY_ID: Schema.NonEmptyString,
+});
+
+export type ServerEnvironment = Schema.Schema.Type<typeof ServerEnvironmentSchema>;
 
 const formatSchemaError = (error: ParseResult.ParseError): string =>
   ParseResult.TreeFormatter.formatErrorSync(error);
 
-const requireValue = (
-  value: string | undefined,
-  key: string,
-  scope: string,
-): string => {
-  if (value) {
-    return value;
+const decodeOrThrow = <A, I>(
+  schema: Schema.Schema<A, I, never>,
+  input: unknown,
+  label: string,
+): A => {
+  const parsed = Schema.decodeUnknownEither(schema)(input);
+  if (Either.isLeft(parsed)) {
+    throw new Error(`Invalid ${label} schema:\n${formatSchemaError(parsed.left)}`);
   }
-  throw new Error(`Missing server environment variable ${key} (${scope})`);
+  return parsed.right;
 };
 
 export const getServerEnvironment = (
   input: NodeJS.ProcessEnv = process.env,
-): ServerEnvironment => {
-  const parsed = decodeServerEnvironment(normalizeEnvironmentInput(input));
-  if (Either.isLeft(parsed)) {
-    throw new Error(
-      `Invalid server environment schema:\n${formatSchemaError(parsed.left)}`,
-    );
-  }
-  return parsed.right;
-};
+): ServerEnvironment => decodeOrThrow(ServerEnvironmentSchema, input, 'server environment');
 
 export const serverEnvironment = getServerEnvironment();
 
 export const getServerPort = (
   environment: ServerEnvironment = serverEnvironment,
-): number => {
-  if (!environment.PORT) {
-    return 4000;
-  }
-  const port = Number.parseInt(environment.PORT, 10);
-  if (Number.isNaN(port) || port <= 0) {
-    throw new Error('PORT must be a positive integer');
-  }
-  return port;
-};
+): number => environment.PORT;
 
 export const getDatabaseEnvironment = (
-  environment: ServerEnvironment = serverEnvironment,
-): { DATABASE_URL: string } => ({
-  DATABASE_URL: requireValue(
-    environment.DATABASE_URL,
-    'DATABASE_URL',
-    'database connection',
-  ),
-});
+  input: NodeJS.ProcessEnv = process.env,
+): { DATABASE_URL: string } =>
+  decodeOrThrow(DatabaseEnvironmentSchema, input, 'database connection');
 
 export const getOidcEnvironment = (
-  environment: ServerEnvironment = serverEnvironment,
+  input: NodeJS.ProcessEnv = process.env,
 ): {
   AUDIENCE: string | undefined;
   BASE_URL: string;
@@ -106,50 +125,44 @@ export const getOidcEnvironment = (
   CLIENT_SECRET: string;
   ISSUER_BASE_URL: string;
   SECRET: string;
-} => ({
-  AUDIENCE: environment.AUDIENCE,
-  BASE_URL: requireValue(environment.BASE_URL, 'BASE_URL', 'OIDC'),
-  CLIENT_ID: requireValue(environment.CLIENT_ID, 'CLIENT_ID', 'OIDC'),
-  CLIENT_SECRET: requireValue(
-    environment.CLIENT_SECRET,
-    'CLIENT_SECRET',
-    'OIDC',
-  ),
-  ISSUER_BASE_URL: requireValue(
-    environment.ISSUER_BASE_URL,
-    'ISSUER_BASE_URL',
-    'OIDC',
-  ),
-  SECRET: requireValue(environment.SECRET, 'SECRET', 'OIDC'),
-});
-
-export const getStripeApiEnvironment = (
-  environment: ServerEnvironment = serverEnvironment,
-): { STRIPE_API_KEY: string } => ({
-  STRIPE_API_KEY: requireValue(environment.STRIPE_API_KEY, 'STRIPE_API_KEY', 'Stripe'),
-});
-
-export const getStripeWebhookEnvironment = (
-  environment: ServerEnvironment = serverEnvironment,
-): { STRIPE_WEBHOOK_SECRET: string } => ({
-  STRIPE_WEBHOOK_SECRET: requireValue(
-    environment.STRIPE_WEBHOOK_SECRET,
-    'STRIPE_WEBHOOK_SECRET',
-    'Stripe webhooks',
-  ),
-});
-
-export const isCloudflareImagesEnvironmentConfigured = (
-  environment: ServerEnvironment = serverEnvironment,
-): boolean =>
-  Boolean(
-    (environment.CLOUDFLARE_IMAGES_API_TOKEN ?? environment.CLOUDFLARE_TOKEN) &&
-      environment.CLOUDFLARE_ACCOUNT_ID &&
-      environment.CLOUDFLARE_IMAGES_DELIVERY_HASH,
+} => {
+  const environment = decodeOrThrow(
+    OidcEnvironmentSchema,
+    input,
+    'OIDC configuration',
   );
 
+  return {
+    AUDIENCE: environment.AUDIENCE,
+    BASE_URL: environment.BASE_URL,
+    CLIENT_ID: environment.CLIENT_ID,
+    CLIENT_SECRET: environment.CLIENT_SECRET,
+    ISSUER_BASE_URL: environment.ISSUER_BASE_URL,
+    SECRET: environment.SECRET,
+  };
+};
+
+export const getStripeApiEnvironment = (
+  input: NodeJS.ProcessEnv = process.env,
+): { STRIPE_API_KEY: string } =>
+  decodeOrThrow(StripeApiEnvironmentSchema, input, 'Stripe API configuration');
+
+export const getStripeWebhookEnvironment = (
+  input: NodeJS.ProcessEnv = process.env,
+): { STRIPE_WEBHOOK_SECRET: string } =>
+  decodeOrThrow(
+    StripeWebhookEnvironmentSchema,
+    input,
+    'Stripe webhook configuration',
+  );
+
+export const isCloudflareImagesEnvironmentConfigured = (
+  input: NodeJS.ProcessEnv = process.env,
+): boolean =>
+  Either.isRight(Schema.decodeUnknownEither(CloudflareImagesEnvironmentSchema)(input));
+
 export const getCloudflareImagesEnvironment = (
-  environment: ServerEnvironment = serverEnvironment,
+  input: NodeJS.ProcessEnv = process.env,
 ): {
   CLOUDFLARE_ACCOUNT_ID: string;
   CLOUDFLARE_IMAGES_DELIVERY_HASH: string;
@@ -158,55 +171,38 @@ export const getCloudflareImagesEnvironment = (
   CLOUDFLARE_TOKEN: string;
   NODE_ENV: string | undefined;
 } => {
-  const token =
+  const environment = decodeOrThrow(
+    CloudflareImagesEnvironmentSchema,
+    input,
+    'Cloudflare Images configuration',
+  );
+
+  const cloudflareToken =
     environment.CLOUDFLARE_IMAGES_API_TOKEN ?? environment.CLOUDFLARE_TOKEN;
+  if (!cloudflareToken) {
+    throw new Error(
+      'Invalid Cloudflare Images configuration: missing API token value',
+    );
+  }
+
   return {
-    CLOUDFLARE_ACCOUNT_ID: requireValue(
-      environment.CLOUDFLARE_ACCOUNT_ID,
-      'CLOUDFLARE_ACCOUNT_ID',
-      'Cloudflare Images',
-    ),
-    CLOUDFLARE_IMAGES_DELIVERY_HASH: requireValue(
-      environment.CLOUDFLARE_IMAGES_DELIVERY_HASH,
-      'CLOUDFLARE_IMAGES_DELIVERY_HASH',
-      'Cloudflare Images',
-    ),
+    CLOUDFLARE_ACCOUNT_ID: environment.CLOUDFLARE_ACCOUNT_ID,
+    CLOUDFLARE_IMAGES_DELIVERY_HASH: environment.CLOUDFLARE_IMAGES_DELIVERY_HASH,
     CLOUDFLARE_IMAGES_ENVIRONMENT: environment.CLOUDFLARE_IMAGES_ENVIRONMENT,
     CLOUDFLARE_IMAGES_VARIANT: environment.CLOUDFLARE_IMAGES_VARIANT,
-    CLOUDFLARE_TOKEN: requireValue(
-      token,
-      'CLOUDFLARE_IMAGES_API_TOKEN or CLOUDFLARE_TOKEN',
-      'Cloudflare Images',
-    ),
+    CLOUDFLARE_TOKEN: cloudflareToken,
     NODE_ENV: environment.NODE_ENV,
   };
 };
 
 export const getCloudflareR2Environment = (
-  environment: ServerEnvironment = serverEnvironment,
+  input: NodeJS.ProcessEnv = process.env,
 ): {
   CLOUDFLARE_R2_BUCKET: string;
   CLOUDFLARE_R2_S3_ENDPOINT: string;
   CLOUDFLARE_R2_S3_KEY: string;
   CLOUDFLARE_R2_S3_KEY_ID: string;
-} => ({
-  CLOUDFLARE_R2_BUCKET: environment.CLOUDFLARE_R2_BUCKET ?? 'testing',
-  CLOUDFLARE_R2_S3_ENDPOINT: requireValue(
-    environment.CLOUDFLARE_R2_S3_ENDPOINT,
-    'CLOUDFLARE_R2_S3_ENDPOINT',
-    'Cloudflare R2',
-  ),
-  CLOUDFLARE_R2_S3_KEY: requireValue(
-    environment.CLOUDFLARE_R2_S3_KEY,
-    'CLOUDFLARE_R2_S3_KEY',
-    'Cloudflare R2',
-  ),
-  CLOUDFLARE_R2_S3_KEY_ID: requireValue(
-    environment.CLOUDFLARE_R2_S3_KEY_ID,
-    'CLOUDFLARE_R2_S3_KEY_ID',
-    'Cloudflare R2',
-  ),
-});
+} => decodeOrThrow(CloudflareR2EnvironmentSchema, input, 'Cloudflare R2 configuration');
 
 export const getPublicGoogleMapsApiKey = (
   environment: ServerEnvironment = serverEnvironment,

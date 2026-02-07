@@ -3,13 +3,18 @@ import { Either, ParseResult, Schema } from 'effect';
 
 const optionalNonEmptyString = Schema.optional(Schema.NonEmptyString);
 
-const TestEnvironmentSchema = Schema.Struct({
-  AUTH0_MANAGEMENT_CLIENT_ID: optionalNonEmptyString,
-  AUTH0_MANAGEMENT_CLIENT_SECRET: optionalNonEmptyString,
-  BASE_URL: optionalNonEmptyString,
-  CI: optionalNonEmptyString,
-  CLIENT_ID: optionalNonEmptyString,
-  CLIENT_SECRET: optionalNonEmptyString,
+const FalseFromString = Schema.BooleanFromString.pipe(
+  Schema.filter((value) => value === false),
+);
+
+const TrueFromString = Schema.BooleanFromString.pipe(
+  Schema.filter((value) => value === true),
+);
+
+const PlaywrightCommonFields = {
+  CI: Schema.optionalWith(Schema.BooleanFromString, {
+    default: () => false,
+  }),
   CLOUDFLARE_ACCOUNT_ID: optionalNonEmptyString,
   CLOUDFLARE_IMAGES_API_TOKEN: optionalNonEmptyString,
   CLOUDFLARE_IMAGES_DELIVERY_HASH: optionalNonEmptyString,
@@ -17,142 +22,118 @@ const TestEnvironmentSchema = Schema.Struct({
   CLOUDFLARE_R2_S3_KEY: optionalNonEmptyString,
   CLOUDFLARE_R2_S3_KEY_ID: optionalNonEmptyString,
   CLOUDFLARE_TOKEN: optionalNonEmptyString,
-  DATABASE_URL: optionalNonEmptyString,
   DOCS_IMG_OUT_DIR: optionalNonEmptyString,
   DOCS_OUT_DIR: optionalNonEmptyString,
-  ISSUER_BASE_URL: optionalNonEmptyString,
-  NO_WEBSERVER: optionalNonEmptyString,
   PLAYWRIGHT_TEST_BASE_URL: optionalNonEmptyString,
-  SECRET: optionalNonEmptyString,
-  STRIPE_API_KEY: optionalNonEmptyString,
-  STRIPE_WEBHOOK_SECRET: optionalNonEmptyString,
   TENANT_DOMAIN: optionalNonEmptyString,
+} as const;
+
+const PlaywrightWithWebserverEnvironmentSchema = Schema.Struct({
+  ...PlaywrightCommonFields,
+  BASE_URL: Schema.NonEmptyString,
+  CLIENT_ID: Schema.NonEmptyString,
+  CLIENT_SECRET: Schema.NonEmptyString,
+  DATABASE_URL: Schema.NonEmptyString,
+  ISSUER_BASE_URL: Schema.NonEmptyString,
+  NO_WEBSERVER: Schema.optionalWith(FalseFromString, {
+    default: () => false,
+  }),
+  SECRET: Schema.NonEmptyString,
+  STRIPE_API_KEY: Schema.NonEmptyString,
+  STRIPE_WEBHOOK_SECRET: Schema.NonEmptyString,
 });
 
-type TestEnvironment = Schema.Schema.Type<typeof TestEnvironmentSchema>;
+const PlaywrightWithoutWebserverEnvironmentSchema = Schema.Struct({
+  ...PlaywrightCommonFields,
+  DATABASE_URL: Schema.NonEmptyString,
+  NO_WEBSERVER: TrueFromString,
+});
 
-const decodeTestEnvironment = Schema.decodeUnknownEither(TestEnvironmentSchema);
+const PlaywrightEnvironmentSchema = Schema.Union(
+  PlaywrightWithWebserverEnvironmentSchema,
+  PlaywrightWithoutWebserverEnvironmentSchema,
+);
 
-const normalizeEnvironmentInput = (
-  input: NodeJS.ProcessEnv,
-): NodeJS.ProcessEnv =>
-  Object.fromEntries(
-    Object.entries(input).map(([key, value]) => [
-      key,
-      value === '' ? undefined : value,
-    ]),
-  );
+const Auth0ManagementEnvironmentSchema = Schema.Struct({
+  AUTH0_MANAGEMENT_CLIENT_ID: Schema.NonEmptyString,
+  AUTH0_MANAGEMENT_CLIENT_SECRET: Schema.NonEmptyString,
+});
+
+const CloudflareImagesTokenEnvironmentSchema = Schema.Union(
+  Schema.Struct({
+    CLOUDFLARE_IMAGES_API_TOKEN: Schema.NonEmptyString,
+    CLOUDFLARE_TOKEN: optionalNonEmptyString,
+  }),
+  Schema.Struct({
+    CLOUDFLARE_IMAGES_API_TOKEN: optionalNonEmptyString,
+    CLOUDFLARE_TOKEN: Schema.NonEmptyString,
+  }),
+);
+
+const CIIntegrationEnvironmentSchema = Schema.Struct({
+  CI: TrueFromString,
+  CLOUDFLARE_ACCOUNT_ID: Schema.NonEmptyString,
+  CLOUDFLARE_IMAGES_DELIVERY_HASH: Schema.NonEmptyString,
+  CLOUDFLARE_R2_S3_ENDPOINT: Schema.NonEmptyString,
+  CLOUDFLARE_R2_S3_KEY: Schema.NonEmptyString,
+  CLOUDFLARE_R2_S3_KEY_ID: Schema.NonEmptyString,
+}).pipe(Schema.extend(CloudflareImagesTokenEnvironmentSchema));
+
+const DocumentationOutputEnvironmentSchema = Schema.Struct({
+  DOCS_IMG_OUT_DIR: Schema.optionalWith(Schema.NonEmptyString, {
+    default: () => path.resolve('test-results/docs/images'),
+  }),
+  DOCS_OUT_DIR: Schema.optionalWith(Schema.NonEmptyString, {
+    default: () => path.resolve('test-results/docs'),
+  }),
+});
+
+export type PlaywrightEnvironment = Schema.Schema.Type<
+  typeof PlaywrightEnvironmentSchema
+>;
 
 const formatSchemaError = (error: ParseResult.ParseError): string =>
   ParseResult.TreeFormatter.formatErrorSync(error);
 
-const hasValue = (value: string | undefined): boolean =>
-  value !== undefined && value.length > 0;
-
-const missingRequiredKeys = (
-  environment: TestEnvironment,
-  keys: readonly (keyof TestEnvironment)[],
-): string[] => keys.filter((key) => !hasValue(environment[key])).map(String);
-
-export const getTestEnvironment = (
-  input: NodeJS.ProcessEnv = process.env,
-): TestEnvironment => {
-  const parsed = decodeTestEnvironment(normalizeEnvironmentInput(input));
+const decodeOrThrow = <A, I>(
+  schema: Schema.Schema<A, I, never>,
+  input: unknown,
+  label: string,
+): A => {
+  const parsed = Schema.decodeUnknownEither(schema)(input);
   if (Either.isLeft(parsed)) {
-    throw new Error(
-      `Invalid e2e environment schema:\n${formatSchemaError(parsed.left)}`,
-    );
+    throw new Error(`Invalid ${label} schema:\n${formatSchemaError(parsed.left)}`);
   }
   return parsed.right;
 };
 
 export const hasAuth0ManagementEnvironment = (
   input: NodeJS.ProcessEnv = process.env,
-): boolean => {
-  const environment = getTestEnvironment(input);
-  return (
-    hasValue(environment.AUTH0_MANAGEMENT_CLIENT_ID) &&
-    hasValue(environment.AUTH0_MANAGEMENT_CLIENT_SECRET)
-  );
-};
+): boolean =>
+  Either.isRight(Schema.decodeUnknownEither(Auth0ManagementEnvironmentSchema)(input));
 
 export const getAuth0ManagementEnvironment = (
   input: NodeJS.ProcessEnv = process.env,
 ): {
   AUTH0_MANAGEMENT_CLIENT_ID: string;
   AUTH0_MANAGEMENT_CLIENT_SECRET: string;
-} => {
-  const environment = getTestEnvironment(input);
-  const clientId = environment.AUTH0_MANAGEMENT_CLIENT_ID;
-  const clientSecret = environment.AUTH0_MANAGEMENT_CLIENT_SECRET;
-  if (!hasValue(clientId) || !hasValue(clientSecret)) {
-    const missing = missingRequiredKeys(environment, [
-      'AUTH0_MANAGEMENT_CLIENT_ID',
-      'AUTH0_MANAGEMENT_CLIENT_SECRET',
-    ]);
-    throw new Error(
-      `Missing e2e auth configuration:\n- ${missing.join('\n- ')}`,
-    );
-  }
-  return {
-    AUTH0_MANAGEMENT_CLIENT_ID: clientId,
-    AUTH0_MANAGEMENT_CLIENT_SECRET: clientSecret,
-  };
-};
+} => decodeOrThrow(Auth0ManagementEnvironmentSchema, input, 'e2e auth configuration');
 
 export const validatePlaywrightEnvironment = (
   input: NodeJS.ProcessEnv = process.env,
-): TestEnvironment => {
-  const environment = getTestEnvironment(input);
-
-  const requiredKeys: (keyof TestEnvironment)[] = ['DATABASE_URL'];
-  if (!environment.NO_WEBSERVER) {
-    requiredKeys.push(
-      'BASE_URL',
-      'CLIENT_ID',
-      'CLIENT_SECRET',
-      'ISSUER_BASE_URL',
-      'SECRET',
-      'STRIPE_API_KEY',
-      'STRIPE_WEBHOOK_SECRET',
-    );
-  }
-  const missing = missingRequiredKeys(environment, requiredKeys);
-  if (missing.length > 0) {
-    throw new Error(`Missing e2e environment variables:\n- ${missing.join('\n- ')}`);
-  }
+): PlaywrightEnvironment => {
+  const environment = decodeOrThrow(
+    PlaywrightEnvironmentSchema,
+    input,
+    'e2e Playwright environment',
+  );
 
   if (environment.CI) {
-    const cloudflareImagesToken =
-      environment.CLOUDFLARE_IMAGES_API_TOKEN ?? environment.CLOUDFLARE_TOKEN;
-    const cloudflareImagesMissing: string[] = [];
-    if (!hasValue(cloudflareImagesToken)) {
-      cloudflareImagesMissing.push(
-        'CLOUDFLARE_IMAGES_API_TOKEN or CLOUDFLARE_TOKEN',
-      );
-    }
-    if (!hasValue(environment.CLOUDFLARE_ACCOUNT_ID)) {
-      cloudflareImagesMissing.push('CLOUDFLARE_ACCOUNT_ID');
-    }
-    if (!hasValue(environment.CLOUDFLARE_IMAGES_DELIVERY_HASH)) {
-      cloudflareImagesMissing.push('CLOUDFLARE_IMAGES_DELIVERY_HASH');
-    }
-
-    const cloudflareR2Missing = missingRequiredKeys(environment, [
-      'CLOUDFLARE_R2_S3_ENDPOINT',
-      'CLOUDFLARE_R2_S3_KEY',
-      'CLOUDFLARE_R2_S3_KEY_ID',
-    ]);
-
-    const integrationMissing = [
-      ...cloudflareImagesMissing.map((key) => `${key} (Cloudflare Images)`),
-      ...cloudflareR2Missing.map((key) => `${key} (Cloudflare R2)`),
-    ];
-    if (integrationMissing.length > 0) {
-      throw new Error(
-        `Missing CI integration environment variables:\n- ${integrationMissing.join('\n- ')}`,
-      );
-    }
+    decodeOrThrow(
+      CIIntegrationEnvironmentSchema,
+      input,
+      'e2e CI integration environment',
+    );
   }
 
   return environment;
@@ -164,11 +145,14 @@ export const resolveDocumentationOutputEnvironment = (
   docsImageOutputDirectory: string;
   docsOutputDirectory: string;
 } => {
-  const environment = getTestEnvironment(input);
+  const environment = decodeOrThrow(
+    DocumentationOutputEnvironmentSchema,
+    input,
+    'documentation output environment',
+  );
+
   return {
-    docsImageOutputDirectory:
-      environment.DOCS_IMG_OUT_DIR ?? path.resolve('test-results/docs/images'),
-    docsOutputDirectory:
-      environment.DOCS_OUT_DIR ?? path.resolve('test-results/docs'),
+    docsImageOutputDirectory: environment.DOCS_IMG_OUT_DIR,
+    docsOutputDirectory: environment.DOCS_OUT_DIR,
   };
 };
