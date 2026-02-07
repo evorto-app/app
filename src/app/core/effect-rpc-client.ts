@@ -4,7 +4,11 @@ import * as RpcClient from '@effect/rpc/RpcClient';
 import * as RpcSerialization from '@effect/rpc/RpcSerialization';
 import { Effect, Layer } from 'effect';
 
-import { AppRpcs, type PublicConfig } from '../../shared/rpc-contracts/app-rpcs';
+import {
+  AppRpcs,
+  type ConfigPermissions,
+  type PublicConfig,
+} from '../../shared/rpc-contracts/app-rpcs';
 
 const rpcLayer = RpcClient.layerProtocolHttp({ url: '/rpc' }).pipe(
   Layer.provide([RpcSerialization.layerJson, FetchHttpClient.layer]),
@@ -25,7 +29,15 @@ const runRpc = <A>(
   providedIn: 'root',
 })
 export class EffectRpcClient {
+  public getPermissions(): Promise<ConfigPermissions> {
+    return runRpc((client) => client.config.permissions());
+  }
+
   public getPublicConfig(): Promise<PublicConfig> {
     return runRpc((client) => client.config.public());
+  }
+
+  public isAuthenticated(): Promise<boolean> {
+    return runRpc((client) => client.config.isAuthenticated());
   }
 }

@@ -99,7 +99,7 @@ export class ConfigService {
     }
     const [tenant, permissions, pub] = await Promise.all([
       this.trpcClient.config.tenant.query(),
-      this.trpcClient.config.permissions.query(),
+      this.rpcClient.getPermissions(),
       this.rpcClient.getPublicConfig(),
     ]);
 

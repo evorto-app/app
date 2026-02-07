@@ -49,6 +49,17 @@ const toWebRequest = async (request: ExpressRequest): Promise<Request> => {
   const body = await getRequestBody(request);
   const host = request.get('host') ?? 'localhost';
   const url = `${request.protocol}://${host}${request.originalUrl}`;
+
+  // Bridge Express middleware context into RPC headers for typed handler decoding.
+  headers.set(
+    'x-evorto-authenticated',
+    request.authentication?.isAuthenticated ? 'true' : 'false',
+  );
+  headers.set(
+    'x-evorto-permissions',
+    JSON.stringify(request.user?.permissions ?? []),
+  );
+
   const requestInit: RequestInit = {
     headers,
     method: request.method,

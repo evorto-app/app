@@ -68,5 +68,14 @@ Replace Express+tRPC request handling and ad-hoc service wiring with Effect-firs
   - Keep output schema and response shape unchanged.
 - Success criteria:
   - Build/lint remain green.
-  - Runtime behavior unchanged for `config.public`.
-  - Provides reusable Effect boundary pattern for next slices.
+- Runtime behavior unchanged for `config.public`.
+- Provides reusable Effect boundary pattern for next slices.
+
+## Phase 6 Learnings (Recorded Context)
+
+- `RpcServer.toWebHandler` currently fits cleanly for request paths that do not require per-request app context (tenant/user/auth) in the layer.
+- Attempting to push request-scoped context tags into the `toWebHandler` layer caused type-level incompatibilities for the current wiring.
+- Near-term safe migration path:
+  - Keep tenant/auth-sensitive config endpoints on tRPC temporarily.
+  - Continue migrating context-free reads and deterministic writes to Effect RPC first.
+  - Revisit request-scoped context via Effect RPC middleware strategy before migrating auth/tenant domains.
