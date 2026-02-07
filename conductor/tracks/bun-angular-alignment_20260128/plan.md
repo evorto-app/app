@@ -97,12 +97,12 @@
   - [x] Commit milestone
   - [x] Validation note: SSR health smoke attempted; blocked by local Neon prerequisites (`NEON_PROJECT_ID`) and DB connectivity in current environment
 
-- [~] Task: Migrate Angular config bootstrap to Effect RPC client/helpers
-  - [ ] Define test intent (`bun run lint:fix`, `bun run lint`, `bun run build`)
-  - [ ] Add Angular Effect RPC client wiring in `app.config.ts`
-  - [ ] Replace `config.public` bootstrap call path from tRPC to Effect RPC
-  - [ ] Preserve runtime behavior and strict typing
-  - [ ] Commit milestone
+- [x] Task: Migrate Angular config bootstrap to Effect RPC client/helpers (8434092)
+  - [x] Define test intent (`bun run lint:fix`, `bun run lint`, `bun run build`)
+  - [x] Add Angular Effect RPC client wiring in `app.config.ts`
+  - [x] Replace `config.public` bootstrap call path from tRPC to Effect RPC
+  - [x] Preserve runtime behavior and strict typing
+  - [x] Commit milestone
 
 - [ ] Task: Conductor - User Manual Verification 'Phase 6'
 
