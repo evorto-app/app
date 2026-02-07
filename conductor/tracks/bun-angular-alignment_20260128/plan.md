@@ -119,6 +119,13 @@
   - [x] Keep unrelated user profile lookups on tRPC until matching RPC procedures are migrated
   - [x] Commit milestone
 
+- [x] Task: Migrate `config.isAuthenticated`/`config.permissions` queryOptions callsites to Effect RPC helpers (e6f9b85)
+  - [x] Define test intent (`bun run lint:fix`, `bun run lint`, `bun run build`)
+  - [x] Update `Auth` service config queryOptions calls to Effect RPC helpers
+  - [x] Update navigation and event registration components config auth queryOptions calls
+  - [x] Keep non-config tRPC queries/mutations in place for phased migration
+  - [x] Commit milestone
+
 - [ ] Task: Conductor - User Manual Verification 'Phase 6'
 
 ## Final Gate
