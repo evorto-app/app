@@ -172,14 +172,14 @@
 
 ## Final Gate
 
-- [ ] Run full quality gates in Bun-first mode:
-  - [ ] `bun run lint:fix`
-  - [ ] `bun run lint`
-  - [ ] `bun run build`
-  - [ ] `bun run test`
-  - [ ] `bun run e2e`
-  - [ ] `bun run e2e:docs`
-- [ ] Add/update Knope change file documenting migration status and scope
+- [x] Run full quality gates in Bun-first mode (54c27f8)
+  - [x] `CI=true bun run lint:fix`
+  - [x] `CI=true bun run lint`
+  - [x] `CI=true bun run build`
+  - [x] `CI=true bun run test`
+  - [x] `CI=true bun run e2e`
+  - [x] `CI=true bun run e2e:docs`
+- [x] Add/update Knope change file documenting migration status and scope (54c27f8)
 
 ## Validation Snapshot (2026-02-07)
 
@@ -192,3 +192,7 @@
 - `CI=true bun run build` passes.
 - `bash -lc 'eval "$(bun helpers/testing/runtime-env.mjs)" && NO_WEBSERVER=true CI=true bunx --bun playwright test tests/specs/discounts/esn-discounts.test.ts --project=local-chrome --workers=1 --max-failures=1'` passes after checkout-path stabilization.
 - Local-chrome discounts flow now validates Stripe checkout-link creation (`Pay now`) reliably in repeated runs.
+- `CI=true bun run e2e` passes: `65 passed`, `6 skipped` (Playwright summary).
+- `CI=true bun run e2e:docs` passes: `23 passed` (Playwright summary).
+- `tests/specs/templates/templates.test.ts` passes end-to-end with unique title generation and Bun-safe template create/update server path.
+- `tests/docs/profile/discounts.doc.ts` and `tests/docs/events/event-approval.doc.ts` pass under docs project with deterministic navigation/seeding.

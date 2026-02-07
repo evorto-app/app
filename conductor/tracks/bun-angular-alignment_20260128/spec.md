@@ -64,6 +64,19 @@ The migration mode is explicitly non-backward-compatible. We optimize for a clea
 - Local-chrome discounts checkout reliability:
   - `bash -lc 'eval "$(bun helpers/testing/runtime-env.mjs)" && NO_WEBSERVER=true CI=true bunx --bun playwright test tests/specs/discounts/esn-discounts.test.ts --project=local-chrome --workers=1 --max-failures=1'`
   - verified passing in repeated runs after stabilizing `registerForEvent` + discounts test selector/wait handling.
+- Template CRUD reliability under Bun local runtime:
+  - `CI=true bunx --bun playwright test tests/specs/templates/templates.test.ts --project=local-chrome --workers=1 --max-failures=1`
+  - server-side template simple create/update now avoids transaction-specific Neon local websocket failures and persists `location` consistently.
+- Documentation test stability for approval + profile discounts:
+  - `CI=true bunx --bun playwright test tests/docs/events/event-approval.doc.ts tests/docs/profile/discounts.doc.ts --project=docs --workers=1 --max-failures=1`
+  - verified deterministic selectors/navigation and seeded event data path.
+- Final gate full-suite validation:
+  - `CI=true bun run lint:fix`
+  - `CI=true bun run lint`
+  - `CI=true bun run build`
+  - `CI=true bun run test`
+  - `CI=true bun run e2e` (`65 passed`, `6 skipped`)
+  - `CI=true bun run e2e:docs` (`23 passed`)
 
 ## Out of Scope (for this track phase)
 
