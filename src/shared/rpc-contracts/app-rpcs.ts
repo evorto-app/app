@@ -2,6 +2,7 @@ import * as Rpc from '@effect/rpc/Rpc';
 import * as RpcGroup from '@effect/rpc/RpcGroup';
 import { Schema } from 'effect';
 
+import { Tenant } from '../../types/custom/tenant';
 import { PermissionSchema } from '../permissions/permissions';
 
 export const PublicConfig = Schema.Struct({
@@ -30,8 +31,14 @@ export const ConfigPermissionList = Rpc.make('config.permissions', {
   success: ConfigPermissions,
 });
 
+export const ConfigTenant = Rpc.make('config.tenant', {
+  payload: Schema.Void,
+  success: Tenant,
+});
+
 export class AppRpcs extends RpcGroup.make(
   ConfigPublic,
   ConfigIsAuthenticated,
   ConfigPermissionList,
+  ConfigTenant,
 ) {}

@@ -59,6 +59,7 @@ const toWebRequest = async (request: ExpressRequest): Promise<Request> => {
     'x-evorto-permissions',
     JSON.stringify(request.user?.permissions ?? []),
   );
+  headers.set('x-evorto-tenant', JSON.stringify(request.tenant));
 
   const requestInit: RequestInit = {
     headers,

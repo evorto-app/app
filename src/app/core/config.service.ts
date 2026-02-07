@@ -9,15 +9,15 @@ import {
   REQUEST_CONTEXT,
 } from '@angular/core';
 import { Meta, Title } from '@angular/platform-browser';
+import { EffectRpcQueryClient } from '@heddendorp/effect-angular-query';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 import consola from 'consola/browser';
 
 import { Permission } from '../../shared/permissions/permissions';
+import { AppRpcs } from '../../shared/rpc-contracts/app-rpcs';
 import { Context } from '../../types/custom/context';
 import { Tenant } from '../../types/custom/tenant';
 import { EffectRpcClient } from './effect-rpc-client';
-import { injectTRPC } from './trpc-client';
-import { injectTRPCClient } from './trpc-client';
 
 @Injectable({
   providedIn: 'root',
@@ -53,10 +53,11 @@ export class ConfigService {
   };
   private _tenant!: Tenant;
 
-  private trpc = injectTRPC();
+  private readonly rpcQueryClient = inject(EffectRpcQueryClient);
+  private readonly rpcHelpers = this.rpcQueryClient.helpersFor(AppRpcs);
 
   private currentTenantQuery = injectQuery(() =>
-    this.trpc.config.tenant.queryOptions(),
+    this.rpcHelpers.config.tenant.queryOptions(),
   );
 
   private document = inject(DOCUMENT);
@@ -68,9 +69,8 @@ export class ConfigService {
   private renderer = inject(RendererFactory2).createRenderer(null, null);
   private readonly requestContext = inject(REQUEST_CONTEXT) as Context | null;
 
-  private rpcClient = inject(EffectRpcClient);
+  private readonly rpcClient = inject(EffectRpcClient);
   private readonly title = inject(Title);
-  private trpcClient = injectTRPCClient();
 
   constructor() {
     effect(() => {
@@ -98,7 +98,7 @@ export class ConfigService {
       return;
     }
     const [tenant, permissions, pub] = await Promise.all([
-      this.trpcClient.config.tenant.query(),
+      this.rpcClient.getTenant(),
       this.rpcClient.getPermissions(),
       this.rpcClient.getPublicConfig(),
     ]);

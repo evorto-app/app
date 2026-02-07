@@ -16,6 +16,7 @@ import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
+import { EffectRpcQueryClient } from '@heddendorp/effect-angular-query';
 import {
   DEFAULT_RECEIPT_COUNTRIES,
   RECEIPT_COUNTRY_OPTIONS,
@@ -74,6 +75,7 @@ export class GeneralSettingsComponent {
   protected readonly settingsForm = form(this.settingsModel);
   private readonly configService = inject(ConfigService);
   private readonly queryClient = inject(QueryClient);
+  private readonly rpcQueryClient = inject(EffectRpcQueryClient);
 
   private readonly trpc = injectTRPC();
 
@@ -120,7 +122,7 @@ export class GeneralSettingsComponent {
         {
           onSuccess: async () => {
             await this.queryClient.invalidateQueries({
-              queryKey: this.trpc.config.tenant.pathKey(),
+              queryKey: this.rpcQueryClient.pathKey(['config', 'tenant']),
             });
             await this.queryClient.invalidateQueries({
               queryKey: this.trpc.discounts.getTenantProviders.pathKey(),

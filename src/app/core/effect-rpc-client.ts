@@ -9,6 +9,7 @@ import {
   type ConfigPermissions,
   type PublicConfig,
 } from '../../shared/rpc-contracts/app-rpcs';
+import { Tenant } from '../../types/custom/tenant';
 
 const rpcLayer = RpcClient.layerProtocolHttp({ url: '/rpc' }).pipe(
   Layer.provide([RpcSerialization.layerJson, FetchHttpClient.layer]),
@@ -35,6 +36,10 @@ export class EffectRpcClient {
 
   public getPublicConfig(): Promise<PublicConfig> {
     return runRpc((client) => client.config.public());
+  }
+
+  public getTenant(): Promise<Tenant> {
+    return runRpc((client) => client.config.tenant());
   }
 
   public isAuthenticated(): Promise<boolean> {

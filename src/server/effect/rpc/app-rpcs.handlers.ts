@@ -4,6 +4,7 @@ import {
   AppRpcs,
   ConfigPermissions,
 } from '../../../shared/rpc-contracts/app-rpcs';
+import { Tenant } from '../../../types/custom/tenant';
 import { serverEnvironment } from '../../config/environment';
 import { getPublicConfigEffect } from '../config/public-config.effect';
 
@@ -21,5 +22,9 @@ export const appRpcHandlers = AppRpcs.toLayer(
         decodeHeaderJson(options.headers['x-evorto-permissions'], ConfigPermissions),
       ),
     'config.public': () => getPublicConfigEffect(serverEnvironment),
+    'config.tenant': (_payload, options) =>
+      Effect.sync(() =>
+        decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant),
+      ),
   }),
 );
