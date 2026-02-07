@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -23,15 +23,16 @@ if (proDeps.length > 0) {
   process.exit(1);
 }
 
-const lockfilePath = (() => {
-  try {
-    readFileSync("bun.lock", "utf8");
-    return "bun.lock";
-  } catch {
-    return "yarn.lock";
-  }
-})();
-const lockfile = readFileSync(lockfilePath, "utf8");
+const lockfilePath = "bun.lock";
+let lockfile;
+try {
+  lockfile = readFileSync(lockfilePath, "utf8");
+} catch {
+  console.error(
+    `Missing ${lockfilePath}. Run "bun install" before checking Tiptap dependencies.`,
+  );
+  process.exit(1);
+}
 const forbiddenPatterns = ["@tiptap-pro/", "registry.tiptap.dev"];
 for (const pattern of forbiddenPatterns) {
   if (lockfile.includes(pattern)) {

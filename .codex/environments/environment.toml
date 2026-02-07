@@ -6,6 +6,6 @@ name = "evorto"
 script = '''
 cp /Users/hedde/code/evorto/.env .
 cp /Users/hedde/code/evorto/.npmrc .
-yarn
+bun install --frozen-lockfile
 
 '''
