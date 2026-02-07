@@ -125,6 +125,7 @@
     "@types/express": "^5.0.6",
     "@types/google.maps": "^3.58.1",
     "@types/html-to-text": "^9.0.4",
+    "@types/jasmine": "^6.0.0",
     "@types/jsdom": "^27.0.0",
     "@types/luxon": "^3.7.1",
     "@types/node": "^24.10.11",
