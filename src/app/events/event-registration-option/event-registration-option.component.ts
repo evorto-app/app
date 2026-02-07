@@ -8,6 +8,7 @@ import {
 } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
+import { EffectRpcQueryClient } from '@heddendorp/effect-angular-query';
 import {
   injectMutation,
   injectQuery,
@@ -15,6 +16,7 @@ import {
 } from '@tanstack/angular-query-experimental';
 import { interval, map } from 'rxjs';
 
+import { AppRpcs } from '../../../shared/rpc-contracts/app-rpcs';
 import { injectTRPC } from '../../core/trpc-client';
 
 @Component({
@@ -39,11 +41,13 @@ export class EventRegistrationOptionComponent {
     price: number;
     title: string;
   }>();
-  private trpc = injectTRPC();
+  private readonly rpcQueryClient = inject(EffectRpcQueryClient);
+  private readonly rpcHelpers = this.rpcQueryClient.helpersFor(AppRpcs);
   protected readonly authenticationQuery = injectQuery(() =>
-    this.trpc.config.isAuthenticated.queryOptions(),
+    this.rpcHelpers.config.isAuthenticated.queryOptions(),
   );
   private queryClient = inject(QueryClient);
+  private trpc = injectTRPC();
   protected readonly registrationMutation = injectMutation(() =>
     this.trpc.events.registerForEvent.mutationOptions({
       onSuccess: async ({ userRegistration: { eventId } }) => {

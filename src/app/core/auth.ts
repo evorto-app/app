@@ -1,29 +1,33 @@
 import { inject, Injectable, REQUEST_CONTEXT } from '@angular/core';
 import { Router } from '@angular/router';
+import { EffectRpcQueryClient } from '@heddendorp/effect-angular-query';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import type { Context } from '../../types/custom/context';
 
+import { AppRpcs } from '../../shared/rpc-contracts/app-rpcs';
 import { injectTRPC } from './trpc-client';
 
 @Injectable({
   providedIn: 'root',
 })
 export class Auth {
-  private trpcClient = injectTRPC();
+  private rpcQueryClient = inject(EffectRpcQueryClient);
+  private rpcHelpers = this.rpcQueryClient.helpersFor(AppRpcs);
   // Use tRPC queries with signals for a reactive state
   private isAuthenticatedQuery = injectQuery(() =>
-    this.trpcClient.config.isAuthenticated.queryOptions(),
+    this.rpcHelpers.config.isAuthenticated.queryOptions(),
   );
   // Convert queries to signals
   isAuthenticated = this.isAuthenticatedQuery.data();
+  private trpcClient = injectTRPC();
 
   private userQuery = injectQuery(() =>
     this.trpcClient.users.maybeSelf.queryOptions(),
   );
   user = this.userQuery.data();
   private permissionsQuery = injectQuery(() =>
-    this.trpcClient.config.permissions.queryOptions(),
+    this.rpcHelpers.config.permissions.queryOptions(),
   );
 
   private requestContext = inject(REQUEST_CONTEXT) as Context | null;
