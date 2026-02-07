@@ -89,14 +89,15 @@
 
 ## Phase 6: Effect RPC Protocol + Angular Client Bridge [checkpoint: pending]
 
-- [~] Task: Stand up shared Effect RPC contracts and `/rpc` server endpoint for config bootstrap
-  - [ ] Define test intent (`bun run lint:fix`, `bun run lint`, `bun run build`, SSR health smoke)
-  - [ ] Add shared RPC contract module under `src/shared/**`
-  - [ ] Add Effect RPC handler layer and mount `/rpc` endpoint in server runtime
-  - [ ] Keep existing `/trpc` path running for non-migrated domains
-  - [ ] Commit milestone
+- [x] Task: Stand up shared Effect RPC contracts and `/rpc` server endpoint for config bootstrap (c11b0b0)
+  - [x] Define test intent (`bun run lint:fix`, `bun run lint`, `bun run build`, SSR health smoke)
+  - [x] Add shared RPC contract module under `src/shared/**`
+  - [x] Add Effect RPC handler layer and mount `/rpc` endpoint in server runtime
+  - [x] Keep existing `/trpc` path running for non-migrated domains
+  - [x] Commit milestone
+  - [x] Validation note: SSR health smoke attempted; blocked by local Neon prerequisites (`NEON_PROJECT_ID`) and DB connectivity in current environment
 
-- [ ] Task: Migrate Angular config bootstrap to Effect RPC client/helpers
+- [~] Task: Migrate Angular config bootstrap to Effect RPC client/helpers
   - [ ] Define test intent (`bun run lint:fix`, `bun run lint`, `bun run build`)
   - [ ] Add Angular Effect RPC client wiring in `app.config.ts`
   - [ ] Replace `config.public` bootstrap call path from tRPC to Effect RPC
