@@ -75,6 +75,12 @@
   - [x] Verify migrated templates/components compile successfully
   - [x] Commit milestone
 
+- [x] Task: Restore Bun unit-test runner type alignment (0bbb795)
+  - [x] Define test intent (`bun run test`, `bun run lint:fix`, `bun run lint`, `bun run build`)
+  - [x] Add missing Jasmine type definitions required by current spec files
+  - [x] Align `registration-start-offset` pipe signature/spec with strict typing + lint rules
+  - [x] Validation note: `bun run e2e --project=setup` still blocked by Neon DB connectivity in current shell environment
+
 - [ ] Task: Conductor - User Manual Verification 'Phase 4'
 
 ## Phase 5: Effect Migration Foundation (Next Step Within Track) [checkpoint: pending]
