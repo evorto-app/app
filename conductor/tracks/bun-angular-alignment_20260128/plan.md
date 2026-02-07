@@ -90,6 +90,13 @@
   - [x] Validation result: setup project passes (`7/7`) with Bun + Docker local stack
   - [x] Validation note: local-chrome currently stops at `tests/specs/discounts/esn-discounts.test.ts` waiting for `Pay now` checkout link
 
+- [~] Task: Stabilize Stripe checkout registration path for discounts under Bun local-chrome
+  - [x] Define test intent (`bun run lint`, `bun run build`, targeted local-chrome discounts test)
+  - [x] Remove Bun-incompatible transaction wrapping in `registerForEvent` and keep explicit rollback behavior
+  - [x] Remove temporary diagnostics and keep concise server-side error logging
+  - [x] Scope discounts e2e Pay button selection to the intended registration option and increase checkout-link wait budget
+  - [ ] Commit milestone
+
 - [ ] Task: Conductor - User Manual Verification 'Phase 4'
 
 ## Phase 5: Effect Migration Foundation (Next Step Within Track) [checkpoint: pending]
@@ -181,7 +188,7 @@
 - `bun run build` passes.
 - `bun run test` passes after restoring Jasmine type package and strict pipe signature alignment.
 - `bunx --bun playwright test --project=setup` passes (`7/7`) with Docker + `NO_WEBSERVER=true`.
-- `bunx --bun playwright test --project=local-chrome --max-failures=1` now progresses beyond setup and first stops at:
-  - `tests/specs/discounts/esn-discounts.test.ts`
-  - Timeout waiting for checkout CTA (`getByRole('link', { name: 'Pay now' })`)
-  - Prior SSR `RpcClient.config.tenant` transport failures are resolved after server-side absolute `/rpc` URL fix.
+- `CI=true bun run lint` passes (warnings only).
+- `CI=true bun run build` passes.
+- `bash -lc 'eval "$(bun helpers/testing/runtime-env.mjs)" && NO_WEBSERVER=true CI=true bunx --bun playwright test tests/specs/discounts/esn-discounts.test.ts --project=local-chrome --workers=1 --max-failures=1'` passes after checkout-path stabilization.
+- Local-chrome discounts flow now validates Stripe checkout-link creation (`Pay now`) reliably in repeated runs.

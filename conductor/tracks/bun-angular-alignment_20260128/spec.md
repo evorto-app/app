@@ -61,9 +61,9 @@ The migration mode is explicitly non-backward-compatible. We optimize for a clea
 - Bun + Neon local e2e setup reliability:
   - `CI=true bun run docker:start`
   - `NO_WEBSERVER=true CI=true bunx --bun playwright test --project=setup --workers=1` (passes)
-- Known remaining gate blocker before full e2e/docs close:
-  - `NO_WEBSERVER=true CI=true bunx --bun playwright test --project=local-chrome --workers=1 --max-failures=1`
-  - current first failure in `tests/specs/discounts/esn-discounts.test.ts` waiting for checkout link `Pay now`.
+- Local-chrome discounts checkout reliability:
+  - `bash -lc 'eval "$(bun helpers/testing/runtime-env.mjs)" && NO_WEBSERVER=true CI=true bunx --bun playwright test tests/specs/discounts/esn-discounts.test.ts --project=local-chrome --workers=1 --max-failures=1'`
+  - verified passing in repeated runs after stabilizing `registerForEvent` + discounts test selector/wait handling.
 
 ## Out of Scope (for this track phase)
 

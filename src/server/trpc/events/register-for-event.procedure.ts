@@ -1,6 +1,9 @@
 import type Stripe from 'stripe';
 
-import { resolveTenantDiscountProviders, type TenantDiscountProviders } from '@shared/tenant-config';
+import {
+  resolveTenantDiscountProviders,
+  type TenantDiscountProviders,
+} from '@shared/tenant-config';
 import { TRPCError } from '@trpc/server';
 import consola from 'consola';
 import { and, eq } from 'drizzle-orm';
@@ -23,108 +26,105 @@ export const registerForEventProcedure = authenticatedProcedure
     ),
   )
   .mutation(async ({ ctx, input }) => {
-    const databaseReturns = await database.transaction(async (tx) => {
-      // Check if user is already registered for this event
-      const existingRegistration = await tx.query.eventRegistrations.findFirst({
+    // Check if user is already registered for this event
+    const existingRegistration =
+      await database.query.eventRegistrations.findFirst({
         where: {
           eventId: input.eventId,
           status: { NOT: 'CANCELLED' },
           userId: ctx.user.id,
         },
       });
-      if (existingRegistration) {
-        throw new TRPCError({
-          code: 'CONFLICT',
-          message: 'User is already registered for this event',
-        });
-      }
+    if (existingRegistration) {
+      throw new TRPCError({
+        code: 'CONFLICT',
+        message: 'User is already registered for this event',
+      });
+    }
 
-      // Check if event is full
-      const registrationOption =
-        await tx.query.eventRegistrationOptions.findFirst({
-          where: { eventId: input.eventId, id: input.registrationOptionId },
-          with: {
-            event: {
-              columns: {
-                start: true,
-                title: true,
-              },
+    // Check if event is full
+    const registrationOption =
+      await database.query.eventRegistrationOptions.findFirst({
+        where: { eventId: input.eventId, id: input.registrationOptionId },
+        with: {
+          event: {
+            columns: {
+              start: true,
+              title: true,
             },
           },
-        });
-      if (!registrationOption) {
-        throw new TRPCError({
-          code: 'NOT_FOUND',
-          message: 'Registration option not found',
-        });
-      }
-      if (!registrationOption.event) {
-        throw new TRPCError({
-          code: 'INTERNAL_SERVER_ERROR',
-          message: 'Event metadata missing for registration option',
-        });
-      }
-      if (
-        registrationOption.confirmedSpots + registrationOption.reservedSpots >=
-        registrationOption.spots
-      ) {
-        throw new TRPCError({
-          code: 'CONFLICT',
-          message: 'Event is full',
-        });
-      }
+        },
+      });
+    if (!registrationOption) {
+      throw new TRPCError({
+        code: 'NOT_FOUND',
+        message: 'Registration option not found',
+      });
+    }
+    if (!registrationOption.event) {
+      throw new TRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Event metadata missing for registration option',
+      });
+    }
+    if (
+      registrationOption.confirmedSpots + registrationOption.reservedSpots >=
+      registrationOption.spots
+    ) {
+      throw new TRPCError({
+        code: 'CONFLICT',
+        message: 'Event is full',
+      });
+    }
 
-      const selectedTaxRateId = registrationOption.stripeTaxRateId ?? undefined;
-      const selectedTaxRate = selectedTaxRateId
-        ? await tx.query.tenantStripeTaxRates.findFirst({
-            where: {
-              stripeTaxRateId: selectedTaxRateId,
-              tenantId: ctx.tenant.id,
-            },
-          })
-        : undefined;
-
-      // Register user for event
-      const userRegistration = await tx
-        .insert(schema.eventRegistrations)
-        .values({
-          eventId: input.eventId,
-          registrationOptionId: registrationOption.id,
-          status: registrationOption.isPaid ? 'PENDING' : 'CONFIRMED',
-          ...(selectedTaxRateId
-            ? {
-                stripeTaxRateId: selectedTaxRateId,
-                taxRateDisplayName: selectedTaxRate?.displayName,
-                taxRateInclusive: selectedTaxRate?.inclusive,
-                taxRatePercentage: selectedTaxRate?.percentage,
-              }
-            : {}),
-          tenantId: ctx.tenant.id,
-          userId: ctx.user.id,
+    const selectedTaxRateId = registrationOption.stripeTaxRateId ?? undefined;
+    const selectedTaxRate = selectedTaxRateId
+      ? await database.query.tenantStripeTaxRates.findFirst({
+          where: {
+            stripeTaxRateId: selectedTaxRateId,
+            tenantId: ctx.tenant.id,
+          },
         })
-        .returning()
-        .then((result) => result[0]);
+      : undefined;
 
-      // Update registration option
-      await tx
-        .update(schema.eventRegistrationOptions)
-        .set(
-          registrationOption.isPaid
-            ? { reservedSpots: registrationOption.reservedSpots + 1 }
-            : {
-                confirmedSpots: registrationOption.confirmedSpots + 1,
-              },
-        )
-        .where(
-          and(
-            eq(schema.eventRegistrationOptions.id, registrationOption.id),
-            eq(schema.eventRegistrationOptions.eventId, input.eventId),
-          ),
-        );
+    // Register user for event
+    const userRegistration = await database
+      .insert(schema.eventRegistrations)
+      .values({
+        eventId: input.eventId,
+        registrationOptionId: registrationOption.id,
+        status: registrationOption.isPaid ? 'PENDING' : 'CONFIRMED',
+        ...(selectedTaxRateId
+          ? {
+              stripeTaxRateId: selectedTaxRateId,
+              taxRateDisplayName: selectedTaxRate?.displayName,
+              taxRateInclusive: selectedTaxRate?.inclusive,
+              taxRatePercentage: selectedTaxRate?.percentage,
+            }
+          : {}),
+        tenantId: ctx.tenant.id,
+        userId: ctx.user.id,
+      })
+      .returning()
+      .then((result) => result[0]);
 
-      return { registrationOption, userRegistration };
-    });
-    const { registrationOption, userRegistration } = databaseReturns;
+    // Update registration option
+    await database
+      .update(schema.eventRegistrationOptions)
+      .set(
+        registrationOption.isPaid
+          ? { reservedSpots: registrationOption.reservedSpots + 1 }
+          : {
+              confirmedSpots: registrationOption.confirmedSpots + 1,
+            },
+      )
+      .where(
+        and(
+          eq(schema.eventRegistrationOptions.id, registrationOption.id),
+          eq(schema.eventRegistrationOptions.eventId, input.eventId),
+        ),
+      );
+
     if (registrationOption.isPaid) {
       try {
         const transactionId = createId();
@@ -132,19 +132,13 @@ export const registerForEventProcedure = authenticatedProcedure
         consola.debug(
           `Creating Stripe session for event ${input.eventId} with URL ${eventUrl}`,
         );
-        const stripeAccount = ctx.tenant.stripeAccountId;
-        if (!stripeAccount) {
-          throw new TRPCError({
-            code: 'INTERNAL_SERVER_ERROR',
-            message: 'Stripe account not found',
-          });
-        }
         // Determine effective price (apply best discount if any)
         const basePrice = registrationOption.price;
         let effectivePrice = registrationOption.price;
         let appliedDiscountType:
           | null
-          | typeof schema.eventRegistrationOptionDiscounts.$inferSelect.discountType = null;
+          | typeof schema.eventRegistrationOptionDiscounts.$inferSelect.discountType =
+          null;
         let appliedDiscountedPrice: null | number = null;
         // Find verified user cards for tenant
         const cards = await database.query.userDiscountCards.findMany({
@@ -241,8 +235,6 @@ export const registerForEventProcedure = authenticatedProcedure
         }
 
         const applicationFee = Math.round(effectivePrice * 0.035);
-        const selectedTaxRateId =
-          registrationOption.stripeTaxRateId ?? undefined;
 
         // Log warning if tax rate exists but may be inactive
         if (selectedTaxRateId) {
@@ -266,6 +258,30 @@ export const registerForEventProcedure = authenticatedProcedure
             );
             // Continue with checkout but log the warning
           }
+        }
+
+        const transactionBase = {
+          amount: effectivePrice,
+          // TODO: Fix once drizzle fixes this type
+          comment: `Registration for event ${registrationOption.event.title} ${registrationOption.eventId}`,
+          currency: ctx.tenant.currency,
+          eventId: registrationOption.eventId,
+          eventRegistrationId: userRegistration.id,
+          executiveUserId: ctx.user.id,
+          id: transactionId,
+          method: 'stripe' as const,
+          status: 'pending' as const,
+          targetUserId: ctx.user.id,
+          tenantId: ctx.tenant.id,
+          type: 'registration' as const,
+        };
+
+        const stripeAccount = ctx.tenant.stripeAccountId;
+        if (!stripeAccount) {
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: 'Stripe account not found',
+          });
         }
 
         const sessionCreateParameters: Stripe.Checkout.SessionCreateParams = {
@@ -311,62 +327,58 @@ export const registerForEventProcedure = authenticatedProcedure
         const transactionResponse = await database
           .insert(schema.transactions)
           .values({
-            amount: effectivePrice,
-            // TODO: Fix once drizzle fixes this type
-            comment: `Registration for event ${registrationOption.event.title} ${registrationOption.eventId}`,
-            currency: ctx.tenant.currency,
-            eventId: registrationOption.eventId,
-            eventRegistrationId: userRegistration.id,
-            executiveUserId: ctx.user.id,
-            id: transactionId,
-            method: 'stripe',
-            status: 'pending',
+            ...transactionBase,
             stripeCheckoutSessionId: session.id,
             stripeCheckoutUrl: session.url,
             stripePaymentIntentId:
               typeof session.payment_intent === 'string'
                 ? session.payment_intent
                 : session.payment_intent?.id,
-            targetUserId: ctx.user.id,
-            tenantId: ctx.tenant.id,
-            type: 'registration',
           })
           .returning();
 
         return { transaction: transactionResponse[0], userRegistration };
       } catch (error) {
-        await database.transaction(async (tx) => {
-          const registrationOption =
-            await tx.query.eventRegistrationOptions.findFirst({
-              where: {
-                eventId: input.eventId,
-                id: input.registrationOptionId,
-              },
-            });
-          if (!registrationOption) {
-            throw new TRPCError({
-              cause: error,
-              code: 'NOT_FOUND',
-              message: 'Registration option not found during rollback',
-            });
-          }
-          await tx
-            .update(schema.eventRegistrationOptions)
-            .set({
-              reservedSpots: registrationOption.reservedSpots - 1,
-            })
-            .where(
-              and(
-                eq(schema.eventRegistrationOptions.id, registrationOption.id),
-                eq(schema.eventRegistrationOptions.eventId, input.eventId),
-              ),
-            );
-
-          await tx
-            .delete(schema.eventRegistrations)
-            .where(eq(schema.eventRegistrations.id, userRegistration.id));
+        consola.error('Failed to create Stripe checkout session', {
+          error: error instanceof Error ? error.message : String(error),
+          registrationId: userRegistration.id,
+          tenantId: ctx.tenant.id,
         });
-        consola.error(error);
+        const rollbackRegistrationOption =
+          await database.query.eventRegistrationOptions.findFirst({
+            where: {
+              eventId: input.eventId,
+              id: input.registrationOptionId,
+            },
+          });
+        if (!rollbackRegistrationOption) {
+          throw new TRPCError({
+            cause: error,
+            code: 'NOT_FOUND',
+            message: 'Registration option not found during rollback',
+          });
+        }
+        await database
+          .update(schema.eventRegistrationOptions)
+          .set({
+            reservedSpots: Math.max(
+              0,
+              rollbackRegistrationOption.reservedSpots - 1,
+            ),
+          })
+          .where(
+            and(
+              eq(
+                schema.eventRegistrationOptions.id,
+                rollbackRegistrationOption.id,
+              ),
+              eq(schema.eventRegistrationOptions.eventId, input.eventId),
+            ),
+          );
+
+        await database
+          .delete(schema.eventRegistrations)
+          .where(eq(schema.eventRegistrations.id, userRegistration.id));
         throw new TRPCError({
           cause: error,
           code: 'INTERNAL_SERVER_ERROR',
@@ -374,5 +386,6 @@ export const registerForEventProcedure = authenticatedProcedure
         });
       }
     }
+
     return { userRegistration };
   });
