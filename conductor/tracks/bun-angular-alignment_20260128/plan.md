@@ -79,7 +79,7 @@
   - [ ] Identify contract-sharing strategy for Angular RPC client helpers
   - [ ] Commit milestone
 
-- [~] Task: Implement first Effect boundary slice (small vertical)
+- [x] Task: Implement first Effect boundary slice (small vertical) (1343542)
   - [ ] Define test intent (targeted unit or e2e/doc where applicable)
   - [ ] Migrate one bounded server route/procedure path to Effect-first structure
   - [ ] Preserve type safety and tests
