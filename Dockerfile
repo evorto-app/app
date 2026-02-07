@@ -1,5 +1,4 @@
-FROM node:22-alpine AS base
-RUN corepack enable
+FROM oven/bun:1.3.7-alpine AS base
 
 # Canvas dependencies removed - not currently used in production
 # RUN apk add --no-cache \
@@ -20,22 +19,23 @@ WORKDIR /app
 
 FROM base AS build
 ENV NG_BUILD_PARTIAL_SSR=1
-COPY --chown=appuser:appuser package.json yarn.lock .yarnrc.yml ./
+COPY --chown=appuser:appuser package.json bun.lock .npmrc ./
 COPY --chown=appuser:appuser .yarn/patches/@material-material-color-utilities-npm-0.4.0-9d48ca70b8.patch .yarn/patches/@material-material-color-utilities-npm-0.4.0-9d48ca70b8.patch
-RUN --mount=type=secret,id=FONT_AWESOME_TOKEN,mode=0444 yarn config set npmScopes.fortawesome.npmAuthToken $(cat /run/secrets/FONT_AWESOME_TOKEN)
-RUN yarn install --immutable
+RUN bun install --frozen-lockfile
 COPY --chown=appuser:appuser . .
-RUN yarn build
+RUN bun run build
 RUN --mount=type=secret,id=SENTRY_AUTH_TOKEN,mode=0444,required=false \
     if [ -f /run/secrets/SENTRY_AUTH_TOKEN ]; then \
         export SENTRY_AUTH_TOKEN="$(cat /run/secrets/SENTRY_AUTH_TOKEN)"; \
         if [ -n "$SENTRY_AUTH_TOKEN" ]; then \
-            yarn sentry:sourcemaps; \
+            bun run sentry:sourcemaps; \
         fi; \
     fi
 
 FROM base AS production-dependencies
-RUN yarn add @sentry/node @sentry/profiling-node
+COPY --chown=appuser:appuser package.json bun.lock .npmrc ./
+COPY --chown=appuser:appuser .yarn/patches/@material-material-color-utilities-npm-0.4.0-9d48ca70b8.patch .yarn/patches/@material-material-color-utilities-npm-0.4.0-9d48ca70b8.patch
+RUN bun install --frozen-lockfile --production
 
 FROM base AS production
 
@@ -43,4 +43,4 @@ COPY --from=production-dependencies --chown=appuser:appuser /app/node_modules ./
 COPY --from=build --chown=appuser:appuser /app/dist ./dist
 COPY --chown=appuser:appuser instrument.mjs ./
 
-CMD ["node","--import","./instrument.mjs", "dist/evorto/server/server.mjs"]
+CMD ["bun","--bun","--import","./instrument.mjs", "dist/evorto/server/server.mjs"]

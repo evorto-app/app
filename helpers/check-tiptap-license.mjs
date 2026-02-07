@@ -23,7 +23,15 @@ if (proDeps.length > 0) {
   process.exit(1);
 }
 
-const lockfile = readFileSync("yarn.lock", "utf8");
+const lockfilePath = (() => {
+  try {
+    readFileSync("bun.lock", "utf8");
+    return "bun.lock";
+  } catch {
+    return "yarn.lock";
+  }
+})();
+const lockfile = readFileSync(lockfilePath, "utf8");
 const forbiddenPatterns = ["@tiptap-pro/", "registry.tiptap.dev"];
 for (const pattern of forbiddenPatterns) {
   if (lockfile.includes(pattern)) {
