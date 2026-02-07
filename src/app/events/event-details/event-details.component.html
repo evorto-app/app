@@ -10,7 +10,12 @@
       class="flex flex-col lg:flex-row-reverse lg:items-start lg:justify-between"
     >
       <div class="mb-4 flex w-full flex-row items-center gap-2 lg:mb-0 lg:w-10">
-        <a routerLink="/events" mat-icon-button class="lg:hidden! block">
+        <a
+          routerLink="/events"
+          mat-icon-button
+          class="lg:hidden! block"
+          aria-label="Back to events"
+        >
           <fa-duotone-icon [icon]="faArrowLeft"></fa-duotone-icon>
         </a>
         <div class="grow"></div>
@@ -19,6 +24,7 @@
           *appIfAnyPermission="['events:changeListing']"
           mat-icon-button
           [matMenuTriggerFor]="menu"
+          aria-label="Open event actions"
         >
           <fa-duotone-icon [icon]="faEllipsisVertical"></fa-duotone-icon>
         </button>
@@ -29,7 +35,7 @@
         </mat-menu>
       </div>
       <h1 class="display-small">
-        {{ eventQuery.data()?.title ?? "..." }}
+        {{ eventQuery.data()?.title ?? "…" }}
       </h1>
     </div>
     <div class="flex justify-center">
@@ -81,10 +87,18 @@
 
           <div class="flex flex-col gap-2 lg:flex-row lg:items-center lg:gap-4">
             @if (canReview() && eventQuery.data().status === "PENDING_REVIEW") {
-              <button matButton="outlined" (click)="reviewEvent(false)">
+              <button
+                matButton="outlined"
+                (click)="reviewEvent(false)"
+                [disabled]="reviewMutation.isPending()"
+              >
                 Reject
               </button>
-              <button matButton="filled" (click)="reviewEvent(true)">
+              <button
+                matButton="filled"
+                (click)="reviewEvent(true)"
+                [disabled]="reviewMutation.isPending()"
+              >
                 Approve
               </button>
             }
@@ -98,7 +112,11 @@
               (eventQuery.data().status === "DRAFT" ||
                 eventQuery.data().status === "REJECTED")
             ) {
-              <button matButton="filled" (click)="submitForReview()">
+              <button
+                matButton="filled"
+                (click)="submitForReview()"
+                [disabled]="submitForReviewMutation.isPending()"
+              >
                 Submit for Review
               </button>
             }
@@ -123,7 +141,7 @@
           <h2 class="headline-small">Registration</h2>
           @if (registrationStatusQuery.isPending()) {
             <div class="bg-surface text-on-surface rounded-2xl p-4">
-              <h3 class="title-small">Loading registration status ...</h3>
+              <h3 class="title-small">Loading registration status…</h3>
             </div>
           } @else if (registrationStatusQuery.isSuccess()) {
             @if (registrationStatusQuery.data().isRegistered) {

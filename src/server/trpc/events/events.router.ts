@@ -27,6 +27,25 @@ import { registrationScannedProcedure } from './registration-scanned.procedure';
 type EventRegistrationOptionDiscountInsert =
   typeof schema.eventRegistrationOptionDiscounts.$inferInsert;
 
+const EDITABLE_EVENT_STATUSES = ['DRAFT', 'REJECTED'] as const;
+
+const isEditableEventStatus = (
+  status: (typeof schema.eventReviewStatus.enumValues)[number],
+): status is (typeof EDITABLE_EVENT_STATUSES)[number] =>
+  EDITABLE_EVENT_STATUSES.includes(
+    status as (typeof EDITABLE_EVENT_STATUSES)[number],
+  );
+
+const canEditEvent = ({
+  creatorId,
+  permissions,
+  userId,
+}: {
+  creatorId: string;
+  permissions: readonly string[];
+  userId: string;
+}) => creatorId === userId || permissions.includes('events:editAll');
+
 export const eventRouter = router({
   cancelPendingRegistration: cancelPendingRegistrationProcedure,
 
@@ -286,6 +305,28 @@ export const eventRouter = router({
           message: `Event with id ${input.id} not found`,
         });
       }
+
+      const canSeeDrafts = ctx.user?.permissions.includes('events:seeDrafts');
+      const canReviewEvents = ctx.user?.permissions.includes('events:review');
+      const canEditEvent_ = ctx.user
+        ? canEditEvent({
+            creatorId: event.creatorId,
+            permissions: ctx.user.permissions,
+            userId: ctx.user.id,
+          })
+        : false;
+      if (
+        event.status !== 'APPROVED' &&
+        !canSeeDrafts &&
+        !canReviewEvents &&
+        !canEditEvent_
+      ) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: `Event with id ${input.id} not found`,
+        });
+      }
+
       return event;
     }),
 
@@ -310,6 +351,25 @@ export const eventRouter = router({
         throw new TRPCError({
           code: 'NOT_FOUND',
           message: `Event with id ${input.id} not found`,
+        });
+      }
+      if (
+        !canEditEvent({
+          creatorId: event.creatorId,
+          permissions: ctx.user.permissions,
+          userId: ctx.user.id,
+        })
+      ) {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: `User is not allowed to edit event with id ${input.id}`,
+        });
+      }
+      if (!isEditableEventStatus(event.status)) {
+        throw new TRPCError({
+          code: 'CONFLICT',
+          message:
+            'Event is locked for editing. Only draft or rejected events can be edited.',
         });
       }
       return event;
@@ -500,7 +560,7 @@ export const eventRouter = router({
     )
     .meta({ requiredPermissions: ['events:review'] })
     .mutation(async ({ ctx, input }) => {
-      return database
+      const [reviewedEvent] = await database
         .update(schema.eventInstances)
         .set({
           reviewedAt: new Date(),
@@ -516,8 +576,30 @@ export const eventRouter = router({
             eq(schema.eventInstances.status, 'PENDING_REVIEW'),
           ),
         )
-        .returning()
-        .then((result) => result[0]);
+        .returning();
+
+      if (reviewedEvent) {
+        return reviewedEvent;
+      }
+
+      const event = await database.query.eventInstances.findFirst({
+        columns: { id: true },
+        where: {
+          id: input.eventId,
+          tenantId: ctx.tenant.id,
+        },
+      });
+      if (!event) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: `Event with id ${input.eventId} not found`,
+        });
+      }
+      throw new TRPCError({
+        code: 'CONFLICT',
+        message:
+          'Event is no longer pending review. Refresh and try again before reviewing.',
+      });
     }),
 
   submitForReview: authenticatedProcedure
@@ -528,9 +610,44 @@ export const eventRouter = router({
         }),
       ),
     )
-    // .meta({ requiredPermissions: ['events:edit'] })
     .mutation(async ({ ctx, input }) => {
-      return await database
+      const event = await database.query.eventInstances.findFirst({
+        columns: {
+          creatorId: true,
+          id: true,
+          status: true,
+        },
+        where: {
+          id: input.eventId,
+          tenantId: ctx.tenant.id,
+        },
+      });
+      if (!event) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: `Event with id ${input.eventId} not found`,
+        });
+      }
+      if (
+        !canEditEvent({
+          creatorId: event.creatorId,
+          permissions: ctx.user.permissions,
+          userId: ctx.user.id,
+        })
+      ) {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: `User is not allowed to submit event with id ${input.eventId} for review`,
+        });
+      }
+      if (!isEditableEventStatus(event.status)) {
+        throw new TRPCError({
+          code: 'CONFLICT',
+          message: 'Event status changed. Refresh and try again.',
+        });
+      }
+
+      const [submittedEvent] = await database
         .update(schema.eventInstances)
         .set({
           // eslint-disable-next-line unicorn/no-null
@@ -545,15 +662,20 @@ export const eventRouter = router({
           and(
             eq(schema.eventInstances.id, input.eventId),
             eq(schema.eventInstances.tenantId, ctx.tenant.id),
-            inArray(schema.eventInstances.status, ['DRAFT', 'REJECTED']),
+            inArray(schema.eventInstances.status, EDITABLE_EVENT_STATUSES),
           ),
         )
-        .returning()
-        .then((result) => result[0]);
+        .returning();
+      if (!submittedEvent) {
+        throw new TRPCError({
+          code: 'CONFLICT',
+          message: 'Event status changed. Refresh and try again.',
+        });
+      }
+      return submittedEvent;
     }),
 
   update: authenticatedProcedure
-    // .meta({ requiredPermissions: ['events:edit'] })
     .input(
       Schema.standardSchemaV1(
         Schema.Struct({
@@ -590,6 +712,25 @@ export const eventRouter = router({
           message: 'Event not found',
         });
       }
+      if (
+        !canEditEvent({
+          creatorId: event.creatorId,
+          permissions: ctx.user.permissions,
+          userId: ctx.user.id,
+        })
+      ) {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: 'User is not allowed to edit this event',
+        });
+      }
+      if (!isEditableEventStatus(event.status)) {
+        throw new TRPCError({
+          code: 'CONFLICT',
+          message:
+            'Event is locked for editing. Only draft or rejected events can be edited.',
+        });
+      }
 
       const [updatedEvent] = await database
         .update(schema.eventInstances)
@@ -605,9 +746,16 @@ export const eventRouter = router({
           and(
             eq(schema.eventInstances.id, input.eventId),
             eq(schema.eventInstances.tenantId, ctx.tenant.id),
+            inArray(schema.eventInstances.status, EDITABLE_EVENT_STATUSES),
           ),
         )
         .returning();
+      if (!updatedEvent) {
+        throw new TRPCError({
+          code: 'CONFLICT',
+          message: 'Event status changed. Refresh and try again.',
+        });
+      }
       return updatedEvent;
     }),
 

@@ -1,5 +1,3 @@
-import { DateTime } from 'luxon';
-
 import { adminStateFile } from '../../../helpers/user-data';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
@@ -16,7 +14,7 @@ test('Create and manage events @track(playwright-specs-track-linking_20260126) @
 {% callout type="note" title="User permissions" %}
 For this guide, we assume you have an account with the required permissions. These are:
 - **events:create**: This permission is required to create new events.
-- **events:manage**: This permission is required to manage and edit events.
+- **events:editAll**: This permission is required to manage and edit events.
 {% /callout %}
 
 # Event Management
@@ -45,8 +43,8 @@ The event list shows all events with their basic information:
 - Event title
 - Date and time
 - Location
-- Status (draft, pending approval, approved, etc.)
-- Visibility (public, private, etc.)
+- Status (draft, pending review, approved, rejected)
+- Listing state (listed or unlisted)
 - Number of registrations
 `,
   });
@@ -167,21 +165,20 @@ Note: The event created from the template already has registration options confi
 
   await testInfo.attach('markdown', {
     body: `
-## Event Visibility
+## Event Status and Visibility
 
-You can control who can see and register for your event by setting its visibility.
+You can control how your event appears in the app with event status and listing visibility.
 
-The visibility options include:
+Event status values:
 
-- **Draft**: Only visible to you, not ready for registration
-- **Pending Approval**: Waiting for administrator approval
-- **Public**: Visible to everyone
-- **Private**: Visible only to specific users or roles
-- **Archived**: No longer active, kept for historical purposes
+- **Draft**
+- **Pending Review**
+- **Approved**
+- **Rejected**
 
-Select the appropriate visibility and click **Save**.
+Listing visibility can be updated from the event actions menu.
 
-Note: The event created from the template typically starts in "Draft" or "Pending Approval" depending on your organization settings.
+For a full walkthrough of the review and approval lifecycle, see the dedicated Event Approval guide.
 `,
   });
 
@@ -234,37 +231,4 @@ The settings tab includes options for:
 These settings help you customize the event experience and manage the event lifecycle.
 `,
   });
-
-  await testInfo.attach('markdown', {
-    body: `
-## Event Review and Approval
-
-Depending on your organization's policies, events may need to go through a review and approval process before they become visible to users.
-
-When submitting an event for review:
-
-1. The event status changes to "Pending Approval"
-2. Administrators are notified about the new event
-3. They can review the event details and approve or reject it
-4. Once approved, the event becomes visible according to its visibility settings
-
-This process ensures quality control for all events in the system.
-`,
-  });
-
-  // Take a screenshot of the submit/review action button (if present)
-  await page.waitForTimeout(1000);
-  const reviewButton = page
-    .getByRole('button', {
-      name: /Submit for Review|Submit for Approval|Request Review|Publish|Approve/i,
-    })
-    .first();
-  if (await reviewButton.count()) {
-    await takeScreenshot(
-      testInfo,
-      reviewButton,
-      page,
-      'Submit for review button',
-    );
-  }
 });
