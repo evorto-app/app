@@ -132,6 +132,14 @@
   - [x] Keep non-config tRPC queries/mutations in place for phased migration
   - [x] Commit milestone
 
+- [x] Task: Migrate `config.tenant` read/invalidation paths to Effect RPC bridge (9c97fe0)
+  - [x] Define test intent (`bun run lint:fix`, `bun run lint`, `bun run build`, SSR health smoke)
+  - [x] Extend shared config RPC contracts and `/rpc` header bridge with tenant context
+  - [x] Move `ConfigService` tenant bootstrap/queryOptions from tRPC to Effect RPC
+  - [x] Update admin tenant settings invalidation to use Effect RPC path keys
+  - [x] Commit milestone
+  - [x] Validation note: SSR health smoke currently blocked in local shell when OIDC env values (`CLIENT_ID` etc.) are not exported
+
 - [ ] Task: Conductor - User Manual Verification 'Phase 6'
 
 ## Final Gate

@@ -79,3 +79,11 @@ Replace Express+tRPC request handling and ad-hoc service wiring with Effect-firs
   - Keep tenant/auth-sensitive config endpoints on tRPC temporarily.
   - Continue migrating context-free reads and deterministic writes to Effect RPC first.
   - Revisit request-scoped context via Effect RPC middleware strategy before migrating auth/tenant domains.
+
+## Phase 6 Update (Tenant Context Bridge)
+
+- Added explicit request-context bridge headers for tenant/auth/permissions in `src/server/effect/rpc/app-rpcs.web-handler.ts`.
+- `config.tenant` now runs through Effect RPC using shared `Tenant` schema decode in `src/server/effect/rpc/app-rpcs.handlers.ts`.
+- Angular `ConfigService` and admin settings invalidation paths now consume `config.tenant` via Effect RPC helpers.
+- Remaining note:
+  - SSR runtime smoke in local shell still requires exporting OIDC env vars (`CLIENT_ID`, `CLIENT_SECRET`, `ISSUER_BASE_URL`, `SECRET`) before `bun run serve:ssr:evorto`.
