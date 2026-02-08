@@ -168,6 +168,13 @@
   - [x] Delete obsolete `src/server/trpc/core/config.router.ts`
   - [x] Commit milestone
 
+- [x] Task: Migrate `icons` domain from tRPC to Effect RPC vertical slice (b386bc0)
+  - [x] Define test intent (`CI=true bun run lint:fix`, `CI=true bun run lint`, `CI=true bun run build`, `CI=true bun run test`, targeted templates e2e + docs e2e)
+  - [x] Add shared Effect RPC contracts and server handlers for `icons.search` + `icons.add`
+  - [x] Migrate Angular icon selector callsites from `injectTRPC()` to Effect RPC client/helpers
+  - [x] Decommission `icons` namespace from tRPC app router composition
+  - [x] Commit milestone
+
 - [ ] Task: Conductor - User Manual Verification 'Phase 6'
 
 ## Final Gate
@@ -196,6 +203,8 @@
 - `CI=true bun run e2e:docs` passes: `23 passed` (Playwright summary).
 - `tests/specs/templates/templates.test.ts` passes end-to-end with unique title generation and Bun-safe template create/update server path.
 - `tests/docs/profile/discounts.doc.ts` and `tests/docs/events/event-approval.doc.ts` pass under docs project with deterministic navigation/seeding.
+- `bash -lc 'eval "$(bun helpers/testing/runtime-env.mjs)" && CI=true NO_WEBSERVER=true bunx --bun playwright test tests/specs/templates/templates.test.ts --project=local-chrome --workers=1 --max-failures=1'` passes after icons Effect RPC migration (`11 passed`).
+- `CI=true bun run e2e:docs` re-run passes after icons Effect RPC migration (`23 passed`).
 
 ## Session Handoff
 
