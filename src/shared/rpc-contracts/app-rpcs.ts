@@ -36,9 +36,39 @@ export const ConfigTenant = Rpc.make('config.tenant', {
   success: Tenant,
 });
 
+export const IconRpcError = Schema.Literal(
+  'INVALID_ICON_NAME',
+  'UNAUTHORIZED',
+);
+
+export type IconRpcError = Schema.Schema.Type<typeof IconRpcError>;
+
+export const IconRecord = Schema.Struct({
+  commonName: Schema.NonEmptyString,
+  friendlyName: Schema.NonEmptyString,
+  id: Schema.NonEmptyString,
+  sourceColor: Schema.NullOr(Schema.Number),
+});
+
+export type IconRecord = Schema.Schema.Type<typeof IconRecord>;
+
+export const IconsSearch = Rpc.make('icons.search', {
+  error: IconRpcError,
+  payload: Schema.Struct({ search: Schema.String }),
+  success: Schema.Array(IconRecord),
+});
+
+export const IconsAdd = Rpc.make('icons.add', {
+  error: IconRpcError,
+  payload: Schema.Struct({ icon: Schema.NonEmptyString }),
+  success: Schema.Array(IconRecord),
+});
+
 export class AppRpcs extends RpcGroup.make(
   ConfigPublic,
   ConfigIsAuthenticated,
   ConfigPermissionList,
   ConfigTenant,
+  IconsSearch,
+  IconsAdd,
 ) {}

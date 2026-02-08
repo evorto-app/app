@@ -7,6 +7,7 @@ import { Effect, Layer } from 'effect';
 import {
   AppRpcs,
   type ConfigPermissions,
+  type IconRecord,
   type PublicConfig,
 } from '../../shared/rpc-contracts/app-rpcs';
 import { Tenant } from '../../types/custom/tenant';
@@ -40,8 +41,8 @@ const rpcLayer = RpcClient.layerProtocolHttp({
 
 type AppRpcContractClient = RpcClient.FromGroup<typeof AppRpcs>;
 
-const runRpc = <A>(
-  call: (client: AppRpcContractClient) => Effect.Effect<A, never, never>,
+const runRpc = <A, E>(
+  call: (client: AppRpcContractClient) => Effect.Effect<A, E, never>,
 ) =>
   Effect.flatMap(RpcClient.make(AppRpcs), call).pipe(
     Effect.provide(rpcLayer),
@@ -53,6 +54,10 @@ const runRpc = <A>(
   providedIn: 'root',
 })
 export class EffectRpcClient {
+  public addIcon(icon: string): Promise<readonly IconRecord[]> {
+    return runRpc((client) => client.icons.add({ icon }));
+  }
+
   public getPermissions(): Promise<ConfigPermissions> {
     return runRpc((client) => client.config.permissions());
   }
@@ -67,5 +72,9 @@ export class EffectRpcClient {
 
   public isAuthenticated(): Promise<boolean> {
     return runRpc((client) => client.config.isAuthenticated());
+  }
+
+  public searchIcons(search: string): Promise<readonly IconRecord[]> {
+    return runRpc((client) => client.icons.search({ search }));
   }
 }

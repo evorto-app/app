@@ -12,13 +12,15 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatDialogModule } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import { EffectRpcQueryClient } from '@heddendorp/effect-angular-query';
 import {
   injectMutation,
   injectQuery,
   QueryClient,
 } from '@tanstack/angular-query-experimental';
 
-import { injectTRPC } from '../../../../../core/trpc-client';
+import { AppRpcs } from '../../../../../../shared/rpc-contracts/app-rpcs';
+import { EffectRpcClient } from '../../../../../core/effect-rpc-client';
 import { IconComponent } from '../../../icon/icon.component';
 
 @Component({
@@ -48,9 +50,10 @@ export class IconSelectorDialogComponent {
     iconColor: 0,
     iconName: this.searchValue(),
   }));
-  private trpc = injectTRPC();
+  private readonly rpcQueryClient = inject(EffectRpcQueryClient);
+  private readonly rpcHelpers = this.rpcQueryClient.helpersFor(AppRpcs);
   protected readonly iconSearchQuery = injectQuery(() =>
-    this.trpc.icons.search.queryOptions({ search: this.searchValue() }),
+    this.rpcHelpers.icons.search.queryOptions({ search: this.searchValue() }),
   );
   protected displayDirectAccess = computed(() => {
     const iconData = this.iconSearchQuery.data();
@@ -66,9 +69,11 @@ export class IconSelectorDialogComponent {
       } satisfies IconValue,
     }));
   });
-  private readonly addIconMutation = injectMutation(() =>
-    this.trpc.icons.addIcon.mutationOptions(),
-  );
+  private readonly effectRpcClient = inject(EffectRpcClient);
+  private readonly addIconMutation = injectMutation(() => ({
+    mutationFn: ({ icon }: { icon: string }) =>
+      this.effectRpcClient.addIcon(icon),
+  }));
   private readonly queryClient = inject(QueryClient);
 
   async saveIconDirectly() {
@@ -77,9 +82,9 @@ export class IconSelectorDialogComponent {
       { icon },
       {
         onSuccess: async () => {
-          await this.queryClient.invalidateQueries({
-            queryKey: this.trpc.icons.search.pathKey(),
-          });
+          await this.queryClient.invalidateQueries(
+            this.rpcQueryClient.queryFilter(['icons', 'search']),
+          );
         },
       },
     );
