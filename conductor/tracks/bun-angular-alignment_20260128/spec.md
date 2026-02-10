@@ -84,6 +84,13 @@ The migration mode is explicitly non-backward-compatible. We optimize for a clea
   - `CI=true bun run test`
   - `bash -lc 'eval "$(bun helpers/testing/runtime-env.mjs)" && CI=true NO_WEBSERVER=true bunx --bun playwright test tests/specs/templates/templates.test.ts --project=local-chrome --workers=1 --max-failures=1'` (`11 passed`)
   - `CI=true bun run e2e:docs` (`23 passed`)
+- Template categories Effect RPC vertical slice validation:
+  - `CI=true bun run lint:fix`
+  - `CI=true bun run lint`
+  - `CI=true bun run build`
+  - `CI=true bun run test`
+  - `bash -lc 'eval "$(bun helpers/testing/runtime-env.mjs)" && CI=true NO_WEBSERVER=true bunx --bun playwright test tests/specs/templates/templates.test.ts --project=local-chrome --workers=1 --max-failures=1'` (`11 passed`)
+  - `CI=true bun run e2e:docs` (`23 passed`)
 
 ## Out of Scope (for this track phase)
 

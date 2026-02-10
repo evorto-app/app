@@ -175,6 +175,13 @@
   - [x] Decommission `icons` namespace from tRPC app router composition
   - [x] Commit milestone
 
+- [x] Task: Migrate `templateCategories` domain from tRPC to Effect RPC vertical slice (b4ea817)
+  - [x] Define test intent (`CI=true bun run lint:fix`, `CI=true bun run lint`, `CI=true bun run build`, `CI=true bun run test`, targeted templates e2e + docs e2e)
+  - [x] Add shared Effect RPC contracts and server handlers for `templateCategories.findMany/create/update`
+  - [x] Migrate Angular `templateCategories` query/mutation callsites from `injectTRPC()` to Effect RPC helpers/client
+  - [x] Decommission `templateCategories` namespace from tRPC app router composition
+  - [x] Commit milestone
+
 - [ ] Task: Conductor - User Manual Verification 'Phase 6'
 
 ## Final Gate
@@ -205,6 +212,9 @@
 - `tests/docs/profile/discounts.doc.ts` and `tests/docs/events/event-approval.doc.ts` pass under docs project with deterministic navigation/seeding.
 - `bash -lc 'eval "$(bun helpers/testing/runtime-env.mjs)" && CI=true NO_WEBSERVER=true bunx --bun playwright test tests/specs/templates/templates.test.ts --project=local-chrome --workers=1 --max-failures=1'` passes after icons Effect RPC migration (`11 passed`).
 - `CI=true bun run e2e:docs` re-run passes after icons Effect RPC migration (`23 passed`).
+- `CI=true bun run lint:fix`, `CI=true bun run lint`, `CI=true bun run build`, and `CI=true bun run test` pass after templateCategories Effect RPC migration (warnings-only lint baseline unchanged).
+- `bash -lc 'eval "$(bun helpers/testing/runtime-env.mjs)" && CI=true NO_WEBSERVER=true bunx --bun playwright test tests/specs/templates/templates.test.ts --project=local-chrome --workers=1 --max-failures=1'` passes after templateCategories Effect RPC migration (`11 passed`).
+- `CI=true bun run e2e:docs` re-run passes after templateCategories Effect RPC migration (`23 passed`).
 
 ## Session Handoff
 
