@@ -4,7 +4,7 @@ import { and, eq } from 'drizzle-orm';
 import { Effect, Schema } from 'effect';
 
 import { database } from '../../../db';
-import { eventTemplateCategories, icons } from '../../../db/schema';
+import { eventTemplateCategories, eventTemplates, icons } from '../../../db/schema';
 import { type Permission } from '../../../shared/permissions/permissions';
 import {
   AppRpcs,
@@ -13,6 +13,8 @@ import {
   type IconRpcError,
   type TemplateCategoryRecord,
   type TemplateCategoryRpcError,
+  type TemplateListRecord,
+  type TemplatesByCategoryRecord,
 } from '../../../shared/rpc-contracts/app-rpcs';
 import { Tenant } from '../../../types/custom/tenant';
 import { serverEnvironment } from '../../config/environment';
@@ -45,6 +47,33 @@ const normalizeTemplateCategoryRecord = (
 ): TemplateCategoryRecord => ({
   icon: templateCategory.icon,
   id: templateCategory.id,
+  title: templateCategory.title,
+});
+
+const normalizeTemplateRecord = (
+  template: Pick<typeof eventTemplates.$inferSelect, 'icon' | 'id' | 'title'>,
+): TemplateListRecord => ({
+  icon: template.icon,
+  id: template.id,
+  title: template.title,
+});
+
+const normalizeTemplatesByCategoryRecord = (
+  templateCategory: Pick<
+    typeof eventTemplateCategories.$inferSelect,
+    'icon' | 'id' | 'title'
+  > & {
+    templates: readonly Pick<
+      typeof eventTemplates.$inferSelect,
+      'icon' | 'id' | 'title'
+    >[];
+  },
+): TemplatesByCategoryRecord => ({
+  icon: templateCategory.icon,
+  id: templateCategory.id,
+  templates: templateCategory.templates.map((template) =>
+    normalizeTemplateRecord(template),
+  ),
   title: templateCategory.title,
 });
 
@@ -197,6 +226,26 @@ export const appRpcHandlers = AppRpcs.toLayer(
         }
 
         return normalizeTemplateCategoryRecord(updatedCategory);
+      }),
+    'templates.groupedByCategory': (_payload, options) =>
+      Effect.gen(function* () {
+        yield* ensureAuthenticated(options.headers);
+        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const templateCategories = yield* Effect.promise(() =>
+          database.query.eventTemplateCategories.findMany({
+            orderBy: (categories, { asc }) => [asc(categories.title)],
+            where: { tenantId: tenant.id },
+            with: {
+              templates: {
+                orderBy: { createdAt: 'asc' },
+              },
+            },
+          }),
+        );
+
+        return templateCategories.map((templateCategory) =>
+          normalizeTemplatesByCategoryRecord(templateCategory),
+        );
       }),
   }),
 );

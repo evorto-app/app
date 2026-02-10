@@ -11,6 +11,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { Router, RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
+import { EffectRpcQueryClient } from '@heddendorp/effect-angular-query';
 import {
   injectMutation,
   injectQuery,
@@ -95,6 +96,7 @@ export class TemplateCreateComponent {
 
   private queryClient = inject(QueryClient);
   private router = inject(Router);
+  private readonly rpcQueryClient = inject(EffectRpcQueryClient);
 
   async onSubmit(event: Event) {
     event.preventDefault();
@@ -141,9 +143,9 @@ export class TemplateCreateComponent {
         },
         onSuccess: async (template) => {
           console.info('[template-create] submit success');
-          await this.queryClient.invalidateQueries({
-            queryKey: this.trpc.templates.groupedByCategory.pathKey(),
-          });
+          await this.queryClient.invalidateQueries(
+            this.rpcQueryClient.queryFilter(['templates', 'groupedByCategory']),
+          );
           this.router.navigate(['/templates', template.id]);
         },
       });

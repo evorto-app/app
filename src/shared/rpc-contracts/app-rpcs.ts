@@ -109,6 +109,34 @@ export const TemplateCategoriesUpdate = Rpc.make('templateCategories.update', {
   success: TemplateCategoryRecord,
 });
 
+export const TemplateListRecord = Schema.Struct({
+  icon: iconSchema,
+  id: Schema.NonEmptyString,
+  title: Schema.NonEmptyString,
+});
+
+export type TemplateListRecord = Schema.Schema.Type<typeof TemplateListRecord>;
+
+export const TemplatesByCategoryRecord = Schema.Struct({
+  icon: iconSchema,
+  id: Schema.NonEmptyString,
+  templates: Schema.Array(TemplateListRecord),
+  title: Schema.NonEmptyString,
+});
+
+export type TemplatesByCategoryRecord = Schema.Schema.Type<
+  typeof TemplatesByCategoryRecord
+>;
+
+export const TemplatesGroupedByCategory = Rpc.make(
+  'templates.groupedByCategory',
+  {
+    error: TemplateCategoryRpcError,
+    payload: Schema.Void,
+    success: Schema.Array(TemplatesByCategoryRecord),
+  },
+);
+
 export class AppRpcs extends RpcGroup.make(
   ConfigPublic,
   ConfigIsAuthenticated,
@@ -119,4 +147,5 @@ export class AppRpcs extends RpcGroup.make(
   TemplateCategoriesFindMany,
   TemplateCategoriesCreate,
   TemplateCategoriesUpdate,
+  TemplatesGroupedByCategory,
 ) {}

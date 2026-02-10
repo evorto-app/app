@@ -175,17 +175,6 @@ export const templateRouter = router({
         })),
       };
     }),
-  groupedByCategory: authenticatedProcedure.query(async ({ ctx }) => {
-    return await database.query.eventTemplateCategories.findMany({
-      orderBy: (categories, { asc }) => [asc(categories.title)],
-      where: { tenantId: ctx.tenant.id },
-      with: {
-        templates: {
-          orderBy: { createdAt: 'asc' },
-        },
-      },
-    });
-  }),
   updateSimpleTemplate: authenticatedProcedure
     .input(
       Schema.standardSchemaV1(

@@ -3,6 +3,7 @@ import type { IconValue } from '@shared/types/icon';
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
   inject,
   signal,
 } from '@angular/core';
@@ -24,8 +25,8 @@ import {
 } from '@tanstack/angular-query-experimental';
 import { firstValueFrom } from 'rxjs';
 
+import { AppRpcs } from '../../../../shared/rpc-contracts/app-rpcs';
 import { EffectRpcClient } from '../../../core/effect-rpc-client';
-import { injectTRPC } from '../../../core/trpc-client';
 import { IconComponent } from '../../../shared/components/icon/icon.component';
 import { CreateEditCategoryDialogComponent } from '../create-edit-category-dialog/create-edit-category-dialog.component';
 
@@ -54,10 +55,15 @@ export class CategoryListComponent {
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faEllipsisVertical = faEllipsisVertical;
   protected readonly outletActive = signal(false);
-  private trpc = injectTRPC();
+  private readonly rpcQueryClient = inject(EffectRpcQueryClient);
+  private readonly rpcHelpers = this.rpcQueryClient.helpersFor(AppRpcs);
   protected templateCategoryGroupsQuery = injectQuery(() =>
-    this.trpc.templates.groupedByCategory.queryOptions(),
+    this.rpcHelpers.templates.groupedByCategory.queryOptions(),
   );
+  protected readonly templateCategoryGroupsErrorMessage = computed(() => {
+    const error = this.templateCategoryGroupsQuery.error();
+    return typeof error === 'string' ? error : (error?.message ?? 'Unknown error');
+  });
   private readonly effectRpcClient = inject(EffectRpcClient);
   private createCategoryMutation = injectMutation(() => ({
     mutationFn: ({ icon, title }: { icon: IconValue; title: string }) =>
@@ -65,7 +71,6 @@ export class CategoryListComponent {
   }));
   private dialog = inject(MatDialog);
   private queryClient = inject(QueryClient);
-  private readonly rpcQueryClient = inject(EffectRpcQueryClient);
 
   private updateCategoryMutation = injectMutation(() => ({
     mutationFn: ({
@@ -98,9 +103,9 @@ export class CategoryListComponent {
       await this.queryClient.invalidateQueries(
         this.rpcQueryClient.queryFilter(['templateCategories', 'findMany']),
       );
-      await this.queryClient.invalidateQueries({
-        queryKey: this.trpc.templates.groupedByCategory.pathKey(),
-      });
+      await this.queryClient.invalidateQueries(
+        this.rpcQueryClient.queryFilter(['templates', 'groupedByCategory']),
+      );
     }
   }
 
@@ -127,9 +132,9 @@ export class CategoryListComponent {
       await this.queryClient.invalidateQueries(
         this.rpcQueryClient.queryFilter(['templateCategories', 'findMany']),
       );
-      await this.queryClient.invalidateQueries({
-        queryKey: this.trpc.templates.groupedByCategory.pathKey(),
-      });
+      await this.queryClient.invalidateQueries(
+        this.rpcQueryClient.queryFilter(['templates', 'groupedByCategory']),
+      );
     }
   }
 }

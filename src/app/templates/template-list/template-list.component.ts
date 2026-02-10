@@ -1,13 +1,20 @@
-import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faEllipsisVertical } from '@fortawesome/duotone-regular-svg-icons';
+import { EffectRpcQueryClient } from '@heddendorp/effect-angular-query';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
-import { injectTRPC } from '../../core/trpc-client';
+import { AppRpcs } from '../../../shared/rpc-contracts/app-rpcs';
 import { IconComponent } from '../../shared/components/icon/icon.component';
 
 @Component({
@@ -29,8 +36,13 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
 export class TemplateListComponent {
   protected readonly faEllipsisVertical = faEllipsisVertical;
   protected readonly outletActive = signal(false);
-  private trpc = injectTRPC();
+  private readonly rpcQueryClient = inject(EffectRpcQueryClient);
+  private readonly rpcHelpers = this.rpcQueryClient.helpersFor(AppRpcs);
   protected templateQuery = injectQuery(() =>
-    this.trpc.templates.groupedByCategory.queryOptions(),
+    this.rpcHelpers.templates.groupedByCategory.queryOptions(),
   );
+  protected readonly templateQueryErrorMessage = computed(() => {
+    const error = this.templateQuery.error();
+    return typeof error === 'string' ? error : (error?.message ?? 'Unknown error');
+  });
 }

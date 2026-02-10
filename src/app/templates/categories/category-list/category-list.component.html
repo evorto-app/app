@@ -23,7 +23,7 @@
       <h2 class="title-medium">Loading ...</h2>
     </div>
   } @else if (templateCategoryGroupsQuery.isError()) {
-    <p>Error: {{ templateCategoryGroupsQuery.error().message }}</p>
+    <p>Error: {{ templateCategoryGroupsErrorMessage() }}</p>
   } @else if (templateCategoryGroupsQuery.isSuccess()) {
     @if (templateCategoryGroupsQuery.data().length === 0) {
       <p>No categories found</p>

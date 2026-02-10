@@ -33,7 +33,7 @@
           <h2 class="title-medium">Loading ...</h2>
         </div>
       } @else if (templateQuery.isError()) {
-        <p>Error: {{ templateQuery.error().message }}</p>
+        <p>Error: {{ templateQueryErrorMessage() }}</p>
       } @else if (templateQuery.isSuccess()) {
         <a mat-flat-button routerLink="create" class="hidden! lg:flex!">
           Create template
