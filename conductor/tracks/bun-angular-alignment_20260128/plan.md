@@ -182,6 +182,13 @@
   - [x] Decommission `templateCategories` namespace from tRPC app router composition
   - [x] Commit milestone
 
+- [x] Task: Migrate `templates.groupedByCategory` reads from tRPC to Effect RPC vertical slice (4c901a3)
+  - [x] Define test intent (`CI=true bun run lint:fix`, `CI=true bun run lint`, `CI=true bun run build`, `CI=true bun run test`, targeted templates e2e + docs e2e)
+  - [x] Add shared Effect RPC contracts and server handlers for `templates.groupedByCategory`
+  - [x] Migrate Angular template list/category list queries and invalidations to Effect RPC query keys
+  - [x] Decommission `templates.groupedByCategory` procedure from tRPC template router
+  - [x] Commit milestone
+
 - [ ] Task: Conductor - User Manual Verification 'Phase 6'
 
 ## Final Gate
@@ -215,8 +222,12 @@
 - `CI=true bun run lint:fix`, `CI=true bun run lint`, `CI=true bun run build`, and `CI=true bun run test` pass after templateCategories Effect RPC migration (warnings-only lint baseline unchanged).
 - `bash -lc 'eval "$(bun helpers/testing/runtime-env.mjs)" && CI=true NO_WEBSERVER=true bunx --bun playwright test tests/specs/templates/templates.test.ts --project=local-chrome --workers=1 --max-failures=1'` passes after templateCategories Effect RPC migration (`11 passed`).
 - `CI=true bun run e2e:docs` re-run passes after templateCategories Effect RPC migration (`23 passed`).
+- `CI=true bun run lint:fix`, `CI=true bun run lint`, `CI=true bun run build`, and `CI=true bun run test` pass after templates groupedByCategory Effect RPC migration (warnings-only lint baseline unchanged).
+- `bash -lc 'eval "$(bun helpers/testing/runtime-env.mjs)" && CI=true NO_WEBSERVER=true bunx --bun playwright test tests/specs/templates/templates.test.ts --project=local-chrome --workers=1 --max-failures=1'` passes after templates groupedByCategory Effect RPC migration (`11 passed`).
+- `CI=true bun run e2e:docs` re-run passes after templates groupedByCategory Effect RPC migration (`23 passed`).
 
 ## Session Handoff
 
 - Detailed continuation context for this checkpoint is captured in:
   - `conductor/tracks/bun-angular-alignment_20260128/handoff-2026-02-07.md`
+  - `conductor/tracks/bun-angular-alignment_20260128/handoff-2026-02-10.md`

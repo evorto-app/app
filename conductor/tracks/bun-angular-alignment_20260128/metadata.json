@@ -3,6 +3,6 @@
   "type": "feature",
   "status": "in_progress",
   "created_at": "2026-01-28T09:59:50Z",
-  "updated_at": "2026-02-10T15:52:53Z",
+  "updated_at": "2026-02-10T16:01:38Z",
   "description": "Align project with fresh Angular CLI + Bun baseline, remove Node/Express runtime, and introduce Effect across server/data/shared utilities."
 }
