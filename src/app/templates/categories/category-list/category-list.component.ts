@@ -16,6 +16,7 @@ import {
   faArrowLeft,
   faEllipsisVertical,
 } from '@fortawesome/duotone-regular-svg-icons';
+import { EffectRpcQueryClient } from '@heddendorp/effect-angular-query';
 import {
   injectMutation,
   injectQuery,
@@ -23,6 +24,7 @@ import {
 } from '@tanstack/angular-query-experimental';
 import { firstValueFrom } from 'rxjs';
 
+import { EffectRpcClient } from '../../../core/effect-rpc-client';
 import { injectTRPC } from '../../../core/trpc-client';
 import { IconComponent } from '../../../shared/components/icon/icon.component';
 import { CreateEditCategoryDialogComponent } from '../create-edit-category-dialog/create-edit-category-dialog.component';
@@ -56,15 +58,26 @@ export class CategoryListComponent {
   protected templateCategoryGroupsQuery = injectQuery(() =>
     this.trpc.templates.groupedByCategory.queryOptions(),
   );
-  private createCategoryMutation = injectMutation(() =>
-    this.trpc.templateCategories.create.mutationOptions(),
-  );
+  private readonly effectRpcClient = inject(EffectRpcClient);
+  private createCategoryMutation = injectMutation(() => ({
+    mutationFn: ({ icon, title }: { icon: IconValue; title: string }) =>
+      this.effectRpcClient.createTemplateCategory({ icon, title }),
+  }));
   private dialog = inject(MatDialog);
   private queryClient = inject(QueryClient);
+  private readonly rpcQueryClient = inject(EffectRpcQueryClient);
 
-  private updateCategoryMutation = injectMutation(() =>
-    this.trpc.templateCategories.update.mutationOptions(),
-  );
+  private updateCategoryMutation = injectMutation(() => ({
+    mutationFn: ({
+      icon,
+      id,
+      title,
+    }: {
+      icon: IconValue;
+      id: string;
+      title: string;
+    }) => this.effectRpcClient.updateTemplateCategory({ icon, id, title }),
+  }));
 
   async openCategoryCreationDialog() {
     const defaultIcon =
@@ -82,9 +95,9 @@ export class CategoryListComponent {
         icon: result.icon,
         title: result.title,
       });
-      await this.queryClient.invalidateQueries({
-        queryKey: this.trpc.templateCategories.findMany.pathKey(),
-      });
+      await this.queryClient.invalidateQueries(
+        this.rpcQueryClient.queryFilter(['templateCategories', 'findMany']),
+      );
       await this.queryClient.invalidateQueries({
         queryKey: this.trpc.templates.groupedByCategory.pathKey(),
       });
@@ -111,9 +124,9 @@ export class CategoryListComponent {
         id: category.id,
         title: result.title,
       });
-      await this.queryClient.invalidateQueries({
-        queryKey: this.trpc.templateCategories.findMany.pathKey(),
-      });
+      await this.queryClient.invalidateQueries(
+        this.rpcQueryClient.queryFilter(['templateCategories', 'findMany']),
+      );
       await this.queryClient.invalidateQueries({
         queryKey: this.trpc.templates.groupedByCategory.pathKey(),
       });

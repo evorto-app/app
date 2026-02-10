@@ -9,6 +9,7 @@ import {
   type ConfigPermissions,
   type IconRecord,
   type PublicConfig,
+  type TemplateCategoryRecord,
 } from '../../shared/rpc-contracts/app-rpcs';
 import { Tenant } from '../../types/custom/tenant';
 
@@ -58,6 +59,18 @@ export class EffectRpcClient {
     return runRpc((client) => client.icons.add({ icon }));
   }
 
+  public createTemplateCategory(parameters: {
+    icon: TemplateCategoryRecord['icon'];
+    title: string;
+  }): Promise<void> {
+    return runRpc((client) =>
+      client.templateCategories.create({
+        icon: parameters.icon,
+        title: parameters.title,
+      }),
+    );
+  }
+
   public getPermissions(): Promise<ConfigPermissions> {
     return runRpc((client) => client.config.permissions());
   }
@@ -76,5 +89,19 @@ export class EffectRpcClient {
 
   public searchIcons(search: string): Promise<readonly IconRecord[]> {
     return runRpc((client) => client.icons.search({ search }));
+  }
+
+  public updateTemplateCategory(parameters: {
+    icon: TemplateCategoryRecord['icon'];
+    id: string;
+    title: string;
+  }): Promise<TemplateCategoryRecord> {
+    return runRpc((client) =>
+      client.templateCategories.update({
+        icon: parameters.icon,
+        id: parameters.id,
+        title: parameters.title,
+      }),
+    );
   }
 }

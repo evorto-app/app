@@ -9,7 +9,7 @@
     <mat-label>Template Category</mat-label>
     <mat-select [formField]="form.categoryId">
       @for (
-        templateCategory of templateCategoriesQuery.data();
+        templateCategory of templateCategories();
         track templateCategory.id
       ) {
         <mat-option [value]="templateCategory.id">

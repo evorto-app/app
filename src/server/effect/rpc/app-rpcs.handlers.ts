@@ -1,14 +1,18 @@
 import type { Headers } from '@effect/platform';
 
+import { and, eq } from 'drizzle-orm';
 import { Effect, Schema } from 'effect';
 
 import { database } from '../../../db';
-import { icons } from '../../../db/schema';
+import { eventTemplateCategories, icons } from '../../../db/schema';
+import { type Permission } from '../../../shared/permissions/permissions';
 import {
   AppRpcs,
   ConfigPermissions,
   type IconRecord,
   type IconRpcError,
+  type TemplateCategoryRecord,
+  type TemplateCategoryRpcError,
 } from '../../../shared/rpc-contracts/app-rpcs';
 import { Tenant } from '../../../types/custom/tenant';
 import { serverEnvironment } from '../../config/environment';
@@ -31,6 +35,17 @@ const normalizeIconRecord = (
   id: icon.id,
   // eslint-disable-next-line unicorn/no-null
   sourceColor: icon.sourceColor ?? null,
+});
+
+const normalizeTemplateCategoryRecord = (
+  templateCategory: Pick<
+    typeof eventTemplateCategories.$inferSelect,
+    'icon' | 'id' | 'title'
+  >,
+): TemplateCategoryRecord => ({
+  icon: templateCategory.icon,
+  id: templateCategory.id,
+  title: templateCategory.title,
 });
 
 const getFriendlyIconName = (icon: string): Effect.Effect<string, IconRpcError> =>
@@ -60,10 +75,26 @@ const getFriendlyIconName = (icon: string): Effect.Effect<string, IconRpcError> 
 
 const ensureAuthenticated = (
   headers: Headers.Headers,
-): Effect.Effect<void, IconRpcError> =>
+): Effect.Effect<void, 'UNAUTHORIZED'> =>
   headers['x-evorto-authenticated'] === 'true'
     ? Effect.void
     : Effect.fail('UNAUTHORIZED' as const);
+
+const ensurePermission = (
+  headers: Headers.Headers,
+  permission: Permission,
+): Effect.Effect<void, TemplateCategoryRpcError> =>
+  Effect.gen(function* () {
+    yield* ensureAuthenticated(headers);
+    const currentPermissions = decodeHeaderJson(
+      headers['x-evorto-permissions'],
+      ConfigPermissions,
+    );
+
+    if (!currentPermissions.includes(permission)) {
+      return yield* Effect.fail('FORBIDDEN' as const);
+    }
+  });
 
 export const appRpcHandlers = AppRpcs.toLayer(
   Effect.succeed({
@@ -113,6 +144,59 @@ export const appRpcHandlers = AppRpcs.toLayer(
         );
 
         return matchingIcons.map((icon) => normalizeIconRecord(icon));
+      }),
+    'templateCategories.create': ({ icon, title }, options) =>
+      Effect.gen(function* () {
+        yield* ensurePermission(options.headers, 'templates:manageCategories');
+        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+
+        yield* Effect.promise(() =>
+          database.insert(eventTemplateCategories).values({
+            icon,
+            tenantId: tenant.id,
+            title,
+          }),
+        );
+      }),
+    'templateCategories.findMany': (_payload, options) =>
+      Effect.gen(function* () {
+        yield* ensureAuthenticated(options.headers);
+        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const templateCategories = yield* Effect.promise(() =>
+          database.query.eventTemplateCategories.findMany({
+            where: { tenantId: tenant.id },
+          }),
+        );
+
+        return templateCategories.map((category) =>
+          normalizeTemplateCategoryRecord(category),
+        );
+      }),
+    'templateCategories.update': ({ icon, id, title }, options) =>
+      Effect.gen(function* () {
+        yield* ensurePermission(options.headers, 'templates:manageCategories');
+        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const updatedCategories = yield* Effect.promise(() =>
+          database
+            .update(eventTemplateCategories)
+            .set({
+              icon,
+              title,
+            })
+            .where(
+              and(
+                eq(eventTemplateCategories.tenantId, tenant.id),
+                eq(eventTemplateCategories.id, id),
+              ),
+            )
+            .returning(),
+        );
+        const updatedCategory = updatedCategories[0];
+        if (!updatedCategory) {
+          return yield* Effect.fail('FORBIDDEN' as const);
+        }
+
+        return normalizeTemplateCategoryRecord(updatedCategory);
       }),
   }),
 );

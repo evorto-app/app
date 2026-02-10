@@ -4,6 +4,7 @@ import { Schema } from 'effect';
 
 import { Tenant } from '../../types/custom/tenant';
 import { PermissionSchema } from '../permissions/permissions';
+import { iconSchema } from '../types/icon';
 
 export const PublicConfig = Schema.Struct({
   googleMapsApiKey: Schema.NullOr(Schema.NonEmptyString),
@@ -64,6 +65,50 @@ export const IconsAdd = Rpc.make('icons.add', {
   success: Schema.Array(IconRecord),
 });
 
+export const TemplateCategoryRpcError = Schema.Literal(
+  'FORBIDDEN',
+  'UNAUTHORIZED',
+);
+
+export type TemplateCategoryRpcError = Schema.Schema.Type<
+  typeof TemplateCategoryRpcError
+>;
+
+export const TemplateCategoryRecord = Schema.Struct({
+  icon: iconSchema,
+  id: Schema.NonEmptyString,
+  title: Schema.NonEmptyString,
+});
+
+export type TemplateCategoryRecord = Schema.Schema.Type<
+  typeof TemplateCategoryRecord
+>;
+
+export const TemplateCategoriesFindMany = Rpc.make('templateCategories.findMany', {
+  error: TemplateCategoryRpcError,
+  payload: Schema.Void,
+  success: Schema.Array(TemplateCategoryRecord),
+});
+
+export const TemplateCategoriesCreate = Rpc.make('templateCategories.create', {
+  error: TemplateCategoryRpcError,
+  payload: Schema.Struct({
+    icon: iconSchema,
+    title: Schema.NonEmptyString,
+  }),
+  success: Schema.Void,
+});
+
+export const TemplateCategoriesUpdate = Rpc.make('templateCategories.update', {
+  error: TemplateCategoryRpcError,
+  payload: Schema.Struct({
+    icon: iconSchema,
+    id: Schema.NonEmptyString,
+    title: Schema.NonEmptyString,
+  }),
+  success: TemplateCategoryRecord,
+});
+
 export class AppRpcs extends RpcGroup.make(
   ConfigPublic,
   ConfigIsAuthenticated,
@@ -71,4 +116,7 @@ export class AppRpcs extends RpcGroup.make(
   ConfigTenant,
   IconsSearch,
   IconsAdd,
+  TemplateCategoriesFindMany,
+  TemplateCategoriesCreate,
+  TemplateCategoriesUpdate,
 ) {}
