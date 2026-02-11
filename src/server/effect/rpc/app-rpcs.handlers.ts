@@ -247,5 +247,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
           normalizeTemplatesByCategoryRecord(templateCategory),
         );
       }),
+    'users.userAssigned': (_payload, options) =>
+      Effect.succeed(options.headers['x-evorto-user-assigned'] === 'true'),
   }),
 );

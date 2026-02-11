@@ -242,8 +242,4 @@ export const userRouter = router({
 
       return updatedUser[0];
     }),
-
-  userAssigned: publicProcedure.query(async ({ ctx }) => {
-    return !!ctx.user;
-  }),
 });

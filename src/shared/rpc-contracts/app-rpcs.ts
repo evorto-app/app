@@ -46,6 +46,13 @@ export const ConfigTenant = asRpcQuery(
   }),
 );
 
+export const UsersUserAssigned = asRpcQuery(
+  Rpc.make('users.userAssigned', {
+    payload: Schema.Void,
+    success: Schema.Boolean,
+  }),
+);
+
 export const IconRpcError = Schema.Literal(
   'INVALID_ICON_NAME',
   'UNAUTHORIZED',
@@ -160,6 +167,7 @@ export class AppRpcs extends RpcGroup.make(
   ConfigIsAuthenticated,
   ConfigPermissionList,
   ConfigTenant,
+  UsersUserAssigned,
   IconsSearch,
   IconsAdd,
   TemplateCategoriesFindMany,
