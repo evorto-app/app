@@ -189,6 +189,15 @@
   - [x] Decommission `templates.groupedByCategory` procedure from tRPC template router
   - [x] Commit milestone
 
+- [x] Task: Migrate Angular Effect RPC query integration to `@heddendorp/effect-angular-query@0.1.1` API surface (c63b7e4)
+  - [x] Define test intent (`bunx --bun eslint` on affected files, `bunx --bun tsc -p tsconfig.app.json --noEmit`, targeted templates spec+docs Playwright)
+  - [x] Upgrade package dependency and align provider setup with `createEffectRpcAngularClient(...)`
+  - [x] Mark shared RPC procedures with `asRpcQuery(...)`/`asRpcMutation(...)`
+  - [x] Replace remaining `EffectRpcQueryClient` + `helpersFor(...)` callsites with `AppRpc.injectClient()`
+  - [x] Replace custom mutation callsites with generated `injectMutation(() => rpc.<path>.mutationOptions())`
+  - [x] Remove now-unused imperative `EffectRpcClient` wrappers for migrated icons/template-categories methods
+  - [x] Validation note: `bun run lint`, `bun run lint:fix`, and `bun run build` currently exit via `SIGKILL` in this shell; fallback targeted lint/typecheck + Playwright checks passed
+
 - [ ] Task: Conductor - User Manual Verification 'Phase 6'
 
 ## Final Gate
@@ -225,9 +234,15 @@
 - `CI=true bun run lint:fix`, `CI=true bun run lint`, `CI=true bun run build`, and `CI=true bun run test` pass after templates groupedByCategory Effect RPC migration (warnings-only lint baseline unchanged).
 - `bash -lc 'eval "$(bun helpers/testing/runtime-env.mjs)" && CI=true NO_WEBSERVER=true bunx --bun playwright test tests/specs/templates/templates.test.ts --project=local-chrome --workers=1 --max-failures=1'` passes after templates groupedByCategory Effect RPC migration (`11 passed`).
 - `CI=true bun run e2e:docs` re-run passes after templates groupedByCategory Effect RPC migration (`23 passed`).
+- `bun run lint:fix`, `bun run lint`, and `bun run build` are currently blocked in this shell by immediate `SIGKILL` termination from `bunx --bun ng ...` (no diagnostics emitted before kill).
+- `bunx --bun eslint` passes on all files touched by the `@heddendorp/effect-angular-query@0.1.1` migration.
+- `bunx --bun tsc -p tsconfig.app.json --noEmit` and `bunx --bun tsc -p tsconfig.spec.json --noEmit` pass after migration.
+- `bash -lc 'eval "$(bun helpers/testing/runtime-env.mjs)" && CI=true NO_WEBSERVER=true bunx --bun playwright test tests/specs/templates/templates.test.ts --project=local-chrome --workers=1 --max-failures=1'` passes after v0.1.1 migration (`11 passed`).
+- `bash -lc 'eval "$(bun helpers/testing/runtime-env.mjs)" && CI=true NO_WEBSERVER=true bunx --bun playwright test tests/docs/templates/templates.doc.ts --project=docs --workers=1 --max-failures=1'` passes after v0.1.1 migration (`8 passed`).
 
 ## Session Handoff
 
 - Detailed continuation context for this checkpoint is captured in:
   - `conductor/tracks/bun-angular-alignment_20260128/handoff-2026-02-07.md`
   - `conductor/tracks/bun-angular-alignment_20260128/handoff-2026-02-10.md`
+  - `conductor/tracks/bun-angular-alignment_20260128/handoff-2026-02-11.md`

@@ -5,7 +5,7 @@
 This track performs a Bun-first cutover for Evorto using the provided baseline reference in:
 
 - `conductor/tracks/bun-angular-alignment_20260128/repomix-output-angular-bun-setup-main.zip.xml`
-- `conductor/tracks/bun-angular-alignment_20260128/repomix-output-effect-angular-main.zip.xml`
+- `conductor/tracks/bun-angular-alignment_20260128/repomix-output-effect-angular-effect-angular-query-v0.1.1.zip.xml`
 - `conductor/tracks/bun-angular-alignment_20260128/codex-plan.md`
 
 The migration mode is explicitly non-backward-compatible. We optimize for a clean Bun-first runtime/tooling path and then prepare for Effect-based RPC/data migrations.
@@ -51,7 +51,7 @@ The migration mode is explicitly non-backward-compatible. We optimize for a clea
 - Core quality gates run successfully via Bun commands (at minimum lint + build during implementation milestones, full suite at final gate).
 - Conductor artifacts (`spec.md`, `plan.md`, `tracks.md`) reflect actual migration execution status.
 
-## Requirement-to-Test Mapping (Updated 2026-02-08)
+## Requirement-to-Test Mapping (Updated 2026-02-11)
 
 - Bun runtime/tooling alignment:
   - `CI=true bun run lint:fix`
@@ -98,6 +98,13 @@ The migration mode is explicitly non-backward-compatible. We optimize for a clea
   - `CI=true bun run test`
   - `bash -lc 'eval "$(bun helpers/testing/runtime-env.mjs)" && CI=true NO_WEBSERVER=true bunx --bun playwright test tests/specs/templates/templates.test.ts --project=local-chrome --workers=1 --max-failures=1'` (`11 passed`)
   - `CI=true bun run e2e:docs` (`23 passed`)
+- Effect Angular Query v0.1.1 API migration validation:
+  - `bunx --bun eslint` on all migrated files under `src/app/**` and `src/shared/rpc-contracts/app-rpcs.ts`
+  - `bunx --bun tsc -p tsconfig.app.json --noEmit`
+  - `bunx --bun tsc -p tsconfig.spec.json --noEmit`
+  - `bash -lc 'eval "$(bun helpers/testing/runtime-env.mjs)" && CI=true NO_WEBSERVER=true bunx --bun playwright test tests/specs/templates/templates.test.ts --project=local-chrome --workers=1 --max-failures=1'` (`11 passed`)
+  - `bash -lc 'eval "$(bun helpers/testing/runtime-env.mjs)" && CI=true NO_WEBSERVER=true bunx --bun playwright test tests/docs/templates/templates.doc.ts --project=docs --workers=1 --max-failures=1'` (`8 passed`)
+  - `bun run lint:fix`, `bun run lint`, and `bun run build` currently blocked in this shell by immediate `SIGKILL` from `bunx --bun ng ...` and need environment follow-up
 
 ## Out of Scope (for this track phase)
 
