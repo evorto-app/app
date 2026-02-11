@@ -205,6 +205,14 @@
   - [x] Remove `src/app/core/effect-rpc-client.ts` if no remaining usages
   - [x] Commit milestone
 
+- [x] Task: Migrate `users.userAssigned` guard check from tRPC to Effect RPC vertical slice (c141708)
+  - [x] Define test intent (`bunx --bun eslint` on touched files, `bunx --bun tsc -p tsconfig.app.json --noEmit`, `CI=true bun run lint`, `CI=true bun run build`, `CI=true bun run test`)
+  - [x] Add shared Effect RPC contract + handler for `users.userAssigned`
+  - [x] Bridge user-assigned context header into `/rpc` web handler
+  - [x] Replace `user-account.guard` callsite from `injectTRPCClient()` to `AppRpc.injectClient().users.userAssigned.call()`
+  - [x] Decommission legacy `users.userAssigned` tRPC procedure
+  - [x] Commit milestone
+
 - [ ] Task: Conductor - User Manual Verification 'Phase 6'
 
 ## Final Gate
@@ -252,6 +260,10 @@
 - `CI=true bun run lint` now executes successfully again in this shell after auth/config cutover (warnings-only baseline unchanged).
 - `CI=true bun run build` now executes successfully again in this shell after auth/config cutover.
 - `CI=true bun run test` passes after auth/config cutover (`12 passed`).
+- `CI=true bun run lint` passes after `users.userAssigned` Effect RPC cutover (warnings-only baseline unchanged).
+- `CI=true bun run build` passes after `users.userAssigned` Effect RPC cutover.
+- `CI=true bun run test` passes after `users.userAssigned` Effect RPC cutover (`12 passed`).
+- `bunx --bun tsc -p tsconfig.app.json --noEmit` and `bunx --bun tsc -p tsconfig.spec.json --noEmit` pass after `users.userAssigned` Effect RPC cutover.
 
 ## Session Handoff
 
