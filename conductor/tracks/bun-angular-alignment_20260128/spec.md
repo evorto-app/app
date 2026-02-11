@@ -110,6 +110,9 @@ The migration mode is explicitly non-backward-compatible. We optimize for a clea
   - `bunx --bun tsc -p tsconfig.app.json --noEmit`
   - `bunx --bun tsc -p tsconfig.spec.json --noEmit`
   - `bash -lc 'eval "$(bun helpers/testing/runtime-env.mjs)" && CI=true NO_WEBSERVER=true bunx --bun playwright test tests/specs/templates/templates.test.ts --project=local-chrome --workers=1 --max-failures=1'` (`11 passed`)
+  - `CI=true bun run lint` (warnings-only baseline unchanged)
+  - `CI=true bun run build`
+  - `CI=true bun run test` (`12 passed`)
 
 ## Out of Scope (for this track phase)
 

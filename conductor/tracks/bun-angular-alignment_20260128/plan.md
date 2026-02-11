@@ -249,6 +249,9 @@
 - `bunx --bun eslint` passes on remaining auth/config cutover files after deleting `src/app/core/effect-rpc-client.ts`.
 - `bunx --bun tsc -p tsconfig.app.json --noEmit` and `bunx --bun tsc -p tsconfig.spec.json --noEmit` pass after auth/config cutover.
 - `bash -lc 'eval "$(bun helpers/testing/runtime-env.mjs)" && CI=true NO_WEBSERVER=true bunx --bun playwright test tests/specs/templates/templates.test.ts --project=local-chrome --workers=1 --max-failures=1'` passes after auth/config cutover (`11 passed`).
+- `CI=true bun run lint` now executes successfully again in this shell after auth/config cutover (warnings-only baseline unchanged).
+- `CI=true bun run build` now executes successfully again in this shell after auth/config cutover.
+- `CI=true bun run test` passes after auth/config cutover (`12 passed`).
 
 ## Session Handoff
 
