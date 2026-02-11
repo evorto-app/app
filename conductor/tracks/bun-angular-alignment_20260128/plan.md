@@ -198,6 +198,13 @@
   - [x] Remove now-unused imperative `EffectRpcClient` wrappers for migrated icons/template-categories methods
   - [x] Validation note: `bun run lint`, `bun run lint:fix`, and `bun run build` currently exit via `SIGKILL` in this shell; fallback targeted lint/typecheck + Playwright checks passed
 
+- [x] Task: Decommission remaining imperative `EffectRpcClient` usage for auth/config paths (9825044)
+  - [x] Define test intent (`bunx --bun eslint` on touched files, `bunx --bun tsc -p tsconfig.app.json --noEmit`, targeted templates Playwright smoke)
+  - [x] Replace `auth.guard` and `user-account.guard` imperative calls with `AppRpc.injectClient().config.isAuthenticated.call(...)`
+  - [x] Replace `ConfigService.initialize()` imperative config calls with direct `AppRpc` procedure calls
+  - [x] Remove `src/app/core/effect-rpc-client.ts` if no remaining usages
+  - [x] Commit milestone
+
 - [ ] Task: Conductor - User Manual Verification 'Phase 6'
 
 ## Final Gate
@@ -239,6 +246,9 @@
 - `bunx --bun tsc -p tsconfig.app.json --noEmit` and `bunx --bun tsc -p tsconfig.spec.json --noEmit` pass after migration.
 - `bash -lc 'eval "$(bun helpers/testing/runtime-env.mjs)" && CI=true NO_WEBSERVER=true bunx --bun playwright test tests/specs/templates/templates.test.ts --project=local-chrome --workers=1 --max-failures=1'` passes after v0.1.1 migration (`11 passed`).
 - `bash -lc 'eval "$(bun helpers/testing/runtime-env.mjs)" && CI=true NO_WEBSERVER=true bunx --bun playwright test tests/docs/templates/templates.doc.ts --project=docs --workers=1 --max-failures=1'` passes after v0.1.1 migration (`8 passed`).
+- `bunx --bun eslint` passes on remaining auth/config cutover files after deleting `src/app/core/effect-rpc-client.ts`.
+- `bunx --bun tsc -p tsconfig.app.json --noEmit` and `bunx --bun tsc -p tsconfig.spec.json --noEmit` pass after auth/config cutover.
+- `bash -lc 'eval "$(bun helpers/testing/runtime-env.mjs)" && CI=true NO_WEBSERVER=true bunx --bun playwright test tests/specs/templates/templates.test.ts --project=local-chrome --workers=1 --max-failures=1'` passes after auth/config cutover (`11 passed`).
 
 ## Session Handoff
 

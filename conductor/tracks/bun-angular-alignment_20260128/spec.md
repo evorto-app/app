@@ -105,6 +105,11 @@ The migration mode is explicitly non-backward-compatible. We optimize for a clea
   - `bash -lc 'eval "$(bun helpers/testing/runtime-env.mjs)" && CI=true NO_WEBSERVER=true bunx --bun playwright test tests/specs/templates/templates.test.ts --project=local-chrome --workers=1 --max-failures=1'` (`11 passed`)
   - `bash -lc 'eval "$(bun helpers/testing/runtime-env.mjs)" && CI=true NO_WEBSERVER=true bunx --bun playwright test tests/docs/templates/templates.doc.ts --project=docs --workers=1 --max-failures=1'` (`8 passed`)
   - `bun run lint:fix`, `bun run lint`, and `bun run build` currently blocked in this shell by immediate `SIGKILL` from `bunx --bun ng ...` and need environment follow-up
+- Effect RPC auth/config wrapper removal validation:
+  - `bunx --bun eslint` on `src/app/core/guards/auth.guard.ts`, `src/app/core/guards/user-account.guard.ts`, and `src/app/core/config.service.ts`
+  - `bunx --bun tsc -p tsconfig.app.json --noEmit`
+  - `bunx --bun tsc -p tsconfig.spec.json --noEmit`
+  - `bash -lc 'eval "$(bun helpers/testing/runtime-env.mjs)" && CI=true NO_WEBSERVER=true bunx --bun playwright test tests/specs/templates/templates.test.ts --project=local-chrome --workers=1 --max-failures=1'` (`11 passed`)
 
 ## Out of Scope (for this track phase)
 
