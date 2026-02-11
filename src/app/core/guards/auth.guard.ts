@@ -2,15 +2,15 @@ import { inject, REQUEST, REQUEST_CONTEXT, RESPONSE_INIT } from '@angular/core';
 import { CanActivateFn } from '@angular/router';
 
 import { type Context } from '../../../types/custom/context';
-import { EffectRpcClient } from '../effect-rpc-client';
+import { AppRpc } from '../effect-rpc-angular-client';
 
 export const authGuard: CanActivateFn = async (_, state) => {
   const context = inject(REQUEST_CONTEXT) as Context | undefined;
-  const rpcClient = inject(EffectRpcClient);
+  const rpc = AppRpc.injectClient();
   const response = inject(RESPONSE_INIT);
   const request = inject(REQUEST);
   if (!context) {
-    const isAuthenticated = await rpcClient.isAuthenticated();
+    const isAuthenticated = await rpc.config.isAuthenticated.call();
     if (!isAuthenticated) {
       globalThis.location.href = `/forward-login?redirectUrl=${state.url}`;
       return false;

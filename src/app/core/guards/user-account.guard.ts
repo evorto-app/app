@@ -1,14 +1,14 @@
 import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
 
-import { EffectRpcClient } from '../effect-rpc-client';
+import { AppRpc } from '../effect-rpc-angular-client';
 import { injectTRPCClient } from '../trpc-client';
 
 export const userAccountGuard: CanActivateFn = async () => {
-  const rpcClient = inject(EffectRpcClient);
+  const rpc = AppRpc.injectClient();
   const trpcClient = injectTRPCClient();
   const router = inject(Router);
-  const isAuthenticated = await rpcClient.isAuthenticated();
+  const isAuthenticated = await rpc.config.isAuthenticated.call();
   if (!isAuthenticated) {
     return true;
   }

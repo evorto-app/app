@@ -16,7 +16,6 @@ import { Permission } from '../../shared/permissions/permissions';
 import { Context } from '../../types/custom/context';
 import { Tenant } from '../../types/custom/tenant';
 import { AppRpc } from './effect-rpc-angular-client';
-import { EffectRpcClient } from './effect-rpc-client';
 
 @Injectable({
   providedIn: 'root',
@@ -67,7 +66,6 @@ export class ConfigService {
   private renderer = inject(RendererFactory2).createRenderer(null, null);
   private readonly requestContext = inject(REQUEST_CONTEXT) as Context | null;
 
-  private readonly rpcClient = inject(EffectRpcClient);
   private readonly title = inject(Title);
 
   constructor() {
@@ -96,9 +94,9 @@ export class ConfigService {
       return;
     }
     const [tenant, permissions, pub] = await Promise.all([
-      this.rpcClient.getTenant(),
-      this.rpcClient.getPermissions(),
-      this.rpcClient.getPublicConfig(),
+      this.rpc.config.tenant.call(),
+      this.rpc.config.permissions.call(),
+      this.rpc.config.public.call(),
     ]);
 
     this.title.setTitle(tenant.name);
