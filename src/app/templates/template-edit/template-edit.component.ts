@@ -11,13 +11,13 @@ import { MatButtonModule } from '@angular/material/button';
 import { Router, RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
-import { EffectRpcQueryClient } from '@heddendorp/effect-angular-query';
 import {
   injectMutation,
   injectQuery,
   QueryClient,
 } from '@tanstack/angular-query-experimental';
 
+import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { injectTRPC } from '../../core/trpc-client';
 import {
   mergeTemplateFormOverrides,
@@ -103,7 +103,7 @@ export class TemplateEditComponent {
 
   private queryClient = inject(QueryClient);
   private router = inject(Router);
-  private readonly rpcQueryClient = inject(EffectRpcQueryClient);
+  private readonly rpc = AppRpc.injectClient();
 
   async onSubmit(event: Event) {
     event.preventDefault();
@@ -152,10 +152,7 @@ export class TemplateEditComponent {
               queryKey: this.trpc.templates.findOne.queryKey({ id }),
             });
             await this.queryClient.invalidateQueries(
-              this.rpcQueryClient.queryFilter([
-                'templates',
-                'groupedByCategory',
-              ]),
+              this.rpc.queryFilter(['templates', 'groupedByCategory']),
             );
             this.router.navigate(['/templates', id]);
           },

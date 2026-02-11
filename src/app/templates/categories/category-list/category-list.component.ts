@@ -17,7 +17,6 @@ import {
   faArrowLeft,
   faEllipsisVertical,
 } from '@fortawesome/duotone-regular-svg-icons';
-import { EffectRpcQueryClient } from '@heddendorp/effect-angular-query';
 import {
   injectMutation,
   injectQuery,
@@ -25,8 +24,7 @@ import {
 } from '@tanstack/angular-query-experimental';
 import { firstValueFrom } from 'rxjs';
 
-import { AppRpcs } from '../../../../shared/rpc-contracts/app-rpcs';
-import { EffectRpcClient } from '../../../core/effect-rpc-client';
+import { AppRpc } from '../../../core/effect-rpc-angular-client';
 import { IconComponent } from '../../../shared/components/icon/icon.component';
 import { CreateEditCategoryDialogComponent } from '../create-edit-category-dialog/create-edit-category-dialog.component';
 
@@ -55,34 +53,23 @@ export class CategoryListComponent {
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faEllipsisVertical = faEllipsisVertical;
   protected readonly outletActive = signal(false);
-  private readonly rpcQueryClient = inject(EffectRpcQueryClient);
-  private readonly rpcHelpers = this.rpcQueryClient.helpersFor(AppRpcs);
+  private readonly rpc = AppRpc.injectClient();
   protected templateCategoryGroupsQuery = injectQuery(() =>
-    this.rpcHelpers.templates.groupedByCategory.queryOptions(),
+    this.rpc.templates.groupedByCategory.queryOptions(),
   );
   protected readonly templateCategoryGroupsErrorMessage = computed(() => {
     const error = this.templateCategoryGroupsQuery.error();
     return typeof error === 'string' ? error : (error?.message ?? 'Unknown error');
   });
-  private readonly effectRpcClient = inject(EffectRpcClient);
-  private createCategoryMutation = injectMutation(() => ({
-    mutationFn: ({ icon, title }: { icon: IconValue; title: string }) =>
-      this.effectRpcClient.createTemplateCategory({ icon, title }),
-  }));
+  private createCategoryMutation = injectMutation(() =>
+    this.rpc.templateCategories.create.mutationOptions(),
+  );
   private dialog = inject(MatDialog);
   private queryClient = inject(QueryClient);
 
-  private updateCategoryMutation = injectMutation(() => ({
-    mutationFn: ({
-      icon,
-      id,
-      title,
-    }: {
-      icon: IconValue;
-      id: string;
-      title: string;
-    }) => this.effectRpcClient.updateTemplateCategory({ icon, id, title }),
-  }));
+  private updateCategoryMutation = injectMutation(() =>
+    this.rpc.templateCategories.update.mutationOptions(),
+  );
 
   async openCategoryCreationDialog() {
     const defaultIcon =
@@ -101,10 +88,10 @@ export class CategoryListComponent {
         title: result.title,
       });
       await this.queryClient.invalidateQueries(
-        this.rpcQueryClient.queryFilter(['templateCategories', 'findMany']),
+        this.rpc.queryFilter(['templateCategories', 'findMany']),
       );
       await this.queryClient.invalidateQueries(
-        this.rpcQueryClient.queryFilter(['templates', 'groupedByCategory']),
+        this.rpc.queryFilter(['templates', 'groupedByCategory']),
       );
     }
   }
@@ -130,10 +117,10 @@ export class CategoryListComponent {
         title: result.title,
       });
       await this.queryClient.invalidateQueries(
-        this.rpcQueryClient.queryFilter(['templateCategories', 'findMany']),
+        this.rpc.queryFilter(['templateCategories', 'findMany']),
       );
       await this.queryClient.invalidateQueries(
-        this.rpcQueryClient.queryFilter(['templates', 'groupedByCategory']),
+        this.rpc.queryFilter(['templates', 'groupedByCategory']),
       );
     }
   }

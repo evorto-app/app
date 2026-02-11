@@ -16,7 +16,6 @@ import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
-import { EffectRpcQueryClient } from '@heddendorp/effect-angular-query';
 import {
   DEFAULT_RECEIPT_COUNTRIES,
   RECEIPT_COUNTRY_OPTIONS,
@@ -29,6 +28,7 @@ import {
 
 import { GoogleLocationType } from '../../../types/location';
 import { ConfigService } from '../../core/config.service';
+import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { injectTRPC } from '../../core/trpc-client';
 import { LocationSelectorField } from '../../shared/components/controls/location-selector/location-selector-field/location-selector-field';
 
@@ -75,7 +75,7 @@ export class GeneralSettingsComponent {
   protected readonly settingsForm = form(this.settingsModel);
   private readonly configService = inject(ConfigService);
   private readonly queryClient = inject(QueryClient);
-  private readonly rpcQueryClient = inject(EffectRpcQueryClient);
+  private readonly rpc = AppRpc.injectClient();
 
   private readonly trpc = injectTRPC();
 
@@ -122,7 +122,7 @@ export class GeneralSettingsComponent {
         {
           onSuccess: async () => {
             await this.queryClient.invalidateQueries({
-              queryKey: this.rpcQueryClient.pathKey(['config', 'tenant']),
+              queryKey: this.rpc.pathKey(['config', 'tenant']),
             });
             await this.queryClient.invalidateQueries({
               queryKey: this.trpc.discounts.getTenantProviders.pathKey(),

@@ -9,14 +9,13 @@ import {
   REQUEST_CONTEXT,
 } from '@angular/core';
 import { Meta, Title } from '@angular/platform-browser';
-import { EffectRpcQueryClient } from '@heddendorp/effect-angular-query';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 import consola from 'consola/browser';
 
 import { Permission } from '../../shared/permissions/permissions';
-import { AppRpcs } from '../../shared/rpc-contracts/app-rpcs';
 import { Context } from '../../types/custom/context';
 import { Tenant } from '../../types/custom/tenant';
+import { AppRpc } from './effect-rpc-angular-client';
 import { EffectRpcClient } from './effect-rpc-client';
 
 @Injectable({
@@ -53,11 +52,10 @@ export class ConfigService {
   };
   private _tenant!: Tenant;
 
-  private readonly rpcQueryClient = inject(EffectRpcQueryClient);
-  private readonly rpcHelpers = this.rpcQueryClient.helpersFor(AppRpcs);
+  private readonly rpc = AppRpc.injectClient();
 
   private currentTenantQuery = injectQuery(() =>
-    this.rpcHelpers.config.tenant.queryOptions(),
+    this.rpc.config.tenant.queryOptions(),
   );
 
   private document = inject(DOCUMENT);

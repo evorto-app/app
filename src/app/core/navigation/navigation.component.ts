@@ -25,11 +25,10 @@ import {
   faScannerGun,
   faUser,
 } from '@fortawesome/duotone-regular-svg-icons';
-import { EffectRpcQueryClient } from '@heddendorp/effect-angular-query';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
-import { AppRpcs } from '../../../shared/rpc-contracts/app-rpcs';
 import { IfPermissionDirective } from '../../shared/directives/if-permission.directive';
+import { AppRpc } from '../effect-rpc-angular-client';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -46,10 +45,9 @@ import { IfPermissionDirective } from '../../shared/directives/if-permission.dir
   templateUrl: './navigation.component.html',
 })
 export class NavigationComponent {
-  private readonly rpcQueryClient = inject(EffectRpcQueryClient);
-  private readonly rpcHelpers = this.rpcQueryClient.helpersFor(AppRpcs);
+  private readonly rpc = AppRpc.injectClient();
   protected readonly authenticationQuery = injectQuery(() =>
-    this.rpcHelpers.config.isAuthenticated.queryOptions(),
+    this.rpc.config.isAuthenticated.queryOptions(),
   );
   protected readonly faCalendarDays = faCalendarDays;
   protected readonly faEllipsisVertical = faEllipsisVertical;

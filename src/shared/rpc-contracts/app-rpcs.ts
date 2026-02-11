@@ -1,5 +1,6 @@
 import * as Rpc from '@effect/rpc/Rpc';
 import * as RpcGroup from '@effect/rpc/RpcGroup';
+import { asRpcMutation, asRpcQuery } from '@heddendorp/effect-angular-query';
 import { Schema } from 'effect';
 
 import { Tenant } from '../../types/custom/tenant';
@@ -17,25 +18,33 @@ export const ConfigPermissions = Schema.Array(PermissionSchema);
 
 export type ConfigPermissions = Schema.Schema.Type<typeof ConfigPermissions>;
 
-export const ConfigPublic = Rpc.make('config.public', {
-  payload: Schema.Void,
-  success: PublicConfig,
-});
+export const ConfigPublic = asRpcQuery(
+  Rpc.make('config.public', {
+    payload: Schema.Void,
+    success: PublicConfig,
+  }),
+);
 
-export const ConfigIsAuthenticated = Rpc.make('config.isAuthenticated', {
-  payload: Schema.Void,
-  success: Schema.Boolean,
-});
+export const ConfigIsAuthenticated = asRpcQuery(
+  Rpc.make('config.isAuthenticated', {
+    payload: Schema.Void,
+    success: Schema.Boolean,
+  }),
+);
 
-export const ConfigPermissionList = Rpc.make('config.permissions', {
-  payload: Schema.Void,
-  success: ConfigPermissions,
-});
+export const ConfigPermissionList = asRpcQuery(
+  Rpc.make('config.permissions', {
+    payload: Schema.Void,
+    success: ConfigPermissions,
+  }),
+);
 
-export const ConfigTenant = Rpc.make('config.tenant', {
-  payload: Schema.Void,
-  success: Tenant,
-});
+export const ConfigTenant = asRpcQuery(
+  Rpc.make('config.tenant', {
+    payload: Schema.Void,
+    success: Tenant,
+  }),
+);
 
 export const IconRpcError = Schema.Literal(
   'INVALID_ICON_NAME',
@@ -53,17 +62,21 @@ export const IconRecord = Schema.Struct({
 
 export type IconRecord = Schema.Schema.Type<typeof IconRecord>;
 
-export const IconsSearch = Rpc.make('icons.search', {
-  error: IconRpcError,
-  payload: Schema.Struct({ search: Schema.String }),
-  success: Schema.Array(IconRecord),
-});
+export const IconsSearch = asRpcQuery(
+  Rpc.make('icons.search', {
+    error: IconRpcError,
+    payload: Schema.Struct({ search: Schema.String }),
+    success: Schema.Array(IconRecord),
+  }),
+);
 
-export const IconsAdd = Rpc.make('icons.add', {
-  error: IconRpcError,
-  payload: Schema.Struct({ icon: Schema.NonEmptyString }),
-  success: Schema.Array(IconRecord),
-});
+export const IconsAdd = asRpcMutation(
+  Rpc.make('icons.add', {
+    error: IconRpcError,
+    payload: Schema.Struct({ icon: Schema.NonEmptyString }),
+    success: Schema.Array(IconRecord),
+  }),
+);
 
 export const TemplateCategoryRpcError = Schema.Literal(
   'FORBIDDEN',
@@ -84,30 +97,36 @@ export type TemplateCategoryRecord = Schema.Schema.Type<
   typeof TemplateCategoryRecord
 >;
 
-export const TemplateCategoriesFindMany = Rpc.make('templateCategories.findMany', {
-  error: TemplateCategoryRpcError,
-  payload: Schema.Void,
-  success: Schema.Array(TemplateCategoryRecord),
-});
-
-export const TemplateCategoriesCreate = Rpc.make('templateCategories.create', {
-  error: TemplateCategoryRpcError,
-  payload: Schema.Struct({
-    icon: iconSchema,
-    title: Schema.NonEmptyString,
+export const TemplateCategoriesFindMany = asRpcQuery(
+  Rpc.make('templateCategories.findMany', {
+    error: TemplateCategoryRpcError,
+    payload: Schema.Void,
+    success: Schema.Array(TemplateCategoryRecord),
   }),
-  success: Schema.Void,
-});
+);
 
-export const TemplateCategoriesUpdate = Rpc.make('templateCategories.update', {
-  error: TemplateCategoryRpcError,
-  payload: Schema.Struct({
-    icon: iconSchema,
-    id: Schema.NonEmptyString,
-    title: Schema.NonEmptyString,
+export const TemplateCategoriesCreate = asRpcMutation(
+  Rpc.make('templateCategories.create', {
+    error: TemplateCategoryRpcError,
+    payload: Schema.Struct({
+      icon: iconSchema,
+      title: Schema.NonEmptyString,
+    }),
+    success: Schema.Void,
   }),
-  success: TemplateCategoryRecord,
-});
+);
+
+export const TemplateCategoriesUpdate = asRpcMutation(
+  Rpc.make('templateCategories.update', {
+    error: TemplateCategoryRpcError,
+    payload: Schema.Struct({
+      icon: iconSchema,
+      id: Schema.NonEmptyString,
+      title: Schema.NonEmptyString,
+    }),
+    success: TemplateCategoryRecord,
+  }),
+);
 
 export const TemplateListRecord = Schema.Struct({
   icon: iconSchema,
@@ -128,13 +147,12 @@ export type TemplatesByCategoryRecord = Schema.Schema.Type<
   typeof TemplatesByCategoryRecord
 >;
 
-export const TemplatesGroupedByCategory = Rpc.make(
-  'templates.groupedByCategory',
-  {
+export const TemplatesGroupedByCategory = asRpcQuery(
+  Rpc.make('templates.groupedByCategory', {
     error: TemplateCategoryRpcError,
     payload: Schema.Void,
     success: Schema.Array(TemplatesByCategoryRecord),
-  },
+  }),
 );
 
 export class AppRpcs extends RpcGroup.make(

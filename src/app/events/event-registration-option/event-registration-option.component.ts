@@ -8,7 +8,6 @@ import {
 } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
-import { EffectRpcQueryClient } from '@heddendorp/effect-angular-query';
 import {
   injectMutation,
   injectQuery,
@@ -16,7 +15,7 @@ import {
 } from '@tanstack/angular-query-experimental';
 import { interval, map } from 'rxjs';
 
-import { AppRpcs } from '../../../shared/rpc-contracts/app-rpcs';
+import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { injectTRPC } from '../../core/trpc-client';
 
 @Component({
@@ -41,10 +40,9 @@ export class EventRegistrationOptionComponent {
     price: number;
     title: string;
   }>();
-  private readonly rpcQueryClient = inject(EffectRpcQueryClient);
-  private readonly rpcHelpers = this.rpcQueryClient.helpersFor(AppRpcs);
+  private readonly rpc = AppRpc.injectClient();
   protected readonly authenticationQuery = injectQuery(() =>
-    this.rpcHelpers.config.isAuthenticated.queryOptions(),
+    this.rpc.config.isAuthenticated.queryOptions(),
   );
   private queryClient = inject(QueryClient);
   private trpc = injectTRPC();

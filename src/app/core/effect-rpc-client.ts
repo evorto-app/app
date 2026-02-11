@@ -7,34 +7,10 @@ import { Effect, Layer } from 'effect';
 import {
   AppRpcs,
   type ConfigPermissions,
-  type IconRecord,
   type PublicConfig,
-  type TemplateCategoryRecord,
 } from '../../shared/rpc-contracts/app-rpcs';
 import { Tenant } from '../../types/custom/tenant';
-
-const normalizeBaseUrl = (value: string): string =>
-  value.endsWith('/') ? value.slice(0, -1) : value;
-
-const resolveServerBaseUrl = (): string => {
-  const processEnvironment = (
-    globalThis as {
-      process?: {
-        env?: Record<string, string | undefined>;
-      };
-    }
-  ).process?.env;
-
-  const configuredBaseUrl = processEnvironment?.['BASE_URL']?.trim();
-  if (configuredBaseUrl) {
-    return normalizeBaseUrl(configuredBaseUrl);
-  }
-
-  return 'http://localhost:4200';
-};
-
-const resolveRpcUrl = (): string =>
-  'window' in globalThis ? '/rpc' : `${resolveServerBaseUrl()}/rpc`;
+import { resolveRpcUrl } from './effect-rpc-angular-client';
 
 const rpcLayer = RpcClient.layerProtocolHttp({
   url: resolveRpcUrl(),
@@ -55,22 +31,6 @@ const runRpc = <A, E>(
   providedIn: 'root',
 })
 export class EffectRpcClient {
-  public addIcon(icon: string): Promise<readonly IconRecord[]> {
-    return runRpc((client) => client.icons.add({ icon }));
-  }
-
-  public createTemplateCategory(parameters: {
-    icon: TemplateCategoryRecord['icon'];
-    title: string;
-  }): Promise<void> {
-    return runRpc((client) =>
-      client.templateCategories.create({
-        icon: parameters.icon,
-        title: parameters.title,
-      }),
-    );
-  }
-
   public getPermissions(): Promise<ConfigPermissions> {
     return runRpc((client) => client.config.permissions());
   }
@@ -85,23 +45,5 @@ export class EffectRpcClient {
 
   public isAuthenticated(): Promise<boolean> {
     return runRpc((client) => client.config.isAuthenticated());
-  }
-
-  public searchIcons(search: string): Promise<readonly IconRecord[]> {
-    return runRpc((client) => client.icons.search({ search }));
-  }
-
-  public updateTemplateCategory(parameters: {
-    icon: TemplateCategoryRecord['icon'];
-    id: string;
-    title: string;
-  }): Promise<TemplateCategoryRecord> {
-    return runRpc((client) =>
-      client.templateCategories.update({
-        icon: parameters.icon,
-        id: parameters.id,
-        title: parameters.title,
-      }),
-    );
   }
 }

@@ -57,7 +57,7 @@
     "@fortawesome/duotone-regular-svg-icons": "^7.1.0",
     "@fortawesome/free-brands-svg-icons": "^7.1.0",
     "@googlemaps/js-api-loader": "^2.0.2",
-    "@heddendorp/effect-angular-query": "^0.0.5",
+    "@heddendorp/effect-angular-query": "0.1.1",
     "@heddendorp/tanstack-angular-query": "0.2.2",
     "@heddendorp/trpc-link-angular": "^0.0.5",
     "@material/material-color-utilities": "patch:@material/material-color-utilities@npm%3A0.4.0#./patches/@material-material-color-utilities-npm-0.4.0-9d48ca70b8.patch",

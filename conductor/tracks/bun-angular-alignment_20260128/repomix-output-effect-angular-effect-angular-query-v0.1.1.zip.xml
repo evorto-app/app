@@ -42,7 +42,7 @@ The content is organized as follows:
 </file_summary>
 
 <directory_structure>
-effect-angular-main/
+effect-angular-effect-angular-query-v0.1.1/
   .codex/
     config.toml
   .github/
@@ -61,6 +61,14 @@ effect-angular-main/
         metadata.json
         plan.md
         spec.md
+      oss_project_infra_20260130/
+        notes/
+          knope-release-workflow.md
+          readme-context-audit.md
+        index.md
+        metadata.json
+        plan.md
+        spec.md
       start_effect_platform_angular_httpclient_20260128/
         index.md
         metadata.json
@@ -70,15 +78,6 @@ effect-angular-main/
       general.md
       html-css.md
       typescript.md
-    tracks/
-      oss_project_infra_20260130/
-        notes/
-          knope-release-workflow.md
-          readme-context-audit.md
-        index.md
-        metadata.json
-        plan.md
-        spec.md
     index.md
     product-guidelines.md
     product.md
@@ -92,6 +91,8 @@ effect-angular-main/
         lib/
           effect-rpc-query-client.spec.ts
           effect-rpc-query-client.ts
+          rpc-mutation-options.spec.ts
+          rpc-mutation-options.ts
           rpc-query-helpers.spec.ts
           rpc-query-key.spec.ts
           rpc-query-key.ts
@@ -150,7 +151,7 @@ effect-angular-main/
 <files>
 This section contains the contents of the repository's files.
 
-<file path="effect-angular-main/.codex/config.toml">
+<file path="effect-angular-effect-angular-query-v0.1.1/.codex/config.toml">
 [mcp_servers.playwright-test]
 command = "npx"
 args = ["playwright", "run-test-mcp-server"]
@@ -169,7 +170,7 @@ collab = true
 steer = true
 </file>
 
-<file path="effect-angular-main/.github/workflows/prepare_release_pr.yml">
+<file path="effect-angular-effect-angular-query-v0.1.1/.github/workflows/prepare_release_pr.yml">
 name: Validate Release Readiness
 
 on:
@@ -232,7 +233,7 @@ jobs:
         run: npm pack --dry-run
 </file>
 
-<file path="effect-angular-main/.github/workflows/release.yml">
+<file path="effect-angular-effect-angular-query-v0.1.1/.github/workflows/release.yml">
 name: Release
 
 on:
@@ -278,27 +279,57 @@ jobs:
           bun run ng build effect-platform-angular
           bun run ng build effect-angular-query
 
+      - name: Check if effect-platform-angular version is unpublished
+        id: check_effect_platform_angular
+        working-directory: dist/effect-platform-angular
+        run: |
+          PACKAGE_NAME="$(node -p "require('./package.json').name")"
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+          if npm view "${PACKAGE_NAME}@${PACKAGE_VERSION}" version >/dev/null 2>&1; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "${PACKAGE_NAME}@${PACKAGE_VERSION} is already published. Skipping publish."
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+            echo "${PACKAGE_NAME}@${PACKAGE_VERSION} is not published yet. Will publish."
+          fi
+
       - name: Publish effect-platform-angular to npm
+        if: steps.check_effect_platform_angular.outputs.publish == 'true'
         working-directory: dist/effect-platform-angular
         env:
-          NODE_AUTH_TOKEN: ""
+          NODE_AUTH_TOKEN: ''
         run: npm publish
 
+      - name: Check if effect-angular-query version is unpublished
+        id: check_effect_angular_query
+        working-directory: dist/effect-angular-query
+        run: |
+          PACKAGE_NAME="$(node -p "require('./package.json').name")"
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+          if npm view "${PACKAGE_NAME}@${PACKAGE_VERSION}" version >/dev/null 2>&1; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "${PACKAGE_NAME}@${PACKAGE_VERSION} is already published. Skipping publish."
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+            echo "${PACKAGE_NAME}@${PACKAGE_VERSION} is not published yet. Will publish."
+          fi
+
       - name: Publish effect-angular-query to npm
+        if: steps.check_effect_angular_query.outputs.publish == 'true'
         working-directory: dist/effect-angular-query
         env:
-          NODE_AUTH_TOKEN: ""
+          NODE_AUTH_TOKEN: ''
         run: npm publish
 </file>
 
-<file path="effect-angular-main/.vscode/extensions.json">
+<file path="effect-angular-effect-angular-query-v0.1.1/.vscode/extensions.json">
 {
   // For more information, visit: https://go.microsoft.com/fwlink/?linkid=827846
   "recommendations": ["angular.ng-template"]
 }
 </file>
 
-<file path="effect-angular-main/.vscode/launch.json">
+<file path="effect-angular-effect-angular-query-v0.1.1/.vscode/launch.json">
 {
   // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
   "version": "0.2.0",
@@ -321,7 +352,7 @@ jobs:
 }
 </file>
 
-<file path="effect-angular-main/.vscode/mcp.json">
+<file path="effect-angular-effect-angular-query-v0.1.1/.vscode/mcp.json">
 {
   // For more information, visit: https://angular.dev/ai/mcp
   "servers": {
@@ -333,7 +364,7 @@ jobs:
 }
 </file>
 
-<file path="effect-angular-main/.vscode/tasks.json">
+<file path="effect-angular-effect-angular-query-v0.1.1/.vscode/tasks.json">
 {
   // For more information, visit: https://go.microsoft.com/fwlink/?LinkId=733558
   "version": "2.0.0",
@@ -378,7 +409,7 @@ jobs:
 }
 </file>
 
-<file path="effect-angular-main/conductor/archive/effect_rpc_angular_query_helpers_20260130/index.md">
+<file path="effect-angular-effect-angular-query-v0.1.1/conductor/archive/effect_rpc_angular_query_helpers_20260130/index.md">
 # Track effect_rpc_angular_query_helpers_20260130 Context
 
 - [Specification](./spec.md)
@@ -386,7 +417,7 @@ jobs:
 - [Metadata](./metadata.json)
 </file>
 
-<file path="effect-angular-main/conductor/archive/effect_rpc_angular_query_helpers_20260130/metadata.json">
+<file path="effect-angular-effect-angular-query-v0.1.1/conductor/archive/effect_rpc_angular_query_helpers_20260130/metadata.json">
 {
   "track_id": "effect_rpc_angular_query_helpers_20260130",
   "type": "feature",
@@ -397,7 +428,7 @@ jobs:
 }
 </file>
 
-<file path="effect-angular-main/conductor/archive/effect_rpc_angular_query_helpers_20260130/plan.md">
+<file path="effect-angular-effect-angular-query-v0.1.1/conductor/archive/effect_rpc_angular_query_helpers_20260130/plan.md">
 # Implementation Plan
 
 ## Phase 1: Core query key + options utilities [checkpoint: fb14a19]
@@ -440,7 +471,7 @@ jobs:
 - [x] Task: Conductor - User Manual Verification 'Phase 3: Packaging + docs' (Protocol in workflow.md) (686b8f9)
 </file>
 
-<file path="effect-angular-main/conductor/archive/effect_rpc_angular_query_helpers_20260130/spec.md">
+<file path="effect-angular-effect-angular-query-v0.1.1/conductor/archive/effect_rpc_angular_query_helpers_20260130/spec.md">
 # Specification
 
 ## Overview
@@ -481,7 +512,184 @@ Build an Angular-native integration between the Effect RPC client and TanStack Q
 - Additional integrations beyond Effect RPC + TanStack Query angular-query-experimental.
 </file>
 
-<file path="effect-angular-main/conductor/archive/start_effect_platform_angular_httpclient_20260128/index.md">
+<file path="effect-angular-effect-angular-query-v0.1.1/conductor/archive/oss_project_infra_20260130/notes/knope-release-workflow.md">
+# Knope Release Workflow Definition
+
+Date: 2026-02-07
+
+## Change-file Strategy
+
+- Location: `.changeset/`
+- Format: Markdown file using release headings such as `### Added`, `### Changed`, `### Fixed`.
+- Expectations:
+  - Every user-facing PR includes one new file in `.changeset/`.
+  - Keep entries concise and user-facing.
+  - Multiple entries can be grouped in a single file when needed.
+
+## Release PR/Bot Flow
+
+- Release branch: `knope/release`
+- Primary trigger condition:
+  - `main` contains new change files and a release run is initiated.
+- Result:
+  - Knope prepares version/changelog updates.
+  - A release PR is created/updated from `knope/release` into `main`.
+  - Merging the release PR publishes a GitHub release.
+
+## GitHub Actions Trigger Conditions
+
+- Manual release workflow: `workflow_dispatch`
+  - Prepares release changes
+  - Runs test/build checks
+  - Creates GitHub release through `knope release`
+- Bot release workflow: `pull_request` closed on `main`
+  - Only runs when merged PR head branch is `knope/release`
+  - Executes post-release validation/publishing tasks
+</file>
+
+<file path="effect-angular-effect-angular-query-v0.1.1/conductor/archive/oss_project_infra_20260130/notes/readme-context-audit.md">
+# README Context Audit
+
+Date: 2026-02-07
+
+## Workspace and Packages
+- Workspace root contains two library projects under `projects/`:
+  - `projects/effect-platform-angular`
+  - `projects/effect-angular-query`
+- Root package metadata:
+  - package: `effect-angular`
+  - package manager: `bun@1.2.19`
+
+## Tooling Commands
+Validated from root `package.json` scripts:
+- Install dependencies: `bun install`
+- Start dev server: `bun run start` (Angular CLI serve)
+- Build: `bun run build`
+- Test: `bun run test`
+
+## Key Runtime Dependencies
+- `@effect/platform`
+- `@angular/common`
+- `@angular/core`
+- `@angular/router`
+- `effect`
+- `rxjs`
+
+## Key Dev Dependencies
+- `@effect/rpc`
+- `@tanstack/angular-query-experimental`
+- `@angular/cli`
+- `@angular/build`
+- `ng-packagr`
+- `vitest`
+</file>
+
+<file path="effect-angular-effect-angular-query-v0.1.1/conductor/archive/oss_project_infra_20260130/index.md">
+# Track oss_project_infra_20260130 Context
+
+- [Specification](./spec.md)
+- [Implementation Plan](./plan.md)
+- [Metadata](./metadata.json)
+</file>
+
+<file path="effect-angular-effect-angular-query-v0.1.1/conductor/archive/oss_project_infra_20260130/metadata.json">
+{
+  "track_id": "oss_project_infra_20260130",
+  "type": "feature",
+  "status": "archived",
+  "created_at": "2026-01-30T14:01:00Z",
+  "updated_at": "2026-02-07T17:13:51Z",
+  "description": "Add a root README and Knope-based release tooling with GitHub Actions, plus Dependabot and core community files for OSS readiness."
+}
+</file>
+
+<file path="effect-angular-effect-angular-query-v0.1.1/conductor/archive/oss_project_infra_20260130/plan.md">
+# Plan: OSS project scaffolding + Knope release flow
+
+## Phase 1: Documentation & Community Baseline
+- [x] Task: Review existing repo context for README accuracy [29d0c77]
+    - [x] Inspect root `package.json` and workspace layout for package list
+    - [x] Confirm current install/dev/test commands from tooling
+- [x] Task: Draft and add root README [8068283]
+    - [x] Write overview and goals aligned with `conductor/product.md`
+    - [x] Add quickstart/setup using Bun + Angular workspace
+    - [x] Document key packages in the monorepo
+- [x] Task: Add community/health files [9bb3ce4]
+    - [x] Add MIT LICENSE
+    - [x] Add CODE_OF_CONDUCT
+    - [x] Add CONTRIBUTING
+    - [x] Add SECURITY
+- [~] Task: Conductor - User Manual Verification 'Phase 1: Documentation & Community Baseline' (Protocol in workflow.md)
+
+## Phase 2: Knope Release Automation
+- [x] Task: Define Knope release workflow for this repo [7a4c4fa]
+    - [x] Capture change-file strategy (location, format, expectations)
+    - [x] Map bot flow details (release PR branch, trigger conditions)
+- [x] Task: Add Knope configuration [6a73e3e]
+    - [x] Create Knope config files per bot workflow
+    - [x] Configure change-file behavior and release rules
+- [x] Task: Add GitHub Actions workflows for Knope bot flow [ad02cd8]
+    - [x] Add workflow(s) required by Knope bot
+    - [x] Ensure permissions and branch targets align with bot flow
+- [x] Task: Validate automation setup [77ccd51]
+    - [x] Sanity-check workflow YAML and config files
+    - [x] Document expected release flow in README or CONTRIBUTING
+- [~] Task: Conductor - User Manual Verification 'Phase 2: Knope Release Automation' (Protocol in workflow.md)
+
+## Phase 3: Dependency Automation
+- [ ] Task: Add Dependabot configuration
+    - [ ] Define ecosystems (npm/bun) and update schedule
+    - [ ] Set update policies for workspace layout
+- [ ] Task: Validate Dependabot config
+    - [ ] Verify file structure and paths are correct
+- [ ] Task: Conductor - User Manual Verification 'Phase 3: Dependency Automation' (Protocol in workflow.md)
+</file>
+
+<file path="effect-angular-effect-angular-query-v0.1.1/conductor/archive/oss_project_infra_20260130/spec.md">
+# Spec: Add OSS project scaffolding + Knope release flow
+
+## Overview
+Add foundational open-source project scaffolding and automation, including a root README, a Knope-based release flow aligned with the Knope GitHub Bot workflow (change files in PRs; release PRs generated by the bot), Dependabot configuration, and core community/health files.
+
+## Functional Requirements
+1. Root README
+   - High-level project overview and goals
+   - Quickstart/setup instructions aligned with current tooling (Bun, Angular workspace)
+   - Pointers to key packages/libraries in this repo
+2. Release automation
+   - Knope configuration aligned with the Knope GitHub Bot workflow
+   - Change files in PRs as the release input mechanism
+   - GitHub Actions workflow(s) to support the bot-driven release PR flow
+3. Dependabot
+   - Automated dependency update configuration for the repository
+4. Community/health files
+   - LICENSE (MIT)
+   - CODE_OF_CONDUCT
+   - CONTRIBUTING
+   - SECURITY
+
+## Non-Functional Requirements
+- Works with GitHub Actions
+- Non-interactive CI execution
+- Minimal additional tooling beyond Knope
+- Clear, maintainable documentation
+- Consistent with existing repo conventions
+
+## Acceptance Criteria
+- A new root `README.md` exists and includes overview + quickstart + package references
+- Knope is configured for a change-file-driven, bot-based release workflow
+- GitHub Actions workflows are present and aligned with the Knope bot flow
+- Dependabot configuration is present and valid
+- LICENSE, CODE_OF_CONDUCT, CONTRIBUTING, and SECURITY files are present
+- License is MIT
+
+## Out of Scope
+- Additional governance/funding files (e.g., GOVERNANCE, MAINTAINERS, FUNDING)
+- Issue/PR templates
+- Large documentation site or multi-page docs
+</file>
+
+<file path="effect-angular-effect-angular-query-v0.1.1/conductor/archive/start_effect_platform_angular_httpclient_20260128/index.md">
 # Track start_effect_platform_angular_httpclient_20260128 Context
 
 - [Specification](./spec.md)
@@ -489,7 +697,7 @@ Build an Angular-native integration between the Effect RPC client and TanStack Q
 - [Metadata](./metadata.json)
 </file>
 
-<file path="effect-angular-main/conductor/archive/start_effect_platform_angular_httpclient_20260128/metadata.json">
+<file path="effect-angular-effect-angular-query-v0.1.1/conductor/archive/start_effect_platform_angular_httpclient_20260128/metadata.json">
 {
   "track_id": "start_effect_platform_angular_httpclient_20260128",
   "type": "feature",
@@ -500,7 +708,7 @@ Build an Angular-native integration between the Effect RPC client and TanStack Q
 }
 </file>
 
-<file path="effect-angular-main/conductor/archive/start_effect_platform_angular_httpclient_20260128/plan.md">
+<file path="effect-angular-effect-angular-query-v0.1.1/conductor/archive/start_effect_platform_angular_httpclient_20260128/plan.md">
 # Implementation Plan
 
 ## Phase 1: Library Entry Points and DI [checkpoint: 1aeb891]
@@ -540,7 +748,7 @@ Build an Angular-native integration between the Effect RPC client and TanStack Q
 - [x] Task: Conductor - User Manual Verification 'Phase 3: Documentation and Readiness' (Protocol in workflow.md) (befdcc1)
 </file>
 
-<file path="effect-angular-main/conductor/archive/start_effect_platform_angular_httpclient_20260128/spec.md">
+<file path="effect-angular-effect-angular-query-v0.1.1/conductor/archive/start_effect_platform_angular_httpclient_20260128/spec.md">
 # Track Specification: Start effect-platform-angular with HttpClient, including a minimal documented Effect RPC usage example
 
 ## Context
@@ -583,7 +791,7 @@ The goal is to establish the `effect-platform-angular` package as the Angular-na
 - Documentation demonstrates how Angular apps can use the adapter as the HTTP client foundation for Effect RPC, with a minimal example.
 </file>
 
-<file path="effect-angular-main/conductor/code_styleguides/general.md">
+<file path="effect-angular-effect-angular-query-v0.1.1/conductor/code_styleguides/general.md">
 # General Code Style Principles
 
 This document outlines general coding principles that apply across all languages and frameworks used in this project.
@@ -609,7 +817,7 @@ This document outlines general coding principles that apply across all languages
 - Keep documentation up-to-date with code changes.
 </file>
 
-<file path="effect-angular-main/conductor/code_styleguides/html-css.md">
+<file path="effect-angular-effect-angular-query-v0.1.1/conductor/code_styleguides/html-css.md">
 # Google HTML/CSS Style Guide Summary
 
 This document summarizes key rules and best practices from the Google HTML/CSS Style Guide.
@@ -661,7 +869,7 @@ This document summarizes key rules and best practices from the Google HTML/CSS S
 *Source: [Google HTML/CSS Style Guide](https://google.github.io/styleguide/htmlcssguide.html)*
 </file>
 
-<file path="effect-angular-main/conductor/code_styleguides/typescript.md">
+<file path="effect-angular-effect-angular-query-v0.1.1/conductor/code_styleguides/typescript.md">
 # Google TypeScript Style Guide Summary
 
 This document summarizes key rules and best practices from the Google TypeScript Style Guide, which is enforced by the `gts` tool.
@@ -707,184 +915,7 @@ This document summarizes key rules and best practices from the Google TypeScript
 *Source: [Google TypeScript Style Guide](https://google.github.io/styleguide/tsguide.html)*
 </file>
 
-<file path="effect-angular-main/conductor/tracks/oss_project_infra_20260130/notes/knope-release-workflow.md">
-# Knope Release Workflow Definition
-
-Date: 2026-02-07
-
-## Change-file Strategy
-
-- Location: `.changeset/`
-- Format: Markdown file using release headings such as `### Added`, `### Changed`, `### Fixed`.
-- Expectations:
-  - Every user-facing PR includes one new file in `.changeset/`.
-  - Keep entries concise and user-facing.
-  - Multiple entries can be grouped in a single file when needed.
-
-## Release PR/Bot Flow
-
-- Release branch: `knope/release`
-- Primary trigger condition:
-  - `main` contains new change files and a release run is initiated.
-- Result:
-  - Knope prepares version/changelog updates.
-  - A release PR is created/updated from `knope/release` into `main`.
-  - Merging the release PR publishes a GitHub release.
-
-## GitHub Actions Trigger Conditions
-
-- Manual release workflow: `workflow_dispatch`
-  - Prepares release changes
-  - Runs test/build checks
-  - Creates GitHub release through `knope release`
-- Bot release workflow: `pull_request` closed on `main`
-  - Only runs when merged PR head branch is `knope/release`
-  - Executes post-release validation/publishing tasks
-</file>
-
-<file path="effect-angular-main/conductor/tracks/oss_project_infra_20260130/notes/readme-context-audit.md">
-# README Context Audit
-
-Date: 2026-02-07
-
-## Workspace and Packages
-- Workspace root contains two library projects under `projects/`:
-  - `projects/effect-platform-angular`
-  - `projects/effect-angular-query`
-- Root package metadata:
-  - package: `effect-angular`
-  - package manager: `bun@1.2.19`
-
-## Tooling Commands
-Validated from root `package.json` scripts:
-- Install dependencies: `bun install`
-- Start dev server: `bun run start` (Angular CLI serve)
-- Build: `bun run build`
-- Test: `bun run test`
-
-## Key Runtime Dependencies
-- `@effect/platform`
-- `@angular/common`
-- `@angular/core`
-- `@angular/router`
-- `effect`
-- `rxjs`
-
-## Key Dev Dependencies
-- `@effect/rpc`
-- `@tanstack/angular-query-experimental`
-- `@angular/cli`
-- `@angular/build`
-- `ng-packagr`
-- `vitest`
-</file>
-
-<file path="effect-angular-main/conductor/tracks/oss_project_infra_20260130/index.md">
-# Track oss_project_infra_20260130 Context
-
-- [Specification](./spec.md)
-- [Implementation Plan](./plan.md)
-- [Metadata](./metadata.json)
-</file>
-
-<file path="effect-angular-main/conductor/tracks/oss_project_infra_20260130/metadata.json">
-{
-  "track_id": "oss_project_infra_20260130",
-  "type": "feature",
-  "status": "new",
-  "created_at": "2026-01-30T14:01:00Z",
-  "updated_at": "2026-01-30T14:01:00Z",
-  "description": "Add a root README and Knope-based release tooling with GitHub Actions, plus Dependabot and core community files for OSS readiness."
-}
-</file>
-
-<file path="effect-angular-main/conductor/tracks/oss_project_infra_20260130/plan.md">
-# Plan: OSS project scaffolding + Knope release flow
-
-## Phase 1: Documentation & Community Baseline
-- [x] Task: Review existing repo context for README accuracy [29d0c77]
-    - [x] Inspect root `package.json` and workspace layout for package list
-    - [x] Confirm current install/dev/test commands from tooling
-- [x] Task: Draft and add root README [8068283]
-    - [x] Write overview and goals aligned with `conductor/product.md`
-    - [x] Add quickstart/setup using Bun + Angular workspace
-    - [x] Document key packages in the monorepo
-- [x] Task: Add community/health files [9bb3ce4]
-    - [x] Add MIT LICENSE
-    - [x] Add CODE_OF_CONDUCT
-    - [x] Add CONTRIBUTING
-    - [x] Add SECURITY
-- [~] Task: Conductor - User Manual Verification 'Phase 1: Documentation & Community Baseline' (Protocol in workflow.md)
-
-## Phase 2: Knope Release Automation
-- [x] Task: Define Knope release workflow for this repo [7a4c4fa]
-    - [x] Capture change-file strategy (location, format, expectations)
-    - [x] Map bot flow details (release PR branch, trigger conditions)
-- [x] Task: Add Knope configuration [6a73e3e]
-    - [x] Create Knope config files per bot workflow
-    - [x] Configure change-file behavior and release rules
-- [x] Task: Add GitHub Actions workflows for Knope bot flow [ad02cd8]
-    - [x] Add workflow(s) required by Knope bot
-    - [x] Ensure permissions and branch targets align with bot flow
-- [x] Task: Validate automation setup [77ccd51]
-    - [x] Sanity-check workflow YAML and config files
-    - [x] Document expected release flow in README or CONTRIBUTING
-- [~] Task: Conductor - User Manual Verification 'Phase 2: Knope Release Automation' (Protocol in workflow.md)
-
-## Phase 3: Dependency Automation
-- [ ] Task: Add Dependabot configuration
-    - [ ] Define ecosystems (npm/bun) and update schedule
-    - [ ] Set update policies for workspace layout
-- [ ] Task: Validate Dependabot config
-    - [ ] Verify file structure and paths are correct
-- [ ] Task: Conductor - User Manual Verification 'Phase 3: Dependency Automation' (Protocol in workflow.md)
-</file>
-
-<file path="effect-angular-main/conductor/tracks/oss_project_infra_20260130/spec.md">
-# Spec: Add OSS project scaffolding + Knope release flow
-
-## Overview
-Add foundational open-source project scaffolding and automation, including a root README, a Knope-based release flow aligned with the Knope GitHub Bot workflow (change files in PRs; release PRs generated by the bot), Dependabot configuration, and core community/health files.
-
-## Functional Requirements
-1. Root README
-   - High-level project overview and goals
-   - Quickstart/setup instructions aligned with current tooling (Bun, Angular workspace)
-   - Pointers to key packages/libraries in this repo
-2. Release automation
-   - Knope configuration aligned with the Knope GitHub Bot workflow
-   - Change files in PRs as the release input mechanism
-   - GitHub Actions workflow(s) to support the bot-driven release PR flow
-3. Dependabot
-   - Automated dependency update configuration for the repository
-4. Community/health files
-   - LICENSE (MIT)
-   - CODE_OF_CONDUCT
-   - CONTRIBUTING
-   - SECURITY
-
-## Non-Functional Requirements
-- Works with GitHub Actions
-- Non-interactive CI execution
-- Minimal additional tooling beyond Knope
-- Clear, maintainable documentation
-- Consistent with existing repo conventions
-
-## Acceptance Criteria
-- A new root `README.md` exists and includes overview + quickstart + package references
-- Knope is configured for a change-file-driven, bot-based release workflow
-- GitHub Actions workflows are present and aligned with the Knope bot flow
-- Dependabot configuration is present and valid
-- LICENSE, CODE_OF_CONDUCT, CONTRIBUTING, and SECURITY files are present
-- License is MIT
-
-## Out of Scope
-- Additional governance/funding files (e.g., GOVERNANCE, MAINTAINERS, FUNDING)
-- Issue/PR templates
-- Large documentation site or multi-page docs
-</file>
-
-<file path="effect-angular-main/conductor/index.md">
+<file path="effect-angular-effect-angular-query-v0.1.1/conductor/index.md">
 # Project Context
 
 ## Definition
@@ -901,7 +932,7 @@ Add foundational open-source project scaffolding and automation, including a roo
 - [Tracks Directory](./tracks/)
 </file>
 
-<file path="effect-angular-main/conductor/product-guidelines.md">
+<file path="effect-angular-effect-angular-query-v0.1.1/conductor/product-guidelines.md">
 # Product Guidelines
 
 ## Documentation Voice and Tone
@@ -922,7 +953,7 @@ Add foundational open-source project scaffolding and automation, including a roo
 - Deprecate before breaking changes and provide migration guides.
 </file>
 
-<file path="effect-angular-main/conductor/product.md">
+<file path="effect-angular-effect-angular-query-v0.1.1/conductor/product.md">
 # Product Definition
 
 ## Overview
@@ -955,11 +986,11 @@ Open-source Angular developers who want Effect-first integrations.
 - Angular 21+.
 </file>
 
-<file path="effect-angular-main/conductor/setup_state.json">
+<file path="effect-angular-effect-angular-query-v0.1.1/conductor/setup_state.json">
 {"last_successful_step": "3.3_initial_track_generated"}
 </file>
 
-<file path="effect-angular-main/conductor/tech-stack.md">
+<file path="effect-angular-effect-angular-query-v0.1.1/conductor/tech-stack.md">
 # Tech Stack
 
 ## Languages
@@ -989,7 +1020,7 @@ Open-source Angular developers who want Effect-first integrations.
 - No database or driver detected.
 </file>
 
-<file path="effect-angular-main/conductor/tracks.md">
+<file path="effect-angular-effect-angular-query-v0.1.1/conductor/tracks.md">
 # Project Tracks
 
 This file tracks all major tracks for the project. Each track has its own detailed plan in its respective folder.
@@ -997,14 +1028,12 @@ This file tracks all major tracks for the project. Each track has its own detail
 ---
 
 <!-- archived: conductor/archive/start_effect_platform_angular_httpclient_20260128 -->
+<!-- archived: conductor/archive/oss_project_infra_20260130 -->
 
 ---
-
-- [~] **Track: OSS project scaffolding + Knope release flow**
-*Link: [./tracks/oss_project_infra_20260130/](./tracks/oss_project_infra_20260130/)*
 </file>
 
-<file path="effect-angular-main/conductor/workflow.md">
+<file path="effect-angular-effect-angular-query-v0.1.1/conductor/workflow.md">
 # Project Workflow
 
 ## Guiding Principles
@@ -1340,20 +1369,29 @@ A task is complete when:
 - Keep things simple and maintainable
 </file>
 
-<file path="effect-angular-main/projects/effect-angular-query/src/lib/effect-rpc-query-client.spec.ts">
+<file path="effect-angular-effect-angular-query-v0.1.1/projects/effect-angular-query/src/lib/effect-rpc-query-client.spec.ts">
 import { TestBed } from '@angular/core/testing';
 import { Rpc, RpcClient, RpcGroup } from '@effect/rpc';
 import * as Effect from 'effect/Effect';
 import * as Layer from 'effect/Layer';
+import * as Schema from 'effect/Schema';
 
 import {
-  EFFECT_RPC_QUERY_CLIENT_CONFIG,
-  EffectRpcQueryClient,
-  provideEffectRpcQueryClient,
+  asRpcMutation,
+  createEffectRpcAngularClient,
+  createEffectRpcAngularClientConfig,
 } from './effect-rpc-query-client';
 
-const Ping = Rpc.make('Ping');
-class AppRpcs extends RpcGroup.make(Ping) {}
+const Ping = Rpc.make('Ping', {
+  payload: Schema.Struct({ id: Schema.String }),
+  success: Schema.Struct({ name: Schema.String }),
+});
+const Save = Rpc.make('save', {
+  payload: Schema.Struct({ id: Schema.String, name: Schema.String }),
+  success: Schema.Struct({ ok: Schema.Boolean }),
+});
+
+class AppRpcs extends RpcGroup.make(Ping, asRpcMutation(Save)) {}
 
 const createRpcLayer = () =>
   Layer.effect(
@@ -1367,93 +1405,157 @@ const createRpcLayer = () =>
     ),
   );
 
-describe('EffectRpcQueryClient DI', () => {
+describe('Effect RPC Angular client DI', () => {
   it('fills config defaults when omitted', () => {
-    TestBed.configureTestingModule({
-      providers: [
-        provideEffectRpcQueryClient({
-          group: AppRpcs,
-          rpcLayer: createRpcLayer(),
-        }),
-      ],
+    const config = createEffectRpcAngularClientConfig({
+      group: AppRpcs,
+      rpcLayer: createRpcLayer(),
     });
 
-    const client = TestBed.inject(EffectRpcQueryClient);
-
-    expect(client.config.defaults).toEqual({});
+    expect(config.queryDefaults).toEqual({});
+    expect(config.mutationDefaults).toEqual({});
   });
 
-  it('exposes configured values through the config token', () => {
-    const rpcLayer = createRpcLayer();
-
-    TestBed.configureTestingModule({
-      providers: [
-        provideEffectRpcQueryClient({
-          group: AppRpcs,
-          rpcLayer,
-          keyPrefix: 'app',
-          defaults: { staleTime: 5000 },
-        }),
-      ],
+  it('creates providers and injectClient for a typed singleton', () => {
+    const rpcClient = createEffectRpcAngularClient({
+      group: AppRpcs,
+      rpcLayer: createRpcLayer(),
+      keyPrefix: 'app',
+      queryDefaults: { staleTime: 5000 },
+      mutationDefaults: { retry: 1 },
     });
 
-    const config = TestBed.inject(EFFECT_RPC_QUERY_CLIENT_CONFIG);
+    TestBed.configureTestingModule({
+      providers: [rpcClient.providers],
+    });
 
-    expect(config.keyPrefix).toBe('app');
-    expect(config.defaults.staleTime).toBe(5000);
-    expect(config.rpcLayer).toBe(rpcLayer);
+    const first = TestBed.runInInjectionContext(() => rpcClient.injectClient());
+    const second = TestBed.runInInjectionContext(() => rpcClient.injectClient());
+
+    expect(first).toBe(second);
+    expect(first.Ping.queryKey({ id: '1' })).toEqual([
+      ['app', 'Ping'],
+      { input: { id: '1' }, type: 'query' },
+    ]);
+    expect(first.save.mutationKey()).toEqual([['app', 'save'], { type: 'mutation' }]);
   });
 });
 </file>
 
-<file path="effect-angular-main/projects/effect-angular-query/src/lib/effect-rpc-query-client.ts">
-import { EnvironmentProviders, InjectionToken, Injectable, inject, makeEnvironmentProviders } from '@angular/core';
+<file path="effect-angular-effect-angular-query-v0.1.1/projects/effect-angular-query/src/lib/effect-rpc-query-client.ts">
+import {
+  EnvironmentProviders,
+  InjectionToken,
+  inject,
+  makeEnvironmentProviders,
+} from '@angular/core';
 import type {
+  CreateMutationOptions,
   CreateQueryOptions,
   DefaultError,
   QueryFilters,
 } from '@tanstack/angular-query-experimental';
 import type * as Rpc from '@effect/rpc/Rpc';
 import * as RpcClient from '@effect/rpc/RpcClient';
-import type { RpcClientError } from '@effect/rpc/RpcClientError';
+import type * as RpcClientError from '@effect/rpc/RpcClientError';
 import type * as RpcGroup from '@effect/rpc/RpcGroup';
+import * as RpcSchema from '@effect/rpc/RpcSchema';
+import * as Context from 'effect/Context';
 import * as Effect from 'effect/Effect';
 import type * as Layer from 'effect/Layer';
+import * as Option from 'effect/Option';
 
+import { createRpcMutationOptions } from './rpc-mutation-options';
+import type { RpcMutationOptionsOverrides } from './rpc-mutation-options';
 import { createRpcQueryKey } from './rpc-query-key';
 import type { RpcKeyPrefix } from './rpc-query-key';
 import { createRpcQueryOptions } from './rpc-query-options';
 import type { RpcQueryOptionsOverrides } from './rpc-query-options';
 import { createRpcPathKey, createRpcQueryFilter } from './rpc-query-path';
 import type { RpcPathKey, RpcPathOptions, RpcQueryFilterOptions } from './rpc-query-path';
-import type { RpcQueryFn, RpcQueryKey, RpcQueryKeyType } from './rpc-query-types';
+import type {
+  RpcMutationFn,
+  RpcMutationKey,
+  RpcQueryFn,
+  RpcQueryKey,
+  RpcQueryKeyType,
+} from './rpc-query-types';
 
-export type EffectRpcQueryClientDefaults = RpcQueryOptionsOverrides<
+export type RpcProcedureKind = 'query' | 'mutation';
+
+const RPC_PROCEDURE_KIND_ANNOTATION = Context.GenericTag<{ readonly kind: RpcProcedureKind }>(
+  'effect-angular/RpcProcedureKind',
+);
+
+declare const RPC_PROCEDURE_KIND_BRAND: unique symbol;
+
+type RpcProcedureBrand<Kind extends RpcProcedureKind> = {
+  readonly [RPC_PROCEDURE_KIND_BRAND]?: Kind;
+};
+
+type RpcMarkable = Rpc.Any &
+  Rpc.AnyWithProps & {
+    readonly annotate: <Identifier, Service>(
+      tag: Context.Tag<Identifier, Service>,
+      value: Service,
+    ) => unknown;
+  };
+
+export type RpcQueryProcedure<Current extends Rpc.Any> = Current & RpcProcedureBrand<'query'>;
+export type RpcMutationProcedure<Current extends Rpc.Any> = Current & RpcProcedureBrand<'mutation'>;
+
+type RpcProcedureKindOf<Current extends Rpc.Any> =
+  Current extends RpcProcedureBrand<infer Kind> ? Kind : 'query';
+
+export const asRpcQuery = <Current extends RpcMarkable>(rpc: Current): RpcQueryProcedure<Current> =>
+  rpc.annotate(RPC_PROCEDURE_KIND_ANNOTATION, {
+    kind: 'query',
+  } as const) as RpcQueryProcedure<Current>;
+
+export const asRpcMutation = <Current extends RpcMarkable>(
+  rpc: Current,
+): RpcMutationProcedure<Current> =>
+  rpc.annotate(RPC_PROCEDURE_KIND_ANNOTATION, {
+    kind: 'mutation',
+  } as const) as RpcMutationProcedure<Current>;
+
+export type EffectRpcAngularClientQueryDefaults = RpcQueryOptionsOverrides<
   unknown,
   DefaultError,
   unknown,
   RpcQueryKey<unknown>
 >;
 
-export type EffectRpcQueryClientConfigInput<Rpcs extends Rpc.Any> = {
-  readonly group: RpcGroup.RpcGroup<Rpcs>;
-  readonly rpcLayer: Layer.Layer<RpcClient.Protocol, never, never>;
-  readonly keyPrefix?: RpcKeyPrefix;
-  readonly defaults?: EffectRpcQueryClientDefaults;
-};
-
-export type EffectRpcQueryClientConfig<Rpcs extends Rpc.Any> = {
-  readonly group: RpcGroup.RpcGroup<Rpcs>;
-  readonly rpcLayer: Layer.Layer<RpcClient.Protocol, never, never>;
-  readonly keyPrefix?: RpcKeyPrefix;
-  readonly defaults: EffectRpcQueryClientDefaults;
-};
-
-type RpcQueryHelperFor<RpcType extends Rpc.Any> = RpcQueryHelper<
-  Rpc.PayloadConstructor<RpcType>,
-  Rpc.Success<RpcType>,
-  Rpc.ErrorExit<RpcType> | RpcClientError
+export type EffectRpcAngularClientMutationDefaults = RpcMutationOptionsOverrides<
+  unknown,
+  DefaultError,
+  unknown,
+  unknown
 >;
+
+export type EffectRpcAngularClientConfigInput<Rpcs extends Rpc.Any> = {
+  readonly group: RpcGroup.RpcGroup<Rpcs>;
+  readonly rpcLayer: Layer.Layer<RpcClient.Protocol, never, never>;
+  readonly keyPrefix?: RpcKeyPrefix;
+  readonly queryDefaults?: EffectRpcAngularClientQueryDefaults;
+  readonly mutationDefaults?: EffectRpcAngularClientMutationDefaults;
+};
+
+export type EffectRpcAngularClientConfig<Rpcs extends Rpc.Any> = {
+  readonly group: RpcGroup.RpcGroup<Rpcs>;
+  readonly rpcLayer: Layer.Layer<RpcClient.Protocol, never, never>;
+  readonly keyPrefix?: RpcKeyPrefix;
+  readonly queryDefaults: EffectRpcAngularClientQueryDefaults;
+  readonly mutationDefaults: EffectRpcAngularClientMutationDefaults;
+};
+
+export const createEffectRpcAngularClientConfig = <Rpcs extends Rpc.Any>(
+  config: EffectRpcAngularClientConfigInput<Rpcs>,
+): EffectRpcAngularClientConfig<Rpcs> => ({
+  ...config,
+  queryDefaults: config.queryDefaults ?? {},
+  mutationDefaults: config.mutationDefaults ?? {},
+});
 
 type RpcTag<Rpcs extends Rpc.Any> = Rpc.Tag<Rpcs>;
 
@@ -1466,215 +1568,527 @@ type RpcPrefixed<Rpcs extends Rpc.Any, Prefix extends string> = Extract<
   { readonly _tag: `${Prefix}.${string}` }
 >;
 
-type RpcNonPrefixed<Rpcs extends Rpc.Any> = Exclude<
-  Rpcs,
-  { readonly _tag: `${string}.${string}` }
->;
+type RpcNonPrefixed<Rpcs extends Rpc.Any> = Exclude<Rpcs, { readonly _tag: `${string}.${string}` }>;
+
+export type RpcProcedureError<Current extends Rpc.Any> =
+  | Rpc.ErrorExit<Current>
+  | RpcClientError.RpcClientError;
 
 export type RpcQueryKeyOverrides = {
   readonly keyPrefix?: RpcKeyPrefix;
-  readonly type?: RpcQueryKeyType;
 };
 
 export type RpcQueryOptionsInput<TInput, TQueryFnData, TError, TData> = {
   readonly overrides?: RpcQueryOptionsOverrides<TQueryFnData, TError, TData, RpcQueryKey<TInput>>;
   readonly keyPrefix?: RpcKeyPrefix;
-  readonly type?: RpcQueryKeyType;
 };
 
-export type RpcQueryHelper<TInput, TQueryFnData, TError> = {
-  readonly queryKey: (input: TInput, options?: RpcQueryKeyOverrides) => RpcQueryKey<TInput>;
-  readonly queryFn: (input: TInput) => RpcQueryFn<TQueryFnData, RpcQueryKey<TInput>>;
+export type RpcMutationKeyOverrides = {
+  readonly keyPrefix?: RpcKeyPrefix;
+};
+
+export type RpcMutationOptionsInput<TQueryFnData, TError, TVariables, TOnMutateResult> = {
+  readonly overrides?: RpcMutationOptionsOverrides<
+    TQueryFnData,
+    TError,
+    TVariables,
+    TOnMutateResult
+  >;
+  readonly keyPrefix?: RpcKeyPrefix;
+};
+
+type RpcProcedureBaseHelper<Current extends Rpc.Any> = {
+  readonly call: (input: Rpc.PayloadConstructor<Current>) => Promise<Rpc.SuccessExit<Current>>;
+  readonly callEffect: (
+    input: Rpc.PayloadConstructor<Current>,
+  ) => Effect.Effect<Rpc.SuccessExit<Current>, RpcProcedureError<Current>, never>;
+};
+
+type RpcQueryProcedureHelper<Current extends Rpc.Any> = RpcProcedureBaseHelper<Current> & {
+  readonly queryKey: (
+    input: Rpc.PayloadConstructor<Current>,
+    options?: RpcQueryKeyOverrides,
+  ) => RpcQueryKey<Rpc.PayloadConstructor<Current>>;
+  readonly queryFn: (
+    input: Rpc.PayloadConstructor<Current>,
+  ) => RpcQueryFn<Rpc.SuccessExit<Current>, RpcQueryKey<Rpc.PayloadConstructor<Current>>>;
   readonly queryOptions: (
-    input: TInput,
-    options?: RpcQueryOptionsInput<TInput, TQueryFnData, TError, TQueryFnData>,
-  ) => CreateQueryOptions<TQueryFnData, TError, TQueryFnData, RpcQueryKey<TInput>>;
+    input: Rpc.PayloadConstructor<Current>,
+    options?: RpcQueryOptionsInput<
+      Rpc.PayloadConstructor<Current>,
+      Rpc.SuccessExit<Current>,
+      RpcProcedureError<Current>,
+      Rpc.SuccessExit<Current>
+    >,
+  ) => CreateQueryOptions<
+    Rpc.SuccessExit<Current>,
+    RpcProcedureError<Current>,
+    Rpc.SuccessExit<Current>,
+    RpcQueryKey<Rpc.PayloadConstructor<Current>>
+  >;
 };
 
-type RpcQueryHelpersFrom<Rpcs extends Rpc.Any, Prefix extends string> = {
+type RpcMutationProcedureHelper<Current extends Rpc.Any> = RpcProcedureBaseHelper<Current> & {
+  readonly mutationKey: (options?: RpcMutationKeyOverrides) => RpcMutationKey;
+  readonly mutationFn: () => RpcMutationFn<
+    Rpc.SuccessExit<Current>,
+    Rpc.PayloadConstructor<Current>,
+    RpcProcedureError<Current>,
+    unknown
+  >;
+  readonly mutationOptions: <TOnMutateResult = unknown>(
+    options?: RpcMutationOptionsInput<
+      Rpc.SuccessExit<Current>,
+      RpcProcedureError<Current>,
+      Rpc.PayloadConstructor<Current>,
+      TOnMutateResult
+    >,
+  ) => CreateMutationOptions<
+    Rpc.SuccessExit<Current>,
+    RpcProcedureError<Current>,
+    Rpc.PayloadConstructor<Current>,
+    TOnMutateResult
+  >;
+};
+
+type RpcProcedureHelperFor<Current extends Rpc.Any> =
+  RpcProcedureKindOf<Current> extends 'mutation'
+    ? RpcMutationProcedureHelper<Current>
+    : RpcQueryProcedureHelper<Current>;
+
+type RpcHelpersFrom<Rpcs extends Rpc.Any, Prefix extends string> = {
   readonly [Current in Rpcs as Current['_tag'] extends `${Prefix}.${infer Method}`
     ? Method
-    : Current['_tag']]: RpcQueryHelperFor<Current>;
+    : Current['_tag']]: RpcProcedureHelperFor<Current>;
 };
 
-export type RpcQueryHelpers<Rpcs extends Rpc.Any> = RpcQueryHelpersFrom<
+export type EffectRpcAngularClient<Rpcs extends Rpc.Any> = RpcHelpersFrom<
   RpcNonPrefixed<Rpcs>,
   ''
 > & {
-  readonly [Prefix in RpcPrefixes<Rpcs>]: RpcQueryHelpersFrom<RpcPrefixed<Rpcs, Prefix>, Prefix>;
+  readonly [Prefix in RpcPrefixes<Rpcs>]: RpcHelpersFrom<RpcPrefixed<Rpcs, Prefix>, Prefix>;
+} & {
+  readonly pathKey: (pathSegments: readonly string[], options?: RpcPathOptions) => RpcPathKey;
+  readonly queryFilter: (
+    pathSegments: readonly string[],
+    options?: RpcQueryFilterOptions,
+  ) => QueryFilters<RpcPathKey>;
 };
 
-export const EFFECT_RPC_QUERY_CLIENT_CONFIG: InjectionToken<EffectRpcQueryClientConfig<Rpc.Any>> =
-  new InjectionToken<EffectRpcQueryClientConfig<Rpc.Any>>('EFFECT_RPC_QUERY_CLIENT_CONFIG');
-
-/**
- * Normalizes the query client config with default values.
- */
-export const createEffectRpcQueryClientConfig = <Rpcs extends Rpc.Any>(
-  config: EffectRpcQueryClientConfigInput<Rpcs>,
-): EffectRpcQueryClientConfig<Rpcs> => {
-  const defaults: EffectRpcQueryClientDefaults = config.defaults ?? {};
-
-  return {
-    ...config,
-    defaults,
-  };
+export type EffectRpcAngularClientFactory<Rpcs extends Rpc.Any> = {
+  readonly token: InjectionToken<EffectRpcAngularClient<Rpcs>>;
+  readonly providers: EnvironmentProviders;
+  readonly injectClient: () => EffectRpcAngularClient<Rpcs>;
 };
-
-/**
- * Registers the Effect RPC query client configuration.
- */
-export const provideEffectRpcQueryClient = <Rpcs extends Rpc.Any>(
-  config: EffectRpcQueryClientConfigInput<Rpcs>,
-): EnvironmentProviders =>
-  makeEnvironmentProviders([
-    {
-      provide: EFFECT_RPC_QUERY_CLIENT_CONFIG,
-      useValue: createEffectRpcQueryClientConfig(config),
-    },
-  ]);
 
 const getPathSegments = (tag: string): readonly string[] => tag.split('.');
 
 const resolveKeyPrefix = (
   base: RpcKeyPrefix | undefined,
-  overrides: RpcQueryKeyOverrides | undefined,
-): RpcKeyPrefix | undefined => overrides?.keyPrefix ?? base;
+  override: RpcKeyPrefix | undefined,
+): RpcKeyPrefix | undefined => override ?? base;
 
-const createRpcQueryHelpers = <Rpcs extends Rpc.Any>(
-  config: EffectRpcQueryClientConfig<Rpcs>,
-  group: RpcGroup.RpcGroup<Rpcs>,
-): RpcQueryHelpers<Rpcs> => {
-  const helpers = new Map<string, RpcQueryHelper<unknown, unknown, DefaultError>>();
+const getProcedureKind = (rpc: Rpc.AnyWithProps): RpcProcedureKind => {
+  const maybeKind = Context.getOption(rpc.annotations, RPC_PROCEDURE_KIND_ANNOTATION);
 
-  const createHelper = (tag: string): RpcQueryHelper<unknown, unknown, DefaultError> => {
-    const pathSegments = getPathSegments(tag);
+  if (Option.isSome(maybeKind) && maybeKind.value.kind === 'mutation') {
+    return 'mutation';
+  }
 
-    const queryKey = (input: unknown, overrides?: RpcQueryKeyOverrides) =>
-      createRpcQueryKey(pathSegments, {
-        input,
-        keyPrefix: resolveKeyPrefix(config.keyPrefix, overrides),
-        type: overrides?.type,
-      });
+  return 'query';
+};
 
-    const queryFn = (input: unknown) => {
-      const run = () => {
-        const program = Effect.flatMap(RpcClient.make(group), (client) => {
-          const dotIndex = tag.indexOf('.');
-          const root = client as Record<string, unknown>;
-          const target =
-            dotIndex === -1
-              ? root
-              : (root[tag.slice(0, dotIndex)] as Record<string, unknown>);
-          const key = dotIndex === -1 ? tag : tag.slice(dotIndex + 1);
-          // RPC client shape is derived from tag prefixes at runtime.
-          const call = target[key] as (payload: unknown) => Effect.Effect<unknown, unknown, unknown>;
-          return call(input);
-        }).pipe(Effect.provide(config.rpcLayer), Effect.scoped);
+const createStreamUnsupportedError = (tag: string): Error =>
+  new Error(
+    `RPC procedure "${tag}" returns a Stream and is not supported by this integration. ` +
+      'Use a stream-specific integration path for this procedure.',
+  );
 
-        // Rpc middleware requirements are resolved by the configured layer.
-        return Effect.runPromise(program as Effect.Effect<unknown, unknown, never>);
-      };
+const asRecord = (value: unknown): Record<string, unknown> | undefined =>
+  typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : undefined;
 
-      return () => run();
-    };
+const resolveProcedureCall = <Current extends Rpc.Any>(
+  client: unknown,
+  pathSegments: readonly string[],
+): ((
+  input: Rpc.PayloadConstructor<Current>,
+) => Effect.Effect<Rpc.SuccessExit<Current>, unknown, never>) => {
+  let target: unknown = client;
 
-    const queryOptions = (
-      input: unknown,
-      options: RpcQueryOptionsInput<unknown, unknown, DefaultError, unknown> = {},
-    ) =>
-      createRpcQueryOptions({
-        pathSegments,
-        input,
-        keyPrefix: resolveKeyPrefix(config.keyPrefix, options),
-        type: options.type,
-        queryFn: queryFn(input),
-        defaults: config.defaults,
-        overrides: options.overrides,
-      });
-
-    return { queryKey, queryFn, queryOptions };
-  };
-
-  const getHelper = (tag: string) => {
-    const existing = helpers.get(tag);
-    if (existing) {
-      return existing;
+  for (const segment of pathSegments) {
+    const container = asRecord(target);
+    if (!container || !(segment in container)) {
+      throw new Error(
+        `RPC procedure "${pathSegments.join('.')}" is missing on the generated client.`,
+      );
     }
-    const helper = createHelper(tag);
-    helpers.set(tag, helper);
-    return helper;
-  };
+    target = container[segment];
+  }
 
-  const root: Record<string, unknown> = {};
+  if (typeof target !== 'function') {
+    throw new Error(
+      `RPC procedure "${pathSegments.join('.')}" resolved to a non-callable value on the generated client.`,
+    );
+  }
 
-  for (const tag of group.requests.keys()) {
-    const helper = getHelper(tag);
-    const dotIndex = tag.indexOf('.');
-    if (dotIndex === -1) {
-      root[tag] = helper;
+  return target as (
+    input: Rpc.PayloadConstructor<Current>,
+  ) => Effect.Effect<Rpc.SuccessExit<Current>, unknown, never>;
+};
+
+const assignNestedHelper = (
+  root: Record<string, unknown>,
+  pathSegments: readonly string[],
+  helper: unknown,
+): void => {
+  if (pathSegments.length === 0) {
+    return;
+  }
+
+  if (
+    pathSegments.length === 1 &&
+    (pathSegments[0] === 'pathKey' || pathSegments[0] === 'queryFilter')
+  ) {
+    throw new Error(
+      `RPC procedure "${pathSegments[0]}" conflicts with a reserved root helper name in EffectRpcAngularClient.`,
+    );
+  }
+
+  let cursor = root;
+
+  for (let index = 0; index < pathSegments.length - 1; index += 1) {
+    const segment = pathSegments[index]!;
+    const existing = cursor[segment];
+
+    if (existing === undefined) {
+      const next: Record<string, unknown> = {};
+      cursor[segment] = next;
+      cursor = next;
       continue;
     }
 
-    const prefix = tag.slice(0, dotIndex);
-    const method = tag.slice(dotIndex + 1);
-    const existing = root[prefix];
-    const container =
-      existing && typeof existing === 'object' ? (existing as Record<string, unknown>) : {};
-    container[method] = helper;
-    root[prefix] = container;
+    const existingContainer = asRecord(existing);
+    if (!existingContainer) {
+      throw new Error(
+        `RPC procedure path "${pathSegments.join('.')}" conflicts with an existing non-object helper segment "${segment}".`,
+      );
+    }
+
+    cursor = existingContainer;
   }
 
-  return root as RpcQueryHelpers<Rpcs>;
+  const leaf = pathSegments[pathSegments.length - 1]!;
+  cursor[leaf] = helper;
+};
+
+const createProcedureHelper = <Rpcs extends Rpc.Any, Current extends Rpcs>(
+  config: EffectRpcAngularClientConfig<Rpcs>,
+  group: RpcGroup.RpcGroup<Rpcs>,
+  tag: string,
+  rpc: Rpc.AnyWithProps,
+): RpcProcedureHelperFor<Current> => {
+  const pathSegments = getPathSegments(tag);
+  const procedureKind = getProcedureKind(rpc);
+  const streamUnsupportedError = RpcSchema.isStreamSchema(rpc.successSchema)
+    ? createStreamUnsupportedError(tag)
+    : undefined;
+
+  const throwIfStreamProcedure = (): void => {
+    if (streamUnsupportedError) {
+      throw streamUnsupportedError;
+    }
+  };
+
+  const callEffect = (input: Rpc.PayloadConstructor<Current>) => {
+    throwIfStreamProcedure();
+
+    const program = Effect.flatMap(RpcClient.make(group), (client) => {
+      const call = resolveProcedureCall<Current>(client, pathSegments);
+      return call(input);
+    }).pipe(Effect.provide(config.rpcLayer), Effect.scoped);
+
+    return program as Effect.Effect<Rpc.SuccessExit<Current>, RpcProcedureError<Current>, never>;
+  };
+
+  const call = (input: Rpc.PayloadConstructor<Current>) => Effect.runPromise(callEffect(input));
+
+  const base: RpcProcedureBaseHelper<Current> = { call, callEffect };
+
+  if (procedureKind === 'mutation') {
+    const mutationKey = (options?: RpcMutationKeyOverrides) =>
+      createRpcQueryKey(pathSegments, {
+        keyPrefix: resolveKeyPrefix(config.keyPrefix, options?.keyPrefix),
+        type: 'mutation',
+      }) as RpcMutationKey;
+
+    const mutationFn = () => async (input: Rpc.PayloadConstructor<Current>) => call(input);
+
+    const mutationOptions = <TOnMutateResult = unknown>(
+      options: RpcMutationOptionsInput<
+        Rpc.SuccessExit<Current>,
+        RpcProcedureError<Current>,
+        Rpc.PayloadConstructor<Current>,
+        TOnMutateResult
+      > = {},
+    ) =>
+      createRpcMutationOptions({
+        pathSegments,
+        keyPrefix: resolveKeyPrefix(config.keyPrefix, options.keyPrefix),
+        mutationFn: mutationFn() as RpcMutationFn<
+          Rpc.SuccessExit<Current>,
+          Rpc.PayloadConstructor<Current>,
+          RpcProcedureError<Current>,
+          TOnMutateResult
+        >,
+        defaults: config.mutationDefaults as RpcMutationOptionsOverrides<
+          Rpc.SuccessExit<Current>,
+          RpcProcedureError<Current>,
+          Rpc.PayloadConstructor<Current>,
+          TOnMutateResult
+        >,
+        overrides: options.overrides,
+      });
+
+    return {
+      ...base,
+      mutationKey,
+      mutationFn,
+      mutationOptions,
+    } as unknown as RpcProcedureHelperFor<Current>;
+  }
+
+  const queryKey = (input: Rpc.PayloadConstructor<Current>, options?: RpcQueryKeyOverrides) =>
+    createRpcQueryKey(pathSegments, {
+      input,
+      keyPrefix: resolveKeyPrefix(config.keyPrefix, options?.keyPrefix),
+      type: 'query' satisfies RpcQueryKeyType,
+    });
+
+  const queryFn = (input: Rpc.PayloadConstructor<Current>) => () => call(input);
+
+  const queryOptions = (
+    input: Rpc.PayloadConstructor<Current>,
+    options: RpcQueryOptionsInput<
+      Rpc.PayloadConstructor<Current>,
+      Rpc.SuccessExit<Current>,
+      RpcProcedureError<Current>,
+      Rpc.SuccessExit<Current>
+    > = {},
+  ) =>
+    createRpcQueryOptions({
+      pathSegments,
+      input,
+      keyPrefix: resolveKeyPrefix(config.keyPrefix, options.keyPrefix),
+      type: 'query',
+      queryFn: queryFn(input),
+      defaults: config.queryDefaults as RpcQueryOptionsOverrides<
+        Rpc.SuccessExit<Current>,
+        RpcProcedureError<Current>,
+        Rpc.SuccessExit<Current>,
+        RpcQueryKey<Rpc.PayloadConstructor<Current>>
+      >,
+      overrides: options.overrides,
+    });
+
+  return {
+    ...base,
+    queryKey,
+    queryFn,
+    queryOptions,
+  } as unknown as RpcProcedureHelperFor<Current>;
+};
+
+const createEffectRpcAngularClientInstance = <Rpcs extends Rpc.Any>(
+  config: EffectRpcAngularClientConfig<Rpcs>,
+): EffectRpcAngularClient<Rpcs> => {
+  const root: Record<string, unknown> = {
+    pathKey: (pathSegments: readonly string[], options: RpcPathOptions = {}) =>
+      createRpcPathKey(pathSegments, {
+        keyPrefix: options.keyPrefix ?? config.keyPrefix,
+      }),
+    queryFilter: (pathSegments: readonly string[], options: RpcQueryFilterOptions = {}) =>
+      createRpcQueryFilter(pathSegments, {
+        keyPrefix: options.keyPrefix ?? config.keyPrefix,
+        exact: options.exact,
+      }),
+  };
+
+  for (const [tag, rpc] of config.group.requests.entries()) {
+    const helper = createProcedureHelper<Rpcs, Rpcs>(
+      config,
+      config.group,
+      tag,
+      rpc as unknown as Rpc.AnyWithProps,
+    );
+    assignNestedHelper(root, getPathSegments(tag), helper);
+  }
+
+  return root as EffectRpcAngularClient<Rpcs>;
+};
+
+export const createEffectRpcAngularClient = <Rpcs extends Rpc.Any>(
+  input: EffectRpcAngularClientConfigInput<Rpcs>,
+): EffectRpcAngularClientFactory<Rpcs> => {
+  const config = createEffectRpcAngularClientConfig(input);
+  const token = new InjectionToken<EffectRpcAngularClient<Rpcs>>('EFFECT_RPC_ANGULAR_CLIENT');
+
+  const providers = makeEnvironmentProviders([
+    {
+      provide: token,
+      useFactory: () => createEffectRpcAngularClientInstance(config),
+    },
+  ]);
+
+  const injectClient = () => inject(token);
+
+  return { token, providers, injectClient };
+};
+</file>
+
+<file path="effect-angular-effect-angular-query-v0.1.1/projects/effect-angular-query/src/lib/rpc-mutation-options.spec.ts">
+import { createRpcMutationOptions } from './rpc-mutation-options';
+
+describe('createRpcMutationOptions', () => {
+  it('builds mutation options with mutationKey and mutationFn', () => {
+    const mutationFn = async (input: { id: string }) => input.id;
+
+    const options = createRpcMutationOptions({
+      pathSegments: ['users', 'update'],
+      mutationFn,
+    });
+
+    expect(options.mutationKey).toEqual([['users', 'update'], { type: 'mutation' }]);
+    expect(options.mutationFn).toBe(mutationFn);
+  });
+
+  it('attaches rpc metadata with the procedure path', () => {
+    const options = createRpcMutationOptions({
+      pathSegments: ['users', 'update'],
+      mutationFn: async () => 'ok',
+    });
+
+    expect(options.meta).toMatchObject({ rpc: { path: ['users', 'update'] } });
+  });
+
+  it('merges defaults with overrides', () => {
+    const options = createRpcMutationOptions({
+      pathSegments: ['users', 'update'],
+      mutationFn: async () => 'ok',
+      defaults: {
+        retry: 1,
+        meta: { source: 'default' },
+      },
+      overrides: {
+        retry: 2,
+        meta: { source: 'override', tags: ['a'] },
+      },
+    });
+
+    expect(options.retry).toBe(2);
+    expect(options.meta).toMatchObject({
+      source: 'override',
+      tags: ['a'],
+      rpc: { path: ['users', 'update'] },
+    });
+  });
+
+  it('supports keyPrefix', () => {
+    const options = createRpcMutationOptions({
+      pathSegments: ['users', 'update'],
+      keyPrefix: ['app', 'v1'],
+      mutationFn: async () => 'ok',
+    });
+
+    expect(options.mutationKey).toEqual([['app', 'v1', 'users', 'update'], { type: 'mutation' }]);
+  });
+});
+</file>
+
+<file path="effect-angular-effect-angular-query-v0.1.1/projects/effect-angular-query/src/lib/rpc-mutation-options.ts">
+import type { CreateMutationOptions, DefaultError } from '@tanstack/angular-query-experimental';
+
+import { createRpcQueryKey } from './rpc-query-key';
+import type { RpcKeyPrefix } from './rpc-query-key';
+import type { RpcMutationFn, RpcMutationKey } from './rpc-query-types';
+
+export type RpcMutationMeta = {
+  readonly path: readonly string[];
+};
+
+export type RpcMutationMetaEnvelope = {
+  readonly rpc: RpcMutationMeta;
+};
+
+export type RpcMutationOptionsOverrides<TData, TError, TVariables, TOnMutateResult> = Omit<
+  CreateMutationOptions<TData, TError, TVariables, TOnMutateResult>,
+  'mutationKey' | 'mutationFn'
+>;
+
+export type RpcMutationOptionsConfig<TData, TError, TVariables, TOnMutateResult> = {
+  readonly pathSegments: readonly string[];
+  readonly keyPrefix?: RpcKeyPrefix;
+  readonly mutationFn: RpcMutationFn<TData, TVariables, TError, TOnMutateResult>;
+  readonly defaults?: RpcMutationOptionsOverrides<TData, TError, TVariables, TOnMutateResult>;
+  readonly overrides?: RpcMutationOptionsOverrides<TData, TError, TVariables, TOnMutateResult>;
 };
 
 /**
- * Injectable entry point for RPC query helpers.
+ * Builds TanStack Mutation options for an RPC procedure, merging defaults and overrides.
  */
-@Injectable({ providedIn: 'root' })
-export class EffectRpcQueryClient {
-  readonly config: EffectRpcQueryClientConfig<Rpc.Any> = inject(EFFECT_RPC_QUERY_CLIENT_CONFIG);
+export const createRpcMutationOptions = <
+  TData,
+  TError = DefaultError,
+  TVariables = void,
+  TOnMutateResult = unknown,
+>(
+  config: RpcMutationOptionsConfig<TData, TError, TVariables, TOnMutateResult>,
+): CreateMutationOptions<TData, TError, TVariables, TOnMutateResult> => {
+  const meta: RpcMutationMetaEnvelope & Record<string, unknown> = {
+    ...(config.defaults?.meta ?? {}),
+    ...(config.overrides?.meta ?? {}),
+    rpc: { path: [...config.pathSegments] },
+  };
 
-  helpersFor<Rpcs extends Rpc.Any>(group: RpcGroup.RpcGroup<Rpcs>): RpcQueryHelpers<Rpcs> {
-    // Config is bound to the same RPC group at runtime via DI.
-    const config = this.config as unknown as EffectRpcQueryClientConfig<Rpcs>;
-    return createRpcQueryHelpers(config, group);
-  }
-
-  pathKey(pathSegments: readonly string[], options: RpcPathOptions = {}): RpcPathKey {
-    return createRpcPathKey(pathSegments, {
-      keyPrefix: options.keyPrefix ?? this.config.keyPrefix,
-    });
-  }
-
-  queryFilter(
-    pathSegments: readonly string[],
-    options: RpcQueryFilterOptions = {},
-  ): QueryFilters<RpcPathKey> {
-    return createRpcQueryFilter(pathSegments, {
-      keyPrefix: options.keyPrefix ?? this.config.keyPrefix,
-      exact: options.exact,
-    });
-  }
-}
+  return {
+    ...config.defaults,
+    ...config.overrides,
+    mutationKey: createRpcQueryKey(config.pathSegments, {
+      keyPrefix: config.keyPrefix,
+      type: 'mutation',
+    }) as RpcMutationKey,
+    mutationFn: config.mutationFn,
+    meta,
+  };
+};
 </file>
 
-<file path="effect-angular-main/projects/effect-angular-query/src/lib/rpc-query-helpers.spec.ts">
+<file path="effect-angular-effect-angular-query-v0.1.1/projects/effect-angular-query/src/lib/rpc-query-helpers.spec.ts">
 import { TestBed } from '@angular/core/testing';
 import { QueryClient } from '@tanstack/angular-query-experimental';
-import { Rpc, RpcClient, RpcClientError, RpcGroup } from '@effect/rpc';
+import { Rpc, RpcClient, RpcClientError, RpcGroup, RpcSchema } from '@effect/rpc';
 import * as Effect from 'effect/Effect';
 import * as Layer from 'effect/Layer';
 import * as Schema from 'effect/Schema';
 
-import { EffectRpcQueryClient, provideEffectRpcQueryClient } from './effect-rpc-query-client';
+import { asRpcMutation, createEffectRpcAngularClient } from './effect-rpc-query-client';
 
 const GetUser = Rpc.make('users.get', {
   payload: Schema.Struct({ id: Schema.String }),
   success: Schema.Struct({ name: Schema.String }),
 });
 
-class AppRpcs extends RpcGroup.make(GetUser) {}
+const UpdateUserName = Rpc.make('users.updateName', {
+  payload: Schema.Struct({ id: Schema.String, name: Schema.String }),
+  success: Schema.Struct({ ok: Schema.Boolean }),
+});
+
+const UserEvents = Rpc.make('users.events', {
+  payload: Schema.Struct({ id: Schema.String }),
+  success: RpcSchema.Stream({ success: Schema.String, failure: Schema.Never }),
+});
+
+class AppRpcs extends RpcGroup.make(GetUser, asRpcMutation(UpdateUserName)) {}
+class StreamRpcs extends RpcGroup.make(UserEvents) {}
 
 const createFailingRpcLayer = (error: RpcClientError.RpcClientError) =>
   Layer.effect(
@@ -1688,91 +2102,130 @@ const createFailingRpcLayer = (error: RpcClientError.RpcClientError) =>
     ),
   );
 
-describe('EffectRpcQueryClient helpers', () => {
-  it('builds per-procedure query keys and options', () => {
-    TestBed.configureTestingModule({
-      providers: [
-        provideEffectRpcQueryClient({
-          group: AppRpcs,
-          rpcLayer: createFailingRpcLayer(
-            new RpcClientError.RpcClientError({
-              reason: 'Protocol',
-              message: 'Not used',
-            }),
-          ),
-          keyPrefix: 'app',
-          defaults: { staleTime: 5000 },
-        }),
-      ],
+describe('Effect RPC Angular client helpers', () => {
+  it('builds query helpers and query options for query procedures', () => {
+    const rpcClient = createEffectRpcAngularClient({
+      group: AppRpcs,
+      rpcLayer: createFailingRpcLayer(
+        new RpcClientError.RpcClientError({ reason: 'Protocol', message: 'Not used' }),
+      ),
+      keyPrefix: 'app',
+      queryDefaults: { staleTime: 5000 },
     });
 
-    const client = TestBed.inject(EffectRpcQueryClient);
-    const helpers = client.helpersFor(AppRpcs);
+    TestBed.configureTestingModule({ providers: [rpcClient.providers] });
 
-    const key = helpers.users.get.queryKey({ id: '1' });
-    expect(key).toEqual([['app', 'users', 'get'], { input: { id: '1' } }]);
+    const client = TestBed.runInInjectionContext(() => rpcClient.injectClient());
 
-    const options = helpers.users.get.queryOptions({ id: '1' }, { overrides: { retry: 2 } });
-    expect(options.queryKey).toEqual([['app', 'users', 'get'], { input: { id: '1' } }]);
+    const key = client.users.get.queryKey({ id: '1' });
+    expect(key).toEqual([['app', 'users', 'get'], { input: { id: '1' }, type: 'query' }]);
+
+    const options = client.users.get.queryOptions({ id: '1' }, { overrides: { retry: 2 } });
+    expect(options.queryKey).toEqual([
+      ['app', 'users', 'get'],
+      { input: { id: '1' }, type: 'query' },
+    ]);
     expect(options.retry).toBe(2);
     expect(options.staleTime).toBe(5000);
     expect(options.meta).toMatchObject({ rpc: { path: ['users', 'get'] } });
   });
 
-  it('executes queryFn through the rpc layer', async () => {
+  it('builds mutation helpers and mutation options for mutation procedures', () => {
+    const rpcClient = createEffectRpcAngularClient({
+      group: AppRpcs,
+      rpcLayer: createFailingRpcLayer(
+        new RpcClientError.RpcClientError({ reason: 'Protocol', message: 'Not used' }),
+      ),
+      keyPrefix: ['app', 'v1'],
+      mutationDefaults: { retry: 1 },
+    });
+
+    TestBed.configureTestingModule({ providers: [rpcClient.providers] });
+
+    const client = TestBed.runInInjectionContext(() => rpcClient.injectClient());
+
+    expect(client.users.updateName.mutationKey()).toEqual([
+      ['app', 'v1', 'users', 'updateName'],
+      { type: 'mutation' },
+    ]);
+
+    const options = client.users.updateName.mutationOptions({
+      overrides: { retry: 2 },
+    });
+
+    expect(options.retry).toBe(2);
+    expect(options.meta).toMatchObject({ rpc: { path: ['users', 'updateName'] } });
+  });
+
+  it('executes queryFn and mutationFn through the rpc layer', async () => {
     const error = new RpcClientError.RpcClientError({
       reason: 'Protocol',
       message: 'Test failure',
     });
 
-    TestBed.configureTestingModule({
-      providers: [
-        provideEffectRpcQueryClient({
-          group: AppRpcs,
-          rpcLayer: createFailingRpcLayer(error),
-        }),
-      ],
+    const rpcClient = createEffectRpcAngularClient({
+      group: AppRpcs,
+      rpcLayer: createFailingRpcLayer(error),
     });
 
-    const client = TestBed.inject(EffectRpcQueryClient);
-    const helpers = client.helpersFor(AppRpcs);
-    const queryFn = helpers.users.get.queryFn({ id: '1' });
-    const queryKey = helpers.users.get.queryKey({ id: '1' });
-    const context = {
+    TestBed.configureTestingModule({ providers: [rpcClient.providers] });
+
+    const client = TestBed.runInInjectionContext(() => rpcClient.injectClient());
+
+    const queryFn = client.users.get.queryFn({ id: '1' });
+    const queryKey = client.users.get.queryKey({ id: '1' });
+    const queryContext = {
       client: new QueryClient(),
       queryKey,
       signal: new AbortController().signal,
       meta: undefined,
     };
 
-    await expect(queryFn(context)).rejects.toMatchObject({ message: 'Test failure' });
+    await expect(queryFn(queryContext)).rejects.toMatchObject({ message: 'Test failure' });
+
+    const mutationFn = client.users.updateName.mutationFn();
+    await expect(
+      mutationFn({ id: '1', name: 'Ada' }, { client: new QueryClient(), meta: undefined }),
+    ).rejects.toMatchObject({
+      message: 'Test failure',
+    });
   });
 
   it('builds path helpers for subtree invalidation', () => {
-    TestBed.configureTestingModule({
-      providers: [
-        provideEffectRpcQueryClient({
-          group: AppRpcs,
-          rpcLayer: createFailingRpcLayer(
-            new RpcClientError.RpcClientError({
-              reason: 'Protocol',
-              message: 'Not used',
-            }),
-          ),
-          keyPrefix: ['app', 'v1'],
-        }),
-      ],
+    const rpcClient = createEffectRpcAngularClient({
+      group: AppRpcs,
+      rpcLayer: createFailingRpcLayer(
+        new RpcClientError.RpcClientError({ reason: 'Protocol', message: 'Not used' }),
+      ),
+      keyPrefix: ['app', 'v1'],
     });
 
-    const client = TestBed.inject(EffectRpcQueryClient);
+    TestBed.configureTestingModule({ providers: [rpcClient.providers] });
+
+    const client = TestBed.runInInjectionContext(() => rpcClient.injectClient());
 
     expect(client.pathKey(['users'])).toEqual([['app', 'v1', 'users']]);
     expect(client.queryFilter(['users'])).toEqual({ queryKey: [['app', 'v1', 'users']] });
   });
+
+  it('throws explicit errors for stream procedures', () => {
+    const rpcClient = createEffectRpcAngularClient({
+      group: StreamRpcs,
+      rpcLayer: createFailingRpcLayer(
+        new RpcClientError.RpcClientError({ reason: 'Protocol', message: 'Not used' }),
+      ),
+    });
+
+    TestBed.configureTestingModule({ providers: [rpcClient.providers] });
+
+    const client = TestBed.runInInjectionContext(() => rpcClient.injectClient());
+
+    expect(() => client.users.events.call({ id: '1' })).toThrow(/returns a Stream/);
+  });
 });
 </file>
 
-<file path="effect-angular-main/projects/effect-angular-query/src/lib/rpc-query-key.spec.ts">
+<file path="effect-angular-effect-angular-query-v0.1.1/projects/effect-angular-query/src/lib/rpc-query-key.spec.ts">
 import { createRpcQueryKey } from './rpc-query-key';
 
 describe('createRpcQueryKey', () => {
@@ -1808,7 +2261,7 @@ describe('createRpcQueryKey', () => {
 });
 </file>
 
-<file path="effect-angular-main/projects/effect-angular-query/src/lib/rpc-query-key.ts">
+<file path="effect-angular-effect-angular-query-v0.1.1/projects/effect-angular-query/src/lib/rpc-query-key.ts">
 import type { RpcQueryKey, RpcQueryKeyMeta, RpcQueryKeyType } from './rpc-query-types';
 
 export type RpcKeyPrefix = string | readonly string[];
@@ -1850,7 +2303,7 @@ export const createRpcQueryKey = <TInput>(
 };
 </file>
 
-<file path="effect-angular-main/projects/effect-angular-query/src/lib/rpc-query-options.spec.ts">
+<file path="effect-angular-effect-angular-query-v0.1.1/projects/effect-angular-query/src/lib/rpc-query-options.spec.ts">
 import { createRpcQueryOptions } from './rpc-query-options';
 
 describe('createRpcQueryOptions', () => {
@@ -1919,7 +2372,7 @@ describe('createRpcQueryOptions', () => {
 });
 </file>
 
-<file path="effect-angular-main/projects/effect-angular-query/src/lib/rpc-query-options.ts">
+<file path="effect-angular-effect-angular-query-v0.1.1/projects/effect-angular-query/src/lib/rpc-query-options.ts">
 import type { CreateQueryOptions, DefaultError } from '@tanstack/angular-query-experimental';
 
 import { createRpcQueryKey } from './rpc-query-key';
@@ -1982,7 +2435,7 @@ export const createRpcQueryOptions = <
 };
 </file>
 
-<file path="effect-angular-main/projects/effect-angular-query/src/lib/rpc-query-path.ts">
+<file path="effect-angular-effect-angular-query-v0.1.1/projects/effect-angular-query/src/lib/rpc-query-path.ts">
 import type { QueryFilters } from '@tanstack/angular-query-experimental';
 
 import { createRpcQueryKey } from './rpc-query-key';
@@ -2022,10 +2475,21 @@ export const createRpcQueryFilter = (
 };
 </file>
 
-<file path="effect-angular-main/projects/effect-angular-query/src/lib/rpc-query-types.spec.ts">
-import type { CreateQueryOptions, QueryFunction } from '@tanstack/angular-query-experimental';
+<file path="effect-angular-effect-angular-query-v0.1.1/projects/effect-angular-query/src/lib/rpc-query-types.spec.ts">
+import type {
+  CreateMutationOptions,
+  CreateQueryOptions,
+  QueryFunction,
+} from '@tanstack/angular-query-experimental';
 
-import type { RpcQueryFn, RpcQueryKey, RpcQueryOptions } from './rpc-query-types';
+import type {
+  RpcMutationFn,
+  RpcMutationKey,
+  RpcMutationOptions,
+  RpcQueryFn,
+  RpcQueryKey,
+  RpcQueryOptions,
+} from './rpc-query-types';
 
 describe('rpc query types', () => {
   it('aligns query options with TanStack CreateQueryOptions', () => {
@@ -2049,18 +2513,41 @@ describe('rpc query types', () => {
 
     expect(typeof assigned).toBe('function');
   });
+
+  it('aligns mutation options with TanStack CreateMutationOptions', () => {
+    const mutationOptions: RpcMutationOptions<string, Error, { id: string }, { snapshot: string }> =
+      {
+        mutationKey: [['users', 'update'], { type: 'mutation' }],
+        mutationFn: async () => 'ok',
+      };
+
+    const assigned: CreateMutationOptions<string, Error, { id: string }, { snapshot: string }> =
+      mutationOptions;
+
+    expect(assigned.mutationKey).toEqual([['users', 'update'], { type: 'mutation' }]);
+  });
+
+  it('exposes mutation keys and functions with the expected shape', () => {
+    const key: RpcMutationKey = [['users', 'update'], { type: 'mutation' }];
+    const mutationFn: RpcMutationFn<number, { id: string }, Error, unknown> = async () => 42;
+
+    expect(key[1].type).toBe('mutation');
+    expect(typeof mutationFn).toBe('function');
+  });
 });
 </file>
 
-<file path="effect-angular-main/projects/effect-angular-query/src/lib/rpc-query-types.ts">
+<file path="effect-angular-effect-angular-query-v0.1.1/projects/effect-angular-query/src/lib/rpc-query-types.ts">
 import type {
+  CreateMutationOptions,
   CreateQueryOptions,
   DefaultError,
+  MutationKey,
   QueryFunction,
   QueryKey,
 } from '@tanstack/angular-query-experimental';
 
-export type RpcQueryKeyType = 'query' | 'path';
+export type RpcQueryKeyType = 'query' | 'path' | 'mutation';
 
 export type RpcQueryKeyMeta<TInput> = {
   readonly input?: TInput;
@@ -2069,10 +2556,10 @@ export type RpcQueryKeyMeta<TInput> = {
 
 export type RpcQueryKey<TInput = unknown> = readonly [readonly string[], RpcQueryKeyMeta<TInput>];
 
-export type RpcQueryFn<TQueryFnData = unknown, TQueryKey extends QueryKey = QueryKey> = QueryFunction<
-  TQueryFnData,
-  TQueryKey
->;
+export type RpcQueryFn<
+  TQueryFnData = unknown,
+  TQueryKey extends QueryKey = QueryKey,
+> = QueryFunction<TQueryFnData, TQueryKey>;
 
 export type RpcQueryOptions<
   TQueryFnData = unknown,
@@ -2080,22 +2567,47 @@ export type RpcQueryOptions<
   TData = TQueryFnData,
   TQueryKey extends QueryKey = QueryKey,
 > = CreateQueryOptions<TQueryFnData, TError, TData, TQueryKey>;
+
+export type RpcMutationKey = readonly [readonly string[], { readonly type: 'mutation' }];
+
+export type RpcMutationFn<
+  TData = unknown,
+  TVariables = unknown,
+  TError = DefaultError,
+  TOnMutateResult = unknown,
+> = NonNullable<CreateMutationOptions<TData, TError, TVariables, TOnMutateResult>['mutationFn']>;
+
+export type RpcMutationOptions<
+  TData = unknown,
+  TError = DefaultError,
+  TVariables = void,
+  TOnMutateResult = unknown,
+> = CreateMutationOptions<TData, TError, TVariables, TOnMutateResult>;
+
+export type RpcMutationKeyType = MutationKey;
 </file>
 
-<file path="effect-angular-main/projects/effect-angular-query/src/testing/rpc-contracts.ts">
+<file path="effect-angular-effect-angular-query-v0.1.1/projects/effect-angular-query/src/testing/rpc-contracts.ts">
 import * as Rpc from '@effect/rpc/Rpc';
 import * as RpcGroup from '@effect/rpc/RpcGroup';
 import * as Schema from 'effect/Schema';
+
+import { asRpcMutation, asRpcQuery } from '../lib/effect-rpc-query-client';
 
 export const GetUser = Rpc.make('users.get', {
   payload: Schema.Struct({ id: Schema.String }),
   success: Schema.Struct({ name: Schema.String }),
 });
 
-export class AppRpcs extends RpcGroup.make(GetUser) {}
+export const UpdateUserName = Rpc.make('users.updateName', {
+  payload: Schema.Struct({ id: Schema.String, name: Schema.String }),
+  success: Schema.Struct({ ok: Schema.Boolean }),
+});
+
+export class AppRpcs extends RpcGroup.make(asRpcQuery(GetUser), asRpcMutation(UpdateUserName)) {}
 </file>
 
-<file path="effect-angular-main/projects/effect-angular-query/src/oss-community-files.spec.ts">
+<file path="effect-angular-effect-angular-query-v0.1.1/projects/effect-angular-query/src/oss-community-files.spec.ts">
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -2119,7 +2631,7 @@ describe('OSS community and health files', () => {
 });
 </file>
 
-<file path="effect-angular-main/projects/effect-angular-query/src/package.spec.ts">
+<file path="effect-angular-effect-angular-query-v0.1.1/projects/effect-angular-query/src/package.spec.ts">
 import packageJson from '../package.json';
 
 type JsonRecord = Record<string, unknown>;
@@ -2163,51 +2675,53 @@ describe('effect-angular-query package metadata', () => {
 });
 </file>
 
-<file path="effect-angular-main/projects/effect-angular-query/src/public-api.spec.ts">
+<file path="effect-angular-effect-angular-query-v0.1.1/projects/effect-angular-query/src/public-api.spec.ts">
 import * as PublicApi from './public-api';
 
 describe('effect-angular-query public API', () => {
-  it('exports the RPC query client helpers', () => {
-    expect(PublicApi.EffectRpcQueryClient).toBeTruthy();
-    expect(PublicApi.EFFECT_RPC_QUERY_CLIENT_CONFIG).toBeTruthy();
-    expect(PublicApi.provideEffectRpcQueryClient).toBeTruthy();
+  it('exports the RPC client factory and classification helpers', () => {
+    expect(PublicApi.createEffectRpcAngularClient).toBeTruthy();
+    expect(PublicApi.createEffectRpcAngularClientConfig).toBeTruthy();
+    expect(PublicApi.asRpcQuery).toBeTruthy();
+    expect(PublicApi.asRpcMutation).toBeTruthy();
   });
 
-  it('exports query key and options utilities', () => {
+  it('exports query and mutation utility helpers', () => {
     expect(PublicApi.createRpcQueryKey).toBeTruthy();
     expect(PublicApi.createRpcQueryOptions).toBeTruthy();
+    expect(PublicApi.createRpcMutationOptions).toBeTruthy();
     expect(PublicApi.createRpcPathKey).toBeTruthy();
     expect(PublicApi.createRpcQueryFilter).toBeTruthy();
   });
 });
 </file>
 
-<file path="effect-angular-main/projects/effect-angular-query/src/public-api.ts">
+<file path="effect-angular-effect-angular-query-v0.1.1/projects/effect-angular-query/src/public-api.ts">
 /*
  * Public API Surface of effect-angular-query
  */
 
 export * from './lib/effect-rpc-query-client';
+export * from './lib/rpc-mutation-options';
 export * from './lib/rpc-query-key';
 export * from './lib/rpc-query-options';
 export * from './lib/rpc-query-path';
 export * from './lib/rpc-query-types';
 </file>
 
-<file path="effect-angular-main/projects/effect-angular-query/src/readme-examples.spec.ts">
-import { InjectionToken, inject, signal, type Provider } from '@angular/core';
+<file path="effect-angular-effect-angular-query-v0.1.1/projects/effect-angular-query/src/readme-examples.spec.ts">
 import { TestBed } from '@angular/core/testing';
-import { injectQuery, provideTanStackQuery, QueryClient } from '@tanstack/angular-query-experimental';
+import {
+  injectMutation,
+  injectQuery,
+  provideTanStackQuery,
+  QueryClient,
+} from '@tanstack/angular-query-experimental';
 import * as RpcClient from '@effect/rpc/RpcClient';
-import * as RpcGroup from '@effect/rpc/RpcGroup';
 import * as Effect from 'effect/Effect';
 import * as Layer from 'effect/Layer';
 
-import {
-  EffectRpcQueryClient,
-  provideEffectRpcQueryClient,
-  type RpcQueryHelpers,
-} from './lib/effect-rpc-query-client';
+import { createEffectRpcAngularClient } from './lib/effect-rpc-query-client';
 import { AppRpcs } from './testing/rpc-contracts';
 
 const createRpcLayer = () =>
@@ -2222,82 +2736,66 @@ const createRpcLayer = () =>
     ),
   );
 
-const configureBaseProviders = (extraProviders: Provider[] = []) => {
-  TestBed.configureTestingModule({
-    providers: [
-      provideTanStackQuery(new QueryClient({ defaultOptions: { queries: { retry: false } } })),
-      provideEffectRpcQueryClient({
-        group: AppRpcs,
-        rpcLayer: createRpcLayer(),
-        keyPrefix: 'app',
-        defaults: { staleTime: 10_000 },
-      }),
-      ...extraProviders,
-    ],
-  });
-};
+const AppRpc = createEffectRpcAngularClient({
+  group: AppRpcs,
+  rpcLayer: createRpcLayer(),
+  keyPrefix: 'app',
+  queryDefaults: { staleTime: 10_000 },
+  mutationDefaults: { retry: 1 },
+});
 
 describe('README examples', () => {
-  it('creates injectable helpers once and reuses them', () => {
-    const APP_QUERY_HELPERS = new InjectionToken<RpcQueryHelpers<RpcGroup.Rpcs<typeof AppRpcs>>>(
-      'APP_QUERY_HELPERS',
-    );
-
-    const provideAppQueryHelpers = () => ({
-      provide: APP_QUERY_HELPERS,
-      useFactory: () => inject(EffectRpcQueryClient).helpersFor(AppRpcs),
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      providers: [
+        provideTanStackQuery(new QueryClient({ defaultOptions: { queries: { retry: false } } })),
+        AppRpc.providers,
+      ],
     });
+  });
 
-    configureBaseProviders([provideAppQueryHelpers()]);
+  it('creates an injectable client once and reuses it', () => {
+    const first = TestBed.runInInjectionContext(() => AppRpc.injectClient());
+    const second = TestBed.runInInjectionContext(() => AppRpc.injectClient());
 
-    const helpers = TestBed.runInInjectionContext(() => inject(APP_QUERY_HELPERS));
-
-    expect(helpers.users.get.queryKey({ id: '1' })).toEqual([
+    expect(first).toBe(second);
+    expect(first.users.get.queryKey({ id: '1' })).toEqual([
       ['app', 'users', 'get'],
-      { input: { id: '1' } },
+      { input: { id: '1' }, type: 'query' },
     ]);
   });
 
-  it('uses helpers with injectQuery', () => {
-    configureBaseProviders();
+  it('uses query and mutation helpers with injectQuery and injectMutation', () => {
+    const states = TestBed.runInInjectionContext(() => {
+      const rpc = AppRpc.injectClient();
 
-    const query = TestBed.runInInjectionContext(() => {
-      const rpcQueryClient = inject(EffectRpcQueryClient);
-      const helpers = rpcQueryClient.helpersFor(AppRpcs);
-      const userId = signal('1');
+      const userQuery = injectQuery(() => rpc.users.get.queryOptions({ id: '1' }));
+      const updateUser = injectMutation(() => rpc.users.updateName.mutationOptions());
 
-      return injectQuery(() =>
-        helpers.users.get.queryOptions(
-          { id: userId() },
-          { overrides: { staleTime: 10_000 } },
-        ),
-      );
+      return { userQuery, updateUser };
     });
 
-    expect(query).toBeTruthy();
-    expect(typeof query.isPending).toBe('function');
+    expect(typeof states.userQuery.isPending).toBe('function');
+    expect(typeof states.updateUser.mutate).toBe('function');
   });
 
-  it('builds query keys and path filters as documented', () => {
-    configureBaseProviders();
+  it('builds path helpers and mutation keys as documented', () => {
+    const rpc = TestBed.runInInjectionContext(() => AppRpc.injectClient());
 
-    const rpcQueryClient = TestBed.inject(EffectRpcQueryClient);
-    const helpers = rpcQueryClient.helpersFor(AppRpcs);
-
-    expect(helpers.users.get.queryKey({ id: '1' })).toEqual([
-      ['app', 'users', 'get'],
-      { input: { id: '1' } },
-    ]);
-
-    expect(rpcQueryClient.queryFilter(['users'], { exact: false })).toEqual({
+    expect(rpc.pathKey(['users'])).toEqual([['app', 'users']]);
+    expect(rpc.queryFilter(['users'], { exact: false })).toEqual({
       queryKey: [['app', 'users']],
       exact: false,
     });
+    expect(rpc.users.updateName.mutationKey()).toEqual([
+      ['app', 'users', 'updateName'],
+      { type: 'mutation' },
+    ]);
   });
 });
 </file>
 
-<file path="effect-angular-main/projects/effect-angular-query/src/readme.spec.ts">
+<file path="effect-angular-effect-angular-query-v0.1.1/projects/effect-angular-query/src/readme.spec.ts">
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -2305,20 +2803,22 @@ const readReadme = (): string =>
   readFileSync(join(process.cwd(), 'projects', 'effect-angular-query', 'README.md'), 'utf8');
 
 describe('effect-angular-query README', () => {
-  it('documents setup and usage for the query helpers', () => {
+  it('documents setup and usage for the unified RPC client helpers', () => {
     const readme = readReadme();
     expect(readme).toContain('Installation');
-    expect(readme).toContain('provideEffectRpcQueryClient');
+    expect(readme).toContain('createEffectRpcAngularClient');
     expect(readme).toContain('injectQuery');
+    expect(readme).toContain('injectMutation');
     expect(readme).toContain('Query key');
+    expect(readme).toContain('mutationOptions');
     expect(readme).toContain('Path helpers');
-    expect(readme).toContain('Injectable helpers');
+    expect(readme).toContain('injectable client');
     expect(readme).toContain('Sharing RPC contracts');
   });
 });
 </file>
 
-<file path="effect-angular-main/projects/effect-angular-query/src/root-readme.spec.ts">
+<file path="effect-angular-effect-angular-query-v0.1.1/projects/effect-angular-query/src/root-readme.spec.ts">
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -2338,7 +2838,7 @@ describe('root README', () => {
 });
 </file>
 
-<file path="effect-angular-main/projects/effect-angular-query/ng-package.json">
+<file path="effect-angular-effect-angular-query-v0.1.1/projects/effect-angular-query/ng-package.json">
 {
   "$schema": "../../node_modules/ng-packagr/ng-package.schema.json",
   "dest": "../../dist/effect-angular-query",
@@ -2348,10 +2848,10 @@ describe('root README', () => {
 }
 </file>
 
-<file path="effect-angular-main/projects/effect-angular-query/package.json">
+<file path="effect-angular-effect-angular-query-v0.1.1/projects/effect-angular-query/package.json">
 {
   "name": "@heddendorp/effect-angular-query",
-  "version": "0.0.5",
+  "version": "0.1.1",
   "peerDependencies": {
     "@angular/common": "^21.1.0",
     "@angular/core": "^21.1.0",
@@ -2378,10 +2878,10 @@ describe('root README', () => {
 }
 </file>
 
-<file path="effect-angular-main/projects/effect-angular-query/README.md">
+<file path="effect-angular-effect-angular-query-v0.1.1/projects/effect-angular-query/README.md">
 # Effect Angular Query
 
-Angular helpers for building TanStack Query `injectQuery` options from Effect RPC procedures.
+Angular helpers for building an injectable Effect RPC client with auto-generated TanStack Query and Mutation options.
 
 ## Installation
 
@@ -2403,7 +2903,7 @@ Requires Angular 21.x (peer dependency range currently `^21.1.0`).
 
 ## Setup
 
-1) Provide TanStack Query (this package does not configure it):
+1. Provide TanStack Query:
 
 ```ts
 import { ApplicationConfig } from '@angular/core';
@@ -2414,7 +2914,7 @@ export const appConfig: ApplicationConfig = {
 };
 ```
 
-2) Provide the Effect RPC query client helpers:
+2. Create and provide your RPC client once:
 
 ```ts
 import { ApplicationConfig } from '@angular/core';
@@ -2424,31 +2924,36 @@ import * as RpcGroup from '@effect/rpc/RpcGroup';
 import * as Layer from 'effect/Layer';
 import * as Schema from 'effect/Schema';
 
-import { provideEffectRpcQueryClient } from '@heddendorp/effect-angular-query';
+import { asRpcMutation, createEffectRpcAngularClient } from '@heddendorp/effect-angular-query';
 
 const GetUser = Rpc.make('users.get', {
   payload: Schema.Struct({ id: Schema.String }),
   success: Schema.Struct({ name: Schema.String }),
 });
 
-class AppRpcs extends RpcGroup.make(GetUser) {}
+const UpdateUserName = asRpcMutation(
+  Rpc.make('users.updateName', {
+    payload: Schema.Struct({ id: Schema.String, name: Schema.String }),
+    success: Schema.Struct({ ok: Schema.Boolean }),
+  }),
+);
 
-// Provide the Layer<RpcClient.Protocol, never, never> from your RPC transport setup.
+class AppRpcs extends RpcGroup.make(GetUser, UpdateUserName) {}
+
 const rpcLayer: Layer.Layer<RpcClient.Protocol, never, never> = createRpcLayer();
 
+export const AppRpc = createEffectRpcAngularClient({
+  group: AppRpcs,
+  rpcLayer,
+  keyPrefix: 'app',
+  queryDefaults: { staleTime: 10_000 },
+  mutationDefaults: { retry: 1 },
+});
+
 export const appConfig: ApplicationConfig = {
-  providers: [
-    provideEffectRpcQueryClient({
-      group: AppRpcs,
-      rpcLayer,
-      keyPrefix: 'app',
-      defaults: { staleTime: 10_000 },
-    }),
-  ],
+  providers: [AppRpc.providers],
 };
 ```
-
-`keyPrefix` and `defaults` are optional. Defaults are merged with per-call overrides.
 
 ## Sharing RPC contracts
 
@@ -2456,60 +2961,14 @@ Keep your RPC contract (schemas + `RpcGroup`) in a small shared package. The ser
 register handlers, while the client imports the same contract to type its helpers. This avoids
 shipping server implementation code to the client while still sharing the RPC types.
 
-```ts
-// packages/rpc-contracts/src/index.ts
-import * as Rpc from '@effect/rpc/Rpc';
-import * as RpcGroup from '@effect/rpc/RpcGroup';
-import * as Schema from 'effect/Schema';
+## Usage with `injectQuery` and `injectMutation`
 
-export const GetUser = Rpc.make('users.get', {
-  payload: Schema.Struct({ id: Schema.String }),
-  success: Schema.Struct({ name: Schema.String }),
-});
-
-export class AppRpcs extends RpcGroup.make(GetUser) {}
-```
+The injected client auto-exposes all procedures from your RPC group. New procedures become available
+without creating extra services or manually wiring helper methods.
 
 ```ts
-// client package
-import { AppRpcs } from '@acme/rpc-contracts';
-
-provideEffectRpcQueryClient({
-  group: AppRpcs,
-  rpcLayer,
-});
-```
-
-If you need to reference server-only types, use `import type` so they are erased from the client
-bundle.
-
-## Injectable helpers
-
-If you want to avoid re-creating helpers in multiple components, provide them once and inject the
-ready-to-use object.
-
-```ts
-import { InjectionToken, inject } from '@angular/core';
-
-import * as RpcGroup from '@effect/rpc/RpcGroup';
-
-import { EffectRpcQueryClient, RpcQueryHelpers } from '@heddendorp/effect-angular-query';
-
-export const APP_QUERY_HELPERS = new InjectionToken<
-  RpcQueryHelpers<RpcGroup.Rpcs<typeof AppRpcs>>
->(
-  'APP_QUERY_HELPERS',
-);
-
-export const provideAppQueryHelpers = () => ({
-  provide: APP_QUERY_HELPERS,
-  useFactory: () => inject(EffectRpcQueryClient).helpersFor(AppRpcs),
-});
-```
-
-```ts
-import { Component, ChangeDetectionStrategy, inject } from '@angular/core';
-import { injectQuery } from '@tanstack/angular-query-experimental';
+import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { injectMutation, injectQuery, QueryClient } from '@tanstack/angular-query-experimental';
 
 @Component({
   selector: 'app-user-details',
@@ -2522,104 +2981,119 @@ import { injectQuery } from '@tanstack/angular-query-experimental';
     } @else {
       <p>{{ userQuery.data()?.name }}</p>
     }
+
+    <button type="button" (click)="save()">Save</button>
   `,
 })
 export class UserDetailsComponent {
-  private readonly helpers = inject(APP_QUERY_HELPERS);
+  private readonly rpc = AppRpc.injectClient();
+  private readonly queryClient = inject(QueryClient);
 
-  readonly userQuery = injectQuery(() =>
-    this.helpers.users.get.queryOptions({ id: '1' }),
+  readonly userQuery = injectQuery(() => this.rpc.users.get.queryOptions({ id: '1' }));
+
+  readonly updateUser = injectMutation(() =>
+    this.rpc.users.updateName.mutationOptions({
+      overrides: {
+        onSuccess: () => this.queryClient.invalidateQueries(this.rpc.queryFilter(['users'])),
+      },
+    }),
   );
+
+  save(): void {
+    this.updateUser.mutate({ id: '1', name: 'Ada' });
+  }
 }
 ```
 
-## Usage with `injectQuery`
+## Direct procedure calls
+
+Each generated procedure also exposes direct call helpers:
+
+- `call(input): Promise<Success>`
+- `callEffect(input): Effect<Success, Error, never>`
 
 ```ts
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
-import { injectQuery } from '@tanstack/angular-query-experimental';
-
-import { EffectRpcQueryClient } from '@heddendorp/effect-angular-query';
-
-@Component({
-  selector: 'app-user-details',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    @if (userQuery.isPending()) {
-      <p>Loading...</p>
-    } @else if (userQuery.isError()) {
-      <p>Failed to load.</p>
-    } @else {
-      <p>{{ userQuery.data()?.name }}</p>
-    }
-  `,
-})
-export class UserDetailsComponent {
-  private readonly rpcQueryClient = inject(EffectRpcQueryClient);
-  private readonly helpers = this.rpcQueryClient.helpersFor(AppRpcs);
-
-  readonly userId = signal('1');
-
-  readonly userQuery = injectQuery(() =>
-    this.helpers.users.get.queryOptions(
-      { id: this.userId() },
-      { overrides: { staleTime: 10_000 } },
-    ),
-  );
-}
+await AppRpc.injectClient().users.updateName.call({ id: '1', name: 'Ada' });
 ```
 
-You can also access the `queryKey` and `queryFn` helpers directly:
+## Query key and mutation helpers
+
+### Query key
 
 ```ts
-const queryKey = helpers.users.get.queryKey({ id: '1' });
-const queryFn = helpers.users.get.queryFn({ id: '1' });
+const rpc = AppRpc.injectClient();
+const key = rpc.users.get.queryKey({ id: '1' });
+// => [['app', 'users', 'get'], { input: { id: '1' }, type: 'query' }]
 ```
 
-## Query key shape
-
-The default query key shape matches the RPC path segments and includes input metadata:
+### mutationOptions and mutationKey
 
 ```ts
-helpers.users.get.queryKey({ id: '1' });
-// => [['users', 'get'], { input: { id: '1' } }]
+const rpc = AppRpc.injectClient();
+
+const mutationOptions = rpc.users.updateName.mutationOptions();
+const mutationKey = rpc.users.updateName.mutationKey();
 ```
 
-If `keyPrefix` is configured, it is prepended:
+## Typed expected errors
 
-```ts
-// keyPrefix: 'app'
-helpers.users.get.queryKey({ id: '1' });
-// => [['app', 'users', 'get'], { input: { id: '1' } }]
-```
+Expected errors are typed as the union of:
+
+- your RPC schema error (`Rpc.ErrorExit<Procedure>`)
+- `RpcClientError` transport/protocol errors.
+
+This typed error union is reflected in `queryOptions` and `mutationOptions` callback types.
 
 ## Path helpers
 
 Use path-level helpers to invalidate or refetch a subtree of queries:
 
 ```ts
-import { inject } from '@angular/core';
-import { QueryClient } from '@tanstack/angular-query-experimental';
-import { EffectRpcQueryClient } from '@heddendorp/effect-angular-query';
-
-const rpcQueryClient = inject(EffectRpcQueryClient);
-const queryClient = inject(QueryClient);
-
-const filter = rpcQueryClient.queryFilter(['users'], { exact: false });
-queryClient.invalidateQueries(filter);
+const rpc = AppRpc.injectClient();
+const filter = rpc.queryFilter(['users'], { exact: false });
 ```
 
 ## API reference
 
-- `provideEffectRpcQueryClient` - registers the RPC query helper configuration.
-- `EffectRpcQueryClient` - exposes per-procedure helpers and path helpers.
-- `createRpcQueryKey` - build a query key from path segments and input.
-- `createRpcQueryOptions` - build TanStack Query options with RPC metadata.
+- `createEffectRpcAngularClient` - creates a typed injectable client factory (`providers`, `token`, `injectClient`).
+- `createEffectRpcAngularClientConfig` - normalizes config defaults.
+- `asRpcMutation` / `asRpcQuery` - marks procedure intent for generated helper surfaces.
+- `createRpcQueryOptions` - build TanStack query options with RPC metadata.
+- `createRpcMutationOptions` - build TanStack mutation options with RPC metadata.
+- `createRpcQueryKey` - build query keys from path segments and input.
 - `createRpcPathKey` / `createRpcQueryFilter` - path-level invalidation helpers.
-- `RpcQueryKey`, `RpcQueryOptions`, `RpcQueryFn`, `RpcQueryHelpers` - helper types for typing custom wrappers.
+
+## Migration from the previous API
+
+This release includes a **major version bump** for `@heddendorp/effect-angular-query`.
+
+### Old -> new mappings
+
+- `provideEffectRpcQueryClient(...)` -> `const AppRpc = createEffectRpcAngularClient(...); AppRpc.providers`
+- `inject(EffectRpcQueryClient)` -> `AppRpc.injectClient()`
+- `rpcQueryClient.helpersFor(AppRpcs)` -> auto-exposed methods directly on `AppRpc.injectClient()`
+- `helpers.users.get.queryOptions(...)` -> `AppRpc.injectClient().users.get.queryOptions(...)`
+
+### Migration steps
+
+1. Replace old provider setup with `createEffectRpcAngularClient(...)` and register `AppRpc.providers`.
+2. Replace `EffectRpcQueryClient` injection with `AppRpc.injectClient()`.
+3. Mark mutation procedures with `asRpcMutation(...)` so mutation helpers are generated.
+4. Move old `defaults` into `queryDefaults` (and optionally `mutationDefaults`).
+5. Update mutation call sites to use `injectMutation(() => rpc.<path>.mutationOptions())`.
+
+## Stream procedures
+
+Stream procedures are not supported in this integration surface. Generated helpers throw an explicit
+error for procedures that return `RpcSchema.Stream`.
+
+## injectable client
+
+The recommended pattern is to create and provide one client in app setup and reuse it by calling
+`AppRpc.injectClient()` in components and services.
 </file>
 
-<file path="effect-angular-main/projects/effect-angular-query/tsconfig.lib.json">
+<file path="effect-angular-effect-angular-query-v0.1.1/projects/effect-angular-query/tsconfig.lib.json">
 /* To learn more about Typescript configuration file: https://www.typescriptlang.org/docs/handbook/tsconfig-json.html. */
 /* To learn more about Angular compiler options: https://angular.dev/reference/configs/angular-compiler-options. */
 {
@@ -2639,7 +3113,7 @@ queryClient.invalidateQueries(filter);
 }
 </file>
 
-<file path="effect-angular-main/projects/effect-angular-query/tsconfig.lib.prod.json">
+<file path="effect-angular-effect-angular-query-v0.1.1/projects/effect-angular-query/tsconfig.lib.prod.json">
 /* To learn more about Typescript configuration file: https://www.typescriptlang.org/docs/handbook/tsconfig-json.html. */
 /* To learn more about Angular compiler options: https://angular.dev/reference/configs/angular-compiler-options. */
 {
@@ -2653,7 +3127,7 @@ queryClient.invalidateQueries(filter);
 }
 </file>
 
-<file path="effect-angular-main/projects/effect-angular-query/tsconfig.spec.json">
+<file path="effect-angular-effect-angular-query-v0.1.1/projects/effect-angular-query/tsconfig.spec.json">
 /* To learn more about Typescript configuration file: https://www.typescriptlang.org/docs/handbook/tsconfig-json.html. */
 /* To learn more about Angular compiler options: https://angular.dev/reference/configs/angular-compiler-options. */
 {
@@ -2673,7 +3147,7 @@ queryClient.invalidateQueries(filter);
 }
 </file>
 
-<file path="effect-angular-main/projects/effect-platform-angular/src/lib/effect-http-client.ts">
+<file path="effect-angular-effect-angular-query-v0.1.1/projects/effect-platform-angular/src/lib/effect-http-client.ts">
 import { HttpClient as AngularHttpClient } from '@angular/common/http';
 import { EnvironmentProviders, InjectionToken, inject, makeEnvironmentProviders } from '@angular/core';
 import type { HttpClient as EffectHttpClient } from '@effect/platform';
@@ -2692,7 +3166,7 @@ export const provideEffectHttpClient = (): EnvironmentProviders =>
   ]);
 </file>
 
-<file path="effect-angular-main/projects/effect-platform-angular/src/lib/effect-platform-angular.spec.ts">
+<file path="effect-angular-effect-angular-query-v0.1.1/projects/effect-platform-angular/src/lib/effect-platform-angular.spec.ts">
 import { HttpClient, HttpRequest, provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
@@ -2964,7 +3438,7 @@ describe('Angular HttpClient adapter request mapping', () => {
 });
 </file>
 
-<file path="effect-angular-main/projects/effect-platform-angular/src/lib/http-client-adapter.ts">
+<file path="effect-angular-effect-angular-query-v0.1.1/projects/effect-platform-angular/src/lib/http-client-adapter.ts">
 import {
   HttpClient as AngularHttpClient,
   HttpErrorResponse,
@@ -3113,7 +3587,7 @@ export const createAngularHttpClient = (httpClient: AngularHttpClient): EffectHt
   );
 </file>
 
-<file path="effect-angular-main/projects/effect-platform-angular/src/public-api.spec.ts">
+<file path="effect-angular-effect-angular-query-v0.1.1/projects/effect-platform-angular/src/public-api.spec.ts">
 import { InjectionToken } from '@angular/core';
 
 import * as PublicApi from './public-api';
@@ -3127,7 +3601,7 @@ describe('effect-platform-angular public API', () => {
 });
 </file>
 
-<file path="effect-angular-main/projects/effect-platform-angular/src/public-api.ts">
+<file path="effect-angular-effect-angular-query-v0.1.1/projects/effect-platform-angular/src/public-api.ts">
 /*
  * Public API Surface of effect-platform-angular
  */
@@ -3135,7 +3609,7 @@ describe('effect-platform-angular public API', () => {
 export * from './lib/effect-http-client';
 </file>
 
-<file path="effect-angular-main/projects/effect-platform-angular/src/rpc-example.spec.ts">
+<file path="effect-angular-effect-angular-query-v0.1.1/projects/effect-platform-angular/src/rpc-example.spec.ts">
 import { HttpClient, HttpRequest, provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { Injectable, inject } from '@angular/core';
@@ -3325,7 +3799,7 @@ describe('Effect RPC documentation example', () => {
 });
 </file>
 
-<file path="effect-angular-main/projects/effect-platform-angular/ng-package.json">
+<file path="effect-angular-effect-angular-query-v0.1.1/projects/effect-platform-angular/ng-package.json">
 {
   "$schema": "../../node_modules/ng-packagr/ng-package.schema.json",
   "dest": "../../dist/effect-platform-angular",
@@ -3335,10 +3809,10 @@ describe('Effect RPC documentation example', () => {
 }
 </file>
 
-<file path="effect-angular-main/projects/effect-platform-angular/package.json">
+<file path="effect-angular-effect-angular-query-v0.1.1/projects/effect-platform-angular/package.json">
 {
   "name": "@heddendorp/effect-platform-angular",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "peerDependencies": {
     "@effect/platform": "^0.94.2",
     "@angular/common": "^21.1.0",
@@ -3364,7 +3838,7 @@ describe('Effect RPC documentation example', () => {
 }
 </file>
 
-<file path="effect-angular-main/projects/effect-platform-angular/README.md">
+<file path="effect-angular-effect-angular-query-v0.1.1/projects/effect-platform-angular/README.md">
 # effect-platform-angular
 
 Angular HttpClient adapter for Effect Platform. Use it to run Effect HttpClient requests with Angular's HttpClient and to power Effect RPC protocol layers in Angular apps.
@@ -3436,6 +3910,8 @@ export class ProfileService {
 
 This example shows the intended path for using Effect RPC over HTTP with Angular. It assumes you have a server exposing the Effect RPC HTTP protocol at `/rpc` and that `@effect/rpc` is installed in your app. The Angular service is the boundary where you stop Effect-style handling and return Promises to components, so components can inject the client and call procedures directly.
 
+If you also want auto-generated TanStack Query + Mutation helpers with one injectable client, use `@heddendorp/effect-angular-query` on top of this transport layer.
+
 ```ts
 import { inject, Injectable } from '@angular/core';
 import { HttpClient } from '@effect/platform';
@@ -3453,7 +3929,9 @@ const Ping = Rpc.make('Ping', {
 export class AppRpcs extends RpcGroup.make(Ping) {}
 
 type PromiseClient<T> = {
-  -readonly [K in keyof T]: T[K] extends (...args: infer Args) => Effect.Effect<infer A, infer _E, infer _R>
+  -readonly [K in keyof T]: T[K] extends (
+    ...args: infer Args
+  ) => Effect.Effect<infer A, infer _E, infer _R>
     ? (...args: Args) => Promise<A>
     : never;
 };
@@ -3516,7 +3994,7 @@ export class AppRpcClient implements AppRpcPromiseClient {
 - `effect` 3.19+
 </file>
 
-<file path="effect-angular-main/projects/effect-platform-angular/tsconfig.lib.json">
+<file path="effect-angular-effect-angular-query-v0.1.1/projects/effect-platform-angular/tsconfig.lib.json">
 /* To learn more about Typescript configuration file: https://www.typescriptlang.org/docs/handbook/tsconfig-json.html. */
 /* To learn more about Angular compiler options: https://angular.dev/reference/configs/angular-compiler-options. */
 {
@@ -3536,7 +4014,7 @@ export class AppRpcClient implements AppRpcPromiseClient {
 }
 </file>
 
-<file path="effect-angular-main/projects/effect-platform-angular/tsconfig.lib.prod.json">
+<file path="effect-angular-effect-angular-query-v0.1.1/projects/effect-platform-angular/tsconfig.lib.prod.json">
 /* To learn more about Typescript configuration file: https://www.typescriptlang.org/docs/handbook/tsconfig-json.html. */
 /* To learn more about Angular compiler options: https://angular.dev/reference/configs/angular-compiler-options. */
 {
@@ -3550,7 +4028,7 @@ export class AppRpcClient implements AppRpcPromiseClient {
 }
 </file>
 
-<file path="effect-angular-main/projects/effect-platform-angular/tsconfig.spec.json">
+<file path="effect-angular-effect-angular-query-v0.1.1/projects/effect-platform-angular/tsconfig.spec.json">
 /* To learn more about Typescript configuration file: https://www.typescriptlang.org/docs/handbook/tsconfig-json.html. */
 /* To learn more about Angular compiler options: https://angular.dev/reference/configs/angular-compiler-options. */
 {
@@ -3568,7 +4046,7 @@ export class AppRpcClient implements AppRpcPromiseClient {
 }
 </file>
 
-<file path="effect-angular-main/.editorconfig">
+<file path="effect-angular-effect-angular-query-v0.1.1/.editorconfig">
 # Editor configuration, see https://editorconfig.org
 root = true
 
@@ -3588,7 +4066,7 @@ max_line_length = off
 trim_trailing_whitespace = false
 </file>
 
-<file path="effect-angular-main/.gitignore">
+<file path="effect-angular-effect-angular-query-v0.1.1/.gitignore">
 # See https://docs.github.com/get-started/getting-started-with-git/ignoring-files for more about ignoring files.
 
 # Compiled output
@@ -3635,7 +4113,7 @@ __screenshots__/
 Thumbs.db
 </file>
 
-<file path="effect-angular-main/AGENTS.md">
+<file path="effect-angular-effect-angular-query-v0.1.1/AGENTS.md">
 You are an expert in TypeScript, Angular, and scalable web application development. You write functional, maintainable, performant, and accessible code following Angular and TypeScript best practices.
 
 ## TypeScript Best Practices
@@ -3701,7 +4179,7 @@ You are an expert in TypeScript, Angular, and scalable web application developme
 - Keep changeset summaries concise and focused on user impact.
 </file>
 
-<file path="effect-angular-main/angular.json">
+<file path="effect-angular-effect-angular-query-v0.1.1/angular.json">
 {
   "$schema": "./node_modules/@angular/cli/lib/config/schema.json",
   "version": 1,
@@ -3766,7 +4244,7 @@ You are an expert in TypeScript, Angular, and scalable web application developme
 }
 </file>
 
-<file path="effect-angular-main/CHANGELOG.md">
+<file path="effect-angular-effect-angular-query-v0.1.1/CHANGELOG.md">
 # Changelog
 
 All notable changes to this project will be documented in this file.
@@ -3796,7 +4274,7 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 - install knope from knope/v0.22.2 release tag
 </file>
 
-<file path="effect-angular-main/CHANGESETS.md">
+<file path="effect-angular-effect-angular-query-v0.1.1/CHANGESETS.md">
 # Change Files
 
 Every user-facing pull request should include one new `.md` file in `.changeset/`.
@@ -3804,10 +4282,12 @@ Every user-facing pull request should include one new `.md` file in `.changeset/
 Change files must use frontmatter with `package: change-type` pairs, then a Markdown summary.
 
 This repo currently has two releasable packages in `knope.toml`:
+
 - `effect-platform-angular`
 - `effect-angular-query`
 
 Valid change types:
+
 - `patch`
 - `minor`
 - `major`
@@ -3816,16 +4296,21 @@ Example:
 
 ```md
 ---
-effect-platform-angular: minor
-effect-angular-query: patch
+effect-platform-angular: patch
+effect-angular-query: major
 ---
 
 ### Added
+
 - Initial public release of effect-platform-angular and effect-angular-query.
+
+### Migration
+
+- For breaking (`major`) changes, include explicit migration instructions with old -> new API mappings.
 ```
 </file>
 
-<file path="effect-angular-main/CODE_OF_CONDUCT.md">
+<file path="effect-angular-effect-angular-query-v0.1.1/CODE_OF_CONDUCT.md">
 # Code of Conduct
 
 ## Our Pledge
@@ -3883,7 +4368,7 @@ This Code of Conduct is adapted from the [Contributor Covenant](https://www.cont
 version 2.1.
 </file>
 
-<file path="effect-angular-main/CONTRIBUTING.md">
+<file path="effect-angular-effect-angular-query-v0.1.1/CONTRIBUTING.md">
 # Contributing
 
 Thanks for your interest in contributing to Effect Angular.
@@ -3906,7 +4391,7 @@ Thanks for your interest in contributing to Effect Angular.
 ## Working on Packages
 
 - `projects/effect-platform-angular`: Effect Platform integration with Angular HttpClient
-- `projects/effect-angular-query`: Effect RPC query helper integration for TanStack Angular Query
+- `projects/effect-angular-query`: Effect RPC injectable client with TanStack Query/Mutation helpers
 
 Useful commands:
 
@@ -3925,14 +4410,20 @@ bun run ng build effect-angular-query
 - Use clear commit messages.
 - Include a change file in `.changeset/` for user-facing changes.
 - Use changeset frontmatter with package and change type, for example:
+
   ```md
   ---
   effect-platform-angular: patch
-  effect-angular-query: minor
+  effect-angular-query: major
   ---
 
-  ### Fixed
+  ### Changed
+
   - Explain user-visible impact.
+
+  ### Migration
+
+  - For breaking changes, include exact old -> new API replacements and setup steps.
   ```
 
 ## Releases
@@ -3947,7 +4438,7 @@ Release automation is managed by Knope and GitHub Actions.
 - Configure npm trusted publishing (OIDC) for:
   - `@heddendorp/effect-platform-angular`
   - `@heddendorp/effect-angular-query`
-  linked to `heddendorp/effect-angular` release workflow.
+    linked to `heddendorp/effect-angular` release workflow.
 
 ### Standard release flow
 
@@ -3978,7 +4469,7 @@ Open a GitHub issue with:
 - Environment details (Node, Bun, Angular versions)
 </file>
 
-<file path="effect-angular-main/git-town.toml">
+<file path="effect-angular-effect-angular-query-v0.1.1/git-town.toml">
 # See https://www.git-town.com/configuration-file for details
 
 [branches]
@@ -3989,7 +4480,7 @@ forge-type = "github"
 github-connector = "gh"
 </file>
 
-<file path="effect-angular-main/knope.toml">
+<file path="effect-angular-effect-angular-query-v0.1.1/knope.toml">
 [packages.effect-platform-angular]
 versioned_files = ["projects/effect-platform-angular/package.json"]
 
@@ -4003,7 +4494,7 @@ ignore_conventional_commits = true
 enabled = true
 </file>
 
-<file path="effect-angular-main/LICENSE">
+<file path="effect-angular-effect-angular-query-v0.1.1/LICENSE">
 MIT License
 
 Copyright (c) 2026 Effect Angular contributors
@@ -4027,7 +4518,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 </file>
 
-<file path="effect-angular-main/package.json">
+<file path="effect-angular-effect-angular-query-v0.1.1/package.json">
 {
   "name": "effect-angular",
   "version": "0.0.2",
@@ -4080,7 +4571,7 @@ SOFTWARE.
 }
 </file>
 
-<file path="effect-angular-main/README.md">
+<file path="effect-angular-effect-angular-query-v0.1.1/README.md">
 # Effect Angular
 
 Effect Angular provides Angular-first integrations for Effect Platform and Effect RPC.
@@ -4090,7 +4581,7 @@ Effect Angular provides Angular-first integrations for Effect Platform and Effec
 This workspace currently ships two Angular libraries:
 
 - `effect-platform-angular`: Adapter that bridges Effect Platform `HttpClient` to Angular `HttpClient`.
-- `effect-angular-query`: Helpers that build TanStack Angular Query options from Effect RPC procedures.
+- `effect-angular-query`: Injectable Effect RPC client with auto-generated TanStack Query and Mutation helpers.
 
 ## Goals
 
@@ -4126,10 +4617,10 @@ bun run test -- --watch=false
 
 ## Packages
 
-| Package | Purpose | Path |
-| --- | --- | --- |
+| Package                   | Purpose                                                             | Path                               |
+| ------------------------- | ------------------------------------------------------------------- | ---------------------------------- |
 | `effect-platform-angular` | Angular `HttpClient` adapter for Effect Platform HTTP/RPC transport | `projects/effect-platform-angular` |
-| `effect-angular-query` | Effect RPC to TanStack Angular Query helper layer | `projects/effect-angular-query` |
+| `effect-angular-query`    | Effect RPC client + TanStack Angular Query/Mutation helper layer    | `projects/effect-angular-query`    |
 
 npm packages:
 
@@ -4169,15 +4660,22 @@ This repository uses Knope with GitHub Actions for release automation.
 
 - Change files live in `.changeset/` and are the source for release notes.
 - Each change file uses frontmatter + summary markdown, for example:
+
   ```md
   ---
   effect-platform-angular: patch
-  effect-angular-query: minor
+  effect-angular-query: major
   ---
 
   ### Changed
+
   - Describe user-facing impact.
+
+  ### Migration
+
+  - For breaking changes, list explicit old -> new API replacements.
   ```
+
 - Knope Bot updates/creates the `knope/release` pull request from `.changeset` files.
 - Merging `knope/release` into `main` triggers the `Release` workflow, which runs tests/builds and publishes both libraries to npm.
 
@@ -4198,7 +4696,7 @@ Manual first release bootstrap:
 4. Confirm the `Release` workflow succeeds and both npm packages publish successfully.
 </file>
 
-<file path="effect-angular-main/release-smoke-test.md">
+<file path="effect-angular-effect-angular-query-v0.1.1/release-smoke-test.md">
 ---
 effect-platform-angular: patch
 effect-angular-query: patch
@@ -4207,7 +4705,7 @@ effect-angular-query: patch
 Small maintenance release to validate the automated release workflow.
 </file>
 
-<file path="effect-angular-main/tsconfig.json">
+<file path="effect-angular-effect-angular-query-v0.1.1/tsconfig.json">
 /* To learn more about Typescript configuration file: https://www.typescriptlang.org/docs/handbook/tsconfig-json.html. */
 /* To learn more about Angular compiler options: https://angular.dev/reference/configs/angular-compiler-options. */
 {

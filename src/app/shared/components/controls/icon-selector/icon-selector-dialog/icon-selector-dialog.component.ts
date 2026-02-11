@@ -12,15 +12,13 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatDialogModule } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
-import { EffectRpcQueryClient } from '@heddendorp/effect-angular-query';
 import {
   injectMutation,
   injectQuery,
   QueryClient,
 } from '@tanstack/angular-query-experimental';
 
-import { AppRpcs } from '../../../../../../shared/rpc-contracts/app-rpcs';
-import { EffectRpcClient } from '../../../../../core/effect-rpc-client';
+import { AppRpc } from '../../../../../core/effect-rpc-angular-client';
 import { IconComponent } from '../../../icon/icon.component';
 
 @Component({
@@ -50,10 +48,9 @@ export class IconSelectorDialogComponent {
     iconColor: 0,
     iconName: this.searchValue(),
   }));
-  private readonly rpcQueryClient = inject(EffectRpcQueryClient);
-  private readonly rpcHelpers = this.rpcQueryClient.helpersFor(AppRpcs);
+  private readonly rpc = AppRpc.injectClient();
   protected readonly iconSearchQuery = injectQuery(() =>
-    this.rpcHelpers.icons.search.queryOptions({ search: this.searchValue() }),
+    this.rpc.icons.search.queryOptions({ search: this.searchValue() }),
   );
   protected displayDirectAccess = computed(() => {
     const iconData = this.iconSearchQuery.data();
@@ -69,11 +66,9 @@ export class IconSelectorDialogComponent {
       } satisfies IconValue,
     }));
   });
-  private readonly effectRpcClient = inject(EffectRpcClient);
-  private readonly addIconMutation = injectMutation(() => ({
-    mutationFn: ({ icon }: { icon: string }) =>
-      this.effectRpcClient.addIcon(icon),
-  }));
+  private readonly addIconMutation = injectMutation(() =>
+    this.rpc.icons.add.mutationOptions(),
+  );
   private readonly queryClient = inject(QueryClient);
 
   async saveIconDirectly() {
@@ -83,7 +78,7 @@ export class IconSelectorDialogComponent {
       {
         onSuccess: async () => {
           await this.queryClient.invalidateQueries(
-            this.rpcQueryClient.queryFilter(['icons', 'search']),
+            this.rpc.queryFilter(['icons', 'search']),
           );
         },
       },
