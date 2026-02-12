@@ -190,6 +190,14 @@ The migration mode is explicitly non-backward-compatible. We optimize for a clea
   - `CI=true bun run build`
   - `CI=true bun run test` (`12 passed`)
   - `bash -lc 'eval "$(bun helpers/testing/runtime-env.mjs)" && CI=true NO_WEBSERVER=true bunx --bun playwright test tests/specs/finance/tax-rates/admin-import-tax-rates.spec.ts tests/docs/finance/inclusive-tax-rates.doc.ts --project=local-chrome --project=docs --workers=1 --max-failures=1'` (`11 passed`)
+- Effect RPC `taxRates.listActive` migration validation:
+  - `bunx --bun eslint src/shared/rpc-contracts/app-rpcs.ts src/server/effect/rpc/app-rpcs.handlers.ts src/app/templates/template-details/template-details.component.ts src/app/templates/shared/template-form/template-registration-option-form.component.ts src/app/shared/components/forms/registration-option-form/registration-option-form.ts src/server/trpc/app-router.ts`
+  - `bunx --bun tsc -p tsconfig.app.json --noEmit`
+  - `bunx --bun tsc -p tsconfig.spec.json --noEmit`
+  - `CI=true bun run lint` (warnings-only baseline unchanged)
+  - `CI=true bun run build`
+  - `CI=true bun run test` (`12 passed`)
+  - `bash -lc 'eval "$(bun helpers/testing/runtime-env.mjs)" && CI=true NO_WEBSERVER=true bunx --bun playwright test tests/specs/templates/paid-option-requires-tax-rate.spec.ts tests/docs/templates/templates.doc.ts --project=local-chrome --project=docs --workers=1 --max-failures=1'` (`8 passed`, `6 skipped`)
 
 ## Out of Scope (for this track phase)
 
