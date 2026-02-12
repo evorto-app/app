@@ -143,6 +143,14 @@ The migration mode is explicitly non-backward-compatible. We optimize for a clea
   - `CI=true bun run lint` (warnings-only baseline unchanged)
   - `CI=true bun run build`
   - `CI=true bun run test` (`12 passed`)
+- Angular tRPC client-injector decommission validation:
+  - `bunx --bun eslint src/app/events/guards/event-edit.guard.ts src/app/events/guards/event-organizer.guard.ts src/app/shared/components/controls/role-select/role-select.component.ts`
+  - `bunx --bun tsc -p tsconfig.app.json --noEmit`
+  - `bunx --bun tsc -p tsconfig.spec.json --noEmit`
+  - `rg -n "injectTRPCClient\\(" src/app` (no matches)
+  - `CI=true bun run lint` (warnings-only baseline unchanged)
+  - `CI=true bun run build`
+  - `CI=true bun run test` (`12 passed`)
 
 ## Out of Scope (for this track phase)
 

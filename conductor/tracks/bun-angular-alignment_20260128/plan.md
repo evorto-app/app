@@ -235,6 +235,13 @@
   - [x] Decommission legacy tRPC `users.authData` and `users.createAccount` procedures
   - [x] Commit milestone
 
+- [x] Task: Decommission remaining `injectTRPCClient()` callsites in Angular app (5f9ba3c)
+  - [x] Define test intent (`bunx --bun eslint` on touched files, `bunx --bun tsc -p tsconfig.app.json --noEmit`, `CI=true bun run lint`, `CI=true bun run build`, `CI=true bun run test`)
+  - [x] Migrate event guards to `QueryClient.fetchQuery(trpc.<path>.queryOptions(...))`
+  - [x] Migrate `role-select` current role lookup to typed `queryOptions(...)` usage
+  - [x] Verify no `injectTRPCClient()` usages remain in `src/app/**`
+  - [x] Commit milestone
+
 - [ ] Task: Conductor - User Manual Verification 'Phase 6'
 
 ## Final Gate
@@ -302,6 +309,12 @@
 - `CI=true bun run lint` passes after `users.authData`/`users.createAccount` Effect RPC cutover (warnings-only baseline unchanged).
 - `CI=true bun run build` passes after `users.authData`/`users.createAccount` Effect RPC cutover.
 - `CI=true bun run test` passes after `users.authData`/`users.createAccount` Effect RPC cutover (`12 passed`).
+- `bunx --bun eslint src/app/events/guards/event-edit.guard.ts src/app/events/guards/event-organizer.guard.ts src/app/shared/components/controls/role-select/role-select.component.ts` passes after removing `injectTRPCClient()` callsites.
+- `bunx --bun tsc -p tsconfig.app.json --noEmit` and `bunx --bun tsc -p tsconfig.spec.json --noEmit` pass after removing `injectTRPCClient()` callsites.
+- `rg -n "injectTRPCClient\\(" src/app` returns no matches after callsite cleanup.
+- `CI=true bun run lint` passes after removing `injectTRPCClient()` callsites (warnings-only baseline unchanged).
+- `CI=true bun run build` passes after removing `injectTRPCClient()` callsites.
+- `CI=true bun run test` passes after removing `injectTRPCClient()` callsites (`12 passed`).
 
 ## Session Handoff
 
