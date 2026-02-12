@@ -19,6 +19,7 @@ import {
 } from '@fortawesome/duotone-regular-svg-icons';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
+import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { injectTRPC } from '../../core/trpc-client';
 import { RegistrationStartOffsetPipe } from '../../shared/pipes/registration-start-offset.pipe';
 
@@ -47,10 +48,12 @@ export class TemplateDetailsComponent {
   protected readonly faEllipsisVertical = faEllipsisVertical;
   protected readonly faPlus = faPlus;
 
-  private trpc = injectTRPC();
+  private readonly rpc = AppRpc.injectClient();
   protected readonly taxRatesQuery = injectQuery(() =>
-    this.trpc.taxRates.listActive.queryOptions(),
+    this.rpc.taxRates.listActive.queryOptions(),
   );
+  private trpc = injectTRPC();
+  // eslint-disable-next-line perfectionist/sort-classes -- `templateQuery` depends on `trpc` initialization
   protected readonly taxRateById = computed(() => {
     const rates = this.taxRatesQuery.data() ?? [];
     return Object.fromEntries(rates.map((r) => [r.stripeTaxRateId, r]));

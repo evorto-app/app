@@ -160,6 +160,29 @@ const normalizeTenantTaxRateRecord = (
   stripeTaxRateId: taxRate.stripeTaxRateId,
 });
 
+const normalizeActiveTenantTaxRateRecord = (
+  taxRate: Pick<
+    typeof tenantStripeTaxRates.$inferSelect,
+    | 'country'
+    | 'displayName'
+    | 'id'
+    | 'percentage'
+    | 'state'
+    | 'stripeTaxRateId'
+  >,
+) => ({
+  // eslint-disable-next-line unicorn/no-null
+  country: taxRate.country ?? null,
+  // eslint-disable-next-line unicorn/no-null
+  displayName: taxRate.displayName ?? null,
+  id: taxRate.id,
+  // eslint-disable-next-line unicorn/no-null
+  percentage: taxRate.percentage ?? null,
+  // eslint-disable-next-line unicorn/no-null
+  state: taxRate.state ?? null,
+  stripeTaxRateId: taxRate.stripeTaxRateId,
+});
+
 const normalizeTemplatesByCategoryRecord = (
   templateCategory: Pick<
     typeof eventTemplateCategories.$inferSelect,
@@ -598,6 +621,45 @@ export const appRpcHandlers = AppRpcs.toLayer(
         );
 
         return matchingIcons.map((icon) => normalizeIconRecord(icon));
+      }),
+    'taxRates.listActive': (_payload, options) =>
+      Effect.gen(function* () {
+        if (options.headers['x-evorto-authenticated'] === 'true') {
+          const currentPermissions = decodeHeaderJson(
+            options.headers['x-evorto-permissions'],
+            ConfigPermissions,
+          );
+          if (!currentPermissions.includes('templates:view')) {
+            return yield* Effect.fail('FORBIDDEN' as const);
+          }
+        }
+
+        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const activeTaxRates = yield* Effect.promise(() =>
+          database.query.tenantStripeTaxRates.findMany({
+            columns: {
+              country: true,
+              displayName: true,
+              id: true,
+              percentage: true,
+              state: true,
+              stripeTaxRateId: true,
+            },
+            orderBy: (table, { asc }) => [
+              asc(table.displayName),
+              asc(table.stripeTaxRateId),
+            ],
+            where: {
+              active: true,
+              inclusive: true,
+              tenantId: tenant.id,
+            },
+          }),
+        );
+
+        return activeTaxRates.map((taxRate) =>
+          normalizeActiveTenantTaxRateRecord(taxRate),
+        );
       }),
     'templateCategories.create': ({ icon, title }, options) =>
       Effect.gen(function* () {
