@@ -97,6 +97,34 @@ export const AdminRolesFindOne = asRpcQuery(
   }),
 );
 
+export const AdminHubRoleUserRecord = Schema.Struct({
+  firstName: Schema.String,
+  id: Schema.NonEmptyString,
+  lastName: Schema.String,
+});
+
+export type AdminHubRoleUserRecord = Schema.Schema.Type<
+  typeof AdminHubRoleUserRecord
+>;
+
+export const AdminHubRoleRecord = Schema.Struct({
+  description: Schema.NullOr(Schema.String),
+  id: Schema.NonEmptyString,
+  name: Schema.String,
+  userCount: Schema.Number,
+  users: Schema.Array(AdminHubRoleUserRecord),
+});
+
+export type AdminHubRoleRecord = Schema.Schema.Type<typeof AdminHubRoleRecord>;
+
+export const AdminRolesFindHubRoles = asRpcQuery(
+  Rpc.make('admin.roles.findHubRoles', {
+    error: AdminRoleRpcError,
+    payload: Schema.Void,
+    success: Schema.Array(AdminHubRoleRecord),
+  }),
+);
+
 export const AdminRolesSearch = asRpcQuery(
   Rpc.make('admin.roles.search', {
     error: AdminRoleRpcError,
@@ -363,6 +391,7 @@ export const TemplatesGroupedByCategory = asRpcQuery(
 );
 
 export class AppRpcs extends RpcGroup.make(
+  AdminRolesFindHubRoles,
   AdminRolesFindMany,
   AdminRolesFindOne,
   AdminRolesSearch,

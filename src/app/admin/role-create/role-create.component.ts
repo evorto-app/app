@@ -39,7 +39,6 @@ export class RoleCreateComponent {
   private readonly queryClient = inject(QueryClient);
   private readonly router = inject(Router);
   private readonly rpc = AppRpc.injectClient();
-  private readonly trpc = injectTRPC();
 
   protected async onSubmit(role: RoleFormData): Promise<void> {
     this.createRoleMutation.mutate(
@@ -49,9 +48,9 @@ export class RoleCreateComponent {
           await this.queryClient.invalidateQueries(
             this.rpc.queryFilter(['admin', 'roles.findMany']),
           );
-          await this.queryClient.invalidateQueries({
-            queryKey: this.trpc.admin.roles.findHubRoles.pathKey(),
-          });
+          await this.queryClient.invalidateQueries(
+            this.rpc.queryFilter(['admin', 'roles.findHubRoles']),
+          );
           await this.queryClient.invalidateQueries(
             this.rpc.queryFilter(['admin', 'roles.search']),
           );

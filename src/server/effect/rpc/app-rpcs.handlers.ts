@@ -17,6 +17,7 @@ import {
 } from '../../../db/schema';
 import { type Permission } from '../../../shared/permissions/permissions';
 import {
+  type AdminHubRoleRecord,
   type AdminRoleRecord,
   AppRpcs,
   ConfigPermissions,
@@ -97,6 +98,34 @@ const normalizeRoleRecord = (
   showInHub: role.showInHub,
   sortOrder: role.sortOrder,
 });
+
+const normalizeHubRoleRecord = (
+  role: {
+    description: null | string;
+    id: string;
+    name: string;
+    usersToTenants: readonly {
+      user: null | {
+        firstName: string;
+        id: string;
+        lastName: string;
+      };
+    }[];
+  },
+): AdminHubRoleRecord => {
+  const users = role.usersToTenants.flatMap((membership) =>
+    membership.user ? [membership.user] : [],
+  );
+
+  return {
+    // eslint-disable-next-line unicorn/no-null
+    description: role.description ?? null,
+    id: role.id,
+    name: role.name,
+    userCount: users.length,
+    users,
+  };
+};
 
 const normalizeTemplatesByCategoryRecord = (
   templateCategory: Pick<
@@ -185,6 +214,40 @@ const requireUserHeader = (
 
 export const appRpcHandlers = AppRpcs.toLayer(
   Effect.succeed({
+    'admin.roles.findHubRoles': (_payload, options) =>
+      Effect.gen(function* () {
+        yield* ensureAuthenticated(options.headers);
+        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const hubRoles = yield* Effect.promise(() =>
+          database.query.roles.findMany({
+            columns: {
+              description: true,
+              id: true,
+              name: true,
+            },
+            orderBy: (roles_, { asc }) => [asc(roles_.sortOrder), asc(roles_.name)],
+            where: {
+              displayInHub: true,
+              tenantId: tenant.id,
+            },
+            with: {
+              usersToTenants: {
+                with: {
+                  user: {
+                    columns: {
+                      firstName: true,
+                      id: true,
+                      lastName: true,
+                    },
+                  },
+                },
+              },
+            },
+          }),
+        );
+
+        return hubRoles.map((role) => normalizeHubRoleRecord(role));
+      }),
     'admin.roles.findMany': (input, options) =>
       Effect.gen(function* () {
         yield* ensureAuthenticated(options.headers);
