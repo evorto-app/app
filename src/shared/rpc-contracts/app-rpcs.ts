@@ -511,6 +511,59 @@ export const EventsEventList = asRpcQuery(
   }),
 );
 
+export const EventsFindOneForEditRpcError = Schema.Literal(
+  'CONFLICT',
+  'FORBIDDEN',
+  'NOT_FOUND',
+  'UNAUTHORIZED',
+);
+
+export type EventsFindOneForEditRpcError = Schema.Schema.Type<
+  typeof EventsFindOneForEditRpcError
+>;
+
+export const EventsFindOneForEditRegistrationMode = Schema.Literal(
+  'application',
+  'fcfs',
+  'random',
+);
+
+export const EventsFindOneForEditRegistrationOption = Schema.Struct({
+  closeRegistrationTime: Schema.NonEmptyString,
+  description: Schema.NullOr(Schema.String),
+  esnCardDiscountedPrice: Schema.optional(Schema.NullOr(Schema.Number)),
+  id: Schema.NonEmptyString,
+  isPaid: Schema.Boolean,
+  openRegistrationTime: Schema.NonEmptyString,
+  organizingRegistration: Schema.Boolean,
+  price: Schema.Number,
+  registeredDescription: Schema.NullOr(Schema.String),
+  registrationMode: EventsFindOneForEditRegistrationMode,
+  roleIds: Schema.Array(Schema.NonEmptyString),
+  spots: Schema.Number,
+  stripeTaxRateId: Schema.NullOr(Schema.String),
+  title: Schema.NonEmptyString,
+});
+
+export const EventsFindOneForEdit = asRpcQuery(
+  Rpc.make('events.findOneForEdit', {
+    error: EventsFindOneForEditRpcError,
+    payload: Schema.Struct({
+      id: Schema.NonEmptyString,
+    }),
+    success: Schema.Struct({
+      description: Schema.NonEmptyString,
+      end: Schema.NonEmptyString,
+      icon: iconSchema,
+      id: Schema.NonEmptyString,
+      location: Schema.NullOr(Schema.Any),
+      registrationOptions: Schema.Array(EventsFindOneForEditRegistrationOption),
+      start: Schema.NonEmptyString,
+      title: Schema.NonEmptyString,
+    }),
+  }),
+);
+
 export const EventsRegistrationStatusRecord = Schema.Struct({
   appliedDiscountedPrice: Schema.optional(Schema.NullOr(Schema.Number)),
   appliedDiscountType: Schema.optional(Schema.NullOr(Schema.Literal('esnCard'))),
@@ -838,6 +891,7 @@ export class AppRpcs extends RpcGroup.make(
   EditorMediaCreateImageDirectUpload,
   EventsCanOrganize,
   EventsEventList,
+  EventsFindOneForEdit,
   EventsGetPendingReviews,
   EventsGetRegistrationStatus,
   GlobalAdminTenantsFindMany,

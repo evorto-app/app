@@ -22,6 +22,7 @@ import { DateTime } from 'luxon';
 import { database } from '../../../db';
 import {
   eventInstances,
+  eventRegistrationOptionDiscounts,
   eventRegistrationOptions,
   eventRegistrations,
   eventTemplateCategories,
@@ -240,6 +241,28 @@ const normalizeTemplatesByCategoryRecord = (
   ),
   title: templateCategory.title,
 });
+
+const getEsnCardDiscountedPriceByOptionId = (
+  discounts: readonly {
+    discountedPrice: number;
+    discountType: string;
+    registrationOptionId: string;
+  }[],
+) => {
+  const map = new Map<string, number>();
+  for (const discount of discounts) {
+    if (discount.discountType !== 'esnCard') {
+      continue;
+    }
+
+    const current = map.get(discount.registrationOptionId);
+    if (current === undefined || discount.discountedPrice < current) {
+      map.set(discount.registrationOptionId, discount.discountedPrice);
+    }
+  }
+
+  return map;
+};
 
 const getFriendlyIconName = (icon: string): Effect.Effect<string, IconRpcError> =>
   Effect.sync(() => icon.split(':')).pipe(
@@ -1037,6 +1060,94 @@ export const appRpcHandlers = AppRpcs.toLayer(
           day: DateTime.fromFormat(day, 'yyyy-MM-dd').toJSDate().toISOString(),
           events,
         }));
+      }),
+    'events.findOneForEdit': ({ id }, options) =>
+      Effect.gen(function* () {
+        yield* ensureAuthenticated(options.headers);
+        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const user = yield* requireUserHeader(options.headers);
+
+        const event = yield* Effect.promise(() =>
+          database.query.eventInstances.findFirst({
+            where: { id, tenantId: tenant.id },
+            with: {
+              registrationOptions: true,
+            },
+          }),
+        );
+
+        if (!event) {
+          return yield* Effect.fail('NOT_FOUND' as const);
+        }
+
+        const canEdit =
+          event.creatorId === user.id || user.permissions.includes('events:editAll');
+        if (!canEdit) {
+          return yield* Effect.fail('FORBIDDEN' as const);
+        }
+
+        if (event.status !== 'DRAFT' && event.status !== 'REJECTED') {
+          return yield* Effect.fail('CONFLICT' as const);
+        }
+
+        const registrationOptionIds = event.registrationOptions.map(
+          (option) => option.id,
+        );
+        const optionDiscounts =
+          registrationOptionIds.length === 0
+            ? []
+            : yield* Effect.promise(() =>
+                database
+                  .select({
+                    discountedPrice: eventRegistrationOptionDiscounts.discountedPrice,
+                    discountType: eventRegistrationOptionDiscounts.discountType,
+                    registrationOptionId:
+                      eventRegistrationOptionDiscounts.registrationOptionId,
+                  })
+                  .from(eventRegistrationOptionDiscounts)
+                  .where(
+                    and(
+                      eq(eventRegistrationOptionDiscounts.discountType, 'esnCard'),
+                      inArray(
+                        eventRegistrationOptionDiscounts.registrationOptionId,
+                        [...registrationOptionIds],
+                      ),
+                    ),
+                  ),
+              );
+        const esnCardDiscountedPriceByOptionId =
+          getEsnCardDiscountedPriceByOptionId(optionDiscounts);
+
+        return {
+          description: event.description,
+          end: event.end.toISOString(),
+          icon: event.icon,
+          id: event.id,
+          // eslint-disable-next-line unicorn/no-null
+          location: event.location ?? null,
+          registrationOptions: event.registrationOptions.map((option) => ({
+            closeRegistrationTime: option.closeRegistrationTime.toISOString(),
+            // eslint-disable-next-line unicorn/no-null
+            description: option.description ?? null,
+            esnCardDiscountedPrice:
+              esnCardDiscountedPriceByOptionId.get(option.id) ?? undefined,
+            id: option.id,
+            isPaid: option.isPaid,
+            openRegistrationTime: option.openRegistrationTime.toISOString(),
+            organizingRegistration: option.organizingRegistration,
+            price: option.price,
+            // eslint-disable-next-line unicorn/no-null
+            registeredDescription: option.registeredDescription ?? null,
+            registrationMode: option.registrationMode,
+            roleIds: [...option.roleIds],
+            spots: option.spots,
+            // eslint-disable-next-line unicorn/no-null
+            stripeTaxRateId: option.stripeTaxRateId ?? null,
+            title: option.title,
+          })),
+          start: event.start.toISOString(),
+          title: event.title,
+        };
       }),
     'events.getPendingReviews': (_payload, options) =>
       Effect.gen(function* () {

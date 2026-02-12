@@ -69,9 +69,8 @@ export class EventEdit {
     if (!providers) return false;
     return providers.find((provider) => provider.type === 'esnCard')?.status === 'enabled';
   });
-  private trpc = injectTRPC();
   protected readonly eventQuery = injectQuery(() =>
-    this.trpc.events.findOneForEdit.queryOptions({ id: this.eventId() }),
+    this.rpc.events.findOneForEdit.queryOptions({ id: this.eventId() }),
   );
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faEllipsisVertical = faEllipsisVertical;
@@ -83,7 +82,7 @@ export class EventEdit {
   private queryClient = inject(QueryClient);
   private router = inject(Router);
   protected readonly updateEventMutation = injectMutation(() =>
-    this.trpc.events.update.mutationOptions({
+    injectTRPC().events.update.mutationOptions({
       onError: (error) => {
         consola.error('Failed to update event:', error);
       },
@@ -124,7 +123,7 @@ export class EventEdit {
                 price: option.price,
                 registeredDescription: option.registeredDescription ?? '',
                 registrationMode: option.registrationMode,
-                roleIds: option.roleIds ?? [],
+                roleIds: option.roleIds ? [...option.roleIds] : [],
                 spots: option.spots,
                 // eslint-disable-next-line unicorn/no-null
                 stripeTaxRateId: option.stripeTaxRateId ?? null,
