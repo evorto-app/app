@@ -182,6 +182,14 @@ The migration mode is explicitly non-backward-compatible. We optimize for a clea
   - `CI=true bun run build`
   - `CI=true bun run test` (`12 passed`)
   - `bash -lc 'eval "$(bun helpers/testing/runtime-env.mjs)" && CI=true NO_WEBSERVER=true bunx --bun playwright test tests/docs/roles/roles.doc.ts --project=docs --workers=1 --max-failures=1'` (`8 passed`)
+- Effect RPC `admin.tenant` settings/tax-rates migration validation:
+  - `bunx --bun eslint src/shared/rpc-contracts/app-rpcs.ts src/server/effect/rpc/app-rpcs.handlers.ts src/app/admin/general-settings/general-settings.component.ts src/app/admin/tax-rates-settings/tax-rates-settings.component.ts src/app/admin/components/import-tax-rates-dialog/import-tax-rates-dialog.component.ts src/server/trpc/app-router.ts`
+  - `bunx --bun tsc -p tsconfig.app.json --noEmit`
+  - `bunx --bun tsc -p tsconfig.spec.json --noEmit`
+  - `CI=true bun run lint` (warnings-only baseline unchanged)
+  - `CI=true bun run build`
+  - `CI=true bun run test` (`12 passed`)
+  - `bash -lc 'eval "$(bun helpers/testing/runtime-env.mjs)" && CI=true NO_WEBSERVER=true bunx --bun playwright test tests/specs/finance/tax-rates/admin-import-tax-rates.spec.ts tests/docs/finance/inclusive-tax-rates.doc.ts --project=local-chrome --project=docs --workers=1 --max-failures=1'` (`11 passed`)
 
 ## Out of Scope (for this track phase)
 
