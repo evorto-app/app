@@ -188,7 +188,7 @@
                 </div>
                 @if (upsertCardMutation.isError()) {
                   <p class="text-error text-sm">
-                    {{ upsertCardMutation.error().message }}
+                    {{ upsertCardMutation.error() }}
                   </p>
                 }
               </form>

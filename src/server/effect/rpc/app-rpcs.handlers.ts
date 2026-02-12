@@ -19,6 +19,7 @@ import {
   rolesToTenantUsers,
   tenants,
   tenantStripeTaxRates,
+  userDiscountCards,
   users,
   usersToTenants,
 } from '../../../db/schema';
@@ -38,7 +39,7 @@ import {
 import { Tenant } from '../../../types/custom/tenant';
 import { User } from '../../../types/custom/user';
 import { serverEnvironment } from '../../config/environment';
-import { PROVIDERS, type ProviderType } from '../../discounts/providers';
+import { Adapters, PROVIDERS, type ProviderType } from '../../discounts/providers';
 import { stripe } from '../../stripe-client';
 import { normalizeEsnCardConfig } from '../../trpc/discounts/discount-provider-config';
 import { computeIconSourceColor } from '../../utils/icon-color';
@@ -183,6 +184,20 @@ const normalizeActiveTenantTaxRateRecord = (
   // eslint-disable-next-line unicorn/no-null
   state: taxRate.state ?? null,
   stripeTaxRateId: taxRate.stripeTaxRateId,
+});
+
+const normalizeUserDiscountCardRecord = (
+  card: Pick<
+    typeof userDiscountCards.$inferSelect,
+    'id' | 'identifier' | 'status' | 'type' | 'validTo'
+  >,
+) => ({
+  id: card.id,
+  identifier: card.identifier,
+  status: card.status,
+  type: card.type,
+  // eslint-disable-next-line unicorn/no-null
+  validTo: card.validTo?.toISOString() ?? null,
 });
 
 const normalizeTemplatesByCategoryRecord = (
@@ -588,6 +603,40 @@ export const appRpcHandlers = AppRpcs.toLayer(
       Effect.sync(() =>
         decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant),
       ),
+    'discounts.deleteMyCard': (input, options) =>
+      Effect.gen(function* () {
+        yield* ensureAuthenticated(options.headers);
+        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const user = yield* requireUserHeader(options.headers);
+
+        yield* Effect.promise(() =>
+          database
+            .delete(userDiscountCards)
+            .where(
+              and(
+                eq(userDiscountCards.tenantId, tenant.id),
+                eq(userDiscountCards.userId, user.id),
+                eq(userDiscountCards.type, input.type),
+              ),
+            ),
+        );
+      }),
+    'discounts.getMyCards': (_payload, options) =>
+      Effect.gen(function* () {
+        yield* ensureAuthenticated(options.headers);
+        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const user = yield* requireUserHeader(options.headers);
+        const cards = yield* Effect.promise(() =>
+          database.query.userDiscountCards.findMany({
+            where: {
+              tenantId: tenant.id,
+              userId: user.id,
+            },
+          }),
+        );
+
+        return cards.map((card) => normalizeUserDiscountCardRecord(card));
+      }),
     'discounts.getTenantProviders': (_payload, options) =>
       Effect.gen(function* () {
         yield* ensureAuthenticated(options.headers);
@@ -606,6 +655,175 @@ export const appRpcHandlers = AppRpcs.toLayer(
           status: config[type].status,
           type,
         }));
+      }),
+    'discounts.refreshMyCard': (input, options) =>
+      Effect.gen(function* () {
+        yield* ensureAuthenticated(options.headers);
+        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const user = yield* requireUserHeader(options.headers);
+
+        const tenantRecord = yield* Effect.promise(() =>
+          database.query.tenants.findFirst({
+            where: {
+              id: tenant.id,
+            },
+          }),
+        );
+        const providers = resolveTenantDiscountProviders(
+          tenantRecord?.discountProviders,
+        );
+        const provider = providers[input.type];
+        if (!provider || provider.status !== 'enabled') {
+          return yield* Effect.fail('FORBIDDEN' as const);
+        }
+
+        const card = yield* Effect.promise(() =>
+          database.query.userDiscountCards.findFirst({
+            where: {
+              tenantId: tenant.id,
+              type: input.type,
+              userId: user.id,
+            },
+          }),
+        );
+        if (!card) {
+          return yield* Effect.fail('NOT_FOUND' as const);
+        }
+
+        const adapter = Adapters[input.type];
+        if (!adapter) {
+          return normalizeUserDiscountCardRecord(card);
+        }
+
+        const result = yield* Effect.promise(() =>
+          adapter.validate({
+            config: provider.config,
+            identifier: card.identifier,
+          }),
+        );
+        const updatedCards = yield* Effect.promise(() =>
+          database
+            .update(userDiscountCards)
+            .set({
+              lastCheckedAt: new Date(),
+              metadata: result.metadata,
+              status: result.status,
+              validFrom: result.validFrom ?? undefined,
+              validTo: result.validTo ?? undefined,
+            })
+            .where(eq(userDiscountCards.id, card.id))
+            .returning(),
+        );
+        const updatedCard = updatedCards[0];
+        if (!updatedCard) {
+          return yield* Effect.fail('NOT_FOUND' as const);
+        }
+
+        return normalizeUserDiscountCardRecord(updatedCard);
+      }),
+    'discounts.upsertMyCard': (input, options) =>
+      Effect.gen(function* () {
+        yield* ensureAuthenticated(options.headers);
+        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const user = yield* requireUserHeader(options.headers);
+
+        const tenantRecord = yield* Effect.promise(() =>
+          database.query.tenants.findFirst({
+            where: {
+              id: tenant.id,
+            },
+          }),
+        );
+        const providers = resolveTenantDiscountProviders(
+          tenantRecord?.discountProviders,
+        );
+        const provider = providers[input.type];
+        if (!provider || provider.status !== 'enabled') {
+          return yield* Effect.fail('FORBIDDEN' as const);
+        }
+
+        const existingIdentifier = yield* Effect.promise(() =>
+          database.query.userDiscountCards.findFirst({
+            where: {
+              identifier: input.identifier,
+              type: input.type,
+            },
+          }),
+        );
+        if (existingIdentifier && existingIdentifier.userId !== user.id) {
+          return yield* Effect.fail('CONFLICT' as const);
+        }
+
+        const existingCard = yield* Effect.promise(() =>
+          database.query.userDiscountCards.findFirst({
+            where: {
+              tenantId: tenant.id,
+              type: input.type,
+              userId: user.id,
+            },
+          }),
+        );
+
+        const upsertedCards = existingCard
+          ? yield* Effect.promise(() =>
+              database
+                .update(userDiscountCards)
+                .set({
+                  identifier: input.identifier,
+                })
+                .where(eq(userDiscountCards.id, existingCard.id))
+                .returning(),
+            )
+          : yield* Effect.promise(() =>
+              database
+                .insert(userDiscountCards)
+                .values({
+                  identifier: input.identifier,
+                  tenantId: tenant.id,
+                  type: input.type,
+                  userId: user.id,
+                })
+                .returning(),
+            );
+        const upsertedCard = upsertedCards[0];
+        if (!upsertedCard) {
+          return yield* Effect.fail('BAD_REQUEST' as const);
+        }
+
+        const adapter = Adapters[input.type];
+        if (!adapter) {
+          return normalizeUserDiscountCardRecord(upsertedCard);
+        }
+
+        const result = yield* Effect.promise(() =>
+          adapter.validate({
+            config: provider.config,
+            identifier: input.identifier,
+          }),
+        );
+        const updatedCards = yield* Effect.promise(() =>
+          database
+            .update(userDiscountCards)
+            .set({
+              lastCheckedAt: new Date(),
+              metadata: result.metadata,
+              status: result.status,
+              validFrom: result.validFrom ?? undefined,
+              validTo: result.validTo ?? undefined,
+            })
+            .where(eq(userDiscountCards.id, upsertedCard.id))
+            .returning(),
+        );
+        const updatedCard = updatedCards[0];
+        if (!updatedCard) {
+          return yield* Effect.fail('BAD_REQUEST' as const);
+        }
+
+        if (updatedCard.status !== 'verified') {
+          return yield* Effect.fail('BAD_REQUEST' as const);
+        }
+
+        return normalizeUserDiscountCardRecord(updatedCard);
       }),
     'icons.add': ({ icon }, options) =>
       Effect.gen(function* () {

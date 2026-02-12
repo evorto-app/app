@@ -1,4 +1,3 @@
-import { discountsRouter } from './discounts/discounts.router';
 import { editorMediaRouter } from './editor-media/editor-media.router';
 import { eventRouter } from './events/events.router';
 import { financeRouter } from './finance/finance.router';
@@ -8,7 +7,6 @@ import { router } from './trpc-server';
 import { userRouter } from './users/users.router';
 
 export const appRouter = router({
-  discounts: discountsRouter,
   editorMedia: editorMediaRouter,
   events: eventRouter,
   finance: financeRouter,

@@ -78,22 +78,13 @@ export class UserProfileComponent {
   );
   protected readonly buyEsnCardUrl = computed(() => {
     const providers = this.discountProvidersQuery.data();
-    if (!providers) return null;
+    if (!providers) return;
     const esnProvider = providers.find((provider) => provider.type === 'esnCard');
-    return esnProvider?.config.buyEsnCardUrl?.trim() || null;
+    const buyEsnCardUrl = esnProvider?.config.buyEsnCardUrl?.trim();
+    return buyEsnCardUrl && buyEsnCardUrl.length > 0 ? buyEsnCardUrl : undefined;
   });
-  private readonly notifications = inject(NotificationService);
-  private readonly queryClient = inject(QueryClient);
-  private readonly trpc = injectTRPC();
   protected readonly deleteCardMutation = injectMutation(() =>
-    this.trpc.discounts.deleteMyCard.mutationOptions({
-      onSuccess: async () => {
-        await this.queryClient.invalidateQueries({
-          queryKey: this.trpc.discounts.getMyCards.pathKey(),
-        });
-        this.notifications.showSuccess('ESN card removed');
-      },
-    }),
+    this.rpc.discounts.deleteMyCard.mutationOptions(),
   );
   private readonly esnCardModel = signal({ identifier: '' });
   protected readonly esnCardForm = form(this.esnCardModel, (schemaPath) => {
@@ -111,28 +102,21 @@ export class UserProfileComponent {
   protected readonly faRightFromBracket = faRightFromBracket;
   protected readonly faTags = faTags;
   protected readonly faUser = faUser;
-
   protected readonly myCardsQuery = injectQuery(() =>
-    this.trpc.discounts.getMyCards.queryOptions(),
+    this.rpc.discounts.getMyCards.queryOptions(),
   );
   protected readonly hasVerifiedEsnCard = computed(() => {
     const cards = this.myCardsQuery.data();
     if (!cards) return false;
     return cards.some((card) => card.type === 'esnCard' && card.status === 'verified');
   });
+  private readonly trpc = injectTRPC();
 
   protected readonly myReceiptsQuery = injectQuery(() =>
     this.trpc.finance.receipts.my.queryOptions(),
   );
   protected readonly refreshCardMutation = injectMutation(() =>
-    this.trpc.discounts.refreshMyCard.mutationOptions({
-      onSuccess: async () => {
-        await this.queryClient.invalidateQueries({
-          queryKey: this.trpc.discounts.getMyCards.pathKey(),
-        });
-        this.notifications.showSuccess('ESN card refreshed');
-      },
-    }),
+    this.rpc.discounts.refreshMyCard.mutationOptions(),
   );
 
   protected readonly sectionEntries = computed(() =>
@@ -141,19 +125,12 @@ export class UserProfileComponent {
     ),
   );
   protected readonly selectedSection = signal<ProfileSection>('overview');
+
   protected readonly updateProfileMutation = injectMutation(() =>
     this.rpc.users.updateProfile.mutationOptions(),
   );
   protected readonly upsertCardMutation = injectMutation(() =>
-    this.trpc.discounts.upsertMyCard.mutationOptions({
-      onSuccess: async () => {
-        await this.queryClient.invalidateQueries({
-          queryKey: this.trpc.discounts.getMyCards.pathKey(),
-        });
-        this.esnCardModel.set({ identifier: '' });
-        this.notifications.showSuccess('ESN card saved');
-      },
-    }),
+    this.rpc.discounts.upsertMyCard.mutationOptions(),
   );
   protected readonly userEventsQuery = injectQuery(() =>
     this.rpc.users.events.queryOptions(),
@@ -161,8 +138,10 @@ export class UserProfileComponent {
   protected readonly userQuery = injectQuery(() =>
     this.rpc.users.self.queryOptions(),
   );
-
   private readonly dialog = inject(MatDialog);
+  private readonly notifications = inject(NotificationService);
+
+  private readonly queryClient = inject(QueryClient);
   private readonly route = inject(ActivatedRoute);
 
   constructor() {
@@ -193,7 +172,17 @@ export class UserProfileComponent {
   }
 
   protected deleteEsnCard(): void {
-    this.deleteCardMutation.mutate({ type: 'esnCard' });
+    this.deleteCardMutation.mutate(
+      { type: 'esnCard' },
+      {
+        onSuccess: async () => {
+          await this.queryClient.invalidateQueries(
+            this.rpc.queryFilter(['discounts', 'getMyCards']),
+          );
+          this.notifications.showSuccess('ESN card removed');
+        },
+      },
+    );
   }
 
   protected async openEditProfileDialog(): Promise<void> {
@@ -238,16 +227,36 @@ export class UserProfileComponent {
   }
 
   protected refreshEsnCard(): void {
-    this.refreshCardMutation.mutate({ type: 'esnCard' });
+    this.refreshCardMutation.mutate(
+      { type: 'esnCard' },
+      {
+        onSuccess: async () => {
+          await this.queryClient.invalidateQueries(
+            this.rpc.queryFilter(['discounts', 'getMyCards']),
+          );
+          this.notifications.showSuccess('ESN card refreshed');
+        },
+      },
+    );
   }
 
   protected async saveEsnCard(event: Event): Promise<void> {
     event.preventDefault();
     await submit(this.esnCardForm, async (formState) => {
       this.upsertCardMutation.mutate({
-        identifier: formState().value().identifier.trim(),
-        type: 'esnCard',
-      });
+          identifier: formState().value().identifier.trim(),
+          type: 'esnCard',
+        },
+        {
+          onSuccess: async () => {
+            await this.queryClient.invalidateQueries(
+              this.rpc.queryFilter(['discounts', 'getMyCards']),
+            );
+            this.esnCardModel.set({ identifier: '' });
+            this.notifications.showSuccess('ESN card saved');
+          },
+        },
+      );
     });
   }
 

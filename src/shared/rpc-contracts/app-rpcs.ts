@@ -306,6 +306,77 @@ export const DiscountsGetTenantProviders = asRpcQuery(
   }),
 );
 
+export const DiscountsGetMyCards = asRpcQuery(
+  Rpc.make('discounts.getMyCards', {
+    error: DiscountsRpcError,
+    payload: Schema.Void,
+    success: Schema.Array(
+      Schema.Struct({
+        id: Schema.NonEmptyString,
+        identifier: Schema.NonEmptyString,
+        status: Schema.Literal('expired', 'invalid', 'unverified', 'verified'),
+        type: Schema.Literal('esnCard'),
+        validTo: Schema.NullOr(Schema.String),
+      }),
+    ),
+  }),
+);
+
+export const DiscountsCardMutationError = Schema.Literal(
+  'BAD_REQUEST',
+  'CONFLICT',
+  'FORBIDDEN',
+  'NOT_FOUND',
+  'UNAUTHORIZED',
+);
+
+export type DiscountsCardMutationError = Schema.Schema.Type<
+  typeof DiscountsCardMutationError
+>;
+
+const DiscountsCardTypeInput = Schema.Struct({
+  type: Schema.Literal('esnCard'),
+});
+
+export const DiscountsDeleteMyCard = asRpcMutation(
+  Rpc.make('discounts.deleteMyCard', {
+    error: DiscountsCardMutationError,
+    payload: DiscountsCardTypeInput,
+    success: Schema.Void,
+  }),
+);
+
+export const DiscountsRefreshMyCard = asRpcMutation(
+  Rpc.make('discounts.refreshMyCard', {
+    error: DiscountsCardMutationError,
+    payload: DiscountsCardTypeInput,
+    success: Schema.Struct({
+      id: Schema.NonEmptyString,
+      identifier: Schema.NonEmptyString,
+      status: Schema.Literal('expired', 'invalid', 'unverified', 'verified'),
+      type: Schema.Literal('esnCard'),
+      validTo: Schema.NullOr(Schema.String),
+    }),
+  }),
+);
+
+export const DiscountsUpsertMyCard = asRpcMutation(
+  Rpc.make('discounts.upsertMyCard', {
+    error: DiscountsCardMutationError,
+    payload: Schema.Struct({
+      identifier: Schema.NonEmptyString,
+      type: Schema.Literal('esnCard'),
+    }),
+    success: Schema.Struct({
+      id: Schema.NonEmptyString,
+      identifier: Schema.NonEmptyString,
+      status: Schema.Literal('expired', 'invalid', 'unverified', 'verified'),
+      type: Schema.Literal('esnCard'),
+      validTo: Schema.NullOr(Schema.String),
+    }),
+  }),
+);
+
 export const UsersUserAssigned = asRpcQuery(
   Rpc.make('users.userAssigned', {
     payload: Schema.Void,
@@ -578,6 +649,10 @@ export class AppRpcs extends RpcGroup.make(
   ConfigPermissionList,
   ConfigTenant,
   DiscountsGetTenantProviders,
+  DiscountsGetMyCards,
+  DiscountsDeleteMyCard,
+  DiscountsRefreshMyCard,
+  DiscountsUpsertMyCard,
   TaxRatesListActive,
   UsersAuthDataFind,
   UsersCreateAccount,

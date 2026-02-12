@@ -115,7 +115,7 @@ export class EventDetailsComponent {
     return canReview || canEdit || canSeeDrafts;
   });
   protected readonly myCardsQuery = injectQuery(() =>
-    this.trpc.discounts.getMyCards.queryOptions(),
+    this.rpc.discounts.getMyCards.queryOptions(),
   );
   private readonly config = inject(ConfigService);
 
@@ -129,8 +129,8 @@ export class EventDetailsComponent {
     const verified = cards.filter((c) => c.status === 'verified');
     if (verified.length === 0) return false;
     const latestValidTo = verified
-      .map((c) => c.validTo)
-      .filter((d): d is Date => !!d)
+      .map((card) => (card.validTo ? new Date(card.validTo) : undefined))
+      .filter((date): date is Date => !!date && !Number.isNaN(date.getTime()))
       .toSorted((a, b) => b.getTime() - a.getTime())[0];
     if (!latestValidTo) return false;
     return latestValidTo <= event.start;
