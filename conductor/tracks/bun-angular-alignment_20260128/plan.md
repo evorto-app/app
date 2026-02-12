@@ -227,6 +227,14 @@
   - [x] Decommission legacy tRPC `users.events.findMany` procedure
   - [x] Commit milestone
 
+- [x] Task: Migrate `users.authData` + `users.createAccount` bootstrap flow from tRPC to Effect RPC slice (ec4fdd5)
+  - [x] Define test intent (`bunx --bun eslint` on touched files, `bunx --bun tsc -p tsconfig.app.json --noEmit`, `CI=true bun run lint`, `CI=true bun run build`, `CI=true bun run test`)
+  - [x] Add shared Effect RPC contracts + handlers for `users.authData` and `users.createAccount`
+  - [x] Bridge OIDC auth-data context into `/rpc` web handler headers
+  - [x] Replace `create-account` component query/mutation callsites from `injectTRPCClient()/injectTRPC()` to `AppRpc.injectClient()`
+  - [x] Decommission legacy tRPC `users.authData` and `users.createAccount` procedures
+  - [x] Commit milestone
+
 - [ ] Task: Conductor - User Manual Verification 'Phase 6'
 
 ## Final Gate
@@ -289,6 +297,11 @@
 - `CI=true bun run build` passes after `users.events.findMany` Effect RPC cutover.
 - `CI=true bun run test` passes after `users.events.findMany` Effect RPC cutover (`12 passed`).
 - `bash -lc 'eval "$(bun helpers/testing/runtime-env.mjs)" && CI=true NO_WEBSERVER=true bunx --bun playwright test tests/docs/profile/discounts.doc.ts --project=docs --workers=1 --max-failures=1'` passes after `users.events.findMany` Effect RPC cutover (`8 passed`).
+- `bunx --bun eslint src/shared/rpc-contracts/app-rpcs.ts src/server/effect/rpc/app-rpcs.web-handler.ts src/server/effect/rpc/app-rpcs.handlers.ts src/app/core/create-account/create-account.component.ts src/server/trpc/users/users.router.ts` passes after `users.authData`/`users.createAccount` Effect RPC cutover (warnings-only baseline unchanged).
+- `bunx --bun tsc -p tsconfig.app.json --noEmit` and `bunx --bun tsc -p tsconfig.spec.json --noEmit` pass after `users.authData`/`users.createAccount` Effect RPC cutover.
+- `CI=true bun run lint` passes after `users.authData`/`users.createAccount` Effect RPC cutover (warnings-only baseline unchanged).
+- `CI=true bun run build` passes after `users.authData`/`users.createAccount` Effect RPC cutover.
+- `CI=true bun run test` passes after `users.authData`/`users.createAccount` Effect RPC cutover (`12 passed`).
 
 ## Session Handoff
 
