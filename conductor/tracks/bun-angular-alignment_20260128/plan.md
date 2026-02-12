@@ -312,6 +312,13 @@
   - [x] Decommission legacy tRPC `globalAdmin.tenants.findMany` procedure
   - [x] Commit milestone
 
+- [x] Task: Migrate `events.canOrganize` from tRPC to Effect RPC slice (b813ec5)
+  - [x] Define test intent (`bunx --bun eslint` on touched files, `bunx --bun tsc -p tsconfig.app.json --noEmit`, `CI=true bun run lint`, `CI=true bun run build`, `CI=true bun run test`)
+  - [x] Add shared Effect RPC contract + handler for `events.canOrganize`
+  - [x] Replace event organizer capability callsites (`event-details`, `event-organizer.guard`) with `AppRpc` helper
+  - [x] Decommission legacy tRPC `events.canOrganize` procedure
+  - [x] Commit milestone
+
 - [ ] Task: Conductor - User Manual Verification 'Phase 6'
 
 ## Final Gate
@@ -443,6 +450,11 @@
 - `CI=true bun run lint` passes after `globalAdmin.tenants.findMany` Effect RPC cutover (warnings-only baseline unchanged).
 - `CI=true bun run build` passes after `globalAdmin.tenants.findMany` Effect RPC cutover.
 - `CI=true bun run test` passes after `globalAdmin.tenants.findMany` Effect RPC cutover (`12 passed`).
+- `bunx --bun eslint src/shared/rpc-contracts/app-rpcs.ts src/server/effect/rpc/app-rpcs.handlers.ts src/app/events/event-details/event-details.component.ts src/app/events/guards/event-organizer.guard.ts src/server/trpc/events/events.router.ts` passes after `events.canOrganize` Effect RPC cutover (warnings-only baseline unchanged).
+- `bunx --bun tsc -p tsconfig.app.json --noEmit` and `bunx --bun tsc -p tsconfig.spec.json --noEmit` pass after `events.canOrganize` Effect RPC cutover.
+- `CI=true bun run lint` passes after `events.canOrganize` Effect RPC cutover (warnings-only baseline unchanged).
+- `CI=true bun run build` passes after `events.canOrganize` Effect RPC cutover.
+- `CI=true bun run test` passes after `events.canOrganize` Effect RPC cutover (`12 passed`).
 
 ## Session Handoff
 
