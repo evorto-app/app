@@ -249,6 +249,13 @@
   - [x] Decommission legacy tRPC `users.findMany` procedure
   - [x] Commit milestone
 
+- [x] Task: Migrate `admin.roles.findMany/findOne/search` read paths from tRPC to Effect RPC slice (dd9d982)
+  - [x] Define test intent (`bunx --bun eslint` on touched files, `bunx --bun tsc -p tsconfig.app.json --noEmit`, `CI=true bun run lint`, `CI=true bun run build`, `CI=true bun run test`, targeted roles docs smoke)
+  - [x] Add shared Effect RPC contracts + handlers for `admin.roles.findMany`, `admin.roles.findOne`, and `admin.roles.search`
+  - [x] Replace Angular role read callsites (`role-list`, `role-details`, `role-edit`, `role-select`, `template-create`) to `AppRpc` helpers
+  - [x] Decommission legacy tRPC role read procedures (`findMany`, `findOne`, `search`)
+  - [x] Commit milestone
+
 - [ ] Task: Conductor - User Manual Verification 'Phase 6'
 
 ## Final Gate
@@ -327,6 +334,12 @@
 - `CI=true bun run lint` passes after `users.findMany` Effect RPC cutover (warnings-only baseline unchanged).
 - `CI=true bun run build` passes after `users.findMany` Effect RPC cutover.
 - `CI=true bun run test` passes after `users.findMany` Effect RPC cutover (`12 passed`).
+- `bunx --bun eslint src/shared/rpc-contracts/app-rpcs.ts src/server/effect/rpc/app-rpcs.handlers.ts src/server/trpc/admin/role.router.ts src/app/admin/role-list/role-list.component.ts src/app/templates/template-create/template-create.component.ts src/app/admin/role-details/role-details.component.ts src/app/admin/role-edit/role-edit.component.ts src/app/admin/role-create/role-create.component.ts src/app/shared/components/controls/role-select/role-select.component.ts` passes after `admin.roles` read Effect RPC cutover.
+- `bunx --bun tsc -p tsconfig.app.json --noEmit` and `bunx --bun tsc -p tsconfig.spec.json --noEmit` pass after `admin.roles` read Effect RPC cutover.
+- `CI=true bun run lint` passes after `admin.roles` read Effect RPC cutover (warnings-only baseline unchanged).
+- `CI=true bun run build` passes after `admin.roles` read Effect RPC cutover.
+- `CI=true bun run test` passes after `admin.roles` read Effect RPC cutover (`12 passed`).
+- `bash -lc 'eval "$(bun helpers/testing/runtime-env.mjs)" && CI=true NO_WEBSERVER=true bunx --bun playwright test tests/docs/roles/roles.doc.ts --project=docs --workers=1 --max-failures=1'` passes after `admin.roles` read Effect RPC cutover (`8 passed`).
 
 ## Session Handoff
 
@@ -334,3 +347,4 @@
   - `conductor/tracks/bun-angular-alignment_20260128/handoff-2026-02-07.md`
   - `conductor/tracks/bun-angular-alignment_20260128/handoff-2026-02-10.md`
   - `conductor/tracks/bun-angular-alignment_20260128/handoff-2026-02-11.md`
+  - `conductor/tracks/bun-angular-alignment_20260128/handoff-2026-02-12.md`
