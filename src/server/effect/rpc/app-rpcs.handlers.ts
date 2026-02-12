@@ -214,6 +214,44 @@ const requireUserHeader = (
 
 export const appRpcHandlers = AppRpcs.toLayer(
   Effect.succeed({
+    'admin.roles.create': (input, options) =>
+      Effect.gen(function* () {
+        yield* ensurePermission(options.headers, 'admin:manageRoles');
+        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const createdRoles = yield* Effect.promise(() =>
+          database
+            .insert(roles)
+            .values({
+              defaultOrganizerRole: input.defaultOrganizerRole,
+              defaultUserRole: input.defaultUserRole,
+              description: input.description,
+              name: input.name,
+              permissions: input.permissions,
+              tenantId: tenant.id,
+            })
+            .returning(),
+        );
+        const createdRole = createdRoles[0];
+        if (!createdRole) {
+          return yield* Effect.fail('NOT_FOUND' as const);
+        }
+
+        return normalizeRoleRecord(createdRole);
+      }),
+    'admin.roles.delete': ({ id }, options) =>
+      Effect.gen(function* () {
+        yield* ensurePermission(options.headers, 'admin:manageRoles');
+        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const deletedRoles = yield* Effect.promise(() =>
+          database
+            .delete(roles)
+            .where(and(eq(roles.id, id), eq(roles.tenantId, tenant.id)))
+            .returning(),
+        );
+        if (deletedRoles.length === 0) {
+          return yield* Effect.fail('NOT_FOUND' as const);
+        }
+      }),
     'admin.roles.findHubRoles': (_payload, options) =>
       Effect.gen(function* () {
         yield* ensureAuthenticated(options.headers);
@@ -300,6 +338,30 @@ export const appRpcHandlers = AppRpcs.toLayer(
         );
 
         return matchingRoles.map((role) => normalizeRoleRecord(role));
+      }),
+    'admin.roles.update': ({ id, ...input }, options) =>
+      Effect.gen(function* () {
+        yield* ensurePermission(options.headers, 'admin:manageRoles');
+        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const updatedRoles = yield* Effect.promise(() =>
+          database
+            .update(roles)
+            .set({
+              defaultOrganizerRole: input.defaultOrganizerRole,
+              defaultUserRole: input.defaultUserRole,
+              description: input.description,
+              name: input.name,
+              permissions: input.permissions,
+            })
+            .where(and(eq(roles.id, id), eq(roles.tenantId, tenant.id)))
+            .returning(),
+        );
+        const updatedRole = updatedRoles[0];
+        if (!updatedRole) {
+          return yield* Effect.fail('NOT_FOUND' as const);
+        }
+
+        return normalizeRoleRecord(updatedRole);
       }),
     'config.isAuthenticated': (_payload, options) =>
       Effect.succeed(options.headers['x-evorto-authenticated'] === 'true'),

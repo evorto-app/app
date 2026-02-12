@@ -15,7 +15,6 @@ import {
 } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
-import { injectTRPC } from '../../core/trpc-client';
 import { RoleFormComponent } from '../components/role-form/role-form.component';
 import {
   createRoleFormModel,
@@ -31,14 +30,14 @@ import {
   templateUrl: './role-create.component.html',
 })
 export class RoleCreateComponent {
+  private readonly rpc = AppRpc.injectClient();
   protected readonly createRoleMutation = injectMutation(() =>
-    injectTRPC().admin.roles.create.mutationOptions(),
+    this.rpc.admin['roles.create'].mutationOptions(),
   );
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly roleForm = form(signal(createRoleFormModel()), roleFormSchema);
   private readonly queryClient = inject(QueryClient);
   private readonly router = inject(Router);
-  private readonly rpc = AppRpc.injectClient();
 
   protected async onSubmit(role: RoleFormData): Promise<void> {
     this.createRoleMutation.mutate(

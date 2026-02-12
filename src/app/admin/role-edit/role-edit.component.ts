@@ -17,7 +17,6 @@ import {
 } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
-import { injectTRPC } from '../../core/trpc-client';
 import { RoleFormComponent } from '../components/role-form/role-form.component';
 import {
   mergeRoleFormOverrides,
@@ -52,7 +51,7 @@ export class RoleEditComponent {
   });
   protected readonly roleForm = form(this.roleModel, roleFormSchema);
   protected readonly updateRoleMutation = injectMutation(() =>
-    injectTRPC().admin.roles.update.mutationOptions(),
+    this.rpc.admin['roles.update'].mutationOptions(),
   );
   private readonly queryClient = inject(QueryClient);
   private readonly router = inject(Router);

@@ -125,6 +125,36 @@ export const AdminRolesFindHubRoles = asRpcQuery(
   }),
 );
 
+export const AdminRolesCreateInput = Schema.Struct({
+  defaultOrganizerRole: Schema.Boolean,
+  defaultUserRole: Schema.Boolean,
+  description: Schema.NullOr(Schema.NonEmptyString),
+  name: Schema.NonEmptyString,
+  permissions: Schema.mutable(Schema.Array(PermissionSchema)),
+});
+
+export type AdminRolesCreateInput = Schema.Schema.Type<
+  typeof AdminRolesCreateInput
+>;
+
+export const AdminRolesCreate = asRpcMutation(
+  Rpc.make('admin.roles.create', {
+    error: AdminRoleRpcError,
+    payload: AdminRolesCreateInput,
+    success: AdminRoleRecord,
+  }),
+);
+
+export const AdminRolesDelete = asRpcMutation(
+  Rpc.make('admin.roles.delete', {
+    error: AdminRoleRpcError,
+    payload: Schema.Struct({
+      id: Schema.NonEmptyString,
+    }),
+    success: Schema.Void,
+  }),
+);
+
 export const AdminRolesSearch = asRpcQuery(
   Rpc.make('admin.roles.search', {
     error: AdminRoleRpcError,
@@ -132,6 +162,21 @@ export const AdminRolesSearch = asRpcQuery(
       search: Schema.String,
     }),
     success: Schema.Array(AdminRoleRecord),
+  }),
+);
+
+export const AdminRolesUpdate = asRpcMutation(
+  Rpc.make('admin.roles.update', {
+    error: AdminRoleRpcError,
+    payload: Schema.Struct({
+      defaultOrganizerRole: Schema.Boolean,
+      defaultUserRole: Schema.Boolean,
+      description: Schema.NullOr(Schema.NonEmptyString),
+      id: Schema.NonEmptyString,
+      name: Schema.NonEmptyString,
+      permissions: Schema.mutable(Schema.Array(PermissionSchema)),
+    }),
+    success: AdminRoleRecord,
   }),
 );
 
@@ -391,10 +436,13 @@ export const TemplatesGroupedByCategory = asRpcQuery(
 );
 
 export class AppRpcs extends RpcGroup.make(
+  AdminRolesCreate,
+  AdminRolesDelete,
   AdminRolesFindHubRoles,
   AdminRolesFindMany,
   AdminRolesFindOne,
   AdminRolesSearch,
+  AdminRolesUpdate,
   ConfigPublic,
   ConfigIsAuthenticated,
   ConfigPermissionList,
