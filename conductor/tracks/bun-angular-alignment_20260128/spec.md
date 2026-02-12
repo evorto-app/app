@@ -198,6 +198,14 @@ The migration mode is explicitly non-backward-compatible. We optimize for a clea
   - `CI=true bun run build`
   - `CI=true bun run test` (`12 passed`)
   - `bash -lc 'eval "$(bun helpers/testing/runtime-env.mjs)" && CI=true NO_WEBSERVER=true bunx --bun playwright test tests/specs/templates/paid-option-requires-tax-rate.spec.ts tests/docs/templates/templates.doc.ts --project=local-chrome --project=docs --workers=1 --max-failures=1'` (`8 passed`, `6 skipped`)
+- Effect RPC `discounts.getTenantProviders` migration validation:
+  - `bunx --bun eslint src/shared/rpc-contracts/app-rpcs.ts src/server/effect/rpc/app-rpcs.handlers.ts src/server/trpc/discounts/discounts.router.ts src/app/admin/general-settings/general-settings.component.ts src/app/events/event-edit/event-edit.ts src/app/templates/template-create-event/template-create-event.component.ts src/app/profile/user-profile/user-profile.component.ts`
+  - `bunx --bun tsc -p tsconfig.app.json --noEmit`
+  - `bunx --bun tsc -p tsconfig.spec.json --noEmit`
+  - `CI=true bun run lint` (warnings-only baseline unchanged)
+  - `CI=true bun run build`
+  - `CI=true bun run test` (`12 passed`)
+  - `bash -lc 'eval "$(bun helpers/testing/runtime-env.mjs)" && CI=true NO_WEBSERVER=true bunx --bun playwright test tests/docs/profile/discounts.doc.ts tests/docs/templates/templates.doc.ts --project=docs --workers=1 --max-failures=1'` (`9 passed`)
 
 ## Out of Scope (for this track phase)
 

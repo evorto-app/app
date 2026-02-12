@@ -284,6 +284,13 @@
   - [x] Decommission legacy tRPC `taxRates` router namespace from app-router composition
   - [x] Commit milestone
 
+- [x] Task: Migrate `discounts.getTenantProviders` from tRPC to Effect RPC slice (b269797)
+  - [x] Define test intent (`bunx --bun eslint` on touched files, `bunx --bun tsc -p tsconfig.app.json --noEmit`, `CI=true bun run lint`, `CI=true bun run build`, `CI=true bun run test`, targeted profile/templates docs smoke)
+  - [x] Add shared Effect RPC contract + handler for `discounts.getTenantProviders` with parity tenant-provider normalization
+  - [x] Replace Angular discount-provider query callsites (`event-edit`, `template-create-event`, `user-profile`) and related invalidation path (`general-settings`) with `AppRpc` helpers
+  - [x] Decommission legacy tRPC `discounts.getTenantProviders` procedure
+  - [x] Commit milestone
+
 - [ ] Task: Conductor - User Manual Verification 'Phase 6'
 
 ## Final Gate
@@ -392,6 +399,12 @@
 - `CI=true bun run build` passes after `taxRates.listActive` Effect RPC cutover.
 - `CI=true bun run test` passes after `taxRates.listActive` Effect RPC cutover (`12 passed`).
 - `bash -lc 'eval "$(bun helpers/testing/runtime-env.mjs)" && CI=true NO_WEBSERVER=true bunx --bun playwright test tests/specs/templates/paid-option-requires-tax-rate.spec.ts tests/docs/templates/templates.doc.ts --project=local-chrome --project=docs --workers=1 --max-failures=1'` passes after `taxRates.listActive` Effect RPC cutover (`8 passed`, `6 skipped`).
+- `bunx --bun eslint src/shared/rpc-contracts/app-rpcs.ts src/server/effect/rpc/app-rpcs.handlers.ts src/server/trpc/discounts/discounts.router.ts src/app/admin/general-settings/general-settings.component.ts src/app/events/event-edit/event-edit.ts src/app/templates/template-create-event/template-create-event.component.ts src/app/profile/user-profile/user-profile.component.ts` passes after `discounts.getTenantProviders` Effect RPC cutover (warnings-only baseline unchanged).
+- `bunx --bun tsc -p tsconfig.app.json --noEmit` and `bunx --bun tsc -p tsconfig.spec.json --noEmit` pass after `discounts.getTenantProviders` Effect RPC cutover.
+- `CI=true bun run lint` passes after `discounts.getTenantProviders` Effect RPC cutover (warnings-only baseline unchanged).
+- `CI=true bun run build` passes after `discounts.getTenantProviders` Effect RPC cutover.
+- `CI=true bun run test` passes after `discounts.getTenantProviders` Effect RPC cutover (`12 passed`).
+- `bash -lc 'eval "$(bun helpers/testing/runtime-env.mjs)" && CI=true NO_WEBSERVER=true bunx --bun playwright test tests/docs/profile/discounts.doc.ts tests/docs/templates/templates.doc.ts --project=docs --workers=1 --max-failures=1'` passes after `discounts.getTenantProviders` Effect RPC cutover (`9 passed`).
 
 ## Session Handoff
 
