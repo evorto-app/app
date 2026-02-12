@@ -377,6 +377,30 @@ export const DiscountsUpsertMyCard = asRpcMutation(
   }),
 );
 
+export const EditorMediaRpcError = Schema.Literal(
+  'BAD_REQUEST',
+  'INTERNAL_SERVER_ERROR',
+  'UNAUTHORIZED',
+);
+
+export type EditorMediaRpcError = Schema.Schema.Type<typeof EditorMediaRpcError>;
+
+export const EditorMediaCreateImageDirectUpload = asRpcMutation(
+  Rpc.make('editorMedia.createImageDirectUpload', {
+    error: EditorMediaRpcError,
+    payload: Schema.Struct({
+      fileName: Schema.NonEmptyString,
+      fileSizeBytes: Schema.Number.pipe(Schema.nonNegative()),
+      mimeType: Schema.NonEmptyString,
+    }),
+    success: Schema.Struct({
+      deliveryUrl: Schema.NonEmptyString,
+      imageId: Schema.NonEmptyString,
+      uploadUrl: Schema.NonEmptyString,
+    }),
+  }),
+);
+
 export const UsersUserAssigned = asRpcQuery(
   Rpc.make('users.userAssigned', {
     payload: Schema.Void,
@@ -653,6 +677,7 @@ export class AppRpcs extends RpcGroup.make(
   DiscountsDeleteMyCard,
   DiscountsRefreshMyCard,
   DiscountsUpsertMyCard,
+  EditorMediaCreateImageDirectUpload,
   TaxRatesListActive,
   UsersAuthDataFind,
   UsersCreateAccount,

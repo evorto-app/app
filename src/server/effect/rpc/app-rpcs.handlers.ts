@@ -5,6 +5,7 @@ import {
   resolveTenantReceiptSettings,
   type TenantDiscountProviders,
 } from '@shared/tenant-config';
+import consola from 'consola';
 import { and, count, eq } from 'drizzle-orm';
 import { Effect, Schema } from 'effect';
 
@@ -40,10 +41,20 @@ import { Tenant } from '../../../types/custom/tenant';
 import { User } from '../../../types/custom/user';
 import { serverEnvironment } from '../../config/environment';
 import { Adapters, PROVIDERS, type ProviderType } from '../../discounts/providers';
+import { createCloudflareImageDirectUpload } from '../../integrations/cloudflare-images';
 import { stripe } from '../../stripe-client';
 import { normalizeEsnCardConfig } from '../../trpc/discounts/discount-provider-config';
 import { computeIconSourceColor } from '../../utils/icon-color';
 import { getPublicConfigEffect } from '../config/public-config.effect';
+
+const ALLOWED_IMAGE_MIME_TYPES = [
+  'image/gif',
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+] as const;
+const ALLOWED_IMAGE_MIME_TYPE_SET = new Set<string>(ALLOWED_IMAGE_MIME_TYPES);
+const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024;
 
 const decodeHeaderJson = <A, I>(
   value: string | undefined,
@@ -824,6 +835,42 @@ export const appRpcHandlers = AppRpcs.toLayer(
         }
 
         return normalizeUserDiscountCardRecord(updatedCard);
+      }),
+    'editorMedia.createImageDirectUpload': (input, options) =>
+      Effect.gen(function* () {
+        yield* ensureAuthenticated(options.headers);
+        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const user = yield* requireUserHeader(options.headers);
+
+        if (!ALLOWED_IMAGE_MIME_TYPE_SET.has(input.mimeType)) {
+          return yield* Effect.fail('BAD_REQUEST' as const);
+        }
+
+        if (
+          input.fileSizeBytes <= 0 ||
+          input.fileSizeBytes > MAX_IMAGE_SIZE_BYTES
+        ) {
+          return yield* Effect.fail('BAD_REQUEST' as const);
+        }
+
+        return yield* Effect.tryPromise({
+          catch: (error) => {
+            consola.error('editor-media.cloudflare.direct-upload-failed', {
+              error,
+              tenantId: tenant.id,
+              userId: user.id,
+            });
+            return 'INTERNAL_SERVER_ERROR' as const;
+          },
+          try: () =>
+            createCloudflareImageDirectUpload({
+              fileName: input.fileName,
+              mimeType: input.mimeType,
+              source: 'editor',
+              tenantId: tenant.id,
+              uploadedByUserId: user.id,
+            }),
+        });
       }),
     'icons.add': ({ icon }, options) =>
       Effect.gen(function* () {
