@@ -298,6 +298,13 @@
   - [x] Decommission legacy tRPC `discounts` router namespace from app-router composition
   - [x] Commit milestone
 
+- [x] Task: Migrate `editorMedia.createImageDirectUpload` from tRPC to Effect RPC slice (64901c9)
+  - [x] Define test intent (`bunx --bun eslint` on touched files, `bunx --bun tsc -p tsconfig.app.json --noEmit`, `CI=true bun run lint`, `CI=true bun run build`, `CI=true bun run test`)
+  - [x] Add shared Effect RPC contract + handler for `editorMedia.createImageDirectUpload`
+  - [x] Replace editor upload mutation callsite with `AppRpc` helper in rich-text editor control
+  - [x] Decommission legacy tRPC `editorMedia` router namespace from app-router composition
+  - [x] Commit milestone
+
 - [ ] Task: Conductor - User Manual Verification 'Phase 6'
 
 ## Final Gate
@@ -419,6 +426,11 @@
 - `CI=true bun run test` passes after discounts-card Effect RPC cutover (`12 passed`).
 - `bash -lc 'eval "$(bun helpers/testing/runtime-env.mjs)" && CI=true NO_WEBSERVER=true bunx --bun playwright test tests/docs/profile/discounts.doc.ts --project=docs --workers=1 --max-failures=1'` passes after discounts-card Effect RPC cutover (`8 passed`).
 - `bash -lc 'eval "$(bun helpers/testing/runtime-env.mjs)" && CI=true NO_WEBSERVER=true bunx --bun playwright test tests/specs/discounts/esn-discounts.test.ts --project=local-chrome --workers=1 --max-failures=1'` passes after discounts-card Effect RPC cutover (`8 passed`; setup reports transient flaky retries in this environment).
+- `bunx --bun eslint src/shared/rpc-contracts/app-rpcs.ts src/server/effect/rpc/app-rpcs.handlers.ts src/app/shared/components/controls/editor/editor.component.ts src/server/trpc/app-router.ts` passes after `editorMedia.createImageDirectUpload` Effect RPC cutover.
+- `bunx --bun tsc -p tsconfig.app.json --noEmit` and `bunx --bun tsc -p tsconfig.spec.json --noEmit` pass after `editorMedia.createImageDirectUpload` Effect RPC cutover.
+- `CI=true bun run lint` passes after `editorMedia.createImageDirectUpload` Effect RPC cutover (warnings-only baseline unchanged).
+- `CI=true bun run build` passes after `editorMedia.createImageDirectUpload` Effect RPC cutover.
+- `CI=true bun run test` passes after `editorMedia.createImageDirectUpload` Effect RPC cutover (`12 passed`).
 
 ## Session Handoff
 

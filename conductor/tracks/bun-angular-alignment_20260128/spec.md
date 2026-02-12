@@ -215,6 +215,13 @@ The migration mode is explicitly non-backward-compatible. We optimize for a clea
   - `CI=true bun run test` (`12 passed`)
   - `bash -lc 'eval "$(bun helpers/testing/runtime-env.mjs)" && CI=true NO_WEBSERVER=true bunx --bun playwright test tests/docs/profile/discounts.doc.ts --project=docs --workers=1 --max-failures=1'` (`8 passed`)
   - `bash -lc 'eval "$(bun helpers/testing/runtime-env.mjs)" && CI=true NO_WEBSERVER=true bunx --bun playwright test tests/specs/discounts/esn-discounts.test.ts --project=local-chrome --workers=1 --max-failures=1'` (`8 passed`; setup shows transient flaky retries in this environment)
+- Effect RPC `editorMedia.createImageDirectUpload` migration validation:
+  - `bunx --bun eslint src/shared/rpc-contracts/app-rpcs.ts src/server/effect/rpc/app-rpcs.handlers.ts src/app/shared/components/controls/editor/editor.component.ts src/server/trpc/app-router.ts`
+  - `bunx --bun tsc -p tsconfig.app.json --noEmit`
+  - `bunx --bun tsc -p tsconfig.spec.json --noEmit`
+  - `CI=true bun run lint` (warnings-only baseline unchanged)
+  - `CI=true bun run build`
+  - `CI=true bun run test` (`12 passed`)
 
 ## Out of Scope (for this track phase)
 
