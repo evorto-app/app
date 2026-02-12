@@ -213,6 +213,13 @@
   - [x] Decommission legacy `users.userAssigned` tRPC procedure
   - [x] Commit milestone
 
+- [x] Task: Migrate `users.maybeSelf` + `users.self` + `users.updateProfile` from tRPC to Effect RPC slice (348330b)
+  - [x] Define test intent (`bunx --bun eslint` on touched files, `bunx --bun tsc -p tsconfig.app.json --noEmit`, `CI=true bun run lint`, `CI=true bun run build`, `CI=true bun run test`, targeted profile/templates smoke)
+  - [x] Add shared Effect RPC contracts + handlers for `users.maybeSelf`, `users.self`, and `users.updateProfile`
+  - [x] Replace Angular query/mutation callsites in auth/events/profile/create-account flows with `AppRpc` helpers
+  - [x] Decommission legacy tRPC `users.maybeSelf`, `users.self`, and `users.updateProfile` procedures
+  - [x] Commit milestone
+
 - [ ] Task: Conductor - User Manual Verification 'Phase 6'
 
 ## Final Gate
@@ -264,6 +271,11 @@
 - `CI=true bun run build` passes after `users.userAssigned` Effect RPC cutover.
 - `CI=true bun run test` passes after `users.userAssigned` Effect RPC cutover (`12 passed`).
 - `bunx --bun tsc -p tsconfig.app.json --noEmit` and `bunx --bun tsc -p tsconfig.spec.json --noEmit` pass after `users.userAssigned` Effect RPC cutover.
+- `CI=true bun run lint` passes after `users.maybeSelf`/`users.self`/`users.updateProfile` Effect RPC cutover (warnings-only baseline unchanged).
+- `CI=true bun run build` passes after `users.maybeSelf`/`users.self`/`users.updateProfile` Effect RPC cutover.
+- `CI=true bun run test` passes after `users.maybeSelf`/`users.self`/`users.updateProfile` Effect RPC cutover (`12 passed`).
+- `bunx --bun tsc -p tsconfig.app.json --noEmit` and `bunx --bun tsc -p tsconfig.spec.json --noEmit` pass after `users.maybeSelf`/`users.self`/`users.updateProfile` Effect RPC cutover.
+- `bash -lc 'eval "$(bun helpers/testing/runtime-env.mjs)" && CI=true NO_WEBSERVER=true bunx --bun playwright test tests/docs/profile/discounts.doc.ts --project=docs --workers=1 --max-failures=1'` passes after `users.maybeSelf`/`users.self`/`users.updateProfile` Effect RPC cutover (`8 passed`).
 
 ## Session Handoff
 
