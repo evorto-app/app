@@ -209,37 +209,4 @@ export const userRouter = router({
       return result[0];
     }),
 
-  maybeSelf: publicProcedure.query(async ({ ctx }) => {
-    return ctx.user ?? undefined;
-  }),
-
-  self: authenticatedProcedure.query(async ({ ctx }) => {
-    return ctx.user;
-  }),
-
-  updateProfile: authenticatedProcedure
-    .input(
-      Schema.standardSchemaV1(
-        Schema.Struct({
-          firstName: Schema.NonEmptyString,
-          iban: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
-          lastName: Schema.NonEmptyString,
-          paypalEmail: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
-        }),
-      ),
-    )
-    .mutation(async ({ ctx, input }) => {
-      const updatedUser = await database
-        .update(schema.users)
-        .set({
-          firstName: input.firstName,
-          iban: input.iban ?? null,
-          lastName: input.lastName,
-          paypalEmail: input.paypalEmail ?? null,
-        })
-        .where(eq(schema.users.id, ctx.user.id))
-        .returning();
-
-      return updatedUser[0];
-    }),
 });

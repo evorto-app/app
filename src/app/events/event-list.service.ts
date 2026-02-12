@@ -3,6 +3,7 @@ import { form } from '@angular/forms/signals';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 import consola from 'consola/browser';
 
+import { AppRpc } from '../core/effect-rpc-angular-client';
 import { PermissionsService } from '../core/permissions.service';
 import { injectTRPC } from '../core/trpc-client';
 
@@ -12,12 +13,13 @@ import { injectTRPC } from '../core/trpc-client';
 /* eslint-disable perfectionist/sort-classes */
 export class EventListService {
   private readonly permissions = inject(PermissionsService);
+  private readonly rpc = AppRpc.injectClient();
   private readonly trpc = injectTRPC();
 
   private readonly pageConfig = signal({ limit: 100, offset: 0 });
 
   private readonly selfQuery = injectQuery(() =>
-    this.trpc.users.maybeSelf.queryOptions(),
+    this.rpc.users.maybeSelf.queryOptions(),
   );
 
   private readonly includeUnlisted = signal(false);

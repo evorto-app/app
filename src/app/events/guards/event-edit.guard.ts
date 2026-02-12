@@ -1,11 +1,13 @@
 import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
 
+import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { PermissionsService } from '../../core/permissions.service';
 import { injectTRPCClient } from '../../core/trpc-client';
 
 export const eventEditGuard: CanActivateFn = async (route) => {
   const router = inject(Router);
+  const rpc = AppRpc.injectClient();
   const trpc = injectTRPCClient();
   const permissions = inject(PermissionsService);
   const eventId = route.params['eventId'] as string | undefined;
@@ -15,7 +17,7 @@ export const eventEditGuard: CanActivateFn = async (route) => {
   }
 
   try {
-    const self = await trpc.users.maybeSelf.query();
+    const self = await rpc.users.maybeSelf.call();
     const event = await trpc.events.findOne.query({ id: eventId });
     const canEditAll = permissions.hasPermissionSync('events:editAll');
     const canEdit = canEditAll || self?.id === event.creatorId;

@@ -5,7 +5,6 @@ import { injectQuery } from '@tanstack/angular-query-experimental';
 import type { Context } from '../../types/custom/context';
 
 import { AppRpc } from './effect-rpc-angular-client';
-import { injectTRPC } from './trpc-client';
 
 @Injectable({
   providedIn: 'root',
@@ -18,10 +17,9 @@ export class Auth {
   );
   // Convert queries to signals
   isAuthenticated = this.isAuthenticatedQuery.data();
-  private trpcClient = injectTRPC();
 
   private userQuery = injectQuery(() =>
-    this.trpcClient.users.maybeSelf.queryOptions(),
+    this.rpc.users.maybeSelf.queryOptions(),
   );
   user = this.userQuery.data();
   private permissionsQuery = injectQuery(() =>

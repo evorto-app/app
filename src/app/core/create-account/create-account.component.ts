@@ -15,6 +15,7 @@ import {
   QueryClient,
 } from '@tanstack/angular-query-experimental';
 
+import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { injectTRPC, injectTRPCClient } from '../../core/trpc-client';
 
 @Component({
@@ -48,6 +49,7 @@ export class CreateAccountComponent {
   );
   private readonly queryClient = inject(QueryClient);
   private readonly router = inject(Router);
+  private readonly rpc = AppRpc.injectClient();
 
   constructor() {
     // this.trpcClient.users.authData.query().then(consola.info);
@@ -72,12 +74,12 @@ export class CreateAccountComponent {
       const payload = this.accountModel();
       this.createAccountMutation.mutate(payload, {
         onSuccess: async () => {
-          await this.queryClient.invalidateQueries({
-            queryKey: this.trpc.users.self.pathKey(),
-          });
-          await this.queryClient.invalidateQueries({
-            queryKey: this.trpc.users.maybeSelf.pathKey(),
-          });
+          await this.queryClient.invalidateQueries(
+            this.rpc.queryFilter(['users', 'self']),
+          );
+          await this.queryClient.invalidateQueries(
+            this.rpc.queryFilter(['users', 'maybeSelf']),
+          );
           this.router.navigate(['/profile']);
         },
       });

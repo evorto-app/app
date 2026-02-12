@@ -35,6 +35,7 @@ import {
 } from '@tanstack/angular-query-experimental';
 import { firstValueFrom } from 'rxjs';
 
+import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { NotificationService } from '../../core/notification.service';
 import { injectTRPC } from '../../core/trpc-client';
 import {
@@ -108,21 +109,20 @@ export class UserProfileComponent {
   protected readonly faReceipt = faReceipt;
   protected readonly faRightFromBracket = faRightFromBracket;
   protected readonly faTags = faTags;
-
   protected readonly faUser = faUser;
+
   protected readonly myCardsQuery = injectQuery(() =>
     this.trpc.discounts.getMyCards.queryOptions(),
   );
-
   protected readonly hasVerifiedEsnCard = computed(() => {
     const cards = this.myCardsQuery.data();
     if (!cards) return false;
     return cards.some((card) => card.type === 'esnCard' && card.status === 'verified');
   });
+
   protected readonly myReceiptsQuery = injectQuery(() =>
     this.trpc.finance.receipts.my.queryOptions(),
   );
-
   protected readonly refreshCardMutation = injectMutation(() =>
     this.trpc.discounts.refreshMyCard.mutationOptions({
       onSuccess: async () => {
@@ -133,14 +133,16 @@ export class UserProfileComponent {
       },
     }),
   );
+
   protected readonly sectionEntries = computed(() =>
     this.allSectionEntries.filter(
       (section) => section.key !== 'discounts' || this.esnEnabled(),
     ),
   );
   protected readonly selectedSection = signal<ProfileSection>('overview');
+  private readonly rpc = AppRpc.injectClient();
   protected readonly updateProfileMutation = injectMutation(() =>
-    this.trpc.users.updateProfile.mutationOptions(),
+    this.rpc.users.updateProfile.mutationOptions(),
   );
   protected readonly upsertCardMutation = injectMutation(() =>
     this.trpc.discounts.upsertMyCard.mutationOptions({
@@ -157,7 +159,7 @@ export class UserProfileComponent {
     this.trpc.users.events.findMany.queryOptions(),
   );
   protected readonly userQuery = injectQuery(() =>
-    this.trpc.users.self.queryOptions(),
+    this.rpc.users.self.queryOptions(),
   );
 
   private readonly dialog = inject(MatDialog);
@@ -214,17 +216,19 @@ export class UserProfileComponent {
     if (!result) return;
     this.updateProfileMutation.mutate(result, {
       onError: (error) => {
+        const errorMessage =
+          typeof error === 'string' ? error : error.message;
         this.notifications.showError(
-          'Failed to update profile: ' + error.message,
+          'Failed to update profile: ' + errorMessage,
         );
       },
       onSuccess: async () => {
-        await this.queryClient.invalidateQueries({
-          queryKey: this.trpc.users.self.pathKey(),
-        });
-        await this.queryClient.invalidateQueries({
-          queryKey: this.trpc.users.maybeSelf.pathKey(),
-        });
+        await this.queryClient.invalidateQueries(
+          this.rpc.queryFilter(['users', 'self']),
+        );
+        await this.queryClient.invalidateQueries(
+          this.rpc.queryFilter(['users', 'maybeSelf']),
+        );
         await this.queryClient.invalidateQueries({
           queryKey: this.trpc.finance.receipts.refundableGroupedByRecipient.pathKey(),
         });

@@ -4,6 +4,7 @@ import { asRpcMutation, asRpcQuery } from '@heddendorp/effect-angular-query';
 import { Schema } from 'effect';
 
 import { Tenant } from '../../types/custom/tenant';
+import { User } from '../../types/custom/user';
 import { PermissionSchema } from '../permissions/permissions';
 import { iconSchema } from '../types/icon';
 
@@ -50,6 +51,44 @@ export const UsersUserAssigned = asRpcQuery(
   Rpc.make('users.userAssigned', {
     payload: Schema.Void,
     success: Schema.Boolean,
+  }),
+);
+
+export const UserRpcError = Schema.Literal('UNAUTHORIZED');
+
+export type UserRpcError = Schema.Schema.Type<typeof UserRpcError>;
+
+export const UsersMaybeSelf = asRpcQuery(
+  Rpc.make('users.maybeSelf', {
+    payload: Schema.Void,
+    success: Schema.NullOr(User),
+  }),
+);
+
+export const UsersSelf = asRpcQuery(
+  Rpc.make('users.self', {
+    error: UserRpcError,
+    payload: Schema.Void,
+    success: User,
+  }),
+);
+
+export const UsersUpdateProfileInput = Schema.Struct({
+  firstName: Schema.NonEmptyString,
+  iban: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
+  lastName: Schema.NonEmptyString,
+  paypalEmail: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
+});
+
+export type UsersUpdateProfileInput = Schema.Schema.Type<
+  typeof UsersUpdateProfileInput
+>;
+
+export const UsersUpdateProfile = asRpcMutation(
+  Rpc.make('users.updateProfile', {
+    error: UserRpcError,
+    payload: UsersUpdateProfileInput,
+    success: Schema.Void,
   }),
 );
 
@@ -167,6 +206,9 @@ export class AppRpcs extends RpcGroup.make(
   ConfigIsAuthenticated,
   ConfigPermissionList,
   ConfigTenant,
+  UsersMaybeSelf,
+  UsersSelf,
+  UsersUpdateProfile,
   UsersUserAssigned,
   IconsSearch,
   IconsAdd,

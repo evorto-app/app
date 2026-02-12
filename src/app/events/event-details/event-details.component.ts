@@ -27,6 +27,7 @@ import { convert } from 'html-to-text';
 import { firstValueFrom } from 'rxjs';
 
 import { ConfigService } from '../../core/config.service';
+import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { NotificationService } from '../../core/notification.service';
 import { PermissionsService } from '../../core/permissions.service';
 import { injectTRPC } from '../../core/trpc-client';
@@ -78,8 +79,9 @@ export class EventDetailsComponent {
   protected readonly eventQuery = injectQuery(() =>
     this.trpc.events.findOne.queryOptions({ id: this.eventId() }),
   );
+  private readonly rpc = AppRpc.injectClient();
   protected readonly selfQery = injectQuery(() =>
-    this.trpc.users.maybeSelf.queryOptions(),
+    this.rpc.users.maybeSelf.queryOptions(),
   );
   private permissions = inject(PermissionsService);
   protected readonly canEdit = computed(() => {

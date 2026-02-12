@@ -49,6 +49,22 @@ const toWebRequest = async (request: ExpressRequest): Promise<Request> => {
   const body = await getRequestBody(request);
   const host = request.get('host') ?? 'localhost';
   const url = `${request.protocol}://${host}${request.originalUrl}`;
+  const rpcUser = request.user
+    ? {
+        attributes: request.user.attributes,
+        auth0Id: request.user.auth0Id,
+        email: request.user.email,
+        firstName: request.user.firstName,
+        // eslint-disable-next-line unicorn/no-null
+        iban: request.user.iban ?? null,
+        id: request.user.id,
+        lastName: request.user.lastName,
+        // eslint-disable-next-line unicorn/no-null
+        paypalEmail: request.user.paypalEmail ?? null,
+        permissions: request.user.permissions,
+        roleIds: request.user.roleIds,
+      }
+    : null;
 
   // Bridge Express middleware context into RPC headers for typed handler decoding.
   headers.set(
@@ -59,6 +75,7 @@ const toWebRequest = async (request: ExpressRequest): Promise<Request> => {
     'x-evorto-permissions',
     JSON.stringify(request.user?.permissions ?? []),
   );
+  headers.set('x-evorto-user', JSON.stringify(rpcUser));
   headers.set('x-evorto-user-assigned', request.user ? 'true' : 'false');
   headers.set('x-evorto-tenant', JSON.stringify(request.tenant));
 

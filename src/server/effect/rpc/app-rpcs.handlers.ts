@@ -4,7 +4,12 @@ import { and, eq } from 'drizzle-orm';
 import { Effect, Schema } from 'effect';
 
 import { database } from '../../../db';
-import { eventTemplateCategories, eventTemplates, icons } from '../../../db/schema';
+import {
+  eventTemplateCategories,
+  eventTemplates,
+  icons,
+  users,
+} from '../../../db/schema';
 import { type Permission } from '../../../shared/permissions/permissions';
 import {
   AppRpcs,
@@ -17,6 +22,7 @@ import {
   type TemplatesByCategoryRecord,
 } from '../../../shared/rpc-contracts/app-rpcs';
 import { Tenant } from '../../../types/custom/tenant';
+import { User } from '../../../types/custom/user';
 import { serverEnvironment } from '../../config/environment';
 import { computeIconSourceColor } from '../../utils/icon-color';
 import { getPublicConfigEffect } from '../config/public-config.effect';
@@ -123,6 +129,21 @@ const ensurePermission = (
     if (!currentPermissions.includes(permission)) {
       return yield* Effect.fail('FORBIDDEN' as const);
     }
+  });
+
+const decodeUserHeader = (
+  headers: Headers.Headers,
+) => Effect.sync(() => decodeHeaderJson(headers['x-evorto-user'], Schema.NullOr(User)));
+
+const requireUserHeader = (
+  headers: Headers.Headers,
+): Effect.Effect<User, 'UNAUTHORIZED'> =>
+  Effect.gen(function* () {
+    const user = yield* decodeUserHeader(headers);
+    if (!user) {
+      return yield* Effect.fail('UNAUTHORIZED' as const);
+    }
+    return user;
   });
 
 export const appRpcHandlers = AppRpcs.toLayer(
@@ -245,6 +266,31 @@ export const appRpcHandlers = AppRpcs.toLayer(
 
         return templateCategories.map((templateCategory) =>
           normalizeTemplatesByCategoryRecord(templateCategory),
+        );
+      }),
+    'users.maybeSelf': (_payload, options) => decodeUserHeader(options.headers),
+    'users.self': (_payload, options) =>
+      Effect.gen(function* () {
+        yield* ensureAuthenticated(options.headers);
+        return yield* requireUserHeader(options.headers);
+      }),
+    'users.updateProfile': (input, options) =>
+      Effect.gen(function* () {
+        yield* ensureAuthenticated(options.headers);
+        const user = yield* requireUserHeader(options.headers);
+
+        yield* Effect.promise(() =>
+          database
+            .update(users)
+            .set({
+              firstName: input.firstName,
+              // eslint-disable-next-line unicorn/no-null
+              iban: input.iban ?? null,
+              lastName: input.lastName,
+              // eslint-disable-next-line unicorn/no-null
+              paypalEmail: input.paypalEmail ?? null,
+            })
+            .where(eq(users.id, user.id)),
         );
       }),
     'users.userAssigned': (_payload, options) =>
