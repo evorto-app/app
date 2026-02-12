@@ -78,44 +78,6 @@ const canEditEvent = ({
 export const eventRouter = router({
   cancelPendingRegistration: cancelPendingRegistrationProcedure,
 
-  canOrganize: authenticatedProcedure
-    .input(
-      Schema.standardSchemaV1(
-        Schema.Struct({ eventId: Schema.NonEmptyString }),
-      ),
-    )
-    .query(async ({ ctx, input }) => {
-      if (
-        ctx.user.permissions.includes('events:organizeAll') ||
-        ctx.user.permissions.includes('finance:manageReceipts')
-      ) {
-        return true;
-      }
-
-      const registration = await database
-        .select({ id: schema.eventRegistrations.id })
-        .from(schema.eventRegistrations)
-        .innerJoin(
-          schema.eventRegistrationOptions,
-          eq(
-            schema.eventRegistrations.registrationOptionId,
-            schema.eventRegistrationOptions.id,
-          ),
-        )
-        .where(
-          and(
-            eq(schema.eventRegistrations.tenantId, ctx.tenant.id),
-            eq(schema.eventRegistrations.eventId, input.eventId),
-            eq(schema.eventRegistrations.userId, ctx.user.id),
-            eq(schema.eventRegistrations.status, 'CONFIRMED'),
-            eq(schema.eventRegistrationOptions.organizingRegistration, true),
-          ),
-        )
-        .limit(1);
-
-      return registration.length > 0;
-    }),
-
   create: authenticatedProcedure
     .meta({ requiredPermissions: ['events:create'] })
     .input(

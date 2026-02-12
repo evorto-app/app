@@ -12,6 +12,7 @@ import { Effect, Schema } from 'effect';
 import { database } from '../../../db';
 import {
   eventInstances,
+  eventRegistrationOptions,
   eventRegistrations,
   eventTemplateCategories,
   eventTemplates,
@@ -871,6 +872,46 @@ export const appRpcHandlers = AppRpcs.toLayer(
               uploadedByUserId: user.id,
             }),
         });
+      }),
+    'events.canOrganize': ({ eventId }, options) =>
+      Effect.gen(function* () {
+        yield* ensureAuthenticated(options.headers);
+        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const user = yield* requireUserHeader(options.headers);
+
+        if (
+          user.permissions.includes('events:organizeAll') ||
+          user.permissions.includes('finance:manageReceipts')
+        ) {
+          return true;
+        }
+
+        const registrations = yield* Effect.promise(() =>
+          database
+            .select({
+              id: eventRegistrations.id,
+            })
+            .from(eventRegistrations)
+            .innerJoin(
+              eventRegistrationOptions,
+              eq(
+                eventRegistrations.registrationOptionId,
+                eventRegistrationOptions.id,
+              ),
+            )
+            .where(
+              and(
+                eq(eventRegistrations.tenantId, tenant.id),
+                eq(eventRegistrations.eventId, eventId),
+                eq(eventRegistrations.userId, user.id),
+                eq(eventRegistrations.status, 'CONFIRMED'),
+                eq(eventRegistrationOptions.organizingRegistration, true),
+              ),
+            )
+            .limit(1),
+        );
+
+        return registrations.length > 0;
       }),
     'globalAdmin.tenants.findMany': (_payload, options) =>
       Effect.gen(function* () {

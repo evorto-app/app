@@ -423,6 +423,20 @@ export const GlobalAdminTenantsFindMany = asRpcQuery(
   }),
 );
 
+export const EventsRpcError = Schema.Literal('UNAUTHORIZED');
+
+export type EventsRpcError = Schema.Schema.Type<typeof EventsRpcError>;
+
+export const EventsCanOrganize = asRpcQuery(
+  Rpc.make('events.canOrganize', {
+    error: EventsRpcError,
+    payload: Schema.Struct({
+      eventId: Schema.NonEmptyString,
+    }),
+    success: Schema.Boolean,
+  }),
+);
+
 export const UsersUserAssigned = asRpcQuery(
   Rpc.make('users.userAssigned', {
     payload: Schema.Void,
@@ -700,6 +714,7 @@ export class AppRpcs extends RpcGroup.make(
   DiscountsRefreshMyCard,
   DiscountsUpsertMyCard,
   EditorMediaCreateImageDirectUpload,
+  EventsCanOrganize,
   GlobalAdminTenantsFindMany,
   TaxRatesListActive,
   UsersAuthDataFind,

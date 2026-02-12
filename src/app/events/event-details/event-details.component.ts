@@ -101,7 +101,7 @@ export class EventDetailsComponent {
     return event.creatorId === self.id;
   });
   protected readonly canOrganizeQuery = injectQuery(() =>
-    this.trpc.events.canOrganize.queryOptions({ eventId: this.eventId() }),
+    this.rpc.events.canOrganize.queryOptions({ eventId: this.eventId() }),
   );
   protected readonly canOrganize = computed(() => {
     return this.canOrganizeQuery.data() ?? false;
