@@ -242,6 +242,13 @@
   - [x] Verify no `injectTRPCClient()` usages remain in `src/app/**`
   - [x] Commit milestone
 
+- [x] Task: Migrate `users.findMany` admin listing from tRPC to Effect RPC slice (0998a26)
+  - [x] Define test intent (`bunx --bun eslint` on touched files, `bunx --bun tsc -p tsconfig.app.json --noEmit`, `CI=true bun run lint`, `CI=true bun run build`, `CI=true bun run test`)
+  - [x] Add shared Effect RPC contract + handler for `users.findMany`
+  - [x] Replace `admin/user-list` query callsite to `AppRpc.injectClient().users.findMany.queryOptions(...)`
+  - [x] Decommission legacy tRPC `users.findMany` procedure
+  - [x] Commit milestone
+
 - [ ] Task: Conductor - User Manual Verification 'Phase 6'
 
 ## Final Gate
@@ -315,6 +322,11 @@
 - `CI=true bun run lint` passes after removing `injectTRPCClient()` callsites (warnings-only baseline unchanged).
 - `CI=true bun run build` passes after removing `injectTRPCClient()` callsites.
 - `CI=true bun run test` passes after removing `injectTRPCClient()` callsites (`12 passed`).
+- `bunx --bun eslint src/shared/rpc-contracts/app-rpcs.ts src/server/effect/rpc/app-rpcs.handlers.ts src/app/admin/user-list/user-list.component.ts src/server/trpc/users/users.router.ts` passes after `users.findMany` Effect RPC cutover.
+- `bunx --bun tsc -p tsconfig.app.json --noEmit` and `bunx --bun tsc -p tsconfig.spec.json --noEmit` pass after `users.findMany` Effect RPC cutover.
+- `CI=true bun run lint` passes after `users.findMany` Effect RPC cutover (warnings-only baseline unchanged).
+- `CI=true bun run build` passes after `users.findMany` Effect RPC cutover.
+- `CI=true bun run test` passes after `users.findMany` Effect RPC cutover (`12 passed`).
 
 ## Session Handoff
 
