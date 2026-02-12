@@ -10,7 +10,9 @@ import {
   eventTemplateCategories,
   eventTemplates,
   icons,
+  rolesToTenantUsers,
   users,
+  usersToTenants,
 } from '../../../db/schema';
 import { type Permission } from '../../../shared/permissions/permissions';
 import {
@@ -22,6 +24,7 @@ import {
   type TemplateCategoryRpcError,
   type TemplateListRecord,
   type TemplatesByCategoryRecord,
+  UsersAuthData,
 } from '../../../shared/rpc-contracts/app-rpcs';
 import { Tenant } from '../../../types/custom/tenant';
 import { User } from '../../../types/custom/user';
@@ -136,6 +139,9 @@ const ensurePermission = (
 const decodeUserHeader = (
   headers: Headers.Headers,
 ) => Effect.sync(() => decodeHeaderJson(headers['x-evorto-user'], Schema.NullOr(User)));
+
+const decodeAuthDataHeader = (headers: Headers.Headers) =>
+  decodeHeaderJson(headers['x-evorto-auth-data'], UsersAuthData);
 
 const requireUserHeader = (
   headers: Headers.Headers,
@@ -269,6 +275,78 @@ export const appRpcHandlers = AppRpcs.toLayer(
         return templateCategories.map((templateCategory) =>
           normalizeTemplatesByCategoryRecord(templateCategory),
         );
+      }),
+    'users.authData': (_payload, options) =>
+      Effect.sync(() => decodeAuthDataHeader(options.headers)),
+    'users.createAccount': (input, options) =>
+      Effect.gen(function* () {
+        yield* ensureAuthenticated(options.headers);
+        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const authData = decodeAuthDataHeader(options.headers);
+        const auth0Id = authData.sub?.trim();
+        const email = authData.email?.trim();
+
+        if (!auth0Id || !email) {
+          return yield* Effect.fail('UNAUTHORIZED' as const);
+        }
+
+        const existingUser = yield* Effect.promise(() =>
+          database
+            .select({ id: users.id })
+            .from(users)
+            .where(eq(users.auth0Id, auth0Id))
+            .limit(1),
+        );
+        if (existingUser.length > 0) {
+          return yield* Effect.fail('CONFLICT' as const);
+        }
+
+        const defaultUserRoles = yield* Effect.promise(() =>
+          database.query.roles.findMany({
+            where: { defaultUserRole: true, tenantId: tenant.id },
+          }),
+        );
+        const userCreateResponse = yield* Effect.promise(() =>
+          database
+            .insert(users)
+            .values({
+              auth0Id,
+              communicationEmail: input.communicationEmail,
+              email,
+              firstName: input.firstName,
+              lastName: input.lastName,
+            })
+            .returning(),
+        );
+        const createdUser = userCreateResponse[0];
+        if (!createdUser) {
+          return yield* Effect.fail('UNAUTHORIZED' as const);
+        }
+
+        const userTenantCreateResponse = yield* Effect.promise(() =>
+          database
+            .insert(usersToTenants)
+            .values({
+              tenantId: tenant.id,
+              userId: createdUser.id,
+            })
+            .returning(),
+        );
+        const createdUserTenant = userTenantCreateResponse[0];
+        if (!createdUserTenant) {
+          return yield* Effect.fail('UNAUTHORIZED' as const);
+        }
+
+        if (defaultUserRoles.length > 0) {
+          yield* Effect.promise(() =>
+            database.insert(rolesToTenantUsers).values(
+              defaultUserRoles.map((role) => ({
+                roleId: role.id,
+                userTenantId: createdUserTenant.id,
+              })),
+            ),
+          );
+        }
       }),
     'users.events': (_payload, options) =>
       Effect.gen(function* () {

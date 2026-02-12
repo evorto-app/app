@@ -16,7 +16,6 @@ import {
 } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
-import { injectTRPC, injectTRPCClient } from '../../core/trpc-client';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -36,34 +35,27 @@ export class CreateAccountComponent {
     required(schema.firstName);
     required(schema.lastName);
   });
-  // Integration can't be used due to some type weirdness
-  private trpcClient = injectTRPCClient();
-  protected readonly authDataQuery = injectQuery(() => ({
-    queryFn: () => this.trpcClient.users.authData.query(),
-    queryKey: ['authData'],
-  }));
-
-  private readonly trpc = injectTRPC();
+  private readonly rpc = AppRpc.injectClient();
+  protected readonly authDataQuery = injectQuery(() =>
+    this.rpc.users.authData.queryOptions(),
+  );
   private readonly createAccountMutation = injectMutation(() =>
-    this.trpc.users.createAccount.mutationOptions(),
+    this.rpc.users.createAccount.mutationOptions(),
   );
   private readonly queryClient = inject(QueryClient);
   private readonly router = inject(Router);
-  private readonly rpc = AppRpc.injectClient();
 
   constructor() {
-    // this.trpcClient.users.authData.query().then(consola.info);
     effect(() => {
       const authData = this.authDataQuery.data();
       if (!authData) return;
       if (this.accountForm().touched()) return;
-      const getString = (value: unknown) =>
-        typeof value === 'string' ? value : undefined;
+      const getString = (value: null | string | undefined) =>
+        value?.trim() || undefined;
       this.accountModel.update((current) => ({
-        communicationEmail:
-          getString(authData['email']) ?? current.communicationEmail,
-        firstName: getString(authData['given_name']) ?? current.firstName,
-        lastName: getString(authData['family_name']) ?? current.lastName,
+        communicationEmail: getString(authData.email) ?? current.communicationEmail,
+        firstName: getString(authData.given_name) ?? current.firstName,
+        lastName: getString(authData.family_name) ?? current.lastName,
       }));
     });
   }

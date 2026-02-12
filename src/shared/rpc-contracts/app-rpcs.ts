@@ -58,6 +58,50 @@ export const UserRpcError = Schema.Literal('UNAUTHORIZED');
 
 export type UserRpcError = Schema.Schema.Type<typeof UserRpcError>;
 
+export const UsersAuthData = Schema.Struct({
+  email: Schema.optional(Schema.NullOr(Schema.String)),
+  email_verified: Schema.optional(Schema.NullOr(Schema.Boolean)),
+  family_name: Schema.optional(Schema.NullOr(Schema.String)),
+  given_name: Schema.optional(Schema.NullOr(Schema.String)),
+  sub: Schema.optional(Schema.NullOr(Schema.String)),
+});
+
+export type UsersAuthData = Schema.Schema.Type<typeof UsersAuthData>;
+
+export const UsersAuthDataFind = asRpcQuery(
+  Rpc.make('users.authData', {
+    payload: Schema.Void,
+    success: UsersAuthData,
+  }),
+);
+
+export const UsersCreateAccountInput = Schema.Struct({
+  communicationEmail: Schema.NonEmptyString,
+  firstName: Schema.NonEmptyString,
+  lastName: Schema.NonEmptyString,
+});
+
+export type UsersCreateAccountInput = Schema.Schema.Type<
+  typeof UsersCreateAccountInput
+>;
+
+export const UsersCreateAccountError = Schema.Literal(
+  'CONFLICT',
+  'UNAUTHORIZED',
+);
+
+export type UsersCreateAccountError = Schema.Schema.Type<
+  typeof UsersCreateAccountError
+>;
+
+export const UsersCreateAccount = asRpcMutation(
+  Rpc.make('users.createAccount', {
+    error: UsersCreateAccountError,
+    payload: UsersCreateAccountInput,
+    success: Schema.Void,
+  }),
+);
+
 export const UsersMaybeSelf = asRpcQuery(
   Rpc.make('users.maybeSelf', {
     payload: Schema.Void,
@@ -226,6 +270,8 @@ export class AppRpcs extends RpcGroup.make(
   ConfigIsAuthenticated,
   ConfigPermissionList,
   ConfigTenant,
+  UsersAuthDataFind,
+  UsersCreateAccount,
   UsersEventsFindMany,
   UsersMaybeSelf,
   UsersSelf,

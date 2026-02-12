@@ -65,6 +65,10 @@ const toWebRequest = async (request: ExpressRequest): Promise<Request> => {
         roleIds: request.user.roleIds,
       }
     : null;
+  const authData =
+    request.oidc?.user && typeof request.oidc.user === 'object'
+      ? request.oidc.user
+      : null;
 
   // Bridge Express middleware context into RPC headers for typed handler decoding.
   headers.set(
@@ -77,6 +81,7 @@ const toWebRequest = async (request: ExpressRequest): Promise<Request> => {
   );
   headers.set('x-evorto-user', JSON.stringify(rpcUser));
   headers.set('x-evorto-user-assigned', request.user ? 'true' : 'false');
+  headers.set('x-evorto-auth-data', JSON.stringify(authData ?? {}));
   headers.set('x-evorto-tenant', JSON.stringify(request.tenant));
 
   const requestInit: RequestInit = {

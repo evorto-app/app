@@ -1,5 +1,3 @@
-import { TRPCError } from '@trpc/server';
-import consola from 'consola';
 import { and, count, eq } from 'drizzle-orm';
 import { Schema } from 'effect';
 
@@ -7,79 +5,10 @@ import { database } from '../../../db';
 import * as schema from '../../../db/schema';
 import {
   authenticatedProcedure,
-  publicProcedure,
   router,
 } from '../trpc-server';
 
 export const userRouter = router({
-  authData: publicProcedure.query(async ({ ctx }) => {
-    consola.info('Auth data', ctx.request.oidc.user);
-    return ctx.request.oidc.user as Record<string, unknown>;
-  }),
-
-  createAccount: publicProcedure
-    .input(
-      Schema.standardSchemaV1(
-        Schema.Struct({
-          communicationEmail: Schema.NonEmptyString,
-          firstName: Schema.NonEmptyString,
-          lastName: Schema.NonEmptyString,
-        }),
-      ),
-    )
-    .mutation(async ({ ctx, input }) => {
-      const authData = ctx.request.oidc.user;
-      if (!authData) {
-        throw new TRPCError({
-          code: 'UNAUTHORIZED',
-          message: 'User not authenticated',
-        });
-      }
-      const auth0Id = authData['sub'];
-      const existingUser = await database
-        .select()
-        .from(schema.users)
-        .where(eq(schema.users.auth0Id, auth0Id))
-        .limit(1);
-      if (existingUser.length > 0) {
-        throw new TRPCError({
-          code: 'CONFLICT',
-          message: 'User already exists',
-        });
-      }
-      const defaultUserRoles = await database.query.roles.findMany({
-        where: { defaultUserRole: true, tenantId: ctx.tenant.id },
-      });
-      const userCreateResponse = await database
-        .insert(schema.users)
-        .values({
-          auth0Id,
-          communicationEmail: input.communicationEmail,
-          email: authData['email'],
-          firstName: input.firstName,
-          lastName: input.lastName,
-        })
-        .returning();
-      const createdUser = userCreateResponse[0];
-
-      const userTenantCreateResponse = await database
-        .insert(schema.usersToTenants)
-        .values({
-          tenantId: ctx.tenant.id,
-          userId: createdUser.id,
-        })
-        .returning();
-      const createdUserTenant = userTenantCreateResponse[0];
-
-      await database.insert(schema.rolesToTenantUsers).values(
-        defaultUserRoles.map((role) => ({
-          roleId: role.id,
-          userTenantId: createdUserTenant.id,
-        })),
-      );
-
-      return createdUser;
-    }),
   findMany: authenticatedProcedure
     .meta({ requiredPermissions: ['users:viewAll'] })
     .input(
