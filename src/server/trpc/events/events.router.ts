@@ -4,7 +4,6 @@ import consola from 'consola';
 import { and, arrayOverlaps, eq, inArray } from 'drizzle-orm';
 import { Schema } from 'effect';
 import { groupBy } from 'es-toolkit';
-import { DateTime } from 'luxon';
 
 import { database } from '../../../db';
 import * as schema from '../../../db/schema';
@@ -246,16 +245,6 @@ export const eventRouter = router({
 
       return event;
     }),
-
-  eventList: eventListProcedure.query(async ({ ctx: { events } }) => {
-    const groupedEvents = groupBy(events, (event) =>
-      DateTime.fromJSDate(event.start).toFormat('yyyy-MM-dd'),
-    );
-    return Object.entries(groupedEvents).map(([date, events]) => ({
-      day: DateTime.fromFormat(date, 'yyyy-MM-dd').toJSDate(),
-      events,
-    }));
-  }),
 
   findMany: eventListProcedure.query(async ({ ctx: { events } }) => {
     return events;

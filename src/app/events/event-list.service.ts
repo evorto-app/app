@@ -5,7 +5,6 @@ import consola from 'consola/browser';
 
 import { AppRpc } from '../core/effect-rpc-angular-client';
 import { PermissionsService } from '../core/permissions.service';
-import { injectTRPC } from '../core/trpc-client';
 
 @Injectable({
   providedIn: 'root',
@@ -14,7 +13,6 @@ import { injectTRPC } from '../core/trpc-client';
 export class EventListService {
   private readonly permissions = inject(PermissionsService);
   private readonly rpc = AppRpc.injectClient();
-  private readonly trpc = injectTRPC();
 
   private readonly pageConfig = signal({ limit: 100, offset: 0 });
 
@@ -39,7 +37,7 @@ export class EventListService {
   private readonly filterInput = computed(() => {
     const pageConfig = this.pageConfig();
     const self = this.selfQuery.data();
-    const startAfter = this.startFilter();
+    const startAfter = this.startFilter().toISOString();
     const status = this.canSeeDrafts()
       ? this.statusFilterForm().value().status
       : (['APPROVED'] as const);
@@ -62,7 +60,7 @@ export class EventListService {
   });
 
   readonly eventQuery = injectQuery(() =>
-    this.trpc.events.eventList.queryOptions(this.filterInput()),
+    this.rpc.events.eventList.queryOptions(this.filterInput()),
   );
 
   updatePageConfig(config: { limit: number; offset: number }) {

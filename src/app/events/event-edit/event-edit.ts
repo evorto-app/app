@@ -88,9 +88,9 @@ export class EventEdit {
         consola.error('Failed to update event:', error);
       },
       onSuccess: async ({ id }) => {
-        await this.queryClient.invalidateQueries({
-          queryKey: this.trpc.events.eventList.pathKey(),
-        });
+        await this.queryClient.invalidateQueries(
+          this.rpc.queryFilter(['events', 'eventList']),
+        );
         return this.router.navigate(['/events', id]);
       },
     }),

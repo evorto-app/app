@@ -215,9 +215,9 @@ export class TemplateCreateEventComponent {
         },
         {
           onSuccess: async (data) => {
-            await this.queryClient.invalidateQueries({
-              queryKey: this.trpc.events.eventList.pathKey(),
-            });
+            await this.queryClient.invalidateQueries(
+              this.rpc.queryFilter(['events', 'eventList']),
+            );
             this.router.navigate(['/events', data.id]);
           },
         },

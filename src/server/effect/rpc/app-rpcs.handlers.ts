@@ -6,8 +6,18 @@ import {
   type TenantDiscountProviders,
 } from '@shared/tenant-config';
 import consola from 'consola';
-import { and, count, eq } from 'drizzle-orm';
+import {
+  and,
+  arrayOverlaps,
+  count,
+  eq,
+  exists,
+  gt,
+  inArray,
+  not,
+} from 'drizzle-orm';
 import { Effect, Schema } from 'effect';
+import { DateTime } from 'luxon';
 
 import { database } from '../../../db';
 import {
@@ -912,6 +922,121 @@ export const appRpcHandlers = AppRpcs.toLayer(
         );
 
         return registrations.length > 0;
+      }),
+    'events.eventList': (input, options) =>
+      Effect.gen(function* () {
+        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const user = yield* decodeUserHeader(options.headers);
+        const userPermissions = user?.permissions ?? [];
+
+        if (user?.id !== input.userId) {
+          consola.warn(
+            `Supplied query parameter userId (${input.userId}) does not match the actual state (${user?.id})!`,
+          );
+        }
+
+        const onlyApprovedStatus =
+          input.status.length === 1 && input.status[0] === 'APPROVED';
+        if (!onlyApprovedStatus && !userPermissions.includes('events:seeDrafts')) {
+          return yield* Effect.fail('FORBIDDEN' as const);
+        }
+
+        if (input.includeUnlisted && !userPermissions.includes('events:seeUnlisted')) {
+          return yield* Effect.fail('FORBIDDEN' as const);
+        }
+
+        const rolesToFilterBy =
+          user?.roleIds ??
+          (yield* Effect.promise(() =>
+            database.query.roles
+              .findMany({
+                columns: { id: true },
+                where: {
+                  defaultUserRole: true,
+                  tenantId: tenant.id,
+                },
+              })
+              .then((roleRecords) => roleRecords.map((role) => role.id)),
+          ));
+        const roleFilters = rolesToFilterBy.length > 0 ? [...rolesToFilterBy] : [''];
+
+        const selectedEvents = yield* Effect.promise(() =>
+          database
+            .select({
+              creatorId: eventInstances.creatorId,
+              icon: eventInstances.icon,
+              id: eventInstances.id,
+              start: eventInstances.start,
+              status: eventInstances.status,
+              title: eventInstances.title,
+              unlisted: eventInstances.unlisted,
+              userRegistered: exists(
+                database
+                  .select()
+                  .from(eventRegistrations)
+                  .where(
+                    and(
+                      eq(eventRegistrations.eventId, eventInstances.id),
+                      eq(eventRegistrations.userId, user?.id ?? ''),
+                      not(eq(eventRegistrations.status, 'CANCELLED')),
+                    ),
+                  ),
+              ),
+            })
+            .from(eventInstances)
+            .where(
+              and(
+                gt(eventInstances.start, new Date(input.startAfter)),
+                eq(eventInstances.tenantId, tenant.id),
+                inArray(eventInstances.status, [...input.status]),
+                ...(input.includeUnlisted
+                  ? []
+                  : [eq(eventInstances.unlisted, false)]),
+                exists(
+                  database
+                    .select()
+                    .from(eventRegistrationOptions)
+                    .where(
+                      and(
+                        eq(eventRegistrationOptions.eventId, eventInstances.id),
+                        arrayOverlaps(
+                          eventRegistrationOptions.roleIds,
+                          roleFilters,
+                        ),
+                      ),
+                    ),
+                ),
+              ),
+            )
+            .limit(input.limit)
+            .offset(input.offset)
+            .orderBy(eventInstances.start),
+        );
+
+        const eventRecords = selectedEvents.map((event) => ({
+          icon: event.icon,
+          id: event.id,
+          start: event.start.toISOString(),
+          status: event.status,
+          title: event.title,
+          unlisted: event.unlisted,
+          userIsCreator: event.creatorId === (user?.id ?? 'not'),
+          userRegistered: Boolean(event.userRegistered),
+        }));
+
+        const groupedEvents = new Map<string, typeof eventRecords>();
+
+        for (const event of eventRecords) {
+          const day = DateTime.fromISO(event.start).toFormat('yyyy-MM-dd');
+          const currentEvents = groupedEvents.get(day) ?? [];
+          currentEvents.push(event);
+          groupedEvents.set(day, currentEvents);
+        }
+
+        return [...groupedEvents.entries()].map(([day, events]) => ({
+          day: DateTime.fromFormat(day, 'yyyy-MM-dd').toJSDate().toISOString(),
+          events,
+        }));
       }),
     'events.getPendingReviews': (_payload, options) =>
       Effect.gen(function* () {

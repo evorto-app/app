@@ -156,9 +156,9 @@ export class EventDetailsComponent {
         await this.queryClient.invalidateQueries({
           queryKey: this.trpc.events.findOne.queryKey({ id: this.eventId() }),
         });
-        await this.queryClient.invalidateQueries({
-          queryKey: this.trpc.events.eventList.pathKey(),
-        });
+        await this.queryClient.invalidateQueries(
+          this.rpc.queryFilter(['events', 'eventList']),
+        );
         await this.queryClient.invalidateQueries({
           queryKey: this.trpc.events.findMany.pathKey(),
         });
@@ -174,9 +174,9 @@ export class EventDetailsComponent {
         await this.queryClient.invalidateQueries({
           queryKey: this.trpc.events.findOne.queryKey({ id: this.eventId() }),
         });
-        await this.queryClient.invalidateQueries({
-          queryKey: this.trpc.events.eventList.pathKey(),
-        });
+        await this.queryClient.invalidateQueries(
+          this.rpc.queryFilter(['events', 'eventList']),
+        );
         await this.queryClient.invalidateQueries(
           this.rpc.queryFilter(['events', 'getPendingReviews']),
         );
@@ -189,9 +189,9 @@ export class EventDetailsComponent {
         await this.queryClient.invalidateQueries({
           queryKey: this.trpc.events.findOne.queryKey({ id: this.eventId() }),
         });
-        await this.queryClient.invalidateQueries({
-          queryKey: this.trpc.events.eventList.pathKey(),
-        });
+        await this.queryClient.invalidateQueries(
+          this.rpc.queryFilter(['events', 'eventList']),
+        );
       },
     }),
   );
@@ -302,9 +302,9 @@ export class EventDetailsComponent {
     await this.queryClient.invalidateQueries({
       queryKey: this.trpc.events.findMany.pathKey(),
     });
-    await this.queryClient.invalidateQueries({
-      queryKey: this.trpc.events.eventList.pathKey(),
-    });
+    await this.queryClient.invalidateQueries(
+      this.rpc.queryFilter(['events', 'eventList']),
+    );
     await this.queryClient.invalidateQueries(
       this.rpc.queryFilter(['events', 'getPendingReviews']),
     );

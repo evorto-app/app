@@ -433,6 +433,15 @@ export type EventsReviewRpcError = Schema.Schema.Type<
   typeof EventsReviewRpcError
 >;
 
+export const EventReviewStatus = Schema.Literal(
+  'APPROVED',
+  'DRAFT',
+  'PENDING_REVIEW',
+  'REJECTED',
+);
+
+export type EventReviewStatus = Schema.Schema.Type<typeof EventReviewStatus>;
+
 export const EventsCanOrganize = asRpcQuery(
   Rpc.make('events.canOrganize', {
     error: EventsRpcError,
@@ -440,6 +449,65 @@ export const EventsCanOrganize = asRpcQuery(
       eventId: Schema.NonEmptyString,
     }),
     success: Schema.Boolean,
+  }),
+);
+
+export const EventsEventListRpcError = Schema.Literal('FORBIDDEN');
+
+export type EventsEventListRpcError = Schema.Schema.Type<
+  typeof EventsEventListRpcError
+>;
+
+export const EventsEventListInput = Schema.Struct({
+  includeUnlisted: Schema.optional(Schema.Boolean),
+  limit: Schema.optionalWith(Schema.Number.pipe(Schema.nonNegative()), {
+    default: () => 100,
+  }),
+  offset: Schema.optionalWith(Schema.Number.pipe(Schema.nonNegative()), {
+    default: () => 0,
+  }),
+  startAfter: Schema.optionalWith(Schema.NonEmptyString, {
+    default: () => new Date().toISOString(),
+  }),
+  status: Schema.optionalWith(Schema.Array(EventReviewStatus), {
+    default: () => [],
+  }),
+  userId: Schema.optional(Schema.NonEmptyString),
+});
+
+export type EventsEventListInput = Schema.Schema.Type<
+  typeof EventsEventListInput
+>;
+
+export const EventsEventListRecord = Schema.Struct({
+  icon: iconSchema,
+  id: Schema.NonEmptyString,
+  start: Schema.NonEmptyString,
+  status: EventReviewStatus,
+  title: Schema.NonEmptyString,
+  unlisted: Schema.Boolean,
+  userIsCreator: Schema.Boolean,
+  userRegistered: Schema.Boolean,
+});
+
+export type EventsEventListRecord = Schema.Schema.Type<
+  typeof EventsEventListRecord
+>;
+
+export const EventsEventListDayRecord = Schema.Struct({
+  day: Schema.NonEmptyString,
+  events: Schema.Array(EventsEventListRecord),
+});
+
+export type EventsEventListDayRecord = Schema.Schema.Type<
+  typeof EventsEventListDayRecord
+>;
+
+export const EventsEventList = asRpcQuery(
+  Rpc.make('events.eventList', {
+    error: EventsEventListRpcError,
+    payload: EventsEventListInput,
+    success: Schema.Array(EventsEventListDayRecord),
   }),
 );
 
@@ -769,6 +837,7 @@ export class AppRpcs extends RpcGroup.make(
   DiscountsUpsertMyCard,
   EditorMediaCreateImageDirectUpload,
   EventsCanOrganize,
+  EventsEventList,
   EventsGetPendingReviews,
   EventsGetRegistrationStatus,
   GlobalAdminTenantsFindMany,

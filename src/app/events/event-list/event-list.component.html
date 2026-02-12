@@ -49,7 +49,7 @@
           <p class="headline-small">Loading…</p>
         </div>
       } @else if (eventQuery.isError()) {
-        <p>Error: {{ eventQuery.error().message }}</p>
+        <p>Error: {{ eventErrorMessage() }}</p>
       } @else if (eventQuery.isSuccess()) {
         @for (day of eventQuery.data(); track day.day) {
           <p
