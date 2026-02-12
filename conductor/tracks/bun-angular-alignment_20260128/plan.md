@@ -333,6 +333,13 @@
   - [x] Decommission legacy tRPC `events.getPendingReviews` procedure
   - [x] Commit milestone
 
+- [x] Task: Migrate `events.eventList` from tRPC to Effect RPC slice (3f3e7a6)
+  - [x] Define test intent (`bunx --bun eslint` on touched files, `bunx --bun tsc -p tsconfig.app.json --noEmit`, `CI=true bun run lint`, `CI=true bun run build`, `CI=true bun run test`)
+  - [x] Add shared Effect RPC contract + handler for `events.eventList`
+  - [x] Replace event-list query and related invalidation paths (`event-list.service`, `event-edit`, `event-details`, `event-reviews`, `template-create-event`) with `AppRpc` helper/query filters
+  - [x] Decommission legacy tRPC `events.eventList` procedure
+  - [x] Commit milestone
+
 - [ ] Task: Conductor - User Manual Verification 'Phase 6'
 
 ## Final Gate
@@ -479,6 +486,11 @@
 - `CI=true bun run lint` passes after `events.getPendingReviews` Effect RPC cutover (warnings-only baseline unchanged).
 - `CI=true bun run build` passes after `events.getPendingReviews` Effect RPC cutover.
 - `CI=true bun run test` passes after `events.getPendingReviews` Effect RPC cutover (`12 passed`).
+- `bunx --bun eslint src/shared/rpc-contracts/app-rpcs.ts src/server/effect/rpc/app-rpcs.handlers.ts src/app/events/event-list.service.ts src/app/events/event-list/event-list.component.ts src/app/events/event-list/event-list.component.html src/app/events/event-edit/event-edit.ts src/app/events/event-details/event-details.component.ts src/app/admin/event-reviews/event-reviews.component.ts src/app/templates/template-create-event/template-create-event.component.ts src/server/trpc/events/events.router.ts` passes after `events.eventList` Effect RPC cutover (warnings-only baseline unchanged).
+- `bunx --bun tsc -p tsconfig.app.json --noEmit` and `bunx --bun tsc -p tsconfig.spec.json --noEmit` pass after `events.eventList` Effect RPC cutover.
+- `CI=true bun run lint` passes after `events.eventList` Effect RPC cutover (warnings-only baseline unchanged).
+- `CI=true bun run build` passes after `events.eventList` Effect RPC cutover.
+- `CI=true bun run test` passes after `events.eventList` Effect RPC cutover (`12 passed`).
 
 ## Session Handoff
 
