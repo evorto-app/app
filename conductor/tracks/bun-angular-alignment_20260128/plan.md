@@ -340,6 +340,13 @@
   - [x] Decommission legacy tRPC `events.eventList` procedure
   - [x] Commit milestone
 
+- [x] Task: Migrate `events.findOneForEdit` from tRPC to Effect RPC slice (10b44d9)
+  - [x] Define test intent (`bunx --bun eslint` on touched files, `bunx --bun tsc -p tsconfig.app.json --noEmit`, `CI=true bun run lint`, `CI=true bun run build`, `CI=true bun run test`)
+  - [x] Add shared Effect RPC contract + handler for `events.findOneForEdit`
+  - [x] Replace event edit read callsite (`event-edit`) with `AppRpc` helper
+  - [x] Decommission legacy tRPC `events.findOneForEdit` procedure
+  - [x] Commit milestone
+
 - [ ] Task: Conductor - User Manual Verification 'Phase 6'
 
 ## Final Gate
@@ -491,6 +498,11 @@
 - `CI=true bun run lint` passes after `events.eventList` Effect RPC cutover (warnings-only baseline unchanged).
 - `CI=true bun run build` passes after `events.eventList` Effect RPC cutover.
 - `CI=true bun run test` passes after `events.eventList` Effect RPC cutover (`12 passed`).
+- `bunx --bun eslint src/shared/rpc-contracts/app-rpcs.ts src/server/effect/rpc/app-rpcs.handlers.ts src/app/events/event-edit/event-edit.ts src/server/trpc/events/events.router.ts` passes after `events.findOneForEdit` Effect RPC cutover (warnings-only baseline unchanged).
+- `bunx --bun tsc -p tsconfig.app.json --noEmit` and `bunx --bun tsc -p tsconfig.spec.json --noEmit` pass after `events.findOneForEdit` Effect RPC cutover.
+- `CI=true bun run lint` passes after `events.findOneForEdit` Effect RPC cutover (warnings-only baseline unchanged).
+- `CI=true bun run build` passes after `events.findOneForEdit` Effect RPC cutover.
+- `CI=true bun run test` passes after `events.findOneForEdit` Effect RPC cutover (`12 passed`).
 
 ## Session Handoff
 
