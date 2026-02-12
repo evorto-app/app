@@ -88,69 +88,6 @@ export const roleRouter = router({
       );
   }),
 
-  findMany: authenticatedProcedure
-    .input(
-      Schema.standardSchemaV1(
-        Schema.Struct({
-          defaultOrganizerRole: Schema.optional(Schema.Boolean),
-          defaultUserRole: Schema.optional(Schema.Boolean),
-        }),
-      ),
-    )
-    .query(async ({ ctx, input }) => {
-      return await database.query.roles.findMany({
-        orderBy: { name: 'asc' },
-        where: {
-          tenantId: ctx.tenant.id,
-          ...(input.defaultUserRole !== undefined && {
-            defaultUserRole: input.defaultUserRole,
-          }),
-          ...(input.defaultOrganizerRole !== undefined && {
-            defaultOrganizerRole: input.defaultOrganizerRole,
-          }),
-        },
-      });
-    }),
-
-  findOne: authenticatedProcedure
-    .meta({ requiredPermissions: ['admin:manageRoles'] })
-    .input(
-      Schema.standardSchemaV1(
-        Schema.Struct({
-          id: Schema.NonEmptyString,
-        }),
-      ),
-    )
-    .query(async ({ ctx, input }) => {
-      const role = await database.query.roles.findFirst({
-        where: { id: input.id, tenantId: ctx.tenant.id },
-      });
-      if (!role) {
-        throw new Error('Role not found');
-      }
-      return role;
-    }),
-
-  search: authenticatedProcedure
-    .meta({ requiredPermissions: ['admin:manageRoles'] })
-    .input(
-      Schema.standardSchemaV1(
-        Schema.Struct({
-          search: Schema.String,
-        }),
-      ),
-    )
-    .query(async ({ ctx, input }) => {
-      return await database.query.roles.findMany({
-        limit: 15,
-        orderBy: { name: 'asc' },
-        where: {
-          name: { ilike: `%${input.search}%` },
-          tenantId: ctx.tenant.id,
-        },
-      });
-    }),
-
   update: authenticatedProcedure
     .meta({ requiredPermissions: ['admin:manageRoles'] })
     .input(

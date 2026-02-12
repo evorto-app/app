@@ -13,7 +13,7 @@
       <h2 class="title-medium">Loading ...</h2>
     </div>
   } @else if (roleQuery.isError()) {
-    <p>Error: {{ roleQuery.error().message }}</p>
+    <p>Error: {{ errorMessage(roleQuery.error()) }}</p>
   } @else if (roleQuery.isSuccess()) {
     <div
       class="bg-surface-container-low text-on-surface-container-low flex flex-col gap-4 rounded-2xl p-4"

@@ -11,7 +11,7 @@ import {
   Permission,
   PERMISSION_GROUPS,
 } from '../../../shared/permissions/permissions';
-import { injectTRPC } from '../../core/trpc-client';
+import { AppRpc } from '../../core/effect-rpc-angular-client';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -33,14 +33,29 @@ export class RoleDetailsComponent {
 
   protected readonly permissionGroups = PERMISSION_GROUPS;
 
-  private readonly trpc = injectTRPC();
+  private readonly rpc = AppRpc.injectClient();
   protected readonly roleQuery = injectQuery(() =>
-    this.trpc.admin.roles.findOne.queryOptions({
+    this.rpc.admin['roles.findOne'].queryOptions({
       id: this.roleId(),
     }),
   );
 
   hasPermission(permission: Permission) {
     return this.roleQuery.data()?.permissions.includes(permission) ?? false;
+  }
+
+  protected errorMessage(error: unknown): string {
+    if (typeof error === 'string') {
+      return error;
+    }
+    if (
+      error &&
+      typeof error === 'object' &&
+      'message' in error &&
+      typeof (error as { message?: unknown }).message === 'string'
+    ) {
+      return (error as { message: string }).message;
+    }
+    return 'Unknown error';
   }
 }

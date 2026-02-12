@@ -52,16 +52,16 @@ const templateFormSchema = schema<TemplateFormData>((formPath) => {
 })
 export class TemplateCreateComponent {
   protected readonly categoryId = input<string | undefined>();
-  private trpc = injectTRPC();
   protected readonly createTemplateMutation = injectMutation(() =>
-    this.trpc.templates.createSimpleTemplate.mutationOptions(),
+    injectTRPC().templates.createSimpleTemplate.mutationOptions(),
   );
   protected readonly faArrowLeft = faArrowLeft;
+  private readonly rpc = AppRpc.injectClient();
   private defaultOrganizerRolesQuery = injectQuery(() =>
-    this.trpc.admin.roles.findMany.queryOptions({ defaultOrganizerRole: true }),
+    this.rpc.admin['roles.findMany'].queryOptions({ defaultOrganizerRole: true }),
   );
   private defaultUserRolesQuery = injectQuery(() =>
-    this.trpc.admin.roles.findMany.queryOptions({ defaultUserRole: true }),
+    this.rpc.admin['roles.findMany'].queryOptions({ defaultUserRole: true }),
   );
   protected readonly initialFormData = computed<TemplateFormOverrides>(() => ({
     categoryId: this.categoryId() || '',
@@ -96,7 +96,6 @@ export class TemplateCreateComponent {
 
   private queryClient = inject(QueryClient);
   private router = inject(Router);
-  private readonly rpc = AppRpc.injectClient();
 
   async onSubmit(event: Event) {
     event.preventDefault();

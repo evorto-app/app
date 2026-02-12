@@ -47,6 +47,66 @@ export const ConfigTenant = asRpcQuery(
   }),
 );
 
+export const AdminRoleRpcError = Schema.Literal(
+  'FORBIDDEN',
+  'NOT_FOUND',
+  'UNAUTHORIZED',
+);
+
+export type AdminRoleRpcError = Schema.Schema.Type<typeof AdminRoleRpcError>;
+
+export const AdminRoleRecord = Schema.Struct({
+  collapseMembersInHup: Schema.Boolean,
+  defaultOrganizerRole: Schema.Boolean,
+  defaultUserRole: Schema.Boolean,
+  description: Schema.NullOr(Schema.String),
+  displayInHub: Schema.Boolean,
+  id: Schema.NonEmptyString,
+  name: Schema.NonEmptyString,
+  permissions: Schema.mutable(Schema.Array(PermissionSchema)),
+  showInHub: Schema.Boolean,
+  sortOrder: Schema.Number,
+});
+
+export type AdminRoleRecord = Schema.Schema.Type<typeof AdminRoleRecord>;
+
+export const AdminRolesFindManyInput = Schema.Struct({
+  defaultOrganizerRole: Schema.optional(Schema.Boolean),
+  defaultUserRole: Schema.optional(Schema.Boolean),
+});
+
+export type AdminRolesFindManyInput = Schema.Schema.Type<
+  typeof AdminRolesFindManyInput
+>;
+
+export const AdminRolesFindMany = asRpcQuery(
+  Rpc.make('admin.roles.findMany', {
+    error: AdminRoleRpcError,
+    payload: AdminRolesFindManyInput,
+    success: Schema.Array(AdminRoleRecord),
+  }),
+);
+
+export const AdminRolesFindOne = asRpcQuery(
+  Rpc.make('admin.roles.findOne', {
+    error: AdminRoleRpcError,
+    payload: Schema.Struct({
+      id: Schema.NonEmptyString,
+    }),
+    success: AdminRoleRecord,
+  }),
+);
+
+export const AdminRolesSearch = asRpcQuery(
+  Rpc.make('admin.roles.search', {
+    error: AdminRoleRpcError,
+    payload: Schema.Struct({
+      search: Schema.String,
+    }),
+    success: Schema.Array(AdminRoleRecord),
+  }),
+);
+
 export const UsersUserAssigned = asRpcQuery(
   Rpc.make('users.userAssigned', {
     payload: Schema.Void,
@@ -303,6 +363,9 @@ export const TemplatesGroupedByCategory = asRpcQuery(
 );
 
 export class AppRpcs extends RpcGroup.make(
+  AdminRolesFindMany,
+  AdminRolesFindOne,
+  AdminRolesSearch,
   ConfigPublic,
   ConfigIsAuthenticated,
   ConfigPermissionList,

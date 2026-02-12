@@ -16,6 +16,7 @@ import {
   QueryClient,
 } from '@tanstack/angular-query-experimental';
 
+import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { injectTRPC } from '../../core/trpc-client';
 import { RoleFormComponent } from '../components/role-form/role-form.component';
 import {
@@ -35,9 +36,9 @@ import {
 export class RoleEditComponent {
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly roleId = input.required<string>();
-  private readonly trpc = injectTRPC();
+  private readonly rpc = AppRpc.injectClient();
   protected readonly roleQuery = injectQuery(() =>
-    this.trpc.admin.roles.findOne.queryOptions({
+    this.rpc.admin['roles.findOne'].queryOptions({
       id: this.roleId(),
     }),
   );
@@ -51,33 +52,48 @@ export class RoleEditComponent {
   });
   protected readonly roleForm = form(this.roleModel, roleFormSchema);
   protected readonly updateRoleMutation = injectMutation(() =>
-    this.trpc.admin.roles.update.mutationOptions(),
+    injectTRPC().admin.roles.update.mutationOptions(),
   );
-
   private readonly queryClient = inject(QueryClient);
   private readonly router = inject(Router);
+  private readonly trpc = injectTRPC();
 
   onSubmit(role: RoleFormData) {
     this.updateRoleMutation.mutate(
       { ...role, id: this.roleId() },
       {
         onSuccess: async () => {
-          const id = this.roleId();
-          await this.queryClient.invalidateQueries({
-            queryKey: this.trpc.admin.roles.findOne.queryKey({ id }),
-          });
-          await this.queryClient.invalidateQueries({
-            queryKey: this.trpc.admin.roles.findMany.pathKey(),
-          });
+          await this.queryClient.invalidateQueries(
+            this.rpc.queryFilter(['admin', 'roles.findOne']),
+          );
+          await this.queryClient.invalidateQueries(
+            this.rpc.queryFilter(['admin', 'roles.findMany']),
+          );
           await this.queryClient.invalidateQueries({
             queryKey: this.trpc.admin.roles.findHubRoles.pathKey(),
           });
-          await this.queryClient.invalidateQueries({
-            queryKey: this.trpc.admin.roles.search.pathKey(),
-          });
+          await this.queryClient.invalidateQueries(
+            this.rpc.queryFilter(['admin', 'roles.search']),
+          );
+          const id = this.roleId();
           this.router.navigate(['admin', 'roles', id]);
         },
       },
     );
+  }
+
+  protected errorMessage(error: unknown): string {
+    if (typeof error === 'string') {
+      return error;
+    }
+    if (
+      error &&
+      typeof error === 'object' &&
+      'message' in error &&
+      typeof (error as { message?: unknown }).message === 'string'
+    ) {
+      return (error as { message: string }).message;
+    }
+    return 'Unknown error';
   }
 }

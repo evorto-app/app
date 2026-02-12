@@ -17,6 +17,7 @@ import {
 } from '../../../db/schema';
 import { type Permission } from '../../../shared/permissions/permissions';
 import {
+  type AdminRoleRecord,
   AppRpcs,
   ConfigPermissions,
   type IconRecord,
@@ -67,6 +68,34 @@ const normalizeTemplateRecord = (
   icon: template.icon,
   id: template.id,
   title: template.title,
+});
+
+const normalizeRoleRecord = (
+  role: Pick<
+    typeof roles.$inferSelect,
+    | 'collapseMembersInHup'
+    | 'defaultOrganizerRole'
+    | 'defaultUserRole'
+    | 'description'
+    | 'displayInHub'
+    | 'id'
+    | 'name'
+    | 'permissions'
+    | 'showInHub'
+    | 'sortOrder'
+  >,
+): AdminRoleRecord => ({
+  collapseMembersInHup: role.collapseMembersInHup,
+  defaultOrganizerRole: role.defaultOrganizerRole,
+  defaultUserRole: role.defaultUserRole,
+  // eslint-disable-next-line unicorn/no-null
+  description: role.description ?? null,
+  displayInHub: role.displayInHub,
+  id: role.id,
+  name: role.name,
+  permissions: role.permissions,
+  showInHub: role.showInHub,
+  sortOrder: role.sortOrder,
 });
 
 const normalizeTemplatesByCategoryRecord = (
@@ -156,6 +185,59 @@ const requireUserHeader = (
 
 export const appRpcHandlers = AppRpcs.toLayer(
   Effect.succeed({
+    'admin.roles.findMany': (input, options) =>
+      Effect.gen(function* () {
+        yield* ensureAuthenticated(options.headers);
+        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const tenantRoles = yield* Effect.promise(() =>
+          database.query.roles.findMany({
+            orderBy: { name: 'asc' },
+            where: {
+              tenantId: tenant.id,
+              ...(input.defaultUserRole !== undefined && {
+                defaultUserRole: input.defaultUserRole,
+              }),
+              ...(input.defaultOrganizerRole !== undefined && {
+                defaultOrganizerRole: input.defaultOrganizerRole,
+              }),
+            },
+          }),
+        );
+
+        return tenantRoles.map((role) => normalizeRoleRecord(role));
+      }),
+    'admin.roles.findOne': ({ id }, options) =>
+      Effect.gen(function* () {
+        yield* ensurePermission(options.headers, 'admin:manageRoles');
+        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const role = yield* Effect.promise(() =>
+          database.query.roles.findFirst({
+            where: { id, tenantId: tenant.id },
+          }),
+        );
+        if (!role) {
+          return yield* Effect.fail('NOT_FOUND' as const);
+        }
+
+        return normalizeRoleRecord(role);
+      }),
+    'admin.roles.search': ({ search }, options) =>
+      Effect.gen(function* () {
+        yield* ensurePermission(options.headers, 'admin:manageRoles');
+        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const matchingRoles = yield* Effect.promise(() =>
+          database.query.roles.findMany({
+            limit: 15,
+            orderBy: { name: 'asc' },
+            where: {
+              name: { ilike: `%${search}%` },
+              tenantId: tenant.id,
+            },
+          }),
+        );
+
+        return matchingRoles.map((role) => normalizeRoleRecord(role));
+      }),
     'config.isAuthenticated': (_payload, options) =>
       Effect.succeed(options.headers['x-evorto-authenticated'] === 'true'),
     'config.permissions': (_payload, options) =>

@@ -17,7 +17,7 @@
       <h2 class="title-medium">Loading ...</h2>
     </div>
   } @else if (roleQuery.isError()) {
-    <p>Error: {{ roleQuery.error().message }}</p>
+    <p>Error: {{ errorMessage(roleQuery.error()) }}</p>
   } @else if (roleQuery.isSuccess()) {
     @for (role of roleQuery.data(); track role.id) {
       <a

@@ -14,6 +14,7 @@ import {
   QueryClient,
 } from '@tanstack/angular-query-experimental';
 
+import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { injectTRPC } from '../../core/trpc-client';
 import { RoleFormComponent } from '../components/role-form/role-form.component';
 import {
@@ -30,31 +31,30 @@ import {
   templateUrl: './role-create.component.html',
 })
 export class RoleCreateComponent {
-  private readonly trpc = injectTRPC();
   protected readonly createRoleMutation = injectMutation(() =>
-    this.trpc.admin.roles.create.mutationOptions(),
+    injectTRPC().admin.roles.create.mutationOptions(),
   );
   protected readonly faArrowLeft = faArrowLeft;
-  private readonly roleModel = signal(createRoleFormModel());
-  protected readonly roleForm = form(this.roleModel, roleFormSchema);
-
+  protected readonly roleForm = form(signal(createRoleFormModel()), roleFormSchema);
   private readonly queryClient = inject(QueryClient);
   private readonly router = inject(Router);
+  private readonly rpc = AppRpc.injectClient();
+  private readonly trpc = injectTRPC();
 
   protected async onSubmit(role: RoleFormData): Promise<void> {
     this.createRoleMutation.mutate(
       { ...role },
       {
         onSuccess: async (data) => {
-          await this.queryClient.invalidateQueries({
-            queryKey: this.trpc.admin.roles.findMany.pathKey(),
-          });
+          await this.queryClient.invalidateQueries(
+            this.rpc.queryFilter(['admin', 'roles.findMany']),
+          );
           await this.queryClient.invalidateQueries({
             queryKey: this.trpc.admin.roles.findHubRoles.pathKey(),
           });
-          await this.queryClient.invalidateQueries({
-            queryKey: this.trpc.admin.roles.search.pathKey(),
-          });
+          await this.queryClient.invalidateQueries(
+            this.rpc.queryFilter(['admin', 'roles.search']),
+          );
           this.router.navigate(['admin', 'roles', data.id]);
         },
       },
