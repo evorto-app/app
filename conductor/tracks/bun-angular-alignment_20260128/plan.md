@@ -305,6 +305,13 @@
   - [x] Decommission legacy tRPC `editorMedia` router namespace from app-router composition
   - [x] Commit milestone
 
+- [x] Task: Migrate `globalAdmin.tenants.findMany` from tRPC to Effect RPC slice (81c8d27)
+  - [x] Define test intent (`bunx --bun eslint` on touched files, `bunx --bun tsc -p tsconfig.app.json --noEmit`, `CI=true bun run lint`, `CI=true bun run build`, `CI=true bun run test`)
+  - [x] Add shared Effect RPC contract + handler for `globalAdmin.tenants.findMany`
+  - [x] Replace global-admin tenant list callsite with `AppRpc` helper
+  - [x] Decommission legacy tRPC `globalAdmin.tenants.findMany` procedure
+  - [x] Commit milestone
+
 - [ ] Task: Conductor - User Manual Verification 'Phase 6'
 
 ## Final Gate
@@ -431,6 +438,11 @@
 - `CI=true bun run lint` passes after `editorMedia.createImageDirectUpload` Effect RPC cutover (warnings-only baseline unchanged).
 - `CI=true bun run build` passes after `editorMedia.createImageDirectUpload` Effect RPC cutover.
 - `CI=true bun run test` passes after `editorMedia.createImageDirectUpload` Effect RPC cutover (`12 passed`).
+- `bunx --bun eslint src/shared/rpc-contracts/app-rpcs.ts src/server/effect/rpc/app-rpcs.handlers.ts src/app/global-admin/tenant-list/tenant-list.component.ts src/app/global-admin/tenant-list/tenant-list.component.html src/server/trpc/global-admin/tenant.router.ts` passes after `globalAdmin.tenants.findMany` Effect RPC cutover.
+- `bunx --bun tsc -p tsconfig.app.json --noEmit` and `bunx --bun tsc -p tsconfig.spec.json --noEmit` pass after `globalAdmin.tenants.findMany` Effect RPC cutover.
+- `CI=true bun run lint` passes after `globalAdmin.tenants.findMany` Effect RPC cutover (warnings-only baseline unchanged).
+- `CI=true bun run build` passes after `globalAdmin.tenants.findMany` Effect RPC cutover.
+- `CI=true bun run test` passes after `globalAdmin.tenants.findMany` Effect RPC cutover (`12 passed`).
 
 ## Session Handoff
 
