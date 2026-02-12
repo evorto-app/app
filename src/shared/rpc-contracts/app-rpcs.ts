@@ -282,6 +282,30 @@ export const TaxRatesListActive = asRpcQuery(
   }),
 );
 
+export const DiscountsRpcError = Schema.Literal('UNAUTHORIZED');
+
+export type DiscountsRpcError = Schema.Schema.Type<typeof DiscountsRpcError>;
+
+export const DiscountProviderRecord = Schema.Struct({
+  config: Schema.Struct({
+    buyEsnCardUrl: Schema.optional(Schema.NonEmptyString),
+  }),
+  status: Schema.Literal('disabled', 'enabled'),
+  type: Schema.Literal('esnCard'),
+});
+
+export type DiscountProviderRecord = Schema.Schema.Type<
+  typeof DiscountProviderRecord
+>;
+
+export const DiscountsGetTenantProviders = asRpcQuery(
+  Rpc.make('discounts.getTenantProviders', {
+    error: DiscountsRpcError,
+    payload: Schema.Void,
+    success: Schema.Array(DiscountProviderRecord),
+  }),
+);
+
 export const UsersUserAssigned = asRpcQuery(
   Rpc.make('users.userAssigned', {
     payload: Schema.Void,
@@ -553,6 +577,7 @@ export class AppRpcs extends RpcGroup.make(
   ConfigIsAuthenticated,
   ConfigPermissionList,
   ConfigTenant,
+  DiscountsGetTenantProviders,
   TaxRatesListActive,
   UsersAuthDataFind,
   UsersCreateAccount,

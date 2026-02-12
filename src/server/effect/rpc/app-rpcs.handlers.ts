@@ -1,6 +1,7 @@
 import type { Headers } from '@effect/platform';
 
 import {
+  resolveTenantDiscountProviders,
   resolveTenantReceiptSettings,
   type TenantDiscountProviders,
 } from '@shared/tenant-config';
@@ -37,6 +38,7 @@ import {
 import { Tenant } from '../../../types/custom/tenant';
 import { User } from '../../../types/custom/user';
 import { serverEnvironment } from '../../config/environment';
+import { PROVIDERS, type ProviderType } from '../../discounts/providers';
 import { stripe } from '../../stripe-client';
 import { normalizeEsnCardConfig } from '../../trpc/discounts/discount-provider-config';
 import { computeIconSourceColor } from '../../utils/icon-color';
@@ -586,6 +588,25 @@ export const appRpcHandlers = AppRpcs.toLayer(
       Effect.sync(() =>
         decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant),
       ),
+    'discounts.getTenantProviders': (_payload, options) =>
+      Effect.gen(function* () {
+        yield* ensureAuthenticated(options.headers);
+        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const resolvedTenant = yield* Effect.promise(() =>
+          database.query.tenants.findFirst({
+            where: { id: tenant.id },
+          }),
+        );
+        const config = resolveTenantDiscountProviders(
+          resolvedTenant?.discountProviders,
+        );
+
+        return (Object.keys(PROVIDERS) as ProviderType[]).map((type) => ({
+          config: normalizeEsnCardConfig(config[type].config),
+          status: config[type].status,
+          type,
+        }));
+      }),
     'icons.add': ({ icon }, options) =>
       Effect.gen(function* () {
         yield* ensureAuthenticated(options.headers);

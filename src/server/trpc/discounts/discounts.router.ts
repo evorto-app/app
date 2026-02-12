@@ -4,9 +4,7 @@ import { Schema } from 'effect';
 
 import { database } from '../../../db';
 import * as schema from '../../../db/schema';
-import { PROVIDERS, ProviderType } from '../../discounts/providers';
 import { authenticatedProcedure, router } from '../trpc-server';
-import { normalizeEsnCardConfig } from './discount-provider-config';
 
 export const discountsRouter = router({
   deleteMyCard: authenticatedProcedure
@@ -31,19 +29,6 @@ export const discountsRouter = router({
     return database.query.userDiscountCards.findMany({
       where: { tenantId: ctx.tenant.id, userId: ctx.user.id },
     });
-  }),
-
-  getTenantProviders: authenticatedProcedure.query(async ({ ctx }) => {
-    const tenant = await database.query.tenants.findFirst({
-      where: { id: ctx.tenant.id },
-    });
-    const config = resolveTenantDiscountProviders(tenant?.discountProviders);
-    // Normalize to full providers list
-    return (Object.keys(PROVIDERS) as ProviderType[]).map((type) => ({
-      config: normalizeEsnCardConfig(config[type].config),
-      status: config[type].status,
-      type,
-    }));
   }),
 
   refreshMyCard: authenticatedProcedure

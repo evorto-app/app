@@ -72,9 +72,9 @@ export class UserProfileComponent {
     { icon: faTags, key: 'discounts', label: 'Discounts' },
     { icon: faReceipt, key: 'receipts', label: 'Receipts' },
   ];
-  private readonly trpc = injectTRPC();
+  private readonly rpc = AppRpc.injectClient();
   protected readonly discountProvidersQuery = injectQuery(() =>
-    this.trpc.discounts.getTenantProviders.queryOptions(),
+    this.rpc.discounts.getTenantProviders.queryOptions(),
   );
   protected readonly buyEsnCardUrl = computed(() => {
     const providers = this.discountProvidersQuery.data();
@@ -84,6 +84,7 @@ export class UserProfileComponent {
   });
   private readonly notifications = inject(NotificationService);
   private readonly queryClient = inject(QueryClient);
+  private readonly trpc = injectTRPC();
   protected readonly deleteCardMutation = injectMutation(() =>
     this.trpc.discounts.deleteMyCard.mutationOptions({
       onSuccess: async () => {
@@ -140,7 +141,6 @@ export class UserProfileComponent {
     ),
   );
   protected readonly selectedSection = signal<ProfileSection>('overview');
-  private readonly rpc = AppRpc.injectClient();
   protected readonly updateProfileMutation = injectMutation(() =>
     this.rpc.users.updateProfile.mutationOptions(),
   );

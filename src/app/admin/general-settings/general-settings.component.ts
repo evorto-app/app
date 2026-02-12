@@ -29,7 +29,6 @@ import {
 import { GoogleLocationType } from '../../../types/location';
 import { ConfigService } from '../../core/config.service';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
-import { injectTRPC } from '../../core/trpc-client';
 import { LocationSelectorField } from '../../shared/components/controls/location-selector/location-selector-field/location-selector-field';
 
 @Component({
@@ -77,8 +76,6 @@ export class GeneralSettingsComponent {
   private readonly queryClient = inject(QueryClient);
   private readonly rpc = AppRpc.injectClient();
 
-  private readonly trpc = injectTRPC();
-
   private updateSettingsMutation = injectMutation(() =>
     this.rpc.admin['tenant.updateSettings'].mutationOptions(),
   );
@@ -124,9 +121,9 @@ export class GeneralSettingsComponent {
             await this.queryClient.invalidateQueries({
               queryKey: this.rpc.pathKey(['config', 'tenant']),
             });
-            await this.queryClient.invalidateQueries({
-              queryKey: this.trpc.discounts.getTenantProviders.pathKey(),
-            });
+            await this.queryClient.invalidateQueries(
+              this.rpc.queryFilter(['discounts', 'getTenantProviders']),
+            );
           },
         },
       );

@@ -20,6 +20,7 @@ import {
 } from '@tanstack/angular-query-experimental';
 import { DateTime } from 'luxon';
 
+import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { injectTRPC } from '../../core/trpc-client';
 import { EventGeneralForm } from '../../shared/components/forms/event-general-form/event-general-form';
 import {
@@ -53,8 +54,9 @@ export class TemplateCreateEventComponent {
   protected readonly createEventMutation = injectMutation(() =>
     this.trpc.events.create.mutationOptions(),
   );
+  private readonly rpc = AppRpc.injectClient();
   protected readonly discountProvidersQuery = injectQuery(() =>
-    this.trpc.discounts.getTenantProviders.queryOptions(),
+    this.rpc.discounts.getTenantProviders.queryOptions(),
   );
   protected readonly esnEnabled = computed(() => {
     const providers = this.discountProvidersQuery.data();

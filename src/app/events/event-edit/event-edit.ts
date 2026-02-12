@@ -24,6 +24,7 @@ import {
 import consola from 'consola/browser';
 import { DateTime } from 'luxon';
 
+import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { injectTRPC } from '../../core/trpc-client';
 import { EventGeneralForm } from '../../shared/components/forms/event-general-form/event-general-form';
 import {
@@ -52,9 +53,9 @@ import { IfAnyPermissionDirective } from '../../shared/directives/if-any-permiss
 })
 export class EventEdit {
   public eventId = input.required<string>();
-  private trpc = injectTRPC();
+  private readonly rpc = AppRpc.injectClient();
   protected readonly discountProvidersQuery = injectQuery(() =>
-    this.trpc.discounts.getTenantProviders.queryOptions(),
+    this.rpc.discounts.getTenantProviders.queryOptions(),
   );
   protected readonly editEventModel = signal<EventGeneralFormModel>(
     createEventGeneralFormModel(),
@@ -68,6 +69,7 @@ export class EventEdit {
     if (!providers) return false;
     return providers.find((provider) => provider.type === 'esnCard')?.status === 'enabled';
   });
+  private trpc = injectTRPC();
   protected readonly eventQuery = injectQuery(() =>
     this.trpc.events.findOneForEdit.queryOptions({ id: this.eventId() }),
   );
