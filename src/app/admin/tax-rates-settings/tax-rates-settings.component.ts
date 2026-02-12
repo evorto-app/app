@@ -18,7 +18,7 @@ import {
 } from '@fortawesome/duotone-regular-svg-icons';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
-import { injectTRPC } from '../../core/trpc-client';
+import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { ImportTaxRatesDialogComponent } from '../components/import-tax-rates-dialog/import-tax-rates-dialog.component';
 
 @Component({
@@ -72,7 +72,7 @@ import { ImportTaxRatesDialogComponent } from '../components/import-tax-rates-di
             <fa-duotone-icon [icon]="faCircleExclamation" />
             <span class="body-medium"
               >Failed to load tax rates:
-              {{ importedQuery.error()?.message }}</span
+              {{ errorMessage(importedQuery.error()) }}</span
             >
           </div>
         </div>
@@ -315,10 +315,10 @@ export class TaxRatesSettingsComponent {
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faCircleExclamation = faCircleExclamation;
   protected readonly faReceipt = faReceipt;
-  private readonly trpc = injectTRPC();
+  private readonly rpc = AppRpc.injectClient();
 
   protected readonly importedQuery = injectQuery(() =>
-    this.trpc.admin.tenant.listImportedTaxRates.queryOptions(),
+    this.rpc.admin['tenant.listImportedTaxRates'].queryOptions(),
   );
 
   protected readonly importedRates = computed(() => {
@@ -332,6 +332,21 @@ export class TaxRatesSettingsComponent {
   });
 
   private readonly dialog = inject(MatDialog);
+
+  protected errorMessage(error: unknown): string {
+    if (typeof error === 'string') {
+      return error;
+    }
+    if (
+      error &&
+      typeof error === 'object' &&
+      'message' in error &&
+      typeof (error as { message?: unknown }).message === 'string'
+    ) {
+      return (error as { message: string }).message;
+    }
+    return 'Unknown error';
+  }
 
   protected openImportDialog(): void {
     const dialogReference = this.dialog.open(ImportTaxRatesDialogComponent, {

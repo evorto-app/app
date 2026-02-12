@@ -180,6 +180,83 @@ export const AdminRolesUpdate = asRpcMutation(
   }),
 );
 
+export const AdminTenantRpcError = Schema.Literal(
+  'BAD_REQUEST',
+  'FORBIDDEN',
+  'UNAUTHORIZED',
+);
+
+export type AdminTenantRpcError = Schema.Schema.Type<typeof AdminTenantRpcError>;
+
+export const AdminTenantTaxRateRecord = Schema.Struct({
+  active: Schema.Boolean,
+  country: Schema.NullOr(Schema.String),
+  displayName: Schema.NullOr(Schema.String),
+  inclusive: Schema.Boolean,
+  percentage: Schema.NullOr(Schema.String),
+  state: Schema.NullOr(Schema.String),
+  stripeTaxRateId: Schema.NonEmptyString,
+});
+
+export type AdminTenantTaxRateRecord = Schema.Schema.Type<
+  typeof AdminTenantTaxRateRecord
+>;
+
+export const AdminTenantStripeTaxRateRecord = Schema.Struct({
+  active: Schema.Boolean,
+  country: Schema.NullOr(Schema.String),
+  displayName: Schema.NullOr(Schema.String),
+  id: Schema.NonEmptyString,
+  inclusive: Schema.Boolean,
+  percentage: Schema.NullOr(Schema.Number),
+  state: Schema.NullOr(Schema.String),
+});
+
+export type AdminTenantStripeTaxRateRecord = Schema.Schema.Type<
+  typeof AdminTenantStripeTaxRateRecord
+>;
+
+export const AdminTenantImportStripeTaxRates = asRpcMutation(
+  Rpc.make('admin.tenant.importStripeTaxRates', {
+    error: AdminTenantRpcError,
+    payload: Schema.Struct({
+      ids: Schema.Array(Schema.NonEmptyString),
+    }),
+    success: Schema.Void,
+  }),
+);
+
+export const AdminTenantListImportedTaxRates = asRpcQuery(
+  Rpc.make('admin.tenant.listImportedTaxRates', {
+    error: AdminTenantRpcError,
+    payload: Schema.Void,
+    success: Schema.Array(AdminTenantTaxRateRecord),
+  }),
+);
+
+export const AdminTenantListStripeTaxRates = asRpcQuery(
+  Rpc.make('admin.tenant.listStripeTaxRates', {
+    error: AdminTenantRpcError,
+    payload: Schema.Void,
+    success: Schema.Array(AdminTenantStripeTaxRateRecord),
+  }),
+);
+
+export const AdminTenantUpdateSettings = asRpcMutation(
+  Rpc.make('admin.tenant.updateSettings', {
+    error: AdminTenantRpcError,
+    payload: Schema.Struct({
+      allowOther: Schema.Boolean,
+      buyEsnCardUrl: Schema.optional(Schema.String),
+      defaultLocation: Schema.NullOr(Schema.Any),
+      esnCardEnabled: Schema.Boolean,
+      receiptCountries: Schema.Array(Schema.NonEmptyString),
+      theme: Schema.mutable(Schema.Literal('evorto', 'esn')),
+    }),
+    success: Tenant,
+  }),
+);
+
 export const UsersUserAssigned = asRpcQuery(
   Rpc.make('users.userAssigned', {
     payload: Schema.Void,
@@ -443,6 +520,10 @@ export class AppRpcs extends RpcGroup.make(
   AdminRolesFindOne,
   AdminRolesSearch,
   AdminRolesUpdate,
+  AdminTenantImportStripeTaxRates,
+  AdminTenantListImportedTaxRates,
+  AdminTenantListStripeTaxRates,
+  AdminTenantUpdateSettings,
   ConfigPublic,
   ConfigIsAuthenticated,
   ConfigPermissionList,

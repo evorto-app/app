@@ -1,5 +1,9 @@
 import type { Headers } from '@effect/platform';
 
+import {
+  resolveTenantReceiptSettings,
+  type TenantDiscountProviders,
+} from '@shared/tenant-config';
 import { and, count, eq } from 'drizzle-orm';
 import { Effect, Schema } from 'effect';
 
@@ -12,6 +16,8 @@ import {
   icons,
   roles,
   rolesToTenantUsers,
+  tenants,
+  tenantStripeTaxRates,
   users,
   usersToTenants,
 } from '../../../db/schema';
@@ -31,6 +37,8 @@ import {
 import { Tenant } from '../../../types/custom/tenant';
 import { User } from '../../../types/custom/user';
 import { serverEnvironment } from '../../config/environment';
+import { stripe } from '../../stripe-client';
+import { normalizeEsnCardConfig } from '../../trpc/discounts/discount-provider-config';
 import { computeIconSourceColor } from '../../utils/icon-color';
 import { getPublicConfigEffect } from '../config/public-config.effect';
 
@@ -126,6 +134,31 @@ const normalizeHubRoleRecord = (
     users,
   };
 };
+
+const normalizeTenantTaxRateRecord = (
+  taxRate: Pick<
+    typeof tenantStripeTaxRates.$inferSelect,
+    | 'active'
+    | 'country'
+    | 'displayName'
+    | 'inclusive'
+    | 'percentage'
+    | 'state'
+    | 'stripeTaxRateId'
+  >,
+) => ({
+  active: taxRate.active,
+  // eslint-disable-next-line unicorn/no-null
+  country: taxRate.country ?? null,
+  // eslint-disable-next-line unicorn/no-null
+  displayName: taxRate.displayName ?? null,
+  inclusive: taxRate.inclusive,
+  // eslint-disable-next-line unicorn/no-null
+  percentage: taxRate.percentage ?? null,
+  // eslint-disable-next-line unicorn/no-null
+  state: taxRate.state ?? null,
+  stripeTaxRateId: taxRate.stripeTaxRateId,
+});
 
 const normalizeTemplatesByCategoryRecord = (
   templateCategory: Pick<
@@ -362,6 +395,162 @@ export const appRpcHandlers = AppRpcs.toLayer(
         }
 
         return normalizeRoleRecord(updatedRole);
+      }),
+    'admin.tenant.importStripeTaxRates': ({ ids }, options) =>
+      Effect.gen(function* () {
+        yield* ensurePermission(options.headers, 'admin:tax');
+        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const stripeAccount = tenant.stripeAccountId;
+        if (!stripeAccount) {
+          return;
+        }
+
+        for (const id of ids) {
+          const stripeRate = yield* Effect.promise(() =>
+            stripe.taxRates.retrieve(id, undefined, { stripeAccount }),
+          );
+          if (!stripeRate.inclusive) {
+            return yield* Effect.fail('BAD_REQUEST' as const);
+          }
+
+          const existingRate = yield* Effect.promise(() =>
+            database.query.tenantStripeTaxRates.findFirst({
+              where: {
+                stripeTaxRateId: id,
+                tenantId: tenant.id,
+              },
+            }),
+          );
+
+          const values: Omit<typeof tenantStripeTaxRates.$inferInsert, 'id'> = {
+            active: !!stripeRate.active,
+            // eslint-disable-next-line unicorn/no-null
+            country: stripeRate.country ?? null,
+            // eslint-disable-next-line unicorn/no-null
+            displayName: stripeRate.display_name ?? null,
+            inclusive: !!stripeRate.inclusive,
+            percentage:
+              stripeRate.percentage !== null &&
+              stripeRate.percentage !== undefined
+                ? String(stripeRate.percentage)
+                : undefined,
+            // eslint-disable-next-line unicorn/no-null
+            state: stripeRate.state ?? null,
+            stripeTaxRateId: stripeRate.id,
+            tenantId: tenant.id,
+          };
+
+          yield* existingRate
+            ? Effect.promise(() =>
+                database
+                  .update(tenantStripeTaxRates)
+                  .set(values)
+                  .where(eq(tenantStripeTaxRates.id, existingRate.id)),
+              )
+            : Effect.promise(() =>
+                database.insert(tenantStripeTaxRates).values(values),
+              );
+        }
+      }),
+    'admin.tenant.listImportedTaxRates': (_payload, options) =>
+      Effect.gen(function* () {
+        yield* ensurePermission(options.headers, 'admin:tax');
+        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const importedTaxRates = yield* Effect.promise(() =>
+          database.query.tenantStripeTaxRates.findMany({
+            columns: {
+              active: true,
+              country: true,
+              displayName: true,
+              inclusive: true,
+              percentage: true,
+              state: true,
+              stripeTaxRateId: true,
+            },
+            where: { tenantId: tenant.id },
+          }),
+        );
+
+        return importedTaxRates.map((taxRate) =>
+          normalizeTenantTaxRateRecord(taxRate),
+        );
+      }),
+    'admin.tenant.listStripeTaxRates': (_payload, options) =>
+      Effect.gen(function* () {
+        yield* ensurePermission(options.headers, 'admin:tax');
+        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const stripeAccount = tenant.stripeAccountId;
+        if (!stripeAccount) {
+          return [];
+        }
+
+        const [activeRates, archivedRates] = yield* Effect.promise(() =>
+          Promise.all([
+            stripe.taxRates.list({ active: true, limit: 100 }, { stripeAccount }),
+            stripe.taxRates.list({ active: false, limit: 100 }, { stripeAccount }),
+          ]),
+        );
+        const mapRate = (rate: (typeof activeRates)['data'][number]) => ({
+          active: !!rate.active,
+          // eslint-disable-next-line unicorn/no-null
+          country: rate.country ?? null,
+          // eslint-disable-next-line unicorn/no-null
+          displayName: rate.display_name ?? null,
+          id: rate.id,
+          inclusive: !!rate.inclusive,
+          // eslint-disable-next-line unicorn/no-null
+          percentage: rate.percentage ?? null,
+          // eslint-disable-next-line unicorn/no-null
+          state: rate.state ?? null,
+        });
+
+        return [
+          ...activeRates.data.map((rate) => mapRate(rate)),
+          ...archivedRates.data.map((rate) => mapRate(rate)),
+        ];
+      }),
+    'admin.tenant.updateSettings': (input, options) =>
+      Effect.gen(function* () {
+        yield* ensurePermission(options.headers, 'admin:changeSettings');
+        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const discountProviders: TenantDiscountProviders = {
+          esnCard: {
+            config: yield* Effect.try({
+              catch: () => 'BAD_REQUEST' as const,
+              try: () =>
+                normalizeEsnCardConfig(
+                  { buyEsnCardUrl: input.buyEsnCardUrl },
+                  { rejectInvalidUrl: true },
+                ),
+            }),
+            status: input.esnCardEnabled ? 'enabled' : 'disabled',
+          },
+        };
+
+        const updatedTenants = yield* Effect.promise(() =>
+          database
+            .update(tenants)
+            .set({
+              defaultLocation: input.defaultLocation,
+              discountProviders,
+              receiptSettings: resolveTenantReceiptSettings({
+                allowOther: input.allowOther,
+                receiptCountries: input.receiptCountries,
+              }),
+              theme: input.theme,
+            })
+            .where(eq(tenants.id, tenant.id))
+            .returning(),
+        );
+        const updatedTenant = updatedTenants[0];
+        if (!updatedTenant) {
+          return yield* Effect.fail('FORBIDDEN' as const);
+        }
+
+        return yield* Effect.try({
+          catch: () => 'FORBIDDEN' as const,
+          try: () => Schema.decodeUnknownSync(Tenant)(updatedTenant),
+        });
       }),
     'config.isAuthenticated': (_payload, options) =>
       Effect.succeed(options.headers['x-evorto-authenticated'] === 'true'),

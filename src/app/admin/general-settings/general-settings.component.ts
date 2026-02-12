@@ -80,7 +80,7 @@ export class GeneralSettingsComponent {
   private readonly trpc = injectTRPC();
 
   private updateSettingsMutation = injectMutation(() =>
-    this.trpc.admin.tenant.updateSettings.mutationOptions(),
+    this.rpc.admin['tenant.updateSettings'].mutationOptions(),
   );
 
   constructor() {
