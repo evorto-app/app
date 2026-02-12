@@ -872,6 +872,22 @@ export const appRpcHandlers = AppRpcs.toLayer(
             }),
         });
       }),
+    'globalAdmin.tenants.findMany': (_payload, options) =>
+      Effect.gen(function* () {
+        yield* ensureAuthenticated(options.headers);
+        const allTenants = yield* Effect.promise(() =>
+          database.query.tenants.findMany({
+            columns: {
+              domain: true,
+              id: true,
+              name: true,
+            },
+            orderBy: (table, { asc }) => [asc(table.name)],
+          }),
+        );
+
+        return allTenants;
+      }),
     'icons.add': ({ icon }, options) =>
       Effect.gen(function* () {
         yield* ensureAuthenticated(options.headers);

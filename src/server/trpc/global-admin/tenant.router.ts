@@ -35,13 +35,6 @@ export const tenantRouter = router({
         .returning();
     }),
 
-  findMany: authenticatedProcedure.query(async () => {
-    throw new Error('Not implemented');
-    return await database.query.tenants.findMany({
-      orderBy: (tenants, { asc }) => [asc(tenants.name)],
-    });
-  }),
-
   findOne: authenticatedProcedure
     .input(
       Schema.standardSchemaV1(
