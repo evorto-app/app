@@ -92,6 +92,26 @@ export const UsersUpdateProfile = asRpcMutation(
   }),
 );
 
+export const UsersEventSummaryRecord = Schema.Struct({
+  description: Schema.NullOr(Schema.String),
+  end: Schema.String,
+  id: Schema.NonEmptyString,
+  start: Schema.String,
+  title: Schema.NonEmptyString,
+});
+
+export type UsersEventSummaryRecord = Schema.Schema.Type<
+  typeof UsersEventSummaryRecord
+>;
+
+export const UsersEventsFindMany = asRpcQuery(
+  Rpc.make('users.events', {
+    error: UserRpcError,
+    payload: Schema.Void,
+    success: Schema.Array(UsersEventSummaryRecord),
+  }),
+);
+
 export const IconRpcError = Schema.Literal(
   'INVALID_ICON_NAME',
   'UNAUTHORIZED',
@@ -206,6 +226,7 @@ export class AppRpcs extends RpcGroup.make(
   ConfigIsAuthenticated,
   ConfigPermissionList,
   ConfigTenant,
+  UsersEventsFindMany,
   UsersMaybeSelf,
   UsersSelf,
   UsersUpdateProfile,

@@ -156,7 +156,7 @@ export class UserProfileComponent {
     }),
   );
   protected readonly userEventsQuery = injectQuery(() =>
-    this.trpc.users.events.findMany.queryOptions(),
+    this.rpc.users.events.queryOptions(),
   );
   protected readonly userQuery = injectQuery(() =>
     this.rpc.users.self.queryOptions(),

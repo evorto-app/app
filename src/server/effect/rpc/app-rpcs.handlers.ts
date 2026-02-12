@@ -5,6 +5,8 @@ import { Effect, Schema } from 'effect';
 
 import { database } from '../../../db';
 import {
+  eventInstances,
+  eventRegistrations,
   eventTemplateCategories,
   eventTemplates,
   icons,
@@ -267,6 +269,48 @@ export const appRpcHandlers = AppRpcs.toLayer(
         return templateCategories.map((templateCategory) =>
           normalizeTemplatesByCategoryRecord(templateCategory),
         );
+      }),
+    'users.events': (_payload, options) =>
+      Effect.gen(function* () {
+        yield* ensureAuthenticated(options.headers);
+        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const user = yield* requireUserHeader(options.headers);
+
+        const registrations = yield* Effect.promise(() =>
+          database
+            .select({
+              eventId: eventRegistrations.eventId,
+            })
+            .from(eventRegistrations)
+            .where(eq(eventRegistrations.userId, user.id)),
+        );
+
+        if (registrations.length === 0) {
+          return [];
+        }
+
+        const events = yield* Effect.promise(() =>
+          database
+            .select({
+              description: eventInstances.description,
+              end: eventInstances.end,
+              id: eventInstances.id,
+              start: eventInstances.start,
+              title: eventInstances.title,
+            })
+            .from(eventInstances)
+            .where(eq(eventInstances.tenantId, tenant.id))
+            .orderBy(eventInstances.start),
+        );
+
+        return events.map((event) => ({
+          // eslint-disable-next-line unicorn/no-null
+          description: event.description ?? null,
+          end: event.end.toISOString(),
+          id: event.id,
+          start: event.start.toISOString(),
+          title: event.title,
+        }));
       }),
     'users.maybeSelf': (_payload, options) => decodeUserHeader(options.headers),
     'users.self': (_payload, options) =>
