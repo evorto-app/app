@@ -319,6 +319,13 @@
   - [x] Decommission legacy tRPC `events.canOrganize` procedure
   - [x] Commit milestone
 
+- [x] Task: Migrate `events.getRegistrationStatus` from tRPC to Effect RPC slice (774ee8e)
+  - [x] Define test intent (`bunx --bun eslint` on touched files, `bunx --bun tsc -p tsconfig.app.json --noEmit`, `CI=true bun run lint`, `CI=true bun run build`, `CI=true bun run test`)
+  - [x] Add shared Effect RPC contract + handler for `events.getRegistrationStatus`
+  - [x] Replace event registration-status callsites (`event-details`, `event-registration-option`, `event-active-registration`) with `AppRpc` helper/query filters
+  - [x] Decommission legacy tRPC `events.getRegistrationStatus` procedure
+  - [x] Commit milestone
+
 - [ ] Task: Conductor - User Manual Verification 'Phase 6'
 
 ## Final Gate
@@ -455,6 +462,11 @@
 - `CI=true bun run lint` passes after `events.canOrganize` Effect RPC cutover (warnings-only baseline unchanged).
 - `CI=true bun run build` passes after `events.canOrganize` Effect RPC cutover.
 - `CI=true bun run test` passes after `events.canOrganize` Effect RPC cutover (`12 passed`).
+- `bunx --bun eslint src/shared/rpc-contracts/app-rpcs.ts src/server/effect/rpc/app-rpcs.handlers.ts src/app/events/event-details/event-details.component.ts src/app/events/event-registration-option/event-registration-option.component.ts src/app/events/event-active-registration/event-active-registration.component.ts src/server/trpc/events/events.router.ts` passes after `events.getRegistrationStatus` Effect RPC cutover (warnings-only baseline unchanged).
+- `bunx --bun tsc -p tsconfig.app.json --noEmit` and `bunx --bun tsc -p tsconfig.spec.json --noEmit` pass after `events.getRegistrationStatus` Effect RPC cutover.
+- `CI=true bun run lint` passes after `events.getRegistrationStatus` Effect RPC cutover (warnings-only baseline unchanged).
+- `CI=true bun run build` passes after `events.getRegistrationStatus` Effect RPC cutover.
+- `CI=true bun run test` passes after `events.getRegistrationStatus` Effect RPC cutover (`12 passed`).
 
 ## Session Handoff
 
