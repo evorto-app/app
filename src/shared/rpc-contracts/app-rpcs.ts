@@ -102,6 +102,43 @@ export const UsersCreateAccount = asRpcMutation(
   }),
 );
 
+export const UsersFindManyInput = Schema.Struct({
+  limit: Schema.optional(Schema.Number),
+  offset: Schema.optional(Schema.Number),
+  search: Schema.optional(Schema.NonEmptyString),
+});
+
+export type UsersFindManyInput = Schema.Schema.Type<typeof UsersFindManyInput>;
+
+export const UsersFindManyRecord = Schema.Struct({
+  email: Schema.String,
+  firstName: Schema.String,
+  id: Schema.NonEmptyString,
+  lastName: Schema.String,
+  roles: Schema.Array(Schema.String),
+});
+
+export type UsersFindManyRecord = Schema.Schema.Type<typeof UsersFindManyRecord>;
+
+export const UsersFindManyResult = Schema.Struct({
+  users: Schema.Array(UsersFindManyRecord),
+  usersCount: Schema.Number,
+});
+
+export type UsersFindManyResult = Schema.Schema.Type<typeof UsersFindManyResult>;
+
+export const UsersFindManyError = Schema.Literal('FORBIDDEN', 'UNAUTHORIZED');
+
+export type UsersFindManyError = Schema.Schema.Type<typeof UsersFindManyError>;
+
+export const UsersFindMany = asRpcQuery(
+  Rpc.make('users.findMany', {
+    error: UsersFindManyError,
+    payload: UsersFindManyInput,
+    success: UsersFindManyResult,
+  }),
+);
+
 export const UsersMaybeSelf = asRpcQuery(
   Rpc.make('users.maybeSelf', {
     payload: Schema.Void,
@@ -272,6 +309,7 @@ export class AppRpcs extends RpcGroup.make(
   ConfigTenant,
   UsersAuthDataFind,
   UsersCreateAccount,
+  UsersFindMany,
   UsersEventsFindMany,
   UsersMaybeSelf,
   UsersSelf,

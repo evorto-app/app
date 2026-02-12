@@ -1,6 +1,6 @@
 import type { Headers } from '@effect/platform';
 
-import { and, eq } from 'drizzle-orm';
+import { and, count, eq } from 'drizzle-orm';
 import { Effect, Schema } from 'effect';
 
 import { database } from '../../../db';
@@ -10,6 +10,7 @@ import {
   eventTemplateCategories,
   eventTemplates,
   icons,
+  roles,
   rolesToTenantUsers,
   users,
   usersToTenants,
@@ -21,7 +22,6 @@ import {
   type IconRecord,
   type IconRpcError,
   type TemplateCategoryRecord,
-  type TemplateCategoryRpcError,
   type TemplateListRecord,
   type TemplatesByCategoryRecord,
   UsersAuthData,
@@ -123,7 +123,7 @@ const ensureAuthenticated = (
 const ensurePermission = (
   headers: Headers.Headers,
   permission: Permission,
-): Effect.Effect<void, TemplateCategoryRpcError> =>
+): Effect.Effect<void, 'FORBIDDEN' | 'UNAUTHORIZED'> =>
   Effect.gen(function* () {
     yield* ensureAuthenticated(headers);
     const currentPermissions = decodeHeaderJson(
@@ -389,6 +389,81 @@ export const appRpcHandlers = AppRpcs.toLayer(
           start: event.start.toISOString(),
           title: event.title,
         }));
+      }),
+    'users.findMany': (input, options) =>
+      Effect.gen(function* () {
+        yield* ensurePermission(options.headers, 'users:viewAll');
+        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+
+        const usersCountResult = yield* Effect.promise(() =>
+          database
+            .select({ count: count() })
+            .from(users)
+            .innerJoin(
+              usersToTenants,
+              and(
+                eq(usersToTenants.userId, users.id),
+                eq(usersToTenants.tenantId, tenant.id),
+              ),
+            )
+            .leftJoin(
+              rolesToTenantUsers,
+              eq(usersToTenants.id, rolesToTenantUsers.userTenantId),
+            ),
+        );
+        const usersCount = usersCountResult[0]?.count ?? 0;
+
+        const selectedUsers = yield* Effect.promise(() =>
+          database
+            .select({
+              email: users.email,
+              firstName: users.firstName,
+              id: users.id,
+              lastName: users.lastName,
+              role: roles.name,
+            })
+            .from(users)
+            .orderBy(users.lastName, users.firstName)
+            .offset(input.offset ?? 0)
+            .limit(input.limit ?? 100)
+            .innerJoin(
+              usersToTenants,
+              and(
+                eq(usersToTenants.userId, users.id),
+                eq(usersToTenants.tenantId, tenant.id),
+              ),
+            )
+            .leftJoin(
+              rolesToTenantUsers,
+              eq(usersToTenants.id, rolesToTenantUsers.userTenantId),
+            )
+            .leftJoin(roles, eq(rolesToTenantUsers.roleId, roles.id)),
+        );
+
+        const userMap: Record<
+          string,
+          {
+            email: string;
+            firstName: string;
+            id: string;
+            lastName: string;
+            roles: string[];
+          }
+        > = {};
+        for (const user of selectedUsers) {
+          if (userMap[user.id]) {
+            if (user.role) {
+              userMap[user.id].roles.push(user.role);
+            }
+            continue;
+          }
+          userMap[user.id] = {
+            ...user,
+            roles: user.role ? [user.role] : [],
+          };
+        }
+
+        return { users: Object.values(userMap), usersCount };
       }),
     'users.maybeSelf': (_payload, options) => decodeUserHeader(options.headers),
     'users.self': (_payload, options) =>
