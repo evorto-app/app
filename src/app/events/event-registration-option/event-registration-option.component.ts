@@ -50,7 +50,7 @@ export class EventRegistrationOptionComponent {
     this.trpc.events.registerForEvent.mutationOptions({
       onSuccess: async ({ userRegistration: { eventId } }) => {
         await this.queryClient.invalidateQueries({
-          queryKey: this.trpc.events.getRegistrationStatus.queryKey({
+          queryKey: this.rpc.events.getRegistrationStatus.queryKey({
             eventId,
           }),
         });

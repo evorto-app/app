@@ -913,6 +913,94 @@ export const appRpcHandlers = AppRpcs.toLayer(
 
         return registrations.length > 0;
       }),
+    'events.getRegistrationStatus': ({ eventId }, options) =>
+      Effect.gen(function* () {
+        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const user = yield* decodeUserHeader(options.headers);
+        if (!user) {
+          return {
+            isRegistered: false,
+            registrations: [],
+          };
+        }
+
+        const registrations = yield* Effect.promise(() =>
+          database.query.eventRegistrations.findMany({
+            where: {
+              eventId,
+              status: {
+                NOT: 'CANCELLED',
+              },
+              tenantId: tenant.id,
+              userId: user.id,
+            },
+            with: {
+              registrationOption: true,
+              transactions: true,
+            },
+          }),
+        );
+
+        const registrationSummaries = registrations.map((registration) => {
+          const registrationOption = registration.registrationOption;
+          if (!registrationOption) {
+            throw new Error(
+              `Registration option missing for registration ${registration.id}`,
+            );
+          }
+
+          const registrationTransaction = registration.transactions.find(
+            (transaction) =>
+              transaction.type === 'registration' &&
+              transaction.amount < registrationOption.price,
+          );
+           
+          const discountedPrice =
+            registration.appliedDiscountedPrice ??
+            registrationTransaction?.amount ??
+            undefined;
+          const appliedDiscountType =
+            registration.appliedDiscountType ??
+            (discountedPrice === undefined ? undefined : ('esnCard' as const));
+          const basePriceAtRegistration =
+            registration.basePriceAtRegistration ??
+            (discountedPrice === undefined
+              ? undefined
+              : registrationOption.price);
+          const discountAmount =
+            registration.discountAmount ??
+            (discountedPrice === undefined
+              ? undefined
+              : registrationOption.price - discountedPrice);
+
+          return {
+            appliedDiscountedPrice: discountedPrice,
+            appliedDiscountType,
+            basePriceAtRegistration,
+            checkoutUrl: registration.transactions.find(
+              (transaction) =>
+                transaction.method === 'stripe' &&
+                transaction.type === 'registration',
+            )?.stripeCheckoutUrl,
+            discountAmount,
+            id: registration.id,
+            paymentPending: registration.transactions.some(
+              (transaction) =>
+                transaction.status === 'pending' &&
+                transaction.type === 'registration',
+            ),
+            registeredDescription: registrationOption.registeredDescription,
+            registrationOptionId: registration.registrationOptionId,
+            registrationOptionTitle: registrationOption.title,
+            status: registration.status,
+          };
+        });
+
+        return {
+          isRegistered: registrations.length > 0,
+          registrations: registrationSummaries,
+        };
+      }),
     'globalAdmin.tenants.findMany': (_payload, options) =>
       Effect.gen(function* () {
         yield* ensureAuthenticated(options.headers);

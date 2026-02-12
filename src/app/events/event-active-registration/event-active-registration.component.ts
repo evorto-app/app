@@ -11,6 +11,7 @@ import {
   QueryClient,
 } from '@tanstack/angular-query-experimental';
 
+import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { injectTRPC } from '../../core/trpc-client';
 
 @Component({
@@ -22,15 +23,15 @@ import { injectTRPC } from '../../core/trpc-client';
 })
 export class EventActiveRegistrationComponent {
   public readonly registrations = input.required<
-    {
-      appliedDiscountedPrice?: null | number;
-      appliedDiscountType?: 'esnCard' | null;
-      basePriceAtRegistration?: null | number;
-      checkoutUrl: null | string | undefined;
-      discountAmount?: null | number;
+    readonly {
+      appliedDiscountedPrice?: null | number | undefined;
+      appliedDiscountType?: 'esnCard' | null | undefined;
+      basePriceAtRegistration?: null | number | undefined;
+      checkoutUrl?: null | string | undefined;
+      discountAmount?: null | number | undefined;
       id: string;
       paymentPending: boolean;
-      registeredDescription: null | string | undefined;
+      registeredDescription?: null | string | undefined;
       registrationOptionTitle: string;
       status: string;
     }[]
@@ -39,8 +40,9 @@ export class EventActiveRegistrationComponent {
   private readonly cancelPendingRegistrationMutation = injectMutation(() =>
     this.trpc.events.cancelPendingRegistration.mutationOptions(),
   );
-
   private readonly queryClient = inject(QueryClient);
+
+  private readonly rpc = AppRpc.injectClient();
 
   cancelPendingRegistration(registration: { id: string }) {
     this.cancelPendingRegistrationMutation.mutate(
@@ -49,9 +51,9 @@ export class EventActiveRegistrationComponent {
       },
       {
         onSuccess: async () => {
-          await this.queryClient.invalidateQueries({
-            queryKey: this.trpc.events.getRegistrationStatus.pathKey(),
-          });
+          await this.queryClient.invalidateQueries(
+            this.rpc.queryFilter(['events', 'getRegistrationStatus']),
+          );
         },
       },
     );

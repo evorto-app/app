@@ -437,6 +437,36 @@ export const EventsCanOrganize = asRpcQuery(
   }),
 );
 
+export const EventsRegistrationStatusRecord = Schema.Struct({
+  appliedDiscountedPrice: Schema.optional(Schema.NullOr(Schema.Number)),
+  appliedDiscountType: Schema.optional(Schema.NullOr(Schema.Literal('esnCard'))),
+  basePriceAtRegistration: Schema.optional(Schema.NullOr(Schema.Number)),
+  checkoutUrl: Schema.optional(Schema.NullOr(Schema.String)),
+  discountAmount: Schema.optional(Schema.NullOr(Schema.Number)),
+  id: Schema.NonEmptyString,
+  paymentPending: Schema.Boolean,
+  registeredDescription: Schema.optional(Schema.NullOr(Schema.String)),
+  registrationOptionId: Schema.NonEmptyString,
+  registrationOptionTitle: Schema.NonEmptyString,
+  status: Schema.String,
+});
+
+export type EventsRegistrationStatusRecord = Schema.Schema.Type<
+  typeof EventsRegistrationStatusRecord
+>;
+
+export const EventsGetRegistrationStatus = asRpcQuery(
+  Rpc.make('events.getRegistrationStatus', {
+    payload: Schema.Struct({
+      eventId: Schema.NonEmptyString,
+    }),
+    success: Schema.Struct({
+      isRegistered: Schema.Boolean,
+      registrations: Schema.Array(EventsRegistrationStatusRecord),
+    }),
+  }),
+);
+
 export const UsersUserAssigned = asRpcQuery(
   Rpc.make('users.userAssigned', {
     payload: Schema.Void,
@@ -715,6 +745,7 @@ export class AppRpcs extends RpcGroup.make(
   DiscountsUpsertMyCard,
   EditorMediaCreateImageDirectUpload,
   EventsCanOrganize,
+  EventsGetRegistrationStatus,
   GlobalAdminTenantsFindMany,
   TaxRatesListActive,
   UsersAuthDataFind,

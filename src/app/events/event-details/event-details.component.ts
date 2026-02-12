@@ -145,7 +145,7 @@ export class EventDetailsComponent {
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faEllipsisVertical = faEllipsisVertical;
   protected readonly registrationStatusQuery = injectQuery(() =>
-    this.trpc.events.getRegistrationStatus.queryOptions({
+    this.rpc.events.getRegistrationStatus.queryOptions({
       eventId: this.eventId(),
     }),
   );
