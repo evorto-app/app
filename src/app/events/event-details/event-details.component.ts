@@ -162,9 +162,9 @@ export class EventDetailsComponent {
         await this.queryClient.invalidateQueries({
           queryKey: this.trpc.events.findMany.pathKey(),
         });
-        await this.queryClient.invalidateQueries({
-          queryKey: this.trpc.events.getPendingReviews.pathKey(),
-        });
+        await this.queryClient.invalidateQueries(
+          this.rpc.queryFilter(['events', 'getPendingReviews']),
+        );
       },
     }),
   );
@@ -177,9 +177,9 @@ export class EventDetailsComponent {
         await this.queryClient.invalidateQueries({
           queryKey: this.trpc.events.eventList.pathKey(),
         });
-        await this.queryClient.invalidateQueries({
-          queryKey: this.trpc.events.getPendingReviews.pathKey(),
-        });
+        await this.queryClient.invalidateQueries(
+          this.rpc.queryFilter(['events', 'getPendingReviews']),
+        );
       },
     }),
   );
@@ -305,8 +305,8 @@ export class EventDetailsComponent {
     await this.queryClient.invalidateQueries({
       queryKey: this.trpc.events.eventList.pathKey(),
     });
-    await this.queryClient.invalidateQueries({
-      queryKey: this.trpc.events.getPendingReviews.pathKey(),
-    });
+    await this.queryClient.invalidateQueries(
+      this.rpc.queryFilter(['events', 'getPendingReviews']),
+    );
   }
 }

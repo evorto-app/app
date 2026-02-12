@@ -913,6 +913,29 @@ export const appRpcHandlers = AppRpcs.toLayer(
 
         return registrations.length > 0;
       }),
+    'events.getPendingReviews': (_payload, options) =>
+      Effect.gen(function* () {
+        yield* ensurePermission(options.headers, 'events:review');
+        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+
+        const pendingReviews = yield* Effect.promise(() =>
+          database.query.eventInstances.findMany({
+            columns: {
+              id: true,
+              start: true,
+              title: true,
+            },
+            orderBy: { start: 'desc' },
+            where: { status: 'PENDING_REVIEW', tenantId: tenant.id },
+          }),
+        );
+
+        return pendingReviews.map((event) => ({
+          id: event.id,
+          start: event.start.toISOString(),
+          title: event.title,
+        }));
+      }),
     'events.getRegistrationStatus': ({ eventId }, options) =>
       Effect.gen(function* () {
         const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);

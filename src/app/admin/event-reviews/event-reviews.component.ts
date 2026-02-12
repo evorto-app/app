@@ -17,6 +17,7 @@ import {
 } from '@tanstack/angular-query-experimental';
 import { firstValueFrom, interval } from 'rxjs';
 
+import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { NotificationService } from '../../core/notification.service';
 import { injectTRPC } from '../../core/trpc-client';
 import { EventReviewDialogComponent } from '../../events/event-review-dialog/event-review-dialog.component';
@@ -125,17 +126,17 @@ import { EventReviewDialogComponent } from '../../events/event-review-dialog/eve
 export class EventReviewsComponent {
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faArrowUpRightFromSquare = faArrowUpRightFromSquare;
-  private readonly trpc = injectTRPC();
   protected readonly pendingReviewsQuery = injectQuery(() =>
-    this.trpc.events.getPendingReviews.queryOptions(),
+    AppRpc.injectClient().events.getPendingReviews.queryOptions(),
   );
   protected readonly reviewEventMutation = injectMutation(() =>
-    this.trpc.events.reviewEvent.mutationOptions(),
+    injectTRPC().events.reviewEvent.mutationOptions(),
   );
   private readonly dialog = inject(MatDialog);
-
   private readonly notifications = inject(NotificationService);
   private readonly queryClient = inject(QueryClient);
+  private readonly rpc = AppRpc.injectClient();
+  private readonly trpc = injectTRPC();
 
   constructor() {
     // Auto-refresh pending reviews every 30 seconds
@@ -194,9 +195,9 @@ export class EventReviewsComponent {
   }
 
   private async refreshReviewState(): Promise<void> {
-    await this.queryClient.invalidateQueries({
-      queryKey: this.trpc.events.getPendingReviews.pathKey(),
-    });
+    await this.queryClient.invalidateQueries(
+      this.rpc.queryFilter(['events', 'getPendingReviews']),
+    );
     await this.queryClient.invalidateQueries({
       queryKey: this.trpc.events.findMany.pathKey(),
     });

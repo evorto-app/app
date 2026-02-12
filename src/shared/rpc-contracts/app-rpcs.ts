@@ -427,6 +427,12 @@ export const EventsRpcError = Schema.Literal('UNAUTHORIZED');
 
 export type EventsRpcError = Schema.Schema.Type<typeof EventsRpcError>;
 
+export const EventsReviewRpcError = Schema.Literal('FORBIDDEN', 'UNAUTHORIZED');
+
+export type EventsReviewRpcError = Schema.Schema.Type<
+  typeof EventsReviewRpcError
+>;
+
 export const EventsCanOrganize = asRpcQuery(
   Rpc.make('events.canOrganize', {
     error: EventsRpcError,
@@ -464,6 +470,24 @@ export const EventsGetRegistrationStatus = asRpcQuery(
       isRegistered: Schema.Boolean,
       registrations: Schema.Array(EventsRegistrationStatusRecord),
     }),
+  }),
+);
+
+export const EventsPendingReviewRecord = Schema.Struct({
+  id: Schema.NonEmptyString,
+  start: Schema.String,
+  title: Schema.NonEmptyString,
+});
+
+export type EventsPendingReviewRecord = Schema.Schema.Type<
+  typeof EventsPendingReviewRecord
+>;
+
+export const EventsGetPendingReviews = asRpcQuery(
+  Rpc.make('events.getPendingReviews', {
+    error: EventsReviewRpcError,
+    payload: Schema.Void,
+    success: Schema.Array(EventsPendingReviewRecord),
   }),
 );
 
@@ -745,6 +769,7 @@ export class AppRpcs extends RpcGroup.make(
   DiscountsUpsertMyCard,
   EditorMediaCreateImageDirectUpload,
   EventsCanOrganize,
+  EventsGetPendingReviews,
   EventsGetRegistrationStatus,
   GlobalAdminTenantsFindMany,
   TaxRatesListActive,

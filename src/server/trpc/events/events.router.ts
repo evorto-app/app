@@ -601,19 +601,6 @@ export const eventRouter = router({
       });
     }),
 
-  getPendingReviews: authenticatedProcedure
-    .meta({ requiredPermissions: ['events:review'] })
-    .query(async ({ ctx }) => {
-      return database.query.eventInstances.findMany({
-        orderBy: { start: 'desc' },
-        where: { status: 'PENDING_REVIEW', tenantId: ctx.tenant.id },
-        with: {
-          registrationOptions: true,
-          template: true,
-        },
-      });
-    }),
-
   registerForEvent: registerForEventProcedure,
 
   registrationScanned: registrationScannedProcedure,
