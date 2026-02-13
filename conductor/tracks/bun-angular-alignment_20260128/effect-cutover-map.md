@@ -335,3 +335,12 @@ Validation snapshot for this slice:
 - `CI=true bun run build` passes.
 - `CI=true bun run test` passes (`16 passed`).
 - SSR smoke (`CI=true bun run serve:ssr:evorto` + `curl http://localhost:4200/healthz`) passes.
+
+### Runtime Hardening Follow-up (Webhook Rate-Limit Metadata)
+
+- Enhanced `/webhooks/stripe` rate-limit rejection response to include:
+  - `Retry-After`
+  - `X-RateLimit-Limit`
+  - `X-RateLimit-Remaining`
+- Updated limiter API to return structured quota metadata (`allowed`, `remaining`, `retryAfterSeconds`).
+- Updated tests to validate limiter behavior and one-minute window reset with fake timers.

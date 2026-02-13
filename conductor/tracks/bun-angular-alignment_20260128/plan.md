@@ -465,6 +465,7 @@
   - [x] Add Effect-based webhook rate limiter for `/webhooks/stripe` with `429` rejection on limit exceeded
   - [x] Replace in-memory server key-value store layer with file-backed `KeyValueStore.layerFileSystem(...)`
   - [x] Add focused server tests for webhook rate-limit keying and quota behavior
+  - [x] Return explicit webhook rate-limit response headers (`Retry-After`, `X-RateLimit-*`) on `429` responses
   - [x] Commit milestone
 
 - [x] Task: Remove redundant `--bun` flags via Bun runtime config defaults (pending-commit)
