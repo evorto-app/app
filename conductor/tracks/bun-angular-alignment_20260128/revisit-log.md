@@ -16,3 +16,4 @@ This file tracks migration items that need another pass before final closure.
 - 2026-02-13: started Phase 7 by extracting a framework-agnostic RPC web handler and isolating Express glue in `src/server/effect/rpc/app-rpcs.express-handler.ts`.
 - 2026-02-13: centralized RPC request-context header keys in `src/server/effect/rpc/rpc-context-headers.ts` and replaced duplicated literals in adapter/handlers.
 - 2026-02-13: extracted non-Express auth/tenant/user request-context resolution to `src/server/context/request-context-resolver.ts` and rewired existing Express middleware wrappers.
+- 2026-02-13: replaced three sequential Express context middleware steps with one `addRequestContext` adapter in `src/server/middleware/request-context.ts`.

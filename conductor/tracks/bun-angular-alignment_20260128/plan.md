@@ -436,6 +436,13 @@
   - [x] Preserve existing tenant lookup and user permission/attribute derivation behavior
   - [x] Commit milestone
 
+- [x] Task: Collapse Express context middleware chain into single `request-context` adapter (pending commit)
+  - [x] Define test intent (`CI=true bun run lint`, `CI=true bun run build`, `CI=true bun run test`)
+  - [x] Add `src/server/middleware/request-context.ts` that composes authentication + tenant + user resolution through shared resolver helpers
+  - [x] Replace `app.ts` middleware chain (`addAuthenticationContext`, `addTenantContext`, `addUserContext`) with one `addRequestContext`
+  - [x] Remove redundant per-context middleware files after cutover
+  - [x] Commit milestone
+
 - [ ] Task: Conductor - User Manual Verification 'Phase 7'
 
 ## Final Gate

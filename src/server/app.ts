@@ -25,9 +25,7 @@ import { fileURLToPath } from 'node:url';
 import { Context } from '../types/custom/context';
 import { getOidcEnvironment } from './config/environment';
 import { handleAppRpcRequest } from './effect/rpc/app-rpcs.express-handler';
-import { addAuthenticationContext } from './middleware/authentication-context';
-import { addTenantContext } from './middleware/tenant-context';
-import { addUserContext } from './middleware/user-context';
+import { addRequestContext } from './middleware/request-context';
 import { qrCodeRouter } from './routers/qr-code.router';
 import { webhookRouter } from './webhooks';
 
@@ -70,9 +68,7 @@ app.use('/qr', qrCodeRouter);
 app.use(auth(config));
 
 app.use(cookieParser());
-app.use(addAuthenticationContext);
-app.use(addTenantContext);
-app.use(addUserContext);
+app.use(addRequestContext);
 
 // Liveness/health endpoint
 app.get('/healthz', (_request, response) => {

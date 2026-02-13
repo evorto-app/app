@@ -224,3 +224,16 @@ Replace Express+tRPC request handling and ad-hoc service wiring with Effect-firs
 - Result:
   - tenant/auth/user context derivation is no longer embedded directly in Express middleware implementations
   - same behavior retained while preparing for Effect HTTP middleware replacement.
+
+## Phase 7 Update (Single Request Context Adapter)
+
+- Added `src/server/middleware/request-context.ts` as the single Express adapter for request-context enrichment.
+- Updated `src/server/app.ts` to replace:
+  - `addAuthenticationContext`
+  - `addTenantContext`
+  - `addUserContext`
+  with one `addRequestContext`.
+- Removed redundant middleware wrapper files under `src/server/middleware/` that were replaced by the adapter.
+- Result:
+  - fewer Express-specific middleware seams
+  - cleaner boundary for replacing Express with Effect HTTP runtime middleware in a final cutover.
