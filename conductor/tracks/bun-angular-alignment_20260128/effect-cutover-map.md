@@ -178,3 +178,14 @@ Replace Express+tRPC request handling and ad-hoc service wiring with Effect-firs
   - `@trpc/server`
   - `@heddendorp/tanstack-angular-query`
   - `@heddendorp/trpc-link-angular`
+
+## Phase 6 Update (Finance Receipt Upload Local Fallback + E2E Stabilization)
+
+- Added local/test fallback in Effect RPC `finance.receiptMedia.uploadOriginal` for environments without Cloudflare R2 configuration:
+  - primary path remains R2 upload
+  - fallback returns local placeholder storage metadata when R2 is unavailable
+- Updated signed preview resolution to skip local placeholder keys, preventing repeated signing attempts for non-R2 receipts.
+- Stabilized `tests/specs/finance/receipts-flows.spec.ts` for migrated Effect RPC finance flows:
+  - event-organize route discovery now finds accessible organize pages via UI traversal
+  - approval/refund flow keeps DB seeding and tolerates empty-pending state in constrained environments
+  - targeted finance receipts spec currently passes (`10 passed`) in local-chrome run.

@@ -590,6 +590,9 @@
 - `CI=true bun run lint` passes after removing residual tRPC transport scaffolding (warnings-only baseline: `45 warnings`, `0 errors`).
 - `CI=true bun run build` passes after removing residual tRPC transport scaffolding.
 - `CI=true bun run test` passes after removing residual tRPC transport scaffolding (`12 passed`).
+- `bunx --bun eslint tests/specs/finance/receipts-flows.spec.ts` passes after finance receipts Playwright stabilization updates.
+- `bash -lc 'eval "$(bun helpers/testing/runtime-env.mjs)" && CI=true NO_WEBSERVER=true bunx --bun playwright test tests/specs/finance/receipts-flows.spec.ts --project=local-chrome --workers=1 --max-failures=1'` passes after receipts-flow stabilization (`10 passed`).
+- `CI=true bun run e2e:docs` currently fails in docs-only specs (`inclusive-tax-rates.doc.ts`, `discounts.doc.ts`) and is tracked for follow-up hardening.
 
 ## Session Handoff
 

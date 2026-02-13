@@ -314,6 +314,11 @@ The migration mode is explicitly non-backward-compatible. We optimize for a clea
   - `CI=true bun run lint`
   - `CI=true bun run build`
   - `CI=true bun run test`
+- Finance receipts migration stabilization validation:
+  - `bunx --bun eslint tests/specs/finance/receipts-flows.spec.ts`
+  - `bash -lc 'eval "$(bun helpers/testing/runtime-env.mjs)" && CI=true NO_WEBSERVER=true bunx --bun playwright test tests/specs/finance/receipts-flows.spec.ts --project=local-chrome --workers=1 --max-failures=1'` (`10 passed`)
+- Current gate gap (follow-up required):
+  - `CI=true bun run e2e:docs` fails in docs specs `tests/docs/finance/inclusive-tax-rates.doc.ts` and `tests/docs/profile/discounts.doc.ts` (selector/fixture-timeout interruptions).
 
 ## Out of Scope (for this track phase)
 
