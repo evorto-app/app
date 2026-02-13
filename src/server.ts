@@ -214,9 +214,16 @@ const stripeWebhookRouteLayer = HttpLayerRouter.add(
     Effect.gen(function* () {
       const rateLimit = yield* WebhookRateLimit;
       const rateLimitKey = resolveWebhookRateLimitKey(request);
-      const allowed = yield* rateLimit.consume(rateLimitKey);
-      if (!allowed) {
-        return HttpServerResponse.text('Too many requests', { status: 429 });
+      const rateLimitResult = yield* rateLimit.consume(rateLimitKey);
+      if (!rateLimitResult.allowed) {
+        return HttpServerResponse.text('Too many requests', {
+          headers: {
+            'Retry-After': String(rateLimitResult.retryAfterSeconds),
+            'X-RateLimit-Limit': '60',
+            'X-RateLimit-Remaining': '0',
+          },
+          status: 429,
+        });
       }
 
       const webRequest = BunHttpServerRequest.toRequest(request);

@@ -26,12 +26,13 @@ describe('webhook-rate-limit', () => {
       const rateLimit = yield* WebhookRateLimit;
 
       for (let index = 0; index < 60; index++) {
-        const allowed = yield* rateLimit.consume('test-client');
-        expect(allowed).toBe(true);
+        const result = yield* rateLimit.consume('test-client');
+        expect(result.allowed).toBe(true);
       }
 
-      const blocked = yield* rateLimit.consume('test-client');
-      expect(blocked).toBe(false);
+      const blockedResult = yield* rateLimit.consume('test-client');
+      expect(blockedResult.allowed).toBe(false);
+      expect(blockedResult.retryAfterSeconds).toBeGreaterThan(0);
     });
 
     await Effect.runPromise(program.pipe(Effect.provide(webhookRateLimitLayer)));
@@ -42,15 +43,15 @@ describe('webhook-rate-limit', () => {
       const rateLimit = yield* WebhookRateLimit;
 
       for (let index = 0; index < 60; index++) {
-        const allowedA = yield* rateLimit.consume('client-a');
-        expect(allowedA).toBe(true);
+        const resultA = yield* rateLimit.consume('client-a');
+        expect(resultA.allowed).toBe(true);
       }
 
       const blockedA = yield* rateLimit.consume('client-a');
-      expect(blockedA).toBe(false);
+      expect(blockedA.allowed).toBe(false);
 
-      const allowedB = yield* rateLimit.consume('client-b');
-      expect(allowedB).toBe(true);
+      const resultB = yield* rateLimit.consume('client-b');
+      expect(resultB.allowed).toBe(true);
     });
 
     await Effect.runPromise(program.pipe(Effect.provide(webhookRateLimitLayer)));
@@ -64,17 +65,17 @@ describe('webhook-rate-limit', () => {
       const rateLimit = yield* WebhookRateLimit;
 
       for (let index = 0; index < 60; index++) {
-        const allowed = yield* rateLimit.consume('test-client');
-        expect(allowed).toBe(true);
+        const result = yield* rateLimit.consume('test-client');
+        expect(result.allowed).toBe(true);
       }
 
       const blocked = yield* rateLimit.consume('test-client');
-      expect(blocked).toBe(false);
+      expect(blocked.allowed).toBe(false);
 
       vi.advanceTimersByTime(60_000);
 
-      const allowedAfterWindow = yield* rateLimit.consume('test-client');
-      expect(allowedAfterWindow).toBe(true);
+      const resultAfterWindow = yield* rateLimit.consume('test-client');
+      expect(resultAfterWindow.allowed).toBe(true);
     });
 
     await Effect.runPromise(program.pipe(Effect.provide(webhookRateLimitLayer)));

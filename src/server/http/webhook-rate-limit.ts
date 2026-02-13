@@ -1,8 +1,15 @@
 import * as HttpServerRequest from '@effect/platform/HttpServerRequest';
 import { Context, Effect, Layer, Option, Ref } from 'effect';
 
+export interface WebhookRateLimitResult {
+  allowed: boolean;
+  remaining: number;
+  retryAfterSeconds: number;
+}
+
 const WEBHOOK_RATE_LIMIT_MAX_REQUESTS_PER_WINDOW = 60;
 const WEBHOOK_RATE_LIMIT_WINDOW_MS = 60_000;
+const WEBHOOK_RATE_LIMIT_WINDOW_SECONDS = WEBHOOK_RATE_LIMIT_WINDOW_MS / 1000;
 
 interface RateLimitWindow {
   count: number;
@@ -12,7 +19,7 @@ interface RateLimitWindow {
 class WebhookRateLimit extends Context.Tag('WebhookRateLimit')<
   WebhookRateLimit,
   {
-    readonly consume: (key: string) => Effect.Effect<boolean>;
+    readonly consume: (key: string) => Effect.Effect<WebhookRateLimitResult>;
   }
 >() {}
 
@@ -61,16 +68,41 @@ export const webhookRateLimitLayer = Layer.effect(
           if (
             activeWindow.count >= WEBHOOK_RATE_LIMIT_MAX_REQUESTS_PER_WINDOW
           ) {
-            return [false, windows] as const;
+            const elapsedMs = now - activeWindow.startedAt;
+            const remainingWindowMs = Math.max(
+              0,
+              WEBHOOK_RATE_LIMIT_WINDOW_MS - elapsedMs,
+            );
+            const retryAfterSeconds = Math.max(
+              1,
+              Math.ceil(remainingWindowMs / 1000),
+            );
+            const blockedResult: WebhookRateLimitResult = {
+              allowed: false,
+              remaining: 0,
+              retryAfterSeconds,
+            };
+
+            return [
+              blockedResult,
+              windows,
+            ] as const;
           }
 
           const nextWindows = new Map(windows);
+          const nextCount = activeWindow.count + 1;
           nextWindows.set(key, {
             ...activeWindow,
-            count: activeWindow.count + 1,
+            count: nextCount,
           });
 
-          return [true, nextWindows] as const;
+          const allowedResult: WebhookRateLimitResult = {
+            allowed: true,
+            remaining: WEBHOOK_RATE_LIMIT_MAX_REQUESTS_PER_WINDOW - nextCount,
+            retryAfterSeconds: WEBHOOK_RATE_LIMIT_WINDOW_SECONDS,
+          };
+
+          return [allowedResult, nextWindows] as const;
         }),
     };
   }),
