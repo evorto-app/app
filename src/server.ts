@@ -31,11 +31,18 @@ import { resolveHttpRequestContext } from './server/context/http-request-context
 import { handleAppRpcRequestWithContext } from './server/effect/rpc/app-rpcs.request-handler';
 import { handleHealthzWebRequest } from './server/http/healthz.web-handler';
 import { handleQrRegistrationCodeWebRequest } from './server/http/qr-code.web-handler';
+import { applySecurityHeaders } from './server/http/security-headers';
 import { handleStripeWebhookWebRequest } from './server/http/stripe-webhook.web-handler';
+import {
+  resolveWebhookRateLimitKey,
+  WebhookRateLimit,
+  webhookRateLimitLayer,
+} from './server/http/webhook-rate-limit';
 
 const angularApp = new AngularAppEngine();
 const browserDistributionUrl = new URL('../browser/', import.meta.url);
 const cacheControlHeader = 'public, max-age=31536000';
+const keyValueStoreDirectory = '.cache/evorto/server-kv';
 const notFoundServerResponse = HttpServerResponse.empty({ status: 404 });
 
 const sanitizeRedirectPath = (value: null | string): string | undefined => {
@@ -205,6 +212,13 @@ const stripeWebhookRouteLayer = HttpLayerRouter.add(
   '/webhooks/stripe',
   (request) =>
     Effect.gen(function* () {
+      const rateLimit = yield* WebhookRateLimit;
+      const rateLimitKey = resolveWebhookRateLimitKey(request);
+      const allowed = yield* rateLimit.consume(rateLimitKey);
+      if (!allowed) {
+        return HttpServerResponse.text('Too many requests', { status: 429 });
+      }
+
       const webRequest = BunHttpServerRequest.toRequest(request);
       const webResponse = yield* Effect.tryPromise(() =>
         handleStripeWebhookWebRequest(webRequest),
@@ -234,6 +248,11 @@ const rpcRouteLayer = HttpLayerRouter.add('POST', '/rpc', (request) =>
   }),
 );
 
+const securityHeadersMiddlewareLayer = HttpLayerRouter.middleware(
+  (effect) => effect.pipe(Effect.map((response) => applySecurityHeaders(response))),
+  { global: true },
+);
+
 const routesLayer = Layer.mergeAll(
   healthRouteLayer,
   loginRouteLayer,
@@ -244,6 +263,7 @@ const routesLayer = Layer.mergeAll(
   stripeWebhookRouteLayer,
   rpcRouteLayer,
   staticRouteLayer,
+  securityHeadersMiddlewareLayer,
 );
 
 const renderSsr = (request: HttpServerRequest.HttpServerRequest) =>
@@ -302,11 +322,16 @@ const withSsrFallback = <E, R>(
     ),
   );
 
+const keyValueStoreLayer = KeyValueStore.layerFileSystem(
+  keyValueStoreDirectory,
+).pipe(Layer.provide(Layer.mergeAll(BunFileSystem.layer, Path.layer)));
+
 const handlerRuntimeLayer = Layer.mergeAll(
   BunHttpServer.layerContext,
   BunFileSystem.layer,
   Path.layer,
-  KeyValueStore.layerMemory,
+  keyValueStoreLayer,
+  webhookRateLimitLayer,
 );
 
 const handlerAppLayer = routesLayer.pipe(Layer.provideMerge(handlerRuntimeLayer));
@@ -334,7 +359,8 @@ const serveEffect = Effect.gen(function* () {
         BunHttpServer.layer({ port }),
         BunFileSystem.layer,
         Path.layer,
-        KeyValueStore.layerMemory,
+        keyValueStoreLayer,
+        webhookRateLimitLayer,
       ),
     ),
   );
