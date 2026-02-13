@@ -19,3 +19,8 @@
 
 - [~] **Track: Finance receipts + refunds**
       _Link: [./tracks/finance-receipts_20260205/](./tracks/finance-receipts_20260205/)_
+
+---
+
+- [ ] **Track: Tenant website SEO and admin customizations (branding, links, legal pages, privacy re-acceptance)**
+*Link: [./tracks/website-seo-customizations_20260213/](./tracks/website-seo-customizations_20260213/)*
