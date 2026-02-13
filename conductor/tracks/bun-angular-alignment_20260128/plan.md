@@ -422,7 +422,7 @@
   - [x] Preserve `/rpc` runtime behavior and current middleware-derived context headers
   - [x] Commit milestone
 
-- [x] Task: Centralize RPC context header contract and remove string-literal duplication (pending commit)
+- [x] Task: Centralize RPC context header contract and remove string-literal duplication (d8b10ed)
   - [x] Define test intent (`CI=true bun run lint`, `CI=true bun run build`, `CI=true bun run test`)
   - [x] Add shared header key constants for RPC context bridge
   - [x] Replace adapter and handler string literals with shared constants
