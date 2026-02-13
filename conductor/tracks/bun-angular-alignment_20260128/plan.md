@@ -443,7 +443,7 @@
   - [x] Remove redundant per-context middleware files after cutover
   - [x] Commit milestone
 
-- [x] Task: Move `/healthz` endpoint to framework-agnostic web handler and shared response adapter (pending commit)
+- [x] Task: Move `/healthz` endpoint to framework-agnostic web handler and shared response adapter (8da7e56)
   - [x] Define test intent (`CI=true bun run lint`, `CI=true bun run build`, `CI=true bun run test`)
   - [x] Add reusable Express response writer for web `Response` objects
   - [x] Add framework-agnostic `/healthz` web handler
