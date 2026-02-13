@@ -429,7 +429,7 @@
   - [x] Verify no residual `x-evorto-*` string literals remain in RPC bridge/handler code
   - [x] Commit milestone
 
-- [x] Task: Extract non-Express request-context resolution for auth/tenant/user middleware (pending commit)
+- [x] Task: Extract non-Express request-context resolution for auth/tenant/user middleware (59e8a13)
   - [x] Define test intent (`CI=true bun run lint`, `CI=true bun run build`, `CI=true bun run test`)
   - [x] Add reusable request-context resolver module under `src/server/context/**`
   - [x] Rewire `authentication-context`, `tenant-context`, and `user-context` middleware to use shared resolver functions
