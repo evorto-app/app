@@ -51,7 +51,7 @@ The migration mode is explicitly non-backward-compatible. We optimize for a clea
 - Core quality gates run successfully via Bun commands (at minimum lint + build during implementation milestones, full suite at final gate).
 - Conductor artifacts (`spec.md`, `plan.md`, `tracks.md`) reflect actual migration execution status.
 
-## Requirement-to-Test Mapping (Updated 2026-02-12)
+## Requirement-to-Test Mapping (Updated 2026-02-13)
 
 - Bun runtime/tooling alignment:
   - `CI=true bun run lint:fix`
@@ -282,6 +282,10 @@ The migration mode is explicitly non-backward-compatible. We optimize for a clea
   - `bunx --bun eslint src/shared/rpc-contracts/app-rpcs.ts src/server/effect/rpc/app-rpcs.handlers.ts src/server/trpc/events/events.router.ts src/app/events/event-edit/event-edit.ts src/app/templates/template-create-event/template-create-event.component.ts`
   - `bunx --bun tsc -p tsconfig.app.json --noEmit`
   - `bunx --bun tsc -p tsconfig.spec.json --noEmit`
+  - `CI=true bun run lint` (warnings-only baseline unchanged)
+  - `CI=true bun run build`
+  - `CI=true bun run test` (`12 passed`)
+- Effect RPC `events.registerForEvent` + `events.cancelPendingRegistration` + `events.registrationScanned` migration validation:
   - `CI=true bun run lint` (warnings-only baseline unchanged)
   - `CI=true bun run build`
   - `CI=true bun run test` (`12 passed`)

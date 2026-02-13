@@ -99,3 +99,16 @@ Replace Express+tRPC request handling and ad-hoc service wiring with Effect-firs
   - Browser: relative `/rpc`.
   - SSR/server: absolute `${BASE_URL}/rpc` (fallback `http://localhost:4200/rpc`).
 - This removes server-side `RpcClientError: Failed to send HTTP request` failures observed in local Docker SSR when resolving `config.tenant` during route rendering.
+
+## Phase 6 Update (Events Router Decommission)
+
+- Migrated the remaining event registration lifecycle procedures to Effect RPC:
+  - `events.registerForEvent`
+  - `events.cancelPendingRegistration`
+  - `events.registrationScanned`
+- Updated Angular callsites to `AppRpc` helpers in:
+  - `event-registration-option`
+  - `event-active-registration`
+  - `handle-registration`
+- Removed tRPC events namespace composition from `src/server/trpc/app-router.ts`.
+- Deleted obsolete tRPC events router/procedure files under `src/server/trpc/events/**`.

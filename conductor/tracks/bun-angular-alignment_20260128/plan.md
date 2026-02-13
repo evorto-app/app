@@ -368,6 +368,13 @@
   - [x] Decommission legacy tRPC `events.create` and `events.update` procedures
   - [x] Commit milestone
 
+- [x] Task: Migrate `events.registerForEvent` + `events.cancelPendingRegistration` + `events.registrationScanned` from tRPC to Effect RPC slice
+  - [x] Define test intent (`CI=true bun run lint`, `CI=true bun run build`, `CI=true bun run test`)
+  - [x] Add shared Effect RPC contracts + handlers for `events.registerForEvent`, `events.cancelPendingRegistration`, and `events.registrationScanned`
+  - [x] Replace registration callsites (`event-registration-option`, `event-active-registration`, `handle-registration`) with `AppRpc` mutation/query helpers
+  - [x] Decommission legacy tRPC events router namespace from app router composition and delete obsolete events router/procedure files
+  - [x] Commit milestone
+
 - [ ] Task: Conductor - User Manual Verification 'Phase 6'
 
 ## Final Gate
@@ -539,6 +546,9 @@
 - `CI=true bun run lint` passes after `events.create` + `events.update` Effect RPC cutover (warnings-only baseline unchanged).
 - `CI=true bun run build` passes after `events.create` + `events.update` Effect RPC cutover.
 - `CI=true bun run test` passes after `events.create` + `events.update` Effect RPC cutover (`12 passed`).
+- `CI=true bun run lint` passes after `events.registerForEvent` + `events.cancelPendingRegistration` + `events.registrationScanned` Effect RPC cutover (warnings-only baseline unchanged).
+- `CI=true bun run build` passes after `events.registerForEvent` + `events.cancelPendingRegistration` + `events.registrationScanned` Effect RPC cutover.
+- `CI=true bun run test` passes after `events.registerForEvent` + `events.cancelPendingRegistration` + `events.registrationScanned` Effect RPC cutover (`12 passed`).
 
 ## Session Handoff
 
@@ -547,3 +557,4 @@
   - `conductor/tracks/bun-angular-alignment_20260128/handoff-2026-02-10.md`
   - `conductor/tracks/bun-angular-alignment_20260128/handoff-2026-02-11.md`
   - `conductor/tracks/bun-angular-alignment_20260128/handoff-2026-02-12.md`
+  - `conductor/tracks/bun-angular-alignment_20260128/handoff-2026-02-13.md`
