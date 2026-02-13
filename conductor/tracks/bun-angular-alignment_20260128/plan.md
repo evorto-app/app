@@ -354,6 +354,13 @@
   - [x] Decommission legacy tRPC `events.findOne` and `events.getOrganizeOverview` procedures
   - [x] Commit milestone
 
+- [x] Task: Migrate `events.reviewEvent` + `events.submitForReview` + `events.updateListing` mutations from tRPC to Effect RPC slice
+  - [x] Define test intent (`bunx --bun eslint` on touched files, `bunx --bun tsc -p tsconfig.app.json --noEmit`, `CI=true bun run lint`, `CI=true bun run build`, `CI=true bun run test`)
+  - [x] Add shared Effect RPC contracts + handlers for `events.reviewEvent`, `events.submitForReview`, and `events.updateListing`
+  - [x] Replace mutation callsites (`event-details`, `event-reviews`) and refresh logic with `AppRpc` mutation helpers
+  - [x] Decommission legacy tRPC `events.reviewEvent`, `events.submitForReview`, and `events.updateListing` procedures
+  - [x] Commit milestone
+
 - [ ] Task: Conductor - User Manual Verification 'Phase 6'
 
 ## Final Gate
@@ -515,6 +522,11 @@
 - `CI=true bun run lint` passes after `events.findOne` + `events.getOrganizeOverview` Effect RPC cutover (warnings-only baseline unchanged).
 - `CI=true bun run build` passes after `events.findOne` + `events.getOrganizeOverview` Effect RPC cutover.
 - `CI=true bun run test` passes after `events.findOne` + `events.getOrganizeOverview` Effect RPC cutover (`12 passed`).
+- `bunx --bun eslint src/shared/rpc-contracts/app-rpcs.ts src/server/effect/rpc/app-rpcs.handlers.ts src/server/trpc/events/events.router.ts src/app/events/event-details/event-details.component.ts src/app/admin/event-reviews/event-reviews.component.ts` passes after `events.reviewEvent` + `events.submitForReview` + `events.updateListing` Effect RPC cutover (warnings-only baseline unchanged).
+- `bunx --bun tsc -p tsconfig.app.json --noEmit` and `bunx --bun tsc -p tsconfig.spec.json --noEmit` pass after `events.reviewEvent` + `events.submitForReview` + `events.updateListing` Effect RPC cutover.
+- `CI=true bun run lint` passes after `events.reviewEvent` + `events.submitForReview` + `events.updateListing` Effect RPC cutover (warnings-only baseline unchanged).
+- `CI=true bun run build` passes after `events.reviewEvent` + `events.submitForReview` + `events.updateListing` Effect RPC cutover.
+- `CI=true bun run test` passes after `events.reviewEvent` + `events.submitForReview` + `events.updateListing` Effect RPC cutover (`12 passed`).
 
 ## Session Handoff
 
