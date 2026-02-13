@@ -404,6 +404,13 @@
   - [x] Remove obsolete tRPC/tanstack-trpc packages and refresh Bun lockfile
   - [x] Commit milestone
 
+- [x] Task: Migrate Cloudflare R2 receipt storage integration from AWS SDK to Bun `S3Client` (13e7de2)
+  - [x] Define test intent (`CI=true bun run lint`, `CI=true bun run build`, `CI=true bun run test`)
+  - [x] Replace `@aws-sdk/client-s3` + presigner usage in `src/server/integrations/cloudflare-r2.ts` with Bun runtime `S3Client` upload and presign flows
+  - [x] Remove `@aws-sdk/client-s3` and `@aws-sdk/s3-request-presigner` dependencies and refresh Bun lockfile
+  - [x] Record follow-up validation and runtime verification steps in track artifacts (`revisit-log.md`, `handoff-2026-02-13.md`)
+  - [x] Commit milestone
+
 - [ ] Task: Conductor - User Manual Verification 'Phase 6'
 
 ## Final Gate
