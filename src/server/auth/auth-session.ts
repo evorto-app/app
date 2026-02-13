@@ -1,20 +1,22 @@
+import {
+  type CookieHandler,
+  type CookieSerializeOptions,
+  CookieTransactionStore,
+  ServerClient,
+  type SessionData,
+  StatelessStateStore,
+} from '@auth0/auth0-server-js';
 import * as Headers from '@effect/platform/Headers';
 import * as HttpServerRequest from '@effect/platform/HttpServerRequest';
 import * as HttpServerResponse from '@effect/platform/HttpServerResponse';
-import * as KeyValueStore from '@effect/platform/KeyValueStore';
-import { AuthenticationClient, UserInfoClient } from 'auth0';
 import { Duration, Effect, Option } from 'effect';
-import { createHash } from 'node:crypto';
 
 import { getOidcEnvironment } from '../config/environment';
 
 const SESSION_COOKIE_NAME = 'appSession';
-const SESSION_COOKIE_VERSION = 'v1';
-const TRANSACTION_STORE_PREFIX = 'auth0:transaction:';
-const TRANSACTION_TTL_SECONDS = 10 * 60;
-const DEFAULT_SESSION_TTL_SECONDS = 60 * 60;
 
 const oidcEnvironment = getOidcEnvironment();
+const auth0Domain = new URL(oidcEnvironment.ISSUER_BASE_URL).hostname;
 
 export interface AuthSession {
   accessToken: string;
@@ -24,9 +26,27 @@ export interface AuthSession {
   refreshToken?: string;
 }
 
-interface AuthTransaction {
-  codeVerifier: string;
-  createdAt: number;
+interface AuthStoreOptions {
+  cookies: Record<string, string>;
+  mutations: CookieMutation[];
+}
+
+type CookieMutation = CookieMutationDelete | CookieMutationSet;
+
+interface CookieMutationDelete {
+  name: string;
+  options?: CookieSerializeOptions;
+  type: 'delete';
+}
+
+interface CookieMutationSet {
+  name: string;
+  options?: CookieSerializeOptions;
+  type: 'set';
+  value: string;
+}
+
+interface LoginAppState {
   redirectUrl: string;
 }
 
@@ -38,6 +58,9 @@ const getHeaderValue = (
 const normalizeOrigin = (value: string): string =>
   value.endsWith('/') ? value.slice(0, -1) : value;
 
+const asString = (value: unknown): string | undefined =>
+  typeof value === 'string' ? value : undefined;
+
 const toRecord = (value: unknown): Record<string, unknown> | undefined => {
   if (typeof value !== 'object' || value === null) {
     return;
@@ -46,191 +69,20 @@ const toRecord = (value: unknown): Record<string, unknown> | undefined => {
   return value as Record<string, unknown>;
 };
 
-const parseJson = (value: string): unknown => {
-  try {
-    return JSON.parse(value) as unknown;
-  } catch {
-    return undefined;
-  }
-};
+const toCookieRecord = (cookies: Record<string, unknown>): Record<string, string> => {
+  const normalized: Record<string, string> = {};
 
-const parseAuthSession = (value: string): AuthSession | undefined => {
-  const parsed = toRecord(parseJson(value));
-  if (!parsed) {
-    return;
-  }
-
-  const accessToken = parsed['accessToken'];
-  const authData = toRecord(parsed['authData']);
-  const expiresAt = parsed['expiresAt'];
-
-  if (
-    typeof accessToken !== 'string' ||
-    !authData ||
-    typeof expiresAt !== 'number' ||
-    !Number.isFinite(expiresAt)
-  ) {
-    return;
-  }
-
-  const session: AuthSession = {
-    accessToken,
-    authData,
-    expiresAt,
-  };
-
-  const idToken = parsed['idToken'];
-  if (typeof idToken === 'string') {
-    session.idToken = idToken;
-  }
-
-  const refreshToken = parsed['refreshToken'];
-  if (typeof refreshToken === 'string') {
-    session.refreshToken = refreshToken;
-  }
-
-  return session;
-};
-
-const parseAuthTransaction = (value: string): AuthTransaction | undefined => {
-  const parsed = toRecord(parseJson(value));
-  if (!parsed) {
-    return;
-  }
-
-  const codeVerifier = parsed['codeVerifier'];
-  const createdAt = parsed['createdAt'];
-  const redirectUrl = parsed['redirectUrl'];
-
-  if (
-    typeof codeVerifier !== 'string' ||
-    typeof redirectUrl !== 'string' ||
-    typeof createdAt !== 'number' ||
-    !Number.isFinite(createdAt)
-  ) {
-    return;
-  }
-
-  return {
-    codeVerifier,
-    createdAt,
-    redirectUrl,
-  };
-};
-
-const createRandomString = (length: number): string => {
-  const randomBytes = new Uint8Array(length);
-  crypto.getRandomValues(randomBytes);
-  return Buffer.from(randomBytes).toString('base64url');
-};
-
-let sessionEncryptionKeyPromise: Promise<CryptoKey> | undefined;
-
-const getSessionEncryptionKey = (): Promise<CryptoKey> => {
-  if (!sessionEncryptionKeyPromise) {
-    const rawKey = createHash('sha256').update(oidcEnvironment.SECRET).digest();
-    sessionEncryptionKeyPromise = crypto.subtle.importKey(
-      'raw',
-      rawKey,
-      { name: 'AES-GCM' },
-      false,
-      ['decrypt', 'encrypt'],
-    );
-  }
-
-  return sessionEncryptionKeyPromise;
-};
-
-const encodeSessionCookie = (session: AuthSession) =>
-  Effect.tryPromise(async () => {
-    const key = await getSessionEncryptionKey();
-    const iv = crypto.getRandomValues(new Uint8Array(12));
-    const plaintext = new TextEncoder().encode(JSON.stringify(session));
-    const ciphertext = await crypto.subtle.encrypt(
-      { iv, name: 'AES-GCM' },
-      key,
-      plaintext,
-    );
-
-    return `${SESSION_COOKIE_VERSION}.${Buffer.from(iv).toString('base64url')}.${Buffer.from(
-      ciphertext,
-    ).toString('base64url')}`;
-  });
-
-const decodeSessionCookie = (cookieValue: string) =>
-  Effect.tryPromise(async () => {
-    const [version, ivPart, ciphertextPart] = cookieValue.split('.');
-    if (version !== SESSION_COOKIE_VERSION || !ivPart || !ciphertextPart) {
-      return;
+  for (const [key, value] of Object.entries(cookies)) {
+    if (typeof value === 'string') {
+      normalized[key] = value;
     }
-
-    const iv = Buffer.from(ivPart, 'base64url');
-    if (iv.length !== 12) {
-      return;
-    }
-
-    const ciphertext = Buffer.from(ciphertextPart, 'base64url');
-    const key = await getSessionEncryptionKey();
-    const plaintext = await crypto.subtle.decrypt(
-      { iv: new Uint8Array(iv), name: 'AES-GCM' },
-      key,
-      ciphertext,
-    );
-
-    return parseAuthSession(Buffer.from(plaintext).toString('utf8'));
-  }).pipe(Effect.catchAll(() => Effect.succeed(null)));
-
-const createCodeChallenge = (codeVerifier: string) =>
-  Effect.tryPromise(async () => {
-    const codeVerifierBytes = new TextEncoder().encode(codeVerifier);
-    const digest = await crypto.subtle.digest('SHA-256', codeVerifierBytes);
-    return Buffer.from(digest).toString('base64url');
-  });
-
-const decodeJwtPayload = (token: string): Record<string, unknown> | undefined => {
-  const parts = token.split('.');
-  if (parts.length < 2) {
-    return;
   }
 
-  const payloadSegment = parts[1];
-  if (!payloadSegment) {
-    return;
-  }
-
-  try {
-    const payload = Buffer.from(payloadSegment, 'base64url').toString('utf8');
-    return toRecord(JSON.parse(payload));
-  } catch {
-    return;
-  }
+  return normalized;
 };
-
-const getTransactionStore = (store: KeyValueStore.KeyValueStore) =>
-  KeyValueStore.prefix(store, TRANSACTION_STORE_PREFIX);
-
-const resolveSessionTtlSeconds = (expiresInSeconds: number | undefined): number => {
-  if (
-    typeof expiresInSeconds === 'number' &&
-    Number.isFinite(expiresInSeconds) &&
-    expiresInSeconds > 0
-  ) {
-    return Math.floor(expiresInSeconds);
-  }
-
-  return DEFAULT_SESSION_TTL_SECONDS;
-};
-
-const buildSessionCookieOptions = (isSecure: boolean, sessionTtlSeconds: number) => ({
-  httpOnly: true,
-  maxAge: Duration.seconds(sessionTtlSeconds),
-  path: '/',
-  sameSite: 'lax' as const,
-  secure: isSecure,
-});
 
 const sanitizeReturnPath = (
-  value: null | string,
+  value: null | string | undefined,
 ): string | undefined => {
   if (!value) {
     return;
@@ -243,19 +95,167 @@ const sanitizeReturnPath = (
   return value;
 };
 
-const getAuthClients = () => {
-  const issuerBaseUrl = new URL(oidcEnvironment.ISSUER_BASE_URL);
-  const domain = issuerBaseUrl.hostname;
+const cookieHandler: CookieHandler<AuthStoreOptions> = {
+  deleteCookie: (name, storeOptions, options) => {
+    if (!storeOptions) {
+      return;
+    }
+
+    const nextCookies = { ...storeOptions.cookies };
+    Reflect.deleteProperty(nextCookies, name);
+    storeOptions.cookies = nextCookies;
+    storeOptions.mutations.push(
+      options
+        ? {
+            name,
+            options,
+            type: 'delete',
+          }
+        : {
+            name,
+            type: 'delete',
+          },
+    );
+  },
+  getCookie: (name, storeOptions) => storeOptions?.cookies[name],
+  getCookies: (storeOptions) => storeOptions?.cookies ?? {},
+  setCookie: (name, value, options, storeOptions) => {
+    if (!storeOptions) {
+      return;
+    }
+
+    storeOptions.cookies[name] = value;
+    storeOptions.mutations.push(
+      options
+        ? {
+            name,
+            options,
+            type: 'set',
+            value,
+          }
+        : {
+            name,
+            type: 'set',
+            value,
+          },
+    );
+  },
+};
+
+const toSetCookieOptions = (options?: CookieSerializeOptions) => ({
+  domain: options?.domain,
+  expires: options?.expires,
+  httpOnly: options?.httpOnly,
+  maxAge:
+    typeof options?.maxAge === 'number'
+      ? Duration.seconds(options.maxAge)
+      : undefined,
+  path: options?.path,
+  sameSite: options?.sameSite,
+  secure: options?.secure,
+});
+
+const toExpireCookieOptions = (options?: CookieSerializeOptions) => ({
+  domain: options?.domain,
+  httpOnly: options?.httpOnly,
+  path: options?.path,
+  sameSite: options?.sameSite,
+  secure: options?.secure,
+});
+
+const applyCookieMutations = (
+  response: HttpServerResponse.HttpServerResponse,
+  mutations: readonly CookieMutation[],
+): Effect.Effect<HttpServerResponse.HttpServerResponse> =>
+  Effect.gen(function* () {
+    let nextResponse = response;
+
+    for (const mutation of mutations) {
+      if (mutation.type === 'set') {
+        nextResponse = yield* HttpServerResponse.setCookie(
+          nextResponse,
+          mutation.name,
+          mutation.value,
+          toSetCookieOptions(mutation.options),
+        ).pipe(Effect.catchAll(() => Effect.succeed(nextResponse)));
+        continue;
+      }
+
+      nextResponse = HttpServerResponse.expireCookie(
+        nextResponse,
+        mutation.name,
+        toExpireCookieOptions(mutation.options),
+      );
+    }
+
+    return nextResponse;
+  });
+
+const createStoreOptions = (
+  request: HttpServerRequest.HttpServerRequest,
+): AuthStoreOptions => ({
+  cookies: toCookieRecord(request.cookies as Record<string, unknown>),
+  mutations: [],
+});
+
+const createAuth0Client = (
+  request: HttpServerRequest.HttpServerRequest,
+): ServerClient<AuthStoreOptions> => {
+  const { isSecure, origin } = resolveRequestOrigin(request);
+  const callbackUrl = new URL('/callback', origin).toString();
+  const authorizationParameters = {
+    ...(oidcEnvironment.AUDIENCE
+      ? { audience: oidcEnvironment.AUDIENCE }
+      : {}),
+    redirect_uri: callbackUrl,
+    scope: 'openid profile email',
+  };
+
+  return new ServerClient<AuthStoreOptions>({
+    authorizationParams: authorizationParameters,
+    clientId: oidcEnvironment.CLIENT_ID,
+    clientSecret: oidcEnvironment.CLIENT_SECRET,
+    domain: auth0Domain,
+    stateStore: new StatelessStateStore<AuthStoreOptions>(
+      {
+        cookie: {
+          name: SESSION_COOKIE_NAME,
+          path: '/',
+          sameSite: 'lax',
+          secure: isSecure,
+        },
+        rolling: false,
+        secret: oidcEnvironment.SECRET,
+      },
+      cookieHandler,
+    ),
+    transactionStore: new CookieTransactionStore<AuthStoreOptions>(
+      {
+        secret: oidcEnvironment.SECRET,
+      },
+      cookieHandler,
+    ),
+  });
+};
+
+const toAuthSession = (sessionData: SessionData | undefined): AuthSession | undefined => {
+  if (!sessionData) {
+    return;
+  }
+
+  const primaryTokenSet = sessionData.tokenSets[0];
+  if (!primaryTokenSet) {
+    return;
+  }
+
+  const authData = toRecord(sessionData.user) ?? {};
 
   return {
-    authClient: new AuthenticationClient({
-      clientId: oidcEnvironment.CLIENT_ID,
-      clientSecret: oidcEnvironment.CLIENT_SECRET,
-      domain,
-    }),
-    userInfoClient: new UserInfoClient({
-      domain,
-    }),
+    accessToken: primaryTokenSet.accessToken,
+    authData,
+    expiresAt: primaryTokenSet.expiresAt * 1000,
+    ...(sessionData.idToken ? { idToken: sessionData.idToken } : {}),
+    ...(sessionData.refreshToken ? { refreshToken: sessionData.refreshToken } : {}),
   };
 };
 
@@ -309,12 +309,15 @@ export const loadAuthSession = (
   request: HttpServerRequest.HttpServerRequest,
 ) =>
   Effect.gen(function* () {
-    const sessionCookie = request.cookies[SESSION_COOKIE_NAME];
-    if (!sessionCookie) {
-      return;
-    }
+    const storeOptions = createStoreOptions(request);
+    const auth0Client = createAuth0Client(request);
 
-    const session = yield* decodeSessionCookie(sessionCookie);
+    const sessionData = yield* Effect.tryPromise({
+      catch: () => undefined as SessionData | undefined,
+      try: () => auth0Client.getSession(storeOptions),
+    });
+
+    const session = toAuthSession(sessionData);
     if (!session || session.expiresAt <= Date.now()) {
       return;
     }
@@ -333,39 +336,28 @@ export const handleLoginRequest = (
           requestUrl.searchParams.get('returnTo'),
       ) ?? '/';
 
-    const state = createRandomString(16);
-    const codeVerifier = createRandomString(32);
-    const codeChallenge = yield* createCodeChallenge(codeVerifier).pipe(
-      Effect.catchAll(() => Effect.succeed(createRandomString(32))),
-    );
+    const storeOptions = createStoreOptions(request);
+    const auth0Client = createAuth0Client(request);
 
-    const transaction: AuthTransaction = {
-      codeVerifier,
-      createdAt: Date.now(),
-      redirectUrl,
-    };
+    const authorizationUrl = yield* Effect.tryPromise({
+      catch: () => undefined as undefined | URL,
+      try: () =>
+        auth0Client.startInteractiveLogin(
+          {
+            appState: {
+              redirectUrl,
+            },
+          },
+          storeOptions,
+        ),
+    });
 
-    const store = yield* KeyValueStore.KeyValueStore;
-    const transactions = getTransactionStore(store);
-    yield* transactions.set(state, JSON.stringify(transaction));
-
-    const { origin } = resolveRequestOrigin(request);
-    const callbackUrl = new URL('/callback', origin).toString();
-    const authorizationUrl = new URL('/authorize', oidcEnvironment.ISSUER_BASE_URL);
-
-    authorizationUrl.searchParams.set('client_id', oidcEnvironment.CLIENT_ID);
-    authorizationUrl.searchParams.set('code_challenge', codeChallenge);
-    authorizationUrl.searchParams.set('code_challenge_method', 'S256');
-    authorizationUrl.searchParams.set('redirect_uri', callbackUrl);
-    authorizationUrl.searchParams.set('response_type', 'code');
-    authorizationUrl.searchParams.set('scope', 'openid profile email');
-    authorizationUrl.searchParams.set('state', state);
-
-    if (oidcEnvironment.AUDIENCE) {
-      authorizationUrl.searchParams.set('audience', oidcEnvironment.AUDIENCE);
+    if (!authorizationUrl) {
+      return HttpServerResponse.text('Unable to start login.', { status: 500 });
     }
 
-    return HttpServerResponse.redirect(authorizationUrl.toString());
+    const redirectResponse = HttpServerResponse.redirect(authorizationUrl.toString());
+    return yield* applyCookieMutations(redirectResponse, storeOptions.mutations);
   });
 
 export const handleCallbackRequest = (
@@ -373,117 +365,39 @@ export const handleCallbackRequest = (
 ) =>
   Effect.gen(function* () {
     const requestUrl = toAbsoluteRequestUrl(request);
-    const code = requestUrl.searchParams.get('code');
-    const state = requestUrl.searchParams.get('state');
 
-    if (!code || !state) {
+    if (!requestUrl.searchParams.get('code') || !requestUrl.searchParams.get('state')) {
       return HttpServerResponse.text('Missing code or state.', { status: 400 });
     }
 
-    const store = yield* KeyValueStore.KeyValueStore;
-    const transactions = getTransactionStore(store);
-    const transactionJson = yield* transactions.get(state);
+    const storeOptions = createStoreOptions(request);
+    const auth0Client = createAuth0Client(request);
 
-    if (Option.isNone(transactionJson)) {
-      return HttpServerResponse.text('Invalid state.', { status: 400 });
+    const completedLogin = yield* Effect.tryPromise({
+      catch: () => undefined as undefined | { appState?: LoginAppState },
+      try: () =>
+        auth0Client.completeInteractiveLogin<LoginAppState>(
+          requestUrl,
+          storeOptions,
+        ),
+    });
+
+    if (!completedLogin) {
+      return HttpServerResponse.text('Unable to complete login.', { status: 400 });
     }
 
-    const transaction = parseAuthTransaction(transactionJson.value);
-    if (!transaction) {
-      yield* transactions.remove(state);
-      return HttpServerResponse.text('Invalid state.', { status: 400 });
-    }
+    const redirectUrl = sanitizeReturnPath(
+      asString(completedLogin.appState?.redirectUrl),
+    ) ?? '/';
 
-    if (Date.now() - transaction.createdAt > TRANSACTION_TTL_SECONDS * 1000) {
-      yield* transactions.remove(state);
-      return HttpServerResponse.text('State expired.', { status: 400 });
-    }
-
-    yield* transactions.remove(state);
-
-    const { authClient, userInfoClient } = getAuthClients();
-    const { isSecure, origin } = resolveRequestOrigin(request);
-    const callbackUrl = new URL('/callback', origin).toString();
-
-    const tokenResponse = yield* Effect.tryPromise(() =>
-      authClient.oauth.authorizationCodeGrantWithPKCE({
-        audience: oidcEnvironment.AUDIENCE,
-        code,
-        code_verifier: transaction.codeVerifier,
-        redirect_uri: callbackUrl,
-      }),
-    ).pipe(
-      Effect.catchAll(() =>
-        Effect.succeed({
-          data: {
-            access_token: undefined,
-            expires_in: undefined,
-            id_token: undefined,
-            refresh_token: undefined,
-          },
-        }),
-      ),
-    );
-
-    const accessToken = tokenResponse.data.access_token;
-    if (!accessToken) {
-      return HttpServerResponse.text('Missing access token.', { status: 400 });
-    }
-
-    const userInfoResponse = yield* Effect.tryPromise(() =>
-      userInfoClient.getUserInfo(accessToken),
-    ).pipe(
-      Effect.catchAll(() => Effect.succeed({ data: {} })),
-    );
-
-    const authDataFromUserInfo = toRecord(userInfoResponse.data) ?? {};
-    const idTokenClaims =
-      typeof tokenResponse.data.id_token === 'string'
-        ? decodeJwtPayload(tokenResponse.data.id_token)
-        : undefined;
-    const authData: Record<string, unknown> = idTokenClaims
-      ? {
-          ...authDataFromUserInfo,
-          ...idTokenClaims,
-        }
-      : authDataFromUserInfo;
-
-    const sessionTtlSeconds = resolveSessionTtlSeconds(tokenResponse.data.expires_in);
-    const session: AuthSession = {
-      accessToken,
-      authData,
-      expiresAt: Date.now() + sessionTtlSeconds * 1000,
-      ...(tokenResponse.data.id_token
-        ? { idToken: tokenResponse.data.id_token }
-        : {}),
-      ...(tokenResponse.data.refresh_token
-        ? { refreshToken: tokenResponse.data.refresh_token }
-        : {}),
-    };
-
-    const sessionCookieValue = yield* encodeSessionCookie(session).pipe(
-      Effect.catchAll(() => Effect.succeed(null)),
-    );
-    if (!sessionCookieValue) {
-      return HttpServerResponse.text('Unable to create session.', { status: 500 });
-    }
-
-    const redirectResponse = HttpServerResponse.redirect(transaction.redirectUrl);
-
-    return yield* HttpServerResponse.setCookie(
-      redirectResponse,
-      SESSION_COOKIE_NAME,
-      sessionCookieValue,
-      buildSessionCookieOptions(isSecure, sessionTtlSeconds),
-    ).pipe(
-      Effect.catchAll(() => Effect.succeed(redirectResponse)),
-    );
+    const redirectResponse = HttpServerResponse.redirect(redirectUrl);
+    return yield* applyCookieMutations(redirectResponse, storeOptions.mutations);
   });
 
 export const handleLogoutRequest = (
   request: HttpServerRequest.HttpServerRequest,
 ) =>
-  Effect.sync(() => {
+  Effect.gen(function* () {
     const requestUrl = toAbsoluteRequestUrl(request);
     const returnPath =
       sanitizeReturnPath(
@@ -492,15 +406,35 @@ export const handleLogoutRequest = (
       ) ?? '/';
 
     const { isSecure, origin } = resolveRequestOrigin(request);
-    const logoutUrl = new URL('/v2/logout', oidcEnvironment.ISSUER_BASE_URL);
-    logoutUrl.searchParams.set('client_id', oidcEnvironment.CLIENT_ID);
-    logoutUrl.searchParams.set('returnTo', new URL(returnPath, origin).toString());
+    const storeOptions = createStoreOptions(request);
+    const auth0Client = createAuth0Client(request);
 
-    const response = HttpServerResponse.redirect(logoutUrl.toString());
-    return HttpServerResponse.expireCookie(response, SESSION_COOKIE_NAME, {
-      httpOnly: true,
-      path: '/',
-      sameSite: 'lax',
-      secure: isSecure,
+    const logoutUrl = yield* Effect.tryPromise({
+      catch: () => undefined as undefined | URL,
+      try: () =>
+        auth0Client.logout(
+          {
+            returnTo: new URL(returnPath, origin).toString(),
+          },
+          storeOptions,
+        ),
     });
+
+    if (!logoutUrl) {
+      const fallbackResponse = HttpServerResponse.expireCookie(
+        HttpServerResponse.redirect(returnPath),
+        SESSION_COOKIE_NAME,
+        {
+          httpOnly: true,
+          path: '/',
+          sameSite: 'lax',
+          secure: isSecure,
+        },
+      );
+
+      return fallbackResponse;
+    }
+
+    const redirectResponse = HttpServerResponse.redirect(logoutUrl.toString());
+    return yield* applyCookieMutations(redirectResponse, storeOptions.mutations);
   });

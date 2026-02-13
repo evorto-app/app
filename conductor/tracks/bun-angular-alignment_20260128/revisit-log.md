@@ -13,9 +13,11 @@ This file tracks migration items that need another pass before final closure.
 - [ ] Revisit security-header policy strictness (`Permissions-Policy` / `X-Frame-Options` defaults) after UX and integration review.
 - [ ] Add focused tests for Effect/Bun auth callback/session lifecycle and Stripe webhook route behavior under the new runtime path.
 - [ ] Replace temporary `@material/material-color-utilities` patch dependency with an upstream-safe dependency/version solution.
+- [ ] Decide whether to enable rolling Auth0 session refresh in request reads (`getSession(...)` currently used without response cookie writeback paths in SSR/RPC context).
 
 ## Recently Closed
 
+- 2026-02-13: replaced custom auth/session crypto implementation with `@auth0/auth0-server-js` (`ServerClient`, `CookieTransactionStore`, `StatelessStateStore`) integrated via Effect HTTP cookie mutation bridge.
 - 2026-02-13: aligned session model with prior Auth0 behavior by switching to stateless encrypted `appSession` cookie payloads (no server-side session key-value entries).
 - 2026-02-13: restored SSR fallback for wildcard `GET` requests in Bun/Effect runtime so `/` and route misses no longer return framework `404`.
 - 2026-02-13: fixed auth/session file-backed key-value `ENAMETOOLONG` failures by hashing cookie session IDs before key-value lookup/write/remove.
