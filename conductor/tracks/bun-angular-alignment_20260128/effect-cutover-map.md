@@ -200,3 +200,13 @@ Replace Express+tRPC request handling and ad-hoc service wiring with Effect-firs
   - `/rpc` behavior unchanged
   - middleware-derived auth/user/tenant context bridging remains intact
   - groundwork laid for replacing Express runtime entry with Effect HTTP server wiring in follow-up slices.
+
+## Phase 7 Update (RPC Context Header Contract Consolidation)
+
+- Added shared RPC context header constants in `src/server/effect/rpc/rpc-context-headers.ts`.
+- Replaced duplicated `x-evorto-*` string literals in:
+  - `src/server/effect/rpc/app-rpcs.express-handler.ts`
+  - `src/server/effect/rpc/app-rpcs.handlers.ts`
+- Result:
+  - reduced adapter/handler drift risk for auth/tenant context propagation
+  - improved safety for upcoming non-Express transport migration work.

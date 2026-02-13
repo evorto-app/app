@@ -81,6 +81,7 @@ import {
 } from '../../utils/rich-text-sanitize';
 import { validateTaxRate } from '../../utils/validate-tax-rate';
 import { getPublicConfigEffect } from '../config/public-config.effect';
+import { RPC_CONTEXT_HEADERS } from './rpc-context-headers';
 
 const ALLOWED_IMAGE_MIME_TYPES = [
   'image/gif',
@@ -688,7 +689,7 @@ const getFriendlyIconName = (icon: string): Effect.Effect<string, IconRpcError> 
 const ensureAuthenticated = (
   headers: Headers.Headers,
 ): Effect.Effect<void, 'UNAUTHORIZED'> =>
-  headers['x-evorto-authenticated'] === 'true'
+  headers[RPC_CONTEXT_HEADERS.AUTHENTICATED] === 'true'
     ? Effect.void
     : Effect.fail('UNAUTHORIZED' as const);
 
@@ -699,7 +700,7 @@ const ensurePermission = (
   Effect.gen(function* () {
     yield* ensureAuthenticated(headers);
     const currentPermissions = decodeHeaderJson(
-      headers['x-evorto-permissions'],
+      headers[RPC_CONTEXT_HEADERS.PERMISSIONS],
       ConfigPermissions,
     );
 
@@ -710,10 +711,10 @@ const ensurePermission = (
 
 const decodeUserHeader = (
   headers: Headers.Headers,
-) => Effect.sync(() => decodeHeaderJson(headers['x-evorto-user'], Schema.NullOr(User)));
+) => Effect.sync(() => decodeHeaderJson(headers[RPC_CONTEXT_HEADERS.USER], Schema.NullOr(User)));
 
 const decodeAuthDataHeader = (headers: Headers.Headers) =>
-  decodeHeaderJson(headers['x-evorto-auth-data'], UsersAuthData);
+  decodeHeaderJson(headers[RPC_CONTEXT_HEADERS.AUTH_DATA], UsersAuthData);
 
 const requireUserHeader = (
   headers: Headers.Headers,
@@ -731,7 +732,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
     'admin.roles.create': (input, options) =>
       Effect.gen(function* () {
         yield* ensurePermission(options.headers, 'admin:manageRoles');
-        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const tenant = decodeHeaderJson(options.headers[RPC_CONTEXT_HEADERS.TENANT], Tenant);
         const createdRoles = yield* Effect.promise(() =>
           database
             .insert(roles)
@@ -755,7 +756,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
     'admin.roles.delete': ({ id }, options) =>
       Effect.gen(function* () {
         yield* ensurePermission(options.headers, 'admin:manageRoles');
-        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const tenant = decodeHeaderJson(options.headers[RPC_CONTEXT_HEADERS.TENANT], Tenant);
         const deletedRoles = yield* Effect.promise(() =>
           database
             .delete(roles)
@@ -769,7 +770,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
     'admin.roles.findHubRoles': (_payload, options) =>
       Effect.gen(function* () {
         yield* ensureAuthenticated(options.headers);
-        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const tenant = decodeHeaderJson(options.headers[RPC_CONTEXT_HEADERS.TENANT], Tenant);
         const hubRoles = yield* Effect.promise(() =>
           database.query.roles.findMany({
             columns: {
@@ -803,7 +804,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
     'admin.roles.findMany': (input, options) =>
       Effect.gen(function* () {
         yield* ensureAuthenticated(options.headers);
-        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const tenant = decodeHeaderJson(options.headers[RPC_CONTEXT_HEADERS.TENANT], Tenant);
         const tenantRoles = yield* Effect.promise(() =>
           database.query.roles.findMany({
             orderBy: { name: 'asc' },
@@ -824,7 +825,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
     'admin.roles.findOne': ({ id }, options) =>
       Effect.gen(function* () {
         yield* ensurePermission(options.headers, 'admin:manageRoles');
-        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const tenant = decodeHeaderJson(options.headers[RPC_CONTEXT_HEADERS.TENANT], Tenant);
         const role = yield* Effect.promise(() =>
           database.query.roles.findFirst({
             where: { id, tenantId: tenant.id },
@@ -839,7 +840,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
     'admin.roles.search': ({ search }, options) =>
       Effect.gen(function* () {
         yield* ensurePermission(options.headers, 'admin:manageRoles');
-        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const tenant = decodeHeaderJson(options.headers[RPC_CONTEXT_HEADERS.TENANT], Tenant);
         const matchingRoles = yield* Effect.promise(() =>
           database.query.roles.findMany({
             limit: 15,
@@ -856,7 +857,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
     'admin.roles.update': ({ id, ...input }, options) =>
       Effect.gen(function* () {
         yield* ensurePermission(options.headers, 'admin:manageRoles');
-        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const tenant = decodeHeaderJson(options.headers[RPC_CONTEXT_HEADERS.TENANT], Tenant);
         const updatedRoles = yield* Effect.promise(() =>
           database
             .update(roles)
@@ -880,7 +881,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
     'admin.tenant.importStripeTaxRates': ({ ids }, options) =>
       Effect.gen(function* () {
         yield* ensurePermission(options.headers, 'admin:tax');
-        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const tenant = decodeHeaderJson(options.headers[RPC_CONTEXT_HEADERS.TENANT], Tenant);
         const stripeAccount = tenant.stripeAccountId;
         if (!stripeAccount) {
           return;
@@ -936,7 +937,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
     'admin.tenant.listImportedTaxRates': (_payload, options) =>
       Effect.gen(function* () {
         yield* ensurePermission(options.headers, 'admin:tax');
-        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const tenant = decodeHeaderJson(options.headers[RPC_CONTEXT_HEADERS.TENANT], Tenant);
         const importedTaxRates = yield* Effect.promise(() =>
           database.query.tenantStripeTaxRates.findMany({
             columns: {
@@ -959,7 +960,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
     'admin.tenant.listStripeTaxRates': (_payload, options) =>
       Effect.gen(function* () {
         yield* ensurePermission(options.headers, 'admin:tax');
-        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const tenant = decodeHeaderJson(options.headers[RPC_CONTEXT_HEADERS.TENANT], Tenant);
         const stripeAccount = tenant.stripeAccountId;
         if (!stripeAccount) {
           return [];
@@ -993,7 +994,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
     'admin.tenant.updateSettings': (input, options) =>
       Effect.gen(function* () {
         yield* ensurePermission(options.headers, 'admin:changeSettings');
-        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const tenant = decodeHeaderJson(options.headers[RPC_CONTEXT_HEADERS.TENANT], Tenant);
         const discountProviders: TenantDiscountProviders = {
           esnCard: {
             config: yield* Effect.try({
@@ -1034,20 +1035,20 @@ export const appRpcHandlers = AppRpcs.toLayer(
         });
       }),
     'config.isAuthenticated': (_payload, options) =>
-      Effect.succeed(options.headers['x-evorto-authenticated'] === 'true'),
+      Effect.succeed(options.headers[RPC_CONTEXT_HEADERS.AUTHENTICATED] === 'true'),
     'config.permissions': (_payload, options) =>
       Effect.sync(() =>
-        decodeHeaderJson(options.headers['x-evorto-permissions'], ConfigPermissions),
+        decodeHeaderJson(options.headers[RPC_CONTEXT_HEADERS.PERMISSIONS], ConfigPermissions),
       ),
     'config.public': () => getPublicConfigEffect(serverEnvironment),
     'config.tenant': (_payload, options) =>
       Effect.sync(() =>
-        decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant),
+        decodeHeaderJson(options.headers[RPC_CONTEXT_HEADERS.TENANT], Tenant),
       ),
     'discounts.deleteMyCard': (input, options) =>
       Effect.gen(function* () {
         yield* ensureAuthenticated(options.headers);
-        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const tenant = decodeHeaderJson(options.headers[RPC_CONTEXT_HEADERS.TENANT], Tenant);
         const user = yield* requireUserHeader(options.headers);
 
         yield* Effect.promise(() =>
@@ -1065,7 +1066,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
     'discounts.getMyCards': (_payload, options) =>
       Effect.gen(function* () {
         yield* ensureAuthenticated(options.headers);
-        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const tenant = decodeHeaderJson(options.headers[RPC_CONTEXT_HEADERS.TENANT], Tenant);
         const user = yield* requireUserHeader(options.headers);
         const cards = yield* Effect.promise(() =>
           database.query.userDiscountCards.findMany({
@@ -1081,7 +1082,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
     'discounts.getTenantProviders': (_payload, options) =>
       Effect.gen(function* () {
         yield* ensureAuthenticated(options.headers);
-        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const tenant = decodeHeaderJson(options.headers[RPC_CONTEXT_HEADERS.TENANT], Tenant);
         const resolvedTenant = yield* Effect.promise(() =>
           database.query.tenants.findFirst({
             where: { id: tenant.id },
@@ -1100,7 +1101,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
     'discounts.refreshMyCard': (input, options) =>
       Effect.gen(function* () {
         yield* ensureAuthenticated(options.headers);
-        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const tenant = decodeHeaderJson(options.headers[RPC_CONTEXT_HEADERS.TENANT], Tenant);
         const user = yield* requireUserHeader(options.headers);
 
         const tenantRecord = yield* Effect.promise(() =>
@@ -1165,7 +1166,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
     'discounts.upsertMyCard': (input, options) =>
       Effect.gen(function* () {
         yield* ensureAuthenticated(options.headers);
-        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const tenant = decodeHeaderJson(options.headers[RPC_CONTEXT_HEADERS.TENANT], Tenant);
         const user = yield* requireUserHeader(options.headers);
 
         const tenantRecord = yield* Effect.promise(() =>
@@ -1269,7 +1270,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
     'editorMedia.createImageDirectUpload': (input, options) =>
       Effect.gen(function* () {
         yield* ensureAuthenticated(options.headers);
-        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const tenant = decodeHeaderJson(options.headers[RPC_CONTEXT_HEADERS.TENANT], Tenant);
         const user = yield* requireUserHeader(options.headers);
 
         if (!ALLOWED_IMAGE_MIME_TYPE_SET.has(input.mimeType)) {
@@ -1305,7 +1306,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
     'events.cancelPendingRegistration': ({ registrationId }, options) =>
       Effect.gen(function* () {
         yield* ensureAuthenticated(options.headers);
-        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const tenant = decodeHeaderJson(options.headers[RPC_CONTEXT_HEADERS.TENANT], Tenant);
         const user = yield* requireUserHeader(options.headers);
 
         const registration = yield* Effect.promise(() =>
@@ -1401,7 +1402,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
     'events.canOrganize': ({ eventId }, options) =>
       Effect.gen(function* () {
         yield* ensureAuthenticated(options.headers);
-        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const tenant = decodeHeaderJson(options.headers[RPC_CONTEXT_HEADERS.TENANT], Tenant);
         const user = yield* requireUserHeader(options.headers);
 
         if (
@@ -1441,7 +1442,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
     'events.create': (input, options) =>
       Effect.gen(function* () {
         yield* ensurePermission(options.headers, 'events:create');
-        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const tenant = decodeHeaderJson(options.headers[RPC_CONTEXT_HEADERS.TENANT], Tenant);
         const user = yield* requireUserHeader(options.headers);
 
         const start = new Date(input.start);
@@ -1610,7 +1611,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
       }),
     'events.eventList': (input, options) =>
       Effect.gen(function* () {
-        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const tenant = decodeHeaderJson(options.headers[RPC_CONTEXT_HEADERS.TENANT], Tenant);
         const user = yield* decodeUserHeader(options.headers);
         const userPermissions = user?.permissions ?? [];
 
@@ -1725,7 +1726,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
       }),
     'events.findOne': ({ id }, options) =>
       Effect.gen(function* () {
-        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const tenant = decodeHeaderJson(options.headers[RPC_CONTEXT_HEADERS.TENANT], Tenant);
         const user = yield* decodeUserHeader(options.headers);
 
         const rolesToFilterBy =
@@ -1896,7 +1897,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
     'events.findOneForEdit': ({ id }, options) =>
       Effect.gen(function* () {
         yield* ensureAuthenticated(options.headers);
-        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const tenant = decodeHeaderJson(options.headers[RPC_CONTEXT_HEADERS.TENANT], Tenant);
         const user = yield* requireUserHeader(options.headers);
 
         const event = yield* Effect.promise(() =>
@@ -1984,7 +1985,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
     'events.getOrganizeOverview': ({ eventId }, options) =>
       Effect.gen(function* () {
         yield* ensureAuthenticated(options.headers);
-        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const tenant = decodeHeaderJson(options.headers[RPC_CONTEXT_HEADERS.TENANT], Tenant);
 
         const registrations = yield* Effect.promise(() =>
           database.query.eventRegistrations.findMany({
@@ -2122,7 +2123,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
     'events.getPendingReviews': (_payload, options) =>
       Effect.gen(function* () {
         yield* ensurePermission(options.headers, 'events:review');
-        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const tenant = decodeHeaderJson(options.headers[RPC_CONTEXT_HEADERS.TENANT], Tenant);
 
         const pendingReviews = yield* Effect.promise(() =>
           database.query.eventInstances.findMany({
@@ -2144,7 +2145,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
       }),
     'events.getRegistrationStatus': ({ eventId }, options) =>
       Effect.gen(function* () {
-        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const tenant = decodeHeaderJson(options.headers[RPC_CONTEXT_HEADERS.TENANT], Tenant);
         const user = yield* decodeUserHeader(options.headers);
         if (!user) {
           return {
@@ -2233,7 +2234,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
     'events.registerForEvent': ({ eventId, registrationOptionId }, options) =>
       Effect.gen(function* () {
         yield* ensureAuthenticated(options.headers);
-        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const tenant = decodeHeaderJson(options.headers[RPC_CONTEXT_HEADERS.TENANT], Tenant);
         const user = yield* requireUserHeader(options.headers);
 
         const existingRegistration = yield* Effect.promise(() =>
@@ -2545,7 +2546,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
     'events.registrationScanned': ({ registrationId }, options) =>
       Effect.gen(function* () {
         yield* ensureAuthenticated(options.headers);
-        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const tenant = decodeHeaderJson(options.headers[RPC_CONTEXT_HEADERS.TENANT], Tenant);
         const user = yield* requireUserHeader(options.headers);
 
         const registration = yield* Effect.promise(() =>
@@ -2621,7 +2622,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
     'events.reviewEvent': ({ approved, comment, eventId }, options) =>
       Effect.gen(function* () {
         yield* ensurePermission(options.headers, 'events:review');
-        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const tenant = decodeHeaderJson(options.headers[RPC_CONTEXT_HEADERS.TENANT], Tenant);
         const user = yield* requireUserHeader(options.headers);
 
         const reviewedEvents = yield* Effect.promise(() =>
@@ -2667,7 +2668,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
     'events.submitForReview': ({ eventId }, options) =>
       Effect.gen(function* () {
         yield* ensureAuthenticated(options.headers);
-        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const tenant = decodeHeaderJson(options.headers[RPC_CONTEXT_HEADERS.TENANT], Tenant);
         const user = yield* requireUserHeader(options.headers);
 
         const event = yield* Effect.promise(() =>
@@ -2732,7 +2733,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
     'events.update': (input, options) =>
       Effect.gen(function* () {
         yield* ensureAuthenticated(options.headers);
-        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const tenant = decodeHeaderJson(options.headers[RPC_CONTEXT_HEADERS.TENANT], Tenant);
         const user = yield* requireUserHeader(options.headers);
 
         const start = new Date(input.start);
@@ -3000,7 +3001,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
     'events.updateListing': ({ eventId, unlisted }, options) =>
       Effect.gen(function* () {
         yield* ensurePermission(options.headers, 'events:changeListing');
-        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const tenant = decodeHeaderJson(options.headers[RPC_CONTEXT_HEADERS.TENANT], Tenant);
 
         yield* Effect.promise(() =>
           database
@@ -3017,7 +3018,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
     'finance.receiptMedia.uploadOriginal': (input, options) =>
       Effect.gen(function* () {
         yield* ensureAuthenticated(options.headers);
-        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const tenant = decodeHeaderJson(options.headers[RPC_CONTEXT_HEADERS.TENANT], Tenant);
         const user = yield* requireUserHeader(options.headers);
 
         if (!isAllowedReceiptMimeType(input.mimeType)) {
@@ -3070,7 +3071,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
     'finance.receipts.byEvent': ({ eventId }, options) =>
       Effect.gen(function* () {
         yield* ensureAuthenticated(options.headers);
-        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const tenant = decodeHeaderJson(options.headers[RPC_CONTEXT_HEADERS.TENANT], Tenant);
         const user = yield* requireUserHeader(options.headers);
         const canView = yield* Effect.promise(() =>
           canViewEventReceipts(tenant.id, user, eventId),
@@ -3111,7 +3112,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
     'finance.receipts.createRefund': (input, options) =>
       Effect.gen(function* () {
         yield* ensurePermission(options.headers, 'finance:refundReceipts');
-        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const tenant = decodeHeaderJson(options.headers[RPC_CONTEXT_HEADERS.TENANT], Tenant);
         const user = yield* requireUserHeader(options.headers);
         const receipts = yield* Effect.promise(() =>
           database
@@ -3246,7 +3247,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
     'finance.receipts.findOneForApproval': ({ id }, options) =>
       Effect.gen(function* () {
         yield* ensurePermission(options.headers, 'finance:approveReceipts');
-        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const tenant = decodeHeaderJson(options.headers[RPC_CONTEXT_HEADERS.TENANT], Tenant);
         const receipts = yield* Effect.promise(() =>
           database
             .select({
@@ -3289,7 +3290,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
     'finance.receipts.my': (_payload, options) =>
       Effect.gen(function* () {
         yield* ensureAuthenticated(options.headers);
-        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const tenant = decodeHeaderJson(options.headers[RPC_CONTEXT_HEADERS.TENANT], Tenant);
         const user = yield* requireUserHeader(options.headers);
         const receipts = yield* Effect.promise(() =>
           database
@@ -3318,7 +3319,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
     'finance.receipts.pendingApprovalGrouped': (_payload, options) =>
       Effect.gen(function* () {
         yield* ensurePermission(options.headers, 'finance:approveReceipts');
-        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const tenant = decodeHeaderJson(options.headers[RPC_CONTEXT_HEADERS.TENANT], Tenant);
         const pendingReceipts = yield* Effect.promise(() =>
           database
             .select({
@@ -3382,7 +3383,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
     'finance.receipts.refundableGroupedByRecipient': (_payload, options) =>
       Effect.gen(function* () {
         yield* ensurePermission(options.headers, 'finance:refundReceipts');
-        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const tenant = decodeHeaderJson(options.headers[RPC_CONTEXT_HEADERS.TENANT], Tenant);
         const approvedReceipts = yield* Effect.promise(() =>
           database
             .select({
@@ -3504,7 +3505,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
     'finance.receipts.review': (input, options) =>
       Effect.gen(function* () {
         yield* ensurePermission(options.headers, 'finance:approveReceipts');
-        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const tenant = decodeHeaderJson(options.headers[RPC_CONTEXT_HEADERS.TENANT], Tenant);
         const user = yield* requireUserHeader(options.headers);
         const receipt = yield* Effect.promise(() =>
           database.query.financeReceipts.findFirst({
@@ -3582,7 +3583,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
     'finance.receipts.submit': (input, options) =>
       Effect.gen(function* () {
         yield* ensureAuthenticated(options.headers);
-        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const tenant = decodeHeaderJson(options.headers[RPC_CONTEXT_HEADERS.TENANT], Tenant);
         const user = yield* requireUserHeader(options.headers);
         const canSubmit = yield* Effect.promise(() =>
           canSubmitEventReceipts(tenant.id, user, input.eventId),
@@ -3667,7 +3668,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
     'finance.transactions.findMany': ({ limit, offset }, options) =>
       Effect.gen(function* () {
         yield* ensureAuthenticated(options.headers);
-        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const tenant = decodeHeaderJson(options.headers[RPC_CONTEXT_HEADERS.TENANT], Tenant);
         const transactionCountResult = yield* Effect.promise(() =>
           database
             .select({
@@ -3733,7 +3734,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
     'icons.add': ({ icon }, options) =>
       Effect.gen(function* () {
         yield* ensureAuthenticated(options.headers);
-        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const tenant = decodeHeaderJson(options.headers[RPC_CONTEXT_HEADERS.TENANT], Tenant);
         const friendlyName = yield* getFriendlyIconName(icon);
         const sourceColor = yield* Effect.promise(() => computeIconSourceColor(icon));
         const insertedIcons = yield* Effect.promise(() =>
@@ -3753,7 +3754,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
     'icons.search': ({ search }, options) =>
       Effect.gen(function* () {
         yield* ensureAuthenticated(options.headers);
-        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const tenant = decodeHeaderJson(options.headers[RPC_CONTEXT_HEADERS.TENANT], Tenant);
         const matchingIcons = yield* Effect.promise(() =>
           database.query.icons.findMany({
             orderBy: { commonName: 'asc' },
@@ -3768,9 +3769,9 @@ export const appRpcHandlers = AppRpcs.toLayer(
       }),
     'taxRates.listActive': (_payload, options) =>
       Effect.gen(function* () {
-        if (options.headers['x-evorto-authenticated'] === 'true') {
+        if (options.headers[RPC_CONTEXT_HEADERS.AUTHENTICATED] === 'true') {
           const currentPermissions = decodeHeaderJson(
-            options.headers['x-evorto-permissions'],
+            options.headers[RPC_CONTEXT_HEADERS.PERMISSIONS],
             ConfigPermissions,
           );
           if (!currentPermissions.includes('templates:view')) {
@@ -3778,7 +3779,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
           }
         }
 
-        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const tenant = decodeHeaderJson(options.headers[RPC_CONTEXT_HEADERS.TENANT], Tenant);
         const activeTaxRates = yield* Effect.promise(() =>
           database.query.tenantStripeTaxRates.findMany({
             columns: {
@@ -3808,7 +3809,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
     'templateCategories.create': ({ icon, title }, options) =>
       Effect.gen(function* () {
         yield* ensurePermission(options.headers, 'templates:manageCategories');
-        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const tenant = decodeHeaderJson(options.headers[RPC_CONTEXT_HEADERS.TENANT], Tenant);
 
         yield* Effect.promise(() =>
           database.insert(eventTemplateCategories).values({
@@ -3821,7 +3822,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
     'templateCategories.findMany': (_payload, options) =>
       Effect.gen(function* () {
         yield* ensureAuthenticated(options.headers);
-        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const tenant = decodeHeaderJson(options.headers[RPC_CONTEXT_HEADERS.TENANT], Tenant);
         const templateCategories = yield* Effect.promise(() =>
           database.query.eventTemplateCategories.findMany({
             where: { tenantId: tenant.id },
@@ -3835,7 +3836,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
     'templateCategories.update': ({ icon, id, title }, options) =>
       Effect.gen(function* () {
         yield* ensurePermission(options.headers, 'templates:manageCategories');
-        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const tenant = decodeHeaderJson(options.headers[RPC_CONTEXT_HEADERS.TENANT], Tenant);
         const updatedCategories = yield* Effect.promise(() =>
           database
             .update(eventTemplateCategories)
@@ -3861,7 +3862,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
     'templates.createSimpleTemplate': (input, options) =>
       Effect.gen(function* () {
         yield* ensureAuthenticated(options.headers);
-        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const tenant = decodeHeaderJson(options.headers[RPC_CONTEXT_HEADERS.TENANT], Tenant);
         const sanitizedDescription = sanitizeRichTextHtml(input.description);
         if (!isMeaningfulRichTextHtml(sanitizedDescription)) {
           return yield* Effect.fail('BAD_REQUEST' as const);
@@ -3963,7 +3964,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
     'templates.findOne': ({ id }, options) =>
       Effect.gen(function* () {
         yield* ensureAuthenticated(options.headers);
-        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const tenant = decodeHeaderJson(options.headers[RPC_CONTEXT_HEADERS.TENANT], Tenant);
         const template = yield* Effect.promise(() =>
           database.query.eventTemplates.findFirst({
             where: {
@@ -4002,7 +4003,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
     'templates.groupedByCategory': (_payload, options) =>
       Effect.gen(function* () {
         yield* ensureAuthenticated(options.headers);
-        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const tenant = decodeHeaderJson(options.headers[RPC_CONTEXT_HEADERS.TENANT], Tenant);
         const templateCategories = yield* Effect.promise(() =>
           database.query.eventTemplateCategories.findMany({
             orderBy: (categories, { asc }) => [asc(categories.title)],
@@ -4022,7 +4023,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
     'templates.updateSimpleTemplate': (input, options) =>
       Effect.gen(function* () {
         yield* ensureAuthenticated(options.headers);
-        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const tenant = decodeHeaderJson(options.headers[RPC_CONTEXT_HEADERS.TENANT], Tenant);
         const sanitizedDescription = sanitizeRichTextHtml(input.description);
         if (!isMeaningfulRichTextHtml(sanitizedDescription)) {
           return yield* Effect.fail('BAD_REQUEST' as const);
@@ -4141,7 +4142,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
     'users.createAccount': (input, options) =>
       Effect.gen(function* () {
         yield* ensureAuthenticated(options.headers);
-        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const tenant = decodeHeaderJson(options.headers[RPC_CONTEXT_HEADERS.TENANT], Tenant);
         const authData = decodeAuthDataHeader(options.headers);
         const auth0Id = authData.sub?.trim();
         const email = authData.email?.trim();
@@ -4211,7 +4212,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
     'users.events': (_payload, options) =>
       Effect.gen(function* () {
         yield* ensureAuthenticated(options.headers);
-        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const tenant = decodeHeaderJson(options.headers[RPC_CONTEXT_HEADERS.TENANT], Tenant);
         const user = yield* requireUserHeader(options.headers);
 
         const registrations = yield* Effect.promise(() =>
@@ -4253,7 +4254,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
     'users.findMany': (input, options) =>
       Effect.gen(function* () {
         yield* ensurePermission(options.headers, 'users:viewAll');
-        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const tenant = decodeHeaderJson(options.headers[RPC_CONTEXT_HEADERS.TENANT], Tenant);
 
         const usersCountResult = yield* Effect.promise(() =>
           database
@@ -4351,6 +4352,6 @@ export const appRpcHandlers = AppRpcs.toLayer(
         );
       }),
     'users.userAssigned': (_payload, options) =>
-      Effect.succeed(options.headers['x-evorto-user-assigned'] === 'true'),
+      Effect.succeed(options.headers[RPC_CONTEXT_HEADERS.USER_ASSIGNED] === 'true'),
   }),
 );

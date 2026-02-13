@@ -1,6 +1,7 @@
 import type { Request as ExpressRequest, Response as ExpressResponse } from 'express';
 
 import { handleAppRpcWebRequest } from './app-rpcs.web-handler';
+import { RPC_CONTEXT_HEADERS } from './rpc-context-headers';
 
 const methodWithoutBody = new Set(['GET', 'HEAD']);
 
@@ -66,17 +67,20 @@ const toWebRequest = async (request: ExpressRequest): Promise<Request> => {
 
   // Bridge Express middleware context into RPC headers for typed handler decoding.
   headers.set(
-    'x-evorto-authenticated',
+    RPC_CONTEXT_HEADERS.AUTHENTICATED,
     request.authentication?.isAuthenticated ? 'true' : 'false',
   );
   headers.set(
-    'x-evorto-permissions',
+    RPC_CONTEXT_HEADERS.PERMISSIONS,
     JSON.stringify(request.user?.permissions ?? []),
   );
-  headers.set('x-evorto-user', JSON.stringify(rpcUser));
-  headers.set('x-evorto-user-assigned', request.user ? 'true' : 'false');
-  headers.set('x-evorto-auth-data', JSON.stringify(authData ?? {}));
-  headers.set('x-evorto-tenant', JSON.stringify(request.tenant));
+  headers.set(RPC_CONTEXT_HEADERS.USER, JSON.stringify(rpcUser));
+  headers.set(
+    RPC_CONTEXT_HEADERS.USER_ASSIGNED,
+    request.user ? 'true' : 'false',
+  );
+  headers.set(RPC_CONTEXT_HEADERS.AUTH_DATA, JSON.stringify(authData ?? {}));
+  headers.set(RPC_CONTEXT_HEADERS.TENANT, JSON.stringify(request.tenant));
 
   const requestInit: RequestInit = {
     headers,

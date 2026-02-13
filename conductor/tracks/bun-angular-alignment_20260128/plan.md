@@ -422,6 +422,13 @@
   - [x] Preserve `/rpc` runtime behavior and current middleware-derived context headers
   - [x] Commit milestone
 
+- [x] Task: Centralize RPC context header contract and remove string-literal duplication (pending commit)
+  - [x] Define test intent (`CI=true bun run lint`, `CI=true bun run build`, `CI=true bun run test`)
+  - [x] Add shared header key constants for RPC context bridge
+  - [x] Replace adapter and handler string literals with shared constants
+  - [x] Verify no residual `x-evorto-*` string literals remain in RPC bridge/handler code
+  - [x] Commit milestone
+
 - [ ] Task: Conductor - User Manual Verification 'Phase 7'
 
 ## Final Gate
