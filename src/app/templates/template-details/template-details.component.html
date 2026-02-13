@@ -23,7 +23,7 @@
 </div>
 
 @if (templateQuery.isError()) {
-  <p>Error: {{ templateQuery.error().message }}</p>
+  <p>Error: {{ errorMessage(templateQuery.error()) }}</p>
 } @else if (templateQuery.isSuccess()) {
   <a mat-fab extended routerLink="create-event" class="fab-fixed">
     <fa-duotone-icon [icon]="faPlus" />

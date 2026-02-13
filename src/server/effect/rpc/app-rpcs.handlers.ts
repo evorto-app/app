@@ -33,6 +33,7 @@ import {
   roles,
   rolesToTenantUsers,
   templateRegistrationOptionDiscounts,
+  templateRegistrationOptions,
   tenants,
   tenantStripeTaxRates,
   transactions,
@@ -112,6 +113,86 @@ const normalizeTemplateRecord = (
 ): TemplateListRecord => ({
   icon: template.icon,
   id: template.id,
+  title: template.title,
+});
+
+const normalizeTemplateFindOneRecord = (
+  template: {
+    categoryId: string;
+    description: string;
+    icon: typeof eventTemplates.$inferSelect.icon;
+    id: string;
+    location: typeof eventTemplates.$inferSelect.location;
+    registrationOptions: readonly {
+      closeRegistrationOffset: number;
+      description: null | string;
+      id: string;
+      isPaid: boolean;
+      openRegistrationOffset: number;
+      organizingRegistration: boolean;
+      price: number;
+      registeredDescription: null | string;
+      registrationMode: 'application' | 'fcfs' | 'random';
+      roleIds: string[];
+      spots: number;
+      stripeTaxRateId: null | string;
+      title: string;
+    }[];
+    title: string;
+  },
+  rolesById: ReadonlyMap<string, { id: string; name: string }>,
+): {
+  categoryId: string;
+  description: string;
+  icon: typeof eventTemplates.$inferSelect.icon;
+  id: string;
+  location: null | typeof eventTemplates.$inferSelect.location;
+  registrationOptions: {
+    closeRegistrationOffset: number;
+    description: null | string;
+    id: string;
+    isPaid: boolean;
+    openRegistrationOffset: number;
+    organizingRegistration: boolean;
+    price: number;
+    registeredDescription: null | string;
+    registrationMode: 'application' | 'fcfs' | 'random';
+    roleIds: string[];
+    roles: { id: string; name: string }[];
+    spots: number;
+    stripeTaxRateId: null | string;
+    title: string;
+  }[];
+  title: string;
+} => ({
+  categoryId: template.categoryId,
+  description: template.description,
+  icon: template.icon,
+  id: template.id,
+  // eslint-disable-next-line unicorn/no-null
+  location: template.location ?? null,
+  registrationOptions: template.registrationOptions.map((option) => ({
+    closeRegistrationOffset: option.closeRegistrationOffset,
+    // eslint-disable-next-line unicorn/no-null
+    description: option.description ?? null,
+    id: option.id,
+    isPaid: option.isPaid,
+    openRegistrationOffset: option.openRegistrationOffset,
+    organizingRegistration: option.organizingRegistration,
+    price: option.price,
+    // eslint-disable-next-line unicorn/no-null
+    registeredDescription: option.registeredDescription ?? null,
+    registrationMode: option.registrationMode,
+    roleIds: option.roleIds,
+    roles: option.roleIds.flatMap((roleId) => {
+      const role = rolesById.get(roleId);
+      return role ? [{ id: role.id, name: role.name }] : [];
+    }),
+    spots: option.spots,
+    // eslint-disable-next-line unicorn/no-null
+    stripeTaxRateId: option.stripeTaxRateId ?? null,
+    title: option.title,
+  })),
   title: template.title,
 });
 
@@ -2803,6 +2884,147 @@ export const appRpcHandlers = AppRpcs.toLayer(
 
         return normalizeTemplateCategoryRecord(updatedCategory);
       }),
+    'templates.createSimpleTemplate': (input, options) =>
+      Effect.gen(function* () {
+        yield* ensureAuthenticated(options.headers);
+        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const sanitizedDescription = sanitizeRichTextHtml(input.description);
+        if (!isMeaningfulRichTextHtml(sanitizedDescription)) {
+          return yield* Effect.fail('BAD_REQUEST' as const);
+        }
+
+        const organizerValidation = yield* Effect.promise(() =>
+          validateTaxRate({
+            isPaid: input.organizerRegistration.isPaid,
+            // eslint-disable-next-line unicorn/no-null
+            stripeTaxRateId: input.organizerRegistration.stripeTaxRateId ?? null,
+            tenantId: tenant.id,
+          }),
+        );
+        if (!organizerValidation.success) {
+          consola.error(
+            'Organizer registration tax rate validation failed:',
+            organizerValidation.error,
+          );
+          return yield* Effect.fail('BAD_REQUEST' as const);
+        }
+
+        const participantValidation = yield* Effect.promise(() =>
+          validateTaxRate({
+            isPaid: input.participantRegistration.isPaid,
+            // eslint-disable-next-line unicorn/no-null
+            stripeTaxRateId: input.participantRegistration.stripeTaxRateId ?? null,
+            tenantId: tenant.id,
+          }),
+        );
+        if (!participantValidation.success) {
+          consola.error(
+            'Participant registration tax rate validation failed:',
+            participantValidation.error,
+          );
+          return yield* Effect.fail('BAD_REQUEST' as const);
+        }
+
+        return yield* Effect.tryPromise({
+          catch: () => 'INTERNAL_SERVER_ERROR' as const,
+          try: async () => {
+            const templateResponse = await database
+              .insert(eventTemplates)
+              .values({
+                categoryId: input.categoryId,
+                description: sanitizedDescription,
+                icon: input.icon,
+                location: input.location,
+                simpleModeEnabled: true,
+                tenantId: tenant.id,
+                title: input.title,
+              })
+              .returning({
+                id: eventTemplates.id,
+              });
+            const template = templateResponse[0];
+            if (!template) {
+              throw new Error('Template insert failed');
+            }
+
+            await database.insert(templateRegistrationOptions).values([
+              {
+                closeRegistrationOffset:
+                  input.organizerRegistration.closeRegistrationOffset,
+                isPaid: input.organizerRegistration.isPaid,
+                openRegistrationOffset:
+                  input.organizerRegistration.openRegistrationOffset,
+                organizingRegistration: true,
+                price: input.organizerRegistration.price,
+                registrationMode: input.organizerRegistration.registrationMode,
+                roleIds: input.organizerRegistration.roleIds,
+                spots: input.organizerRegistration.spots,
+                // eslint-disable-next-line unicorn/no-null
+                stripeTaxRateId: input.organizerRegistration.stripeTaxRateId ?? null,
+                templateId: template.id,
+                title: 'Organizer registration',
+              },
+              {
+                closeRegistrationOffset:
+                  input.participantRegistration.closeRegistrationOffset,
+                isPaid: input.participantRegistration.isPaid,
+                openRegistrationOffset:
+                  input.participantRegistration.openRegistrationOffset,
+                organizingRegistration: false,
+                price: input.participantRegistration.price,
+                registrationMode: input.participantRegistration.registrationMode,
+                roleIds: input.participantRegistration.roleIds,
+                spots: input.participantRegistration.spots,
+                stripeTaxRateId:
+                  input.participantRegistration.stripeTaxRateId ?? null,
+                templateId: template.id,
+                title: 'Participant registration',
+              },
+            ]);
+
+            return { id: template.id };
+          },
+        });
+      }),
+    'templates.findOne': ({ id }, options) =>
+      Effect.gen(function* () {
+        yield* ensureAuthenticated(options.headers);
+        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const template = yield* Effect.promise(() =>
+          database.query.eventTemplates.findFirst({
+            where: {
+              id,
+              tenantId: tenant.id,
+            },
+            with: {
+              registrationOptions: true,
+            },
+          }),
+        );
+        if (!template) {
+          return yield* Effect.fail('NOT_FOUND' as const);
+        }
+
+        const combinedRegistrationOptionRoleIds =
+          template.registrationOptions.flatMap((option) => option.roleIds);
+        const templateRoles = combinedRegistrationOptionRoleIds.length > 0
+          ? yield* Effect.promise(() =>
+              database.query.roles.findMany({
+                where: {
+                  id: {
+                    in: combinedRegistrationOptionRoleIds,
+                  },
+                  tenantId: tenant.id,
+                },
+              }),
+            )
+          : [];
+        const rolesById = new Map(
+          templateRoles.map((role) => [role.id, { id: role.id, name: role.name }]),
+        );
+
+        return normalizeTemplateFindOneRecord(template, rolesById);
+      }),
     'templates.groupedByCategory': (_payload, options) =>
       Effect.gen(function* () {
         yield* ensureAuthenticated(options.headers);
@@ -2822,6 +3044,123 @@ export const appRpcHandlers = AppRpcs.toLayer(
         return templateCategories.map((templateCategory) =>
           normalizeTemplatesByCategoryRecord(templateCategory),
         );
+      }),
+    'templates.updateSimpleTemplate': (input, options) =>
+      Effect.gen(function* () {
+        yield* ensureAuthenticated(options.headers);
+        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const sanitizedDescription = sanitizeRichTextHtml(input.description);
+        if (!isMeaningfulRichTextHtml(sanitizedDescription)) {
+          return yield* Effect.fail('BAD_REQUEST' as const);
+        }
+
+        const organizerValidation = yield* Effect.promise(() =>
+          validateTaxRate({
+            isPaid: input.organizerRegistration.isPaid,
+            // eslint-disable-next-line unicorn/no-null
+            stripeTaxRateId: input.organizerRegistration.stripeTaxRateId ?? null,
+            tenantId: tenant.id,
+          }),
+        );
+        if (!organizerValidation.success) {
+          consola.error(
+            'Organizer registration tax rate validation failed:',
+            organizerValidation.error,
+          );
+          return yield* Effect.fail('BAD_REQUEST' as const);
+        }
+
+        const participantValidation = yield* Effect.promise(() =>
+          validateTaxRate({
+            isPaid: input.participantRegistration.isPaid,
+            // eslint-disable-next-line unicorn/no-null
+            stripeTaxRateId: input.participantRegistration.stripeTaxRateId ?? null,
+            tenantId: tenant.id,
+          }),
+        );
+        if (!participantValidation.success) {
+          consola.error(
+            'Participant registration tax rate validation failed:',
+            participantValidation.error,
+          );
+          return yield* Effect.fail('BAD_REQUEST' as const);
+        }
+
+        const updatedTemplate = yield* Effect.promise(() =>
+          database
+            .update(eventTemplates)
+            .set({
+              categoryId: input.categoryId,
+              description: sanitizedDescription,
+              icon: input.icon,
+              location: input.location,
+              title: input.title,
+            })
+            .where(
+              and(
+                eq(eventTemplates.id, input.id),
+                eq(eventTemplates.tenantId, tenant.id),
+                eq(eventTemplates.simpleModeEnabled, true),
+              ),
+            )
+            .returning({
+              id: eventTemplates.id,
+            }),
+        );
+        const template = updatedTemplate[0];
+        if (!template) {
+          return yield* Effect.fail('NOT_FOUND' as const);
+        }
+
+        yield* Effect.promise(() =>
+          database
+            .update(templateRegistrationOptions)
+            .set({
+              closeRegistrationOffset:
+                input.organizerRegistration.closeRegistrationOffset,
+              isPaid: input.organizerRegistration.isPaid,
+              openRegistrationOffset:
+                input.organizerRegistration.openRegistrationOffset,
+              price: input.organizerRegistration.price,
+              registrationMode: input.organizerRegistration.registrationMode,
+              roleIds: input.organizerRegistration.roleIds,
+              spots: input.organizerRegistration.spots,
+              // eslint-disable-next-line unicorn/no-null
+              stripeTaxRateId: input.organizerRegistration.stripeTaxRateId ?? null,
+            })
+            .where(
+              and(
+                eq(templateRegistrationOptions.templateId, input.id),
+                eq(templateRegistrationOptions.organizingRegistration, true),
+              ),
+            ),
+        );
+
+        yield* Effect.promise(() =>
+          database
+            .update(templateRegistrationOptions)
+            .set({
+              closeRegistrationOffset:
+                input.participantRegistration.closeRegistrationOffset,
+              isPaid: input.participantRegistration.isPaid,
+              openRegistrationOffset:
+                input.participantRegistration.openRegistrationOffset,
+              price: input.participantRegistration.price,
+              registrationMode: input.participantRegistration.registrationMode,
+              roleIds: input.participantRegistration.roleIds,
+              spots: input.participantRegistration.spots,
+              // eslint-disable-next-line unicorn/no-null
+              stripeTaxRateId: input.participantRegistration.stripeTaxRateId ?? null,
+            })
+            .where(
+              and(
+                eq(templateRegistrationOptions.templateId, input.id),
+                eq(templateRegistrationOptions.organizingRegistration, false),
+              ),
+            ),
+        );
+
+        return { id: template.id };
       }),
     'users.authData': (_payload, options) =>
       Effect.sync(() => decodeAuthDataHeader(options.headers)),

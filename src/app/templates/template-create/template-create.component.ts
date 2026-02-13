@@ -18,7 +18,6 @@ import {
 } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
-import { injectTRPC } from '../../core/trpc-client';
 import {
   mergeTemplateFormOverrides,
   TemplateFormData,
@@ -52,11 +51,11 @@ const templateFormSchema = schema<TemplateFormData>((formPath) => {
 })
 export class TemplateCreateComponent {
   protected readonly categoryId = input<string | undefined>();
+  private readonly rpc = AppRpc.injectClient();
   protected readonly createTemplateMutation = injectMutation(() =>
-    injectTRPC().templates.createSimpleTemplate.mutationOptions(),
+    this.rpc.templates.createSimpleTemplate.mutationOptions(),
   );
   protected readonly faArrowLeft = faArrowLeft;
-  private readonly rpc = AppRpc.injectClient();
   private defaultOrganizerRolesQuery = injectQuery(() =>
     this.rpc.admin['roles.findMany'].queryOptions({ defaultOrganizerRole: true }),
   );

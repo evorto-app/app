@@ -21,7 +21,6 @@ import {
 import { DateTime } from 'luxon';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
-import { injectTRPC } from '../../core/trpc-client';
 import { EventGeneralForm } from '../../shared/components/forms/event-general-form/event-general-form';
 import {
   createEventGeneralFormModel,
@@ -69,9 +68,8 @@ export class TemplateCreateEventComponent {
     'application',
   ] as const;
   protected readonly templateId = input.required<string>();
-  private trpc = injectTRPC();
   protected readonly templateQuery = injectQuery(() =>
-    this.trpc.templates.findOne.queryOptions({ id: this.templateId() }),
+    this.rpc.templates.findOne.queryOptions({ id: this.templateId() }),
   );
   private readonly initializedTemplateId = signal<null | string>(
     // eslint-disable-next-line unicorn/no-null
@@ -117,7 +115,7 @@ export class TemplateCreateEventComponent {
               price: option.price,
               registeredDescription: option.registeredDescription ?? '',
               registrationMode: option.registrationMode,
-              roleIds: option.roleIds ?? [],
+              roleIds: [...(option.roleIds ?? [])],
               spots: option.spots,
               // eslint-disable-next-line unicorn/no-null
               stripeTaxRateId: option.stripeTaxRateId ?? null,

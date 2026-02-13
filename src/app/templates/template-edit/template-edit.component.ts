@@ -18,7 +18,6 @@ import {
 } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
-import { injectTRPC } from '../../core/trpc-client';
 import {
   mergeTemplateFormOverrides,
   TemplateFormData,
@@ -59,10 +58,10 @@ export class TemplateEditComponent {
   ];
 
   protected readonly templateId = input.required<string>();
-  private trpc = injectTRPC();
+  private readonly rpc = AppRpc.injectClient();
 
   protected readonly templateQuery = injectQuery(() =>
-    this.trpc.templates.findOne.queryOptions({ id: this.templateId() }),
+    this.rpc.templates.findOne.queryOptions({ id: this.templateId() }),
   );
 
   protected readonly simpleTemplateData = computed(() => {
@@ -98,12 +97,11 @@ export class TemplateEditComponent {
   );
 
   protected readonly updateTemplateMutation = injectMutation(() =>
-    this.trpc.templates.updateSimpleTemplate.mutationOptions(),
+    this.rpc.templates.updateSimpleTemplate.mutationOptions(),
   );
 
   private queryClient = inject(QueryClient);
   private router = inject(Router);
-  private readonly rpc = AppRpc.injectClient();
 
   async onSubmit(event: Event) {
     event.preventDefault();
@@ -149,7 +147,7 @@ export class TemplateEditComponent {
         {
           onSuccess: async () => {
             await this.queryClient.invalidateQueries({
-              queryKey: this.trpc.templates.findOne.queryKey({ id }),
+              queryKey: this.rpc.templates.findOne.queryKey({ id }),
             });
             await this.queryClient.invalidateQueries(
               this.rpc.queryFilter(['templates', 'groupedByCategory']),
