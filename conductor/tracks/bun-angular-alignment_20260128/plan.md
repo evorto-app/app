@@ -415,7 +415,7 @@
 
 ## Phase 7: Express Runtime Decomposition (Kickoff) [checkpoint: pending]
 
-- [x] Task: Decouple Effect RPC transport from Express request/response adapter (pending commit)
+- [x] Task: Decouple Effect RPC transport from Express request/response adapter (553df98)
   - [x] Define test intent (`bunx --bun eslint` on touched server files, `CI=true bun run lint`, `CI=true bun run build`, `CI=true bun run test`)
   - [x] Extract framework-agnostic RPC Web handler from Express-specific glue code
   - [x] Keep Express middleware/context bridging isolated in a dedicated adapter module
