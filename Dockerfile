@@ -23,7 +23,6 @@ ENV NG_BUILD_MAX_WORKERS=2
 
 COPY  package.json bun.lock .npmrc ./
 COPY patches/@material-material-color-utilities-npm-0.4.0-9d48ca70b8.patch patches/@material-material-color-utilities-npm-0.4.0-9d48ca70b8.patch
-COPY helpers/patch-material-color-utilities.mjs helpers/patch-material-color-utilities.mjs
 RUN bun install --frozen-lockfile
 COPY . .
 RUN bun run build
@@ -38,7 +37,6 @@ RUN --mount=type=secret,id=SENTRY_AUTH_TOKEN,mode=0444,required=false \
 FROM base AS production-dependencies
 COPY package.json bun.lock .npmrc ./
 COPY patches/@material-material-color-utilities-npm-0.4.0-9d48ca70b8.patch patches/@material-material-color-utilities-npm-0.4.0-9d48ca70b8.patch
-COPY helpers/patch-material-color-utilities.mjs helpers/patch-material-color-utilities.mjs
 RUN bun install --frozen-lockfile --production
 
 FROM base AS production

@@ -12,14 +12,14 @@ This file tracks migration items that need another pass before final closure.
 - [ ] Decide whether auth/session key-value storage should move beyond local file-backed persistence to a shared/distributed store for multi-instance deployments.
 - [ ] Revisit security-header policy strictness (`Permissions-Policy` / `X-Frame-Options` defaults) after UX and integration review.
 - [ ] Add focused tests for Effect/Bun auth callback/session lifecycle and Stripe webhook route behavior under the new runtime path.
-- [ ] Replace install-time `@material/material-color-utilities` patch workaround with an upstream-safe dependency/version solution.
+- [ ] Replace temporary `@material/material-color-utilities` patch dependency with an upstream-safe dependency/version solution.
 
 ## Recently Closed
 
 - 2026-02-13: restored SSR fallback for wildcard `GET` requests in Bun/Effect runtime so `/` and route misses no longer return framework `404`.
 - 2026-02-13: fixed auth/session file-backed key-value `ENAMETOOLONG` failures by hashing cookie session IDs before key-value lookup/write/remove.
 - 2026-02-13: updated Playwright auth setup to always refresh storage states per setup run, avoiding stale `appSession` reuse against fresh runtime session stores.
-- 2026-02-13: added deterministic post-install patching for `@material/material-color-utilities` ESM `.js` import extension issues and aligned Docker build ordering.
+- 2026-02-13: migrated material ESM fix to Bun-native `patchedDependencies` workflow and removed custom post-install patch helper.
 - 2026-02-13: completed Phase 7 full runtime cutover by replacing `src/server.ts` with Effect Platform Bun routing and deleting remaining Express runtime/server adapter files and dependencies.
 - 2026-02-13: added global security headers, Effect-based webhook rate limiting, and file-backed server key-value storage under `.cache/evorto/server-kv`.
 - 2026-02-13: validated auth login runtime path on Bun/Effect (`/login` redirects with PKCE state and persists transaction record to file-backed key-value store).

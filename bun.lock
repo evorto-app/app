@@ -26,7 +26,7 @@
         "@fortawesome/free-brands-svg-icons": "^7.1.0",
         "@googlemaps/js-api-loader": "^2.0.2",
         "@heddendorp/effect-angular-query": "0.1.1",
-        "@material/material-color-utilities": "patch:@material/material-color-utilities@npm%3A0.4.0#./patches/@material-material-color-utilities-npm-0.4.0-9d48ca70b8.patch",
+        "@material/material-color-utilities": "0.4.0",
         "@neondatabase/serverless": "^1.0.2",
         "@ng-web-apis/common": "^5.1.0",
         "@paralleldrive/cuid2": "^3.3.0",
@@ -107,6 +107,9 @@
         "vitest": "^4.0.18",
       },
     },
+  },
+  "patchedDependencies": {
+    "@material/material-color-utilities@0.4.0": "patches/@material-material-color-utilities-npm-0.4.0-9d48ca70b8.patch",
   },
   "packages": {
     "@acemir/cssom": ["@acemir/cssom@0.9.31", "", {}, "sha512-ZnR3GSaH+/vJ0YlHau21FjfLYjMpYVIzTD8M8vIEQvIGxeOXyXdzCI140rrCY862p/C/BbzWsjc1dgnM9mkoTA=="],
