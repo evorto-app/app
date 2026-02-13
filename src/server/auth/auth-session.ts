@@ -9,7 +9,7 @@ import { createHash } from 'node:crypto';
 import { getOidcEnvironment } from '../config/environment';
 
 const SESSION_COOKIE_NAME = 'appSession';
-const SESSION_STORE_PREFIX = 'auth0:session:';
+const SESSION_COOKIE_VERSION = 'v1';
 const TRANSACTION_STORE_PREFIX = 'auth0:transaction:';
 const TRANSACTION_TTL_SECONDS = 10 * 60;
 const DEFAULT_SESSION_TTL_SECONDS = 60 * 60;
@@ -124,8 +124,61 @@ const createRandomString = (length: number): string => {
   return Buffer.from(randomBytes).toString('base64url');
 };
 
-const toSessionStoreKey = (sessionId: string): string =>
-  createHash('sha256').update(sessionId).digest('base64url');
+let sessionEncryptionKeyPromise: Promise<CryptoKey> | undefined;
+
+const getSessionEncryptionKey = (): Promise<CryptoKey> => {
+  if (!sessionEncryptionKeyPromise) {
+    const rawKey = createHash('sha256').update(oidcEnvironment.SECRET).digest();
+    sessionEncryptionKeyPromise = crypto.subtle.importKey(
+      'raw',
+      rawKey,
+      { name: 'AES-GCM' },
+      false,
+      ['decrypt', 'encrypt'],
+    );
+  }
+
+  return sessionEncryptionKeyPromise;
+};
+
+const encodeSessionCookie = (session: AuthSession) =>
+  Effect.tryPromise(async () => {
+    const key = await getSessionEncryptionKey();
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const plaintext = new TextEncoder().encode(JSON.stringify(session));
+    const ciphertext = await crypto.subtle.encrypt(
+      { iv, name: 'AES-GCM' },
+      key,
+      plaintext,
+    );
+
+    return `${SESSION_COOKIE_VERSION}.${Buffer.from(iv).toString('base64url')}.${Buffer.from(
+      ciphertext,
+    ).toString('base64url')}`;
+  });
+
+const decodeSessionCookie = (cookieValue: string) =>
+  Effect.tryPromise(async () => {
+    const [version, ivPart, ciphertextPart] = cookieValue.split('.');
+    if (version !== SESSION_COOKIE_VERSION || !ivPart || !ciphertextPart) {
+      return;
+    }
+
+    const iv = Buffer.from(ivPart, 'base64url');
+    if (iv.length !== 12) {
+      return;
+    }
+
+    const ciphertext = Buffer.from(ciphertextPart, 'base64url');
+    const key = await getSessionEncryptionKey();
+    const plaintext = await crypto.subtle.decrypt(
+      { iv: new Uint8Array(iv), name: 'AES-GCM' },
+      key,
+      ciphertext,
+    );
+
+    return parseAuthSession(Buffer.from(plaintext).toString('utf8'));
+  }).pipe(Effect.catchAll(() => Effect.succeed(null)));
 
 const createCodeChallenge = (codeVerifier: string) =>
   Effect.tryPromise(async () => {
@@ -152,9 +205,6 @@ const decodeJwtPayload = (token: string): Record<string, unknown> | undefined =>
     return;
   }
 };
-
-const getSessionStore = (store: KeyValueStore.KeyValueStore) =>
-  KeyValueStore.prefix(store, SESSION_STORE_PREFIX);
 
 const getTransactionStore = (store: KeyValueStore.KeyValueStore) =>
   KeyValueStore.prefix(store, TRANSACTION_STORE_PREFIX);
@@ -259,28 +309,13 @@ export const loadAuthSession = (
   request: HttpServerRequest.HttpServerRequest,
 ) =>
   Effect.gen(function* () {
-    const sessionId = request.cookies[SESSION_COOKIE_NAME];
-    if (!sessionId) {
+    const sessionCookie = request.cookies[SESSION_COOKIE_NAME];
+    if (!sessionCookie) {
       return;
     }
 
-    const store = yield* KeyValueStore.KeyValueStore;
-    const sessions = getSessionStore(store);
-    const sessionKey = toSessionStoreKey(sessionId);
-    const sessionJson = yield* sessions.get(sessionKey);
-
-    if (Option.isNone(sessionJson)) {
-      return;
-    }
-
-    const session = parseAuthSession(sessionJson.value);
-    if (!session) {
-      yield* sessions.remove(sessionKey);
-      return;
-    }
-
-    if (session.expiresAt <= Date.now()) {
-      yield* sessions.remove(sessionKey);
+    const session = yield* decodeSessionCookie(sessionCookie);
+    if (!session || session.expiresAt <= Date.now()) {
       return;
     }
 
@@ -426,17 +461,19 @@ export const handleCallbackRequest = (
         : {}),
     };
 
-    const sessionId = createRandomString(32);
-    const sessionKey = toSessionStoreKey(sessionId);
-    const sessions = getSessionStore(store);
-    yield* sessions.set(sessionKey, JSON.stringify(session));
+    const sessionCookieValue = yield* encodeSessionCookie(session).pipe(
+      Effect.catchAll(() => Effect.succeed(null)),
+    );
+    if (!sessionCookieValue) {
+      return HttpServerResponse.text('Unable to create session.', { status: 500 });
+    }
 
     const redirectResponse = HttpServerResponse.redirect(transaction.redirectUrl);
 
     return yield* HttpServerResponse.setCookie(
       redirectResponse,
       SESSION_COOKIE_NAME,
-      sessionId,
+      sessionCookieValue,
       buildSessionCookieOptions(isSecure, sessionTtlSeconds),
     ).pipe(
       Effect.catchAll(() => Effect.succeed(redirectResponse)),
@@ -446,20 +483,13 @@ export const handleCallbackRequest = (
 export const handleLogoutRequest = (
   request: HttpServerRequest.HttpServerRequest,
 ) =>
-  Effect.gen(function* () {
+  Effect.sync(() => {
     const requestUrl = toAbsoluteRequestUrl(request);
     const returnPath =
       sanitizeReturnPath(
         requestUrl.searchParams.get('redirectUrl') ??
           requestUrl.searchParams.get('returnTo'),
       ) ?? '/';
-
-    const sessionId = request.cookies[SESSION_COOKIE_NAME];
-    if (sessionId) {
-      const store = yield* KeyValueStore.KeyValueStore;
-      const sessions = getSessionStore(store);
-      yield* sessions.remove(toSessionStoreKey(sessionId));
-    }
 
     const { isSecure, origin } = resolveRequestOrigin(request);
     const logoutUrl = new URL('/v2/logout', oidcEnvironment.ISSUER_BASE_URL);

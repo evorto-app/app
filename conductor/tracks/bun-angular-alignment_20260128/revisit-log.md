@@ -9,13 +9,14 @@ This file tracks migration items that need another pass before final closure.
   - `tests/docs/profile/discounts.doc.ts` (`Discounts` section button not found in profile navigation)
 - [ ] Validate Bun `S3Client` Cloudflare R2 upload + presigned preview URLs in an R2-configured environment (real credentials, not local fallback).
 - [ ] Confirm whether the local receipt placeholder fallback path should remain once stable local R2 strategy is in place.
-- [ ] Decide whether auth/session key-value storage should move beyond local file-backed persistence to a shared/distributed store for multi-instance deployments.
+- [ ] Evaluate stateless session cookie size and token-rotation behavior under production-like Auth0 payloads.
 - [ ] Revisit security-header policy strictness (`Permissions-Policy` / `X-Frame-Options` defaults) after UX and integration review.
 - [ ] Add focused tests for Effect/Bun auth callback/session lifecycle and Stripe webhook route behavior under the new runtime path.
 - [ ] Replace temporary `@material/material-color-utilities` patch dependency with an upstream-safe dependency/version solution.
 
 ## Recently Closed
 
+- 2026-02-13: aligned session model with prior Auth0 behavior by switching to stateless encrypted `appSession` cookie payloads (no server-side session key-value entries).
 - 2026-02-13: restored SSR fallback for wildcard `GET` requests in Bun/Effect runtime so `/` and route misses no longer return framework `404`.
 - 2026-02-13: fixed auth/session file-backed key-value `ENAMETOOLONG` failures by hashing cookie session IDs before key-value lookup/write/remove.
 - 2026-02-13: updated Playwright auth setup to always refresh storage states per setup run, avoiding stale `appSession` reuse against fresh runtime session stores.
