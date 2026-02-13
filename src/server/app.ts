@@ -11,7 +11,6 @@ import {
   writeResponseToNodeResponse,
 } from '@angular/ssr/node';
 import * as Sentry from '@sentry/node';
-import * as trpcExpress from '@trpc/server/adapters/express';
 import compression from 'compression';
 import consola from 'consola';
 import cookieParser from 'cookie-parser';
@@ -30,7 +29,6 @@ import { addAuthenticationContext } from './middleware/authentication-context';
 import { addTenantContext } from './middleware/tenant-context';
 import { addUserContext } from './middleware/user-context';
 import { qrCodeRouter } from './routers/qr-code.router';
-import { appRouter } from './trpc/app-router';
 import { webhookRouter } from './webhooks';
 
 const serverDistributionFolder = path.dirname(fileURLToPath(import.meta.url));
@@ -111,27 +109,6 @@ app.post('/rpc', async (request, response, next) => {
     next(error);
   }
 });
-
-app.use(
-  '/trpc',
-  trpcExpress.createExpressMiddleware({
-    createContext: (request) => {
-      const requestContext = Schema.decodeUnknownEither(Context)(request.req);
-      if (Either.isLeft(requestContext)) {
-        throw requestContext.left;
-      }
-      return { ...requestContext.right, request: request.req };
-    },
-    onError: (options) => {
-      const { error } = options;
-      console.error('Error:', error);
-      if (error.code === 'INTERNAL_SERVER_ERROR') {
-        Sentry.captureException(error);
-      }
-    },
-    router: appRouter,
-  }),
-);
 
 /**
  * Serve static files from /browser

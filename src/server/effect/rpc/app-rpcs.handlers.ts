@@ -65,6 +65,7 @@ import {
 import { Tenant } from '../../../types/custom/tenant';
 import { User } from '../../../types/custom/user';
 import { serverEnvironment } from '../../config/environment';
+import { normalizeEsnCardConfig } from '../../discounts/discount-provider-config';
 import { Adapters, PROVIDERS, type ProviderType } from '../../discounts/providers';
 import { createCloudflareImageDirectUpload } from '../../integrations/cloudflare-images';
 import {
@@ -72,7 +73,6 @@ import {
   uploadReceiptOriginalToR2,
 } from '../../integrations/cloudflare-r2';
 import { stripe } from '../../stripe-client';
-import { normalizeEsnCardConfig } from '../../trpc/discounts/discount-provider-config';
 import { computeIconSourceColor } from '../../utils/icon-color';
 import {
   isMeaningfulRichTextHtml,

@@ -1,8 +1,15 @@
 import { type EsnCardProviderConfig } from '@shared/tenant-config';
-import { TRPCError } from '@trpc/server';
 import consola from 'consola';
 
 const ALLOWED_BUY_ESN_CARD_PROTOCOLS = new Set(['https:']);
+const INVALID_BUY_CARD_URL_MESSAGE = 'buyEsnCardUrl must be a valid HTTPS URL';
+
+class InvalidDiscountProviderConfigError extends Error {
+  constructor() {
+    super(INVALID_BUY_CARD_URL_MESSAGE);
+    this.name = 'InvalidDiscountProviderConfigError';
+  }
+}
 
 const parseBuyEsnCardUrl = (value: string): string | undefined => {
   try {
@@ -36,10 +43,7 @@ export const normalizeEsnCardConfig = (
   const rejectInvalidUrl = options?.rejectInvalidUrl ?? false;
   if (typeof maybeBuyUrl !== 'string') {
     if (rejectInvalidUrl) {
-      throw new TRPCError({
-        code: 'BAD_REQUEST',
-        message: 'buyEsnCardUrl must be a valid HTTPS URL',
-      });
+      throw new InvalidDiscountProviderConfigError();
     }
     consola.warn('Ignoring invalid ESN buy card URL in tenant config');
     return {};
@@ -53,10 +57,7 @@ export const normalizeEsnCardConfig = (
   const normalizedBuyUrl = parseBuyEsnCardUrl(trimmedBuyUrl);
   if (!normalizedBuyUrl) {
     if (rejectInvalidUrl) {
-      throw new TRPCError({
-        code: 'BAD_REQUEST',
-        message: 'buyEsnCardUrl must be a valid HTTPS URL',
-      });
+      throw new InvalidDiscountProviderConfigError();
     }
     consola.warn('Ignoring invalid ESN buy card URL in tenant config');
     return {};
