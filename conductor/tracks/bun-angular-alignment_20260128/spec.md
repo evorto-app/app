@@ -293,6 +293,10 @@ The migration mode is explicitly non-backward-compatible. We optimize for a clea
   - `CI=true bun run lint` (warnings-only baseline unchanged)
   - `CI=true bun run build`
   - `CI=true bun run test` (`12 passed`)
+- tRPC namespace decommission validation (`users`, `globalAdmin` removed from app-router composition):
+  - `CI=true bun run lint` (warnings-only baseline unchanged)
+  - `CI=true bun run build`
+  - `CI=true bun run test` (`12 passed`)
 
 ## Out of Scope (for this track phase)
 

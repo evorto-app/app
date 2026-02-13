@@ -126,3 +126,12 @@ Replace Express+tRPC request handling and ad-hoc service wiring with Effect-firs
   - `template-create-event`
 - Removed tRPC templates namespace composition from `src/server/trpc/app-router.ts`.
 - Deleted obsolete file `src/server/trpc/templates/template.router.ts`.
+
+## Phase 6 Update (Unused Namespace Decommission)
+
+- Verified no Angular callsites depend on tRPC `users` or `globalAdmin` namespaces.
+- Removed both namespaces from `src/server/trpc/app-router.ts`.
+- Deleted obsolete files:
+  - `src/server/trpc/users/users.router.ts`
+  - `src/server/trpc/global-admin/global-admin.router.ts`
+  - `src/server/trpc/global-admin/tenant.router.ts`

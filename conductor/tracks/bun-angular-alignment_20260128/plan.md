@@ -382,6 +382,13 @@
   - [x] Decommission legacy tRPC `templates` namespace from app router composition and delete obsolete template router file
   - [x] Commit milestone
 
+- [x] Task: Decommission unused tRPC `users` + `globalAdmin` namespaces from app router composition
+  - [x] Define test intent (`CI=true bun run lint`, `CI=true bun run build`, `CI=true bun run test`)
+  - [x] Verify no Angular callsites depend on tRPC `users`/`globalAdmin` namespaces
+  - [x] Remove `users` and `globalAdmin` namespaces from `src/server/trpc/app-router.ts`
+  - [x] Delete obsolete router files under `src/server/trpc/users/**` and `src/server/trpc/global-admin/**`
+  - [x] Commit milestone
+
 - [ ] Task: Conductor - User Manual Verification 'Phase 6'
 
 ## Final Gate
@@ -559,6 +566,9 @@
 - `CI=true bun run lint` passes after template simple-flow Effect RPC cutover (`templates.findOne`, `templates.createSimpleTemplate`, `templates.updateSimpleTemplate`) with warnings-only baseline unchanged.
 - `CI=true bun run build` passes after template simple-flow Effect RPC cutover.
 - `CI=true bun run test` passes after template simple-flow Effect RPC cutover (`12 passed`).
+- `CI=true bun run lint` passes after decommissioning unused tRPC `users` + `globalAdmin` namespaces (warnings-only baseline unchanged).
+- `CI=true bun run build` passes after decommissioning unused tRPC `users` + `globalAdmin` namespaces.
+- `CI=true bun run test` passes after decommissioning unused tRPC `users` + `globalAdmin` namespaces (`12 passed`).
 
 ## Session Handoff
 
