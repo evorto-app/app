@@ -1595,6 +1595,134 @@ export const appRpcHandlers = AppRpcs.toLayer(
           registrations: registrationSummaries,
         };
       }),
+    'events.reviewEvent': ({ approved, comment, eventId }, options) =>
+      Effect.gen(function* () {
+        yield* ensurePermission(options.headers, 'events:review');
+        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const user = yield* requireUserHeader(options.headers);
+
+        const reviewedEvents = yield* Effect.promise(() =>
+          database
+            .update(eventInstances)
+            .set({
+              reviewedAt: new Date(),
+              reviewedBy: user.id,
+              status: approved ? 'APPROVED' : 'REJECTED',
+              // eslint-disable-next-line unicorn/no-null
+              statusComment: comment || null,
+            })
+            .where(
+              and(
+                eq(eventInstances.id, eventId),
+                eq(eventInstances.tenantId, tenant.id),
+                eq(eventInstances.status, 'PENDING_REVIEW'),
+              ),
+            )
+            .returning({
+              id: eventInstances.id,
+            }),
+        );
+        if (reviewedEvents.length > 0) {
+          return;
+        }
+
+        const event = yield* Effect.promise(() =>
+          database.query.eventInstances.findFirst({
+            columns: { id: true },
+            where: {
+              id: eventId,
+              tenantId: tenant.id,
+            },
+          }),
+        );
+        if (!event) {
+          return yield* Effect.fail('NOT_FOUND' as const);
+        }
+
+        return yield* Effect.fail('CONFLICT' as const);
+      }),
+    'events.submitForReview': ({ eventId }, options) =>
+      Effect.gen(function* () {
+        yield* ensureAuthenticated(options.headers);
+        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const user = yield* requireUserHeader(options.headers);
+
+        const event = yield* Effect.promise(() =>
+          database.query.eventInstances.findFirst({
+            columns: {
+              creatorId: true,
+              id: true,
+              status: true,
+            },
+            where: {
+              id: eventId,
+              tenantId: tenant.id,
+            },
+          }),
+        );
+        if (!event) {
+          return yield* Effect.fail('NOT_FOUND' as const);
+        }
+
+        if (
+          !canEditEvent({
+            creatorId: event.creatorId,
+            permissions: user.permissions,
+            userId: user.id,
+          })
+        ) {
+          return yield* Effect.fail('FORBIDDEN' as const);
+        }
+        if (event.status !== 'DRAFT' && event.status !== 'REJECTED') {
+          return yield* Effect.fail('CONFLICT' as const);
+        }
+
+        const submittedEvents = yield* Effect.promise(() =>
+          database
+            .update(eventInstances)
+            .set({
+              // eslint-disable-next-line unicorn/no-null
+              reviewedAt: null,
+              // eslint-disable-next-line unicorn/no-null
+              reviewedBy: null,
+              status: 'PENDING_REVIEW',
+              // eslint-disable-next-line unicorn/no-null
+              statusComment: null,
+            })
+            .where(
+              and(
+                eq(eventInstances.id, eventId),
+                eq(eventInstances.tenantId, tenant.id),
+                inArray(eventInstances.status, ['DRAFT', 'REJECTED']),
+              ),
+            )
+            .returning({
+              id: eventInstances.id,
+            }),
+        );
+        if (submittedEvents.length > 0) {
+          return;
+        }
+
+        return yield* Effect.fail('CONFLICT' as const);
+      }),
+    'events.updateListing': ({ eventId, unlisted }, options) =>
+      Effect.gen(function* () {
+        yield* ensurePermission(options.headers, 'events:changeListing');
+        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+
+        yield* Effect.promise(() =>
+          database
+            .update(eventInstances)
+            .set({ unlisted })
+            .where(
+              and(
+                eq(eventInstances.tenantId, tenant.id),
+                eq(eventInstances.id, eventId),
+              ),
+            ),
+        );
+      }),
     'globalAdmin.tenants.findMany': (_payload, options) =>
       Effect.gen(function* () {
         yield* ensureAuthenticated(options.headers);

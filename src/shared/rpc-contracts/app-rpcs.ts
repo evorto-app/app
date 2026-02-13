@@ -700,6 +700,70 @@ export const EventsGetPendingReviews = asRpcQuery(
   }),
 );
 
+export const EventsReviewEventRpcError = Schema.Literal(
+  'CONFLICT',
+  'FORBIDDEN',
+  'NOT_FOUND',
+  'UNAUTHORIZED',
+);
+
+export type EventsReviewEventRpcError = Schema.Schema.Type<
+  typeof EventsReviewEventRpcError
+>;
+
+export const EventsReviewEvent = asRpcMutation(
+  Rpc.make('events.reviewEvent', {
+    error: EventsReviewEventRpcError,
+    payload: Schema.Struct({
+      approved: Schema.Boolean,
+      comment: Schema.optional(Schema.NonEmptyString),
+      eventId: Schema.NonEmptyString,
+    }),
+    success: Schema.Void,
+  }),
+);
+
+export const EventsSubmitForReviewRpcError = Schema.Literal(
+  'CONFLICT',
+  'FORBIDDEN',
+  'NOT_FOUND',
+  'UNAUTHORIZED',
+);
+
+export type EventsSubmitForReviewRpcError = Schema.Schema.Type<
+  typeof EventsSubmitForReviewRpcError
+>;
+
+export const EventsSubmitForReview = asRpcMutation(
+  Rpc.make('events.submitForReview', {
+    error: EventsSubmitForReviewRpcError,
+    payload: Schema.Struct({
+      eventId: Schema.NonEmptyString,
+    }),
+    success: Schema.Void,
+  }),
+);
+
+export const EventsUpdateListingRpcError = Schema.Literal(
+  'FORBIDDEN',
+  'UNAUTHORIZED',
+);
+
+export type EventsUpdateListingRpcError = Schema.Schema.Type<
+  typeof EventsUpdateListingRpcError
+>;
+
+export const EventsUpdateListing = asRpcMutation(
+  Rpc.make('events.updateListing', {
+    error: EventsUpdateListingRpcError,
+    payload: Schema.Struct({
+      eventId: Schema.NonEmptyString,
+      unlisted: Schema.Boolean,
+    }),
+    success: Schema.Void,
+  }),
+);
+
 export const UsersUserAssigned = asRpcQuery(
   Rpc.make('users.userAssigned', {
     payload: Schema.Void,
@@ -984,6 +1048,9 @@ export class AppRpcs extends RpcGroup.make(
   EventsGetOrganizeOverview,
   EventsGetPendingReviews,
   EventsGetRegistrationStatus,
+  EventsReviewEvent,
+  EventsSubmitForReview,
+  EventsUpdateListing,
   GlobalAdminTenantsFindMany,
   TaxRatesListActive,
   UsersAuthDataFind,

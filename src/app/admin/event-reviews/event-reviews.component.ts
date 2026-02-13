@@ -19,7 +19,6 @@ import { firstValueFrom, interval } from 'rxjs';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { NotificationService } from '../../core/notification.service';
-import { injectTRPC } from '../../core/trpc-client';
 import { EventReviewDialogComponent } from '../../events/event-review-dialog/event-review-dialog.component';
 
 @Component({
@@ -129,14 +128,13 @@ export class EventReviewsComponent {
   protected readonly pendingReviewsQuery = injectQuery(() =>
     AppRpc.injectClient().events.getPendingReviews.queryOptions(),
   );
+  private readonly rpc = AppRpc.injectClient();
   protected readonly reviewEventMutation = injectMutation(() =>
-    injectTRPC().events.reviewEvent.mutationOptions(),
+    this.rpc.events.reviewEvent.mutationOptions(),
   );
   private readonly dialog = inject(MatDialog);
   private readonly notifications = inject(NotificationService);
   private readonly queryClient = inject(QueryClient);
-  private readonly rpc = AppRpc.injectClient();
-  private readonly trpc = injectTRPC();
 
   constructor() {
     // Auto-refresh pending reviews every 30 seconds
@@ -198,9 +196,6 @@ export class EventReviewsComponent {
     await this.queryClient.invalidateQueries(
       this.rpc.queryFilter(['events', 'getPendingReviews']),
     );
-    await this.queryClient.invalidateQueries({
-      queryKey: this.trpc.events.findMany.pathKey(),
-    });
     await this.queryClient.invalidateQueries(
       this.rpc.queryFilter(['events', 'eventList']),
     );
