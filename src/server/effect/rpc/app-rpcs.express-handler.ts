@@ -1,5 +1,6 @@
 import type { Request as ExpressRequest, Response as ExpressResponse } from 'express';
 
+import { writeWebResponse } from '../../http/write-web-response';
 import { handleAppRpcWebRequest } from './app-rpcs.web-handler';
 import { RPC_CONTEXT_HEADERS } from './rpc-context-headers';
 
@@ -92,19 +93,6 @@ const toWebRequest = async (request: ExpressRequest): Promise<Request> => {
   }
 
   return new Request(url, requestInit);
-};
-
-const writeWebResponse = async (
-  response: ExpressResponse,
-  webResponse: globalThis.Response,
-) => {
-  response.status(webResponse.status);
-  for (const [key, value] of webResponse.headers.entries()) {
-    response.setHeader(key, value);
-  }
-
-  const body = Buffer.from(await webResponse.arrayBuffer());
-  response.send(body);
 };
 
 export const handleAppRpcRequest = async (

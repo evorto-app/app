@@ -443,6 +443,14 @@
   - [x] Remove redundant per-context middleware files after cutover
   - [x] Commit milestone
 
+- [x] Task: Move `/healthz` endpoint to framework-agnostic web handler and shared response adapter (pending commit)
+  - [x] Define test intent (`CI=true bun run lint`, `CI=true bun run build`, `CI=true bun run test`)
+  - [x] Add reusable Express response writer for web `Response` objects
+  - [x] Add framework-agnostic `/healthz` web handler
+  - [x] Rewire `app.ts` `/healthz` route to use web handler + shared response adapter
+  - [x] Reuse shared response adapter in RPC Express adapter
+  - [x] Commit milestone
+
 - [ ] Task: Conductor - User Manual Verification 'Phase 7'
 
 ## Final Gate

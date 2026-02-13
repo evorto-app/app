@@ -237,3 +237,17 @@ Replace Express+tRPC request handling and ad-hoc service wiring with Effect-firs
 - Result:
   - fewer Express-specific middleware seams
   - cleaner boundary for replacing Express with Effect HTTP runtime middleware in a final cutover.
+
+## Phase 7 Update (Health Endpoint Web Handler + Shared Response Adapter)
+
+- Added shared web-response writer utility:
+  - `src/server/http/write-web-response.ts`
+- Added framework-agnostic health endpoint handler:
+  - `src/server/http/healthz.web-handler.ts`
+- Updated Express route wiring:
+  - `src/server/app.ts` now serves `/healthz` via `handleHealthzWebRequest()` + `writeWebResponse(...)`
+- Reused shared response writer in RPC adapter:
+  - `src/server/effect/rpc/app-rpcs.express-handler.ts`
+- Result:
+  - one more route moved to web-handler semantics
+  - less duplicated Express response-mapping code.

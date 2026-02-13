@@ -25,6 +25,8 @@ import { fileURLToPath } from 'node:url';
 import { Context } from '../types/custom/context';
 import { getOidcEnvironment } from './config/environment';
 import { handleAppRpcRequest } from './effect/rpc/app-rpcs.express-handler';
+import { handleHealthzWebRequest } from './http/healthz.web-handler';
+import { writeWebResponse } from './http/write-web-response';
 import { addRequestContext } from './middleware/request-context';
 import { qrCodeRouter } from './routers/qr-code.router';
 import { webhookRouter } from './webhooks';
@@ -71,8 +73,13 @@ app.use(cookieParser());
 app.use(addRequestContext);
 
 // Liveness/health endpoint
-app.get('/healthz', (_request, response) => {
-  response.status(200).json({ status: 'ok', uptime: process.uptime() });
+app.get('/healthz', async (_request, response, next) => {
+  try {
+    const webResponse = await handleHealthzWebRequest();
+    await writeWebResponse(response, webResponse);
+  } catch (error) {
+    next(error);
+  }
 });
 
 // Apply basic rate limiting to webhooks
