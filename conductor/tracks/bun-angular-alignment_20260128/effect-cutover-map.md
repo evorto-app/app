@@ -316,3 +316,22 @@ Validation snapshot for this slice:
 - Runtime smoke (`CI=true bun run serve:ssr:evorto`) confirms:
   - `/healthz` emits security headers (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`).
   - `/webhooks/stripe` returns `429` on request 61 within one minute.
+
+## Phase 7 Update (Bun Runtime Flag Cleanup via bunfig)
+
+- Kept project-level Bun runtime default config:
+  - `bunfig.toml` with `[run].bun = true`
+- Removed now-redundant explicit `--bun` flags from runtime/package scripts:
+  - `package.json` (`bunx ng`, `bunx playwright`, `bun dist/...`)
+- Removed explicit `--bun` flags from CI workflow helper commands:
+  - `.github/workflows/e2e-baseline.yml`
+  - `.github/workflows/copilot-setup-steps.yml`
+- Added additional webhook limiter reset test coverage:
+  - `src/server/http/webhook-rate-limit.spec.ts`
+
+Validation snapshot for this slice:
+
+- `CI=true bun run lint` passes (`43 warnings`, `0 errors`).
+- `CI=true bun run build` passes.
+- `CI=true bun run test` passes (`16 passed`).
+- SSR smoke (`CI=true bun run serve:ssr:evorto` + `curl http://localhost:4200/healthz`) passes.

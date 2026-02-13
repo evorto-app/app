@@ -467,6 +467,14 @@
   - [x] Add focused server tests for webhook rate-limit keying and quota behavior
   - [x] Commit milestone
 
+- [x] Task: Remove redundant `--bun` flags via Bun runtime config defaults (pending-commit)
+  - [x] Define test intent (`CI=true bun run lint`, `CI=true bun run build`, `CI=true bun run test`, SSR `/healthz` smoke)
+  - [x] Keep user-provided `bunfig.toml` with `[run].bun = true`
+  - [x] Remove `--bun` flags from `package.json` scripts
+  - [x] Remove `--bun` flags from workflow helper invocations under `.github/workflows/**`
+  - [x] Validate script/runtime parity after the flag cleanup
+  - [x] Commit milestone
+
 - [ ] Task: Conductor - User Manual Verification 'Phase 7'
 
 ## Final Gate
