@@ -396,6 +396,14 @@
   - [x] Decommission legacy tRPC `finance` namespace from app router composition and delete obsolete finance router files
   - [x] Commit milestone
 
+- [x] Task: Decommission residual tRPC transport scaffolding after Effect RPC cutover (b43b030)
+  - [x] Define test intent (`CI=true bun run lint`, `CI=true bun run build`, `CI=true bun run test`)
+  - [x] Remove Angular tRPC provider/client scaffolding (`provideTRPC`, `core/trpc-client.ts`)
+  - [x] Remove Express `/trpc` middleware and now-unused server tRPC router/server files
+  - [x] Move shared discount-provider config helper out of `src/server/trpc/**` and remove direct tRPC error dependency
+  - [x] Remove obsolete tRPC/tanstack-trpc packages and refresh Bun lockfile
+  - [x] Commit milestone
+
 - [ ] Task: Conductor - User Manual Verification 'Phase 6'
 
 ## Final Gate
@@ -579,6 +587,9 @@
 - `CI=true bun run lint` passes after finance Effect RPC cutover + tRPC finance router removal (warnings-only baseline: `45 warnings`, `0 errors`).
 - `CI=true bun run build` passes after finance Effect RPC cutover + tRPC finance router removal.
 - `CI=true bun run test` passes after finance Effect RPC cutover + tRPC finance router removal (`12 passed`).
+- `CI=true bun run lint` passes after removing residual tRPC transport scaffolding (warnings-only baseline: `45 warnings`, `0 errors`).
+- `CI=true bun run build` passes after removing residual tRPC transport scaffolding.
+- `CI=true bun run test` passes after removing residual tRPC transport scaffolding (`12 passed`).
 
 ## Session Handoff
 

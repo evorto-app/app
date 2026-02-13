@@ -160,3 +160,21 @@ Replace Express+tRPC request handling and ad-hoc service wiring with Effect-firs
 - Deleted obsolete files:
   - `src/server/trpc/finance/finance.router.ts`
   - `src/server/trpc/finance/receipt-media.router.ts`
+
+## Phase 6 Update (tRPC Transport Decommission)
+
+- Removed remaining runtime transport wiring for tRPC:
+  - deleted Express `/trpc` middleware from `src/server/app.ts`
+  - deleted `src/server/trpc/app-router.ts`
+  - deleted `src/server/trpc/trpc-server.ts`
+- Removed remaining Angular tRPC client scaffolding:
+  - deleted `src/app/core/trpc-client.ts`
+  - removed `provideTRPC(...)` setup from `src/app/app.config.ts`
+- Moved shared discount-provider config utility out of `src/server/trpc/**`:
+  - `src/server/discounts/discount-provider-config.ts`
+  - removed direct `TRPCError` dependency usage
+- Removed obsolete package dependencies:
+  - `@trpc/client`
+  - `@trpc/server`
+  - `@heddendorp/tanstack-angular-query`
+  - `@heddendorp/trpc-link-angular`

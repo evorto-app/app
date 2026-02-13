@@ -305,6 +305,15 @@ The migration mode is explicitly non-backward-compatible. We optimize for a clea
   - `CI=true bun run lint` (warnings-only baseline unchanged: `45 warnings`, `0 errors`)
   - `CI=true bun run build`
   - `CI=true bun run test` (`12 passed`)
+- tRPC transport scaffolding decommission validation (`/trpc` middleware + Angular tRPC provider/client removed):
+  - `CI=true bun run lint` (warnings-only baseline unchanged: `45 warnings`, `0 errors`)
+  - `CI=true bun run build`
+  - `CI=true bun run test` (`12 passed`)
+- Dependency cleanup validation (`@trpc/client`, `@trpc/server`, `@heddendorp/tanstack-angular-query`, `@heddendorp/trpc-link-angular` removed):
+  - `bun install` (lockfile rewritten with removed packages)
+  - `CI=true bun run lint`
+  - `CI=true bun run build`
+  - `CI=true bun run test`
 
 ## Out of Scope (for this track phase)
 
