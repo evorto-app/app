@@ -459,6 +459,14 @@
   - [x] Preserve request-context derivation + RPC context header bridging using framework-agnostic helpers
   - [x] Commit milestone
 
+- [x] Task: Harden Bun/Effect runtime with security headers, webhook protection, and durable key-value storage (ea43455)
+  - [x] Define test intent (`bunx --bun eslint` touched files, `bunx --bun tsc -p tsconfig.app.json --noEmit`, `bunx --bun tsc -p tsconfig.spec.json --noEmit`, `CI=true bun run lint`, `CI=true bun run build`, `CI=true bun run test`, SSR header/rate-limit smoke)
+  - [x] Add global response security headers through Effect HTTP middleware
+  - [x] Add Effect-based webhook rate limiter for `/webhooks/stripe` with `429` rejection on limit exceeded
+  - [x] Replace in-memory server key-value store layer with file-backed `KeyValueStore.layerFileSystem(...)`
+  - [x] Add focused server tests for webhook rate-limit keying and quota behavior
+  - [x] Commit milestone
+
 - [ ] Task: Conductor - User Manual Verification 'Phase 7'
 
 ## Final Gate

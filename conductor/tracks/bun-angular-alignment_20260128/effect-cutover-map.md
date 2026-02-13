@@ -291,3 +291,28 @@ Validation snapshot for this slice:
 - `CI=true bun run build` passes.
 - `CI=true bun run test` passes (`12 passed`).
 - SSR smoke: `CI=true bun run serve:ssr:evorto` + `curl http://localhost:4200/healthz` passes.
+
+## Phase 7 Update (Runtime Hardening on Bun/Effect)
+
+- Added global security headers middleware through `HttpLayerRouter.middleware(..., { global: true })` in `src/server.ts`.
+- Added dedicated server hardening helper:
+  - `src/server/http/security-headers.ts`
+- Added Effect-based webhook rate limiting:
+  - `src/server/http/webhook-rate-limit.ts`
+  - applied to `/webhooks/stripe` in `src/server.ts` with `429 Too Many Requests` when limit exceeded.
+- Replaced in-memory KeyValueStore with file-backed storage for auth/session records:
+  - `KeyValueStore.layerFileSystem('.cache/evorto/server-kv')` in server runtime layers.
+- Added focused tests:
+  - `src/server/http/webhook-rate-limit.spec.ts`
+
+Validation snapshot for this slice:
+
+- `bunx --bun eslint src/server.ts src/server/http/security-headers.ts src/server/http/webhook-rate-limit.ts src/server/http/webhook-rate-limit.spec.ts` passes.
+- `bunx --bun tsc -p tsconfig.app.json --noEmit` passes.
+- `bunx --bun tsc -p tsconfig.spec.json --noEmit` passes.
+- `CI=true bun run lint` passes (`43 warnings`, `0 errors`).
+- `CI=true bun run build` passes.
+- `CI=true bun run test` passes (`15 passed`, includes new rate-limit specs).
+- Runtime smoke (`CI=true bun run serve:ssr:evorto`) confirms:
+  - `/healthz` emits security headers (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`).
+  - `/webhooks/stripe` returns `429` on request 61 within one minute.
