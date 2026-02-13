@@ -210,3 +210,17 @@ Replace Express+tRPC request handling and ad-hoc service wiring with Effect-firs
 - Result:
   - reduced adapter/handler drift risk for auth/tenant context propagation
   - improved safety for upcoming non-Express transport migration work.
+
+## Phase 7 Update (Request Context Resolver Extraction)
+
+- Added `src/server/context/request-context-resolver.ts` with reusable, non-Express helpers:
+  - `resolveAuthenticationContext(...)`
+  - `resolveTenantContext(...)`
+  - `resolveUserContext(...)`
+- Updated Express middleware wrappers to delegate to resolver helpers:
+  - `src/server/middleware/authentication-context.ts`
+  - `src/server/middleware/tenant-context.ts`
+  - `src/server/middleware/user-context.ts`
+- Result:
+  - tenant/auth/user context derivation is no longer embedded directly in Express middleware implementations
+  - same behavior retained while preparing for Effect HTTP middleware replacement.

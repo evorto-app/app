@@ -15,3 +15,4 @@ This file tracks migration items that need another pass before final closure.
 - 2026-02-13: switched receipt object storage integration from AWS SDK S3 client to Bun runtime `S3Client` in `src/server/integrations/cloudflare-r2.ts`.
 - 2026-02-13: started Phase 7 by extracting a framework-agnostic RPC web handler and isolating Express glue in `src/server/effect/rpc/app-rpcs.express-handler.ts`.
 - 2026-02-13: centralized RPC request-context header keys in `src/server/effect/rpc/rpc-context-headers.ts` and replaced duplicated literals in adapter/handlers.
+- 2026-02-13: extracted non-Express auth/tenant/user request-context resolution to `src/server/context/request-context-resolver.ts` and rewired existing Express middleware wrappers.
