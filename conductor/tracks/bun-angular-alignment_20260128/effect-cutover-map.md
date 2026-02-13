@@ -112,3 +112,17 @@ Replace Express+tRPC request handling and ad-hoc service wiring with Effect-firs
   - `handle-registration`
 - Removed tRPC events namespace composition from `src/server/trpc/app-router.ts`.
 - Deleted obsolete tRPC events router/procedure files under `src/server/trpc/events/**`.
+
+## Phase 6 Update (Template Router Decommission)
+
+- Migrated template simple-flow procedures to Effect RPC:
+  - `templates.findOne`
+  - `templates.createSimpleTemplate`
+  - `templates.updateSimpleTemplate`
+- Updated Angular callsites in:
+  - `template-create`
+  - `template-edit`
+  - `template-details`
+  - `template-create-event`
+- Removed tRPC templates namespace composition from `src/server/trpc/app-router.ts`.
+- Deleted obsolete file `src/server/trpc/templates/template.router.ts`.

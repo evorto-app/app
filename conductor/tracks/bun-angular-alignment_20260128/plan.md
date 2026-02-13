@@ -375,6 +375,13 @@
   - [x] Decommission legacy tRPC events router namespace from app router composition and delete obsolete events router/procedure files
   - [x] Commit milestone
 
+- [x] Task: Migrate template simple-flow procedures (`templates.findOne`, `templates.createSimpleTemplate`, `templates.updateSimpleTemplate`) from tRPC to Effect RPC slice
+  - [x] Define test intent (`CI=true bun run lint`, `CI=true bun run build`, `CI=true bun run test`)
+  - [x] Add shared Effect RPC contracts + handlers for template find/create/update procedures
+  - [x] Replace template callsites (`template-create`, `template-edit`, `template-details`, `template-create-event`) with `AppRpc` helpers
+  - [x] Decommission legacy tRPC `templates` namespace from app router composition and delete obsolete template router file
+  - [x] Commit milestone
+
 - [ ] Task: Conductor - User Manual Verification 'Phase 6'
 
 ## Final Gate
@@ -549,6 +556,9 @@
 - `CI=true bun run lint` passes after `events.registerForEvent` + `events.cancelPendingRegistration` + `events.registrationScanned` Effect RPC cutover (warnings-only baseline unchanged).
 - `CI=true bun run build` passes after `events.registerForEvent` + `events.cancelPendingRegistration` + `events.registrationScanned` Effect RPC cutover.
 - `CI=true bun run test` passes after `events.registerForEvent` + `events.cancelPendingRegistration` + `events.registrationScanned` Effect RPC cutover (`12 passed`).
+- `CI=true bun run lint` passes after template simple-flow Effect RPC cutover (`templates.findOne`, `templates.createSimpleTemplate`, `templates.updateSimpleTemplate`) with warnings-only baseline unchanged.
+- `CI=true bun run build` passes after template simple-flow Effect RPC cutover.
+- `CI=true bun run test` passes after template simple-flow Effect RPC cutover (`12 passed`).
 
 ## Session Handoff
 
