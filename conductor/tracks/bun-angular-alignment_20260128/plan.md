@@ -347,6 +347,13 @@
   - [x] Decommission legacy tRPC `events.findOneForEdit` procedure
   - [x] Commit milestone
 
+- [x] Task: Migrate `events.findOne` + `events.getOrganizeOverview` reads from tRPC to Effect RPC slice (f017584)
+  - [x] Define test intent (`bunx --bun eslint` on touched files, `bunx --bun tsc -p tsconfig.app.json --noEmit`, `CI=true bun run lint`, `CI=true bun run build`, `CI=true bun run test`)
+  - [x] Add shared Effect RPC contracts + handlers for `events.findOne` and `events.getOrganizeOverview`
+  - [x] Replace event read callsites (`event-details`, `event-organize`, `event-edit.guard`, `event-organizer.guard`) and related invalidation paths (`event-reviews`) with `AppRpc` helpers/query keys
+  - [x] Decommission legacy tRPC `events.findOne` and `events.getOrganizeOverview` procedures
+  - [x] Commit milestone
+
 - [ ] Task: Conductor - User Manual Verification 'Phase 6'
 
 ## Final Gate
@@ -503,6 +510,11 @@
 - `CI=true bun run lint` passes after `events.findOneForEdit` Effect RPC cutover (warnings-only baseline unchanged).
 - `CI=true bun run build` passes after `events.findOneForEdit` Effect RPC cutover.
 - `CI=true bun run test` passes after `events.findOneForEdit` Effect RPC cutover (`12 passed`).
+- `bunx --bun eslint src/shared/rpc-contracts/app-rpcs.ts src/server/effect/rpc/app-rpcs.handlers.ts src/server/trpc/events/events.router.ts src/app/events/event-details/event-details.component.ts src/app/events/event-organize/event-organize.ts src/app/events/guards/event-edit.guard.ts src/app/events/guards/event-organizer.guard.ts src/app/events/event-registration-option/event-registration-option.component.ts src/app/admin/event-reviews/event-reviews.component.ts` passes after `events.findOne` + `events.getOrganizeOverview` Effect RPC cutover (warnings-only baseline unchanged).
+- `bunx --bun tsc -p tsconfig.app.json --noEmit` and `bunx --bun tsc -p tsconfig.spec.json --noEmit` pass after `events.findOne` + `events.getOrganizeOverview` Effect RPC cutover.
+- `CI=true bun run lint` passes after `events.findOne` + `events.getOrganizeOverview` Effect RPC cutover (warnings-only baseline unchanged).
+- `CI=true bun run build` passes after `events.findOne` + `events.getOrganizeOverview` Effect RPC cutover.
+- `CI=true bun run test` passes after `events.findOne` + `events.getOrganizeOverview` Effect RPC cutover (`12 passed`).
 
 ## Session Handoff
 
