@@ -21,6 +21,7 @@ import { groupBy } from 'es-toolkit';
 import { DateTime } from 'luxon';
 
 import { database } from '../../../db';
+import { createId } from '../../../db/create-id';
 import {
   eventInstances,
   eventRegistrationOptionDiscounts,
@@ -34,6 +35,7 @@ import {
   templateRegistrationOptionDiscounts,
   tenants,
   tenantStripeTaxRates,
+  transactions,
   userDiscountCards,
   users,
   usersToTenants,
@@ -945,6 +947,102 @@ export const appRpcHandlers = AppRpcs.toLayer(
             }),
         });
       }),
+    'events.cancelPendingRegistration': ({ registrationId }, options) =>
+      Effect.gen(function* () {
+        yield* ensureAuthenticated(options.headers);
+        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const user = yield* requireUserHeader(options.headers);
+
+        const registration = yield* Effect.promise(() =>
+          database.query.eventRegistrations.findFirst({
+            where: {
+              id: registrationId,
+              status: 'PENDING',
+              tenantId: tenant.id,
+              userId: user.id,
+            },
+            with: {
+              registrationOption: true,
+              transactions: true,
+            },
+          }),
+        );
+
+        if (!registration) {
+          return yield* Effect.fail('NOT_FOUND' as const);
+        }
+
+        yield* Effect.tryPromise({
+          catch: () => 'INTERNAL_SERVER_ERROR' as const,
+          try: () =>
+            database.transaction(async (tx) => {
+              await tx
+                .update(eventRegistrations)
+                .set({
+                  status: 'CANCELLED',
+                })
+                .where(eq(eventRegistrations.id, registration.id));
+
+              const reservedSpots = registration.registrationOption?.reservedSpots;
+              if (reservedSpots === undefined) {
+                throw new Error('Registration option missing');
+              }
+
+              await tx
+                .update(eventRegistrationOptions)
+                .set({
+                  reservedSpots: reservedSpots - 1,
+                })
+                .where(
+                  eq(
+                    eventRegistrationOptions.id,
+                    registration.registrationOptionId,
+                  ),
+                );
+
+              const transaction = registration.transactions.find(
+                (currentTransaction) =>
+                  currentTransaction.status === 'pending' &&
+                  currentTransaction.method === 'stripe',
+              );
+
+              if (!transaction) {
+                return;
+              }
+
+              await tx
+                .update(transactions)
+                .set({
+                  status: 'cancelled',
+                })
+                .where(eq(transactions.id, transaction.id));
+
+              if (!transaction.stripeCheckoutSessionId) {
+                return;
+              }
+
+              const stripeAccount = tenant.stripeAccountId;
+              if (!stripeAccount) {
+                throw new Error('Stripe account not found');
+              }
+              try {
+                await stripe.checkout.sessions.expire(
+                  transaction.stripeCheckoutSessionId,
+                  undefined,
+                  {
+                    stripeAccount,
+                  },
+                );
+              } catch (error) {
+                consola.error('stripe.checkout.expire-failed', {
+                  error,
+                  registrationId: registration.id,
+                  tenantId: tenant.id,
+                });
+              }
+            }),
+        });
+      }),
     'events.canOrganize': ({ eventId }, options) =>
       Effect.gen(function* () {
         yield* ensureAuthenticated(options.headers);
@@ -1775,6 +1873,394 @@ export const appRpcHandlers = AppRpcs.toLayer(
         return {
           isRegistered: registrations.length > 0,
           registrations: registrationSummaries,
+        };
+      }),
+    'events.registerForEvent': ({ eventId, registrationOptionId }, options) =>
+      Effect.gen(function* () {
+        yield* ensureAuthenticated(options.headers);
+        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const user = yield* requireUserHeader(options.headers);
+
+        const existingRegistration = yield* Effect.promise(() =>
+          database.query.eventRegistrations.findFirst({
+            where: {
+              eventId,
+              status: { NOT: 'CANCELLED' },
+              userId: user.id,
+            },
+          }),
+        );
+        if (existingRegistration) {
+          return yield* Effect.fail('CONFLICT' as const);
+        }
+
+        const registrationOption = yield* Effect.promise(() =>
+          database.query.eventRegistrationOptions.findFirst({
+            where: { eventId, id: registrationOptionId },
+            with: {
+              event: {
+                columns: {
+                  start: true,
+                  title: true,
+                },
+              },
+            },
+          }),
+        );
+        if (!registrationOption) {
+          return yield* Effect.fail('NOT_FOUND' as const);
+        }
+        if (!registrationOption.event) {
+          return yield* Effect.fail('INTERNAL_SERVER_ERROR' as const);
+        }
+        if (
+          registrationOption.confirmedSpots + registrationOption.reservedSpots >=
+          registrationOption.spots
+        ) {
+          return yield* Effect.fail('CONFLICT' as const);
+        }
+
+        const selectedTaxRateId = registrationOption.stripeTaxRateId ?? undefined;
+        const selectedTaxRate = selectedTaxRateId
+          ? yield* Effect.promise(() =>
+              database.query.tenantStripeTaxRates.findFirst({
+                where: {
+                  stripeTaxRateId: selectedTaxRateId,
+                  tenantId: tenant.id,
+                },
+              }),
+            )
+          : undefined;
+
+        const createdRegistrations = yield* Effect.promise(() =>
+          database
+            .insert(eventRegistrations)
+            .values({
+              eventId,
+              registrationOptionId: registrationOption.id,
+              status: registrationOption.isPaid ? 'PENDING' : 'CONFIRMED',
+              ...(selectedTaxRateId
+                ? {
+                    stripeTaxRateId: selectedTaxRateId,
+                    taxRateDisplayName: selectedTaxRate?.displayName,
+                    taxRateInclusive: selectedTaxRate?.inclusive,
+                    taxRatePercentage: selectedTaxRate?.percentage,
+                  }
+                : {}),
+              tenantId: tenant.id,
+              userId: user.id,
+            })
+            .returning({
+              id: eventRegistrations.id,
+            }),
+        );
+        const userRegistration = createdRegistrations[0];
+        if (!userRegistration) {
+          return yield* Effect.fail('INTERNAL_SERVER_ERROR' as const);
+        }
+
+        yield* Effect.promise(() =>
+          database
+            .update(eventRegistrationOptions)
+            .set(
+              registrationOption.isPaid
+                ? { reservedSpots: registrationOption.reservedSpots + 1 }
+                : {
+                    confirmedSpots: registrationOption.confirmedSpots + 1,
+                  },
+            )
+            .where(
+              and(
+                eq(eventRegistrationOptions.id, registrationOption.id),
+                eq(eventRegistrationOptions.eventId, eventId),
+              ),
+            ),
+        );
+
+        if (!registrationOption.isPaid) {
+          return;
+        }
+
+        const registerForEventSucceeded = yield* Effect.promise(async () => {
+          try {
+            const transactionId = createId();
+            const forwardedProtocol = options.headers['x-forwarded-proto']
+              ?.split(',')[0]
+              ?.trim();
+            const forwardedHost = options.headers['x-forwarded-host']
+              ?.split(',')[0]
+              ?.trim();
+            const host = forwardedHost ?? options.headers['host'];
+            const origin =
+              options.headers['origin'] ??
+              (host ? `${forwardedProtocol ?? 'http'}://${host}` : undefined);
+            const eventUrl = `${origin ?? ''}/events/${eventId}`;
+
+            const basePrice = registrationOption.price;
+            let effectivePrice = registrationOption.price;
+            let appliedDiscountType:
+              | null
+              | typeof eventRegistrationOptionDiscounts.$inferSelect.discountType =
+              null;
+            let appliedDiscountedPrice: null | number = null;
+            const cards = await database.query.userDiscountCards.findMany({
+              where: {
+                status: 'verified',
+                tenantId: tenant.id,
+                userId: user.id,
+              },
+            });
+            if (cards.length > 0) {
+              const tenantRecord = await database.query.tenants.findFirst({
+                where: { id: tenant.id },
+              });
+              const providerConfig: TenantDiscountProviders =
+                resolveTenantDiscountProviders(tenantRecord?.discountProviders);
+              const enabledTypes = new Set(
+                Object.entries(providerConfig)
+                  .filter(([, provider]) => provider?.status === 'enabled')
+                  .map(([key]) => key),
+              );
+              const discounts =
+                await database.query.eventRegistrationOptionDiscounts.findMany({
+                  where: { registrationOptionId: registrationOption.id },
+                });
+              const eventStart = registrationOption.event.start ?? new Date();
+              const eligible = discounts.filter((discount) =>
+                cards.some(
+                  (card) =>
+                    card.type === discount.discountType &&
+                    enabledTypes.has(card.type) &&
+                    (!card.validTo || card.validTo > eventStart),
+                ),
+              );
+              if (eligible.length > 0) {
+                let bestDiscount = eligible[0];
+                for (const candidate of eligible.slice(1)) {
+                  if (candidate.discountedPrice < bestDiscount.discountedPrice) {
+                    bestDiscount = candidate;
+                  }
+                }
+                effectivePrice = bestDiscount.discountedPrice;
+                appliedDiscountType = bestDiscount.discountType;
+                appliedDiscountedPrice = bestDiscount.discountedPrice;
+              }
+            }
+
+            const discountAmount =
+              appliedDiscountedPrice === null
+                ? null
+                : Math.max(0, basePrice - appliedDiscountedPrice);
+            await database
+              .update(eventRegistrations)
+              .set({
+                appliedDiscountedPrice,
+                appliedDiscountType,
+                basePriceAtRegistration: basePrice,
+                discountAmount,
+              })
+              .where(eq(eventRegistrations.id, userRegistration.id));
+
+            if (effectivePrice <= 0) {
+              await database
+                .update(eventRegistrations)
+                .set({
+                  status: 'CONFIRMED',
+                })
+                .where(eq(eventRegistrations.id, userRegistration.id));
+
+              await database
+                .update(eventRegistrationOptions)
+                .set({
+                  confirmedSpots: registrationOption.confirmedSpots + 1,
+                  reservedSpots: Math.max(0, registrationOption.reservedSpots - 1),
+                })
+                .where(eq(eventRegistrationOptions.id, registrationOption.id));
+              return;
+            }
+
+            const applicationFee = Math.round(effectivePrice * 0.035);
+            const stripeAccount = tenant.stripeAccountId;
+            if (!stripeAccount) {
+              throw new Error('Stripe account not found');
+            }
+
+            const session = await stripe.checkout.sessions.create(
+              {
+                cancel_url: `${eventUrl}?registrationStatus=cancel`,
+                customer_email: user.email,
+                expires_at: Math.ceil(
+                  DateTime.local().plus({ minutes: 30 }).toSeconds(),
+                ),
+                line_items: [
+                  {
+                    price_data: {
+                      currency: tenant.currency,
+                      product_data: {
+                        name: `Registration fee for ${registrationOption.event.title}`,
+                      },
+                      unit_amount: effectivePrice,
+                    },
+                    ...(selectedTaxRateId
+                      ? { tax_rates: [selectedTaxRateId] as string[] }
+                      : {}),
+                    quantity: 1,
+                  },
+                ],
+                metadata: {
+                  registrationId: userRegistration.id,
+                  tenantId: tenant.id,
+                  transactionId,
+                },
+                mode: 'payment',
+                payment_intent_data: {
+                  application_fee_amount: applicationFee,
+                },
+                success_url: `${eventUrl}?registrationStatus=success`,
+              },
+              { stripeAccount },
+            );
+
+            await database.insert(transactions).values({
+              amount: effectivePrice,
+              comment: `Registration for event ${registrationOption.event.title} ${registrationOption.eventId}`,
+              currency: tenant.currency,
+              eventId: registrationOption.eventId,
+              eventRegistrationId: userRegistration.id,
+              executiveUserId: user.id,
+              id: transactionId,
+              method: 'stripe',
+              status: 'pending',
+              stripeCheckoutSessionId: session.id,
+              stripeCheckoutUrl: session.url,
+              stripePaymentIntentId:
+                typeof session.payment_intent === 'string'
+                  ? session.payment_intent
+                  : session.payment_intent?.id,
+              targetUserId: user.id,
+              tenantId: tenant.id,
+              type: 'registration',
+            });
+            return true;
+          } catch (error) {
+            consola.error('events.registerForEvent.failed', {
+              error: error instanceof Error ? error.message : String(error),
+              registrationId: userRegistration.id,
+              tenantId: tenant.id,
+            });
+            return false;
+          }
+        });
+        if (!registerForEventSucceeded) {
+          const rollbackRegistrationOption =
+            yield* Effect.promise(() =>
+              database.query.eventRegistrationOptions.findFirst({
+                where: {
+                  eventId,
+                  id: registrationOptionId,
+                },
+              }),
+            );
+          if (rollbackRegistrationOption) {
+            yield* Effect.promise(() =>
+              database
+                .update(eventRegistrationOptions)
+                .set({
+                  reservedSpots: Math.max(
+                    0,
+                    rollbackRegistrationOption.reservedSpots - 1,
+                  ),
+                })
+                .where(
+                  and(
+                    eq(eventRegistrationOptions.id, rollbackRegistrationOption.id),
+                    eq(eventRegistrationOptions.eventId, eventId),
+                  ),
+                ),
+            );
+          }
+          yield* Effect.promise(() =>
+            database
+              .delete(eventRegistrations)
+              .where(eq(eventRegistrations.id, userRegistration.id)),
+          );
+          return yield* Effect.fail('INTERNAL_SERVER_ERROR' as const);
+        }
+      }),
+    'events.registrationScanned': ({ registrationId }, options) =>
+      Effect.gen(function* () {
+        yield* ensureAuthenticated(options.headers);
+        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const user = yield* requireUserHeader(options.headers);
+
+        const registration = yield* Effect.promise(() =>
+          database.query.eventRegistrations.findFirst({
+            where: { id: registrationId, tenantId: tenant.id },
+            with: {
+              event: {
+                columns: {
+                  start: true,
+                  title: true,
+                },
+              },
+              registrationOption: {
+                columns: {
+                  price: true,
+                  title: true,
+                },
+              },
+              transactions: {
+                columns: {
+                  amount: true,
+                },
+                where: {
+                  type: 'registration',
+                },
+              },
+              user: {
+                columns: {
+                  firstName: true,
+                  lastName: true,
+                },
+              },
+            },
+          }),
+        );
+        if (!registration || !registration.user || !registration.event) {
+          return yield* Effect.fail('NOT_FOUND' as const);
+        }
+
+        const sameUserIssue = registration.userId === user.id;
+        const registrationStatusIssue = registration.status !== 'CONFIRMED';
+        const allowCheckin = !registrationStatusIssue && !sameUserIssue;
+        const discountedTransaction = registration.transactions.find(
+          (transaction) =>
+            transaction.amount < registration.registrationOption.price,
+        );
+        const appliedDiscountedPrice =
+          registration.appliedDiscountedPrice ??
+          discountedTransaction?.amount ??
+          null;
+        const appliedDiscountType =
+          registration.appliedDiscountType ??
+          (appliedDiscountedPrice === null ? null : ('esnCard' as const));
+
+        return {
+          allowCheckin,
+          appliedDiscountType,
+          event: {
+            start: registration.event.start.toISOString(),
+            title: registration.event.title,
+          },
+          registrationOption: {
+            title: registration.registrationOption.title,
+          },
+          registrationStatusIssue,
+          sameUserIssue,
+          user: {
+            firstName: registration.user.firstName,
+            lastName: registration.user.lastName,
+          },
         };
       }),
     'events.reviewEvent': ({ approved, comment, eventId }, options) =>

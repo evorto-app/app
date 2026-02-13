@@ -16,7 +16,6 @@ import {
 import { interval, map } from 'rxjs';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
-import { injectTRPC } from '../../core/trpc-client';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -44,23 +43,12 @@ export class EventRegistrationOptionComponent {
   protected readonly authenticationQuery = injectQuery(() =>
     this.rpc.config.isAuthenticated.queryOptions(),
   );
-  private queryClient = inject(QueryClient);
-  private trpc = injectTRPC();
   protected readonly registrationMutation = injectMutation(() =>
-    this.trpc.events.registerForEvent.mutationOptions({
-      onSuccess: async ({ userRegistration: { eventId } }) => {
-        await this.queryClient.invalidateQueries({
-          queryKey: this.rpc.events.getRegistrationStatus.queryKey({
-            eventId,
-          }),
-        });
-      },
-    }),
+    this.rpc.events.registerForEvent.mutationOptions(),
   );
   private currentTime = toSignal(interval(1000).pipe(map(() => new Date())), {
     initialValue: new Date(),
   });
-
   protected registrationOpen = computed(() => {
     const currentTime = this.currentTime();
     const registrationOption = this.registrationOption();
@@ -73,10 +61,36 @@ export class EventRegistrationOptionComponent {
     return 'open';
   });
 
+  private queryClient = inject(QueryClient);
+
   register(registrationOption: { eventId: string; id: string }) {
-    this.registrationMutation.mutate({
-      eventId: registrationOption.eventId,
-      registrationOptionId: registrationOption.id,
-    });
+    this.registrationMutation.mutate(
+      {
+        eventId: registrationOption.eventId,
+        registrationOptionId: registrationOption.id,
+      },
+      {
+        onSuccess: async () => {
+          await this.queryClient.invalidateQueries({
+            queryKey: this.rpc.events.getRegistrationStatus.queryKey({
+              eventId: registrationOption.eventId,
+            }),
+          });
+        },
+      },
+    );
+  }
+
+  protected errorMessage(error: unknown): string {
+    if (typeof error === 'string') {
+      return error;
+    }
+    if (error && typeof error === 'object') {
+      const message = Reflect.get(error, 'message');
+      if (typeof message === 'string') {
+        return message;
+      }
+    }
+    return 'Unknown error';
   }
 }

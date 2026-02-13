@@ -82,6 +82,6 @@
 @if (registrationMutation.isError()) {
   <div class="bg-error text-on-error mt-4 flex flex-col gap-2 rounded-2xl p-4">
     <h3 class="title-medium">Registration failed</h3>
-    <p>{{ registrationMutation.error().message }}</p>
+    <p>{{ errorMessage(registrationMutation.error()) }}</p>
   </div>
 }

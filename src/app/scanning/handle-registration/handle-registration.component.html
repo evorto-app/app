@@ -14,7 +14,7 @@
 } @else if (scanResultQuery.isError()) {
   <div class="bg-error text-on-error rounded-2xl p-4">
     <h2 class="title-medium mb-4">There was an error</h2>
-    <p class="body-medium">Error: {{ scanResultQuery.error().message }}</p>
+    <p class="body-medium">Error: {{ errorMessage(scanResultQuery.error()) }}</p>
   </div>
 } @else if (scanResultQuery.isSuccess()) {
   <div class="bg-surface text-on-surface flex flex-col gap-2 rounded-2xl">

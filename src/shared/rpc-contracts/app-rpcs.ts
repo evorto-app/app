@@ -452,6 +452,26 @@ export const EventsCanOrganize = asRpcQuery(
   }),
 );
 
+export const EventsCancelPendingRegistrationError = Schema.Literal(
+  'INTERNAL_SERVER_ERROR',
+  'NOT_FOUND',
+  'UNAUTHORIZED',
+);
+
+export type EventsCancelPendingRegistrationError = Schema.Schema.Type<
+  typeof EventsCancelPendingRegistrationError
+>;
+
+export const EventsCancelPendingRegistration = asRpcMutation(
+  Rpc.make('events.cancelPendingRegistration', {
+    error: EventsCancelPendingRegistrationError,
+    payload: Schema.Struct({
+      registrationId: Schema.NonEmptyString,
+    }),
+    success: Schema.Void,
+  }),
+);
+
 export const EventsCreateRpcError = Schema.Literal(
   'BAD_REQUEST',
   'FORBIDDEN',
@@ -764,6 +784,63 @@ export const EventsReviewEvent = asRpcMutation(
       eventId: Schema.NonEmptyString,
     }),
     success: Schema.Void,
+  }),
+);
+
+export const EventsRegisterForEventError = Schema.Literal(
+  'CONFLICT',
+  'INTERNAL_SERVER_ERROR',
+  'NOT_FOUND',
+  'UNAUTHORIZED',
+);
+
+export type EventsRegisterForEventError = Schema.Schema.Type<
+  typeof EventsRegisterForEventError
+>;
+
+export const EventsRegisterForEvent = asRpcMutation(
+  Rpc.make('events.registerForEvent', {
+    error: EventsRegisterForEventError,
+    payload: Schema.Struct({
+      eventId: Schema.NonEmptyString,
+      registrationOptionId: Schema.NonEmptyString,
+    }),
+    success: Schema.Void,
+  }),
+);
+
+export const EventsRegistrationScannedError = Schema.Literal(
+  'NOT_FOUND',
+  'UNAUTHORIZED',
+);
+
+export type EventsRegistrationScannedError = Schema.Schema.Type<
+  typeof EventsRegistrationScannedError
+>;
+
+export const EventsRegistrationScanned = asRpcQuery(
+  Rpc.make('events.registrationScanned', {
+    error: EventsRegistrationScannedError,
+    payload: Schema.Struct({
+      registrationId: Schema.NonEmptyString,
+    }),
+    success: Schema.Struct({
+      allowCheckin: Schema.Boolean,
+      appliedDiscountType: Schema.NullOr(Schema.Literal('esnCard')),
+      event: Schema.Struct({
+        start: Schema.NonEmptyString,
+        title: Schema.NonEmptyString,
+      }),
+      registrationOption: Schema.Struct({
+        title: Schema.NonEmptyString,
+      }),
+      registrationStatusIssue: Schema.Boolean,
+      sameUserIssue: Schema.Boolean,
+      user: Schema.Struct({
+        firstName: Schema.NonEmptyString,
+        lastName: Schema.NonEmptyString,
+      }),
+    }),
   }),
 );
 
@@ -1136,6 +1213,7 @@ export class AppRpcs extends RpcGroup.make(
   DiscountsRefreshMyCard,
   DiscountsUpsertMyCard,
   EditorMediaCreateImageDirectUpload,
+  EventsCancelPendingRegistration,
   EventsCanOrganize,
   EventsCreate,
   EventsEventList,
@@ -1144,6 +1222,8 @@ export class AppRpcs extends RpcGroup.make(
   EventsGetOrganizeOverview,
   EventsGetPendingReviews,
   EventsGetRegistrationStatus,
+  EventsRegisterForEvent,
+  EventsRegistrationScanned,
   EventsReviewEvent,
   EventsSubmitForReview,
   EventsUpdate,

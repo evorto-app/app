@@ -12,7 +12,6 @@ import {
 } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
-import { injectTRPC } from '../../core/trpc-client';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -36,13 +35,11 @@ export class EventActiveRegistrationComponent {
       status: string;
     }[]
   >();
-  private readonly trpc = injectTRPC();
+  private readonly rpc = AppRpc.injectClient();
   private readonly cancelPendingRegistrationMutation = injectMutation(() =>
-    this.trpc.events.cancelPendingRegistration.mutationOptions(),
+    this.rpc.events.cancelPendingRegistration.mutationOptions(),
   );
   private readonly queryClient = inject(QueryClient);
-
-  private readonly rpc = AppRpc.injectClient();
 
   cancelPendingRegistration(registration: { id: string }) {
     this.cancelPendingRegistrationMutation.mutate(
