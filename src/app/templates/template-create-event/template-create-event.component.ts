@@ -50,11 +50,10 @@ export class TemplateCreateEventComponent {
     this.createEventModel,
     eventGeneralFormSchema,
   );
-  private trpc = injectTRPC();
-  protected readonly createEventMutation = injectMutation(() =>
-    this.trpc.events.create.mutationOptions(),
-  );
   private readonly rpc = AppRpc.injectClient();
+  protected readonly createEventMutation = injectMutation(() =>
+    this.rpc.events.create.mutationOptions(),
+  );
   protected readonly discountProvidersQuery = injectQuery(() =>
     this.rpc.discounts.getTenantProviders.queryOptions(),
   );
@@ -70,6 +69,7 @@ export class TemplateCreateEventComponent {
     'application',
   ] as const;
   protected readonly templateId = input.required<string>();
+  private trpc = injectTRPC();
   protected readonly templateQuery = injectQuery(() =>
     this.trpc.templates.findOne.queryOptions({ id: this.templateId() }),
   );
@@ -181,12 +181,14 @@ export class TemplateCreateEventComponent {
       this.createEventMutation.mutate(
         {
           ...formValue,
-          end: this.toDateTime(formValue.end).toJSDate(),
+          end: this.toDateTime(formValue.end).toJSDate().toISOString(),
           icon: formValue.icon,
           registrationOptions: formValue.registrationOptions.map((option) => ({
             closeRegistrationTime: this.toDateTime(
               option.closeRegistrationTime,
-            ).toJSDate(),
+            )
+              .toJSDate()
+              .toISOString(),
             description: option.description?.trim()
               ? option.description
               : // eslint-disable-next-line unicorn/no-null
@@ -194,7 +196,9 @@ export class TemplateCreateEventComponent {
             isPaid: option.isPaid,
             openRegistrationTime: this.toDateTime(
               option.openRegistrationTime,
-            ).toJSDate(),
+            )
+              .toJSDate()
+              .toISOString(),
             organizingRegistration: option.organizingRegistration,
             price: option.price,
             registeredDescription: option.registeredDescription?.trim()
@@ -210,7 +214,7 @@ export class TemplateCreateEventComponent {
                 null,
             title: option.title,
           })),
-          start: this.toDateTime(formValue.start).toJSDate(),
+          start: this.toDateTime(formValue.start).toJSDate().toISOString(),
           templateId: this.templateId(),
         },
         {

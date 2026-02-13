@@ -25,7 +25,6 @@ import consola from 'consola/browser';
 import { DateTime } from 'luxon';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
-import { injectTRPC } from '../../core/trpc-client';
 import { EventGeneralForm } from '../../shared/components/forms/event-general-form/event-general-form';
 import {
   createEventGeneralFormModel,
@@ -79,21 +78,11 @@ export class EventEdit {
     'random',
     'application',
   ] as const;
+  protected readonly updateEventMutation = injectMutation(() =>
+    this.rpc.events.update.mutationOptions(),
+  );
   private queryClient = inject(QueryClient);
   private router = inject(Router);
-  protected readonly updateEventMutation = injectMutation(() =>
-    injectTRPC().events.update.mutationOptions({
-      onError: (error) => {
-        consola.error('Failed to update event:', error);
-      },
-      onSuccess: async ({ id }) => {
-        await this.queryClient.invalidateQueries(
-          this.rpc.queryFilter(['events', 'eventList']),
-        );
-        return this.router.navigate(['/events', id]);
-      },
-    }),
-  );
   constructor() {
     effect(() => {
       const event = this.eventQuery.data();
@@ -154,36 +143,56 @@ export class EventEdit {
         return;
       }
 
-      this.updateEventMutation.mutate({
-        description: formValue.description,
-        end: formValue.end.toJSDate(),
-        eventId: this.eventId(),
-        icon: formValue.icon,
-        location: formValue.location,
-        registrationOptions: formValue.registrationOptions.map((registrationOption) => ({
-          closeRegistrationTime: registrationOption.closeRegistrationTime.toJSDate(),
-          description: registrationOption.description || null,
-          esnCardDiscountedPrice:
-            this.esnEnabled() && registrationOption.isPaid
-              ? registrationOption.esnCardDiscountedPrice === ''
-                ? null
-                : registrationOption.esnCardDiscountedPrice
-              : null,
-          id: registrationOption.id,
-          isPaid: registrationOption.isPaid,
-          openRegistrationTime: registrationOption.openRegistrationTime.toJSDate(),
-          organizingRegistration: registrationOption.organizingRegistration,
-          price: registrationOption.price,
-          registeredDescription: registrationOption.registeredDescription || null,
-          registrationMode: registrationOption.registrationMode,
-          roleIds: registrationOption.roleIds,
-          spots: registrationOption.spots,
-          stripeTaxRateId: registrationOption.stripeTaxRateId,
-          title: registrationOption.title,
-        })),
-        start: formValue.start.toJSDate(),
-        title: formValue.title,
-      });
+      this.updateEventMutation.mutate(
+        {
+          description: formValue.description,
+          end: formValue.end.toJSDate().toISOString(),
+          eventId: this.eventId(),
+          icon: formValue.icon,
+          location: formValue.location,
+          registrationOptions: formValue.registrationOptions.map(
+            (registrationOption) => ({
+              closeRegistrationTime: registrationOption.closeRegistrationTime
+                .toJSDate()
+                .toISOString(),
+              description: registrationOption.description || null,
+              esnCardDiscountedPrice:
+                this.esnEnabled() && registrationOption.isPaid
+                  ? registrationOption.esnCardDiscountedPrice === ''
+                    ? null
+                    : registrationOption.esnCardDiscountedPrice
+                  : null,
+              id: registrationOption.id,
+              isPaid: registrationOption.isPaid,
+              openRegistrationTime: registrationOption.openRegistrationTime
+                .toJSDate()
+                .toISOString(),
+              organizingRegistration: registrationOption.organizingRegistration,
+              price: registrationOption.price,
+              registeredDescription:
+                registrationOption.registeredDescription || null,
+              registrationMode: registrationOption.registrationMode,
+              roleIds: registrationOption.roleIds,
+              spots: registrationOption.spots,
+              stripeTaxRateId: registrationOption.stripeTaxRateId,
+              title: registrationOption.title,
+            }),
+          ),
+          start: formValue.start.toJSDate().toISOString(),
+          title: formValue.title,
+        },
+        {
+          onError: (error) => {
+            consola.error('Failed to update event:', error);
+          },
+          onSuccess: async ({ id }) => {
+            await this.queryClient.invalidateQueries(
+              this.rpc.queryFilter(['events', 'eventList']),
+            );
+            return this.router.navigate(['/events', id]);
+          },
+        },
+      );
     });
   }
 }

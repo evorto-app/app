@@ -452,6 +452,50 @@ export const EventsCanOrganize = asRpcQuery(
   }),
 );
 
+export const EventsCreateRpcError = Schema.Literal(
+  'BAD_REQUEST',
+  'FORBIDDEN',
+  'INTERNAL_SERVER_ERROR',
+  'UNAUTHORIZED',
+);
+
+export type EventsCreateRpcError = Schema.Schema.Type<
+  typeof EventsCreateRpcError
+>;
+
+export const EventsCreateRegistrationOptionInput = Schema.Struct({
+  closeRegistrationTime: Schema.NonEmptyString,
+  description: Schema.NullOr(Schema.NonEmptyString),
+  isPaid: Schema.Boolean,
+  openRegistrationTime: Schema.NonEmptyString,
+  organizingRegistration: Schema.Boolean,
+  price: Schema.Number.pipe(Schema.nonNegative()),
+  registeredDescription: Schema.NullOr(Schema.NonEmptyString),
+  registrationMode: Schema.Literal('application', 'fcfs', 'random'),
+  roleIds: Schema.Array(Schema.NonEmptyString),
+  spots: Schema.Number.pipe(Schema.nonNegative()),
+  stripeTaxRateId: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
+  title: Schema.NonEmptyString,
+});
+
+export const EventsCreate = asRpcMutation(
+  Rpc.make('events.create', {
+    error: EventsCreateRpcError,
+    payload: Schema.Struct({
+      description: Schema.NonEmptyString,
+      end: Schema.NonEmptyString,
+      icon: iconSchema,
+      registrationOptions: Schema.Array(EventsCreateRegistrationOptionInput),
+      start: Schema.NonEmptyString,
+      templateId: Schema.NonEmptyString,
+      title: Schema.NonEmptyString,
+    }),
+    success: Schema.Struct({
+      id: Schema.NonEmptyString,
+    }),
+  }),
+);
+
 export const EventsEventListRpcError = Schema.Literal('FORBIDDEN');
 
 export type EventsEventListRpcError = Schema.Schema.Type<
@@ -764,6 +808,57 @@ export const EventsUpdateListing = asRpcMutation(
   }),
 );
 
+export const EventsUpdateRpcError = Schema.Literal(
+  'BAD_REQUEST',
+  'CONFLICT',
+  'FORBIDDEN',
+  'INTERNAL_SERVER_ERROR',
+  'NOT_FOUND',
+  'UNAUTHORIZED',
+);
+
+export type EventsUpdateRpcError = Schema.Schema.Type<
+  typeof EventsUpdateRpcError
+>;
+
+export const EventsUpdateRegistrationOptionInput = Schema.Struct({
+  closeRegistrationTime: Schema.NonEmptyString,
+  description: Schema.NullOr(Schema.NonEmptyString),
+  esnCardDiscountedPrice: Schema.optional(
+    Schema.NullOr(Schema.Number.pipe(Schema.nonNegative())),
+  ),
+  id: Schema.NonEmptyString,
+  isPaid: Schema.Boolean,
+  openRegistrationTime: Schema.NonEmptyString,
+  organizingRegistration: Schema.Boolean,
+  price: Schema.Number.pipe(Schema.nonNegative()),
+  registeredDescription: Schema.NullOr(Schema.NonEmptyString),
+  registrationMode: Schema.Literal('application', 'fcfs', 'random'),
+  roleIds: Schema.Array(Schema.NonEmptyString),
+  spots: Schema.Number.pipe(Schema.nonNegative()),
+  stripeTaxRateId: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
+  title: Schema.NonEmptyString,
+});
+
+export const EventsUpdate = asRpcMutation(
+  Rpc.make('events.update', {
+    error: EventsUpdateRpcError,
+    payload: Schema.Struct({
+      description: Schema.NonEmptyString,
+      end: Schema.NonEmptyString,
+      eventId: Schema.NonEmptyString,
+      icon: iconSchema,
+      location: Schema.NullOr(Schema.Any),
+      registrationOptions: Schema.Array(EventsUpdateRegistrationOptionInput),
+      start: Schema.NonEmptyString,
+      title: Schema.NonEmptyString,
+    }),
+    success: Schema.Struct({
+      id: Schema.NonEmptyString,
+    }),
+  }),
+);
+
 export const UsersUserAssigned = asRpcQuery(
   Rpc.make('users.userAssigned', {
     payload: Schema.Void,
@@ -1042,6 +1137,7 @@ export class AppRpcs extends RpcGroup.make(
   DiscountsUpsertMyCard,
   EditorMediaCreateImageDirectUpload,
   EventsCanOrganize,
+  EventsCreate,
   EventsEventList,
   EventsFindOne,
   EventsFindOneForEdit,
@@ -1050,6 +1146,7 @@ export class AppRpcs extends RpcGroup.make(
   EventsGetRegistrationStatus,
   EventsReviewEvent,
   EventsSubmitForReview,
+  EventsUpdate,
   EventsUpdateListing,
   GlobalAdminTenantsFindMany,
   TaxRatesListActive,

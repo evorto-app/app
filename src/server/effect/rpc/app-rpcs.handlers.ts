@@ -31,6 +31,7 @@ import {
   icons,
   roles,
   rolesToTenantUsers,
+  templateRegistrationOptionDiscounts,
   tenants,
   tenantStripeTaxRates,
   userDiscountCards,
@@ -58,6 +59,12 @@ import { createCloudflareImageDirectUpload } from '../../integrations/cloudflare
 import { stripe } from '../../stripe-client';
 import { normalizeEsnCardConfig } from '../../trpc/discounts/discount-provider-config';
 import { computeIconSourceColor } from '../../utils/icon-color';
+import {
+  isMeaningfulRichTextHtml,
+  sanitizeOptionalRichTextHtml,
+  sanitizeRichTextHtml,
+} from '../../utils/rich-text-sanitize';
+import { validateTaxRate } from '../../utils/validate-tax-rate';
 import { getPublicConfigEffect } from '../config/public-config.effect';
 
 const ALLOWED_IMAGE_MIME_TYPES = [
@@ -290,6 +297,11 @@ const canEditEvent = ({
   permissions: readonly string[];
   userId: string;
 }) => creatorId === userId || permissions.includes('events:editAll');
+
+const EDITABLE_EVENT_STATUSES = ['DRAFT', 'REJECTED'] as const;
+
+type EventRegistrationOptionDiscountInsert =
+  typeof eventRegistrationOptionDiscounts.$inferInsert;
 
 const getFriendlyIconName = (icon: string): Effect.Effect<string, IconRpcError> =>
   Effect.sync(() => icon.split(':')).pipe(
@@ -972,6 +984,176 @@ export const appRpcHandlers = AppRpcs.toLayer(
         );
 
         return registrations.length > 0;
+      }),
+    'events.create': (input, options) =>
+      Effect.gen(function* () {
+        yield* ensurePermission(options.headers, 'events:create');
+        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const user = yield* requireUserHeader(options.headers);
+
+        const start = new Date(input.start);
+        const end = new Date(input.end);
+        if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+          return yield* Effect.fail('BAD_REQUEST' as const);
+        }
+
+        const sanitizedDescription = sanitizeRichTextHtml(input.description);
+        if (!isMeaningfulRichTextHtml(sanitizedDescription)) {
+          return yield* Effect.fail('BAD_REQUEST' as const);
+        }
+
+        const sanitizedRegistrationOptions = input.registrationOptions.map(
+          (option) => ({
+            ...option,
+            closeRegistrationTime: new Date(option.closeRegistrationTime),
+            description: sanitizeOptionalRichTextHtml(option.description),
+            openRegistrationTime: new Date(option.openRegistrationTime),
+            registeredDescription: sanitizeOptionalRichTextHtml(
+              option.registeredDescription,
+            ),
+          }),
+        );
+
+        for (const option of sanitizedRegistrationOptions) {
+          if (
+            Number.isNaN(option.closeRegistrationTime.getTime()) ||
+            Number.isNaN(option.openRegistrationTime.getTime())
+          ) {
+            return yield* Effect.fail('BAD_REQUEST' as const);
+          }
+
+          const validation = yield* Effect.promise(() =>
+            validateTaxRate({
+              isPaid: option.isPaid,
+              // eslint-disable-next-line unicorn/no-null
+              stripeTaxRateId: option.stripeTaxRateId ?? null,
+              tenantId: tenant.id,
+            }),
+          );
+          if (!validation.success) {
+            return yield* Effect.fail('BAD_REQUEST' as const);
+          }
+        }
+
+        const templateDefaults = yield* Effect.promise(() =>
+          database.query.eventTemplates.findFirst({
+            columns: { unlisted: true },
+            where: { id: input.templateId },
+          }),
+        );
+
+        const events = yield* Effect.promise(() =>
+          database
+            .insert(eventInstances)
+            .values({
+              creatorId: user.id,
+              description: sanitizedDescription,
+              end,
+              icon: input.icon,
+              start,
+              templateId: input.templateId,
+              tenantId: tenant.id,
+              title: input.title,
+              unlisted: templateDefaults?.unlisted ?? false,
+            })
+            .returning({
+              id: eventInstances.id,
+            }),
+        );
+        const event = events[0];
+        if (!event) {
+          return yield* Effect.fail('INTERNAL_SERVER_ERROR' as const);
+        }
+
+        const createdOptions = yield* Effect.promise(() =>
+          database
+            .insert(eventRegistrationOptions)
+            .values(
+              sanitizedRegistrationOptions.map((option) => ({
+                closeRegistrationTime: option.closeRegistrationTime,
+                description: option.description,
+                eventId: event.id,
+                isPaid: option.isPaid,
+                openRegistrationTime: option.openRegistrationTime,
+                organizingRegistration: option.organizingRegistration,
+                price: option.price,
+                registeredDescription: option.registeredDescription,
+                registrationMode: option.registrationMode,
+                roleIds: [...option.roleIds],
+                spots: option.spots,
+                // eslint-disable-next-line unicorn/no-null
+                stripeTaxRateId: option.stripeTaxRateId ?? null,
+                title: option.title,
+              })),
+            )
+            .returning({
+              id: eventRegistrationOptions.id,
+              organizingRegistration: eventRegistrationOptions.organizingRegistration,
+              title: eventRegistrationOptions.title,
+            }),
+        );
+
+        const tenantTemplateOptions = yield* Effect.promise(() =>
+          database.query.templateRegistrationOptions.findMany({
+            where: { templateId: input.templateId },
+          }),
+        );
+        if (tenantTemplateOptions.length > 0) {
+          const templateDiscounts = yield* Effect.promise(() =>
+            database
+              .select()
+              .from(templateRegistrationOptionDiscounts)
+              .where(
+                inArray(
+                  templateRegistrationOptionDiscounts.registrationOptionId,
+                  tenantTemplateOptions.map((option) => option.id),
+                ),
+              ),
+          );
+          if (templateDiscounts.length > 0) {
+            const registrationOptionKey = (title: string, organizing: boolean) =>
+              `${title}__${organizing ? '1' : '0'}`;
+            const templateOptionByKey = new Map(
+              tenantTemplateOptions.map((option) => [
+                registrationOptionKey(option.title, option.organizingRegistration),
+                option,
+              ]),
+            );
+            const discountInserts: EventRegistrationOptionDiscountInsert[] = [];
+            for (const createdOption of createdOptions) {
+              const sourceTemplateOption = templateOptionByKey.get(
+                registrationOptionKey(
+                  createdOption.title,
+                  createdOption.organizingRegistration,
+                ),
+              );
+              if (!sourceTemplateOption) {
+                continue;
+              }
+              for (const discount of templateDiscounts) {
+                if (discount.registrationOptionId !== sourceTemplateOption.id) {
+                  continue;
+                }
+                discountInserts.push({
+                  discountedPrice: discount.discountedPrice,
+                  discountType: discount.discountType,
+                  registrationOptionId: createdOption.id,
+                });
+              }
+            }
+            if (discountInserts.length > 0) {
+              yield* Effect.promise(() =>
+                database
+                  .insert(eventRegistrationOptionDiscounts)
+                  .values(discountInserts),
+              );
+            }
+          }
+        }
+
+        return {
+          id: event.id,
+        };
       }),
     'events.eventList': (input, options) =>
       Effect.gen(function* () {
@@ -1705,6 +1887,274 @@ export const appRpcHandlers = AppRpcs.toLayer(
         }
 
         return yield* Effect.fail('CONFLICT' as const);
+      }),
+    'events.update': (input, options) =>
+      Effect.gen(function* () {
+        yield* ensureAuthenticated(options.headers);
+        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const user = yield* requireUserHeader(options.headers);
+
+        const start = new Date(input.start);
+        const end = new Date(input.end);
+        if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+          return yield* Effect.fail('BAD_REQUEST' as const);
+        }
+
+        const sanitizedDescription = sanitizeRichTextHtml(input.description);
+        if (!isMeaningfulRichTextHtml(sanitizedDescription)) {
+          return yield* Effect.fail('BAD_REQUEST' as const);
+        }
+        const sanitizedRegistrationOptions = input.registrationOptions.map(
+          (option) => ({
+            ...option,
+            closeRegistrationTime: new Date(option.closeRegistrationTime),
+            description: sanitizeOptionalRichTextHtml(option.description),
+            esnCardDiscountedPrice:
+              option.esnCardDiscountedPrice === undefined
+                ? null
+                : option.esnCardDiscountedPrice,
+            openRegistrationTime: new Date(option.openRegistrationTime),
+            registeredDescription: sanitizeOptionalRichTextHtml(
+              option.registeredDescription,
+            ),
+          }),
+        );
+
+        const event = yield* Effect.promise(() =>
+          database.query.eventInstances.findFirst({
+            where: {
+              id: input.eventId,
+              tenantId: tenant.id,
+            },
+          }),
+        );
+        if (!event) {
+          return yield* Effect.fail('NOT_FOUND' as const);
+        }
+        if (
+          !canEditEvent({
+            creatorId: event.creatorId,
+            permissions: user.permissions,
+            userId: user.id,
+          })
+        ) {
+          return yield* Effect.fail('FORBIDDEN' as const);
+        }
+        if (
+          !EDITABLE_EVENT_STATUSES.includes(
+            event.status as (typeof EDITABLE_EVENT_STATUSES)[number],
+          )
+        ) {
+          return yield* Effect.fail('CONFLICT' as const);
+        }
+
+        const esnCardEnabledForTenant = isEsnCardEnabled(
+          tenant.discountProviders ?? null,
+        );
+
+        for (const option of sanitizedRegistrationOptions) {
+          if (
+            Number.isNaN(option.closeRegistrationTime.getTime()) ||
+            Number.isNaN(option.openRegistrationTime.getTime())
+          ) {
+            return yield* Effect.fail('BAD_REQUEST' as const);
+          }
+
+          const validation = yield* Effect.promise(() =>
+            validateTaxRate({
+              isPaid: option.isPaid,
+              // eslint-disable-next-line unicorn/no-null
+              stripeTaxRateId: option.stripeTaxRateId ?? null,
+              tenantId: tenant.id,
+            }),
+          );
+          if (!validation.success) {
+            return yield* Effect.fail('BAD_REQUEST' as const);
+          }
+
+          if (
+            option.esnCardDiscountedPrice !== null &&
+            option.esnCardDiscountedPrice > option.price
+          ) {
+            return yield* Effect.fail('BAD_REQUEST' as const);
+          }
+
+          if (
+            option.esnCardDiscountedPrice !== null &&
+            !esnCardEnabledForTenant &&
+            option.isPaid
+          ) {
+            return yield* Effect.fail('BAD_REQUEST' as const);
+          }
+
+          if (option.spots < 0) {
+            return yield* Effect.fail('BAD_REQUEST' as const);
+          }
+        }
+
+        const updatedEvent = yield* Effect.tryPromise({
+          catch: (error): 'BAD_REQUEST' | 'CONFLICT' | 'INTERNAL_SERVER_ERROR' => {
+            if (
+              typeof error === 'object' &&
+              error !== null &&
+              'code' in error &&
+              (error as { code: unknown }).code === 'BAD_REQUEST'
+            ) {
+              return 'BAD_REQUEST';
+            }
+            if (
+              typeof error === 'object' &&
+              error !== null &&
+              'code' in error &&
+              (error as { code: unknown }).code === 'CONFLICT'
+            ) {
+              return 'CONFLICT';
+            }
+            return 'INTERNAL_SERVER_ERROR';
+          },
+          try: () =>
+            database.transaction(async (tx) => {
+              const updatedEvents = await tx
+                .update(eventInstances)
+                .set({
+                  description: sanitizedDescription,
+                  end,
+                  icon: input.icon,
+                  location: input.location,
+                  start,
+                  title: input.title,
+                })
+                .where(
+                  and(
+                    eq(eventInstances.id, input.eventId),
+                    eq(eventInstances.tenantId, tenant.id),
+                    inArray(eventInstances.status, [...EDITABLE_EVENT_STATUSES]),
+                  ),
+                )
+                .returning({
+                  id: eventInstances.id,
+                });
+              const eventRow = updatedEvents[0];
+              if (!eventRow) {
+                throw { code: 'CONFLICT' };
+              }
+
+              const existingRegistrationRows =
+                await tx.query.eventRegistrationOptions.findMany({
+                  where: {
+                    eventId: input.eventId,
+                  },
+                });
+              const existingRegistrationOptionIds = new Set(
+                existingRegistrationRows.map((option) => option.id),
+              );
+              for (const option of sanitizedRegistrationOptions) {
+                if (!existingRegistrationOptionIds.has(option.id)) {
+                  throw { code: 'BAD_REQUEST' };
+                }
+              }
+
+              await Promise.all(
+                sanitizedRegistrationOptions.map((option) =>
+                  tx
+                    .update(eventRegistrationOptions)
+                    .set({
+                      closeRegistrationTime: option.closeRegistrationTime,
+                      description: option.description,
+                      isPaid: option.isPaid,
+                      openRegistrationTime: option.openRegistrationTime,
+                      organizingRegistration: option.organizingRegistration,
+                      price: option.price,
+                      registeredDescription: option.registeredDescription,
+                      registrationMode: option.registrationMode,
+                      roleIds: [...option.roleIds],
+                      spots: option.spots,
+                      // eslint-disable-next-line unicorn/no-null
+                      stripeTaxRateId: option.stripeTaxRateId ?? null,
+                      title: option.title,
+                    })
+                    .where(
+                      and(
+                        eq(eventRegistrationOptions.eventId, input.eventId),
+                        eq(eventRegistrationOptions.id, option.id),
+                      ),
+                    ),
+                ),
+              );
+
+              const existingEsnDiscounts =
+                sanitizedRegistrationOptions.length === 0
+                  ? []
+                  : await tx
+                      .select()
+                      .from(eventRegistrationOptionDiscounts)
+                      .where(
+                        and(
+                          eq(
+                            eventRegistrationOptionDiscounts.discountType,
+                            'esnCard',
+                          ),
+                          inArray(
+                            eventRegistrationOptionDiscounts.registrationOptionId,
+                            sanitizedRegistrationOptions.map(
+                              (registrationOption) => registrationOption.id,
+                            ),
+                          ),
+                        ),
+                      );
+              const existingEsnDiscountByRegistrationOptionId = new Map(
+                existingEsnDiscounts.map((discount) => [
+                  discount.registrationOptionId,
+                  discount,
+                ]),
+              );
+
+              for (const option of sanitizedRegistrationOptions) {
+                const existingDiscount =
+                  existingEsnDiscountByRegistrationOptionId.get(option.id);
+                const shouldPersistDiscount =
+                  esnCardEnabledForTenant &&
+                  option.isPaid &&
+                  option.esnCardDiscountedPrice !== null;
+
+                if (!shouldPersistDiscount) {
+                  if (existingDiscount) {
+                    await tx
+                      .delete(eventRegistrationOptionDiscounts)
+                      .where(eq(eventRegistrationOptionDiscounts.id, existingDiscount.id));
+                  }
+                  continue;
+                }
+
+                const discountedPrice = option.esnCardDiscountedPrice;
+                if (discountedPrice === null) {
+                  continue;
+                }
+
+                if (existingDiscount) {
+                  await tx
+                    .update(eventRegistrationOptionDiscounts)
+                    .set({
+                      discountedPrice,
+                    })
+                    .where(eq(eventRegistrationOptionDiscounts.id, existingDiscount.id));
+                  continue;
+                }
+
+                await tx.insert(eventRegistrationOptionDiscounts).values({
+                  discountedPrice,
+                  discountType: 'esnCard',
+                  registrationOptionId: option.id,
+                });
+              }
+
+              return eventRow;
+            }),
+        });
+
+        return {
+          id: updatedEvent.id,
+        };
       }),
     'events.updateListing': ({ eventId, unlisted }, options) =>
       Effect.gen(function* () {
