@@ -23,8 +23,8 @@ import {
 } from '@tanstack/angular-query-experimental';
 
 import { ConfigService } from '../../core/config.service';
+import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { NotificationService } from '../../core/notification.service';
-import { injectTRPC } from '../../core/trpc-client';
 import { ReceiptFormFieldsComponent } from '../shared/receipt-form/receipt-form-fields.component';
 import { createReceiptForm } from '../shared/receipt-form/receipt-form.model';
 
@@ -55,9 +55,9 @@ export class ReceiptApprovalDetailComponent {
   protected readonly receiptId = computed(
     () => this.route.snapshot.paramMap.get('receiptId') ?? '',
   );
-  private readonly trpc = injectTRPC();
+  private readonly rpc = AppRpc.injectClient();
   protected readonly receiptQuery = injectQuery(() =>
-    this.trpc.finance.receipts.findOneForApproval.queryOptions({
+    this.rpc.finance['receipts.findOneForApproval'].queryOptions({
       id: this.receiptId(),
     }),
   );
@@ -77,29 +77,10 @@ export class ReceiptApprovalDetailComponent {
   });
 
   protected readonly rejectionReason = signal('');
-  private readonly queryClient = inject(QueryClient);
   protected readonly reviewMutation = injectMutation(() =>
-    this.trpc.finance.receipts.review.mutationOptions({
-      onSuccess: async () => {
-        await this.queryClient.invalidateQueries({
-          queryKey: this.trpc.finance.receipts.pendingApprovalGrouped.pathKey(),
-        });
-        await this.queryClient.invalidateQueries({
-          queryKey: this.trpc.finance.receipts.refundableGroupedByRecipient.pathKey(),
-        });
-        await this.queryClient.invalidateQueries({
-          queryKey: this.trpc.finance.receipts.findOneForApproval.queryKey({
-            id: this.receiptId(),
-          }),
-        });
-        await this.queryClient.invalidateQueries({
-          queryKey: this.trpc.finance.receipts.byEvent.pathKey(),
-        });
-      },
-    }),
+    this.rpc.finance['receipts.review'].mutationOptions(),
   );
   private readonly sanitizer = inject(DomSanitizer);
-
   protected readonly safePdfPreviewUrl = computed<null | SafeResourceUrl>(() => {
     const receipt = this.receiptQuery.data();
     if (!receipt?.previewImageUrl || receipt.attachmentMimeType !== 'application/pdf') {
@@ -109,6 +90,8 @@ export class ReceiptApprovalDetailComponent {
   });
 
   private readonly notifications = inject(NotificationService);
+
+  private readonly queryClient = inject(QueryClient);
 
   private readonly router = inject(Router);
 
@@ -175,20 +158,43 @@ export class ReceiptApprovalDetailComponent {
     }
 
     try {
-      await this.reviewMutation.mutateAsync({
-        alcoholAmount,
-        depositAmount,
-        hasAlcohol: value.hasAlcohol,
-        hasDeposit: value.hasDeposit,
-        id: this.receiptId(),
-        purchaseCountry: value.purchaseCountry,
-        receiptDate,
-        rejectionReason:
-          status === 'rejected' ? this.rejectionReason().trim() || null : null,
-        status,
-        taxAmount,
-        totalAmount,
-      });
+      await this.reviewMutation.mutateAsync(
+        {
+          alcoholAmount,
+          depositAmount,
+          hasAlcohol: value.hasAlcohol,
+          hasDeposit: value.hasDeposit,
+          id: this.receiptId(),
+          purchaseCountry: value.purchaseCountry,
+          receiptDate: receiptDate.toISOString(),
+          rejectionReason:
+            status === 'rejected' ? this.rejectionReason().trim() || null : null,
+          status,
+          taxAmount,
+          totalAmount,
+        },
+        {
+          onSuccess: async () => {
+            await this.queryClient.invalidateQueries(
+              this.rpc.queryFilter(['finance', 'receipts.pendingApprovalGrouped']),
+            );
+            await this.queryClient.invalidateQueries(
+              this.rpc.queryFilter([
+                'finance',
+                'receipts.refundableGroupedByRecipient',
+              ]),
+            );
+            await this.queryClient.invalidateQueries({
+              queryKey: this.rpc.finance['receipts.findOneForApproval'].queryKey({
+                id: this.receiptId(),
+              }),
+            });
+            await this.queryClient.invalidateQueries(
+              this.rpc.queryFilter(['finance', 'receipts.byEvent']),
+            );
+          },
+        },
+      );
       this.notifications.showSuccess(
         status === 'approved' ? 'Receipt approved' : 'Receipt rejected',
       );

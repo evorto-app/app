@@ -37,7 +37,6 @@ import { firstValueFrom } from 'rxjs';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { NotificationService } from '../../core/notification.service';
-import { injectTRPC } from '../../core/trpc-client';
 import {
   EditProfileDialogComponent,
   EditProfileDialogData,
@@ -110,10 +109,9 @@ export class UserProfileComponent {
     if (!cards) return false;
     return cards.some((card) => card.type === 'esnCard' && card.status === 'verified');
   });
-  private readonly trpc = injectTRPC();
 
   protected readonly myReceiptsQuery = injectQuery(() =>
-    this.trpc.finance.receipts.my.queryOptions(),
+    this.rpc.finance['receipts.my'].queryOptions(),
   );
   protected readonly refreshCardMutation = injectMutation(() =>
     this.rpc.discounts.refreshMyCard.mutationOptions(),
@@ -218,9 +216,12 @@ export class UserProfileComponent {
         await this.queryClient.invalidateQueries(
           this.rpc.queryFilter(['users', 'maybeSelf']),
         );
-        await this.queryClient.invalidateQueries({
-          queryKey: this.trpc.finance.receipts.refundableGroupedByRecipient.pathKey(),
-        });
+        await this.queryClient.invalidateQueries(
+          this.rpc.queryFilter([
+            'finance',
+            'receipts.refundableGroupedByRecipient',
+          ]),
+        );
         this.notifications.showSuccess('Profile updated successfully');
       },
     });

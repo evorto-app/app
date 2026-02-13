@@ -3,7 +3,7 @@ import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
-import { injectTRPC } from '../../core/trpc-client';
+import { AppRpc } from '../../core/effect-rpc-angular-client';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -13,9 +13,9 @@ import { injectTRPC } from '../../core/trpc-client';
   templateUrl: './receipt-approval-list.component.html',
 })
 export class ReceiptApprovalListComponent {
-  private readonly trpc = injectTRPC();
+  private readonly rpc = AppRpc.injectClient();
 
   protected readonly pendingReceiptsQuery = injectQuery(() =>
-    this.trpc.finance.receipts.pendingApprovalGrouped.queryOptions(),
+    this.rpc.finance['receipts.pendingApprovalGrouped'].queryOptions(),
   );
 }
