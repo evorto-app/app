@@ -24,3 +24,8 @@
 
 - [ ] **Track: Tenant website SEO and admin customizations (branding, links, legal pages, privacy re-acceptance)**
 *Link: [./tracks/website-seo-customizations_20260213/](./tracks/website-seo-customizations_20260213/)*
+
+---
+
+- [ ] **Track: Registration limits and deregistration settings (cutoffs, fee refunds, daily/weekly caps)**
+*Link: [./tracks/registration-limits_20260213/](./tracks/registration-limits_20260213/)*
