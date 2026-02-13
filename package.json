@@ -12,6 +12,7 @@
     "lint": "bunx ng lint",
     "lint:fix": "bunx ng lint --fix",
     "format": "prettier --write .",
+    "postinstall": "node helpers/patch-material-color-utilities.mjs",
     "update": "bunx ng update @angular/cli @angular/cdk @angular/core @angular/material angular-eslint --allow-dirty",
     "e2e": "bash -lc 'eval \"$(bun helpers/testing/runtime-env.mjs)\" && bunx playwright test'",
     "e2e:ui": "bash -lc 'eval \"$(bun helpers/testing/runtime-env.mjs)\" && bunx playwright test --ui --workers 2'",

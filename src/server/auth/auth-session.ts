@@ -4,6 +4,7 @@ import * as HttpServerResponse from '@effect/platform/HttpServerResponse';
 import * as KeyValueStore from '@effect/platform/KeyValueStore';
 import { AuthenticationClient, UserInfoClient } from 'auth0';
 import { Duration, Effect, Option } from 'effect';
+import { createHash } from 'node:crypto';
 
 import { getOidcEnvironment } from '../config/environment';
 
@@ -122,6 +123,9 @@ const createRandomString = (length: number): string => {
   crypto.getRandomValues(randomBytes);
   return Buffer.from(randomBytes).toString('base64url');
 };
+
+const toSessionStoreKey = (sessionId: string): string =>
+  createHash('sha256').update(sessionId).digest('base64url');
 
 const createCodeChallenge = (codeVerifier: string) =>
   Effect.tryPromise(async () => {
@@ -262,7 +266,8 @@ export const loadAuthSession = (
 
     const store = yield* KeyValueStore.KeyValueStore;
     const sessions = getSessionStore(store);
-    const sessionJson = yield* sessions.get(sessionId);
+    const sessionKey = toSessionStoreKey(sessionId);
+    const sessionJson = yield* sessions.get(sessionKey);
 
     if (Option.isNone(sessionJson)) {
       return;
@@ -270,12 +275,12 @@ export const loadAuthSession = (
 
     const session = parseAuthSession(sessionJson.value);
     if (!session) {
-      yield* sessions.remove(sessionId);
+      yield* sessions.remove(sessionKey);
       return;
     }
 
     if (session.expiresAt <= Date.now()) {
-      yield* sessions.remove(sessionId);
+      yield* sessions.remove(sessionKey);
       return;
     }
 
@@ -422,8 +427,9 @@ export const handleCallbackRequest = (
     };
 
     const sessionId = createRandomString(32);
+    const sessionKey = toSessionStoreKey(sessionId);
     const sessions = getSessionStore(store);
-    yield* sessions.set(sessionId, JSON.stringify(session));
+    yield* sessions.set(sessionKey, JSON.stringify(session));
 
     const redirectResponse = HttpServerResponse.redirect(transaction.redirectUrl);
 
@@ -452,7 +458,7 @@ export const handleLogoutRequest = (
     if (sessionId) {
       const store = yield* KeyValueStore.KeyValueStore;
       const sessions = getSessionStore(store);
-      yield* sessions.remove(sessionId);
+      yield* sessions.remove(toSessionStoreKey(sessionId));
     }
 
     const { isSecure, origin } = resolveRequestOrigin(request);

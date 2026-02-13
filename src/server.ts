@@ -143,11 +143,32 @@ const extractRegistrationId = (
   }
 };
 
+const renderSsr = (request: HttpServerRequest.HttpServerRequest) =>
+  Effect.gen(function* () {
+    const authSession = yield* loadAuthSession(request);
+    const requestContext = yield* Effect.tryPromise(() =>
+      resolveHttpRequestContext(request, authSession),
+    );
+
+    const webRequest = BunHttpServerRequest.toRequest(request);
+    const renderedResponse = yield* Effect.tryPromise(() =>
+      angularApp.handle(webRequest, requestContext),
+    );
+
+    return renderedResponse
+      ? HttpServerResponse.fromWeb(renderedResponse)
+      : notFoundServerResponse;
+  });
+
 const staticRouteLayer = HttpLayerRouter.add('*', '*', (request) =>
   Effect.gen(function* () {
     const staticResponse = yield* tryServeStatic(request);
     if (staticResponse) {
       return staticResponse;
+    }
+
+    if (request.method === 'GET') {
+      return yield* renderSsr(request);
     }
 
     return yield* Effect.fail(new HttpServerError.RouteNotFound({ request }));
@@ -272,23 +293,6 @@ const routesLayer = Layer.mergeAll(
   staticRouteLayer,
   securityHeadersMiddlewareLayer,
 );
-
-const renderSsr = (request: HttpServerRequest.HttpServerRequest) =>
-  Effect.gen(function* () {
-    const authSession = yield* loadAuthSession(request);
-    const requestContext = yield* Effect.tryPromise(() =>
-      resolveHttpRequestContext(request, authSession),
-    );
-
-    const webRequest = BunHttpServerRequest.toRequest(request);
-    const renderedResponse = yield* Effect.tryPromise(() =>
-      angularApp.handle(webRequest, requestContext),
-    );
-
-    return renderedResponse
-      ? HttpServerResponse.fromWeb(renderedResponse)
-      : notFoundServerResponse;
-  });
 
 const createInternalErrorResponse = (
   request: HttpServerRequest.HttpServerRequest,
