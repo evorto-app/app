@@ -70,7 +70,7 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Install Playwright browsers
-        run: bunx --bun playwright install --with-deps
+        run: bunx playwright install --with-deps
 
       - name: Create CI .env overrides from secrets
         run: |
@@ -115,7 +115,7 @@ jobs:
           DOCS_OUT_DIR: test-results/docs
           DOCS_IMG_OUT_DIR: test-results/docs/images
         run: |
-          bunx --bun playwright test --project=docs --grep-invert "@finance" \
+          bunx playwright test --project=docs --grep-invert "@finance" \
             --reporter=github,dot,./tests/support/reporters/documentation-reporter.ts
 
       - name: Upload Playwright test results

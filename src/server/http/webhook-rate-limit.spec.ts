@@ -1,6 +1,6 @@
 import * as HttpServerRequest from '@effect/platform/HttpServerRequest';
 import { Effect } from 'effect';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   resolveWebhookRateLimitKey,
@@ -54,5 +54,30 @@ describe('webhook-rate-limit', () => {
     });
 
     await Effect.runPromise(program.pipe(Effect.provide(webhookRateLimitLayer)));
+  });
+
+  it('resets quota after one minute', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-02-13T00:00:00.000Z'));
+
+    const program = Effect.gen(function* () {
+      const rateLimit = yield* WebhookRateLimit;
+
+      for (let index = 0; index < 60; index++) {
+        const allowed = yield* rateLimit.consume('test-client');
+        expect(allowed).toBe(true);
+      }
+
+      const blocked = yield* rateLimit.consume('test-client');
+      expect(blocked).toBe(false);
+
+      vi.advanceTimersByTime(60_000);
+
+      const allowedAfterWindow = yield* rateLimit.consume('test-client');
+      expect(allowedAfterWindow).toBe(true);
+    });
+
+    await Effect.runPromise(program.pipe(Effect.provide(webhookRateLimitLayer)));
+    vi.useRealTimers();
   });
 });

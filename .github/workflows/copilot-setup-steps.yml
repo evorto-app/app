@@ -54,4 +54,4 @@ jobs:
           } > .env
 
       - name: Install Playwright browsers
-        run: bunx --bun playwright install --with-deps
+        run: bunx playwright install --with-deps
