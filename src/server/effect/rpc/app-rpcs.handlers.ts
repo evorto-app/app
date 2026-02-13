@@ -92,6 +92,7 @@ const ALLOWED_IMAGE_MIME_TYPE_SET = new Set<string>(ALLOWED_IMAGE_MIME_TYPES);
 const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024;
 const MAX_RECEIPT_ORIGINAL_SIZE_BYTES = 20 * 1024 * 1024;
 const RECEIPT_PREVIEW_SIGNED_URL_TTL_SECONDS = 60 * 15;
+const LOCAL_RECEIPT_STORAGE_KEY_PREFIX = 'local-unavailable/';
 
 interface ReceiptCountryConfigTenant {
   receiptSettings?:
@@ -112,7 +113,10 @@ interface ReceiptWithStoragePreview {
 const withSignedReceiptPreviewUrl = async <T extends ReceiptWithStoragePreview>(
   receipt: T,
 ): Promise<T> => {
-  if (!receipt.attachmentStorageKey) {
+  if (
+    !receipt.attachmentStorageKey ||
+    receipt.attachmentStorageKey.startsWith(LOCAL_RECEIPT_STORAGE_KEY_PREFIX)
+  ) {
     return {
       ...receipt,
       // eslint-disable-next-line unicorn/no-null
@@ -149,6 +153,14 @@ const isAllowedReceiptMimeType = (mimeType: string): boolean =>
 
 const sanitizeFileName = (fileName: string): string =>
   fileName.trim().replaceAll(/[^A-Za-z0-9._-]+/g, '-').slice(0, 120) || 'receipt';
+
+const isCloudflareR2Configured = () =>
+  Boolean(
+    process.env['CLOUDFLARE_R2_BUCKET'] &&
+      process.env['CLOUDFLARE_R2_S3_ENDPOINT'] &&
+      process.env['CLOUDFLARE_R2_S3_KEY'] &&
+      process.env['CLOUDFLARE_R2_S3_KEY_ID'],
+  );
 
 const resolveTenantSelectableReceiptCountries = (
   tenant: ReceiptCountryConfigTenant,
@@ -3038,7 +3050,16 @@ export const appRpcHandlers = AppRpcs.toLayer(
               contentType: input.mimeType,
               key: storageKey,
             }),
-        });
+        }).pipe(
+          Effect.catchAll((error) =>
+            isCloudflareR2Configured()
+              ? Effect.fail(error)
+              : Effect.succeed({
+                  storageKey: `${LOCAL_RECEIPT_STORAGE_KEY_PREFIX}${storageKey}`,
+                  storageUrl: 'local-unavailable://receipt',
+                }),
+          ),
+        );
 
         return {
           sizeBytes: body.byteLength,
