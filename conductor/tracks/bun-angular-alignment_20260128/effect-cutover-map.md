@@ -251,3 +251,43 @@ Replace Express+tRPC request handling and ad-hoc service wiring with Effect-firs
 - Result:
   - one more route moved to web-handler semantics
   - less duplicated Express response-mapping code.
+
+## Phase 7 Update (Effect Platform Bun Runtime Cutover)
+
+- Replaced `src/server.ts` with an Effect Platform Bun runtime entrypoint using `HttpLayerRouter` and `BunHttpServer`.
+- Added Bun/Effect server route handling for:
+  - `/login`, `/callback`, `/logout`, `/forward-login` (Auth0 PKCE + server-side session store)
+  - `/rpc` (Effect RPC web handler + request-context header bridge)
+  - `/webhooks/stripe`
+  - `/qr/registration/:registrationId`
+  - `/healthz`
+  - static browser assets + SSR fallback through `AngularAppEngine`.
+- Added new framework-agnostic server modules:
+  - `src/server/auth/auth-session.ts`
+  - `src/server/context/http-request-context.ts`
+  - `src/server/effect/rpc/app-rpcs.request-handler.ts`
+  - `src/server/http/stripe-webhook.web-handler.ts`
+  - `src/server/http/qr-code.web-handler.ts`
+- Removed Express-bound runtime modules and glue:
+  - `src/server/app.ts`
+  - `src/server/effect/rpc/app-rpcs.express-handler.ts`
+  - `src/server/http/write-web-response.ts`
+  - `src/server/middleware/request-context.ts`
+  - `src/server/middleware/crawler-id.ts`
+  - `src/server/routers/qr-code.router.ts`
+  - `src/server/webhooks/index.ts`
+  - `src/server/webhooks/stripe.ts`
+  - `src/types/express/index.d.ts`
+- Removed Express dependency stack from `package.json`:
+  - `express`, `express-openid-connect`, `express-rate-limit`, `compression`, `cookie-parser`, `helmet`
+  - `@types/express`, `@types/compression`, `@types/cookie-parser`
+
+Validation snapshot for this slice:
+
+- `bunx --bun eslint src/server.ts src/server/auth/auth-session.ts src/server/context/http-request-context.ts src/server/effect/rpc/app-rpcs.request-handler.ts src/server/http/qr-code.web-handler.ts src/server/http/stripe-webhook.web-handler.ts` passes.
+- `bunx --bun tsc -p tsconfig.app.json --noEmit` passes.
+- `bunx --bun tsc -p tsconfig.spec.json --noEmit` passes.
+- `CI=true bun run lint` passes (warnings-only baseline now `43 warnings`, `0 errors`).
+- `CI=true bun run build` passes.
+- `CI=true bun run test` passes (`12 passed`).
+- SSR smoke: `CI=true bun run serve:ssr:evorto` + `curl http://localhost:4200/healthz` passes.

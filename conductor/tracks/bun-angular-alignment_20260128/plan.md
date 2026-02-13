@@ -451,6 +451,14 @@
   - [x] Reuse shared response adapter in RPC Express adapter
   - [x] Commit milestone
 
+- [x] Task: Replace Express server runtime with Effect Platform Bun end-to-end (09f723f)
+  - [x] Define test intent (`bunx --bun eslint` touched server files, `bunx --bun tsc -p tsconfig.app.json --noEmit`, `bunx --bun tsc -p tsconfig.spec.json --noEmit`, `CI=true bun run lint`, `CI=true bun run build`, `CI=true bun run test`, SSR `/healthz` smoke)
+  - [x] Replace `src/server.ts` Node/Express bootstrap with Effect Platform Bun `HttpLayerRouter` runtime wiring
+  - [x] Add Effect/Bun-native route handlers for Auth0 auth/session flow, `/rpc`, `/webhooks/stripe`, `/qr/registration/:registrationId`, static assets, and SSR fallback
+  - [x] Remove remaining Express-only server runtime files and package dependencies
+  - [x] Preserve request-context derivation + RPC context header bridging using framework-agnostic helpers
+  - [x] Commit milestone
+
 - [ ] Task: Conductor - User Manual Verification 'Phase 7'
 
 ## Final Gate
