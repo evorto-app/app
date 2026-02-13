@@ -24,7 +24,7 @@ import { fileURLToPath } from 'node:url';
 
 import { Context } from '../types/custom/context';
 import { getOidcEnvironment } from './config/environment';
-import { handleAppRpcRequest } from './effect/rpc/app-rpcs.web-handler';
+import { handleAppRpcRequest } from './effect/rpc/app-rpcs.express-handler';
 import { addAuthenticationContext } from './middleware/authentication-context';
 import { addTenantContext } from './middleware/tenant-context';
 import { addUserContext } from './middleware/user-context';

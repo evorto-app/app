@@ -189,3 +189,14 @@ Replace Express+tRPC request handling and ad-hoc service wiring with Effect-firs
   - event-organize route discovery now finds accessible organize pages via UI traversal
   - approval/refund flow keeps DB seeding and tolerates empty-pending state in constrained environments
   - targeted finance receipts spec currently passes (`10 passed`) in local-chrome run.
+
+## Phase 7 Update (Express Runtime Decomposition Kickoff)
+
+- Split Effect RPC transport code into:
+  - framework-agnostic web handler (`src/server/effect/rpc/app-rpcs.web-handler.ts`)
+  - Express adapter (`src/server/effect/rpc/app-rpcs.express-handler.ts`)
+- Updated server wiring to use the dedicated adapter from `src/server/app.ts`.
+- Result:
+  - `/rpc` behavior unchanged
+  - middleware-derived auth/user/tenant context bridging remains intact
+  - groundwork laid for replacing Express runtime entry with Effect HTTP server wiring in follow-up slices.

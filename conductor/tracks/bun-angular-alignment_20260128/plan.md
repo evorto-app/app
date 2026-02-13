@@ -413,6 +413,17 @@
 
 - [ ] Task: Conductor - User Manual Verification 'Phase 6'
 
+## Phase 7: Express Runtime Decomposition (Kickoff) [checkpoint: pending]
+
+- [x] Task: Decouple Effect RPC transport from Express request/response adapter (pending commit)
+  - [x] Define test intent (`bunx --bun eslint` on touched server files, `CI=true bun run lint`, `CI=true bun run build`, `CI=true bun run test`)
+  - [x] Extract framework-agnostic RPC Web handler from Express-specific glue code
+  - [x] Keep Express middleware/context bridging isolated in a dedicated adapter module
+  - [x] Preserve `/rpc` runtime behavior and current middleware-derived context headers
+  - [x] Commit milestone
+
+- [ ] Task: Conductor - User Manual Verification 'Phase 7'
+
 ## Final Gate
 
 - [x] Run full quality gates in Bun-first mode (54c27f8)
