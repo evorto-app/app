@@ -204,8 +204,8 @@ export class EventReviewsComponent {
     await this.queryClient.invalidateQueries(
       this.rpc.queryFilter(['events', 'eventList']),
     );
-    await this.queryClient.invalidateQueries({
-      queryKey: this.trpc.events.findOne.pathKey(),
-    });
+    await this.queryClient.invalidateQueries(
+      this.rpc.queryFilter(['events', 'findOne']),
+    );
   }
 }

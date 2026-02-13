@@ -17,6 +17,7 @@ import {
   not,
 } from 'drizzle-orm';
 import { Effect, Schema } from 'effect';
+import { groupBy } from 'es-toolkit';
 import { DateTime } from 'luxon';
 
 import { database } from '../../../db';
@@ -263,6 +264,32 @@ const getEsnCardDiscountedPriceByOptionId = (
 
   return map;
 };
+
+const isEsnCardEnabled = (providers: unknown) => {
+  if (!providers || typeof providers !== 'object') {
+    return false;
+  }
+
+  const esnCard = (
+    providers as {
+      esnCard?: {
+        status?: unknown;
+      };
+    }
+  ).esnCard;
+
+  return esnCard?.status === 'enabled';
+};
+
+const canEditEvent = ({
+  creatorId,
+  permissions,
+  userId,
+}: {
+  creatorId: string;
+  permissions: readonly string[];
+  userId: string;
+}) => creatorId === userId || permissions.includes('events:editAll');
 
 const getFriendlyIconName = (icon: string): Effect.Effect<string, IconRpcError> =>
   Effect.sync(() => icon.split(':')).pipe(
@@ -1061,6 +1088,176 @@ export const appRpcHandlers = AppRpcs.toLayer(
           events,
         }));
       }),
+    'events.findOne': ({ id }, options) =>
+      Effect.gen(function* () {
+        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+        const user = yield* decodeUserHeader(options.headers);
+
+        const rolesToFilterBy =
+          user?.roleIds ??
+          (yield* Effect.promise(() =>
+            database.query.roles
+              .findMany({
+                columns: { id: true },
+                where: {
+                  defaultUserRole: true,
+                  tenantId: tenant.id,
+                },
+              })
+              .then((roleRecords) => roleRecords.map((role) => role.id)),
+          ));
+
+        const event = yield* Effect.promise(() =>
+          database.query.eventInstances.findFirst({
+            where: { id, tenantId: tenant.id },
+            with: {
+              registrationOptions: {
+                where: {
+                  RAW: (table) => arrayOverlaps(table.roleIds, [...rolesToFilterBy]),
+                },
+              },
+              reviewer: {
+                columns: {
+                  firstName: true,
+                  lastName: true,
+                },
+              },
+            },
+          }),
+        );
+        if (!event) {
+          return yield* Effect.fail('NOT_FOUND' as const);
+        }
+
+        const canSeeDrafts = user?.permissions.includes('events:seeDrafts');
+        const canReviewEvents = user?.permissions.includes('events:review');
+        const canEditEvent_ = user
+          ? canEditEvent({
+              creatorId: event.creatorId,
+              permissions: user.permissions,
+              userId: user.id,
+            })
+          : false;
+        if (
+          event.status !== 'APPROVED' &&
+          !canSeeDrafts &&
+          !canReviewEvents &&
+          !canEditEvent_
+        ) {
+          return yield* Effect.fail('NOT_FOUND' as const);
+        }
+
+        const registrationOptionIds = event.registrationOptions.map(
+          (registrationOption) => registrationOption.id,
+        );
+        const optionDiscounts =
+          registrationOptionIds.length === 0
+            ? []
+            : yield* Effect.promise(() =>
+                database
+                  .select()
+                  .from(eventRegistrationOptionDiscounts)
+                  .where(
+                    and(
+                      eq(eventRegistrationOptionDiscounts.discountType, 'esnCard'),
+                      inArray(
+                        eventRegistrationOptionDiscounts.registrationOptionId,
+                        registrationOptionIds,
+                      ),
+                    ),
+                  ),
+              );
+        const esnCardDiscountedPriceByOptionId =
+          getEsnCardDiscountedPriceByOptionId(optionDiscounts);
+
+        const esnCardIsEnabledForTenant = isEsnCardEnabled(
+          tenant.discountProviders ?? null,
+        );
+        let userCanUseEsnCardDiscount = false;
+
+        if (user && esnCardIsEnabledForTenant) {
+          const cards = yield* Effect.promise(() =>
+            database.query.userDiscountCards.findMany({
+              where: {
+                status: 'verified',
+                tenantId: tenant.id,
+                type: 'esnCard',
+                userId: user.id,
+              },
+            }),
+          );
+          userCanUseEsnCardDiscount = cards.some(
+            (card) => !card.validTo || card.validTo > event.start,
+          );
+        }
+
+        return {
+          creatorId: event.creatorId,
+          description: event.description,
+          end: event.end.toISOString(),
+          icon: event.icon,
+          id: event.id,
+          // eslint-disable-next-line unicorn/no-null
+          location: event.location ?? null,
+          registrationOptions: event.registrationOptions.map(
+            (registrationOption) => {
+              const esnCardDiscountedPrice =
+                esnCardDiscountedPriceByOptionId.get(registrationOption.id) ??
+                null;
+              const userIsEligibleForEsnCardDiscount =
+                registrationOption.isPaid &&
+                esnCardDiscountedPrice !== null &&
+                esnCardIsEnabledForTenant &&
+                userCanUseEsnCardDiscount;
+              const effectivePrice = userIsEligibleForEsnCardDiscount
+                ? Math.min(registrationOption.price, esnCardDiscountedPrice)
+                : registrationOption.price;
+              const discountApplied =
+                userIsEligibleForEsnCardDiscount &&
+                effectivePrice < registrationOption.price;
+
+              return {
+                appliedDiscountType: discountApplied
+                  ? ('esnCard' as const)
+                  : null,
+                checkedInSpots: registrationOption.checkedInSpots,
+                closeRegistrationTime:
+                  registrationOption.closeRegistrationTime.toISOString(),
+                confirmedSpots: registrationOption.confirmedSpots,
+                // eslint-disable-next-line unicorn/no-null
+                description: registrationOption.description ?? null,
+                discountApplied,
+                effectivePrice,
+                esnCardDiscountedPrice: discountApplied
+                  ? esnCardDiscountedPrice
+                  : null,
+                eventId: registrationOption.eventId,
+                id: registrationOption.id,
+                isPaid: registrationOption.isPaid,
+                openRegistrationTime:
+                  registrationOption.openRegistrationTime.toISOString(),
+                organizingRegistration: registrationOption.organizingRegistration,
+                price: registrationOption.price,
+                registeredDescription:
+                  registrationOption.registeredDescription ?? null,
+                registrationMode: registrationOption.registrationMode,
+                roleIds: [...registrationOption.roleIds],
+                spots: registrationOption.spots,
+                // eslint-disable-next-line unicorn/no-null
+                stripeTaxRateId: registrationOption.stripeTaxRateId ?? null,
+                title: registrationOption.title,
+              };
+            },
+          ),
+          reviewer: event.reviewer,
+          start: event.start.toISOString(),
+          status: event.status,
+          // eslint-disable-next-line unicorn/no-null
+          statusComment: event.statusComment ?? null,
+          title: event.title,
+          unlisted: event.unlisted,
+        };
+      }),
     'events.findOneForEdit': ({ id }, options) =>
       Effect.gen(function* () {
         yield* ensureAuthenticated(options.headers);
@@ -1148,6 +1345,144 @@ export const appRpcHandlers = AppRpcs.toLayer(
           start: event.start.toISOString(),
           title: event.title,
         };
+      }),
+    'events.getOrganizeOverview': ({ eventId }, options) =>
+      Effect.gen(function* () {
+        yield* ensureAuthenticated(options.headers);
+        const tenant = decodeHeaderJson(options.headers['x-evorto-tenant'], Tenant);
+
+        const registrations = yield* Effect.promise(() =>
+          database.query.eventRegistrations.findMany({
+            where: {
+              eventId,
+              status: 'CONFIRMED',
+              tenantId: tenant.id,
+            },
+            with: {
+              registrationOption: {
+                columns: {
+                  id: true,
+                  organizingRegistration: true,
+                  price: true,
+                  title: true,
+                },
+              },
+              transactions: {
+                columns: {
+                  amount: true,
+                },
+                where: {
+                  type: 'registration',
+                },
+              },
+              user: {
+                columns: {
+                  email: true,
+                  firstName: true,
+                  id: true,
+                  lastName: true,
+                },
+              },
+            },
+          }),
+        );
+        const registrationsWithRelations = registrations.filter(
+          (registration) => registration.registrationOption && registration.user,
+        );
+
+        type Registration = (typeof registrationsWithRelations)[number];
+        const groupedRegistrations = groupBy(
+          registrationsWithRelations,
+          (registration) => registration.registrationOptionId,
+        ) as Record<string, Registration[]>;
+
+        const sortedOptions = (
+          Object.entries(groupedRegistrations) as [string, Registration[]][]
+        ).toSorted(([, registrationsA], [, registrationsB]) => {
+          if (
+            registrationsA[0].registrationOption.organizingRegistration !==
+            registrationsB[0].registrationOption.organizingRegistration
+          ) {
+            return registrationsB[0].registrationOption.organizingRegistration
+              ? 1
+              : -1;
+          }
+
+          return registrationsA[0].registrationOption.title.localeCompare(
+            registrationsB[0].registrationOption.title,
+          );
+        });
+
+        return sortedOptions.map(([registrationOptionId, registrationRows]) => {
+          const sortedUsers = registrationRows
+            .toSorted((registrationA, registrationB) => {
+              if (
+                (registrationA.checkInTime === null) !==
+                (registrationB.checkInTime === null)
+              ) {
+                return registrationA.checkInTime === null ? -1 : 1;
+              }
+
+              const firstNameCompare =
+                registrationA.user.firstName.localeCompare(
+                  registrationB.user.firstName,
+                );
+              if (firstNameCompare !== 0) {
+                return firstNameCompare;
+              }
+
+              return registrationA.user.lastName.localeCompare(
+                registrationB.user.lastName,
+              );
+            })
+            .map((registration) => {
+              const registrationOption = registration.registrationOption;
+              const discountedPriceFromTransaction =
+                registration.transactions.find(
+                  (transaction) =>
+                    transaction.amount < registrationOption.price,
+                )?.amount;
+              const appliedDiscountedPrice =
+                registration.appliedDiscountedPrice ??
+                discountedPriceFromTransaction ??
+                null;
+              const appliedDiscountType =
+                registration.appliedDiscountType ??
+                (appliedDiscountedPrice === null ? null : ('esnCard' as const));
+              const basePriceAtRegistration =
+                registration.basePriceAtRegistration ??
+                (appliedDiscountedPrice === null
+                  ? null
+                  : registrationOption.price);
+              const discountAmount =
+                registration.discountAmount ??
+                (appliedDiscountedPrice === null
+                  ? null
+                  : registrationOption.price - appliedDiscountedPrice);
+
+              return {
+                appliedDiscountedPrice,
+                appliedDiscountType,
+                basePriceAtRegistration,
+                checkedIn: registration.checkInTime !== null,
+                // eslint-disable-next-line unicorn/no-null
+                checkInTime: registration.checkInTime?.toISOString() ?? null,
+                discountAmount,
+                email: registration.user.email,
+                firstName: registration.user.firstName,
+                lastName: registration.user.lastName,
+                userId: registration.user.id,
+              };
+            });
+
+          return {
+            organizingRegistration:
+              registrationRows[0].registrationOption.organizingRegistration,
+            registrationOptionId,
+            registrationOptionTitle: registrationRows[0].registrationOption.title,
+            users: sortedUsers,
+          };
+        });
       }),
     'events.getPendingReviews': (_payload, options) =>
       Effect.gen(function* () {

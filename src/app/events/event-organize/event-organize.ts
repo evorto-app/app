@@ -26,6 +26,7 @@ import {
 import { firstValueFrom } from 'rxjs';
 
 import { ConfigService } from '../../core/config.service';
+import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { NotificationService } from '../../core/notification.service';
 import { injectTRPC } from '../../core/trpc-client';
 import {
@@ -50,14 +51,14 @@ import {
 export class EventOrganize {
   eventId = input.required<string>();
 
-  private readonly trpc = injectTRPC();
+  private readonly rpc = AppRpc.injectClient();
   protected readonly eventQuery = injectQuery(() =>
-    this.trpc.events.findOne.queryOptions({ id: this.eventId() }),
+    this.rpc.events.findOne.queryOptions({ id: this.eventId() }),
   );
   protected readonly event = computed(() => this.eventQuery.data());
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly organizerOverviewQuery = injectQuery(() =>
-    this.trpc.events.getOrganizeOverview.queryOptions({
+    this.rpc.events.getOrganizeOverview.queryOptions({
       eventId: this.eventId(),
     }),
   );
@@ -81,6 +82,7 @@ export class EventOrganize {
         ...registrationOption.users,
       ]);
   });
+  private readonly trpc = injectTRPC();
   protected readonly receiptsByEventQuery = injectQuery(() =>
     this.trpc.finance.receipts.byEvent.queryOptions({
       eventId: this.eventId(),

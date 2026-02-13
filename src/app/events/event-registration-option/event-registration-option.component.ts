@@ -28,7 +28,7 @@ import { injectTRPC } from '../../core/trpc-client';
 export class EventRegistrationOptionComponent {
   public readonly registrationOption = input.required<{
     appliedDiscountType?: 'esnCard' | null;
-    closeRegistrationTime: Date;
+    closeRegistrationTime: string;
     description: null | string;
     discountApplied?: boolean;
     effectivePrice?: number;
@@ -36,7 +36,7 @@ export class EventRegistrationOptionComponent {
     eventId: string;
     id: string;
     isPaid: boolean;
-    openRegistrationTime: Date;
+    openRegistrationTime: string;
     price: number;
     title: string;
   }>();
@@ -64,10 +64,10 @@ export class EventRegistrationOptionComponent {
   protected registrationOpen = computed(() => {
     const currentTime = this.currentTime();
     const registrationOption = this.registrationOption();
-    if (registrationOption.openRegistrationTime > currentTime) {
+    if (new Date(registrationOption.openRegistrationTime) > currentTime) {
       return 'tooEarly';
     }
-    if (registrationOption.closeRegistrationTime < currentTime) {
+    if (new Date(registrationOption.closeRegistrationTime) < currentTime) {
       return 'tooLate';
     }
     return 'open';

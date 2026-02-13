@@ -564,6 +564,94 @@ export const EventsFindOneForEdit = asRpcQuery(
   }),
 );
 
+export const EventsFindOneRpcError = Schema.Literal('NOT_FOUND');
+
+export type EventsFindOneRpcError = Schema.Schema.Type<
+  typeof EventsFindOneRpcError
+>;
+
+export const EventsFindOneRegistrationOption = Schema.Struct({
+  appliedDiscountType: Schema.NullOr(Schema.Literal('esnCard')),
+  checkedInSpots: Schema.Number,
+  closeRegistrationTime: Schema.NonEmptyString,
+  confirmedSpots: Schema.Number,
+  description: Schema.NullOr(Schema.String),
+  discountApplied: Schema.Boolean,
+  effectivePrice: Schema.Number,
+  esnCardDiscountedPrice: Schema.NullOr(Schema.Number),
+  eventId: Schema.NonEmptyString,
+  id: Schema.NonEmptyString,
+  isPaid: Schema.Boolean,
+  openRegistrationTime: Schema.NonEmptyString,
+  organizingRegistration: Schema.Boolean,
+  price: Schema.Number,
+  registeredDescription: Schema.NullOr(Schema.String),
+  registrationMode: EventsFindOneForEditRegistrationMode,
+  roleIds: Schema.Array(Schema.NonEmptyString),
+  spots: Schema.Number,
+  stripeTaxRateId: Schema.NullOr(Schema.String),
+  title: Schema.NonEmptyString,
+});
+
+export const EventsFindOne = asRpcQuery(
+  Rpc.make('events.findOne', {
+    error: EventsFindOneRpcError,
+    payload: Schema.Struct({
+      id: Schema.NonEmptyString,
+    }),
+    success: Schema.Struct({
+      creatorId: Schema.NonEmptyString,
+      description: Schema.NonEmptyString,
+      end: Schema.NonEmptyString,
+      icon: iconSchema,
+      id: Schema.NonEmptyString,
+      location: Schema.NullOr(Schema.Any),
+      registrationOptions: Schema.Array(EventsFindOneRegistrationOption),
+      reviewer: Schema.NullOr(
+        Schema.Struct({
+          firstName: Schema.String,
+          lastName: Schema.String,
+        }),
+      ),
+      start: Schema.NonEmptyString,
+      status: EventReviewStatus,
+      statusComment: Schema.NullOr(Schema.String),
+      title: Schema.NonEmptyString,
+      unlisted: Schema.Boolean,
+    }),
+  }),
+);
+
+export const EventsGetOrganizeOverviewUser = Schema.Struct({
+  appliedDiscountedPrice: Schema.NullOr(Schema.Number),
+  appliedDiscountType: Schema.NullOr(Schema.Literal('esnCard')),
+  basePriceAtRegistration: Schema.NullOr(Schema.Number),
+  checkedIn: Schema.Boolean,
+  checkInTime: Schema.NullOr(Schema.String),
+  discountAmount: Schema.NullOr(Schema.Number),
+  email: Schema.NonEmptyString,
+  firstName: Schema.NonEmptyString,
+  lastName: Schema.NonEmptyString,
+  userId: Schema.NonEmptyString,
+});
+
+export const EventsGetOrganizeOverviewOption = Schema.Struct({
+  organizingRegistration: Schema.Boolean,
+  registrationOptionId: Schema.NonEmptyString,
+  registrationOptionTitle: Schema.NonEmptyString,
+  users: Schema.Array(EventsGetOrganizeOverviewUser),
+});
+
+export const EventsGetOrganizeOverview = asRpcQuery(
+  Rpc.make('events.getOrganizeOverview', {
+    error: EventsRpcError,
+    payload: Schema.Struct({
+      eventId: Schema.NonEmptyString,
+    }),
+    success: Schema.Array(EventsGetOrganizeOverviewOption),
+  }),
+);
+
 export const EventsRegistrationStatusRecord = Schema.Struct({
   appliedDiscountedPrice: Schema.optional(Schema.NullOr(Schema.Number)),
   appliedDiscountType: Schema.optional(Schema.NullOr(Schema.Literal('esnCard'))),
@@ -891,7 +979,9 @@ export class AppRpcs extends RpcGroup.make(
   EditorMediaCreateImageDirectUpload,
   EventsCanOrganize,
   EventsEventList,
+  EventsFindOne,
   EventsFindOneForEdit,
+  EventsGetOrganizeOverview,
   EventsGetPendingReviews,
   EventsGetRegistrationStatus,
   GlobalAdminTenantsFindMany,

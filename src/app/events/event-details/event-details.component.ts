@@ -75,11 +75,10 @@ import { UpdateVisibilityDialogComponent } from '../update-visibility-dialog/upd
 })
 export class EventDetailsComponent {
   public eventId = input.required<string>();
-  private trpc = injectTRPC();
-  protected readonly eventQuery = injectQuery(() =>
-    this.trpc.events.findOne.queryOptions({ id: this.eventId() }),
-  );
   private readonly rpc = AppRpc.injectClient();
+  protected readonly eventQuery = injectQuery(() =>
+    this.rpc.events.findOne.queryOptions({ id: this.eventId() }),
+  );
   protected readonly selfQery = injectQuery(() =>
     this.rpc.users.maybeSelf.queryOptions(),
   );
@@ -118,7 +117,6 @@ export class EventDetailsComponent {
     this.rpc.discounts.getMyCards.queryOptions(),
   );
   private readonly config = inject(ConfigService);
-
   protected readonly cardExpiresBeforeEvent = computed(() => {
     const esnCardEnabled =
       this.config.tenant.discountProviders?.esnCard?.status === 'enabled';
@@ -133,8 +131,9 @@ export class EventDetailsComponent {
       .filter((date): date is Date => !!date && !Number.isNaN(date.getTime()))
       .toSorted((a, b) => b.getTime() - a.getTime())[0];
     if (!latestValidTo) return false;
-    return latestValidTo <= event.start;
+    return latestValidTo <= new Date(event.start);
   });
+
   protected readonly eventIconColor = computed(() => {
     const event = this.eventQuery.data();
     if (!event) {
@@ -149,12 +148,13 @@ export class EventDetailsComponent {
       eventId: this.eventId(),
     }),
   );
+  protected readonly trpc = injectTRPC();
   private queryClient = inject(QueryClient);
   protected readonly reviewMutation = injectMutation(() =>
     this.trpc.events.reviewEvent.mutationOptions({
       onSuccess: async () => {
         await this.queryClient.invalidateQueries({
-          queryKey: this.trpc.events.findOne.queryKey({ id: this.eventId() }),
+          queryKey: this.rpc.events.findOne.queryKey({ id: this.eventId() }),
         });
         await this.queryClient.invalidateQueries(
           this.rpc.queryFilter(['events', 'eventList']),
@@ -172,7 +172,7 @@ export class EventDetailsComponent {
     this.trpc.events.submitForReview.mutationOptions({
       onSuccess: async () => {
         await this.queryClient.invalidateQueries({
-          queryKey: this.trpc.events.findOne.queryKey({ id: this.eventId() }),
+          queryKey: this.rpc.events.findOne.queryKey({ id: this.eventId() }),
         });
         await this.queryClient.invalidateQueries(
           this.rpc.queryFilter(['events', 'eventList']),
@@ -187,7 +187,7 @@ export class EventDetailsComponent {
     this.trpc.events.updateListing.mutationOptions({
       onSuccess: async () => {
         await this.queryClient.invalidateQueries({
-          queryKey: this.trpc.events.findOne.queryKey({ id: this.eventId() }),
+          queryKey: this.rpc.events.findOne.queryKey({ id: this.eventId() }),
         });
         await this.queryClient.invalidateQueries(
           this.rpc.queryFilter(['events', 'eventList']),
@@ -297,7 +297,7 @@ export class EventDetailsComponent {
 
   private async refreshReviewState(): Promise<void> {
     await this.queryClient.invalidateQueries({
-      queryKey: this.trpc.events.findOne.queryKey({ id: this.eventId() }),
+      queryKey: this.rpc.events.findOne.queryKey({ id: this.eventId() }),
     });
     await this.queryClient.invalidateQueries({
       queryKey: this.trpc.events.findMany.pathKey(),
