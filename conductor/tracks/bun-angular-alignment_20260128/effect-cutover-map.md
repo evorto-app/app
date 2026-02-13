@@ -135,3 +135,28 @@ Replace Express+tRPC request handling and ad-hoc service wiring with Effect-firs
   - `src/server/trpc/users/users.router.ts`
   - `src/server/trpc/global-admin/global-admin.router.ts`
   - `src/server/trpc/global-admin/tenant.router.ts`
+
+## Phase 6 Update (Finance Router Decommission)
+
+- Migrated finance procedures to Effect RPC:
+  - `finance.receiptMedia.uploadOriginal`
+  - `finance.receipts.byEvent`
+  - `finance.receipts.createRefund`
+  - `finance.receipts.findOneForApproval`
+  - `finance.receipts.my`
+  - `finance.receipts.pendingApprovalGrouped`
+  - `finance.receipts.refundableGroupedByRecipient`
+  - `finance.receipts.review`
+  - `finance.receipts.submit`
+  - `finance.transactions.findMany`
+- Updated Angular callsites to `AppRpc` helpers in:
+  - `event-organize`
+  - `user-profile`
+  - `receipt-approval-list`
+  - `receipt-approval-detail`
+  - `receipt-refund-list`
+  - `transaction-list`
+- Removed tRPC `finance` namespace composition from `src/server/trpc/app-router.ts`.
+- Deleted obsolete files:
+  - `src/server/trpc/finance/finance.router.ts`
+  - `src/server/trpc/finance/receipt-media.router.ts`

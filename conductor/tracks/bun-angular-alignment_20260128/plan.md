@@ -389,6 +389,13 @@
   - [x] Delete obsolete router files under `src/server/trpc/users/**` and `src/server/trpc/global-admin/**`
   - [x] Commit milestone
 
+- [x] Task: Migrate finance receipt/transaction procedures from tRPC to Effect RPC slice (3e4b3ea)
+  - [x] Define test intent (`CI=true bun run lint`, `CI=true bun run build`, `CI=true bun run test`)
+  - [x] Add shared Effect RPC contracts + handlers for finance receipts/receipt-media/transactions flows
+  - [x] Replace finance callsites (`event-organize`, `profile`, `receipt-approval-*`, `receipt-refund-list`, `transaction-list`) with `AppRpc` query/mutation helpers
+  - [x] Decommission legacy tRPC `finance` namespace from app router composition and delete obsolete finance router files
+  - [x] Commit milestone
+
 - [ ] Task: Conductor - User Manual Verification 'Phase 6'
 
 ## Final Gate
@@ -569,6 +576,9 @@
 - `CI=true bun run lint` passes after decommissioning unused tRPC `users` + `globalAdmin` namespaces (warnings-only baseline unchanged).
 - `CI=true bun run build` passes after decommissioning unused tRPC `users` + `globalAdmin` namespaces.
 - `CI=true bun run test` passes after decommissioning unused tRPC `users` + `globalAdmin` namespaces (`12 passed`).
+- `CI=true bun run lint` passes after finance Effect RPC cutover + tRPC finance router removal (warnings-only baseline: `45 warnings`, `0 errors`).
+- `CI=true bun run build` passes after finance Effect RPC cutover + tRPC finance router removal.
+- `CI=true bun run test` passes after finance Effect RPC cutover + tRPC finance router removal (`12 passed`).
 
 ## Session Handoff
 
