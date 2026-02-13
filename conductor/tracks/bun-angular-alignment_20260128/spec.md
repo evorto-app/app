@@ -278,6 +278,13 @@ The migration mode is explicitly non-backward-compatible. We optimize for a clea
   - `CI=true bun run lint` (warnings-only baseline unchanged)
   - `CI=true bun run build`
   - `CI=true bun run test` (`12 passed`)
+- Effect RPC `events.create` + `events.update` migration validation:
+  - `bunx --bun eslint src/shared/rpc-contracts/app-rpcs.ts src/server/effect/rpc/app-rpcs.handlers.ts src/server/trpc/events/events.router.ts src/app/events/event-edit/event-edit.ts src/app/templates/template-create-event/template-create-event.component.ts`
+  - `bunx --bun tsc -p tsconfig.app.json --noEmit`
+  - `bunx --bun tsc -p tsconfig.spec.json --noEmit`
+  - `CI=true bun run lint` (warnings-only baseline unchanged)
+  - `CI=true bun run build`
+  - `CI=true bun run test` (`12 passed`)
 
 ## Out of Scope (for this track phase)
 
