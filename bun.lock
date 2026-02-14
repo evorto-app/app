@@ -52,6 +52,7 @@
         "effect": "^3.19.16",
         "es-toolkit": "^1.44.0",
         "html-to-text": "^9.0.5",
+        "@heddendorp/effect-platform-angular": "https://registry.npmjs.org/@heddendorp/effect-platform-angular/-/effect-platform-angular-0.0.7.tgz",
         "inter-ui": "^4.1.1",
         "luxon": "^3.7.2",
         "marked": "^17.0.1",
@@ -406,6 +407,8 @@
     "@googlemaps/js-api-loader": ["@googlemaps/js-api-loader@2.0.2", "", { "dependencies": { "@types/google.maps": "^3.53.1" } }, "sha512-bKVuTqatS8Jven5aFqVB7rCHF1VFEzpzyi0ruzO0GUR+A7m9oMqMgtnmpANj7kMYEvvhty8Fk7TnJ1MKjWHu+Q=="],
 
     "@heddendorp/effect-angular-query": ["@heddendorp/effect-angular-query@0.1.1", "", { "dependencies": { "tslib": "^2.3.0" }, "peerDependencies": { "@angular/common": "^21.1.0", "@angular/core": "^21.1.0", "@effect/rpc": "^0.73.0", "@tanstack/angular-query-experimental": "^5.90.25", "effect": "^3.19.15" } }, "sha512-6XpzXo7/Qw84djUlMgAb8vv0ssf+rpiwb9rvg89iqcAqhf9gAR0FRUzEEjSEjHjvVqxothBV4NDwkdidhcfIkA=="],
+
+    "@heddendorp/effect-platform-angular": ["@heddendorp/effect-platform-angular@https://registry.npmjs.org/@heddendorp/effect-platform-angular/-/effect-platform-angular-0.0.7.tgz", { "dependencies": { "tslib": "^2.3.0" }, "peerDependencies": { "@angular/common": "^21.1.0", "@angular/core": "^21.1.0", "@effect/platform": "^0.94.2", "effect": "^3.19.15" } }],
 
     "@hono/node-server": ["@hono/node-server@1.19.9", "", { "peerDependencies": { "hono": "^4" } }, "sha512-vHL6w3ecZsky+8P5MD+eFfaGTyCeOHUIFYMGpQGbrBTSmNNoxv0if69rEZ5giu36weC5saFuznL411gRX7bJDw=="],
 

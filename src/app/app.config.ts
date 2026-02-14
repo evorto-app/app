@@ -26,6 +26,10 @@ import {
   withRouterConfig,
   withViewTransitions,
 } from '@angular/router';
+import {
+  provideEffectHttpClient,
+  provideEffectRpcProtocolHttpLayer,
+} from '@heddendorp/effect-platform-angular';
 import * as Sentry from '@sentry/angular';
 import {
   provideTanStackQuery,
@@ -36,7 +40,7 @@ import { withDevtools } from '@tanstack/angular-query-experimental/devtools';
 import { routes } from './app.routes';
 import { authTokenInterceptor } from './core/auth-token.interceptor';
 import { ConfigService } from './core/config.service';
-import { AppRpc } from './core/effect-rpc-angular-client';
+import { AppRpc, resolveRpcUrl } from './core/effect-rpc-angular-client';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -49,6 +53,8 @@ export const appConfig: ApplicationConfig = {
       withRouterConfig({ paramsInheritanceStrategy: 'always' }),
     ),
     provideHttpClient(withFetch(), withInterceptors([authTokenInterceptor])),
+    provideEffectHttpClient(),
+    provideEffectRpcProtocolHttpLayer({ url: resolveRpcUrl }),
     provideClientHydration(withEventReplay()),
     // Enable TanStack Query devtools only in dev mode
     provideTanStackQuery(

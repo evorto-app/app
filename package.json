@@ -58,6 +58,7 @@
     "@fortawesome/free-brands-svg-icons": "^7.1.0",
     "@googlemaps/js-api-loader": "^2.0.2",
     "@heddendorp/effect-angular-query": "0.1.1",
+    "@heddendorp/effect-platform-angular": "https://registry.npmjs.org/@heddendorp/effect-platform-angular/-/effect-platform-angular-0.0.7.tgz",
     "@material/material-color-utilities": "0.4.0",
     "@neondatabase/serverless": "^1.0.2",
     "@ng-web-apis/common": "^5.1.0",

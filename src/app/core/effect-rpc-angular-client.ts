@@ -1,8 +1,17 @@
-import { FetchHttpClient } from '@effect/platform';
-import * as RpcClient from '@effect/rpc/RpcClient';
-import * as RpcSerialization from '@effect/rpc/RpcSerialization';
+import type * as RpcClient from '@effect/rpc/RpcClient';
+import type * as Layer from 'effect/Layer';
+
+import {
+  createEnvironmentInjector,
+  DestroyRef,
+  EnvironmentInjector,
+  inject,
+  InjectionToken,
+  makeEnvironmentProviders,
+  runInInjectionContext,
+} from '@angular/core';
 import { createEffectRpcAngularClient } from '@heddendorp/effect-angular-query';
-import { Layer } from 'effect';
+import { EFFECT_RPC_PROTOCOL_HTTP_LAYER } from '@heddendorp/effect-platform-angular';
 
 import { AppRpcs } from '../../shared/rpc-contracts/app-rpcs';
 
@@ -29,14 +38,43 @@ const resolveServerBaseUrl = (): string => {
 export const resolveRpcUrl = (): string =>
   'window' in globalThis ? '/rpc' : `${resolveServerBaseUrl()}/rpc`;
 
-const effectRpcLayer = RpcClient.layerProtocolHttp({
-  url: resolveRpcUrl(),
-}).pipe(Layer.provide([RpcSerialization.layerJson, FetchHttpClient.layer]));
+const createAppRpcFactory = (
+  rpcLayer: Layer.Layer<RpcClient.Protocol, never, never>,
+) =>
+  createEffectRpcAngularClient({
+    group: AppRpcs,
+    keyPrefix: 'rpc',
+    mutationDefaults: {},
+    queryDefaults: {},
+    rpcLayer,
+  });
 
-export const AppRpc = createEffectRpcAngularClient({
-  group: AppRpcs,
-  keyPrefix: 'rpc',
-  mutationDefaults: {},
-  queryDefaults: {},
-  rpcLayer: effectRpcLayer,
-});
+type AppRpcClient = ReturnType<ReturnType<typeof createAppRpcFactory>['injectClient']>;
+
+const APP_RPC_CLIENT = new InjectionToken<AppRpcClient>('APP_RPC_CLIENT');
+
+const createAppRpcClient = (): AppRpcClient => {
+  const rpcLayer = inject(EFFECT_RPC_PROTOCOL_HTTP_LAYER);
+  const environmentInjector = inject(EnvironmentInjector);
+  const destroyReference = inject(DestroyRef);
+
+  const appRpcFactory = createAppRpcFactory(rpcLayer);
+
+  const scopedInjector = createEnvironmentInjector(
+    [appRpcFactory.providers],
+    environmentInjector,
+  );
+  destroyReference.onDestroy(() => scopedInjector.destroy());
+
+  return runInInjectionContext(scopedInjector, () => appRpcFactory.injectClient());
+};
+
+export const AppRpc = {
+  injectClient: (): AppRpcClient => inject(APP_RPC_CLIENT),
+  providers: makeEnvironmentProviders([
+    {
+      provide: APP_RPC_CLIENT,
+      useFactory: createAppRpcClient,
+    },
+  ]),
+} as const;

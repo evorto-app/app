@@ -4,6 +4,7 @@ This file tracks migration items that need another pass before final closure.
 
 ## Open Items
 
+- [ ] Resolve Bun package-manager hang when adding/installing dependencies (`bun add` / `bun install` stalls at `Resolving dependencies` in this workspace); once fixed, regenerate and commit a Bun-managed lockfile update for recent dependency additions.
 - [ ] Resolve remaining docs failures after runtime fixes:
   - `tests/docs/finance/inclusive-tax-rates.doc.ts` (`Tax rate` combobox not found in organizer section during template edit)
   - `tests/docs/profile/discounts.doc.ts` (`Discounts` section button not found in profile navigation)
@@ -17,6 +18,7 @@ This file tracks migration items that need another pass before final closure.
 
 ## Recently Closed
 
+- 2026-02-14: integrated `@heddendorp/effect-platform-angular@0.0.7` transport wiring into app bootstrap and RPC client creation (`provideEffectHttpClient`, `provideEffectRpcProtocolHttpLayer`, DI-backed `AppRpc` bridge preserving existing `AppRpc.injectClient()` call sites).
 - 2026-02-14: normalized package script naming to namespaced groups (`dev:*`, `build:*`, `test:*`, `db:*`, `ops:*`, `ui:*`) and aligned active docs/config workflow references.
 - 2026-02-13: replaced custom auth/session crypto implementation with `@auth0/auth0-server-js` (`ServerClient`, `CookieTransactionStore`, `StatelessStateStore`) integrated via Effect HTTP cookie mutation bridge.
 - 2026-02-13: aligned session model with prior Auth0 behavior by switching to stateless encrypted `appSession` cookie payloads (no server-side session key-value entries).
