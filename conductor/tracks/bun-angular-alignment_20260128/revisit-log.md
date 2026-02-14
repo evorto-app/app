@@ -17,6 +17,7 @@ This file tracks migration items that need another pass before final closure.
 
 ## Recently Closed
 
+- 2026-02-14: normalized package script naming to namespaced groups (`dev:*`, `build:*`, `test:*`, `db:*`, `ops:*`, `ui:*`) and aligned active docs/config workflow references.
 - 2026-02-13: replaced custom auth/session crypto implementation with `@auth0/auth0-server-js` (`ServerClient`, `CookieTransactionStore`, `StatelessStateStore`) integrated via Effect HTTP cookie mutation bridge.
 - 2026-02-13: aligned session model with prior Auth0 behavior by switching to stateless encrypted `appSession` cookie payloads (no server-side session key-value entries).
 - 2026-02-13: restored SSR fallback for wildcard `GET` requests in Bun/Effect runtime so `/` and route misses no longer return framework `404`.

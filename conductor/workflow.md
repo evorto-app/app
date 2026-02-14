@@ -104,10 +104,10 @@ All tasks follow a strict lifecycle:
 
 Before marking any task complete, verify:
 
-- [ ] `bun run lint` passes
-- [ ] `bun run build` passes
-- [ ] `bun run e2e` passes (or targeted project)
-- [ ] `bun run e2e:docs` passes
+- [ ] `bun run lint:check` passes
+- [ ] `bun run build:app` passes
+- [ ] `bun run test:e2e` passes (or targeted project)
+- [ ] `bun run test:e2e:docs` passes
 - [ ] Documentation updated if needed
 - [ ] Type safety is enforced
 - [ ] No linting/static analysis errors
@@ -119,26 +119,26 @@ Before marking any task complete, verify:
 
 ```bash
 bun install
-bun run setup:database
+bun run db:setup
 ```
 
 ### Daily Development
 
 ```bash
-bun run start
-bun run lint
-bun run build
-bun run e2e
-bun run e2e:docs
+bun run dev:start
+bun run lint:check
+bun run build:app
+bun run test:e2e
+bun run test:e2e:docs
 ```
 
 ### Before Committing
 
 ```bash
-bun run lint
-bun run build
-bun run e2e
-bun run e2e:docs
+bun run lint:check
+bun run build:app
+bun run test:e2e
+bun run test:e2e:docs
 ```
 
 ## Testing Requirements

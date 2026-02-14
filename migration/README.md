@@ -38,14 +38,14 @@ Running
 
 ```bash
 # Typical per‑feature import for local tenant without resetting DB
-MIGRATE_TENANTS="tumi:localhost" MIGRATE_FEATURES="users,tenants,roles,assignments" bun run migrate
+MIGRATE_TENANTS="tumi:localhost" MIGRATE_FEATURES="users,tenants,roles,assignments" bun run db:migrate
 
 # Clean reimport (use with care)
-MIGRATION_CLEAR_DB=true bun run migrate
+MIGRATION_CLEAR_DB=true bun run db:migrate
 
 # Final one‑go migration (example)
 MIGRATION_CLEAR_DB=true MIGRATION_ALLOW_REUSE_TENANT=false \
-  MIGRATE_TENANTS="tumi:your-domain" bun run migrate
+  MIGRATE_TENANTS="tumi:your-domain" bun run db:migrate
 ```
 
 Notes

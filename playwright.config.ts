@@ -9,7 +9,7 @@ const environment = validatePlaywrightEnvironment();
 const webServer = environment.NO_WEBSERVER
   ? undefined
   : ({
-      command: 'bun run docker:start-test',
+      command: 'bun run docker:start:test',
       reuseExistingServer: true,
       timeout: 240_000,
       url: environment.PLAYWRIGHT_TEST_BASE_URL ?? environment.BASE_URL,

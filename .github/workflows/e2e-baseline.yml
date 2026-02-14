@@ -102,10 +102,10 @@ jobs:
         run: docker compose build --pull
 
       # Functional tests (keep scope minimal for CI speed). The Playwright webServer will
-      # start Docker services via `bun run docker:start-test` from playwright.config.ts.
+      # start Docker services via `bun run docker:start:test` from playwright.config.ts.
       - name: Run functional tests (chromium only)
         run: |
-          bun run e2e --project=local-chrome
+          bun run test:e2e --project=local-chrome
 
       # Documentation tests: exclude @finance tagged journeys and force the documentation reporter
       # even on CI by overriding reporters via CLI.

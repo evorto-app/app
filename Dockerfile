@@ -25,12 +25,12 @@ COPY  package.json bun.lock .npmrc ./
 COPY patches/@material-material-color-utilities-npm-0.4.0-9d48ca70b8.patch patches/@material-material-color-utilities-npm-0.4.0-9d48ca70b8.patch
 RUN bun install --frozen-lockfile
 COPY . .
-RUN bun run build
+RUN bun run build:app
 RUN --mount=type=secret,id=SENTRY_AUTH_TOKEN,mode=0444,required=false \
     if [ -f /run/secrets/SENTRY_AUTH_TOKEN ]; then \
         export SENTRY_AUTH_TOKEN="$(cat /run/secrets/SENTRY_AUTH_TOKEN)"; \
         if [ -n "$SENTRY_AUTH_TOKEN" ]; then \
-            bun run sentry:sourcemaps; \
+            bun run ops:sentry:sourcemaps; \
         fi; \
     fi
 

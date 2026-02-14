@@ -11,23 +11,23 @@
 
 ## Build, Test, and Development Commands
 
-- `bun run start` — Run Angular dev server at `http://localhost:4200`.
-- `bun run build` — Build client + server bundles (Angular 21 + SSR).
-- `bun run serve:ssr:evorto` — Serve the built SSR server (`dist/evorto/server/server.mjs`).
-- `bun run test` — Run unit tests (Jasmine/Karma).
-- `bun run e2e` — Run Playwright e2e; use `bun run e2e:ui` for the UI runner.
-- `bun run lint` / `bun run lint:fix` — Lint TypeScript/HTML; autofix issues.
-- `bun run format` — Format with Prettier (+ Tailwind plugin).
+- `bun run dev:start` — Run Angular dev server at `http://localhost:4200`.
+- `bun run build:app` — Build client + server bundles (Angular 21 + SSR).
+- `bun run serve:ssr` — Serve the built SSR server (`dist/evorto/server/server.mjs`).
+- `bun run test:unit` — Run unit tests (Jasmine/Karma).
+- `bun run test:e2e` — Run Playwright e2e; use `bun run test:e2e:ui` for the UI runner.
+- `bun run lint:check` / `bun run lint:fix` — Lint TypeScript/HTML; autofix issues.
+- `bun run format:write` — Format with Prettier (+ Tailwind plugin).
 - `bun run docker:start` — Start local services via Docker Compose; `bun run docker:stop` to stop.
-- Database: `bun run migrate`, `bun run push:database`, `bun run setup:database`, `bun run reset:database`.
+- Database: `bun run db:migrate`, `bun run db:push`, `bun run db:setup`, `bun run db:reset`.
 
 ## Coding Style & Naming Conventions
 
 - TypeScript strict mode and Angular strict templates are enforced (see `tsconfig.json`).
 - Use standalone components, typed forms, and modern control-flow.
 - Indentation: 2 spaces; filenames `kebab-case.ts`; symbols `camelCase` (vars), `PascalCase` (components/types).
-- Run `bun run lint:fix` and `bun run format` before committing.
-- Always run `bun run lint:fix` before `bun run lint` to avoid iterating on issues that are auto-fixable.
+- Run `bun run lint:fix` and `bun run format:write` before committing.
+- Always run `bun run lint:fix` before `bun run lint:check` to avoid iterating on issues that are auto-fixable.
 - Prefer path aliases: `@app/*`, `@server/*`, `@db/*`, `@shared/*`, `@types/*`.
 
 ### Type Safety (Always Full Types)
@@ -59,7 +59,7 @@
 ## Testing Guidelines
 
 - Unit: place `*.spec.ts` next to the unit under test. Keep tests deterministic and fast.
-- E2E: author Playwright tests in `tests/**` (docs in `tests/docs/**`); use `bun run e2e:ui` to debug; attach screenshots for UI changes. Legacy `e2e/**` is reference only.
+- E2E: author Playwright tests in `tests/**` (docs in `tests/docs/**`); use `bun run test:e2e:ui` to debug; attach screenshots for UI changes. Legacy `e2e/**` is reference only.
 
 ## Research Before You Code
 
@@ -82,7 +82,7 @@
 
 ## Security & Configuration
 
-- Copy environment from `.env`/`.env.local`; never commit secrets. Stripe/Sentry helpers exist (`stripe:listen`, `sentry:sourcemaps`).
+- Copy environment from `.env`/`.env.local`; never commit secrets. Stripe/Sentry helpers exist (`ops:stripe:listen`, `ops:sentry:sourcemaps`).
 - Bun loads `.env.local` and `.env` automatically. In CI, write explicit `.env`/`.env.ci` files in workflow steps as needed instead of adding runtime `dotenv` loading in code.
 - When touching DB schema, include migration steps and local verification notes.
 
@@ -107,12 +107,12 @@
 ## Documentation Tests & PR Previews
 
 - Every feature must include `.doc.ts` documentation tests that generate the relevant user-facing documentation updates.
-- Run `bun run e2e:docs` (or targeted doc test commands) during implementation to refresh the generated docs.
+- Run `bun run test:e2e:docs` (or targeted doc test commands) during implementation to refresh the generated docs.
 - Capture a preview of the generated documentation (screenshot or rendered markdown snippet) and attach it to the feature PR so reviewers can validate content.
 
 ## Playwright Learnings
 
-- Playwright runs against a Docker web server (`bun run docker:start-test`) with `reuseExistingServer: true`. If UI changes are not picked up in tests, restart containers (`bun run docker:stop`) before rerunning `bun run e2e` to rebuild and reload the app.
-- If auth/setup tests time out unexpectedly, ensure the database was reset and re-seeded before running Playwright (for example `bun run setup:database` or a full test-environment reset) so setup fixtures don't use stale state.
+- Playwright runs against a Docker web server (`bun run docker:start:test`) with `reuseExistingServer: true`. If UI changes are not picked up in tests, restart containers (`bun run docker:stop`) before rerunning `bun run test:e2e` to rebuild and reload the app.
+- If auth/setup tests time out unexpectedly, ensure the database was reset and re-seeded before running Playwright (for example `bun run db:setup` or a full test-environment reset) so setup fixtures don't use stale state.
 - `events.create` rejects empty strings for optional fields. Normalize empty string optional fields (like descriptions or tax rate ids) to `null` before submitting.
 - Test seeding logs are noisy; `tests/setup/database.setup.ts` sets `consola.level = 4` to keep Playwright output quiet. Local dev seeding stays verbose.

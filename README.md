@@ -18,7 +18,7 @@ We use Knope for release notes.
 To start a local development server, run:
 
 ```bash
-bun run start
+bun run dev:start
 ```
 
 Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
@@ -28,13 +28,13 @@ Once the server is running, open your browser and navigate to `http://localhost:
 Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
 
 ```bash
-bun run ng generate component component-name
+bun run dev:ng generate component component-name
 ```
 
 For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
 
 ```bash
-bun run ng generate --help
+bun run dev:ng generate --help
 ```
 
 ## Building
@@ -42,7 +42,7 @@ bun run ng generate --help
 To build the project run:
 
 ```bash
-bun run build
+bun run build:app
 ```
 
 This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
@@ -52,7 +52,7 @@ This will compile your project and store the build artifacts in the `dist/` dire
 To execute unit tests with the [Karma](https://karma-runner.github.io) test runner, use the following command:
 
 ```bash
-bun run test
+bun run test:unit
 ```
 
 ## Running end-to-end tests
@@ -60,13 +60,13 @@ bun run test
 For end-to-end (e2e) testing, run:
 
 ```bash
-bun run e2e
+bun run test:e2e
 ```
 
 To run documentation tests:
 
 ```bash
-bun run e2e:docs
+bun run test:e2e:docs
 ```
 
 ## Additional Resources
