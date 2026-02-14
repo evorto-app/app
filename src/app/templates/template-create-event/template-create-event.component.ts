@@ -75,11 +75,9 @@ export class TemplateCreateEventComponent {
     this.rpc.templates.findOne.queryOptions({ id: this.templateId() }),
   );
   private readonly initializedTemplateId = signal<null | string>(
-    // eslint-disable-next-line unicorn/no-null
     null,
   );
   private readonly lastStart = signal<DateTime | null>(
-    // eslint-disable-next-line unicorn/no-null
     null,
   );
 
@@ -100,7 +98,6 @@ export class TemplateCreateEventComponent {
           description: template.description,
           end: startDateTime,
           icon: template.icon,
-          // eslint-disable-next-line unicorn/no-null
           location: template.location ?? null,
           registrationOptions: template.registrationOptions.map((option) =>
             createRegistrationOptionFormModel({
@@ -120,7 +117,6 @@ export class TemplateCreateEventComponent {
               registrationMode: option.registrationMode,
               roleIds: [...(option.roleIds ?? [])],
               spots: option.spots,
-              // eslint-disable-next-line unicorn/no-null
               stripeTaxRateId: option.stripeTaxRateId ?? null,
               title: option.title,
             }),
@@ -190,8 +186,7 @@ export class TemplateCreateEventComponent {
               .toISOString(),
             description: option.description?.trim()
               ? option.description
-              : // eslint-disable-next-line unicorn/no-null
-                null,
+              : null,
             isPaid: option.isPaid,
             openRegistrationTime: this.toDateTime(option.openRegistrationTime)
               .toJSDate()
@@ -200,15 +195,13 @@ export class TemplateCreateEventComponent {
             price: option.price,
             registeredDescription: option.registeredDescription?.trim()
               ? option.registeredDescription
-              : // eslint-disable-next-line unicorn/no-null
-                null,
+              : null,
             registrationMode: option.registrationMode,
             roleIds: option.roleIds,
             spots: option.spots,
             stripeTaxRateId: option.stripeTaxRateId?.trim()
               ? option.stripeTaxRateId
-              : // eslint-disable-next-line unicorn/no-null
-                null,
+              : null,
             title: option.title,
           })),
           start: this.toDateTime(formValue.start).toJSDate().toISOString(),

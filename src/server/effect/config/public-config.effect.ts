@@ -16,9 +16,7 @@ const makePublicConfig = Effect.gen(function* () {
   const googleMapsApiKey = getPublicGoogleMapsApiKey(environment);
 
   return {
-    // eslint-disable-next-line unicorn/no-null
     googleMapsApiKey: googleMapsApiKey ?? null,
-    // eslint-disable-next-line unicorn/no-null
     sentryDsn: environment.PUBLIC_SENTRY_DSN ?? null,
   } satisfies PublicConfig;
 });

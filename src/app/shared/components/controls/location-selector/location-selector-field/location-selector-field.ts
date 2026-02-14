@@ -28,7 +28,6 @@ export class LocationSelectorField implements FormValueControl<EventLocationType
   readonly readonly = input<boolean>(false);
   readonly touched = model<boolean>(false);
   readonly value = model<EventLocationType | null>(
-    // eslint-disable-next-line unicorn/no-null
     null,
   );
   protected readonly showError = computed(

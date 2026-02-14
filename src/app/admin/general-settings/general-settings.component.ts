@@ -60,7 +60,6 @@ export class GeneralSettingsComponent {
   }>({
     allowOther: false,
     buyEsnCardUrl: '',
-    // eslint-disable-next-line unicorn/no-null
     defaultLocation: null,
     esnCardEnabled: false,
     receiptCountries: [...DEFAULT_RECEIPT_COUNTRIES],
@@ -92,7 +91,6 @@ export class GeneralSettingsComponent {
           buyEsnCardUrl:
             currentTenant.discountProviders?.esnCard?.config?.buyEsnCardUrl ??
             '',
-          // eslint-disable-next-line unicorn/no-null
           defaultLocation: currentTenant.defaultLocation ?? null,
           esnCardEnabled:
             currentTenant.discountProviders?.esnCard?.status === 'enabled',

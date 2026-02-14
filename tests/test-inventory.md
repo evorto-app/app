@@ -2,7 +2,7 @@
 
 Scope: Current Playwright tests and documentation journeys; identifies gaps vs. Evorto Living E2E Baseline spec.
 
-Generated: 2025-09-13
+Generated: 2026-02-14
 
 ## Summary
 
@@ -33,7 +33,7 @@ Generated: 2025-09-13
 - Unlisted visibility functional test: MISSING → add `tests/specs/events/unlisted-visibility.test.ts` (T020)
 - Reporter env override tests: MISSING → add `tests/specs/reporting/reporter-paths.test.ts` (T015) and front-matter normalization test (T017)
 - Seed log/map and runtime file: MISSING → implement wrapper and runtime output (T006/T007)
-- Storage state freshness tests: MISSING → add `tests/specs/auth/storage-state-refresh.test.ts` (T009)
+- Storage state freshness tests: IMPLEMENTED → `tests/specs/auth/storage-state-refresh.test.ts` (T009)
 
 ## Tagging Candidates
 

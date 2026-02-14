@@ -44,9 +44,7 @@ export class ConfigService {
     googleMapsApiKey: null | string;
     sentryDsn: null | string;
   } = {
-    // eslint-disable-next-line unicorn/no-null
     googleMapsApiKey: null,
-    // eslint-disable-next-line unicorn/no-null
     sentryDsn: null,
   };
   private _tenant!: Tenant;
@@ -62,7 +60,6 @@ export class ConfigService {
 
   private readonly platformId = inject(PLATFORM_ID);
 
-  // eslint-disable-next-line unicorn/no-null
   private renderer = inject(RendererFactory2).createRenderer(null, null);
   private readonly requestContext = inject(REQUEST_CONTEXT) as Context | null;
 

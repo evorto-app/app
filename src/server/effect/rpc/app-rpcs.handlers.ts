@@ -124,7 +124,6 @@ const withSignedReceiptPreviewUrl = async <T extends ReceiptWithStoragePreview>(
   ) {
     return {
       ...receipt,
-      // eslint-disable-next-line unicorn/no-null
       previewImageUrl: null,
     };
   }
@@ -147,7 +146,6 @@ const withSignedReceiptPreviewUrl = async <T extends ReceiptWithStoragePreview>(
 
     return {
       ...receipt,
-      // eslint-disable-next-line unicorn/no-null
       previewImageUrl: null,
     };
   }
@@ -215,7 +213,6 @@ const normalizeIconRecord = (
   commonName: icon.commonName,
   friendlyName: icon.friendlyName,
   id: icon.id,
-  // eslint-disable-next-line unicorn/no-null
   sourceColor: icon.sourceColor ?? null,
 });
 
@@ -291,18 +288,15 @@ const normalizeTemplateFindOneRecord = (
   description: template.description,
   icon: template.icon,
   id: template.id,
-  // eslint-disable-next-line unicorn/no-null
   location: template.location ?? null,
   registrationOptions: template.registrationOptions.map((option) => ({
     closeRegistrationOffset: option.closeRegistrationOffset,
-    // eslint-disable-next-line unicorn/no-null
     description: option.description ?? null,
     id: option.id,
     isPaid: option.isPaid,
     openRegistrationOffset: option.openRegistrationOffset,
     organizingRegistration: option.organizingRegistration,
     price: option.price,
-    // eslint-disable-next-line unicorn/no-null
     registeredDescription: option.registeredDescription ?? null,
     registrationMode: option.registrationMode,
     roleIds: option.roleIds,
@@ -311,7 +305,6 @@ const normalizeTemplateFindOneRecord = (
       return role ? [{ id: role.id, name: role.name }] : [];
     }),
     spots: option.spots,
-    // eslint-disable-next-line unicorn/no-null
     stripeTaxRateId: option.stripeTaxRateId ?? null,
     title: option.title,
   })),
@@ -370,7 +363,6 @@ const normalizeFinanceReceiptBaseRecord = (receipt: {
   alcoholAmount: receipt.alcoholAmount,
   attachmentFileName: receipt.attachmentFileName,
   attachmentMimeType: receipt.attachmentMimeType,
-  // eslint-disable-next-line unicorn/no-null
   attachmentStorageKey: receipt.attachmentStorageKey ?? null,
   createdAt: receipt.createdAt.toISOString(),
   depositAmount: receipt.depositAmount,
@@ -378,17 +370,12 @@ const normalizeFinanceReceiptBaseRecord = (receipt: {
   hasAlcohol: receipt.hasAlcohol,
   hasDeposit: receipt.hasDeposit,
   id: receipt.id,
-  // eslint-disable-next-line unicorn/no-null
   previewImageUrl: receipt.previewImageUrl ?? null,
   purchaseCountry: receipt.purchaseCountry,
   receiptDate: receipt.receiptDate.toISOString(),
-  // eslint-disable-next-line unicorn/no-null
   refundedAt: receipt.refundedAt?.toISOString() ?? null,
-  // eslint-disable-next-line unicorn/no-null
   refundTransactionId: receipt.refundTransactionId ?? null,
-  // eslint-disable-next-line unicorn/no-null
   rejectionReason: receipt.rejectionReason ?? null,
-  // eslint-disable-next-line unicorn/no-null
   reviewedAt: receipt.reviewedAt?.toISOString() ?? null,
   status: receipt.status,
   submittedByUserId: receipt.submittedByUserId,
@@ -408,15 +395,12 @@ const normalizeFinanceTransactionRecord = (transaction: {
   stripeFee: null | number;
 }) => ({
   amount: transaction.amount,
-  // eslint-disable-next-line unicorn/no-null
   appFee: transaction.appFee ?? null,
-  // eslint-disable-next-line unicorn/no-null
   comment: transaction.comment ?? null,
   createdAt: transaction.createdAt.toISOString(),
   id: transaction.id,
   method: transaction.method,
   status: transaction.status,
-  // eslint-disable-next-line unicorn/no-null
   stripeFee: transaction.stripeFee ?? null,
 });
 
@@ -438,7 +422,6 @@ const normalizeRoleRecord = (
   collapseMembersInHup: role.collapseMembersInHup,
   defaultOrganizerRole: role.defaultOrganizerRole,
   defaultUserRole: role.defaultUserRole,
-  // eslint-disable-next-line unicorn/no-null
   description: role.description ?? null,
   displayInHub: role.displayInHub,
   id: role.id,
@@ -465,7 +448,6 @@ const normalizeHubRoleRecord = (role: {
   );
 
   return {
-    // eslint-disable-next-line unicorn/no-null
     description: role.description ?? null,
     id: role.id,
     name: role.name,
@@ -487,14 +469,10 @@ const normalizeTenantTaxRateRecord = (
   >,
 ) => ({
   active: taxRate.active,
-  // eslint-disable-next-line unicorn/no-null
   country: taxRate.country ?? null,
-  // eslint-disable-next-line unicorn/no-null
   displayName: taxRate.displayName ?? null,
   inclusive: taxRate.inclusive,
-  // eslint-disable-next-line unicorn/no-null
   percentage: taxRate.percentage ?? null,
-  // eslint-disable-next-line unicorn/no-null
   state: taxRate.state ?? null,
   stripeTaxRateId: taxRate.stripeTaxRateId,
 });
@@ -510,14 +488,10 @@ const normalizeActiveTenantTaxRateRecord = (
     | 'stripeTaxRateId'
   >,
 ) => ({
-  // eslint-disable-next-line unicorn/no-null
   country: taxRate.country ?? null,
-  // eslint-disable-next-line unicorn/no-null
   displayName: taxRate.displayName ?? null,
   id: taxRate.id,
-  // eslint-disable-next-line unicorn/no-null
   percentage: taxRate.percentage ?? null,
-  // eslint-disable-next-line unicorn/no-null
   state: taxRate.state ?? null,
   stripeTaxRateId: taxRate.stripeTaxRateId,
 });
@@ -532,7 +506,6 @@ const normalizeUserDiscountCardRecord = (
   identifier: card.identifier,
   status: card.status,
   type: card.type,
-  // eslint-disable-next-line unicorn/no-null
   validTo: card.validTo?.toISOString() ?? null,
 });
 
@@ -943,9 +916,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
 
           const values: Omit<typeof tenantStripeTaxRates.$inferInsert, 'id'> = {
             active: !!stripeRate.active,
-            // eslint-disable-next-line unicorn/no-null
             country: stripeRate.country ?? null,
-            // eslint-disable-next-line unicorn/no-null
             displayName: stripeRate.display_name ?? null,
             inclusive: !!stripeRate.inclusive,
             percentage:
@@ -953,7 +924,6 @@ export const appRpcHandlers = AppRpcs.toLayer(
               stripeRate.percentage !== undefined
                 ? String(stripeRate.percentage)
                 : undefined,
-            // eslint-disable-next-line unicorn/no-null
             state: stripeRate.state ?? null,
             stripeTaxRateId: stripeRate.id,
             tenantId: tenant.id,
@@ -1023,15 +993,11 @@ export const appRpcHandlers = AppRpcs.toLayer(
         );
         const mapRate = (rate: (typeof activeRates)['data'][number]) => ({
           active: !!rate.active,
-          // eslint-disable-next-line unicorn/no-null
           country: rate.country ?? null,
-          // eslint-disable-next-line unicorn/no-null
           displayName: rate.display_name ?? null,
           id: rate.id,
           inclusive: !!rate.inclusive,
-          // eslint-disable-next-line unicorn/no-null
           percentage: rate.percentage ?? null,
-          // eslint-disable-next-line unicorn/no-null
           state: rate.state ?? null,
         });
 
@@ -1564,7 +1530,6 @@ export const appRpcHandlers = AppRpcs.toLayer(
           const validation = yield* Effect.promise(() =>
             validateTaxRate({
               isPaid: option.isPaid,
-              // eslint-disable-next-line unicorn/no-null
               stripeTaxRateId: option.stripeTaxRateId ?? null,
               tenantId: tenant.id,
             }),
@@ -1620,7 +1585,6 @@ export const appRpcHandlers = AppRpcs.toLayer(
                 registrationMode: option.registrationMode,
                 roleIds: [...option.roleIds],
                 spots: option.spots,
-                // eslint-disable-next-line unicorn/no-null
                 stripeTaxRateId: option.stripeTaxRateId ?? null,
                 title: option.title,
               })),
@@ -1941,7 +1905,6 @@ export const appRpcHandlers = AppRpcs.toLayer(
           end: event.end.toISOString(),
           icon: event.icon,
           id: event.id,
-          // eslint-disable-next-line unicorn/no-null
           location: event.location ?? null,
           registrationOptions: event.registrationOptions.map(
             (registrationOption) => {
@@ -1968,7 +1931,6 @@ export const appRpcHandlers = AppRpcs.toLayer(
                 closeRegistrationTime:
                   registrationOption.closeRegistrationTime.toISOString(),
                 confirmedSpots: registrationOption.confirmedSpots,
-                // eslint-disable-next-line unicorn/no-null
                 description: registrationOption.description ?? null,
                 discountApplied,
                 effectivePrice,
@@ -1988,7 +1950,6 @@ export const appRpcHandlers = AppRpcs.toLayer(
                 registrationMode: registrationOption.registrationMode,
                 roleIds: [...registrationOption.roleIds],
                 spots: registrationOption.spots,
-                // eslint-disable-next-line unicorn/no-null
                 stripeTaxRateId: registrationOption.stripeTaxRateId ?? null,
                 title: registrationOption.title,
               };
@@ -1997,7 +1958,6 @@ export const appRpcHandlers = AppRpcs.toLayer(
           reviewer: event.reviewer,
           start: event.start.toISOString(),
           status: event.status,
-          // eslint-disable-next-line unicorn/no-null
           statusComment: event.statusComment ?? null,
           title: event.title,
           unlisted: event.unlisted,
@@ -2073,11 +2033,9 @@ export const appRpcHandlers = AppRpcs.toLayer(
           end: event.end.toISOString(),
           icon: event.icon,
           id: event.id,
-          // eslint-disable-next-line unicorn/no-null
           location: event.location ?? null,
           registrationOptions: event.registrationOptions.map((option) => ({
             closeRegistrationTime: option.closeRegistrationTime.toISOString(),
-            // eslint-disable-next-line unicorn/no-null
             description: option.description ?? null,
             esnCardDiscountedPrice:
               esnCardDiscountedPriceByOptionId.get(option.id) ?? undefined,
@@ -2086,12 +2044,10 @@ export const appRpcHandlers = AppRpcs.toLayer(
             openRegistrationTime: option.openRegistrationTime.toISOString(),
             organizingRegistration: option.organizingRegistration,
             price: option.price,
-            // eslint-disable-next-line unicorn/no-null
             registeredDescription: option.registeredDescription ?? null,
             registrationMode: option.registrationMode,
             roleIds: [...option.roleIds],
             spots: option.spots,
-            // eslint-disable-next-line unicorn/no-null
             stripeTaxRateId: option.stripeTaxRateId ?? null,
             title: option.title,
           })),
@@ -2222,7 +2178,6 @@ export const appRpcHandlers = AppRpcs.toLayer(
                 appliedDiscountType,
                 basePriceAtRegistration,
                 checkedIn: registration.checkInTime !== null,
-                // eslint-disable-next-line unicorn/no-null
                 checkInTime: registration.checkInTime?.toISOString() ?? null,
                 discountAmount,
                 email: registration.user.email,
@@ -2778,7 +2733,6 @@ export const appRpcHandlers = AppRpcs.toLayer(
               reviewedAt: new Date(),
               reviewedBy: user.id,
               status: approved ? 'APPROVED' : 'REJECTED',
-              // eslint-disable-next-line unicorn/no-null
               statusComment: comment || null,
             })
             .where(
@@ -2854,12 +2808,9 @@ export const appRpcHandlers = AppRpcs.toLayer(
           database
             .update(eventInstances)
             .set({
-              // eslint-disable-next-line unicorn/no-null
               reviewedAt: null,
-              // eslint-disable-next-line unicorn/no-null
               reviewedBy: null,
               status: 'PENDING_REVIEW',
-              // eslint-disable-next-line unicorn/no-null
               statusComment: null,
             })
             .where(
@@ -2957,7 +2908,6 @@ export const appRpcHandlers = AppRpcs.toLayer(
           const validation = yield* Effect.promise(() =>
             validateTaxRate({
               isPaid: option.isPaid,
-              // eslint-disable-next-line unicorn/no-null
               stripeTaxRateId: option.stripeTaxRateId ?? null,
               tenantId: tenant.id,
             }),
@@ -3067,7 +3017,6 @@ export const appRpcHandlers = AppRpcs.toLayer(
                       registrationMode: option.registrationMode,
                       roleIds: [...option.roleIds],
                       spots: option.spots,
-                      // eslint-disable-next-line unicorn/no-null
                       stripeTaxRateId: option.stripeTaxRateId ?? null,
                       title: option.title,
                     })
@@ -3686,9 +3635,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
             ...normalizeFinanceReceiptBaseRecord(receipt),
             eventStart: receipt.eventStart.toISOString(),
             eventTitle: receipt.eventTitle,
-            // eslint-disable-next-line unicorn/no-null
             recipientIban: receipt.recipientIban ?? null,
-            // eslint-disable-next-line unicorn/no-null
             recipientPaypalEmail: receipt.recipientPaypalEmail ?? null,
             submittedByEmail: receipt.submittedByEmail,
             submittedByFirstName: receipt.submittedByFirstName,
@@ -3704,9 +3651,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
 
           groupedByUser.set(receipt.submittedByUserId, {
             payout: {
-              // eslint-disable-next-line unicorn/no-null
               iban: receipt.recipientIban ?? null,
-              // eslint-disable-next-line unicorn/no-null
               paypalEmail: receipt.recipientPaypalEmail ?? null,
             },
             receipts: [normalizedReceipt],
@@ -3869,9 +3814,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
               attachmentFileName: input.attachment.fileName,
               attachmentMimeType: input.attachment.mimeType,
               attachmentSizeBytes: input.attachment.sizeBytes,
-              // eslint-disable-next-line unicorn/no-null
               attachmentStorageKey: input.attachment.storageKey ?? null,
-              // eslint-disable-next-line unicorn/no-null
               attachmentStorageUrl: input.attachment.storageUrl ?? null,
               depositAmount,
               eventId: input.eventId,
@@ -4130,7 +4073,6 @@ export const appRpcHandlers = AppRpcs.toLayer(
         const organizerValidation = yield* Effect.promise(() =>
           validateTaxRate({
             isPaid: input.organizerRegistration.isPaid,
-            // eslint-disable-next-line unicorn/no-null
             stripeTaxRateId:
               input.organizerRegistration.stripeTaxRateId ?? null,
             tenantId: tenant.id,
@@ -4147,7 +4089,6 @@ export const appRpcHandlers = AppRpcs.toLayer(
         const participantValidation = yield* Effect.promise(() =>
           validateTaxRate({
             isPaid: input.participantRegistration.isPaid,
-            // eslint-disable-next-line unicorn/no-null
             stripeTaxRateId:
               input.participantRegistration.stripeTaxRateId ?? null,
             tenantId: tenant.id,
@@ -4195,7 +4136,6 @@ export const appRpcHandlers = AppRpcs.toLayer(
                 registrationMode: input.organizerRegistration.registrationMode,
                 roleIds: input.organizerRegistration.roleIds,
                 spots: input.organizerRegistration.spots,
-                // eslint-disable-next-line unicorn/no-null
                 stripeTaxRateId:
                   input.organizerRegistration.stripeTaxRateId ?? null,
                 templateId: template.id,
@@ -4308,7 +4248,6 @@ export const appRpcHandlers = AppRpcs.toLayer(
         const organizerValidation = yield* Effect.promise(() =>
           validateTaxRate({
             isPaid: input.organizerRegistration.isPaid,
-            // eslint-disable-next-line unicorn/no-null
             stripeTaxRateId:
               input.organizerRegistration.stripeTaxRateId ?? null,
             tenantId: tenant.id,
@@ -4325,7 +4264,6 @@ export const appRpcHandlers = AppRpcs.toLayer(
         const participantValidation = yield* Effect.promise(() =>
           validateTaxRate({
             isPaid: input.participantRegistration.isPaid,
-            // eslint-disable-next-line unicorn/no-null
             stripeTaxRateId:
               input.participantRegistration.stripeTaxRateId ?? null,
             tenantId: tenant.id,
@@ -4378,7 +4316,6 @@ export const appRpcHandlers = AppRpcs.toLayer(
               registrationMode: input.organizerRegistration.registrationMode,
               roleIds: input.organizerRegistration.roleIds,
               spots: input.organizerRegistration.spots,
-              // eslint-disable-next-line unicorn/no-null
               stripeTaxRateId:
                 input.organizerRegistration.stripeTaxRateId ?? null,
             })
@@ -4403,7 +4340,6 @@ export const appRpcHandlers = AppRpcs.toLayer(
               registrationMode: input.participantRegistration.registrationMode,
               roleIds: input.participantRegistration.roleIds,
               spots: input.participantRegistration.spots,
-              // eslint-disable-next-line unicorn/no-null
               stripeTaxRateId:
                 input.participantRegistration.stripeTaxRateId ?? null,
             })
@@ -4529,7 +4465,6 @@ export const appRpcHandlers = AppRpcs.toLayer(
         );
 
         return events.map((event) => ({
-          // eslint-disable-next-line unicorn/no-null
           description: event.description ?? null,
           end: event.end.toISOString(),
           id: event.id,
@@ -4631,10 +4566,8 @@ export const appRpcHandlers = AppRpcs.toLayer(
             .update(users)
             .set({
               firstName: input.firstName,
-              // eslint-disable-next-line unicorn/no-null
               iban: input.iban ?? null,
               lastName: input.lastName,
-              // eslint-disable-next-line unicorn/no-null
               paypalEmail: input.paypalEmail ?? null,
             })
             .where(eq(users.id, user.id)),

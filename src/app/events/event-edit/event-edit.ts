@@ -97,7 +97,6 @@ export class EventEdit {
               ? DateTime.fromJSDate(new Date(event.end))
               : DateTime.now(),
             icon: event.icon,
-            // eslint-disable-next-line unicorn/no-null
             location: event.location ?? null,
             registrationOptions: event.registrationOptions.map((option) =>
               createRegistrationOptionFormModel({
@@ -117,7 +116,6 @@ export class EventEdit {
                 registrationMode: option.registrationMode,
                 roleIds: option.roleIds ? [...option.roleIds] : [],
                 spots: option.spots,
-                // eslint-disable-next-line unicorn/no-null
                 stripeTaxRateId: option.stripeTaxRateId ?? null,
                 title: option.title,
               }),

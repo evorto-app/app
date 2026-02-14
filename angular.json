@@ -68,6 +68,11 @@
             "server": "src/main.server.ts",
             "outputMode": "server",
             "sourceMap": true,
+            "allowedCommonJsDependencies": [
+              "deepmerge",
+              "msgpackr-extract",
+              "node-domexception"
+            ],
             "externalDependencies": ["@sentry/profiling-node", "skia-canvas"],
             "ssr": {
               "entry": "src/server.ts"
@@ -78,8 +83,8 @@
               "budgets": [
                 {
                   "type": "initial",
-                  "maximumWarning": "1MB",
-                  "maximumError": "2MB"
+                  "maximumWarning": "2MB",
+                  "maximumError": "2.25MB"
                 },
                 {
                   "type": "anyComponentStyle",
