@@ -4,11 +4,6 @@ This file tracks migration items that need another pass before final closure.
 
 ## Open Items
 
-- [ ] Resolve Bun package-manager hang when adding/installing dependencies (`bun add` / `bun install` stalls at `Resolving dependencies` in this workspace); once fixed, regenerate and commit a Bun-managed lockfile update for recent dependency additions.
-- [ ] Remove empty legacy server directories now that Effect/Bun cutover is complete (`src/server/trpc`, `src/server/middleware`, `src/types/express`) and clean up stale references in migration docs.
-- [ ] Run dependency-pruning pass for likely stale packages (confirm/remove candidates such as `auth0` runtime dependency usage, `playwright-core`, and other depcheck-flagged unused packages) and validate with lint/build/tests.
-- [ ] Reduce lint-warning baseline (currently 57 warnings) by removing stale `unicorn/no-null` disables and deciding a consistent policy for Signal Forms/null interoperability.
-- [ ] Refresh stale Playwright inventory documentation (`tests/test-inventory.md`) so listed gaps match current tests.
 - [ ] Resolve remaining docs failures after runtime fixes:
   - `tests/docs/finance/inclusive-tax-rates.doc.ts` (`Tax rate` combobox not found in organizer section during template edit)
   - `tests/docs/profile/discounts.doc.ts` (`Discounts` section button not found in profile navigation)
@@ -22,6 +17,11 @@ This file tracks migration items that need another pass before final closure.
 
 ## Recently Closed
 
+- 2026-02-14: resolved Bun package-manager reliability issue and resumed Bun-native dependency/lockfile updates (`bun add` / `bun remove` operations now complete in this workspace).
+- 2026-02-14: removed stale dependency surface and validated cleanup (`@angular/platform-browser-dynamic`, `@ng-web-apis/common`, `date-fns`, `pdfjs-dist`, `superjson`, `type-fest`, `playwright-core`; `auth0` moved to dev dependency).
+- 2026-02-14: decommissioned stale null-lint suppressions and set explicit lint policy (`unicorn/no-null` disabled for this codebase baseline) with `lint`/`tsc`/`build` green.
+- 2026-02-14: refreshed Playwright test inventory metadata/status (`tests/test-inventory.md`).
+- 2026-02-14: confirmed legacy Express/tRPC directory cleanup is complete (`src/server/trpc`, `src/server/middleware`, `src/types/express` are absent).
 - 2026-02-14: completed production-readiness audit and documented prioritized hardening sequence in `production-readiness-audit-2026-02-14.md`.
 - 2026-02-14: integrated `@heddendorp/effect-platform-angular@0.0.7` transport wiring into app bootstrap and RPC client creation (`provideEffectHttpClient`, `provideEffectRpcProtocolHttpLayer`, DI-backed `AppRpc` bridge preserving existing `AppRpc.injectClient()` call sites).
 - 2026-02-14: normalized package script naming to namespaced groups (`dev:*`, `build:*`, `test:*`, `db:*`, `ops:*`, `ui:*`) and aligned active docs/config workflow references.
