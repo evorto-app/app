@@ -232,7 +232,7 @@ Replace Express+tRPC request handling and ad-hoc service wiring with Effect-firs
   - `addAuthenticationContext`
   - `addTenantContext`
   - `addUserContext`
-  with one `addRequestContext`.
+    with one `addRequestContext`.
 - Removed redundant middleware wrapper files under `src/server/middleware/` that were replaced by the adapter.
 - Result:
   - fewer Express-specific middleware seams

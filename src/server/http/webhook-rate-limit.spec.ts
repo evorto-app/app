@@ -35,7 +35,9 @@ describe('webhook-rate-limit', () => {
       expect(blockedResult.retryAfterSeconds).toBeGreaterThan(0);
     });
 
-    await Effect.runPromise(program.pipe(Effect.provide(webhookRateLimitLayer)));
+    await Effect.runPromise(
+      program.pipe(Effect.provide(webhookRateLimitLayer)),
+    );
   });
 
   it('tracks clients independently', async () => {
@@ -54,7 +56,9 @@ describe('webhook-rate-limit', () => {
       expect(resultB.allowed).toBe(true);
     });
 
-    await Effect.runPromise(program.pipe(Effect.provide(webhookRateLimitLayer)));
+    await Effect.runPromise(
+      program.pipe(Effect.provide(webhookRateLimitLayer)),
+    );
   });
 
   it('resets quota after one minute', async () => {
@@ -78,7 +82,9 @@ describe('webhook-rate-limit', () => {
       expect(resultAfterWindow.allowed).toBe(true);
     });
 
-    await Effect.runPromise(program.pipe(Effect.provide(webhookRateLimitLayer)));
+    await Effect.runPromise(
+      program.pipe(Effect.provide(webhookRateLimitLayer)),
+    );
     vi.useRealTimers();
   });
 });

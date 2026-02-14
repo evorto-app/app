@@ -78,9 +78,13 @@ export class UserProfileComponent {
   protected readonly buyEsnCardUrl = computed(() => {
     const providers = this.discountProvidersQuery.data();
     if (!providers) return;
-    const esnProvider = providers.find((provider) => provider.type === 'esnCard');
+    const esnProvider = providers.find(
+      (provider) => provider.type === 'esnCard',
+    );
     const buyEsnCardUrl = esnProvider?.config.buyEsnCardUrl?.trim();
-    return buyEsnCardUrl && buyEsnCardUrl.length > 0 ? buyEsnCardUrl : undefined;
+    return buyEsnCardUrl && buyEsnCardUrl.length > 0
+      ? buyEsnCardUrl
+      : undefined;
   });
   protected readonly deleteCardMutation = injectMutation(() =>
     this.rpc.discounts.deleteMyCard.mutationOptions(),
@@ -107,7 +111,9 @@ export class UserProfileComponent {
   protected readonly hasVerifiedEsnCard = computed(() => {
     const cards = this.myCardsQuery.data();
     if (!cards) return false;
-    return cards.some((card) => card.type === 'esnCard' && card.status === 'verified');
+    return cards.some(
+      (card) => card.type === 'esnCard' && card.status === 'verified',
+    );
   });
 
   protected readonly myReceiptsQuery = injectQuery(() =>
@@ -203,8 +209,7 @@ export class UserProfileComponent {
     if (!result) return;
     this.updateProfileMutation.mutate(result, {
       onError: (error) => {
-        const errorMessage =
-          typeof error === 'string' ? error : error.message;
+        const errorMessage = typeof error === 'string' ? error : error.message;
         this.notifications.showError(
           'Failed to update profile: ' + errorMessage,
         );
@@ -244,7 +249,8 @@ export class UserProfileComponent {
   protected async saveEsnCard(event: Event): Promise<void> {
     event.preventDefault();
     await submit(this.esnCardForm, async (formState) => {
-      this.upsertCardMutation.mutate({
+      this.upsertCardMutation.mutate(
+        {
           identifier: formState().value().identifier.trim(),
           type: 'esnCard',
         },

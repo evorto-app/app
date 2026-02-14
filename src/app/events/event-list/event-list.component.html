@@ -125,8 +125,9 @@
     </nav>
   </div>
   <div class="lg:h-full lg:pr-4">
-    <router-outlet (activate)="outletActive.set(true)"
+    <router-outlet
+      (activate)="outletActive.set(true)"
       (deactivate)="outletActive.set(false)"
-     />
+    />
   </div>
 </div>

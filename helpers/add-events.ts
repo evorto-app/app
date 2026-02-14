@@ -200,7 +200,8 @@ export const addEvents = async (
         opt,
       ): opt is typeof opt & {
         id: string;
-      } => opt.isPaid && !opt.organizingRegistration && typeof opt.id === 'string',
+      } =>
+        opt.isPaid && !opt.organizingRegistration && typeof opt.id === 'string',
     );
     if (paidOptions.length > 0) {
       await database.insert(schema.eventRegistrationOptionDiscounts).values(

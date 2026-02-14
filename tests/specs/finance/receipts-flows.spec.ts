@@ -23,7 +23,9 @@ const findOrganizableEventIdFromUi = async (page: Page) => {
       .map((element) => element.getAttribute('href'))
       .filter((href): href is string => Boolean(href)),
   );
-  const eventIds = [...new Set(hrefs.map((href) => href.split('/').at(-1)).filter(Boolean))];
+  const eventIds = [
+    ...new Set(hrefs.map((href) => href.split('/').at(-1)).filter(Boolean)),
+  ];
 
   for (const eventId of eventIds.slice(0, 25)) {
     await openEventOrganizePage(page, eventId);
@@ -33,7 +35,9 @@ const findOrganizableEventIdFromUi = async (page: Page) => {
     }
   }
 
-  throw new Error('Expected to find at least one event with organize receipts access');
+  throw new Error(
+    'Expected to find at least one event with organize receipts access',
+  );
 };
 
 const submitReceiptFromFirstEvent = async (
@@ -114,7 +118,9 @@ test('approve and refund receipts in finance @track(finance-receipts_20260205) @
 }) => {
   const seededEventId = events[0]?.id;
   if (!seededEventId) {
-    throw new Error('Expected at least one seeded event for receipts approval flow');
+    throw new Error(
+      'Expected at least one seeded event for receipts approval flow',
+    );
   }
   await seedPendingReceiptForApproval({
     database,
@@ -124,7 +130,9 @@ test('approve and refund receipts in finance @track(finance-receipts_20260205) @
   });
 
   await page.goto('/finance/receipts-approval');
-  const firstPendingReceipt = page.locator('a[href*="/finance/receipts-approval/"]').first();
+  const firstPendingReceipt = page
+    .locator('a[href*="/finance/receipts-approval/"]')
+    .first();
   if ((await firstPendingReceipt.count()) === 0) {
     return;
   }
@@ -134,7 +142,11 @@ test('approve and refund receipts in finance @track(finance-receipts_20260205) @
   await expect(page).toHaveURL(/\/finance\/receipts-approval$/);
 
   await page.goto('/finance/receipts-refunds');
-  if (await page.getByText('No approved receipts are waiting for refund.').isVisible()) {
+  if (
+    await page
+      .getByText('No approved receipts are waiting for refund.')
+      .isVisible()
+  ) {
     return;
   }
 
@@ -152,14 +164,18 @@ test('approve and refund receipts in finance @track(finance-receipts_20260205) @
     }
     await expect(table.first()).toBeVisible();
 
-    const rowCheckboxes = section.locator('tr.mat-mdc-row input[type="checkbox"]');
+    const rowCheckboxes = section.locator(
+      'tr.mat-mdc-row input[type="checkbox"]',
+    );
     if ((await rowCheckboxes.count()) === 0) {
       continue;
     }
 
     await rowCheckboxes.first().check();
 
-    const issueRefundButton = section.getByRole('button', { name: 'Issue refund' });
+    const issueRefundButton = section.getByRole('button', {
+      name: 'Issue refund',
+    });
     if (await issueRefundButton.isEnabled()) {
       await issueRefundButton.click();
       refundTriggered = true;

@@ -12,16 +12,16 @@ export const FINANCE_ROUTES: Routes = [
       },
       {
         loadComponent: () =>
-          import(
-            './receipt-approval-list/receipt-approval-list.component'
-          ).then((m) => m.ReceiptApprovalListComponent),
+          import('./receipt-approval-list/receipt-approval-list.component').then(
+            (m) => m.ReceiptApprovalListComponent,
+          ),
         path: 'receipts-approval',
       },
       {
         loadComponent: () =>
-          import(
-            './receipt-approval-detail/receipt-approval-detail.component'
-          ).then((m) => m.ReceiptApprovalDetailComponent),
+          import('./receipt-approval-detail/receipt-approval-detail.component').then(
+            (m) => m.ReceiptApprovalDetailComponent,
+          ),
         path: 'receipts-approval/:receiptId',
       },
       {

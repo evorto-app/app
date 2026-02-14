@@ -40,6 +40,8 @@ export class TemplateListComponent {
   );
   protected readonly templateQueryErrorMessage = computed(() => {
     const error = this.templateQuery.error();
-    return typeof error === 'string' ? error : (error?.message ?? 'Unknown error');
+    return typeof error === 'string'
+      ? error
+      : (error?.message ?? 'Unknown error');
   });
 }

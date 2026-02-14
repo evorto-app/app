@@ -102,7 +102,9 @@ const decodeOrThrow = <A, I>(
 ): A => {
   const parsed = Schema.decodeUnknownEither(schema)(input);
   if (Either.isLeft(parsed)) {
-    throw new Error(`Invalid ${label} schema:\n${formatSchemaError(parsed.left)}`);
+    throw new Error(
+      `Invalid ${label} schema:\n${formatSchemaError(parsed.left)}`,
+    );
   }
   return parsed.right;
 };
@@ -110,14 +112,21 @@ const decodeOrThrow = <A, I>(
 export const hasAuth0ManagementEnvironment = (
   input: NodeJS.ProcessEnv = process.env,
 ): boolean =>
-  Either.isRight(Schema.decodeUnknownEither(Auth0ManagementEnvironmentSchema)(input));
+  Either.isRight(
+    Schema.decodeUnknownEither(Auth0ManagementEnvironmentSchema)(input),
+  );
 
 export const getAuth0ManagementEnvironment = (
   input: NodeJS.ProcessEnv = process.env,
 ): {
   AUTH0_MANAGEMENT_CLIENT_ID: string;
   AUTH0_MANAGEMENT_CLIENT_SECRET: string;
-} => decodeOrThrow(Auth0ManagementEnvironmentSchema, input, 'e2e auth configuration');
+} =>
+  decodeOrThrow(
+    Auth0ManagementEnvironmentSchema,
+    input,
+    'e2e auth configuration',
+  );
 
 export const validatePlaywrightEnvironment = (
   input: NodeJS.ProcessEnv = process.env,

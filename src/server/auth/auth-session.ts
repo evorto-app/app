@@ -69,7 +69,9 @@ const toRecord = (value: unknown): Record<string, unknown> | undefined => {
   return value as Record<string, unknown>;
 };
 
-const toCookieRecord = (cookies: Record<string, unknown>): Record<string, string> => {
+const toCookieRecord = (
+  cookies: Record<string, unknown>,
+): Record<string, string> => {
   const normalized: Record<string, string> = {};
 
   for (const [key, value] of Object.entries(cookies)) {
@@ -88,7 +90,11 @@ const sanitizeReturnPath = (
     return;
   }
 
-  if (!value.startsWith('/') || value.startsWith('//') || value.includes('://')) {
+  if (
+    !value.startsWith('/') ||
+    value.startsWith('//') ||
+    value.includes('://')
+  ) {
     return;
   }
 
@@ -204,9 +210,7 @@ const createAuth0Client = (
   const { isSecure, origin } = resolveRequestOrigin(request);
   const callbackUrl = new URL('/callback', origin).toString();
   const authorizationParameters = {
-    ...(oidcEnvironment.AUDIENCE
-      ? { audience: oidcEnvironment.AUDIENCE }
-      : {}),
+    ...(oidcEnvironment.AUDIENCE ? { audience: oidcEnvironment.AUDIENCE } : {}),
     redirect_uri: callbackUrl,
     scope: 'openid profile email',
   };
@@ -238,7 +242,9 @@ const createAuth0Client = (
   });
 };
 
-const toAuthSession = (sessionData: SessionData | undefined): AuthSession | undefined => {
+const toAuthSession = (
+  sessionData: SessionData | undefined,
+): AuthSession | undefined => {
   if (!sessionData) {
     return;
   }
@@ -255,7 +261,9 @@ const toAuthSession = (sessionData: SessionData | undefined): AuthSession | unde
     authData,
     expiresAt: primaryTokenSet.expiresAt * 1000,
     ...(sessionData.idToken ? { idToken: sessionData.idToken } : {}),
-    ...(sessionData.refreshToken ? { refreshToken: sessionData.refreshToken } : {}),
+    ...(sessionData.refreshToken
+      ? { refreshToken: sessionData.refreshToken }
+      : {}),
   };
 };
 
@@ -302,12 +310,11 @@ export const getRequestAuthData = (
   authSession: AuthSession | undefined,
 ): Record<string, unknown> => authSession?.authData ?? {};
 
-export const isAuthenticated = (authSession: AuthSession | undefined): boolean =>
-  authSession !== undefined;
+export const isAuthenticated = (
+  authSession: AuthSession | undefined,
+): boolean => authSession !== undefined;
 
-export const loadAuthSession = (
-  request: HttpServerRequest.HttpServerRequest,
-) =>
+export const loadAuthSession = (request: HttpServerRequest.HttpServerRequest) =>
   Effect.gen(function* () {
     const storeOptions = createStoreOptions(request);
     const auth0Client = createAuth0Client(request);
@@ -356,8 +363,13 @@ export const handleLoginRequest = (
       return HttpServerResponse.text('Unable to start login.', { status: 500 });
     }
 
-    const redirectResponse = HttpServerResponse.redirect(authorizationUrl.toString());
-    return yield* applyCookieMutations(redirectResponse, storeOptions.mutations);
+    const redirectResponse = HttpServerResponse.redirect(
+      authorizationUrl.toString(),
+    );
+    return yield* applyCookieMutations(
+      redirectResponse,
+      storeOptions.mutations,
+    );
   });
 
 export const handleCallbackRequest = (
@@ -366,7 +378,10 @@ export const handleCallbackRequest = (
   Effect.gen(function* () {
     const requestUrl = toAbsoluteRequestUrl(request);
 
-    if (!requestUrl.searchParams.get('code') || !requestUrl.searchParams.get('state')) {
+    if (
+      !requestUrl.searchParams.get('code') ||
+      !requestUrl.searchParams.get('state')
+    ) {
       return HttpServerResponse.text('Missing code or state.', { status: 400 });
     }
 
@@ -383,15 +398,19 @@ export const handleCallbackRequest = (
     });
 
     if (!completedLogin) {
-      return HttpServerResponse.text('Unable to complete login.', { status: 400 });
+      return HttpServerResponse.text('Unable to complete login.', {
+        status: 400,
+      });
     }
 
-    const redirectUrl = sanitizeReturnPath(
-      asString(completedLogin.appState?.redirectUrl),
-    ) ?? '/';
+    const redirectUrl =
+      sanitizeReturnPath(asString(completedLogin.appState?.redirectUrl)) ?? '/';
 
     const redirectResponse = HttpServerResponse.redirect(redirectUrl);
-    return yield* applyCookieMutations(redirectResponse, storeOptions.mutations);
+    return yield* applyCookieMutations(
+      redirectResponse,
+      storeOptions.mutations,
+    );
   });
 
 export const handleLogoutRequest = (
@@ -436,5 +455,8 @@ export const handleLogoutRequest = (
     }
 
     const redirectResponse = HttpServerResponse.redirect(logoutUrl.toString());
-    return yield* applyCookieMutations(redirectResponse, storeOptions.mutations);
+    return yield* applyCookieMutations(
+      redirectResponse,
+      storeOptions.mutations,
+    );
   });

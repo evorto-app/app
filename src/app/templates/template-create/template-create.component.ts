@@ -57,7 +57,9 @@ export class TemplateCreateComponent {
   );
   protected readonly faArrowLeft = faArrowLeft;
   private defaultOrganizerRolesQuery = injectQuery(() =>
-    this.rpc.admin['roles.findMany'].queryOptions({ defaultOrganizerRole: true }),
+    this.rpc.admin['roles.findMany'].queryOptions({
+      defaultOrganizerRole: true,
+    }),
   );
   private defaultUserRolesQuery = injectQuery(() =>
     this.rpc.admin['roles.findMany'].queryOptions({ defaultUserRole: true }),

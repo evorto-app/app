@@ -12,7 +12,9 @@ export const eventOrganizerGuard: CanActivateFn = async (route) => {
 
   try {
     // Verify the event exists
-    await queryClient.fetchQuery(rpc.events.findOne.queryOptions({ id: eventId }));
+    await queryClient.fetchQuery(
+      rpc.events.findOne.queryOptions({ id: eventId }),
+    );
     const canOrganize = await queryClient.fetchQuery(
       rpc.events.canOrganize.queryOptions({ eventId }),
     );

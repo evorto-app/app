@@ -53,7 +53,8 @@ export class CreateAccountComponent {
       const getString = (value: null | string | undefined) =>
         value?.trim() || undefined;
       this.accountModel.update((current) => ({
-        communicationEmail: getString(authData.email) ?? current.communicationEmail,
+        communicationEmail:
+          getString(authData.email) ?? current.communicationEmail,
         firstName: getString(authData.given_name) ?? current.firstName,
         lastName: getString(authData.family_name) ?? current.lastName,
       }));

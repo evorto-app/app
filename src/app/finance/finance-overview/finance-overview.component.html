@@ -37,17 +37,16 @@
         routerLinkActive="bg-secondary-container! text-on-secondary-container!"
       >
         <div class="flex flex-row items-center gap-4">
-          <fa-duotone-icon [icon]="faRotateExclamation"
-            size="xl"
-           />
+          <fa-duotone-icon [icon]="faRotateExclamation" size="xl" />
           <h2 class="title-medium">Receipt refunds</h2>
         </div>
       </a>
     </nav>
   </div>
   <div>
-    <router-outlet (activate)="outletActive.set(true)"
+    <router-outlet
+      (activate)="outletActive.set(true)"
       (deactivate)="outletActive.set(false)"
-     />
+    />
   </div>
 </div>

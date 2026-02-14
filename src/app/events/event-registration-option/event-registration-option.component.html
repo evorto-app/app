@@ -11,7 +11,10 @@
       <div class="grow"></div>
       <div class="flex flex-col items-end gap-1">
         <p class="title-small">
-          {{ (registrationOption().effectivePrice ?? registrationOption().price) / 100 | currency }}
+          {{
+            (registrationOption().effectivePrice ??
+              registrationOption().price) / 100 | currency
+          }}
         </p>
         @if (registrationOption().discountApplied) {
           <p class="text-on-surface-variant text-xs line-through">
@@ -39,8 +42,8 @@
           >
             Pay
             {{
-              (registrationOption().effectivePrice ?? registrationOption().price) /
-                100 | currency
+              (registrationOption().effectivePrice ??
+                registrationOption().price) / 100 | currency
             }}
             and register
           </button>

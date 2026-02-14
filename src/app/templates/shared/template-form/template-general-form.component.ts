@@ -10,9 +10,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
-import {
-  type TemplateCategoryRecord,
-} from '../../../../shared/rpc-contracts/app-rpcs';
+import { type TemplateCategoryRecord } from '../../../../shared/rpc-contracts/app-rpcs';
 import { AppRpc } from '../../../core/effect-rpc-angular-client';
 import { EditorComponent } from '../../../shared/components/controls/editor/editor.component';
 import { IconSelectorFieldComponent } from '../../../shared/components/controls/icon-selector/icon-selector-field/icon-selector-field.component';

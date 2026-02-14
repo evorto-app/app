@@ -98,7 +98,8 @@ export const handleStripeWebhookWebRequest = async (
 
     case 'checkout.session.completed': {
       const eventSession = event.data.object;
-      const { registrationId, tenantId, transactionId } = eventSession.metadata ?? {};
+      const { registrationId, tenantId, transactionId } =
+        eventSession.metadata ?? {};
       if (!registrationId || !transactionId || !tenantId) {
         return responseText('Missing metadata', 400);
       }
@@ -155,7 +156,8 @@ export const handleStripeWebhookWebRequest = async (
 
     case 'checkout.session.expired': {
       const eventSession = event.data.object;
-      const { registrationId, tenantId, transactionId } = eventSession.metadata ?? {};
+      const { registrationId, tenantId, transactionId } =
+        eventSession.metadata ?? {};
       if (!registrationId || !transactionId || !tenantId) {
         return responseText('Missing metadata', 400);
       }

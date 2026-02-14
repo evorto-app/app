@@ -186,7 +186,9 @@ export const AdminTenantRpcError = Schema.Literal(
   'UNAUTHORIZED',
 );
 
-export type AdminTenantRpcError = Schema.Schema.Type<typeof AdminTenantRpcError>;
+export type AdminTenantRpcError = Schema.Schema.Type<
+  typeof AdminTenantRpcError
+>;
 
 export const AdminTenantTaxRateRecord = Schema.Struct({
   active: Schema.Boolean,
@@ -383,7 +385,9 @@ export const EditorMediaRpcError = Schema.Literal(
   'UNAUTHORIZED',
 );
 
-export type EditorMediaRpcError = Schema.Schema.Type<typeof EditorMediaRpcError>;
+export type EditorMediaRpcError = Schema.Schema.Type<
+  typeof EditorMediaRpcError
+>;
 
 export const EditorMediaCreateImageDirectUpload = asRpcMutation(
   Rpc.make('editorMedia.createImageDirectUpload', {
@@ -403,7 +407,9 @@ export const EditorMediaCreateImageDirectUpload = asRpcMutation(
 
 export const GlobalAdminRpcError = Schema.Literal('UNAUTHORIZED');
 
-export type GlobalAdminRpcError = Schema.Schema.Type<typeof GlobalAdminRpcError>;
+export type GlobalAdminRpcError = Schema.Schema.Type<
+  typeof GlobalAdminRpcError
+>;
 
 export const GlobalAdminTenantRecord = Schema.Struct({
   domain: Schema.NonEmptyString,
@@ -718,7 +724,9 @@ export const EventsGetOrganizeOverview = asRpcQuery(
 
 export const EventsRegistrationStatusRecord = Schema.Struct({
   appliedDiscountedPrice: Schema.optional(Schema.NullOr(Schema.Number)),
-  appliedDiscountType: Schema.optional(Schema.NullOr(Schema.Literal('esnCard'))),
+  appliedDiscountType: Schema.optional(
+    Schema.NullOr(Schema.Literal('esnCard')),
+  ),
   basePriceAtRegistration: Schema.optional(Schema.NullOr(Schema.Number)),
   checkoutUrl: Schema.optional(Schema.NullOr(Schema.String)),
   discountAmount: Schema.optional(Schema.NullOr(Schema.Number)),
@@ -1118,9 +1126,7 @@ export const FinanceReceiptsReview = asRpcMutation(
     payload: Schema.extend(
       Schema.Struct({
         id: Schema.NonEmptyString,
-        rejectionReason: Schema.optional(
-          Schema.NullOr(Schema.NonEmptyString),
-        ),
+        rejectionReason: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
         status: Schema.Literal('approved', 'rejected'),
       }),
       FinanceReceiptFieldsInput,
@@ -1259,14 +1265,18 @@ export const UsersFindManyRecord = Schema.Struct({
   roles: Schema.Array(Schema.String),
 });
 
-export type UsersFindManyRecord = Schema.Schema.Type<typeof UsersFindManyRecord>;
+export type UsersFindManyRecord = Schema.Schema.Type<
+  typeof UsersFindManyRecord
+>;
 
 export const UsersFindManyResult = Schema.Struct({
   users: Schema.Array(UsersFindManyRecord),
   usersCount: Schema.Number,
 });
 
-export type UsersFindManyResult = Schema.Schema.Type<typeof UsersFindManyResult>;
+export type UsersFindManyResult = Schema.Schema.Type<
+  typeof UsersFindManyResult
+>;
 
 export const UsersFindManyError = Schema.Literal('FORBIDDEN', 'UNAUTHORIZED');
 
@@ -1334,10 +1344,7 @@ export const UsersEventsFindMany = asRpcQuery(
   }),
 );
 
-export const IconRpcError = Schema.Literal(
-  'INVALID_ICON_NAME',
-  'UNAUTHORIZED',
-);
+export const IconRpcError = Schema.Literal('INVALID_ICON_NAME', 'UNAUTHORIZED');
 
 export type IconRpcError = Schema.Schema.Type<typeof IconRpcError>;
 

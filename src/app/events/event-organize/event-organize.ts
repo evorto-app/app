@@ -194,7 +194,9 @@ export class EventOrganize {
       );
     } catch (error) {
       this.notifications.showError(
-        error instanceof Error ? error.message : 'Failed to upload receipt file',
+        error instanceof Error
+          ? error.message
+          : 'Failed to upload receipt file',
       );
     }
   }

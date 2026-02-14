@@ -127,12 +127,13 @@
       <tr mat-header-row *matHeaderRowDef="columnsToDisplay()"></tr>
       <tr mat-row *matRowDef="let row; columns: columnsToDisplay()"></tr>
     </table>
-    <mat-paginator [pageSizeOptions]="[50, 100, 200, 500]"
+    <mat-paginator
+      [pageSizeOptions]="[50, 100, 200, 500]"
       showFirstLastButtons
       aria-label="Select page of users"
       (page)="handlePageChange($event)"
       [length]="transactionsQuery.data().total"
       [pageSize]="100"
-     />
+    />
   </div>
 }

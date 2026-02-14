@@ -24,8 +24,9 @@
     </nav>
   </div>
   <div>
-    <router-outlet (activate)="outletActive.set(true)"
+    <router-outlet
+      (activate)="outletActive.set(true)"
       (deactivate)="outletActive.set(false)"
-     />
+    />
   </div>
 </div>

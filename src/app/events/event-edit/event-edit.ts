@@ -66,7 +66,10 @@ export class EventEdit {
   protected readonly esnEnabled = computed(() => {
     const providers = this.discountProvidersQuery.data();
     if (!providers) return false;
-    return providers.find((provider) => provider.type === 'esnCard')?.status === 'enabled';
+    return (
+      providers.find((provider) => provider.type === 'esnCard')?.status ===
+      'enabled'
+    );
   });
   protected readonly eventQuery = injectQuery(() =>
     this.rpc.events.findOneForEdit.queryOptions({ id: this.eventId() }),

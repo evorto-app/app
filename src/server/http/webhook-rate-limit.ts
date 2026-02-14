@@ -50,7 +50,9 @@ const shouldResetWindow = (window: RateLimitWindow, now: number): boolean =>
 export const webhookRateLimitLayer = Layer.effect(
   WebhookRateLimit,
   Effect.gen(function* () {
-    const windowsReference = yield* Ref.make(new Map<string, RateLimitWindow>());
+    const windowsReference = yield* Ref.make(
+      new Map<string, RateLimitWindow>(),
+    );
 
     return {
       consume: (key: string) =>
@@ -83,10 +85,7 @@ export const webhookRateLimitLayer = Layer.effect(
               retryAfterSeconds,
             };
 
-            return [
-              blockedResult,
-              windows,
-            ] as const;
+            return [blockedResult, windows] as const;
           }
 
           const nextWindows = new Map(windows);

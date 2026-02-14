@@ -146,7 +146,13 @@ test('documentation reporter emits one markdown file per describe block @track(p
   reporter.onTestEnd(
     {
       location: { file: fakeFilePath, line: 10 },
-      titlePath: () => ['', 'docs', fakeFilePath, 'Registration docs', 'Register for a free event'],
+      titlePath: () => [
+        '',
+        'docs',
+        fakeFilePath,
+        'Registration docs',
+        'Register for a free event',
+      ],
       title:
         'Register for a free event @track(playwright-specs-track-linking_20260126) @doc(REGISTER-DOC-01)',
     } as any,
@@ -155,7 +161,13 @@ test('documentation reporter emits one markdown file per describe block @track(p
   reporter.onTestEnd(
     {
       location: { file: fakeFilePath, line: 20 },
-      titlePath: () => ['', 'docs', fakeFilePath, 'Registration docs', 'Register for a paid event'],
+      titlePath: () => [
+        '',
+        'docs',
+        fakeFilePath,
+        'Registration docs',
+        'Register for a paid event',
+      ],
       title:
         'Register for a paid event @track(playwright-specs-track-linking_20260126) @doc(REGISTER-DOC-02)',
     } as any,
@@ -197,7 +209,13 @@ test('two tests in one describe block share one markdown file @track(playwright-
   reporter.onTestEnd(
     {
       location: { file: fakeFilePath, line: 10 },
-      titlePath: () => ['', 'docs', fakeFilePath, checkoutDescribe, 'Open checkout'],
+      titlePath: () => [
+        '',
+        'docs',
+        fakeFilePath,
+        checkoutDescribe,
+        'Open checkout',
+      ],
       title:
         'Open checkout @track(playwright-specs-track-linking_20260126) @doc(CHECKOUT-DOC-01)',
     } as any,
@@ -238,11 +256,7 @@ test('two tests in one describe block share one markdown file @track(playwright-
   // @ts-expect-error stubs
   reporter.onEnd({});
 
-  const mdPath = path.join(
-    docsRoot,
-    'checkout-flow-docs',
-    'page.md',
-  );
+  const mdPath = path.join(docsRoot, 'checkout-flow-docs', 'page.md');
   expect(fs.existsSync(mdPath)).toBe(true);
   const md = fs.readFileSync(mdPath, 'utf-8');
   expect(md).toContain('title: Checkout flow docs');

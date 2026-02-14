@@ -35,7 +35,9 @@
       @for (section of sectionEntries(); track section.key) {
         <button
           type="button"
-          class="{{ sectionButtonClasses(section.key) }} rounded-2xl p-4 text-left"
+          class="{{
+            sectionButtonClasses(section.key)
+          }} rounded-2xl p-4 text-left"
           (click)="setSelectedSection(section.key)"
         >
           <div class="flex items-center gap-3">
@@ -49,7 +51,7 @@
 
   <section class="bg-surface text-on-surface rounded-2xl p-6">
     @switch (selectedSection()) {
-      @case ('overview') {
+      @case ("overview") {
         <div class="space-y-3">
           <h2 class="title-medium">Account Actions</h2>
           <p class="text-on-surface-variant text-sm">
@@ -61,7 +63,7 @@
           </a>
         </div>
       }
-      @case ('events') {
+      @case ("events") {
         <div class="space-y-4">
           <div class="flex items-center gap-2">
             <fa-duotone-icon [icon]="faCalendarDays" />
@@ -71,8 +73,12 @@
             @if (userEventsQuery.data().length) {
               <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                 @for (event of userEventsQuery.data(); track event.id) {
-                  <div class="bg-surface-container-high grid gap-1 rounded-xl p-4">
-                    <h3 class="text-primary text-lg font-semibold">{{ event.title }}</h3>
+                  <div
+                    class="bg-surface-container-high grid gap-1 rounded-xl p-4"
+                  >
+                    <h3 class="text-primary text-lg font-semibold">
+                      {{ event.title }}
+                    </h3>
                     <p class="text-on-surface-variant text-sm">
                       {{ event.start | date: "medium" }}
                     </p>
@@ -91,13 +97,14 @@
           }
         </div>
       }
-      @case ('discounts') {
+      @case ("discounts") {
         <div class="space-y-4">
           @if (esnEnabled()) {
             <div>
               <h2 class="title-medium mb-2">Discount Cards</h2>
               <p class="text-on-surface-variant mb-4 text-sm">
-                Add your ESN card to receive discounted prices on eligible events.
+                Add your ESN card to receive discounted prices on eligible
+                events.
               </p>
 
               @if (myCardsQuery.isSuccess()) {
@@ -114,7 +121,8 @@
                         <div class="text-sm">
                           Status: {{ card.status }}
                           @if (card.validTo) {
-                            — valid until {{ card.validTo | date: "mediumDate" }}
+                            — valid until
+                            {{ card.validTo | date: "mediumDate" }}
                           }
                         </div>
                         <div class="mt-3 flex flex-wrap gap-2">
@@ -146,7 +154,10 @@
                 <p class="text-error">Failed to load discount cards.</p>
               }
 
-              <form class="mt-4 max-w-md space-y-3" (submit)="saveEsnCard($event)">
+              <form
+                class="mt-4 max-w-md space-y-3"
+                (submit)="saveEsnCard($event)"
+              >
                 <mat-form-field class="w-full" appearance="outline">
                   <mat-label>ESN card number</mat-label>
                   <input
@@ -176,7 +187,10 @@
                   >
                     Save ESN card
                   </button>
-                  @if (!hasVerifiedEsnCard() && buyEsnCardUrl(); as buyEsnCardLink) {
+                  @if (
+                    !hasVerifiedEsnCard() && buyEsnCardUrl();
+                    as buyEsnCardLink
+                  ) {
                     <a
                       class="text-sm underline"
                       [href]="buyEsnCardLink"
@@ -200,13 +214,17 @@
           }
         </div>
       }
-      @case ('receipts') {
+      @case ("receipts") {
         <div class="space-y-4" id="receipts">
           <h2 class="title-medium">Submitted receipts</h2>
           @if (myReceiptsQuery.isPending()) {
-            <div class="bg-surface-container rounded-xl p-4">Loading receipts...</div>
+            <div class="bg-surface-container rounded-xl p-4">
+              Loading receipts...
+            </div>
           } @else if (myReceiptsQuery.isError()) {
-            <div class="bg-error-container text-on-error-container rounded-xl p-4">
+            <div
+              class="bg-error-container text-on-error-container rounded-xl p-4"
+            >
               Failed to load receipts.
             </div>
           } @else if ((myReceiptsQuery.data()?.length ?? 0) === 0) {
@@ -217,9 +235,15 @@
             <div class="grid gap-3">
               @for (receipt of myReceiptsQuery.data(); track receipt.id) {
                 <article class="bg-surface-container rounded-xl p-4">
-                  <div class="flex flex-wrap items-center justify-between gap-2">
-                    <h3 class="font-medium">{{ receipt.attachmentFileName }}</h3>
-                    <span class="rounded bg-surface px-2 py-1 text-xs uppercase">
+                  <div
+                    class="flex flex-wrap items-center justify-between gap-2"
+                  >
+                    <h3 class="font-medium">
+                      {{ receipt.attachmentFileName }}
+                    </h3>
+                    <span
+                      class="rounded bg-surface px-2 py-1 text-xs uppercase"
+                    >
                       {{ receipt.status }}
                     </span>
                   </div>

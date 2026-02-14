@@ -35,7 +35,10 @@ export class RoleCreateComponent {
     this.rpc.admin['roles.create'].mutationOptions(),
   );
   protected readonly faArrowLeft = faArrowLeft;
-  protected readonly roleForm = form(signal(createRoleFormModel()), roleFormSchema);
+  protected readonly roleForm = form(
+    signal(createRoleFormModel()),
+    roleFormSchema,
+  );
   private readonly queryClient = inject(QueryClient);
   private readonly router = inject(Router);
 

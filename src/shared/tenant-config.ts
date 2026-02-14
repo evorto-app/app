@@ -21,12 +21,13 @@ export interface TenantReceiptSettings {
   receiptCountries: string[];
 }
 
-export const createDefaultTenantDiscountProviders = (): TenantDiscountProviders => ({
-  esnCard: {
-    config: {},
-    status: 'disabled',
-  },
-});
+export const createDefaultTenantDiscountProviders =
+  (): TenantDiscountProviders => ({
+    esnCard: {
+      config: {},
+      status: 'disabled',
+    },
+  });
 
 export const DEFAULT_TENANT_RECEIPT_ALLOW_OTHER = false;
 export const DEFAULT_TENANT_RECEIPT_COUNTRIES = [...DEFAULT_RECEIPT_COUNTRIES];

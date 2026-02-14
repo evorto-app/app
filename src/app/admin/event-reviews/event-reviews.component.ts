@@ -111,8 +111,7 @@ import { EventReviewDialogComponent } from '../../events/event-review-dialog/eve
                 <!--                }-->
               </div>
               <a mat-button routerLink="/events/{{ event.id }}">
-                <fa-duotone-icon [icon]="faArrowUpRightFromSquare"
-                 />
+                <fa-duotone-icon [icon]="faArrowUpRightFromSquare" />
                 Open Event
               </a>
             </div>

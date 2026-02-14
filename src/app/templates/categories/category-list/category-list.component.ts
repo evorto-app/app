@@ -59,7 +59,9 @@ export class CategoryListComponent {
   );
   protected readonly templateCategoryGroupsErrorMessage = computed(() => {
     const error = this.templateCategoryGroupsQuery.error();
-    return typeof error === 'string' ? error : (error?.message ?? 'Unknown error');
+    return typeof error === 'string'
+      ? error
+      : (error?.message ?? 'Unknown error');
   });
   private createCategoryMutation = injectMutation(() =>
     this.rpc.templateCategories.create.mutationOptions(),

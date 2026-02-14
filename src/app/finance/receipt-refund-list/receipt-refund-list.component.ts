@@ -56,12 +56,14 @@ export class ReceiptRefundListComponent {
 
   private readonly dialog = inject(MatDialog);
   private readonly notifications = inject(NotificationService);
-  private readonly payoutTypeByRecipient = signal<Record<string, PayoutType>>({});
-
-  private readonly queryClient = inject(QueryClient);
-  private readonly selectionByRecipient = signal<Record<string, Record<string, boolean>>>(
+  private readonly payoutTypeByRecipient = signal<Record<string, PayoutType>>(
     {},
   );
+
+  private readonly queryClient = inject(QueryClient);
+  private readonly selectionByRecipient = signal<
+    Record<string, Record<string, boolean>>
+  >({});
 
   constructor() {
     effect(() => {
@@ -106,17 +108,24 @@ export class ReceiptRefundListComponent {
       return false;
     }
     const payoutType = this.getPayoutType(recipientId, payout);
-    return payoutType === 'iban' ? Boolean(payout.iban) : Boolean(payout.paypalEmail);
+    return payoutType === 'iban'
+      ? Boolean(payout.iban)
+      : Boolean(payout.paypalEmail);
   }
 
   protected getPayoutType(
     recipientId: string,
     payout: { iban: null | string; paypalEmail: null | string },
   ): PayoutType {
-    return this.payoutTypeByRecipient()[recipientId] ?? (payout.iban ? 'iban' : 'paypal');
+    return (
+      this.payoutTypeByRecipient()[recipientId] ??
+      (payout.iban ? 'iban' : 'paypal')
+    );
   }
 
-  protected hasPreviewUrl(receipt: { previewImageUrl: null | string }): boolean {
+  protected hasPreviewUrl(receipt: {
+    previewImageUrl: null | string;
+  }): boolean {
     return Boolean(receipt.previewImageUrl);
   }
 
@@ -128,7 +137,9 @@ export class ReceiptRefundListComponent {
       return false;
     }
     const selected = this.selectionByRecipient()[recipientId] ?? {};
-    const selectedCount = receiptIds.filter((receiptId) => selected[receiptId]).length;
+    const selectedCount = receiptIds.filter(
+      (receiptId) => selected[receiptId],
+    ).length;
     return selectedCount > 0 && selectedCount < receiptIds.length;
   }
 
@@ -172,7 +183,10 @@ export class ReceiptRefundListComponent {
       return;
     }
 
-    const payoutType = this.getPayoutType(group.submittedByUserId, group.payout);
+    const payoutType = this.getPayoutType(
+      group.submittedByUserId,
+      group.payout,
+    );
     const payoutReference =
       payoutType === 'iban' ? group.payout.iban : group.payout.paypalEmail;
     if (!payoutReference) {
@@ -202,7 +216,10 @@ export class ReceiptRefundListComponent {
               ]),
             );
             await this.queryClient.invalidateQueries(
-              this.rpc.queryFilter(['finance', 'receipts.pendingApprovalGrouped']),
+              this.rpc.queryFilter([
+                'finance',
+                'receipts.pendingApprovalGrouped',
+              ]),
             );
             await this.queryClient.invalidateQueries(
               this.rpc.queryFilter(['finance', 'transactions.findMany']),
@@ -239,7 +256,10 @@ export class ReceiptRefundListComponent {
       .reduce((sum, receipt) => sum + receipt.totalAmount, 0);
   }
 
-  protected setPayoutType(recipientId: string, payoutType: null | string): void {
+  protected setPayoutType(
+    recipientId: string,
+    payoutType: null | string,
+  ): void {
     if (payoutType !== 'iban' && payoutType !== 'paypal') {
       return;
     }

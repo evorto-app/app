@@ -85,9 +85,10 @@ import { ImportTaxRatesDialogComponent } from '../components/import-tax-rates-di
         <div
           class="bg-surface-container-low text-on-surface flex flex-col items-center justify-center rounded-2xl p-8"
         >
-          <fa-duotone-icon [icon]="faReceipt"
+          <fa-duotone-icon
+            [icon]="faReceipt"
             class="mb-4 text-6xl text-on-surface-variant"
-           />
+          />
           <h2 class="title-medium mb-2">No tax rates imported</h2>
           <p class="body-medium text-on-surface-variant mb-4 text-center">
             Import tax rates from your payment provider to enable paid

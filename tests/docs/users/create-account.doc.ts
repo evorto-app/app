@@ -5,9 +5,7 @@ import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 // test.use({ storageState: defaultStateFile });
 
 // Skip this journey if Auth0 Management credentials are not configured
-if (
-  !hasAuth0ManagementEnvironment()
-) {
+if (!hasAuth0ManagementEnvironment()) {
   test.skip(true, 'Auth0 creds missing');
 }
 

@@ -81,13 +81,20 @@ export class ReceiptApprovalDetailComponent {
     this.rpc.finance['receipts.review'].mutationOptions(),
   );
   private readonly sanitizer = inject(DomSanitizer);
-  protected readonly safePdfPreviewUrl = computed<null | SafeResourceUrl>(() => {
-    const receipt = this.receiptQuery.data();
-    if (!receipt?.previewImageUrl || receipt.attachmentMimeType !== 'application/pdf') {
-      return null;
-    }
-    return this.sanitizer.bypassSecurityTrustResourceUrl(receipt.previewImageUrl);
-  });
+  protected readonly safePdfPreviewUrl = computed<null | SafeResourceUrl>(
+    () => {
+      const receipt = this.receiptQuery.data();
+      if (
+        !receipt?.previewImageUrl ||
+        receipt.attachmentMimeType !== 'application/pdf'
+      ) {
+        return null;
+      }
+      return this.sanitizer.bypassSecurityTrustResourceUrl(
+        receipt.previewImageUrl,
+      );
+    },
+  );
 
   private readonly notifications = inject(NotificationService);
 
@@ -142,8 +149,12 @@ export class ReceiptApprovalDetailComponent {
 
     const totalAmount = Math.round(value.totalAmount * 100);
     const taxAmount = Math.round(value.taxAmount * 100);
-    const depositAmount = value.hasDeposit ? Math.round(value.depositAmount * 100) : 0;
-    const alcoholAmount = value.hasAlcohol ? Math.round(value.alcoholAmount * 100) : 0;
+    const depositAmount = value.hasDeposit
+      ? Math.round(value.depositAmount * 100)
+      : 0;
+    const alcoholAmount = value.hasAlcohol
+      ? Math.round(value.alcoholAmount * 100)
+      : 0;
     if (depositAmount + alcoholAmount > totalAmount) {
       this.notifications.showError(
         'Deposit and alcohol amounts cannot exceed total amount',
@@ -168,7 +179,9 @@ export class ReceiptApprovalDetailComponent {
           purchaseCountry: value.purchaseCountry,
           receiptDate: receiptDate.toISOString(),
           rejectionReason:
-            status === 'rejected' ? this.rejectionReason().trim() || null : null,
+            status === 'rejected'
+              ? this.rejectionReason().trim() || null
+              : null,
           status,
           taxAmount,
           totalAmount,
@@ -176,7 +189,10 @@ export class ReceiptApprovalDetailComponent {
         {
           onSuccess: async () => {
             await this.queryClient.invalidateQueries(
-              this.rpc.queryFilter(['finance', 'receipts.pendingApprovalGrouped']),
+              this.rpc.queryFilter([
+                'finance',
+                'receipts.pendingApprovalGrouped',
+              ]),
             );
             await this.queryClient.invalidateQueries(
               this.rpc.queryFilter([
@@ -185,7 +201,9 @@ export class ReceiptApprovalDetailComponent {
               ]),
             );
             await this.queryClient.invalidateQueries({
-              queryKey: this.rpc.finance['receipts.findOneForApproval'].queryKey({
+              queryKey: this.rpc.finance[
+                'receipts.findOneForApproval'
+              ].queryKey({
                 id: this.receiptId(),
               }),
             });

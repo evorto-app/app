@@ -50,7 +50,11 @@ const sanitizeRedirectPath = (value: null | string): string | undefined => {
     return;
   }
 
-  if (!value.startsWith('/') || value.startsWith('//') || value.includes('://')) {
+  if (
+    !value.startsWith('/') ||
+    value.startsWith('//') ||
+    value.includes('://')
+  ) {
     return;
   }
 
@@ -85,7 +89,9 @@ const resolveStaticPath = (pathname: string) =>
     const path = yield* Path.Path;
     const basePath = yield* path.fromFileUrl(browserDistributionUrl);
     const normalizedBasePath = path.normalize(basePath);
-    const targetPath = path.normalize(path.join(normalizedBasePath, relativePath));
+    const targetPath = path.normalize(
+      path.join(normalizedBasePath, relativePath),
+    );
 
     const basePrefix = normalizedBasePath.endsWith(path.sep)
       ? normalizedBasePath
@@ -216,7 +222,9 @@ const qrCodeRouteLayer = HttpLayerRouter.add(
     Effect.gen(function* () {
       const registrationId = extractRegistrationId(request);
       if (!registrationId) {
-        return HttpServerResponse.text('Registration id missing', { status: 400 });
+        return HttpServerResponse.text('Registration id missing', {
+          status: 400,
+        });
       }
 
       const webRequest = BunHttpServerRequest.toRequest(request);
@@ -277,7 +285,8 @@ const rpcRouteLayer = HttpLayerRouter.add('POST', '/rpc', (request) =>
 );
 
 const securityHeadersMiddlewareLayer = HttpLayerRouter.middleware(
-  (effect) => effect.pipe(Effect.map((response) => applySecurityHeaders(response))),
+  (effect) =>
+    effect.pipe(Effect.map((response) => applySecurityHeaders(response))),
   { global: true },
 );
 
@@ -345,13 +354,20 @@ const handlerRuntimeLayer = Layer.mergeAll(
   webhookRateLimitLayer,
 );
 
-const handlerAppLayer = routesLayer.pipe(Layer.provideMerge(handlerRuntimeLayer));
+const handlerAppLayer = routesLayer.pipe(
+  Layer.provideMerge(handlerRuntimeLayer),
+);
 
-const { handler: serverHandler } = HttpLayerRouter.toWebHandler(handlerAppLayer, {
-  middleware: withSsrFallback,
-});
+const { handler: serverHandler } = HttpLayerRouter.toWebHandler(
+  handlerAppLayer,
+  {
+    middleware: withSsrFallback,
+  },
+);
 
-const handlerContext = EffectContext.empty() as Parameters<typeof serverHandler>[1];
+const handlerContext = EffectContext.empty() as Parameters<
+  typeof serverHandler
+>[1];
 
 const requestHandler = createRequestHandler((request) =>
   serverHandler(request, handlerContext),

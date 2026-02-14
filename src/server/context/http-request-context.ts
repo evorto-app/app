@@ -6,10 +6,7 @@ import { Schema } from 'effect';
 import type { AuthSession } from '../auth/auth-session';
 
 import { Context as RequestContext } from '../../types/custom/context';
-import {
-  isAuthenticated,
-  resolveRequestOrigin,
-} from '../auth/auth-session';
+import { isAuthenticated, resolveRequestOrigin } from '../auth/auth-session';
 import {
   resolveAuthenticationContext,
   resolveTenantContext,

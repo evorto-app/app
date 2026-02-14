@@ -33,11 +33,11 @@ const toRpcRequest = (
     RPC_CONTEXT_HEADERS.AUTHENTICATED,
     context.authentication.isAuthenticated ? 'true' : 'false',
   );
-  headers.set(RPC_CONTEXT_HEADERS.PERMISSIONS, JSON.stringify(user?.permissions ?? []));
   headers.set(
-    RPC_CONTEXT_HEADERS.USER,
-    user ? JSON.stringify(user) : 'null',
+    RPC_CONTEXT_HEADERS.PERMISSIONS,
+    JSON.stringify(user?.permissions ?? []),
   );
+  headers.set(RPC_CONTEXT_HEADERS.USER, user ? JSON.stringify(user) : 'null');
   headers.set(RPC_CONTEXT_HEADERS.USER_ASSIGNED, user ? 'true' : 'false');
   headers.set(RPC_CONTEXT_HEADERS.AUTH_DATA, JSON.stringify(authData));
   headers.set(RPC_CONTEXT_HEADERS.TENANT, JSON.stringify(context.tenant));
@@ -49,4 +49,5 @@ export const handleAppRpcRequestWithContext = (
   request: Request,
   context: RequestContext,
   authData: Record<string, unknown>,
-): Promise<Response> => handleAppRpcWebRequest(toRpcRequest(request, context, authData));
+): Promise<Response> =>
+  handleAppRpcWebRequest(toRpcRequest(request, context, authData));

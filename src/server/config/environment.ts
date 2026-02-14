@@ -84,7 +84,9 @@ const CloudflareR2EnvironmentSchema = Schema.Struct({
   CLOUDFLARE_R2_S3_KEY_ID: Schema.NonEmptyString,
 });
 
-export type ServerEnvironment = Schema.Schema.Type<typeof ServerEnvironmentSchema>;
+export type ServerEnvironment = Schema.Schema.Type<
+  typeof ServerEnvironmentSchema
+>;
 
 const formatSchemaError = (error: ParseResult.ParseError): string =>
   ParseResult.TreeFormatter.formatErrorSync(error);
@@ -109,7 +111,9 @@ const decodeOrThrow = <A, I>(
 ): A => {
   const parsed = Schema.decodeUnknownEither(schema)(input);
   if (Either.isLeft(parsed)) {
-    throw new Error(`Invalid ${label} schema:\n${formatSchemaError(parsed.left)}`);
+    throw new Error(
+      `Invalid ${label} schema:\n${formatSchemaError(parsed.left)}`,
+    );
   }
   return parsed.right;
 };
@@ -217,7 +221,8 @@ export const getCloudflareImagesEnvironment = (
 
   return {
     CLOUDFLARE_ACCOUNT_ID: environment.CLOUDFLARE_ACCOUNT_ID,
-    CLOUDFLARE_IMAGES_DELIVERY_HASH: environment.CLOUDFLARE_IMAGES_DELIVERY_HASH,
+    CLOUDFLARE_IMAGES_DELIVERY_HASH:
+      environment.CLOUDFLARE_IMAGES_DELIVERY_HASH,
     CLOUDFLARE_IMAGES_ENVIRONMENT: environment.CLOUDFLARE_IMAGES_ENVIRONMENT,
     CLOUDFLARE_IMAGES_VARIANT: environment.CLOUDFLARE_IMAGES_VARIANT,
     CLOUDFLARE_TOKEN: cloudflareToken,

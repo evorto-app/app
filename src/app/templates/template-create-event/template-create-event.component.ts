@@ -59,7 +59,10 @@ export class TemplateCreateEventComponent {
   protected readonly esnEnabled = computed(() => {
     const providers = this.discountProvidersQuery.data();
     if (!providers) return false;
-    return providers.find((provider) => provider.type === 'esnCard')?.status === 'enabled';
+    return (
+      providers.find((provider) => provider.type === 'esnCard')?.status ===
+      'enabled'
+    );
   });
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly registrationModes = [
@@ -182,9 +185,7 @@ export class TemplateCreateEventComponent {
           end: this.toDateTime(formValue.end).toJSDate().toISOString(),
           icon: formValue.icon,
           registrationOptions: formValue.registrationOptions.map((option) => ({
-            closeRegistrationTime: this.toDateTime(
-              option.closeRegistrationTime,
-            )
+            closeRegistrationTime: this.toDateTime(option.closeRegistrationTime)
               .toJSDate()
               .toISOString(),
             description: option.description?.trim()
@@ -192,9 +193,7 @@ export class TemplateCreateEventComponent {
               : // eslint-disable-next-line unicorn/no-null
                 null,
             isPaid: option.isPaid,
-            openRegistrationTime: this.toDateTime(
-              option.openRegistrationTime,
-            )
+            openRegistrationTime: this.toDateTime(option.openRegistrationTime)
               .toJSDate()
               .toISOString(),
             organizingRegistration: option.organizingRegistration,
