@@ -5,6 +5,10 @@ This file tracks migration items that need another pass before final closure.
 ## Open Items
 
 - [ ] Resolve Bun package-manager hang when adding/installing dependencies (`bun add` / `bun install` stalls at `Resolving dependencies` in this workspace); once fixed, regenerate and commit a Bun-managed lockfile update for recent dependency additions.
+- [ ] Remove empty legacy server directories now that Effect/Bun cutover is complete (`src/server/trpc`, `src/server/middleware`, `src/types/express`) and clean up stale references in migration docs.
+- [ ] Run dependency-pruning pass for likely stale packages (confirm/remove candidates such as `auth0` runtime dependency usage, `playwright-core`, and other depcheck-flagged unused packages) and validate with lint/build/tests.
+- [ ] Reduce lint-warning baseline (currently 57 warnings) by removing stale `unicorn/no-null` disables and deciding a consistent policy for Signal Forms/null interoperability.
+- [ ] Refresh stale Playwright inventory documentation (`tests/test-inventory.md`) so listed gaps match current tests.
 - [ ] Resolve remaining docs failures after runtime fixes:
   - `tests/docs/finance/inclusive-tax-rates.doc.ts` (`Tax rate` combobox not found in organizer section during template edit)
   - `tests/docs/profile/discounts.doc.ts` (`Discounts` section button not found in profile navigation)
@@ -18,6 +22,7 @@ This file tracks migration items that need another pass before final closure.
 
 ## Recently Closed
 
+- 2026-02-14: completed production-readiness audit and documented prioritized hardening sequence in `production-readiness-audit-2026-02-14.md`.
 - 2026-02-14: integrated `@heddendorp/effect-platform-angular@0.0.7` transport wiring into app bootstrap and RPC client creation (`provideEffectHttpClient`, `provideEffectRpcProtocolHttpLayer`, DI-backed `AppRpc` bridge preserving existing `AppRpc.injectClient()` call sites).
 - 2026-02-14: normalized package script naming to namespaced groups (`dev:*`, `build:*`, `test:*`, `db:*`, `ops:*`, `ui:*`) and aligned active docs/config workflow references.
 - 2026-02-13: replaced custom auth/session crypto implementation with `@auth0/auth0-server-js` (`ServerClient`, `CookieTransactionStore`, `StatelessStateStore`) integrated via Effect HTTP cookie mutation bridge.

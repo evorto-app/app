@@ -9,4 +9,5 @@
 - [Session Handoff 2026-02-12](./handoff-2026-02-12.md)
 - [Session Handoff 2026-02-13](./handoff-2026-02-13.md)
 - [Session Handoff 2026-02-14](./handoff-2026-02-14.md)
+- [Production Readiness Audit 2026-02-14](./production-readiness-audit-2026-02-14.md)
 - [Revisit Log](./revisit-log.md)
