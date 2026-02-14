@@ -31,7 +31,7 @@ if (environment.CI) {
 export default defineConfig({
   /* Fail the build on CI if you accidentally left test.only in the source code. */
   forbidOnly: !!environment.CI,
-  maxFailures: environment.CI ? 1 : undefined,
+  ...(environment.CI ? { maxFailures: 1 } : {}),
   /* Run tests in files in parallel */
   fullyParallel: true,
   /* Configure projects for major browsers */
