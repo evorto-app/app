@@ -11,7 +11,6 @@ import {
 import {
   BunFileSystem,
   BunHttpServer,
-  BunHttpServerRequest,
   BunRuntime,
 } from '@effect/platform-bun';
 import * as Sentry from '@sentry/node';
@@ -156,7 +155,7 @@ const renderSsr = (request: HttpServerRequest.HttpServerRequest) =>
       resolveHttpRequestContext(request, authSession),
     );
 
-    const webRequest = BunHttpServerRequest.toRequest(request);
+    const webRequest = yield* HttpServerRequest.toWeb(request);
     const renderedResponse = yield* Effect.tryPromise(() =>
       angularApp.handle(webRequest, requestContext),
     );
@@ -212,7 +211,7 @@ const qrCodeRouteLayer = HttpLayerRouter.add(
         });
       }
 
-      const webRequest = BunHttpServerRequest.toRequest(request);
+      const webRequest = yield* HttpServerRequest.toWeb(request);
       const webResponse = yield* Effect.tryPromise(() =>
         handleQrRegistrationCodeWebRequest(webRequest, registrationId),
       );
@@ -240,7 +239,7 @@ const stripeWebhookRouteLayer = HttpLayerRouter.add(
         });
       }
 
-      const webRequest = BunHttpServerRequest.toRequest(request);
+      const webRequest = yield* HttpServerRequest.toWeb(request);
       const webResponse = yield* Effect.tryPromise(() =>
         handleStripeWebhookWebRequest(webRequest),
       );
@@ -256,7 +255,7 @@ const rpcRouteLayer = HttpLayerRouter.add('POST', '/rpc', (request) =>
       resolveHttpRequestContext(request, authSession),
     );
 
-    const webRequest = BunHttpServerRequest.toRequest(request);
+    const webRequest = yield* HttpServerRequest.toWeb(request);
     const rpcWebResponse = yield* Effect.tryPromise(() =>
       handleAppRpcRequestWithContext(
         webRequest,

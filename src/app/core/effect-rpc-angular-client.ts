@@ -2,6 +2,7 @@ import type * as RpcClient from '@effect/rpc/RpcClient';
 import type * as Layer from 'effect/Layer';
 
 import {
+  REQUEST,
   createEnvironmentInjector,
   DestroyRef,
   EnvironmentInjector,
@@ -35,8 +36,23 @@ const resolveServerBaseUrl = (): string => {
   return 'http://localhost:4200';
 };
 
+const resolveRequestOrigin = (): string | undefined => {
+  try {
+    const request = inject(REQUEST, { optional: true });
+    if (request && typeof request.url === 'string') {
+      return new URL(request.url).origin;
+    }
+  } catch {
+    // Ignore missing DI context while resolving fallback URL.
+  }
+
+  return;
+};
+
 export const resolveRpcUrl = (): string =>
-  'window' in globalThis ? '/rpc' : `${resolveServerBaseUrl()}/rpc`;
+  'window' in globalThis
+    ? '/rpc'
+    : `${normalizeBaseUrl(resolveRequestOrigin() ?? resolveServerBaseUrl())}/rpc`;
 
 const createAppRpcFactory = (
   rpcLayer: Layer.Layer<RpcClient.Protocol, never, never>,
@@ -45,7 +61,9 @@ const createAppRpcFactory = (
     group: AppRpcs,
     keyPrefix: 'rpc',
     mutationDefaults: {},
-    queryDefaults: {},
+    queryDefaults: {
+      retry: false,
+    },
     rpcLayer,
   });
 

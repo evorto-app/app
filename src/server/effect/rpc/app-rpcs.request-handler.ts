@@ -25,7 +25,7 @@ const toRpcRequest = (
   request: Request,
   context: RequestContext,
   authData: Record<string, unknown>,
-): Request => {
+): Promise<Request> => {
   const headers = new Headers(request.headers);
   const user = buildRpcUser(context);
 
@@ -42,7 +42,22 @@ const toRpcRequest = (
   headers.set(RPC_CONTEXT_HEADERS.AUTH_DATA, JSON.stringify(authData));
   headers.set(RPC_CONTEXT_HEADERS.TENANT, JSON.stringify(context.tenant));
 
-  return new Request(request, { headers });
+  if (request.method === 'GET' || request.method === 'HEAD') {
+    return Promise.resolve(
+      new Request(request.url, {
+        headers,
+        method: request.method,
+      }),
+    );
+  }
+
+  return request.arrayBuffer().then((body) =>
+    new Request(request.url, {
+      body,
+      headers,
+      method: request.method,
+    }),
+  );
 };
 
 export const handleAppRpcRequestWithContext = (
@@ -50,4 +65,6 @@ export const handleAppRpcRequestWithContext = (
   context: RequestContext,
   authData: Record<string, unknown>,
 ): Promise<Response> =>
-  handleAppRpcWebRequest(toRpcRequest(request, context, authData));
+  toRpcRequest(request, context, authData).then((rpcRequest) =>
+    handleAppRpcWebRequest(rpcRequest),
+  );
