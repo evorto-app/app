@@ -2,6 +2,10 @@ import path from 'node:path';
 import { Either, ParseResult, Schema } from 'effect';
 import consola from 'consola';
 
+import { loadDotenvFiles } from '../../../helpers/config/load-dotenv-files';
+
+loadDotenvFiles();
+
 const optionalNonEmptyString = Schema.optional(Schema.NonEmptyString);
 
 const FalseFromString = Schema.BooleanFromString.pipe(

@@ -1,5 +1,9 @@
 import { Either, ParseResult, Schema } from 'effect';
 
+import { loadDotenvFiles } from '../../../helpers/config/load-dotenv-files';
+
+loadDotenvFiles();
+
 const optionalNonEmptyString = Schema.optional(Schema.NonEmptyString);
 
 const ServerEnvironmentSchema = Schema.Struct({
