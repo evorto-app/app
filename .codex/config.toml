@@ -13,8 +13,3 @@ args = ["-classpath","/Users/hedde/Applications/WebStorm.app/Contents/plugins/mc
 [mcp_servers.webstorm.env]
 IJ_MCP_SERVER_PORT = "64343"
 
-[features]
-unified_exec = true
-shell_snapshot = true
-collab = true
-steer = true
