@@ -166,21 +166,6 @@ const renderSsr = (request: HttpServerRequest.HttpServerRequest) =>
       : notFoundServerResponse;
   });
 
-const staticRouteLayer = HttpLayerRouter.add('*', '*', (request) =>
-  Effect.gen(function* () {
-    const staticResponse = yield* tryServeStatic(request);
-    if (staticResponse) {
-      return staticResponse;
-    }
-
-    if (request.method === 'GET') {
-      return yield* renderSsr(request);
-    }
-
-    return yield* Effect.fail(new HttpServerError.RouteNotFound({ request }));
-  }),
-);
-
 const healthRouteLayer = HttpLayerRouter.add('GET', '/healthz', () =>
   Effect.tryPromise(() => handleHealthzWebRequest()).pipe(
     Effect.map((response) => HttpServerResponse.fromWeb(response)),
@@ -284,6 +269,21 @@ const rpcRouteLayer = HttpLayerRouter.add('POST', '/rpc', (request) =>
   }),
 );
 
+const staticAndAngularCatchAllLayer = HttpLayerRouter.add('*', '*', (request) =>
+  Effect.gen(function* () {
+    const staticResponse = yield* tryServeStatic(request);
+    if (staticResponse) {
+      return staticResponse;
+    }
+
+    if (request.method === 'GET') {
+      return yield* renderSsr(request);
+    }
+
+    return yield* Effect.fail(new HttpServerError.RouteNotFound({ request }));
+  }),
+);
+
 const securityHeadersMiddlewareLayer = HttpLayerRouter.middleware(
   (effect) =>
     effect.pipe(Effect.map((response) => applySecurityHeaders(response))),
@@ -299,7 +299,7 @@ const routesLayer = Layer.mergeAll(
   qrCodeRouteLayer,
   stripeWebhookRouteLayer,
   rpcRouteLayer,
-  staticRouteLayer,
+  staticAndAngularCatchAllLayer,
   securityHeadersMiddlewareLayer,
 );
 
@@ -326,13 +326,7 @@ const withSsrFallback = <E, R>(
         const request = yield* HttpServerRequest.HttpServerRequest;
 
         if (error instanceof HttpServerError.RouteNotFound) {
-          return yield* renderSsr(request).pipe(
-            Effect.catchAll((renderError) => {
-              consola.error(renderError);
-              Sentry.captureException(renderError);
-              return Effect.succeed(createInternalErrorResponse(request));
-            }),
-          );
+          return notFoundServerResponse;
         }
 
         consola.error(error);
