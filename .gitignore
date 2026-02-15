@@ -43,6 +43,7 @@ Thumbs.db
 
 # Secrets
 .env
+.env.development
 
 # Playwright
 /test-results/

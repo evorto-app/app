@@ -7,5 +7,6 @@ script = '''
 cp /Users/hedde/code/evorto/.env .
 cp /Users/hedde/code/evorto/.npmrc .
 bun install --frozen-lockfile
+bun run env:runtime
 
 '''
