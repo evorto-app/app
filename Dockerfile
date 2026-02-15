@@ -45,4 +45,4 @@ COPY --from=production-dependencies /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY instrument.mjs ./
 
-CMD ["bun","dist/evorto/server/server.mjs"]
+CMD ["bun", "--preload", "./instrument.mjs","dist/evorto/server/server.mjs"]
