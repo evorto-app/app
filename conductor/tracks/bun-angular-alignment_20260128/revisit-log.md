@@ -17,7 +17,6 @@ This file tracks migration items that need another pass before final closure.
 
 ## Recently Closed
 
-- 2026-02-15: refactored HTTP route/static/error composition from `src/server.ts` into `src/server/http/routes-layer.ts`, keeping `src/server.ts` focused on layer wiring and server bootstrap only.
 - 2026-02-15: fixed Angular route extraction failure under Bun build runtime by setting `NG_BUILD_PARTIAL_SSR=1` for Angular build scripts (`build:app`, `build:watch`).
 - 2026-02-15: reordered server route composition in `src/server.ts` to register named routes first and run static-file serving before Angular SSR within the final wildcard handler; removed duplicate SSR fallback on `RouteNotFound` in middleware.
 - 2026-02-14: resolved Bun package-manager reliability issue and resumed Bun-native dependency/lockfile updates (`bun add` / `bun remove` operations now complete in this workspace).
