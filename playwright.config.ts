@@ -59,7 +59,7 @@ export default defineConfig({
       testDir: './tests/setup',
       testMatch: /.*\.setup\.ts$/,
       timeout: 20_000,
-      use: { ...devices['Desktop Chrome'] },
+      use: { ...devices['Desktop Chrome'], channel: 'chromium' },
     },
     {
       dependencies: ['setup'],

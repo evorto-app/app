@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { Either, ParseResult, Schema } from 'effect';
+import consola from 'consola';
 
 const optionalNonEmptyString = Schema.optional(Schema.NonEmptyString);
 
@@ -144,6 +145,8 @@ export const validatePlaywrightEnvironment = (
       'e2e CI integration environment',
     );
   }
+
+  consola.debug('Playwright environment:', environment);
 
   return environment;
 };
