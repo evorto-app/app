@@ -13,10 +13,12 @@ This file tracks migration items that need another pass before final closure.
 - [ ] Revisit security-header policy strictness (`Permissions-Policy` / `X-Frame-Options` defaults) after UX and integration review.
 - [ ] Add focused tests for Effect/Bun auth callback/session lifecycle and Stripe webhook route behavior under the new runtime path.
 - [ ] Replace temporary `@material/material-color-utilities` patch dependency with an upstream-safe dependency/version solution.
+- [ ] Investigate `bun run lint:check` / `bunx --bun ng lint` "Unknown error" output in the current Angular 21 + Bun toolchain (no actionable diagnostics emitted).
 - [ ] Decide whether to enable rolling Auth0 session refresh in request reads (`getSession(...)` currently used without response cookie writeback paths in SSR/RPC context).
 
 ## Recently Closed
 
+- 2026-02-15: fixed Angular dev-SSR stabilization deadlock caused by hanging `POST /rpc` requests. Runtime-neutral request conversion now uses `HttpServerRequest.toWeb(...)` in `src/server.ts`, and RPC context header injection now rebuilds requests with a materialized body in `src/server/effect/rpc/app-rpcs.request-handler.ts` instead of `new Request(existingRequest, { headers })`.
 - 2026-02-15: fixed Angular route extraction failure under Bun build runtime by setting `NG_BUILD_PARTIAL_SSR=1` for Angular build scripts (`build:app`, `build:watch`).
 - 2026-02-15: reordered server route composition in `src/server.ts` to register named routes first and run static-file serving before Angular SSR within the final wildcard handler; removed duplicate SSR fallback on `RouteNotFound` in middleware.
 - 2026-02-14: resolved Bun package-manager reliability issue and resumed Bun-native dependency/lockfile updates (`bun add` / `bun remove` operations now complete in this workspace).
