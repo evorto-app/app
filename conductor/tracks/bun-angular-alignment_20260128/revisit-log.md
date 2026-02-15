@@ -4,6 +4,7 @@ This file tracks migration items that need another pass before final closure.
 
 ## Open Items
 
+- [ ] Resolve Angular CLI route-extraction incompatibility when executed via Bun runtime (`bunx --bun ng build` fails with `Cannot find module 'memory:///server.mjs'`; `node ./node_modules/@angular/cli/bin/ng build` currently succeeds).
 - [ ] Resolve remaining docs failures after runtime fixes:
   - `tests/docs/finance/inclusive-tax-rates.doc.ts` (`Tax rate` combobox not found in organizer section during template edit)
   - `tests/docs/profile/discounts.doc.ts` (`Discounts` section button not found in profile navigation)
@@ -17,6 +18,7 @@ This file tracks migration items that need another pass before final closure.
 
 ## Recently Closed
 
+- 2026-02-15: reordered server route composition in `src/server.ts` to register named routes first and run static-file serving before Angular SSR within the final wildcard handler; removed duplicate SSR fallback on `RouteNotFound` in middleware.
 - 2026-02-14: resolved Bun package-manager reliability issue and resumed Bun-native dependency/lockfile updates (`bun add` / `bun remove` operations now complete in this workspace).
 - 2026-02-14: removed stale dependency surface and validated cleanup (`@angular/platform-browser-dynamic`, `@ng-web-apis/common`, `date-fns`, `pdfjs-dist`, `superjson`, `type-fest`, `playwright-core`; `auth0` moved to dev dependency).
 - 2026-02-14: decommissioned stale null-lint suppressions and set explicit lint policy (`unicorn/no-null` disabled for this codebase baseline) with `lint`/`tsc`/`build` green.
