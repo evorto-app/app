@@ -197,6 +197,13 @@ const applyCookieMutations = (
     return nextResponse;
   });
 
+const runPromiseOrUndefined = <T>(
+  thunk: () => Promise<T>,
+): Effect.Effect<T | undefined> =>
+  Effect.promise(() =>
+    thunk().catch(() => undefined as T | undefined),
+  );
+
 const createStoreOptions = (
   request: HttpServerRequest.HttpServerRequest,
 ): AuthStoreOptions => ({
@@ -319,10 +326,9 @@ export const loadAuthSession = (request: HttpServerRequest.HttpServerRequest) =>
     const storeOptions = createStoreOptions(request);
     const auth0Client = createAuth0Client(request);
 
-    const sessionData = yield* Effect.tryPromise({
-      catch: () => undefined as SessionData | undefined,
-      try: () => auth0Client.getSession(storeOptions),
-    });
+    const sessionData = yield* runPromiseOrUndefined(() =>
+      auth0Client.getSession(storeOptions),
+    );
 
     const session = toAuthSession(sessionData);
     if (!session || session.expiresAt <= Date.now()) {
@@ -346,18 +352,16 @@ export const handleLoginRequest = (
     const storeOptions = createStoreOptions(request);
     const auth0Client = createAuth0Client(request);
 
-    const authorizationUrl = yield* Effect.tryPromise({
-      catch: () => undefined as undefined | URL,
-      try: () =>
-        auth0Client.startInteractiveLogin(
-          {
-            appState: {
-              redirectUrl,
-            },
+    const authorizationUrl = yield* runPromiseOrUndefined(() =>
+      auth0Client.startInteractiveLogin(
+        {
+          appState: {
+            redirectUrl,
           },
-          storeOptions,
-        ),
-    });
+        },
+        storeOptions,
+      ),
+    );
 
     if (!authorizationUrl) {
       return HttpServerResponse.text('Unable to start login.', { status: 500 });
@@ -378,24 +382,19 @@ export const handleCallbackRequest = (
   Effect.gen(function* () {
     const requestUrl = toAbsoluteRequestUrl(request);
 
-    if (
-      !requestUrl.searchParams.get('code') ||
-      !requestUrl.searchParams.get('state')
-    ) {
-      return HttpServerResponse.text('Missing code or state.', { status: 400 });
+    if (!requestUrl.searchParams.get('code')) {
+      return HttpServerResponse.text('Missing code.', { status: 400 });
     }
 
     const storeOptions = createStoreOptions(request);
     const auth0Client = createAuth0Client(request);
 
-    const completedLogin = yield* Effect.tryPromise({
-      catch: () => undefined as undefined | { appState?: LoginAppState },
-      try: () =>
-        auth0Client.completeInteractiveLogin<LoginAppState>(
-          requestUrl,
-          storeOptions,
-        ),
-    });
+    const completedLogin = yield* runPromiseOrUndefined(() =>
+      auth0Client.completeInteractiveLogin<LoginAppState>(
+        requestUrl,
+        storeOptions,
+      ),
+    );
 
     if (!completedLogin) {
       return HttpServerResponse.text('Unable to complete login.', {
@@ -428,16 +427,14 @@ export const handleLogoutRequest = (
     const storeOptions = createStoreOptions(request);
     const auth0Client = createAuth0Client(request);
 
-    const logoutUrl = yield* Effect.tryPromise({
-      catch: () => undefined as undefined | URL,
-      try: () =>
-        auth0Client.logout(
-          {
-            returnTo: new URL(returnPath, origin).toString(),
-          },
-          storeOptions,
-        ),
-    });
+    const logoutUrl = yield* runPromiseOrUndefined(() =>
+      auth0Client.logout(
+        {
+          returnTo: new URL(returnPath, origin).toString(),
+        },
+        storeOptions,
+      ),
+    );
 
     if (!logoutUrl) {
       const fallbackResponse = HttpServerResponse.expireCookie(

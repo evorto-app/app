@@ -18,6 +18,7 @@ This file tracks migration items that need another pass before final closure.
 
 ## Recently Closed
 
+- 2026-02-20: fixed Auth0 callback handling in `src/server/auth/auth-session.ts` so callback validation requires `code` (not `state`) and Auth0 SDK promise failures map to controlled fallback responses (`Missing code.` / `Unable to complete login.`) instead of bubbling as `500`.
 - 2026-02-20: upgraded `@heddendorp/effect-platform-angular` from `0.0.7` to `0.0.8`, removed the temporary local patch (`patches/@heddendorp%2Feffect-platform-angular@0.0.7.patch`), and verified Bun SSR + RPC runtime (`/events`, `/rpc`) on the built server.
 - 2026-02-20: upgraded `@heddendorp/effect-angular-query` from `0.1.1` to `0.1.2` and validated app/runtime compatibility (`bun run build:app`, SSR `/events`, RPC `/rpc` on Bun server).
 - 2026-02-15: fixed Angular dev-SSR stabilization deadlock caused by hanging `POST /rpc` requests. Runtime-neutral request conversion now uses `HttpServerRequest.toWeb(...)` in `src/server.ts`, and RPC context header injection now rebuilds requests with a materialized body in `src/server/effect/rpc/app-rpcs.request-handler.ts` instead of `new Request(existingRequest, { headers })`.
