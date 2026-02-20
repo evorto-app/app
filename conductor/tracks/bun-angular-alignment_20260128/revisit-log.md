@@ -18,6 +18,7 @@ This file tracks migration items that need another pass before final closure.
 
 ## Recently Closed
 
+- 2026-02-20: validated current `@auth0/auth0-server-js` callback contract in Bun runtime: login issues `__a0_tx` transaction cookie and callback completion should rely on `code` + store-bound transaction data (do not hard-require `state` in query prevalidation before `completeInteractiveLogin(...)`).
 - 2026-02-20: fixed Auth0 callback handling in `src/server/auth/auth-session.ts` so callback validation requires `code` (not `state`) and Auth0 SDK promise failures map to controlled fallback responses (`Missing code.` / `Unable to complete login.`) instead of bubbling as `500`.
 - 2026-02-20: upgraded `@heddendorp/effect-platform-angular` from `0.0.7` to `0.0.8`, removed the temporary local patch (`patches/@heddendorp%2Feffect-platform-angular@0.0.7.patch`), and verified Bun SSR + RPC runtime (`/events`, `/rpc`) on the built server.
 - 2026-02-20: upgraded `@heddendorp/effect-angular-query` from `0.1.1` to `0.1.2` and validated app/runtime compatibility (`bun run build:app`, SSR `/events`, RPC `/rpc` on Bun server).
@@ -40,7 +41,7 @@ This file tracks migration items that need another pass before final closure.
 - 2026-02-13: migrated material ESM fix to Bun-native `patchedDependencies` workflow and removed custom post-install patch helper.
 - 2026-02-13: completed Phase 7 full runtime cutover by replacing `src/server.ts` with Effect Platform Bun routing and deleting remaining Express runtime/server adapter files and dependencies.
 - 2026-02-13: added global security headers, Effect-based webhook rate limiting, and file-backed server key-value storage under `.cache/evorto/server-kv`.
-- 2026-02-13: validated auth login runtime path on Bun/Effect (`/login` redirects with PKCE state and persists transaction record to file-backed key-value store).
+- 2026-02-13: validated auth login runtime path on Bun/Effect (`/login` redirects with PKCE `code_challenge` and sets SDK-managed transaction cookie data).
 - 2026-02-13: adopted `bunfig.toml` (`[run].bun = true`) and removed redundant `--bun` flags from package scripts and workflow helper commands.
 - 2026-02-13: switched receipt object storage integration from AWS SDK S3 client to Bun runtime `S3Client` in `src/server/integrations/cloudflare-r2.ts`.
 - 2026-02-13: started Phase 7 by extracting a framework-agnostic RPC web handler and isolating Express glue in `src/server/effect/rpc/app-rpcs.express-handler.ts`.
