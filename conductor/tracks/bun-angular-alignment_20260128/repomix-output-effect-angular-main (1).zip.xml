@@ -42,9 +42,7 @@ The content is organized as follows:
 </file_summary>
 
 <directory_structure>
-effect-angular-effect-platform-angular-v0.0.7/
-  .codex/
-    config.toml
+effect-angular-main/
   .github/
     workflows/
       prepare_release_pr.yml
@@ -101,6 +99,7 @@ effect-angular-effect-platform-angular-v0.0.7/
           rpc-query-path.ts
           rpc-query-types.spec.ts
           rpc-query-types.ts
+          rpc-server-integration.spec.ts
         testing/
           rpc-contracts.ts
         oss-community-files.spec.ts
@@ -153,26 +152,7 @@ effect-angular-effect-platform-angular-v0.0.7/
 <files>
 This section contains the contents of the repository's files.
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/.codex/config.toml">
-[mcp_servers.playwright-test]
-command = "npx"
-args = ["playwright", "run-test-mcp-server"]
-
-[mcp_servers.angular-cli]
-command = "npx"
-args = ["-y", "@angular/cli@latest", "mcp", "-E", "modernize"]
-
-[mcp_servers.git-grep]
-url = "https://mcp.grep.app"
-
-[features]
-unified_exec = true
-shell_snapshot = true
-collab = true
-steer = true
-</file>
-
-<file path="effect-angular-effect-platform-angular-v0.0.7/.github/workflows/prepare_release_pr.yml">
+<file path="effect-angular-main/.github/workflows/prepare_release_pr.yml">
 name: Validate Release Readiness
 
 on:
@@ -235,7 +215,7 @@ jobs:
         run: npm pack --dry-run
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/.github/workflows/release.yml">
+<file path="effect-angular-main/.github/workflows/release.yml">
 name: Release
 
 on:
@@ -324,14 +304,14 @@ jobs:
         run: npm publish
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/.vscode/extensions.json">
+<file path="effect-angular-main/.vscode/extensions.json">
 {
   // For more information, visit: https://go.microsoft.com/fwlink/?linkid=827846
   "recommendations": ["angular.ng-template"]
 }
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/.vscode/launch.json">
+<file path="effect-angular-main/.vscode/launch.json">
 {
   // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
   "version": "0.2.0",
@@ -354,7 +334,7 @@ jobs:
 }
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/.vscode/mcp.json">
+<file path="effect-angular-main/.vscode/mcp.json">
 {
   // For more information, visit: https://angular.dev/ai/mcp
   "servers": {
@@ -366,7 +346,7 @@ jobs:
 }
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/.vscode/tasks.json">
+<file path="effect-angular-main/.vscode/tasks.json">
 {
   // For more information, visit: https://go.microsoft.com/fwlink/?LinkId=733558
   "version": "2.0.0",
@@ -411,7 +391,7 @@ jobs:
 }
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/conductor/archive/effect_rpc_angular_query_helpers_20260130/index.md">
+<file path="effect-angular-main/conductor/archive/effect_rpc_angular_query_helpers_20260130/index.md">
 # Track effect_rpc_angular_query_helpers_20260130 Context
 
 - [Specification](./spec.md)
@@ -419,7 +399,7 @@ jobs:
 - [Metadata](./metadata.json)
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/conductor/archive/effect_rpc_angular_query_helpers_20260130/metadata.json">
+<file path="effect-angular-main/conductor/archive/effect_rpc_angular_query_helpers_20260130/metadata.json">
 {
   "track_id": "effect_rpc_angular_query_helpers_20260130",
   "type": "feature",
@@ -430,7 +410,7 @@ jobs:
 }
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/conductor/archive/effect_rpc_angular_query_helpers_20260130/plan.md">
+<file path="effect-angular-main/conductor/archive/effect_rpc_angular_query_helpers_20260130/plan.md">
 # Implementation Plan
 
 ## Phase 1: Core query key + options utilities [checkpoint: fb14a19]
@@ -473,7 +453,7 @@ jobs:
 - [x] Task: Conductor - User Manual Verification 'Phase 3: Packaging + docs' (Protocol in workflow.md) (686b8f9)
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/conductor/archive/effect_rpc_angular_query_helpers_20260130/spec.md">
+<file path="effect-angular-main/conductor/archive/effect_rpc_angular_query_helpers_20260130/spec.md">
 # Specification
 
 ## Overview
@@ -514,7 +494,7 @@ Build an Angular-native integration between the Effect RPC client and TanStack Q
 - Additional integrations beyond Effect RPC + TanStack Query angular-query-experimental.
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/conductor/archive/oss_project_infra_20260130/notes/knope-release-workflow.md">
+<file path="effect-angular-main/conductor/archive/oss_project_infra_20260130/notes/knope-release-workflow.md">
 # Knope Release Workflow Definition
 
 Date: 2026-02-07
@@ -549,7 +529,7 @@ Date: 2026-02-07
   - Executes post-release validation/publishing tasks
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/conductor/archive/oss_project_infra_20260130/notes/readme-context-audit.md">
+<file path="effect-angular-main/conductor/archive/oss_project_infra_20260130/notes/readme-context-audit.md">
 # README Context Audit
 
 Date: 2026-02-07
@@ -586,7 +566,7 @@ Validated from root `package.json` scripts:
 - `vitest`
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/conductor/archive/oss_project_infra_20260130/index.md">
+<file path="effect-angular-main/conductor/archive/oss_project_infra_20260130/index.md">
 # Track oss_project_infra_20260130 Context
 
 - [Specification](./spec.md)
@@ -594,7 +574,7 @@ Validated from root `package.json` scripts:
 - [Metadata](./metadata.json)
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/conductor/archive/oss_project_infra_20260130/metadata.json">
+<file path="effect-angular-main/conductor/archive/oss_project_infra_20260130/metadata.json">
 {
   "track_id": "oss_project_infra_20260130",
   "type": "feature",
@@ -605,7 +585,7 @@ Validated from root `package.json` scripts:
 }
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/conductor/archive/oss_project_infra_20260130/plan.md">
+<file path="effect-angular-main/conductor/archive/oss_project_infra_20260130/plan.md">
 # Plan: OSS project scaffolding + Knope release flow
 
 ## Phase 1: Documentation & Community Baseline
@@ -647,7 +627,7 @@ Validated from root `package.json` scripts:
 - [ ] Task: Conductor - User Manual Verification 'Phase 3: Dependency Automation' (Protocol in workflow.md)
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/conductor/archive/oss_project_infra_20260130/spec.md">
+<file path="effect-angular-main/conductor/archive/oss_project_infra_20260130/spec.md">
 # Spec: Add OSS project scaffolding + Knope release flow
 
 ## Overview
@@ -691,7 +671,7 @@ Add foundational open-source project scaffolding and automation, including a roo
 - Large documentation site or multi-page docs
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/conductor/archive/start_effect_platform_angular_httpclient_20260128/index.md">
+<file path="effect-angular-main/conductor/archive/start_effect_platform_angular_httpclient_20260128/index.md">
 # Track start_effect_platform_angular_httpclient_20260128 Context
 
 - [Specification](./spec.md)
@@ -699,7 +679,7 @@ Add foundational open-source project scaffolding and automation, including a roo
 - [Metadata](./metadata.json)
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/conductor/archive/start_effect_platform_angular_httpclient_20260128/metadata.json">
+<file path="effect-angular-main/conductor/archive/start_effect_platform_angular_httpclient_20260128/metadata.json">
 {
   "track_id": "start_effect_platform_angular_httpclient_20260128",
   "type": "feature",
@@ -710,7 +690,7 @@ Add foundational open-source project scaffolding and automation, including a roo
 }
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/conductor/archive/start_effect_platform_angular_httpclient_20260128/plan.md">
+<file path="effect-angular-main/conductor/archive/start_effect_platform_angular_httpclient_20260128/plan.md">
 # Implementation Plan
 
 ## Phase 1: Library Entry Points and DI [checkpoint: 1aeb891]
@@ -750,7 +730,7 @@ Add foundational open-source project scaffolding and automation, including a roo
 - [x] Task: Conductor - User Manual Verification 'Phase 3: Documentation and Readiness' (Protocol in workflow.md) (befdcc1)
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/conductor/archive/start_effect_platform_angular_httpclient_20260128/spec.md">
+<file path="effect-angular-main/conductor/archive/start_effect_platform_angular_httpclient_20260128/spec.md">
 # Track Specification: Start effect-platform-angular with HttpClient, including a minimal documented Effect RPC usage example
 
 ## Context
@@ -793,7 +773,7 @@ The goal is to establish the `effect-platform-angular` package as the Angular-na
 - Documentation demonstrates how Angular apps can use the adapter as the HTTP client foundation for Effect RPC, with a minimal example.
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/conductor/code_styleguides/general.md">
+<file path="effect-angular-main/conductor/code_styleguides/general.md">
 # General Code Style Principles
 
 This document outlines general coding principles that apply across all languages and frameworks used in this project.
@@ -819,7 +799,7 @@ This document outlines general coding principles that apply across all languages
 - Keep documentation up-to-date with code changes.
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/conductor/code_styleguides/html-css.md">
+<file path="effect-angular-main/conductor/code_styleguides/html-css.md">
 # Google HTML/CSS Style Guide Summary
 
 This document summarizes key rules and best practices from the Google HTML/CSS Style Guide.
@@ -871,7 +851,7 @@ This document summarizes key rules and best practices from the Google HTML/CSS S
 *Source: [Google HTML/CSS Style Guide](https://google.github.io/styleguide/htmlcssguide.html)*
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/conductor/code_styleguides/typescript.md">
+<file path="effect-angular-main/conductor/code_styleguides/typescript.md">
 # Google TypeScript Style Guide Summary
 
 This document summarizes key rules and best practices from the Google TypeScript Style Guide, which is enforced by the `gts` tool.
@@ -917,7 +897,7 @@ This document summarizes key rules and best practices from the Google TypeScript
 *Source: [Google TypeScript Style Guide](https://google.github.io/styleguide/tsguide.html)*
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/conductor/index.md">
+<file path="effect-angular-main/conductor/index.md">
 # Project Context
 
 ## Definition
@@ -934,7 +914,7 @@ This document summarizes key rules and best practices from the Google TypeScript
 - [Tracks Directory](./tracks/)
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/conductor/product-guidelines.md">
+<file path="effect-angular-main/conductor/product-guidelines.md">
 # Product Guidelines
 
 ## Documentation Voice and Tone
@@ -955,7 +935,7 @@ This document summarizes key rules and best practices from the Google TypeScript
 - Deprecate before breaking changes and provide migration guides.
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/conductor/product.md">
+<file path="effect-angular-main/conductor/product.md">
 # Product Definition
 
 ## Overview
@@ -988,11 +968,11 @@ Open-source Angular developers who want Effect-first integrations.
 - Angular 21+.
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/conductor/setup_state.json">
+<file path="effect-angular-main/conductor/setup_state.json">
 {"last_successful_step": "3.3_initial_track_generated"}
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/conductor/tech-stack.md">
+<file path="effect-angular-main/conductor/tech-stack.md">
 # Tech Stack
 
 ## Languages
@@ -1022,7 +1002,7 @@ Open-source Angular developers who want Effect-first integrations.
 - No database or driver detected.
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/conductor/tracks.md">
+<file path="effect-angular-main/conductor/tracks.md">
 # Project Tracks
 
 This file tracks all major tracks for the project. Each track has its own detailed plan in its respective folder.
@@ -1035,7 +1015,7 @@ This file tracks all major tracks for the project. Each track has its own detail
 ---
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/conductor/workflow.md">
+<file path="effect-angular-main/conductor/workflow.md">
 # Project Workflow
 
 ## Guiding Principles
@@ -1371,7 +1351,7 @@ A task is complete when:
 - Keep things simple and maintainable
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/projects/effect-angular-query/src/lib/effect-rpc-query-client.spec.ts">
+<file path="effect-angular-main/projects/effect-angular-query/src/lib/effect-rpc-query-client.spec.ts">
 import { TestBed } from '@angular/core/testing';
 import { Rpc, RpcClient, RpcGroup } from '@effect/rpc';
 import * as Effect from 'effect/Effect';
@@ -1444,7 +1424,7 @@ describe('Effect RPC Angular client DI', () => {
 });
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/projects/effect-angular-query/src/lib/effect-rpc-query-client.ts">
+<file path="effect-angular-main/projects/effect-angular-query/src/lib/effect-rpc-query-client.ts">
 import {
   EnvironmentProviders,
   InjectionToken,
@@ -1709,35 +1689,6 @@ const createStreamUnsupportedError = (tag: string): Error =>
 const asRecord = (value: unknown): Record<string, unknown> | undefined =>
   typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : undefined;
 
-const resolveProcedureCall = <Current extends Rpc.Any>(
-  client: unknown,
-  pathSegments: readonly string[],
-): ((
-  input: Rpc.PayloadConstructor<Current>,
-) => Effect.Effect<Rpc.SuccessExit<Current>, unknown, never>) => {
-  let target: unknown = client;
-
-  for (const segment of pathSegments) {
-    const container = asRecord(target);
-    if (!container || !(segment in container)) {
-      throw new Error(
-        `RPC procedure "${pathSegments.join('.')}" is missing on the generated client.`,
-      );
-    }
-    target = container[segment];
-  }
-
-  if (typeof target !== 'function') {
-    throw new Error(
-      `RPC procedure "${pathSegments.join('.')}" resolved to a non-callable value on the generated client.`,
-    );
-  }
-
-  return target as (
-    input: Rpc.PayloadConstructor<Current>,
-  ) => Effect.Effect<Rpc.SuccessExit<Current>, unknown, never>;
-};
-
 const assignNestedHelper = (
   root: Record<string, unknown>,
   pathSegments: readonly string[],
@@ -1804,10 +1755,9 @@ const createProcedureHelper = <Rpcs extends Rpc.Any, Current extends Rpcs>(
   const callEffect = (input: Rpc.PayloadConstructor<Current>) => {
     throwIfStreamProcedure();
 
-    const program = Effect.flatMap(RpcClient.make(group), (client) => {
-      const call = resolveProcedureCall<Current>(client, pathSegments);
-      return call(input);
-    }).pipe(Effect.provide(config.rpcLayer), Effect.scoped);
+    const program = Effect.flatMap(RpcClient.make(group, { flatten: true }), (client) =>
+      client(tag as Rpc.Tag<Current>, input),
+    ).pipe(Effect.provide(config.rpcLayer), Effect.scoped);
 
     return program as Effect.Effect<Rpc.SuccessExit<Current>, RpcProcedureError<Current>, never>;
   };
@@ -1947,7 +1897,7 @@ export const createEffectRpcAngularClient = <Rpcs extends Rpc.Any>(
 };
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/projects/effect-angular-query/src/lib/rpc-mutation-options.spec.ts">
+<file path="effect-angular-main/projects/effect-angular-query/src/lib/rpc-mutation-options.spec.ts">
 import { createRpcMutationOptions } from './rpc-mutation-options';
 
 describe('createRpcMutationOptions', () => {
@@ -2006,7 +1956,7 @@ describe('createRpcMutationOptions', () => {
 });
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/projects/effect-angular-query/src/lib/rpc-mutation-options.ts">
+<file path="effect-angular-main/projects/effect-angular-query/src/lib/rpc-mutation-options.ts">
 import type { CreateMutationOptions, DefaultError } from '@tanstack/angular-query-experimental';
 
 import { createRpcQueryKey } from './rpc-query-key';
@@ -2064,7 +2014,7 @@ export const createRpcMutationOptions = <
 };
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/projects/effect-angular-query/src/lib/rpc-query-helpers.spec.ts">
+<file path="effect-angular-main/projects/effect-angular-query/src/lib/rpc-query-helpers.spec.ts">
 import { TestBed } from '@angular/core/testing';
 import { QueryClient } from '@tanstack/angular-query-experimental';
 import { Rpc, RpcClient, RpcClientError, RpcGroup, RpcSchema } from '@effect/rpc';
@@ -2227,7 +2177,7 @@ describe('Effect RPC Angular client helpers', () => {
 });
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/projects/effect-angular-query/src/lib/rpc-query-key.spec.ts">
+<file path="effect-angular-main/projects/effect-angular-query/src/lib/rpc-query-key.spec.ts">
 import { createRpcQueryKey } from './rpc-query-key';
 
 describe('createRpcQueryKey', () => {
@@ -2263,7 +2213,7 @@ describe('createRpcQueryKey', () => {
 });
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/projects/effect-angular-query/src/lib/rpc-query-key.ts">
+<file path="effect-angular-main/projects/effect-angular-query/src/lib/rpc-query-key.ts">
 import type { RpcQueryKey, RpcQueryKeyMeta, RpcQueryKeyType } from './rpc-query-types';
 
 export type RpcKeyPrefix = string | readonly string[];
@@ -2305,7 +2255,7 @@ export const createRpcQueryKey = <TInput>(
 };
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/projects/effect-angular-query/src/lib/rpc-query-options.spec.ts">
+<file path="effect-angular-main/projects/effect-angular-query/src/lib/rpc-query-options.spec.ts">
 import { createRpcQueryOptions } from './rpc-query-options';
 
 describe('createRpcQueryOptions', () => {
@@ -2374,7 +2324,7 @@ describe('createRpcQueryOptions', () => {
 });
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/projects/effect-angular-query/src/lib/rpc-query-options.ts">
+<file path="effect-angular-main/projects/effect-angular-query/src/lib/rpc-query-options.ts">
 import type { CreateQueryOptions, DefaultError } from '@tanstack/angular-query-experimental';
 
 import { createRpcQueryKey } from './rpc-query-key';
@@ -2437,7 +2387,7 @@ export const createRpcQueryOptions = <
 };
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/projects/effect-angular-query/src/lib/rpc-query-path.ts">
+<file path="effect-angular-main/projects/effect-angular-query/src/lib/rpc-query-path.ts">
 import type { QueryFilters } from '@tanstack/angular-query-experimental';
 
 import { createRpcQueryKey } from './rpc-query-key';
@@ -2477,7 +2427,7 @@ export const createRpcQueryFilter = (
 };
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/projects/effect-angular-query/src/lib/rpc-query-types.spec.ts">
+<file path="effect-angular-main/projects/effect-angular-query/src/lib/rpc-query-types.spec.ts">
 import type {
   CreateMutationOptions,
   CreateQueryOptions,
@@ -2539,7 +2489,7 @@ describe('rpc query types', () => {
 });
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/projects/effect-angular-query/src/lib/rpc-query-types.ts">
+<file path="effect-angular-main/projects/effect-angular-query/src/lib/rpc-query-types.ts">
 import type {
   CreateMutationOptions,
   CreateQueryOptions,
@@ -2589,7 +2539,97 @@ export type RpcMutationOptions<
 export type RpcMutationKeyType = MutationKey;
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/projects/effect-angular-query/src/testing/rpc-contracts.ts">
+<file path="effect-angular-main/projects/effect-angular-query/src/lib/rpc-server-integration.spec.ts">
+import { TestBed } from '@angular/core/testing';
+import * as Etag from '@effect/platform/Etag';
+import * as FetchHttpClient from '@effect/platform/FetchHttpClient';
+import * as FileSystem from '@effect/platform/FileSystem';
+import * as HttpPlatform from '@effect/platform/HttpPlatform';
+import * as Path from '@effect/platform/Path';
+import { Rpc, RpcClient, RpcGroup, RpcSerialization, RpcServer } from '@effect/rpc';
+import * as Effect from 'effect/Effect';
+import * as Layer from 'effect/Layer';
+import * as Schema from 'effect/Schema';
+
+import { createEffectRpcAngularClient } from './effect-rpc-query-client';
+
+const EventList = Rpc.make('events.eventList', {
+  payload: Schema.Struct({ limit: Schema.Number }),
+  success: Schema.Struct({ total: Schema.Number }),
+});
+
+class AppRpcs extends RpcGroup.make(EventList) {}
+
+const AppRpcsLive = AppRpcs.toLayer(
+  Effect.succeed({
+    'events.eventList': ({ limit }) => Effect.succeed({ total: limit + 1 }),
+  }),
+);
+
+const parseRequestTag = (bodyText: string): string | undefined => {
+  try {
+    const parsed = JSON.parse(bodyText) as
+      | { _tag?: string; tag?: string }
+      | Array<{ _tag?: string; tag?: string }>;
+    const messages = Array.isArray(parsed) ? parsed : [parsed];
+    const requestMessage = messages.find((message) => message?._tag === 'Request');
+    return requestMessage?.tag;
+  } catch {
+    return undefined;
+  }
+};
+
+describe('Effect RPC Angular client integration with RpcServer', () => {
+  it('calls a real RPC HTTP server with dotted tags', async () => {
+    const fileSystemLayer = FileSystem.layerNoop({});
+    const httpPlatformLayer = HttpPlatform.layer.pipe(Layer.provide(fileSystemLayer));
+
+    const webHandler = RpcServer.toWebHandler(AppRpcs, {
+      layer: Layer.mergeAll(
+        AppRpcsLive,
+        RpcSerialization.layerJson,
+        Path.layer,
+        fileSystemLayer,
+        Etag.layer,
+        httpPlatformLayer,
+      ),
+    });
+    let observedTag: string | undefined;
+
+    const fetchFromRpcServer: typeof fetch = async (input, init) => {
+      const request = new Request(input, init);
+      observedTag = parseRequestTag(await request.clone().text());
+      return webHandler.handler(request);
+    };
+
+    const rpcLayer = RpcClient.layerProtocolHttp({ url: 'http://rpc.test/rpc' }).pipe(
+      Layer.provide([
+        RpcSerialization.layerJson,
+        FetchHttpClient.layer.pipe(
+          Layer.provide(Layer.succeed(FetchHttpClient.Fetch, fetchFromRpcServer)),
+        ),
+      ]),
+    );
+
+    const rpcClient = createEffectRpcAngularClient({
+      group: AppRpcs,
+      rpcLayer,
+    });
+
+    TestBed.configureTestingModule({ providers: [rpcClient.providers] });
+
+    const client = TestBed.runInInjectionContext(() => rpcClient.injectClient());
+    const result = await client.events.eventList.call({ limit: 2 });
+
+    expect(result).toEqual({ total: 3 });
+    expect(observedTag).toBe('events.eventList');
+
+    await webHandler.dispose();
+  });
+});
+</file>
+
+<file path="effect-angular-main/projects/effect-angular-query/src/testing/rpc-contracts.ts">
 import * as Rpc from '@effect/rpc/Rpc';
 import * as RpcGroup from '@effect/rpc/RpcGroup';
 import * as Schema from 'effect/Schema';
@@ -2609,7 +2649,7 @@ export const UpdateUserName = Rpc.make('users.updateName', {
 export class AppRpcs extends RpcGroup.make(asRpcQuery(GetUser), asRpcMutation(UpdateUserName)) {}
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/projects/effect-angular-query/src/oss-community-files.spec.ts">
+<file path="effect-angular-main/projects/effect-angular-query/src/oss-community-files.spec.ts">
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -2633,7 +2673,7 @@ describe('OSS community and health files', () => {
 });
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/projects/effect-angular-query/src/package.spec.ts">
+<file path="effect-angular-main/projects/effect-angular-query/src/package.spec.ts">
 import packageJson from '../package.json';
 
 type JsonRecord = Record<string, unknown>;
@@ -2677,7 +2717,7 @@ describe('effect-angular-query package metadata', () => {
 });
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/projects/effect-angular-query/src/public-api.spec.ts">
+<file path="effect-angular-main/projects/effect-angular-query/src/public-api.spec.ts">
 import * as PublicApi from './public-api';
 
 describe('effect-angular-query public API', () => {
@@ -2698,7 +2738,7 @@ describe('effect-angular-query public API', () => {
 });
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/projects/effect-angular-query/src/public-api.ts">
+<file path="effect-angular-main/projects/effect-angular-query/src/public-api.ts">
 /*
  * Public API Surface of effect-angular-query
  */
@@ -2711,7 +2751,7 @@ export * from './lib/rpc-query-path';
 export * from './lib/rpc-query-types';
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/projects/effect-angular-query/src/readme-examples.spec.ts">
+<file path="effect-angular-main/projects/effect-angular-query/src/readme-examples.spec.ts">
 import { TestBed } from '@angular/core/testing';
 import {
   injectMutation,
@@ -2797,7 +2837,7 @@ describe('README examples', () => {
 });
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/projects/effect-angular-query/src/readme.spec.ts">
+<file path="effect-angular-main/projects/effect-angular-query/src/readme.spec.ts">
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -2820,7 +2860,7 @@ describe('effect-angular-query README', () => {
 });
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/projects/effect-angular-query/src/root-readme.spec.ts">
+<file path="effect-angular-main/projects/effect-angular-query/src/root-readme.spec.ts">
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -2840,7 +2880,7 @@ describe('root README', () => {
 });
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/projects/effect-angular-query/ng-package.json">
+<file path="effect-angular-main/projects/effect-angular-query/ng-package.json">
 {
   "$schema": "../../node_modules/ng-packagr/ng-package.schema.json",
   "dest": "../../dist/effect-angular-query",
@@ -2850,10 +2890,10 @@ describe('root README', () => {
 }
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/projects/effect-angular-query/package.json">
+<file path="effect-angular-main/projects/effect-angular-query/package.json">
 {
   "name": "@heddendorp/effect-angular-query",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "peerDependencies": {
     "@angular/common": "^21.1.0",
     "@angular/core": "^21.1.0",
@@ -2880,7 +2920,7 @@ describe('root README', () => {
 }
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/projects/effect-angular-query/README.md">
+<file path="effect-angular-main/projects/effect-angular-query/README.md">
 # Effect Angular Query
 
 Angular helpers for building an injectable Effect RPC client with auto-generated TanStack Query and Mutation options.
@@ -3095,7 +3135,7 @@ The recommended pattern is to create and provide one client in app setup and reu
 `AppRpc.injectClient()` in components and services.
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/projects/effect-angular-query/tsconfig.lib.json">
+<file path="effect-angular-main/projects/effect-angular-query/tsconfig.lib.json">
 /* To learn more about Typescript configuration file: https://www.typescriptlang.org/docs/handbook/tsconfig-json.html. */
 /* To learn more about Angular compiler options: https://angular.dev/reference/configs/angular-compiler-options. */
 {
@@ -3115,7 +3155,7 @@ The recommended pattern is to create and provide one client in app setup and reu
 }
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/projects/effect-angular-query/tsconfig.lib.prod.json">
+<file path="effect-angular-main/projects/effect-angular-query/tsconfig.lib.prod.json">
 /* To learn more about Typescript configuration file: https://www.typescriptlang.org/docs/handbook/tsconfig-json.html. */
 /* To learn more about Angular compiler options: https://angular.dev/reference/configs/angular-compiler-options. */
 {
@@ -3129,7 +3169,7 @@ The recommended pattern is to create and provide one client in app setup and reu
 }
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/projects/effect-angular-query/tsconfig.spec.json">
+<file path="effect-angular-main/projects/effect-angular-query/tsconfig.spec.json">
 /* To learn more about Typescript configuration file: https://www.typescriptlang.org/docs/handbook/tsconfig-json.html. */
 /* To learn more about Angular compiler options: https://angular.dev/reference/configs/angular-compiler-options. */
 {
@@ -3149,7 +3189,7 @@ The recommended pattern is to create and provide one client in app setup and reu
 }
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/projects/effect-platform-angular/src/lib/effect-http-client.ts">
+<file path="effect-angular-main/projects/effect-platform-angular/src/lib/effect-http-client.ts">
 import { HttpClient as AngularHttpClient } from '@angular/common/http';
 import { EnvironmentProviders, InjectionToken, inject, makeEnvironmentProviders } from '@angular/core';
 import { HttpClient as EffectHttpClient } from '@effect/platform';
@@ -3183,7 +3223,7 @@ export const provideEffectHttpClientLayer = (): EnvironmentProviders =>
   ]);
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/projects/effect-platform-angular/src/lib/effect-platform-angular.spec.ts">
+<file path="effect-angular-main/projects/effect-platform-angular/src/lib/effect-platform-angular.spec.ts">
 import { HttpClient, HttpRequest, provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
@@ -3455,7 +3495,7 @@ describe('Angular HttpClient adapter request mapping', () => {
 });
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/projects/effect-platform-angular/src/lib/effect-rpc-protocol-http-layer.spec.ts">
+<file path="effect-angular-main/projects/effect-platform-angular/src/lib/effect-rpc-protocol-http-layer.spec.ts">
 import { HttpRequest, provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
@@ -3617,7 +3657,7 @@ describe('Effect RPC protocol HTTP layer provider', () => {
 });
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/projects/effect-platform-angular/src/lib/effect-rpc-protocol-http-layer.ts">
+<file path="effect-angular-main/projects/effect-platform-angular/src/lib/effect-rpc-protocol-http-layer.ts">
 import { EnvironmentProviders, InjectionToken, inject, makeEnvironmentProviders } from '@angular/core';
 import { HttpClient as EffectHttpClient } from '@effect/platform';
 import * as RpcClient from '@effect/rpc/RpcClient';
@@ -3659,7 +3699,7 @@ export const provideEffectRpcProtocolHttpLayer = (
   ]);
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/projects/effect-platform-angular/src/lib/http-client-adapter.ts">
+<file path="effect-angular-main/projects/effect-platform-angular/src/lib/http-client-adapter.ts">
 import {
   HttpClient as AngularHttpClient,
   HttpErrorResponse,
@@ -3808,7 +3848,7 @@ export const createAngularHttpClient = (httpClient: AngularHttpClient): EffectHt
   );
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/projects/effect-platform-angular/src/public-api.spec.ts">
+<file path="effect-angular-main/projects/effect-platform-angular/src/public-api.spec.ts">
 import { InjectionToken } from '@angular/core';
 
 import * as PublicApi from './public-api';
@@ -3831,7 +3871,7 @@ describe('effect-platform-angular public API', () => {
 });
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/projects/effect-platform-angular/src/public-api.ts">
+<file path="effect-angular-main/projects/effect-platform-angular/src/public-api.ts">
 /*
  * Public API Surface of effect-platform-angular
  */
@@ -3840,7 +3880,7 @@ export * from './lib/effect-http-client';
 export * from './lib/effect-rpc-protocol-http-layer';
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/projects/effect-platform-angular/src/rpc-example.spec.ts">
+<file path="effect-angular-main/projects/effect-platform-angular/src/rpc-example.spec.ts">
 import { HttpClient, HttpRequest, provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { Injectable, inject } from '@angular/core';
@@ -4030,7 +4070,7 @@ describe('Effect RPC documentation example', () => {
 });
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/projects/effect-platform-angular/ng-package.json">
+<file path="effect-angular-main/projects/effect-platform-angular/ng-package.json">
 {
   "$schema": "../../node_modules/ng-packagr/ng-package.schema.json",
   "dest": "../../dist/effect-platform-angular",
@@ -4040,7 +4080,7 @@ describe('Effect RPC documentation example', () => {
 }
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/projects/effect-platform-angular/package.json">
+<file path="effect-angular-main/projects/effect-platform-angular/package.json">
 {
   "name": "@heddendorp/effect-platform-angular",
   "version": "0.0.7",
@@ -4069,7 +4109,7 @@ describe('Effect RPC documentation example', () => {
 }
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/projects/effect-platform-angular/README.md">
+<file path="effect-angular-main/projects/effect-platform-angular/README.md">
 # effect-platform-angular
 
 Angular HttpClient adapter for Effect Platform. Use it to run Effect HttpClient requests with Angular's HttpClient and to power Effect RPC protocol layers in Angular apps.
@@ -4235,7 +4275,7 @@ export class AppRpcClient implements AppRpcPromiseClient {
 - `effect` 3.19+
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/projects/effect-platform-angular/tsconfig.lib.json">
+<file path="effect-angular-main/projects/effect-platform-angular/tsconfig.lib.json">
 /* To learn more about Typescript configuration file: https://www.typescriptlang.org/docs/handbook/tsconfig-json.html. */
 /* To learn more about Angular compiler options: https://angular.dev/reference/configs/angular-compiler-options. */
 {
@@ -4255,7 +4295,7 @@ export class AppRpcClient implements AppRpcPromiseClient {
 }
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/projects/effect-platform-angular/tsconfig.lib.prod.json">
+<file path="effect-angular-main/projects/effect-platform-angular/tsconfig.lib.prod.json">
 /* To learn more about Typescript configuration file: https://www.typescriptlang.org/docs/handbook/tsconfig-json.html. */
 /* To learn more about Angular compiler options: https://angular.dev/reference/configs/angular-compiler-options. */
 {
@@ -4269,7 +4309,7 @@ export class AppRpcClient implements AppRpcPromiseClient {
 }
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/projects/effect-platform-angular/tsconfig.spec.json">
+<file path="effect-angular-main/projects/effect-platform-angular/tsconfig.spec.json">
 /* To learn more about Typescript configuration file: https://www.typescriptlang.org/docs/handbook/tsconfig-json.html. */
 /* To learn more about Angular compiler options: https://angular.dev/reference/configs/angular-compiler-options. */
 {
@@ -4287,7 +4327,7 @@ export class AppRpcClient implements AppRpcPromiseClient {
 }
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/.editorconfig">
+<file path="effect-angular-main/.editorconfig">
 # Editor configuration, see https://editorconfig.org
 root = true
 
@@ -4307,7 +4347,7 @@ max_line_length = off
 trim_trailing_whitespace = false
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/.gitignore">
+<file path="effect-angular-main/.gitignore">
 # See https://docs.github.com/get-started/getting-started-with-git/ignoring-files for more about ignoring files.
 
 # Compiled output
@@ -4354,7 +4394,7 @@ __screenshots__/
 Thumbs.db
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/AGENTS.md">
+<file path="effect-angular-main/AGENTS.md">
 You are an expert in TypeScript, Angular, and scalable web application development. You write functional, maintainable, performant, and accessible code following Angular and TypeScript best practices.
 
 ## TypeScript Best Practices
@@ -4420,7 +4460,7 @@ You are an expert in TypeScript, Angular, and scalable web application developme
 - Keep changeset summaries concise and focused on user impact.
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/angular.json">
+<file path="effect-angular-main/angular.json">
 {
   "$schema": "./node_modules/@angular/cli/lib/config/schema.json",
   "version": 1,
@@ -4485,7 +4525,7 @@ You are an expert in TypeScript, Angular, and scalable web application developme
 }
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/CHANGELOG.md">
+<file path="effect-angular-main/CHANGELOG.md">
 # Changelog
 
 All notable changes to this project will be documented in this file.
@@ -4515,7 +4555,7 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 - install knope from knope/v0.22.2 release tag
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/CHANGESETS.md">
+<file path="effect-angular-main/CHANGESETS.md">
 # Change Files
 
 Every user-facing pull request should include one new `.md` file in `.changeset/`.
@@ -4551,7 +4591,7 @@ effect-angular-query: major
 ```
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/CODE_OF_CONDUCT.md">
+<file path="effect-angular-main/CODE_OF_CONDUCT.md">
 # Code of Conduct
 
 ## Our Pledge
@@ -4609,7 +4649,7 @@ This Code of Conduct is adapted from the [Contributor Covenant](https://www.cont
 version 2.1.
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/CONTRIBUTING.md">
+<file path="effect-angular-main/CONTRIBUTING.md">
 # Contributing
 
 Thanks for your interest in contributing to Effect Angular.
@@ -4710,7 +4750,7 @@ Open a GitHub issue with:
 - Environment details (Node, Bun, Angular versions)
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/git-town.toml">
+<file path="effect-angular-main/git-town.toml">
 # See https://www.git-town.com/configuration-file for details
 
 [branches]
@@ -4721,7 +4761,7 @@ forge-type = "github"
 github-connector = "gh"
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/knope.toml">
+<file path="effect-angular-main/knope.toml">
 [packages.effect-platform-angular]
 versioned_files = ["projects/effect-platform-angular/package.json"]
 
@@ -4735,7 +4775,7 @@ ignore_conventional_commits = true
 enabled = true
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/LICENSE">
+<file path="effect-angular-main/LICENSE">
 MIT License
 
 Copyright (c) 2026 Effect Angular contributors
@@ -4759,7 +4799,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/package.json">
+<file path="effect-angular-main/package.json">
 {
   "name": "effect-angular",
   "version": "0.0.2",
@@ -4812,7 +4852,7 @@ SOFTWARE.
 }
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/README.md">
+<file path="effect-angular-main/README.md">
 # Effect Angular
 
 Effect Angular provides Angular-first integrations for Effect Platform and Effect RPC.
@@ -4937,7 +4977,7 @@ Manual first release bootstrap:
 4. Confirm the `Release` workflow succeeds and both npm packages publish successfully.
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/release-smoke-test.md">
+<file path="effect-angular-main/release-smoke-test.md">
 ---
 effect-platform-angular: patch
 effect-angular-query: patch
@@ -4946,7 +4986,7 @@ effect-angular-query: patch
 Small maintenance release to validate the automated release workflow.
 </file>
 
-<file path="effect-angular-effect-platform-angular-v0.0.7/tsconfig.json">
+<file path="effect-angular-main/tsconfig.json">
 /* To learn more about Typescript configuration file: https://www.typescriptlang.org/docs/handbook/tsconfig-json.html. */
 /* To learn more about Angular compiler options: https://angular.dev/reference/configs/angular-compiler-options. */
 {
