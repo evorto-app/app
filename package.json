@@ -58,7 +58,7 @@
     "@fortawesome/duotone-regular-svg-icons": "^7.2.0",
     "@fortawesome/free-brands-svg-icons": "^7.2.0",
     "@googlemaps/js-api-loader": "^2.0.2",
-    "@heddendorp/effect-angular-query": "0.1.1",
+    "@heddendorp/effect-angular-query": "0.1.2",
     "@heddendorp/effect-platform-angular": "^0.0.7",
     "@material/material-color-utilities": "0.4.0",
     "@neondatabase/serverless": "^1.0.2",

@@ -25,7 +25,7 @@
         "@fortawesome/duotone-regular-svg-icons": "^7.2.0",
         "@fortawesome/free-brands-svg-icons": "^7.2.0",
         "@googlemaps/js-api-loader": "^2.0.2",
-        "@heddendorp/effect-angular-query": "0.1.1",
+        "@heddendorp/effect-angular-query": "0.1.2",
         "@heddendorp/effect-platform-angular": "^0.0.7",
         "@material/material-color-utilities": "0.4.0",
         "@neondatabase/serverless": "^1.0.2",
@@ -397,7 +397,7 @@
 
     "@googlemaps/js-api-loader": ["@googlemaps/js-api-loader@2.0.2", "", { "dependencies": { "@types/google.maps": "^3.53.1" } }, "sha512-bKVuTqatS8Jven5aFqVB7rCHF1VFEzpzyi0ruzO0GUR+A7m9oMqMgtnmpANj7kMYEvvhty8Fk7TnJ1MKjWHu+Q=="],
 
-    "@heddendorp/effect-angular-query": ["@heddendorp/effect-angular-query@0.1.1", "", { "dependencies": { "tslib": "^2.3.0" }, "peerDependencies": { "@angular/common": "^21.1.0", "@angular/core": "^21.1.0", "@effect/rpc": "^0.73.0", "@tanstack/angular-query-experimental": "^5.90.25", "effect": "^3.19.15" } }, "sha512-6XpzXo7/Qw84djUlMgAb8vv0ssf+rpiwb9rvg89iqcAqhf9gAR0FRUzEEjSEjHjvVqxothBV4NDwkdidhcfIkA=="],
+    "@heddendorp/effect-angular-query": ["@heddendorp/effect-angular-query@0.1.2", "", { "dependencies": { "tslib": "^2.3.0" }, "peerDependencies": { "@angular/common": "^21.1.0", "@angular/core": "^21.1.0", "@effect/rpc": "^0.73.0", "@tanstack/angular-query-experimental": "^5.90.25", "effect": "^3.19.15" } }, "sha512-yaC7sQ07I/5T+2jBLt7zKY+zMG+ZIyo6woLWBb9yLdpE/v3BMMkoDTGy9UnSNsKPim87Dgs2R17vnBiVhyXajA=="],
 
     "@heddendorp/effect-platform-angular": ["@heddendorp/effect-platform-angular@0.0.7", "", { "dependencies": { "tslib": "^2.3.0" }, "peerDependencies": { "@angular/common": "^21.1.0", "@angular/core": "^21.1.0", "@effect/platform": "^0.94.2", "effect": "^3.19.15" } }, "sha512-nF7LMaLy18yP6y76jhLCS7E32ZpoeASvNmfBbfK34twbCkeXTQ8U/IisQDqBI5a3PZ4uJKRgtN715xvVl+hG+Q=="],
 
