@@ -26,7 +26,7 @@
         "@fortawesome/free-brands-svg-icons": "^7.2.0",
         "@googlemaps/js-api-loader": "^2.0.2",
         "@heddendorp/effect-angular-query": "0.1.2",
-        "@heddendorp/effect-platform-angular": "^0.0.7",
+        "@heddendorp/effect-platform-angular": "^0.0.8",
         "@material/material-color-utilities": "0.4.0",
         "@neondatabase/serverless": "^1.0.2",
         "@paralleldrive/cuid2": "^3.3.0",
@@ -105,7 +105,6 @@
     },
   },
   "patchedDependencies": {
-    "@heddendorp/effect-platform-angular@0.0.7": "patches/@heddendorp%2Feffect-platform-angular@0.0.7.patch",
     "@material/material-color-utilities@0.4.0": "patches/@material-material-color-utilities-npm-0.4.0-9d48ca70b8.patch",
   },
   "packages": {
@@ -399,7 +398,7 @@
 
     "@heddendorp/effect-angular-query": ["@heddendorp/effect-angular-query@0.1.2", "", { "dependencies": { "tslib": "^2.3.0" }, "peerDependencies": { "@angular/common": "^21.1.0", "@angular/core": "^21.1.0", "@effect/rpc": "^0.73.0", "@tanstack/angular-query-experimental": "^5.90.25", "effect": "^3.19.15" } }, "sha512-yaC7sQ07I/5T+2jBLt7zKY+zMG+ZIyo6woLWBb9yLdpE/v3BMMkoDTGy9UnSNsKPim87Dgs2R17vnBiVhyXajA=="],
 
-    "@heddendorp/effect-platform-angular": ["@heddendorp/effect-platform-angular@0.0.7", "", { "dependencies": { "tslib": "^2.3.0" }, "peerDependencies": { "@angular/common": "^21.1.0", "@angular/core": "^21.1.0", "@effect/platform": "^0.94.2", "effect": "^3.19.15" } }, "sha512-nF7LMaLy18yP6y76jhLCS7E32ZpoeASvNmfBbfK34twbCkeXTQ8U/IisQDqBI5a3PZ4uJKRgtN715xvVl+hG+Q=="],
+    "@heddendorp/effect-platform-angular": ["@heddendorp/effect-platform-angular@0.0.8", "", { "dependencies": { "tslib": "^2.3.0" }, "peerDependencies": { "@angular/common": "^21.1.0", "@angular/core": "^21.1.0", "@effect/platform": "^0.94.2", "effect": "^3.19.15" } }, "sha512-RuwPrTsPfmJpXmGxZlw2opmXIKYaSG1cuPA0tM3fYsZ0qI6r2N22wi0jpPCF4pVTc9MQERFg7o2JwkEBwCrC3w=="],
 
     "@hono/node-server": ["@hono/node-server@1.19.9", "", { "peerDependencies": { "hono": "^4" } }, "sha512-vHL6w3ecZsky+8P5MD+eFfaGTyCeOHUIFYMGpQGbrBTSmNNoxv0if69rEZ5giu36weC5saFuznL411gRX7bJDw=="],
 
