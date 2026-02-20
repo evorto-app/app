@@ -40,6 +40,13 @@ Module-local guidance lives in:
 - Prefer inferred/derived types from Drizzle schema and Effect schema outputs.
 - Avoid `any`, unchecked `as`, and `unknown` without narrowing.
 
+## Error Handling Discipline
+
+- Never hide defects by swallowing errors.
+- If an error is expected and recoverable, map it explicitly to a typed/domain outcome.
+- If an error is unexpected, fail loudly and keep enough context to debug root cause.
+- Prefer preventing repeated failures with follow-up fixes/tests over adding silent fallbacks.
+
 ## Conventions
 
 - TypeScript strict mode and Angular strict templates are enforced.
