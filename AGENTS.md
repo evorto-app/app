@@ -39,6 +39,7 @@ Module-local guidance lives in:
 - Server boundaries must use Effect `Schema` for validated input/output.
 - Prefer inferred/derived types from Drizzle schema and Effect schema outputs.
 - Avoid `any`, unchecked `as`, and `unknown` without narrowing.
+- Do not use `unknown as ...` (or similar cast bypasses) to force client types to compile; fix the source type contract/runtime mismatch instead.
 
 ## Error Handling Discipline
 

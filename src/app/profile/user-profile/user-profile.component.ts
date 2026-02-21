@@ -44,8 +44,6 @@ import {
 } from './edit-profile-dialog.component';
 
 type ProfileSection = 'discounts' | 'events' | 'overview' | 'receipts';
-type AppRpcClient = ReturnType<typeof AppRpc.injectClient>;
-type FinanceReceiptsMyProcedure = AppRpcClient['finance']['receipts.my'];
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -119,13 +117,7 @@ export class UserProfileComponent {
   });
 
   protected readonly myReceiptsQuery = injectQuery(() =>
-    (
-      this.rpc.finance as unknown as {
-        receipts: {
-          my: FinanceReceiptsMyProcedure;
-        };
-      }
-    ).receipts.my.queryOptions(),
+    this.rpc.finance['receipts.my'].queryOptions(),
   );
   protected readonly refreshCardMutation = injectMutation(() =>
     this.rpc.discounts.refreshMyCard.mutationOptions(),

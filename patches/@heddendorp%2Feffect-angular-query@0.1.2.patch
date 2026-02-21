@@ -1,0 +1,27 @@
+diff --git a/fesm2022/heddendorp-effect-angular-query.mjs b/fesm2022/heddendorp-effect-angular-query.mjs
+index a60a64b6aa9ee402a2898242d74bc51222897527..9d96135b3f37524bd1945704dab66f21af3a6dbd 100644
+--- a/fesm2022/heddendorp-effect-angular-query.mjs
++++ b/fesm2022/heddendorp-effect-angular-query.mjs
+@@ -96,6 +96,13 @@ const createEffectRpcAngularClientConfig = (config) => ({
+     mutationDefaults: config.mutationDefaults ?? {},
+ });
+ const getPathSegments = (tag) => tag.split('.');
++const getHelperPathSegments = (tag) => {
++    const firstSeparatorIndex = tag.indexOf('.');
++    if (firstSeparatorIndex < 0) {
++        return [tag];
++    }
++    return [tag.slice(0, firstSeparatorIndex), tag.slice(firstSeparatorIndex + 1)];
++};
+ const resolveKeyPrefix = (base, override) => override ?? base;
+ const getProcedureKind = (rpc) => {
+     const maybeKind = Context.getOption(rpc.annotations, RPC_PROCEDURE_KIND_ANNOTATION);
+@@ -206,7 +213,7 @@ const createEffectRpcAngularClientInstance = (config) => {
+     };
+     for (const [tag, rpc] of config.group.requests.entries()) {
+         const helper = createProcedureHelper(config, config.group, tag, rpc);
+-        assignNestedHelper(root, getPathSegments(tag), helper);
++        assignNestedHelper(root, getHelperPathSegments(tag), helper);
+     }
+     return root;
+ };
