@@ -1,5 +1,4 @@
 import { type EsnCardProviderConfig } from '@shared/tenant-config';
-import consola from 'consola';
 
 const ALLOWED_BUY_ESN_CARD_PROTOCOLS = new Set(['https:']);
 const INVALID_BUY_CARD_URL_MESSAGE = 'buyEsnCardUrl must be a valid HTTPS URL';
@@ -45,7 +44,6 @@ export const normalizeEsnCardConfig = (
     if (rejectInvalidUrl) {
       throw new InvalidDiscountProviderConfigError();
     }
-    consola.warn('Ignoring invalid ESN buy card URL in tenant config');
     return {};
   }
 
@@ -59,7 +57,6 @@ export const normalizeEsnCardConfig = (
     if (rejectInvalidUrl) {
       throw new InvalidDiscountProviderConfigError();
     }
-    consola.warn('Ignoring invalid ESN buy card URL in tenant config');
     return {};
   }
 

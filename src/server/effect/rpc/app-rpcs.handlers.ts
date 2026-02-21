@@ -11,7 +11,6 @@ import {
   resolveTenantReceiptSettings,
   type TenantDiscountProviders,
 } from '@shared/tenant-config';
-import consola from 'consola';
 import {
   and,
   arrayOverlaps,
@@ -137,13 +136,7 @@ const withSignedReceiptPreviewUrl = async <T extends ReceiptWithStoragePreview>(
       ...receipt,
       previewImageUrl: signedPreviewUrl,
     };
-  } catch (error) {
-    consola.error('finance.receipt-preview.signing-failed', {
-      error,
-      key: receipt.attachmentStorageKey,
-      receiptId: receipt.id,
-    });
-
+  } catch {
     return {
       ...receipt,
       previewImageUrl: null,
@@ -162,10 +155,10 @@ const sanitizeFileName = (fileName: string): string =>
 
 const isCloudflareR2Configured = () =>
   Boolean(
-    process.env['CLOUDFLARE_R2_BUCKET'] &&
-    process.env['CLOUDFLARE_R2_S3_ENDPOINT'] &&
-    process.env['CLOUDFLARE_R2_S3_KEY'] &&
-    process.env['CLOUDFLARE_R2_S3_KEY_ID'],
+    serverEnvironment.CLOUDFLARE_R2_BUCKET &&
+    serverEnvironment.CLOUDFLARE_R2_S3_ENDPOINT &&
+    serverEnvironment.CLOUDFLARE_R2_S3_KEY &&
+    serverEnvironment.CLOUDFLARE_R2_S3_KEY_ID,
   );
 
 const resolveTenantSelectableReceiptCountries = (
@@ -1326,14 +1319,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
         }
 
         return yield* Effect.tryPromise({
-          catch: (error) => {
-            consola.error('editor-media.cloudflare.direct-upload-failed', {
-              error,
-              tenantId: tenant.id,
-              userId: user.id,
-            });
-            return 'INTERNAL_SERVER_ERROR' as const;
-          },
+          catch: () => 'INTERNAL_SERVER_ERROR' as const,
           try: () =>
             createCloudflareImageDirectUpload({
               fileName: input.fileName,
@@ -1434,12 +1420,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
                     stripeAccount,
                   },
                 );
-              } catch (error) {
-                consola.error('stripe.checkout.expire-failed', {
-                  error,
-                  registrationId: registration.id,
-                  tenantId: tenant.id,
-                });
+              } catch {
               }
             }),
         });
@@ -1674,8 +1655,13 @@ export const appRpcHandlers = AppRpcs.toLayer(
         const userPermissions = user?.permissions ?? [];
 
         if (user?.id !== input.userId) {
-          consola.warn(
-            `Supplied query parameter userId (${input.userId}) does not match the actual state (${user?.id})!`,
+          yield* Effect.logWarning(
+            'Supplied query parameter userId does not match authenticated user',
+          ).pipe(
+            Effect.annotateLogs({
+              actualUserId: user?.id ?? null,
+              suppliedUserId: input.userId,
+            }),
           );
         }
 
@@ -2592,11 +2578,6 @@ export const appRpcHandlers = AppRpcs.toLayer(
             });
             return true;
           } catch (error) {
-            consola.error('events.registerForEvent.failed', {
-              error: error instanceof Error ? error.message : String(error),
-              registrationId: userRegistration.id,
-              tenantId: tenant.id,
-            });
             return false;
           }
         });
@@ -4079,9 +4060,12 @@ export const appRpcHandlers = AppRpcs.toLayer(
           }),
         );
         if (!organizerValidation.success) {
-          consola.error(
-            'Organizer registration tax rate validation failed:',
-            organizerValidation.error,
+          yield* Effect.logError(
+            'Organizer registration tax rate validation failed',
+          ).pipe(
+            Effect.annotateLogs({
+              error: organizerValidation.error,
+            }),
           );
           return yield* Effect.fail('BAD_REQUEST' as const);
         }
@@ -4095,9 +4079,12 @@ export const appRpcHandlers = AppRpcs.toLayer(
           }),
         );
         if (!participantValidation.success) {
-          consola.error(
-            'Participant registration tax rate validation failed:',
-            participantValidation.error,
+          yield* Effect.logError(
+            'Participant registration tax rate validation failed',
+          ).pipe(
+            Effect.annotateLogs({
+              error: participantValidation.error,
+            }),
           );
           return yield* Effect.fail('BAD_REQUEST' as const);
         }
@@ -4254,9 +4241,12 @@ export const appRpcHandlers = AppRpcs.toLayer(
           }),
         );
         if (!organizerValidation.success) {
-          consola.error(
-            'Organizer registration tax rate validation failed:',
-            organizerValidation.error,
+          yield* Effect.logError(
+            'Organizer registration tax rate validation failed',
+          ).pipe(
+            Effect.annotateLogs({
+              error: organizerValidation.error,
+            }),
           );
           return yield* Effect.fail('BAD_REQUEST' as const);
         }
@@ -4270,9 +4260,12 @@ export const appRpcHandlers = AppRpcs.toLayer(
           }),
         );
         if (!participantValidation.success) {
-          consola.error(
-            'Participant registration tax rate validation failed:',
-            participantValidation.error,
+          yield* Effect.logError(
+            'Participant registration tax rate validation failed',
+          ).pipe(
+            Effect.annotateLogs({
+              error: participantValidation.error,
+            }),
           );
           return yield* Effect.fail('BAD_REQUEST' as const);
         }

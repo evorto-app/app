@@ -14,7 +14,6 @@ import {
   BunRuntime,
 } from '@effect/platform-bun';
 import * as Sentry from '@sentry/node';
-import consola from 'consola';
 import { Effect, Context as EffectContext, Layer } from 'effect';
 
 import {
@@ -151,9 +150,7 @@ const extractRegistrationId = (
 const renderSsr = (request: HttpServerRequest.HttpServerRequest) =>
   Effect.gen(function* () {
     const authSession = yield* loadAuthSession(request);
-    const requestContext = yield* Effect.tryPromise(() =>
-      resolveHttpRequestContext(request, authSession),
-    );
+    const requestContext = yield* resolveHttpRequestContext(request, authSession);
 
     const webRequest = yield* HttpServerRequest.toWeb(request);
     const renderedResponse = yield* Effect.tryPromise(() =>
@@ -212,8 +209,9 @@ const qrCodeRouteLayer = HttpLayerRouter.add(
       }
 
       const webRequest = yield* HttpServerRequest.toWeb(request);
-      const webResponse = yield* Effect.tryPromise(() =>
-        handleQrRegistrationCodeWebRequest(webRequest, registrationId),
+      const webResponse = yield* handleQrRegistrationCodeWebRequest(
+        webRequest,
+        registrationId,
       );
 
       return HttpServerResponse.fromWeb(webResponse);
@@ -240,9 +238,7 @@ const stripeWebhookRouteLayer = HttpLayerRouter.add(
       }
 
       const webRequest = yield* HttpServerRequest.toWeb(request);
-      const webResponse = yield* Effect.tryPromise(() =>
-        handleStripeWebhookWebRequest(webRequest),
-      );
+      const webResponse = yield* handleStripeWebhookWebRequest(webRequest);
 
       return HttpServerResponse.fromWeb(webResponse);
     }),
@@ -251,9 +247,7 @@ const stripeWebhookRouteLayer = HttpLayerRouter.add(
 const rpcRouteLayer = HttpLayerRouter.add('POST', '/rpc', (request) =>
   Effect.gen(function* () {
     const authSession = yield* loadAuthSession(request);
-    const requestContext = yield* Effect.tryPromise(() =>
-      resolveHttpRequestContext(request, authSession),
-    );
+    const requestContext = yield* resolveHttpRequestContext(request, authSession);
 
     const webRequest = yield* HttpServerRequest.toWeb(request);
     const rpcWebResponse = yield* Effect.tryPromise(() =>
@@ -328,7 +322,14 @@ const withSsrFallback = <E, R>(
           return notFoundServerResponse;
         }
 
-        consola.error(error);
+        yield* Effect.logError('Unhandled server error').pipe(
+          Effect.annotateLogs({
+            error:
+              error instanceof Error
+                ? { message: error.message, name: error.name, stack: error.stack }
+                : String(error),
+          }),
+        );
         Sentry.captureException(error);
         return createInternalErrorResponse(request);
       }),
@@ -385,9 +386,12 @@ const serveEffect = Effect.gen(function* () {
     ),
   );
 
-  yield* Effect.sync(() => {
-    console.log(`Bun Effect server listening on http://localhost:${port}`);
-  });
+  yield* Effect.logInfo('Bun Effect server listening').pipe(
+    Effect.annotateLogs({
+      port,
+      url: `http://localhost:${port}`,
+    }),
+  );
 
   yield* Layer.launch(serverLayer);
 });

@@ -12,7 +12,6 @@ import { PNG } from 'pngjs';
  * Returns undefined on network or parsing failures to avoid blocking inserts/migrations.
  */
 const colorCache = new Map<string, Promise<number | undefined>>();
-const warnedIcons = new Set<string>();
 
 const parsePng = async (bytes: Uint8Array): Promise<PNG> =>
   new Promise<PNG>((resolve, reject) => {
@@ -25,17 +24,6 @@ const parsePng = async (bytes: Uint8Array): Promise<PNG> =>
       resolve(data);
     });
   });
-
-const warnColorFailure = (iconCommonName: string, error: unknown): void => {
-  if (warnedIcons.has(iconCommonName)) {
-    return;
-  }
-  warnedIcons.add(iconCommonName);
-  const reason = error instanceof Error ? error.message : String(error);
-  console.warn(
-    `[icon-color] Failed to compute source color for "${iconCommonName}": ${reason}`,
-  );
-};
 
 export async function computeIconSourceColor(
   iconCommonName: string,
@@ -78,9 +66,7 @@ export async function computeIconSourceColor(
     })();
     colorCache.set(iconCommonName, promise);
     return await promise;
-  } catch (error) {
-    // Keep fallback behavior, but emit a one-time warning so failures are visible.
-    warnColorFailure(iconCommonName, error);
+  } catch {
     return undefined;
   }
 }

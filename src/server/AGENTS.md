@@ -3,6 +3,8 @@
 ## Runtime Architecture
 
 - Prefer Effect and Effect Platform first.
+- Organize server capabilities with Effect dependency injection (`Effect.Service` + composed `Layer`s).
+- Keep service dependencies declared in service definitions; wire app composition with flat `Layer.mergeAll` / `Layer.provideMerge`.
 - Use Bun-native capabilities when Effect does not provide the needed primitive.
 - Do not introduce new Express/Hono server paths.
 
@@ -24,6 +26,6 @@
 
 ## Logging
 
-- Use `consola` (avoid direct `console.*`).
-- Create scoped loggers with `consola.withTag('server/<feature>')`.
-- Use `CONSOLA_LEVEL` for runtime verbosity control when needed.
+- Use Effect platform logging (`Effect.log`, `Effect.logInfo`, `Effect.logWarning`, `Effect.logError`).
+- Prefer structured log annotations (`Effect.annotateLogs`) over interpolated log strings.
+- Do not use `consola` or direct `console.*` in server runtime code.
