@@ -14,7 +14,7 @@ import {
   BunRuntime,
 } from '@effect/platform-bun';
 import * as Sentry from '@sentry/node';
-import { Effect, Context as EffectContext, Layer } from 'effect';
+import { Effect, Context as EffectContext, Layer, Logger } from 'effect';
 
 import {
   getRequestAuthData,
@@ -340,12 +340,18 @@ const keyValueStoreLayer = KeyValueStore.layerFileSystem(
   keyValueStoreDirectory,
 ).pipe(Layer.provide(Layer.mergeAll(BunFileSystem.layer, Path.layer)));
 
+const loggerLayer = Logger.replace(
+  Logger.defaultLogger,
+  Logger.prettyLoggerDefault,
+);
+
 const handlerRuntimeLayer = Layer.mergeAll(
   BunHttpServer.layerContext,
   BunFileSystem.layer,
   Path.layer,
   keyValueStoreLayer,
   webhookRateLimitLayer,
+  loggerLayer,
 );
 
 const handlerAppLayer = routesLayer.pipe(
