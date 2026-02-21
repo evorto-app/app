@@ -1,6 +1,9 @@
 import { type Context as RequestContext } from '../../../types/custom/context';
 import { handleAppRpcWebRequest } from './app-rpcs.web-handler';
-import { RPC_CONTEXT_HEADERS } from './rpc-context-headers';
+import {
+  encodeRpcContextHeaderJson,
+  RPC_CONTEXT_HEADERS,
+} from './rpc-context-headers';
 
 const buildRpcUser = (context: RequestContext) => {
   if (!context.user) {
@@ -35,12 +38,21 @@ const toRpcRequest = (
   );
   headers.set(
     RPC_CONTEXT_HEADERS.PERMISSIONS,
-    JSON.stringify(user?.permissions ?? []),
+    encodeRpcContextHeaderJson(user?.permissions ?? []),
   );
-  headers.set(RPC_CONTEXT_HEADERS.USER, user ? JSON.stringify(user) : 'null');
+  headers.set(
+    RPC_CONTEXT_HEADERS.USER,
+    encodeRpcContextHeaderJson(user ?? null),
+  );
   headers.set(RPC_CONTEXT_HEADERS.USER_ASSIGNED, user ? 'true' : 'false');
-  headers.set(RPC_CONTEXT_HEADERS.AUTH_DATA, JSON.stringify(authData));
-  headers.set(RPC_CONTEXT_HEADERS.TENANT, JSON.stringify(context.tenant));
+  headers.set(
+    RPC_CONTEXT_HEADERS.AUTH_DATA,
+    encodeRpcContextHeaderJson(authData),
+  );
+  headers.set(
+    RPC_CONTEXT_HEADERS.TENANT,
+    encodeRpcContextHeaderJson(context.tenant),
+  );
 
   if (request.method === 'GET' || request.method === 'HEAD') {
     return Promise.resolve(

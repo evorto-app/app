@@ -84,7 +84,10 @@ import {
 } from '../../utils/rich-text-sanitize';
 import { validateTaxRate } from '../../utils/validate-tax-rate';
 import { getPublicConfigEffect } from '../config/public-config.effect';
-import { RPC_CONTEXT_HEADERS } from './rpc-context-headers';
+import {
+  decodeRpcContextHeaderJson,
+  RPC_CONTEXT_HEADERS,
+} from './rpc-context-headers';
 
 const ALLOWED_IMAGE_MIME_TYPES = [
   'image/gif',
@@ -195,7 +198,7 @@ const validateReceiptCountryForTenant = (
 const decodeHeaderJson = <A, I>(
   value: string | undefined,
   schema: Schema.Schema<A, I, never>,
-) => Schema.decodeUnknownSync(schema)(JSON.parse(value ?? 'null'));
+) => Schema.decodeUnknownSync(schema)(decodeRpcContextHeaderJson(value));
 
 const normalizeIconRecord = (
   icon: Pick<
