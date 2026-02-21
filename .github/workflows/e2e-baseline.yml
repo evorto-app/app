@@ -31,14 +31,14 @@ jobs:
         with:
           bun-version: "1.3.7"
 
-      - name: Validate required Neon secrets
+      - name: Validate required Neon configuration
         run: |
           if [ -z "${{ secrets.NEON_API_KEY }}" ]; then
             echo "::error::Missing required secret: NEON_API_KEY"
             exit 1
           fi
-          if [ -z "${{ secrets.NEON_PROJECT_ID }}" ]; then
-            echo "::error::Missing required secret: NEON_PROJECT_ID"
+          if [ -z "${{ vars.NEON_PROJECT_ID }}" ]; then
+            echo "::error::Missing required repository variable: NEON_PROJECT_ID"
             exit 1
           fi
 
@@ -79,7 +79,7 @@ jobs:
           echo "NEON_LOCAL_PROXY=true";
           echo "NEON_DATABASE_NAME=appdb";
           echo "NEON_API_KEY=${{ secrets.NEON_API_KEY }}";
-          echo "NEON_PROJECT_ID=${{ secrets.NEON_PROJECT_ID }}";
+          echo "NEON_PROJECT_ID=${{ vars.NEON_PROJECT_ID }}";
           echo "AUTH0_MANAGEMENT_CLIENT_ID=${{ secrets.AUTH0_MANAGEMENT_CLIENT_ID }}";
           echo "AUTH0_MANAGEMENT_CLIENT_SECRET=${{ secrets.AUTH0_MANAGEMENT_CLIENT_SECRET }}";
           echo "CLIENT_ID=${{ secrets.CLIENT_ID }}";
