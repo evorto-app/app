@@ -1,13 +1,18 @@
 # Track bun-angular-alignment_20260128 Context
 
+## Canonical Files
+
 - [Specification](./spec.md)
 - [Implementation Plan](./plan.md)
-- [Metadata](./metadata.json)
-- [Session Handoff 2026-02-07](./handoff-2026-02-07.md)
-- [Session Handoff 2026-02-10](./handoff-2026-02-10.md)
-- [Session Handoff 2026-02-11](./handoff-2026-02-11.md)
-- [Session Handoff 2026-02-12](./handoff-2026-02-12.md)
-- [Session Handoff 2026-02-13](./handoff-2026-02-13.md)
-- [Session Handoff 2026-02-14](./handoff-2026-02-14.md)
-- [Production Readiness Audit 2026-02-14](./production-readiness-audit-2026-02-14.md)
 - [Revisit Log](./revisit-log.md)
+- [Metadata](./metadata.json)
+
+## Reference Artifacts
+
+- [Angular + Bun baseline repomix](./repomix-output-angular-bun-setup-main.zip.xml)
+- [Effect Angular libraries repomix (current)](./repomix-output-effect-angular-main%20%283%29.zip.xml)
+
+## Notes
+
+- Historical handoff and interim planning files were intentionally removed from this track folder.
+- Use git history for session-level chronology; use `plan.md` + `revisit-log.md` for current execution state.

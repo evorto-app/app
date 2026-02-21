@@ -45,7 +45,7 @@ This file tracks migration items that need another pass before final closure.
 - 2026-02-14: decommissioned stale null-lint suppressions and set explicit lint policy (`unicorn/no-null` disabled for this codebase baseline) with `lint`/`tsc`/`build` green.
 - 2026-02-14: refreshed Playwright test inventory metadata/status (`tests/test-inventory.md`).
 - 2026-02-14: confirmed legacy Express/tRPC directory cleanup is complete (`src/server/trpc`, `src/server/middleware`, `src/types/express` are absent).
-- 2026-02-14: completed production-readiness audit and documented prioritized hardening sequence in `production-readiness-audit-2026-02-14.md`.
+- 2026-02-14: completed a production-readiness audit and consolidated prioritized hardening items into track follow-ups.
 - 2026-02-14: integrated `@heddendorp/effect-platform-angular@0.0.7` transport wiring into app bootstrap and RPC client creation (`provideEffectHttpClient`, `provideEffectRpcProtocolHttpLayer`, DI-backed `AppRpc` bridge preserving existing `AppRpc.injectClient()` call sites).
 - 2026-02-14: normalized package script naming to namespaced groups (`dev:*`, `build:*`, `test:*`, `db:*`, `ops:*`, `ui:*`) and aligned active docs/config workflow references.
 - 2026-02-13: replaced custom auth/session crypto implementation with `@auth0/auth0-server-js` (`ServerClient`, `CookieTransactionStore`, `StatelessStateStore`) integrated via Effect HTTP cookie mutation bridge.
