@@ -67,7 +67,21 @@ jobs:
 
       - name: Configure FontAwesome npm auth
         run: |
-          printf '//npm.fontawesome.com/:_authToken=%s\n' "${FONT_AWESOME_TOKEN}" >> .npmrc
+          token="$(printf '%s' "${FONT_AWESOME_TOKEN}" | tr -d '\r\n' | sed -E 's/^[[:space:]]+|[[:space:]]+$//g')"
+          if [ "${#token}" -lt 20 ]; then
+            echo "::error::FONT_AWESOME_TOKEN is too short after trimming (length=${#token}). Check secret formatting."
+            exit 1
+          fi
+          cp .npmrc "$HOME/.npmrc"
+          sed -i '/npm\.fontawesome\.com\/:_authToken/d' "$HOME/.npmrc"
+          printf '//npm.fontawesome.com/:_authToken=%s\n' "$token" >> "$HOME/.npmrc"
+          status="$(curl -sS -o /dev/null -w '%{http_code}' \
+            -H "Authorization: Bearer $token" \
+            "https://npm.fontawesome.com/@fortawesome/fontawesome-common-types/-/fontawesome-common-types-7.2.0.tgz")"
+          if [ "$status" = "401" ] || [ "$status" = "403" ]; then
+            echo "::error::FONT_AWESOME_TOKEN is present but unauthorized for npm.fontawesome.com (HTTP $status). Check token value/scope."
+            exit 1
+          fi
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
