@@ -72,8 +72,10 @@ jobs:
             echo "::error::FONT_AWESOME_TOKEN is too short after trimming (length=${#token}). Check secret formatting."
             exit 1
           fi
-          cp .npmrc "$HOME/.npmrc"
-          sed -i '/npm\.fontawesome\.com\/:_authToken/d' "$HOME/.npmrc"
+          cat > "$HOME/.npmrc" <<'EOF'
+          @fortawesome:registry=https://npm.fontawesome.com/
+          always-auth=true
+          EOF
           printf '//npm.fontawesome.com/:_authToken=%s\n' "$token" >> "$HOME/.npmrc"
           status="$(curl -sS -o /dev/null -w '%{http_code}' \
             -H "Authorization: Bearer $token" \

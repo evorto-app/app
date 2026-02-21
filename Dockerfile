@@ -22,7 +22,7 @@ ENV NG_BUILD_PARTIAL_SSR=1
 ENV NG_BUILD_MAX_WORKERS=2
 ARG FONT_AWESOME_TOKEN
 
-COPY  package.json bun.lock bunfig.toml .npmrc ./
+COPY  package.json bun.lock bunfig.toml ./
 COPY patches/@material-material-color-utilities-npm-0.4.0-9d48ca70b8.patch patches/@material-material-color-utilities-npm-0.4.0-9d48ca70b8.patch
 RUN --mount=type=secret,id=FONT_AWESOME_TOKEN,mode=0444,required=false \
     token="" && \
@@ -44,7 +44,7 @@ RUN --mount=type=secret,id=SENTRY_AUTH_TOKEN,mode=0444,required=false \
 
 FROM base AS production-dependencies
 ARG FONT_AWESOME_TOKEN
-COPY package.json bun.lock bunfig.toml .npmrc ./
+COPY package.json bun.lock bunfig.toml ./
 COPY patches/@material-material-color-utilities-npm-0.4.0-9d48ca70b8.patch patches/@material-material-color-utilities-npm-0.4.0-9d48ca70b8.patch
 RUN --mount=type=secret,id=FONT_AWESOME_TOKEN,mode=0444,required=false \
     token="" && \
