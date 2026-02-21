@@ -1372,8 +1372,12 @@ const Save = Rpc.make('save', {
   payload: Schema.Struct({ id: Schema.String, name: Schema.String }),
   success: Schema.Struct({ ok: Schema.Boolean }),
 });
+const FinanceReceiptsMy = Rpc.make('finance.receipts.my', {
+  payload: Schema.Undefined,
+  success: Schema.Struct({ total: Schema.Number }),
+});
 
-class AppRpcs extends RpcGroup.make(Ping, asRpcMutation(Save)) {}
+class AppRpcs extends RpcGroup.make(Ping, asRpcMutation(Save), FinanceReceiptsMy) {}
 
 const createRpcLayer = () =>
   Layer.effect(
@@ -1420,6 +1424,12 @@ describe('Effect RPC Angular client DI', () => {
       { input: { id: '1' }, type: 'query' },
     ]);
     expect(first.save.mutationKey()).toEqual([['app', 'save'], { type: 'mutation' }]);
+    const nestedOptions = first.finance.receipts.my.queryOptions(undefined);
+    expect(nestedOptions.meta).toMatchObject({
+      rpc: {
+        path: ['finance', 'receipts', 'my'],
+      },
+    });
   });
 });
 </file>
@@ -1539,18 +1549,11 @@ export const createEffectRpcAngularClientConfig = <Rpcs extends Rpc.Any>(
   mutationDefaults: config.mutationDefaults ?? {},
 });
 
-type RpcTag<Rpcs extends Rpc.Any> = Rpc.Tag<Rpcs>;
-
-type RpcPrefix<Tag extends string> = Tag extends `${infer Prefix}.${string}` ? Prefix : never;
-
-type RpcPrefixes<Rpcs extends Rpc.Any> = RpcPrefix<RpcTag<Rpcs>>;
-
-type RpcPrefixed<Rpcs extends Rpc.Any, Prefix extends string> = Extract<
-  Rpcs,
-  { readonly _tag: `${Prefix}.${string}` }
->;
-
-type RpcNonPrefixed<Rpcs extends Rpc.Any> = Exclude<Rpcs, { readonly _tag: `${string}.${string}` }>;
+type UnionToIntersection<Current> = (
+  Current extends unknown ? (arg: Current) => void : never
+) extends (arg: infer Intersection) => void
+  ? Intersection
+  : never;
 
 export type RpcProcedureError<Current extends Rpc.Any> =
   | Rpc.ErrorExit<Current>
@@ -1638,18 +1641,15 @@ type RpcProcedureHelperFor<Current extends Rpc.Any> =
     ? RpcMutationProcedureHelper<Current>
     : RpcQueryProcedureHelper<Current>;
 
-type RpcHelpersFrom<Rpcs extends Rpc.Any, Prefix extends string> = {
-  readonly [Current in Rpcs as Current['_tag'] extends `${Prefix}.${infer Method}`
-    ? Method
-    : Current['_tag']]: RpcProcedureHelperFor<Current>;
-};
+type RpcNestedHelpersFromTag<Tag extends string, Helper> = Tag extends `${infer Head}.${infer Tail}`
+  ? { readonly [Current in Head]: RpcNestedHelpersFromTag<Tail, Helper> }
+  : { readonly [Current in Tag]: Helper };
 
-export type EffectRpcAngularClient<Rpcs extends Rpc.Any> = RpcHelpersFrom<
-  RpcNonPrefixed<Rpcs>,
-  ''
-> & {
-  readonly [Prefix in RpcPrefixes<Rpcs>]: RpcHelpersFrom<RpcPrefixed<Rpcs, Prefix>, Prefix>;
-} & {
+type RpcNestedHelpersFrom<Rpcs extends Rpc.Any> = UnionToIntersection<
+  Rpcs extends Rpc.Any ? RpcNestedHelpersFromTag<Rpcs['_tag'], RpcProcedureHelperFor<Rpcs>> : never
+>;
+
+export type EffectRpcAngularClient<Rpcs extends Rpc.Any> = RpcNestedHelpersFrom<Rpcs> & {
   readonly pathKey: (pathSegments: readonly string[], options?: RpcPathOptions) => RpcPathKey;
   readonly queryFilter: (
     pathSegments: readonly string[],
@@ -2893,7 +2893,7 @@ describe('root README', () => {
 <file path="effect-angular-main/projects/effect-angular-query/package.json">
 {
   "name": "@heddendorp/effect-angular-query",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "peerDependencies": {
     "@angular/common": "^21.1.0",
     "@angular/core": "^21.1.0",
@@ -3387,7 +3387,10 @@ describe('Angular HttpClient adapter request mapping', () => {
     const response = Effect.runPromise(adapter.execute(request));
     const testRequest = controller.expectOne((req) => req.url === 'https://example.test/body');
 
-    expect(testRequest.request.body).toEqual(body.body);
+    expect(testRequest.request.body).toBeInstanceOf(ArrayBuffer);
+    expect(Array.from(new Uint8Array(testRequest.request.body as ArrayBuffer))).toEqual(
+      Array.from(body.body),
+    );
     expect(testRequest.request.headers.get('content-type')).toBe('text/plain');
 
     testRequest.flush(new ArrayBuffer(0));
@@ -3403,6 +3406,38 @@ describe('Angular HttpClient adapter request mapping', () => {
     const testRequest = controller.expectOne((req) => req.url === 'https://example.test/raw');
 
     expect(testRequest.request.body).toEqual({ ok: true });
+
+    testRequest.flush(new ArrayBuffer(0));
+    await response;
+  });
+
+  it('encodes JSON Uint8Array bodies as JSON text for Angular HttpClient', async () => {
+    const jsonBody = Effect.runSync(HttpBody.json({ _tag: 'Ping' }));
+    const request = HttpClientRequest.post('https://example.test/rpc', {
+      body: jsonBody,
+    });
+
+    const response = Effect.runPromise(adapter.execute(request));
+    const testRequest = controller.expectOne((req) => req.url === 'https://example.test/rpc');
+
+    // Regression guard: must be string, not Uint8Array/object.
+    expect(typeof testRequest.request.body).toBe('string');
+    expect(testRequest.request.body).toBe('{"_tag":"Ping"}');
+
+    testRequest.flush(new ArrayBuffer(0));
+    await response;
+  });
+
+  it('keeps non-JSON Uint8Array payloads binary', async () => {
+    const request = HttpClientRequest.post('https://example.test/bin', {
+      body: HttpBody.uint8Array(new Uint8Array([1, 2, 3]), 'application/octet-stream'),
+    });
+
+    const response = Effect.runPromise(adapter.execute(request));
+    const testRequest = controller.expectOne((req) => req.url === 'https://example.test/bin');
+
+    expect(testRequest.request.body).toBeInstanceOf(ArrayBuffer);
+    expect(Array.from(new Uint8Array(testRequest.request.body as ArrayBuffer))).toEqual([1, 2, 3]);
 
     testRequest.flush(new ArrayBuffer(0));
     await response;
@@ -3740,6 +3775,17 @@ const appendChunk = (acc: Uint8Array, chunk: Uint8Array): Uint8Array => {
   return next;
 };
 
+const textDecoder = new TextDecoder();
+
+const isJsonContentType = (contentType: string | undefined): boolean =>
+  typeof contentType === 'string' &&
+  contentType
+    .split(';', 1)[0]
+    ?.trim()
+    .toLowerCase() === 'application/json';
+
+const toArrayBuffer = (bytes: Uint8Array): ArrayBuffer => new Uint8Array(bytes).buffer;
+
 // Normalize Effect request bodies into something HttpClient can send.
 const resolveBody = (
   request: HttpClientRequest.HttpClientRequest,
@@ -3751,7 +3797,9 @@ const resolveBody = (
     case 'Raw':
       return Effect.succeed(body.body);
     case 'Uint8Array':
-      return Effect.succeed(body.body);
+      return Effect.succeed(
+        isJsonContentType(body.contentType) ? textDecoder.decode(body.body) : toArrayBuffer(body.body),
+      );
     case 'FormData':
       return Effect.succeed(body.formData);
     case 'Stream':
@@ -4083,7 +4131,7 @@ describe('Effect RPC documentation example', () => {
 <file path="effect-angular-main/projects/effect-platform-angular/package.json">
 {
   "name": "@heddendorp/effect-platform-angular",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "peerDependencies": {
     "@effect/platform": "^0.94.2",
     "@angular/common": "^21.1.0",
