@@ -8,20 +8,36 @@ test('applies ESN discount to paid registrations @finance @track(playwright-spec
   database,
   events,
   page,
+  registrations,
   tenant,
 }) => {
+  const user = usersToAuthenticate.find((u) => u.roles === 'user')!;
+  const userRegisteredEventIds = new Set(
+    registrations
+      .filter(
+        (registration) =>
+          registration.tenantId === tenant.id && registration.userId === user.id,
+      )
+      .map((registration) => registration.eventId),
+  );
+
   // Find a paid, approved, listed event with a participant option where
   // ESN discount still requires checkout (discount does not reduce to zero).
   const paidEvent = events.find(
     (event) =>
       event.status === 'APPROVED' &&
       event.unlisted === false &&
+      !userRegisteredEventIds.has(event.id) &&
       event.registrationOptions.some(
         (o) =>
           o.isPaid && o.title === 'Participant registration' && o.price > 500,
       ),
   );
-  if (!paidEvent) throw new Error('No paid event found');
+  if (!paidEvent) {
+    throw new Error(
+      'No eligible paid event found for user without existing registration',
+    );
+  }
   const option = paidEvent.registrationOptions.find(
     (o) => o.isPaid && o.title === 'Participant registration' && o.price > 500,
   )!;
@@ -43,8 +59,6 @@ test('applies ESN discount to paid registrations @finance @track(playwright-spec
   await page
     .getByRole('link', { name: 'Pay now' })
     .waitFor({ state: 'visible', timeout: 60_000 });
-
-  const user = usersToAuthenticate.find((u) => u.roles === 'user')!;
 
   // Verify a pending transaction exists with the discounted amount
   const tx = await database.query.transactions.findFirst({
