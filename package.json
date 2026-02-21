@@ -30,6 +30,7 @@
     "db:reset": "bun run db:push && bun run db:setup",
     "docker:stop": "docker compose --env-file .env --env-file .env.development down",
     "docker:start": "docker compose --env-file .env --env-file .env.development down && docker compose --env-file .env --env-file .env.development up --build -d",
+    "docker:start:dev": "docker compose --env-file .env --env-file .env.development down && docker compose --env-file .env --env-file .env.development up --build -w",
     "docker:start:test": "docker compose --env-file .env --env-file .env.development down && docker compose --env-file .env --env-file .env.development up --build",
     "db:migrate": "bun migration/index.ts",
     "ops:check:tiptap-license": "bun helpers/check-tiptap-license.mjs",
