@@ -1,9 +1,8 @@
-import { and, eq } from 'drizzle-orm';
 import { Effect, Schema } from 'effect';
 import { uniq } from 'es-toolkit';
 
 import { Database, type DatabaseClient } from '../../db';
-import * as schema from '../../db/schema';
+import { getPreparedStatements } from '../../db/prepared-statements';
 import {
   ALL_PERMISSIONS,
   type Permission,
@@ -69,8 +68,8 @@ export const resolveTenantContext = (input: {
 
     if (tenantCookie) {
       tenantRecord = yield* dbEffect((database) =>
-        database.query.tenants.findFirst({
-          where: { domain: tenantCookie },
+        getPreparedStatements(database).getTenantByDomain.execute({
+          domain: tenantCookie,
         }),
       );
       cause.tenantCookie = tenantCookie;
@@ -81,8 +80,8 @@ export const resolveTenantContext = (input: {
       const hostUrl = new URL(`${input.protocol}://${host}`);
       const domain = hostUrl.hostname;
       tenantRecord = yield* dbEffect((database) =>
-        database.query.tenants.findFirst({
-          where: { domain },
+        getPreparedStatements(database).getTenantByDomain.execute({
+          domain,
         }),
       );
       cause.domain = domain;
@@ -111,23 +110,9 @@ export const resolveUserContext = (input: {
     }
 
     const user = yield* dbEffect((database) =>
-      database.query.users.findFirst({
-        where: { auth0Id },
-        with: {
-          tenantAssignments: {
-            where: {
-              tenantId: input.tenantId,
-            },
-            with: {
-              roles: {
-                columns: {
-                  id: true,
-                  permissions: true,
-                },
-              },
-            },
-          },
-        },
+      getPreparedStatements(database).getUserByAuth0IdAndTenant.execute({
+        auth0Id,
+        tenantId: input.tenantId,
       }),
     );
     if (!user) {
@@ -146,20 +131,17 @@ export const resolveUserContext = (input: {
       .flatMap((assignment) => assignment.roles)
       .flatMap((role) => role.id);
 
-    const attributeResponse = (
-      yield* dbEffect((database) =>
-        database
-          .select()
-          .from(schema.userAttributes)
-          .where(
-            and(
-              eq(schema.userAttributes.tenantId, input.tenantId),
-              eq(schema.userAttributes.userId, user.id),
-            ),
-          )
-          .limit(1),
-      )
-    )[0];
+    const attributeResponse = yield* dbEffect((database) =>
+      Effect.map(
+        getPreparedStatements(database).getUserAttributesByTenantAndUser.execute(
+          {
+            tenantId: input.tenantId,
+            userId: user.id,
+          },
+        ),
+        (result) => result[0],
+      ),
+    );
 
     const attributes = [
       ...(attributeResponse?.organizesSome
