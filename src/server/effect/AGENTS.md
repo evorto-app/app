@@ -1,6 +1,7 @@
 # Server Effect Runtime Guidelines
 
 - Keep runtime composition Effect Platform-first (HTTP, routing, layers, contexts).
+- Keep `/rpc` on the same server runtime path as the rest of the HTTP app (shared `HttpLayerRouter` runtime + layered `RpcServer.toHttpApp(...)`), not a separate `RpcServer.toWebHandler(...)` runtime.
 - Keep RPC handlers framework-agnostic and avoid adapter-specific leakage.
 - Centralize request context headers/constants and reuse shared helpers.
 - Prefer `Effect.Service` for server services and keep dependency wiring at layer composition boundaries.

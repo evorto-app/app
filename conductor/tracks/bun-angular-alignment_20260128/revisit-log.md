@@ -18,6 +18,11 @@ This file tracks migration items that need another pass before final closure.
 
 ## Recently Closed
 
+- 2026-02-21: consolidated RPC execution into the main server Effect runtime:
+  - removed standalone `RpcServer.toWebHandler(...)` runtime path for `/rpc`.
+  - introduced scoped `appRpcHttpAppLayer` (`RpcServer.toHttpApp(AppRpcs)`) and execute RPC requests via `handleAppRpcHttpRequest(...)` inside the existing router runtime.
+  - kept auth/session-derived RPC context header injection, but now convert to `HttpServerRequest` and run through the shared runtime stack.
+  - centralized pretty logger layer in `src/server/effect/server-logger.layer.ts` and reused it in both the main server runtime and RPC app dependencies.
 - 2026-02-21: fixed Bun seeding regressions for icon colors and event scheduling:
   - replaced `skia-canvas`-based icon PNG decoding (native module load failure under Bun: missing `skia.node`) with pure JS `pngjs` decoding in `src/server/utils/icon-color.ts`.
   - kept non-blocking fallback behavior (`undefined`) so seed/setup can continue if external icon downloads fail.

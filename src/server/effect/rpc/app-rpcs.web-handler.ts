@@ -1,20 +1,36 @@
-import * as HttpServer from '@effect/platform/HttpServer';
+import * as HttpApp from '@effect/platform/HttpApp';
+import * as HttpServerRequest from '@effect/platform/HttpServerRequest';
 import * as RpcSerialization from '@effect/rpc/RpcSerialization';
 import * as RpcServer from '@effect/rpc/RpcServer';
-import { Layer, Logger } from 'effect';
+import { Context, Effect, Layer } from 'effect';
+import type * as Scope from 'effect/Scope';
 
 import { AppRpcs } from '../../../shared/rpc-contracts/app-rpcs';
+import { serverLoggerLayer } from '../server-logger.layer';
 import { appRpcHandlers } from './app-rpcs.handlers';
 
-const appRpcLayer = Layer.mergeAll(
+class AppRpcHttpApp extends Context.Tag(
+  '@server/effect/rpc/AppRpcHttpApp',
+)<AppRpcHttpApp, HttpApp.Default<never, Scope.Scope>>() {}
+
+const appRpcDependenciesLayer = Layer.mergeAll(
   appRpcHandlers,
   RpcSerialization.layerJson,
-  HttpServer.layerContext,
-  Logger.replace(Logger.defaultLogger, Logger.prettyLoggerDefault),
+  serverLoggerLayer,
 );
-const { handler: rpcWebHandler } = RpcServer.toWebHandler(AppRpcs, {
-  layer: appRpcLayer,
-});
 
-export const handleAppRpcWebRequest = (request: Request): Promise<Response> =>
-  rpcWebHandler(request);
+export const appRpcHttpAppLayer = Layer.scoped(
+  AppRpcHttpApp,
+  RpcServer.toHttpApp(AppRpcs).pipe(
+    Effect.provide(appRpcDependenciesLayer),
+  ),
+);
+
+export const handleAppRpcHttpRequest = (
+  request: HttpServerRequest.HttpServerRequest,
+) =>
+  Effect.flatMap(AppRpcHttpApp, (appRpcHttpApp) =>
+    appRpcHttpApp.pipe(
+      Effect.provideService(HttpServerRequest.HttpServerRequest, request),
+    ),
+  );

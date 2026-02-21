@@ -14,7 +14,7 @@ import {
   BunRuntime,
 } from '@effect/platform-bun';
 import * as Sentry from '@sentry/node';
-import { Effect, Context as EffectContext, Layer, Logger } from 'effect';
+import { Effect, Context as EffectContext, Layer } from 'effect';
 
 import {
   getRequestAuthData,
@@ -26,7 +26,14 @@ import {
 } from './server/auth/auth-session';
 import { getServerPort } from './server/config/environment';
 import { resolveHttpRequestContext } from './server/context/http-request-context';
-import { handleAppRpcRequestWithContext } from './server/effect/rpc/app-rpcs.request-handler';
+import {
+  toRpcHttpServerRequest,
+} from './server/effect/rpc/app-rpcs.request-handler';
+import {
+  appRpcHttpAppLayer,
+  handleAppRpcHttpRequest,
+} from './server/effect/rpc/app-rpcs.web-handler';
+import { serverLoggerLayer } from './server/effect/server-logger.layer';
 import { handleHealthzWebRequest } from './server/http/healthz.web-handler';
 import { handleQrRegistrationCodeWebRequest } from './server/http/qr-code.web-handler';
 import { applySecurityHeaders } from './server/http/security-headers';
@@ -250,15 +257,13 @@ const rpcRouteLayer = HttpLayerRouter.add('POST', '/rpc', (request) =>
     const requestContext = yield* resolveHttpRequestContext(request, authSession);
 
     const webRequest = yield* HttpServerRequest.toWeb(request);
-    const rpcWebResponse = yield* Effect.tryPromise(() =>
-      handleAppRpcRequestWithContext(
-        webRequest,
-        requestContext,
-        getRequestAuthData(authSession),
-      ),
+    const rpcRequest = yield* toRpcHttpServerRequest(
+      webRequest,
+      requestContext,
+      getRequestAuthData(authSession),
     );
 
-    return HttpServerResponse.fromWeb(rpcWebResponse);
+    return yield* handleAppRpcHttpRequest(rpcRequest);
   }),
 );
 
@@ -340,18 +345,14 @@ const keyValueStoreLayer = KeyValueStore.layerFileSystem(
   keyValueStoreDirectory,
 ).pipe(Layer.provide(Layer.mergeAll(BunFileSystem.layer, Path.layer)));
 
-const loggerLayer = Logger.replace(
-  Logger.defaultLogger,
-  Logger.prettyLoggerDefault,
-);
-
 const handlerRuntimeLayer = Layer.mergeAll(
   BunHttpServer.layerContext,
   BunFileSystem.layer,
   Path.layer,
   keyValueStoreLayer,
   webhookRateLimitLayer,
-  loggerLayer,
+  serverLoggerLayer,
+  appRpcHttpAppLayer,
 );
 
 const handlerAppLayer = routesLayer.pipe(
@@ -388,6 +389,8 @@ const serveEffect = Effect.gen(function* () {
         Path.layer,
         keyValueStoreLayer,
         webhookRateLimitLayer,
+        serverLoggerLayer,
+        appRpcHttpAppLayer,
       ),
     ),
   );

@@ -1,5 +1,7 @@
+import * as HttpServerRequest from '@effect/platform/HttpServerRequest';
+import { Effect } from 'effect';
+
 import { type Context as RequestContext } from '../../../types/custom/context';
-import { handleAppRpcWebRequest } from './app-rpcs.web-handler';
 import {
   encodeRpcContextHeaderJson,
   RPC_CONTEXT_HEADERS,
@@ -24,11 +26,12 @@ const buildRpcUser = (context: RequestContext) => {
   };
 };
 
-const toRpcRequest = (
+export const toRpcHttpServerRequest = (
   request: Request,
   context: RequestContext,
   authData: Record<string, unknown>,
-): Promise<Request> => {
+) =>
+  Effect.gen(function* () {
   const headers = new Headers(request.headers);
   const user = buildRpcUser(context);
 
@@ -55,7 +58,7 @@ const toRpcRequest = (
   );
 
   if (request.method === 'GET' || request.method === 'HEAD') {
-    return Promise.resolve(
+    return HttpServerRequest.fromWeb(
       new Request(request.url, {
         headers,
         method: request.method,
@@ -63,20 +66,12 @@ const toRpcRequest = (
     );
   }
 
-  return request.arrayBuffer().then((body) =>
+  const body = yield* Effect.tryPromise(() => request.arrayBuffer());
+  return HttpServerRequest.fromWeb(
     new Request(request.url, {
       body,
       headers,
       method: request.method,
     }),
   );
-};
-
-export const handleAppRpcRequestWithContext = (
-  request: Request,
-  context: RequestContext,
-  authData: Record<string, unknown>,
-): Promise<Response> =>
-  toRpcRequest(request, context, authData).then((rpcRequest) =>
-    handleAppRpcWebRequest(rpcRequest),
-  );
+});
