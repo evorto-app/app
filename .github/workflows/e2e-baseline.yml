@@ -65,6 +65,10 @@ jobs:
             exit 1
           fi
 
+      - name: Configure FontAwesome npm auth
+        run: |
+          printf '//npm.fontawesome.com/:_authToken=%s\n' "${FONT_AWESOME_TOKEN}" >> .npmrc
+
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
