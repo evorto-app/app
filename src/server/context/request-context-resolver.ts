@@ -9,7 +9,6 @@ import {
 } from '../../shared/permissions/permissions';
 import { type Authentication } from '../../types/custom/authentication';
 import { Tenant } from '../../types/custom/tenant';
-import { type User } from '../../types/custom/user';
 
 const normalizePermission = (permission: Permission): Permission[] => {
   if (permission === 'admin:manageTaxes') {
@@ -41,9 +40,9 @@ const resolveHostHeader = (
   return undefined;
 };
 
-const dbEffect = <A, E>(
+const databaseEffect = <A, E>(
   operation: (database: DatabaseClient) => Effect.Effect<A, E, never>,
-) => Effect.flatMap(Database, operation);
+) => Database.pipe(Effect.flatMap((database) => operation(database)));
 
 export const resolveAuthenticationContext = (input: {
   appSessionCookie: string | undefined;
@@ -67,7 +66,7 @@ export const resolveTenantContext = (input: {
     let tenantRecord;
 
     if (tenantCookie) {
-      tenantRecord = yield* dbEffect((database) =>
+      tenantRecord = yield* databaseEffect((database) =>
         getPreparedStatements(database).getTenantByDomain.execute({
           domain: tenantCookie,
         }),
@@ -79,7 +78,7 @@ export const resolveTenantContext = (input: {
     if (!tenantCookie && host) {
       const hostUrl = new URL(`${input.protocol}://${host}`);
       const domain = hostUrl.hostname;
-      tenantRecord = yield* dbEffect((database) =>
+      tenantRecord = yield* databaseEffect((database) =>
         getPreparedStatements(database).getTenantByDomain.execute({
           domain,
         }),
@@ -100,23 +99,23 @@ export const resolveUserContext = (input: {
 }) =>
   Effect.gen(function* () {
     if (!input.isAuthenticated) {
-      return undefined;
+      return;
     }
 
     const oidcUser = asRecord(input.oidcUser);
     const auth0Id = asString(oidcUser?.['sub']);
     if (!auth0Id) {
-      return undefined;
+      return;
     }
 
-    const user = yield* dbEffect((database) =>
+    const user = yield* databaseEffect((database) =>
       getPreparedStatements(database).getUserByAuth0IdAndTenant.execute({
         auth0Id,
         tenantId: input.tenantId,
       }),
     );
     if (!user) {
-      return undefined;
+      return;
     }
 
     const appMetadata = asRecord(oidcUser?.['evorto.app/app_metadata']);
@@ -131,7 +130,7 @@ export const resolveUserContext = (input: {
       .flatMap((assignment) => assignment.roles)
       .flatMap((role) => role.id);
 
-    const attributeResponse = yield* dbEffect((database) =>
+    const attributeResponse = yield* databaseEffect((database) =>
       Effect.map(
         getPreparedStatements(database).getUserAttributesByTenantAndUser.execute(
           {
@@ -159,10 +158,10 @@ export const resolveUserContext = (input: {
     };
   });
 
-export type TenantContextResolution = {
+export interface TenantContextResolution {
   cause: {
     domain: string;
     tenantCookie: string;
   };
   tenant: Tenant | undefined;
-};
+}

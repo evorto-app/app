@@ -2,13 +2,13 @@ import type * as RpcClient from '@effect/rpc/RpcClient';
 import type * as Layer from 'effect/Layer';
 
 import {
-  REQUEST,
   createEnvironmentInjector,
   DestroyRef,
   EnvironmentInjector,
   inject,
   InjectionToken,
   makeEnvironmentProviders,
+  REQUEST,
   runInInjectionContext,
 } from '@angular/core';
 import { createEffectRpcAngularClient } from '@heddendorp/effect-angular-query';

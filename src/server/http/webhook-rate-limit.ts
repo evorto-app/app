@@ -18,11 +18,7 @@ interface RateLimitWindow {
 
 const getRemoteAddress = (
   request: HttpServerRequest.HttpServerRequest,
-): string | undefined =>
-  Option.match(request.remoteAddress, {
-    onNone: () => undefined,
-    onSome: (address) => address,
-  });
+): string | undefined => Option.getOrUndefined(request.remoteAddress);
 
 export const resolveWebhookRateLimitKey = (
   request: HttpServerRequest.HttpServerRequest,

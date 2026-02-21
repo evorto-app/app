@@ -1,2 +1,2 @@
-export { Database, databaseLayer, type DatabaseClient } from './database.layer';
+export { Database, type DatabaseClient, databaseLayer } from './database.layer';
 export { getPreparedStatements } from './prepared-statements';

@@ -45,6 +45,6 @@ describe('SimpleTemplateService', () => {
     );
 
     const error = await Effect.runPromise(program);
-    expect(error._tag).toBe('TemplateSimpleBadRequestError');
+    expect(error['_tag']).toBe('TemplateSimpleBadRequestError');
   });
 });

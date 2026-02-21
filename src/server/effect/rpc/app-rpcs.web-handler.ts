@@ -1,9 +1,10 @@
+import type * as Scope from 'effect/Scope';
+
 import * as HttpApp from '@effect/platform/HttpApp';
 import * as HttpServerRequest from '@effect/platform/HttpServerRequest';
 import * as RpcSerialization from '@effect/rpc/RpcSerialization';
 import * as RpcServer from '@effect/rpc/RpcServer';
 import { Context, Effect, Layer } from 'effect';
-import type * as Scope from 'effect/Scope';
 
 import { databaseLayer } from '../../../db';
 import { AppRpcs } from '../../../shared/rpc-contracts/app-rpcs';
@@ -42,8 +43,10 @@ export const appRpcHttpAppLayer = Layer.scoped(
 export const handleAppRpcHttpRequest = (
   request: HttpServerRequest.HttpServerRequest,
 ) =>
-  Effect.flatMap(AppRpcHttpApp, (appRpcHttpApp) =>
-    appRpcHttpApp.pipe(
-      Effect.provideService(HttpServerRequest.HttpServerRequest, request),
+  AppRpcHttpApp.pipe(
+    Effect.flatMap((appRpcHttpApp) =>
+      appRpcHttpApp.pipe(
+        Effect.provideService(HttpServerRequest.HttpServerRequest, request),
+      ),
     ),
   );

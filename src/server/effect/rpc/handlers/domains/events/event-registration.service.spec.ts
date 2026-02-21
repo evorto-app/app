@@ -38,6 +38,6 @@ describe('EventRegistrationService', () => {
     );
 
     const error = await Effect.runPromise(program);
-    expect(error._tag).toBe('EventRegistrationConflictError');
+    expect(error['_tag']).toBe('EventRegistrationConflictError');
   });
 });

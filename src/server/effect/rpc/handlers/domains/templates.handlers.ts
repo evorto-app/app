@@ -28,6 +28,8 @@ import { Effect, Schema } from 'effect';
 import { groupBy } from 'es-toolkit';
 import { DateTime } from 'luxon';
 
+import type { AppRpcHandlers } from '../shared/handler-types';
+
 import { Database, type DatabaseClient } from '../../../../../db';
 import { createId } from '../../../../../db/create-id';
 import {
@@ -90,8 +92,6 @@ import {
   decodeRpcContextHeaderJson,
   RPC_CONTEXT_HEADERS,
 } from '../../rpc-context-headers';
-
-import type { AppRpcHandlers } from '../shared/handler-types';
 import { mapTemplateSimpleErrorToRpc } from '../shared/rpc-error-mappers';
 import { SimpleTemplateService } from './templates/simple-template.service';
 
@@ -107,10 +107,10 @@ const MAX_RECEIPT_ORIGINAL_SIZE_BYTES = 20 * 1024 * 1024;
 const RECEIPT_PREVIEW_SIGNED_URL_TTL_SECONDS = 60 * 15;
 const LOCAL_RECEIPT_STORAGE_KEY_PREFIX = 'local-unavailable/';
 
-const dbEffect = <A>(
+const databaseEffect = <A>(
   operation: (database: DatabaseClient) => Effect.Effect<A, unknown, never>,
 ): Effect.Effect<A, never, Database> =>
-  Effect.flatMap(Database, (database) => operation(database).pipe(Effect.orDie));
+  Database.pipe(Effect.flatMap((database) => operation(database).pipe(Effect.orDie)));
 
 interface ReceiptCountryConfigTenant {
   receiptSettings?:
@@ -579,7 +579,7 @@ const hasOrganizingRegistrationForEvent = (
   eventId: string,
 ): Effect.Effect<boolean, never, Database> =>
   Effect.gen(function* () {
-    const organizerRegistration = yield* dbEffect((database) =>
+    const organizerRegistration = yield* databaseEffect((database) =>
       database
         .select({
           id: eventRegistrations.id,
@@ -745,7 +745,7 @@ export const templateHandlers = {
           options.headers[RPC_CONTEXT_HEADERS.TENANT],
           Tenant,
         );
-        const template = yield* dbEffect((database) =>
+        const template = yield* databaseEffect((database) =>
           database.query.eventTemplates.findFirst({
             where: {
               id,
@@ -764,7 +764,7 @@ export const templateHandlers = {
           template.registrationOptions.flatMap((option) => option.roleIds);
         const templateRoles =
           combinedRegistrationOptionRoleIds.length > 0
-            ? yield* dbEffect((database) =>
+            ? yield* databaseEffect((database) =>
           database.query.roles.findMany({
                   where: {
                     id: {
@@ -791,7 +791,7 @@ export const templateHandlers = {
           options.headers[RPC_CONTEXT_HEADERS.TENANT],
           Tenant,
         );
-        const templateCategories = yield* dbEffect((database) =>
+        const templateCategories = yield* databaseEffect((database) =>
           database.query.eventTemplateCategories.findMany({
             orderBy: (categories, { asc }) => [asc(categories.title)],
             where: { tenantId: tenant.id },

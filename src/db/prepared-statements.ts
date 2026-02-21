@@ -1,6 +1,7 @@
 import { and, eq, sql } from 'drizzle-orm';
 
 import type { DatabaseClient } from './database.layer';
+
 import * as schema from './schema';
 
 const buildPreparedStatements = (database: DatabaseClient) => ({
@@ -9,6 +10,17 @@ const buildPreparedStatements = (database: DatabaseClient) => ({
       where: { domain: sql.placeholder('domain') },
     })
     .prepare('getTenantByDomain'),
+  getUserAttributesByTenantAndUser: database
+    .select()
+    .from(schema.userAttributes)
+    .where(
+      and(
+        eq(schema.userAttributes.tenantId, sql.placeholder('tenantId')),
+        eq(schema.userAttributes.userId, sql.placeholder('userId')),
+      ),
+    )
+    .limit(1)
+    .prepare('getUserAttributesByTenantAndUser'),
   getUserByAuth0IdAndTenant: database.query.users
     .findFirst({
       where: { auth0Id: sql.placeholder('auth0Id') },
@@ -29,17 +41,6 @@ const buildPreparedStatements = (database: DatabaseClient) => ({
       },
     })
     .prepare('getUserByAuth0IdAndTenant'),
-  getUserAttributesByTenantAndUser: database
-    .select()
-    .from(schema.userAttributes)
-    .where(
-      and(
-        eq(schema.userAttributes.tenantId, sql.placeholder('tenantId')),
-        eq(schema.userAttributes.userId, sql.placeholder('userId')),
-      ),
-    )
-    .limit(1)
-    .prepare('getUserAttributesByTenantAndUser'),
 });
 
 type PreparedStatements = ReturnType<typeof buildPreparedStatements>;

@@ -11,38 +11,56 @@ import {
 export const mapEventRegistrationErrorToRpc = (
   error: EventRegistrationError,
 ): 'CONFLICT' | 'INTERNAL_SERVER_ERROR' | 'NOT_FOUND' => {
-  switch (error._tag) {
-    case 'EventRegistrationConflictError':
+  switch (error['_tag']) {
+    case 'EventRegistrationConflictError': {
       return 'CONFLICT';
-    case 'EventRegistrationNotFoundError':
-      return 'NOT_FOUND';
-    case 'EventRegistrationInternalError':
+    }
+    case 'EventRegistrationInternalError': {
       return 'INTERNAL_SERVER_ERROR';
+    }
+    case 'EventRegistrationNotFoundError': {
+      return 'NOT_FOUND';
+    }
+    default: {
+      return 'INTERNAL_SERVER_ERROR';
+    }
   }
 };
 
 export const mapTemplateSimpleErrorToRpc = (
   error: TemplateSimpleError,
 ): 'BAD_REQUEST' | 'INTERNAL_SERVER_ERROR' | 'NOT_FOUND' => {
-  switch (error._tag) {
-    case 'TemplateSimpleBadRequestError':
+  switch (error['_tag']) {
+    case 'TemplateSimpleBadRequestError': {
       return 'BAD_REQUEST';
-    case 'TemplateSimpleNotFoundError':
-      return 'NOT_FOUND';
-    case 'TemplateSimpleInternalError':
+    }
+    case 'TemplateSimpleInternalError': {
       return 'INTERNAL_SERVER_ERROR';
+    }
+    case 'TemplateSimpleNotFoundError': {
+      return 'NOT_FOUND';
+    }
+    default: {
+      return 'INTERNAL_SERVER_ERROR';
+    }
   }
 };
 
 export const mapReceiptMediaErrorToRpc = (
   error: ReceiptMediaError,
 ): 'BAD_REQUEST' | 'INTERNAL_SERVER_ERROR' => {
-  switch (error._tag) {
-    case 'ReceiptMediaBadRequestError':
+  switch (error['_tag']) {
+    case 'ReceiptMediaBadRequestError': {
       return 'BAD_REQUEST';
-    case 'ReceiptMediaServiceUnavailableError':
+    }
+    case 'ReceiptMediaInternalError': {
       return 'INTERNAL_SERVER_ERROR';
-    case 'ReceiptMediaInternalError':
+    }
+    case 'ReceiptMediaServiceUnavailableError': {
       return 'INTERNAL_SERVER_ERROR';
+    }
+    default: {
+      return 'INTERNAL_SERVER_ERROR';
+    }
   }
 };

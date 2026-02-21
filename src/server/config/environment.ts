@@ -1,6 +1,6 @@
 import { Either, ParseResult, Schema } from 'effect';
 
-import { loadDotenvFiles } from '../../../helpers/config/load-dotenv-files';
+import { loadDotenvFiles } from './load-dotenv-files';
 
 loadDotenvFiles();
 

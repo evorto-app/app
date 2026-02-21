@@ -28,6 +28,8 @@ import { Effect, Schema } from 'effect';
 import { groupBy } from 'es-toolkit';
 import { DateTime } from 'luxon';
 
+import type { AppRpcHandlers } from '../shared/handler-types';
+
 import { Database, type DatabaseClient } from '../../../../../db';
 import { createId } from '../../../../../db/create-id';
 import {
@@ -90,8 +92,6 @@ import {
   decodeRpcContextHeaderJson,
   RPC_CONTEXT_HEADERS,
 } from '../../rpc-context-headers';
-
-import type { AppRpcHandlers } from '../shared/handler-types';
 import { mapReceiptMediaErrorToRpc } from '../shared/rpc-error-mappers';
 import {
   ReceiptMediaService,
@@ -111,10 +111,10 @@ const MAX_RECEIPT_ORIGINAL_SIZE_BYTES = 20 * 1024 * 1024;
 const RECEIPT_PREVIEW_SIGNED_URL_TTL_SECONDS = 60 * 15;
 const LOCAL_RECEIPT_STORAGE_KEY_PREFIX = 'local-unavailable/';
 
-const dbEffect = <A>(
+const databaseEffect = <A>(
   operation: (database: DatabaseClient) => Effect.Effect<A, unknown, never>,
 ): Effect.Effect<A, never, Database> =>
-  Effect.flatMap(Database, (database) => operation(database).pipe(Effect.orDie));
+  Database.pipe(Effect.flatMap((database) => operation(database).pipe(Effect.orDie)));
 
 interface ReceiptCountryConfigTenant {
   receiptSettings?:
@@ -547,7 +547,7 @@ const hasOrganizingRegistrationForEvent = (
   eventId: string,
 ): Effect.Effect<boolean, never, Database> =>
   Effect.gen(function* () {
-    const organizerRegistration = yield* dbEffect((database) =>
+    const organizerRegistration = yield* databaseEffect((database) =>
       database
         .select({
           id: eventRegistrations.id,
@@ -728,7 +728,7 @@ export const financeHandlers = {
           return yield* Effect.fail('FORBIDDEN' as const);
         }
 
-        const receipts = yield* dbEffect((database) =>
+        const receipts = yield* databaseEffect((database) =>
           database
             .select({
               ...financeReceiptView,
@@ -765,7 +765,7 @@ export const financeHandlers = {
           Tenant,
         );
         const user = yield* requireUserHeader(options.headers);
-        const receipts = yield* dbEffect((database) =>
+        const receipts = yield* databaseEffect((database) =>
           database
             .select({
               eventId: financeReceipts.eventId,
@@ -796,7 +796,7 @@ export const financeHandlers = {
           return yield* Effect.fail('BAD_REQUEST' as const);
         }
 
-        const payoutUser = yield* dbEffect((database) =>
+        const payoutUser = yield* databaseEffect((database) =>
           database.query.users.findFirst({
             columns: {
               iban: true,
@@ -838,7 +838,7 @@ export const financeHandlers = {
         ];
         const eventId = uniqueEventIds.length === 1 ? uniqueEventIds[0] : null;
 
-        const createdTransaction = yield* dbEffect((database) =>
+        const createdTransaction = yield* databaseEffect((database) =>
           database.transaction((tx) =>
             Effect.gen(function* () {
               const insertedTransactions = yield* tx
@@ -912,7 +912,7 @@ export const financeHandlers = {
           options.headers[RPC_CONTEXT_HEADERS.TENANT],
           Tenant,
         );
-        const receipts = yield* dbEffect((database) =>
+        const receipts = yield* databaseEffect((database) =>
           database
             .select({
               ...financeReceiptView,
@@ -962,7 +962,7 @@ export const financeHandlers = {
           Tenant,
         );
         const user = yield* requireUserHeader(options.headers);
-        const receipts = yield* dbEffect((database) =>
+        const receipts = yield* databaseEffect((database) =>
           database
             .select({
               ...financeReceiptView,
@@ -996,7 +996,7 @@ export const financeHandlers = {
           options.headers[RPC_CONTEXT_HEADERS.TENANT],
           Tenant,
         );
-        const pendingReceipts = yield* dbEffect((database) =>
+        const pendingReceipts = yield* databaseEffect((database) =>
           database
             .select({
               ...financeReceiptView,
@@ -1069,7 +1069,7 @@ export const financeHandlers = {
           options.headers[RPC_CONTEXT_HEADERS.TENANT],
           Tenant,
         );
-        const approvedReceipts = yield* dbEffect((database) =>
+        const approvedReceipts = yield* databaseEffect((database) =>
           database
             .select({
               ...financeReceiptView,
@@ -1193,7 +1193,7 @@ export const financeHandlers = {
           Tenant,
         );
         const user = yield* requireUserHeader(options.headers);
-        const receipt = yield* dbEffect((database) =>
+        const receipt = yield* databaseEffect((database) =>
           database.query.financeReceipts.findFirst({
             where: {
               id: input.id,
@@ -1229,7 +1229,7 @@ export const financeHandlers = {
           return yield* Effect.fail('BAD_REQUEST' as const);
         }
 
-        const updatedReceipts = yield* dbEffect((database) =>
+        const updatedReceipts = yield* databaseEffect((database) =>
           database
             .update(financeReceipts)
             .set({
@@ -1291,7 +1291,7 @@ export const financeHandlers = {
           return yield* Effect.fail('BAD_REQUEST' as const);
         }
 
-        const event = yield* dbEffect((database) =>
+        const event = yield* databaseEffect((database) =>
           database.query.eventInstances.findFirst({
             columns: {
               id: true,
@@ -1328,7 +1328,7 @@ export const financeHandlers = {
           return yield* Effect.fail('BAD_REQUEST' as const);
         }
 
-        const createdReceipts = yield* dbEffect((database) =>
+        const createdReceipts = yield* databaseEffect((database) =>
           database
             .insert(financeReceipts)
             .values({
@@ -1370,7 +1370,7 @@ export const financeHandlers = {
           options.headers[RPC_CONTEXT_HEADERS.TENANT],
           Tenant,
         );
-        const transactionCountResult = yield* dbEffect((database) =>
+        const transactionCountResult = yield* databaseEffect((database) =>
           database
             .select({
               count: count(),
@@ -1385,7 +1385,7 @@ export const financeHandlers = {
         );
         const total = transactionCountResult[0]?.count ?? 0;
 
-        const transactionRows = yield* dbEffect((database) =>
+        const transactionRows = yield* databaseEffect((database) =>
           database
             .select({
               amount: transactions.amount,

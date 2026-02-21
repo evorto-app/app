@@ -1,4 +1,6 @@
 import { AngularAppEngine, createRequestHandler } from '@angular/ssr';
+import * as OtelResource from '@effect/opentelemetry/Resource';
+import * as OtelTracer from '@effect/opentelemetry/Tracer';
 import {
   FileSystem,
   HttpLayerRouter,
@@ -13,8 +15,6 @@ import {
   BunHttpServer,
   BunRuntime,
 } from '@effect/platform-bun';
-import * as OtelResource from '@effect/opentelemetry/Resource';
-import * as OtelTracer from '@effect/opentelemetry/Tracer';
 import * as Sentry from '@sentry/bun';
 import { Effect, Context as EffectContext, Layer } from 'effect';
 

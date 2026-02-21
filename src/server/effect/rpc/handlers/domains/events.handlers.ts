@@ -28,6 +28,8 @@ import { Effect, Schema } from 'effect';
 import { groupBy } from 'es-toolkit';
 import { DateTime } from 'luxon';
 
+import type { AppRpcHandlers } from '../shared/handler-types';
+
 import { Database, type DatabaseClient } from '../../../../../db';
 import { createId } from '../../../../../db/create-id';
 import {
@@ -90,10 +92,8 @@ import {
   decodeRpcContextHeaderJson,
   RPC_CONTEXT_HEADERS,
 } from '../../rpc-context-headers';
-
-import type { AppRpcHandlers } from '../shared/handler-types';
-import { EventRegistrationService } from './events/event-registration.service';
 import { mapEventRegistrationErrorToRpc } from '../shared/rpc-error-mappers';
+import { EventRegistrationService } from './events/event-registration.service';
 
 const ALLOWED_IMAGE_MIME_TYPES = [
   'image/gif',
@@ -107,10 +107,10 @@ const MAX_RECEIPT_ORIGINAL_SIZE_BYTES = 20 * 1024 * 1024;
 const RECEIPT_PREVIEW_SIGNED_URL_TTL_SECONDS = 60 * 15;
 const LOCAL_RECEIPT_STORAGE_KEY_PREFIX = 'local-unavailable/';
 
-const dbEffect = <A>(
+const databaseEffect = <A>(
   operation: (database: DatabaseClient) => Effect.Effect<A, unknown, never>,
 ): Effect.Effect<A, never, Database> =>
-  Effect.flatMap(Database, (database) => operation(database).pipe(Effect.orDie));
+  Database.pipe(Effect.flatMap((database) => operation(database).pipe(Effect.orDie)));
 
 interface ReceiptCountryConfigTenant {
   receiptSettings?:
@@ -579,7 +579,7 @@ const hasOrganizingRegistrationForEvent = (
   eventId: string,
 ): Effect.Effect<boolean, never, Database> =>
   Effect.gen(function* () {
-    const organizerRegistration = yield* dbEffect((database) =>
+    const organizerRegistration = yield* databaseEffect((database) =>
       database
         .select({
           id: eventRegistrations.id,
@@ -730,7 +730,7 @@ export const eventHandlers = {
         );
         const user = yield* requireUserHeader(options.headers);
 
-        const registration = yield* dbEffect((database) =>
+        const registration = yield* databaseEffect((database) =>
           database.query.eventRegistrations.findFirst({
             where: {
               id: registrationId,
@@ -749,7 +749,7 @@ export const eventHandlers = {
           return yield* Effect.fail('NOT_FOUND' as const);
         }
 
-        yield* dbEffect((database) =>
+        yield* databaseEffect((database) =>
           database.transaction((tx) =>
             Effect.gen(function* () {
               yield* tx
@@ -834,7 +834,7 @@ export const eventHandlers = {
           return true;
         }
 
-        const registrations = yield* dbEffect((database) =>
+        const registrations = yield* databaseEffect((database) =>
           database
             .select({
               id: eventRegistrations.id,
@@ -901,7 +901,7 @@ export const eventHandlers = {
             return yield* Effect.fail('BAD_REQUEST' as const);
           }
 
-          const validation = yield* dbEffect((database) =>
+          const validation = yield* databaseEffect((database) =>
             validateTaxRate(database, {
               isPaid: option.isPaid,
               stripeTaxRateId: option.stripeTaxRateId ?? null,
@@ -913,14 +913,14 @@ export const eventHandlers = {
           }
         }
 
-        const templateDefaults = yield* dbEffect((database) =>
+        const templateDefaults = yield* databaseEffect((database) =>
           database.query.eventTemplates.findFirst({
             columns: { unlisted: true },
             where: { id: input.templateId },
           }),
         );
 
-        const events = yield* dbEffect((database) =>
+        const events = yield* databaseEffect((database) =>
           database
             .insert(eventInstances)
             .values({
@@ -943,7 +943,7 @@ export const eventHandlers = {
           return yield* Effect.fail('INTERNAL_SERVER_ERROR' as const);
         }
 
-        const createdOptions = yield* dbEffect((database) =>
+        const createdOptions = yield* databaseEffect((database) =>
           database
             .insert(eventRegistrationOptions)
             .values(
@@ -971,13 +971,13 @@ export const eventHandlers = {
             }),
         );
 
-        const tenantTemplateOptions = yield* dbEffect((database) =>
+        const tenantTemplateOptions = yield* databaseEffect((database) =>
           database.query.templateRegistrationOptions.findMany({
             where: { templateId: input.templateId },
           }),
         );
         if (tenantTemplateOptions.length > 0) {
-          const templateDiscounts = yield* dbEffect((database) =>
+          const templateDiscounts = yield* databaseEffect((database) =>
           database
               .select()
               .from(templateRegistrationOptionDiscounts)
@@ -1025,7 +1025,7 @@ export const eventHandlers = {
               }
             }
             if (discountInserts.length > 0) {
-              yield* dbEffect((database) =>
+              yield* databaseEffect((database) =>
           database
                   .insert(eventRegistrationOptionDiscounts)
                   .values(discountInserts),
@@ -1076,7 +1076,7 @@ export const eventHandlers = {
 
         const rolesToFilterBy =
           user?.roleIds ??
-          (yield* dbEffect((database) =>
+          (yield* databaseEffect((database) =>
             database.query.roles
               .findMany({
                 columns: { id: true },
@@ -1090,7 +1090,7 @@ export const eventHandlers = {
         const roleFilters =
           rolesToFilterBy.length > 0 ? [...rolesToFilterBy] : [''];
 
-        const selectedEvents = yield* dbEffect((database) =>
+        const selectedEvents = yield* databaseEffect((database) =>
           database
             .select({
               creatorId: eventInstances.creatorId,
@@ -1178,7 +1178,7 @@ export const eventHandlers = {
 
         const rolesToFilterBy =
           user?.roleIds ??
-          (yield* dbEffect((database) =>
+          (yield* databaseEffect((database) =>
             database.query.roles
               .findMany({
                 columns: { id: true },
@@ -1190,7 +1190,7 @@ export const eventHandlers = {
               .pipe(Effect.map((roleRecords) => roleRecords.map((role) => role.id))),
           ));
 
-        const event = yield* dbEffect((database) =>
+        const event = yield* databaseEffect((database) =>
           database.query.eventInstances.findFirst({
             where: { id, tenantId: tenant.id },
             with: {
@@ -1237,7 +1237,7 @@ export const eventHandlers = {
         const optionDiscounts =
           registrationOptionIds.length === 0
             ? []
-            : yield* dbEffect((database) =>
+            : yield* databaseEffect((database) =>
           database
                   .select()
                   .from(eventRegistrationOptionDiscounts)
@@ -1263,7 +1263,7 @@ export const eventHandlers = {
         let userCanUseEsnCardDiscount = false;
 
         if (user && esnCardIsEnabledForTenant) {
-          const cards = yield* dbEffect((database) =>
+          const cards = yield* databaseEffect((database) =>
           database.query.userDiscountCards.findMany({
               where: {
                 status: 'verified',
@@ -1351,7 +1351,7 @@ export const eventHandlers = {
         );
         const user = yield* requireUserHeader(options.headers);
 
-        const event = yield* dbEffect((database) =>
+        const event = yield* databaseEffect((database) =>
           database.query.eventInstances.findFirst({
             where: { id, tenantId: tenant.id },
             with: {
@@ -1381,7 +1381,7 @@ export const eventHandlers = {
         const optionDiscounts =
           registrationOptionIds.length === 0
             ? []
-            : yield* dbEffect((database) =>
+            : yield* databaseEffect((database) =>
           database
                   .select({
                     discountedPrice:
@@ -1442,7 +1442,7 @@ export const eventHandlers = {
           Tenant,
         );
 
-        const registrations = yield* dbEffect((database) =>
+        const registrations = yield* databaseEffect((database) =>
           database.query.eventRegistrations.findMany({
             where: {
               eventId,
@@ -1584,7 +1584,7 @@ export const eventHandlers = {
           Tenant,
         );
 
-        const pendingReviews = yield* dbEffect((database) =>
+        const pendingReviews = yield* databaseEffect((database) =>
           database.query.eventInstances.findMany({
             columns: {
               id: true,
@@ -1616,7 +1616,7 @@ export const eventHandlers = {
           };
         }
 
-        const registrations = yield* dbEffect((database) =>
+        const registrations = yield* databaseEffect((database) =>
           database.query.eventRegistrations.findMany({
             where: {
               eventId,
@@ -1730,7 +1730,7 @@ export const eventHandlers = {
         );
         const user = yield* requireUserHeader(options.headers);
 
-        const registration = yield* dbEffect((database) =>
+        const registration = yield* databaseEffect((database) =>
           database.query.eventRegistrations.findFirst({
             where: { id: registrationId, tenantId: tenant.id },
             with: {
@@ -1809,7 +1809,7 @@ export const eventHandlers = {
         );
         const user = yield* requireUserHeader(options.headers);
 
-        const reviewedEvents = yield* dbEffect((database) =>
+        const reviewedEvents = yield* databaseEffect((database) =>
           database
             .update(eventInstances)
             .set({
@@ -1833,7 +1833,7 @@ export const eventHandlers = {
           return;
         }
 
-        const event = yield* dbEffect((database) =>
+        const event = yield* databaseEffect((database) =>
           database.query.eventInstances.findFirst({
             columns: { id: true },
             where: {
@@ -1857,7 +1857,7 @@ export const eventHandlers = {
         );
         const user = yield* requireUserHeader(options.headers);
 
-        const event = yield* dbEffect((database) =>
+        const event = yield* databaseEffect((database) =>
           database.query.eventInstances.findFirst({
             columns: {
               creatorId: true,
@@ -1887,7 +1887,7 @@ export const eventHandlers = {
           return yield* Effect.fail('CONFLICT' as const);
         }
 
-        const submittedEvents = yield* dbEffect((database) =>
+        const submittedEvents = yield* databaseEffect((database) =>
           database
             .update(eventInstances)
             .set({
@@ -1948,7 +1948,7 @@ export const eventHandlers = {
           }),
         );
 
-        const event = yield* dbEffect((database) =>
+        const event = yield* databaseEffect((database) =>
           database.query.eventInstances.findFirst({
             where: {
               id: input.eventId,
@@ -1988,7 +1988,7 @@ export const eventHandlers = {
             return yield* Effect.fail('BAD_REQUEST' as const);
           }
 
-          const validation = yield* dbEffect((database) =>
+          const validation = yield* databaseEffect((database) =>
             validateTaxRate(database, {
               isPaid: option.isPaid,
               stripeTaxRateId: option.stripeTaxRateId ?? null,
@@ -2019,7 +2019,7 @@ export const eventHandlers = {
           }
         }
 
-        const updatedEvent = yield* dbEffect((database) =>
+        const updatedEvent = yield* databaseEffect((database) =>
           database.transaction((tx) =>
             Effect.gen(function* () {
               const updatedEvents = yield* tx
@@ -2064,8 +2064,8 @@ export const eventHandlers = {
                 }
               }
 
-              yield* Effect.forEach(sanitizedRegistrationOptions, (option) =>
-                tx
+              for (const option of sanitizedRegistrationOptions) {
+                yield* tx
                   .update(eventRegistrationOptions)
                   .set({
                     closeRegistrationTime: option.closeRegistrationTime,
@@ -2086,8 +2086,8 @@ export const eventHandlers = {
                       eq(eventRegistrationOptions.eventId, input.eventId),
                       eq(eventRegistrationOptions.id, option.id),
                     ),
-                  ),
-              );
+                  );
+              }
 
               const existingEsnDiscounts =
                 sanitizedRegistrationOptions.length === 0
@@ -2188,7 +2188,7 @@ export const eventHandlers = {
           Tenant,
         );
 
-        yield* dbEffect((database) =>
+        yield* databaseEffect((database) =>
           database
             .update(eventInstances)
             .set({ unlisted })

@@ -1,4 +1,5 @@
 import type { Headers } from '@effect/platform';
+
 import { and, eq } from 'drizzle-orm';
 import { Effect } from 'effect';
 import { DateTime } from 'luxon';
@@ -9,12 +10,9 @@ import {
   eventRegistrationOptionDiscounts,
   eventRegistrationOptions,
   eventRegistrations,
-  tenantStripeTaxRates,
-  tenants,
   transactions,
-  userDiscountCards,
 } from '../../../../../../db/schema';
-import { type TenantDiscountProviders, resolveTenantDiscountProviders } from '../../../../../../shared/tenant-config';
+import { resolveTenantDiscountProviders, type TenantDiscountProviders } from '../../../../../../shared/tenant-config';
 import { type Tenant } from '../../../../../../types/custom/tenant';
 import { type User } from '../../../../../../types/custom/user';
 import { stripe } from '../../../../../stripe-client';
@@ -24,12 +22,12 @@ import {
   EventRegistrationNotFoundError,
 } from './events.errors';
 
-const dbEffect = <A>(
+const databaseEffect = <A>(
   operation: (database: DatabaseClient) => Effect.Effect<A, unknown, never>,
 ): Effect.Effect<A, never, Database> =>
-  Effect.flatMap(Database, (database) => operation(database).pipe(Effect.orDie));
+  Database.pipe(Effect.flatMap((database) => operation(database).pipe(Effect.orDie)));
 
-interface RegisterForEventArgs {
+interface RegisterForEventArguments {
   eventId: string;
   headers: Headers.Headers;
   registrationOptionId: string;
@@ -41,7 +39,7 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
   '@server/effect/rpc/handlers/domains/events/EventRegistrationService',
   {
     accessors: true,
-    effect: Effect.gen(function* () {
+    effect: Effect.sync(() => {
       const registerForEvent = Effect.fn(
         'EventRegistrationService.registerForEvent',
       )(function* ({
@@ -50,8 +48,8 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
         registrationOptionId,
         tenant,
         user,
-      }: RegisterForEventArgs) {
-        const existingRegistration = yield* dbEffect((database) =>
+      }: RegisterForEventArguments) {
+        const existingRegistration = yield* databaseEffect((database) =>
           database.query.eventRegistrations.findFirst({
             where: {
               eventId,
@@ -68,7 +66,7 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
           );
         }
 
-        const registrationOption = yield* dbEffect((database) =>
+        const registrationOption = yield* databaseEffect((database) =>
           database.query.eventRegistrationOptions.findFirst({
             where: { eventId, id: registrationOptionId },
             with: {
@@ -108,7 +106,7 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
 
         const selectedTaxRateId = registrationOption.stripeTaxRateId ?? undefined;
         const selectedTaxRate = selectedTaxRateId
-          ? yield* dbEffect((database) =>
+          ? yield* databaseEffect((database) =>
               database.query.tenantStripeTaxRates.findFirst({
                 where: {
                   stripeTaxRateId: selectedTaxRateId,
@@ -118,7 +116,7 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
             )
           : undefined;
 
-        const createdRegistrations = yield* dbEffect((database) =>
+        const createdRegistrations = yield* databaseEffect((database) =>
           database
             .insert(eventRegistrations)
             .values({
@@ -149,7 +147,7 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
           );
         }
 
-        yield* dbEffect((database) =>
+        yield* databaseEffect((database) =>
           database
             .update(eventRegistrationOptions)
             .set(
@@ -176,7 +174,7 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
         )(
           () =>
             Effect.gen(function* () {
-              const rollbackRegistrationOption = yield* dbEffect((database) =>
+              const rollbackRegistrationOption = yield* databaseEffect((database) =>
                 database.query.eventRegistrationOptions.findFirst({
                   where: {
                     eventId,
@@ -186,7 +184,7 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
               );
 
               if (rollbackRegistrationOption) {
-                yield* dbEffect((database) =>
+                yield* databaseEffect((database) =>
                   database
                     .update(eventRegistrationOptions)
                     .set({
@@ -204,7 +202,7 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
                 );
               }
 
-              yield* dbEffect((database) =>
+              yield* databaseEffect((database) =>
                 database
                   .delete(eventRegistrations)
                   .where(eq(eventRegistrations.id, userRegistration.id)),
@@ -234,7 +232,7 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
             null;
           let appliedDiscountedPrice: null | number = null;
 
-          const cards = yield* dbEffect((database) =>
+          const cards = yield* databaseEffect((database) =>
             database.query.userDiscountCards.findMany({
               where: {
                 status: 'verified',
@@ -244,7 +242,7 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
             }),
           );
           if (cards.length > 0) {
-            const tenantRecord = yield* dbEffect((database) =>
+            const tenantRecord = yield* databaseEffect((database) =>
               database.query.tenants.findFirst({
                 where: { id: tenant.id },
               }),
@@ -256,7 +254,7 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
                 .filter(([, provider]) => provider?.status === 'enabled')
                 .map(([key]) => key),
             );
-            const discounts = yield* dbEffect((database) =>
+            const discounts = yield* databaseEffect((database) =>
               database.query.eventRegistrationOptionDiscounts.findMany({
                 where: { registrationOptionId: registrationOption.id },
               }),
@@ -288,7 +286,7 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
               ? null
               : Math.max(0, basePrice - appliedDiscountedPrice);
 
-          yield* dbEffect((database) =>
+          yield* databaseEffect((database) =>
             database
               .update(eventRegistrations)
               .set({
@@ -301,7 +299,7 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
           );
 
           if (effectivePrice <= 0) {
-            yield* dbEffect((database) =>
+            yield* databaseEffect((database) =>
               database
                 .update(eventRegistrations)
                 .set({
@@ -310,7 +308,7 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
                 .where(eq(eventRegistrations.id, userRegistration.id)),
             );
 
-            yield* dbEffect((database) =>
+            yield* databaseEffect((database) =>
               database
                 .update(eventRegistrationOptions)
                 .set({
@@ -375,7 +373,7 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
               ),
           });
 
-          yield* dbEffect((database) =>
+          yield* databaseEffect((database) =>
             database.insert(transactions).values({
               amount: effectivePrice,
               comment: `Registration for event ${registrationOption.event.title} ${registrationOption.eventId}`,

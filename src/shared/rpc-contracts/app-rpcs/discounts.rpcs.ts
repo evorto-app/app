@@ -1,6 +1,6 @@
 import * as RpcGroup from '@effect/rpc/RpcGroup';
 
-import { DiscountsGetTenantProviders, DiscountsGetMyCards, DiscountsDeleteMyCard, DiscountsRefreshMyCard, DiscountsUpsertMyCard } from './definitions';
+import { DiscountsDeleteMyCard, DiscountsGetMyCards, DiscountsGetTenantProviders, DiscountsRefreshMyCard, DiscountsUpsertMyCard } from './definitions';
 
 export class DiscountsRpcs extends RpcGroup.make(
   DiscountsGetTenantProviders,

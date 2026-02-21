@@ -28,6 +28,8 @@ import { Effect, Schema } from 'effect';
 import { groupBy } from 'es-toolkit';
 import { DateTime } from 'luxon';
 
+import type { AppRpcHandlers } from '../shared/handler-types';
+
 import { Database, type DatabaseClient } from '../../../../../db';
 import { createId } from '../../../../../db/create-id';
 import {
@@ -91,8 +93,6 @@ import {
   RPC_CONTEXT_HEADERS,
 } from '../../rpc-context-headers';
 
-import type { AppRpcHandlers } from '../shared/handler-types';
-
 const ALLOWED_IMAGE_MIME_TYPES = [
   'image/gif',
   'image/jpeg',
@@ -105,10 +105,10 @@ const MAX_RECEIPT_ORIGINAL_SIZE_BYTES = 20 * 1024 * 1024;
 const RECEIPT_PREVIEW_SIGNED_URL_TTL_SECONDS = 60 * 15;
 const LOCAL_RECEIPT_STORAGE_KEY_PREFIX = 'local-unavailable/';
 
-const dbEffect = <A>(
+const databaseEffect = <A>(
   operation: (database: DatabaseClient) => Effect.Effect<A, unknown, never>,
 ): Effect.Effect<A, never, Database> =>
-  Effect.flatMap(Database, (database) => operation(database).pipe(Effect.orDie));
+  Database.pipe(Effect.flatMap((database) => operation(database).pipe(Effect.orDie)));
 
 interface ReceiptCountryConfigTenant {
   receiptSettings?:
@@ -577,7 +577,7 @@ const hasOrganizingRegistrationForEvent = (
   eventId: string,
 ): Effect.Effect<boolean, never, Database> =>
   Effect.gen(function* () {
-    const organizerRegistration = yield* dbEffect((database) =>
+    const organizerRegistration = yield* databaseEffect((database) =>
       database
         .select({
           id: eventRegistrations.id,
@@ -735,7 +735,7 @@ export const taxRateHandlers = {
           options.headers[RPC_CONTEXT_HEADERS.TENANT],
           Tenant,
         );
-        const activeTaxRates = yield* dbEffect((database) =>
+        const activeTaxRates = yield* databaseEffect((database) =>
           database.query.tenantStripeTaxRates.findMany({
             columns: {
               country: true,

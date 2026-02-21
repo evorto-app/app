@@ -6,9 +6,9 @@ import { Database, type DatabaseClient } from '../../db';
 const responseText = (body: string, status = 200): Response =>
   new Response(body, { status });
 
-const dbEffect = <A, E>(
+const databaseEffect = <A, E>(
   operation: (database: DatabaseClient) => Effect.Effect<A, E, never>,
-) => Effect.flatMap(Database, operation);
+) => Database.pipe(Effect.flatMap((database) => operation(database)));
 
 export const handleQrRegistrationCodeWebRequest = (
   request: Request,
@@ -19,7 +19,7 @@ export const handleQrRegistrationCodeWebRequest = (
       Effect.annotateLogs({ registrationId }),
     );
 
-    const registration = yield* dbEffect((database) =>
+    const registration = yield* databaseEffect((database) =>
       database.query.eventRegistrations.findFirst({
         columns: {
           id: true,
@@ -33,7 +33,7 @@ export const handleQrRegistrationCodeWebRequest = (
       return responseText('Registration not found', 404);
     }
 
-    const tenant = yield* dbEffect((database) =>
+    const tenant = yield* databaseEffect((database) =>
       database.query.tenants.findFirst({
         columns: {
           domain: true,

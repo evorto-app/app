@@ -1,10 +1,10 @@
 import { Effect } from 'effect';
 
+import { type Permission } from '../../../../../shared/permissions/permissions';
 import {
   RpcRequestContext,
   type RpcRequestContextShape,
 } from '../../../../../shared/rpc-contracts/app-rpcs';
-import { type Permission } from '../../../../../shared/permissions/permissions';
 import { type User } from '../../../../../types/custom/user';
 
 export class RpcAccess extends Effect.Service<RpcAccess>()(

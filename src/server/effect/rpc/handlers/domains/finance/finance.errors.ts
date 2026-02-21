@@ -1,4 +1,11 @@
+/* eslint-disable unicorn/throw-new-error */
+
 import { Schema } from 'effect';
+
+export type ReceiptMediaError =
+  | ReceiptMediaBadRequestError
+  | ReceiptMediaInternalError
+  | ReceiptMediaServiceUnavailableError;
 
 export class ReceiptMediaBadRequestError extends Schema.TaggedError<ReceiptMediaBadRequestError>()(
   'ReceiptMediaBadRequestError',
@@ -20,8 +27,3 @@ export class ReceiptMediaServiceUnavailableError extends Schema.TaggedError<Rece
     message: Schema.String,
   },
 ) {}
-
-export type ReceiptMediaError =
-  | ReceiptMediaBadRequestError
-  | ReceiptMediaInternalError
-  | ReceiptMediaServiceUnavailableError;

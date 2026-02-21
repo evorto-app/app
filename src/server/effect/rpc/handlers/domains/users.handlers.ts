@@ -28,6 +28,8 @@ import { Effect, Schema } from 'effect';
 import { groupBy } from 'es-toolkit';
 import { DateTime } from 'luxon';
 
+import type { AppRpcHandlers } from '../shared/handler-types';
+
 import { Database, type DatabaseClient } from '../../../../../db';
 import { createId } from '../../../../../db/create-id';
 import {
@@ -91,8 +93,6 @@ import {
   RPC_CONTEXT_HEADERS,
 } from '../../rpc-context-headers';
 
-import type { AppRpcHandlers } from '../shared/handler-types';
-
 const ALLOWED_IMAGE_MIME_TYPES = [
   'image/gif',
   'image/jpeg',
@@ -105,10 +105,10 @@ const MAX_RECEIPT_ORIGINAL_SIZE_BYTES = 20 * 1024 * 1024;
 const RECEIPT_PREVIEW_SIGNED_URL_TTL_SECONDS = 60 * 15;
 const LOCAL_RECEIPT_STORAGE_KEY_PREFIX = 'local-unavailable/';
 
-const dbEffect = <A>(
+const databaseEffect = <A>(
   operation: (database: DatabaseClient) => Effect.Effect<A, unknown, never>,
 ): Effect.Effect<A, never, Database> =>
-  Effect.flatMap(Database, (database) => operation(database).pipe(Effect.orDie));
+  Database.pipe(Effect.flatMap((database) => operation(database).pipe(Effect.orDie)));
 
 interface ReceiptCountryConfigTenant {
   receiptSettings?:
@@ -577,7 +577,7 @@ const hasOrganizingRegistrationForEvent = (
   eventId: string,
 ): Effect.Effect<boolean, never, Database> =>
   Effect.gen(function* () {
-    const organizerRegistration = yield* dbEffect((database) =>
+    const organizerRegistration = yield* databaseEffect((database) =>
       database
         .select({
           id: eventRegistrations.id,
@@ -736,7 +736,7 @@ export const userHandlers = {
           return yield* Effect.fail('UNAUTHORIZED' as const);
         }
 
-        const existingUser = yield* dbEffect((database) =>
+        const existingUser = yield* databaseEffect((database) =>
           database
             .select({ id: users.id })
             .from(users)
@@ -747,12 +747,12 @@ export const userHandlers = {
           return yield* Effect.fail('CONFLICT' as const);
         }
 
-        const defaultUserRoles = yield* dbEffect((database) =>
+        const defaultUserRoles = yield* databaseEffect((database) =>
           database.query.roles.findMany({
             where: { defaultUserRole: true, tenantId: tenant.id },
           }),
         );
-        const userCreateResponse = yield* dbEffect((database) =>
+        const userCreateResponse = yield* databaseEffect((database) =>
           database
             .insert(users)
             .values({
@@ -769,7 +769,7 @@ export const userHandlers = {
           return yield* Effect.fail('UNAUTHORIZED' as const);
         }
 
-        const userTenantCreateResponse = yield* dbEffect((database) =>
+        const userTenantCreateResponse = yield* databaseEffect((database) =>
           database
             .insert(usersToTenants)
             .values({
@@ -784,7 +784,7 @@ export const userHandlers = {
         }
 
         if (defaultUserRoles.length > 0) {
-          yield* dbEffect((database) =>
+          yield* databaseEffect((database) =>
           database.insert(rolesToTenantUsers).values(
               defaultUserRoles.map((role) => ({
                 roleId: role.id,
@@ -803,7 +803,7 @@ export const userHandlers = {
         );
         const user = yield* requireUserHeader(options.headers);
 
-        const registrations = yield* dbEffect((database) =>
+        const registrations = yield* databaseEffect((database) =>
           database
             .select({
               eventId: eventRegistrations.eventId,
@@ -816,7 +816,7 @@ export const userHandlers = {
           return [];
         }
 
-        const events = yield* dbEffect((database) =>
+        const events = yield* databaseEffect((database) =>
           database
             .select({
               description: eventInstances.description,
@@ -846,7 +846,7 @@ export const userHandlers = {
           Tenant,
         );
 
-        const usersCountResult = yield* dbEffect((database) =>
+        const usersCountResult = yield* databaseEffect((database) =>
           database
             .select({ count: count() })
             .from(users)
@@ -864,7 +864,7 @@ export const userHandlers = {
         );
         const usersCount = usersCountResult[0]?.count ?? 0;
 
-        const selectedUsers = yield* dbEffect((database) =>
+        const selectedUsers = yield* databaseEffect((database) =>
           database
             .select({
               email: users.email,
@@ -927,7 +927,7 @@ export const userHandlers = {
         yield* ensureAuthenticated(options.headers);
         const user = yield* requireUserHeader(options.headers);
 
-        yield* dbEffect((database) =>
+        yield* databaseEffect((database) =>
           database
             .update(users)
             .set({

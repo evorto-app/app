@@ -1,4 +1,5 @@
 import type { Headers } from '@effect/platform';
+
 import { Effect, Layer, Schema } from 'effect';
 
 import { type Permission } from '../../../../../shared/permissions/permissions';

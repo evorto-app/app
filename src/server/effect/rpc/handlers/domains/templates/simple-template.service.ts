@@ -1,5 +1,7 @@
-import { Effect } from 'effect';
 import { and, eq } from 'drizzle-orm';
+import { Effect } from 'effect';
+
+import type { AppRpcHandlers } from '../../shared/handler-types';
 
 import { Database, type DatabaseClient } from '../../../../../../db';
 import {
@@ -16,29 +18,28 @@ import {
   TemplateSimpleInternalError,
   TemplateSimpleNotFoundError,
 } from './templates.errors';
-import type { AppRpcHandlers } from '../../shared/handler-types';
 
-const dbEffect = <A>(
+const databaseEffect = <A>(
   operation: (database: DatabaseClient) => Effect.Effect<A, unknown, never>,
 ): Effect.Effect<A, never, Database> =>
-  Effect.flatMap(Database, (database) => operation(database).pipe(Effect.orDie));
+  Database.pipe(Effect.flatMap((database) => operation(database).pipe(Effect.orDie)));
 
 type CreateSimpleTemplateInput = Parameters<
   AppRpcHandlers['templates.createSimpleTemplate']
->[0];
-type UpdateSimpleTemplateInput = Parameters<
-  AppRpcHandlers['templates.updateSimpleTemplate']
 >[0];
 type SimpleTemplateValidationInput = Pick<
   CreateSimpleTemplateInput,
   'description' | 'organizerRegistration' | 'participantRegistration'
 >;
+type UpdateSimpleTemplateInput = Parameters<
+  AppRpcHandlers['templates.updateSimpleTemplate']
+>[0];
 
 export class SimpleTemplateService extends Effect.Service<SimpleTemplateService>()(
   '@server/effect/rpc/handlers/domains/templates/SimpleTemplateService',
   {
     accessors: true,
-    effect: Effect.gen(function* () {
+    effect: Effect.sync(() => {
       const validateSimpleTemplateInput = Effect.fn(
         'SimpleTemplateService.validateSimpleTemplateInput',
       )(
@@ -58,7 +59,7 @@ export class SimpleTemplateService extends Effect.Service<SimpleTemplateService>
             );
           }
 
-          const organizerValidation = yield* dbEffect((database) =>
+          const organizerValidation = yield* databaseEffect((database) =>
             validateTaxRate(database, {
               isPaid: input.organizerRegistration.isPaid,
               stripeTaxRateId: input.organizerRegistration.stripeTaxRateId ?? null,
@@ -78,7 +79,7 @@ export class SimpleTemplateService extends Effect.Service<SimpleTemplateService>
             );
           }
 
-          const participantValidation = yield* dbEffect((database) =>
+          const participantValidation = yield* databaseEffect((database) =>
             validateTaxRate(database, {
               isPaid: input.participantRegistration.isPaid,
               stripeTaxRateId:
@@ -118,7 +119,7 @@ export class SimpleTemplateService extends Effect.Service<SimpleTemplateService>
             tenantId,
           });
 
-          const templateResponse = yield* dbEffect((database) =>
+          const templateResponse = yield* databaseEffect((database) =>
             database
               .insert(eventTemplates)
               .values({
@@ -144,7 +145,7 @@ export class SimpleTemplateService extends Effect.Service<SimpleTemplateService>
             );
           }
 
-          yield* dbEffect((database) =>
+          yield* databaseEffect((database) =>
             database.insert(templateRegistrationOptions).values([
               {
                 closeRegistrationOffset:
@@ -200,7 +201,7 @@ export class SimpleTemplateService extends Effect.Service<SimpleTemplateService>
             tenantId,
           });
 
-          const updatedTemplate = yield* dbEffect((database) =>
+          const updatedTemplate = yield* databaseEffect((database) =>
             database
               .update(eventTemplates)
               .set({
@@ -229,7 +230,7 @@ export class SimpleTemplateService extends Effect.Service<SimpleTemplateService>
             );
           }
 
-          yield* dbEffect((database) =>
+          yield* databaseEffect((database) =>
             database
               .update(templateRegistrationOptions)
               .set({
@@ -253,7 +254,7 @@ export class SimpleTemplateService extends Effect.Service<SimpleTemplateService>
               ),
           );
 
-          yield* dbEffect((database) =>
+          yield* databaseEffect((database) =>
             database
               .update(templateRegistrationOptions)
               .set({

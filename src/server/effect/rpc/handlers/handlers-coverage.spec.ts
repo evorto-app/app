@@ -33,8 +33,8 @@ describe('app rpc handlers coverage', () => {
       ...userHandlers,
     };
 
-    const implementedTags = Object.keys(implementedHandlers).sort();
-    const rpcTags = [...AppRpcs.requests.keys()].sort();
+    const implementedTags = Object.keys(implementedHandlers).toSorted();
+    const rpcTags = [...AppRpcs.requests.keys()].toSorted();
 
     expect(implementedTags).toEqual(rpcTags);
   });

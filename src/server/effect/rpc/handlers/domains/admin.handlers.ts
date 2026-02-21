@@ -28,6 +28,8 @@ import { Effect, Schema } from 'effect';
 import { groupBy } from 'es-toolkit';
 import { DateTime } from 'luxon';
 
+import type { AppRpcHandlers } from '../shared/handler-types';
+
 import { Database, type DatabaseClient } from '../../../../../db';
 import { createId } from '../../../../../db/create-id';
 import {
@@ -91,8 +93,6 @@ import {
   RPC_CONTEXT_HEADERS,
 } from '../../rpc-context-headers';
 
-import type { AppRpcHandlers } from '../shared/handler-types';
-
 const ALLOWED_IMAGE_MIME_TYPES = [
   'image/gif',
   'image/jpeg',
@@ -105,10 +105,10 @@ const MAX_RECEIPT_ORIGINAL_SIZE_BYTES = 20 * 1024 * 1024;
 const RECEIPT_PREVIEW_SIGNED_URL_TTL_SECONDS = 60 * 15;
 const LOCAL_RECEIPT_STORAGE_KEY_PREFIX = 'local-unavailable/';
 
-const dbEffect = <A>(
+const databaseEffect = <A>(
   operation: (database: DatabaseClient) => Effect.Effect<A, unknown, never>,
 ): Effect.Effect<A, never, Database> =>
-  Effect.flatMap(Database, (database) => operation(database).pipe(Effect.orDie));
+  Database.pipe(Effect.flatMap((database) => operation(database).pipe(Effect.orDie)));
 
 interface ReceiptCountryConfigTenant {
   receiptSettings?:
@@ -577,7 +577,7 @@ const hasOrganizingRegistrationForEvent = (
   eventId: string,
 ): Effect.Effect<boolean, never, Database> =>
   Effect.gen(function* () {
-    const organizerRegistration = yield* dbEffect((database) =>
+    const organizerRegistration = yield* databaseEffect((database) =>
       database
         .select({
           id: eventRegistrations.id,
@@ -726,7 +726,7 @@ export const adminHandlers = {
           options.headers[RPC_CONTEXT_HEADERS.TENANT],
           Tenant,
         );
-        const createdRoles = yield* dbEffect((database) =>
+        const createdRoles = yield* databaseEffect((database) =>
           database
             .insert(roles)
             .values({
@@ -753,7 +753,7 @@ export const adminHandlers = {
           options.headers[RPC_CONTEXT_HEADERS.TENANT],
           Tenant,
         );
-        const deletedRoles = yield* dbEffect((database) =>
+        const deletedRoles = yield* databaseEffect((database) =>
           database
             .delete(roles)
             .where(and(eq(roles.id, id), eq(roles.tenantId, tenant.id)))
@@ -770,7 +770,7 @@ export const adminHandlers = {
           options.headers[RPC_CONTEXT_HEADERS.TENANT],
           Tenant,
         );
-        const hubRoles = yield* dbEffect((database) =>
+        const hubRoles = yield* databaseEffect((database) =>
           database.query.roles.findMany({
             columns: {
               description: true,
@@ -810,7 +810,7 @@ export const adminHandlers = {
           options.headers[RPC_CONTEXT_HEADERS.TENANT],
           Tenant,
         );
-        const tenantRoles = yield* dbEffect((database) =>
+        const tenantRoles = yield* databaseEffect((database) =>
           database.query.roles.findMany({
             orderBy: { name: 'asc' },
             where: {
@@ -834,7 +834,7 @@ export const adminHandlers = {
           options.headers[RPC_CONTEXT_HEADERS.TENANT],
           Tenant,
         );
-        const role = yield* dbEffect((database) =>
+        const role = yield* databaseEffect((database) =>
           database.query.roles.findFirst({
             where: { id, tenantId: tenant.id },
           }),
@@ -852,7 +852,7 @@ export const adminHandlers = {
           options.headers[RPC_CONTEXT_HEADERS.TENANT],
           Tenant,
         );
-        const matchingRoles = yield* dbEffect((database) =>
+        const matchingRoles = yield* databaseEffect((database) =>
           database.query.roles.findMany({
             limit: 15,
             orderBy: { name: 'asc' },
@@ -872,7 +872,7 @@ export const adminHandlers = {
           options.headers[RPC_CONTEXT_HEADERS.TENANT],
           Tenant,
         );
-        const updatedRoles = yield* dbEffect((database) =>
+        const updatedRoles = yield* databaseEffect((database) =>
           database
             .update(roles)
             .set({
@@ -912,7 +912,7 @@ export const adminHandlers = {
             return yield* Effect.fail('BAD_REQUEST' as const);
           }
 
-          const existingRate = yield* dbEffect((database) =>
+          const existingRate = yield* databaseEffect((database) =>
           database.query.tenantStripeTaxRates.findFirst({
               where: {
                 stripeTaxRateId: id,
@@ -937,13 +937,13 @@ export const adminHandlers = {
           };
 
           yield* existingRate
-            ? dbEffect((database) =>
+            ? databaseEffect((database) =>
           database
                   .update(tenantStripeTaxRates)
                   .set(values)
                   .where(eq(tenantStripeTaxRates.id, existingRate.id)),
               )
-            : dbEffect((database) =>
+            : databaseEffect((database) =>
           database.insert(tenantStripeTaxRates).values(values),
               );
         }
@@ -955,7 +955,7 @@ export const adminHandlers = {
           options.headers[RPC_CONTEXT_HEADERS.TENANT],
           Tenant,
         );
-        const importedTaxRates = yield* dbEffect((database) =>
+        const importedTaxRates = yield* databaseEffect((database) =>
           database.query.tenantStripeTaxRates.findMany({
             columns: {
               active: true,
@@ -1034,7 +1034,7 @@ export const adminHandlers = {
           },
         };
 
-        const updatedTenants = yield* dbEffect((database) =>
+        const updatedTenants = yield* databaseEffect((database) =>
           database
             .update(tenants)
             .set({

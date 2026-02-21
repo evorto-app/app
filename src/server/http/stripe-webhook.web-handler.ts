@@ -9,9 +9,9 @@ import { stripe } from '../stripe-client';
 const { STRIPE_WEBHOOK_SECRET: endpointSecret } = getStripeWebhookEnvironment();
 const MAX_WEBHOOK_SIZE_BYTES = 200 * 1024;
 
-const dbEffect = <A, E>(
+const databaseEffect = <A, E>(
   operation: (database: DatabaseClient) => Effect.Effect<A, E, never>,
-) => Effect.flatMap(Database, operation);
+) => Database.pipe(Effect.flatMap((database) => operation(database)));
 
 const responseText = (body: string, status = 200): Response =>
   new Response(body, { status });
@@ -66,7 +66,7 @@ export const handleStripeWebhookWebRequest = (
       case 'charge.updated': {
         const eventCharge = event.data.object;
 
-        const appTransaction = yield* dbEffect((database) =>
+        const appTransaction = yield* databaseEffect((database) =>
           database.query.transactions.findFirst({
             where: { stripeChargeId: eventCharge.id },
           }),
@@ -75,7 +75,7 @@ export const handleStripeWebhookWebRequest = (
           return responseText('Transaction not found', 400);
         }
 
-        const stripeAccount = yield* dbEffect((database) =>
+        const stripeAccount = yield* databaseEffect((database) =>
           database.query.tenants
             .findFirst({
               columns: { stripeAccountId: true },
@@ -113,7 +113,7 @@ export const handleStripeWebhookWebRequest = (
           )?.amount ?? 0;
         const netValue = balanceTransaction.net;
 
-        yield* dbEffect((database) =>
+        yield* databaseEffect((database) =>
           database
             .update(schema.transactions)
             .set({
@@ -135,7 +135,7 @@ export const handleStripeWebhookWebRequest = (
           return responseText('Missing metadata', 400);
         }
 
-        const stripeAccount = yield* dbEffect((database) =>
+        const stripeAccount = yield* databaseEffect((database) =>
           database.query.tenants
             .findFirst({
               columns: { stripeAccountId: true },
@@ -176,7 +176,7 @@ export const handleStripeWebhookWebRequest = (
             ? session.payment_intent.latest_charge
             : undefined;
 
-        yield* dbEffect((database) =>
+        yield* databaseEffect((database) =>
           database.transaction((tx) =>
             Effect.gen(function* () {
               yield* tx
@@ -206,7 +206,7 @@ export const handleStripeWebhookWebRequest = (
           return responseText('Missing metadata', 400);
         }
 
-        const stripeAccount = yield* dbEffect((database) =>
+        const stripeAccount = yield* databaseEffect((database) =>
           database.query.tenants
             .findFirst({
               columns: { stripeAccountId: true },
@@ -235,7 +235,7 @@ export const handleStripeWebhookWebRequest = (
           return responseText('Session not expired, skipping');
         }
 
-        yield* dbEffect((database) =>
+        yield* databaseEffect((database) =>
           database.transaction((tx) =>
             Effect.gen(function* () {
               yield* tx

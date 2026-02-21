@@ -1,11 +1,14 @@
 import type { Headers } from '@effect/platform';
+
 import { RpcMiddleware } from '@effect/rpc';
 import { Context } from 'effect';
 
-import { type Permission } from '../../permissions/permissions';
 import { Tenant } from '../../../types/custom/tenant';
 import { User } from '../../../types/custom/user';
+import { type Permission } from '../../permissions/permissions';
 import { UsersAuthData } from './definitions';
+
+export type RpcHeaders = Headers.Headers;
 
 export interface RpcRequestContextShape {
   authData: Record<string, unknown> | UsersAuthData;
@@ -26,5 +29,3 @@ export class RpcRequestContextMiddleware extends RpcMiddleware.Tag<RpcRequestCon
     provides: RpcRequestContext,
   },
 ) {}
-
-export type RpcHeaders = Headers.Headers;

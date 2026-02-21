@@ -15,6 +15,6 @@ describe('ReceiptMediaService', () => {
     }).pipe(Effect.flip, Effect.provide(ReceiptMediaService.Default));
 
     const error = await Effect.runPromise(program);
-    expect(error._tag).toBe('ReceiptMediaBadRequestError');
+    expect(error['_tag']).toBe('ReceiptMediaBadRequestError');
   });
 });

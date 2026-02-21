@@ -80,7 +80,7 @@ export class ReceiptMediaService extends Effect.Service<ReceiptMediaService>()(
   '@server/effect/rpc/handlers/domains/finance/ReceiptMediaService',
   {
     accessors: true,
-    effect: Effect.gen(function* () {
+    effect: Effect.sync(() => {
       const uploadOriginal = Effect.fn('ReceiptMediaService.uploadOriginal')(
         function* ({
           fileBase64,
