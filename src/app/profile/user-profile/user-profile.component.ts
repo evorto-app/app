@@ -44,6 +44,8 @@ import {
 } from './edit-profile-dialog.component';
 
 type ProfileSection = 'discounts' | 'events' | 'overview' | 'receipts';
+type AppRpcClient = ReturnType<typeof AppRpc.injectClient>;
+type FinanceReceiptsMyProcedure = AppRpcClient['finance']['receipts.my'];
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -116,24 +118,15 @@ export class UserProfileComponent {
     );
   });
 
-  protected readonly myReceiptsQuery = injectQuery(() => {
-    const legacyProcedure = this.rpc.finance['receipts.my'];
-    const finance = this.rpc.finance as typeof this.rpc.finance & {
-      receipts?: {
-        my?: typeof legacyProcedure;
-      };
-    };
-    const myReceiptsProcedure =
-      finance['receipts.my'] ?? finance.receipts?.my ?? legacyProcedure;
-
-    if (!myReceiptsProcedure) {
-      throw new Error(
-        'Missing RPC helper for finance.receipts.my (legacy and nested path both unavailable).',
-      );
-    }
-
-    return myReceiptsProcedure.queryOptions();
-  });
+  protected readonly myReceiptsQuery = injectQuery(() =>
+    (
+      this.rpc.finance as unknown as {
+        receipts: {
+          my: FinanceReceiptsMyProcedure;
+        };
+      }
+    ).receipts.my.queryOptions(),
+  );
   protected readonly refreshCardMutation = injectMutation(() =>
     this.rpc.discounts.refreshMyCard.mutationOptions(),
   );
