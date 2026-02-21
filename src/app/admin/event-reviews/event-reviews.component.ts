@@ -124,10 +124,10 @@ import { EventReviewDialogComponent } from '../../events/event-review-dialog/eve
 export class EventReviewsComponent {
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faArrowUpRightFromSquare = faArrowUpRightFromSquare;
-  protected readonly pendingReviewsQuery = injectQuery(() =>
-    AppRpc.injectClient().events.getPendingReviews.queryOptions(),
-  );
   private readonly rpc = AppRpc.injectClient();
+  protected readonly pendingReviewsQuery = injectQuery(() =>
+    this.rpc.events.getPendingReviews.queryOptions(),
+  );
   protected readonly reviewEventMutation = injectMutation(() =>
     this.rpc.events.reviewEvent.mutationOptions(),
   );
