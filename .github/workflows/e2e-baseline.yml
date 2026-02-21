@@ -42,17 +42,16 @@ jobs:
             exit 1
           fi
 
-      - name: Configure dynamic runtime ports
+      - name: Configure static runtime values
         run: |
-          eval "$(bun helpers/testing/runtime-env.mjs)"
           {
-            echo "APP_HOST_PORT=${APP_HOST_PORT}";
-            echo "BASE_URL=${BASE_URL}";
-            echo "COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME}";
-            echo "DATABASE_URL=${DATABASE_URL}";
-            echo "NEON_DATABASE_NAME=${NEON_DATABASE_NAME}";
-            echo "NEON_LOCAL_HOST_PORT=${NEON_LOCAL_HOST_PORT}";
-            echo "PLAYWRIGHT_TEST_BASE_URL=${PLAYWRIGHT_TEST_BASE_URL}";
+            echo "APP_HOST_PORT=4200";
+            echo "BASE_URL=http://localhost:4200";
+            echo "COMPOSE_PROJECT_NAME=evorto-ci";
+            echo "DATABASE_URL=postgresql://neon:npg@localhost:55432/appdb?sslmode=require";
+            echo "NEON_DATABASE_NAME=appdb";
+            echo "NEON_LOCAL_HOST_PORT=55432";
+            echo "PLAYWRIGHT_TEST_BASE_URL=http://localhost:4200";
           } >> "$GITHUB_ENV"
 
       - name: Write CI environment defaults
