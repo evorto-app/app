@@ -116,9 +116,24 @@ export class UserProfileComponent {
     );
   });
 
-  protected readonly myReceiptsQuery = injectQuery(() =>
-    this.rpc.finance['receipts.my'].queryOptions(),
-  );
+  protected readonly myReceiptsQuery = injectQuery(() => {
+    const legacyProcedure = this.rpc.finance['receipts.my'];
+    const finance = this.rpc.finance as typeof this.rpc.finance & {
+      receipts?: {
+        my?: typeof legacyProcedure;
+      };
+    };
+    const myReceiptsProcedure =
+      finance['receipts.my'] ?? finance.receipts?.my ?? legacyProcedure;
+
+    if (!myReceiptsProcedure) {
+      throw new Error(
+        'Missing RPC helper for finance.receipts.my (legacy and nested path both unavailable).',
+      );
+    }
+
+    return myReceiptsProcedure.queryOptions();
+  });
   protected readonly refreshCardMutation = injectMutation(() =>
     this.rpc.discounts.refreshMyCard.mutationOptions(),
   );
