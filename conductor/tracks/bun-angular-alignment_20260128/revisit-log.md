@@ -18,6 +18,11 @@ This file tracks migration items that need another pass before final closure.
 
 ## Recently Closed
 
+- 2026-02-21: fixed Bun seeding regressions for icon colors and event scheduling:
+  - replaced `skia-canvas`-based icon PNG decoding (native module load failure under Bun: missing `skia.node`) with pure JS `pngjs` decoding in `src/server/utils/icon-color.ts`.
+  - kept non-blocking fallback behavior (`undefined`), but now emit one-time warnings per icon when color extraction fails.
+  - adjusted event seed generation in `helpers/add-events.ts` to produce deterministic but varied start times (hour/minute), instead of all events at midnight.
+  - aligned registration windows per event (`-14 days` open, `-2 hours` close) to preserve deterministic realism across generated events.
 - 2026-02-20: switched Effect RPC Angular helper contract to nested member access (for example `rpc.finance.receipts.my`) by patching `@heddendorp/effect-angular-query@0.1.2` type declarations to match runtime helper nesting; migrated app call sites away from bracket-string procedure access.
 - 2026-02-20: validated current `@auth0/auth0-server-js` callback contract in Bun runtime: login issues `__a0_tx` transaction cookie and callback completion should rely on `code` + store-bound transaction data (do not hard-require `state` in query prevalidation before `completeInteractiveLogin(...)`).
 - 2026-02-20: fixed Auth0 callback handling in `src/server/auth/auth-session.ts` so callback validation requires `code` (not `state`) and Auth0 SDK promise failures map to controlled fallback responses (`Missing code.` / `Unable to complete login.`) instead of bubbling as `500`.

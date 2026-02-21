@@ -3,14 +3,39 @@ import {
   QuantizerCelebi,
   Score,
 } from '@material/material-color-utilities';
+import { PNG } from 'pngjs';
 
 /**
  * Compute the Material source color (ARGB int) for a given icon common name.
  * - Derives the icon URL similar to the Angular IconComponent
- * - Downloads image, properly decodes PNG, and extracts the dominant/source color using material-color-utilities
+ * - Downloads image, decodes PNG bytes, and extracts the dominant/source color using material-color-utilities
  * Returns undefined on network or parsing failures to avoid blocking inserts/migrations.
  */
 const colorCache = new Map<string, Promise<number | undefined>>();
+const warnedIcons = new Set<string>();
+
+const parsePng = async (bytes: Uint8Array): Promise<PNG> =>
+  new Promise<PNG>((resolve, reject) => {
+    const parser = new PNG();
+    parser.parse(Buffer.from(bytes), (error, data) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+      resolve(data);
+    });
+  });
+
+const warnColorFailure = (iconCommonName: string, error: unknown): void => {
+  if (warnedIcons.has(iconCommonName)) {
+    return;
+  }
+  warnedIcons.add(iconCommonName);
+  const reason = error instanceof Error ? error.message : String(error);
+  console.warn(
+    `[icon-color] Failed to compute source color for "${iconCommonName}": ${reason}`,
+  );
+};
 
 export async function computeIconSourceColor(
   iconCommonName: string,
@@ -26,16 +51,12 @@ export async function computeIconSourceColor(
       // Use 128 size for consistent results
       const url = `https://img.icons8.com/${set}/128/${name}.png`;
 
-      // Load and decode the PNG image using skia-canvas (dynamic import for server-only usage)
-      const { Canvas, loadImage } = await import('skia-canvas');
-      const img = await loadImage(url);
-      const canvas = new Canvas(img.width, img.height);
-      const context = canvas.getContext('2d');
-
-      // Draw image to canvas to get actual RGBA pixel data
-      context.drawImage(img, 0, 0);
-      const imageData = context.getImageData(0, 0, img.width, img.height);
-      const bytes = imageData.data; // This is proper RGBA pixel data
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Icon fetch failed with status ${response.status}`);
+      }
+      const png = await parsePng(new Uint8Array(await response.arrayBuffer()));
+      const bytes = png.data;
 
       const pixels: number[] = [];
       for (let index = 0; index < bytes.length; index += 4) {
@@ -43,7 +64,7 @@ export async function computeIconSourceColor(
         const g = bytes[index + 1];
         const b = bytes[index + 2];
         const a = bytes[index + 3];
-        if (a < 255) continue; // Skip transparent pixels
+        if (a === 0) continue; // Skip fully transparent pixels
         const argb = argbFromRgb(r, g, b);
         pixels.push(argb);
       }
@@ -57,8 +78,9 @@ export async function computeIconSourceColor(
     })();
     colorCache.set(iconCommonName, promise);
     return await promise;
-  } catch {
-    // Fallback: return undefined to avoid blocking operations
+  } catch (error) {
+    // Keep fallback behavior, but emit a one-time warning so failures are visible.
+    warnColorFailure(iconCommonName, error);
     return undefined;
   }
 }
