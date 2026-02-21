@@ -32,7 +32,7 @@ import {
 export class RoleCreateComponent {
   private readonly rpc = AppRpc.injectClient();
   protected readonly createRoleMutation = injectMutation(() =>
-    this.rpc.admin['roles.create'].mutationOptions(),
+    this.rpc.admin.roles.create.mutationOptions(),
   );
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly roleForm = form(

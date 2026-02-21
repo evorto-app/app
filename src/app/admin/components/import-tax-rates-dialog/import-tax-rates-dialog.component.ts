@@ -34,7 +34,7 @@ export class ImportTaxRatesDialogComponent {
   private readonly rpc = AppRpc.injectClient();
 
   protected readonly importedQuery = injectQuery(() =>
-    this.rpc.admin['tenant.listImportedTaxRates'].queryOptions(),
+    this.rpc.admin.tenant.listImportedTaxRates.queryOptions(),
   );
   protected readonly importedIds = computed(
     () =>
@@ -42,14 +42,14 @@ export class ImportTaxRatesDialogComponent {
   );
 
   protected readonly ratesQuery = injectQuery(() =>
-    this.rpc.admin['tenant.listStripeTaxRates'].queryOptions(),
+    this.rpc.admin.tenant.listStripeTaxRates.queryOptions(),
   );
   private readonly dialogRef = inject(
     MatDialogRef<ImportTaxRatesDialogComponent>,
   );
 
   private readonly importMutation = injectMutation(() =>
-    this.rpc.admin['tenant.importStripeTaxRates'].mutationOptions(),
+    this.rpc.admin.tenant.importStripeTaxRates.mutationOptions(),
   );
 
   protected importSelected() {

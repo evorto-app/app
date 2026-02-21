@@ -57,12 +57,12 @@ export class TemplateCreateComponent {
   );
   protected readonly faArrowLeft = faArrowLeft;
   private defaultOrganizerRolesQuery = injectQuery(() =>
-    this.rpc.admin['roles.findMany'].queryOptions({
+    this.rpc.admin.roles.findMany.queryOptions({
       defaultOrganizerRole: true,
     }),
   );
   private defaultUserRolesQuery = injectQuery(() =>
-    this.rpc.admin['roles.findMany'].queryOptions({ defaultUserRole: true }),
+    this.rpc.admin.roles.findMany.queryOptions({ defaultUserRole: true }),
   );
   protected readonly initialFormData = computed<TemplateFormOverrides>(() => ({
     categoryId: this.categoryId() || '',

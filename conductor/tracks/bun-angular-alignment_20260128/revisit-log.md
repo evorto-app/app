@@ -18,7 +18,7 @@ This file tracks migration items that need another pass before final closure.
 
 ## Recently Closed
 
-- 2026-02-20: patched `@heddendorp/effect-angular-query@0.1.2` helper assignment to keep runtime helper shape aligned with exported TypeScript contract (`prefix + dotted method`, e.g. `finance['receipts.my']`) and avoid client-side cast workarounds.
+- 2026-02-20: switched Effect RPC Angular helper contract to nested member access (for example `rpc.finance.receipts.my`) by patching `@heddendorp/effect-angular-query@0.1.2` type declarations to match runtime helper nesting; migrated app call sites away from bracket-string procedure access.
 - 2026-02-20: validated current `@auth0/auth0-server-js` callback contract in Bun runtime: login issues `__a0_tx` transaction cookie and callback completion should rely on `code` + store-bound transaction data (do not hard-require `state` in query prevalidation before `completeInteractiveLogin(...)`).
 - 2026-02-20: fixed Auth0 callback handling in `src/server/auth/auth-session.ts` so callback validation requires `code` (not `state`) and Auth0 SDK promise failures map to controlled fallback responses (`Missing code.` / `Unable to complete login.`) instead of bubbling as `500`.
 - 2026-02-20: upgraded `@heddendorp/effect-platform-angular` from `0.0.7` to `0.0.8`, removed the temporary local patch (`patches/@heddendorp%2Feffect-platform-angular@0.0.7.patch`), and verified Bun SSR + RPC runtime (`/events`, `/rpc`) on the built server.

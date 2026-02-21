@@ -117,7 +117,7 @@ export class UserProfileComponent {
   });
 
   protected readonly myReceiptsQuery = injectQuery(() =>
-    this.rpc.finance['receipts.my'].queryOptions(),
+    this.rpc.finance.receipts.my.queryOptions(),
   );
   protected readonly refreshCardMutation = injectMutation(() =>
     this.rpc.discounts.refreshMyCard.mutationOptions(),

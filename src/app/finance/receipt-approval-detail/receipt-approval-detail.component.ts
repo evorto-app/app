@@ -57,7 +57,7 @@ export class ReceiptApprovalDetailComponent {
   );
   private readonly rpc = AppRpc.injectClient();
   protected readonly receiptQuery = injectQuery(() =>
-    this.rpc.finance['receipts.findOneForApproval'].queryOptions({
+    this.rpc.finance.receipts.findOneForApproval.queryOptions({
       id: this.receiptId(),
     }),
   );
@@ -78,7 +78,7 @@ export class ReceiptApprovalDetailComponent {
 
   protected readonly rejectionReason = signal('');
   protected readonly reviewMutation = injectMutation(() =>
-    this.rpc.finance['receipts.review'].mutationOptions(),
+    this.rpc.finance.receipts.review.mutationOptions(),
   );
   private readonly sanitizer = inject(DomSanitizer);
   protected readonly safePdfPreviewUrl = computed<null | SafeResourceUrl>(
@@ -201,9 +201,7 @@ export class ReceiptApprovalDetailComponent {
               ]),
             );
             await this.queryClient.invalidateQueries({
-              queryKey: this.rpc.finance[
-                'receipts.findOneForApproval'
-              ].queryKey({
+              queryKey: this.rpc.finance.receipts.findOneForApproval.queryKey({
                 id: this.receiptId(),
               }),
             });

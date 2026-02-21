@@ -13,6 +13,6 @@ import { AppRpc } from '../../core/effect-rpc-angular-client';
 export class TenantListComponent {
   private rpc = AppRpc.injectClient();
   protected tenantQuery = injectQuery(() =>
-    this.rpc.globalAdmin['tenants.findMany'].queryOptions(),
+    this.rpc.globalAdmin.tenants.findMany.queryOptions(),
   );
 }

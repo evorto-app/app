@@ -82,7 +82,7 @@ export class EventOrganize {
       ]);
   });
   protected readonly receiptsByEventQuery = injectQuery(() =>
-    this.rpc.finance['receipts.byEvent'].queryOptions({
+    this.rpc.finance.receipts.byEvent.queryOptions({
       eventId: this.eventId(),
     }),
   );
@@ -113,7 +113,7 @@ export class EventOrganize {
     };
   });
   protected readonly submitReceiptMutation = injectMutation(() =>
-    this.rpc.finance['receipts.submit'].mutationOptions(),
+    this.rpc.finance.receipts.submit.mutationOptions(),
   );
   private readonly config = inject(ConfigService);
   private readonly dialog = inject(MatDialog);
@@ -122,7 +122,7 @@ export class EventOrganize {
 
   private readonly queryClient = inject(QueryClient);
   private readonly receiptOriginalUploadMutation = injectMutation(() =>
-    this.rpc.finance['receiptMedia.uploadOriginal'].mutationOptions(),
+    this.rpc.finance.receiptMedia.uploadOriginal.mutationOptions(),
   );
 
   constructor() {
@@ -175,7 +175,7 @@ export class EventOrganize {
         {
           onSuccess: async () => {
             await this.queryClient.invalidateQueries({
-              queryKey: this.rpc.finance['receipts.byEvent'].queryKey({
+              queryKey: this.rpc.finance.receipts.byEvent.queryKey({
                 eventId: this.eventId(),
               }),
             });

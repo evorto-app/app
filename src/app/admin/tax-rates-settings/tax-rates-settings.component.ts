@@ -319,7 +319,7 @@ export class TaxRatesSettingsComponent {
   private readonly rpc = AppRpc.injectClient();
 
   protected readonly importedQuery = injectQuery(() =>
-    this.rpc.admin['tenant.listImportedTaxRates'].queryOptions(),
+    this.rpc.admin.tenant.listImportedTaxRates.queryOptions(),
   );
 
   protected readonly importedRates = computed(() => {

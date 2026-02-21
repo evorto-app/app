@@ -1,27 +1,24 @@
-diff --git a/fesm2022/heddendorp-effect-angular-query.mjs b/fesm2022/heddendorp-effect-angular-query.mjs
-index a60a64b6aa9ee402a2898242d74bc51222897527..9d96135b3f37524bd1945704dab66f21af3a6dbd 100644
---- a/fesm2022/heddendorp-effect-angular-query.mjs
-+++ b/fesm2022/heddendorp-effect-angular-query.mjs
-@@ -96,6 +96,13 @@ const createEffectRpcAngularClientConfig = (config) => ({
-     mutationDefaults: config.mutationDefaults ?? {},
- });
- const getPathSegments = (tag) => tag.split('.');
-+const getHelperPathSegments = (tag) => {
-+    const firstSeparatorIndex = tag.indexOf('.');
-+    if (firstSeparatorIndex < 0) {
-+        return [tag];
-+    }
-+    return [tag.slice(0, firstSeparatorIndex), tag.slice(firstSeparatorIndex + 1)];
-+};
- const resolveKeyPrefix = (base, override) => override ?? base;
- const getProcedureKind = (rpc) => {
-     const maybeKind = Context.getOption(rpc.annotations, RPC_PROCEDURE_KIND_ANNOTATION);
-@@ -206,7 +213,7 @@ const createEffectRpcAngularClientInstance = (config) => {
-     };
-     for (const [tag, rpc] of config.group.requests.entries()) {
-         const helper = createProcedureHelper(config, config.group, tag, rpc);
--        assignNestedHelper(root, getPathSegments(tag), helper);
-+        assignNestedHelper(root, getHelperPathSegments(tag), helper);
-     }
-     return root;
+diff --git a/types/heddendorp-effect-angular-query.d.ts b/types/heddendorp-effect-angular-query.d.ts
+index c15a4914633651f831f6e1b199d7f62071f85586..e5324164ac8f0887f3237d04e666557b51130e8a 100644
+--- a/types/heddendorp-effect-angular-query.d.ts
++++ b/types/heddendorp-effect-angular-query.d.ts
+@@ -153,9 +153,17 @@ type RpcMutationProcedureHelper<Current extends Rpc.Any> = RpcProcedureBaseHelpe
+     readonly mutationOptions: <TOnMutateResult = unknown>(options?: RpcMutationOptionsInput<Rpc.SuccessExit<Current>, RpcProcedureError<Current>, Rpc.PayloadConstructor<Current>, TOnMutateResult>) => CreateMutationOptions<Rpc.SuccessExit<Current>, RpcProcedureError<Current>, Rpc.PayloadConstructor<Current>, TOnMutateResult>;
  };
+ type RpcProcedureHelperFor<Current extends Rpc.Any> = RpcProcedureKindOf<Current> extends 'mutation' ? RpcMutationProcedureHelper<Current> : RpcQueryProcedureHelper<Current>;
+-type RpcHelpersFrom<Rpcs extends Rpc.Any, Prefix extends string> = {
+-    readonly [Current in Rpcs as Current['_tag'] extends `${Prefix}.${infer Method}` ? Method : Current['_tag']]: RpcProcedureHelperFor<Current>;
++type SegmentObject<Path extends string, Value> = Path extends `${infer Head}.${infer Tail}` ? {
++    readonly [K in Head]: SegmentObject<Tail, Value>;
++} : {
++    readonly [K in Path]: Value;
+ };
++type UnionToIntersection<TUnion> = (TUnion extends unknown ? (value: TUnion) => void : never) extends (value: infer TIntersection) => void ? TIntersection : never;
++type SimplifyObject<TValue> = {
++    readonly [TKey in keyof TValue]: TValue[TKey];
++};
++type HelperPathFor<Current extends Rpc.Any, Prefix extends string> = Prefix extends '' ? Current['_tag'] : Current['_tag'] extends `${Prefix}.${infer Method}` ? Method : never;
++type RpcHelpersFrom<Rpcs extends Rpc.Any, Prefix extends string> = SimplifyObject<UnionToIntersection<Rpcs extends Rpc.Any ? SegmentObject<HelperPathFor<Rpcs, Prefix>, RpcProcedureHelperFor<Rpcs>> : never>>;
+ type EffectRpcAngularClient<Rpcs extends Rpc.Any> = RpcHelpersFrom<RpcNonPrefixed<Rpcs>, ''> & {
+     readonly [Prefix in RpcPrefixes<Rpcs>]: RpcHelpersFrom<RpcPrefixed<Rpcs, Prefix>, Prefix>;
+ } & {

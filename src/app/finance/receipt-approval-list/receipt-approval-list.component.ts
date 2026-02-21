@@ -16,6 +16,6 @@ export class ReceiptApprovalListComponent {
   private readonly rpc = AppRpc.injectClient();
 
   protected readonly pendingReceiptsQuery = injectQuery(() =>
-    this.rpc.finance['receipts.pendingApprovalGrouped'].queryOptions(),
+    this.rpc.finance.receipts.pendingApprovalGrouped.queryOptions(),
   );
 }

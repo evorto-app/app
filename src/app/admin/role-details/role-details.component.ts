@@ -35,7 +35,7 @@ export class RoleDetailsComponent {
 
   private readonly rpc = AppRpc.injectClient();
   protected readonly roleQuery = injectQuery(() =>
-    this.rpc.admin['roles.findOne'].queryOptions({
+    this.rpc.admin.roles.findOne.queryOptions({
       id: this.roleId(),
     }),
   );

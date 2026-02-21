@@ -76,7 +76,7 @@ export class GeneralSettingsComponent {
   private readonly rpc = AppRpc.injectClient();
 
   private updateSettingsMutation = injectMutation(() =>
-    this.rpc.admin['tenant.updateSettings'].mutationOptions(),
+    this.rpc.admin.tenant.updateSettings.mutationOptions(),
   );
 
   constructor() {

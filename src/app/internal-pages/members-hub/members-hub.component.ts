@@ -15,7 +15,7 @@ import { AppRpc } from '../../core/effect-rpc-angular-client';
 export class MembersHubComponent {
   private readonly rpc = AppRpc.injectClient();
   protected readonly rolesQuery = injectQuery(() =>
-    this.rpc.admin['roles.findHubRoles'].queryOptions(),
+    this.rpc.admin.roles.findHubRoles.queryOptions(),
   );
 
   protected errorMessage(error: unknown): string {

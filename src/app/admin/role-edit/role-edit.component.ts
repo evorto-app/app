@@ -37,7 +37,7 @@ export class RoleEditComponent {
   protected readonly roleId = input.required<string>();
   private readonly rpc = AppRpc.injectClient();
   protected readonly roleQuery = injectQuery(() =>
-    this.rpc.admin['roles.findOne'].queryOptions({
+    this.rpc.admin.roles.findOne.queryOptions({
       id: this.roleId(),
     }),
   );
@@ -51,7 +51,7 @@ export class RoleEditComponent {
   });
   protected readonly roleForm = form(this.roleModel, roleFormSchema);
   protected readonly updateRoleMutation = injectMutation(() =>
-    this.rpc.admin['roles.update'].mutationOptions(),
+    this.rpc.admin.roles.update.mutationOptions(),
   );
   private readonly queryClient = inject(QueryClient);
   private readonly router = inject(Router);

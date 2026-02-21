@@ -61,7 +61,7 @@ export class TransactionListComponent {
   private readonly rpc = AppRpc.injectClient();
 
   protected readonly transactionsQuery = injectQuery(() =>
-    this.rpc.finance['transactions.findMany'].queryOptions(this.filterInput()),
+    this.rpc.finance.transactions.findMany.queryOptions(this.filterInput()),
   );
 
   handlePageChange(event: PageEvent) {

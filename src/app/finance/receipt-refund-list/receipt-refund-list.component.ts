@@ -48,10 +48,10 @@ export class ReceiptRefundListComponent {
   ];
   private readonly rpc = AppRpc.injectClient();
   protected readonly refundableReceiptsQuery = injectQuery(() =>
-    this.rpc.finance['receipts.refundableGroupedByRecipient'].queryOptions(),
+    this.rpc.finance.receipts.refundableGroupedByRecipient.queryOptions(),
   );
   protected readonly refundMutation = injectMutation(() =>
-    this.rpc.finance['receipts.createRefund'].mutationOptions(),
+    this.rpc.finance.receipts.createRefund.mutationOptions(),
   );
 
   private readonly dialog = inject(MatDialog);

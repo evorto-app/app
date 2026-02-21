@@ -19,7 +19,7 @@ export class RoleListComponent {
   protected readonly faArrowLeft = faArrowLeft;
   private readonly rpc = AppRpc.injectClient();
   protected readonly roleQuery = injectQuery(() =>
-    this.rpc.admin['roles.findMany'].queryOptions({}),
+    this.rpc.admin.roles.findMany.queryOptions({}),
   );
 
   protected errorMessage(error: unknown): string {
