@@ -16,10 +16,29 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
-      # Ensure Docker build can access the FontAwesome private registry during image build
       FONT_AWESOME_TOKEN: ${{ secrets.FONT_AWESOME_TOKEN }}
-      # Make Playwright run in CI mode
       CI: true
+      APP_HOST_PORT: 4200
+      BASE_URL: http://localhost:4200
+      PLAYWRIGHT_TEST_BASE_URL: http://localhost:4200
+      COMPOSE_PROJECT_NAME: evorto-ci
+      NEON_DATABASE_NAME: appdb
+      NEON_LOCAL_HOST_PORT: 55432
+      NEON_LOCAL_PROXY: true
+      DATABASE_URL: postgresql://neon:npg@localhost:55432/appdb?sslmode=require
+      NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+      NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+      AUTH0_MANAGEMENT_CLIENT_ID: ${{ secrets.AUTH0_MANAGEMENT_CLIENT_ID }}
+      AUTH0_MANAGEMENT_CLIENT_SECRET: ${{ secrets.AUTH0_MANAGEMENT_CLIENT_SECRET }}
+      CLIENT_ID: ${{ secrets.CLIENT_ID }}
+      CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
+      STRIPE_API_KEY: ${{ secrets.STRIPE_API_KEY }}
+      STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+      CLOUDFLARE_R2_S3_KEY: ${{ secrets.CLOUDFLARE_R2_S3_KEY }}
+      CLOUDFLARE_R2_S3_KEY_ID: ${{ secrets.CLOUDFLARE_R2_S3_KEY_ID }}
+      CLOUDFLARE_TOKEN: ${{ secrets.CLOUDFLARE_TOKEN }}
+      CLOUDFLARE_IMAGES_API_TOKEN: ${{ secrets.CLOUDFLARE_IMAGES_API_TOKEN }}
+      PARENT_BRANCH_ID: ${{ secrets.PARENT_BRANCH_ID }}
 
     steps:
       - name: Checkout repository
@@ -31,39 +50,20 @@ jobs:
         with:
           bun-version: "1.3.7"
 
-      - name: Validate required Neon configuration
+      - name: Validate required configuration
         run: |
-          if [ -z "${{ secrets.NEON_API_KEY }}" ]; then
+          if [ -z "${FONT_AWESOME_TOKEN}" ]; then
+            echo "::error::Missing required secret: FONT_AWESOME_TOKEN"
+            exit 1
+          fi
+          if [ -z "${NEON_API_KEY}" ]; then
             echo "::error::Missing required secret: NEON_API_KEY"
             exit 1
           fi
-          if [ -z "${{ vars.NEON_PROJECT_ID }}" ]; then
+          if [ -z "${NEON_PROJECT_ID}" ]; then
             echo "::error::Missing required repository variable: NEON_PROJECT_ID"
             exit 1
           fi
-
-      - name: Configure static runtime values
-        run: |
-          {
-            echo "APP_HOST_PORT=4200";
-            echo "BASE_URL=http://localhost:4200";
-            echo "COMPOSE_PROJECT_NAME=evorto-ci";
-            echo "DATABASE_URL=postgresql://neon:npg@localhost:55432/appdb?sslmode=require";
-            echo "NEON_DATABASE_NAME=appdb";
-            echo "NEON_LOCAL_HOST_PORT=55432";
-            echo "PLAYWRIGHT_TEST_BASE_URL=http://localhost:4200";
-          } >> "$GITHUB_ENV"
-
-      - name: Write CI environment defaults
-        run: |
-          {
-            echo "# Runtime overrides for this CI run";
-            echo "BASE_URL=${BASE_URL}";
-            echo "PLAYWRIGHT_TEST_BASE_URL=${PLAYWRIGHT_TEST_BASE_URL}";
-          } > .env.ci
-        env:
-          BASE_URL: ${{ env.BASE_URL }}
-          PLAYWRIGHT_TEST_BASE_URL: ${{ env.PLAYWRIGHT_TEST_BASE_URL }}
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
@@ -71,28 +71,28 @@ jobs:
       - name: Install Playwright browsers
         run: bunx playwright install --with-deps
 
-      - name: Create CI .env overrides from secrets
+      - name: Write CI .env file
         run: |
-          {
-          echo "DATABASE_URL=${DATABASE_URL}";
-          echo "NEON_LOCAL_PROXY=true";
-          echo "NEON_DATABASE_NAME=appdb";
-          echo "NEON_API_KEY=${{ secrets.NEON_API_KEY }}";
-          echo "NEON_PROJECT_ID=${{ vars.NEON_PROJECT_ID }}";
-          echo "AUTH0_MANAGEMENT_CLIENT_ID=${{ secrets.AUTH0_MANAGEMENT_CLIENT_ID }}";
-          echo "AUTH0_MANAGEMENT_CLIENT_SECRET=${{ secrets.AUTH0_MANAGEMENT_CLIENT_SECRET }}";
-          echo "CLIENT_ID=${{ secrets.CLIENT_ID }}";
-          echo "CLIENT_SECRET=${{ secrets.CLIENT_SECRET }}";
-          echo "STRIPE_API_KEY=${{ secrets.STRIPE_API_KEY }}";
-          echo "STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}";
-          echo "CLOUDFLARE_R2_S3_KEY=${{ secrets.CLOUDFLARE_R2_S3_KEY }}";
-          echo "CLOUDFLARE_R2_S3_KEY_ID=${{ secrets.CLOUDFLARE_R2_S3_KEY_ID }}";
-          if [ -n "${{ secrets.CLOUDFLARE_TOKEN }}" ]; then echo "CLOUDFLARE_TOKEN=${{ secrets.CLOUDFLARE_TOKEN }}"; fi
-          if [ -n "${{ secrets.CLOUDFLARE_IMAGES_API_TOKEN }}" ]; then echo "CLOUDFLARE_IMAGES_API_TOKEN=${{ secrets.CLOUDFLARE_IMAGES_API_TOKEN }}"; fi
-          if [ -n "${{ secrets.PARENT_BRANCH_ID }}" ]; then echo "PARENT_BRANCH_ID=${{ secrets.PARENT_BRANCH_ID }}"; fi
-          } > .env
-        env:
-          DATABASE_URL: ${{ env.DATABASE_URL }}
+          cat > .env <<EOF
+          DATABASE_URL=${DATABASE_URL}
+          NEON_LOCAL_PROXY=${NEON_LOCAL_PROXY}
+          NEON_DATABASE_NAME=${NEON_DATABASE_NAME}
+          NEON_API_KEY=${NEON_API_KEY}
+          NEON_PROJECT_ID=${NEON_PROJECT_ID}
+          AUTH0_MANAGEMENT_CLIENT_ID=${AUTH0_MANAGEMENT_CLIENT_ID}
+          AUTH0_MANAGEMENT_CLIENT_SECRET=${AUTH0_MANAGEMENT_CLIENT_SECRET}
+          CLIENT_ID=${CLIENT_ID}
+          CLIENT_SECRET=${CLIENT_SECRET}
+          STRIPE_API_KEY=${STRIPE_API_KEY}
+          STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+          CLOUDFLARE_R2_S3_KEY=${CLOUDFLARE_R2_S3_KEY}
+          CLOUDFLARE_R2_S3_KEY_ID=${CLOUDFLARE_R2_S3_KEY_ID}
+          CLOUDFLARE_TOKEN=${CLOUDFLARE_TOKEN}
+          CLOUDFLARE_IMAGES_API_TOKEN=${CLOUDFLARE_IMAGES_API_TOKEN}
+          PARENT_BRANCH_ID=${PARENT_BRANCH_ID}
+          BASE_URL=${BASE_URL}
+          PLAYWRIGHT_TEST_BASE_URL=${PLAYWRIGHT_TEST_BASE_URL}
+          EOF
 
       - name: Pull Docker images (compose)
         run: docker compose pull
