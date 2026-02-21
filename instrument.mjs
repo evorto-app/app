@@ -8,5 +8,11 @@ if (dsn) {
     tracesSampleRate: Number(process.env["SENTRY_TRACES_SAMPLE_RATE"] ?? 1),
     profilesSampleRate: Number(process.env["SENTRY_PROFILES_SAMPLE_RATE"] ?? 1),
     enableLogs: true,
+    skipOpenTelemetrySetup: true,
   });
+
+  const client = Sentry.getClient();
+  if (client) {
+    Sentry.initOpenTelemetry(client);
+  }
 }

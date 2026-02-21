@@ -13,9 +13,12 @@ import {
   BunHttpServer,
   BunRuntime,
 } from '@effect/platform-bun';
-import * as Sentry from '@sentry/node';
+import * as OtelResource from '@effect/opentelemetry/Resource';
+import * as OtelTracer from '@effect/opentelemetry/Tracer';
+import * as Sentry from '@sentry/bun';
 import { Effect, Context as EffectContext, Layer } from 'effect';
 
+import { databaseLayer } from './db';
 import {
   getRequestAuthData,
   handleCallbackRequest,
@@ -157,7 +160,10 @@ const extractRegistrationId = (
 const renderSsr = (request: HttpServerRequest.HttpServerRequest) =>
   Effect.gen(function* () {
     const authSession = yield* loadAuthSession(request);
-    const requestContext = yield* resolveHttpRequestContext(request, authSession);
+    const requestContext = yield* resolveHttpRequestContext(
+      request,
+      authSession,
+    ).pipe(Effect.provide(databaseLayer));
 
     const webRequest = yield* HttpServerRequest.toWeb(request);
     const renderedResponse = yield* Effect.tryPromise(() =>
@@ -219,7 +225,7 @@ const qrCodeRouteLayer = HttpLayerRouter.add(
       const webResponse = yield* handleQrRegistrationCodeWebRequest(
         webRequest,
         registrationId,
-      );
+      ).pipe(Effect.provide(databaseLayer));
 
       return HttpServerResponse.fromWeb(webResponse);
     }),
@@ -245,7 +251,9 @@ const stripeWebhookRouteLayer = HttpLayerRouter.add(
       }
 
       const webRequest = yield* HttpServerRequest.toWeb(request);
-      const webResponse = yield* handleStripeWebhookWebRequest(webRequest);
+      const webResponse = yield* handleStripeWebhookWebRequest(webRequest).pipe(
+        Effect.provide(databaseLayer),
+      );
 
       return HttpServerResponse.fromWeb(webResponse);
     }),
@@ -254,7 +262,10 @@ const stripeWebhookRouteLayer = HttpLayerRouter.add(
 const rpcRouteLayer = HttpLayerRouter.add('POST', '/rpc', (request) =>
   Effect.gen(function* () {
     const authSession = yield* loadAuthSession(request);
-    const requestContext = yield* resolveHttpRequestContext(request, authSession);
+    const requestContext = yield* resolveHttpRequestContext(
+      request,
+      authSession,
+    ).pipe(Effect.provide(databaseLayer));
 
     const webRequest = yield* HttpServerRequest.toWeb(request);
     const rpcRequest = yield* toRpcHttpServerRequest(
@@ -344,20 +355,29 @@ const withSsrFallback = <E, R>(
 const keyValueStoreLayer = KeyValueStore.layerFileSystem(
   keyValueStoreDirectory,
 ).pipe(Layer.provide(Layer.mergeAll(BunFileSystem.layer, Path.layer)));
+const otelLayer = OtelTracer.layerGlobal.pipe(
+  Layer.provide(
+    OtelResource.layer({
+      serviceName: 'evorto-server',
+      ...(process.env['npm_package_version']
+        ? { serviceVersion: process.env['npm_package_version'] }
+        : {}),
+    }),
+  ),
+);
 
 const handlerRuntimeLayer = Layer.mergeAll(
   BunHttpServer.layerContext,
   BunFileSystem.layer,
   Path.layer,
   keyValueStoreLayer,
+  otelLayer,
   webhookRateLimitLayer,
   serverLoggerLayer,
   appRpcHttpAppLayer,
 );
 
-const handlerAppLayer = routesLayer.pipe(
-  Layer.provideMerge(handlerRuntimeLayer),
-);
+const handlerAppLayer = routesLayer.pipe(Layer.provide(handlerRuntimeLayer));
 
 const { handler: serverHandler } = HttpLayerRouter.toWebHandler(
   handlerAppLayer,
@@ -388,6 +408,7 @@ const serveEffect = Effect.gen(function* () {
         BunFileSystem.layer,
         Path.layer,
         keyValueStoreLayer,
+        otelLayer,
         webhookRateLimitLayer,
         serverLoggerLayer,
         appRpcHttpAppLayer,

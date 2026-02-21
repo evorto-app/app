@@ -1,6 +1,6 @@
 import { InferInsertModel, InferSelectModel } from 'drizzle-orm';
 import consola from 'consola';
-import { NeonDatabase } from 'drizzle-orm/neon-serverless';
+import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { DateTime } from 'luxon';
 
 import { relations } from '../src/db/relations';
@@ -42,7 +42,7 @@ const resolveTaxRateSelection = (
 };
 
 const fetchTenantTaxRates = async (
-  database: NeonDatabase<Record<string, never>, typeof relations>,
+  database: NodePgDatabase<Record<string, never>, typeof relations>,
   tenantId: string,
 ): Promise<TenantStripeTaxRate[]> => {
   for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -76,7 +76,7 @@ const computeEventClock = (
 };
 
 export const addEvents = async (
-  database: NeonDatabase<Record<string, never>, typeof relations>,
+  database: NodePgDatabase<Record<string, never>, typeof relations>,
   templates: {
     description: string;
     icon: { iconColor: number; iconName: string };

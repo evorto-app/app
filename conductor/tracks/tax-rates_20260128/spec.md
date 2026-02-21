@@ -72,7 +72,6 @@ Enable admins (or users with `admin:tax`) to manage tenant tax rates in a read-o
     - `src/server/trpc/events/register-for-event.procedure.ts`
 - Release and migration notes:
   - `.changeset/tax-rates-track-alignment.md`
-  - `migration/steps/003_add_admin_manage_taxes_permission.ts`
 
 ## Out of Scope
 

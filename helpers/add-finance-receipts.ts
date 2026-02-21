@@ -1,4 +1,4 @@
-import type { NeonDatabase } from 'drizzle-orm/neon-serverless';
+import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 import { eq } from 'drizzle-orm';
 
@@ -8,7 +8,7 @@ import { getId } from './get-id';
 import { usersToAuthenticate } from './user-data';
 
 export const addFinanceReceipts = async (
-  database: NeonDatabase<Record<string, never>, typeof relations>,
+  database: NodePgDatabase<Record<string, never>, typeof relations>,
   options: {
     eventIds: string[];
     tenantId: string;

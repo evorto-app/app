@@ -1,21 +1,25 @@
 import { Effect } from 'effect';
 import QRCode from 'qrcode';
 
-import { database } from '../../db';
+import { Database, type DatabaseClient } from '../../db';
 
 const responseText = (body: string, status = 200): Response =>
   new Response(body, { status });
 
+const dbEffect = <A, E>(
+  operation: (database: DatabaseClient) => Effect.Effect<A, E, never>,
+) => Effect.flatMap(Database, operation);
+
 export const handleQrRegistrationCodeWebRequest = (
   request: Request,
   registrationId: string,
-): Effect.Effect<Response, never> =>
+) =>
   Effect.gen(function* () {
     yield* Effect.logDebug('Generating QR code for registration').pipe(
       Effect.annotateLogs({ registrationId }),
     );
 
-    const registration = yield* Effect.promise(() =>
+    const registration = yield* dbEffect((database) =>
       database.query.eventRegistrations.findFirst({
         columns: {
           id: true,
@@ -29,7 +33,7 @@ export const handleQrRegistrationCodeWebRequest = (
       return responseText('Registration not found', 404);
     }
 
-    const tenant = yield* Effect.promise(() =>
+    const tenant = yield* dbEffect((database) =>
       database.query.tenants.findFirst({
         columns: {
           domain: true,

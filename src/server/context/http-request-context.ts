@@ -20,7 +20,7 @@ const resolveRequestHost = (
 export const resolveHttpRequestContext = (
   request: HttpServerRequest.HttpServerRequest,
   authSession: AuthSession | undefined,
-): Effect.Effect<RequestContext, Error, never> =>
+) =>
   Effect.gen(function* () {
     const requestOrigin = resolveRequestOrigin(request);
     const authentication = resolveAuthenticationContext({
@@ -28,14 +28,12 @@ export const resolveHttpRequestContext = (
       isAuthenticated: isAuthenticated(authSession),
     });
 
-    const { cause, tenant } = yield* Effect.promise(() =>
-      resolveTenantContext({
-        cookies: request.cookies,
-        protocol: requestOrigin.protocol,
-        requestHost: resolveRequestHost(request),
-        signedCookies: undefined,
-      }),
-    );
+    const { cause, tenant } = yield* resolveTenantContext({
+      cookies: request.cookies,
+      protocol: requestOrigin.protocol,
+      requestHost: resolveRequestHost(request),
+      signedCookies: undefined,
+    });
 
     if (!tenant) {
       yield* Effect.logError('Tenant not found').pipe(
@@ -44,13 +42,11 @@ export const resolveHttpRequestContext = (
       return yield* Effect.fail(new Error('Tenant not found', { cause }));
     }
 
-    const user = yield* Effect.promise(() =>
-      resolveUserContext({
-        isAuthenticated: isAuthenticated(authSession),
-        oidcUser: authSession?.authData,
-        tenantId: tenant.id,
-      }),
-    );
+    const user = yield* resolveUserContext({
+      isAuthenticated: isAuthenticated(authSession),
+      oidcUser: authSession?.authData,
+      tenantId: tenant.id,
+    });
 
     return Schema.decodeUnknownSync(RequestContext)({
       authentication,

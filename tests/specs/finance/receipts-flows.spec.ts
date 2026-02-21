@@ -1,7 +1,7 @@
 import path from 'node:path';
 
 import type { Page } from '@playwright/test';
-import type { NeonDatabase } from 'drizzle-orm/neon-serverless';
+import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { eq } from 'drizzle-orm';
 
 import { defaultStateFile } from '../../../helpers/user-data';
@@ -72,7 +72,7 @@ const seedPendingReceiptForApproval = async ({
   submittedByUserId,
   tenantId,
 }: {
-  database: NeonDatabase<Record<string, never>, typeof relations>;
+  database: NodePgDatabase<Record<string, never>, typeof relations>;
   eventId: string;
   submittedByUserId: string;
   tenantId: string;

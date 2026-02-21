@@ -26,7 +26,7 @@ import { Effect, Schema } from 'effect';
 import { groupBy } from 'es-toolkit';
 import { DateTime } from 'luxon';
 
-import { database } from '../../../db';
+import { Database, type DatabaseClient } from '../../../db';
 import { createId } from '../../../db/create-id';
 import {
   eventInstances,
@@ -100,6 +100,11 @@ const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024;
 const MAX_RECEIPT_ORIGINAL_SIZE_BYTES = 20 * 1024 * 1024;
 const RECEIPT_PREVIEW_SIGNED_URL_TTL_SECONDS = 60 * 15;
 const LOCAL_RECEIPT_STORAGE_KEY_PREFIX = 'local-unavailable/';
+
+const dbEffect = <A>(
+  operation: (database: DatabaseClient) => Effect.Effect<A, unknown, never>,
+): Effect.Effect<A, never, Database> =>
+  Effect.flatMap(Database, (database) => operation(database).pipe(Effect.orDie));
 
 interface ReceiptCountryConfigTenant {
   receiptSettings?:
@@ -562,61 +567,64 @@ const isEsnCardEnabled = (providers: unknown) => {
   return esnCard?.status === 'enabled';
 };
 
-const hasOrganizingRegistrationForEvent = async (
+const hasOrganizingRegistrationForEvent = (
   tenantId: string,
   user: { id: string; permissions: readonly string[] },
   eventId: string,
-): Promise<boolean> => {
-  const organizerRegistration = await database
-    .select({
-      id: eventRegistrations.id,
-    })
-    .from(eventRegistrations)
-    .innerJoin(
-      eventRegistrationOptions,
-      eq(eventRegistrationOptions.id, eventRegistrations.registrationOptionId),
-    )
-    .where(
-      and(
-        eq(eventRegistrations.tenantId, tenantId),
-        eq(eventRegistrations.userId, user.id),
-        eq(eventRegistrations.eventId, eventId),
-        eq(eventRegistrations.status, 'CONFIRMED'),
-        eq(eventRegistrationOptions.organizingRegistration, true),
-      ),
-    )
-    .limit(1);
+): Effect.Effect<boolean, never, Database> =>
+  Effect.gen(function* () {
+    const organizerRegistration = yield* dbEffect((database) =>
+      database
+        .select({
+          id: eventRegistrations.id,
+        })
+        .from(eventRegistrations)
+        .innerJoin(
+          eventRegistrationOptions,
+          eq(eventRegistrationOptions.id, eventRegistrations.registrationOptionId),
+        )
+        .where(
+          and(
+            eq(eventRegistrations.tenantId, tenantId),
+            eq(eventRegistrations.userId, user.id),
+            eq(eventRegistrations.eventId, eventId),
+            eq(eventRegistrations.status, 'CONFIRMED'),
+            eq(eventRegistrationOptions.organizingRegistration, true),
+          ),
+        )
+        .limit(1),
+    );
 
-  return organizerRegistration.length > 0;
-};
+    return organizerRegistration.length > 0;
+  });
 
-const canViewEventReceipts = async (
+const canViewEventReceipts = (
   tenantId: string,
   user: { id: string; permissions: readonly string[] },
   eventId: string,
-): Promise<boolean> => {
+): Effect.Effect<boolean, never, Database> => {
   if (
     user.permissions.includes('events:organizeAll') ||
     user.permissions.includes('finance:manageReceipts') ||
     user.permissions.includes('finance:approveReceipts') ||
     user.permissions.includes('finance:refundReceipts')
   ) {
-    return true;
+    return Effect.succeed(true);
   }
 
   return hasOrganizingRegistrationForEvent(tenantId, user, eventId);
 };
 
-const canSubmitEventReceipts = async (
+const canSubmitEventReceipts = (
   tenantId: string,
   user: { id: string; permissions: readonly string[] },
   eventId: string,
-): Promise<boolean> => {
+): Effect.Effect<boolean, never, Database> => {
   if (
     user.permissions.includes('events:organizeAll') ||
     user.permissions.includes('finance:manageReceipts')
   ) {
-    return true;
+    return Effect.succeed(true);
   }
 
   return hasOrganizingRegistrationForEvent(tenantId, user, eventId);
@@ -715,7 +723,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
           options.headers[RPC_CONTEXT_HEADERS.TENANT],
           Tenant,
         );
-        const createdRoles = yield* Effect.promise(() =>
+        const createdRoles = yield* dbEffect((database) =>
           database
             .insert(roles)
             .values({
@@ -742,7 +750,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
           options.headers[RPC_CONTEXT_HEADERS.TENANT],
           Tenant,
         );
-        const deletedRoles = yield* Effect.promise(() =>
+        const deletedRoles = yield* dbEffect((database) =>
           database
             .delete(roles)
             .where(and(eq(roles.id, id), eq(roles.tenantId, tenant.id)))
@@ -759,7 +767,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
           options.headers[RPC_CONTEXT_HEADERS.TENANT],
           Tenant,
         );
-        const hubRoles = yield* Effect.promise(() =>
+        const hubRoles = yield* dbEffect((database) =>
           database.query.roles.findMany({
             columns: {
               description: true,
@@ -799,7 +807,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
           options.headers[RPC_CONTEXT_HEADERS.TENANT],
           Tenant,
         );
-        const tenantRoles = yield* Effect.promise(() =>
+        const tenantRoles = yield* dbEffect((database) =>
           database.query.roles.findMany({
             orderBy: { name: 'asc' },
             where: {
@@ -823,7 +831,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
           options.headers[RPC_CONTEXT_HEADERS.TENANT],
           Tenant,
         );
-        const role = yield* Effect.promise(() =>
+        const role = yield* dbEffect((database) =>
           database.query.roles.findFirst({
             where: { id, tenantId: tenant.id },
           }),
@@ -841,7 +849,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
           options.headers[RPC_CONTEXT_HEADERS.TENANT],
           Tenant,
         );
-        const matchingRoles = yield* Effect.promise(() =>
+        const matchingRoles = yield* dbEffect((database) =>
           database.query.roles.findMany({
             limit: 15,
             orderBy: { name: 'asc' },
@@ -861,7 +869,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
           options.headers[RPC_CONTEXT_HEADERS.TENANT],
           Tenant,
         );
-        const updatedRoles = yield* Effect.promise(() =>
+        const updatedRoles = yield* dbEffect((database) =>
           database
             .update(roles)
             .set({
@@ -901,8 +909,8 @@ export const appRpcHandlers = AppRpcs.toLayer(
             return yield* Effect.fail('BAD_REQUEST' as const);
           }
 
-          const existingRate = yield* Effect.promise(() =>
-            database.query.tenantStripeTaxRates.findFirst({
+          const existingRate = yield* dbEffect((database) =>
+          database.query.tenantStripeTaxRates.findFirst({
               where: {
                 stripeTaxRateId: id,
                 tenantId: tenant.id,
@@ -926,14 +934,14 @@ export const appRpcHandlers = AppRpcs.toLayer(
           };
 
           yield* existingRate
-            ? Effect.promise(() =>
-                database
+            ? dbEffect((database) =>
+          database
                   .update(tenantStripeTaxRates)
                   .set(values)
                   .where(eq(tenantStripeTaxRates.id, existingRate.id)),
               )
-            : Effect.promise(() =>
-                database.insert(tenantStripeTaxRates).values(values),
+            : dbEffect((database) =>
+          database.insert(tenantStripeTaxRates).values(values),
               );
         }
       }),
@@ -944,7 +952,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
           options.headers[RPC_CONTEXT_HEADERS.TENANT],
           Tenant,
         );
-        const importedTaxRates = yield* Effect.promise(() =>
+        const importedTaxRates = yield* dbEffect((database) =>
           database.query.tenantStripeTaxRates.findMany({
             columns: {
               active: true,
@@ -1023,7 +1031,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
           },
         };
 
-        const updatedTenants = yield* Effect.promise(() =>
+        const updatedTenants = yield* dbEffect((database) =>
           database
             .update(tenants)
             .set({
@@ -1073,7 +1081,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
         );
         const user = yield* requireUserHeader(options.headers);
 
-        yield* Effect.promise(() =>
+        yield* dbEffect((database) =>
           database
             .delete(userDiscountCards)
             .where(
@@ -1093,7 +1101,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
           Tenant,
         );
         const user = yield* requireUserHeader(options.headers);
-        const cards = yield* Effect.promise(() =>
+        const cards = yield* dbEffect((database) =>
           database.query.userDiscountCards.findMany({
             where: {
               tenantId: tenant.id,
@@ -1111,7 +1119,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
           options.headers[RPC_CONTEXT_HEADERS.TENANT],
           Tenant,
         );
-        const resolvedTenant = yield* Effect.promise(() =>
+        const resolvedTenant = yield* dbEffect((database) =>
           database.query.tenants.findFirst({
             where: { id: tenant.id },
           }),
@@ -1135,7 +1143,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
         );
         const user = yield* requireUserHeader(options.headers);
 
-        const tenantRecord = yield* Effect.promise(() =>
+        const tenantRecord = yield* dbEffect((database) =>
           database.query.tenants.findFirst({
             where: {
               id: tenant.id,
@@ -1150,7 +1158,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
           return yield* Effect.fail('FORBIDDEN' as const);
         }
 
-        const card = yield* Effect.promise(() =>
+        const card = yield* dbEffect((database) =>
           database.query.userDiscountCards.findFirst({
             where: {
               tenantId: tenant.id,
@@ -1174,7 +1182,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
             identifier: card.identifier,
           }),
         );
-        const updatedCards = yield* Effect.promise(() =>
+        const updatedCards = yield* dbEffect((database) =>
           database
             .update(userDiscountCards)
             .set({
@@ -1203,7 +1211,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
         );
         const user = yield* requireUserHeader(options.headers);
 
-        const tenantRecord = yield* Effect.promise(() =>
+        const tenantRecord = yield* dbEffect((database) =>
           database.query.tenants.findFirst({
             where: {
               id: tenant.id,
@@ -1218,7 +1226,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
           return yield* Effect.fail('FORBIDDEN' as const);
         }
 
-        const existingIdentifier = yield* Effect.promise(() =>
+        const existingIdentifier = yield* dbEffect((database) =>
           database.query.userDiscountCards.findFirst({
             where: {
               identifier: input.identifier,
@@ -1230,7 +1238,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
           return yield* Effect.fail('CONFLICT' as const);
         }
 
-        const existingCard = yield* Effect.promise(() =>
+        const existingCard = yield* dbEffect((database) =>
           database.query.userDiscountCards.findFirst({
             where: {
               tenantId: tenant.id,
@@ -1241,8 +1249,8 @@ export const appRpcHandlers = AppRpcs.toLayer(
         );
 
         const upsertedCards = existingCard
-          ? yield* Effect.promise(() =>
-              database
+          ? yield* dbEffect((database) =>
+          database
                 .update(userDiscountCards)
                 .set({
                   identifier: input.identifier,
@@ -1250,8 +1258,8 @@ export const appRpcHandlers = AppRpcs.toLayer(
                 .where(eq(userDiscountCards.id, existingCard.id))
                 .returning(),
             )
-          : yield* Effect.promise(() =>
-              database
+          : yield* dbEffect((database) =>
+          database
                 .insert(userDiscountCards)
                 .values({
                   identifier: input.identifier,
@@ -1277,7 +1285,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
             identifier: input.identifier,
           }),
         );
-        const updatedCards = yield* Effect.promise(() =>
+        const updatedCards = yield* dbEffect((database) =>
           database
             .update(userDiscountCards)
             .set({
@@ -1342,7 +1350,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
         );
         const user = yield* requireUserHeader(options.headers);
 
-        const registration = yield* Effect.promise(() =>
+        const registration = yield* dbEffect((database) =>
           database.query.eventRegistrations.findFirst({
             where: {
               id: registrationId,
@@ -1361,11 +1369,10 @@ export const appRpcHandlers = AppRpcs.toLayer(
           return yield* Effect.fail('NOT_FOUND' as const);
         }
 
-        yield* Effect.tryPromise({
-          catch: () => 'INTERNAL_SERVER_ERROR' as const,
-          try: () =>
-            database.transaction(async (tx) => {
-              await tx
+        yield* dbEffect((database) =>
+          database.transaction((tx) =>
+            Effect.gen(function* () {
+              yield* tx
                 .update(eventRegistrations)
                 .set({
                   status: 'CANCELLED',
@@ -1375,10 +1382,12 @@ export const appRpcHandlers = AppRpcs.toLayer(
               const reservedSpots =
                 registration.registrationOption?.reservedSpots;
               if (reservedSpots === undefined) {
-                throw new Error('Registration option missing');
+                return yield* Effect.fail(
+                  new Error('Registration option missing'),
+                );
               }
 
-              await tx
+              yield* tx
                 .update(eventRegistrationOptions)
                 .set({
                   reservedSpots: reservedSpots - 1,
@@ -1400,33 +1409,34 @@ export const appRpcHandlers = AppRpcs.toLayer(
                 return;
               }
 
-              await tx
+              yield* tx
                 .update(transactions)
                 .set({
                   status: 'cancelled',
                 })
                 .where(eq(transactions.id, transaction.id));
 
-              if (!transaction.stripeCheckoutSessionId) {
+              const stripeCheckoutSessionId = transaction.stripeCheckoutSessionId;
+              if (!stripeCheckoutSessionId) {
                 return;
               }
 
               const stripeAccount = tenant.stripeAccountId;
               if (!stripeAccount) {
-                throw new Error('Stripe account not found');
+                return yield* Effect.fail(new Error('Stripe account not found'));
               }
-              try {
-                await stripe.checkout.sessions.expire(
-                  transaction.stripeCheckoutSessionId,
+              yield* Effect.tryPromise(() =>
+                stripe.checkout.sessions.expire(
+                  stripeCheckoutSessionId,
                   undefined,
                   {
                     stripeAccount,
                   },
-                );
-              } catch {
-              }
+                ),
+              ).pipe(Effect.catchAll(() => Effect.void));
             }),
-        });
+          ),
+        ).pipe(Effect.mapError(() => 'INTERNAL_SERVER_ERROR' as const));
       }),
     'events.canOrganize': ({ eventId }, options) =>
       Effect.gen(function* () {
@@ -1444,7 +1454,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
           return true;
         }
 
-        const registrations = yield* Effect.promise(() =>
+        const registrations = yield* dbEffect((database) =>
           database
             .select({
               id: eventRegistrations.id,
@@ -1511,8 +1521,8 @@ export const appRpcHandlers = AppRpcs.toLayer(
             return yield* Effect.fail('BAD_REQUEST' as const);
           }
 
-          const validation = yield* Effect.promise(() =>
-            validateTaxRate({
+          const validation = yield* dbEffect((database) =>
+            validateTaxRate(database, {
               isPaid: option.isPaid,
               stripeTaxRateId: option.stripeTaxRateId ?? null,
               tenantId: tenant.id,
@@ -1523,14 +1533,14 @@ export const appRpcHandlers = AppRpcs.toLayer(
           }
         }
 
-        const templateDefaults = yield* Effect.promise(() =>
+        const templateDefaults = yield* dbEffect((database) =>
           database.query.eventTemplates.findFirst({
             columns: { unlisted: true },
             where: { id: input.templateId },
           }),
         );
 
-        const events = yield* Effect.promise(() =>
+        const events = yield* dbEffect((database) =>
           database
             .insert(eventInstances)
             .values({
@@ -1553,7 +1563,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
           return yield* Effect.fail('INTERNAL_SERVER_ERROR' as const);
         }
 
-        const createdOptions = yield* Effect.promise(() =>
+        const createdOptions = yield* dbEffect((database) =>
           database
             .insert(eventRegistrationOptions)
             .values(
@@ -1581,14 +1591,14 @@ export const appRpcHandlers = AppRpcs.toLayer(
             }),
         );
 
-        const tenantTemplateOptions = yield* Effect.promise(() =>
+        const tenantTemplateOptions = yield* dbEffect((database) =>
           database.query.templateRegistrationOptions.findMany({
             where: { templateId: input.templateId },
           }),
         );
         if (tenantTemplateOptions.length > 0) {
-          const templateDiscounts = yield* Effect.promise(() =>
-            database
+          const templateDiscounts = yield* dbEffect((database) =>
+          database
               .select()
               .from(templateRegistrationOptionDiscounts)
               .where(
@@ -1635,8 +1645,8 @@ export const appRpcHandlers = AppRpcs.toLayer(
               }
             }
             if (discountInserts.length > 0) {
-              yield* Effect.promise(() =>
-                database
+              yield* dbEffect((database) =>
+          database
                   .insert(eventRegistrationOptionDiscounts)
                   .values(discountInserts),
               );
@@ -1686,7 +1696,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
 
         const rolesToFilterBy =
           user?.roleIds ??
-          (yield* Effect.promise(() =>
+          (yield* dbEffect((database) =>
             database.query.roles
               .findMany({
                 columns: { id: true },
@@ -1695,12 +1705,12 @@ export const appRpcHandlers = AppRpcs.toLayer(
                   tenantId: tenant.id,
                 },
               })
-              .then((roleRecords) => roleRecords.map((role) => role.id)),
+              .pipe(Effect.map((roleRecords) => roleRecords.map((role) => role.id))),
           ));
         const roleFilters =
           rolesToFilterBy.length > 0 ? [...rolesToFilterBy] : [''];
 
-        const selectedEvents = yield* Effect.promise(() =>
+        const selectedEvents = yield* dbEffect((database) =>
           database
             .select({
               creatorId: eventInstances.creatorId,
@@ -1788,7 +1798,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
 
         const rolesToFilterBy =
           user?.roleIds ??
-          (yield* Effect.promise(() =>
+          (yield* dbEffect((database) =>
             database.query.roles
               .findMany({
                 columns: { id: true },
@@ -1797,10 +1807,10 @@ export const appRpcHandlers = AppRpcs.toLayer(
                   tenantId: tenant.id,
                 },
               })
-              .then((roleRecords) => roleRecords.map((role) => role.id)),
+              .pipe(Effect.map((roleRecords) => roleRecords.map((role) => role.id))),
           ));
 
-        const event = yield* Effect.promise(() =>
+        const event = yield* dbEffect((database) =>
           database.query.eventInstances.findFirst({
             where: { id, tenantId: tenant.id },
             with: {
@@ -1847,8 +1857,8 @@ export const appRpcHandlers = AppRpcs.toLayer(
         const optionDiscounts =
           registrationOptionIds.length === 0
             ? []
-            : yield* Effect.promise(() =>
-                database
+            : yield* dbEffect((database) =>
+          database
                   .select()
                   .from(eventRegistrationOptionDiscounts)
                   .where(
@@ -1873,8 +1883,8 @@ export const appRpcHandlers = AppRpcs.toLayer(
         let userCanUseEsnCardDiscount = false;
 
         if (user && esnCardIsEnabledForTenant) {
-          const cards = yield* Effect.promise(() =>
-            database.query.userDiscountCards.findMany({
+          const cards = yield* dbEffect((database) =>
+          database.query.userDiscountCards.findMany({
               where: {
                 status: 'verified',
                 tenantId: tenant.id,
@@ -1961,7 +1971,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
         );
         const user = yield* requireUserHeader(options.headers);
 
-        const event = yield* Effect.promise(() =>
+        const event = yield* dbEffect((database) =>
           database.query.eventInstances.findFirst({
             where: { id, tenantId: tenant.id },
             with: {
@@ -1991,8 +2001,8 @@ export const appRpcHandlers = AppRpcs.toLayer(
         const optionDiscounts =
           registrationOptionIds.length === 0
             ? []
-            : yield* Effect.promise(() =>
-                database
+            : yield* dbEffect((database) =>
+          database
                   .select({
                     discountedPrice:
                       eventRegistrationOptionDiscounts.discountedPrice,
@@ -2052,7 +2062,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
           Tenant,
         );
 
-        const registrations = yield* Effect.promise(() =>
+        const registrations = yield* dbEffect((database) =>
           database.query.eventRegistrations.findMany({
             where: {
               eventId,
@@ -2194,7 +2204,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
           Tenant,
         );
 
-        const pendingReviews = yield* Effect.promise(() =>
+        const pendingReviews = yield* dbEffect((database) =>
           database.query.eventInstances.findMany({
             columns: {
               id: true,
@@ -2226,7 +2236,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
           };
         }
 
-        const registrations = yield* Effect.promise(() =>
+        const registrations = yield* dbEffect((database) =>
           database.query.eventRegistrations.findMany({
             where: {
               eventId,
@@ -2312,7 +2322,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
         );
         const user = yield* requireUserHeader(options.headers);
 
-        const existingRegistration = yield* Effect.promise(() =>
+        const existingRegistration = yield* dbEffect((database) =>
           database.query.eventRegistrations.findFirst({
             where: {
               eventId,
@@ -2325,7 +2335,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
           return yield* Effect.fail('CONFLICT' as const);
         }
 
-        const registrationOption = yield* Effect.promise(() =>
+        const registrationOption = yield* dbEffect((database) =>
           database.query.eventRegistrationOptions.findFirst({
             where: { eventId, id: registrationOptionId },
             with: {
@@ -2355,8 +2365,8 @@ export const appRpcHandlers = AppRpcs.toLayer(
         const selectedTaxRateId =
           registrationOption.stripeTaxRateId ?? undefined;
         const selectedTaxRate = selectedTaxRateId
-          ? yield* Effect.promise(() =>
-              database.query.tenantStripeTaxRates.findFirst({
+          ? yield* dbEffect((database) =>
+          database.query.tenantStripeTaxRates.findFirst({
                 where: {
                   stripeTaxRateId: selectedTaxRateId,
                   tenantId: tenant.id,
@@ -2365,7 +2375,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
             )
           : undefined;
 
-        const createdRegistrations = yield* Effect.promise(() =>
+        const createdRegistrations = yield* dbEffect((database) =>
           database
             .insert(eventRegistrations)
             .values({
@@ -2392,7 +2402,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
           return yield* Effect.fail('INTERNAL_SERVER_ERROR' as const);
         }
 
-        yield* Effect.promise(() =>
+        yield* dbEffect((database) =>
           database
             .update(eventRegistrationOptions)
             .set(
@@ -2414,6 +2424,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
           return;
         }
 
+        const database = yield* Database;
         const registerForEventSucceeded = yield* Effect.promise(async () => {
           try {
             const transactionId = createId();
@@ -2436,17 +2447,21 @@ export const appRpcHandlers = AppRpcs.toLayer(
               | typeof eventRegistrationOptionDiscounts.$inferSelect.discountType =
               null;
             let appliedDiscountedPrice: null | number = null;
-            const cards = await database.query.userDiscountCards.findMany({
-              where: {
-                status: 'verified',
-                tenantId: tenant.id,
-                userId: user.id,
-              },
-            });
+            const cards = await Effect.runPromise(
+              database.query.userDiscountCards.findMany({
+                where: {
+                  status: 'verified',
+                  tenantId: tenant.id,
+                  userId: user.id,
+                },
+              }),
+            );
             if (cards.length > 0) {
-              const tenantRecord = await database.query.tenants.findFirst({
-                where: { id: tenant.id },
-              });
+              const tenantRecord = await Effect.runPromise(
+                database.query.tenants.findFirst({
+                  where: { id: tenant.id },
+                }),
+              );
               const providerConfig: TenantDiscountProviders =
                 resolveTenantDiscountProviders(tenantRecord?.discountProviders);
               const enabledTypes = new Set(
@@ -2454,10 +2469,11 @@ export const appRpcHandlers = AppRpcs.toLayer(
                   .filter(([, provider]) => provider?.status === 'enabled')
                   .map(([key]) => key),
               );
-              const discounts =
-                await database.query.eventRegistrationOptionDiscounts.findMany({
+              const discounts = await Effect.runPromise(
+                database.query.eventRegistrationOptionDiscounts.findMany({
                   where: { registrationOptionId: registrationOption.id },
-                });
+                }),
+              );
               const eventStart = registrationOption.event.start ?? new Date();
               const eligible = discounts.filter((discount) =>
                 cards.some(
@@ -2486,34 +2502,40 @@ export const appRpcHandlers = AppRpcs.toLayer(
               appliedDiscountedPrice === null
                 ? null
                 : Math.max(0, basePrice - appliedDiscountedPrice);
-            await database
-              .update(eventRegistrations)
-              .set({
-                appliedDiscountedPrice,
-                appliedDiscountType,
-                basePriceAtRegistration: basePrice,
-                discountAmount,
-              })
-              .where(eq(eventRegistrations.id, userRegistration.id));
-
-            if (effectivePrice <= 0) {
-              await database
+            await Effect.runPromise(
+              database
                 .update(eventRegistrations)
                 .set({
-                  status: 'CONFIRMED',
+                  appliedDiscountedPrice,
+                  appliedDiscountType,
+                  basePriceAtRegistration: basePrice,
+                  discountAmount,
                 })
-                .where(eq(eventRegistrations.id, userRegistration.id));
+                .where(eq(eventRegistrations.id, userRegistration.id)),
+            );
 
-              await database
-                .update(eventRegistrationOptions)
-                .set({
-                  confirmedSpots: registrationOption.confirmedSpots + 1,
-                  reservedSpots: Math.max(
-                    0,
-                    registrationOption.reservedSpots - 1,
-                  ),
-                })
-                .where(eq(eventRegistrationOptions.id, registrationOption.id));
+            if (effectivePrice <= 0) {
+              await Effect.runPromise(
+                database
+                  .update(eventRegistrations)
+                  .set({
+                    status: 'CONFIRMED',
+                  })
+                  .where(eq(eventRegistrations.id, userRegistration.id)),
+              );
+
+              await Effect.runPromise(
+                database
+                  .update(eventRegistrationOptions)
+                  .set({
+                    confirmedSpots: registrationOption.confirmedSpots + 1,
+                    reservedSpots: Math.max(
+                      0,
+                      registrationOption.reservedSpots - 1,
+                    ),
+                  })
+                  .where(eq(eventRegistrationOptions.id, registrationOption.id)),
+              );
               return;
             }
 
@@ -2559,34 +2581,36 @@ export const appRpcHandlers = AppRpcs.toLayer(
               { stripeAccount },
             );
 
-            await database.insert(transactions).values({
-              amount: effectivePrice,
-              comment: `Registration for event ${registrationOption.event.title} ${registrationOption.eventId}`,
-              currency: tenant.currency,
-              eventId: registrationOption.eventId,
-              eventRegistrationId: userRegistration.id,
-              executiveUserId: user.id,
-              id: transactionId,
-              method: 'stripe',
-              status: 'pending',
-              stripeCheckoutSessionId: session.id,
-              stripeCheckoutUrl: session.url,
-              stripePaymentIntentId:
-                typeof session.payment_intent === 'string'
-                  ? session.payment_intent
-                  : session.payment_intent?.id,
-              targetUserId: user.id,
-              tenantId: tenant.id,
-              type: 'registration',
-            });
+            await Effect.runPromise(
+              database.insert(transactions).values({
+                amount: effectivePrice,
+                comment: `Registration for event ${registrationOption.event.title} ${registrationOption.eventId}`,
+                currency: tenant.currency,
+                eventId: registrationOption.eventId,
+                eventRegistrationId: userRegistration.id,
+                executiveUserId: user.id,
+                id: transactionId,
+                method: 'stripe',
+                status: 'pending',
+                stripeCheckoutSessionId: session.id,
+                stripeCheckoutUrl: session.url,
+                stripePaymentIntentId:
+                  typeof session.payment_intent === 'string'
+                    ? session.payment_intent
+                    : session.payment_intent?.id,
+                targetUserId: user.id,
+                tenantId: tenant.id,
+                type: 'registration',
+              }),
+            );
             return true;
           } catch (error) {
             return false;
           }
         });
         if (!registerForEventSucceeded) {
-          const rollbackRegistrationOption = yield* Effect.promise(() =>
-            database.query.eventRegistrationOptions.findFirst({
+          const rollbackRegistrationOption = yield* dbEffect((database) =>
+          database.query.eventRegistrationOptions.findFirst({
               where: {
                 eventId,
                 id: registrationOptionId,
@@ -2594,8 +2618,8 @@ export const appRpcHandlers = AppRpcs.toLayer(
             }),
           );
           if (rollbackRegistrationOption) {
-            yield* Effect.promise(() =>
-              database
+            yield* dbEffect((database) =>
+          database
                 .update(eventRegistrationOptions)
                 .set({
                   reservedSpots: Math.max(
@@ -2614,8 +2638,8 @@ export const appRpcHandlers = AppRpcs.toLayer(
                 ),
             );
           }
-          yield* Effect.promise(() =>
-            database
+          yield* dbEffect((database) =>
+          database
               .delete(eventRegistrations)
               .where(eq(eventRegistrations.id, userRegistration.id)),
           );
@@ -2631,7 +2655,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
         );
         const user = yield* requireUserHeader(options.headers);
 
-        const registration = yield* Effect.promise(() =>
+        const registration = yield* dbEffect((database) =>
           database.query.eventRegistrations.findFirst({
             where: { id: registrationId, tenantId: tenant.id },
             with: {
@@ -2710,7 +2734,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
         );
         const user = yield* requireUserHeader(options.headers);
 
-        const reviewedEvents = yield* Effect.promise(() =>
+        const reviewedEvents = yield* dbEffect((database) =>
           database
             .update(eventInstances)
             .set({
@@ -2734,7 +2758,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
           return;
         }
 
-        const event = yield* Effect.promise(() =>
+        const event = yield* dbEffect((database) =>
           database.query.eventInstances.findFirst({
             columns: { id: true },
             where: {
@@ -2758,7 +2782,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
         );
         const user = yield* requireUserHeader(options.headers);
 
-        const event = yield* Effect.promise(() =>
+        const event = yield* dbEffect((database) =>
           database.query.eventInstances.findFirst({
             columns: {
               creatorId: true,
@@ -2788,7 +2812,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
           return yield* Effect.fail('CONFLICT' as const);
         }
 
-        const submittedEvents = yield* Effect.promise(() =>
+        const submittedEvents = yield* dbEffect((database) =>
           database
             .update(eventInstances)
             .set({
@@ -2849,7 +2873,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
           }),
         );
 
-        const event = yield* Effect.promise(() =>
+        const event = yield* dbEffect((database) =>
           database.query.eventInstances.findFirst({
             where: {
               id: input.eventId,
@@ -2889,8 +2913,8 @@ export const appRpcHandlers = AppRpcs.toLayer(
             return yield* Effect.fail('BAD_REQUEST' as const);
           }
 
-          const validation = yield* Effect.promise(() =>
-            validateTaxRate({
+          const validation = yield* dbEffect((database) =>
+            validateTaxRate(database, {
               isPaid: option.isPaid,
               stripeTaxRateId: option.stripeTaxRateId ?? null,
               tenantId: tenant.id,
@@ -2920,31 +2944,10 @@ export const appRpcHandlers = AppRpcs.toLayer(
           }
         }
 
-        const updatedEvent = yield* Effect.tryPromise({
-          catch: (
-            error,
-          ): 'BAD_REQUEST' | 'CONFLICT' | 'INTERNAL_SERVER_ERROR' => {
-            if (
-              typeof error === 'object' &&
-              error !== null &&
-              'code' in error &&
-              (error as { code: unknown }).code === 'BAD_REQUEST'
-            ) {
-              return 'BAD_REQUEST';
-            }
-            if (
-              typeof error === 'object' &&
-              error !== null &&
-              'code' in error &&
-              (error as { code: unknown }).code === 'CONFLICT'
-            ) {
-              return 'CONFLICT';
-            }
-            return 'INTERNAL_SERVER_ERROR';
-          },
-          try: () =>
-            database.transaction(async (tx) => {
-              const updatedEvents = await tx
+        const updatedEvent = yield* dbEffect((database) =>
+          database.transaction((tx) =>
+            Effect.gen(function* () {
+              const updatedEvents = yield* tx
                 .update(eventInstances)
                 .set({
                   description: sanitizedDescription,
@@ -2968,11 +2971,11 @@ export const appRpcHandlers = AppRpcs.toLayer(
                 });
               const eventRow = updatedEvents[0];
               if (!eventRow) {
-                throw { code: 'CONFLICT' };
+                return yield* Effect.fail('CONFLICT' as const);
               }
 
               const existingRegistrationRows =
-                await tx.query.eventRegistrationOptions.findMany({
+                yield* tx.query.eventRegistrationOptions.findMany({
                   where: {
                     eventId: input.eventId,
                   },
@@ -2982,41 +2985,39 @@ export const appRpcHandlers = AppRpcs.toLayer(
               );
               for (const option of sanitizedRegistrationOptions) {
                 if (!existingRegistrationOptionIds.has(option.id)) {
-                  throw { code: 'BAD_REQUEST' };
+                  return yield* Effect.fail('BAD_REQUEST' as const);
                 }
               }
 
-              await Promise.all(
-                sanitizedRegistrationOptions.map((option) =>
-                  tx
-                    .update(eventRegistrationOptions)
-                    .set({
-                      closeRegistrationTime: option.closeRegistrationTime,
-                      description: option.description,
-                      isPaid: option.isPaid,
-                      openRegistrationTime: option.openRegistrationTime,
-                      organizingRegistration: option.organizingRegistration,
-                      price: option.price,
-                      registeredDescription: option.registeredDescription,
-                      registrationMode: option.registrationMode,
-                      roleIds: [...option.roleIds],
-                      spots: option.spots,
-                      stripeTaxRateId: option.stripeTaxRateId ?? null,
-                      title: option.title,
-                    })
-                    .where(
-                      and(
-                        eq(eventRegistrationOptions.eventId, input.eventId),
-                        eq(eventRegistrationOptions.id, option.id),
-                      ),
+              yield* Effect.forEach(sanitizedRegistrationOptions, (option) =>
+                tx
+                  .update(eventRegistrationOptions)
+                  .set({
+                    closeRegistrationTime: option.closeRegistrationTime,
+                    description: option.description,
+                    isPaid: option.isPaid,
+                    openRegistrationTime: option.openRegistrationTime,
+                    organizingRegistration: option.organizingRegistration,
+                    price: option.price,
+                    registeredDescription: option.registeredDescription,
+                    registrationMode: option.registrationMode,
+                    roleIds: [...option.roleIds],
+                    spots: option.spots,
+                    stripeTaxRateId: option.stripeTaxRateId ?? null,
+                    title: option.title,
+                  })
+                  .where(
+                    and(
+                      eq(eventRegistrationOptions.eventId, input.eventId),
+                      eq(eventRegistrationOptions.id, option.id),
                     ),
-                ),
+                  ),
               );
 
               const existingEsnDiscounts =
                 sanitizedRegistrationOptions.length === 0
                   ? []
-                  : await tx
+                  : yield* tx
                       .select()
                       .from(eventRegistrationOptionDiscounts)
                       .where(
@@ -3050,7 +3051,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
 
                 if (!shouldPersistDiscount) {
                   if (existingDiscount) {
-                    await tx
+                    yield* tx
                       .delete(eventRegistrationOptionDiscounts)
                       .where(
                         eq(
@@ -3068,7 +3069,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
                 }
 
                 if (existingDiscount) {
-                  await tx
+                  yield* tx
                     .update(eventRegistrationOptionDiscounts)
                     .set({
                       discountedPrice,
@@ -3082,7 +3083,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
                   continue;
                 }
 
-                await tx.insert(eventRegistrationOptionDiscounts).values({
+                yield* tx.insert(eventRegistrationOptionDiscounts).values({
                   discountedPrice,
                   discountType: 'esnCard',
                   registrationOptionId: option.id,
@@ -3091,7 +3092,14 @@ export const appRpcHandlers = AppRpcs.toLayer(
 
               return eventRow;
             }),
-        });
+          ),
+        ).pipe(
+          Effect.catchAll((error) =>
+            error === 'BAD_REQUEST' || error === 'CONFLICT'
+              ? Effect.fail(error)
+              : Effect.fail('INTERNAL_SERVER_ERROR' as const),
+          ),
+        );
 
         return {
           id: updatedEvent.id,
@@ -3105,7 +3113,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
           Tenant,
         );
 
-        yield* Effect.promise(() =>
+        yield* dbEffect((database) =>
           database
             .update(eventInstances)
             .set({ unlisted })
@@ -3181,14 +3189,12 @@ export const appRpcHandlers = AppRpcs.toLayer(
           Tenant,
         );
         const user = yield* requireUserHeader(options.headers);
-        const canView = yield* Effect.promise(() =>
-          canViewEventReceipts(tenant.id, user, eventId),
-        );
+        const canView = yield* canViewEventReceipts(tenant.id, user, eventId);
         if (!canView) {
           return yield* Effect.fail('FORBIDDEN' as const);
         }
 
-        const receipts = yield* Effect.promise(() =>
+        const receipts = yield* dbEffect((database) =>
           database
             .select({
               ...financeReceiptView,
@@ -3227,7 +3233,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
           Tenant,
         );
         const user = yield* requireUserHeader(options.headers);
-        const receipts = yield* Effect.promise(() =>
+        const receipts = yield* dbEffect((database) =>
           database
             .select({
               eventId: financeReceipts.eventId,
@@ -3258,7 +3264,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
           return yield* Effect.fail('BAD_REQUEST' as const);
         }
 
-        const payoutUser = yield* Effect.promise(() =>
+        const payoutUser = yield* dbEffect((database) =>
           database.query.users.findFirst({
             columns: {
               iban: true,
@@ -3300,16 +3306,10 @@ export const appRpcHandlers = AppRpcs.toLayer(
         ];
         const eventId = uniqueEventIds.length === 1 ? uniqueEventIds[0] : null;
 
-        const createdTransaction = yield* Effect.tryPromise({
-          catch: (error) => {
-            if (error instanceof Error && error.message === 'BAD_REQUEST') {
-              return 'BAD_REQUEST' as const;
-            }
-            return 'INTERNAL_SERVER_ERROR' as const;
-          },
-          try: async () =>
-            database.transaction(async (tx) => {
-              const insertedTransactions = await tx
+        const createdTransaction = yield* dbEffect((database) =>
+          database.transaction((tx) =>
+            Effect.gen(function* () {
+              const insertedTransactions = yield* tx
                 .insert(transactions)
                 .values({
                   amount: -Math.abs(totalAmount),
@@ -3329,10 +3329,10 @@ export const appRpcHandlers = AppRpcs.toLayer(
                 });
               const transaction = insertedTransactions[0];
               if (!transaction) {
-                throw new Error('INTERNAL_SERVER_ERROR');
+                return yield* Effect.fail('INTERNAL_SERVER_ERROR' as const);
               }
 
-              const updatedReceipts = await tx
+              const updatedReceipts = yield* tx
                 .update(financeReceipts)
                 .set({
                   refundedAt: new Date(),
@@ -3353,12 +3353,19 @@ export const appRpcHandlers = AppRpcs.toLayer(
                 });
 
               if (updatedReceipts.length !== input.receiptIds.length) {
-                throw new Error('BAD_REQUEST');
+                return yield* Effect.fail('BAD_REQUEST' as const);
               }
 
               return transaction;
             }),
-        });
+          ),
+        ).pipe(
+          Effect.catchAll((error) =>
+            error === 'BAD_REQUEST'
+              ? Effect.fail('BAD_REQUEST' as const)
+              : Effect.fail('INTERNAL_SERVER_ERROR' as const),
+          ),
+        );
 
         return {
           receiptCount: receipts.length,
@@ -3373,7 +3380,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
           options.headers[RPC_CONTEXT_HEADERS.TENANT],
           Tenant,
         );
-        const receipts = yield* Effect.promise(() =>
+        const receipts = yield* dbEffect((database) =>
           database
             .select({
               ...financeReceiptView,
@@ -3423,7 +3430,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
           Tenant,
         );
         const user = yield* requireUserHeader(options.headers);
-        const receipts = yield* Effect.promise(() =>
+        const receipts = yield* dbEffect((database) =>
           database
             .select({
               ...financeReceiptView,
@@ -3457,7 +3464,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
           options.headers[RPC_CONTEXT_HEADERS.TENANT],
           Tenant,
         );
-        const pendingReceipts = yield* Effect.promise(() =>
+        const pendingReceipts = yield* dbEffect((database) =>
           database
             .select({
               ...financeReceiptView,
@@ -3530,7 +3537,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
           options.headers[RPC_CONTEXT_HEADERS.TENANT],
           Tenant,
         );
-        const approvedReceipts = yield* Effect.promise(() =>
+        const approvedReceipts = yield* dbEffect((database) =>
           database
             .select({
               ...financeReceiptView,
@@ -3657,7 +3664,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
           Tenant,
         );
         const user = yield* requireUserHeader(options.headers);
-        const receipt = yield* Effect.promise(() =>
+        const receipt = yield* dbEffect((database) =>
           database.query.financeReceipts.findFirst({
             where: {
               id: input.id,
@@ -3693,7 +3700,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
           return yield* Effect.fail('BAD_REQUEST' as const);
         }
 
-        const updatedReceipts = yield* Effect.promise(() =>
+        const updatedReceipts = yield* dbEffect((database) =>
           database
             .update(financeReceipts)
             .set({
@@ -3743,8 +3750,10 @@ export const appRpcHandlers = AppRpcs.toLayer(
           Tenant,
         );
         const user = yield* requireUserHeader(options.headers);
-        const canSubmit = yield* Effect.promise(() =>
-          canSubmitEventReceipts(tenant.id, user, input.eventId),
+        const canSubmit = yield* canSubmitEventReceipts(
+          tenant.id,
+          user,
+          input.eventId,
         );
         if (!canSubmit) {
           return yield* Effect.fail('FORBIDDEN' as const);
@@ -3753,7 +3762,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
           return yield* Effect.fail('BAD_REQUEST' as const);
         }
 
-        const event = yield* Effect.promise(() =>
+        const event = yield* dbEffect((database) =>
           database.query.eventInstances.findFirst({
             columns: {
               id: true,
@@ -3790,7 +3799,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
           return yield* Effect.fail('BAD_REQUEST' as const);
         }
 
-        const createdReceipts = yield* Effect.promise(() =>
+        const createdReceipts = yield* dbEffect((database) =>
           database
             .insert(financeReceipts)
             .values({
@@ -3832,7 +3841,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
           options.headers[RPC_CONTEXT_HEADERS.TENANT],
           Tenant,
         );
-        const transactionCountResult = yield* Effect.promise(() =>
+        const transactionCountResult = yield* dbEffect((database) =>
           database
             .select({
               count: count(),
@@ -3847,7 +3856,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
         );
         const total = transactionCountResult[0]?.count ?? 0;
 
-        const transactionRows = yield* Effect.promise(() =>
+        const transactionRows = yield* dbEffect((database) =>
           database
             .select({
               amount: transactions.amount,
@@ -3881,7 +3890,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
     'globalAdmin.tenants.findMany': (_payload, options) =>
       Effect.gen(function* () {
         yield* ensureAuthenticated(options.headers);
-        const allTenants = yield* Effect.promise(() =>
+        const allTenants = yield* dbEffect((database) =>
           database.query.tenants.findMany({
             columns: {
               domain: true,
@@ -3905,7 +3914,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
         const sourceColor = yield* Effect.promise(() =>
           computeIconSourceColor(icon),
         );
-        const insertedIcons = yield* Effect.promise(() =>
+        const insertedIcons = yield* dbEffect((database) =>
           database
             .insert(icons)
             .values({
@@ -3926,7 +3935,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
           options.headers[RPC_CONTEXT_HEADERS.TENANT],
           Tenant,
         );
-        const matchingIcons = yield* Effect.promise(() =>
+        const matchingIcons = yield* dbEffect((database) =>
           database.query.icons.findMany({
             orderBy: { commonName: 'asc' },
             where: {
@@ -3954,7 +3963,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
           options.headers[RPC_CONTEXT_HEADERS.TENANT],
           Tenant,
         );
-        const activeTaxRates = yield* Effect.promise(() =>
+        const activeTaxRates = yield* dbEffect((database) =>
           database.query.tenantStripeTaxRates.findMany({
             columns: {
               country: true,
@@ -3988,7 +3997,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
           Tenant,
         );
 
-        yield* Effect.promise(() =>
+        yield* dbEffect((database) =>
           database.insert(eventTemplateCategories).values({
             icon,
             tenantId: tenant.id,
@@ -4003,7 +4012,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
           options.headers[RPC_CONTEXT_HEADERS.TENANT],
           Tenant,
         );
-        const templateCategories = yield* Effect.promise(() =>
+        const templateCategories = yield* dbEffect((database) =>
           database.query.eventTemplateCategories.findMany({
             where: { tenantId: tenant.id },
           }),
@@ -4020,7 +4029,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
           options.headers[RPC_CONTEXT_HEADERS.TENANT],
           Tenant,
         );
-        const updatedCategories = yield* Effect.promise(() =>
+        const updatedCategories = yield* dbEffect((database) =>
           database
             .update(eventTemplateCategories)
             .set({
@@ -4054,8 +4063,8 @@ export const appRpcHandlers = AppRpcs.toLayer(
           return yield* Effect.fail('BAD_REQUEST' as const);
         }
 
-        const organizerValidation = yield* Effect.promise(() =>
-          validateTaxRate({
+        const organizerValidation = yield* dbEffect((database) =>
+          validateTaxRate(database, {
             isPaid: input.organizerRegistration.isPaid,
             stripeTaxRateId:
               input.organizerRegistration.stripeTaxRateId ?? null,
@@ -4073,8 +4082,8 @@ export const appRpcHandlers = AppRpcs.toLayer(
           return yield* Effect.fail('BAD_REQUEST' as const);
         }
 
-        const participantValidation = yield* Effect.promise(() =>
-          validateTaxRate({
+        const participantValidation = yield* dbEffect((database) =>
+          validateTaxRate(database, {
             isPaid: input.participantRegistration.isPaid,
             stripeTaxRateId:
               input.participantRegistration.stripeTaxRateId ?? null,
@@ -4092,63 +4101,69 @@ export const appRpcHandlers = AppRpcs.toLayer(
           return yield* Effect.fail('BAD_REQUEST' as const);
         }
 
+        const database = yield* Database;
         return yield* Effect.tryPromise({
           catch: () => 'INTERNAL_SERVER_ERROR' as const,
           try: async () => {
-            const templateResponse = await database
-              .insert(eventTemplates)
-              .values({
-                categoryId: input.categoryId,
-                description: sanitizedDescription,
-                icon: input.icon,
-                location: input.location,
-                simpleModeEnabled: true,
-                tenantId: tenant.id,
-                title: input.title,
-              })
-              .returning({
-                id: eventTemplates.id,
-              });
+            const templateResponse = await Effect.runPromise(
+              database
+                .insert(eventTemplates)
+                .values({
+                  categoryId: input.categoryId,
+                  description: sanitizedDescription,
+                  icon: input.icon,
+                  location: input.location,
+                  simpleModeEnabled: true,
+                  tenantId: tenant.id,
+                  title: input.title,
+                })
+                .returning({
+                  id: eventTemplates.id,
+                }),
+            );
             const template = templateResponse[0];
             if (!template) {
               throw new Error('Template insert failed');
             }
 
-            await database.insert(templateRegistrationOptions).values([
-              {
-                closeRegistrationOffset:
-                  input.organizerRegistration.closeRegistrationOffset,
-                isPaid: input.organizerRegistration.isPaid,
-                openRegistrationOffset:
-                  input.organizerRegistration.openRegistrationOffset,
-                organizingRegistration: true,
-                price: input.organizerRegistration.price,
-                registrationMode: input.organizerRegistration.registrationMode,
-                roleIds: input.organizerRegistration.roleIds,
-                spots: input.organizerRegistration.spots,
-                stripeTaxRateId:
-                  input.organizerRegistration.stripeTaxRateId ?? null,
-                templateId: template.id,
-                title: 'Organizer registration',
-              },
-              {
-                closeRegistrationOffset:
-                  input.participantRegistration.closeRegistrationOffset,
-                isPaid: input.participantRegistration.isPaid,
-                openRegistrationOffset:
-                  input.participantRegistration.openRegistrationOffset,
-                organizingRegistration: false,
-                price: input.participantRegistration.price,
-                registrationMode:
-                  input.participantRegistration.registrationMode,
-                roleIds: input.participantRegistration.roleIds,
-                spots: input.participantRegistration.spots,
-                stripeTaxRateId:
-                  input.participantRegistration.stripeTaxRateId ?? null,
-                templateId: template.id,
-                title: 'Participant registration',
-              },
-            ]);
+            await Effect.runPromise(
+              database.insert(templateRegistrationOptions).values([
+                {
+                  closeRegistrationOffset:
+                    input.organizerRegistration.closeRegistrationOffset,
+                  isPaid: input.organizerRegistration.isPaid,
+                  openRegistrationOffset:
+                    input.organizerRegistration.openRegistrationOffset,
+                  organizingRegistration: true,
+                  price: input.organizerRegistration.price,
+                  registrationMode:
+                    input.organizerRegistration.registrationMode,
+                  roleIds: input.organizerRegistration.roleIds,
+                  spots: input.organizerRegistration.spots,
+                  stripeTaxRateId:
+                    input.organizerRegistration.stripeTaxRateId ?? null,
+                  templateId: template.id,
+                  title: 'Organizer registration',
+                },
+                {
+                  closeRegistrationOffset:
+                    input.participantRegistration.closeRegistrationOffset,
+                  isPaid: input.participantRegistration.isPaid,
+                  openRegistrationOffset:
+                    input.participantRegistration.openRegistrationOffset,
+                  organizingRegistration: false,
+                  price: input.participantRegistration.price,
+                  registrationMode:
+                    input.participantRegistration.registrationMode,
+                  roleIds: input.participantRegistration.roleIds,
+                  spots: input.participantRegistration.spots,
+                  stripeTaxRateId:
+                    input.participantRegistration.stripeTaxRateId ?? null,
+                  templateId: template.id,
+                  title: 'Participant registration',
+                },
+              ]),
+            );
 
             return { id: template.id };
           },
@@ -4161,7 +4176,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
           options.headers[RPC_CONTEXT_HEADERS.TENANT],
           Tenant,
         );
-        const template = yield* Effect.promise(() =>
+        const template = yield* dbEffect((database) =>
           database.query.eventTemplates.findFirst({
             where: {
               id,
@@ -4180,8 +4195,8 @@ export const appRpcHandlers = AppRpcs.toLayer(
           template.registrationOptions.flatMap((option) => option.roleIds);
         const templateRoles =
           combinedRegistrationOptionRoleIds.length > 0
-            ? yield* Effect.promise(() =>
-                database.query.roles.findMany({
+            ? yield* dbEffect((database) =>
+          database.query.roles.findMany({
                   where: {
                     id: {
                       in: combinedRegistrationOptionRoleIds,
@@ -4207,7 +4222,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
           options.headers[RPC_CONTEXT_HEADERS.TENANT],
           Tenant,
         );
-        const templateCategories = yield* Effect.promise(() =>
+        const templateCategories = yield* dbEffect((database) =>
           database.query.eventTemplateCategories.findMany({
             orderBy: (categories, { asc }) => [asc(categories.title)],
             where: { tenantId: tenant.id },
@@ -4235,8 +4250,8 @@ export const appRpcHandlers = AppRpcs.toLayer(
           return yield* Effect.fail('BAD_REQUEST' as const);
         }
 
-        const organizerValidation = yield* Effect.promise(() =>
-          validateTaxRate({
+        const organizerValidation = yield* dbEffect((database) =>
+          validateTaxRate(database, {
             isPaid: input.organizerRegistration.isPaid,
             stripeTaxRateId:
               input.organizerRegistration.stripeTaxRateId ?? null,
@@ -4254,8 +4269,8 @@ export const appRpcHandlers = AppRpcs.toLayer(
           return yield* Effect.fail('BAD_REQUEST' as const);
         }
 
-        const participantValidation = yield* Effect.promise(() =>
-          validateTaxRate({
+        const participantValidation = yield* dbEffect((database) =>
+          validateTaxRate(database, {
             isPaid: input.participantRegistration.isPaid,
             stripeTaxRateId:
               input.participantRegistration.stripeTaxRateId ?? null,
@@ -4273,7 +4288,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
           return yield* Effect.fail('BAD_REQUEST' as const);
         }
 
-        const updatedTemplate = yield* Effect.promise(() =>
+        const updatedTemplate = yield* dbEffect((database) =>
           database
             .update(eventTemplates)
             .set({
@@ -4299,7 +4314,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
           return yield* Effect.fail('NOT_FOUND' as const);
         }
 
-        yield* Effect.promise(() =>
+        yield* dbEffect((database) =>
           database
             .update(templateRegistrationOptions)
             .set({
@@ -4323,7 +4338,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
             ),
         );
 
-        yield* Effect.promise(() =>
+        yield* dbEffect((database) =>
           database
             .update(templateRegistrationOptions)
             .set({
@@ -4366,7 +4381,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
           return yield* Effect.fail('UNAUTHORIZED' as const);
         }
 
-        const existingUser = yield* Effect.promise(() =>
+        const existingUser = yield* dbEffect((database) =>
           database
             .select({ id: users.id })
             .from(users)
@@ -4377,12 +4392,12 @@ export const appRpcHandlers = AppRpcs.toLayer(
           return yield* Effect.fail('CONFLICT' as const);
         }
 
-        const defaultUserRoles = yield* Effect.promise(() =>
+        const defaultUserRoles = yield* dbEffect((database) =>
           database.query.roles.findMany({
             where: { defaultUserRole: true, tenantId: tenant.id },
           }),
         );
-        const userCreateResponse = yield* Effect.promise(() =>
+        const userCreateResponse = yield* dbEffect((database) =>
           database
             .insert(users)
             .values({
@@ -4399,7 +4414,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
           return yield* Effect.fail('UNAUTHORIZED' as const);
         }
 
-        const userTenantCreateResponse = yield* Effect.promise(() =>
+        const userTenantCreateResponse = yield* dbEffect((database) =>
           database
             .insert(usersToTenants)
             .values({
@@ -4414,8 +4429,8 @@ export const appRpcHandlers = AppRpcs.toLayer(
         }
 
         if (defaultUserRoles.length > 0) {
-          yield* Effect.promise(() =>
-            database.insert(rolesToTenantUsers).values(
+          yield* dbEffect((database) =>
+          database.insert(rolesToTenantUsers).values(
               defaultUserRoles.map((role) => ({
                 roleId: role.id,
                 userTenantId: createdUserTenant.id,
@@ -4433,7 +4448,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
         );
         const user = yield* requireUserHeader(options.headers);
 
-        const registrations = yield* Effect.promise(() =>
+        const registrations = yield* dbEffect((database) =>
           database
             .select({
               eventId: eventRegistrations.eventId,
@@ -4446,7 +4461,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
           return [];
         }
 
-        const events = yield* Effect.promise(() =>
+        const events = yield* dbEffect((database) =>
           database
             .select({
               description: eventInstances.description,
@@ -4476,7 +4491,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
           Tenant,
         );
 
-        const usersCountResult = yield* Effect.promise(() =>
+        const usersCountResult = yield* dbEffect((database) =>
           database
             .select({ count: count() })
             .from(users)
@@ -4494,7 +4509,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
         );
         const usersCount = usersCountResult[0]?.count ?? 0;
 
-        const selectedUsers = yield* Effect.promise(() =>
+        const selectedUsers = yield* dbEffect((database) =>
           database
             .select({
               email: users.email,
@@ -4557,7 +4572,7 @@ export const appRpcHandlers = AppRpcs.toLayer(
         yield* ensureAuthenticated(options.headers);
         const user = yield* requireUserHeader(options.headers);
 
-        yield* Effect.promise(() =>
+        yield* dbEffect((database) =>
           database
             .update(users)
             .set({

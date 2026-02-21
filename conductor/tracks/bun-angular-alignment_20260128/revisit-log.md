@@ -18,6 +18,10 @@ This file tracks migration items that need another pass before final closure.
 
 ## Recently Closed
 
+- 2026-02-21: removed legacy one-off migration stack from the active Bun/Effect codebase:
+  - deleted `migration/**` and `old/**` sources that depended on deprecated Neon-serverless-era data import flow.
+  - removed obsolete `db:migrate` package script and `drizzle.config.old.ts`.
+  - updated root command guidance in `AGENTS.md` to reflect supported DB workflows (`db:push`, `db:setup`, `db:reset`).
 - 2026-02-21: consolidated RPC execution into the main server Effect runtime:
   - removed standalone `RpcServer.toWebHandler(...)` runtime path for `/rpc`.
   - introduced scoped `appRpcHttpAppLayer` (`RpcServer.toHttpApp(AppRpcs)`) and execute RPC requests via `handleAppRpcHttpRequest(...)` inside the existing router runtime.

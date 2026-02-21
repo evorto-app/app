@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { Effect } from 'effect';
 
-import { database } from '../../db';
+import { Database, type DatabaseClient } from '../../db';
 import * as schema from '../../db/schema';
 import { getStripeWebhookEnvironment } from '../config/environment';
 import { stripe } from '../stripe-client';
@@ -9,12 +9,16 @@ import { stripe } from '../stripe-client';
 const { STRIPE_WEBHOOK_SECRET: endpointSecret } = getStripeWebhookEnvironment();
 const MAX_WEBHOOK_SIZE_BYTES = 200 * 1024;
 
+const dbEffect = <A, E>(
+  operation: (database: DatabaseClient) => Effect.Effect<A, E, never>,
+) => Effect.flatMap(Database, operation);
+
 const responseText = (body: string, status = 200): Response =>
   new Response(body, { status });
 
 export const handleStripeWebhookWebRequest = (
   request: Request,
-): Effect.Effect<Response, unknown> =>
+) =>
   Effect.gen(function* () {
     const signature = request.headers.get('stripe-signature');
     if (!signature) {
@@ -62,7 +66,7 @@ export const handleStripeWebhookWebRequest = (
       case 'charge.updated': {
         const eventCharge = event.data.object;
 
-        const appTransaction = yield* Effect.promise(() =>
+        const appTransaction = yield* dbEffect((database) =>
           database.query.transactions.findFirst({
             where: { stripeChargeId: eventCharge.id },
           }),
@@ -71,13 +75,13 @@ export const handleStripeWebhookWebRequest = (
           return responseText('Transaction not found', 400);
         }
 
-        const stripeAccount = yield* Effect.promise(() =>
+        const stripeAccount = yield* dbEffect((database) =>
           database.query.tenants
             .findFirst({
               columns: { stripeAccountId: true },
               where: { id: appTransaction.tenantId },
             })
-            .then((tenant) => tenant?.stripeAccountId),
+            .pipe(Effect.map((tenant) => tenant?.stripeAccountId)),
         );
 
         if (!stripeAccount) {
@@ -109,7 +113,7 @@ export const handleStripeWebhookWebRequest = (
           )?.amount ?? 0;
         const netValue = balanceTransaction.net;
 
-        yield* Effect.promise(() =>
+        yield* dbEffect((database) =>
           database
             .update(schema.transactions)
             .set({
@@ -131,13 +135,13 @@ export const handleStripeWebhookWebRequest = (
           return responseText('Missing metadata', 400);
         }
 
-        const stripeAccount = yield* Effect.promise(() =>
+        const stripeAccount = yield* dbEffect((database) =>
           database.query.tenants
             .findFirst({
               columns: { stripeAccountId: true },
               where: { id: tenantId },
             })
-            .then((tenant) => tenant?.stripeAccountId),
+            .pipe(Effect.map((tenant) => tenant?.stripeAccountId)),
         );
 
         if (!stripeAccount) {
@@ -172,21 +176,23 @@ export const handleStripeWebhookWebRequest = (
             ? session.payment_intent.latest_charge
             : undefined;
 
-        yield* Effect.promise(() =>
-          database.transaction(async (tx) => {
-            await tx
-              .update(schema.transactions)
-              .set({
-                status: 'successful',
-                stripeChargeId,
-                stripePaymentIntentId,
-              })
-              .where(eq(schema.transactions.id, transactionId));
-            await tx
-              .update(schema.eventRegistrations)
-              .set({ status: 'CONFIRMED' })
-              .where(eq(schema.eventRegistrations.id, registrationId));
-          }),
+        yield* dbEffect((database) =>
+          database.transaction((tx) =>
+            Effect.gen(function* () {
+              yield* tx
+                .update(schema.transactions)
+                .set({
+                  status: 'successful',
+                  stripeChargeId,
+                  stripePaymentIntentId,
+                })
+                .where(eq(schema.transactions.id, transactionId));
+              yield* tx
+                .update(schema.eventRegistrations)
+                .set({ status: 'CONFIRMED' })
+                .where(eq(schema.eventRegistrations.id, registrationId));
+            }),
+          ),
         );
 
         return responseText('Success');
@@ -200,13 +206,13 @@ export const handleStripeWebhookWebRequest = (
           return responseText('Missing metadata', 400);
         }
 
-        const stripeAccount = yield* Effect.promise(() =>
+        const stripeAccount = yield* dbEffect((database) =>
           database.query.tenants
             .findFirst({
               columns: { stripeAccountId: true },
               where: { id: tenantId },
             })
-            .then((tenant) => tenant?.stripeAccountId),
+            .pipe(Effect.map((tenant) => tenant?.stripeAccountId)),
         );
 
         if (!stripeAccount) {
@@ -229,17 +235,19 @@ export const handleStripeWebhookWebRequest = (
           return responseText('Session not expired, skipping');
         }
 
-        yield* Effect.promise(() =>
-          database.transaction(async (tx) => {
-            await tx
-              .update(schema.transactions)
-              .set({ status: 'cancelled' })
-              .where(eq(schema.transactions.id, transactionId));
-            await tx
-              .update(schema.eventRegistrations)
-              .set({ status: 'CANCELLED' })
-              .where(eq(schema.eventRegistrations.id, registrationId));
-          }),
+        yield* dbEffect((database) =>
+          database.transaction((tx) =>
+            Effect.gen(function* () {
+              yield* tx
+                .update(schema.transactions)
+                .set({ status: 'cancelled' })
+                .where(eq(schema.transactions.id, transactionId));
+              yield* tx
+                .update(schema.eventRegistrations)
+                .set({ status: 'CANCELLED' })
+                .where(eq(schema.eventRegistrations.id, registrationId));
+            }),
+          ),
         );
 
         return responseText('Success');

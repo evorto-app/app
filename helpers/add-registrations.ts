@@ -17,7 +17,7 @@ import consola from 'consola';
  * 9. Handles various registration and payment statuses for comprehensive testing scenarios
  */
 import { InferInsertModel, SQL, inArray, sql } from 'drizzle-orm';
-import { NeonDatabase } from 'drizzle-orm/neon-serverless';
+import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 import { relations } from '../src/db/relations';
 import * as schema from '../src/db/schema';
@@ -58,7 +58,7 @@ export interface EventRegistrationInput {
  * @returns The created registrations
  */
 export async function addRegistrations(
-  database: NeonDatabase<Record<string, never>, typeof relations>,
+  database: NodePgDatabase<Record<string, never>, typeof relations>,
   events: EventRegistrationInput[],
   seedDate?: Date,
 ) {

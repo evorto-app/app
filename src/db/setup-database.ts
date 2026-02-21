@@ -1,6 +1,6 @@
 import consola from 'consola';
 import { InferInsertModel } from 'drizzle-orm';
-import { NeonDatabase } from 'drizzle-orm/neon-serverless';
+import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { reset } from 'drizzle-seed';
 
 import type { SeedTenantOptions } from '../../helpers/seed-tenant';
@@ -12,16 +12,13 @@ import { database as databaseClient } from './database-client';
 import { relations } from './relations';
 import * as schema from './schema';
 
-export type Database = NeonDatabase<Record<string, never>, typeof relations>;
+export type Database = NodePgDatabase<Record<string, never>, typeof relations>;
 
 export async function setupDatabase(
-  database: NeonDatabase<
+  database: NodePgDatabase<
     Record<string, never>,
     typeof relations
-  > = databaseClient as unknown as NeonDatabase<
-    Record<string, never>,
-    typeof relations
-  >,
+  > = databaseClient,
   onlyDevelopmentTenants = false,
 ) {
   const seedDate = getSeedDate();

@@ -31,7 +31,7 @@ Module-local guidance lives in:
 - `bun run lint:fix` / `bun run lint:check` — lint with autofix and verification.
 - `bun run format:write` — format with Prettier.
 - `bun run docker:start` / `bun run docker:stop` — start/stop local services.
-- Database: `bun run db:migrate`, `bun run db:push`, `bun run db:setup`, `bun run db:reset`.
+- Database: `bun run db:push`, `bun run db:setup`, `bun run db:reset`.
 
 ## Type Safety (Always Full Types)
 

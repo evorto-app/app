@@ -2,14 +2,13 @@ import { randFirstName, randLastName } from '@ngneat/falso';
 import { init } from '@paralleldrive/cuid2';
 import { test as base } from '@playwright/test';
 import { ManagementClient } from 'auth0';
-import { drizzle, NeonDatabase } from 'drizzle-orm/neon-serverless';
+import { drizzle, NodePgDatabase } from 'drizzle-orm/node-postgres';
 import fs from 'node:fs';
 import path from 'node:path';
-import ws from 'ws';
+import { Pool } from 'pg';
 
 import { getSeedDate } from '../../../helpers/seed-clock';
 import { seedFalsoForScope } from '../../../helpers/seed-falso';
-import { configureNeonLocalProxy } from '../../../src/db/configure-neon-local';
 import { relations } from '../../../src/db/relations';
 import {
   getAuth0ManagementEnvironment,
@@ -20,26 +19,9 @@ const dedupeLength = 4;
 const createDedupeId = init({ length: dedupeLength });
 const environment = validatePlaywrightEnvironment();
 const databaseUrl = environment.DATABASE_URL;
-configureNeonLocalProxy(databaseUrl);
-const isBunRuntime = (globalThis as { Bun?: unknown }).Bun !== undefined;
-const useNeonLocalProxy = (() => {
-  if (process.env['NEON_LOCAL_PROXY'] === 'true') {
-    return true;
-  }
-
-  try {
-    const hostname = new URL(databaseUrl).hostname;
-    return (
-      hostname === 'localhost' || hostname === '127.0.0.1' || hostname === 'db'
-    );
-  } catch {
-    return false;
-  }
-})();
-const shouldProvideWebSocket = !isBunRuntime && !useNeonLocalProxy;
 
 interface BaseFixtures {
-  database: NeonDatabase<Record<string, never>, typeof relations>;
+  database: NodePgDatabase<Record<string, never>, typeof relations>;
   falsoSeed: string;
   newUser: {
     email: string;
@@ -53,12 +35,18 @@ interface BaseFixtures {
 
 export const test = base.extend<BaseFixtures>({
   database: async ({}, use) => {
-    const database = drizzle({
-      connection: databaseUrl,
-      relations,
-      ...(shouldProvideWebSocket ? { ws: ws } : {}),
+    const pool = new Pool({
+      connectionString: databaseUrl,
     });
-    await use(database);
+    const database = drizzle({
+      client: pool,
+      relations,
+    });
+    try {
+      await use(database);
+    } finally {
+      await pool.end();
+    }
   },
   falsoSeed: [
     async ({ seedDate }, use, testInfo) => {

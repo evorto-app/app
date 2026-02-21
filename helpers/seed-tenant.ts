@@ -1,7 +1,7 @@
 import { randEmail, randFirstName, randLastName } from '@ngneat/falso';
 import consola from 'consola';
 import type { InferInsertModel } from 'drizzle-orm';
-import type { NeonDatabase } from 'drizzle-orm/neon-serverless';
+import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 import { relations } from '../src/db/relations';
 import * as schema from '../src/db/schema';
@@ -75,7 +75,7 @@ export interface SeedTenantResult {
 }
 
 export const seedBaseUsers = async (
-  database: NeonDatabase<Record<string, never>, typeof relations>,
+  database: NodePgDatabase<Record<string, never>, typeof relations>,
 ) => {
   const values = usersToAuthenticate
     .filter((data) => data.addToDb)
@@ -98,7 +98,7 @@ export const seedBaseUsers = async (
 };
 
 export async function seedTenant(
-  database: NeonDatabase<Record<string, never>, typeof relations>,
+  database: NodePgDatabase<Record<string, never>, typeof relations>,
   {
     domain,
     ensureUsers = false,
