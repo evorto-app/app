@@ -9,13 +9,24 @@ import { databaseLayer } from '../../../db';
 import { AppRpcs } from '../../../shared/rpc-contracts/app-rpcs';
 import { serverLoggerLayer } from '../server-logger.layer';
 import { appRpcHandlers } from './app-rpcs.handlers';
+import { EventRegistrationService } from './handlers/domains/events/event-registration.service';
+import { ReceiptMediaService } from './handlers/domains/finance/receipt-media.service';
+import { SimpleTemplateService } from './handlers/domains/templates/simple-template.service';
 
 class AppRpcHttpApp extends Context.Tag(
   '@server/effect/rpc/AppRpcHttpApp',
 )<AppRpcHttpApp, HttpApp.Default<never, Scope.Scope>>() {}
 
 const appRpcDependenciesLayer = Layer.mergeAll(
-  appRpcHandlers,
+  EventRegistrationService.Default,
+  ReceiptMediaService.Default,
+  SimpleTemplateService.Default,
+);
+const appRpcHandlersLayer = appRpcHandlers.pipe(
+  Layer.provide(appRpcDependenciesLayer),
+);
+const appRpcRuntimeLayer = Layer.mergeAll(
+  appRpcHandlersLayer,
   RpcSerialization.layerJson,
   serverLoggerLayer,
 );
@@ -23,7 +34,7 @@ const appRpcDependenciesLayer = Layer.mergeAll(
 export const appRpcHttpAppLayer = Layer.scoped(
   AppRpcHttpApp,
   RpcServer.toHttpApp(AppRpcs).pipe(
-    Effect.provide(appRpcDependenciesLayer),
+    Effect.provide(appRpcRuntimeLayer),
     Effect.provide(databaseLayer),
   ),
 );

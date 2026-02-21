@@ -1,0 +1,12 @@
+export { adminHandlers } from './domains/admin.handlers';
+export { configHandlers } from './domains/config.handlers';
+export { discountHandlers } from './domains/discounts.handlers';
+export { editorMediaHandlers } from './domains/editor-media.handlers';
+export { eventHandlers } from './domains/events.handlers';
+export { financeHandlers } from './domains/finance.handlers';
+export { globalAdminHandlers } from './domains/global-admin.handlers';
+export { iconHandlers } from './domains/icons.handlers';
+export { taxRateHandlers } from './domains/tax-rates.handlers';
+export { templateCategoryHandlers } from './domains/template-categories.handlers';
+export { templateHandlers } from './domains/templates.handlers';
+export { userHandlers } from './domains/users.handlers';
