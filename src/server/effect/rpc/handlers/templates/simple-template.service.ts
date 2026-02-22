@@ -52,6 +52,8 @@ type CreateSimpleTemplateInput = Parameters<
   AppRpcHandlers['templates.createSimpleTemplate']
 >[0];
 type EventTemplateInsert = typeof eventTemplates.$inferInsert;
+type SimpleTemplateRegistrationInput =
+  CreateSimpleTemplateInput['organizerRegistration'];
 type SimpleTemplateValidationInput = Pick<
   CreateSimpleTemplateInput,
   'description' | 'organizerRegistration' | 'participantRegistration'
@@ -61,6 +63,61 @@ type TemplateRegistrationOptionInsert =
 type UpdateSimpleTemplateInput = Parameters<
   AppRpcHandlers['templates.updateSimpleTemplate']
 >[0];
+
+const buildTemplateInsertValues = ({
+  input,
+  sanitizedDescription,
+  tenantId,
+}: {
+  input: CreateSimpleTemplateInput;
+  sanitizedDescription: string;
+  tenantId: string;
+}): EventTemplateInsert => {
+  const templateInsertCore = Schema.decodeUnknownSync(EventTemplateInsertCoreSchema)({
+    categoryId: input.categoryId,
+    description: sanitizedDescription,
+    simpleModeEnabled: true,
+    tenantId,
+    title: input.title,
+  });
+
+  return {
+    ...templateInsertCore,
+    icon: input.icon,
+    location: input.location,
+  };
+};
+
+const buildRegistrationOptionInsert = ({
+  input,
+  organizingRegistration,
+  templateId,
+}: {
+  input: SimpleTemplateRegistrationInput;
+  organizingRegistration: boolean;
+  templateId: string;
+}): TemplateRegistrationOptionInsert => {
+  const insertCore = Schema.decodeUnknownSync(TemplateRegistrationOptionInsertSchema)({
+    closeRegistrationOffset: input.closeRegistrationOffset,
+    isPaid: input.isPaid,
+    openRegistrationOffset: input.openRegistrationOffset,
+    organizingRegistration,
+    price: input.price,
+    registrationMode: input.registrationMode,
+    roleIds: input.roleIds,
+    spots: input.spots,
+    stripeTaxRateId: input.stripeTaxRateId ?? null,
+    templateId,
+    title: organizingRegistration
+      ? 'Organizer registration'
+      : 'Participant registration',
+  });
+
+  return {
+    ...insertCore,
+    roleIds: [...(insertCore.roleIds ?? [])],
+  };
+};
 
 export class SimpleTemplateService extends Effect.Service<SimpleTemplateService>()(
   '@server/effect/rpc/handlers/templates/SimpleTemplateService',
@@ -77,6 +134,40 @@ export class SimpleTemplateService extends Effect.Service<SimpleTemplateService>
           input: SimpleTemplateValidationInput;
           tenantId: string;
         }) {
+          const validateRegistrationTaxRate = Effect.fn(
+            'SimpleTemplateService.validateSimpleTemplateInput.validateRegistrationTaxRate',
+          )(
+            function* ({
+              kind,
+              registration,
+            }: {
+              kind: 'organizer' | 'participant';
+              registration: SimpleTemplateRegistrationInput;
+            }) {
+              const validation = yield* databaseEffect((database) =>
+                validateTaxRate(database, {
+                  isPaid: registration.isPaid,
+                  stripeTaxRateId: registration.stripeTaxRateId ?? null,
+                  tenantId,
+                }),
+              );
+              if (validation.success) {
+                return;
+              }
+
+              yield* Effect.logError(`${kind} registration tax rate validation failed`).pipe(
+                Effect.annotateLogs({
+                  error: validation.error,
+                }),
+              );
+              return yield* Effect.fail(
+                new TemplateSimpleBadRequestError({
+                  message: `${kind} registration tax rate validation failed`,
+                }),
+              );
+            },
+          );
+
           const sanitizedDescription = sanitizeRichTextHtml(input.description);
           if (!isMeaningfulRichTextHtml(sanitizedDescription)) {
             return yield* Effect.fail(
@@ -86,46 +177,14 @@ export class SimpleTemplateService extends Effect.Service<SimpleTemplateService>
             );
           }
 
-          const organizerValidation = yield* databaseEffect((database) =>
-            validateTaxRate(database, {
-              isPaid: input.organizerRegistration.isPaid,
-              stripeTaxRateId: input.organizerRegistration.stripeTaxRateId ?? null,
-              tenantId,
-            }),
-          );
-          if (!organizerValidation.success) {
-            yield* Effect.logError('Organizer registration tax rate validation failed').pipe(
-              Effect.annotateLogs({
-                error: organizerValidation.error,
-              }),
-            );
-            return yield* Effect.fail(
-              new TemplateSimpleBadRequestError({
-                message: 'Organizer registration tax rate validation failed',
-              }),
-            );
-          }
-
-          const participantValidation = yield* databaseEffect((database) =>
-            validateTaxRate(database, {
-              isPaid: input.participantRegistration.isPaid,
-              stripeTaxRateId:
-                input.participantRegistration.stripeTaxRateId ?? null,
-              tenantId,
-            }),
-          );
-          if (!participantValidation.success) {
-            yield* Effect.logError('Participant registration tax rate validation failed').pipe(
-              Effect.annotateLogs({
-                error: participantValidation.error,
-              }),
-            );
-            return yield* Effect.fail(
-              new TemplateSimpleBadRequestError({
-                message: 'Participant registration tax rate validation failed',
-              }),
-            );
-          }
+          yield* validateRegistrationTaxRate({
+            kind: 'organizer',
+            registration: input.organizerRegistration,
+          });
+          yield* validateRegistrationTaxRate({
+            kind: 'participant',
+            registration: input.participantRegistration,
+          });
 
           return { sanitizedDescription };
         },
@@ -145,20 +204,11 @@ export class SimpleTemplateService extends Effect.Service<SimpleTemplateService>
             input,
             tenantId,
           });
-          const templateInsertCore = Schema.decodeUnknownSync(
-            EventTemplateInsertCoreSchema,
-          )({
-            categoryId: input.categoryId,
-            description: sanitizedDescription,
-            simpleModeEnabled: true,
+          const templateInsertValues = buildTemplateInsertValues({
+            input,
+            sanitizedDescription,
             tenantId,
-            title: input.title,
           });
-          const templateInsertValues: EventTemplateInsert = {
-            ...templateInsertCore,
-            icon: input.icon,
-            location: input.location,
-          };
 
           const templateResponse = yield* databaseEffect((database) =>
             database
@@ -177,48 +227,16 @@ export class SimpleTemplateService extends Effect.Service<SimpleTemplateService>
               }),
             );
           }
-          const organizerRegistrationInsertCore = Schema.decodeUnknownSync(
-            TemplateRegistrationOptionInsertSchema,
-          )({
-            closeRegistrationOffset:
-              input.organizerRegistration.closeRegistrationOffset,
-            isPaid: input.organizerRegistration.isPaid,
-            openRegistrationOffset:
-              input.organizerRegistration.openRegistrationOffset,
+          const organizerRegistrationInsert = buildRegistrationOptionInsert({
+            input: input.organizerRegistration,
             organizingRegistration: true,
-            price: input.organizerRegistration.price,
-            registrationMode: input.organizerRegistration.registrationMode,
-            roleIds: input.organizerRegistration.roleIds,
-            spots: input.organizerRegistration.spots,
-            stripeTaxRateId: input.organizerRegistration.stripeTaxRateId ?? null,
             templateId: template.id,
-            title: 'Organizer registration',
           });
-          const participantRegistrationInsertCore = Schema.decodeUnknownSync(
-            TemplateRegistrationOptionInsertSchema,
-          )({
-            closeRegistrationOffset:
-              input.participantRegistration.closeRegistrationOffset,
-            isPaid: input.participantRegistration.isPaid,
-            openRegistrationOffset:
-              input.participantRegistration.openRegistrationOffset,
+          const participantRegistrationInsert = buildRegistrationOptionInsert({
+            input: input.participantRegistration,
             organizingRegistration: false,
-            price: input.participantRegistration.price,
-            registrationMode: input.participantRegistration.registrationMode,
-            roleIds: input.participantRegistration.roleIds,
-            spots: input.participantRegistration.spots,
-            stripeTaxRateId: input.participantRegistration.stripeTaxRateId ?? null,
             templateId: template.id,
-            title: 'Participant registration',
           });
-          const organizerRegistrationInsert: TemplateRegistrationOptionInsert = {
-            ...organizerRegistrationInsertCore,
-            roleIds: [...(organizerRegistrationInsertCore.roleIds ?? [])],
-          };
-          const participantRegistrationInsert: TemplateRegistrationOptionInsert = {
-            ...participantRegistrationInsertCore,
-            roleIds: [...(participantRegistrationInsertCore.roleIds ?? [])],
-          };
           const registrationOptionInserts: TemplateRegistrationOptionInsert[] = [
             organizerRegistrationInsert,
             participantRegistrationInsert,

@@ -33,7 +33,6 @@
     "docker:start:dev": "docker compose --env-file .env --env-file .env.development down && docker compose --env-file .env --env-file .env.development up --build -w",
     "docker:start:test": "docker compose --env-file .env --env-file .env.development down && docker compose --env-file .env --env-file .env.development up --build",
     "db:migrate": "bun migration/index.ts",
-    "ops:check:tiptap-license": "bun helpers/check-tiptap-license.mjs",
     "test:cleanup:receipt-images": "bun helpers/cleanup-testing-receipt-images.ts",
     "test:cleanup:receipt-images:dry-run": "bun helpers/cleanup-testing-receipt-images.ts --dry-run"
   },

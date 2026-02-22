@@ -1,5 +1,3 @@
-import crypto from 'node:crypto';
-import fs from 'node:fs';
 import path from 'node:path';
 
 const DEFAULT_APP_HOST_PORT = 4_200;
@@ -19,7 +17,7 @@ const deriveSeed = (): string => {
 };
 
 const seed = deriveSeed();
-const digest = crypto.createHash('sha256').update(seed).digest();
+const digest = new Bun.CryptoHasher('sha256').update(seed).digest('hex');
 
 const parsePort = (value: string | undefined): number | undefined => {
   const parsed = Number.parseInt(value ?? '', 10);
@@ -49,7 +47,7 @@ const sanitizeProjectName = (value: string): string =>
 const defaultProjectName = (): string => {
   const basename = path.basename(process.cwd());
   const safeBasename = sanitizeProjectName(basename || 'evorto');
-  const suffix = digest.toString('hex').slice(0, 8);
+  const suffix = digest.slice(0, 8);
   return `${safeBasename}-${suffix}`;
 };
 
@@ -75,5 +73,5 @@ const outputLines = [
   '',
 ];
 
-fs.writeFileSync(OUTPUT_FILE_PATH, outputLines.join('\n'), 'utf8');
+await Bun.write(OUTPUT_FILE_PATH, outputLines.join('\n'));
 process.stdout.write(`Wrote ${OUTPUT_FILE_PATH}\n`);

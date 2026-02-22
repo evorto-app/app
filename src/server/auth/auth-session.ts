@@ -50,6 +50,10 @@ interface LoginAppState {
   redirectUrl: string;
 }
 
+// Auth0's server SDK manages encrypted session and transaction cookies via
+// pluggable stores. We bridge those mutations back into Effect Platform
+// responses so the rest of the server stays framework-agnostic.
+// Reference: https://github.com/auth0/auth0-auth-js/tree/main/packages/auth0-server-js
 const getHeaderValue = (
   headers: Headers.Headers,
   key: string,
@@ -200,6 +204,10 @@ const applyCookieMutations = (
 const runPromiseOrUndefined = <T>(
   thunk: () => Promise<T>,
 ): Effect.Effect<T | undefined> =>
+  // Auth0 SDK methods throw for several expected browser/session edge cases
+  // (expired transaction cookies, missing callback state, etc.). At this
+  // boundary we collapse those into undefined and return deterministic HTTP
+  // responses in each handler below.
   Effect.promise(() =>
     thunk().catch(() => undefined as T | undefined),
   );
@@ -227,6 +235,7 @@ const createAuth0Client = (
     clientId: oidcEnvironment.CLIENT_ID,
     clientSecret: oidcEnvironment.CLIENT_SECRET,
     domain: auth0Domain,
+    // StatelessStateStore keeps session state in encrypted cookies.
     stateStore: new StatelessStateStore<AuthStoreOptions>(
       {
         cookie: {
@@ -240,6 +249,7 @@ const createAuth0Client = (
       },
       cookieHandler,
     ),
+    // CookieTransactionStore tracks in-flight OIDC login transactions.
     transactionStore: new CookieTransactionStore<AuthStoreOptions>(
       {
         secret: oidcEnvironment.SECRET,

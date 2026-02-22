@@ -10,7 +10,9 @@ import {
 import { type Authentication } from '../../types/custom/authentication';
 import { Tenant } from '../../types/custom/tenant';
 
-const normalizePermission = (permission: Permission): Permission[] => {
+// Keep backward-compatible permission aliases while migrating toward a single
+// canonical set. This avoids breaking handlers that still check the old value.
+const expandPermissionAliases = (permission: Permission): Permission[] => {
   if (permission === 'admin:manageTaxes') {
     return ['admin:manageTaxes', 'admin:tax'];
   }
@@ -29,15 +31,9 @@ const asRecord = (value: unknown): Record<string, unknown> | undefined =>
 const resolveHostHeader = (
   input: readonly string[] | string | undefined,
 ): string | undefined => {
-  if (typeof input === 'string') {
-    return input;
-  }
-
-  if (Array.isArray(input)) {
-    return input[0];
-  }
-
-  return undefined;
+  if (typeof input === 'string') return input;
+  if (Array.isArray(input)) return input[0];
+  return;
 };
 
 const databaseEffect = <A, E>(
@@ -59,6 +55,12 @@ export const resolveTenantContext = (input: {
   signedCookies: Record<string, unknown> | undefined;
 }) =>
   Effect.gen(function* () {
+    // Resolution order:
+    // 1) signed cookie
+    // 2) plain cookie
+    // 3) request host header
+    // This keeps local/dev tenant switching deterministic while still allowing
+    // host-based tenant resolution in production.
     const cause = { domain: '', tenantCookie: '' };
     const tenantCookie =
       asString(input.signedCookies?.['evorto-tenant']) ??
@@ -121,6 +123,8 @@ export const resolveUserContext = (input: {
     const appMetadata = asRecord(oidcUser?.['evorto.app/app_metadata']);
     const permissions: Permission[] =
       appMetadata?.['globalAdmin'] === true
+        // Global admins bypass tenant role scoping but still include role-based
+        // permissions for parity with existing permission checks.
         ? [...ALL_PERMISSIONS, 'globalAdmin:manageTenants']
         : user.tenantAssignments
             .flatMap((assignment) => assignment.roles)
@@ -152,7 +156,7 @@ export const resolveUserContext = (input: {
       ...user,
       attributes,
       permissions: uniq(
-        permissions.flatMap((permission) => normalizePermission(permission)),
+        permissions.flatMap((permission) => expandPermissionAliases(permission)),
       ),
       roleIds,
     };

@@ -26,6 +26,8 @@ import {
 const databaseEffect = <A>(
   operation: (database: DatabaseClient) => Effect.Effect<A, unknown, never>,
 ): Effect.Effect<A, never, Database> =>
+  // Registration write flows should fail fast on unexpected DB errors so
+  // callers get deterministic domain errors instead of partial success.
   Database.pipe(Effect.flatMap((database) => operation(database).pipe(Effect.orDie)));
 
 type DiscountCardRecord = Pick<
@@ -46,6 +48,13 @@ type RegistrationOptionDiscountRecord = Pick<
   typeof eventRegistrationOptionDiscounts.$inferSelect,
   'discountedPrice' | 'discountType'
 >;
+
+const noDiscountResolution = (basePrice: number): DiscountResolution => ({
+  appliedDiscountedPrice: null,
+  appliedDiscountType: null,
+  discountAmount: null,
+  effectivePrice: basePrice,
+});
 
 const resolveRequestOrigin = (headers: Headers.Headers): string | undefined => {
   const forwardedProtocol = headers['x-forwarded-proto']?.split(',')[0]?.trim();
@@ -329,12 +338,8 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
 
           // Phase 3: resolve the effective price (including discount provider/card logic).
           const basePrice = registrationOption.price;
-          let discountResolution: DiscountResolution = {
-            appliedDiscountedPrice: null,
-            appliedDiscountType: null,
-            discountAmount: null,
-            effectivePrice: basePrice,
-          };
+          let discountResolution: DiscountResolution =
+            noDiscountResolution(basePrice);
 
           const cards = yield* databaseEffect((database) =>
             database.query.userDiscountCards.findMany({
@@ -505,6 +510,8 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
         });
 
         return yield* paymentFlow.pipe(
+          // Any failure after reservation must rollback reservation + inserted
+          // registration so callers never observe a half-created paid flow.
           Effect.catchAllCause(() =>
             rollbackOnFailure().pipe(
               Effect.orDie,

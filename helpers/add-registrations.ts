@@ -16,7 +16,7 @@ import consola from 'consola';
  * 8. For paid registrations, creates associated transactions as if Stripe webhooks fired
  * 9. Handles various registration and payment statuses for comprehensive testing scenarios
  */
-import { InferInsertModel, SQL, inArray, sql } from 'drizzle-orm';
+import { InferInsertModel, eq } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 import { relations } from '../src/db/relations';
@@ -396,43 +396,17 @@ export async function addRegistrations(
       await database.insert(schema.transactions).values(transactions);
     }
 
-    // Multi-row UPDATE using CASE expressions in a single request
-    const updatesArray = Array.from(optionUpdates.entries());
-    if (updatesArray.length > 0) {
-      const ids: string[] = [];
-      const checkedSqlChunks: SQL[] = [];
-      const confirmedSqlChunks: SQL[] = [];
-      const waitlistSqlChunks: SQL[] = [];
-      checkedSqlChunks.push(sql`(case`);
-      confirmedSqlChunks.push(sql`(case`);
-      waitlistSqlChunks.push(sql`(case`);
-      for (const [id, c] of updatesArray) {
-        checkedSqlChunks.push(
-          sql`when ${schema.eventRegistrationOptions.id} = ${id} then cast(${c.checkedInSpots} as integer)`,
-        );
-        confirmedSqlChunks.push(
-          sql`when ${schema.eventRegistrationOptions.id} = ${id} then cast(${c.confirmedSpots} as integer)`,
-        );
-        waitlistSqlChunks.push(
-          sql`when ${schema.eventRegistrationOptions.id} = ${id} then cast(${c.waitlistSpots} as integer)`,
-        );
-        ids.push(id);
+    if (optionUpdates.size > 0) {
+      for (const [id, counts] of optionUpdates) {
+        await database
+          .update(schema.eventRegistrationOptions)
+          .set({
+            checkedInSpots: counts.checkedInSpots,
+            confirmedSpots: counts.confirmedSpots,
+            waitlistSpots: counts.waitlistSpots,
+          })
+          .where(eq(schema.eventRegistrationOptions.id, id));
       }
-      checkedSqlChunks.push(sql`end)`);
-      confirmedSqlChunks.push(sql`end)`);
-      waitlistSqlChunks.push(sql`end)`);
-      const checkedFinal: SQL = sql.join(checkedSqlChunks, sql.raw(' '));
-      const confirmedFinal: SQL = sql.join(confirmedSqlChunks, sql.raw(' '));
-      const waitlistFinal: SQL = sql.join(waitlistSqlChunks, sql.raw(' '));
-
-      await database
-        .update(schema.eventRegistrationOptions)
-        .set({
-          checkedInSpots: checkedFinal,
-          confirmedSpots: confirmedFinal,
-          waitlistSpots: waitlistFinal,
-        })
-        .where(inArray(schema.eventRegistrationOptions.id, ids));
     }
   } catch (error) {
     consola.error('Failed to create registrations:', error);

@@ -26,12 +26,11 @@ const buildRpcUser = (context: RequestContext) => {
   };
 };
 
-export const toRpcHttpServerRequest = (
+const withRpcContextHeaders = (
   request: Request,
   context: RequestContext,
   authData: Record<string, unknown>,
-) =>
-  Effect.gen(function* () {
+): Headers => {
   const headers = new Headers(request.headers);
   const user = buildRpcUser(context);
 
@@ -43,35 +42,48 @@ export const toRpcHttpServerRequest = (
     RPC_CONTEXT_HEADERS.PERMISSIONS,
     encodeRpcContextHeaderJson(user?.permissions ?? []),
   );
-  headers.set(
-    RPC_CONTEXT_HEADERS.USER,
-    encodeRpcContextHeaderJson(user ?? null),
-  );
+  headers.set(RPC_CONTEXT_HEADERS.USER, encodeRpcContextHeaderJson(user ?? null));
   headers.set(RPC_CONTEXT_HEADERS.USER_ASSIGNED, user ? 'true' : 'false');
-  headers.set(
-    RPC_CONTEXT_HEADERS.AUTH_DATA,
-    encodeRpcContextHeaderJson(authData),
-  );
+  headers.set(RPC_CONTEXT_HEADERS.AUTH_DATA, encodeRpcContextHeaderJson(authData));
   headers.set(
     RPC_CONTEXT_HEADERS.TENANT,
     encodeRpcContextHeaderJson(context.tenant),
   );
 
-  if (request.method === 'GET' || request.method === 'HEAD') {
-    return HttpServerRequest.fromWeb(
-      new Request(request.url, {
-        headers,
-        method: request.method,
-      }),
-    );
+  return headers;
+};
+
+const toRequestWithHeaders = (
+  request: Request,
+  headers: Headers,
+  body?: BodyInit,
+): Request => {
+  const init: RequestInit = {
+    headers,
+    method: request.method,
+  };
+
+  if (body === undefined) {
+    return new Request(request.url, init);
   }
 
-  const body = yield* Effect.tryPromise(() => request.arrayBuffer());
-  return HttpServerRequest.fromWeb(
-    new Request(request.url, {
-      body,
-      headers,
-      method: request.method,
-    }),
-  );
-});
+  return new Request(request.url, { ...init, body });
+};
+
+export const toRpcHttpServerRequest = (
+  request: Request,
+  context: RequestContext,
+  authData: Record<string, unknown>,
+) =>
+  Effect.gen(function* () {
+    // RPC handlers consume request-context only from headers, so we bridge
+    // framework context values into deterministic RPC headers here.
+    const headers = withRpcContextHeaders(request, context, authData);
+    if (request.method === 'GET' || request.method === 'HEAD') {
+      return HttpServerRequest.fromWeb(toRequestWithHeaders(request, headers));
+    }
+
+    // Non-GET requests can only be read once; buffer before cloning.
+    const body = yield* Effect.tryPromise(() => request.arrayBuffer());
+    return HttpServerRequest.fromWeb(toRequestWithHeaders(request, headers, body));
+  });
