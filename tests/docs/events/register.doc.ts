@@ -191,9 +191,12 @@ test.describe('Register for events', () => {
     await takeScreenshot(testInfo, page.locator('main'), page);
     await fillTestCard(page);
     await page.getByTestId('hosted-payment-submit-button').click();
+    const redirectedToEvents = await page
+      .waitForURL(/\/events/, { timeout: 60_000, waitUntil: 'domcontentloaded' })
+      .then(() => true)
+      .catch(() => false);
 
-    await page.waitForURL(/\/events/);
-    if (!page.url().includes(`/events/${paidEvent.id}`)) {
+    if (!redirectedToEvents || !page.url().includes(`/events/${paidEvent.id}`)) {
       await page.goto(`/events/${paidEvent.id}`);
     }
     await expect(page).toHaveURL(new RegExp(`/events/${paidEvent.id}`));

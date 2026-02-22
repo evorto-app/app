@@ -41,11 +41,6 @@ import { handleHealthzWebRequest } from './server/http/healthz.web-handler';
 import { handleQrRegistrationCodeWebRequest } from './server/http/qr-code.web-handler';
 import { applySecurityHeaders } from './server/http/security-headers';
 import { handleStripeWebhookWebRequest } from './server/http/stripe-webhook.web-handler';
-import {
-  resolveWebhookRateLimitKey,
-  WebhookRateLimit,
-  webhookRateLimitLayer,
-} from './server/http/webhook-rate-limit';
 
 const angularApp = new AngularAppEngine();
 const browserDistributionUrl = new URL('../browser/', import.meta.url);
@@ -233,20 +228,6 @@ const stripeWebhookRouteLayer = HttpLayerRouter.add(
   '/webhooks/stripe',
   (request) =>
     Effect.gen(function* () {
-      const rateLimit = yield* WebhookRateLimit;
-      const rateLimitKey = resolveWebhookRateLimitKey(request);
-      const rateLimitResult = yield* rateLimit.consume(rateLimitKey);
-      if (!rateLimitResult.allowed) {
-        return HttpServerResponse.text('Too many requests', {
-          headers: {
-            'Retry-After': String(rateLimitResult.retryAfterSeconds),
-            'X-RateLimit-Limit': '60',
-            'X-RateLimit-Remaining': '0',
-          },
-          status: 429,
-        });
-      }
-
       const webRequest = yield* HttpServerRequest.toWeb(request);
       const webResponse = yield* handleStripeWebhookWebRequest(webRequest);
 
@@ -364,7 +345,6 @@ const handlerRuntimeLayer = Layer.mergeAll(
   Path.layer,
   keyValueStoreLayer,
   otelLayer,
-  webhookRateLimitLayer,
   serverLoggerLayer,
   appRpcHttpAppLayer,
 );
@@ -417,7 +397,6 @@ const serveEffect = Effect.gen(function* () {
         databaseLayer,
         keyValueStoreLayer,
         otelLayer,
-        webhookRateLimitLayer,
         serverLoggerLayer,
         appRpcHttpAppLayer,
       ),

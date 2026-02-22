@@ -9,7 +9,9 @@ const resolveDotenvFiles = (): string[] => {
   if (process.env['CI'] === 'true') {
     files.push('.env.ci');
   }
-  files.push('.env.development');
+  if (process.env['LOAD_ENV_DEVELOPMENT'] === 'true') {
+    files.push('.env.development');
+  }
 
   return files;
 };
