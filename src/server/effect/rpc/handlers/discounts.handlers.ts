@@ -11,24 +11,24 @@ import {
 } from 'drizzle-orm';
 import { Effect, Schema } from 'effect';
 
-import type { AppRpcHandlers } from '../shared/handler-types';
+import type { AppRpcHandlers } from './shared/handler-types';
 
-import { Database, type DatabaseClient } from '../../../../../db';
+import { Database, type DatabaseClient } from '../../../../db';
 import {
   userDiscountCards,
-} from '../../../../../db/schema';
-import { Tenant } from '../../../../../types/custom/tenant';
-import { User } from '../../../../../types/custom/user';
-import { normalizeEsnCardConfig } from '../../../../discounts/discount-provider-config';
+} from '../../../../db/schema';
+import { Tenant } from '../../../../types/custom/tenant';
+import { User } from '../../../../types/custom/user';
+import { normalizeEsnCardConfig } from '../../../discounts/discount-provider-config';
 import {
   Adapters,
   PROVIDERS,
   type ProviderType,
-} from '../../../../discounts/providers';
+} from '../../../discounts/providers';
 import {
   decodeRpcContextHeaderJson,
   RPC_CONTEXT_HEADERS,
-} from '../../rpc-context-headers';
+} from '../rpc-context-headers';
 
 const databaseEffect = <A>(
   operation: (database: DatabaseClient) => Effect.Effect<A, unknown, never>,

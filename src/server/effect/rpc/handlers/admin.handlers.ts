@@ -12,26 +12,26 @@ import {
 } from 'drizzle-orm';
 import { Effect, Schema } from 'effect';
 
-import type { AppRpcHandlers } from '../shared/handler-types';
+import type { AppRpcHandlers } from './shared/handler-types';
 
-import { Database, type DatabaseClient } from '../../../../../db';
+import { Database, type DatabaseClient } from '../../../../db';
 import {
   roles,
   tenants,
   tenantStripeTaxRates,
-} from '../../../../../db/schema';
-import { type Permission } from '../../../../../shared/permissions/permissions';
+} from '../../../../db/schema';
+import { type Permission } from '../../../../shared/permissions/permissions';
 import {
   type AdminHubRoleRecord,
-} from '../../../../../shared/rpc-contracts/app-rpcs/admin.rpcs';
-import { ConfigPermissions } from '../../../../../shared/rpc-contracts/app-rpcs/config.rpcs';
-import { Tenant } from '../../../../../types/custom/tenant';
-import { normalizeEsnCardConfig } from '../../../../discounts/discount-provider-config';
-import { stripe } from '../../../../stripe-client';
+} from '../../../../shared/rpc-contracts/app-rpcs/admin.rpcs';
+import { ConfigPermissions } from '../../../../shared/rpc-contracts/app-rpcs/config.rpcs';
+import { Tenant } from '../../../../types/custom/tenant';
+import { normalizeEsnCardConfig } from '../../../discounts/discount-provider-config';
+import { stripe } from '../../../stripe-client';
 import {
   decodeRpcContextHeaderJson,
   RPC_CONTEXT_HEADERS,
-} from '../../rpc-context-headers';
+} from '../rpc-context-headers';
 
 const databaseEffect = <A>(
   operation: (database: DatabaseClient) => Effect.Effect<A, unknown, never>,

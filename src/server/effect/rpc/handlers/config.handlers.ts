@@ -7,16 +7,16 @@
 
 import { Effect, Schema } from 'effect';
 
-import type { AppRpcHandlers } from '../shared/handler-types';
+import type { AppRpcHandlers } from './shared/handler-types';
 
-import { ConfigPermissions } from '../../../../../shared/rpc-contracts/app-rpcs/config.rpcs';
-import { Tenant } from '../../../../../types/custom/tenant';
-import { serverEnvironment } from '../../../../config/environment';
-import { getPublicConfigEffect } from '../../../config/public-config.effect';
+import { ConfigPermissions } from '../../../../shared/rpc-contracts/app-rpcs/config.rpcs';
+import { Tenant } from '../../../../types/custom/tenant';
+import { serverEnvironment } from '../../../config/environment';
+import { getPublicConfigEffect } from '../../config/public-config.effect';
 import {
   decodeRpcContextHeaderJson,
   RPC_CONTEXT_HEADERS,
-} from '../../rpc-context-headers';
+} from '../rpc-context-headers';
 
 const decodeHeaderJson = <A, I>(
   value: string | undefined,

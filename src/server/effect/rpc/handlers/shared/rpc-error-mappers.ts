@@ -1,12 +1,12 @@
 import {
   type EventRegistrationError,
-} from '../domains/events/events.errors';
+} from '../events/events.errors';
 import {
   type ReceiptMediaError,
-} from '../domains/finance/finance.errors';
+} from '../finance/finance.errors';
 import {
   type TemplateSimpleError,
-} from '../domains/templates/templates.errors';
+} from '../templates/templates.errors';
 
 export const mapEventRegistrationErrorToRpc = (
   error: EventRegistrationError,

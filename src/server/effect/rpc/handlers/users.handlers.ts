@@ -9,24 +9,24 @@ import {
 } from 'drizzle-orm';
 import { Effect, Schema } from 'effect';
 
-import type { AppRpcHandlers } from '../shared/handler-types';
+import type { AppRpcHandlers } from './shared/handler-types';
 
-import { Database, type DatabaseClient } from '../../../../../db';
+import { Database, type DatabaseClient } from '../../../../db';
 import {
   roles,
   rolesToTenantUsers,
   users,
   usersToTenants,
-} from '../../../../../db/schema';
-import { type Permission } from '../../../../../shared/permissions/permissions';
-import { ConfigPermissions } from '../../../../../shared/rpc-contracts/app-rpcs/config.rpcs';
-import { UsersAuthData } from '../../../../../shared/rpc-contracts/app-rpcs/users.rpcs';
-import { Tenant } from '../../../../../types/custom/tenant';
-import { User } from '../../../../../types/custom/user';
+} from '../../../../db/schema';
+import { type Permission } from '../../../../shared/permissions/permissions';
+import { ConfigPermissions } from '../../../../shared/rpc-contracts/app-rpcs/config.rpcs';
+import { UsersAuthData } from '../../../../shared/rpc-contracts/app-rpcs/users.rpcs';
+import { Tenant } from '../../../../types/custom/tenant';
+import { User } from '../../../../types/custom/user';
 import {
   decodeRpcContextHeaderJson,
   RPC_CONTEXT_HEADERS,
-} from '../../rpc-context-headers';
+} from '../rpc-context-headers';
 
 const databaseEffect = <A>(
   operation: (database: DatabaseClient) => Effect.Effect<A, unknown, never>,

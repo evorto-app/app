@@ -1,4 +1,4 @@
-import { Effect } from 'effect';
+import { Effect, Option } from 'effect';
 
 import { type Permission } from '../../../../../shared/permissions/permissions';
 import {
@@ -11,24 +11,41 @@ export class RpcAccess extends Effect.Service<RpcAccess>()(
   '@server/effect/rpc/handlers/shared/RpcAccess',
   {
     accessors: true,
-    effect: Effect.gen(function* () {
-      const context = yield* RpcRequestContext;
+    effect: Effect.sync(() => {
+      const requireContext = Effect.fn('RpcAccess.requireContext')(
+        (): Effect.Effect<RpcRequestContextShape> =>
+          Effect.serviceOption(RpcRequestContext).pipe(
+            Effect.flatMap((contextOption) =>
+              Option.match(contextOption, {
+                onNone: () => Effect.dieMessage('RpcRequestContext missing'),
+                onSome: (context) => Effect.succeed(context),
+              }),
+            ),
+          ),
+      );
 
       const current = Effect.fn('RpcAccess.current')(
-        (): Effect.Effect<RpcRequestContextShape> => Effect.succeed(context),
+        (): Effect.Effect<RpcRequestContextShape> => requireContext(),
       );
 
       const ensureAuthenticated = Effect.fn('RpcAccess.ensureAuthenticated')(
         (): Effect.Effect<void, 'UNAUTHORIZED'> =>
-          context.authenticated
-            ? Effect.void
-            : Effect.fail('UNAUTHORIZED' as const),
+          requireContext().pipe(
+            Effect.flatMap((context) =>
+              context.authenticated
+                ? Effect.void
+                : Effect.fail('UNAUTHORIZED' as const),
+            ),
+          ),
       );
 
       const ensurePermission = Effect.fn('RpcAccess.ensurePermission')(
         (permission: Permission): Effect.Effect<void, 'FORBIDDEN' | 'UNAUTHORIZED'> =>
           Effect.gen(function* () {
-            yield* ensureAuthenticated();
+            const context = yield* requireContext();
+            if (!context.authenticated) {
+              return yield* Effect.fail('UNAUTHORIZED' as const);
+            }
             if (!context.permissions.includes(permission)) {
               return yield* Effect.fail('FORBIDDEN' as const);
             }
@@ -37,7 +54,13 @@ export class RpcAccess extends Effect.Service<RpcAccess>()(
 
       const requireUser = Effect.fn('RpcAccess.requireUser')(
         (): Effect.Effect<User, 'UNAUTHORIZED'> =>
-          context.user ? Effect.succeed(context.user) : Effect.fail('UNAUTHORIZED' as const),
+          requireContext().pipe(
+            Effect.flatMap((context) =>
+              context.user
+                ? Effect.succeed(context.user)
+                : Effect.fail('UNAUTHORIZED' as const),
+            ),
+          ),
       );
 
       return {

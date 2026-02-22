@@ -7,15 +7,15 @@
 
 import { Effect, Schema } from 'effect';
 
-import type { AppRpcHandlers } from '../shared/handler-types';
+import type { AppRpcHandlers } from './shared/handler-types';
 
-import { Database, type DatabaseClient } from '../../../../../db';
-import { ConfigPermissions } from '../../../../../shared/rpc-contracts/app-rpcs/config.rpcs';
-import { Tenant } from '../../../../../types/custom/tenant';
+import { Database, type DatabaseClient } from '../../../../db';
+import { ConfigPermissions } from '../../../../shared/rpc-contracts/app-rpcs/config.rpcs';
+import { Tenant } from '../../../../types/custom/tenant';
 import {
   decodeRpcContextHeaderJson,
   RPC_CONTEXT_HEADERS,
-} from '../../rpc-context-headers';
+} from '../rpc-context-headers';
 
 const databaseEffect = <A>(
   operation: (database: DatabaseClient) => Effect.Effect<A, unknown, never>,

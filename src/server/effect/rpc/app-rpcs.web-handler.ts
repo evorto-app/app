@@ -6,12 +6,13 @@ import * as RpcSerialization from '@effect/rpc/RpcSerialization';
 import * as RpcServer from '@effect/rpc/RpcServer';
 import { Context, Effect, Layer } from 'effect';
 
-import { AppRpcs } from '../../../shared/rpc-contracts/app-rpcs';
 import { serverLoggerLayer } from '../server-logger.layer';
-import { appRpcHandlers } from './app-rpcs.handlers';
-import { EventRegistrationService } from './handlers/domains/events/event-registration.service';
-import { ReceiptMediaService } from './handlers/domains/finance/receipt-media.service';
-import { SimpleTemplateService } from './handlers/domains/templates/simple-template.service';
+import { appRpcHandlers, ServerAppRpcs } from './app-rpcs.handlers';
+import { EventRegistrationService } from './handlers/events/event-registration.service';
+import { ReceiptMediaService } from './handlers/finance/receipt-media.service';
+import { rpcRequestContextMiddlewareLive } from './handlers/middleware/rpc-request-context.middleware.live';
+import { RpcAccess } from './handlers/shared/rpc-access.service';
+import { SimpleTemplateService } from './handlers/templates/simple-template.service';
 
 class AppRpcHttpApp extends Context.Tag(
   '@server/effect/rpc/AppRpcHttpApp',
@@ -19,6 +20,7 @@ class AppRpcHttpApp extends Context.Tag(
 
 const appRpcDependenciesLayer = Layer.mergeAll(
   EventRegistrationService.Default,
+  RpcAccess.Default,
   ReceiptMediaService.Default,
   SimpleTemplateService.Default,
 );
@@ -27,13 +29,14 @@ const appRpcHandlersLayer = appRpcHandlers.pipe(
 );
 const appRpcRuntimeLayer = Layer.mergeAll(
   appRpcHandlersLayer,
+  rpcRequestContextMiddlewareLive,
   RpcSerialization.layerJson,
   serverLoggerLayer,
 );
 
 export const appRpcHttpAppLayer = Layer.scoped(
   AppRpcHttpApp,
-  RpcServer.toHttpApp(AppRpcs).pipe(
+  RpcServer.toHttpApp(ServerAppRpcs).pipe(
     Effect.provide(appRpcRuntimeLayer),
   ),
 );

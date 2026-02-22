@@ -1,11 +1,11 @@
 import { Effect, Layer } from 'effect';
 import { describe, expect, it, vi } from 'vitest';
 
-import { Database } from '../../../../../db';
+import { Database } from '../../../../db';
 import {
   encodeRpcContextHeaderJson,
   RPC_CONTEXT_HEADERS,
-} from '../../rpc-context-headers';
+} from '../rpc-context-headers';
 import { userHandlers } from './users.handlers';
 
 const createTenant = () => ({

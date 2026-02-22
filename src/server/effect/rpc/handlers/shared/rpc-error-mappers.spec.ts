@@ -4,17 +4,17 @@ import {
   EventRegistrationConflictError,
   EventRegistrationInternalError,
   EventRegistrationNotFoundError,
-} from '../domains/events/events.errors';
+} from '../events/events.errors';
 import {
   ReceiptMediaBadRequestError,
   ReceiptMediaInternalError,
   ReceiptMediaServiceUnavailableError,
-} from '../domains/finance/finance.errors';
+} from '../finance/finance.errors';
 import {
   TemplateSimpleBadRequestError,
   TemplateSimpleInternalError,
   TemplateSimpleNotFoundError,
-} from '../domains/templates/templates.errors';
+} from '../templates/templates.errors';
 import {
   mapEventRegistrationErrorToRpc,
   mapReceiptMediaErrorToRpc,

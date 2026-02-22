@@ -4,18 +4,18 @@ import type { Headers } from '@effect/platform';
 
 import { Effect, Schema } from 'effect';
 
-import type { AppRpcHandlers } from '../shared/handler-types';
+import type { AppRpcHandlers } from './shared/handler-types';
 
-import { Database, type DatabaseClient } from '../../../../../db';
+import { Database, type DatabaseClient } from '../../../../db';
 import {
   eventTemplates,
-} from '../../../../../db/schema';
-import { Tenant } from '../../../../../types/custom/tenant';
+} from '../../../../db/schema';
+import { Tenant } from '../../../../types/custom/tenant';
 import {
   decodeRpcContextHeaderJson,
   RPC_CONTEXT_HEADERS,
-} from '../../rpc-context-headers';
-import { mapTemplateSimpleErrorToRpc } from '../shared/rpc-error-mappers';
+} from '../rpc-context-headers';
+import { mapTemplateSimpleErrorToRpc } from './shared/rpc-error-mappers';
 import { SimpleTemplateService } from './templates/simple-template.service';
 
 const databaseEffect = <A>(

@@ -1,7 +1,7 @@
 import { Effect, Layer } from 'effect';
 import { describe, expect, it } from 'vitest';
 
-import { Database } from '../../../../../../db';
+import { Database } from '../../../../../db';
 import { SimpleTemplateService } from './simple-template.service';
 
 describe('SimpleTemplateService', () => {

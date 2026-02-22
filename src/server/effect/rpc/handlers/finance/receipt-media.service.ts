@@ -1,10 +1,10 @@
 import { Effect } from 'effect';
 
-import { serverEnvironment } from '../../../../../config/environment';
+import { serverEnvironment } from '../../../../config/environment';
 import {
   getSignedReceiptObjectUrlFromR2,
   uploadReceiptOriginalToR2,
-} from '../../../../../integrations/cloudflare-r2';
+} from '../../../../integrations/cloudflare-r2';
 import {
   ReceiptMediaBadRequestError,
   ReceiptMediaInternalError,
@@ -77,7 +77,7 @@ export const withSignedReceiptPreviewUrls = <T extends ReceiptWithStoragePreview
   });
 
 export class ReceiptMediaService extends Effect.Service<ReceiptMediaService>()(
-  '@server/effect/rpc/handlers/domains/finance/ReceiptMediaService',
+  '@server/effect/rpc/handlers/finance/ReceiptMediaService',
   {
     accessors: true,
     effect: Effect.sync(() => {

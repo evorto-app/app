@@ -2,7 +2,7 @@ import * as Headers from '@effect/platform/Headers';
 import { Effect, Layer } from 'effect';
 import { describe, expect, it, vi } from 'vitest';
 
-import { Database } from '../../../../../../db';
+import { Database } from '../../../../../db';
 import { EventRegistrationService } from './event-registration.service';
 
 describe('EventRegistrationService', () => {

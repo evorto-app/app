@@ -4,15 +4,15 @@ import type { Headers } from '@effect/platform';
 
 import { Effect, Schema } from 'effect';
 
-import type { AppRpcHandlers } from '../shared/handler-types';
+import type { AppRpcHandlers } from './shared/handler-types';
 
-import { Tenant } from '../../../../../types/custom/tenant';
-import { User } from '../../../../../types/custom/user';
-import { createCloudflareImageDirectUpload } from '../../../../integrations/cloudflare-images';
+import { Tenant } from '../../../../types/custom/tenant';
+import { User } from '../../../../types/custom/user';
+import { createCloudflareImageDirectUpload } from '../../../integrations/cloudflare-images';
 import {
   decodeRpcContextHeaderJson,
   RPC_CONTEXT_HEADERS,
-} from '../../rpc-context-headers';
+} from '../rpc-context-headers';
 
 const ALLOWED_IMAGE_MIME_TYPES = [
   'image/gif',

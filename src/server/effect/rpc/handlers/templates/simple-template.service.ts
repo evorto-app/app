@@ -3,18 +3,18 @@ import { createInsertSchema } from 'drizzle-orm/effect-schema';
 import { Effect } from 'effect';
 import { Schema } from 'effect';
 
-import type { AppRpcHandlers } from '../../shared/handler-types';
+import type { AppRpcHandlers } from '../shared/handler-types';
 
-import { Database, type DatabaseClient } from '../../../../../../db';
+import { Database, type DatabaseClient } from '../../../../../db';
 import {
   eventTemplates,
   templateRegistrationOptions,
-} from '../../../../../../db/schema';
+} from '../../../../../db/schema';
 import {
   isMeaningfulRichTextHtml,
   sanitizeRichTextHtml,
-} from '../../../../../utils/rich-text-sanitize';
-import { validateTaxRate } from '../../../../../utils/validate-tax-rate';
+} from '../../../../utils/rich-text-sanitize';
+import { validateTaxRate } from '../../../../utils/validate-tax-rate';
 import {
   TemplateSimpleBadRequestError,
   TemplateSimpleInternalError,
@@ -63,7 +63,7 @@ type UpdateSimpleTemplateInput = Parameters<
 >[0];
 
 export class SimpleTemplateService extends Effect.Service<SimpleTemplateService>()(
-  '@server/effect/rpc/handlers/domains/templates/SimpleTemplateService',
+  '@server/effect/rpc/handlers/templates/SimpleTemplateService',
   {
     accessors: true,
     effect: Effect.sync(() => {

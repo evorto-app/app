@@ -4,21 +4,21 @@ import type { Headers } from '@effect/platform';
 
 import { Effect, Schema } from 'effect';
 
-import type { AppRpcHandlers } from '../shared/handler-types';
+import type { AppRpcHandlers } from './shared/handler-types';
 
-import { Database, type DatabaseClient } from '../../../../../db';
+import { Database, type DatabaseClient } from '../../../../db';
 import {
   icons,
-} from '../../../../../db/schema';
+} from '../../../../db/schema';
 import {
   type IconRpcError,
-} from '../../../../../shared/rpc-contracts/app-rpcs/icons.rpcs';
-import { Tenant } from '../../../../../types/custom/tenant';
-import { computeIconSourceColor } from '../../../../utils/icon-color';
+} from '../../../../shared/rpc-contracts/app-rpcs/icons.rpcs';
+import { Tenant } from '../../../../types/custom/tenant';
+import { computeIconSourceColor } from '../../../utils/icon-color';
 import {
   decodeRpcContextHeaderJson,
   RPC_CONTEXT_HEADERS,
-} from '../../rpc-context-headers';
+} from '../rpc-context-headers';
 
 const databaseEffect = <A>(
   operation: (database: DatabaseClient) => Effect.Effect<A, unknown, never>,

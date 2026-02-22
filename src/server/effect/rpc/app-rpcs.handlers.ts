@@ -1,6 +1,7 @@
 import { Effect } from 'effect';
 
 import { AppRpcs } from '../../../shared/rpc-contracts/app-rpcs';
+import { RpcRequestContextMiddleware } from '../../../shared/rpc-contracts/app-rpcs/rpc-request-context.middleware';
 import {
   adminHandlers,
   configHandlers,
@@ -16,7 +17,9 @@ import {
   userHandlers,
 } from './handlers';
 
-const handlers = AppRpcs.of({
+export const ServerAppRpcs = AppRpcs.middleware(RpcRequestContextMiddleware);
+
+const handlers = ServerAppRpcs.of({
   ...adminHandlers,
   ...configHandlers,
   ...discountHandlers,
@@ -31,4 +34,4 @@ const handlers = AppRpcs.of({
   ...userHandlers,
 });
 
-export const appRpcHandlers = AppRpcs.toLayer(Effect.succeed(handlers));
+export const appRpcHandlers = ServerAppRpcs.toLayer(Effect.succeed(handlers));

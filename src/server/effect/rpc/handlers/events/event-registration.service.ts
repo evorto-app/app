@@ -4,19 +4,19 @@ import { and, eq } from 'drizzle-orm';
 import { Effect } from 'effect';
 import { DateTime } from 'luxon';
 
-import { Database, type DatabaseClient } from '../../../../../../db';
-import { createId } from '../../../../../../db/create-id';
+import { Database, type DatabaseClient } from '../../../../../db';
+import { createId } from '../../../../../db/create-id';
 import {
   eventRegistrationOptionDiscounts,
   eventRegistrationOptions,
   eventRegistrations,
   transactions,
   userDiscountCards,
-} from '../../../../../../db/schema';
-import { resolveTenantDiscountProviders, type TenantDiscountProviders } from '../../../../../../shared/tenant-config';
-import { type Tenant } from '../../../../../../types/custom/tenant';
-import { type User } from '../../../../../../types/custom/user';
-import { stripe } from '../../../../../stripe-client';
+} from '../../../../../db/schema';
+import { resolveTenantDiscountProviders, type TenantDiscountProviders } from '../../../../../shared/tenant-config';
+import { type Tenant } from '../../../../../types/custom/tenant';
+import { type User } from '../../../../../types/custom/user';
+import { stripe } from '../../../../stripe-client';
 import {
   EventRegistrationConflictError,
   EventRegistrationInternalError,
@@ -123,7 +123,7 @@ interface RegisterForEventArguments {
 }
 
 export class EventRegistrationService extends Effect.Service<EventRegistrationService>()(
-  '@server/effect/rpc/handlers/domains/events/EventRegistrationService',
+  '@server/effect/rpc/handlers/events/EventRegistrationService',
   {
     accessors: true,
     effect: Effect.sync(() => {

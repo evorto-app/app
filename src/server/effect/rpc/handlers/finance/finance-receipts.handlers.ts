@@ -1,333 +1,35 @@
- 
-
-import type { Headers } from '@effect/platform';
-
-import {
-  buildSelectableReceiptCountries,
-  normalizeReceiptCountryCode,
-  OTHER_RECEIPT_COUNTRY_CODE,
-  resolveReceiptCountrySettings,
-} from '@shared/finance/receipt-countries';
-import {
-  and,
-  count,
-  desc,
-  eq,
-  inArray,
-  not,
-} from 'drizzle-orm';
-import { Effect, Schema } from 'effect';
+import { and, desc, eq, inArray } from 'drizzle-orm';
+import { Effect } from 'effect';
 
 import type { AppRpcHandlers } from '../shared/handler-types';
 
-import { Database, type DatabaseClient } from '../../../../../db';
 import {
   eventInstances,
-  eventRegistrationOptions,
-  eventRegistrations,
   financeReceipts,
   transactions,
   users,
 } from '../../../../../db/schema';
-import { type Permission } from '../../../../../shared/permissions/permissions';
-import { ConfigPermissions } from '../../../../../shared/rpc-contracts/app-rpcs/config.rpcs';
-import { Tenant } from '../../../../../types/custom/tenant';
-import { User } from '../../../../../types/custom/user';
+import { RpcAccess } from '../shared/rpc-access.service';
 import {
-  decodeRpcContextHeaderJson,
-  RPC_CONTEXT_HEADERS,
-} from '../../rpc-context-headers';
-import { mapReceiptMediaErrorToRpc } from '../shared/rpc-error-mappers';
+  canSubmitEventReceipts,
+  canViewEventReceipts,
+  databaseEffect,
+  financeReceiptView,
+  isAllowedReceiptMimeType,
+  normalizeFinanceReceiptBaseRecord,
+  validateReceiptCountryForTenant,
+} from './finance.shared';
 import {
-  ReceiptMediaService,
   withSignedReceiptPreviewUrl,
   withSignedReceiptPreviewUrls,
-} from './finance/receipt-media.service';
+} from './receipt-media.service';
 
-const databaseEffect = <A>(
-  operation: (database: DatabaseClient) => Effect.Effect<A, unknown, never>,
-): Effect.Effect<A, never, Database> =>
-  Database.pipe(Effect.flatMap((database) => operation(database).pipe(Effect.orDie)));
-
-interface ReceiptCountryConfigTenant {
-  receiptSettings?:
-    | null
-    | undefined
-    | {
-        allowOther?: boolean | undefined;
-        receiptCountries?: readonly string[] | undefined;
-      };
-}
-
-const isAllowedReceiptMimeType = (mimeType: string): boolean =>
-  mimeType.startsWith('image/') || mimeType === 'application/pdf';
-
-const resolveTenantSelectableReceiptCountries = (
-  tenant: ReceiptCountryConfigTenant,
-): string[] =>
-  buildSelectableReceiptCountries(
-    resolveReceiptCountrySettings(tenant.receiptSettings ?? undefined),
-  );
-
-const validateReceiptCountryForTenant = (
-  tenant: ReceiptCountryConfigTenant,
-  purchaseCountry: string,
-): null | string => {
-  if (purchaseCountry === OTHER_RECEIPT_COUNTRY_CODE) {
-    const receiptCountrySettings = resolveReceiptCountrySettings(
-      tenant.receiptSettings ?? undefined,
-    );
-    return receiptCountrySettings.allowOther
-      ? OTHER_RECEIPT_COUNTRY_CODE
-      : null;
-  }
-
-  const normalizedCountry = normalizeReceiptCountryCode(purchaseCountry);
-  if (!normalizedCountry) {
-    return null;
-  }
-
-  const allowedCountries = resolveTenantSelectableReceiptCountries(tenant);
-  return allowedCountries.includes(normalizedCountry)
-    ? normalizedCountry
-    : null;
-};
-
-const decodeHeaderJson = <A, I>(
-  value: string | undefined,
-  schema: Schema.Schema<A, I, never>,
-) => Schema.decodeUnknownSync(schema)(decodeRpcContextHeaderJson(value));
-
-const financeReceiptView = {
-  alcoholAmount: financeReceipts.alcoholAmount,
-  attachmentFileName: financeReceipts.attachmentFileName,
-  attachmentMimeType: financeReceipts.attachmentMimeType,
-  attachmentStorageKey: financeReceipts.attachmentStorageKey,
-  createdAt: financeReceipts.createdAt,
-  depositAmount: financeReceipts.depositAmount,
-  eventId: financeReceipts.eventId,
-  hasAlcohol: financeReceipts.hasAlcohol,
-  hasDeposit: financeReceipts.hasDeposit,
-  id: financeReceipts.id,
-  previewImageUrl: financeReceipts.previewImageUrl,
-  purchaseCountry: financeReceipts.purchaseCountry,
-  receiptDate: financeReceipts.receiptDate,
-  refundedAt: financeReceipts.refundedAt,
-  refundTransactionId: financeReceipts.refundTransactionId,
-  rejectionReason: financeReceipts.rejectionReason,
-  reviewedAt: financeReceipts.reviewedAt,
-  status: financeReceipts.status,
-  submittedByUserId: financeReceipts.submittedByUserId,
-  taxAmount: financeReceipts.taxAmount,
-  totalAmount: financeReceipts.totalAmount,
-  updatedAt: financeReceipts.updatedAt,
-} as const;
-
-const normalizeFinanceReceiptBaseRecord = (receipt: {
-  alcoholAmount: number;
-  attachmentFileName: string;
-  attachmentMimeType: string;
-  attachmentStorageKey: null | string;
-  createdAt: Date;
-  depositAmount: number;
-  eventId: string;
-  hasAlcohol: boolean;
-  hasDeposit: boolean;
-  id: string;
-  previewImageUrl: null | string;
-  purchaseCountry: string;
-  receiptDate: Date;
-  refundedAt: Date | null;
-  refundTransactionId: null | string;
-  rejectionReason: null | string;
-  reviewedAt: Date | null;
-  status: 'approved' | 'refunded' | 'rejected' | 'submitted';
-  submittedByUserId: string;
-  taxAmount: number;
-  totalAmount: number;
-  updatedAt: Date;
-}) => ({
-  alcoholAmount: receipt.alcoholAmount,
-  attachmentFileName: receipt.attachmentFileName,
-  attachmentMimeType: receipt.attachmentMimeType,
-  attachmentStorageKey: receipt.attachmentStorageKey ?? null,
-  createdAt: receipt.createdAt.toISOString(),
-  depositAmount: receipt.depositAmount,
-  eventId: receipt.eventId,
-  hasAlcohol: receipt.hasAlcohol,
-  hasDeposit: receipt.hasDeposit,
-  id: receipt.id,
-  previewImageUrl: receipt.previewImageUrl ?? null,
-  purchaseCountry: receipt.purchaseCountry,
-  receiptDate: receipt.receiptDate.toISOString(),
-  refundedAt: receipt.refundedAt?.toISOString() ?? null,
-  refundTransactionId: receipt.refundTransactionId ?? null,
-  rejectionReason: receipt.rejectionReason ?? null,
-  reviewedAt: receipt.reviewedAt?.toISOString() ?? null,
-  status: receipt.status,
-  submittedByUserId: receipt.submittedByUserId,
-  taxAmount: receipt.taxAmount,
-  totalAmount: receipt.totalAmount,
-  updatedAt: receipt.updatedAt.toISOString(),
-});
-
-const normalizeFinanceTransactionRecord = (transaction: {
-  amount: number;
-  appFee: null | number;
-  comment: null | string;
-  createdAt: Date;
-  id: string;
-  method: 'cash' | 'paypal' | 'stripe' | 'transfer';
-  status: 'cancelled' | 'pending' | 'successful';
-  stripeFee: null | number;
-}) => ({
-  amount: transaction.amount,
-  appFee: transaction.appFee ?? null,
-  comment: transaction.comment ?? null,
-  createdAt: transaction.createdAt.toISOString(),
-  id: transaction.id,
-  method: transaction.method,
-  status: transaction.status,
-  stripeFee: transaction.stripeFee ?? null,
-});
-
-const hasOrganizingRegistrationForEvent = (
-  tenantId: string,
-  user: { id: string; permissions: readonly string[] },
-  eventId: string,
-): Effect.Effect<boolean, never, Database> =>
-  Effect.gen(function* () {
-    const organizerRegistration = yield* databaseEffect((database) =>
-      database
-        .select({
-          id: eventRegistrations.id,
-        })
-        .from(eventRegistrations)
-        .innerJoin(
-          eventRegistrationOptions,
-          eq(eventRegistrationOptions.id, eventRegistrations.registrationOptionId),
-        )
-        .where(
-          and(
-            eq(eventRegistrations.tenantId, tenantId),
-            eq(eventRegistrations.userId, user.id),
-            eq(eventRegistrations.eventId, eventId),
-            eq(eventRegistrations.status, 'CONFIRMED'),
-            eq(eventRegistrationOptions.organizingRegistration, true),
-          ),
-        )
-        .limit(1),
-    );
-
-    return organizerRegistration.length > 0;
-  });
-
-const canViewEventReceipts = (
-  tenantId: string,
-  user: { id: string; permissions: readonly string[] },
-  eventId: string,
-): Effect.Effect<boolean, never, Database> => {
-  if (
-    user.permissions.includes('events:organizeAll') ||
-    user.permissions.includes('finance:manageReceipts') ||
-    user.permissions.includes('finance:approveReceipts') ||
-    user.permissions.includes('finance:refundReceipts')
-  ) {
-    return Effect.succeed(true);
-  }
-
-  return hasOrganizingRegistrationForEvent(tenantId, user, eventId);
-};
-
-const canSubmitEventReceipts = (
-  tenantId: string,
-  user: { id: string; permissions: readonly string[] },
-  eventId: string,
-): Effect.Effect<boolean, never, Database> => {
-  if (
-    user.permissions.includes('events:organizeAll') ||
-    user.permissions.includes('finance:manageReceipts')
-  ) {
-    return Effect.succeed(true);
-  }
-
-  return hasOrganizingRegistrationForEvent(tenantId, user, eventId);
-};
-
-const ensureAuthenticated = (
-  headers: Headers.Headers,
-): Effect.Effect<void, 'UNAUTHORIZED'> =>
-  headers[RPC_CONTEXT_HEADERS.AUTHENTICATED] === 'true'
-    ? Effect.void
-    : Effect.fail('UNAUTHORIZED' as const);
-
-const ensurePermission = (
-  headers: Headers.Headers,
-  permission: Permission,
-): Effect.Effect<void, 'FORBIDDEN' | 'UNAUTHORIZED'> =>
-  Effect.gen(function* () {
-    yield* ensureAuthenticated(headers);
-    const currentPermissions = decodeHeaderJson(
-      headers[RPC_CONTEXT_HEADERS.PERMISSIONS],
-      ConfigPermissions,
-    );
-
-    if (!currentPermissions.includes(permission)) {
-      return yield* Effect.fail('FORBIDDEN' as const);
-    }
-  });
-
-const decodeUserHeader = (headers: Headers.Headers) =>
-  Effect.sync(() =>
-    decodeHeaderJson(headers[RPC_CONTEXT_HEADERS.USER], Schema.NullOr(User)),
-  );
-
-const requireUserHeader = (
-  headers: Headers.Headers,
-): Effect.Effect<User, 'UNAUTHORIZED'> =>
-  Effect.gen(function* () {
-    const user = yield* decodeUserHeader(headers);
-    if (!user) {
-      return yield* Effect.fail('UNAUTHORIZED' as const);
-    }
-    return user;
-  });
-
-export const financeHandlers = {
-    'finance.receiptMedia.uploadOriginal': (input, options) =>
+export const financeReceiptsHandlers = {
+'finance.receipts.byEvent': ({ eventId }, _options) =>
       Effect.gen(function* () {
-        yield* ensureAuthenticated(options.headers);
-        const tenant = decodeHeaderJson(
-          options.headers[RPC_CONTEXT_HEADERS.TENANT],
-          Tenant,
-        );
-        const user = yield* requireUserHeader(options.headers);
-
-        const uploaded = yield* ReceiptMediaService.uploadOriginal({
-          fileBase64: input.fileBase64,
-          fileName: input.fileName,
-          fileSizeBytes: input.fileSizeBytes,
-          mimeType: input.mimeType,
-          tenantId: tenant.id,
-          userId: user.id,
-        }).pipe(
-          Effect.catchAll((error) => Effect.fail(mapReceiptMediaErrorToRpc(error))),
-        );
-
-        return {
-          sizeBytes: input.fileSizeBytes,
-          storageKey: uploaded.storageKey,
-          storageUrl: uploaded.storageUrl,
-        };
-      }),
-    'finance.receipts.byEvent': ({ eventId }, options) =>
-      Effect.gen(function* () {
-        yield* ensureAuthenticated(options.headers);
-        const tenant = decodeHeaderJson(
-          options.headers[RPC_CONTEXT_HEADERS.TENANT],
-          Tenant,
-        );
-        const user = yield* requireUserHeader(options.headers);
+        yield* RpcAccess.ensureAuthenticated();
+        const { tenant } = yield* RpcAccess.current();
+        const user = yield* RpcAccess.requireUser();
         const canView = yield* canViewEventReceipts(tenant.id, user, eventId);
         if (!canView) {
           return yield* Effect.fail('FORBIDDEN' as const);
@@ -362,14 +64,11 @@ export const financeHandlers = {
           submittedByLastName: receipt.submittedByLastName,
         }));
       }),
-    'finance.receipts.createRefund': (input, options) =>
+'finance.receipts.createRefund': (input, _options) =>
       Effect.gen(function* () {
-        yield* ensurePermission(options.headers, 'finance:refundReceipts');
-        const tenant = decodeHeaderJson(
-          options.headers[RPC_CONTEXT_HEADERS.TENANT],
-          Tenant,
-        );
-        const user = yield* requireUserHeader(options.headers);
+        yield* RpcAccess.ensurePermission('finance:refundReceipts');
+        const { tenant } = yield* RpcAccess.current();
+        const user = yield* RpcAccess.requireUser();
         const receipts = yield* databaseEffect((database) =>
           database
             .select({
@@ -510,13 +209,10 @@ export const financeHandlers = {
           transactionId: createdTransaction.id,
         };
       }),
-    'finance.receipts.findOneForApproval': ({ id }, options) =>
+'finance.receipts.findOneForApproval': ({ id }, _options) =>
       Effect.gen(function* () {
-        yield* ensurePermission(options.headers, 'finance:approveReceipts');
-        const tenant = decodeHeaderJson(
-          options.headers[RPC_CONTEXT_HEADERS.TENANT],
-          Tenant,
-        );
+        yield* RpcAccess.ensurePermission('finance:approveReceipts');
+        const { tenant } = yield* RpcAccess.current();
         const receipts = yield* databaseEffect((database) =>
           database
             .select({
@@ -559,14 +255,11 @@ export const financeHandlers = {
           submittedByLastName: signedReceipt.submittedByLastName,
         };
       }),
-    'finance.receipts.my': (_payload, options) =>
+'finance.receipts.my': (_payload, _options) =>
       Effect.gen(function* () {
-        yield* ensureAuthenticated(options.headers);
-        const tenant = decodeHeaderJson(
-          options.headers[RPC_CONTEXT_HEADERS.TENANT],
-          Tenant,
-        );
-        const user = yield* requireUserHeader(options.headers);
+        yield* RpcAccess.ensureAuthenticated();
+        const { tenant } = yield* RpcAccess.current();
+        const user = yield* RpcAccess.requireUser();
         const receipts = yield* databaseEffect((database) =>
           database
             .select({
@@ -594,13 +287,10 @@ export const financeHandlers = {
           eventTitle: receipt.eventTitle,
         }));
       }),
-    'finance.receipts.pendingApprovalGrouped': (_payload, options) =>
+'finance.receipts.pendingApprovalGrouped': (_payload, _options) =>
       Effect.gen(function* () {
-        yield* ensurePermission(options.headers, 'finance:approveReceipts');
-        const tenant = decodeHeaderJson(
-          options.headers[RPC_CONTEXT_HEADERS.TENANT],
-          Tenant,
-        );
+        yield* RpcAccess.ensurePermission('finance:approveReceipts');
+        const { tenant } = yield* RpcAccess.current();
         const pendingReceipts = yield* databaseEffect((database) =>
           database
             .select({
@@ -667,13 +357,10 @@ export const financeHandlers = {
 
         return [...groupedByEvent.values()];
       }),
-    'finance.receipts.refundableGroupedByRecipient': (_payload, options) =>
+'finance.receipts.refundableGroupedByRecipient': (_payload, _options) =>
       Effect.gen(function* () {
-        yield* ensurePermission(options.headers, 'finance:refundReceipts');
-        const tenant = decodeHeaderJson(
-          options.headers[RPC_CONTEXT_HEADERS.TENANT],
-          Tenant,
-        );
+        yield* RpcAccess.ensurePermission('finance:refundReceipts');
+        const { tenant } = yield* RpcAccess.current();
         const approvedReceipts = yield* databaseEffect((database) =>
           database
             .select({
@@ -790,14 +477,11 @@ export const financeHandlers = {
 
         return [...groupedByUser.values()];
       }),
-    'finance.receipts.review': (input, options) =>
+'finance.receipts.review': (input, _options) =>
       Effect.gen(function* () {
-        yield* ensurePermission(options.headers, 'finance:approveReceipts');
-        const tenant = decodeHeaderJson(
-          options.headers[RPC_CONTEXT_HEADERS.TENANT],
-          Tenant,
-        );
-        const user = yield* requireUserHeader(options.headers);
+        yield* RpcAccess.ensurePermission('finance:approveReceipts');
+        const { tenant } = yield* RpcAccess.current();
+        const user = yield* RpcAccess.requireUser();
         const receipt = yield* databaseEffect((database) =>
           database.query.financeReceipts.findFirst({
             columns: {
@@ -880,14 +564,11 @@ export const financeHandlers = {
           status: updated.status,
         };
       }),
-    'finance.receipts.submit': (input, options) =>
+'finance.receipts.submit': (input, _options) =>
       Effect.gen(function* () {
-        yield* ensureAuthenticated(options.headers);
-        const tenant = decodeHeaderJson(
-          options.headers[RPC_CONTEXT_HEADERS.TENANT],
-          Tenant,
-        );
-        const user = yield* requireUserHeader(options.headers);
+        yield* RpcAccess.ensureAuthenticated();
+        const { tenant } = yield* RpcAccess.current();
+        const user = yield* RpcAccess.requireUser();
         const canSubmit = yield* canSubmitEventReceipts(
           tenant.id,
           user,
@@ -970,59 +651,6 @@ export const financeHandlers = {
 
         return {
           id: created.id,
-        };
-      }),
-    'finance.transactions.findMany': ({ limit, offset }, options) =>
-      Effect.gen(function* () {
-        yield* ensureAuthenticated(options.headers);
-        const tenant = decodeHeaderJson(
-          options.headers[RPC_CONTEXT_HEADERS.TENANT],
-          Tenant,
-        );
-        const transactionCountResult = yield* databaseEffect((database) =>
-          database
-            .select({
-              count: count(),
-            })
-            .from(transactions)
-            .where(
-              and(
-                eq(transactions.tenantId, tenant.id),
-                not(eq(transactions.status, 'cancelled')),
-              ),
-            ),
-        );
-        const total = transactionCountResult[0]?.count ?? 0;
-
-        const transactionRows = yield* databaseEffect((database) =>
-          database
-            .select({
-              amount: transactions.amount,
-              appFee: transactions.appFee,
-              comment: transactions.comment,
-              createdAt: transactions.createdAt,
-              id: transactions.id,
-              method: transactions.method,
-              status: transactions.status,
-              stripeFee: transactions.stripeFee,
-            })
-            .from(transactions)
-            .where(
-              and(
-                eq(transactions.tenantId, tenant.id),
-                not(eq(transactions.status, 'cancelled')),
-              ),
-            )
-            .limit(limit)
-            .offset(offset)
-            .orderBy(desc(transactions.createdAt)),
-        );
-
-        return {
-          data: transactionRows.map((transaction) =>
-            normalizeFinanceTransactionRecord(transaction),
-          ),
-          total,
         };
       }),
 } satisfies Partial<AppRpcHandlers>;
