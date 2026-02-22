@@ -14,7 +14,7 @@ import {
 import {
   type TemplateListRecord,
   type TemplatesByCategoryRecord,
-} from '../../../../../shared/rpc-contracts/app-rpcs';
+} from '../../../../../shared/rpc-contracts/app-rpcs/templates.rpcs';
 import { Tenant } from '../../../../../types/custom/tenant';
 import {
   decodeRpcContextHeaderJson,

@@ -9,9 +9,7 @@ import { Effect, Schema } from 'effect';
 
 import type { AppRpcHandlers } from '../shared/handler-types';
 
-import {
-  ConfigPermissions,
-} from '../../../../../shared/rpc-contracts/app-rpcs';
+import { ConfigPermissions } from '../../../../../shared/rpc-contracts/app-rpcs/config.rpcs';
 import { Tenant } from '../../../../../types/custom/tenant';
 import { serverEnvironment } from '../../../../config/environment';
 import { getPublicConfigEffect } from '../../../config/public-config.effect';

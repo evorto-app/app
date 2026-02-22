@@ -71,7 +71,7 @@ jobs:
       - name: Install Playwright browsers
         run: bunx playwright install --with-deps
 
-      - name: Write CI .env file
+      - name: Write CI env files
         run: |
           cat > .env <<EOF
           DATABASE_URL=${DATABASE_URL}
@@ -93,6 +93,7 @@ jobs:
           BASE_URL=${BASE_URL}
           PLAYWRIGHT_TEST_BASE_URL=${PLAYWRIGHT_TEST_BASE_URL}
           EOF
+          cp .env .env.development
 
       - name: Pull Docker images (compose)
         run: docker compose pull

@@ -27,9 +27,7 @@ import {
   transactions,
 } from '../../../../../db/schema';
 import { type Permission } from '../../../../../shared/permissions/permissions';
-import {
-  ConfigPermissions,
-} from '../../../../../shared/rpc-contracts/app-rpcs';
+import { ConfigPermissions } from '../../../../../shared/rpc-contracts/app-rpcs/config.rpcs';
 import { Tenant } from '../../../../../types/custom/tenant';
 import { User } from '../../../../../types/custom/user';
 import { stripe } from '../../../../stripe-client';

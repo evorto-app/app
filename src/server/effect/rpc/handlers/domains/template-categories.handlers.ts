@@ -15,10 +15,10 @@ import {
   eventTemplateCategories,
 } from '../../../../../db/schema';
 import { type Permission } from '../../../../../shared/permissions/permissions';
+import { ConfigPermissions } from '../../../../../shared/rpc-contracts/app-rpcs/config.rpcs';
 import {
-  ConfigPermissions,
   type TemplateCategoryRecord,
-} from '../../../../../shared/rpc-contracts/app-rpcs';
+} from '../../../../../shared/rpc-contracts/app-rpcs/template-categories.rpcs';
 import { Tenant } from '../../../../../types/custom/tenant';
 import {
   decodeRpcContextHeaderJson,

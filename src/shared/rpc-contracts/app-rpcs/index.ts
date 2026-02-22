@@ -1,15 +1,7 @@
-export * from './admin.rpcs';
-export * from './app-rpcs.group';
-export * from './config.rpcs';
-export * from './definitions';
-export * from './discounts.rpcs';
-export * from './editor-media.rpcs';
-export * from './events.rpcs';
-export * from './finance.rpcs';
-export * from './global-admin.rpcs';
-export * from './icons.rpcs';
-export * from './rpc-request-context.middleware';
-export * from './tax-rates.rpcs';
-export * from './template-categories.rpcs';
-export * from './templates.rpcs';
-export * from './users.rpcs';
+export { AppRpcs } from './app-rpcs.group';
+export {
+  type RpcHeaders,
+  RpcRequestContext,
+  RpcRequestContextMiddleware,
+  type RpcRequestContextShape,
+} from './rpc-request-context.middleware';

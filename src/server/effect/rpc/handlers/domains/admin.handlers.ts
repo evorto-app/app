@@ -24,8 +24,8 @@ import { type Permission } from '../../../../../shared/permissions/permissions';
 import {
   type AdminHubRoleRecord,
   type AdminRoleRecord,
-  ConfigPermissions,
-} from '../../../../../shared/rpc-contracts/app-rpcs';
+} from '../../../../../shared/rpc-contracts/app-rpcs/admin.rpcs';
+import { ConfigPermissions } from '../../../../../shared/rpc-contracts/app-rpcs/config.rpcs';
 import { Tenant } from '../../../../../types/custom/tenant';
 import { normalizeEsnCardConfig } from '../../../../discounts/discount-provider-config';
 import { stripe } from '../../../../stripe-client';

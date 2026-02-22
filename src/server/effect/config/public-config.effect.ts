@@ -1,6 +1,6 @@
 import { Context, Effect, Layer } from 'effect';
 
-import { type PublicConfig } from '../../../shared/rpc-contracts/app-rpcs';
+import { type PublicConfig } from '../../../shared/rpc-contracts/app-rpcs/config.rpcs';
 import {
   getPublicGoogleMapsApiKey,
   type ServerEnvironment,

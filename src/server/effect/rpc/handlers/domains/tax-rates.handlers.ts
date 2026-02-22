@@ -13,9 +13,7 @@ import { Database, type DatabaseClient } from '../../../../../db';
 import {
   tenantStripeTaxRates,
 } from '../../../../../db/schema';
-import {
-  ConfigPermissions,
-} from '../../../../../shared/rpc-contracts/app-rpcs';
+import { ConfigPermissions } from '../../../../../shared/rpc-contracts/app-rpcs/config.rpcs';
 import { Tenant } from '../../../../../types/custom/tenant';
 import {
   decodeRpcContextHeaderJson,

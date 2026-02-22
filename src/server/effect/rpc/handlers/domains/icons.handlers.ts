@@ -13,7 +13,7 @@ import {
 import {
   type IconRecord,
   type IconRpcError,
-} from '../../../../../shared/rpc-contracts/app-rpcs';
+} from '../../../../../shared/rpc-contracts/app-rpcs/icons.rpcs';
 import { Tenant } from '../../../../../types/custom/tenant';
 import { computeIconSourceColor } from '../../../../utils/icon-color';
 import {

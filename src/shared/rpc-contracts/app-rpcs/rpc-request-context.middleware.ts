@@ -6,7 +6,7 @@ import { Context } from 'effect';
 import { Tenant } from '../../../types/custom/tenant';
 import { User } from '../../../types/custom/user';
 import { type Permission } from '../../permissions/permissions';
-import { UsersAuthData } from './definitions';
+import { UsersAuthData } from './users.rpcs';
 
 export type RpcHeaders = Headers.Headers;
 
