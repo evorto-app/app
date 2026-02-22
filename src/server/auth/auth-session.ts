@@ -2,6 +2,8 @@ import {
   type CookieHandler,
   type CookieSerializeOptions,
   CookieTransactionStore,
+  MissingSessionError,
+  MissingTransactionError,
   ServerClient,
   type SessionData,
   StatelessStateStore,
@@ -176,7 +178,7 @@ const toExpireCookieOptions = (options?: CookieSerializeOptions) => ({
 const applyCookieMutations = (
   response: HttpServerResponse.HttpServerResponse,
   mutations: readonly CookieMutation[],
-): Effect.Effect<HttpServerResponse.HttpServerResponse> =>
+): Effect.Effect<HttpServerResponse.HttpServerResponse, unknown> =>
   Effect.gen(function* () {
     let nextResponse = response;
 
@@ -187,7 +189,7 @@ const applyCookieMutations = (
           mutation.name,
           mutation.value,
           toSetCookieOptions(mutation.options),
-        ).pipe(Effect.catchAll(() => Effect.succeed(nextResponse)));
+        );
         continue;
       }
 
@@ -201,15 +203,30 @@ const applyCookieMutations = (
     return nextResponse;
   });
 
+const isExpectedAuth0Error = (
+  error: unknown,
+): error is MissingSessionError | MissingTransactionError =>
+  error instanceof MissingSessionError ||
+  error instanceof MissingTransactionError;
+
 const runPromiseOrUndefined = <T>(
+  operation: string,
   thunk: () => Promise<T>,
-): Effect.Effect<T | undefined> =>
-  // Auth0 SDK methods throw for several expected browser/session edge cases
-  // (expired transaction cookies, missing callback state, etc.). At this
-  // boundary we collapse those into undefined and return deterministic HTTP
-  // responses in each handler below.
-  Effect.promise(() =>
-    thunk().catch(() => undefined as T | undefined),
+): Effect.Effect<T | undefined, unknown> =>
+  Effect.tryPromise({
+    catch: (error) => error,
+    try: thunk,
+  }).pipe(
+    Effect.catchAll((error) => {
+      if (isExpectedAuth0Error(error)) {
+        return Effect.succeed(undefined as T | undefined);
+      }
+
+      return Effect.logError(`Unexpected Auth0 SDK failure during ${operation}`).pipe(
+        Effect.annotateLogs({ error }),
+        Effect.zipRight(Effect.fail(error)),
+      );
+    }),
   );
 
 const createStoreOptions = (
@@ -336,7 +353,7 @@ export const loadAuthSession = (request: HttpServerRequest.HttpServerRequest) =>
     const storeOptions = createStoreOptions(request);
     const auth0Client = createAuth0Client(request);
 
-    const sessionData = yield* runPromiseOrUndefined(() =>
+    const sessionData = yield* runPromiseOrUndefined('loadAuthSession', () =>
       auth0Client.getSession(storeOptions),
     );
 
@@ -362,7 +379,7 @@ export const handleLoginRequest = (
     const storeOptions = createStoreOptions(request);
     const auth0Client = createAuth0Client(request);
 
-    const authorizationUrl = yield* runPromiseOrUndefined(() =>
+    const authorizationUrl = yield* runPromiseOrUndefined('handleLoginRequest', () =>
       auth0Client.startInteractiveLogin(
         {
           appState: {
@@ -399,7 +416,9 @@ export const handleCallbackRequest = (
     const storeOptions = createStoreOptions(request);
     const auth0Client = createAuth0Client(request);
 
-    const completedLogin = yield* runPromiseOrUndefined(() =>
+    const completedLogin = yield* runPromiseOrUndefined(
+      'handleCallbackRequest',
+      () =>
       auth0Client.completeInteractiveLogin<LoginAppState>(
         requestUrl,
         storeOptions,
@@ -437,7 +456,7 @@ export const handleLogoutRequest = (
     const storeOptions = createStoreOptions(request);
     const auth0Client = createAuth0Client(request);
 
-    const logoutUrl = yield* runPromiseOrUndefined(() =>
+    const logoutUrl = yield* runPromiseOrUndefined('handleLogoutRequest', () =>
       auth0Client.logout(
         {
           returnTo: new URL(returnPath, origin).toString(),
