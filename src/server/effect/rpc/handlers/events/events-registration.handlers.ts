@@ -119,7 +119,20 @@ export const eventRegistrationHandlers = {
                     stripeAccount,
                   },
                 ),
-              ).pipe(Effect.catchAll(() => Effect.void));
+              ).pipe(
+                Effect.tapError((error) =>
+                  Effect.logError(
+                    'Failed to expire Stripe checkout session on registration cancellation',
+                  ).pipe(
+                    Effect.annotateLogs({
+                      error,
+                      registrationId: registration.id,
+                      stripeCheckoutSessionId,
+                      transactionId: transaction.id,
+                    }),
+                  ),
+                ),
+              );
             }),
           ),
         ).pipe(Effect.mapError(() => 'INTERNAL_SERVER_ERROR' as const));

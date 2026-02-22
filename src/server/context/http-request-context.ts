@@ -32,7 +32,6 @@ export const resolveHttpRequestContext = (
       cookies: request.cookies,
       protocol: requestOrigin.protocol,
       requestHost: resolveRequestHost(request),
-      signedCookies: undefined,
     });
 
     if (!tenant) {

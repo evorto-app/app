@@ -36,9 +36,38 @@ const resolveHostHeader = (
   return;
 };
 
+const toHostDomain = (
+  protocol: string,
+  requestHost: readonly string[] | string | undefined,
+): string | undefined => {
+  const host = resolveHostHeader(requestHost);
+  if (!host) {
+    return;
+  }
+
+  try {
+    return new URL(`${protocol}://${host}`).hostname;
+  } catch {
+    return;
+  }
+};
+
+const isLocalRequestHost = (domain: string): boolean =>
+  domain === 'localhost' ||
+  domain === '127.0.0.1' ||
+  domain === '::1' ||
+  domain === '[::1]';
+
 const databaseEffect = <A, E>(
   operation: (database: DatabaseClient) => Effect.Effect<A, E, never>,
 ) => Database.pipe(Effect.flatMap((database) => operation(database)));
+
+const findTenantByDomain = (domain: string) =>
+  databaseEffect((database) =>
+    getPreparedStatements(database).getTenantByDomain.execute({
+      domain,
+    }),
+  );
 
 export const resolveAuthenticationContext = (input: {
   appSessionCookie: string | undefined;
@@ -52,45 +81,42 @@ export const resolveTenantContext = (input: {
   cookies: Record<string, unknown> | undefined;
   protocol: string;
   requestHost: readonly string[] | string | undefined;
-  signedCookies: Record<string, unknown> | undefined;
 }) =>
   Effect.gen(function* () {
     // Resolution order:
-    // 1) signed cookie
-    // 2) plain cookie
-    // 3) request host header
-    // This keeps local/dev tenant switching deterministic while still allowing
-    // host-based tenant resolution in production.
+    // 1) request host header
+    // 2) plain tenant cookie fallback
+    // Host-first prevents client-controlled cookies from overriding a valid host
+    // tenant, while still supporting local/dev fallback when host resolution
+    // does not map to a tenant.
     const cause = { domain: '', tenantCookie: '' };
-    const tenantCookie =
-      asString(input.signedCookies?.['evorto-tenant']) ??
-      asString(input.cookies?.['evorto-tenant']);
-    let tenantRecord;
+    let tenantRecord: unknown;
+    const hostDomain = toHostDomain(input.protocol, input.requestHost);
+    const tenantCookie = asString(input.cookies?.['evorto-tenant']);
 
+    if (hostDomain) {
+      cause.domain = hostDomain;
+    }
     if (tenantCookie) {
-      tenantRecord = yield* databaseEffect((database) =>
-        getPreparedStatements(database).getTenantByDomain.execute({
-          domain: tenantCookie,
-        }),
-      );
       cause.tenantCookie = tenantCookie;
     }
 
-    const host = resolveHostHeader(input.requestHost);
-    if (!tenantCookie && host) {
-      const hostUrl = new URL(`${input.protocol}://${host}`);
-      const domain = hostUrl.hostname;
-      tenantRecord = yield* databaseEffect((database) =>
-        getPreparedStatements(database).getTenantByDomain.execute({
-          domain,
-        }),
-      );
-      cause.domain = domain;
+    if (hostDomain && isLocalRequestHost(hostDomain) && tenantCookie) {
+      tenantRecord = yield* findTenantByDomain(tenantCookie);
+      if (!tenantRecord) {
+        tenantRecord = yield* findTenantByDomain(hostDomain);
+      }
+    } else if (hostDomain) {
+      tenantRecord = yield* findTenantByDomain(hostDomain);
+    } else if (tenantCookie) {
+      tenantRecord = yield* findTenantByDomain(tenantCookie);
     }
 
     return {
       cause,
-      tenant: tenantRecord ? Schema.decodeSync(Tenant)(tenantRecord) : undefined,
+      tenant: tenantRecord
+        ? Schema.decodeUnknownSync(Tenant)(tenantRecord)
+        : undefined,
     };
   });
 
