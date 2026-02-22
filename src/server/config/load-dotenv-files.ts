@@ -28,7 +28,7 @@ export const loadDotenvFiles = (): void => {
     }
 
     dotenv.config({
-      override: true,
+      override: false,
       path: filePath,
     });
   }
