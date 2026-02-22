@@ -62,10 +62,15 @@ export class ReceiptSubmitDialogComponent {
   protected readonly formBuilder = inject(NonNullableFormBuilder);
   protected readonly selectableCountries = [...this.data.countries];
   private readonly defaultCountry =
-    this.selectableCountries.find((country) => country === this.data.defaultCountry) ??
+    this.selectableCountries.find(
+      (country) => country === this.data.defaultCountry,
+    ) ??
     this.selectableCountries[0] ??
     'DE';
-  protected readonly form = createReceiptForm(this.formBuilder, this.defaultCountry);
+  protected readonly form = createReceiptForm(
+    this.formBuilder,
+    this.defaultCountry,
+  );
   private readonly dialogRef = inject(
     MatDialogRef<ReceiptSubmitDialogComponent, ReceiptSubmitDialogResult>,
   );
@@ -90,10 +95,7 @@ export class ReceiptSubmitDialogComponent {
     const selectedFile = target?.files?.[0] ?? null;
     this.file.set(selectedFile);
     this.errorMessage.set('');
-    if (
-      selectedFile &&
-      this.attachmentName().trim().length === 0
-    ) {
+    if (selectedFile && this.attachmentName().trim().length === 0) {
       this.attachmentName.set(selectedFile.name);
     }
   }
@@ -130,11 +132,17 @@ export class ReceiptSubmitDialogComponent {
 
     const totalAmount = Math.round(value.totalAmount * 100);
     const taxAmount = Math.round(value.taxAmount * 100);
-    const depositAmount = value.hasDeposit ? Math.round(value.depositAmount * 100) : 0;
-    const alcoholAmount = value.hasAlcohol ? Math.round(value.alcoholAmount * 100) : 0;
+    const depositAmount = value.hasDeposit
+      ? Math.round(value.depositAmount * 100)
+      : 0;
+    const alcoholAmount = value.hasAlcohol
+      ? Math.round(value.alcoholAmount * 100)
+      : 0;
 
     if (depositAmount + alcoholAmount > totalAmount) {
-      this.errorMessage.set('Deposit and alcohol cannot exceed the total amount.');
+      this.errorMessage.set(
+        'Deposit and alcohol cannot exceed the total amount.',
+      );
       return;
     }
 

@@ -17,8 +17,8 @@ import {
 } from '@tanstack/angular-query-experimental';
 import { firstValueFrom, interval } from 'rxjs';
 
+import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { NotificationService } from '../../core/notification.service';
-import { injectTRPC } from '../../core/trpc-client';
 import { EventReviewDialogComponent } from '../../events/event-review-dialog/event-review-dialog.component';
 
 @Component({
@@ -40,7 +40,7 @@ import { EventReviewDialogComponent } from '../../events/event-review-dialog/eve
         class="lg:hidden! block"
         aria-label="Back to admin overview"
       >
-        <fa-duotone-icon [icon]="faArrowLeft"></fa-duotone-icon>
+        <fa-duotone-icon [icon]="faArrowLeft" />
       </a>
       <h1 class="title-large">Event Reviews</h1>
       <div class="grow"></div>
@@ -111,9 +111,7 @@ import { EventReviewDialogComponent } from '../../events/event-review-dialog/eve
                 <!--                }-->
               </div>
               <a mat-button routerLink="/events/{{ event.id }}">
-                <fa-duotone-icon
-                  [icon]="faArrowUpRightFromSquare"
-                ></fa-duotone-icon>
+                <fa-duotone-icon [icon]="faArrowUpRightFromSquare" />
                 Open Event
               </a>
             </div>
@@ -126,15 +124,14 @@ import { EventReviewDialogComponent } from '../../events/event-review-dialog/eve
 export class EventReviewsComponent {
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faArrowUpRightFromSquare = faArrowUpRightFromSquare;
-  private readonly trpc = injectTRPC();
+  private readonly rpc = AppRpc.injectClient();
   protected readonly pendingReviewsQuery = injectQuery(() =>
-    this.trpc.events.getPendingReviews.queryOptions(),
+    this.rpc.events.getPendingReviews.queryOptions(),
   );
   protected readonly reviewEventMutation = injectMutation(() =>
-    this.trpc.events.reviewEvent.mutationOptions(),
+    this.rpc.events.reviewEvent.mutationOptions(),
   );
   private readonly dialog = inject(MatDialog);
-
   private readonly notifications = inject(NotificationService);
   private readonly queryClient = inject(QueryClient);
 
@@ -195,17 +192,14 @@ export class EventReviewsComponent {
   }
 
   private async refreshReviewState(): Promise<void> {
-    await this.queryClient.invalidateQueries({
-      queryKey: this.trpc.events.getPendingReviews.pathKey(),
-    });
-    await this.queryClient.invalidateQueries({
-      queryKey: this.trpc.events.findMany.pathKey(),
-    });
-    await this.queryClient.invalidateQueries({
-      queryKey: this.trpc.events.eventList.pathKey(),
-    });
-    await this.queryClient.invalidateQueries({
-      queryKey: this.trpc.events.findOne.pathKey(),
-    });
+    await this.queryClient.invalidateQueries(
+      this.rpc.queryFilter(['events', 'getPendingReviews']),
+    );
+    await this.queryClient.invalidateQueries(
+      this.rpc.queryFilter(['events', 'eventList']),
+    );
+    await this.queryClient.invalidateQueries(
+      this.rpc.queryFilter(['events', 'findOne']),
+    );
   }
 }

@@ -14,7 +14,7 @@ import {
   injectQuery,
 } from '@tanstack/angular-query-experimental';
 
-import { injectTRPC } from '../../../core/trpc-client';
+import { AppRpc } from '../../../core/effect-rpc-angular-client';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -31,10 +31,10 @@ export class ImportTaxRatesDialogComponent {
   protected readonly selected = signal<string[]>([]);
   protected readonly canImport = computed(() => this.selected().length > 0);
 
-  private readonly trpc = injectTRPC();
+  private readonly rpc = AppRpc.injectClient();
 
   protected readonly importedQuery = injectQuery(() =>
-    this.trpc.admin.tenant.listImportedTaxRates.queryOptions(),
+    this.rpc.admin.tenant.listImportedTaxRates.queryOptions(),
   );
   protected readonly importedIds = computed(
     () =>
@@ -42,24 +42,27 @@ export class ImportTaxRatesDialogComponent {
   );
 
   protected readonly ratesQuery = injectQuery(() =>
-    this.trpc.admin.tenant.listStripeTaxRates.queryOptions(),
+    this.rpc.admin.tenant.listStripeTaxRates.queryOptions(),
   );
   private readonly dialogRef = inject(
     MatDialogRef<ImportTaxRatesDialogComponent>,
   );
 
   private readonly importMutation = injectMutation(() =>
-    this.trpc.admin.tenant.importStripeTaxRates.mutationOptions({
-      onSuccess: () => {
-        this.dialogRef.close(true);
-      },
-    }),
+    this.rpc.admin.tenant.importStripeTaxRates.mutationOptions(),
   );
 
   protected importSelected() {
     const ids = this.selected();
     if (ids.length === 0) return;
-    this.importMutation.mutate({ ids });
+    this.importMutation.mutate(
+      { ids },
+      {
+        onSuccess: () => {
+          this.dialogRef.close(true);
+        },
+      },
+    );
   }
 
   protected toggle(id: string, checked: boolean) {

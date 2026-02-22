@@ -19,7 +19,7 @@ import {
 } from '@fortawesome/duotone-regular-svg-icons';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
-import { injectTRPC } from '../../core/trpc-client';
+import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { RegistrationStartOffsetPipe } from '../../shared/pipes/registration-start-offset.pipe';
 
 @Component({
@@ -47,9 +47,9 @@ export class TemplateDetailsComponent {
   protected readonly faEllipsisVertical = faEllipsisVertical;
   protected readonly faPlus = faPlus;
 
-  private trpc = injectTRPC();
+  private readonly rpc = AppRpc.injectClient();
   protected readonly taxRatesQuery = injectQuery(() =>
-    this.trpc.taxRates.listActive.queryOptions(),
+    this.rpc.taxRates.listActive.queryOptions(),
   );
   protected readonly taxRateById = computed(() => {
     const rates = this.taxRatesQuery.data() ?? [];
@@ -57,8 +57,22 @@ export class TemplateDetailsComponent {
   });
   protected readonly templateId = input.required<string>();
   protected readonly templateQuery = injectQuery(() =>
-    this.trpc.templates.findOne.queryOptions({ id: this.templateId() }),
+    this.rpc.templates.findOne.queryOptions({ id: this.templateId() }),
   );
+
+  protected errorMessage(error: unknown): string {
+    if (typeof error === 'string') {
+      return error;
+    }
+    if (error && typeof error === 'object') {
+      const message = Reflect.get(error, 'message');
+      if (typeof message === 'string') {
+        return message;
+      }
+    }
+    return 'Unknown error';
+  }
+
   protected findRateByStripeId(id: null | string | undefined) {
     const map = this.taxRateById();
     return id ? map[id] : undefined;

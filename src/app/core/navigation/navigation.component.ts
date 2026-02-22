@@ -27,8 +27,8 @@ import {
 } from '@fortawesome/duotone-regular-svg-icons';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
-import { injectTRPC } from '../../core/trpc-client';
 import { IfPermissionDirective } from '../../shared/directives/if-permission.directive';
+import { AppRpc } from '../effect-rpc-angular-client';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -45,9 +45,9 @@ import { IfPermissionDirective } from '../../shared/directives/if-permission.dir
   templateUrl: './navigation.component.html',
 })
 export class NavigationComponent {
-  private readonly trpc = injectTRPC();
+  private readonly rpc = AppRpc.injectClient();
   protected readonly authenticationQuery = injectQuery(() =>
-    this.trpc.config.isAuthenticated.queryOptions(),
+    this.rpc.config.isAuthenticated.queryOptions(),
   );
   protected readonly faCalendarDays = faCalendarDays;
   protected readonly faEllipsisVertical = faEllipsisVertical;

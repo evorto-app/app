@@ -1,6 +1,6 @@
 <div class="mb-4 flex flex-row items-center gap-2">
   <a [routerLink]="['/admin/roles']" mat-icon-button>
-    <fa-icon [icon]="faArrowLeft"></fa-icon>
+    <fa-icon [icon]="faArrowLeft" />
   </a>
   <h1 class="title-large">Create Role</h1>
   <div class="grow"></div>
@@ -12,5 +12,5 @@
     [roleForm]="roleForm"
     [isSubmitting]="createRoleMutation.isPending()"
     (formSubmit)="onSubmit($event)"
-  ></app-role-form>
+  />
 </div>

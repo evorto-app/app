@@ -20,7 +20,7 @@
 </section>
 
 <section>
-  <app-role-select [formField]="form.roleIds"></app-role-select>
+  <app-role-select [formField]="form.roleIds" />
 </section>
 
 <section class="grid content-start gap-4">
@@ -35,11 +35,8 @@
         [formField]="form.openRegistrationTime"
       />
       <mat-hint>MM/DD/YYYY</mat-hint>
-      <mat-datepicker-toggle
-        matIconSuffix
-        [for]="startDatePicker"
-      ></mat-datepicker-toggle>
-      <mat-datepicker #startDatePicker></mat-datepicker>
+      <mat-datepicker-toggle matIconSuffix [for]="startDatePicker" />
+      <mat-datepicker #startDatePicker />
     </mat-form-field>
 
     <mat-form-field class="w-full">
@@ -61,11 +58,8 @@
         [formField]="form.closeRegistrationTime"
       />
       <mat-hint>MM/DD/YYYY</mat-hint>
-      <mat-datepicker-toggle
-        matIconSuffix
-        [for]="endDatePicker"
-      ></mat-datepicker-toggle>
-      <mat-datepicker #endDatePicker></mat-datepicker>
+      <mat-datepicker-toggle matIconSuffix [for]="endDatePicker" />
+      <mat-datepicker #endDatePicker />
     </mat-form-field>
 
     <mat-form-field class="w-full">
@@ -135,12 +129,12 @@
 
 <section class="flex flex-col gap-2">
   <span class="text-on-surface-variant text-sm">Description</span>
-  <app-editor [control]="form.description"></app-editor>
+  <app-editor [control]="form.description" />
 </section>
 
 <section class="flex flex-col gap-2">
   <span class="text-on-surface-variant text-sm"
     >Description for registered users</span
   >
-  <app-editor [control]="form.registeredDescription"></app-editor>
+  <app-editor [control]="form.registeredDescription" />
 </section>

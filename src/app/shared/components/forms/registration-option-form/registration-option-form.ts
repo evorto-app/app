@@ -9,7 +9,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatTimepickerModule } from '@angular/material/timepicker';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
-import { injectTRPC } from '../../../../core/trpc-client';
+import { AppRpc } from '../../../../core/effect-rpc-angular-client';
 import { EditorComponent } from '../../controls/editor/editor.component';
 import { RoleSelectComponent } from '../../controls/role-select/role-select.component';
 import { RegistrationOptionFormModel } from './registration-option-form.schema';
@@ -38,8 +38,8 @@ export class RegistrationOptionForm {
   public registrationModes = input.required<readonly string[]>();
   public registrationOptionForm =
     input.required<FieldTree<RegistrationOptionFormModel>>();
-  private trpc = injectTRPC();
+  private readonly rpc = AppRpc.injectClient();
   protected readonly taxRatesQuery = injectQuery(() =>
-    this.trpc.taxRates.listActive.queryOptions(),
+    this.rpc.taxRates.listActive.queryOptions(),
   );
 }

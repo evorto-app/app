@@ -40,7 +40,6 @@ export const createRegistrationOptionFormModel = (
   registrationMode: 'fcfs',
   roleIds: [],
   spots: 1,
-  // eslint-disable-next-line unicorn/no-null
   stripeTaxRateId: null,
   title: '',
   ...overrides,

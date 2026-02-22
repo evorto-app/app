@@ -1,4 +1,4 @@
-import consola from 'consola';
+import { Effect } from 'effect';
 
 /**
  * Structured logging events for tax rate operations
@@ -64,25 +64,30 @@ export const TaxRateLogger = {
   /**
    * Log checkout tax rate events
    */
-  logCheckoutEvent(data: CheckoutLogData): void {
+  logCheckoutEvent(data: CheckoutLogData): Effect.Effect<void> {
     if (data.treatAsFree) {
-      consola.info('tax-rates.checkout.treat-as-free', {
-        ...data,
-        timestamp: new Date(),
-      });
-    } else {
-      consola.debug('tax-rates.checkout.process', {
+      return Effect.logInfo({
+        event: 'tax-rates.checkout.treat-as-free',
         ...data,
         timestamp: new Date(),
       });
     }
+
+    return Effect.logDebug({
+      event: 'tax-rates.checkout.process',
+      ...data,
+      timestamp: new Date(),
+    });
   },
 
   /**
    * Log checkout tax rate warnings
    */
-  logCheckoutWarning(data: CheckoutLogData & { warning: string }): void {
-    consola.warn('tax-rates.checkout.warning', {
+  logCheckoutWarning(
+    data: CheckoutLogData & { warning: string },
+  ): Effect.Effect<void> {
+    return Effect.logWarning({
+      event: 'tax-rates.checkout.warning',
       ...data,
       timestamp: new Date(),
     });
@@ -91,8 +96,9 @@ export const TaxRateLogger = {
   /**
    * Log tax rate import failure
    */
-  logImportError(data: ImportLogData & { error: Error }): void {
-    consola.error('tax-rates.import.error', {
+  logImportError(data: ImportLogData & { error: Error }): Effect.Effect<void> {
+    return Effect.logError({
+      event: 'tax-rates.import.error',
       ...data,
       errorMessage: data.error.message,
       errorStack: data.error.stack,
@@ -103,8 +109,9 @@ export const TaxRateLogger = {
   /**
    * Log successful tax rate import operation
    */
-  logImportSuccess(data: ImportLogData): void {
-    consola.info('tax-rates.import.success', {
+  logImportSuccess(data: ImportLogData): Effect.Effect<void> {
+    return Effect.logInfo({
+      event: 'tax-rates.import.success',
       ...data,
       timestamp: new Date(),
     });
@@ -113,20 +120,24 @@ export const TaxRateLogger = {
   /**
    * Log fallback label usage
    */
-  logLabelFallback(data: LabelLogData): void {
+  logLabelFallback(data: LabelLogData): Effect.Effect<void> {
     if (data.fallbackUsed) {
-      consola.debug('tax-rates.label.fallback-used', {
+      return Effect.logDebug({
+        event: 'tax-rates.label.fallback-used',
         ...data,
         timestamp: new Date(),
       });
     }
+
+    return Effect.void;
   },
 
   /**
    * Log migration operations
    */
-  logMigration(data: MigrationLogData): void {
-    consola.info('tax-rates.migration.assignment', {
+  logMigration(data: MigrationLogData): Effect.Effect<void> {
+    return Effect.logInfo({
+      event: 'tax-rates.migration.assignment',
       ...data,
       timestamp: new Date(),
     });
@@ -144,8 +155,9 @@ export const TaxRateLogger = {
       reason: string;
       stripeTaxRateId: string;
     },
-  ): void {
-    consola.warn('tax-rates.rate.unavailable', {
+  ): Effect.Effect<void> {
+    return Effect.logWarning({
+      event: 'tax-rates.rate.unavailable',
       ...data,
       timestamp: new Date(),
     });
@@ -154,18 +166,20 @@ export const TaxRateLogger = {
   /**
    * Log tax rate validation events
    */
-  logValidation(data: ValidationLogData): void {
+  logValidation(data: ValidationLogData): Effect.Effect<void> {
     if (data.validationResult === 'error') {
-      consola.error('tax-rates.validation.error', {
-        ...data,
-        timestamp: new Date(),
-      });
-    } else {
-      consola.debug('tax-rates.validation.success', {
+      return Effect.logError({
+        event: 'tax-rates.validation.error',
         ...data,
         timestamp: new Date(),
       });
     }
+
+    return Effect.logDebug({
+      event: 'tax-rates.validation.success',
+      ...data,
+      timestamp: new Date(),
+    });
   },
 };
 

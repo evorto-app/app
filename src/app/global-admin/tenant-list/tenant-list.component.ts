@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
-import { injectTRPC } from '../../core/trpc-client';
+import { AppRpc } from '../../core/effect-rpc-angular-client';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -11,8 +11,8 @@ import { injectTRPC } from '../../core/trpc-client';
   templateUrl: './tenant-list.component.html',
 })
 export class TenantListComponent {
-  private trpc = injectTRPC();
+  private rpc = AppRpc.injectClient();
   protected tenantQuery = injectQuery(() =>
-    this.trpc.globalAdmin.tenants.findMany.queryOptions(),
+    this.rpc.globalAdmin.tenants.findMany.queryOptions(),
   );
 }

@@ -24,7 +24,7 @@ import {
 import consola from 'consola/browser';
 import { DateTime } from 'luxon';
 
-import { injectTRPC } from '../../core/trpc-client';
+import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { EventGeneralForm } from '../../shared/components/forms/event-general-form/event-general-form';
 import {
   createEventGeneralFormModel,
@@ -52,9 +52,9 @@ import { IfAnyPermissionDirective } from '../../shared/directives/if-any-permiss
 })
 export class EventEdit {
   public eventId = input.required<string>();
-  private trpc = injectTRPC();
+  private readonly rpc = AppRpc.injectClient();
   protected readonly discountProvidersQuery = injectQuery(() =>
-    this.trpc.discounts.getTenantProviders.queryOptions(),
+    this.rpc.discounts.getTenantProviders.queryOptions(),
   );
   protected readonly editEventModel = signal<EventGeneralFormModel>(
     createEventGeneralFormModel(),
@@ -66,10 +66,13 @@ export class EventEdit {
   protected readonly esnEnabled = computed(() => {
     const providers = this.discountProvidersQuery.data();
     if (!providers) return false;
-    return providers.find((provider) => provider.type === 'esnCard')?.status === 'enabled';
+    return (
+      providers.find((provider) => provider.type === 'esnCard')?.status ===
+      'enabled'
+    );
   });
   protected readonly eventQuery = injectQuery(() =>
-    this.trpc.events.findOneForEdit.queryOptions({ id: this.eventId() }),
+    this.rpc.events.findOneForEdit.queryOptions({ id: this.eventId() }),
   );
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faEllipsisVertical = faEllipsisVertical;
@@ -78,21 +81,11 @@ export class EventEdit {
     'random',
     'application',
   ] as const;
+  protected readonly updateEventMutation = injectMutation(() =>
+    this.rpc.events.update.mutationOptions(),
+  );
   private queryClient = inject(QueryClient);
   private router = inject(Router);
-  protected readonly updateEventMutation = injectMutation(() =>
-    this.trpc.events.update.mutationOptions({
-      onError: (error) => {
-        consola.error('Failed to update event:', error);
-      },
-      onSuccess: async ({ id }) => {
-        await this.queryClient.invalidateQueries({
-          queryKey: this.trpc.events.eventList.pathKey(),
-        });
-        return this.router.navigate(['/events', id]);
-      },
-    }),
-  );
   constructor() {
     effect(() => {
       const event = this.eventQuery.data();
@@ -104,7 +97,6 @@ export class EventEdit {
               ? DateTime.fromJSDate(new Date(event.end))
               : DateTime.now(),
             icon: event.icon,
-            // eslint-disable-next-line unicorn/no-null
             location: event.location ?? null,
             registrationOptions: event.registrationOptions.map((option) =>
               createRegistrationOptionFormModel({
@@ -122,9 +114,8 @@ export class EventEdit {
                 price: option.price,
                 registeredDescription: option.registeredDescription ?? '',
                 registrationMode: option.registrationMode,
-                roleIds: option.roleIds ?? [],
+                roleIds: option.roleIds ? [...option.roleIds] : [],
                 spots: option.spots,
-                // eslint-disable-next-line unicorn/no-null
                 stripeTaxRateId: option.stripeTaxRateId ?? null,
                 title: option.title,
               }),
@@ -153,36 +144,56 @@ export class EventEdit {
         return;
       }
 
-      this.updateEventMutation.mutate({
-        description: formValue.description,
-        end: formValue.end.toJSDate(),
-        eventId: this.eventId(),
-        icon: formValue.icon,
-        location: formValue.location,
-        registrationOptions: formValue.registrationOptions.map((registrationOption) => ({
-          closeRegistrationTime: registrationOption.closeRegistrationTime.toJSDate(),
-          description: registrationOption.description || null,
-          esnCardDiscountedPrice:
-            this.esnEnabled() && registrationOption.isPaid
-              ? registrationOption.esnCardDiscountedPrice === ''
-                ? null
-                : registrationOption.esnCardDiscountedPrice
-              : null,
-          id: registrationOption.id,
-          isPaid: registrationOption.isPaid,
-          openRegistrationTime: registrationOption.openRegistrationTime.toJSDate(),
-          organizingRegistration: registrationOption.organizingRegistration,
-          price: registrationOption.price,
-          registeredDescription: registrationOption.registeredDescription || null,
-          registrationMode: registrationOption.registrationMode,
-          roleIds: registrationOption.roleIds,
-          spots: registrationOption.spots,
-          stripeTaxRateId: registrationOption.stripeTaxRateId,
-          title: registrationOption.title,
-        })),
-        start: formValue.start.toJSDate(),
-        title: formValue.title,
-      });
+      this.updateEventMutation.mutate(
+        {
+          description: formValue.description,
+          end: formValue.end.toJSDate().toISOString(),
+          eventId: this.eventId(),
+          icon: formValue.icon,
+          location: formValue.location,
+          registrationOptions: formValue.registrationOptions.map(
+            (registrationOption) => ({
+              closeRegistrationTime: registrationOption.closeRegistrationTime
+                .toJSDate()
+                .toISOString(),
+              description: registrationOption.description || null,
+              esnCardDiscountedPrice:
+                this.esnEnabled() && registrationOption.isPaid
+                  ? registrationOption.esnCardDiscountedPrice === ''
+                    ? null
+                    : registrationOption.esnCardDiscountedPrice
+                  : null,
+              id: registrationOption.id,
+              isPaid: registrationOption.isPaid,
+              openRegistrationTime: registrationOption.openRegistrationTime
+                .toJSDate()
+                .toISOString(),
+              organizingRegistration: registrationOption.organizingRegistration,
+              price: registrationOption.price,
+              registeredDescription:
+                registrationOption.registeredDescription || null,
+              registrationMode: registrationOption.registrationMode,
+              roleIds: registrationOption.roleIds,
+              spots: registrationOption.spots,
+              stripeTaxRateId: registrationOption.stripeTaxRateId,
+              title: registrationOption.title,
+            }),
+          ),
+          start: formValue.start.toJSDate().toISOString(),
+          title: formValue.title,
+        },
+        {
+          onError: (error) => {
+            consola.error('Failed to update event:', error);
+          },
+          onSuccess: async ({ id }) => {
+            await this.queryClient.invalidateQueries(
+              this.rpc.queryFilter(['events', 'eventList']),
+            );
+            return this.router.navigate(['/events', id]);
+          },
+        },
+      );
     });
   }
 }

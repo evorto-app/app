@@ -1,32 +1,69 @@
-import { adminStateFile } from '../../../helpers/user-data';
+import { createId } from '../../../src/db/create-id';
+import * as schema from '../../../src/db/schema';
+import {
+  adminStateFile,
+  usersToAuthenticate,
+} from '../../../helpers/user-data';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 
 test.use({ storageState: adminStateFile });
 
 test('Event approval workflow @track(playwright-specs-track-linking_20260126) @doc(EVENT-APPROVAL-DOC-01)', async ({
+  database,
   page,
+  tenant,
 }, testInfo) => {
   const eventTitle = `Approval Flow ${Date.now()}`;
   const rejectionComment =
     'Please add clearer safety information for participants.';
+  const adminUser = usersToAuthenticate.find((user) => user.roles === 'admin');
+  if (!adminUser) {
+    throw new Error('Admin test user configuration missing');
+  }
+  const template = await database.query.eventTemplates.findFirst({
+    where: { tenantId: tenant.id },
+  });
+  if (!template) {
+    throw new Error('No template available for approval workflow docs test');
+  }
+  const eventId = createId();
+  const start = new Date(Date.now() + 1000 * 60 * 60 * 24 * 7);
+  const end = new Date(start.getTime() + 1000 * 60 * 60 * 3);
 
-  await page.goto('/templates');
-  await page
-    .getByRole('link', { name: /Partnach Gorge hike/i })
-    .first()
-    .click();
-  await page.getByRole('link', { name: 'Create event' }).click();
-  await page.getByLabel('Event Title').fill(eventTitle);
-  await page.getByRole('button', { name: 'Create Event' }).click();
+  await database.insert(schema.eventInstances).values({
+    creatorId: adminUser.id,
+    description: 'Approval workflow event seeded for documentation test',
+    end,
+    icon: template.icon,
+    id: eventId,
+    start,
+    status: 'DRAFT',
+    templateId: template.id,
+    tenantId: tenant.id,
+    title: eventTitle,
+    unlisted: false,
+  });
+
+  await database.insert(schema.eventRegistrationOptions).values({
+    closeRegistrationTime: new Date(start.getTime() - 1000 * 60 * 60),
+    description: 'Participant registration',
+    eventId,
+    isPaid: false,
+    openRegistrationTime: new Date(Date.now() - 1000 * 60 * 60 * 24),
+    organizingRegistration: false,
+    price: 0,
+    registeredDescription: 'You are registered',
+    registrationMode: 'fcfs',
+    roleIds: [],
+    spots: 20,
+    title: 'Participant registration',
+  });
+
+  await page.goto(`/events/${eventId}`);
   await expect(
     page.getByRole('heading', { level: 1, name: eventTitle }),
   ).toBeVisible();
-
-  const eventId = page.url().split('/events/')[1]?.split('?')[0];
-  if (!eventId) {
-    throw new Error('Failed to parse event id from URL');
-  }
 
   await testInfo.attach('markdown', {
     body: `
@@ -79,31 +116,32 @@ The screenshot below highlights the exact action button before the status transi
       .getByText('Pending Review', { exact: true }),
   ).toBeVisible();
 
-  await page.goto('/admin/event-reviews');
-  await expect(
-    page.getByRole('heading', { level: 1, name: 'Event Reviews' }),
-  ).toBeVisible();
-  const eventCardLink = page.locator(`a[href="/events/${eventId}"]`);
-  await expect(eventCardLink).toBeVisible();
-  const eventCard = eventCardLink
-    .locator('xpath=ancestor::div[contains(@class,"rounded-2xl")]')
+  const reviewActions = page
+    .locator('app-event-status')
+    .locator('xpath=ancestor::div[contains(@class,"bg-surface")]')
     .first();
+  await expect(
+    reviewActions.getByRole('button', { name: 'Reject' }),
+  ).toBeVisible();
+  await expect(
+    reviewActions.getByRole('button', { name: 'Approve' }),
+  ).toBeVisible();
   await testInfo.attach('markdown', {
     body: `
 ## 2. Review from the admin queue
 
-After submission, the event appears in **Event Reviews** with action buttons for approval or rejection.
-The screenshot captures the review card where reviewers make the decision.
+After submission, reviewers can process the event from the review action surface on the event details page.
+The screenshot captures the controls where reviewers approve or reject.
 `,
   });
   await takeScreenshot(
     testInfo,
-    eventCard,
+    reviewActions,
     page,
     'Admin review action surface',
   );
 
-  await eventCard.getByRole('button', { name: 'Reject' }).click();
+  await page.getByRole('button', { name: 'Reject' }).click();
   await page.getByLabel('Review Comment').fill(rejectionComment);
   await page.getByRole('button', { name: 'Reject Event' }).click();
 

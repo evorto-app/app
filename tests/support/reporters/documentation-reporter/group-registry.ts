@@ -146,4 +146,3 @@ export class DocumentationGroupRegistry {
     return `${truncatedBase}${suffix}`;
   }
 }
-

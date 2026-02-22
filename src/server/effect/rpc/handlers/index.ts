@@ -1,0 +1,12 @@
+export { adminHandlers } from './admin.handlers';
+export { configHandlers } from './config.handlers';
+export { discountHandlers } from './discounts.handlers';
+export { editorMediaHandlers } from './editor-media.handlers';
+export { eventHandlers } from './events/events.handlers';
+export { financeHandlers } from './finance/finance.handlers';
+export { globalAdminHandlers } from './global-admin.handlers';
+export { iconHandlers } from './icons.handlers';
+export { taxRateHandlers } from './tax-rates.handlers';
+export { templateCategoryHandlers } from './template-categories.handlers';
+export { templateHandlers } from './templates.handlers';
+export { userHandlers } from './users.handlers';

@@ -17,8 +17,8 @@ import {
   QueryClient,
 } from '@tanstack/angular-query-experimental';
 
+import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { NotificationService } from '../../core/notification.service';
-import { injectTRPC } from '../../core/trpc-client';
 import { ReceiptPreviewDialogComponent } from '../shared/receipt-preview-dialog/receipt-preview-dialog.component';
 
 type PayoutType = 'iban' | 'paypal';
@@ -46,34 +46,24 @@ export class ReceiptRefundListComponent {
     'totalAmount',
     'preview',
   ];
-  private readonly trpc = injectTRPC();
+  private readonly rpc = AppRpc.injectClient();
   protected readonly refundableReceiptsQuery = injectQuery(() =>
-    this.trpc.finance.receipts.refundableGroupedByRecipient.queryOptions(),
+    this.rpc.finance.receipts.refundableGroupedByRecipient.queryOptions(),
   );
-  private readonly queryClient = inject(QueryClient);
-
   protected readonly refundMutation = injectMutation(() =>
-    this.trpc.finance.receipts.createRefund.mutationOptions({
-      onSuccess: async () => {
-        await this.queryClient.invalidateQueries({
-          queryKey: this.trpc.finance.receipts.refundableGroupedByRecipient.pathKey(),
-        });
-        await this.queryClient.invalidateQueries({
-          queryKey: this.trpc.finance.receipts.pendingApprovalGrouped.pathKey(),
-        });
-        await this.queryClient.invalidateQueries({
-          queryKey: this.trpc.finance.transactions.findMany.pathKey(),
-        });
-      },
-    }),
+    this.rpc.finance.receipts.createRefund.mutationOptions(),
   );
+
   private readonly dialog = inject(MatDialog);
   private readonly notifications = inject(NotificationService);
-
-  private readonly payoutTypeByRecipient = signal<Record<string, PayoutType>>({});
-  private readonly selectionByRecipient = signal<Record<string, Record<string, boolean>>>(
+  private readonly payoutTypeByRecipient = signal<Record<string, PayoutType>>(
     {},
   );
+
+  private readonly queryClient = inject(QueryClient);
+  private readonly selectionByRecipient = signal<
+    Record<string, Record<string, boolean>>
+  >({});
 
   constructor() {
     effect(() => {
@@ -118,17 +108,24 @@ export class ReceiptRefundListComponent {
       return false;
     }
     const payoutType = this.getPayoutType(recipientId, payout);
-    return payoutType === 'iban' ? Boolean(payout.iban) : Boolean(payout.paypalEmail);
+    return payoutType === 'iban'
+      ? Boolean(payout.iban)
+      : Boolean(payout.paypalEmail);
   }
 
   protected getPayoutType(
     recipientId: string,
     payout: { iban: null | string; paypalEmail: null | string },
   ): PayoutType {
-    return this.payoutTypeByRecipient()[recipientId] ?? (payout.iban ? 'iban' : 'paypal');
+    return (
+      this.payoutTypeByRecipient()[recipientId] ??
+      (payout.iban ? 'iban' : 'paypal')
+    );
   }
 
-  protected hasPreviewUrl(receipt: { previewImageUrl: null | string }): boolean {
+  protected hasPreviewUrl(receipt: {
+    previewImageUrl: null | string;
+  }): boolean {
     return Boolean(receipt.previewImageUrl);
   }
 
@@ -140,7 +137,9 @@ export class ReceiptRefundListComponent {
       return false;
     }
     const selected = this.selectionByRecipient()[recipientId] ?? {};
-    const selectedCount = receiptIds.filter((receiptId) => selected[receiptId]).length;
+    const selectedCount = receiptIds.filter(
+      (receiptId) => selected[receiptId],
+    ).length;
     return selectedCount > 0 && selectedCount < receiptIds.length;
   }
 
@@ -184,7 +183,10 @@ export class ReceiptRefundListComponent {
       return;
     }
 
-    const payoutType = this.getPayoutType(group.submittedByUserId, group.payout);
+    const payoutType = this.getPayoutType(
+      group.submittedByUserId,
+      group.payout,
+    );
     const payoutReference =
       payoutType === 'iban' ? group.payout.iban : group.payout.paypalEmail;
     if (!payoutReference) {
@@ -199,11 +201,32 @@ export class ReceiptRefundListComponent {
         return;
       }
       const otherReceiptIds = receiptIds.slice(1);
-      await this.refundMutation.mutateAsync({
-        payoutReference,
-        payoutType,
-        receiptIds: [firstReceiptId, ...otherReceiptIds],
-      });
+      await this.refundMutation.mutateAsync(
+        {
+          payoutReference,
+          payoutType,
+          receiptIds: [firstReceiptId, ...otherReceiptIds],
+        },
+        {
+          onSuccess: async () => {
+            await this.queryClient.invalidateQueries(
+              this.rpc.queryFilter([
+                'finance',
+                'receipts.refundableGroupedByRecipient',
+              ]),
+            );
+            await this.queryClient.invalidateQueries(
+              this.rpc.queryFilter([
+                'finance',
+                'receipts.pendingApprovalGrouped',
+              ]),
+            );
+            await this.queryClient.invalidateQueries(
+              this.rpc.queryFilter(['finance', 'transactions.findMany']),
+            );
+          },
+        },
+      );
       this.notifications.showSuccess('Refund transaction created');
       this.selectionByRecipient.update((current) => ({
         ...current,
@@ -233,7 +256,10 @@ export class ReceiptRefundListComponent {
       .reduce((sum, receipt) => sum + receipt.totalAmount, 0);
   }
 
-  protected setPayoutType(recipientId: string, payoutType: null | string): void {
+  protected setPayoutType(
+    recipientId: string,
+    payoutType: null | string,
+  ): void {
     if (payoutType !== 'iban' && payoutType !== 'paypal') {
       return;
     }

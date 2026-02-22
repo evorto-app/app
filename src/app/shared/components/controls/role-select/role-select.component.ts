@@ -25,7 +25,7 @@ import { faCircleXmark } from '@fortawesome/duotone-regular-svg-icons';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 import { injectQueries } from '@tanstack/angular-query-experimental/inject-queries-experimental';
 
-import { injectTRPC, injectTRPCClient } from '../../../../core/trpc-client';
+import { AppRpc } from '../../../../core/effect-rpc-angular-client';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -56,16 +56,14 @@ export class RoleSelectComponent implements FormValueControl<string[]> {
   protected readonly searchValue = computed(
     () => this.searchForm().value().query,
   );
-  private trpc = injectTRPC();
+  private readonly rpc = AppRpc.injectClient();
   protected searchRoleQuery = injectQuery(() =>
-    this.trpc.admin.roles.search.queryOptions({ search: this.searchValue() }),
+    this.rpc.admin.roles.search.queryOptions({ search: this.searchValue() }),
   );
-  private trpcClient = injectTRPCClient();
   protected currentRolesQuery = injectQueries(() => ({
-    queries: this.value().map((roleId) => ({
-      queryFn: () => this.trpcClient.admin.roles.findOne.query({ id: roleId }),
-      queryKey: ['roles', roleId],
-    })),
+    queries: this.value().map((roleId) =>
+      this.rpc.admin.roles.findOne.queryOptions({ id: roleId }),
+    ),
   }));
   protected readonly selectedRoleIds = computed(() => {
     const selected = new Set((this.value() ?? []).filter(Boolean));

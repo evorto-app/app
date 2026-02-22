@@ -17,7 +17,7 @@
         routerLinkActive="bg-secondary-container! text-on-secondary-container!"
       >
         <div class="flex flex-row items-center gap-4">
-          <fa-duotone-icon [icon]="faListTimeline" size="xl"></fa-duotone-icon>
+          <fa-duotone-icon [icon]="faListTimeline" size="xl" />
           <h2 class="title-medium">Transactions</h2>
         </div>
       </a>
@@ -27,7 +27,7 @@
         routerLinkActive="bg-secondary-container! text-on-secondary-container!"
       >
         <div class="flex flex-row items-center gap-4">
-          <fa-duotone-icon [icon]="faBadgeCheck" size="xl"></fa-duotone-icon>
+          <fa-duotone-icon [icon]="faBadgeCheck" size="xl" />
           <h2 class="title-medium">Receipt approvals</h2>
         </div>
       </a>
@@ -37,10 +37,7 @@
         routerLinkActive="bg-secondary-container! text-on-secondary-container!"
       >
         <div class="flex flex-row items-center gap-4">
-          <fa-duotone-icon
-            [icon]="faRotateExclamation"
-            size="xl"
-          ></fa-duotone-icon>
+          <fa-duotone-icon [icon]="faRotateExclamation" size="xl" />
           <h2 class="title-medium">Receipt refunds</h2>
         </div>
       </a>
@@ -50,6 +47,6 @@
     <router-outlet
       (activate)="outletActive.set(true)"
       (deactivate)="outletActive.set(false)"
-    ></router-outlet>
+    />
   </div>
 </div>

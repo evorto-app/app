@@ -83,7 +83,6 @@ export class RoleFormComponent {
       const formValue = formState().value();
       this.formSubmit.emit({
         ...formValue,
-        // eslint-disable-next-line unicorn/no-null
         description: formValue.description || null,
         permissions: ALL_PERMISSIONS.filter(
           (permission) => formValue.permissions[permission],

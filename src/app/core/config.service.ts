@@ -15,8 +15,7 @@ import consola from 'consola/browser';
 import { Permission } from '../../shared/permissions/permissions';
 import { Context } from '../../types/custom/context';
 import { Tenant } from '../../types/custom/tenant';
-import { injectTRPC } from './trpc-client';
-import { injectTRPCClient } from './trpc-client';
+import { AppRpc } from './effect-rpc-angular-client';
 
 @Injectable({
   providedIn: 'root',
@@ -45,17 +44,15 @@ export class ConfigService {
     googleMapsApiKey: null | string;
     sentryDsn: null | string;
   } = {
-    // eslint-disable-next-line unicorn/no-null
     googleMapsApiKey: null,
-    // eslint-disable-next-line unicorn/no-null
     sentryDsn: null,
   };
   private _tenant!: Tenant;
 
-  private trpc = injectTRPC();
+  private readonly rpc = AppRpc.injectClient();
 
   private currentTenantQuery = injectQuery(() =>
-    this.trpc.config.tenant.queryOptions(),
+    this.rpc.config.tenant.queryOptions(),
   );
 
   private document = inject(DOCUMENT);
@@ -63,12 +60,10 @@ export class ConfigService {
 
   private readonly platformId = inject(PLATFORM_ID);
 
-  // eslint-disable-next-line unicorn/no-null
   private renderer = inject(RendererFactory2).createRenderer(null, null);
   private readonly requestContext = inject(REQUEST_CONTEXT) as Context | null;
 
   private readonly title = inject(Title);
-  private trpcClient = injectTRPCClient();
 
   constructor() {
     effect(() => {
@@ -96,9 +91,9 @@ export class ConfigService {
       return;
     }
     const [tenant, permissions, pub] = await Promise.all([
-      this.trpcClient.config.tenant.query(),
-      this.trpcClient.config.permissions.query(),
-      this.trpcClient.config.public.query(),
+      this.rpc.config.tenant.call(),
+      this.rpc.config.permissions.call(),
+      this.rpc.config.public.call(),
     ]);
 
     this.title.setTitle(tenant.name);

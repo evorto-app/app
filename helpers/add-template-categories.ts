@@ -1,4 +1,4 @@
-import { NeonDatabase } from 'drizzle-orm/neon-serverless';
+import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import consola from 'consola';
 
 import { relations } from '../src/db/relations';
@@ -6,7 +6,7 @@ import * as schema from '../src/db/schema';
 import { getId } from './get-id';
 
 export const addTemplateCategories = async (
-  database: NeonDatabase<Record<string, never>, typeof relations>,
+  database: NodePgDatabase<Record<string, never>, typeof relations>,
   tenant: { id: string },
   iconsParameter?: {
     commonName: string;

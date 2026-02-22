@@ -1,6 +1,6 @@
 @let form = generalForm();
 <div class="grid grid-cols-1 gap-2 lg:grid-cols-[auto_1fr_1fr]">
-  <app-icon-selector-field [formField]="form.icon"></app-icon-selector-field>
+  <app-icon-selector-field [formField]="form.icon" />
   <mat-form-field>
     <mat-label>Template title</mat-label>
     <input matInput [formField]="form.title" />
@@ -9,7 +9,7 @@
     <mat-label>Template Category</mat-label>
     <mat-select [formField]="form.categoryId">
       @for (
-        templateCategory of templateCategoriesQuery.data();
+        templateCategory of templateCategories();
         track templateCategory.id
       ) {
         <mat-option [value]="templateCategory.id">
@@ -23,4 +23,4 @@
 </div>
 <app-location-selector-field [formField]="form.location" />
 
-<app-editor [control]="form.description"></app-editor>
+<app-editor [control]="form.description" />

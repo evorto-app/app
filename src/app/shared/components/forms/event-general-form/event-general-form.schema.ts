@@ -27,9 +27,7 @@ export const createEventGeneralFormModel = (
   return {
     description: '',
     end: defaultStart,
-    // eslint-disable-next-line unicorn/no-null
     icon: null,
-    // eslint-disable-next-line unicorn/no-null
     location: null,
     registrationOptions: [],
     start: defaultStart,

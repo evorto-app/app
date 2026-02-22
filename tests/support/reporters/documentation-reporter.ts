@@ -66,9 +66,12 @@ class DocumentationReporter implements Reporter {
         pageLines.push(...section.content);
       }
 
-      const pageDir = ensureDirectory(path.join(this.docsRoot(), doc.folderName), {
-        empty: true,
-      });
+      const pageDir = ensureDirectory(
+        path.join(this.docsRoot(), doc.folderName),
+        {
+          empty: true,
+        },
+      );
       writeFile(path.join(pageDir, 'page.md'), pageLines.join('\n'));
     }
   }

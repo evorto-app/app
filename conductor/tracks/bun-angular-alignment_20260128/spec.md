@@ -1,45 +1,44 @@
-# Track Spec: Align with fresh Angular + Bun baseline; introduce Effect across server
+# Track Spec: Bun-First Angular Alignment + Effect Runtime Consolidation
 
-## Overview
+## Goal
 
-Align the project with a fresh Angular CLI `ng new` setup using Bun as the package manager, remove Node/Express-based runtime parts, and introduce Effect-based code patterns across server, data access, and shared utilities while preserving existing SSR routes, RPC structure, and database schema.
+Complete and harden the migration to a Bun-first Angular + Effect stack with no legacy Node/Express fallback behavior.
 
-## Functional Requirements
+## Current Baseline
 
-1. Baseline Alignment
-   - Compare the current repo against a fresh Angular CLI project configured to use Bun.
-   - Align configuration files and tooling to the fresh baseline where appropriate.
-   - Consolidate scripts and lockfiles to Bun.
+As of 2026-02-21, this track has already completed:
 
-2. Runtime Migration
-   - Remove Node/Express-based runtime code and wiring.
-   - Ensure SSR server execution is Bun-first and continues to serve existing routes.
+1. Bun-first package/runtime/tooling cutover for app, build, and test workflows.
+2. Removal of Express runtime paths in favor of Effect Platform server composition.
+3. Broad tRPC-to-Effect RPC migration across major application domains.
+4. Shared server runtime composition where `/rpc` executes inside the same Effect runtime/layers as the main HTTP app.
 
-3. Effect Adoption
-   - Introduce Effect across server RPC boundaries and shared utilities.
-   - Use Drizzle's Effect/SQL integrations where applicable for server data access.
+## Source References
 
-4. Compatibility Guarantees
-   - Preserve existing SSR routes and public behavior.
-   - Preserve RPC procedure structure and behavior.
-   - Preserve database schema and migration setup.
+- `conductor/tracks/bun-angular-alignment_20260128/repomix-output-angular-bun-setup-main.zip.xml`
+- `conductor/tracks/bun-angular-alignment_20260128/repomix-output-effect-angular-main (3).zip.xml`
 
-## Non-Functional Requirements
+These are implementation references only; repository code and track files are the source of truth.
 
-- Maintain end-to-end type safety (Effect Schema, Drizzle types, Angular strict types).
-- No regressions in SSR output or route handling.
-- Keep changes aligned with current tech stack and Conductor workflow.
+## Remaining Scope
 
-## Acceptance Criteria
+The remaining work for this track is production-hardening and closure:
 
-- Project configuration and scripts match a fresh Angular CLI + Bun baseline where relevant.
-- All Node/Express runtime artifacts are removed, and SSR runs on Bun.
-- Effect is present and used across server, data access, and shared utilities.
-- Existing SSR routes, RPC procedures, and database schema remain intact and functional.
-- Build and lint still pass (as per project workflow gates).
+1. Resolve remaining docs e2e instability.
+2. Validate Bun `S3Client`/R2 behavior in a real configured environment.
+3. Finalize session behavior decisions and verify production-like auth flows.
+4. Complete focused test coverage for auth/session and webhook runtime paths.
+5. Remove temporary dependency patching and close outstanding lint/toolchain anomalies.
+6. Final full-gate validation and track closure documentation.
 
 ## Out of Scope
 
-- Product feature changes beyond migration/alignment work.
-- Schema changes or new migrations.
-- Large UI refactors unrelated to the alignment effort.
+1. Backward compatibility with pre-migration Node/Express runtime behavior.
+2. Reintroducing deprecated tRPC/Express architecture.
+
+## Acceptance Criteria
+
+1. All open items in `revisit-log.md` are closed or explicitly deferred with rationale.
+2. `plan.md` accurately reflects completion state and remaining tasks.
+3. Track docs reference only existing, current artifacts.
+4. Final validation suite for this migration passes under Bun-first workflows.

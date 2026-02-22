@@ -30,7 +30,6 @@ export class IconSelectorFieldComponent implements FormValueControl<IconValue | 
   readonly readonly = input<boolean>(false);
   readonly touched = model<boolean>(false);
   readonly value = model<IconValue | null>(
-    // eslint-disable-next-line unicorn/no-null
     null,
   );
   protected readonly showError = computed(

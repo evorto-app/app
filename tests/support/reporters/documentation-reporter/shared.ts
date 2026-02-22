@@ -24,21 +24,17 @@ export const stripTagsFromTitle = (title: string): string =>
     .trim();
 
 export const slugifyTestTitle = (title: string): string =>
-  (
-    stripTagsFromTitle(title)
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/(^-|-$)+/g, '') || 'test'
-  );
+  stripTagsFromTitle(title)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)+/g, '') || 'test';
 
 export const MAX_FOLDER_NAME_LENGTH = 64;
 
 export const slugifyFolderNameFromTitle = (title: string): string =>
-  (
-    slugifyTestTitle(title)
-      .slice(0, MAX_FOLDER_NAME_LENGTH)
-      .replace(/-+$/g, '') || 'docs'
-  );
+  slugifyTestTitle(title)
+    .slice(0, MAX_FOLDER_NAME_LENGTH)
+    .replace(/-+$/g, '') || 'docs';
 
 export const titleFromTestFile = (filePath: string): string => {
   const baseName = path
@@ -87,4 +83,3 @@ export type TestGroupInfo = {
   folderName: string;
   groupKey: string;
 };
-

@@ -3,7 +3,9 @@
 </div>
 
 @if (pendingReceiptsQuery.isPending()) {
-  <div class="bg-surface text-on-surface rounded-2xl p-4">Loading receipts...</div>
+  <div class="bg-surface text-on-surface rounded-2xl p-4">
+    Loading receipts...
+  </div>
 } @else if (pendingReceiptsQuery.isError()) {
   <div class="bg-error-container text-on-error-container rounded-2xl p-4">
     Failed to load pending receipts.
@@ -33,7 +35,8 @@
                 </span>
               </div>
               <p class="text-on-surface-variant text-sm">
-                {{ receipt.submittedByFirstName }} {{ receipt.submittedByLastName }}
+                {{ receipt.submittedByFirstName }}
+                {{ receipt.submittedByLastName }}
               </p>
             </a>
           }

@@ -1,6 +1,6 @@
 import { InferInsertModel, InferSelectModel } from 'drizzle-orm';
 import consola from 'consola';
-import { NeonDatabase } from 'drizzle-orm/neon-serverless';
+import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { DateTime } from 'luxon';
 
 import { relations } from '../src/db/relations';
@@ -42,7 +42,7 @@ const resolveTaxRateSelection = (
 };
 
 const fetchTenantTaxRates = async (
-  database: NeonDatabase<Record<string, never>, typeof relations>,
+  database: NodePgDatabase<Record<string, never>, typeof relations>,
   tenantId: string,
 ): Promise<TenantStripeTaxRate[]> => {
   for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -60,8 +60,23 @@ const fetchTenantTaxRates = async (
   return [];
 };
 
+const computeEventClock = (
+  templateId: string,
+  index: number,
+): { hour: number; minute: number } => {
+  const hash = Array.from(templateId).reduce(
+    (accumulator, character) =>
+      (accumulator + character.charCodeAt(0)) % 10_000,
+    0,
+  );
+  return {
+    hour: 9 + ((hash + index * 3) % 10), // 09:00 - 18:45 local-seed UTC window
+    minute: ((hash + index * 11) % 4) * 15,
+  };
+};
+
 export const addEvents = async (
-  database: NeonDatabase<Record<string, never>, typeof relations>,
+  database: NodePgDatabase<Record<string, never>, typeof relations>,
   templates: {
     description: string;
     icon: { iconColor: number; iconName: string };
@@ -196,7 +211,12 @@ export const addEvents = async (
   // Seed discounts for paid participant registration options (ESN card)
   try {
     const paidOptions = allRegistrationOptions.filter(
-      (opt) => opt.isPaid && !opt.organizingRegistration,
+      (
+        opt,
+      ): opt is typeof opt & {
+        id: string;
+      } =>
+        opt.isPaid && !opt.organizingRegistration && typeof opt.id === 'string',
     );
     if (paidOptions.length > 0) {
       await database.insert(schema.eventRegistrationOptionDiscounts).values(
@@ -273,13 +293,31 @@ const createEvents = (
       if (index === 0) {
         // First event should be a future event so it's visible in the UI
         // This ensures events like "Hörnle hike 1" are visible
-        eventStart = seedNow.plus({ days: 5 + index * 2 }).toJSDate();
+        const eventClock = computeEventClock(template.id, index);
+        eventStart = seedNow
+          .plus({ days: 5 + index * 2 })
+          .set({
+            hour: eventClock.hour,
+            millisecond: 0,
+            minute: eventClock.minute,
+            second: 0,
+          })
+          .toJSDate();
         status = 'APPROVED';
         unlisted = false;
         creatorId = organizerUser;
       } else if (index === 1) {
         // Current/upcoming event
-        eventStart = seedNow.plus({ days: 7 + index * 3 }).toJSDate();
+        const eventClock = computeEventClock(template.id, index);
+        eventStart = seedNow
+          .plus({ days: 7 + index * 3 })
+          .set({
+            hour: eventClock.hour,
+            millisecond: 0,
+            minute: eventClock.minute,
+            second: 0,
+          })
+          .toJSDate();
         status = 'APPROVED';
         unlisted = false;
         // Use organizerUser for current/upcoming events
@@ -287,7 +325,16 @@ const createEvents = (
         creatorId = organizerUser;
       } else {
         // Future event
-        eventStart = seedNow.plus({ days: 30 + index * 10 }).toJSDate();
+        const eventClock = computeEventClock(template.id, index);
+        eventStart = seedNow
+          .plus({ days: 30 + index * 10 })
+          .set({
+            hour: eventClock.hour,
+            millisecond: 0,
+            minute: eventClock.minute,
+            second: 0,
+          })
+          .toJSDate();
 
         // Mix of statuses for future events
         if (isLast) {
@@ -327,13 +374,14 @@ const createEvents = (
       };
       events.push(event);
 
-      // Registration options are also deterministic
-      // For registration times, ensure:
-      // - openRegistrationTime is always in the past (5 days before now)
-      // - closeRegistrationTime is always in the future (30 days from now)
-      // This ensures events are always available for registration in tests
-      const openRegistrationTime = seedNow.minus({ days: 5 }).toJSDate();
-      const closeRegistrationTime = seedNow.plus({ days: 30 }).toJSDate();
+      // Registration windows stay deterministic, but align with each event.
+      const registrationAnchor = DateTime.fromJSDate(eventStart);
+      const openRegistrationTime = registrationAnchor
+        .minus({ days: 14 })
+        .toJSDate();
+      const closeRegistrationTime = registrationAnchor
+        .minus({ hours: 2 })
+        .toJSDate();
 
       registrationOptions.push(
         {

@@ -1,5 +1,9 @@
 import { Either, ParseResult, Schema } from 'effect';
 
+import { loadDotenvFiles } from './load-dotenv-files';
+
+loadDotenvFiles();
+
 const optionalNonEmptyString = Schema.optional(Schema.NonEmptyString);
 
 const ServerEnvironmentSchema = Schema.Struct({
@@ -84,10 +88,25 @@ const CloudflareR2EnvironmentSchema = Schema.Struct({
   CLOUDFLARE_R2_S3_KEY_ID: Schema.NonEmptyString,
 });
 
-export type ServerEnvironment = Schema.Schema.Type<typeof ServerEnvironmentSchema>;
+export type ServerEnvironment = Schema.Schema.Type<
+  typeof ServerEnvironmentSchema
+>;
 
 const formatSchemaError = (error: ParseResult.ParseError): string =>
   ParseResult.TreeFormatter.formatErrorSync(error);
+
+const normalizeEnvironmentInput = (
+  input: NodeJS.ProcessEnv = process.env,
+): NodeJS.ProcessEnv => {
+  const normalized: NodeJS.ProcessEnv = {};
+  for (const [key, value] of Object.entries(input)) {
+    normalized[key] =
+      typeof value === 'string' && value.trim().length === 0
+        ? undefined
+        : value;
+  }
+  return normalized;
+};
 
 const decodeOrThrow = <A, I>(
   schema: Schema.Schema<A, I, never>,
@@ -96,14 +115,21 @@ const decodeOrThrow = <A, I>(
 ): A => {
   const parsed = Schema.decodeUnknownEither(schema)(input);
   if (Either.isLeft(parsed)) {
-    throw new Error(`Invalid ${label} schema:\n${formatSchemaError(parsed.left)}`);
+    throw new Error(
+      `Invalid ${label} schema:\n${formatSchemaError(parsed.left)}`,
+    );
   }
   return parsed.right;
 };
 
 export const getServerEnvironment = (
   input: NodeJS.ProcessEnv = process.env,
-): ServerEnvironment => decodeOrThrow(ServerEnvironmentSchema, input, 'server environment');
+): ServerEnvironment =>
+  decodeOrThrow(
+    ServerEnvironmentSchema,
+    normalizeEnvironmentInput(input),
+    'server environment',
+  );
 
 export const serverEnvironment = getServerEnvironment();
 
@@ -114,7 +140,11 @@ export const getServerPort = (
 export const getDatabaseEnvironment = (
   input: NodeJS.ProcessEnv = process.env,
 ): { DATABASE_URL: string } =>
-  decodeOrThrow(DatabaseEnvironmentSchema, input, 'database connection');
+  decodeOrThrow(
+    DatabaseEnvironmentSchema,
+    normalizeEnvironmentInput(input),
+    'database connection',
+  );
 
 export const getOidcEnvironment = (
   input: NodeJS.ProcessEnv = process.env,
@@ -128,7 +158,7 @@ export const getOidcEnvironment = (
 } => {
   const environment = decodeOrThrow(
     OidcEnvironmentSchema,
-    input,
+    normalizeEnvironmentInput(input),
     'OIDC configuration',
   );
 
@@ -145,21 +175,29 @@ export const getOidcEnvironment = (
 export const getStripeApiEnvironment = (
   input: NodeJS.ProcessEnv = process.env,
 ): { STRIPE_API_KEY: string } =>
-  decodeOrThrow(StripeApiEnvironmentSchema, input, 'Stripe API configuration');
+  decodeOrThrow(
+    StripeApiEnvironmentSchema,
+    normalizeEnvironmentInput(input),
+    'Stripe API configuration',
+  );
 
 export const getStripeWebhookEnvironment = (
   input: NodeJS.ProcessEnv = process.env,
 ): { STRIPE_WEBHOOK_SECRET: string } =>
   decodeOrThrow(
     StripeWebhookEnvironmentSchema,
-    input,
+    normalizeEnvironmentInput(input),
     'Stripe webhook configuration',
   );
 
 export const isCloudflareImagesEnvironmentConfigured = (
   input: NodeJS.ProcessEnv = process.env,
 ): boolean =>
-  Either.isRight(Schema.decodeUnknownEither(CloudflareImagesEnvironmentSchema)(input));
+  Either.isRight(
+    Schema.decodeUnknownEither(CloudflareImagesEnvironmentSchema)(
+      normalizeEnvironmentInput(input),
+    ),
+  );
 
 export const getCloudflareImagesEnvironment = (
   input: NodeJS.ProcessEnv = process.env,
@@ -173,7 +211,7 @@ export const getCloudflareImagesEnvironment = (
 } => {
   const environment = decodeOrThrow(
     CloudflareImagesEnvironmentSchema,
-    input,
+    normalizeEnvironmentInput(input),
     'Cloudflare Images configuration',
   );
 
@@ -187,7 +225,8 @@ export const getCloudflareImagesEnvironment = (
 
   return {
     CLOUDFLARE_ACCOUNT_ID: environment.CLOUDFLARE_ACCOUNT_ID,
-    CLOUDFLARE_IMAGES_DELIVERY_HASH: environment.CLOUDFLARE_IMAGES_DELIVERY_HASH,
+    CLOUDFLARE_IMAGES_DELIVERY_HASH:
+      environment.CLOUDFLARE_IMAGES_DELIVERY_HASH,
     CLOUDFLARE_IMAGES_ENVIRONMENT: environment.CLOUDFLARE_IMAGES_ENVIRONMENT,
     CLOUDFLARE_IMAGES_VARIANT: environment.CLOUDFLARE_IMAGES_VARIANT,
     CLOUDFLARE_TOKEN: cloudflareToken,
@@ -202,7 +241,12 @@ export const getCloudflareR2Environment = (
   CLOUDFLARE_R2_S3_ENDPOINT: string;
   CLOUDFLARE_R2_S3_KEY: string;
   CLOUDFLARE_R2_S3_KEY_ID: string;
-} => decodeOrThrow(CloudflareR2EnvironmentSchema, input, 'Cloudflare R2 configuration');
+} =>
+  decodeOrThrow(
+    CloudflareR2EnvironmentSchema,
+    normalizeEnvironmentInput(input),
+    'Cloudflare R2 configuration',
+  );
 
 export const getPublicGoogleMapsApiKey = (
   environment: ServerEnvironment = serverEnvironment,

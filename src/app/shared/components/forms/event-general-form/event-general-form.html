@@ -1,7 +1,7 @@
 @let form = generalForm();
 <div class="grid gap-4">
   <div class="grid grid-cols-1 gap-4 lg:grid-cols-[auto_1fr]">
-    <app-icon-selector-field [formField]="form.icon"></app-icon-selector-field>
+    <app-icon-selector-field [formField]="form.icon" />
 
     <mat-form-field>
       <mat-label>Event title</mat-label>
@@ -13,7 +13,7 @@
 
   <div class="flex flex-col gap-2">
     <span class="text-on-surface-variant text-sm">Description</span>
-    <app-editor [control]="form.description"></app-editor>
+    <app-editor [control]="form.description" />
   </div>
 
   <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -25,11 +25,8 @@
         [formField]="form.start"
       />
       <mat-hint>MM/DD/YYYY</mat-hint>
-      <mat-datepicker-toggle
-        matIconSuffix
-        [for]="startDatePicker"
-      ></mat-datepicker-toggle>
-      <mat-datepicker #startDatePicker></mat-datepicker>
+      <mat-datepicker-toggle matIconSuffix [for]="startDatePicker" />
+      <mat-datepicker #startDatePicker />
     </mat-form-field>
     <mat-form-field>
       <mat-label>Start time</mat-label>
@@ -46,11 +43,8 @@
       <mat-label>End date</mat-label>
       <input matInput [matDatepicker]="endDatePicker" [formField]="form.end" />
       <mat-hint>MM/DD/YYYY</mat-hint>
-      <mat-datepicker-toggle
-        matIconSuffix
-        [for]="endDatePicker"
-      ></mat-datepicker-toggle>
-      <mat-datepicker #endDatePicker></mat-datepicker>
+      <mat-datepicker-toggle matIconSuffix [for]="endDatePicker" />
+      <mat-datepicker #endDatePicker />
     </mat-form-field>
     <mat-form-field>
       <mat-label>End time</mat-label>

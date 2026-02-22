@@ -34,7 +34,7 @@
 </section>
 
 <section>
-  <app-role-select [formField]="form.roleIds"></app-role-select>
+  <app-role-select [formField]="form.roleIds" />
 </section>
 
 <section class="grid gap-4">
@@ -63,7 +63,7 @@
     <app-duration-selector
       [formField]="form.openRegistrationOffset"
       hint="How long before the event should registration open"
-    ></app-duration-selector>
+    />
   </div>
 
   <div class="flex flex-col gap-2">
@@ -73,6 +73,6 @@
     <app-duration-selector
       [formField]="form.closeRegistrationOffset"
       hint="How long before the event should registration close"
-    ></app-duration-selector>
+    />
   </div>
 </section>

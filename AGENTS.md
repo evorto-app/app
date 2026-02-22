@@ -1,118 +1,83 @@
 # Repository Guidelines
 
+## Context Discipline
+
+- Keep relevant technical and operational context in repository files (track docs, handoff notes, revisit logs, and module-level `AGENTS.md` files).
+- Update context files when reality changes, assumptions are invalidated, or new constraints are discovered.
+- Prefer small, dated updates in files over implicit context in chat history.
+
 ## Project Structure & Module Organization
 
-- App code: `src/app/**` (feature areas like `events`, `finance`, `profile`).
-- SSR and API: `src/server/**` (tRPC routers, middleware, webhooks) with path aliases like `@server/*`.
-- Data layer: `src/db/**` (Drizzle ORM schema in `src/db/schema`).
-- Shared types/utilities: `src/shared/**` and `src/types/**`.
-- Tests: unit tests co-located as `*.spec.ts` in `src/**`; Playwright tests in `tests/**` (docs in `tests/docs/**`); legacy reference in `e2e/**`.
+- App code: `src/app/**`.
+- Server runtime and APIs: `src/server/**`.
+- Data layer: `src/db/**`.
+- Shared contracts/types/utilities: `src/shared/**` and `src/types/**`.
+- Tests: unit tests as `*.spec.ts` in `src/**`; Playwright tests in `tests/**`; legacy reference in `e2e/**`.
 - Assets/public: `public/`; theming in `src/styles.scss` and `_theme-colors.scss`.
+
+Module-local guidance lives in:
+- `src/app/AGENTS.md`
+- `src/server/AGENTS.md`
+- `src/db/AGENTS.md`
+- `tests/AGENTS.md`
 
 ## Build, Test, and Development Commands
 
-- `yarn start` — Run Angular dev server at `http://localhost:4200`.
-- `yarn build` — Build client + server bundles (Angular 20 + SSR).
-- `yarn serve:ssr:evorto` — Serve the built SSR server (`dist/evorto/server/server.mjs`).
-- `yarn test` — Run unit tests (Jasmine/Karma).
-- `yarn e2e` — Run Playwright e2e; use `yarn e2e:ui` for the UI runner.
-- `yarn lint` / `yarn lint:fix` — Lint TypeScript/HTML; autofix issues.
-- `yarn format` — Format with Prettier (+ Tailwind plugin).
-- `yarn docker:start` — Start local services via Docker Compose; `yarn docker:stop` to stop.
-- Database: `yarn migrate`, `yarn push:database`, `yarn setup:database`, `yarn reset:database`.
+- `bun run dev:start` — run Angular dev server at `http://localhost:4200`.
+- `bun run build:app` — build client + server bundles.
+- `bun run serve:ssr` — serve the built SSR server.
+- `bun run test:unit` — run unit tests.
+- `bun run test:e2e` — run Playwright e2e.
+- `bun run lint:fix` / `bun run lint:check` — lint with autofix and verification.
+- `bun run format:write` — format with Prettier.
+- `bun run docker:start` / `bun run docker:stop` — start/stop local services.
+- Database: `bun run db:migrate`, `bun run db:push`, `bun run db:setup`, `bun run db:reset`.
 
-## Coding Style & Naming Conventions
+## Type Safety (Always Full Types)
 
-- TypeScript strict mode and Angular strict templates are enforced (see `tsconfig.json`).
-- Use standalone components, typed forms, and modern control-flow.
-- Indentation: 2 spaces; filenames `kebab-case.ts`; symbols `camelCase` (vars), `PascalCase` (components/types).
-- Run `yarn lint:fix` and `yarn format` before committing.
-- Always run `yarn lint:fix` before `yarn lint` to avoid iterating on issues that are auto-fixable.
+- End-to-end types are mandatory.
+- Server boundaries must use Effect `Schema` for validated input/output.
+- Prefer inferred/derived types from Drizzle schema and Effect schema outputs.
+- Avoid `any`, unchecked `as`, and `unknown` without narrowing.
+- Do not use `unknown as ...` (or similar cast bypasses) to force client types to compile; fix the source type contract/runtime mismatch instead.
+
+## Error Handling Discipline
+
+- Never hide defects by swallowing errors.
+- If an error is expected and recoverable, map it explicitly to a typed/domain outcome.
+- If an error is unexpected, fail loudly and keep enough context to debug root cause.
+- Prefer preventing repeated failures with follow-up fixes/tests over adding silent fallbacks.
+
+## Conventions
+
+- TypeScript strict mode and Angular strict templates are enforced.
+- Indentation: 2 spaces; filenames `kebab-case.ts`; symbols `camelCase` and `PascalCase`.
 - Prefer path aliases: `@app/*`, `@server/*`, `@db/*`, `@shared/*`, `@types/*`.
-
-### Type Safety (Always Full Types)
-
-- End-to-end types across the stack are mandatory.
-  - Server: Use Effect `Schema` for every tRPC input and output; no `any` and no unchecked `as` casts.
-  - Database: Prefer Drizzle typed schema/helpers; avoid `as any`; propagate inferred types to callers.
-  - Client: Use fully typed Angular code, typed queries (`injectQuery`), and typed signals/inputs/outputs.
-  - Utilities: Provide explicit, correct generic types; avoid implicit `any` in function params and returns.
-- Review PRs for any introduction of `any`, `unknown` without narrowing, or unsafe `as` casts and replace with proper types.
-
-### Type Derivation (Prefer Inference)
-
-- Prefer derived/inferred types over hand-written ones.
-  - Source of truth is the database schema (Drizzle). Derive types from schema and pass them through to routers and clients.
-  - Keep object shapes single-sourced. Avoid duplicating domain types in multiple layers.
-  - Use Effect `Schema` for validation, but leverage its inferred TypeScript types whenever possible.
-- Only specify types explicitly when inference is insufficient or for well-defined external/public boundaries (e.g., API contracts).
-
-### Reactive Forms (Non‑Nullable)
-
-- Always use Angular’s reactive forms in the non‑nullable variant.
-  - Construct forms via `NonNullableFormBuilder`.
-  - Controls: `formBuilder.control<T>(initialValue)` with non‑nullable generics.
-  - Groups: `formBuilder.group({ ... })` with typed, non‑nullable controls.
-  - Do not bind `[disabled]` directly on controls; set disabled at creation or via `setDisabledState` (for CVAs) to avoid change detection issues.
-  - Prefer strongly typed form models over `FormGroup<{[key:string]:FormControl}>` with `any`.
+- Run `bun run lint:fix` before `bun run lint:check`.
 
 ## Testing Guidelines
 
-- Unit: place `*.spec.ts` next to the unit under test. Keep tests deterministic and fast.
-- E2E: author Playwright tests in `tests/**` (docs in `tests/docs/**`); use `yarn e2e:ui` to debug; attach screenshots for UI changes. Legacy `e2e/**` is reference only.
-
-## Research Before You Code
-
-- For Angular work, retrieve and review the current Angular Best Practices before making changes.
-  - Verify usage of: standalone components, typed (non‑nullable) reactive forms, and modern control flow (`@if`, `@for`, `@switch`).
-- Confirm type safety end‑to‑end for any affected path (tRPC schemas, Drizzle models, client types).
-- Scan the workspace for adjacent patterns to keep implementations consistent (permissions, routing, data loading).
+- Keep unit tests deterministic and close to source files.
+- Use Playwright tests in `tests/**` as the active e2e suite.
+- When touching schema or auth/runtime paths, include local verification notes.
 
 ## Commit & Pull Request Guidelines
 
-- Messages: imperative mood, concise summary; reference tickets (e.g., `Sa-186: implement google places`).
-- PRs: include purpose, scope, linked issues, and screenshots/GIFs for UI changes. Note any schema or migration impacts.
-- For release documentation, always add a Knope change file in `.changeset/*.md`.
-- Do not rely on PR titles or conventional commit prefixes as the only release documentation.
-- CI passes required: build, lint, unit, and e2e (where applicable).
+- Commit messages: imperative mood, concise scope.
+- PRs: include purpose, scope, schema/runtime impact, and UI evidence where relevant.
+- For releases, add a Knope change file in `.changeset/*.md`.
 
 ## Git Workflow
 
-- We use Git Town to manage the repository workflow. Prefer `git town` commands for branching, syncing, and shipping.
+- Use Git Town commands for branch management and shipping.
 
 ## Security & Configuration
 
-- Copy environment from `.env`/`.env.local`; never commit secrets. Stripe/Sentry helpers exist (`stripe:listen`, `sentry:sourcemaps`).
-- Yarn injects environment files automatically via `.yarnrc.yml` `injectEnvironmentFiles` (`.env.local?`, `.env?`). In CI, extend this list via Yarn CLI (for example add `.env.ci?`) in workflow steps instead of committing CI-only injection to project config. Run commands through `yarn` and do not add `dotenv`-based loading in code.
-- When touching DB schema, include migration steps and local verification notes.
+- Never commit secrets.
+- Bun loads `.env.local` and `.env` automatically.
+- In CI, provide explicit env files in workflow steps rather than runtime dotenv wiring.
 
-## Angular Best Practices
+## Agent Editing Workflow
 
-- Use standalone components (no NgModules) and don’t set `standalone: true`.
-- Prefer `input()`/`output()` helpers; set `changeDetection: ChangeDetectionStrategy.OnPush`.
-- Use signals for local state and `computed()` for derived values; avoid `mutate`, use `set`/`update`.
-- Use native control flow: `@if`, `@for`, `@switch` and `class`/`style` bindings (not `ngIf/ngFor`, `ngClass/ngStyle`).
-- Prefer `inject()` for DI and `providedIn: 'root'` for singletons.
-- Use typed reactive forms; keep templates logic-light and reuse services/computed signals.
-- Use `NgOptimizedImage` for static images.
-
-## Design System & UI Standards
-
-- Material Design 3 is the source of truth for layout, motion, and components; cite relevant M3 guidance when adding UI.
-- Implement UI with Angular Material components plus Tailwind utility classes mapped via `src/styles.scss` theme tokens (no hardcoded colors).
-- Use Font Awesome Duotone Regular SVG icons through `<fa-duotone-icon>`; size/color via Tailwind utilities tied to theme roles.
-- Ensure responsive list–detail patterns, accessibility (WCAG 2.2 AA), and `prefers-reduced-motion` handling.
-- Document new UI with a feature README design note, screenshots, and keep `.doc.ts` documentation tests in sync with UX changes.
-
-## Documentation Tests & PR Previews
-
-- Every feature must include `.doc.ts` documentation tests that generate the relevant user-facing documentation updates.
-- Run `yarn e2e:docs` (or targeted doc test commands) during implementation to refresh the generated docs.
-- Capture a preview of the generated documentation (screenshot or rendered markdown snippet) and attach it to the feature PR so reviewers can validate content.
-
-## Playwright Learnings
-
-- Playwright runs against a Docker web server (`yarn docker:start-test`) with `reuseExistingServer: true`. If UI changes are not picked up in tests, restart containers (`yarn docker:stop`) before rerunning `yarn e2e` to rebuild and reload the app.
-- If auth/setup tests time out unexpectedly, ensure the database was reset and re-seeded before running Playwright (for example `yarn setup:database` or a full test-environment reset) so setup fixtures don't use stale state.
-- `events.create` rejects empty strings for optional fields. Normalize empty string optional fields (like descriptions or tax rate ids) to `null` before submitting.
-- Test seeding logs are noisy; `tests/setup/database.setup.ts` sets `consola.level = 4` to keep Playwright output quiet. Local dev seeding stays verbose.
+- After editing a file, run WebStorm `get_file_problems` on that file when possible before finishing.
+- WebStorm MCP tools are available; prefer sequential `get_file_problems` checks (parallel runs can timeout).

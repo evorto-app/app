@@ -27,9 +27,9 @@ import { convert } from 'html-to-text';
 import { firstValueFrom } from 'rxjs';
 
 import { ConfigService } from '../../core/config.service';
+import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { NotificationService } from '../../core/notification.service';
 import { PermissionsService } from '../../core/permissions.service';
-import { injectTRPC } from '../../core/trpc-client';
 import { EventStatusComponent } from '../../shared/components/event-status/event-status.component';
 import { IfAnyPermissionDirective } from '../../shared/directives/if-any-permission.directive';
 import { EventActiveRegistrationComponent } from '../event-active-registration/event-active-registration.component';
@@ -74,12 +74,12 @@ import { UpdateVisibilityDialogComponent } from '../update-visibility-dialog/upd
 })
 export class EventDetailsComponent {
   public eventId = input.required<string>();
-  private trpc = injectTRPC();
+  private readonly rpc = AppRpc.injectClient();
   protected readonly eventQuery = injectQuery(() =>
-    this.trpc.events.findOne.queryOptions({ id: this.eventId() }),
+    this.rpc.events.findOne.queryOptions({ id: this.eventId() }),
   );
   protected readonly selfQery = injectQuery(() =>
-    this.trpc.users.maybeSelf.queryOptions(),
+    this.rpc.users.maybeSelf.queryOptions(),
   );
   private permissions = inject(PermissionsService);
   protected readonly canEdit = computed(() => {
@@ -99,7 +99,7 @@ export class EventDetailsComponent {
     return event.creatorId === self.id;
   });
   protected readonly canOrganizeQuery = injectQuery(() =>
-    this.trpc.events.canOrganize.queryOptions({ eventId: this.eventId() }),
+    this.rpc.events.canOrganize.queryOptions({ eventId: this.eventId() }),
   );
   protected readonly canOrganize = computed(() => {
     return this.canOrganizeQuery.data() ?? false;
@@ -113,10 +113,9 @@ export class EventDetailsComponent {
     return canReview || canEdit || canSeeDrafts;
   });
   protected readonly myCardsQuery = injectQuery(() =>
-    this.trpc.discounts.getMyCards.queryOptions(),
+    this.rpc.discounts.getMyCards.queryOptions(),
   );
   private readonly config = inject(ConfigService);
-
   protected readonly cardExpiresBeforeEvent = computed(() => {
     const esnCardEnabled =
       this.config.tenant.discountProviders?.esnCard?.status === 'enabled';
@@ -127,12 +126,13 @@ export class EventDetailsComponent {
     const verified = cards.filter((c) => c.status === 'verified');
     if (verified.length === 0) return false;
     const latestValidTo = verified
-      .map((c) => c.validTo)
-      .filter((d): d is Date => !!d)
+      .map((card) => (card.validTo ? new Date(card.validTo) : undefined))
+      .filter((date): date is Date => !!date && !Number.isNaN(date.getTime()))
       .toSorted((a, b) => b.getTime() - a.getTime())[0];
     if (!latestValidTo) return false;
-    return latestValidTo <= event.start;
+    return latestValidTo <= new Date(event.start);
   });
+
   protected readonly eventIconColor = computed(() => {
     const event = this.eventQuery.data();
     if (!event) {
@@ -143,58 +143,22 @@ export class EventDetailsComponent {
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faEllipsisVertical = faEllipsisVertical;
   protected readonly registrationStatusQuery = injectQuery(() =>
-    this.trpc.events.getRegistrationStatus.queryOptions({
+    this.rpc.events.getRegistrationStatus.queryOptions({
       eventId: this.eventId(),
     }),
   );
-  private queryClient = inject(QueryClient);
   protected readonly reviewMutation = injectMutation(() =>
-    this.trpc.events.reviewEvent.mutationOptions({
-      onSuccess: async () => {
-        await this.queryClient.invalidateQueries({
-          queryKey: this.trpc.events.findOne.queryKey({ id: this.eventId() }),
-        });
-        await this.queryClient.invalidateQueries({
-          queryKey: this.trpc.events.eventList.pathKey(),
-        });
-        await this.queryClient.invalidateQueries({
-          queryKey: this.trpc.events.findMany.pathKey(),
-        });
-        await this.queryClient.invalidateQueries({
-          queryKey: this.trpc.events.getPendingReviews.pathKey(),
-        });
-      },
-    }),
+    this.rpc.events.reviewEvent.mutationOptions(),
   );
   protected readonly submitForReviewMutation = injectMutation(() =>
-    this.trpc.events.submitForReview.mutationOptions({
-      onSuccess: async () => {
-        await this.queryClient.invalidateQueries({
-          queryKey: this.trpc.events.findOne.queryKey({ id: this.eventId() }),
-        });
-        await this.queryClient.invalidateQueries({
-          queryKey: this.trpc.events.eventList.pathKey(),
-        });
-        await this.queryClient.invalidateQueries({
-          queryKey: this.trpc.events.getPendingReviews.pathKey(),
-        });
-      },
-    }),
+    this.rpc.events.submitForReview.mutationOptions(),
   );
   protected readonly updateListingMutation = injectMutation(() =>
-    this.trpc.events.updateListing.mutationOptions({
-      onSuccess: async () => {
-        await this.queryClient.invalidateQueries({
-          queryKey: this.trpc.events.findOne.queryKey({ id: this.eventId() }),
-        });
-        await this.queryClient.invalidateQueries({
-          queryKey: this.trpc.events.eventList.pathKey(),
-        });
-      },
-    }),
+    this.rpc.events.updateListing.mutationOptions(),
   );
   private dialog = inject(MatDialog);
   private notifications = inject(NotificationService);
+  private queryClient = inject(QueryClient);
 
   constructor() {
     effect(() => {
@@ -215,10 +179,17 @@ export class EventDetailsComponent {
         .afterClosed(),
     );
     if (unlisted !== null && unlisted !== undefined) {
-      this.updateListingMutation.mutate({
-        eventId: this.eventId(),
-        unlisted,
-      });
+      this.updateListingMutation.mutate(
+        {
+          eventId: this.eventId(),
+          unlisted,
+        },
+        {
+          onSuccess: async () => {
+            await this.refreshReviewState();
+          },
+        },
+      );
     }
   }
 
@@ -229,6 +200,7 @@ export class EventDetailsComponent {
           approved,
           eventId: this.eventId(),
         });
+        await this.refreshReviewState();
         const event = this.eventQuery.data();
         if (event) {
           this.notifications.showEventReviewed(approved, event.title);
@@ -243,6 +215,7 @@ export class EventDetailsComponent {
             comment,
             eventId: this.eventId(),
           });
+          await this.refreshReviewState();
           const event = this.eventQuery.data();
           if (event) {
             this.notifications.showEventReviewed(approved, event.title);
@@ -263,6 +236,7 @@ export class EventDetailsComponent {
         await this.submitForReviewMutation.mutateAsync({
           eventId: this.eventId(),
         });
+        await this.refreshReviewState();
         const event = this.eventQuery.data();
         if (event) {
           this.notifications.showEventSubmitted(event.title);
@@ -282,7 +256,8 @@ export class EventDetailsComponent {
     if (
       normalizedMessage.includes('status changed') ||
       normalizedMessage.includes('refresh and try again') ||
-      normalizedMessage.includes('no longer pending review')
+      normalizedMessage.includes('no longer pending review') ||
+      normalizedMessage.includes('conflict')
     ) {
       this.notifications.showError(
         'Event status changed. Refreshed the latest state.',
@@ -295,16 +270,13 @@ export class EventDetailsComponent {
 
   private async refreshReviewState(): Promise<void> {
     await this.queryClient.invalidateQueries({
-      queryKey: this.trpc.events.findOne.queryKey({ id: this.eventId() }),
+      queryKey: this.rpc.events.findOne.queryKey({ id: this.eventId() }),
     });
-    await this.queryClient.invalidateQueries({
-      queryKey: this.trpc.events.findMany.pathKey(),
-    });
-    await this.queryClient.invalidateQueries({
-      queryKey: this.trpc.events.eventList.pathKey(),
-    });
-    await this.queryClient.invalidateQueries({
-      queryKey: this.trpc.events.getPendingReviews.pathKey(),
-    });
+    await this.queryClient.invalidateQueries(
+      this.rpc.queryFilter(['events', 'eventList']),
+    );
+    await this.queryClient.invalidateQueries(
+      this.rpc.queryFilter(['events', 'getPendingReviews']),
+    );
   }
 }

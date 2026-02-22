@@ -6,7 +6,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
-import { injectTRPC } from '../../../core/trpc-client';
+import { AppRpc } from '../../../core/effect-rpc-angular-client';
 import { DurationSelectorComponent } from '../../../shared/components/controls/duration-selector/duration-selector.component';
 import { RoleSelectComponent } from '../../../shared/components/controls/role-select/role-select.component';
 import {
@@ -34,8 +34,8 @@ export class TemplateRegistrationOptionFormComponent {
   public readonly registrationModes =
     input.required<readonly RegistrationMode[]>();
 
-  private trpc = injectTRPC();
+  private readonly rpc = AppRpc.injectClient();
   protected readonly taxRatesQuery = injectQuery(() =>
-    this.trpc.taxRates.listActive.queryOptions(),
+    this.rpc.taxRates.listActive.queryOptions(),
   );
 }
