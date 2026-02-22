@@ -800,6 +800,10 @@ export const financeHandlers = {
         const user = yield* requireUserHeader(options.headers);
         const receipt = yield* databaseEffect((database) =>
           database.query.financeReceipts.findFirst({
+            columns: {
+              id: true,
+              status: true,
+            },
             where: {
               id: input.id,
               tenantId: tenant.id,

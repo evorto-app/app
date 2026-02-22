@@ -1,5 +1,7 @@
 import { and, eq } from 'drizzle-orm';
+import { createInsertSchema } from 'drizzle-orm/effect-schema';
 import { Effect } from 'effect';
+import { Schema } from 'effect';
 
 import type { AppRpcHandlers } from '../../shared/handler-types';
 
@@ -24,13 +26,38 @@ const databaseEffect = <A>(
 ): Effect.Effect<A, never, Database> =>
   Database.pipe(Effect.flatMap((database) => operation(database).pipe(Effect.orDie)));
 
+const EventTemplateInsertCoreSchema = createInsertSchema(eventTemplates).pick(
+  'categoryId',
+  'description',
+  'simpleModeEnabled',
+  'tenantId',
+  'title',
+);
+const TemplateRegistrationOptionInsertSchema =
+  createInsertSchema(templateRegistrationOptions).pick(
+    'closeRegistrationOffset',
+    'isPaid',
+    'openRegistrationOffset',
+    'organizingRegistration',
+    'price',
+    'registrationMode',
+    'roleIds',
+    'spots',
+    'stripeTaxRateId',
+    'templateId',
+    'title',
+  );
+
 type CreateSimpleTemplateInput = Parameters<
   AppRpcHandlers['templates.createSimpleTemplate']
 >[0];
+type EventTemplateInsert = typeof eventTemplates.$inferInsert;
 type SimpleTemplateValidationInput = Pick<
   CreateSimpleTemplateInput,
   'description' | 'organizerRegistration' | 'participantRegistration'
 >;
+type TemplateRegistrationOptionInsert =
+  typeof templateRegistrationOptions.$inferInsert;
 type UpdateSimpleTemplateInput = Parameters<
   AppRpcHandlers['templates.updateSimpleTemplate']
 >[0];
@@ -118,19 +145,25 @@ export class SimpleTemplateService extends Effect.Service<SimpleTemplateService>
             input,
             tenantId,
           });
+          const templateInsertCore = Schema.decodeUnknownSync(
+            EventTemplateInsertCoreSchema,
+          )({
+            categoryId: input.categoryId,
+            description: sanitizedDescription,
+            simpleModeEnabled: true,
+            tenantId,
+            title: input.title,
+          });
+          const templateInsertValues: EventTemplateInsert = {
+            ...templateInsertCore,
+            icon: input.icon,
+            location: input.location,
+          };
 
           const templateResponse = yield* databaseEffect((database) =>
             database
               .insert(eventTemplates)
-              .values({
-                categoryId: input.categoryId,
-                description: sanitizedDescription,
-                icon: input.icon,
-                location: input.location,
-                simpleModeEnabled: true,
-                tenantId,
-                title: input.title,
-              })
+              .values(templateInsertValues)
               .returning({
                 id: eventTemplates.id,
               }),
@@ -144,42 +177,57 @@ export class SimpleTemplateService extends Effect.Service<SimpleTemplateService>
               }),
             );
           }
+          const organizerRegistrationInsertCore = Schema.decodeUnknownSync(
+            TemplateRegistrationOptionInsertSchema,
+          )({
+            closeRegistrationOffset:
+              input.organizerRegistration.closeRegistrationOffset,
+            isPaid: input.organizerRegistration.isPaid,
+            openRegistrationOffset:
+              input.organizerRegistration.openRegistrationOffset,
+            organizingRegistration: true,
+            price: input.organizerRegistration.price,
+            registrationMode: input.organizerRegistration.registrationMode,
+            roleIds: input.organizerRegistration.roleIds,
+            spots: input.organizerRegistration.spots,
+            stripeTaxRateId: input.organizerRegistration.stripeTaxRateId ?? null,
+            templateId: template.id,
+            title: 'Organizer registration',
+          });
+          const participantRegistrationInsertCore = Schema.decodeUnknownSync(
+            TemplateRegistrationOptionInsertSchema,
+          )({
+            closeRegistrationOffset:
+              input.participantRegistration.closeRegistrationOffset,
+            isPaid: input.participantRegistration.isPaid,
+            openRegistrationOffset:
+              input.participantRegistration.openRegistrationOffset,
+            organizingRegistration: false,
+            price: input.participantRegistration.price,
+            registrationMode: input.participantRegistration.registrationMode,
+            roleIds: input.participantRegistration.roleIds,
+            spots: input.participantRegistration.spots,
+            stripeTaxRateId: input.participantRegistration.stripeTaxRateId ?? null,
+            templateId: template.id,
+            title: 'Participant registration',
+          });
+          const organizerRegistrationInsert: TemplateRegistrationOptionInsert = {
+            ...organizerRegistrationInsertCore,
+            roleIds: [...(organizerRegistrationInsertCore.roleIds ?? [])],
+          };
+          const participantRegistrationInsert: TemplateRegistrationOptionInsert = {
+            ...participantRegistrationInsertCore,
+            roleIds: [...(participantRegistrationInsertCore.roleIds ?? [])],
+          };
+          const registrationOptionInserts: TemplateRegistrationOptionInsert[] = [
+            organizerRegistrationInsert,
+            participantRegistrationInsert,
+          ];
 
           yield* databaseEffect((database) =>
-            database.insert(templateRegistrationOptions).values([
-              {
-                closeRegistrationOffset:
-                  input.organizerRegistration.closeRegistrationOffset,
-                isPaid: input.organizerRegistration.isPaid,
-                openRegistrationOffset:
-                  input.organizerRegistration.openRegistrationOffset,
-                organizingRegistration: true,
-                price: input.organizerRegistration.price,
-                registrationMode: input.organizerRegistration.registrationMode,
-                roleIds: input.organizerRegistration.roleIds,
-                spots: input.organizerRegistration.spots,
-                stripeTaxRateId:
-                  input.organizerRegistration.stripeTaxRateId ?? null,
-                templateId: template.id,
-                title: 'Organizer registration',
-              },
-              {
-                closeRegistrationOffset:
-                  input.participantRegistration.closeRegistrationOffset,
-                isPaid: input.participantRegistration.isPaid,
-                openRegistrationOffset:
-                  input.participantRegistration.openRegistrationOffset,
-                organizingRegistration: false,
-                price: input.participantRegistration.price,
-                registrationMode: input.participantRegistration.registrationMode,
-                roleIds: input.participantRegistration.roleIds,
-                spots: input.participantRegistration.spots,
-                stripeTaxRateId:
-                  input.participantRegistration.stripeTaxRateId ?? null,
-                templateId: template.id,
-                title: 'Participant registration',
-              },
-            ]),
+            database
+              .insert(templateRegistrationOptions)
+              .values(registrationOptionInserts),
           );
 
           return { id: template.id };

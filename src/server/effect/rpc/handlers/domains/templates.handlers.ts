@@ -8,13 +8,8 @@ import type { AppRpcHandlers } from '../shared/handler-types';
 
 import { Database, type DatabaseClient } from '../../../../../db';
 import {
-  eventTemplateCategories,
   eventTemplates,
 } from '../../../../../db/schema';
-import {
-  type TemplateListRecord,
-  type TemplatesByCategoryRecord,
-} from '../../../../../shared/rpc-contracts/app-rpcs/templates.rpcs';
 import { Tenant } from '../../../../../types/custom/tenant';
 import {
   decodeRpcContextHeaderJson,
@@ -32,14 +27,6 @@ const decodeHeaderJson = <A, I>(
   value: string | undefined,
   schema: Schema.Schema<A, I, never>,
 ) => Schema.decodeUnknownSync(schema)(decodeRpcContextHeaderJson(value));
-
-const normalizeTemplateRecord = (
-  template: Pick<typeof eventTemplates.$inferSelect, 'icon' | 'id' | 'title'>,
-): TemplateListRecord => ({
-  icon: template.icon,
-  id: template.id,
-  title: template.title,
-});
 
 const normalizeTemplateFindOneRecord = (
   template: {
@@ -117,25 +104,6 @@ const normalizeTemplateFindOneRecord = (
   title: template.title,
 });
 
-const normalizeTemplatesByCategoryRecord = (
-  templateCategory: Pick<
-    typeof eventTemplateCategories.$inferSelect,
-    'icon' | 'id' | 'title'
-  > & {
-    templates: readonly Pick<
-      typeof eventTemplates.$inferSelect,
-      'icon' | 'id' | 'title'
-    >[];
-  },
-): TemplatesByCategoryRecord => ({
-  icon: templateCategory.icon,
-  id: templateCategory.id,
-  templates: templateCategory.templates.map((template) =>
-    normalizeTemplateRecord(template),
-  ),
-  title: templateCategory.title,
-});
-
 const ensureAuthenticated = (
   headers: Headers.Headers,
 ): Effect.Effect<void, 'UNAUTHORIZED'> =>
@@ -170,12 +138,36 @@ export const templateHandlers = {
         );
         const template = yield* databaseEffect((database) =>
           database.query.eventTemplates.findFirst({
+            columns: {
+              categoryId: true,
+              description: true,
+              icon: true,
+              id: true,
+              location: true,
+              title: true,
+            },
             where: {
               id,
               tenantId: tenant.id,
             },
             with: {
-              registrationOptions: true,
+              registrationOptions: {
+                columns: {
+                  closeRegistrationOffset: true,
+                  description: true,
+                  id: true,
+                  isPaid: true,
+                  openRegistrationOffset: true,
+                  organizingRegistration: true,
+                  price: true,
+                  registeredDescription: true,
+                  registrationMode: true,
+                  roleIds: true,
+                  spots: true,
+                  stripeTaxRateId: true,
+                  title: true,
+                },
+              },
             },
           }),
         );
@@ -189,6 +181,10 @@ export const templateHandlers = {
           combinedRegistrationOptionRoleIds.length > 0
             ? yield* databaseEffect((database) =>
           database.query.roles.findMany({
+                  columns: {
+                    id: true,
+                    name: true,
+                  },
                   where: {
                     id: {
                       in: combinedRegistrationOptionRoleIds,
@@ -216,19 +212,36 @@ export const templateHandlers = {
         );
         const templateCategories = yield* databaseEffect((database) =>
           database.query.eventTemplateCategories.findMany({
+            columns: {
+              icon: true,
+              id: true,
+              title: true,
+            },
             orderBy: (categories, { asc }) => [asc(categories.title)],
             where: { tenantId: tenant.id },
             with: {
               templates: {
+                columns: {
+                  icon: true,
+                  id: true,
+                  title: true,
+                },
                 orderBy: { createdAt: 'asc' },
               },
             },
           }),
         );
 
-        return templateCategories.map((templateCategory) =>
-          normalizeTemplatesByCategoryRecord(templateCategory),
-        );
+        return templateCategories.map((templateCategory) => ({
+          icon: templateCategory.icon,
+          id: templateCategory.id,
+          templates: templateCategory.templates.map((template) => ({
+            icon: template.icon,
+            id: template.id,
+            title: template.title,
+          })),
+          title: templateCategory.title,
+        }));
       }),
     'templates.updateSimpleTemplate': (input, options) =>
       Effect.gen(function* () {

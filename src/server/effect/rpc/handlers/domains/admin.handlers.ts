@@ -23,7 +23,6 @@ import {
 import { type Permission } from '../../../../../shared/permissions/permissions';
 import {
   type AdminHubRoleRecord,
-  type AdminRoleRecord,
 } from '../../../../../shared/rpc-contracts/app-rpcs/admin.rpcs';
 import { ConfigPermissions } from '../../../../../shared/rpc-contracts/app-rpcs/config.rpcs';
 import { Tenant } from '../../../../../types/custom/tenant';
@@ -43,33 +42,6 @@ const decodeHeaderJson = <A, I>(
   value: string | undefined,
   schema: Schema.Schema<A, I, never>,
 ) => Schema.decodeUnknownSync(schema)(decodeRpcContextHeaderJson(value));
-
-const normalizeRoleRecord = (
-  role: Pick<
-    typeof roles.$inferSelect,
-    | 'collapseMembersInHup'
-    | 'defaultOrganizerRole'
-    | 'defaultUserRole'
-    | 'description'
-    | 'displayInHub'
-    | 'id'
-    | 'name'
-    | 'permissions'
-    | 'showInHub'
-    | 'sortOrder'
-  >,
-): AdminRoleRecord => ({
-  collapseMembersInHup: role.collapseMembersInHup,
-  defaultOrganizerRole: role.defaultOrganizerRole,
-  defaultUserRole: role.defaultUserRole,
-  description: role.description ?? null,
-  displayInHub: role.displayInHub,
-  id: role.id,
-  name: role.name,
-  permissions: role.permissions,
-  showInHub: role.showInHub,
-  sortOrder: role.sortOrder,
-});
 
 const normalizeHubRoleRecord = (role: {
   description: null | string;
@@ -95,27 +67,6 @@ const normalizeHubRoleRecord = (role: {
     users,
   };
 };
-
-const normalizeTenantTaxRateRecord = (
-  taxRate: Pick<
-    typeof tenantStripeTaxRates.$inferSelect,
-    | 'active'
-    | 'country'
-    | 'displayName'
-    | 'inclusive'
-    | 'percentage'
-    | 'state'
-    | 'stripeTaxRateId'
-  >,
-) => ({
-  active: taxRate.active,
-  country: taxRate.country ?? null,
-  displayName: taxRate.displayName ?? null,
-  inclusive: taxRate.inclusive,
-  percentage: taxRate.percentage ?? null,
-  state: taxRate.state ?? null,
-  stripeTaxRateId: taxRate.stripeTaxRateId,
-});
 
 const ensureAuthenticated = (
   headers: Headers.Headers,
@@ -159,14 +110,25 @@ export const adminHandlers = {
               permissions: input.permissions,
               tenantId: tenant.id,
             })
-            .returning(),
+            .returning({
+              collapseMembersInHup: roles.collapseMembersInHup,
+              defaultOrganizerRole: roles.defaultOrganizerRole,
+              defaultUserRole: roles.defaultUserRole,
+              description: roles.description,
+              displayInHub: roles.displayInHub,
+              id: roles.id,
+              name: roles.name,
+              permissions: roles.permissions,
+              showInHub: roles.showInHub,
+              sortOrder: roles.sortOrder,
+            }),
         );
         const createdRole = createdRoles[0];
         if (!createdRole) {
           return yield* Effect.fail('NOT_FOUND' as const);
         }
 
-        return normalizeRoleRecord(createdRole);
+        return createdRole;
       }),
     'admin.roles.delete': ({ id }, options) =>
       Effect.gen(function* () {
@@ -179,7 +141,9 @@ export const adminHandlers = {
           database
             .delete(roles)
             .where(and(eq(roles.id, id), eq(roles.tenantId, tenant.id)))
-            .returning(),
+            .returning({
+              id: roles.id,
+            }),
         );
         if (deletedRoles.length === 0) {
           return yield* Effect.fail('NOT_FOUND' as const);
@@ -234,6 +198,18 @@ export const adminHandlers = {
         );
         const tenantRoles = yield* databaseEffect((database) =>
           database.query.roles.findMany({
+            columns: {
+              collapseMembersInHup: true,
+              defaultOrganizerRole: true,
+              defaultUserRole: true,
+              description: true,
+              displayInHub: true,
+              id: true,
+              name: true,
+              permissions: true,
+              showInHub: true,
+              sortOrder: true,
+            },
             orderBy: { name: 'asc' },
             where: {
               tenantId: tenant.id,
@@ -247,7 +223,7 @@ export const adminHandlers = {
           }),
         );
 
-        return tenantRoles.map((role) => normalizeRoleRecord(role));
+        return tenantRoles;
       }),
     'admin.roles.findOne': ({ id }, options) =>
       Effect.gen(function* () {
@@ -258,6 +234,18 @@ export const adminHandlers = {
         );
         const role = yield* databaseEffect((database) =>
           database.query.roles.findFirst({
+            columns: {
+              collapseMembersInHup: true,
+              defaultOrganizerRole: true,
+              defaultUserRole: true,
+              description: true,
+              displayInHub: true,
+              id: true,
+              name: true,
+              permissions: true,
+              showInHub: true,
+              sortOrder: true,
+            },
             where: { id, tenantId: tenant.id },
           }),
         );
@@ -265,7 +253,7 @@ export const adminHandlers = {
           return yield* Effect.fail('NOT_FOUND' as const);
         }
 
-        return normalizeRoleRecord(role);
+        return role;
       }),
     'admin.roles.search': ({ search }, options) =>
       Effect.gen(function* () {
@@ -276,6 +264,18 @@ export const adminHandlers = {
         );
         const matchingRoles = yield* databaseEffect((database) =>
           database.query.roles.findMany({
+            columns: {
+              collapseMembersInHup: true,
+              defaultOrganizerRole: true,
+              defaultUserRole: true,
+              description: true,
+              displayInHub: true,
+              id: true,
+              name: true,
+              permissions: true,
+              showInHub: true,
+              sortOrder: true,
+            },
             limit: 15,
             orderBy: { name: 'asc' },
             where: {
@@ -285,7 +285,7 @@ export const adminHandlers = {
           }),
         );
 
-        return matchingRoles.map((role) => normalizeRoleRecord(role));
+        return matchingRoles;
       }),
     'admin.roles.update': ({ id, ...input }, options) =>
       Effect.gen(function* () {
@@ -305,14 +305,25 @@ export const adminHandlers = {
               permissions: input.permissions,
             })
             .where(and(eq(roles.id, id), eq(roles.tenantId, tenant.id)))
-            .returning(),
+            .returning({
+              collapseMembersInHup: roles.collapseMembersInHup,
+              defaultOrganizerRole: roles.defaultOrganizerRole,
+              defaultUserRole: roles.defaultUserRole,
+              description: roles.description,
+              displayInHub: roles.displayInHub,
+              id: roles.id,
+              name: roles.name,
+              permissions: roles.permissions,
+              showInHub: roles.showInHub,
+              sortOrder: roles.sortOrder,
+            }),
         );
         const updatedRole = updatedRoles[0];
         if (!updatedRole) {
           return yield* Effect.fail('NOT_FOUND' as const);
         }
 
-        return normalizeRoleRecord(updatedRole);
+        return updatedRole;
       }),
     'admin.tenant.importStripeTaxRates': ({ ids }, options) =>
       Effect.gen(function* () {
@@ -334,8 +345,11 @@ export const adminHandlers = {
             return yield* Effect.fail('BAD_REQUEST' as const);
           }
 
-          const existingRate = yield* databaseEffect((database) =>
+        const existingRate = yield* databaseEffect((database) =>
           database.query.tenantStripeTaxRates.findFirst({
+              columns: {
+                id: true,
+              },
               where: {
                 stripeTaxRateId: id,
                 tenantId: tenant.id,
@@ -392,9 +406,7 @@ export const adminHandlers = {
           }),
         );
 
-        return importedTaxRates.map((taxRate) =>
-          normalizeTenantTaxRateRecord(taxRate),
-        );
+        return importedTaxRates;
       }),
     'admin.tenant.listStripeTaxRates': (_payload, options) =>
       Effect.gen(function* () {
@@ -469,16 +481,29 @@ export const adminHandlers = {
               theme: input.theme,
             })
             .where(eq(tenants.id, tenant.id))
-            .returning(),
+            .returning({
+              id: tenants.id,
+            }),
         );
         const updatedTenant = updatedTenants[0];
         if (!updatedTenant) {
           return yield* Effect.fail('FORBIDDEN' as const);
         }
 
+        const nextTenant = {
+          ...tenant,
+          defaultLocation: input.defaultLocation,
+          discountProviders,
+          receiptSettings: resolveTenantReceiptSettings({
+            allowOther: input.allowOther,
+            receiptCountries: input.receiptCountries,
+          }),
+          theme: input.theme,
+        };
+
         return yield* Effect.try({
           catch: () => 'FORBIDDEN' as const,
-          try: () => Schema.decodeUnknownSync(Tenant)(updatedTenant),
+          try: () => Schema.decodeUnknownSync(Tenant)(nextTenant),
         });
       }),
 } satisfies Partial<AppRpcHandlers>;

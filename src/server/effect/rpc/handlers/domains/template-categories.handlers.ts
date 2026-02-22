@@ -16,9 +16,6 @@ import {
 } from '../../../../../db/schema';
 import { type Permission } from '../../../../../shared/permissions/permissions';
 import { ConfigPermissions } from '../../../../../shared/rpc-contracts/app-rpcs/config.rpcs';
-import {
-  type TemplateCategoryRecord,
-} from '../../../../../shared/rpc-contracts/app-rpcs/template-categories.rpcs';
 import { Tenant } from '../../../../../types/custom/tenant';
 import {
   decodeRpcContextHeaderJson,
@@ -34,17 +31,6 @@ const decodeHeaderJson = <A, I>(
   value: string | undefined,
   schema: Schema.Schema<A, I, never>,
 ) => Schema.decodeUnknownSync(schema)(decodeRpcContextHeaderJson(value));
-
-const normalizeTemplateCategoryRecord = (
-  templateCategory: Pick<
-    typeof eventTemplateCategories.$inferSelect,
-    'icon' | 'id' | 'title'
-  >,
-): TemplateCategoryRecord => ({
-  icon: templateCategory.icon,
-  id: templateCategory.id,
-  title: templateCategory.title,
-});
 
 const ensureAuthenticated = (
   headers: Headers.Headers,
@@ -95,13 +81,16 @@ export const templateCategoryHandlers = {
         );
         const templateCategories = yield* databaseEffect((database) =>
           database.query.eventTemplateCategories.findMany({
+            columns: {
+              icon: true,
+              id: true,
+              title: true,
+            },
             where: { tenantId: tenant.id },
           }),
         );
 
-        return templateCategories.map((category) =>
-          normalizeTemplateCategoryRecord(category),
-        );
+        return templateCategories;
       }),
     'templateCategories.update': ({ icon, id, title }, options) =>
       Effect.gen(function* () {
@@ -123,13 +112,17 @@ export const templateCategoryHandlers = {
                 eq(eventTemplateCategories.id, id),
               ),
             )
-            .returning(),
+            .returning({
+              icon: eventTemplateCategories.icon,
+              id: eventTemplateCategories.id,
+              title: eventTemplateCategories.title,
+            }),
         );
         const updatedCategory = updatedCategories[0];
         if (!updatedCategory) {
           return yield* Effect.fail('FORBIDDEN' as const);
         }
 
-        return normalizeTemplateCategoryRecord(updatedCategory);
+        return updatedCategory;
       }),
 } satisfies Partial<AppRpcHandlers>;

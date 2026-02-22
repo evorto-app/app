@@ -19,6 +19,16 @@ export type DiscountProviderRecord = Schema.Schema.Type<
   typeof DiscountProviderRecord
 >;
 
+export const DiscountCardRecord = Schema.Struct({
+  id: Schema.NonEmptyString,
+  identifier: Schema.NonEmptyString,
+  status: Schema.Literal('expired', 'invalid', 'unverified', 'verified'),
+  type: Schema.Literal('esnCard'),
+  validTo: Schema.NullOr(Schema.String),
+});
+
+export type DiscountCardRecord = Schema.Schema.Type<typeof DiscountCardRecord>;
+
 export const DiscountsGetTenantProviders = asRpcQuery(
   Rpc.make('discounts.getTenantProviders', {
     error: DiscountsRpcError,
@@ -31,15 +41,7 @@ export const DiscountsGetMyCards = asRpcQuery(
   Rpc.make('discounts.getMyCards', {
     error: DiscountsRpcError,
     payload: Schema.Void,
-    success: Schema.Array(
-      Schema.Struct({
-        id: Schema.NonEmptyString,
-        identifier: Schema.NonEmptyString,
-        status: Schema.Literal('expired', 'invalid', 'unverified', 'verified'),
-        type: Schema.Literal('esnCard'),
-        validTo: Schema.NullOr(Schema.String),
-      }),
-    ),
+    success: Schema.Array(DiscountCardRecord),
   }),
 );
 
@@ -71,13 +73,7 @@ export const DiscountsRefreshMyCard = asRpcMutation(
   Rpc.make('discounts.refreshMyCard', {
     error: DiscountsCardMutationError,
     payload: DiscountsCardTypeInput,
-    success: Schema.Struct({
-      id: Schema.NonEmptyString,
-      identifier: Schema.NonEmptyString,
-      status: Schema.Literal('expired', 'invalid', 'unverified', 'verified'),
-      type: Schema.Literal('esnCard'),
-      validTo: Schema.NullOr(Schema.String),
-    }),
+    success: DiscountCardRecord,
   }),
 );
 
@@ -88,13 +84,7 @@ export const DiscountsUpsertMyCard = asRpcMutation(
       identifier: Schema.NonEmptyString,
       type: Schema.Literal('esnCard'),
     }),
-    success: Schema.Struct({
-      id: Schema.NonEmptyString,
-      identifier: Schema.NonEmptyString,
-      status: Schema.Literal('expired', 'invalid', 'unverified', 'verified'),
-      type: Schema.Literal('esnCard'),
-      validTo: Schema.NullOr(Schema.String),
-    }),
+    success: DiscountCardRecord,
   }),
 );
 

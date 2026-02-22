@@ -108,6 +108,13 @@ export const discountHandlers = {
         const user = yield* requireUserHeader(options.headers);
         const cards = yield* databaseEffect((database) =>
           database.query.userDiscountCards.findMany({
+            columns: {
+              id: true,
+              identifier: true,
+              status: true,
+              type: true,
+              validTo: true,
+            },
             where: {
               tenantId: tenant.id,
               userId: user.id,
@@ -126,6 +133,9 @@ export const discountHandlers = {
         );
         const resolvedTenant = yield* databaseEffect((database) =>
           database.query.tenants.findFirst({
+            columns: {
+              discountProviders: true,
+            },
             where: { id: tenant.id },
           }),
         );
@@ -150,6 +160,9 @@ export const discountHandlers = {
 
         const tenantRecord = yield* databaseEffect((database) =>
           database.query.tenants.findFirst({
+            columns: {
+              discountProviders: true,
+            },
             where: {
               id: tenant.id,
             },
@@ -165,6 +178,13 @@ export const discountHandlers = {
 
         const card = yield* databaseEffect((database) =>
           database.query.userDiscountCards.findFirst({
+            columns: {
+              id: true,
+              identifier: true,
+              status: true,
+              type: true,
+              validTo: true,
+            },
             where: {
               tenantId: tenant.id,
               type: input.type,
@@ -198,7 +218,13 @@ export const discountHandlers = {
               validTo: result.validTo ?? undefined,
             })
             .where(eq(userDiscountCards.id, card.id))
-            .returning(),
+            .returning({
+              id: userDiscountCards.id,
+              identifier: userDiscountCards.identifier,
+              status: userDiscountCards.status,
+              type: userDiscountCards.type,
+              validTo: userDiscountCards.validTo,
+            }),
         );
         const updatedCard = updatedCards[0];
         if (!updatedCard) {
@@ -218,6 +244,9 @@ export const discountHandlers = {
 
         const tenantRecord = yield* databaseEffect((database) =>
           database.query.tenants.findFirst({
+            columns: {
+              discountProviders: true,
+            },
             where: {
               id: tenant.id,
             },
@@ -233,6 +262,9 @@ export const discountHandlers = {
 
         const existingIdentifier = yield* databaseEffect((database) =>
           database.query.userDiscountCards.findFirst({
+            columns: {
+              userId: true,
+            },
             where: {
               identifier: input.identifier,
               type: input.type,
@@ -245,6 +277,13 @@ export const discountHandlers = {
 
         const existingCard = yield* databaseEffect((database) =>
           database.query.userDiscountCards.findFirst({
+            columns: {
+              id: true,
+              identifier: true,
+              status: true,
+              type: true,
+              validTo: true,
+            },
             where: {
               tenantId: tenant.id,
               type: input.type,
@@ -261,7 +300,13 @@ export const discountHandlers = {
                   identifier: input.identifier,
                 })
                 .where(eq(userDiscountCards.id, existingCard.id))
-                .returning(),
+                .returning({
+                  id: userDiscountCards.id,
+                  identifier: userDiscountCards.identifier,
+                  status: userDiscountCards.status,
+                  type: userDiscountCards.type,
+                  validTo: userDiscountCards.validTo,
+                }),
             )
           : yield* databaseEffect((database) =>
           database
@@ -272,7 +317,13 @@ export const discountHandlers = {
                   type: input.type,
                   userId: user.id,
                 })
-                .returning(),
+                .returning({
+                  id: userDiscountCards.id,
+                  identifier: userDiscountCards.identifier,
+                  status: userDiscountCards.status,
+                  type: userDiscountCards.type,
+                  validTo: userDiscountCards.validTo,
+                }),
             );
         const upsertedCard = upsertedCards[0];
         if (!upsertedCard) {
@@ -301,7 +352,13 @@ export const discountHandlers = {
               validTo: result.validTo ?? undefined,
             })
             .where(eq(userDiscountCards.id, upsertedCard.id))
-            .returning(),
+            .returning({
+              id: userDiscountCards.id,
+              identifier: userDiscountCards.identifier,
+              status: userDiscountCards.status,
+              type: userDiscountCards.type,
+              validTo: userDiscountCards.validTo,
+            }),
         );
         const updatedCard = updatedCards[0];
         if (!updatedCard) {

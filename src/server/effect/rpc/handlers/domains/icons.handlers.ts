@@ -11,7 +11,6 @@ import {
   icons,
 } from '../../../../../db/schema';
 import {
-  type IconRecord,
   type IconRpcError,
 } from '../../../../../shared/rpc-contracts/app-rpcs/icons.rpcs';
 import { Tenant } from '../../../../../types/custom/tenant';
@@ -30,18 +29,6 @@ const decodeHeaderJson = <A, I>(
   value: string | undefined,
   schema: Schema.Schema<A, I, never>,
 ) => Schema.decodeUnknownSync(schema)(decodeRpcContextHeaderJson(value));
-
-const normalizeIconRecord = (
-  icon: Pick<
-    typeof icons.$inferSelect,
-    'commonName' | 'friendlyName' | 'id' | 'sourceColor'
-  >,
-): IconRecord => ({
-  commonName: icon.commonName,
-  friendlyName: icon.friendlyName,
-  id: icon.id,
-  sourceColor: icon.sourceColor ?? null,
-});
 
 const getFriendlyIconName = (
   icon: string,
@@ -98,10 +85,15 @@ export const iconHandlers = {
               sourceColor,
               tenantId: tenant.id,
             })
-            .returning(),
+            .returning({
+              commonName: icons.commonName,
+              friendlyName: icons.friendlyName,
+              id: icons.id,
+              sourceColor: icons.sourceColor,
+            }),
         );
 
-        return insertedIcons.map((icon) => normalizeIconRecord(icon));
+        return insertedIcons;
       }),
     'icons.search': ({ search }, options) =>
       Effect.gen(function* () {
@@ -112,6 +104,12 @@ export const iconHandlers = {
         );
         const matchingIcons = yield* databaseEffect((database) =>
           database.query.icons.findMany({
+            columns: {
+              commonName: true,
+              friendlyName: true,
+              id: true,
+              sourceColor: true,
+            },
             orderBy: { commonName: 'asc' },
             where: {
               commonName: { ilike: `%${search}%` },
@@ -120,6 +118,6 @@ export const iconHandlers = {
           }),
         );
 
-        return matchingIcons.map((icon) => normalizeIconRecord(icon));
+        return matchingIcons;
       }),
 } satisfies Partial<AppRpcHandlers>;

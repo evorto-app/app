@@ -10,9 +10,6 @@ import { Effect, Schema } from 'effect';
 import type { AppRpcHandlers } from '../shared/handler-types';
 
 import { Database, type DatabaseClient } from '../../../../../db';
-import {
-  tenantStripeTaxRates,
-} from '../../../../../db/schema';
 import { ConfigPermissions } from '../../../../../shared/rpc-contracts/app-rpcs/config.rpcs';
 import { Tenant } from '../../../../../types/custom/tenant';
 import {
@@ -29,25 +26,6 @@ const decodeHeaderJson = <A, I>(
   value: string | undefined,
   schema: Schema.Schema<A, I, never>,
 ) => Schema.decodeUnknownSync(schema)(decodeRpcContextHeaderJson(value));
-
-const normalizeActiveTenantTaxRateRecord = (
-  taxRate: Pick<
-    typeof tenantStripeTaxRates.$inferSelect,
-    | 'country'
-    | 'displayName'
-    | 'id'
-    | 'percentage'
-    | 'state'
-    | 'stripeTaxRateId'
-  >,
-) => ({
-  country: taxRate.country ?? null,
-  displayName: taxRate.displayName ?? null,
-  id: taxRate.id,
-  percentage: taxRate.percentage ?? null,
-  state: taxRate.state ?? null,
-  stripeTaxRateId: taxRate.stripeTaxRateId,
-});
 
 export const taxRateHandlers = {
     'taxRates.listActive': (_payload, options) =>
@@ -88,8 +66,6 @@ export const taxRateHandlers = {
           }),
         );
 
-        return activeTaxRates.map((taxRate) =>
-          normalizeActiveTenantTaxRateRecord(taxRate),
-        );
+        return activeTaxRates;
       }),
 } satisfies Partial<AppRpcHandlers>;

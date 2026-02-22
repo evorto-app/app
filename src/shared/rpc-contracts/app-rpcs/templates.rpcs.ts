@@ -83,14 +83,14 @@ export const TemplateListRecord = Schema.Struct({
 });
 
 export type TemplateListRecord = Schema.Schema.Type<typeof TemplateListRecord>;
+export const TemplateIdRecord = TemplateListRecord.pick('id');
+export type TemplateIdRecord = Schema.Schema.Type<typeof TemplateIdRecord>;
 
 export const TemplatesCreateSimpleTemplate = asRpcMutation(
   Rpc.make('templates.createSimpleTemplate', {
     error: TemplateSimpleRpcError,
     payload: TemplateSimpleInput,
-    success: Schema.Struct({
-      id: Schema.NonEmptyString,
-    }),
+    success: TemplateIdRecord,
   }),
 );
 
@@ -111,9 +111,7 @@ export const TemplatesUpdateSimpleTemplate = asRpcMutation(
       id: Schema.NonEmptyString,
       ...TemplateSimpleInput.fields,
     }),
-    success: Schema.Struct({
-      id: Schema.NonEmptyString,
-    }),
+    success: TemplateIdRecord,
   }),
 );
 

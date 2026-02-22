@@ -19,6 +19,7 @@ export const FinanceReceiptStatus = Schema.Literal(
   'rejected',
   'submitted',
 );
+export type FinanceReceiptStatus = Schema.Schema.Type<typeof FinanceReceiptStatus>;
 
 export const FinanceReceiptAttachmentInput = Schema.Struct({
   fileName: Schema.NonEmptyString,
@@ -27,6 +28,9 @@ export const FinanceReceiptAttachmentInput = Schema.Struct({
   storageKey: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
   storageUrl: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
 });
+export type FinanceReceiptAttachmentInput = Schema.Schema.Type<
+  typeof FinanceReceiptAttachmentInput
+>;
 
 export const FinanceReceiptFieldsInput = Schema.Struct({
   alcoholAmount: Schema.Number.pipe(Schema.nonNegative()),
@@ -38,6 +42,9 @@ export const FinanceReceiptFieldsInput = Schema.Struct({
   taxAmount: Schema.Number.pipe(Schema.nonNegative()),
   totalAmount: Schema.Number.pipe(Schema.nonNegative()),
 });
+export type FinanceReceiptFieldsInput = Schema.Schema.Type<
+  typeof FinanceReceiptFieldsInput
+>;
 
 export const FinanceReceiptBaseRecord = Schema.Struct({
   alcoholAmount: Schema.Number,
@@ -63,6 +70,11 @@ export const FinanceReceiptBaseRecord = Schema.Struct({
   totalAmount: Schema.Number,
   updatedAt: Schema.NonEmptyString,
 });
+export type FinanceReceiptBaseRecord = Schema.Schema.Type<
+  typeof FinanceReceiptBaseRecord
+>;
+const FinanceReceiptIdRecord = FinanceReceiptBaseRecord.pick('id');
+const FinanceReceiptReviewRecord = FinanceReceiptBaseRecord.pick('id', 'status');
 
 export const FinanceReceiptWithSubmitterRecord = Schema.extend(
   FinanceReceiptBaseRecord,
@@ -72,6 +84,9 @@ export const FinanceReceiptWithSubmitterRecord = Schema.extend(
     submittedByLastName: Schema.NonEmptyString,
   }),
 );
+export type FinanceReceiptWithSubmitterRecord = Schema.Schema.Type<
+  typeof FinanceReceiptWithSubmitterRecord
+>;
 
 export const FinanceReceiptWithEventRecord = Schema.extend(
   FinanceReceiptBaseRecord,
@@ -80,6 +95,9 @@ export const FinanceReceiptWithEventRecord = Schema.extend(
     eventTitle: Schema.NonEmptyString,
   }),
 );
+export type FinanceReceiptWithEventRecord = Schema.Schema.Type<
+  typeof FinanceReceiptWithEventRecord
+>;
 
 export const FinanceReceiptForApprovalRecord = Schema.extend(
   FinanceReceiptWithSubmitterRecord,
@@ -88,6 +106,9 @@ export const FinanceReceiptForApprovalRecord = Schema.extend(
     eventTitle: Schema.NonEmptyString,
   }),
 );
+export type FinanceReceiptForApprovalRecord = Schema.Schema.Type<
+  typeof FinanceReceiptForApprovalRecord
+>;
 
 export const FinanceReceiptPendingGroupRecord = Schema.Struct({
   eventId: Schema.NonEmptyString,
@@ -95,6 +116,9 @@ export const FinanceReceiptPendingGroupRecord = Schema.Struct({
   eventTitle: Schema.NonEmptyString,
   receipts: Schema.Array(FinanceReceiptWithSubmitterRecord),
 });
+export type FinanceReceiptPendingGroupRecord = Schema.Schema.Type<
+  typeof FinanceReceiptPendingGroupRecord
+>;
 
 export const FinanceReceiptRefundableRecord = Schema.extend(
   FinanceReceiptWithSubmitterRecord,
@@ -105,6 +129,9 @@ export const FinanceReceiptRefundableRecord = Schema.extend(
     recipientPaypalEmail: Schema.NullOr(Schema.NonEmptyString),
   }),
 );
+export type FinanceReceiptRefundableRecord = Schema.Schema.Type<
+  typeof FinanceReceiptRefundableRecord
+>;
 
 export const FinanceReceiptRefundGroupRecord = Schema.Struct({
   payout: Schema.Struct({
@@ -118,6 +145,9 @@ export const FinanceReceiptRefundGroupRecord = Schema.Struct({
   submittedByUserId: Schema.NonEmptyString,
   totalAmount: Schema.Number,
 });
+export type FinanceReceiptRefundGroupRecord = Schema.Schema.Type<
+  typeof FinanceReceiptRefundGroupRecord
+>;
 
 export const FinanceReceiptsByEvent = asRpcQuery(
   Rpc.make('finance.receipts.byEvent', {
@@ -190,10 +220,7 @@ export const FinanceReceiptsReview = asRpcMutation(
       }),
       FinanceReceiptFieldsInput,
     ),
-    success: Schema.Struct({
-      id: Schema.NonEmptyString,
-      status: FinanceReceiptStatus,
-    }),
+    success: FinanceReceiptReviewRecord,
   }),
 );
 
@@ -205,9 +232,7 @@ export const FinanceReceiptsSubmit = asRpcMutation(
       eventId: Schema.NonEmptyString,
       fields: FinanceReceiptFieldsInput,
     }),
-    success: Schema.Struct({
-      id: Schema.NonEmptyString,
-    }),
+    success: FinanceReceiptIdRecord,
   }),
 );
 
@@ -238,6 +263,9 @@ export const FinanceTransactionRecord = Schema.Struct({
   status: Schema.Literal('cancelled', 'pending', 'successful'),
   stripeFee: Schema.NullOr(Schema.Number),
 });
+export type FinanceTransactionRecord = Schema.Schema.Type<
+  typeof FinanceTransactionRecord
+>;
 
 export const FinanceTransactionsFindMany = asRpcQuery(
   Rpc.make('finance.transactions.findMany', {

@@ -158,6 +158,10 @@ export const eventHandlers = {
 
         const registration = yield* databaseEffect((database) =>
           database.query.eventRegistrations.findFirst({
+            columns: {
+              id: true,
+              registrationOptionId: true,
+            },
             where: {
               id: registrationId,
               status: 'PENDING',
@@ -165,8 +169,19 @@ export const eventHandlers = {
               userId: user.id,
             },
             with: {
-              registrationOption: true,
-              transactions: true,
+              registrationOption: {
+                columns: {
+                  reservedSpots: true,
+                },
+              },
+              transactions: {
+                columns: {
+                  id: true,
+                  method: true,
+                  status: true,
+                  stripeCheckoutSessionId: true,
+                },
+              },
             },
           }),
         );
@@ -399,13 +414,23 @@ export const eventHandlers = {
 
         const tenantTemplateOptions = yield* databaseEffect((database) =>
           database.query.templateRegistrationOptions.findMany({
+            columns: {
+              id: true,
+              organizingRegistration: true,
+              title: true,
+            },
             where: { templateId: input.templateId },
           }),
         );
         if (tenantTemplateOptions.length > 0) {
           const templateDiscounts = yield* databaseEffect((database) =>
           database
-              .select()
+              .select({
+                discountedPrice: templateRegistrationOptionDiscounts.discountedPrice,
+                discountType: templateRegistrationOptionDiscounts.discountType,
+                registrationOptionId:
+                  templateRegistrationOptionDiscounts.registrationOptionId,
+              })
               .from(templateRegistrationOptionDiscounts)
               .where(
                 inArray(
@@ -618,9 +643,40 @@ export const eventHandlers = {
 
         const event = yield* databaseEffect((database) =>
           database.query.eventInstances.findFirst({
+            columns: {
+              creatorId: true,
+              description: true,
+              end: true,
+              icon: true,
+              id: true,
+              location: true,
+              start: true,
+              status: true,
+              statusComment: true,
+              title: true,
+              unlisted: true,
+            },
             where: { id, tenantId: tenant.id },
             with: {
               registrationOptions: {
+                columns: {
+                  checkedInSpots: true,
+                  closeRegistrationTime: true,
+                  confirmedSpots: true,
+                  description: true,
+                  eventId: true,
+                  id: true,
+                  isPaid: true,
+                  openRegistrationTime: true,
+                  organizingRegistration: true,
+                  price: true,
+                  registeredDescription: true,
+                  registrationMode: true,
+                  roleIds: true,
+                  spots: true,
+                  stripeTaxRateId: true,
+                  title: true,
+                },
                 where: {
                   RAW: (table) =>
                     arrayOverlaps(table.roleIds, [...rolesToFilterBy]),
@@ -665,7 +721,13 @@ export const eventHandlers = {
             ? []
             : yield* databaseEffect((database) =>
           database
-                  .select()
+                  .select({
+                    discountedPrice:
+                      eventRegistrationOptionDiscounts.discountedPrice,
+                    discountType: eventRegistrationOptionDiscounts.discountType,
+                    registrationOptionId:
+                      eventRegistrationOptionDiscounts.registrationOptionId,
+                  })
                   .from(eventRegistrationOptionDiscounts)
                   .where(
                     and(
@@ -691,6 +753,9 @@ export const eventHandlers = {
         if (user && esnCardIsEnabledForTenant) {
           const cards = yield* databaseEffect((database) =>
           database.query.userDiscountCards.findMany({
+              columns: {
+                validTo: true,
+              },
               where: {
                 status: 'verified',
                 tenantId: tenant.id,
@@ -779,9 +844,36 @@ export const eventHandlers = {
 
         const event = yield* databaseEffect((database) =>
           database.query.eventInstances.findFirst({
+            columns: {
+              creatorId: true,
+              description: true,
+              end: true,
+              icon: true,
+              id: true,
+              location: true,
+              start: true,
+              status: true,
+              title: true,
+            },
             where: { id, tenantId: tenant.id },
             with: {
-              registrationOptions: true,
+              registrationOptions: {
+                columns: {
+                  closeRegistrationTime: true,
+                  description: true,
+                  id: true,
+                  isPaid: true,
+                  openRegistrationTime: true,
+                  organizingRegistration: true,
+                  price: true,
+                  registeredDescription: true,
+                  registrationMode: true,
+                  roleIds: true,
+                  spots: true,
+                  stripeTaxRateId: true,
+                  title: true,
+                },
+              },
             },
           }),
         );
@@ -870,6 +962,14 @@ export const eventHandlers = {
 
         const registrations = yield* databaseEffect((database) =>
           database.query.eventRegistrations.findMany({
+            columns: {
+              appliedDiscountedPrice: true,
+              appliedDiscountType: true,
+              basePriceAtRegistration: true,
+              checkInTime: true,
+              discountAmount: true,
+              registrationOptionId: true,
+            },
             where: {
               eventId,
               status: 'CONFIRMED',
@@ -1044,6 +1144,15 @@ export const eventHandlers = {
 
         const registrations = yield* databaseEffect((database) =>
           database.query.eventRegistrations.findMany({
+            columns: {
+              appliedDiscountedPrice: true,
+              appliedDiscountType: true,
+              basePriceAtRegistration: true,
+              discountAmount: true,
+              id: true,
+              registrationOptionId: true,
+              status: true,
+            },
             where: {
               eventId,
               status: {
@@ -1053,8 +1162,22 @@ export const eventHandlers = {
               userId: user.id,
             },
             with: {
-              registrationOption: true,
-              transactions: true,
+              registrationOption: {
+                columns: {
+                  price: true,
+                  registeredDescription: true,
+                  title: true,
+                },
+              },
+              transactions: {
+                columns: {
+                  amount: true,
+                  method: true,
+                  status: true,
+                  stripeCheckoutUrl: true,
+                  type: true,
+                },
+              },
             },
           }),
         );
@@ -1158,6 +1281,12 @@ export const eventHandlers = {
 
         const registration = yield* databaseEffect((database) =>
           database.query.eventRegistrations.findFirst({
+            columns: {
+              appliedDiscountedPrice: true,
+              appliedDiscountType: true,
+              status: true,
+              userId: true,
+            },
             where: { id: registrationId, tenantId: tenant.id },
             with: {
               event: {
@@ -1376,6 +1505,10 @@ export const eventHandlers = {
 
         const event = yield* databaseEffect((database) =>
           database.query.eventInstances.findFirst({
+            columns: {
+              creatorId: true,
+              status: true,
+            },
             where: {
               id: input.eventId,
               tenantId: tenant.id,
@@ -1477,6 +1610,9 @@ export const eventHandlers = {
 
               const existingRegistrationRows =
                 yield* tx.query.eventRegistrationOptions.findMany({
+                  columns: {
+                    id: true,
+                  },
                   where: {
                     eventId: input.eventId,
                   },
@@ -1519,7 +1655,11 @@ export const eventHandlers = {
                 sanitizedRegistrationOptions.length === 0
                   ? []
                   : yield* tx
-                      .select()
+                      .select({
+                        id: eventRegistrationOptionDiscounts.id,
+                        registrationOptionId:
+                          eventRegistrationOptionDiscounts.registrationOptionId,
+                      })
                       .from(eventRegistrationOptionDiscounts)
                       .where(
                         and(

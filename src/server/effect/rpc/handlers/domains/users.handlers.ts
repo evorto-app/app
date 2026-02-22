@@ -13,8 +13,6 @@ import type { AppRpcHandlers } from '../shared/handler-types';
 
 import { Database, type DatabaseClient } from '../../../../../db';
 import {
-  eventInstances,
-  eventRegistrations,
   roles,
   rolesToTenantUsers,
   users,
@@ -113,6 +111,9 @@ export const userHandlers = {
 
         const defaultUserRoles = yield* databaseEffect((database) =>
           database.query.roles.findMany({
+            columns: {
+              id: true,
+            },
             where: { defaultUserRole: true, tenantId: tenant.id },
           }),
         );
@@ -126,7 +127,9 @@ export const userHandlers = {
               firstName: input.firstName,
               lastName: input.lastName,
             })
-            .returning(),
+            .returning({
+              id: users.id,
+            }),
         );
         const createdUser = userCreateResponse[0];
         if (!createdUser) {
@@ -140,7 +143,9 @@ export const userHandlers = {
               tenantId: tenant.id,
               userId: createdUser.id,
             })
-            .returning(),
+            .returning({
+              id: usersToTenants.id,
+            }),
         );
         const createdUserTenant = userTenantCreateResponse[0];
         if (!createdUserTenant) {
@@ -168,39 +173,49 @@ export const userHandlers = {
         const user = yield* requireUserHeader(options.headers);
 
         const registrations = yield* databaseEffect((database) =>
-          database
-            .select({
-              eventId: eventRegistrations.eventId,
-            })
-            .from(eventRegistrations)
-            .where(eq(eventRegistrations.userId, user.id)),
+          database.query.eventRegistrations.findMany({
+            columns: {
+              eventId: true,
+            },
+            where: {
+              status: {
+                NOT: 'CANCELLED',
+              },
+              tenantId: tenant.id,
+              userId: user.id,
+            },
+            with: {
+              event: {
+                columns: {
+                  description: true,
+                  end: true,
+                  id: true,
+                  start: true,
+                  title: true,
+                },
+              },
+            },
+          }),
         );
 
         if (registrations.length === 0) {
           return [];
         }
 
-        const events = yield* databaseEffect((database) =>
-          database
-            .select({
-              description: eventInstances.description,
-              end: eventInstances.end,
-              id: eventInstances.id,
-              start: eventInstances.start,
-              title: eventInstances.title,
-            })
-            .from(eventInstances)
-            .where(eq(eventInstances.tenantId, tenant.id))
-            .orderBy(eventInstances.start),
-        );
-
-        return events.map((event) => ({
-          description: event.description ?? null,
-          end: event.end.toISOString(),
-          id: event.id,
-          start: event.start.toISOString(),
-          title: event.title,
-        }));
+        return registrations
+          .flatMap((registration) =>
+            registration.event ? [registration.event] : [],
+          )
+          .toSorted((eventA, eventB) =>
+            eventA.start.getTime() - eventB.start.getTime(),
+          )
+          .map((event) => ({
+            description: event.description ?? null,
+            end: event.end.toISOString(),
+            id: event.id,
+            start: event.start.toISOString(),
+            title: event.title,
+          }));
       }),
     'users.findMany': (input, options) =>
       Effect.gen(function* () {
@@ -213,18 +228,8 @@ export const userHandlers = {
         const usersCountResult = yield* databaseEffect((database) =>
           database
             .select({ count: count() })
-            .from(users)
-            .innerJoin(
-              usersToTenants,
-              and(
-                eq(usersToTenants.userId, users.id),
-                eq(usersToTenants.tenantId, tenant.id),
-              ),
-            )
-            .leftJoin(
-              rolesToTenantUsers,
-              eq(usersToTenants.id, rolesToTenantUsers.userTenantId),
-            ),
+            .from(usersToTenants)
+            .where(eq(usersToTenants.tenantId, tenant.id)),
         );
         const usersCount = usersCountResult[0]?.count ?? 0;
 

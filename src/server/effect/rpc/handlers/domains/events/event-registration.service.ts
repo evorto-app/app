@@ -11,6 +11,7 @@ import {
   eventRegistrationOptions,
   eventRegistrations,
   transactions,
+  userDiscountCards,
 } from '../../../../../../db/schema';
 import { resolveTenantDiscountProviders, type TenantDiscountProviders } from '../../../../../../shared/tenant-config';
 import { type Tenant } from '../../../../../../types/custom/tenant';
@@ -27,10 +28,10 @@ const databaseEffect = <A>(
 ): Effect.Effect<A, never, Database> =>
   Database.pipe(Effect.flatMap((database) => operation(database).pipe(Effect.orDie)));
 
-interface DiscountCardRecord {
-  type: string;
-  validTo: Date | null;
-}
+type DiscountCardRecord = Pick<
+  typeof userDiscountCards.$inferSelect,
+  'type' | 'validTo'
+>;
 
 interface DiscountResolution {
   appliedDiscountedPrice: null | number;
@@ -41,10 +42,10 @@ interface DiscountResolution {
   effectivePrice: number;
 }
 
-interface RegistrationOptionDiscountRecord {
-  discountedPrice: number;
-  discountType: typeof eventRegistrationOptionDiscounts.$inferSelect.discountType;
-}
+type RegistrationOptionDiscountRecord = Pick<
+  typeof eventRegistrationOptionDiscounts.$inferSelect,
+  'discountedPrice' | 'discountType'
+>;
 
 const resolveRequestOrigin = (headers: Headers.Headers): string | undefined => {
   const forwardedProtocol = headers['x-forwarded-proto']?.split(',')[0]?.trim();
@@ -138,6 +139,9 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
         // Phase 1: ensure this user can register (no active registration + valid option + capacity).
         const existingRegistration = yield* databaseEffect((database) =>
           database.query.eventRegistrations.findFirst({
+            columns: {
+              id: true,
+            },
             where: {
               eventId,
               status: { NOT: 'CANCELLED' },
@@ -155,6 +159,16 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
 
         const registrationOption = yield* databaseEffect((database) =>
           database.query.eventRegistrationOptions.findFirst({
+            columns: {
+              confirmedSpots: true,
+              eventId: true,
+              id: true,
+              isPaid: true,
+              price: true,
+              reservedSpots: true,
+              spots: true,
+              stripeTaxRateId: true,
+            },
             where: { eventId, id: registrationOptionId },
             with: {
               event: {
@@ -196,6 +210,11 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
         const selectedTaxRate = selectedTaxRateId
           ? yield* databaseEffect((database) =>
               database.query.tenantStripeTaxRates.findFirst({
+                columns: {
+                  displayName: true,
+                  inclusive: true,
+                  percentage: true,
+                },
                 where: {
                   stripeTaxRateId: selectedTaxRateId,
                   tenantId: tenant.id,
@@ -265,6 +284,10 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
               // Undo any DB writes if payment initialization fails after reservation.
               const rollbackRegistrationOption = yield* databaseEffect((database) =>
                 database.query.eventRegistrationOptions.findFirst({
+                  columns: {
+                    id: true,
+                    reservedSpots: true,
+                  },
                   where: {
                     eventId,
                     id: registrationOptionId,
@@ -315,6 +338,10 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
 
           const cards = yield* databaseEffect((database) =>
             database.query.userDiscountCards.findMany({
+              columns: {
+                type: true,
+                validTo: true,
+              },
               where: {
                 status: 'verified',
                 tenantId: tenant.id,
@@ -325,6 +352,9 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
           if (cards.length > 0) {
             const tenantRecord = yield* databaseEffect((database) =>
               database.query.tenants.findFirst({
+                columns: {
+                  discountProviders: true,
+                },
                 where: { id: tenant.id },
               }),
             );
@@ -337,6 +367,10 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
             );
             const discounts = yield* databaseEffect((database) =>
               database.query.eventRegistrationOptionDiscounts.findMany({
+                columns: {
+                  discountedPrice: true,
+                  discountType: true,
+                },
                 where: { registrationOptionId: registrationOption.id },
               }),
             );
