@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
+ 
 
 import type { Headers } from '@effect/platform';
 
@@ -9,85 +9,32 @@ import {
   resolveReceiptCountrySettings,
 } from '@shared/finance/receipt-countries';
 import {
-  resolveTenantDiscountProviders,
-  resolveTenantReceiptSettings,
-  type TenantDiscountProviders,
-} from '@shared/tenant-config';
-import {
   and,
-  arrayOverlaps,
   count,
   desc,
   eq,
-  exists,
-  gt,
   inArray,
   not,
 } from 'drizzle-orm';
 import { Effect, Schema } from 'effect';
-import { groupBy } from 'es-toolkit';
-import { DateTime } from 'luxon';
 
 import type { AppRpcHandlers } from '../shared/handler-types';
 
 import { Database, type DatabaseClient } from '../../../../../db';
-import { createId } from '../../../../../db/create-id';
 import {
   eventInstances,
-  eventRegistrationOptionDiscounts,
   eventRegistrationOptions,
   eventRegistrations,
-  eventTemplateCategories,
-  eventTemplates,
   financeReceipts,
-  icons,
-  roles,
-  rolesToTenantUsers,
-  templateRegistrationOptionDiscounts,
-  templateRegistrationOptions,
-  tenants,
-  tenantStripeTaxRates,
   transactions,
-  userDiscountCards,
   users,
-  usersToTenants,
 } from '../../../../../db/schema';
 import { type Permission } from '../../../../../shared/permissions/permissions';
 import {
-  type AdminHubRoleRecord,
-  type AdminRoleRecord,
-  AppRpcs,
   ConfigPermissions,
-  type IconRecord,
-  type IconRpcError,
-  type TemplateCategoryRecord,
-  type TemplateListRecord,
-  type TemplatesByCategoryRecord,
-  UsersAuthData,
 } from '../../../../../shared/rpc-contracts/app-rpcs';
 import { Tenant } from '../../../../../types/custom/tenant';
 import { User } from '../../../../../types/custom/user';
-import { serverEnvironment } from '../../../../config/environment';
-import { normalizeEsnCardConfig } from '../../../../discounts/discount-provider-config';
-import {
-  Adapters,
-  PROVIDERS,
-  type ProviderType,
-} from '../../../../discounts/providers';
-import { createCloudflareImageDirectUpload } from '../../../../integrations/cloudflare-images';
-import {
-  getSignedReceiptObjectUrlFromR2,
-  uploadReceiptOriginalToR2,
-} from '../../../../integrations/cloudflare-r2';
-import { stripe } from '../../../../stripe-client';
-import { computeIconSourceColor } from '../../../../utils/icon-color';
-import {
-  isMeaningfulRichTextHtml,
-  sanitizeOptionalRichTextHtml,
-  sanitizeRichTextHtml,
-} from '../../../../utils/rich-text-sanitize';
-import { validateTaxRate } from '../../../../utils/validate-tax-rate';
-import { getPublicConfigEffect } from '../../../config/public-config.effect';
 import {
   decodeRpcContextHeaderJson,
   RPC_CONTEXT_HEADERS,
@@ -98,18 +45,6 @@ import {
   withSignedReceiptPreviewUrl,
   withSignedReceiptPreviewUrls,
 } from './finance/receipt-media.service';
-
-const ALLOWED_IMAGE_MIME_TYPES = [
-  'image/gif',
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-] as const;
-const ALLOWED_IMAGE_MIME_TYPE_SET = new Set<string>(ALLOWED_IMAGE_MIME_TYPES);
-const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024;
-const MAX_RECEIPT_ORIGINAL_SIZE_BYTES = 20 * 1024 * 1024;
-const RECEIPT_PREVIEW_SIGNED_URL_TTL_SECONDS = 60 * 15;
-const LOCAL_RECEIPT_STORAGE_KEY_PREFIX = 'local-unavailable/';
 
 const databaseEffect = <A>(
   operation: (database: DatabaseClient) => Effect.Effect<A, unknown, never>,
@@ -128,20 +63,6 @@ interface ReceiptCountryConfigTenant {
 
 const isAllowedReceiptMimeType = (mimeType: string): boolean =>
   mimeType.startsWith('image/') || mimeType === 'application/pdf';
-
-const sanitizeFileName = (fileName: string): string =>
-  fileName
-    .trim()
-    .replaceAll(/[^A-Za-z0-9._-]+/g, '-')
-    .slice(0, 120) || 'receipt';
-
-const isCloudflareR2Configured = () =>
-  Boolean(
-    serverEnvironment.CLOUDFLARE_R2_BUCKET &&
-    serverEnvironment.CLOUDFLARE_R2_S3_ENDPOINT &&
-    serverEnvironment.CLOUDFLARE_R2_S3_KEY &&
-    serverEnvironment.CLOUDFLARE_R2_S3_KEY_ID,
-  );
 
 const resolveTenantSelectableReceiptCountries = (
   tenant: ReceiptCountryConfigTenant,
@@ -178,113 +99,6 @@ const decodeHeaderJson = <A, I>(
   value: string | undefined,
   schema: Schema.Schema<A, I, never>,
 ) => Schema.decodeUnknownSync(schema)(decodeRpcContextHeaderJson(value));
-
-const normalizeIconRecord = (
-  icon: Pick<
-    typeof icons.$inferSelect,
-    'commonName' | 'friendlyName' | 'id' | 'sourceColor'
-  >,
-): IconRecord => ({
-  commonName: icon.commonName,
-  friendlyName: icon.friendlyName,
-  id: icon.id,
-  sourceColor: icon.sourceColor ?? null,
-});
-
-const normalizeTemplateCategoryRecord = (
-  templateCategory: Pick<
-    typeof eventTemplateCategories.$inferSelect,
-    'icon' | 'id' | 'title'
-  >,
-): TemplateCategoryRecord => ({
-  icon: templateCategory.icon,
-  id: templateCategory.id,
-  title: templateCategory.title,
-});
-
-const normalizeTemplateRecord = (
-  template: Pick<typeof eventTemplates.$inferSelect, 'icon' | 'id' | 'title'>,
-): TemplateListRecord => ({
-  icon: template.icon,
-  id: template.id,
-  title: template.title,
-});
-
-const normalizeTemplateFindOneRecord = (
-  template: {
-    categoryId: string;
-    description: string;
-    icon: typeof eventTemplates.$inferSelect.icon;
-    id: string;
-    location: typeof eventTemplates.$inferSelect.location;
-    registrationOptions: readonly {
-      closeRegistrationOffset: number;
-      description: null | string;
-      id: string;
-      isPaid: boolean;
-      openRegistrationOffset: number;
-      organizingRegistration: boolean;
-      price: number;
-      registeredDescription: null | string;
-      registrationMode: 'application' | 'fcfs' | 'random';
-      roleIds: string[];
-      spots: number;
-      stripeTaxRateId: null | string;
-      title: string;
-    }[];
-    title: string;
-  },
-  rolesById: ReadonlyMap<string, { id: string; name: string }>,
-): {
-  categoryId: string;
-  description: string;
-  icon: typeof eventTemplates.$inferSelect.icon;
-  id: string;
-  location: null | typeof eventTemplates.$inferSelect.location;
-  registrationOptions: {
-    closeRegistrationOffset: number;
-    description: null | string;
-    id: string;
-    isPaid: boolean;
-    openRegistrationOffset: number;
-    organizingRegistration: boolean;
-    price: number;
-    registeredDescription: null | string;
-    registrationMode: 'application' | 'fcfs' | 'random';
-    roleIds: string[];
-    roles: { id: string; name: string }[];
-    spots: number;
-    stripeTaxRateId: null | string;
-    title: string;
-  }[];
-  title: string;
-} => ({
-  categoryId: template.categoryId,
-  description: template.description,
-  icon: template.icon,
-  id: template.id,
-  location: template.location ?? null,
-  registrationOptions: template.registrationOptions.map((option) => ({
-    closeRegistrationOffset: option.closeRegistrationOffset,
-    description: option.description ?? null,
-    id: option.id,
-    isPaid: option.isPaid,
-    openRegistrationOffset: option.openRegistrationOffset,
-    organizingRegistration: option.organizingRegistration,
-    price: option.price,
-    registeredDescription: option.registeredDescription ?? null,
-    registrationMode: option.registrationMode,
-    roleIds: option.roleIds,
-    roles: option.roleIds.flatMap((roleId) => {
-      const role = rolesById.get(roleId);
-      return role ? [{ id: role.id, name: role.name }] : [];
-    }),
-    spots: option.spots,
-    stripeTaxRateId: option.stripeTaxRateId ?? null,
-    title: option.title,
-  })),
-  title: template.title,
-});
 
 const financeReceiptView = {
   alcoholAmount: financeReceipts.alcoholAmount,
@@ -379,168 +193,6 @@ const normalizeFinanceTransactionRecord = (transaction: {
   stripeFee: transaction.stripeFee ?? null,
 });
 
-const normalizeRoleRecord = (
-  role: Pick<
-    typeof roles.$inferSelect,
-    | 'collapseMembersInHup'
-    | 'defaultOrganizerRole'
-    | 'defaultUserRole'
-    | 'description'
-    | 'displayInHub'
-    | 'id'
-    | 'name'
-    | 'permissions'
-    | 'showInHub'
-    | 'sortOrder'
-  >,
-): AdminRoleRecord => ({
-  collapseMembersInHup: role.collapseMembersInHup,
-  defaultOrganizerRole: role.defaultOrganizerRole,
-  defaultUserRole: role.defaultUserRole,
-  description: role.description ?? null,
-  displayInHub: role.displayInHub,
-  id: role.id,
-  name: role.name,
-  permissions: role.permissions,
-  showInHub: role.showInHub,
-  sortOrder: role.sortOrder,
-});
-
-const normalizeHubRoleRecord = (role: {
-  description: null | string;
-  id: string;
-  name: string;
-  usersToTenants: readonly {
-    user: null | {
-      firstName: string;
-      id: string;
-      lastName: string;
-    };
-  }[];
-}): AdminHubRoleRecord => {
-  const users = role.usersToTenants.flatMap((membership) =>
-    membership.user ? [membership.user] : [],
-  );
-
-  return {
-    description: role.description ?? null,
-    id: role.id,
-    name: role.name,
-    userCount: users.length,
-    users,
-  };
-};
-
-const normalizeTenantTaxRateRecord = (
-  taxRate: Pick<
-    typeof tenantStripeTaxRates.$inferSelect,
-    | 'active'
-    | 'country'
-    | 'displayName'
-    | 'inclusive'
-    | 'percentage'
-    | 'state'
-    | 'stripeTaxRateId'
-  >,
-) => ({
-  active: taxRate.active,
-  country: taxRate.country ?? null,
-  displayName: taxRate.displayName ?? null,
-  inclusive: taxRate.inclusive,
-  percentage: taxRate.percentage ?? null,
-  state: taxRate.state ?? null,
-  stripeTaxRateId: taxRate.stripeTaxRateId,
-});
-
-const normalizeActiveTenantTaxRateRecord = (
-  taxRate: Pick<
-    typeof tenantStripeTaxRates.$inferSelect,
-    | 'country'
-    | 'displayName'
-    | 'id'
-    | 'percentage'
-    | 'state'
-    | 'stripeTaxRateId'
-  >,
-) => ({
-  country: taxRate.country ?? null,
-  displayName: taxRate.displayName ?? null,
-  id: taxRate.id,
-  percentage: taxRate.percentage ?? null,
-  state: taxRate.state ?? null,
-  stripeTaxRateId: taxRate.stripeTaxRateId,
-});
-
-const normalizeUserDiscountCardRecord = (
-  card: Pick<
-    typeof userDiscountCards.$inferSelect,
-    'id' | 'identifier' | 'status' | 'type' | 'validTo'
-  >,
-) => ({
-  id: card.id,
-  identifier: card.identifier,
-  status: card.status,
-  type: card.type,
-  validTo: card.validTo?.toISOString() ?? null,
-});
-
-const normalizeTemplatesByCategoryRecord = (
-  templateCategory: Pick<
-    typeof eventTemplateCategories.$inferSelect,
-    'icon' | 'id' | 'title'
-  > & {
-    templates: readonly Pick<
-      typeof eventTemplates.$inferSelect,
-      'icon' | 'id' | 'title'
-    >[];
-  },
-): TemplatesByCategoryRecord => ({
-  icon: templateCategory.icon,
-  id: templateCategory.id,
-  templates: templateCategory.templates.map((template) =>
-    normalizeTemplateRecord(template),
-  ),
-  title: templateCategory.title,
-});
-
-const getEsnCardDiscountedPriceByOptionId = (
-  discounts: readonly {
-    discountedPrice: number;
-    discountType: string;
-    registrationOptionId: string;
-  }[],
-) => {
-  const map = new Map<string, number>();
-  for (const discount of discounts) {
-    if (discount.discountType !== 'esnCard') {
-      continue;
-    }
-
-    const current = map.get(discount.registrationOptionId);
-    if (current === undefined || discount.discountedPrice < current) {
-      map.set(discount.registrationOptionId, discount.discountedPrice);
-    }
-  }
-
-  return map;
-};
-
-const isEsnCardEnabled = (providers: unknown) => {
-  if (!providers || typeof providers !== 'object') {
-    return false;
-  }
-
-  const esnCard = (
-    providers as {
-      esnCard?: {
-        status?: unknown;
-      };
-    }
-  ).esnCard;
-
-  return esnCard?.status === 'enabled';
-};
-
 const hasOrganizingRegistrationForEvent = (
   tenantId: string,
   user: { id: string; permissions: readonly string[] },
@@ -604,48 +256,6 @@ const canSubmitEventReceipts = (
   return hasOrganizingRegistrationForEvent(tenantId, user, eventId);
 };
 
-const canEditEvent = ({
-  creatorId,
-  permissions,
-  userId,
-}: {
-  creatorId: string;
-  permissions: readonly string[];
-  userId: string;
-}) => creatorId === userId || permissions.includes('events:editAll');
-
-const EDITABLE_EVENT_STATUSES = ['DRAFT', 'REJECTED'] as const;
-
-type EventRegistrationOptionDiscountInsert =
-  typeof eventRegistrationOptionDiscounts.$inferInsert;
-
-const getFriendlyIconName = (
-  icon: string,
-): Effect.Effect<string, IconRpcError> =>
-  Effect.sync(() => icon.split(':')).pipe(
-    Effect.flatMap(([name, set]) => {
-      if (!name) {
-        return Effect.fail('INVALID_ICON_NAME' as const);
-      }
-
-      let friendlyName = name;
-      if (set?.includes('-')) {
-        for (const part of set.split('-')) {
-          friendlyName = friendlyName.replaceAll(part, '');
-        }
-      }
-
-      friendlyName = friendlyName.replaceAll('-', ' ').trim();
-
-      return Effect.succeed(
-        friendlyName
-          .split(' ')
-          .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-          .join(' '),
-      );
-    }),
-  );
-
 const ensureAuthenticated = (
   headers: Headers.Headers,
 ): Effect.Effect<void, 'UNAUTHORIZED'> =>
@@ -673,9 +283,6 @@ const decodeUserHeader = (headers: Headers.Headers) =>
   Effect.sync(() =>
     decodeHeaderJson(headers[RPC_CONTEXT_HEADERS.USER], Schema.NullOr(User)),
   );
-
-const decodeAuthDataHeader = (headers: Headers.Headers) =>
-  decodeHeaderJson(headers[RPC_CONTEXT_HEADERS.AUTH_DATA], UsersAuthData);
 
 const requireUserHeader = (
   headers: Headers.Headers,

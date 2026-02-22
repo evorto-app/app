@@ -130,6 +130,7 @@
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-perfectionist": "^5.5.0",
     "eslint-plugin-unicorn": "^63.0.0",
+    "eslint-plugin-unused-imports": "^4.4.1",
     "jsdom": "^28.1.0",
     "playwright-ng-schematics": "21.0.3",
     "postcss": "^8.5.6",

@@ -27,6 +27,92 @@ const databaseEffect = <A>(
 ): Effect.Effect<A, never, Database> =>
   Database.pipe(Effect.flatMap((database) => operation(database).pipe(Effect.orDie)));
 
+interface DiscountCardRecord {
+  type: string;
+  validTo: Date | null;
+}
+
+interface DiscountResolution {
+  appliedDiscountedPrice: null | number;
+  appliedDiscountType:
+    | null
+    | typeof eventRegistrationOptionDiscounts.$inferSelect.discountType;
+  discountAmount: null | number;
+  effectivePrice: number;
+}
+
+interface RegistrationOptionDiscountRecord {
+  discountedPrice: number;
+  discountType: typeof eventRegistrationOptionDiscounts.$inferSelect.discountType;
+}
+
+const resolveRequestOrigin = (headers: Headers.Headers): string | undefined => {
+  const forwardedProtocol = headers['x-forwarded-proto']?.split(',')[0]?.trim();
+  const forwardedHost = headers['x-forwarded-host']?.split(',')[0]?.trim();
+  const host = forwardedHost ?? headers['host'];
+
+  return (
+    headers['origin'] ??
+    (host ? `${forwardedProtocol ?? 'http'}://${host}` : undefined)
+  );
+};
+
+const resolveDiscount = ({
+  basePrice,
+  cards,
+  discounts,
+  enabledTypes,
+  eventStart,
+}: {
+  basePrice: number;
+  cards: readonly DiscountCardRecord[];
+  discounts: readonly RegistrationOptionDiscountRecord[];
+  enabledTypes: ReadonlySet<string>;
+  eventStart: Date;
+}): DiscountResolution => {
+  if (cards.length === 0 || discounts.length === 0) {
+    return {
+      appliedDiscountedPrice: null,
+      appliedDiscountType: null,
+      discountAmount: null,
+      effectivePrice: basePrice,
+    };
+  }
+
+  const eligibleDiscounts = discounts.filter((discount) =>
+    cards.some(
+      (card) =>
+        card.type === discount.discountType &&
+        enabledTypes.has(card.type) &&
+        (!card.validTo || card.validTo > eventStart),
+    ),
+  );
+
+  if (eligibleDiscounts.length === 0) {
+    return {
+      appliedDiscountedPrice: null,
+      appliedDiscountType: null,
+      discountAmount: null,
+      effectivePrice: basePrice,
+    };
+  }
+
+  let bestDiscount = eligibleDiscounts[0];
+  for (const candidate of eligibleDiscounts.slice(1)) {
+    if (candidate.discountedPrice < bestDiscount.discountedPrice) {
+      bestDiscount = candidate;
+    }
+  }
+
+  const appliedDiscountedPrice = bestDiscount.discountedPrice;
+  return {
+    appliedDiscountedPrice,
+    appliedDiscountType: bestDiscount.discountType,
+    discountAmount: Math.max(0, basePrice - appliedDiscountedPrice),
+    effectivePrice: appliedDiscountedPrice,
+  };
+};
+
 interface RegisterForEventArguments {
   eventId: string;
   headers: Headers.Headers;
@@ -49,6 +135,7 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
         tenant,
         user,
       }: RegisterForEventArguments) {
+        // Phase 1: ensure this user can register (no active registration + valid option + capacity).
         const existingRegistration = yield* databaseEffect((database) =>
           database.query.eventRegistrations.findFirst({
             where: {
@@ -104,6 +191,7 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
           );
         }
 
+        // Phase 2: create registration row and reserve/confirm a spot immediately.
         const selectedTaxRateId = registrationOption.stripeTaxRateId ?? undefined;
         const selectedTaxRate = selectedTaxRateId
           ? yield* databaseEffect((database) =>
@@ -174,6 +262,7 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
         )(
           () =>
             Effect.gen(function* () {
+              // Undo any DB writes if payment initialization fails after reservation.
               const rollbackRegistrationOption = yield* databaseEffect((database) =>
                 database.query.eventRegistrationOptions.findFirst({
                   where: {
@@ -212,25 +301,17 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
 
         const paymentFlow = Effect.gen(function* () {
           const transactionId = createId();
-          const forwardedProtocol = headers['x-forwarded-proto']
-            ?.split(',')[0]
-            ?.trim();
-          const forwardedHost = headers['x-forwarded-host']
-            ?.split(',')[0]
-            ?.trim();
-          const host = forwardedHost ?? headers['host'];
-          const origin =
-            headers['origin'] ??
-            (host ? `${forwardedProtocol ?? 'http'}://${host}` : undefined);
+          const origin = resolveRequestOrigin(headers);
           const eventUrl = `${origin ?? ''}/events/${eventId}`;
 
+          // Phase 3: resolve the effective price (including discount provider/card logic).
           const basePrice = registrationOption.price;
-          let effectivePrice = registrationOption.price;
-          let appliedDiscountType:
-            | null
-            | typeof eventRegistrationOptionDiscounts.$inferSelect.discountType =
-            null;
-          let appliedDiscountedPrice: null | number = null;
+          let discountResolution: DiscountResolution = {
+            appliedDiscountedPrice: null,
+            appliedDiscountType: null,
+            discountAmount: null,
+            effectivePrice: basePrice,
+          };
 
           const cards = yield* databaseEffect((database) =>
             database.query.userDiscountCards.findMany({
@@ -260,31 +341,21 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
               }),
             );
             const eventStart = registrationOption.event.start ?? new Date();
-            const eligible = discounts.filter((discount) =>
-              cards.some(
-                (card) =>
-                  card.type === discount.discountType &&
-                  enabledTypes.has(card.type) &&
-                  (!card.validTo || card.validTo > eventStart),
-              ),
-            );
-            if (eligible.length > 0) {
-              let bestDiscount = eligible[0];
-              for (const candidate of eligible.slice(1)) {
-                if (candidate.discountedPrice < bestDiscount.discountedPrice) {
-                  bestDiscount = candidate;
-                }
-              }
-              effectivePrice = bestDiscount.discountedPrice;
-              appliedDiscountType = bestDiscount.discountType;
-              appliedDiscountedPrice = bestDiscount.discountedPrice;
-            }
+            discountResolution = resolveDiscount({
+              basePrice,
+              cards,
+              discounts,
+              enabledTypes,
+              eventStart,
+            });
           }
 
-          const discountAmount =
-            appliedDiscountedPrice === null
-              ? null
-              : Math.max(0, basePrice - appliedDiscountedPrice);
+          const {
+            appliedDiscountedPrice,
+            appliedDiscountType,
+            discountAmount,
+            effectivePrice,
+          } = discountResolution;
 
           yield* databaseEffect((database) =>
             database
@@ -298,6 +369,7 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
               .where(eq(eventRegistrations.id, userRegistration.id)),
           );
 
+          // Free registrations skip Stripe but still transition reservation -> confirmed.
           if (effectivePrice <= 0) {
             yield* databaseEffect((database) =>
               database
@@ -320,6 +392,7 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
             return;
           }
 
+          // Phase 4: paid registration path (Stripe session + pending transaction record).
           const applicationFee = Math.round(effectivePrice * 0.035);
           const stripeAccount = tenant.stripeAccountId;
           if (!stripeAccount) {
