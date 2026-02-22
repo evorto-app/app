@@ -9,3 +9,4 @@
 - Use Effect logging primitives for runtime diagnostics (`Effect.log*`), not ad-hoc console logging.
 - When middleware or runtime behavior changes, update track handoff/revisit docs in the same change.
 - In Effect runtime adapters, never swallow promise failures; use `Effect.tryPromise(...)` and map only known, expected errors.
+- After editing an Effect runtime file, run WebStorm `get_file_problems` on that file when possible before finishing.

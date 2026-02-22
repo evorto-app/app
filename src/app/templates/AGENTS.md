@@ -4,3 +4,4 @@
 - Maintain clear mapping from template models to event-creation payloads.
 - Normalize optional payload fields to `null` when contracts require nullable values.
 - Reuse shared template form utilities instead of duplicating mapping logic.
+- After editing a templates module file, run WebStorm `get_file_problems` on that file when possible before finishing.

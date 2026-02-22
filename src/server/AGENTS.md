@@ -29,3 +29,4 @@
 - Use Effect platform logging (`Effect.log`, `Effect.logInfo`, `Effect.logWarning`, `Effect.logError`).
 - Prefer structured log annotations (`Effect.annotateLogs`) over interpolated log strings.
 - Do not use `consola` or direct `console.*` in server runtime code.
+- After editing a server file, run WebStorm `get_file_problems` on that file when possible before finishing.

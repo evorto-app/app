@@ -76,3 +76,8 @@ Module-local guidance lives in:
 - Never commit secrets.
 - Bun loads `.env.local` and `.env` automatically.
 - In CI, provide explicit env files in workflow steps rather than runtime dotenv wiring.
+
+## Agent Editing Workflow
+
+- After editing a file, run WebStorm `get_file_problems` on that file when possible before finishing.
+- WebStorm MCP tools are available; prefer sequential `get_file_problems` checks (parallel runs can timeout).

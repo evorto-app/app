@@ -35,3 +35,4 @@
 - Normalize optional string fields to `null` at submit boundaries where APIs expect `null` over empty strings.
 - Use `consola/browser` instead of `console.*`.
 - Create scoped loggers with `consola.withTag('app/<feature>')`.
+- After editing an app file, run WebStorm `get_file_problems` on that file when possible before finishing.
