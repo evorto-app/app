@@ -19,6 +19,14 @@ const dedupeLength = 4;
 const createDedupeId = init({ length: dedupeLength });
 const environment = validatePlaywrightEnvironment();
 const databaseUrl = environment.DATABASE_URL;
+const databaseConnectionUrl = new URL(databaseUrl);
+const databaseHost = databaseConnectionUrl.hostname;
+const isLocalDatabaseHost =
+  databaseHost === 'localhost' || databaseHost === '127.0.0.1';
+if (isLocalDatabaseHost) {
+  databaseConnectionUrl.searchParams.set('sslmode', 'disable');
+}
+const resolvedDatabaseUrl = databaseConnectionUrl.toString();
 
 interface BaseFixtures {
   database: NodePgDatabase<Record<string, never>, typeof relations>;
@@ -36,7 +44,7 @@ interface BaseFixtures {
 export const test = base.extend<BaseFixtures>({
   database: async ({}, use) => {
     const pool = new Pool({
-      connectionString: databaseUrl,
+      connectionString: resolvedDatabaseUrl,
     });
     const database = drizzle({
       client: pool,

@@ -9,20 +9,21 @@ const { DATABASE_URL } = getDatabaseEnvironment();
 
 const makeDatabase = PgDrizzle.make({
   relations,
-}).pipe(
-  Effect.provide(PgDrizzle.DefaultServices),
-  Effect.provide(PgDrizzle.EffectLogger.layer),
-  Effect.provide(
-    PgClient.layer({
-      url: Redacted.make(DATABASE_URL),
-    }),
-  ),
-);
+});
+
+const databaseDependencies = [
+  PgDrizzle.DefaultServices,
+  PgDrizzle.EffectLogger.layer,
+  PgClient.layer({
+    url: Redacted.make(DATABASE_URL),
+  }),
+] as const;
 
 export type DatabaseClient = Effect.Effect.Success<typeof makeDatabase>;
 
 export class Database extends Effect.Service<Database>()('@db/Database', {
-  effect: makeDatabase,
+  dependencies: databaseDependencies,
+  scoped: makeDatabase,
 }) {}
 
 export const databaseLayer = Database.Default;

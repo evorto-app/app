@@ -6,6 +6,12 @@ services:
       - .env
     ports:
       - "${NEON_LOCAL_HOST_PORT:-55432}:5432"
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -p 5432 -U neon -d ${NEON_DATABASE_NAME:-appdb}']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
 
   evorto:
     build:
@@ -15,7 +21,8 @@ services:
       secrets:
         - FONT_AWESOME_TOKEN
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     develop:
       watch:
         - action: rebuild
@@ -27,7 +34,7 @@ services:
       - .env
     environment:
       BASE_URL: http://localhost:${APP_HOST_PORT:-4200}
-      DATABASE_URL: postgresql://neon:npg@db:5432/${NEON_DATABASE_NAME:-appdb}?sslmode=require
+      DATABASE_URL: postgresql://neon:npg@db:5432/${NEON_DATABASE_NAME:-appdb}?sslmode=disable
       NEON_LOCAL_PROXY: "true"
       PORT: "4200"
       #      This secret is for the local stripe cli, it is not a production secret

@@ -160,10 +160,7 @@ const extractRegistrationId = (
 const renderSsr = (request: HttpServerRequest.HttpServerRequest) =>
   Effect.gen(function* () {
     const authSession = yield* loadAuthSession(request);
-    const requestContext = yield* resolveHttpRequestContext(
-      request,
-      authSession,
-    ).pipe(Effect.provide(databaseLayer));
+    const requestContext = yield* resolveHttpRequestContext(request, authSession);
 
     const webRequest = yield* HttpServerRequest.toWeb(request);
     const renderedResponse = yield* Effect.tryPromise(() =>
@@ -225,7 +222,7 @@ const qrCodeRouteLayer = HttpLayerRouter.add(
       const webResponse = yield* handleQrRegistrationCodeWebRequest(
         webRequest,
         registrationId,
-      ).pipe(Effect.provide(databaseLayer));
+      );
 
       return HttpServerResponse.fromWeb(webResponse);
     }),
@@ -251,9 +248,7 @@ const stripeWebhookRouteLayer = HttpLayerRouter.add(
       }
 
       const webRequest = yield* HttpServerRequest.toWeb(request);
-      const webResponse = yield* handleStripeWebhookWebRequest(webRequest).pipe(
-        Effect.provide(databaseLayer),
-      );
+      const webResponse = yield* handleStripeWebhookWebRequest(webRequest);
 
       return HttpServerResponse.fromWeb(webResponse);
     }),
@@ -262,10 +257,7 @@ const stripeWebhookRouteLayer = HttpLayerRouter.add(
 const rpcRouteLayer = HttpLayerRouter.add('POST', '/rpc', (request) =>
   Effect.gen(function* () {
     const authSession = yield* loadAuthSession(request);
-    const requestContext = yield* resolveHttpRequestContext(
-      request,
-      authSession,
-    ).pipe(Effect.provide(databaseLayer));
+    const requestContext = yield* resolveHttpRequestContext(request, authSession);
 
     const webRequest = yield* HttpServerRequest.toWeb(request);
     const rpcRequest = yield* toRpcHttpServerRequest(
@@ -377,21 +369,36 @@ const handlerRuntimeLayer = Layer.mergeAll(
   appRpcHttpAppLayer,
 );
 
-const handlerAppLayer = routesLayer.pipe(Layer.provide(handlerRuntimeLayer));
-
-const { handler: serverHandler } = HttpLayerRouter.toWebHandler(
-  handlerAppLayer,
-  {
-    middleware: withSsrFallback,
-  },
+const handlerAppLayer = routesLayer.pipe(
+  Layer.provide(handlerRuntimeLayer),
+  Layer.provide(databaseLayer),
 );
 
-const handlerContext = EffectContext.empty() as Parameters<
-  typeof serverHandler
->[1];
+let cachedRequestHandler:
+  | ((request: Request) => Promise<Response>)
+  | undefined;
+
+const getRequestHandler = (): ((request: Request) => Promise<Response>) => {
+  if (cachedRequestHandler) {
+    return cachedRequestHandler;
+  }
+
+  const { handler: serverHandler } = HttpLayerRouter.toWebHandler(
+    handlerAppLayer,
+    {
+      middleware: withSsrFallback,
+    },
+  );
+  const handlerContext = EffectContext.empty() as Parameters<
+    typeof serverHandler
+  >[1];
+
+  cachedRequestHandler = (request) => serverHandler(request, handlerContext);
+  return cachedRequestHandler;
+};
 
 const requestHandler = createRequestHandler((request) =>
-  serverHandler(request, handlerContext),
+  getRequestHandler()(request),
 );
 
 export { requestHandler as reqHandler };
@@ -407,6 +414,7 @@ const serveEffect = Effect.gen(function* () {
         BunHttpServer.layer({ port }),
         BunFileSystem.layer,
         Path.layer,
+        databaseLayer,
         keyValueStoreLayer,
         otelLayer,
         webhookRateLimitLayer,
@@ -423,9 +431,9 @@ const serveEffect = Effect.gen(function* () {
     }),
   );
 
-  yield* Layer.launch(serverLayer);
+  return yield* Layer.launch(serverLayer);
 });
 
 if (import.meta.main) {
-  BunRuntime.runMain(serveEffect);
+  BunRuntime.runMain(serveEffect.pipe(Effect.provide(databaseLayer)));
 }
