@@ -2,12 +2,15 @@
 
 import type { Headers } from '@effect/platform';
 
-import { Effect } from 'effect';
+import { Effect, Schema } from 'effect';
 
 import type { AppRpcHandlers } from './shared/handler-types';
 
 import { Database, type DatabaseClient } from '../../../../db';
+import { type Permission } from '../../../../shared/permissions/permissions';
+import { ConfigPermissions } from '../../../../shared/rpc-contracts/app-rpcs/config.rpcs';
 import {
+  decodeRpcContextHeaderJson,
   RPC_CONTEXT_HEADERS,
 } from '../rpc-context-headers';
 
@@ -23,10 +26,31 @@ const ensureAuthenticated = (
     ? Effect.void
     : Effect.fail('UNAUTHORIZED' as const);
 
+const decodeHeaderJson = <A, I>(
+  value: string | undefined,
+  schema: Schema.Schema<A, I, never>,
+) => Schema.decodeUnknownSync(schema)(decodeRpcContextHeaderJson(value));
+
+const ensurePermission = (
+  headers: Headers.Headers,
+  permission: Permission,
+): Effect.Effect<void, 'FORBIDDEN' | 'UNAUTHORIZED'> =>
+  Effect.gen(function* () {
+    yield* ensureAuthenticated(headers);
+    const currentPermissions = decodeHeaderJson(
+      headers[RPC_CONTEXT_HEADERS.PERMISSIONS],
+      ConfigPermissions,
+    );
+
+    if (!currentPermissions.includes(permission)) {
+      return yield* Effect.fail('FORBIDDEN' as const);
+    }
+  });
+
 export const globalAdminHandlers = {
     'globalAdmin.tenants.findMany': (_payload, options) =>
       Effect.gen(function* () {
-        yield* ensureAuthenticated(options.headers);
+        yield* ensurePermission(options.headers, 'globalAdmin:manageTenants');
         const allTenants = yield* databaseEffect((database) =>
           database.query.tenants.findMany({
             columns: {

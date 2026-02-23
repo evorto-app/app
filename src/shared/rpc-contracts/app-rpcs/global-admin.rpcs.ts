@@ -3,7 +3,10 @@ import * as RpcGroup from '@effect/rpc/RpcGroup';
 import { asRpcQuery } from '@heddendorp/effect-angular-query';
 import { Schema } from 'effect';
 
-export const GlobalAdminRpcError = Schema.Literal('UNAUTHORIZED');
+export const GlobalAdminRpcError = Schema.Literal(
+  'FORBIDDEN',
+  'UNAUTHORIZED',
+);
 
 export type GlobalAdminRpcError = Schema.Schema.Type<
   typeof GlobalAdminRpcError
