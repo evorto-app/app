@@ -69,11 +69,13 @@ const submitReceiptFromFirstEvent = async (
 const seedPendingReceiptForApproval = async ({
   database,
   eventId,
+  seedDate,
   submittedByUserId,
   tenantId,
 }: {
   database: NodePgDatabase<Record<string, never>, typeof relations>;
   eventId: string;
+  seedDate: Date;
   submittedByUserId: string;
   tenantId: string;
 }) => {
@@ -87,7 +89,7 @@ const seedPendingReceiptForApproval = async ({
     hasAlcohol: true,
     hasDeposit: true,
     purchaseCountry: 'DE',
-    receiptDate: new Date('2026-02-01T00:00:00.000Z'),
+    receiptDate: new Date(seedDate.getTime() - 1000 * 60 * 60 * 24 * 2),
     status: 'submitted',
     submittedByUserId,
     taxAmount: 0,
@@ -114,6 +116,7 @@ test('approve and refund receipts in finance @track(finance-receipts_20260205) @
   database,
   events,
   page,
+  seedDate,
   tenant,
 }) => {
   const seededEventId = events[0]?.id;
@@ -125,6 +128,7 @@ test('approve and refund receipts in finance @track(finance-receipts_20260205) @
   await seedPendingReceiptForApproval({
     database,
     eventId: seededEventId,
+    seedDate,
     submittedByUserId: '334967d7626fbd6ad449',
     tenantId: tenant.id,
   });

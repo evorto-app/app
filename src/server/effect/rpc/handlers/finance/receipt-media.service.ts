@@ -1,6 +1,6 @@
 import { Effect } from 'effect';
 
-import { serverEnvironment } from '../../../../config/environment';
+import { getObjectStorageEnvironment } from '../../../../config/environment';
 import {
   getSignedReceiptObjectUrlFromR2,
   uploadReceiptOriginalToR2,
@@ -28,13 +28,14 @@ const sanitizeFileName = (fileName: string): string =>
     .replaceAll(/[^A-Za-z0-9._-]+/g, '-')
     .slice(0, 120) || 'receipt';
 
-const isCloudflareR2Configured = () =>
-  Boolean(
-    serverEnvironment.CLOUDFLARE_R2_BUCKET &&
-      serverEnvironment.CLOUDFLARE_R2_S3_ENDPOINT &&
-      serverEnvironment.CLOUDFLARE_R2_S3_KEY &&
-      serverEnvironment.CLOUDFLARE_R2_S3_KEY_ID,
-  );
+const isObjectStorageConfigured = () => {
+  try {
+    getObjectStorageEnvironment();
+    return true;
+  } catch {
+    return false;
+  }
+};
 
 export const withSignedReceiptPreviewUrl = <T extends ReceiptWithStoragePreview>(
   receipt: T,
@@ -142,7 +143,7 @@ export class ReceiptMediaService extends Effect.Service<ReceiptMediaService>()(
               }),
           }).pipe(
             Effect.catchAll((error) =>
-              isCloudflareR2Configured()
+              isObjectStorageConfigured()
                 ? Effect.fail(error)
                 : Effect.succeed({
                     storageKey: `${LOCAL_RECEIPT_STORAGE_KEY_PREFIX}${storageKey}`,

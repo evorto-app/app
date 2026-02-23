@@ -2,7 +2,7 @@
 
 ## Phase 1: D0 MinIO + Endpoint-Configurable Bun S3 Client
 
-- [ ] Task: Add MinIO to local test docker stack
+- [~] Task: Add MinIO to local test docker stack
   - [ ] Add MinIO service definition
   - [ ] Add bucket-init step for test bucket creation
   - [ ] Ensure `bun run docker:start` (or explicit test variant) brings storage up consistently

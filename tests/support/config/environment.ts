@@ -26,10 +26,22 @@ const PlaywrightCommonFields = {
   CLOUDFLARE_R2_S3_ENDPOINT: optionalNonEmptyString,
   CLOUDFLARE_R2_S3_KEY: optionalNonEmptyString,
   CLOUDFLARE_R2_S3_KEY_ID: optionalNonEmptyString,
+  AWS_ACCESS_KEY_ID: optionalNonEmptyString,
+  AWS_BUCKET: optionalNonEmptyString,
+  AWS_ENDPOINT: optionalNonEmptyString,
+  AWS_REGION: optionalNonEmptyString,
+  AWS_SECRET_ACCESS_KEY: optionalNonEmptyString,
   CLOUDFLARE_TOKEN: optionalNonEmptyString,
   DOCS_IMG_OUT_DIR: optionalNonEmptyString,
   DOCS_OUT_DIR: optionalNonEmptyString,
+  E2E_NOW_ISO: optionalNonEmptyString,
+  E2E_SEED_KEY: optionalNonEmptyString,
   PLAYWRIGHT_TEST_BASE_URL: optionalNonEmptyString,
+  S3_ACCESS_KEY_ID: optionalNonEmptyString,
+  S3_BUCKET: optionalNonEmptyString,
+  S3_ENDPOINT: optionalNonEmptyString,
+  S3_REGION: optionalNonEmptyString,
+  S3_SECRET_ACCESS_KEY: optionalNonEmptyString,
   TENANT_DOMAIN: optionalNonEmptyString,
 } as const;
 
@@ -75,14 +87,44 @@ const CloudflareImagesTokenEnvironmentSchema = Schema.Union(
   }),
 );
 
+const CIS3ObjectStorageEnvironmentSchema = Schema.Struct({
+  S3_ACCESS_KEY_ID: Schema.NonEmptyString,
+  S3_BUCKET: Schema.NonEmptyString,
+  S3_ENDPOINT: Schema.NonEmptyString,
+  S3_REGION: Schema.NonEmptyString,
+  S3_SECRET_ACCESS_KEY: Schema.NonEmptyString,
+});
+
+const CIAwsObjectStorageEnvironmentSchema = Schema.Struct({
+  AWS_ACCESS_KEY_ID: Schema.NonEmptyString,
+  AWS_BUCKET: Schema.NonEmptyString,
+  AWS_ENDPOINT: Schema.NonEmptyString,
+  AWS_REGION: Schema.NonEmptyString,
+  AWS_SECRET_ACCESS_KEY: Schema.NonEmptyString,
+});
+
+const CILegacyCloudflareR2EnvironmentSchema = Schema.Struct({
+  CLOUDFLARE_R2_S3_ENDPOINT: Schema.NonEmptyString,
+  CLOUDFLARE_R2_S3_KEY: Schema.NonEmptyString,
+  CLOUDFLARE_R2_S3_KEY_ID: Schema.NonEmptyString,
+});
+
+const CIObjectStorageEnvironmentSchema = Schema.Union(
+  CIS3ObjectStorageEnvironmentSchema,
+  CIAwsObjectStorageEnvironmentSchema,
+  CILegacyCloudflareR2EnvironmentSchema,
+);
+
 const CIIntegrationEnvironmentSchema = Schema.Struct({
   CI: TrueFromString,
   CLOUDFLARE_ACCOUNT_ID: Schema.NonEmptyString,
   CLOUDFLARE_IMAGES_DELIVERY_HASH: Schema.NonEmptyString,
-  CLOUDFLARE_R2_S3_ENDPOINT: Schema.NonEmptyString,
-  CLOUDFLARE_R2_S3_KEY: Schema.NonEmptyString,
-  CLOUDFLARE_R2_S3_KEY_ID: Schema.NonEmptyString,
 }).pipe(Schema.extend(CloudflareImagesTokenEnvironmentSchema));
+
+const CIDeterministicEnvironmentSchema = Schema.Struct({
+  E2E_NOW_ISO: Schema.NonEmptyString,
+  E2E_SEED_KEY: Schema.NonEmptyString,
+});
 
 const DocumentationOutputEnvironmentSchema = Schema.Struct({
   DOCS_IMG_OUT_DIR: Schema.optionalWith(Schema.NonEmptyString, {
@@ -147,6 +189,16 @@ export const validatePlaywrightEnvironment = (
       CIIntegrationEnvironmentSchema,
       input,
       'e2e CI integration environment',
+    );
+    decodeOrThrow(
+      CIObjectStorageEnvironmentSchema,
+      input,
+      'e2e object storage environment',
+    );
+    decodeOrThrow(
+      CIDeterministicEnvironmentSchema,
+      input,
+      'e2e deterministic seed/time environment',
     );
   }
 

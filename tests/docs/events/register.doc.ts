@@ -14,6 +14,7 @@ test.describe('Register for events', () => {
     events,
     page,
     registrations,
+    testClock,
   }, testInfo) => {
     test.slow();
     const regularUser = usersToAuthenticate.find(
@@ -22,6 +23,7 @@ test.describe('Register for events', () => {
     if (!regularUser) {
       throw new Error('No regular user configured for registration docs');
     }
+    const testClockMillis = testClock.toMillis();
     const freeEvent = events.find((event) => {
       const alreadyRegistered = registrations.some(
         (registration) =>
@@ -36,13 +38,17 @@ test.describe('Register for events', () => {
         event.status === 'APPROVED' &&
         event.unlisted === false &&
         event.registrationOptions.some((option) => {
+          const openRegistrationMillis = DateTime.fromJSDate(
+            option.openRegistrationTime,
+          ).toMillis();
+          const closeRegistrationMillis = DateTime.fromJSDate(
+            option.closeRegistrationTime,
+          ).toMillis();
           return (
-            DateTime.fromJSDate(option.openRegistrationTime).diffNow()
-              .milliseconds < 0 &&
+            openRegistrationMillis <= testClockMillis &&
             !option.isPaid &&
             option.title === 'Participant registration' &&
-            DateTime.fromJSDate(option.closeRegistrationTime).diffNow()
-              .milliseconds > 0
+            closeRegistrationMillis > testClockMillis
           );
         }) &&
         event.registrationOptions.every((option) => !option.isPaid)
@@ -118,6 +124,7 @@ test.describe('Register for events', () => {
     events,
     page,
     registrations,
+    testClock,
   }, testInfo) => {
     test.slow();
     const regularUser = usersToAuthenticate.find(
@@ -126,6 +133,7 @@ test.describe('Register for events', () => {
     if (!regularUser) {
       throw new Error('No regular user configured for registration docs');
     }
+    const testClockMillis = testClock.toMillis();
     const paidEvent = events.find((event) => {
       const alreadyRegistered = registrations.some(
         (registration) =>
@@ -140,13 +148,17 @@ test.describe('Register for events', () => {
         event.status === 'APPROVED' &&
         event.unlisted === false &&
         event.registrationOptions.some((option) => {
+          const openRegistrationMillis = DateTime.fromJSDate(
+            option.openRegistrationTime,
+          ).toMillis();
+          const closeRegistrationMillis = DateTime.fromJSDate(
+            option.closeRegistrationTime,
+          ).toMillis();
           return (
-            DateTime.fromJSDate(option.openRegistrationTime).diffNow()
-              .milliseconds < 0 &&
+            openRegistrationMillis <= testClockMillis &&
             option.isPaid &&
             option.title === 'Participant registration' &&
-            DateTime.fromJSDate(option.closeRegistrationTime).diffNow()
-              .milliseconds > 0
+            closeRegistrationMillis > testClockMillis
           );
         }) &&
         event.registrationOptions.every((option) => option.isPaid)

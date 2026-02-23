@@ -113,7 +113,7 @@ export const test = base.extend<BaseFixtures & { seeded: SeedTenantResult }>({
 
   // Seed discount provider and a verified ESN card for the regular user
   discounts: [
-    async ({ database, tenant }, use) => {
+    async ({ database, seedDate, tenant }, use) => {
       // Enable ESN provider for tenant (stored on tenant model)
       const currentTenant = await database.query.tenants.findFirst({
         where: { id: tenant.id },
@@ -140,8 +140,8 @@ export const test = base.extend<BaseFixtures & { seeded: SeedTenantResult }>({
           tenantId: tenant.id,
           type: 'esnCard',
           userId: regularUser.id,
-          validFrom: new Date(),
-          validTo: new Date(Date.now() + 1000 * 60 * 60 * 24 * 180), // ~6 months
+          validFrom: seedDate,
+          validTo: new Date(seedDate.getTime() + 1000 * 60 * 60 * 24 * 180), // ~6 months
         });
       }
       await use();

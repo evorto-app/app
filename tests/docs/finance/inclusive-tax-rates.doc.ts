@@ -93,6 +93,7 @@ test.describe('Inclusive tax rates documentation (creators)', () => {
 
   test('Assign compatible tax rates to paid registrations @track(playwright-specs-track-linking_20260126) @doc(INCLUSIVE-TAX-RATES-DOC-02)', async ({
     page,
+    seedDate,
   }, testInfo) => {
     await page.goto('.');
 
@@ -184,7 +185,7 @@ Paid organizer registrations require a compatible inclusive tax rate. The dropdo
     ).toBeVisible();
     await page.getByRole('link', { name: 'Create event' }).click();
 
-    const draftEventTitle = `Tax Rate Edit ${Date.now()}`;
+    const draftEventTitle = `Tax Rate Edit ${seedDate.toISOString().slice(0, 10)}`;
     await page.getByLabel('Event Title').fill(draftEventTitle);
     await page.getByRole('button', { name: 'Create Event' }).click();
     await expect(

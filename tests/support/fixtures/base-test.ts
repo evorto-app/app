@@ -4,6 +4,7 @@ import { test as base } from '@playwright/test';
 import { ManagementClient } from 'auth0';
 import { drizzle, NodePgDatabase } from 'drizzle-orm/node-postgres';
 import fs from 'node:fs';
+import { DateTime } from 'luxon';
 import path from 'node:path';
 import { Pool } from 'pg';
 
@@ -38,6 +39,7 @@ interface BaseFixtures {
     password: string;
   };
   seedDate: Date;
+  testClock: DateTime;
   tenantDomain?: string;
 }
 
@@ -145,4 +147,10 @@ export const test = base.extend<BaseFixtures>({
     } catch {}
     await use(environment.TENANT_DOMAIN);
   },
+  testClock: [
+    async ({ seedDate }, use) => {
+      await use(DateTime.fromJSDate(seedDate, { zone: 'utc' }).plus({ hours: 12 }));
+    },
+    { auto: true },
+  ],
 });

@@ -26,6 +26,8 @@ jobs:
       NEON_LOCAL_HOST_PORT: 55432
       NEON_LOCAL_PROXY: true
       DATABASE_URL: postgresql://neon:npg@localhost:55432/appdb?sslmode=require
+      E2E_NOW_ISO: 2026-02-01T12:00:00.000Z
+      E2E_SEED_KEY: ci-e2e-seed-v1
       NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
       NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
       AUTH0_MANAGEMENT_CLIENT_ID: ${{ secrets.AUTH0_MANAGEMENT_CLIENT_ID }}
@@ -34,8 +36,11 @@ jobs:
       CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
       STRIPE_API_KEY: ${{ secrets.STRIPE_API_KEY }}
       STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
-      CLOUDFLARE_R2_S3_KEY: ${{ secrets.CLOUDFLARE_R2_S3_KEY }}
-      CLOUDFLARE_R2_S3_KEY_ID: ${{ secrets.CLOUDFLARE_R2_S3_KEY_ID }}
+      S3_ACCESS_KEY_ID: minioadmin
+      S3_BUCKET: evorto-ci
+      S3_ENDPOINT: http://minio:9000
+      S3_REGION: us-east-1
+      S3_SECRET_ACCESS_KEY: minioadmin
       CLOUDFLARE_TOKEN: ${{ secrets.CLOUDFLARE_TOKEN }}
       CLOUDFLARE_IMAGES_API_TOKEN: ${{ secrets.CLOUDFLARE_IMAGES_API_TOKEN }}
       PARENT_BRANCH_ID: ${{ secrets.PARENT_BRANCH_ID }}
@@ -75,6 +80,8 @@ jobs:
         run: |
           cat > .env <<EOF
           DATABASE_URL=${DATABASE_URL}
+          E2E_NOW_ISO=${E2E_NOW_ISO}
+          E2E_SEED_KEY=${E2E_SEED_KEY}
           NEON_LOCAL_PROXY=${NEON_LOCAL_PROXY}
           NEON_DATABASE_NAME=${NEON_DATABASE_NAME}
           NEON_API_KEY=${NEON_API_KEY}
@@ -85,8 +92,11 @@ jobs:
           CLIENT_SECRET=${CLIENT_SECRET}
           STRIPE_API_KEY=${STRIPE_API_KEY}
           STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
-          CLOUDFLARE_R2_S3_KEY=${CLOUDFLARE_R2_S3_KEY}
-          CLOUDFLARE_R2_S3_KEY_ID=${CLOUDFLARE_R2_S3_KEY_ID}
+          S3_ACCESS_KEY_ID=${S3_ACCESS_KEY_ID}
+          S3_BUCKET=${S3_BUCKET}
+          S3_ENDPOINT=${S3_ENDPOINT}
+          S3_REGION=${S3_REGION}
+          S3_SECRET_ACCESS_KEY=${S3_SECRET_ACCESS_KEY}
           CLOUDFLARE_TOKEN=${CLOUDFLARE_TOKEN}
           CLOUDFLARE_IMAGES_API_TOKEN=${CLOUDFLARE_IMAGES_API_TOKEN}
           PARENT_BRANCH_ID=${PARENT_BRANCH_ID}
