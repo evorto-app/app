@@ -38,9 +38,12 @@ export class Tenant extends Schema.Class<Tenant>('Tenant')({
       allowOther: Schema.optionalWith(Schema.Boolean, {
         default: () => DEFAULT_TENANT_RECEIPT_ALLOW_OTHER,
       }),
-      receiptCountries: Schema.optionalWith(Schema.Array(Schema.NonEmptyString), {
-        default: () => [...DEFAULT_TENANT_RECEIPT_COUNTRIES],
-      }),
+      receiptCountries: Schema.optionalWith(
+        Schema.Array(Schema.NonEmptyString),
+        {
+          default: () => [...DEFAULT_TENANT_RECEIPT_COUNTRIES],
+        },
+      ),
     }),
     {
       default: () => ({

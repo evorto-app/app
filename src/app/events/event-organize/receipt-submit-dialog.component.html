@@ -15,9 +15,7 @@
         (input)="updateAttachmentName(attachmentNameInput.value)"
         placeholder="Optional label for this receipt"
       />
-      <mat-hint>
-        This name is shown in receipt and refund overviews.
-      </mat-hint>
+      <mat-hint> This name is shown in receipt and refund overviews. </mat-hint>
     </mat-form-field>
 
     <div class="bg-surface-container rounded-xl border border-dashed p-4">
@@ -43,7 +41,9 @@
       @if (file()) {
         <div class="bg-surface mt-3 rounded-lg p-3 text-sm">
           <p class="font-medium">{{ file()!.name }}</p>
-          <p class="text-on-surface-variant">{{ formatFileSize(file()!.size) }}</p>
+          <p class="text-on-surface-variant">
+            {{ formatFileSize(file()!.size) }}
+          </p>
         </div>
       }
     </div>
@@ -54,6 +54,8 @@
   </mat-dialog-content>
   <mat-dialog-actions align="end" class="gap-2">
     <button mat-button mat-dialog-close type="button">Cancel</button>
-    <button mat-raised-button color="primary" type="submit">Submit receipt</button>
+    <button mat-raised-button color="primary" type="submit">
+      Submit receipt
+    </button>
   </mat-dialog-actions>
 </form>

@@ -16,7 +16,7 @@ import {
 import { injectQuery } from '@tanstack/angular-query-experimental';
 import consola from 'consola/browser';
 
-import { injectTRPC } from '../../core/trpc-client';
+import { AppRpc } from '../../core/effect-rpc-angular-client';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -50,17 +50,17 @@ export class UserListComponent {
     firstName: string;
     id: string;
     lastName: string;
-    roles: string[];
+    roles: readonly string[];
   }>(true);
   private readonly filterInput = signal<{
     limit?: number;
     offset?: number;
     search?: string;
   }>({});
-  private readonly trpc = injectTRPC();
+  private readonly rpc = AppRpc.injectClient();
 
   protected readonly usersQuery = injectQuery(() =>
-    this.trpc.users.findMany.queryOptions(this.filterInput()),
+    this.rpc.users.findMany.queryOptions(this.filterInput()),
   );
 
   handlePageChange(event: PageEvent) {

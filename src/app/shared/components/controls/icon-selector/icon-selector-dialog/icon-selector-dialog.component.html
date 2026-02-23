@@ -15,7 +15,7 @@
           class="hover:bg-surface-container-high flex cursor-pointer flex-col items-center gap-2 rounded p-2"
           [mat-dialog-close]="icon.value"
         >
-          <app-icon size="30" [iconCommonName]="icon.value"></app-icon>
+          <app-icon size="30" [iconCommonName]="icon.value" />
           <span class="bg-surface break-all rounded px-2 text-sm">
             {{ icon.friendlyName }}
           </span>
@@ -29,7 +29,7 @@
         (click)="saveIconDirectly()"
         data-testid="direct-access-icon"
       >
-        <app-icon size="40" [iconCommonName]="directAccessIcon()"></app-icon>
+        <app-icon size="40" [iconCommonName]="directAccessIcon()" />
         <span class="bg-surface rounded px-2 py-1">{{ searchValue() }}</span>
       </button>
       <!-- <app-notification>

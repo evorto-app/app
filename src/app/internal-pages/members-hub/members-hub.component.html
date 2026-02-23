@@ -4,7 +4,7 @@
   <h2 class="title-medium mb-4">Who's who</h2>
   @if (rolesQuery.isError()) {
     <div class="text-error p-4">
-      Error loading roles: {{ rolesQuery.error().message }}
+      Error loading roles: {{ errorMessage(rolesQuery.error()) }}
     </div>
   } @else if (rolesQuery.isSuccess()) {
     <div class="@lg:grid-cols-3 @md:grid-cols-2 grid gap-4">

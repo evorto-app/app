@@ -9,7 +9,11 @@ test('Manage finances @finance @track(playwright-specs-track-linking_20260126) @
   page,
 }, testInfo) => {
   await permissionOverride({
-    add: ['finance:viewTransactions', 'finance:approveReceipts', 'finance:refundReceipts'],
+    add: [
+      'finance:viewTransactions',
+      'finance:approveReceipts',
+      'finance:refundReceipts',
+    ],
     roleName: 'Section member',
   });
 

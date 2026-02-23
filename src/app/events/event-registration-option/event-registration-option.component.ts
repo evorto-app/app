@@ -15,7 +15,7 @@ import {
 } from '@tanstack/angular-query-experimental';
 import { interval, map } from 'rxjs';
 
-import { injectTRPC } from '../../core/trpc-client';
+import { AppRpc } from '../../core/effect-rpc-angular-client';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -27,7 +27,7 @@ import { injectTRPC } from '../../core/trpc-client';
 export class EventRegistrationOptionComponent {
   public readonly registrationOption = input.required<{
     appliedDiscountType?: 'esnCard' | null;
-    closeRegistrationTime: Date;
+    closeRegistrationTime: string;
     description: null | string;
     discountApplied?: boolean;
     effectivePrice?: number;
@@ -35,46 +35,62 @@ export class EventRegistrationOptionComponent {
     eventId: string;
     id: string;
     isPaid: boolean;
-    openRegistrationTime: Date;
+    openRegistrationTime: string;
     price: number;
     title: string;
   }>();
-  private trpc = injectTRPC();
+  private readonly rpc = AppRpc.injectClient();
   protected readonly authenticationQuery = injectQuery(() =>
-    this.trpc.config.isAuthenticated.queryOptions(),
+    this.rpc.config.isAuthenticated.queryOptions(),
   );
-  private queryClient = inject(QueryClient);
   protected readonly registrationMutation = injectMutation(() =>
-    this.trpc.events.registerForEvent.mutationOptions({
-      onSuccess: async ({ userRegistration: { eventId } }) => {
-        await this.queryClient.invalidateQueries({
-          queryKey: this.trpc.events.getRegistrationStatus.queryKey({
-            eventId,
-          }),
-        });
-      },
-    }),
+    this.rpc.events.registerForEvent.mutationOptions(),
   );
   private currentTime = toSignal(interval(1000).pipe(map(() => new Date())), {
     initialValue: new Date(),
   });
-
   protected registrationOpen = computed(() => {
     const currentTime = this.currentTime();
     const registrationOption = this.registrationOption();
-    if (registrationOption.openRegistrationTime > currentTime) {
+    if (new Date(registrationOption.openRegistrationTime) > currentTime) {
       return 'tooEarly';
     }
-    if (registrationOption.closeRegistrationTime < currentTime) {
+    if (new Date(registrationOption.closeRegistrationTime) < currentTime) {
       return 'tooLate';
     }
     return 'open';
   });
 
+  private queryClient = inject(QueryClient);
+
   register(registrationOption: { eventId: string; id: string }) {
-    this.registrationMutation.mutate({
-      eventId: registrationOption.eventId,
-      registrationOptionId: registrationOption.id,
-    });
+    this.registrationMutation.mutate(
+      {
+        eventId: registrationOption.eventId,
+        registrationOptionId: registrationOption.id,
+      },
+      {
+        onSuccess: async () => {
+          await this.queryClient.invalidateQueries({
+            queryKey: this.rpc.events.getRegistrationStatus.queryKey({
+              eventId: registrationOption.eventId,
+            }),
+          });
+        },
+      },
+    );
+  }
+
+  protected errorMessage(error: unknown): string {
+    if (typeof error === 'string') {
+      return error;
+    }
+    if (error && typeof error === 'object') {
+      const message = Reflect.get(error, 'message');
+      if (typeof message === 'string') {
+        return message;
+      }
+    }
+    return 'Unknown error';
   }
 }

@@ -26,8 +26,8 @@ import {
 import { firstValueFrom } from 'rxjs';
 
 import { ConfigService } from '../../core/config.service';
+import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { NotificationService } from '../../core/notification.service';
-import { injectTRPC } from '../../core/trpc-client';
 import {
   ReceiptSubmitDialogComponent,
   ReceiptSubmitDialogResult,
@@ -50,14 +50,14 @@ import {
 export class EventOrganize {
   eventId = input.required<string>();
 
-  private readonly trpc = injectTRPC();
+  private readonly rpc = AppRpc.injectClient();
   protected readonly eventQuery = injectQuery(() =>
-    this.trpc.events.findOne.queryOptions({ id: this.eventId() }),
+    this.rpc.events.findOne.queryOptions({ id: this.eventId() }),
   );
   protected readonly event = computed(() => this.eventQuery.data());
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly organizerOverviewQuery = injectQuery(() =>
-    this.trpc.events.getOrganizeOverview.queryOptions({
+    this.rpc.events.getOrganizeOverview.queryOptions({
       eventId: this.eventId(),
     }),
   );
@@ -82,7 +82,7 @@ export class EventOrganize {
       ]);
   });
   protected readonly receiptsByEventQuery = injectQuery(() =>
-    this.trpc.finance.receipts.byEvent.queryOptions({
+    this.rpc.finance.receipts.byEvent.queryOptions({
       eventId: this.eventId(),
     }),
   );
@@ -112,32 +112,17 @@ export class EventOrganize {
       registered: totalRegistered,
     };
   });
-  private readonly notifications = inject(NotificationService);
-  private readonly queryClient = inject(QueryClient);
   protected readonly submitReceiptMutation = injectMutation(() =>
-    this.trpc.finance.receipts.submit.mutationOptions({
-      onSuccess: async () => {
-        await this.queryClient.invalidateQueries({
-          queryKey: this.trpc.finance.receipts.byEvent.queryKey({
-            eventId: this.eventId(),
-          }),
-        });
-        await this.queryClient.invalidateQueries({
-          queryKey: this.trpc.finance.receipts.my.pathKey(),
-        });
-        await this.queryClient.invalidateQueries({
-          queryKey: this.trpc.finance.receipts.pendingApprovalGrouped.pathKey(),
-        });
-        this.notifications.showSuccess('Receipt submitted');
-      },
-    }),
+    this.rpc.finance.receipts.submit.mutationOptions(),
   );
-
   private readonly config = inject(ConfigService);
-
   private readonly dialog = inject(MatDialog);
+
+  private readonly notifications = inject(NotificationService);
+
+  private readonly queryClient = inject(QueryClient);
   private readonly receiptOriginalUploadMutation = injectMutation(() =>
-    this.trpc.finance.receiptMedia.uploadOriginal.mutationOptions(),
+    this.rpc.finance.receiptMedia.uploadOriginal.mutationOptions(),
   );
 
   constructor() {
@@ -178,14 +163,40 @@ export class EventOrganize {
         result.attachmentName,
       );
 
-      this.submitReceiptMutation.mutate({
-        attachment,
-        eventId: this.eventId(),
-        fields: result.fields,
-      });
+      this.submitReceiptMutation.mutate(
+        {
+          attachment,
+          eventId: this.eventId(),
+          fields: {
+            ...result.fields,
+            receiptDate: result.fields.receiptDate.toISOString(),
+          },
+        },
+        {
+          onSuccess: async () => {
+            await this.queryClient.invalidateQueries({
+              queryKey: this.rpc.finance.receipts.byEvent.queryKey({
+                eventId: this.eventId(),
+              }),
+            });
+            await this.queryClient.invalidateQueries(
+              this.rpc.queryFilter(['finance', 'receipts.my']),
+            );
+            await this.queryClient.invalidateQueries(
+              this.rpc.queryFilter([
+                'finance',
+                'receipts.pendingApprovalGrouped',
+              ]),
+            );
+            this.notifications.showSuccess('Receipt submitted');
+          },
+        },
+      );
     } catch (error) {
       this.notifications.showError(
-        error instanceof Error ? error.message : 'Failed to upload receipt file',
+        error instanceof Error
+          ? error.message
+          : 'Failed to upload receipt file',
       );
     }
   }

@@ -4,7 +4,7 @@ import { Pipe, PipeTransform } from '@angular/core';
   name: 'registrationStartOffset',
 })
 export class RegistrationStartOffsetPipe implements PipeTransform {
-  transform(offsetInHours: null | number | undefined): string {
+  transform(offsetInHours?: null | number): string {
     if (offsetInHours == undefined || offsetInHours === 0) {
       return 'At event start';
     }

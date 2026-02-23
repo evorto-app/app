@@ -21,8 +21,8 @@ import {
 import { injectQuery } from '@tanstack/angular-query-experimental';
 import { interval } from 'rxjs';
 
+import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { PermissionsService } from '../../core/permissions.service';
-import { injectTRPC } from '../../core/trpc-client';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -47,9 +47,9 @@ export class AdminOverviewComponent {
   protected readonly faUsers = faUsers;
   protected readonly faUsersGear = faUsersGear;
   protected readonly outletActive = signal(false);
-  private readonly trpc = injectTRPC();
+  private readonly rpc = AppRpc.injectClient();
   protected readonly pendingReviewsQuery = injectQuery(() =>
-    this.trpc.events.getPendingReviews.queryOptions(),
+    this.rpc.events.getPendingReviews.queryOptions(),
   );
   protected readonly pendingReviewsCount = computed(() =>
     this.canReviewEvents() ? (this.pendingReviewsQuery.data()?.length ?? 0) : 0,

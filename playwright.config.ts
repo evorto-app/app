@@ -1,19 +1,36 @@
 import { defineConfig, devices } from '@playwright/test';
+
 import { validatePlaywrightEnvironment } from './tests/support/config/environment';
 
 const environment = validatePlaywrightEnvironment();
+const resolvedBaseUrl =
+  environment.PLAYWRIGHT_TEST_BASE_URL ??
+  ('BASE_URL' in environment ? environment.BASE_URL : undefined);
 
 /**
  * See https://playwright.dev/docs/test-configuration.
  */
-const webServer = environment.NO_WEBSERVER
-  ? undefined
-  : ({
-      command: 'yarn docker:start-test',
-      reuseExistingServer: true,
-      timeout: 240_000,
-      url: environment.PLAYWRIGHT_TEST_BASE_URL ?? environment.BASE_URL,
-    } as const);
+const webServer = (() => {
+  if (environment.NO_WEBSERVER) {
+    return undefined;
+  }
+
+  const url =
+    environment.PLAYWRIGHT_TEST_BASE_URL ??
+    ('BASE_URL' in environment ? environment.BASE_URL : undefined);
+  if (!url) {
+    throw new Error(
+      'Missing base URL for Playwright webServer. Set PLAYWRIGHT_TEST_BASE_URL or BASE_URL.',
+    );
+  }
+
+  return {
+    command: 'bun run docker:start:test',
+    reuseExistingServer: true,
+    timeout: 240_000,
+    url,
+  } as const;
+})();
 
 // Configure reporters: avoid blocking HTML server opening; prefer terminal output
 const reporters: any[] = [];
@@ -31,18 +48,18 @@ if (environment.CI) {
 export default defineConfig({
   /* Fail the build on CI if you accidentally left test.only in the source code. */
   forbidOnly: !!environment.CI,
-  maxFailures: environment.CI ? 1 : undefined,
+  ...(environment.CI ? { maxFailures: 1 } : {}),
   /* Run tests in files in parallel */
   fullyParallel: true,
   /* Configure projects for major browsers */
   projects: [
     {
       name: 'setup',
+      retries: environment.CI ? 1 : 0,
       testDir: './tests/setup',
       testMatch: /.*\.setup\.ts$/,
       timeout: 20_000,
-      retries: environment.CI ? 1 : 0,
-      use: { ...devices['Desktop Chrome'] },
+      use: { ...devices['Desktop Chrome'], channel: 'chromium' },
     },
     {
       dependencies: ['setup'],
@@ -104,9 +121,8 @@ export default defineConfig({
   testDir: './tests',
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
+    ...(resolvedBaseUrl ? { baseURL: resolvedBaseUrl } : {}),
     /* Base URL to use in actions like `await page.goto('/')`. */
-    baseURL: environment.PLAYWRIGHT_TEST_BASE_URL ?? environment.BASE_URL,
-
     colorScheme: 'light',
 
     /* Ignore SSL errors when connecting to Auth0 and other external services */

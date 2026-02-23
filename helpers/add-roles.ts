@@ -1,7 +1,7 @@
 import { randEmail, randFirstName, randLastName } from '@ngneat/falso';
 import { InferInsertModel, and, eq, inArray } from 'drizzle-orm';
 import consola from 'consola';
-import { NeonDatabase } from 'drizzle-orm/neon-serverless';
+import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 import { relations } from '../src/db/relations';
 import * as schema from '../src/db/schema';
@@ -9,7 +9,7 @@ import { ALL_PERMISSIONS } from '../src/shared/permissions/permissions';
 import { getId } from './get-id';
 
 export const addRoles = (
-  database: NeonDatabase<Record<string, never>, typeof relations>,
+  database: NodePgDatabase<Record<string, never>, typeof relations>,
   tenant: { id: string },
 ) => {
   return database
@@ -76,7 +76,7 @@ export const addRoles = (
 };
 
 export const addUsersToRoles = async (
-  database: NeonDatabase<Record<string, never>, typeof relations>,
+  database: NodePgDatabase<Record<string, never>, typeof relations>,
   assignments: { roleId: string; userId: string }[],
   tenant: { id: string },
 ) => {
@@ -115,7 +115,7 @@ export const addUsersToRoles = async (
 };
 
 export const addExampleUsers = async (
-  database: NeonDatabase<Record<string, never>, typeof relations>,
+  database: NodePgDatabase<Record<string, never>, typeof relations>,
   roles: { defaultUserRole: boolean; id: string }[],
   tenant: { id: string },
 ) => {

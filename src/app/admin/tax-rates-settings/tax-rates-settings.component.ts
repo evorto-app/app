@@ -18,7 +18,7 @@ import {
 } from '@fortawesome/duotone-regular-svg-icons';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
-import { injectTRPC } from '../../core/trpc-client';
+import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { ImportTaxRatesDialogComponent } from '../components/import-tax-rates-dialog/import-tax-rates-dialog.component';
 
 @Component({
@@ -37,7 +37,7 @@ import { ImportTaxRatesDialogComponent } from '../components/import-tax-rates-di
     <!-- Header with navigation -->
     <div class="mb-4 flex flex-row items-center gap-2">
       <a routerLink="/admin" mat-icon-button class="lg:hidden! block">
-        <fa-duotone-icon [icon]="faArrowLeft"></fa-duotone-icon>
+        <fa-duotone-icon [icon]="faArrowLeft" />
       </a>
       <h1 class="title-large">Tax Rates</h1>
     </div>
@@ -50,7 +50,7 @@ import { ImportTaxRatesDialogComponent } from '../components/import-tax-rates-di
       (click)="openImportDialog()"
       [disabled]="importedQuery.isLoading()"
     >
-      <fa-duotone-icon [icon]="faReceipt"></fa-duotone-icon>
+      <fa-duotone-icon [icon]="faReceipt" />
       Import Tax Rates
     </button>
 
@@ -69,10 +69,10 @@ import { ImportTaxRatesDialogComponent } from '../components/import-tax-rates-di
       @else if (importedQuery.error()) {
         <div class="bg-error-container text-on-error-container rounded-2xl p-4">
           <div class="flex items-center gap-2">
-            <fa-duotone-icon [icon]="faCircleExclamation"></fa-duotone-icon>
+            <fa-duotone-icon [icon]="faCircleExclamation" />
             <span class="body-medium"
               >Failed to load tax rates:
-              {{ importedQuery.error()?.message }}</span
+              {{ errorMessage(importedQuery.error()) }}</span
             >
           </div>
         </div>
@@ -88,7 +88,7 @@ import { ImportTaxRatesDialogComponent } from '../components/import-tax-rates-di
           <fa-duotone-icon
             [icon]="faReceipt"
             class="mb-4 text-6xl text-on-surface-variant"
-          ></fa-duotone-icon>
+          />
           <h2 class="title-medium mb-2">No tax rates imported</h2>
           <p class="body-medium text-on-surface-variant mb-4 text-center">
             Import tax rates from your payment provider to enable paid
@@ -316,10 +316,10 @@ export class TaxRatesSettingsComponent {
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faCircleExclamation = faCircleExclamation;
   protected readonly faReceipt = faReceipt;
-  private readonly trpc = injectTRPC();
+  private readonly rpc = AppRpc.injectClient();
 
   protected readonly importedQuery = injectQuery(() =>
-    this.trpc.admin.tenant.listImportedTaxRates.queryOptions(),
+    this.rpc.admin.tenant.listImportedTaxRates.queryOptions(),
   );
 
   protected readonly importedRates = computed(() => {
@@ -333,6 +333,21 @@ export class TaxRatesSettingsComponent {
   });
 
   private readonly dialog = inject(MatDialog);
+
+  protected errorMessage(error: unknown): string {
+    if (typeof error === 'string') {
+      return error;
+    }
+    if (
+      error &&
+      typeof error === 'object' &&
+      'message' in error &&
+      typeof (error as { message?: unknown }).message === 'string'
+    ) {
+      return (error as { message: string }).message;
+    }
+    return 'Unknown error';
+  }
 
   protected openImportDialog(): void {
     const dialogReference = this.dialog.open(ImportTaxRatesDialogComponent, {

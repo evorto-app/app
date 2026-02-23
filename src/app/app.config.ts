@@ -1,5 +1,4 @@
 import {
-  HttpClient,
   provideHttpClient,
   withFetch,
   withInterceptors,
@@ -28,24 +27,20 @@ import {
   withViewTransitions,
 } from '@angular/router';
 import {
-  createTRPCClientFactory,
-  provideTRPC,
-} from '@heddendorp/tanstack-angular-query';
-import { angularHttpLink } from '@heddendorp/trpc-link-angular';
+  provideEffectHttpClient,
+  provideEffectRpcProtocolHttpLayer,
+} from '@heddendorp/effect-platform-angular';
 import * as Sentry from '@sentry/angular';
 import {
   provideTanStackQuery,
   QueryClient,
 } from '@tanstack/angular-query-experimental';
 import { withDevtools } from '@tanstack/angular-query-experimental/devtools';
-import { createTRPCClient } from '@trpc/client';
-import superjson from 'superjson';
-
-import type { AppRouter } from '../server/trpc/app-router';
 
 import { routes } from './app.routes';
 import { authTokenInterceptor } from './core/auth-token.interceptor';
 import { ConfigService } from './core/config.service';
+import { AppRpc, resolveRpcUrl } from './core/effect-rpc-angular-client';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -58,26 +53,15 @@ export const appConfig: ApplicationConfig = {
       withRouterConfig({ paramsInheritanceStrategy: 'always' }),
     ),
     provideHttpClient(withFetch(), withInterceptors([authTokenInterceptor])),
-    provideTRPC(
-      createTRPCClientFactory(() => {
-        const http = inject(HttpClient);
-        return createTRPCClient<AppRouter>({
-          links: [
-            angularHttpLink({
-              httpClient: http,
-              transformer: superjson,
-              url: '/trpc',
-            }),
-          ],
-        });
-      }),
-    ),
+    provideEffectHttpClient(),
+    provideEffectRpcProtocolHttpLayer({ url: resolveRpcUrl }),
     provideClientHydration(withEventReplay()),
     // Enable TanStack Query devtools only in dev mode
     provideTanStackQuery(
       new QueryClient(),
       ...(isDevMode() ? ([withDevtools()] as const) : ([] as const)),
     ),
+    AppRpc.providers,
     provideLuxonDateAdapter(),
     // provideCloudflareLoader(
     //   'https://imagedelivery.net/DxTiV2GJoeCDYZ1DN5RPUA/',

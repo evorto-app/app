@@ -20,7 +20,7 @@ import {
 } from '@tanstack/angular-query-experimental';
 import { DateTime } from 'luxon';
 
-import { injectTRPC } from '../../core/trpc-client';
+import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { EventGeneralForm } from '../../shared/components/forms/event-general-form/event-general-form';
 import {
   createEventGeneralFormModel,
@@ -49,17 +49,20 @@ export class TemplateCreateEventComponent {
     this.createEventModel,
     eventGeneralFormSchema,
   );
-  private trpc = injectTRPC();
+  private readonly rpc = AppRpc.injectClient();
   protected readonly createEventMutation = injectMutation(() =>
-    this.trpc.events.create.mutationOptions(),
+    this.rpc.events.create.mutationOptions(),
   );
   protected readonly discountProvidersQuery = injectQuery(() =>
-    this.trpc.discounts.getTenantProviders.queryOptions(),
+    this.rpc.discounts.getTenantProviders.queryOptions(),
   );
   protected readonly esnEnabled = computed(() => {
     const providers = this.discountProvidersQuery.data();
     if (!providers) return false;
-    return providers.find((provider) => provider.type === 'esnCard')?.status === 'enabled';
+    return (
+      providers.find((provider) => provider.type === 'esnCard')?.status ===
+      'enabled'
+    );
   });
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly registrationModes = [
@@ -69,14 +72,12 @@ export class TemplateCreateEventComponent {
   ] as const;
   protected readonly templateId = input.required<string>();
   protected readonly templateQuery = injectQuery(() =>
-    this.trpc.templates.findOne.queryOptions({ id: this.templateId() }),
+    this.rpc.templates.findOne.queryOptions({ id: this.templateId() }),
   );
   private readonly initializedTemplateId = signal<null | string>(
-    // eslint-disable-next-line unicorn/no-null
     null,
   );
   private readonly lastStart = signal<DateTime | null>(
-    // eslint-disable-next-line unicorn/no-null
     null,
   );
 
@@ -97,7 +98,6 @@ export class TemplateCreateEventComponent {
           description: template.description,
           end: startDateTime,
           icon: template.icon,
-          // eslint-disable-next-line unicorn/no-null
           location: template.location ?? null,
           registrationOptions: template.registrationOptions.map((option) =>
             createRegistrationOptionFormModel({
@@ -115,9 +115,8 @@ export class TemplateCreateEventComponent {
               price: option.price,
               registeredDescription: option.registeredDescription ?? '',
               registrationMode: option.registrationMode,
-              roleIds: option.roleIds ?? [],
+              roleIds: [...(option.roleIds ?? [])],
               spots: option.spots,
-              // eslint-disable-next-line unicorn/no-null
               stripeTaxRateId: option.stripeTaxRateId ?? null,
               title: option.title,
             }),
@@ -179,43 +178,40 @@ export class TemplateCreateEventComponent {
       this.createEventMutation.mutate(
         {
           ...formValue,
-          end: this.toDateTime(formValue.end).toJSDate(),
+          end: this.toDateTime(formValue.end).toJSDate().toISOString(),
           icon: formValue.icon,
           registrationOptions: formValue.registrationOptions.map((option) => ({
-            closeRegistrationTime: this.toDateTime(
-              option.closeRegistrationTime,
-            ).toJSDate(),
+            closeRegistrationTime: this.toDateTime(option.closeRegistrationTime)
+              .toJSDate()
+              .toISOString(),
             description: option.description?.trim()
               ? option.description
-              : // eslint-disable-next-line unicorn/no-null
-                null,
+              : null,
             isPaid: option.isPaid,
-            openRegistrationTime: this.toDateTime(
-              option.openRegistrationTime,
-            ).toJSDate(),
+            openRegistrationTime: this.toDateTime(option.openRegistrationTime)
+              .toJSDate()
+              .toISOString(),
             organizingRegistration: option.organizingRegistration,
             price: option.price,
             registeredDescription: option.registeredDescription?.trim()
               ? option.registeredDescription
-              : // eslint-disable-next-line unicorn/no-null
-                null,
+              : null,
             registrationMode: option.registrationMode,
             roleIds: option.roleIds,
             spots: option.spots,
             stripeTaxRateId: option.stripeTaxRateId?.trim()
               ? option.stripeTaxRateId
-              : // eslint-disable-next-line unicorn/no-null
-                null,
+              : null,
             title: option.title,
           })),
-          start: this.toDateTime(formValue.start).toJSDate(),
+          start: this.toDateTime(formValue.start).toJSDate().toISOString(),
           templateId: this.templateId(),
         },
         {
           onSuccess: async (data) => {
-            await this.queryClient.invalidateQueries({
-              queryKey: this.trpc.events.eventList.pathKey(),
-            });
+            await this.queryClient.invalidateQueries(
+              this.rpc.queryFilter(['events', 'eventList']),
+            );
             this.router.navigate(['/events', data.id]);
           },
         },

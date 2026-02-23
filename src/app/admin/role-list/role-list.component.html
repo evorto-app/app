@@ -1,12 +1,12 @@
 <div class="mb-4 flex flex-row items-center gap-2">
   <a routerLink="/admin" mat-icon-button class="lg:hidden! block">
-    <fa-duotone-icon [icon]="faArrowLeft"></fa-duotone-icon>
+    <fa-duotone-icon [icon]="faArrowLeft" />
   </a>
   <h1 class="title-large">User roles</h1>
 </div>
 
 <a routerLink="create" class="fab-fixed" mat-fab extended>
-  <mat-icon svgIcon="faPlus"></mat-icon>
+  <mat-icon svgIcon="faPlus" />
   Create role
 </a>
 <div class="grid grid-cols-1 gap-4">
@@ -17,7 +17,7 @@
       <h2 class="title-medium">Loading ...</h2>
     </div>
   } @else if (roleQuery.isError()) {
-    <p>Error: {{ roleQuery.error().message }}</p>
+    <p>Error: {{ errorMessage(roleQuery.error()) }}</p>
   } @else if (roleQuery.isSuccess()) {
     @for (role of roleQuery.data(); track role.id) {
       <a

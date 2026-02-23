@@ -1,6 +1,7 @@
 import { randEmail, randFirstName, randLastName } from '@ngneat/falso';
 import consola from 'consola';
-import type { NeonDatabase } from 'drizzle-orm/neon-serverless';
+import type { InferInsertModel } from 'drizzle-orm';
+import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 import { relations } from '../src/db/relations';
 import * as schema from '../src/db/schema';
@@ -74,7 +75,7 @@ export interface SeedTenantResult {
 }
 
 export const seedBaseUsers = async (
-  database: NeonDatabase<Record<string, never>, typeof relations>,
+  database: NodePgDatabase<Record<string, never>, typeof relations>,
 ) => {
   const values = usersToAuthenticate
     .filter((data) => data.addToDb)
@@ -97,7 +98,7 @@ export const seedBaseUsers = async (
 };
 
 export async function seedTenant(
-  database: NeonDatabase<Record<string, never>, typeof relations>,
+  database: NodePgDatabase<Record<string, never>, typeof relations>,
   {
     domain,
     ensureUsers = false,
@@ -119,11 +120,17 @@ export async function seedTenant(
 
   const resolvedSeedDate = seedDate ?? getSeedDate();
 
-  const tenant = await createTenant(database, {
-    domain: resolvedDomain,
-    name: resolvedName,
+  const tenantInput: Partial<InferInsertModel<typeof schema.tenants>> = {
     stripeAccountId,
-  });
+  };
+  if (typeof resolvedDomain === 'string') {
+    tenantInput.domain = resolvedDomain;
+  }
+  if (typeof resolvedName === 'string') {
+    tenantInput.name = resolvedName;
+  }
+
+  const tenant = await createTenant(database, tenantInput);
 
   await addTaxRates(database, tenant);
   const icons = await addIcons(database, tenant);
@@ -160,9 +167,23 @@ export async function seedTenant(
   );
   const templates = await addTemplates(database, templateCategories, roles);
   const events = await addEvents(database, templates, roles, resolvedSeedDate);
-  const registrations = includeRegistrations
-    ? await addRegistrations(database, events, resolvedSeedDate)
-    : [];
+  const registrations = (
+    includeRegistrations
+      ? await addRegistrations(database, events, resolvedSeedDate)
+      : []
+  ).map((registration) => {
+    if (!registration.id) {
+      throw new Error('Seeded registration is missing an id');
+    }
+    return {
+      eventId: registration.eventId,
+      id: registration.id,
+      registrationOptionId: registration.registrationOptionId,
+      status: registration.status,
+      tenantId: registration.tenantId,
+      userId: registration.userId,
+    };
+  });
   await addFinanceReceipts(database, {
     eventIds: events.map((event) => event.id),
     tenantId: tenant.id,

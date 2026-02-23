@@ -1,6 +1,6 @@
 <div class="mb-4 flex flex-row items-center gap-2">
   <a routerLink="/admin" mat-icon-button class="lg:hidden! block">
-    <fa-duotone-icon [icon]="faArrowLeft"></fa-duotone-icon>
+    <fa-duotone-icon [icon]="faArrowLeft" />
   </a>
   <h1 class="title-large">All users</h1>
   <div class="grow"></div>
@@ -10,7 +10,7 @@
     [matMenuTriggerFor]="menu"
     class="md:hidden! block"
   >
-    <fa-duotone-icon [icon]="faEllipsisVertical"></fa-duotone-icon>
+    <fa-duotone-icon [icon]="faEllipsisVertical" />
   </button>
   <mat-menu #menu="matMenu">
     <a mat-menu-item routerLink="edit">Edit template</a>
@@ -34,16 +34,14 @@
             (change)="$event ? toggleAllRows() : null"
             [checked]="selection.hasValue() && isAllSelected()"
             [indeterminate]="selection.hasValue() && !isAllSelected()"
-          >
-          </mat-checkbox>
+          />
         </th>
         <td mat-cell *matCellDef="let row">
           <mat-checkbox
             (click)="$event.stopPropagation()"
             (change)="$event ? selection.toggle(row) : null"
             [checked]="selection.isSelected(row)"
-          >
-          </mat-checkbox>
+          />
         </td>
       </ng-container>
 
@@ -74,7 +72,7 @@
         <th mat-header-cell *matHeaderCellDef>Actions</th>
         <td mat-cell *matCellDef="let element">
           <button mat-icon-button>
-            <fa-duotone-icon [icon]="faEdit"></fa-duotone-icon>
+            <fa-duotone-icon [icon]="faEdit" />
           </button>
         </td>
       </ng-container>
@@ -89,7 +87,6 @@
       (page)="handlePageChange($event)"
       [length]="usersQuery.data().usersCount"
       [pageSize]="100"
-    >
-    </mat-paginator>
+    />
   </div>
 }

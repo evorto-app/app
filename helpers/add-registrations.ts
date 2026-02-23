@@ -16,8 +16,8 @@ import consola from 'consola';
  * 8. For paid registrations, creates associated transactions as if Stripe webhooks fired
  * 9. Handles various registration and payment statuses for comprehensive testing scenarios
  */
-import { InferInsertModel, SQL, inArray, sql } from 'drizzle-orm';
-import { NeonDatabase } from 'drizzle-orm/neon-serverless';
+import { InferInsertModel, eq } from 'drizzle-orm';
+import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 import { relations } from '../src/db/relations';
 import * as schema from '../src/db/schema';
@@ -58,7 +58,7 @@ export interface EventRegistrationInput {
  * @returns The created registrations
  */
 export async function addRegistrations(
-  database: NeonDatabase<Record<string, never>, typeof relations>,
+  database: NodePgDatabase<Record<string, never>, typeof relations>,
   events: EventRegistrationInput[],
   seedDate?: Date,
 ) {
@@ -382,58 +382,32 @@ export async function addRegistrations(
     }
   }
 
-  // Execute all operations in a transaction for atomicity
+  // Execute writes without an explicit transaction.
+  // Neon local + fetch transport under Bun can hit websocket-only transaction paths.
+  // Best-effort seed consistency is sufficient for test fixtures.
   try {
-    await database.transaction(async (tx) => {
-      // Insert all registrations in a single statement (no chunking)
-      if (registrations.length > 0) {
-        await tx.insert(schema.eventRegistrations).values(registrations);
-      }
+    // Insert all registrations in a single statement (no chunking)
+    if (registrations.length > 0) {
+      await database.insert(schema.eventRegistrations).values(registrations);
+    }
 
-      // Insert all transactions in a single statement (no chunking)
-      if (transactions.length > 0) {
-        await tx.insert(schema.transactions).values(transactions);
-      }
+    // Insert all transactions in a single statement (no chunking)
+    if (transactions.length > 0) {
+      await database.insert(schema.transactions).values(transactions);
+    }
 
-      // Multi-row UPDATE using CASE expressions in a single request
-      const updatesArray = Array.from(optionUpdates.entries());
-      if (updatesArray.length > 0) {
-        const ids: string[] = [];
-        const checkedSqlChunks: SQL[] = [];
-        const confirmedSqlChunks: SQL[] = [];
-        const waitlistSqlChunks: SQL[] = [];
-        checkedSqlChunks.push(sql`(case`);
-        confirmedSqlChunks.push(sql`(case`);
-        waitlistSqlChunks.push(sql`(case`);
-        for (const [id, c] of updatesArray) {
-          checkedSqlChunks.push(
-            sql`when ${schema.eventRegistrationOptions.id} = ${id} then cast(${c.checkedInSpots} as integer)`,
-          );
-          confirmedSqlChunks.push(
-            sql`when ${schema.eventRegistrationOptions.id} = ${id} then cast(${c.confirmedSpots} as integer)`,
-          );
-          waitlistSqlChunks.push(
-            sql`when ${schema.eventRegistrationOptions.id} = ${id} then cast(${c.waitlistSpots} as integer)`,
-          );
-          ids.push(id);
-        }
-        checkedSqlChunks.push(sql`end)`);
-        confirmedSqlChunks.push(sql`end)`);
-        waitlistSqlChunks.push(sql`end)`);
-        const checkedFinal: SQL = sql.join(checkedSqlChunks, sql.raw(' '));
-        const confirmedFinal: SQL = sql.join(confirmedSqlChunks, sql.raw(' '));
-        const waitlistFinal: SQL = sql.join(waitlistSqlChunks, sql.raw(' '));
-
-        await tx
+    if (optionUpdates.size > 0) {
+      for (const [id, counts] of optionUpdates) {
+        await database
           .update(schema.eventRegistrationOptions)
           .set({
-            checkedInSpots: checkedFinal,
-            confirmedSpots: confirmedFinal,
-            waitlistSpots: waitlistFinal,
+            checkedInSpots: counts.checkedInSpots,
+            confirmedSpots: counts.confirmedSpots,
+            waitlistSpots: counts.waitlistSpots,
           })
-          .where(inArray(schema.eventRegistrationOptions.id, ids));
+          .where(eq(schema.eventRegistrationOptions.id, id));
       }
-    });
+    }
   } catch (error) {
     consola.error('Failed to create registrations:', error);
     return [];

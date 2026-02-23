@@ -17,9 +17,7 @@ export const createTemplateGeneralFormModel = (
 ): TemplateGeneralFormModel => ({
   categoryId: '',
   description: '',
-  // eslint-disable-next-line unicorn/no-null
   icon: null,
-  // eslint-disable-next-line unicorn/no-null
   location: null,
   title: '',
   ...overrides,

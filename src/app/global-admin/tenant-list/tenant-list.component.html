@@ -17,7 +17,7 @@
 } @else if (tenantQuery.isError()) {
   <div class="bg-error text-on-error rounded-2xl p-4">
     <h2 class="title-medium mb-4">There was an error</h2>
-    <p class="body-medium">Error: {{ tenantQuery.error().message }}</p>
+    <p class="body-medium">Error: {{ tenantQuery.error() }}</p>
   </div>
 } @else if (tenantQuery.isSuccess()) {
   @for (tenant of tenantQuery.data(); track tenant.id) {

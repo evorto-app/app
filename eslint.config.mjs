@@ -1,6 +1,7 @@
 import eslintPluginUnicorn from "eslint-plugin-unicorn";
 import perfectionist from "eslint-plugin-perfectionist";
 import eslintConfigPrettier from "eslint-config-prettier";
+import unusedImports from "eslint-plugin-unused-imports";
 import eslint from "@eslint/js";
 import { defineConfig } from "eslint/config";
 import * as tseslint from "typescript-eslint";
@@ -134,8 +135,23 @@ export default defineConfig(
     files: ["**/*.ts"],
     ignores: ["old/**/*", "tests/**/*"],
     extends: [baseConfig, ...angular.configs.tsRecommended],
+    plugins: {
+      "unused-imports": unusedImports,
+    },
     processor: angular.processInlineTemplates,
     rules: {
+      "no-unused-vars": "off",
+      "@typescript-eslint/no-unused-vars": "off",
+      "unused-imports/no-unused-imports": "warn",
+      "unused-imports/no-unused-vars": [
+        "warn",
+        {
+          vars: "all",
+          varsIgnorePattern: "^_",
+          args: "after-used",
+          argsIgnorePattern: "^_",
+        },
+      ],
       "@angular-eslint/directive-selector": [
         "error",
         {
@@ -157,7 +173,7 @@ export default defineConfig(
         { allowWithDecorator: true },
       ],
       "unicorn/consistent-function-scoping": "off",
-      "unicorn/no-null": "warn",
+      "unicorn/no-null": "off",
     },
   },
   // Prevent src/ code from importing helpers (development/testing only)
@@ -234,12 +250,6 @@ export default defineConfig(
             "ImportDeclaration[source.value='@angular/forms']:has(ImportSpecifier[imported.name=/^(FormsModule|NgForm|NgModel|NgModelGroup)$/])",
           message:
             "Template forms import detected. Migrate to signal forms APIs.",
-        },
-        {
-          selector:
-            "ImportDeclaration[source.value='@angular/forms']:has(ImportSpecifier[imported.name=/^(ReactiveFormsModule|FormBuilder|NonNullableFormBuilder|FormGroup|FormControl|FormArray|FormRecord|AbstractControl|Validators|FormGroupDirective|FormControlDirective|FormControlName|FormGroupName|FormArrayName|NgControl|UntypedFormBuilder|UntypedFormGroup|UntypedFormControl|UntypedFormArray)$/])",
-          message:
-            "Reactive forms import detected. Migrate to signal forms APIs.",
         },
       ],
     },

@@ -40,7 +40,9 @@ export const financeReceipts = pgTable('finance_receipts', {
   receiptDate: timestamp().notNull(),
   refundedAt: timestamp(),
   refundedByUserId: varchar({ length: 20 }).references(() => users.id),
-  refundTransactionId: varchar({ length: 20 }).references(() => transactions.id),
+  refundTransactionId: varchar({ length: 20 }).references(
+    () => transactions.id,
+  ),
   rejectionReason: text(),
   reviewedAt: timestamp(),
   reviewedByUserId: varchar({ length: 20 }).references(() => users.id),

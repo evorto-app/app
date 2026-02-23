@@ -1,5 +1,10 @@
 import path from 'node:path';
 import { Either, ParseResult, Schema } from 'effect';
+import consola from 'consola';
+
+import { loadDotenvFiles } from '../../../helpers/config/load-dotenv-files';
+
+loadDotenvFiles();
 
 const optionalNonEmptyString = Schema.optional(Schema.NonEmptyString);
 
@@ -102,7 +107,9 @@ const decodeOrThrow = <A, I>(
 ): A => {
   const parsed = Schema.decodeUnknownEither(schema)(input);
   if (Either.isLeft(parsed)) {
-    throw new Error(`Invalid ${label} schema:\n${formatSchemaError(parsed.left)}`);
+    throw new Error(
+      `Invalid ${label} schema:\n${formatSchemaError(parsed.left)}`,
+    );
   }
   return parsed.right;
 };
@@ -110,14 +117,21 @@ const decodeOrThrow = <A, I>(
 export const hasAuth0ManagementEnvironment = (
   input: NodeJS.ProcessEnv = process.env,
 ): boolean =>
-  Either.isRight(Schema.decodeUnknownEither(Auth0ManagementEnvironmentSchema)(input));
+  Either.isRight(
+    Schema.decodeUnknownEither(Auth0ManagementEnvironmentSchema)(input),
+  );
 
 export const getAuth0ManagementEnvironment = (
   input: NodeJS.ProcessEnv = process.env,
 ): {
   AUTH0_MANAGEMENT_CLIENT_ID: string;
   AUTH0_MANAGEMENT_CLIENT_SECRET: string;
-} => decodeOrThrow(Auth0ManagementEnvironmentSchema, input, 'e2e auth configuration');
+} =>
+  decodeOrThrow(
+    Auth0ManagementEnvironmentSchema,
+    input,
+    'e2e auth configuration',
+  );
 
 export const validatePlaywrightEnvironment = (
   input: NodeJS.ProcessEnv = process.env,
@@ -135,6 +149,8 @@ export const validatePlaywrightEnvironment = (
       'e2e CI integration environment',
     );
   }
+
+  consola.debug('Playwright environment:', environment);
 
   return environment;
 };

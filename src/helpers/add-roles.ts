@@ -1,11 +1,11 @@
-import { NeonDatabase } from 'drizzle-orm/neon-serverless';
+import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 import { createId } from '../db/create-id';
 import { relations } from '../db/relations';
 import * as schema from '../db/schema';
 import { ALL_PERMISSIONS } from '../shared/permissions/permissions';
 
-export type Database = NeonDatabase<Record<string, never>, typeof relations>;
+export type Database = NodePgDatabase<Record<string, never>, typeof relations>;
 
 export async function addRoles(database: Database, tenant: { id: string }) {
   return database
@@ -25,7 +25,7 @@ export async function addRoles(database: Database, tenant: { id: string }) {
         name: 'Section member',
         permissions: [
           'events:create',
-          'events:edit',
+          'events:editAll',
           'events:seeDrafts',
           'events:viewPublic',
           'templates:view',

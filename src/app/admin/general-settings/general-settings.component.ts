@@ -28,7 +28,7 @@ import {
 
 import { GoogleLocationType } from '../../../types/location';
 import { ConfigService } from '../../core/config.service';
-import { injectTRPC } from '../../core/trpc-client';
+import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { LocationSelectorField } from '../../shared/components/controls/location-selector/location-selector-field/location-selector-field';
 
 @Component({
@@ -60,7 +60,6 @@ export class GeneralSettingsComponent {
   }>({
     allowOther: false,
     buyEsnCardUrl: '',
-    // eslint-disable-next-line unicorn/no-null
     defaultLocation: null,
     esnCardEnabled: false,
     receiptCountries: [...DEFAULT_RECEIPT_COUNTRIES],
@@ -74,11 +73,10 @@ export class GeneralSettingsComponent {
   protected readonly settingsForm = form(this.settingsModel);
   private readonly configService = inject(ConfigService);
   private readonly queryClient = inject(QueryClient);
-
-  private readonly trpc = injectTRPC();
+  private readonly rpc = AppRpc.injectClient();
 
   private updateSettingsMutation = injectMutation(() =>
-    this.trpc.admin.tenant.updateSettings.mutationOptions(),
+    this.rpc.admin.tenant.updateSettings.mutationOptions(),
   );
 
   constructor() {
@@ -93,7 +91,6 @@ export class GeneralSettingsComponent {
           buyEsnCardUrl:
             currentTenant.discountProviders?.esnCard?.config?.buyEsnCardUrl ??
             '',
-          // eslint-disable-next-line unicorn/no-null
           defaultLocation: currentTenant.defaultLocation ?? null,
           esnCardEnabled:
             currentTenant.discountProviders?.esnCard?.status === 'enabled',
@@ -120,11 +117,11 @@ export class GeneralSettingsComponent {
         {
           onSuccess: async () => {
             await this.queryClient.invalidateQueries({
-              queryKey: this.trpc.config.tenant.pathKey(),
+              queryKey: this.rpc.pathKey(['config', 'tenant']),
             });
-            await this.queryClient.invalidateQueries({
-              queryKey: this.trpc.discounts.getTenantProviders.pathKey(),
-            });
+            await this.queryClient.invalidateQueries(
+              this.rpc.queryFilter(['discounts', 'getTenantProviders']),
+            );
           },
         },
       );

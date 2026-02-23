@@ -2,6 +2,7 @@ import { DatePipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
   effect,
   inject,
   PendingTasks,
@@ -57,6 +58,18 @@ export class EventListComponent {
   protected readonly canSeeDrafts = this.eventListService.canSeeDrafts;
   protected readonly canSeeUnlisted = this.eventListService.canSeeUnlisted;
   protected readonly eventQuery = this.eventListService.eventQuery;
+  protected readonly eventErrorMessage = computed(() => {
+    const error = this.eventQuery.error();
+    if (!error) {
+      return 'Failed to load events';
+    }
+
+    if (typeof error === 'string') {
+      return error;
+    }
+
+    return error.message;
+  });
   protected readonly faClock = faClock;
   protected readonly faEllipsisVertical = faEllipsisVertical;
   protected readonly faEyeSlash = faEyeSlash;

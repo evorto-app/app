@@ -17,7 +17,7 @@
         routerLinkActive="bg-secondary-container! text-on-secondary-container!"
       >
         <div class="flex flex-row items-center gap-4">
-          <fa-duotone-icon [icon]="faFolders" size="xl"></fa-duotone-icon>
+          <fa-duotone-icon [icon]="faFolders" size="xl" />
           <h2 class="title-medium">Tenants</h2>
         </div>
       </a>
@@ -27,6 +27,6 @@
     <router-outlet
       (activate)="outletActive.set(true)"
       (deactivate)="outletActive.set(false)"
-    ></router-outlet>
+    />
   </div>
 </div>

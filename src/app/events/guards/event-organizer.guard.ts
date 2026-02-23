@@ -1,17 +1,23 @@
 import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
+import { QueryClient } from '@tanstack/angular-query-experimental';
 
-import { injectTRPCClient } from '../../core/trpc-client';
+import { AppRpc } from '../../core/effect-rpc-angular-client';
 
 export const eventOrganizerGuard: CanActivateFn = async (route) => {
   const router = inject(Router);
-  const trpc = injectTRPCClient();
+  const queryClient = inject(QueryClient);
+  const rpc = AppRpc.injectClient();
   const eventId = route.params['eventId'];
 
   try {
     // Verify the event exists
-    await trpc.events.findOne.query({ id: eventId });
-    const canOrganize = await trpc.events.canOrganize.query({ eventId });
+    await queryClient.fetchQuery(
+      rpc.events.findOne.queryOptions({ id: eventId }),
+    );
+    const canOrganize = await queryClient.fetchQuery(
+      rpc.events.canOrganize.queryOptions({ eventId }),
+    );
     return canOrganize ? true : router.createUrlTree(['/403']);
   } catch {
     // Event not found or access denied

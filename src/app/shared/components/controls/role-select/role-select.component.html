@@ -6,7 +6,7 @@
         <mat-chip-row (removed)="remove(role.data()?.id)">
           {{ role.data()?.name }}
           <button matChipRemove [attr.aria-label]="'remove ' + role">
-            <fa-duotone-icon [icon]="faCircleXmark"></fa-duotone-icon>
+            <fa-duotone-icon [icon]="faCircleXmark" />
           </button>
         </mat-chip-row>
       }

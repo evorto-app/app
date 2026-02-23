@@ -1,7 +1,7 @@
 <div class="space-y-4">
   <div class="flex items-center space-x-4">
     <a [routerLink]="['..']" mat-icon-button>
-      <fa-icon [icon]="faArrowLeft"></fa-icon>
+      <fa-icon [icon]="faArrowLeft" />
     </a>
     <h1 class="text-2xl font-medium">Edit Role</h1>
   </div>
@@ -13,7 +13,7 @@
       <h2 class="title-medium">Loading ...</h2>
     </div>
   } @else if (roleQuery.isError()) {
-    <p>Error: {{ roleQuery.error().message }}</p>
+    <p>Error: {{ errorMessage(roleQuery.error()) }}</p>
   } @else if (roleQuery.isSuccess()) {
     <div
       class="bg-surface-container-low text-on-surface-container-low flex flex-col gap-4 rounded-2xl p-4"
@@ -22,7 +22,7 @@
         [roleForm]="roleForm"
         [isSubmitting]="updateRoleMutation.isPending()"
         (formSubmit)="onSubmit($event)"
-      ></app-role-form>
+      />
     </div>
   }
 </div>

@@ -20,7 +20,7 @@ All tests in `tests/**/*.ts` are linted with a custom ESLint rule:
 ## Commands
 
 ```bash
-yarn e2e
-yarn e2e:docs
-yarn lint
+bun run test:e2e
+bun run test:e2e:docs
+bun run lint:check
 ```

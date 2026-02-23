@@ -45,7 +45,7 @@ test('create a new template @track(playwright-specs-track-linking_20260126) @req
   templateCategories,
 }) => {
   const category = templateCategories[0];
-  const templateTitle = 'Historical tour';
+  const templateTitle = `Historical tour ${getId().slice(0, 6)}`;
   await page.goto('.');
   await page.getByRole('link', { name: 'Templates' }).click();
   await expect(page).toHaveURL(/\/templates/);

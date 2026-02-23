@@ -1,7 +1,48 @@
-import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-
 import { getCloudflareR2Environment } from '../config/environment';
+
+interface BunS3Client {
+  file(key: string): BunS3File;
+}
+
+type BunS3ClientConstructor = new (config: {
+  accessKeyId: string;
+  bucket: string;
+  endpoint: string;
+  secretAccessKey: string;
+}) => BunS3Client;
+
+interface BunS3File {
+  presign(input?: {
+    contentDisposition?: string;
+    expiresIn?: number;
+    method?: 'DELETE' | 'GET' | 'HEAD' | 'POST' | 'PUT';
+  }): string;
+  write(
+    body: Uint8Array,
+    options?: {
+      type?: string;
+    },
+  ): Promise<number>;
+}
+
+const getBunS3ClientConstructor = (): BunS3ClientConstructor => {
+  const bunRuntime = (
+    globalThis as typeof globalThis & {
+      Bun?: {
+        S3Client?: BunS3ClientConstructor;
+      };
+    }
+  ).Bun;
+
+  const constructor = bunRuntime?.S3Client;
+  if (!constructor) {
+    throw new Error(
+      'Bun runtime is required for Cloudflare R2 storage operations.',
+    );
+  }
+
+  return constructor;
+};
 
 const resolveCloudflareR2Config = (): {
   bucket: string;
@@ -20,16 +61,15 @@ const resolveCloudflareR2Config = (): {
 
 const buildS3Client = (
   config: ReturnType<typeof resolveCloudflareR2Config>,
-): S3Client =>
-  new S3Client({
-    credentials: {
-      accessKeyId: config.keyId,
-      secretAccessKey: config.keySecret,
-    },
+): BunS3Client => {
+  const S3Client = getBunS3ClientConstructor();
+  return new S3Client({
+    accessKeyId: config.keyId,
+    bucket: config.bucket,
     endpoint: config.endpoint,
-    forcePathStyle: true,
-    region: 'auto',
+    secretAccessKey: config.keySecret,
   });
+};
 
 export const uploadReceiptOriginalToR2 = async (input: {
   body: Uint8Array;
@@ -42,14 +82,9 @@ export const uploadReceiptOriginalToR2 = async (input: {
   const config = resolveCloudflareR2Config();
   const client = buildS3Client(config);
 
-  await client.send(
-    new PutObjectCommand({
-      Body: input.body,
-      Bucket: config.bucket,
-      ContentType: input.contentType,
-      Key: input.key,
-    }),
-  );
+  await client.file(input.key).write(input.body, {
+    type: input.contentType,
+  });
 
   return {
     storageKey: input.key,
@@ -64,15 +99,9 @@ export const getSignedReceiptObjectUrlFromR2 = async (input: {
   const config = resolveCloudflareR2Config();
   const client = buildS3Client(config);
 
-  return getSignedUrl(
-    client,
-    new GetObjectCommand({
-      Bucket: config.bucket,
-      Key: input.key,
-      ResponseContentDisposition: 'inline',
-    }),
-    {
-      expiresIn: input.expiresInSeconds ?? 60 * 15,
-    },
-  );
+  return client.file(input.key).presign({
+    contentDisposition: 'inline',
+    expiresIn: input.expiresInSeconds ?? 60 * 15,
+    method: 'GET',
+  });
 };

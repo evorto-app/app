@@ -1,4 +1,4 @@
-import { NeonDatabase } from 'drizzle-orm/neon-serverless';
+import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import consola from 'consola';
 
 import { relations } from '../src/db/relations';
@@ -9,7 +9,7 @@ import * as schema from '../src/db/schema';
  * Rates are inclusive VAT-style and active.
  */
 export const addTaxRates = async (
-  database: NeonDatabase<Record<string, never>, typeof relations>,
+  database: NodePgDatabase<Record<string, never>, typeof relations>,
   tenant: { id: string },
 ) => {
   const seedRates: Array<{
