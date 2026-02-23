@@ -26,6 +26,7 @@
     "ui:theme:generate:esn": "bunx --bun ng generate @angular/material:theme-color --include-high-contrast --primary-color=#00aeef --secondary-color=#ec008c --tertiary-color=#7ac143 --interactive=false --directory=src/_esn --force",
     "ops:sentry:sourcemaps": "sentry-cli sourcemaps inject --org lukas-heddendorp --project evorto ./dist && sentry-cli sourcemaps upload --org lukas-heddendorp --project evorto ./dist",
     "db:push": "drizzle-kit push --force",
+    "seed:demo": "bun run db:setup",
     "db:setup": "bun helpers/database.ts",
     "db:reset": "bun run db:push && bun run db:setup",
     "docker:stop": "docker compose --env-file .env --env-file .env.development down",

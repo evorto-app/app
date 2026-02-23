@@ -24,9 +24,14 @@ const waitForVisibleLocator = async (
 export const fillTestCard = async (page: Page) => {
   const cardRadio = page.getByRole('radio', { name: /^Card$/i });
   if (await cardRadio.isVisible().catch(() => false)) {
-    await cardRadio.check().catch(async () => {
-      await cardRadio.click();
-    });
+    const isAlreadyChecked = await cardRadio.isChecked().catch(() => false);
+    if (!isAlreadyChecked) {
+      await cardRadio
+        .check({ timeout: 5_000 })
+        .catch(async () => {
+          await cardRadio.click({ force: true, timeout: 5_000 }).catch(() => {});
+        });
+    }
   }
   const cardNumber = await waitForVisibleLocator(
     page,

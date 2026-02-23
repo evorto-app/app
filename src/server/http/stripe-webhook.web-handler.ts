@@ -1,4 +1,6 @@
-import { eq } from 'drizzle-orm';
+import type Stripe from 'stripe';
+
+import { and, eq, sql } from 'drizzle-orm';
 import { Effect } from 'effect';
 
 import { Database, type DatabaseClient } from '../../db';
@@ -15,6 +17,45 @@ const databaseEffect = <A, E>(
 
 const responseText = (body: string, status = 200): Response =>
   new Response(body, { status });
+
+const getTenantIdFromWebhookEvent = (
+  event: Stripe.Event,
+): string | undefined => {
+  if (!event.type.startsWith('checkout.session.')) {
+    return undefined;
+  }
+
+  const session = event.data.object as Stripe.Checkout.Session;
+  const tenantId = session.metadata?.['tenantId'];
+  return tenantId && tenantId.length > 0 ? tenantId : undefined;
+};
+
+const claimWebhookEvent = (input: {
+  eventId: string;
+  eventType: string;
+  tenantId?: string;
+}) =>
+  databaseEffect((database) =>
+    Effect.gen(function* () {
+      yield* database.execute(sql`
+        create table if not exists stripe_webhook_events (
+          stripe_event_id varchar primary key,
+          event_type text not null,
+          tenant_id varchar(20),
+          processed_at timestamp not null default now()
+        )
+      `);
+
+      const inserted = yield* database.execute(sql`
+        insert into stripe_webhook_events (stripe_event_id, event_type, tenant_id)
+        values (${input.eventId}, ${input.eventType}, ${input.tenantId ?? null})
+        on conflict (stripe_event_id) do nothing
+        returning stripe_event_id
+      `);
+
+      return inserted.length > 0;
+    }),
+  );
 
 export const handleStripeWebhookWebRequest = (
   request: Request,
@@ -61,6 +102,22 @@ export const handleStripeWebhookWebRequest = (
         eventType: event.type,
       }),
     );
+
+    const tenantId = getTenantIdFromWebhookEvent(event);
+    const claimedEvent = yield* claimWebhookEvent({
+      eventId: event.id,
+      eventType: event.type,
+      ...(tenantId ? { tenantId } : {}),
+    });
+    if (!claimedEvent) {
+      yield* Effect.logInfo('Stripe webhook duplicate event ignored').pipe(
+        Effect.annotateLogs({
+          eventId: event.id,
+          eventType: event.type,
+        }),
+      );
+      return responseText('Duplicate event ignored');
+    }
 
     switch (event.type) {
       case 'charge.updated': {
@@ -134,46 +191,28 @@ export const handleStripeWebhookWebRequest = (
         if (!registrationId || !transactionId || !tenantId) {
           return responseText('Missing metadata', 400);
         }
-
-        const stripeAccount = yield* databaseEffect((database) =>
-          database.query.tenants
-            .findFirst({
-              columns: { stripeAccountId: true },
-              where: { id: tenantId },
-            })
-            .pipe(Effect.map((tenant) => tenant?.stripeAccountId)),
-        );
-
-        if (!stripeAccount) {
-          return responseText('Stripe account not found', 400);
-        }
-
-        const session = yield* Effect.promise(() =>
-          stripe.checkout.sessions.retrieve(
-            eventSession.id,
-            { expand: ['payment_intent'] },
-            { stripeAccount },
-          ),
-        );
-
-        if (session.status !== 'complete') {
+        if (
+          eventSession.status !== 'complete' &&
+          eventSession.payment_status !== 'paid'
+        ) {
           yield* Effect.logInfo('Skipping checkout.session.completed event').pipe(
             Effect.annotateLogs({
-              sessionId: session.id,
-              status: session.status,
+              paymentStatus: eventSession.payment_status ?? 'unknown',
+              sessionId: eventSession.id,
+              status: eventSession.status ?? 'unknown',
             }),
           );
           return responseText('Session not completed, skipping');
         }
 
         const stripePaymentIntentId =
-          typeof session.payment_intent === 'string'
-            ? session.payment_intent
-            : session.payment_intent?.id;
+          typeof eventSession.payment_intent === 'string'
+            ? eventSession.payment_intent
+            : eventSession.payment_intent?.id;
         const stripeChargeId =
-          typeof session.payment_intent === 'object' &&
-          typeof session.payment_intent?.latest_charge === 'string'
-            ? session.payment_intent.latest_charge
+          typeof eventSession.payment_intent === 'object' &&
+          typeof eventSession.payment_intent?.latest_charge === 'string'
+            ? eventSession.payment_intent.latest_charge
             : undefined;
 
         yield* databaseEffect((database) =>
@@ -186,11 +225,21 @@ export const handleStripeWebhookWebRequest = (
                   stripeChargeId,
                   stripePaymentIntentId,
                 })
-                .where(eq(schema.transactions.id, transactionId));
+                .where(
+                  and(
+                    eq(schema.transactions.id, transactionId),
+                    eq(schema.transactions.status, 'pending'),
+                  ),
+                );
               yield* tx
                 .update(schema.eventRegistrations)
                 .set({ status: 'CONFIRMED' })
-                .where(eq(schema.eventRegistrations.id, registrationId));
+                .where(
+                  and(
+                    eq(schema.eventRegistrations.id, registrationId),
+                    eq(schema.eventRegistrations.status, 'PENDING'),
+                  ),
+                );
             }),
           ),
         );
@@ -205,31 +254,11 @@ export const handleStripeWebhookWebRequest = (
         if (!registrationId || !transactionId || !tenantId) {
           return responseText('Missing metadata', 400);
         }
-
-        const stripeAccount = yield* databaseEffect((database) =>
-          database.query.tenants
-            .findFirst({
-              columns: { stripeAccountId: true },
-              where: { id: tenantId },
-            })
-            .pipe(Effect.map((tenant) => tenant?.stripeAccountId)),
-        );
-
-        if (!stripeAccount) {
-          return responseText('Stripe account not found', 400);
-        }
-
-        const session = yield* Effect.promise(() =>
-          stripe.checkout.sessions.retrieve(eventSession.id, undefined, {
-            stripeAccount,
-          }),
-        );
-
-        if (session.status !== 'expired') {
+        if (eventSession.status !== 'expired') {
           yield* Effect.logInfo('Skipping checkout.session.expired event').pipe(
             Effect.annotateLogs({
-              sessionId: session.id,
-              status: session.status,
+              sessionId: eventSession.id,
+              status: eventSession.status ?? 'unknown',
             }),
           );
           return responseText('Session not expired, skipping');
@@ -241,11 +270,21 @@ export const handleStripeWebhookWebRequest = (
               yield* tx
                 .update(schema.transactions)
                 .set({ status: 'cancelled' })
-                .where(eq(schema.transactions.id, transactionId));
+                .where(
+                  and(
+                    eq(schema.transactions.id, transactionId),
+                    eq(schema.transactions.status, 'pending'),
+                  ),
+                );
               yield* tx
                 .update(schema.eventRegistrations)
                 .set({ status: 'CANCELLED' })
-                .where(eq(schema.eventRegistrations.id, registrationId));
+                .where(
+                  and(
+                    eq(schema.eventRegistrations.id, registrationId),
+                    eq(schema.eventRegistrations.status, 'PENDING'),
+                  ),
+                );
             }),
           ),
         );

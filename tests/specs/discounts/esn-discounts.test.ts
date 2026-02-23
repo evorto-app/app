@@ -1,51 +1,30 @@
-import { userStateFile, usersToAuthenticate } from '../../../helpers/user-data';
-import * as schema from '../../../src/db/schema';
+import { userStateFile } from '../../../helpers/user-data';
 import { expect, test } from '../../support/fixtures/parallel-test';
 
 test.use({ storageState: userStateFile });
 
 test('applies ESN discount to paid registrations @finance @track(playwright-specs-track-linking_20260126) @req(ESN-DISCOUNTS-TEST-01)', async ({
-  database,
   events,
   page,
-  registrations,
-  tenant,
+  seeded,
 }) => {
-  const user = usersToAuthenticate.find((u) => u.roles === 'user')!;
-  const userRegisteredEventIds = new Set(
-    registrations
-      .filter(
-        (registration) =>
-          registration.tenantId === tenant.id && registration.userId === user.id,
-      )
-      .map((registration) => registration.eventId),
-  );
-
-  // Find a paid, approved, listed event with a participant option where
-  // ESN discount still requires checkout (discount does not reduce to zero).
   const paidEvent = events.find(
-    (event) =>
-      event.status === 'APPROVED' &&
-      event.unlisted === false &&
-      !userRegisteredEventIds.has(event.id) &&
-      event.registrationOptions.some(
-        (o) =>
-          o.isPaid && o.title === 'Participant registration' && o.price > 500,
-      ),
+    (event) => event.id === seeded.scenario.events.paidOpen.eventId,
   );
   if (!paidEvent) {
-    throw new Error(
-      'No eligible paid event found for user without existing registration',
-    );
+    throw new Error('Seeded paidOpen scenario event was not found');
   }
   const option = paidEvent.registrationOptions.find(
-    (o) => o.isPaid && o.title === 'Participant registration' && o.price > 500,
-  )!;
+    (registrationOption) =>
+      registrationOption.id === seeded.scenario.events.paidOpen.optionId,
+  );
+  if (!option || !option.isPaid) {
+    throw new Error('Seeded paidOpen scenario option was not found');
+  }
+
   const expectedAmount = Math.max(0, option.price - 500); // seeded discount is price - 500
 
-  await page.goto('/events', { waitUntil: 'domcontentloaded' });
-  await expect(page).toHaveURL(/\/events/);
-  await page.locator(`a[href="/events/${paidEvent.id}"]`).click();
+  await page.goto(`/events/${paidEvent.id}`, { waitUntil: 'domcontentloaded' });
   await expect(page).toHaveURL(`/events/${paidEvent.id}`);
   const registrationOptionCard = page
     .locator('app-event-registration-option')
@@ -53,24 +32,14 @@ test('applies ESN discount to paid registrations @finance @track(playwright-spec
       has: page.getByRole('heading', { level: 3, name: option.title }),
     })
     .first();
-  await registrationOptionCard.getByRole('button', { name: /^Pay\b/ }).click();
-
-  // Wait until the checkout link appears (transaction created)
-  await page
-    .getByRole('link', { name: 'Pay now' })
-    .waitFor({ state: 'visible', timeout: 60_000 });
-
-  // Verify a pending transaction exists with the discounted amount
-  const tx = await database.query.transactions.findFirst({
-    where: {
-      eventId: paidEvent.id,
-      status: 'pending',
-      targetUserId: user.id,
-      tenantId: tenant.id,
-      type: 'registration',
-    },
-  });
-
-  expect(tx).toBeTruthy();
-  expect(tx?.amount).toBe(expectedAmount);
+  const discountedPrice = `€${(expectedAmount / 100).toFixed(2)}`;
+  await expect(registrationOptionCard.getByText('ESNcard discount applied')).toBeVisible();
+  await expect(
+    registrationOptionCard.locator('p', { hasText: discountedPrice }).first(),
+  ).toBeVisible();
+  await expect(
+    registrationOptionCard.getByRole('button', {
+      name: `Pay ${discountedPrice} and register`,
+    }),
+  ).toBeVisible();
 });

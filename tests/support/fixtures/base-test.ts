@@ -102,7 +102,34 @@ export const test = base.extend<BaseFixtures>({
       await auth0.users.delete(user.user_id);
     }
   },
-  page: async ({ page, tenantDomain }, use) => {
+  page: async ({ page, tenantDomain, testClock }, use) => {
+    const fixedNow = testClock.toMillis();
+    await page.addInitScript((value) => {
+      const hostname = globalThis.location?.hostname ?? '';
+      if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
+        return;
+      }
+      const realDate = Date;
+      class FixedDate extends realDate {
+        constructor(...args: any[]) {
+          if (args.length === 0) {
+            super(value);
+            return;
+          }
+          super(...args);
+        }
+
+        static now() {
+          return value;
+        }
+      }
+
+      FixedDate.parse = realDate.parse;
+      FixedDate.UTC = realDate.UTC;
+      // @ts-expect-error Browser runtime override for deterministic tests.
+      globalThis.Date = FixedDate;
+    }, fixedNow);
+
     if (tenantDomain) {
       try {
         await page.context().addCookies([

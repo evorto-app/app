@@ -28,7 +28,7 @@ export const loadDotenvFiles = (): void => {
     }
 
     dotenv.config({
-      override: false,
+      override: file === '.env.ci' || file === '.env.development',
       path: filePath,
     });
   }

@@ -7,15 +7,14 @@ test.use({ storageState: adminStateFile });
 test('Admin: manage unlisted events @track(playwright-specs-track-linking_20260126) @doc(UNLISTED-ADMIN-DOC-01)', async ({
   events,
   page,
+  seeded,
 }, testInfo) => {
-  // Choose an approved, currently listed event to demonstrate toggling
-  const target = events.find(
-    (e) => e.status === 'APPROVED' && e.unlisted === false,
-  );
+  // Use a deterministic scenario event that is approved and listed by seed contract.
+  const target = events.find((event) => event.id === seeded.scenario.events.freeOpen.eventId);
   if (!target)
-    throw new Error('No approved listed event found for unlisted admin demo');
+    throw new Error('Seeded freeOpen scenario event was not found for unlisted admin demo');
 
-  await page.goto('./events');
+  await page.goto(`/events/${target.id}`);
 
   await testInfo.attach('markdown', {
     body: `
@@ -31,16 +30,17 @@ Unlisted events are hidden from public lists. Admins can toggle an event's unlis
 `,
   });
 
-  // Show the event on the list before toggling
-  const targetLink = page.locator(`a[href="/events/${target.id}"]`);
+  // Show the event details before toggling
+  const eventHeader = page.getByRole('heading', {
+    level: 1,
+    name: target.title,
+  });
   await takeScreenshot(
     testInfo,
-    targetLink,
+    eventHeader,
     page,
-    'Listed event before toggling',
+    'Event details before toggling',
   );
-  await targetLink.click();
-  await page.waitForSelector(`h1:has-text("${target.title}")`);
   await takeScreenshot(
     testInfo,
     page.locator('h1').first(),
@@ -60,23 +60,18 @@ Unlisted events are hidden from public lists. Admins can toggle an event's unlis
   );
   await page.getByRole('button', { name: 'Save' }).click();
 
-  // Back to list and verify badge is visible for admins
-  await page.goto('./events');
-  const adminEventCard = page.locator(`a[href="/events/${target.id}"]`);
-  await expect(adminEventCard).toBeVisible();
+  // Verify unlisted badge is visible for admins on the details page
   await expect(
-    adminEventCard.getByText('unlisted', { exact: true }),
+    page.getByText('unlisted', { exact: true }).first(),
   ).toBeVisible();
   await takeScreenshot(
     testInfo,
-    adminEventCard,
+    page.locator('h1').first(),
     page,
     'Unlisted badge visible to admins',
   );
 
   // Restore original state (toggle back to listed) to keep environment clean
-  await adminEventCard.click();
-  await page.waitForSelector(`h1:has-text("${target.title}")`);
   await page.getByRole('button', { name: /open event actions|menu/i }).click();
   await page.getByRole('menuitem', { name: 'Update listing' }).click();
   const toggle = page.getByRole('switch', { name: /Unlisted/ });

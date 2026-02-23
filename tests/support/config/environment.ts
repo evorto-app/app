@@ -42,6 +42,7 @@ const PlaywrightCommonFields = {
   S3_ENDPOINT: optionalNonEmptyString,
   S3_REGION: optionalNonEmptyString,
   S3_SECRET_ACCESS_KEY: optionalNonEmptyString,
+  STRIPE_TEST_ACCOUNT_ID: optionalNonEmptyString,
   TENANT_DOMAIN: optionalNonEmptyString,
 } as const;
 
@@ -57,6 +58,7 @@ const PlaywrightWithWebserverEnvironmentSchema = Schema.Struct({
   }),
   SECRET: Schema.NonEmptyString,
   STRIPE_API_KEY: Schema.NonEmptyString,
+  STRIPE_TEST_ACCOUNT_ID: Schema.NonEmptyString,
   STRIPE_WEBHOOK_SECRET: Schema.NonEmptyString,
 });
 
@@ -124,6 +126,10 @@ const CIIntegrationEnvironmentSchema = Schema.Struct({
 const CIDeterministicEnvironmentSchema = Schema.Struct({
   E2E_NOW_ISO: Schema.NonEmptyString,
   E2E_SEED_KEY: Schema.NonEmptyString,
+});
+
+const CIStripeSeedEnvironmentSchema = Schema.Struct({
+  STRIPE_TEST_ACCOUNT_ID: Schema.NonEmptyString,
 });
 
 const DocumentationOutputEnvironmentSchema = Schema.Struct({
@@ -199,6 +205,11 @@ export const validatePlaywrightEnvironment = (
       CIDeterministicEnvironmentSchema,
       input,
       'e2e deterministic seed/time environment',
+    );
+    decodeOrThrow(
+      CIStripeSeedEnvironmentSchema,
+      input,
+      'e2e stripe seed environment',
     );
   }
 

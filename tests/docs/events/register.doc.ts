@@ -1,5 +1,3 @@
-import { DateTime } from 'luxon';
-
 import { userStateFile, usersToAuthenticate } from '../../../helpers/user-data';
 import { fillTestCard } from '../../support/utils/fill-test-card';
 import { expect, test } from '../../support/fixtures/parallel-test';
@@ -13,49 +11,15 @@ test.describe('Register for events', () => {
   test('Register for a free event @track(playwright-specs-track-linking_20260126) @doc(REGISTER-DOC-01)', async ({
     events,
     page,
-    registrations,
-    testClock,
+    seeded,
   }, testInfo) => {
     test.slow();
-    const regularUser = usersToAuthenticate.find(
-      (user) => user.roles === 'user',
-    );
-    if (!regularUser) {
-      throw new Error('No regular user configured for registration docs');
-    }
-    const testClockMillis = testClock.toMillis();
-    const freeEvent = events.find((event) => {
-      const alreadyRegistered = registrations.some(
-        (registration) =>
-          registration.eventId === event.id &&
-          registration.userId === regularUser.id &&
-          registration.status !== 'CANCELLED',
-      );
-      if (alreadyRegistered) {
-        return false;
-      }
-      return (
-        event.status === 'APPROVED' &&
-        event.unlisted === false &&
-        event.registrationOptions.some((option) => {
-          const openRegistrationMillis = DateTime.fromJSDate(
-            option.openRegistrationTime,
-          ).toMillis();
-          const closeRegistrationMillis = DateTime.fromJSDate(
-            option.closeRegistrationTime,
-          ).toMillis();
-          return (
-            openRegistrationMillis <= testClockMillis &&
-            !option.isPaid &&
-            option.title === 'Participant registration' &&
-            closeRegistrationMillis > testClockMillis
-          );
-        }) &&
-        event.registrationOptions.every((option) => !option.isPaid)
-      );
-    });
+    const freeEventId = seeded.scenario.events.freeOpen.eventId;
+    const freeEvent = events.find((event) => event.id === freeEventId);
     if (!freeEvent) {
-      throw new Error('No event found');
+      throw new Error(
+        `Seeded freeOpen scenario event "${freeEventId}" was not found`,
+      );
     }
 
     const freeEventHref = `/events/${freeEvent.id}`;
@@ -87,7 +51,7 @@ test.describe('Register for events', () => {
     });
     await takeScreenshot(
       testInfo,
-      page.locator('section').filter({ hasText: 'Registration' }),
+      page.getByRole('heading', { level: 2, name: 'Registration' }),
       page,
     );
     await testInfo.attach('markdown', {
@@ -121,57 +85,27 @@ test.describe('Register for events', () => {
   });
 
   test('Register for a paid event @track(playwright-specs-track-linking_20260126) @doc(REGISTER-DOC-02)', async ({
+    database,
     events,
     page,
-    registrations,
-    testClock,
+    seeded,
+    tenant,
   }, testInfo) => {
     test.slow();
-    const regularUser = usersToAuthenticate.find(
-      (user) => user.roles === 'user',
-    );
-    if (!regularUser) {
-      throw new Error('No regular user configured for registration docs');
+    const paidEventId = seeded.scenario.events.paidOpen.eventId;
+    const paidEvent = events.find((event) => event.id === paidEventId);
+    if (!paidEvent) {
+      throw new Error(
+        `Seeded paidOpen scenario event "${paidEventId}" was not found`,
+      );
     }
-    const testClockMillis = testClock.toMillis();
-    const paidEvent = events.find((event) => {
-      const alreadyRegistered = registrations.some(
-        (registration) =>
-          registration.eventId === event.id &&
-          registration.userId === regularUser.id &&
-          registration.status !== 'CANCELLED',
-      );
-      if (alreadyRegistered) {
-        return false;
-      }
-      return (
-        event.status === 'APPROVED' &&
-        event.unlisted === false &&
-        event.registrationOptions.some((option) => {
-          const openRegistrationMillis = DateTime.fromJSDate(
-            option.openRegistrationTime,
-          ).toMillis();
-          const closeRegistrationMillis = DateTime.fromJSDate(
-            option.closeRegistrationTime,
-          ).toMillis();
-          return (
-            openRegistrationMillis <= testClockMillis &&
-            option.isPaid &&
-            option.title === 'Participant registration' &&
-            closeRegistrationMillis > testClockMillis
-          );
-        }) &&
-        event.registrationOptions.every((option) => option.isPaid)
-      );
-    });
-    if (!paidEvent) throw new Error('No paid event found');
 
     await page.goto('.');
     await testInfo.attach('markdown', {
       body: `
   To register for a paid event, you have to pay the registration fee.`,
     });
-    await page.locator(`a[href="/events/${paidEvent.id}"]`).click();
+    await page.goto(`/events/${paidEvent.id}`);
     await expect(page).toHaveURL(new RegExp(`/events/${paidEvent.id}`));
     await page
       .getByText('Loading registration status')
@@ -179,7 +113,7 @@ test.describe('Register for events', () => {
       .waitFor({ state: 'detached' });
     await takeScreenshot(
       testInfo,
-      page.locator('section').filter({ hasText: 'Registration' }),
+      page.getByRole('heading', { level: 2, name: 'Registration' }),
       page,
     );
     const payButton = page.getByRole('button', { name: 'Pay' }).first();
@@ -198,19 +132,69 @@ test.describe('Register for events', () => {
     );
     const payNowLink = page.getByRole('link', { name: 'Pay now' }).first();
     await expect(payNowLink).toBeVisible();
+    const checkoutPagePromise = page.context().waitForEvent('page', {
+      timeout: 5_000,
+    });
     await payNowLink.click();
-    await page.waitForURL(/checkout\.stripe\.com/);
-    await takeScreenshot(testInfo, page.locator('main'), page);
-    await fillTestCard(page);
-    await page.getByTestId('hosted-payment-submit-button').click();
-    const redirectedToEvents = await page
-      .waitForURL(/\/events/, { timeout: 60_000, waitUntil: 'domcontentloaded' })
-      .then(() => true)
-      .catch(() => false);
+    const checkoutPopup = await checkoutPagePromise.catch(() => null);
+    const checkoutPage = checkoutPopup ?? page;
+    await expect
+      .poll(() => checkoutPage.url(), {
+        message: 'Timed out waiting for Stripe Checkout page navigation',
+        timeout: 30_000,
+      })
+      .toMatch(/checkout\.stripe\.com/);
+    await takeScreenshot(testInfo, checkoutPage.locator('main'), checkoutPage);
+    await fillTestCard(checkoutPage);
+    await checkoutPage.getByTestId('hosted-payment-submit-button').click();
+    const regularUserId =
+      usersToAuthenticate.find((user) => user.roles === 'user')?.id ??
+      usersToAuthenticate[0].id;
+    await expect
+      .poll(
+        async () => {
+          const transaction = await database.query.transactions.findFirst({
+            orderBy: { createdAt: 'desc' },
+            where: {
+              eventId: paidEvent.id,
+              method: 'stripe',
+              targetUserId: regularUserId,
+              tenantId: tenant.id,
+              type: 'registration',
+            },
+          });
+          if (!transaction) {
+            return 'missing-transaction';
+          }
 
-    if (!redirectedToEvents || !page.url().includes(`/events/${paidEvent.id}`)) {
-      await page.goto(`/events/${paidEvent.id}`);
-    }
+          const registration = transaction.eventRegistrationId
+            ? await database.query.eventRegistrations.findFirst({
+                where: {
+                  id: transaction.eventRegistrationId,
+                  tenantId: tenant.id,
+                },
+              })
+            : await database.query.eventRegistrations.findFirst({
+                orderBy: { createdAt: 'desc' },
+                where: {
+                  eventId: paidEvent.id,
+                  tenantId: tenant.id,
+                  userId: regularUserId,
+                },
+              });
+
+          return `${transaction.status}:${registration?.status ?? 'missing-registration'}`;
+        },
+        {
+          intervals: [1_000, 2_000, 4_000],
+          message:
+            'Timed out waiting for Stripe checkout side-effects to be mirrored in the application database',
+          timeout: 90_000,
+        },
+      )
+      .toBe('successful:CONFIRMED');
+
+    await page.goto(`/events/${paidEvent.id}`);
     await expect(page).toHaveURL(new RegExp(`/events/${paidEvent.id}`));
     const registrationStatus = page
       .getByText('Loading registration status')
@@ -220,26 +204,6 @@ test.describe('Register for events', () => {
       .catch(() => {});
     await registrationStatus.waitFor({ state: 'detached', timeout: 20_000 });
     const registeredMessage = page.getByText('You are registered');
-    if (!(await registeredMessage.isVisible())) {
-      await expect(page.getByRole('link', { name: 'Pay now' })).toBeVisible();
-      await expect(
-        page.getByRole('button', { name: 'Cancel registration' }),
-      ).toBeVisible();
-      await testInfo.attach('markdown', {
-        body: `
-  ### Back on the event page
-  After completing checkout, you are redirected back to the event page.
-  If your payment is still being finalized, the registration can briefly remain in a pending state.
-  In that case, you can use this section to continue or cancel the registration.`,
-      });
-      await takeScreenshot(
-        testInfo,
-        page.locator('section').filter({ hasText: 'Registration' }),
-        page,
-        'Paid registration pending after checkout',
-      );
-      return;
-    }
     await expect(registeredMessage).toBeVisible({ timeout: 20_000 });
     await testInfo.attach('markdown', {
       body: `
@@ -249,7 +213,7 @@ test.describe('Register for events', () => {
     });
     await takeScreenshot(
       testInfo,
-      page.locator('section').filter({ hasText: 'Registration' }),
+      page.getByRole('heading', { level: 2, name: 'Registration' }),
       page,
       'Event details after successful paid registration',
     );

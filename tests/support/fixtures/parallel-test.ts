@@ -59,6 +59,13 @@ interface BaseFixtures {
     description: string;
     icon: string;
     id: string;
+    seedKey:
+      | 'city-tour'
+      | 'city-trip'
+      | 'example-config'
+      | 'hike'
+      | 'sports'
+      | 'weekend-trip';
     tenantId: string;
     title: string;
   }[];
@@ -76,6 +83,7 @@ export const test = base.extend<BaseFixtures & { seeded: SeedTenantResult }>({
       const runId = buildRunId(`${falsoSeed}:retry-${testInfo.retry}`);
       const result = await seedTenant(database, {
         domain: `e2e-${runId}`,
+        profile: 'test',
         runId,
         seedDate,
       });

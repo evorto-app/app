@@ -1,5 +1,5 @@
-import { InferInsertModel } from 'drizzle-orm';
 import consola from 'consola';
+import { InferInsertModel } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 import { relations } from '../src/db/relations';
@@ -11,6 +11,23 @@ import { getExampleConfigTemplates } from './templates/example-config-templates'
 import { getHikingTemplates } from './templates/hiking-templates';
 import { getSportsTemplates } from './templates/sports-templates';
 import { getWeekendTripTemplates } from './templates/weekend-trip-templates';
+
+export interface SeedTemplate {
+  description: string;
+  icon: { iconColor: number; iconName: string };
+  id: string;
+  seedKey: SeedTemplateKey;
+  tenantId: string;
+  title: string;
+}
+
+export type SeedTemplateKey =
+  | 'city-tour'
+  | 'city-trip'
+  | 'example-config'
+  | 'hike'
+  | 'sports'
+  | 'weekend-trip';
 
 export const addTemplates = async (
   database: NodePgDatabase<Record<string, never>, typeof relations>,
@@ -88,38 +105,57 @@ export const addTemplates = async (
     ...getHikingTemplates(hikingCategory).map((template) => ({
       ...template,
       icon: createIconObject(template.icon),
+      seedKey: 'hike' as const,
     })),
     // City tours freeTemplates
     ...getCityTourTemplates(cityToursCategory).map((template) => ({
       ...template,
       icon: createIconObject(template.icon),
+      seedKey: 'city-tour' as const,
     })),
     // City trips freeTemplates
     ...getCityTripTemplates(cityTripsCategory).map((template) => ({
       ...template,
       icon: createIconObject(template.icon),
+      seedKey: 'city-trip' as const,
     })),
     // Weekend trips freeTemplates
     ...getWeekendTripTemplates(weekendTripsCategory).map((template) => ({
       ...template,
       icon: createIconObject(template.icon),
+      seedKey: 'weekend-trip' as const,
     })),
     // Example configurations freeTemplates
     ...getExampleConfigTemplates(exampleConfigsCategory).map((template) => ({
       ...template,
       icon: createIconObject(template.icon),
+      seedKey: 'example-config' as const,
     })),
   ];
 
-  const createdFreeTemplates = await database
+  const createdFreeTemplatesRaw = await database
     .insert(schema.eventTemplates)
-    .values(freeTemplates)
+    .values(
+      freeTemplates.map(({ seedKey: _seedKey, ...template }) => template),
+    )
     .returning();
-  consola.success(`Inserted ${createdFreeTemplates.length} free templates`);
+  consola.success(`Inserted ${createdFreeTemplatesRaw.length} free templates`);
 
-  if (!createdFreeTemplates) {
+  if (!createdFreeTemplatesRaw) {
     throw new Error('Failed to create freeTemplates');
   }
+
+  const createdFreeTemplates = createdFreeTemplatesRaw.map((template, index) => {
+    const freeTemplate = freeTemplates[index];
+    if (!freeTemplate) {
+      throw new Error('Free template seed metadata is missing');
+    }
+
+    return {
+      ...template,
+      seedKey: freeTemplate.seedKey,
+    };
+  });
 
   const registrationOptionsToAdd: InferInsertModel<
     typeof schema.templateRegistrationOptions
@@ -166,16 +202,31 @@ export const addTemplates = async (
     getSportsTemplates(sportsCategory).map((template) => ({
       ...template,
       icon: createIconObject(template.icon),
+      seedKey: 'sports' as const,
     }));
-  const createdPaidTemplates = await database
+  const createdPaidTemplatesRaw = await database
     .insert(schema.eventTemplates)
-    .values(paidTemplates)
+    .values(
+      paidTemplates.map(({ seedKey: _seedKey, ...template }) => template),
+    )
     .returning();
-  consola.success(`Inserted ${createdPaidTemplates.length} paid templates`);
+  consola.success(`Inserted ${createdPaidTemplatesRaw.length} paid templates`);
 
-  if (!createdPaidTemplates) {
+  if (!createdPaidTemplatesRaw) {
     throw new Error('Failed to create paidTemplates');
   }
+
+  const createdPaidTemplates = createdPaidTemplatesRaw.map((template, index) => {
+    const paidTemplate = paidTemplates[index];
+    if (!paidTemplate) {
+      throw new Error('Paid template seed metadata is missing');
+    }
+
+    return {
+      ...template,
+      seedKey: paidTemplate.seedKey,
+    };
+  });
 
   const paidOptionValues: InferInsertModel<
     typeof schema.templateRegistrationOptions
@@ -188,10 +239,10 @@ export const addTemplates = async (
         openRegistrationOffset: 168,
         organizingRegistration: true,
         price: 100 * 10,
-        stripeTaxRateId: (vat7 ?? defaultRate)?.stripeTaxRateId ?? null,
         registrationMode: 'fcfs' as const,
         roleIds: defaultOrganizerRoles.map((role) => role.id),
         spots: 1,
+        stripeTaxRateId: (vat7 ?? defaultRate)?.stripeTaxRateId ?? null,
         templateId: template.id,
         title: 'Organizer',
       },
@@ -202,10 +253,10 @@ export const addTemplates = async (
         openRegistrationOffset: 168,
         organizingRegistration: false,
         price: 100 * 25,
-        stripeTaxRateId: (vat19 ?? defaultRate)?.stripeTaxRateId ?? null,
         registrationMode: 'fcfs' as const,
         roleIds: defaultUserRoles.map((role) => role.id),
         spots: 20,
+        stripeTaxRateId: (vat19 ?? defaultRate)?.stripeTaxRateId ?? null,
         templateId: template.id,
         title: 'Participant',
       },
@@ -218,5 +269,16 @@ export const addTemplates = async (
     `Inserted ${paidOptionValues.length} paid template registration options`,
   );
 
-  return [...createdFreeTemplates, ...createdPaidTemplates];
+  return [...createdFreeTemplates, ...createdPaidTemplates].map((template) => {
+    const seededTemplate = {
+      description: template.description,
+      icon: template.icon,
+      id: template.id,
+      seedKey: template.seedKey,
+      tenantId: template.tenantId,
+      title: template.title,
+    } satisfies SeedTemplate;
+
+    return seededTemplate;
+  });
 };

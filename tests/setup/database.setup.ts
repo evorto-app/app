@@ -19,6 +19,7 @@ setup('Setup database', async ({ database, seedDate }) => {
     domain: 'localhost',
     ensureUsers: true,
     logSeedMap: true,
+    profile: 'docs',
     runId,
     seedDate,
   });
@@ -27,6 +28,7 @@ setup('Setup database', async ({ database, seedDate }) => {
   const runtimePath = path.resolve('.e2e-runtime.json');
   const payload = {
     runId,
+    scenario: result.scenario,
     tenantDomain: result.tenant.domain,
     tenantId: result.tenant.id,
   } as const;
