@@ -12,7 +12,7 @@ import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 import { DateTime } from 'luxon';
 
-import { injectTRPC } from '../../core/trpc-client';
+import { AppRpc } from '../../core/effect-rpc-angular-client';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -24,22 +24,33 @@ import { injectTRPC } from '../../core/trpc-client';
 export class HandleRegistrationComponent {
   public readonly registrationId = input.required<string>();
   protected readonly faArrowLeft = faArrowLeft;
-  private readonly trpc = injectTRPC();
+  private readonly rpc = AppRpc.injectClient();
   protected readonly scanResultQuery = injectQuery(() =>
-    this.trpc.events.registrationScanned.queryOptions({
+    this.rpc.events.registrationScanned.queryOptions({
       registrationId: this.registrationId(),
     }),
   );
   protected readonly startsSoon = computed(() => {
     const scanResult = this.scanResultQuery.data();
     if (!scanResult) return false;
-    return (
-      DateTime.fromJSDate(scanResult.event.start).diffNow('hours').hours < 1
-    );
+    return DateTime.fromISO(scanResult.event.start).diffNow('hours').hours < 1;
   });
 
   checkIn() {
     const scanResult = this.scanResultQuery.data();
     if (!scanResult?.allowCheckin) return;
+  }
+
+  protected errorMessage(error: unknown): string {
+    if (typeof error === 'string') {
+      return error;
+    }
+    if (error && typeof error === 'object') {
+      const message = Reflect.get(error, 'message');
+      if (typeof message === 'string') {
+        return message;
+      }
+    }
+    return 'Unknown error';
   }
 }

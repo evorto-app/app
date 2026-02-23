@@ -16,7 +16,7 @@
           class="lg:hidden! block"
           aria-label="Back to events"
         >
-          <fa-duotone-icon [icon]="faArrowLeft"></fa-duotone-icon>
+          <fa-duotone-icon [icon]="faArrowLeft" />
         </a>
         <div class="grow"></div>
         <button
@@ -26,7 +26,7 @@
           [matMenuTriggerFor]="menu"
           aria-label="Open event actions"
         >
-          <fa-duotone-icon [icon]="faEllipsisVertical"></fa-duotone-icon>
+          <fa-duotone-icon [icon]="faEllipsisVertical" />
         </button>
         <mat-menu #menu="matMenu">
           <button mat-menu-item (click)="updateVisibility()">
@@ -147,7 +147,7 @@
             @if (registrationStatusQuery.data().isRegistered) {
               <app-event-active-registration
                 [registrations]="registrationStatusQuery.data().registrations"
-              ></app-event-active-registration>
+              />
             } @else {
               <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                 @for (
@@ -156,7 +156,7 @@
                 ) {
                   <app-event-registration-option
                     [registrationOption]="registrationOption"
-                  ></app-event-registration-option>
+                  />
                 }
               </div>
             }

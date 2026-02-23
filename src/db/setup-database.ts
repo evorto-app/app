@@ -1,7 +1,9 @@
 import consola from 'consola';
 import { InferInsertModel } from 'drizzle-orm';
-import { NeonDatabase } from 'drizzle-orm/neon-serverless';
+import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { reset } from 'drizzle-seed';
+
+import type { SeedTenantOptions } from '../../helpers/seed-tenant';
 
 import { getSeedDate } from '../../helpers/seed-clock';
 import { seedFalsoForScope } from '../../helpers/seed-falso';
@@ -10,16 +12,13 @@ import { database as databaseClient } from './database-client';
 import { relations } from './relations';
 import * as schema from './schema';
 
-export type Database = NeonDatabase<Record<string, never>, typeof relations>;
+export type Database = NodePgDatabase<Record<string, never>, typeof relations>;
 
 export async function setupDatabase(
-  database: NeonDatabase<
+  database: NodePgDatabase<
     Record<string, never>,
     typeof relations
-  > = databaseClient as unknown as NeonDatabase<
-    Record<string, never>,
-    typeof relations
-  >,
+  > = databaseClient,
   onlyDevelopmentTenants = false,
 ) {
   const seedDate = getSeedDate();
@@ -27,7 +26,6 @@ export async function setupDatabase(
   consola.info(`Seeded falso with daily seed "${seed}"`);
   consola.start('Reset database schema');
   const resetStart = Date.now();
-  // @ts-expect-error - drizzle-seed missing proper types
   await reset(database, schema);
   consola.success(`Database reset in ${Date.now() - resetStart}ms`);
 
@@ -59,14 +57,21 @@ export async function setupDatabase(
   for (const tenant of developmentTenants) {
     consola.start(`Seeding tenant ${tenant.domain}`);
     const tenantStart = Date.now();
-    await seedTenant(database, {
-      domain: tenant.domain,
+    const options: SeedTenantOptions = {
       includeExampleUsers: true,
       includeRegistrations: true,
-      name: tenant.name,
       seedDate,
-      stripeAccountId: tenant.stripeAccountId,
-    });
+    };
+    if (typeof tenant.domain === 'string') {
+      options.domain = tenant.domain;
+    }
+    if (typeof tenant.name === 'string') {
+      options.name = tenant.name;
+    }
+    if (typeof tenant.stripeAccountId === 'string') {
+      options.stripeAccountId = tenant.stripeAccountId;
+    }
+    await seedTenant(database, options);
     consola.success(
       `Tenant ${tenant.domain} ready in ${Date.now() - tenantStart}ms`,
     );

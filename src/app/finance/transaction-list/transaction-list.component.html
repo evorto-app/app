@@ -7,7 +7,7 @@
     [matMenuTriggerFor]="menu"
     class="md:hidden! block"
   >
-    <fa-duotone-icon [icon]="faEllipsisVertical"></fa-duotone-icon>
+    <fa-duotone-icon [icon]="faEllipsisVertical" />
   </button>
   <mat-menu #menu="matMenu">
     <a mat-menu-item routerLink="edit">Create transaction</a>
@@ -72,13 +72,13 @@
         <td mat-cell *matCellDef="let element">
           @switch (element.method) {
             @case ("stripe") {
-              <fa-icon [icon]="faStripe" size="2x"></fa-icon>
+              <fa-icon [icon]="faStripe" size="2x" />
             }
             @case ("paypal") {
-              <fa-icon [icon]="faCcPaypal" size="2x"></fa-icon>
+              <fa-icon [icon]="faCcPaypal" size="2x" />
             }
             @case ("transfer") {
-              <fa-duotone-icon [icon]="faMoneyBillTransfer" size="2x"></fa-duotone-icon>
+              <fa-duotone-icon [icon]="faMoneyBillTransfer" size="2x" />
             }
             @default {
               {{ element.method }}
@@ -134,7 +134,6 @@
       (page)="handlePageChange($event)"
       [length]="transactionsQuery.data().total"
       [pageSize]="100"
-    >
-    </mat-paginator>
+    />
   </div>
 }

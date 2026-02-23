@@ -46,7 +46,8 @@ export const RECEIPT_COUNTRY_OPTIONS: readonly ReceiptCountryOption[] = [
 ];
 
 export const OTHER_RECEIPT_COUNTRY_CODE = 'OTHER';
-export const OTHER_RECEIPT_COUNTRY_LABEL = 'Other (outside configured countries)';
+export const OTHER_RECEIPT_COUNTRY_LABEL =
+  'Other (outside configured countries)';
 
 export const DEFAULT_RECEIPT_COUNTRIES: readonly string[] = [
   'DE',
@@ -56,11 +57,11 @@ export const DEFAULT_RECEIPT_COUNTRIES: readonly string[] = [
   'NL',
 ];
 
-const knownCountryCodes = new Set(RECEIPT_COUNTRY_OPTIONS.map((country) => country.code));
+const knownCountryCodes = new Set(
+  RECEIPT_COUNTRY_OPTIONS.map((country) => country.code),
+);
 
-export const normalizeReceiptCountryCode = (
-  value: string,
-): null | string => {
+export const normalizeReceiptCountryCode = (value: string): null | string => {
   const normalized = value.trim().toUpperCase();
   if (normalized.length !== 2 || !knownCountryCodes.has(normalized)) {
     return null;

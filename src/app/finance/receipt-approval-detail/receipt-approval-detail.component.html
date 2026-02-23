@@ -4,7 +4,9 @@
 </div>
 
 @if (receiptQuery.isPending()) {
-  <div class="bg-surface text-on-surface rounded-2xl p-4">Loading receipt...</div>
+  <div class="bg-surface text-on-surface rounded-2xl p-4">
+    Loading receipt...
+  </div>
 } @else if (receiptQuery.isError()) {
   <div class="bg-error-container text-on-error-container rounded-2xl p-4">
     Failed to load receipt details.

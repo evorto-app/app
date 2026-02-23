@@ -40,7 +40,8 @@ export async function takeScreenshot(
       await target.evaluate((element) => {
         const htmlElement = element as HTMLElement;
         htmlElement.scrollIntoView({ behavior: 'instant', block: 'center' });
-        htmlElement.dataset['docsPrevOutline'] = htmlElement.style.outline ?? '';
+        htmlElement.dataset['docsPrevOutline'] =
+          htmlElement.style.outline ?? '';
         htmlElement.dataset['docsPrevZIndex'] = htmlElement.style.zIndex ?? '';
         htmlElement.style.outline = 'thick solid rgb(236, 72, 153)';
         htmlElement.style.zIndex = '10000';
@@ -68,8 +69,10 @@ export async function takeScreenshot(
         await target.waitFor({ state: 'attached' });
         await target.evaluate((element) => {
           const htmlElement = element as HTMLElement;
-          htmlElement.style.outline = htmlElement.dataset['docsPrevOutline'] ?? '';
-          htmlElement.style.zIndex = htmlElement.dataset['docsPrevZIndex'] ?? '';
+          htmlElement.style.outline =
+            htmlElement.dataset['docsPrevOutline'] ?? '';
+          htmlElement.style.zIndex =
+            htmlElement.dataset['docsPrevZIndex'] ?? '';
           delete htmlElement.dataset['docsPrevOutline'];
           delete htmlElement.dataset['docsPrevZIndex'];
           return htmlElement;
@@ -82,4 +85,3 @@ export async function takeScreenshot(
     }
   }
 }
-

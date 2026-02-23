@@ -9,7 +9,11 @@ import {
 
 import { eventInstances } from './event-instances';
 import { eventRegistrationOptions } from './event-registration-options';
-import { discountTypes, paymentStatus, registrationStatus } from './global-enums';
+import {
+  discountTypes,
+  paymentStatus,
+  registrationStatus,
+} from './global-enums';
 import { modelOfTenant } from './model';
 import { users } from './users';
 

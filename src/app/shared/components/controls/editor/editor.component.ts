@@ -27,7 +27,7 @@ import Link from '@tiptap/extension-link';
 import { TableKit } from '@tiptap/extension-table';
 import StarterKit from '@tiptap/starter-kit';
 
-import { injectTRPC } from '../../../../core/trpc-client';
+import { AppRpc } from '../../../../core/effect-rpc-angular-client';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -261,10 +261,10 @@ export class EditorComponent implements OnDestroy {
     });
   });
 
-  private readonly trpc = injectTRPC();
+  private readonly rpc = AppRpc.injectClient();
 
   private readonly createImageUploadMutation = injectMutation(() =>
-    this.trpc.editorMedia.createImageDirectUpload.mutationOptions(),
+    this.rpc.editorMedia.createImageDirectUpload.mutationOptions(),
   );
 
   private readonly fileInput =

@@ -22,10 +22,10 @@
         (click)="openFilterPanel()"
         *appIfAnyPermission="['events:seeDrafts', 'events:seeUnlisted']"
       >
-        <fa-duotone-icon [icon]="faFilter"></fa-duotone-icon>
+        <fa-duotone-icon [icon]="faFilter" />
       </button>
       <button mat-icon-button [matMenuTriggerFor]="menu">
-        <fa-duotone-icon [icon]="faEllipsisVertical"></fa-duotone-icon>
+        <fa-duotone-icon [icon]="faEllipsisVertical" />
       </button>
       <mat-menu #menu="matMenu">
         <a
@@ -49,7 +49,7 @@
           <p class="headline-small">Loading…</p>
         </div>
       } @else if (eventQuery.isError()) {
-        <p>Error: {{ eventQuery.error().message }}</p>
+        <p>Error: {{ eventErrorMessage() }}</p>
       } @else if (eventQuery.isSuccess()) {
         @for (day of eventQuery.data(); track day.day) {
           <p
@@ -99,17 +99,17 @@
                 }
               }
               <div class="flex flex-row items-start gap-4">
-                <app-icon [iconCommonName]="event.icon" size="32"></app-icon>
+                <app-icon [iconCommonName]="event.icon" size="32" />
                 <div class="flex flex-col gap-2">
                   <h2 class="headline-small">{{ event.title }}</h2>
                   <div class="flex flex-row flex-wrap items-center gap-4">
                     <div class="flex flex-row items-center gap-2">
-                      <fa-duotone-icon [icon]="faClock"></fa-duotone-icon>
+                      <fa-duotone-icon [icon]="faClock" />
                       <p>{{ event.start | date: "shortTime" }}</p>
                     </div>
                     @if (event.unlisted) {
                       <div class="flex flex-row items-center gap-2">
-                        <fa-duotone-icon [icon]="faEyeSlash"></fa-duotone-icon>
+                        <fa-duotone-icon [icon]="faEyeSlash" />
                         <p>unlisted</p>
                       </div>
                     }
@@ -128,6 +128,6 @@
     <router-outlet
       (activate)="outletActive.set(true)"
       (deactivate)="outletActive.set(false)"
-    ></router-outlet>
+    />
   </div>
 </div>

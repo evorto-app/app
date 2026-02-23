@@ -45,10 +45,14 @@ export class ReceiptPreviewDialogComponent {
 
   private readonly sanitizer = inject(DomSanitizer);
 
-  protected readonly safePdfPreviewUrl = computed<null | SafeResourceUrl>(() => {
-    if (!this.isPdf()) {
-      return null;
-    }
-    return this.sanitizer.bypassSecurityTrustResourceUrl(this.data.previewUrl);
-  });
+  protected readonly safePdfPreviewUrl = computed<null | SafeResourceUrl>(
+    () => {
+      if (!this.isPdf()) {
+        return null;
+      }
+      return this.sanitizer.bypassSecurityTrustResourceUrl(
+        this.data.previewUrl,
+      );
+    },
+  );
 }

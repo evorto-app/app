@@ -20,7 +20,8 @@ const readAttachmentBody = (
 
 const parseMarkdownAttachment = (markdown: string) => {
   const fmMatch = markdown.match(/^---[\s\S]*?---\s*/);
-  if (!fmMatch) return { body: markdown, frontMatterPermissions: [] as string[] };
+  if (!fmMatch)
+    return { body: markdown, frontMatterPermissions: [] as string[] };
 
   const frontMatterPermissions = fmMatch[0]
     .split(/\r?\n/)
@@ -84,11 +85,17 @@ export const buildSectionContent = (
         const ext = attachment.contentType.split('/')[1] || 'png';
         const imageName = `${attachment.name}-${id}.${ext}`;
         writeFile(path.join(picturesFolder, imageName), body);
-        sectionContent.push(`![${attachment.name}](${folderName}/${imageName})`);
+        sectionContent.push(
+          `![${attachment.name}](${folderName}/${imageName})`,
+        );
         break;
       }
       case 'image-caption': {
-        const body = readAttachmentBody(attachment, test.title, 'image-caption');
+        const body = readAttachmentBody(
+          attachment,
+          test.title,
+          'image-caption',
+        );
         if (!body) continue;
 
         const last = sectionContent.at(-1) ?? '';
@@ -116,4 +123,3 @@ export const buildSectionContent = (
 
   return sectionContent;
 };
-

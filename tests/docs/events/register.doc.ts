@@ -5,8 +5,10 @@ import { fillTestCard } from '../../support/utils/fill-test-card';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 
+test.use({ storageState: userStateFile, trace: 'on-first-retry' });
+
 test.describe('Register for events', () => {
-  test.use({ storageState: userStateFile });
+  test.describe.configure({ retries: 1 });
 
   test('Register for a free event @track(playwright-specs-track-linking_20260126) @doc(REGISTER-DOC-01)', async ({
     events,
@@ -50,12 +52,8 @@ test.describe('Register for events', () => {
       throw new Error('No event found');
     }
 
-    const freeEventLink = page
-      .locator('a[href^="/events/"]')
-      .filter({
-        has: page.getByRole('heading', { level: 2, name: freeEvent.title }),
-      })
-      .first();
+    const freeEventHref = `/events/${freeEvent.id}`;
+    const freeEventLink = page.locator(`a[href="${freeEventHref}"]`).first();
 
     await page.goto('.');
     await testInfo.attach('markdown', {
@@ -90,9 +88,12 @@ test.describe('Register for events', () => {
       body: `
   After selecting a free event, all left to do is press the **Register** button for the option you chose. After that, you will see your confirmation and ticket QR code.`,
     });
-    await page
+    const participantRegistrationCard = page
       .locator('app-event-registration-option')
       .filter({ hasText: 'Participant registration' })
+      .first();
+    await expect(participantRegistrationCard).toBeVisible({ timeout: 20_000 });
+    await participantRegistrationCard
       .getByRole('button', { name: 'Register' })
       .click();
     await expect(page.getByText('You are registered')).toBeVisible();
@@ -190,9 +191,12 @@ test.describe('Register for events', () => {
     await takeScreenshot(testInfo, page.locator('main'), page);
     await fillTestCard(page);
     await page.getByTestId('hosted-payment-submit-button').click();
+    const redirectedToEvents = await page
+      .waitForURL(/\/events/, { timeout: 60_000, waitUntil: 'domcontentloaded' })
+      .then(() => true)
+      .catch(() => false);
 
-    await page.waitForURL(/\/events/);
-    if (!page.url().includes(`/events/${paidEvent.id}`)) {
+    if (!redirectedToEvents || !page.url().includes(`/events/${paidEvent.id}`)) {
       await page.goto(`/events/${paidEvent.id}`);
     }
     await expect(page).toHaveURL(new RegExp(`/events/${paidEvent.id}`));

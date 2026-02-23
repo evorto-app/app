@@ -15,6 +15,8 @@ jobs:
   # The job MUST be called `copilot-setup-steps` or it will not be picked up by Copilot.
   copilot-setup-steps:
     runs-on: ubuntu-latest
+    env:
+      FONT_AWESOME_TOKEN: ${{ secrets.FONT_AWESOME_TOKEN }}
 
     # Set the permissions to the lowest permissions possible needed for your steps.
     # Copilot will be given its own token for its operations.
@@ -28,25 +30,20 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Enable Corepack
-        run: corepack enable
-
-      - name: Install Yarn 4.x
-        run: corepack prepare yarn@4 --activate
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          node-version: "24"
-          cache: "yarn"
-      - name: Enable CI env-file injection
-        run: yarn config set 'injectEnvironmentFiles[2]' '.env.ci?'
+          bun-version: "1.3.7"
 
-      - name: Configure FontAwesome authentication
-        run: yarn config set npmScopes.fortawesome.npmAuthToken ${{ secrets.FONT_AWESOME_TOKEN }} --home
+      - name: Validate required configuration
+        run: |
+          if [ -z "${FONT_AWESOME_TOKEN}" ]; then
+            echo "::error::Missing required secret: FONT_AWESOME_TOKEN"
+            exit 1
+          fi
 
       - name: Install dependencies
-        run: yarn install --immutable
+        run: bun install --frozen-lockfile
 
       - name: Create CI .env overrides from secrets
         run: |
@@ -66,4 +63,4 @@ jobs:
           } > .env
 
       - name: Install Playwright browsers
-        run: yarn playwright install --with-deps
+        run: bunx playwright install --with-deps

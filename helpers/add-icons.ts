@@ -1,4 +1,4 @@
-import { NeonDatabase } from 'drizzle-orm/neon-serverless';
+import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import consola from 'consola';
 
 import { relations } from '../src/db/relations';
@@ -7,7 +7,7 @@ import { computeIconSourceColor } from '../src/server/utils/icon-color';
 import { getId } from './get-id';
 
 export const addIcons = async (
-  database: NeonDatabase<Record<string, never>, typeof relations>,
+  database: NodePgDatabase<Record<string, never>, typeof relations>,
   tenant: { id: string },
 ) => {
   const seed = [

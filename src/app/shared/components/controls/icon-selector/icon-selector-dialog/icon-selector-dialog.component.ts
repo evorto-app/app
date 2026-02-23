@@ -18,7 +18,7 @@ import {
   QueryClient,
 } from '@tanstack/angular-query-experimental';
 
-import { injectTRPC } from '../../../../../core/trpc-client';
+import { AppRpc } from '../../../../../core/effect-rpc-angular-client';
 import { IconComponent } from '../../../icon/icon.component';
 
 @Component({
@@ -48,9 +48,9 @@ export class IconSelectorDialogComponent {
     iconColor: 0,
     iconName: this.searchValue(),
   }));
-  private trpc = injectTRPC();
+  private readonly rpc = AppRpc.injectClient();
   protected readonly iconSearchQuery = injectQuery(() =>
-    this.trpc.icons.search.queryOptions({ search: this.searchValue() }),
+    this.rpc.icons.search.queryOptions({ search: this.searchValue() }),
   );
   protected displayDirectAccess = computed(() => {
     const iconData = this.iconSearchQuery.data();
@@ -67,7 +67,7 @@ export class IconSelectorDialogComponent {
     }));
   });
   private readonly addIconMutation = injectMutation(() =>
-    this.trpc.icons.addIcon.mutationOptions(),
+    this.rpc.icons.add.mutationOptions(),
   );
   private readonly queryClient = inject(QueryClient);
 
@@ -77,9 +77,9 @@ export class IconSelectorDialogComponent {
       { icon },
       {
         onSuccess: async () => {
-          await this.queryClient.invalidateQueries({
-            queryKey: this.trpc.icons.search.pathKey(),
-          });
+          await this.queryClient.invalidateQueries(
+            this.rpc.queryFilter(['icons', 'search']),
+          );
         },
       },
     );

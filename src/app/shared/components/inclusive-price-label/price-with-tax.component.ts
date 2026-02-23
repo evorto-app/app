@@ -13,7 +13,6 @@ import {
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CurrencyPipe],
   selector: 'app-price-with-tax',
   styles: [
     `

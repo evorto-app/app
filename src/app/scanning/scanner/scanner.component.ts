@@ -27,7 +27,6 @@ export class ScannerComponent implements OnDestroy {
     viewChild<ElementRef<HTMLVideoElement>>('videoElement');
   private readonly router = inject(Router);
   private readonly scanner = signal<null | QrScanner>(
-    // eslint-disable-next-line unicorn/no-null
     null,
   );
 

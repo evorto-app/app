@@ -14,7 +14,7 @@
       <h2 class="title-medium">Loading ...</h2>
     </div>
   } @else if (authDataQuery.isSuccess()) {
-    @if (authDataQuery.data().email_verified) {
+    @if (authDataQuery.data()["email_verified"]) {
       <form
         class="bg-surface text-on-surface flex flex-col gap-4 rounded-2xl p-4"
         (submit)="onSubmit($event)"

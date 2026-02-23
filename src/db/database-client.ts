@@ -1,15 +1,15 @@
-import { drizzle } from 'drizzle-orm/neon-serverless';
-import ws from 'ws';
+import { drizzle } from 'drizzle-orm/node-postgres';
+import { Pool } from 'pg';
 
 import { getDatabaseEnvironment } from '../server/config/environment';
-import { configureNeonLocalProxy } from './configure-neon-local';
 import { relations } from './relations';
 
 const { DATABASE_URL: databaseUrl } = getDatabaseEnvironment();
-configureNeonLocalProxy(databaseUrl);
+const pool = new Pool({
+  connectionString: databaseUrl,
+});
 
 export const database = drizzle({
-  connection: databaseUrl,
+  client: pool,
   relations,
-  ws: ws,
 });

@@ -17,7 +17,7 @@ import {
   QueryClient,
 } from '@tanstack/angular-query-experimental';
 
-import { injectTRPC } from '../../core/trpc-client';
+import { AppRpc } from '../../core/effect-rpc-angular-client';
 import {
   mergeTemplateFormOverrides,
   TemplateFormData,
@@ -51,16 +51,18 @@ const templateFormSchema = schema<TemplateFormData>((formPath) => {
 })
 export class TemplateCreateComponent {
   protected readonly categoryId = input<string | undefined>();
-  private trpc = injectTRPC();
+  private readonly rpc = AppRpc.injectClient();
   protected readonly createTemplateMutation = injectMutation(() =>
-    this.trpc.templates.createSimpleTemplate.mutationOptions(),
+    this.rpc.templates.createSimpleTemplate.mutationOptions(),
   );
   protected readonly faArrowLeft = faArrowLeft;
   private defaultOrganizerRolesQuery = injectQuery(() =>
-    this.trpc.admin.roles.findMany.queryOptions({ defaultOrganizerRole: true }),
+    this.rpc.admin.roles.findMany.queryOptions({
+      defaultOrganizerRole: true,
+    }),
   );
   private defaultUserRolesQuery = injectQuery(() =>
-    this.trpc.admin.roles.findMany.queryOptions({ defaultUserRole: true }),
+    this.rpc.admin.roles.findMany.queryOptions({ defaultUserRole: true }),
   );
   protected readonly initialFormData = computed<TemplateFormOverrides>(() => ({
     categoryId: this.categoryId() || '',
@@ -141,9 +143,9 @@ export class TemplateCreateComponent {
         },
         onSuccess: async (template) => {
           console.info('[template-create] submit success');
-          await this.queryClient.invalidateQueries({
-            queryKey: this.trpc.templates.groupedByCategory.pathKey(),
-          });
+          await this.queryClient.invalidateQueries(
+            this.rpc.queryFilter(['templates', 'groupedByCategory']),
+          );
           this.router.navigate(['/templates', template.id]);
         },
       });

@@ -23,7 +23,8 @@ const resolveCloudflareImagesConfig = (): {
   const apiToken = environment.CLOUDFLARE_TOKEN;
   const accountId = environment.CLOUDFLARE_ACCOUNT_ID;
   const deliveryHash = environment.CLOUDFLARE_IMAGES_DELIVERY_HASH;
-  const variant = environment.CLOUDFLARE_IMAGES_VARIANT ?? DEFAULT_IMAGE_VARIANT;
+  const variant =
+    environment.CLOUDFLARE_IMAGES_VARIANT ?? DEFAULT_IMAGE_VARIANT;
   const appEnvironment =
     environment.CLOUDFLARE_IMAGES_ENVIRONMENT ??
     (environment.NODE_ENV === 'production' ? 'production' : 'testing');

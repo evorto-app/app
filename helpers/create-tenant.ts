@@ -1,7 +1,7 @@
 import { init } from '@paralleldrive/cuid2';
 import consola from 'consola';
 import { InferInsertModel } from 'drizzle-orm';
-import { NeonDatabase } from 'drizzle-orm/neon-serverless';
+import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 import { relations } from '../src/db/relations';
 import * as schema from '../src/db/schema';
@@ -14,7 +14,7 @@ const length = 4;
 export const createId = init({ length });
 
 export const createTenant = async (
-  database: NeonDatabase<Record<string, never>, typeof relations>,
+  database: NodePgDatabase<Record<string, never>, typeof relations>,
   tenantData?: Partial<InferInsertModel<typeof schema.tenants>>,
 ) => {
   const t0 = Date.now();

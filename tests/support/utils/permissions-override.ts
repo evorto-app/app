@@ -1,4 +1,4 @@
-import { NeonDatabase } from 'drizzle-orm/neon-serverless';
+import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { and, eq } from 'drizzle-orm';
 
 import { relations } from '../../../src/db/relations';
@@ -12,7 +12,7 @@ export type PermissionDiff = {
 };
 
 export async function applyPermissionDiff(
-  database: NeonDatabase<Record<string, never>, typeof relations>,
+  database: NodePgDatabase<Record<string, never>, typeof relations>,
   tenant: { id: string },
   diff: PermissionDiff,
 ): Promise<void> {

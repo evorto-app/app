@@ -6,3 +6,4 @@ playwright.config.ts
 .env
 .env.local
 old
+dist
