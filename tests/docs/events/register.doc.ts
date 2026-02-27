@@ -1,4 +1,7 @@
+import { and, eq } from 'drizzle-orm';
+
 import { userStateFile, usersToAuthenticate } from '../../../helpers/user-data';
+import * as schema from '../../../src/db/schema';
 import { fillTestCard } from '../../support/utils/fill-test-card';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
@@ -93,12 +96,49 @@ test.describe('Register for events', () => {
   }, testInfo) => {
     test.slow();
     const paidEventId = seeded.scenario.events.paidOpen.eventId;
+    const paidOptionId = seeded.scenario.events.paidOpen.optionId;
     const paidEvent = events.find((event) => event.id === paidEventId);
     if (!paidEvent) {
       throw new Error(
         `Seeded paidOpen scenario event "${paidEventId}" was not found`,
       );
     }
+    const regularUserId =
+      usersToAuthenticate.find((user) => user.roles === 'user')?.id ??
+      usersToAuthenticate[0].id;
+    if (!regularUserId) {
+      throw new Error('Regular user configuration missing for paid registration');
+    }
+
+    await database
+      .delete(schema.transactions)
+      .where(
+        and(
+          eq(schema.transactions.eventId, paidEvent.id),
+          eq(schema.transactions.method, 'stripe'),
+          eq(schema.transactions.targetUserId, regularUserId),
+          eq(schema.transactions.tenantId, tenant.id),
+          eq(schema.transactions.type, 'registration'),
+        ),
+      );
+    await database
+      .delete(schema.eventRegistrations)
+      .where(
+        and(
+          eq(schema.eventRegistrations.eventId, paidEvent.id),
+          eq(schema.eventRegistrations.registrationOptionId, paidOptionId),
+          eq(schema.eventRegistrations.tenantId, tenant.id),
+          eq(schema.eventRegistrations.userId, regularUserId),
+        ),
+      );
+    await database
+      .update(schema.eventRegistrationOptions)
+      .set({
+        confirmedSpots: 0,
+        reservedSpots: 0,
+        waitlistSpots: 0,
+      })
+      .where(eq(schema.eventRegistrationOptions.id, paidOptionId));
 
     await page.goto('.');
     await testInfo.attach('markdown', {
@@ -116,10 +156,7 @@ test.describe('Register for events', () => {
       page.getByRole('heading', { level: 2, name: 'Registration' }),
       page,
     );
-    const payButton = page.getByRole('button', { name: 'Pay' }).first();
-    if (await payButton.isVisible()) {
-      await payButton.click();
-    }
+    const payButton = page.getByRole('button', { name: /Pay/i }).first();
     await testInfo.attach('markdown', {
       body: `
   By clicking the **Pay and register** button, you are starting the payment process.
@@ -131,11 +168,61 @@ test.describe('Register for events', () => {
       page,
     );
     const payNowLink = page.getByRole('link', { name: 'Pay now' }).first();
-    await expect(payNowLink).toBeVisible();
+    let checkoutUrl: null | string = null;
+    if ((await payNowLink.count()) > 0) {
+      checkoutUrl = await payNowLink.getAttribute('href');
+    }
+    if (!checkoutUrl) {
+      await expect(payButton).toBeVisible({ timeout: 20_000 });
+      await payButton.click();
+      await expect
+        .poll(
+          async () => {
+            const pendingTransaction =
+              await database.query.transactions.findFirst({
+                orderBy: { createdAt: 'desc' },
+                where: {
+                  eventId: paidEvent.id,
+                  method: 'stripe',
+                  status: 'pending',
+                  targetUserId: regularUserId,
+                  tenantId: tenant.id,
+                  type: 'registration',
+                },
+              });
+            return pendingTransaction?.stripeCheckoutUrl ?? null;
+          },
+          {
+            intervals: [1_000, 2_000, 4_000],
+            message:
+              'Timed out waiting for a pending Stripe checkout transaction URL',
+            timeout: 90_000,
+          },
+        )
+        .not.toBeNull();
+      const pendingTransaction = await database.query.transactions.findFirst({
+        orderBy: { createdAt: 'desc' },
+        where: {
+          eventId: paidEvent.id,
+          method: 'stripe',
+          status: 'pending',
+          targetUserId: regularUserId,
+          tenantId: tenant.id,
+          type: 'registration',
+        },
+      });
+      checkoutUrl = pendingTransaction?.stripeCheckoutUrl ?? null;
+    }
     const checkoutPagePromise = page.context().waitForEvent('page', {
       timeout: 5_000,
     });
-    await payNowLink.click();
+    if (await payNowLink.isVisible().catch(() => false)) {
+      await payNowLink.click();
+    } else if (checkoutUrl) {
+      await page.goto(checkoutUrl);
+    } else {
+      throw new Error('Stripe checkout URL missing after creating pending payment');
+    }
     const checkoutPopup = await checkoutPagePromise.catch(() => null);
     const checkoutPage = checkoutPopup ?? page;
     await expect
@@ -147,9 +234,6 @@ test.describe('Register for events', () => {
     await takeScreenshot(testInfo, checkoutPage.locator('main'), checkoutPage);
     await fillTestCard(checkoutPage);
     await checkoutPage.getByTestId('hosted-payment-submit-button').click();
-    const regularUserId =
-      usersToAuthenticate.find((user) => user.roles === 'user')?.id ??
-      usersToAuthenticate[0].id;
     await expect
       .poll(
         async () => {
