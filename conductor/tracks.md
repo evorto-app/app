@@ -32,5 +32,5 @@
 
 ---
 
-- [ ] **Track: E2E-first test overhaul (MinIO storage determinism, scenario handles, pinned time/seed, RBAC matrix, Stripe replay safety)**
+- [~] **Track: E2E-first test overhaul (MinIO storage determinism, scenario handles, pinned time/seed, RBAC matrix, Stripe replay safety)**
 *Link: [./tracks/test-suite-stability_20260223/](./tracks/test-suite-stability_20260223/)*
