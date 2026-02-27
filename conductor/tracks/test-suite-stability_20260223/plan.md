@@ -108,7 +108,7 @@
   - [x] Document docker start/stop instructions
 - [~] Task: Run final verification
   - [x] Run `bun run test:unit` (only adjust scope if related logic changed)
-  - [ ] Run `bun run test:e2e --project=local-chrome`
+  - [x] Run `bun run test:e2e --project=local-chrome`
   - [ ] Run `bun run test:e2e:docs` (no screenshot refactor)
   - [ ] Fix regressions introduced by this track
 - [ ] Task: Conductor - User Manual Verification 'Documentation and Final Verification' (Protocol in workflow.md)
