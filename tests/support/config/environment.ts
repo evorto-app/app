@@ -162,6 +162,19 @@ const decodeOrThrow = <A, I>(
   return parsed.right;
 };
 
+const normalizePlaywrightInput = (
+  input: NodeJS.ProcessEnv,
+): NodeJS.ProcessEnv => {
+  if (input['NO_WEBSERVER'] !== undefined) {
+    return input;
+  }
+
+  return {
+    ...input,
+    NO_WEBSERVER: 'false',
+  };
+};
+
 export const hasAuth0ManagementEnvironment = (
   input: NodeJS.ProcessEnv = process.env,
 ): boolean =>
@@ -184,31 +197,32 @@ export const getAuth0ManagementEnvironment = (
 export const validatePlaywrightEnvironment = (
   input: NodeJS.ProcessEnv = process.env,
 ): PlaywrightEnvironment => {
+  const normalizedInput = normalizePlaywrightInput(input);
   const environment = decodeOrThrow(
     PlaywrightEnvironmentSchema,
-    input,
+    normalizedInput,
     'e2e Playwright environment',
   );
 
   if (environment.CI) {
     decodeOrThrow(
       CIIntegrationEnvironmentSchema,
-      input,
+      normalizedInput,
       'e2e CI integration environment',
     );
     decodeOrThrow(
       CIObjectStorageEnvironmentSchema,
-      input,
+      normalizedInput,
       'e2e object storage environment',
     );
     decodeOrThrow(
       CIDeterministicEnvironmentSchema,
-      input,
+      normalizedInput,
       'e2e deterministic seed/time environment',
     );
     decodeOrThrow(
       CIStripeSeedEnvironmentSchema,
-      input,
+      normalizedInput,
       'e2e stripe seed environment',
     );
   }
