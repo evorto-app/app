@@ -12,6 +12,8 @@
 - Start runtime stack in foreground (used by Playwright webServer): `bun run docker:start:test`
 - Stop runtime stack: `bun run docker:stop`
 
+`.env.development` is loaded automatically by app and tests whenever the file exists.
+
 ## Deterministic E2E Environment
 
 Set these for deterministic CI/docs runs:
