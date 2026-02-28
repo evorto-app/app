@@ -18,6 +18,18 @@ const databaseEffect = <A, E>(
 const responseText = (body: string, status = 200): Response =>
   new Response(body, { status });
 
+type SupportedStripeWebhookEventType =
+  | 'charge.updated'
+  | 'checkout.session.completed'
+  | 'checkout.session.expired';
+
+const isSupportedStripeWebhookEventType = (
+  eventType: string,
+): eventType is SupportedStripeWebhookEventType =>
+  eventType === 'charge.updated' ||
+  eventType === 'checkout.session.completed' ||
+  eventType === 'checkout.session.expired';
+
 const getTenantIdFromWebhookEvent = (
   event: Stripe.Event,
 ): string | undefined => {
@@ -30,6 +42,37 @@ const getTenantIdFromWebhookEvent = (
   return tenantId && tenantId.length > 0 ? tenantId : undefined;
 };
 
+const getStripeAccountIdForTenant = (tenantId: string) =>
+  databaseEffect((database) =>
+    database.query.tenants
+      .findFirst({
+        columns: { stripeAccountId: true },
+        where: { id: tenantId },
+      })
+      .pipe(Effect.map((tenant) => tenant?.stripeAccountId)),
+  );
+
+let webhookEventsTableEnsured = false;
+
+const ensureWebhookEventsTable = () =>
+  Effect.gen(function* () {
+    if (webhookEventsTableEnsured) {
+      return;
+    }
+
+    yield* databaseEffect((database) =>
+      database.execute(sql`
+        create table if not exists stripe_webhook_events (
+          stripe_event_id varchar primary key,
+          event_type text not null,
+          tenant_id varchar(20),
+          processed_at timestamp not null default now()
+        )
+      `),
+    );
+    webhookEventsTableEnsured = true;
+  });
+
 const claimWebhookEvent = (input: {
   eventId: string;
   eventType: string;
@@ -37,24 +80,35 @@ const claimWebhookEvent = (input: {
 }) =>
   databaseEffect((database) =>
     Effect.gen(function* () {
-      yield* database.execute(sql`
-        create table if not exists stripe_webhook_events (
-          stripe_event_id varchar primary key,
-          event_type text not null,
-          tenant_id varchar(20),
-          processed_at timestamp not null default now()
-        )
-      `);
-
       const inserted = yield* database.execute(sql`
         insert into stripe_webhook_events (stripe_event_id, event_type, tenant_id)
         values (${input.eventId}, ${input.eventType}, ${input.tenantId ?? null})
         on conflict (stripe_event_id) do nothing
         returning stripe_event_id
       `);
-
-      return inserted.length > 0;
+      const rows = (
+        inserted as { rows?: unknown[] } | null | undefined
+      )?.rows;
+      return Array.isArray(rows) && rows.length > 0;
     }),
+  );
+
+const releaseWebhookEventClaim = (eventId: string) =>
+  databaseEffect((database) =>
+    database.execute(sql`
+      delete from stripe_webhook_events
+      where stripe_event_id = ${eventId}
+    `),
+  ).pipe(
+    Effect.catchAll((error) =>
+      Effect.logWarning('Failed to release webhook claim').pipe(
+        Effect.annotateLogs({
+          error: error instanceof Error ? error.message : String(error),
+          eventId,
+        }),
+      ),
+    ),
+    Effect.asVoid,
   );
 
 export const handleStripeWebhookWebRequest = (
@@ -103,23 +157,29 @@ export const handleStripeWebhookWebRequest = (
       }),
     );
 
-    const tenantId = getTenantIdFromWebhookEvent(event);
-    const claimedEvent = yield* claimWebhookEvent({
-      eventId: event.id,
-      eventType: event.type,
-      ...(tenantId ? { tenantId } : {}),
-    });
-    if (!claimedEvent) {
-      yield* Effect.logInfo('Stripe webhook duplicate event ignored').pipe(
-        Effect.annotateLogs({
-          eventId: event.id,
-          eventType: event.type,
-        }),
-      );
-      return responseText('Duplicate event ignored');
+    if (!isSupportedStripeWebhookEventType(event.type)) {
+      return responseText('Ignored');
     }
 
-    switch (event.type) {
+    const tenantId = getTenantIdFromWebhookEvent(event);
+    const response = yield* Effect.gen(function* () {
+      yield* ensureWebhookEventsTable();
+      const claimedEvent = yield* claimWebhookEvent({
+        eventId: event.id,
+        eventType: event.type,
+        ...(tenantId ? { tenantId } : {}),
+      });
+      if (!claimedEvent) {
+        yield* Effect.logInfo('Stripe webhook duplicate event ignored').pipe(
+          Effect.annotateLogs({
+            eventId: event.id,
+            eventType: event.type,
+          }),
+        );
+        return responseText('Duplicate event ignored');
+      }
+
+      switch (event.type) {
       case 'charge.updated': {
         const eventCharge = event.data.object;
 
@@ -209,11 +269,42 @@ export const handleStripeWebhookWebRequest = (
           typeof eventSession.payment_intent === 'string'
             ? eventSession.payment_intent
             : eventSession.payment_intent?.id;
-        const stripeChargeId =
-          typeof eventSession.payment_intent === 'object' &&
-          typeof eventSession.payment_intent?.latest_charge === 'string'
-            ? eventSession.payment_intent.latest_charge
+        const stripeAccount = yield* getStripeAccountIdForTenant(tenantId);
+        if (!stripeAccount) {
+          return responseText('Stripe account not found', 400);
+        }
+        const stripeChargeId = yield* Effect.gen(function* () {
+          if (
+            typeof eventSession.payment_intent === 'object' &&
+            typeof eventSession.payment_intent?.latest_charge === 'string'
+          ) {
+            return eventSession.payment_intent.latest_charge;
+          }
+          if (typeof eventSession.payment_intent !== 'string') {
+            return undefined;
+          }
+
+          const paymentIntent = yield* Effect.tryPromise({
+            catch: () => undefined,
+            try: () =>
+              stripe.paymentIntents.retrieve(
+                eventSession.payment_intent,
+                {
+                  expand: ['latest_charge'],
+                },
+                {
+                  stripeAccount,
+                },
+              ),
+          });
+          if (!paymentIntent) {
+            return undefined;
+          }
+
+          return typeof paymentIntent.latest_charge === 'string'
+            ? paymentIntent.latest_charge
             : undefined;
+        });
 
         yield* databaseEffect((database) =>
           database.transaction((tx) =>
@@ -229,6 +320,7 @@ export const handleStripeWebhookWebRequest = (
                   and(
                     eq(schema.transactions.id, transactionId),
                     eq(schema.transactions.status, 'pending'),
+                    eq(schema.transactions.tenantId, tenantId),
                   ),
                 );
               yield* tx
@@ -238,6 +330,7 @@ export const handleStripeWebhookWebRequest = (
                   and(
                     eq(schema.eventRegistrations.id, registrationId),
                     eq(schema.eventRegistrations.status, 'PENDING'),
+                    eq(schema.eventRegistrations.tenantId, tenantId),
                   ),
                 );
             }),
@@ -274,6 +367,7 @@ export const handleStripeWebhookWebRequest = (
                   and(
                     eq(schema.transactions.id, transactionId),
                     eq(schema.transactions.status, 'pending'),
+                    eq(schema.transactions.tenantId, tenantId),
                   ),
                 );
               yield* tx
@@ -283,6 +377,7 @@ export const handleStripeWebhookWebRequest = (
                   and(
                     eq(schema.eventRegistrations.id, registrationId),
                     eq(schema.eventRegistrations.status, 'PENDING'),
+                    eq(schema.eventRegistrations.tenantId, tenantId),
                   ),
                 );
             }),
@@ -295,5 +390,18 @@ export const handleStripeWebhookWebRequest = (
       default: {
         return responseText('Ignored');
       }
+      }
+    }).pipe(
+      Effect.catchAllCause((cause) =>
+        releaseWebhookEventClaim(event.id).pipe(
+          Effect.zipRight(Effect.failCause(cause)),
+        ),
+      ),
+    );
+
+    if (response.status >= 400) {
+      yield* releaseWebhookEventClaim(event.id);
     }
+
+    return response;
   });
