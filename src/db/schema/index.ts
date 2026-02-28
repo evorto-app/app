@@ -8,6 +8,7 @@ export * from './finance-receipts';
 export * from './global-enums';
 export * from './icons';
 export * from './roles';
+export * from './stripe-webhook-events';
 export * from './template-event-addons';
 export * from './template-registration-option-discounts';
 export * from './template-registration-options';

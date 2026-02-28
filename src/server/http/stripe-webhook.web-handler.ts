@@ -1,6 +1,6 @@
 import type Stripe from 'stripe';
 
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { Effect } from 'effect';
 
 import { Database, type DatabaseClient } from '../../db';
@@ -52,27 +52,6 @@ const getStripeAccountIdForTenant = (tenantId: string) =>
       .pipe(Effect.map((tenant) => tenant?.stripeAccountId)),
   );
 
-let webhookEventsTableEnsured = false;
-
-const ensureWebhookEventsTable = () =>
-  Effect.gen(function* () {
-    if (webhookEventsTableEnsured) {
-      return;
-    }
-
-    yield* databaseEffect((database) =>
-      database.execute(sql`
-        create table if not exists stripe_webhook_events (
-          stripe_event_id varchar primary key,
-          event_type text not null,
-          tenant_id varchar(20),
-          processed_at timestamp not null default now()
-        )
-      `),
-    );
-    webhookEventsTableEnsured = true;
-  });
-
 const claimWebhookEvent = (input: {
   eventId: string;
   eventType: string;
@@ -80,25 +59,26 @@ const claimWebhookEvent = (input: {
 }) =>
   databaseEffect((database) =>
     Effect.gen(function* () {
-      const inserted = yield* database.execute(sql`
-        insert into stripe_webhook_events (stripe_event_id, event_type, tenant_id)
-        values (${input.eventId}, ${input.eventType}, ${input.tenantId ?? null})
-        on conflict (stripe_event_id) do nothing
-        returning stripe_event_id
-      `);
-      const rows = (
-        inserted as { rows?: unknown[] } | null | undefined
-      )?.rows;
-      return Array.isArray(rows) && rows.length > 0;
+      const inserted = yield* database
+        .insert(schema.stripeWebhookEvents)
+        .values({
+          eventType: input.eventType,
+          stripeEventId: input.eventId,
+          ...(input.tenantId ? { tenantId: input.tenantId } : {}),
+        })
+        .onConflictDoNothing()
+        .returning({
+          stripeEventId: schema.stripeWebhookEvents.stripeEventId,
+        });
+      return inserted.length > 0;
     }),
   );
 
 const releaseWebhookEventClaim = (eventId: string) =>
   databaseEffect((database) =>
-    database.execute(sql`
-      delete from stripe_webhook_events
-      where stripe_event_id = ${eventId}
-    `),
+    database
+      .delete(schema.stripeWebhookEvents)
+      .where(eq(schema.stripeWebhookEvents.stripeEventId, eventId)),
   ).pipe(
     Effect.catchAll((error) =>
       Effect.logWarning('Failed to release webhook claim').pipe(
@@ -163,7 +143,6 @@ export const handleStripeWebhookWebRequest = (
 
     const tenantId = getTenantIdFromWebhookEvent(event);
     const response = yield* Effect.gen(function* () {
-      yield* ensureWebhookEventsTable();
       const claimedEvent = yield* claimWebhookEvent({
         eventId: event.id,
         eventType: event.type,
