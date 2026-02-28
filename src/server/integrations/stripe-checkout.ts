@@ -1,4 +1,5 @@
 import type Stripe from 'stripe';
+import { DateTime } from 'luxon';
 
 import { getServerNow } from '../clock';
 
@@ -29,7 +30,14 @@ export const __resetStripeClientLoaderForTests = () => {
 
 export const buildCheckoutSessionExpiresAt = (
   expiresInMinutes = 30,
-): number => Math.ceil(getServerNow().plus({ minutes: expiresInMinutes }).toSeconds());
+): number => {
+  const pinnedNow = getServerNow();
+  const wallClockNow = DateTime.now().setZone('utc');
+  const baseNow =
+    pinnedNow.toMillis() > wallClockNow.toMillis() ? pinnedNow : wallClockNow;
+
+  return Math.ceil(baseNow.plus({ minutes: expiresInMinutes }).toSeconds());
+};
 
 export const buildCheckoutSessionIdempotencyKey = (input: {
   registrationId: string;

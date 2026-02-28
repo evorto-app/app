@@ -16,6 +16,7 @@ describe('stripe-checkout helpers', () => {
     createSessionMock.mockReset();
     __resetStripeClientLoaderForTests();
     vi.unstubAllEnvs();
+    vi.useRealTimers();
   });
 
   it('builds a stable checkout idempotency key', () => {
@@ -27,11 +28,26 @@ describe('stripe-checkout helpers', () => {
     ).toBe('registration:reg_123:transaction:txn_456');
   });
 
-  it('derives checkout expiry from E2E_NOW_ISO when present', () => {
+  it('derives checkout expiry from E2E_NOW_ISO when it is ahead of wall clock', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-01-15T12:00:00.000Z'));
     vi.stubEnv('E2E_NOW_ISO', '2026-02-01T12:00:00.000Z');
 
     const expected = Math.ceil(
       DateTime.fromISO('2026-02-01T12:00:00.000Z', { zone: 'utc' })
+        .plus({ minutes: 30 })
+        .toSeconds(),
+    );
+    expect(buildCheckoutSessionExpiresAt(30)).toBe(expected);
+  });
+
+  it('falls back to wall clock when E2E_NOW_ISO is in the past', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-03-01T12:00:00.000Z'));
+    vi.stubEnv('E2E_NOW_ISO', '2026-02-01T12:00:00.000Z');
+
+    const expected = Math.ceil(
+      DateTime.fromISO('2026-03-01T12:00:00.000Z', { zone: 'utc' })
         .plus({ minutes: 30 })
         .toSeconds(),
     );

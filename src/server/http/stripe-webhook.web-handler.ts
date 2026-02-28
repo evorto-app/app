@@ -80,7 +80,7 @@ const releaseWebhookEventClaim = (eventId: string) =>
       .delete(schema.stripeWebhookEvents)
       .where(eq(schema.stripeWebhookEvents.stripeEventId, eventId)),
   ).pipe(
-    Effect.catchAll((error) =>
+    Effect.tapError((error) =>
       Effect.logWarning('Failed to release webhook claim').pipe(
         Effect.annotateLogs({
           error: error instanceof Error ? error.message : String(error),
