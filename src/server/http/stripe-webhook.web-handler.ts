@@ -253,21 +253,22 @@ export const handleStripeWebhookWebRequest = (
           return responseText('Stripe account not found', 400);
         }
         const stripeChargeId = yield* Effect.gen(function* () {
+          const paymentIntentField = eventSession.payment_intent;
           if (
-            typeof eventSession.payment_intent === 'object' &&
-            typeof eventSession.payment_intent?.latest_charge === 'string'
+            typeof paymentIntentField === 'object' &&
+            typeof paymentIntentField?.latest_charge === 'string'
           ) {
-            return eventSession.payment_intent.latest_charge;
+            return paymentIntentField.latest_charge;
           }
-          if (typeof eventSession.payment_intent !== 'string') {
-            return undefined;
+          if (typeof paymentIntentField !== 'string') {
+            return;
           }
 
           const paymentIntent = yield* Effect.tryPromise({
-            catch: () => undefined,
+            catch: () => null,
             try: () =>
               stripe.paymentIntents.retrieve(
-                eventSession.payment_intent,
+                paymentIntentField,
                 {
                   expand: ['latest_charge'],
                 },
@@ -277,7 +278,7 @@ export const handleStripeWebhookWebRequest = (
               ),
           });
           if (!paymentIntent) {
-            return undefined;
+            return;
           }
 
           return typeof paymentIntent.latest_charge === 'string'
