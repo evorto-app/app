@@ -1,8 +1,6 @@
 import { Page } from '@playwright/test';
 import { DateTime } from 'luxon';
 
-import { getSeedDate } from '../../../helpers/seed-clock';
-
 const waitForVisibleLocator = async (
   page: Page,
   selectors: readonly string[],
@@ -75,10 +73,8 @@ export const fillTestCard = async (page: Page) => {
     );
   }
   await cardNumber.fill('4242424242424242');
-  const deterministicExpiry = DateTime.fromJSDate(getSeedDate(), {
-    zone: 'utc',
-  }).plus({ year: 1 });
-  await cardExpiry.fill(deterministicExpiry.toFormat('MM/yy'));
+  const validFutureExpiry = DateTime.now().setZone('utc').plus({ year: 1 });
+  await cardExpiry.fill(validFutureExpiry.toFormat('MM/yy'));
   await cardCvc.fill('123');
   const cardholderName = await waitForVisibleLocator(
     page,
