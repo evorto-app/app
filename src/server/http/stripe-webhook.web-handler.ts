@@ -52,6 +52,89 @@ const getStripeAccountIdForTenant = (tenantId: string) =>
       .pipe(Effect.map((tenant) => tenant?.stripeAccountId)),
   );
 
+const getCheckoutSessionPaymentIntentId = (
+  session: Stripe.Checkout.Session,
+): string | undefined =>
+  typeof session.payment_intent === 'string'
+    ? session.payment_intent
+    : session.payment_intent?.id;
+
+const resolveCheckoutSession = (eventSession: Stripe.Checkout.Session) =>
+  databaseEffect((database) =>
+    Effect.gen(function* () {
+      const metadata = eventSession.metadata ?? {};
+      const metadataRegistrationId = metadata['registrationId'];
+      const metadataTenantId = metadata['tenantId'];
+      const metadataTransactionId = metadata['transactionId'];
+      const hasCompleteMetadata =
+        Boolean(metadataRegistrationId) &&
+        Boolean(metadataTenantId) &&
+        Boolean(metadataTransactionId);
+
+      const paymentIntentId = getCheckoutSessionPaymentIntentId(eventSession);
+      const paymentIntentTransaction = paymentIntentId
+        ? yield* database.query.transactions.findFirst({
+          columns: {
+            eventRegistrationId: true,
+            id: true,
+            tenantId: true,
+          },
+          where: { stripePaymentIntentId: paymentIntentId },
+        })
+        : undefined;
+
+      if (hasCompleteMetadata) {
+        if (
+          paymentIntentTransaction &&
+          (paymentIntentTransaction.id !== metadataTransactionId ||
+            paymentIntentTransaction.tenantId !== metadataTenantId ||
+            paymentIntentTransaction.eventRegistrationId !== metadataRegistrationId)
+        ) {
+          return { type: 'mapping-conflict' } as const;
+        }
+
+        return {
+          registrationId: metadataRegistrationId,
+          tenantId: metadataTenantId,
+          transactionId: metadataTransactionId,
+          type: 'resolved',
+        } as const;
+      }
+
+      if (
+        paymentIntentTransaction?.eventRegistrationId &&
+        paymentIntentTransaction.id &&
+        paymentIntentTransaction.tenantId
+      ) {
+        return {
+          registrationId: paymentIntentTransaction.eventRegistrationId,
+          tenantId: paymentIntentTransaction.tenantId,
+          transactionId: paymentIntentTransaction.id,
+          type: 'resolved',
+        } as const;
+      }
+
+      return { type: 'unresolved' } as const;
+    }),
+  );
+
+const isStripeMissingResourceError = (error: unknown): boolean => {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+
+  const candidate = error as {
+    code?: unknown;
+    raw?: { code?: unknown };
+    type?: unknown;
+  };
+  return (
+    candidate.type === 'StripeInvalidRequestError' &&
+    (candidate.code === 'resource_missing' ||
+      candidate.raw?.code === 'resource_missing')
+  );
+};
+
 const claimWebhookEvent = (input: {
   eventId: string;
   eventType: string;
@@ -225,11 +308,6 @@ export const handleStripeWebhookWebRequest = (
 
       case 'checkout.session.completed': {
         const eventSession = event.data.object;
-        const { registrationId, tenantId, transactionId } =
-          eventSession.metadata ?? {};
-        if (!registrationId || !transactionId || !tenantId) {
-          return responseText('Missing metadata', 400);
-        }
         if (
           eventSession.status !== 'complete' &&
           eventSession.payment_status !== 'paid'
@@ -244,10 +322,18 @@ export const handleStripeWebhookWebRequest = (
           return responseText('Session not completed, skipping');
         }
 
-        const stripePaymentIntentId =
-          typeof eventSession.payment_intent === 'string'
-            ? eventSession.payment_intent
-            : eventSession.payment_intent?.id;
+        const checkoutSession = yield* resolveCheckoutSession(eventSession);
+        if (checkoutSession.type === 'mapping-conflict') {
+          return responseText('Conflicting checkout session mapping', 400);
+        }
+        if (checkoutSession.type === 'unresolved') {
+          return responseText('Missing checkout session mapping', 400);
+        }
+
+        const { registrationId, tenantId, transactionId } = checkoutSession;
+        const stripePaymentIntentId = getCheckoutSessionPaymentIntentId(
+          eventSession,
+        );
         const stripeAccount = yield* getStripeAccountIdForTenant(tenantId);
         if (!stripeAccount) {
           return responseText('Stripe account not found', 400);
@@ -265,7 +351,7 @@ export const handleStripeWebhookWebRequest = (
           }
 
           const paymentIntent = yield* Effect.tryPromise({
-            catch: () => null,
+            catch: (error) => error,
             try: () =>
               stripe.paymentIntents.retrieve(
                 paymentIntentField,
@@ -276,10 +362,29 @@ export const handleStripeWebhookWebRequest = (
                   stripeAccount,
                 },
               ),
-          });
-          if (!paymentIntent) {
-            return;
-          }
+          }).pipe(
+            Effect.catchAll((error) => {
+              if (isStripeMissingResourceError(error)) {
+                return Effect.logWarning(
+                  'Stripe payment intent missing during checkout completion',
+                ).pipe(
+                  Effect.annotateLogs({
+                    paymentIntentId: paymentIntentField,
+                    sessionId: eventSession.id,
+                    tenantId,
+                  }),
+                  Effect.zipRight(
+                    Effect.succeed<null | Stripe.Response<Stripe.PaymentIntent>>(
+                      null,
+                    ),
+                  ),
+                );
+              }
+              return Effect.fail(error);
+            }),
+          );
+
+          if (!paymentIntent) return;
 
           return typeof paymentIntent.latest_charge === 'string'
             ? paymentIntent.latest_charge
