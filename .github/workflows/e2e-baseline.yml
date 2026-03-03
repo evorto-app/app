@@ -25,6 +25,7 @@ jobs:
       NEON_DATABASE_NAME: appdb
       NEON_LOCAL_HOST_PORT: 55432
       NEON_LOCAL_PROXY: true
+      NO_WEBSERVER: true
       DATABASE_URL: postgresql://neon:npg@localhost:55432/appdb?sslmode=require
       E2E_NOW_ISO: 2026-02-01T12:00:00.000Z
       E2E_SEED_KEY: ci-e2e-seed-v1
@@ -117,22 +118,57 @@ jobs:
       - name: Build Docker images (compose)
         run: docker compose build --pull
 
-      # Functional tests (keep scope minimal for CI speed). The Playwright webServer will
-      # start Docker services via `bun run docker:start:test` from playwright.config.ts.
-      - name: Run functional tests (chromium only)
+      - name: Start Docker stack for E2E
         run: |
+          docker compose down --remove-orphans
+          docker compose up -d
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent --show-error "${BASE_URL}" >/dev/null; then
+              echo "Application is reachable at ${BASE_URL}"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::Application did not become reachable at ${BASE_URL} within 120 seconds"
+          docker compose ps
+          docker compose logs --no-color --tail=100
+          exit 1
+
+      - name: Run Playwright suites
+        run: |
+          mkdir -p test-results/docker-logs
+          if [ "${ACTIONS_STEP_DEBUG:-false}" = "true" ]; then
+            docker compose logs -f --no-color 2>&1 | tee test-results/docker-logs/live-docker.log &
+            LOG_STREAM_PID=$!
+            cleanup() {
+              if [ -n "${LOG_STREAM_PID:-}" ] && kill -0 "${LOG_STREAM_PID}" 2>/dev/null; then
+                kill "${LOG_STREAM_PID}" || true
+                wait "${LOG_STREAM_PID}" || true
+              fi
+            }
+            trap cleanup EXIT
+          fi
+
           bun run test:e2e --project=local-chrome
 
-      # Documentation tests: exclude @finance tagged journeys and force the documentation reporter
-      # even on CI by overriding reporters via CLI.
-      - name: Run documentation tests (exclude @finance)
-        env:
-          # Allow overriding output directories if desired in future; defaults are fine otherwise.
-          DOCS_OUT_DIR: test-results/docs
-          DOCS_IMG_OUT_DIR: test-results/docs/images
-        run: |
+          DOCS_OUT_DIR=test-results/docs \
+          DOCS_IMG_OUT_DIR=test-results/docs/images \
           bunx playwright test --project=docs --grep-invert "@finance" \
             --reporter=github,dot,./tests/support/reporters/documentation-reporter.ts
+
+      - name: Collect Docker logs
+        if: always()
+        run: |
+          mkdir -p test-results/docker-logs
+          docker compose logs --no-color > test-results/docker-logs/docker-compose.log || true
+          evorto_container_id="$(docker compose ps -q evorto)"
+          if [ -n "${evorto_container_id}" ]; then
+            docker cp "${evorto_container_id}:/app/logs/server.log" test-results/docker-logs/server.log || true
+          fi
+
+      - name: Stop Docker stack
+        if: always()
+        run: docker compose down --remove-orphans
 
       - name: Upload Playwright test results
         if: always()

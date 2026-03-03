@@ -3,6 +3,7 @@ import { Either, ParseResult, Schema } from 'effect';
 import consola from 'consola';
 
 import { loadDotenvFiles } from '../../../helpers/config/load-dotenv-files';
+import { applyTestConsolaLevel } from '../../../helpers/testing/test-logging';
 
 loadDotenvFiles();
 
@@ -198,6 +199,7 @@ export const validatePlaywrightEnvironment = (
   input: NodeJS.ProcessEnv = process.env,
 ): PlaywrightEnvironment => {
   const normalizedInput = normalizePlaywrightInput(input);
+  const logLevel = applyTestConsolaLevel(normalizedInput);
   const environment = decodeOrThrow(
     PlaywrightEnvironmentSchema,
     normalizedInput,
@@ -227,7 +229,9 @@ export const validatePlaywrightEnvironment = (
     );
   }
 
-  consola.debug('Playwright environment:', environment);
+  if (logLevel >= 4) {
+    consola.debug('Playwright environment:', environment);
+  }
 
   return environment;
 };

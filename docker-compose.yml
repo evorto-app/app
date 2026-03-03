@@ -81,6 +81,10 @@ services:
       S3_SECRET_ACCESS_KEY: "${S3_SECRET_ACCESS_KEY:-minioadmin}"
       #      This secret is for the local stripe cli, it is not a production secret
       STRIPE_WEBHOOK_SECRET: whsec_5cc4e8e60977a2f87895f2fe5484040de96728381f08f33617633205a0cafae3
+    command:
+      - /bin/sh
+      - -lc
+      - mkdir -p /app/logs && bun --preload ./instrument.mjs dist/evorto/server/server.mjs 2>&1 | tee -a /app/logs/server.log
     ports:
       - "${APP_HOST_PORT:-4200}:4200"
 
