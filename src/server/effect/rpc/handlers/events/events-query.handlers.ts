@@ -13,7 +13,6 @@ import { DateTime } from 'luxon';
 
 import type { AppRpcHandlers } from '../shared/handler-types';
 
-import { getServerNow } from '../../../../clock';
 import {
   eventInstances,
   eventRegistrationOptionDiscounts,
@@ -117,9 +116,7 @@ export const eventQueryHandlers = {
           ));
         const roleFilters =
           rolesToFilterBy.length > 0 ? [...rolesToFilterBy] : [''];
-        const startAfter = process.env['E2E_NOW_ISO']
-          ? getServerNow().toJSDate()
-          : new Date(input.startAfter);
+        const startAfter = new Date(input.startAfter);
 
         const selectedEvents = yield* databaseEffect((database) =>
           database

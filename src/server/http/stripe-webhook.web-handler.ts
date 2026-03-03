@@ -309,7 +309,7 @@ export const handleStripeWebhookWebRequest = (
       case 'checkout.session.completed': {
         const eventSession = event.data.object;
         if (
-          eventSession.status !== 'complete' &&
+          eventSession.status !== 'complete' ||
           eventSession.payment_status !== 'paid'
         ) {
           yield* Effect.logInfo('Skipping checkout.session.completed event').pipe(
@@ -319,7 +319,7 @@ export const handleStripeWebhookWebRequest = (
               status: eventSession.status ?? 'unknown',
             }),
           );
-          return responseText('Session not completed, skipping');
+          return responseText('Session not paid and completed, skipping');
         }
 
         const checkoutSession = yield* resolveCheckoutSession(eventSession);
