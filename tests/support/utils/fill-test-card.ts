@@ -1,5 +1,4 @@
 import { Page } from '@playwright/test';
-import { DateTime } from 'luxon';
 
 const waitForVisibleLocator = async (
   page: Page,
@@ -26,11 +25,9 @@ export const fillTestCard = async (page: Page) => {
   if (await cardRadio.isVisible().catch(() => false)) {
     const isAlreadyChecked = await cardRadio.isChecked().catch(() => false);
     if (!isAlreadyChecked) {
-      await cardRadio
-        .check({ timeout: 5_000 })
-        .catch(async () => {
-          await cardRadio.click({ force: true, timeout: 5_000 }).catch(() => {});
-        });
+      await cardRadio.check({ timeout: 5_000 }).catch(async () => {
+        await cardRadio.click({ force: true, timeout: 5_000 }).catch(() => {});
+      });
     }
   }
   const cardNumber = await waitForVisibleLocator(
@@ -73,8 +70,7 @@ export const fillTestCard = async (page: Page) => {
     );
   }
   await cardNumber.fill('4242424242424242');
-  const validFutureExpiry = DateTime.now().setZone('utc').plus({ year: 1 });
-  await cardExpiry.fill(validFutureExpiry.toFormat('MM/yy'));
+  await cardExpiry.fill('12/34');
   await cardCvc.fill('123');
   const cardholderName = await waitForVisibleLocator(
     page,
@@ -88,5 +84,33 @@ export const fillTestCard = async (page: Page) => {
   );
   if (cardholderName) {
     await cardholderName.fill('Automated Testuser');
+  }
+  const postalCode = await waitForVisibleLocator(
+    page,
+    [
+      'input[data-elements-stable-field-name="postalCode"]',
+      'input[name="postalCode"]',
+      'input[autocomplete="postal-code"]',
+      'input[aria-label="ZIP"]',
+      'input[aria-label*="Postal"]',
+    ],
+    2_000,
+  );
+  if (postalCode) {
+    await postalCode.fill('12345');
+  }
+  const phoneNumber = await waitForVisibleLocator(
+    page,
+    [
+      'input[data-elements-stable-field-name="phoneNumber"]',
+      'input[name="phoneNumber"]',
+      'input[autocomplete="tel"]',
+      'input[aria-label="Phone number"]',
+      'input[aria-label*="Phone"]',
+    ],
+    2_000,
+  );
+  if (phoneNumber) {
+    await phoneNumber.fill('2015550123');
   }
 };

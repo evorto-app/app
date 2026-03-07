@@ -107,7 +107,9 @@ test.describe('Register for events', () => {
       usersToAuthenticate.find((user) => user.roles === 'user')?.id ??
       usersToAuthenticate[0].id;
     if (!regularUserId) {
-      throw new Error('Regular user configuration missing for paid registration');
+      throw new Error(
+        'Regular user configuration missing for paid registration',
+      );
     }
 
     await database
@@ -221,7 +223,9 @@ test.describe('Register for events', () => {
     } else if (checkoutUrl) {
       await page.goto(checkoutUrl);
     } else {
-      throw new Error('Stripe checkout URL missing after creating pending payment');
+      throw new Error(
+        'Stripe checkout URL missing after creating pending payment',
+      );
     }
     const checkoutPopup = await checkoutPagePromise.catch(() => null);
     const checkoutPage = checkoutPopup ?? page;
@@ -233,50 +237,76 @@ test.describe('Register for events', () => {
       .toMatch(/checkout\.stripe\.com/);
     await takeScreenshot(testInfo, checkoutPage.locator('main'), checkoutPage);
     await fillTestCard(checkoutPage);
-    await checkoutPage.getByTestId('hosted-payment-submit-button').click();
-    await expect
-      .poll(
-        async () => {
-          const transaction = await database.query.transactions.findFirst({
+    const submitButton = checkoutPage.getByTestId(
+      'hosted-payment-submit-button',
+    );
+    await submitButton.click();
+
+    const getStripeRegistrationState = async () => {
+      const transaction = await database.query.transactions.findFirst({
+        orderBy: { createdAt: 'desc' },
+        where: {
+          eventId: paidEvent.id,
+          method: 'stripe',
+          targetUserId: regularUserId,
+          tenantId: tenant.id,
+          type: 'registration',
+        },
+      });
+      if (!transaction) {
+        return 'missing-transaction';
+      }
+
+      const registration = transaction.eventRegistrationId
+        ? await database.query.eventRegistrations.findFirst({
+            where: {
+              id: transaction.eventRegistrationId,
+              tenantId: tenant.id,
+            },
+          })
+        : await database.query.eventRegistrations.findFirst({
             orderBy: { createdAt: 'desc' },
             where: {
               eventId: paidEvent.id,
-              method: 'stripe',
-              targetUserId: regularUserId,
               tenantId: tenant.id,
-              type: 'registration',
+              userId: regularUserId,
             },
           });
-          if (!transaction) {
-            return 'missing-transaction';
-          }
 
-          const registration = transaction.eventRegistrationId
-            ? await database.query.eventRegistrations.findFirst({
-                where: {
-                  id: transaction.eventRegistrationId,
-                  tenantId: tenant.id,
-                },
-              })
-            : await database.query.eventRegistrations.findFirst({
-                orderBy: { createdAt: 'desc' },
-                where: {
-                  eventId: paidEvent.id,
-                  tenantId: tenant.id,
-                  userId: regularUserId,
-                },
-              });
+      return `${transaction.status}:${registration?.status ?? 'missing-registration'}`;
+    };
 
-          return `${transaction.status}:${registration?.status ?? 'missing-registration'}`;
-        },
-        {
+    try {
+      await expect
+        .poll(getStripeRegistrationState, {
           intervals: [1_000, 2_000, 4_000],
           message:
             'Timed out waiting for Stripe checkout side-effects to be mirrored in the application database',
           timeout: 90_000,
-        },
-      )
-      .toBe('successful:CONFIRMED');
+        })
+        .toBe('successful:CONFIRMED');
+    } catch (error) {
+      const checkoutUrl = checkoutPage.isClosed()
+        ? 'closed'
+        : checkoutPage.url();
+      const submitButtonText =
+        (await submitButton.textContent().catch(() => null))?.trim() ??
+        'missing';
+      const postalCodeValue = await checkoutPage
+        .locator('input[aria-label="ZIP"], input[aria-label*="Postal"]')
+        .first()
+        .inputValue()
+        .catch(() => '');
+      const phoneValue = await checkoutPage
+        .locator('input[aria-label="Phone number"], input[aria-label*="Phone"]')
+        .first()
+        .inputValue()
+        .catch(() => '');
+      throw new Error(
+        `Timed out waiting for Stripe checkout side-effects to be mirrored in the application database (checkoutUrl=${checkoutUrl}, submitButton=${submitButtonText}, zip=${postalCodeValue || 'empty'}, phone=${phoneValue || 'empty'})`,
+        { cause: error },
+      );
+    }
 
     await page.goto(`/events/${paidEvent.id}`);
     await expect(page).toHaveURL(new RegExp(`/events/${paidEvent.id}`));
