@@ -119,6 +119,23 @@ jobs:
           docker compose down --remove-orphans
           docker compose up -d
           for attempt in $(seq 1 60); do
+            if docker compose exec -T db pg_isready -U neon -d "${NEON_DATABASE_NAME}" >/dev/null 2>&1; then
+              echo "Database is reachable"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::Database did not become reachable within 120 seconds"
+          docker compose ps
+          docker compose logs --no-color --tail=100 db evorto
+          exit 1
+
+      - name: Apply latest schema
+        run: bun run db:push
+
+      - name: Wait for application
+        run: |
+          for attempt in $(seq 1 60); do
             if curl --fail --silent --show-error "${BASE_URL}" >/dev/null; then
               echo "Application is reachable at ${BASE_URL}"
               exit 0
@@ -129,9 +146,6 @@ jobs:
           docker compose ps
           docker compose logs --no-color --tail=100
           exit 1
-
-      - name: Apply latest schema
-        run: bun run db:push
 
       - name: Run Playwright suites
         run: |
