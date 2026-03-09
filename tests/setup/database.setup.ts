@@ -1,16 +1,16 @@
 import { init } from '@paralleldrive/cuid2';
-import consola from 'consola';
 import { reset } from 'drizzle-seed';
 import fs from 'node:fs';
 import path from 'node:path';
 
 import { test as setup } from '../support/fixtures/base-test';
 import { seedTenant } from '../../helpers/seed-tenant';
+import { applyTestConsolaLevel } from '../../helpers/testing/test-logging';
 import * as schema from '../../src/db/schema';
 
 setup('Setup database', async ({ database, seedDate }) => {
   setup.setTimeout(120_000);
-  consola.level = 4;
+  applyTestConsolaLevel();
   // Reset DB and seed a single baseline tenant for this run
   // @ts-expect-error drizzle-seed missing proper types
   await reset(database, schema);
@@ -19,6 +19,7 @@ setup('Setup database', async ({ database, seedDate }) => {
     domain: 'localhost',
     ensureUsers: true,
     logSeedMap: true,
+    profile: 'docs',
     runId,
     seedDate,
   });
@@ -27,6 +28,7 @@ setup('Setup database', async ({ database, seedDate }) => {
   const runtimePath = path.resolve('.e2e-runtime.json');
   const payload = {
     runId,
+    scenario: result.scenario,
     tenantDomain: result.tenant.domain,
     tenantId: result.tenant.id,
   } as const;

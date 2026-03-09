@@ -93,6 +93,8 @@ test.describe('Inclusive tax rates documentation (creators)', () => {
 
   test('Assign compatible tax rates to paid registrations @track(playwright-specs-track-linking_20260126) @doc(INCLUSIVE-TAX-RATES-DOC-02)', async ({
     page,
+    seedDate,
+    seeded,
   }, testInfo) => {
     await page.goto('.');
 
@@ -111,14 +113,16 @@ Navigate to **Templates** and open an existing paid template to see the enforced
       page.getByRole('heading', { name: 'Event templates' }),
     ).toBeVisible();
 
-    const soccerTemplateLink = page
-      .locator('a', { hasText: 'Soccer Match' })
-      .first();
-    await expect(soccerTemplateLink).toBeVisible();
-    await soccerTemplateLink.click();
+    const paidTemplate = seeded.templates.find(
+      (template) => template.seedKey === 'sports',
+    );
+    if (!paidTemplate) {
+      throw new Error('Seeded paid sports template was not found');
+    }
+    await page.locator(`a[href="/templates/${paidTemplate.id}"]`).first().click();
 
     await expect(
-      page.getByRole('heading', { level: 1, name: 'Soccer Match' }),
+      page.getByRole('heading', { level: 1, name: paidTemplate.title }),
     ).toBeVisible();
 
     const registrationSection = page
@@ -175,16 +179,13 @@ Paid organizer registrations require a compatible inclusive tax rate. The dropdo
     await expect(
       page.getByRole('heading', { name: 'Event templates' }),
     ).toBeVisible();
-    await page
-      .getByRole('link', { name: /Soccer Match/i })
-      .first()
-      .click();
+    await page.locator(`a[href="/templates/${paidTemplate.id}"]`).first().click();
     await expect(
-      page.getByRole('heading', { level: 1, name: 'Soccer Match' }),
+      page.getByRole('heading', { level: 1, name: paidTemplate.title }),
     ).toBeVisible();
     await page.getByRole('link', { name: 'Create event' }).click();
 
-    const draftEventTitle = `Tax Rate Edit ${Date.now()}`;
+    const draftEventTitle = `Tax Rate Edit ${seedDate.toISOString().slice(0, 10)}`;
     await page.getByLabel('Event Title').fill(draftEventTitle);
     await page.getByRole('button', { name: 'Create Event' }).click();
     await expect(

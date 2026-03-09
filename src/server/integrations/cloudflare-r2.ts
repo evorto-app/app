@@ -1,4 +1,4 @@
-import { getCloudflareR2Environment } from '../config/environment';
+import { getObjectStorageEnvironment } from '../config/environment';
 
 interface BunS3Client {
   file(key: string): BunS3File;
@@ -8,7 +8,9 @@ type BunS3ClientConstructor = new (config: {
   accessKeyId: string;
   bucket: string;
   endpoint: string;
+  region?: string;
   secretAccessKey: string;
+  virtualHostedStyle?: boolean;
 }) => BunS3Client;
 
 interface BunS3File {
@@ -36,38 +38,40 @@ const getBunS3ClientConstructor = (): BunS3ClientConstructor => {
 
   const constructor = bunRuntime?.S3Client;
   if (!constructor) {
-    throw new Error(
-      'Bun runtime is required for Cloudflare R2 storage operations.',
-    );
+    throw new Error('Bun runtime is required for object storage operations.');
   }
 
   return constructor;
 };
 
-const resolveCloudflareR2Config = (): {
+const resolveObjectStorageConfig = (): {
   bucket: string;
   endpoint: string;
   keyId: string;
   keySecret: string;
+  region: string;
 } => {
-  const environment = getCloudflareR2Environment();
-  const endpoint = environment.CLOUDFLARE_R2_S3_ENDPOINT;
-  const keyId = environment.CLOUDFLARE_R2_S3_KEY_ID;
-  const keySecret = environment.CLOUDFLARE_R2_S3_KEY;
-  const bucket = environment.CLOUDFLARE_R2_BUCKET;
+  const environment = getObjectStorageEnvironment();
+  const endpoint = environment.endpoint;
+  const keyId = environment.accessKeyId;
+  const keySecret = environment.secretAccessKey;
+  const bucket = environment.bucket;
+  const region = environment.region;
 
-  return { bucket, endpoint, keyId, keySecret };
+  return { bucket, endpoint, keyId, keySecret, region };
 };
 
 const buildS3Client = (
-  config: ReturnType<typeof resolveCloudflareR2Config>,
+  config: ReturnType<typeof resolveObjectStorageConfig>,
 ): BunS3Client => {
   const S3Client = getBunS3ClientConstructor();
   return new S3Client({
     accessKeyId: config.keyId,
     bucket: config.bucket,
     endpoint: config.endpoint,
+    region: config.region,
     secretAccessKey: config.keySecret,
+    virtualHostedStyle: false,
   });
 };
 
@@ -79,7 +83,7 @@ export const uploadReceiptOriginalToR2 = async (input: {
   storageKey: string;
   storageUrl: string;
 }> => {
-  const config = resolveCloudflareR2Config();
+  const config = resolveObjectStorageConfig();
   const client = buildS3Client(config);
 
   await client.file(input.key).write(input.body, {
@@ -96,7 +100,7 @@ export const getSignedReceiptObjectUrlFromR2 = async (input: {
   expiresInSeconds?: number;
   key: string;
 }): Promise<string> => {
-  const config = resolveCloudflareR2Config();
+  const config = resolveObjectStorageConfig();
   const client = buildS3Client(config);
 
   return client.file(input.key).presign({

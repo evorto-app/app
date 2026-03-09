@@ -1,23 +1,47 @@
-import { randEmail, randFirstName, randLastName } from '@ngneat/falso';
-import consola from 'consola';
 import type { InferInsertModel } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
+
+import { randEmail, randFirstName, randLastName } from '@ngneat/falso';
+import consola from 'consola';
+
+import type { SeedProfile, SeedScenarioEvents } from './add-events';
+import type { SeedTemplateKey } from './add-templates';
 
 import { relations } from '../src/db/relations';
 import * as schema from '../src/db/schema';
 import { addEvents } from './add-events';
+import { addFinanceReceipts } from './add-finance-receipts';
 import { addIcons } from './add-icons';
 import { addRegistrations } from './add-registrations';
 import { addExampleUsers, addRoles, addUsersToRoles } from './add-roles';
 import { addTaxRates } from './add-tax-rates';
 import { addTemplateCategories } from './add-template-categories';
 import { addTemplates } from './add-templates';
-import { addFinanceReceipts } from './add-finance-receipts';
 import { createTenant } from './create-tenant';
 import { getSeedDate } from './seed-clock';
 import { usersToAuthenticate } from './user-data';
 
-const defaultStripeAccountId = 'acct_1Qs6S5PPcz51fqyK';
+const resolveStripeSeedAccountId = (
+  profile: SeedProfile,
+  explicitValue?: string,
+): string | undefined => {
+  if (explicitValue && explicitValue.trim().length > 0) {
+    return explicitValue;
+  }
+
+  const fromEnvironment = process.env['STRIPE_TEST_ACCOUNT_ID']?.trim();
+  if (fromEnvironment && fromEnvironment.length > 0) {
+    return fromEnvironment;
+  }
+
+  if (profile === 'docs' || profile === 'test') {
+    throw new Error(
+      'Missing STRIPE_TEST_ACCOUNT_ID for deterministic paid seed scenarios',
+    );
+  }
+
+  return undefined;
+};
 
 export interface SeedTenantOptions {
   domain?: string;
@@ -26,43 +50,29 @@ export interface SeedTenantOptions {
   includeRegistrations?: boolean;
   logSeedMap?: boolean;
   name?: string;
+  profile?: SeedProfile;
   runId?: string;
   seedDate?: Date;
   stripeAccountId?: string;
 }
 
 export interface SeedTenantResult {
-  tenant: { id: string; domain: string; name: string };
-  roles: {
-    id: string;
-    name: string;
-    defaultUserRole: boolean;
-    defaultOrganizerRole: boolean;
-  }[];
-  templateCategories: { id: string; tenantId: string; title: string }[];
-  templates: {
-    id: string;
-    tenantId: string;
-    title: string;
-    description: string;
-    icon: string;
-  }[];
   events: {
     id: string;
-    tenantId: string;
-    title: string;
-    status: 'APPROVED' | 'DRAFT' | 'PENDING_REVIEW' | 'REJECTED';
-    unlisted: boolean;
     registrationOptions: {
+      closeRegistrationTime: Date;
       id: string;
-      title: string;
       isPaid: boolean;
       openRegistrationTime: Date;
-      closeRegistrationTime: Date;
       price: number;
       roleIds: string[];
       spots: number;
+      title: string;
     }[];
+    status: 'APPROVED' | 'DRAFT' | 'PENDING_REVIEW' | 'REJECTED';
+    tenantId: string;
+    title: string;
+    unlisted: boolean;
   }[];
   registrations: {
     eventId: string;
@@ -72,6 +82,25 @@ export interface SeedTenantResult {
     tenantId: string;
     userId: string;
   }[];
+  roles: {
+    defaultOrganizerRole: boolean;
+    defaultUserRole: boolean;
+    id: string;
+    name: string;
+  }[];
+  scenario: {
+    events: SeedScenarioEvents;
+  };
+  templateCategories: { id: string; tenantId: string; title: string }[];
+  templates: {
+    description: string;
+    icon: string;
+    id: string;
+    seedKey: SeedTemplateKey;
+    tenantId: string;
+    title: string;
+  }[];
+  tenant: { domain: string; id: string; name: string };
 }
 
 export const seedBaseUsers = async (
@@ -103,12 +132,13 @@ export async function seedTenant(
     domain,
     ensureUsers = false,
     includeExampleUsers = false,
-    includeRegistrations = true,
+    includeRegistrations,
     logSeedMap = false,
     name,
+    profile = 'demo',
     runId,
     seedDate,
-    stripeAccountId = defaultStripeAccountId,
+    stripeAccountId,
   }: SeedTenantOptions,
 ): Promise<SeedTenantResult> {
   if (ensureUsers) {
@@ -119,9 +149,15 @@ export async function seedTenant(
   const resolvedName = name ?? (runId ? `E2E ${runId}` : undefined);
 
   const resolvedSeedDate = seedDate ?? getSeedDate();
+  const resolvedStripeAccountId = resolveStripeSeedAccountId(
+    profile,
+    stripeAccountId,
+  );
 
   const tenantInput: Partial<InferInsertModel<typeof schema.tenants>> = {
-    stripeAccountId,
+    ...(resolvedStripeAccountId
+      ? { stripeAccountId: resolvedStripeAccountId }
+      : {}),
   };
   if (typeof resolvedDomain === 'string') {
     tenantInput.domain = resolvedDomain;
@@ -166,10 +202,18 @@ export async function seedTenant(
     icons,
   );
   const templates = await addTemplates(database, templateCategories, roles);
-  const events = await addEvents(database, templates, roles, resolvedSeedDate);
+  const effectiveIncludeRegistrations =
+    includeRegistrations ?? profile !== 'docs';
+  const seededEvents = await addEvents(
+    database,
+    templates,
+    roles,
+    resolvedSeedDate,
+    profile,
+  );
   const registrations = (
-    includeRegistrations
-      ? await addRegistrations(database, events, resolvedSeedDate)
+    effectiveIncludeRegistrations
+      ? await addRegistrations(database, seededEvents.events, resolvedSeedDate)
       : []
   ).map((registration) => {
     if (!registration.id) {
@@ -185,51 +229,54 @@ export async function seedTenant(
     };
   });
   await addFinanceReceipts(database, {
-    eventIds: events.map((event) => event.id),
+    eventIds: seededEvents.events.map((event) => event.id),
     tenantId: tenant.id,
   });
 
   if (logSeedMap) {
     const map = {
-      runId,
-      tenantDomain: tenant.domain,
       categories: templateCategories.map((c) => c.title).slice(0, 6),
-      exampleEvents: events.slice(0, 6).map((e) => ({
-        title: e.title,
-        paid: e.registrationOptions.some((o) => o.isPaid),
+      exampleEvents: seededEvents.events.slice(0, 6).map((event) => ({
+        paid: event.registrationOptions.some((option) => option.isPaid),
+        title: event.title,
       })),
+      runId,
+      scenario: seededEvents.scenario.events,
+      tenantDomain: tenant.domain,
     } as const;
     consola.info(`[seed-map] ${JSON.stringify(map)}`);
   }
 
   return {
-    tenant: { id: tenant.id, domain: tenant.domain, name: tenant.name },
+    events: seededEvents.events.map((event) => ({
+      id: event.id,
+      registrationOptions: event.registrationOptions.map((option) => ({
+        closeRegistrationTime: option.closeRegistrationTime,
+        id: option.id,
+        isPaid: option.isPaid,
+        openRegistrationTime: option.openRegistrationTime,
+        price: option.price,
+        roleIds: option.roleIds ?? [],
+        spots: option.spots,
+        title: option.title,
+      })),
+      status: event.status,
+      tenantId: event.tenantId,
+      title: event.title,
+      unlisted: event.unlisted,
+    })),
+    registrations,
     roles,
+    scenario: seededEvents.scenario,
     templateCategories,
     templates: templates.map((t) => ({
       description: t.description,
       icon: t.icon.iconName,
       id: t.id,
+      seedKey: t.seedKey,
       tenantId: t.tenantId,
       title: t.title,
     })),
-    events: events.map((e) => ({
-      id: e.id,
-      tenantId: e.tenantId,
-      registrationOptions: e.registrationOptions.map((o) => ({
-        closeRegistrationTime: o.closeRegistrationTime,
-        id: o.id,
-        isPaid: o.isPaid,
-        openRegistrationTime: o.openRegistrationTime,
-        price: o.price,
-        roleIds: o.roleIds ?? [],
-        spots: o.spots,
-        title: o.title,
-      })),
-      status: e.status,
-      title: e.title,
-      unlisted: e.unlisted,
-    })),
-    registrations,
+    tenant: { domain: tenant.domain, id: tenant.id, name: tenant.name },
   } satisfies SeedTenantResult;
 }

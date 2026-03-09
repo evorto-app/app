@@ -4,14 +4,51 @@ import path from 'node:path';
 import { usersToAuthenticate } from '../../helpers/user-data';
 import { test as setup } from '../support/fixtures/base-test';
 
+const runtimePath = path.resolve('.e2e-runtime.json');
+
+const readRuntime = (): { tenantDomain?: string } | undefined => {
+  if (!fs.existsSync(runtimePath)) {
+    return undefined;
+  }
+
+  return JSON.parse(fs.readFileSync(runtimePath, 'utf-8')) as {
+    tenantDomain?: string;
+  };
+};
+
+const waitForRuntime = async (
+  timeoutMs = 30_000,
+): Promise<{ tenantDomain?: string }> => {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    const runtime = readRuntime();
+    if (runtime) {
+      return runtime;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+
+  throw new Error(
+    `Timed out waiting for ${runtimePath} to be written by database.setup.ts`,
+  );
+};
+
 for (const userData of usersToAuthenticate) {
   setup(`authenticate ${userData.email}`, async ({ page }) => {
-    const runtimePath = path.resolve('.e2e-runtime.json');
-    const runtime = fs.existsSync(runtimePath)
-      ? (JSON.parse(fs.readFileSync(runtimePath, 'utf-8')) as {
-          tenantDomain?: string;
-        })
-      : {};
+    const runtime = await waitForRuntime();
+
+    if (runtime.tenantDomain) {
+      await page.context().addCookies([
+        {
+          domain: 'localhost',
+          expires: -1,
+          name: 'evorto-tenant',
+          path: '/',
+          value: runtime.tenantDomain,
+        },
+      ]);
+    }
 
     await page.goto('/login', { waitUntil: 'domcontentloaded' });
     await page
@@ -40,18 +77,6 @@ for (const userData of usersToAuthenticate) {
       await page.waitForURL(eventsPathPattern, { timeout: 8000 });
     }
 
-    // Save state with correct tenant cookie if present
-    if (runtime.tenantDomain) {
-      await page.context().addCookies([
-        {
-          domain: 'localhost',
-          expires: -1,
-          name: 'evorto-tenant',
-          path: '/',
-          value: runtime.tenantDomain,
-        },
-      ]);
-    }
     await page.context().storageState({ path: userData.stateFile });
   });
 }

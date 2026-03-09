@@ -5,6 +5,19 @@ export const userStateFile = 'tests/.auth/regular-user.json';
 export const organizerStateFile = 'tests/.auth/organizer-user.json';
 export const emptyStateFile = 'tests/.auth/empty-user.json';
 
+/**
+ * Canonical test users and role scope matrix.
+ *
+ * Intended usage in tests:
+ * - `all`: broad legacy fallback user; avoid for new specs.
+ * - `admin`: finance/admin capabilities (tax rates, receipts approval, role admin).
+ * - `user`: regular attendee flows (registration, profile, discounts).
+ * - `organizer`: template/event creation and organizer-level event management.
+ * - `none`: negative-permission checks (no tenant app permissions).
+ *
+ * Keep specs least-privileged by default and only elevate via `permissionOverride`
+ * when a test explicitly validates permission transitions.
+ */
 export const usersToAuthenticate = [
   {
     addToDb: true,

@@ -2,7 +2,6 @@ import type { Headers } from '@effect/platform';
 
 import { and, eq } from 'drizzle-orm';
 import { Effect } from 'effect';
-import { DateTime } from 'luxon';
 
 import { Database, type DatabaseClient } from '../../../../../db';
 import { createId } from '../../../../../db/create-id';
@@ -16,7 +15,11 @@ import {
 import { resolveTenantDiscountProviders, type TenantDiscountProviders } from '../../../../../shared/tenant-config';
 import { type Tenant } from '../../../../../types/custom/tenant';
 import { type User } from '../../../../../types/custom/user';
-import { stripe } from '../../../../stripe-client';
+import {
+  buildCheckoutSessionExpiresAt,
+  buildCheckoutSessionIdempotencyKey,
+  createHostedCheckoutSession,
+} from '../../../../integrations/stripe-checkout';
 import {
   EventRegistrationConflictError,
   EventRegistrationInternalError,
@@ -448,13 +451,11 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
                 message: 'Failed to create stripe checkout session',
               }),
             try: () =>
-              stripe.checkout.sessions.create(
+              createHostedCheckoutSession(
                 {
                   cancel_url: `${eventUrl}?registrationStatus=cancel`,
                   customer_email: user.email,
-                  expires_at: Math.ceil(
-                    DateTime.local().plus({ minutes: 30 }).toSeconds(),
-                  ),
+                  expires_at: buildCheckoutSessionExpiresAt(30),
                   line_items: [
                     {
                       price_data: {
@@ -481,7 +482,13 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
                   },
                   success_url: `${eventUrl}?registrationStatus=success`,
                 },
-                { stripeAccount },
+                {
+                  idempotencyKey: buildCheckoutSessionIdempotencyKey({
+                    registrationId: userRegistration.id,
+                    transactionId,
+                  }),
+                  stripeAccount,
+                },
               ),
           });
 

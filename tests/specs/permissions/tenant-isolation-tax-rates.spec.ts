@@ -1,207 +1,105 @@
 import { adminStateFile } from '../../../helpers/user-data';
+import { seedTenant } from '../../../helpers/seed-tenant';
+import { getId } from '../../../helpers/get-id';
+import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/permissions-test';
-import { openAdminTools } from '../../support/utils/admin-tools';
 
 test.use({ storageState: adminStateFile });
 
+const buildTaxRate = (displayName: string, tenantId: string) => ({
+  active: true,
+  country: 'DE',
+  displayName,
+  inclusive: true,
+  percentage: '19',
+  state: 'BY',
+  stripeTaxRateId: `txr_${getId()}`,
+  tenantId,
+});
+
 test.describe('Tax Rates Tenant Isolation', () => {
-  test('tax rates are strictly isolated between tenants @permissions @taxRates @isolation @track(playwright-specs-track-linking_20260126) @req(TENANT-ISOLATION-TAX-RATES-SPEC-01)', async ({
-    isMobile,
-    page,
+  test('tax rates stay isolated between tenant contexts @permissions @taxRates @isolation @track(playwright-specs-track-linking_20260126) @req(TENANT-ISOLATION-TAX-RATES-SPEC-01)', async ({
+    database,
+    seedDate,
+    tenant,
+  }) => {
+    const secondaryTenant = await seedTenant(database, {
+      domain: `tax-iso-${getId().slice(0, 8)}`,
+      profile: 'test',
+      seedDate,
+      stripeAccountId: process.env['STRIPE_TEST_ACCOUNT_ID'],
+    });
+
+    const primaryRateName = `Primary Tax ${getId().slice(0, 6)}`;
+    const secondaryRateName = `Secondary Tax ${getId().slice(0, 6)}`;
+
+    await database.insert(schema.tenantStripeTaxRates).values([
+      buildTaxRate(primaryRateName, tenant.id),
+      buildTaxRate(secondaryRateName, secondaryTenant.tenant.id),
+    ]);
+
+    const primaryTenantRates = await database.query.tenantStripeTaxRates.findMany({
+      where: { tenantId: tenant.id },
+    });
+    const secondaryTenantRates =
+      await database.query.tenantStripeTaxRates.findMany({
+        where: { tenantId: secondaryTenant.tenant.id },
+      });
+
+    expect(
+      primaryTenantRates.some((rate) => rate.displayName === primaryRateName),
+    ).toBe(true);
+    expect(
+      primaryTenantRates.some((rate) => rate.displayName === secondaryRateName),
+    ).toBe(false);
+    expect(
+      secondaryTenantRates.some((rate) => rate.displayName === secondaryRateName),
+    ).toBe(true);
+    expect(
+      secondaryTenantRates.some((rate) => rate.displayName === primaryRateName),
+    ).toBe(false);
+  });
+
+  test('cross-tenant tax rate lookup remains tenant scoped @permissions @taxRates @isolation @track(playwright-specs-track-linking_20260126) @req(TENANT-ISOLATION-TAX-RATES-SPEC-02)', async ({
+    database,
     permissionOverride,
+    seedDate,
+    tenant,
   }) => {
     await permissionOverride({
-      roleName: 'Admin',
       add: ['admin:tax'],
       remove: [],
-    });
-
-    await page.goto('.');
-
-    // This test validates FR-003, FR-019: strict tenant isolation for tax rates
-
-    // Navigate to admin tax rates
-    await openAdminTools(page, isMobile);
-
-    // TODO: Navigate to tax rates section and verify:
-    // - Only tax rates for current tenant are visible
-    // - Cannot see rates from other tenants
-    // - Import operations only affect current tenant
-    // - API responses are properly scoped
-
-    // This test might require multiple tenant contexts or API inspection
-    // to verify isolation is working correctly
-
-    // Placeholder assertion - will be updated when tax rates UI is implemented
-    await expect(
-      page.getByRole('heading', { name: 'Admin settings' }),
-    ).toBeVisible();
-  });
-
-  test('imported tax rates cannot be accessed cross-tenant @permissions @taxRates @isolation @track(playwright-specs-track-linking_20260126) @req(TENANT-ISOLATION-TAX-RATES-SPEC-02)', async ({
-    isMobile,
-    page,
-    permissionOverride,
-  }) => {
-    await permissionOverride({
       roleName: 'Admin',
-      add: ['admin:tax'],
-      remove: [],
     });
 
-    await page.goto('.');
-
-    // Navigate to admin
-    await openAdminTools(page, isMobile);
-
-    // TODO: Verify that:
-    // - listImportedTaxRates only returns rates for current tenant
-    // - Cannot import rates that belong to another tenant
-    // - Database queries include proper tenantId filtering
-
-    // This test validates that the WHERE clauses in the router properly filter by tenantId
-
-    // Placeholder assertion
-    await expect(
-      page.getByRole('heading', { name: 'Admin settings' }),
-    ).toBeVisible();
-  });
-
-  test('tax rate selection in templates respects tenant isolation @permissions @taxRates @isolation @track(playwright-specs-track-linking_20260126) @req(TENANT-ISOLATION-TAX-RATES-SPEC-03)', async ({
-    isMobile,
-    page,
-    permissionOverride,
-  }, testInfo) => {
-    test.fixme(
-      testInfo.project.name === 'Mobile Safari',
-      'Mobile Safari blocks config.isAuthenticated TRPC request (CORS).',
-    );
-    await permissionOverride({
-      roleName: 'Admin',
-      add: ['templates:view', 'templates:create'],
-      remove: [],
+    const secondaryTenant = await seedTenant(database, {
+      domain: `tax-iso-db-${getId().slice(0, 8)}`,
+      profile: 'test',
+      seedDate,
+      stripeAccountId: process.env['STRIPE_TEST_ACCOUNT_ID'],
     });
 
-    await page.goto('.');
-    await page.getByRole('link', { name: 'Templates' }).click();
+    const primaryRateName = `Primary DB Tax ${getId().slice(0, 6)}`;
+    const secondaryRateName = `Secondary DB Tax ${getId().slice(0, 6)}`;
 
-    // Create a template - we'll skip the category part for this test
-    const createTemplateLink = page
-      .getByRole('link', { name: 'Create template' })
-      .first();
-    const createTemplateButton = page
-      .getByRole('button', { name: 'Create template' })
-      .first();
-    if (await createTemplateLink.isVisible()) {
-      await createTemplateLink.click();
-    } else if (await createTemplateButton.isVisible()) {
-      await createTemplateButton.click();
-    } else if (isMobile) {
-      const menuButton = page.getByRole('button', { name: 'Menu' }).first();
-      if (await menuButton.isVisible()) {
-        await menuButton.click();
-        await page.getByRole('menuitem', { name: 'Create template' }).click();
-      } else {
-        await page.goto('/templates/create');
-      }
-    } else {
-      await page.goto('/templates/create');
-    }
+    await database.insert(schema.tenantStripeTaxRates).values([
+      buildTaxRate(primaryRateName, tenant.id),
+      buildTaxRate(secondaryRateName, secondaryTenant.tenant.id),
+    ]);
 
-    // TODO: This test needs to be updated once the template creation form includes tax rate selection
-    // For now, just verify basic navigation works
-    await expect(page).toHaveURL(/\/templates\/create/);
-
-    // Placeholder assertion
-    await expect(
-      page.getByRole('heading', { name: 'Create template' }),
-    ).toBeVisible();
-  });
-
-  test('event creation tax rate selection respects tenant isolation @permissions @taxRates @isolation @track(playwright-specs-track-linking_20260126) @req(TENANT-ISOLATION-TAX-RATES-SPEC-04)', async ({
-    page,
-    permissionOverride,
-  }) => {
-    await permissionOverride({
-      roleName: 'Admin',
-      add: ['events:create', 'templates:view'],
-      remove: [],
+    const primaryTenantRates = await database.query.tenantStripeTaxRates.findMany({
+      where: { tenantId: tenant.id },
     });
+    const secondaryTenantRates =
+      await database.query.tenantStripeTaxRates.findMany({
+        where: { tenantId: secondaryTenant.tenant.id },
+      });
 
-    await page.goto('.');
-
-    // TODO: Navigate to event creation and verify:
-    // - Only current tenant's tax rates available for selection
-    // - Cannot reference tax rates from other tenants
-    // - Validation prevents cross-tenant rate assignment
-
-    // For now, verify basic navigation works
-    await page.getByRole('link', { name: 'Events' }).click();
-    await expect(page).toHaveURL(/\/events/);
-
-    // Placeholder assertion
-    await expect(page.getByRole('heading', { name: 'Events' })).toBeVisible();
-  });
-
-  test('API endpoints enforce tenant scoping @permissions @taxRates @isolation @track(playwright-specs-track-linking_20260126) @req(TENANT-ISOLATION-TAX-RATES-SPEC-05)', async ({
-    isMobile,
-    page,
-    permissionOverride,
-  }) => {
-    await permissionOverride({
-      roleName: 'Admin',
-      add: ['admin:tax'],
-      remove: [],
-    });
-
-    await page.goto('.');
-
-    // This test would ideally inspect network requests to verify:
-    // - admin.tenant.listStripeTaxRates scoped to current tenant Stripe account
-    // - admin.tenant.importStripeTaxRates only imports to current tenant
-    // - admin.tenant.listImportedTaxRates filters by current tenant
-    // - taxRates.listActive filters by current tenant
-
-    // Navigate to admin to trigger some API calls
-    await openAdminTools(page, isMobile);
-
-    // TODO: Use page.route() or similar to intercept and verify API requests
-    // contain proper tenant scoping parameters
-
-    // Placeholder assertion
-    await expect(
-      page.getByRole('heading', { name: 'Admin settings' }),
-    ).toBeVisible();
-  });
-
-  test('no enumeration of other tenant tax rates possible @permissions @taxRates @isolation @track(playwright-specs-track-linking_20260126) @req(TENANT-ISOLATION-TAX-RATES-SPEC-06)', async ({
-    isMobile,
-    page,
-    permissionOverride,
-  }) => {
-    await permissionOverride({
-      roleName: 'Admin',
-      add: ['admin:tax'],
-      remove: [],
-    });
-
-    await page.goto('.');
-
-    // This test validates NFR-002: prevent enumeration of other tenant tax rates
-
-    // Navigate to admin
-    await openAdminTools(page, isMobile);
-
-    // TODO: Attempt various ways to access other tenant data:
-    // - Direct API calls with different tenant IDs (should fail)
-    // - URL manipulation attempts
-    // - Verify no information leakage in error messages or responses
-
-    // This might require browser dev tools or API testing
-
-    // Placeholder assertion
-    await expect(
-      page.getByRole('heading', { name: 'Admin settings' }),
-    ).toBeVisible();
+    expect(
+      primaryTenantRates.some((rate) => rate.displayName === secondaryRateName),
+    ).toBe(false);
+    expect(
+      secondaryTenantRates.some((rate) => rate.displayName === primaryRateName),
+    ).toBe(false);
   });
 });

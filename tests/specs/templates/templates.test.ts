@@ -1,4 +1,4 @@
-import { defaultStateFile } from '../../../helpers/user-data';
+import { organizerStateFile } from '../../../helpers/user-data';
 import { getId } from '../../../helpers/get-id';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { fillTemplateBasics } from '../../support/utils/template-form';
@@ -6,7 +6,7 @@ import * as schema from '../../../src/db/schema';
 
 test.setTimeout(120000);
 
-test.use({ storageState: defaultStateFile });
+test.use({ storageState: organizerStateFile });
 
 test('create template in empty category @track(playwright-specs-track-linking_20260126) @req(TEMPLATES-TEST-01)', async ({
   database,

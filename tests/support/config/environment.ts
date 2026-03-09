@@ -3,6 +3,11 @@ import { Either, ParseResult, Schema } from 'effect';
 import consola from 'consola';
 
 import { loadDotenvFiles } from '../../../helpers/config/load-dotenv-files';
+import {
+  DEFAULT_E2E_NOW_ISO,
+  DEFAULT_E2E_SEED_KEY,
+} from '../../../helpers/testing/deterministic-test-defaults';
+import { applyTestConsolaLevel } from '../../../helpers/testing/test-logging';
 
 loadDotenvFiles();
 
@@ -26,10 +31,27 @@ const PlaywrightCommonFields = {
   CLOUDFLARE_R2_S3_ENDPOINT: optionalNonEmptyString,
   CLOUDFLARE_R2_S3_KEY: optionalNonEmptyString,
   CLOUDFLARE_R2_S3_KEY_ID: optionalNonEmptyString,
+  AWS_ACCESS_KEY_ID: optionalNonEmptyString,
+  AWS_BUCKET: optionalNonEmptyString,
+  AWS_ENDPOINT: optionalNonEmptyString,
+  AWS_REGION: optionalNonEmptyString,
+  AWS_SECRET_ACCESS_KEY: optionalNonEmptyString,
   CLOUDFLARE_TOKEN: optionalNonEmptyString,
   DOCS_IMG_OUT_DIR: optionalNonEmptyString,
   DOCS_OUT_DIR: optionalNonEmptyString,
+  E2E_NOW_ISO: Schema.optionalWith(Schema.NonEmptyString, {
+    default: () => DEFAULT_E2E_NOW_ISO,
+  }),
+  E2E_SEED_KEY: Schema.optionalWith(Schema.NonEmptyString, {
+    default: () => DEFAULT_E2E_SEED_KEY,
+  }),
   PLAYWRIGHT_TEST_BASE_URL: optionalNonEmptyString,
+  S3_ACCESS_KEY_ID: optionalNonEmptyString,
+  S3_BUCKET: optionalNonEmptyString,
+  S3_ENDPOINT: optionalNonEmptyString,
+  S3_REGION: optionalNonEmptyString,
+  S3_SECRET_ACCESS_KEY: optionalNonEmptyString,
+  STRIPE_TEST_ACCOUNT_ID: optionalNonEmptyString,
   TENANT_DOMAIN: optionalNonEmptyString,
 } as const;
 
@@ -45,6 +67,7 @@ const PlaywrightWithWebserverEnvironmentSchema = Schema.Struct({
   }),
   SECRET: Schema.NonEmptyString,
   STRIPE_API_KEY: Schema.NonEmptyString,
+  STRIPE_TEST_ACCOUNT_ID: Schema.NonEmptyString,
   STRIPE_WEBHOOK_SECRET: Schema.NonEmptyString,
 });
 
@@ -75,14 +98,43 @@ const CloudflareImagesTokenEnvironmentSchema = Schema.Union(
   }),
 );
 
+const CIS3ObjectStorageEnvironmentSchema = Schema.Struct({
+  S3_ACCESS_KEY_ID: Schema.NonEmptyString,
+  S3_BUCKET: Schema.NonEmptyString,
+  S3_ENDPOINT: Schema.NonEmptyString,
+  S3_REGION: Schema.NonEmptyString,
+  S3_SECRET_ACCESS_KEY: Schema.NonEmptyString,
+});
+
+const CIAwsObjectStorageEnvironmentSchema = Schema.Struct({
+  AWS_ACCESS_KEY_ID: Schema.NonEmptyString,
+  AWS_BUCKET: Schema.NonEmptyString,
+  AWS_ENDPOINT: Schema.NonEmptyString,
+  AWS_REGION: Schema.NonEmptyString,
+  AWS_SECRET_ACCESS_KEY: Schema.NonEmptyString,
+});
+
+const CILegacyCloudflareR2EnvironmentSchema = Schema.Struct({
+  CLOUDFLARE_R2_S3_ENDPOINT: Schema.NonEmptyString,
+  CLOUDFLARE_R2_S3_KEY: Schema.NonEmptyString,
+  CLOUDFLARE_R2_S3_KEY_ID: Schema.NonEmptyString,
+});
+
+const CIObjectStorageEnvironmentSchema = Schema.Union(
+  CIS3ObjectStorageEnvironmentSchema,
+  CIAwsObjectStorageEnvironmentSchema,
+  CILegacyCloudflareR2EnvironmentSchema,
+);
+
 const CIIntegrationEnvironmentSchema = Schema.Struct({
   CI: TrueFromString,
   CLOUDFLARE_ACCOUNT_ID: Schema.NonEmptyString,
   CLOUDFLARE_IMAGES_DELIVERY_HASH: Schema.NonEmptyString,
-  CLOUDFLARE_R2_S3_ENDPOINT: Schema.NonEmptyString,
-  CLOUDFLARE_R2_S3_KEY: Schema.NonEmptyString,
-  CLOUDFLARE_R2_S3_KEY_ID: Schema.NonEmptyString,
 }).pipe(Schema.extend(CloudflareImagesTokenEnvironmentSchema));
+
+const CIStripeSeedEnvironmentSchema = Schema.Struct({
+  STRIPE_TEST_ACCOUNT_ID: Schema.NonEmptyString,
+});
 
 const DocumentationOutputEnvironmentSchema = Schema.Struct({
   DOCS_IMG_OUT_DIR: Schema.optionalWith(Schema.NonEmptyString, {
@@ -114,6 +166,19 @@ const decodeOrThrow = <A, I>(
   return parsed.right;
 };
 
+const normalizePlaywrightInput = (
+  input: NodeJS.ProcessEnv,
+): NodeJS.ProcessEnv => {
+  if (input['NO_WEBSERVER'] !== undefined) {
+    return input;
+  }
+
+  return {
+    ...input,
+    NO_WEBSERVER: 'false',
+  };
+};
+
 export const hasAuth0ManagementEnvironment = (
   input: NodeJS.ProcessEnv = process.env,
 ): boolean =>
@@ -136,21 +201,35 @@ export const getAuth0ManagementEnvironment = (
 export const validatePlaywrightEnvironment = (
   input: NodeJS.ProcessEnv = process.env,
 ): PlaywrightEnvironment => {
+  const normalizedInput = normalizePlaywrightInput(input);
+  const logLevel = applyTestConsolaLevel(normalizedInput);
   const environment = decodeOrThrow(
     PlaywrightEnvironmentSchema,
-    input,
+    normalizedInput,
     'e2e Playwright environment',
   );
 
   if (environment.CI) {
     decodeOrThrow(
       CIIntegrationEnvironmentSchema,
-      input,
+      normalizedInput,
       'e2e CI integration environment',
+    );
+    decodeOrThrow(
+      CIObjectStorageEnvironmentSchema,
+      normalizedInput,
+      'e2e object storage environment',
+    );
+    decodeOrThrow(
+      CIStripeSeedEnvironmentSchema,
+      normalizedInput,
+      'e2e stripe seed environment',
     );
   }
 
-  consola.debug('Playwright environment:', environment);
+  if (logLevel >= 4) {
+    consola.debug('Playwright environment:', environment);
+  }
 
   return environment;
 };
