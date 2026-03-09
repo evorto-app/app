@@ -117,7 +117,7 @@ jobs:
       - name: Start Docker stack for E2E
         run: |
           docker compose down --remove-orphans
-          docker compose up -d
+          docker compose up -d db minio stripe minio-init
           for attempt in $(seq 1 60); do
             if docker compose exec -T db pg_isready -U neon -d "${NEON_DATABASE_NAME}" >/dev/null 2>&1; then
               echo "Database is reachable"
@@ -132,6 +132,9 @@ jobs:
 
       - name: Apply latest schema
         run: bun run db:push
+
+      - name: Start application container
+        run: docker compose up -d evorto
 
       - name: Wait for application
         run: |
