@@ -11,7 +11,11 @@
 - Start runtime stack: `bun run docker:start`
 - Start runtime stack in foreground (used by Playwright webServer): `bun run docker:start:test`
 - Stop runtime stack: `bun run docker:stop`
-- After schema changes, apply the latest schema with `bun run db:push` before running Playwright against an existing local runtime.
+- Local docker runs now use a real Postgres container, not `neon_local`.
+- `docker:*` and `db:*` commands generate `.env.development` automatically before they run.
+- `bun run db:push` applies schema only.
+- `bun run db:setup` ensures schema exists, then resets and seeds the local database.
+- `bun run db:reset` is now an alias for `bun run db:setup`.
 
 `.env.development` is loaded automatically by app and tests whenever the file exists.
 
@@ -53,6 +57,21 @@ Use the seeded scenario handles exposed by `SeedTenantResult` instead:
 - `seeded.scenario.events.draft`
 
 The seed map emitted during setup includes these handles for CI/debugging.
+
+## Local Stack Isolation
+
+`.env.development` is generated from the current working directory, so separate worktrees get:
+
+- distinct `COMPOSE_PROJECT_NAME`
+- distinct local Postgres port
+- distinct local MinIO ports
+
+The local app port intentionally stays at `4200` by default because the current Auth0 local callback configuration expects `localhost:4200`. That means:
+
+- database and object-storage state can be isolated per worktree
+- fully authenticated browser stacks still need the shared `4200` app port unless Auth0 callback settings are expanded
+
+If you intentionally need another isolated stack from the same working tree, override the generated ports/project name explicitly before running `bun run env:runtime`.
 
 ## Object Storage Environment (MinIO/R2-Compatible)
 

@@ -67,8 +67,8 @@ bun run db:reset
 
 This will:
 
-1. Push the latest schema to the database (`bun run db:push`)
-2. Run the seeding script (`bun run db:setup`)
+1. Generate the local runtime environment (`bun run env:runtime`)
+2. Ensure schema exists and reset/seed the local database (`bun run db:setup`)
 
 ## Modifying the Seeding Process
 
