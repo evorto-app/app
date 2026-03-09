@@ -269,6 +269,7 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
     }
 
     const tenantId = getTenantIdFromWebhookEvent(event);
+    let ownsClaim = false;
     const response = yield* Effect.gen(function* () {
       const claimedEvent = yield* claimWebhookEvent({
         eventId: event.id,
@@ -298,6 +299,7 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
       if (claimedEvent.type === 'missing') {
         return responseText('Webhook claim missing', 409);
       }
+      ownsClaim = true;
 
       switch (event.type) {
         case 'charge.updated': {
@@ -535,15 +537,18 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
       }
     }).pipe(
       Effect.catchAllCause((cause) =>
-        releaseWebhookEventClaim(event.id).pipe(
+        (ownsClaim ? releaseWebhookEventClaim(event.id) : Effect.void).pipe(
           Effect.zipRight(Effect.failCause(cause)),
         ),
       ),
     );
 
-    yield* response.status >= 400
-      ? releaseWebhookEventClaim(event.id)
-      : markWebhookEventProcessed(event.id);
+    const finalizeClaim = ownsClaim
+      ? response.status >= 400
+        ? releaseWebhookEventClaim(event.id)
+        : markWebhookEventProcessed(event.id)
+      : Effect.void;
+    yield* finalizeClaim;
 
     return response;
   });

@@ -230,6 +230,11 @@ test('duplicate webhook delivery is retryable while the original event claim is 
 
   expect(delivery.status()).toBe(409);
   expect(await delivery.text()).toContain('Event already processing');
+
+  const existingClaim = await database.query.stripeWebhookEvents.findFirst({
+    where: { stripeEventId },
+  });
+  expect(existingClaim?.status).toBe('processing');
 });
 
 test('checkout webhook resolves registration by payment intent when metadata is missing @finance @stripe @track(playwright-specs-track-linking_20260126) @req(STRIPE-WEBHOOK-REPLAY-SPEC-02)', async ({
