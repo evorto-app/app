@@ -20,7 +20,33 @@ const waitForVisibleLocator = async (
   return null;
 };
 
+const handleLinkInterstitial = async (page: Page) => {
+  const payWithoutLinkButton = page.getByRole('button', {
+    name: 'Pay without Link',
+  });
+  if (await payWithoutLinkButton.isVisible().catch(() => false)) {
+    await payWithoutLinkButton.click();
+    return;
+  }
+
+  const otpFirstDigit = page.getByRole('textbox', {
+    name: 'one-time-code-input-0',
+  });
+  if (await otpFirstDigit.isVisible().catch(() => false)) {
+    await otpFirstDigit.click();
+    await page.keyboard.type('000000');
+    await payWithoutLinkButton
+      .waitFor({ state: 'visible', timeout: 5_000 })
+      .catch(() => {});
+    if (await payWithoutLinkButton.isVisible().catch(() => false)) {
+      await payWithoutLinkButton.click();
+    }
+  }
+};
+
 export const fillTestCard = async (page: Page) => {
+  await handleLinkInterstitial(page);
+
   const cardRadio = page.getByRole('radio', { name: /^Card$/i });
   if (await cardRadio.isVisible().catch(() => false)) {
     const isAlreadyChecked = await cardRadio.isChecked().catch(() => false);
