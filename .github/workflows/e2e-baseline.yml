@@ -26,7 +26,7 @@ jobs:
       NEON_LOCAL_HOST_PORT: 55432
       NEON_LOCAL_PROXY: true
       NO_WEBSERVER: true
-      DATABASE_URL: postgresql://neon:npg@localhost:55432/appdb?sslmode=require
+      DATABASE_URL: postgresql://neon:npg@localhost:55432/appdb?sslmode=disable
       NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
       NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
       AUTH0_MANAGEMENT_CLIENT_ID: ${{ secrets.AUTH0_MANAGEMENT_CLIENT_ID }}

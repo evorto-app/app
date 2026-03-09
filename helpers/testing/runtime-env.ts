@@ -54,7 +54,7 @@ const defaultProjectName = (): string => {
 const composeProjectName =
   process.env['COMPOSE_PROJECT_NAME']?.trim() || defaultProjectName();
 const baseUrl = `http://localhost:${appHostPort}`;
-const databaseUrl = `postgresql://neon:npg@localhost:${neonLocalHostPort}/${databaseName}?sslmode=require`;
+const databaseUrl = `postgresql://neon:npg@localhost:${neonLocalHostPort}/${databaseName}?sslmode=disable`;
 
 const runtimeEnvironment = {
   APP_HOST_PORT: String(appHostPort),
@@ -69,7 +69,9 @@ const runtimeEnvironment = {
 
 const outputLines = [
   '# THIS FILE IS AUTO-GENERATED. DO NOT EDIT MANUALLY.',
-  ...Object.entries(runtimeEnvironment).map(([key, value]) => `${key}=${value}`),
+  ...Object.entries(runtimeEnvironment).map(
+    ([key, value]) => `${key}=${value}`,
+  ),
   '',
 ];
 
