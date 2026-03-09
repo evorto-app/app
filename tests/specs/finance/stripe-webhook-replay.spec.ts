@@ -20,7 +20,10 @@ test('replaying the same Stripe webhook is idempotent @finance @stripe @track(pl
 }) => {
   const webhookSecret = process.env['STRIPE_WEBHOOK_SECRET'];
   if (!webhookSecret) {
-    test.skip(true, 'STRIPE_WEBHOOK_SECRET is required for webhook replay test');
+    test.skip(
+      true,
+      'STRIPE_WEBHOOK_SECRET is required for webhook replay test',
+    );
     return;
   }
 
@@ -153,6 +156,80 @@ test('replaying the same Stripe webhook is idempotent @finance @stripe @track(pl
     where: { stripeEventId },
   });
   expect(dedupeRecords).toHaveLength(1);
+  expect(dedupeRecords[0]?.status).toBe('processed');
+});
+
+test('duplicate webhook delivery is retryable while the original event claim is still processing @finance @stripe @track(playwright-specs-track-linking_20260126) @req(STRIPE-WEBHOOK-REPLAY-SPEC-01B)', async ({
+  database,
+  request,
+  tenant,
+}) => {
+  const webhookSecret = process.env['STRIPE_WEBHOOK_SECRET'];
+  if (!webhookSecret) {
+    test.skip(
+      true,
+      'STRIPE_WEBHOOK_SECRET is required for webhook replay test',
+    );
+    return;
+  }
+
+  const registrationId = getId();
+  const transactionId = getId();
+  const checkoutSessionId = `cs_test_${getId()}`;
+  const stripeEventId = `evt_test_${getId()}`;
+
+  await database.insert(schema.stripeWebhookEvents).values({
+    eventType: 'checkout.session.completed',
+    status: 'processing',
+    stripeEventId,
+    tenantId: tenant.id,
+  });
+
+  const payload = JSON.stringify({
+    api_version: '2024-11-20.acacia',
+    created: 1_706_784_000,
+    data: {
+      object: {
+        id: checkoutSessionId,
+        metadata: {
+          registrationId,
+          tenantId: tenant.id,
+          transactionId,
+        },
+        object: 'checkout.session',
+        payment_intent: `pi_test_${getId()}`,
+        payment_status: 'paid',
+        status: 'complete',
+      },
+    },
+    id: stripeEventId,
+    livemode: false,
+    object: 'event',
+    pending_webhooks: 1,
+    request: {
+      id: null,
+      idempotency_key: null,
+    },
+    type: 'checkout.session.completed',
+  });
+
+  const signature = Stripe.webhooks.generateTestHeaderString({
+    payload,
+    secret: webhookSecret,
+  });
+
+  const delivery = await request.fetch('/webhooks/stripe', {
+    data: Buffer.from(payload, 'utf8'),
+    failOnStatusCode: false,
+    headers: {
+      'content-type': 'application/json',
+      'stripe-signature': signature,
+    },
+    method: 'POST',
+  });
+
+  expect(delivery.status()).toBe(409);
+  expect(await delivery.text()).toContain('Event already processing');
 });
 
 test('checkout webhook resolves registration by payment intent when metadata is missing @finance @stripe @track(playwright-specs-track-linking_20260126) @req(STRIPE-WEBHOOK-REPLAY-SPEC-02)', async ({
@@ -163,7 +240,10 @@ test('checkout webhook resolves registration by payment intent when metadata is 
 }) => {
   const webhookSecret = process.env['STRIPE_WEBHOOK_SECRET'];
   if (!webhookSecret) {
-    test.skip(true, 'STRIPE_WEBHOOK_SECRET is required for webhook replay test');
+    test.skip(
+      true,
+      'STRIPE_WEBHOOK_SECRET is required for webhook replay test',
+    );
     return;
   }
 
@@ -285,7 +365,10 @@ test('checkout webhook does not confirm unpaid completed sessions @finance @stri
 }) => {
   const webhookSecret = process.env['STRIPE_WEBHOOK_SECRET'];
   if (!webhookSecret) {
-    test.skip(true, 'STRIPE_WEBHOOK_SECRET is required for webhook replay test');
+    test.skip(
+      true,
+      'STRIPE_WEBHOOK_SECRET is required for webhook replay test',
+    );
     return;
   }
 
@@ -367,9 +450,11 @@ test('checkout webhook does not confirm unpaid completed sessions @finance @stri
   });
   expect(delivery.status()).toBe(200);
 
-  const updatedRegistration = await database.query.eventRegistrations.findFirst({
-    where: { id: registrationId, tenantId: tenant.id },
-  });
+  const updatedRegistration = await database.query.eventRegistrations.findFirst(
+    {
+      where: { id: registrationId, tenantId: tenant.id },
+    },
+  );
   expect(updatedRegistration?.status).toBe('PENDING');
 
   const updatedTransaction = await database.query.transactions.findFirst({

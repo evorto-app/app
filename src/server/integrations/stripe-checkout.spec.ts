@@ -31,10 +31,10 @@ describe('stripe-checkout helpers', () => {
   it('derives checkout expiry from E2E_NOW_ISO when it is ahead of wall clock', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-01-15T12:00:00.000Z'));
-    vi.stubEnv('E2E_NOW_ISO', '2026-02-01T12:00:00.000Z');
+    vi.stubEnv('E2E_NOW_ISO', '2026-01-15T18:00:00.000Z');
 
     const expected = Math.ceil(
-      DateTime.fromISO('2026-02-01T12:00:00.000Z', { zone: 'utc' })
+      DateTime.fromISO('2026-01-15T18:00:00.000Z', { zone: 'utc' })
         .plus({ minutes: 30 })
         .toSeconds(),
     );
@@ -54,6 +54,17 @@ describe('stripe-checkout helpers', () => {
     expect(buildCheckoutSessionExpiresAt(30)).toBe(expected);
   });
 
+  it("clamps checkout expiry to Stripe's 24-hour maximum", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-01-15T12:00:00.000Z'));
+    vi.stubEnv('E2E_NOW_ISO', '2026-01-17T18:00:00.000Z');
+
+    const expected = Math.ceil(
+      DateTime.fromISO('2026-01-16T12:00:00.000Z', { zone: 'utc' }).toSeconds(),
+    );
+    expect(buildCheckoutSessionExpiresAt(30)).toBe(expected);
+  });
+
   it('forwards checkout payload and request options to Stripe client', async () => {
     createSessionMock.mockResolvedValueOnce({ id: 'cs_test_mock' });
     __setStripeClientLoaderForTests(async () => ({
@@ -66,7 +77,8 @@ describe('stripe-checkout helpers', () => {
 
     const session = await createHostedCheckoutSession(
       {
-        cancel_url: 'http://localhost:4200/events/event-1?registrationStatus=cancel',
+        cancel_url:
+          'http://localhost:4200/events/event-1?registrationStatus=cancel',
         mode: 'payment',
         success_url:
           'http://localhost:4200/events/event-1?registrationStatus=success',

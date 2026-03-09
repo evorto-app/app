@@ -1,15 +1,15 @@
 # Database Seeding
 
-This directory contains scripts for setting up and seeding the database with test data.
+This directory contains scripts for setting up and seeding the database with
+development, documentation, and Playwright test data.
 
 ## Overview
 
-The database seeding process is designed to create a deterministic set of data that makes the application look like it's in a plausible state of being used. This is important for:
+The database seeding process serves two distinct goals:
 
-- Development testing
-- UI/UX evaluation
-- Documentation generation
-- End-to-end testing
+- `demo` profile: plausible demo/development data for local usage
+- `test` profile: deterministic fixtures for isolated Playwright tenants
+- `docs` profile: deterministic shared dataset for documentation journeys
 
 ## Key Files
 
@@ -20,30 +20,46 @@ The database seeding process is designed to create a deterministic set of data t
 - `add-templates.ts`: Creates event templates
 - `add-template-categories.ts`: Sets up template categories
 - `user-data.ts`: Defines test users
+- `seed-clock.ts`: Resolves deterministic seeded time
+- `seed-falso.ts`: Resolves deterministic pseudo-random seed key
 
 ## Seeding Approach
 
-The seeding approach has been designed to be deterministic while still creating realistic data:
+The seeding approach is deterministic, but not every profile has the same goal:
 
-1. **Daily Seed**: We seed `@ngneat/falso` with the current day (YYYY-MM-DD) so data stays deterministic for a given day while still refreshing over time.
-2. **Seed Clock (UTC)**: Time-based fixtures use the start of the current day in UTC to keep dates stable within the day.
+1. **Profiles**
+   - `demo` keeps the richer, more realistic local dataset.
+   - `test` and `docs` expose stable scenario handles instead of relying on fuzzy discovery.
 
-3. **Deterministic Events**:
+2. **Scenario Contract**
+   - `seedTenant()` returns `result.scenario.events.*` handles.
+   - Current scenario handles:
+     - `freeOpen`
+     - `paidOpen`
+     - `closedReg`
+     - `past`
+     - `draft`
+   - Playwright tests should use those handles directly.
+
+3. **Pinned Clock + Seed Key**
+   - `seed-clock.ts` honors `E2E_NOW_ISO` when provided.
+   - `seed-falso.ts` honors `E2E_SEED_KEY` when provided.
+   - Playwright defaults both values in code, so normal test runs do not need extra env wiring.
+
+4. **Deterministic Events**
    - Fixed number of events per template type (3 events × 6 template types = ~18 total events)
-   - Events are created relative to the current date:
-     - Past events (30+ days ago)
-     - Current/upcoming events (7+ days in the future)
-     - Future events (30+ days in the future)
+   - Events are created relative to the seeded clock
    - Deterministic assignment of status, visibility, and creator
+   - Template selection is based on stable `seedKey` metadata, not title matching
 
-4. **Realistic Data Structure**:
+5. **Realistic Data Structure**
    - Events have appropriate registration options
    - Users have appropriate roles and permissions
    - Templates and categories are properly linked
 
 ## Running the Seeding Process
 
-To reset and seed the database:
+To reset and seed the development/demo database:
 
 ```bash
 bun run db:reset
@@ -62,4 +78,5 @@ If you need to modify the seeding process:
 2. Test your changes by running `bun run db:reset`
 3. Verify that the application displays the expected data
 
-Remember that the goal is to maintain deterministic seeding while creating realistic data.
+For Playwright tests, prefer consuming `seeded.scenario` in fixtures/specs rather
+than searching for events by title, date, or incidental seeded content.

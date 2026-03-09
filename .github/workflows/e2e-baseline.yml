@@ -27,8 +27,6 @@ jobs:
       NEON_LOCAL_PROXY: true
       NO_WEBSERVER: true
       DATABASE_URL: postgresql://neon:npg@localhost:55432/appdb?sslmode=require
-      E2E_NOW_ISO: 2026-02-01T12:00:00.000Z
-      E2E_SEED_KEY: ci-e2e-seed-v1
       NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
       NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
       AUTH0_MANAGEMENT_CLIENT_ID: ${{ secrets.AUTH0_MANAGEMENT_CLIENT_ID }}
@@ -86,8 +84,6 @@ jobs:
         run: |
           cat > .env <<EOF
           DATABASE_URL=${DATABASE_URL}
-          E2E_NOW_ISO=${E2E_NOW_ISO}
-          E2E_SEED_KEY=${E2E_SEED_KEY}
           NEON_LOCAL_PROXY=${NEON_LOCAL_PROXY}
           NEON_DATABASE_NAME=${NEON_DATABASE_NAME}
           NEON_API_KEY=${NEON_API_KEY}
@@ -133,6 +129,9 @@ jobs:
           docker compose ps
           docker compose logs --no-color --tail=100
           exit 1
+
+      - name: Apply latest schema
+        run: bun run db:push
 
       - name: Run Playwright suites
         run: |

@@ -55,8 +55,8 @@ Acceptance:
   - `E2E_NOW_ISO` for pinned effective now.
   - `E2E_SEED_KEY` for pinned pseudo-random seed.
 - Policy:
-  - CI/docs runs set both to stable constants.
-  - local dev may use daily fallback where desired.
+  - Playwright defaults both values in code for local and CI runs.
+  - explicit env overrides are optional and should only be used when intentionally changing the deterministic baseline.
 - Add Playwright `testClock` fixture derived from `E2E_NOW_ISO` or `seedDate`.
 - Remove wall-clock test logic:
   - eliminate all `diffNow()` usage in docs/functional tests.
@@ -103,7 +103,8 @@ Acceptance:
 - Add checkout session idempotency key derived from transaction/registration identity.
 - Add webhook event dedupe:
   - persist processed `event.id` with unique constraint.
-  - duplicate event returns 200 with no repeated side effects.
+  - already-processed duplicates return 200 with no repeated side effects.
+  - in-flight duplicate deliveries return non-2xx so Stripe keeps retrying.
 - Add E2E API-level replay test (Playwright request + DB assertions) sending same webhook twice and asserting single effect.
 - Replace hardcoded Stripe account id with `STRIPE_TEST_ACCOUNT_ID` env var for paid seeding.
 
@@ -132,7 +133,7 @@ Acceptance:
 2. Bun S3 client path is endpoint-configurable for MinIO and R2.
 3. Seeding returns deterministic scenario handles used directly by E2E tests.
 4. Template title-based seed selection is removed.
-5. `E2E_NOW_ISO` and `E2E_SEED_KEY` are supported and documented.
+5. `E2E_NOW_ISO` and `E2E_SEED_KEY` are supported, defaulted in code, and documented.
 6. `diffNow()`-based test discovery is removed from docs/functional tests.
 7. Hardcoded receipt date is replaced by derived deterministic time.
 8. At least three specs run under least-privilege roles.

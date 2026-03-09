@@ -23,7 +23,7 @@
 - [x] Task: Implement reproducibility env controls
   - [x] Add `E2E_NOW_ISO` support for pinned test-time baseline
   - [x] Add `E2E_SEED_KEY` support for deterministic pseudo-random seed
-  - [x] Preserve acceptable local fallback behavior
+  - [x] Default both values in code so explicit env wiring is optional
 - [x] Task: Add and propagate Playwright `testClock` fixture
   - [x] Derive from `E2E_NOW_ISO` or seeded date source
   - [x] Expose typed fixture for docs and functional tests
@@ -92,7 +92,8 @@
   - [x] Cover retry behavior in tests (minimal unit where high leverage if needed)
 - [x] Task: Add webhook event dedupe and replay safety
   - [x] Persist processed event IDs with uniqueness protection
-  - [x] Duplicate webhook returns 200 and performs no duplicate side effects
+  - [x] Processed duplicates return 200 without repeated side effects
+  - [x] In-flight duplicates return non-2xx so Stripe continues retrying
 - [x] Task: Add E2E API-level replay test (Playwright request + DB assertions)
   - [x] Send same webhook twice
   - [x] Assert single durable effect
@@ -104,7 +105,7 @@
 
 - [x] Task: Update `docs/testing.md`
   - [x] Document exact test commands
-  - [x] Document required env vars including MinIO + `E2E_NOW_ISO` + `E2E_SEED_KEY`
+  - [x] Document required env vars including MinIO and optional deterministic overrides
   - [x] Document docker start/stop instructions
 - [~] Task: Run final verification
   - [x] Run `bun run test:unit` (only adjust scope if related logic changed)

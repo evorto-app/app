@@ -3,6 +3,10 @@ import { Either, ParseResult, Schema } from 'effect';
 import consola from 'consola';
 
 import { loadDotenvFiles } from '../../../helpers/config/load-dotenv-files';
+import {
+  DEFAULT_E2E_NOW_ISO,
+  DEFAULT_E2E_SEED_KEY,
+} from '../../../helpers/testing/deterministic-test-defaults';
 import { applyTestConsolaLevel } from '../../../helpers/testing/test-logging';
 
 loadDotenvFiles();
@@ -35,8 +39,12 @@ const PlaywrightCommonFields = {
   CLOUDFLARE_TOKEN: optionalNonEmptyString,
   DOCS_IMG_OUT_DIR: optionalNonEmptyString,
   DOCS_OUT_DIR: optionalNonEmptyString,
-  E2E_NOW_ISO: optionalNonEmptyString,
-  E2E_SEED_KEY: optionalNonEmptyString,
+  E2E_NOW_ISO: Schema.optionalWith(Schema.NonEmptyString, {
+    default: () => DEFAULT_E2E_NOW_ISO,
+  }),
+  E2E_SEED_KEY: Schema.optionalWith(Schema.NonEmptyString, {
+    default: () => DEFAULT_E2E_SEED_KEY,
+  }),
   PLAYWRIGHT_TEST_BASE_URL: optionalNonEmptyString,
   S3_ACCESS_KEY_ID: optionalNonEmptyString,
   S3_BUCKET: optionalNonEmptyString,
@@ -123,11 +131,6 @@ const CIIntegrationEnvironmentSchema = Schema.Struct({
   CLOUDFLARE_ACCOUNT_ID: Schema.NonEmptyString,
   CLOUDFLARE_IMAGES_DELIVERY_HASH: Schema.NonEmptyString,
 }).pipe(Schema.extend(CloudflareImagesTokenEnvironmentSchema));
-
-const CIDeterministicEnvironmentSchema = Schema.Struct({
-  E2E_NOW_ISO: Schema.NonEmptyString,
-  E2E_SEED_KEY: Schema.NonEmptyString,
-});
 
 const CIStripeSeedEnvironmentSchema = Schema.Struct({
   STRIPE_TEST_ACCOUNT_ID: Schema.NonEmptyString,
@@ -216,11 +219,6 @@ export const validatePlaywrightEnvironment = (
       CIObjectStorageEnvironmentSchema,
       normalizedInput,
       'e2e object storage environment',
-    );
-    decodeOrThrow(
-      CIDeterministicEnvironmentSchema,
-      normalizedInput,
-      'e2e deterministic seed/time environment',
     );
     decodeOrThrow(
       CIStripeSeedEnvironmentSchema,

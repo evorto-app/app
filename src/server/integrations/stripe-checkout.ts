@@ -1,4 +1,5 @@
 import type Stripe from 'stripe';
+
 import { DateTime } from 'luxon';
 
 import { getServerNow } from '../clock';
@@ -35,8 +36,14 @@ export const buildCheckoutSessionExpiresAt = (
   const wallClockNow = DateTime.now().setZone('utc');
   const baseNow =
     pinnedNow.toMillis() > wallClockNow.toMillis() ? pinnedNow : wallClockNow;
+  const requestedExpiry = baseNow.plus({ minutes: expiresInMinutes });
+  const stripeMaximumExpiry = wallClockNow.plus({ hours: 24 });
+  const effectiveExpiry =
+    requestedExpiry.toMillis() > stripeMaximumExpiry.toMillis()
+      ? stripeMaximumExpiry
+      : requestedExpiry;
 
-  return Math.ceil(baseNow.plus({ minutes: expiresInMinutes }).toSeconds());
+  return Math.ceil(effectiveExpiry.toSeconds());
 };
 
 export const buildCheckoutSessionIdempotencyKey = (input: {

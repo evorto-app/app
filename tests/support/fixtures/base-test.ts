@@ -19,6 +19,8 @@ import {
 const dedupeLength = 4;
 const createDedupeId = init({ length: dedupeLength });
 const environment = validatePlaywrightEnvironment();
+process.env['E2E_NOW_ISO'] ??= environment.E2E_NOW_ISO;
+process.env['E2E_SEED_KEY'] ??= environment.E2E_SEED_KEY;
 const databaseUrl = environment.DATABASE_URL;
 const databaseConnectionUrl = new URL(databaseUrl);
 const databaseHost = databaseConnectionUrl.hostname;
@@ -176,7 +178,9 @@ export const test = base.extend<BaseFixtures>({
   },
   testClock: [
     async ({ seedDate }, use) => {
-      await use(DateTime.fromJSDate(seedDate, { zone: 'utc' }).plus({ hours: 12 }));
+      await use(
+        DateTime.fromJSDate(seedDate, { zone: 'utc' }).plus({ hours: 12 }),
+      );
     },
     { auto: true },
   ],

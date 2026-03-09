@@ -51,6 +51,6 @@ MIGRATION_CLEAR_DB=true MIGRATION_ALLOW_REUSE_TENANT=false \
 Notes
 
 - Tests document and verify the new platform features; no parity tests are required.
-- Migration is data‑only (TypeScript ETL old → new). No schema DDL, redirects, routing changes, or feature flags in this phase.
+- Migration is data‑only (TypeScript ETL old → new). Schema DDL for the current app schema is applied via `bun run db:push`, not via files in `migration/steps/**`.
 - Where a 1:1 mapping is not possible, document defaults/backfills in `conductor/tracks/<track_id>/spec.md` (Migration Notes section).
 - Each feature should update seed data so the feature is testable without running the migration.
