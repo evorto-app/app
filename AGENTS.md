@@ -70,6 +70,7 @@ Module-local guidance lives in:
 ## Git Workflow
 
 - Use Git Town commands for branch management and shipping.
+- For substantial work in a new worktree created from `main`, immediately run `git town hack <branch-name>` in that worktree before making commits.
 
 ## Security & Configuration
 

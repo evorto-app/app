@@ -4,9 +4,24 @@ name = "evorto"
 
 [setup]
 script = '''
-cp /Users/hedde/code/evorto/.env .
-cp /Users/hedde/code/evorto/.npmrc .
-bun install --frozen-lockfile
+set -euo pipefail
+
+SOURCE_ROOT=/Users/hedde/code/evorto
+
+echo "[setup] Copying environment files"
+if [ "$(pwd -P)" != "$SOURCE_ROOT" ]; then
+  cp "$SOURCE_ROOT/.env" .
+  cp "$SOURCE_ROOT/.npmrc" .
+fi
+if [ -z "${FONT_AWESOME_TOKEN:-}" ]; then
+  echo "[setup] FONT_AWESOME_TOKEN is not set; cannot install private @fortawesome packages."
+  exit 1
+fi
+
+echo "[setup] Installing dependencies (bun install)"
+perl -e 'alarm shift; exec @ARGV' 240 bun install --frozen-lockfile --verbose --network-concurrency 12
+
+echo "[setup] Generating runtime environment"
 bun run env:runtime
 
 '''
