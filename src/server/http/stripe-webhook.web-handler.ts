@@ -1,6 +1,6 @@
 import type Stripe from 'stripe';
 
-import { and, eq } from 'drizzle-orm';
+import { and, eq, lte } from 'drizzle-orm';
 import { Effect } from 'effect';
 
 import { Database, type DatabaseClient } from '../../db';
@@ -10,6 +10,7 @@ import { stripe } from '../stripe-client';
 
 const { STRIPE_WEBHOOK_SECRET: endpointSecret } = getStripeWebhookEnvironment();
 const MAX_WEBHOOK_SIZE_BYTES = 200 * 1024;
+const STALE_WEBHOOK_CLAIM_AGE_MS = 5 * 60 * 1000;
 
 const databaseEffect = <A, E>(
   operation: (database: DatabaseClient) => Effect.Effect<A, E, never>,
@@ -181,12 +182,42 @@ const claimWebhookEvent = (input: {
 
       const existingEvent = yield* database.query.stripeWebhookEvents.findFirst(
         {
-          columns: { status: true },
+          columns: { processedAt: true, status: true },
           where: { stripeEventId: input.eventId },
         },
       );
       if (!existingEvent) {
         return { type: 'missing' } as const;
+      }
+
+      const reclaimedAt = new Date();
+      const staleBefore = new Date(
+        reclaimedAt.getTime() - STALE_WEBHOOK_CLAIM_AGE_MS,
+      );
+      if (
+        existingEvent.status === 'processing' &&
+        existingEvent.processedAt <= staleBefore
+      ) {
+        const reclaimed = yield* database
+          .update(schema.stripeWebhookEvents)
+          .set({
+            eventType: input.eventType,
+            processedAt: reclaimedAt,
+            ...(input.tenantId ? { tenantId: input.tenantId } : {}),
+          })
+          .where(
+            and(
+              eq(schema.stripeWebhookEvents.stripeEventId, input.eventId),
+              eq(schema.stripeWebhookEvents.status, 'processing'),
+              lte(schema.stripeWebhookEvents.processedAt, staleBefore),
+            ),
+          )
+          .returning({
+            stripeEventId: schema.stripeWebhookEvents.stripeEventId,
+          });
+        if (reclaimed.length > 0) {
+          return { type: 'claimed' } as const;
+        }
       }
 
       return existingEvent.status === 'processed'

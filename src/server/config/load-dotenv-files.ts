@@ -33,6 +33,7 @@ export const loadDotenvFiles = (): void => {
       }
 
       process.env[key] = value;
+      protectedKeys.add(key);
     }
   }
 

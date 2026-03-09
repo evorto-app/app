@@ -237,6 +237,117 @@ test('duplicate webhook delivery is retryable while the original event claim is 
   expect(existingClaim?.status).toBe('processing');
 });
 
+test('stale webhook claims are reclaimed so Stripe retries can finish processing @finance @stripe @track(playwright-specs-track-linking_20260126) @req(STRIPE-WEBHOOK-REPLAY-SPEC-01C)', async ({
+  database,
+  request,
+  seeded,
+  tenant,
+}) => {
+  const webhookSecret = process.env['STRIPE_WEBHOOK_SECRET'];
+  if (!webhookSecret) {
+    test.skip(
+      true,
+      'STRIPE_WEBHOOK_SECRET is required for webhook replay test',
+    );
+    return;
+  }
+
+  const registrationId = getId();
+  const transactionId = getId();
+  const checkoutSessionId = `cs_test_${getId()}`;
+  const paymentIntentId = `pi_test_${getId()}`;
+  const stripeEventId = `evt_test_${getId()}`;
+
+  await database.insert(schema.eventRegistrations).values({
+    eventId: seeded.scenario.events.paidOpen.eventId,
+    id: registrationId,
+    paymentStatus: 'PENDING',
+    registrationOptionId: seeded.scenario.events.paidOpen.optionId,
+    status: 'PENDING',
+    tenantId: tenant.id,
+    userId: regularUserId,
+  });
+
+  await database.insert(schema.transactions).values({
+    amount: 2500,
+    comment: 'Webhook stale-claim reclaim test',
+    currency: 'EUR',
+    eventId: seeded.scenario.events.paidOpen.eventId,
+    eventRegistrationId: registrationId,
+    executiveUserId: regularUserId,
+    id: transactionId,
+    method: 'stripe',
+    status: 'pending',
+    stripeCheckoutSessionId: checkoutSessionId,
+    stripeCheckoutUrl: `https://checkout.stripe.com/c/pay/${checkoutSessionId}`,
+    targetUserId: regularUserId,
+    tenantId: tenant.id,
+    type: 'registration',
+  });
+
+  await database.insert(schema.stripeWebhookEvents).values({
+    eventType: 'checkout.session.completed',
+    processedAt: new Date(Date.now() - 10 * 60 * 1000),
+    status: 'processing',
+    stripeEventId,
+    tenantId: tenant.id,
+  });
+
+  const payload = JSON.stringify({
+    api_version: '2024-11-20.acacia',
+    created: 1_706_784_000,
+    data: {
+      object: {
+        id: checkoutSessionId,
+        metadata: {
+          registrationId,
+          tenantId: tenant.id,
+          transactionId,
+        },
+        object: 'checkout.session',
+        payment_intent: paymentIntentId,
+        payment_status: 'paid',
+        status: 'complete',
+      },
+    },
+    id: stripeEventId,
+    livemode: false,
+    object: 'event',
+    pending_webhooks: 1,
+    request: {
+      id: null,
+      idempotency_key: null,
+    },
+    type: 'checkout.session.completed',
+  });
+
+  const signature = Stripe.webhooks.generateTestHeaderString({
+    payload,
+    secret: webhookSecret,
+  });
+
+  const delivery = await request.fetch('/webhooks/stripe', {
+    data: Buffer.from(payload, 'utf8'),
+    failOnStatusCode: false,
+    headers: {
+      'content-type': 'application/json',
+      'stripe-signature': signature,
+    },
+    method: 'POST',
+  });
+
+  expect(delivery.status()).toBe(200);
+
+  await expect
+    .poll(async () => {
+      const updatedClaim = await database.query.stripeWebhookEvents.findFirst({
+        where: { stripeEventId },
+      });
+      return updatedClaim?.status;
+    })
+    .toBe('processed');
+});
+
 test('checkout webhook resolves registration by payment intent when metadata is missing @finance @stripe @track(playwright-specs-track-linking_20260126) @req(STRIPE-WEBHOOK-REPLAY-SPEC-02)', async ({
   database,
   request,
