@@ -49,4 +49,18 @@ describe('auth-config', () => {
       Option.some('https://api.example'),
     );
   });
+
+  it('rejects whitespace-only required values after trimming', () => {
+    const provider = ConfigProvider.fromMap(
+      new Map([
+        ['BASE_URL', '   '],
+        ['CLIENT_ID', 'client-id'],
+        ['CLIENT_SECRET', 'client-secret'],
+        ['ISSUER_BASE_URL', 'https://issuer.example'],
+        ['SECRET', 'super-secret'],
+      ]),
+    );
+
+    expect(() => loadAuthConfigSync(provider)).toThrow(/BASE_URL/);
+  });
 });

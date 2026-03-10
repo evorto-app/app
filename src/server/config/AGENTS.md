@@ -31,3 +31,4 @@
 - `Config.option(...)` is for "absence changes behavior".
 - When absence is meaningful, prefer handling it inside the config module/service instead of pushing that branching into unrelated consumers.
 - `Config.nonEmptyString(...)` validates the raw value, not a trimmed one. If whitespace-only input must be rejected after trimming, trim first and then validate non-empty explicitly.
+- `Config.nonEmptyString(name).pipe(Config.map((s) => s.trim()))` is not equivalent to trim-then-validate. It accepts whitespace-only input and returns `''`.
