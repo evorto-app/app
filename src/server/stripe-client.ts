@@ -1,7 +1,7 @@
 import Stripe from 'stripe';
 
-import { getStripeApiEnvironment } from './config/environment';
+import { loadStripeApiConfigSync } from './config/stripe-config';
 
-const { STRIPE_API_KEY: stripeApiKey } = getStripeApiEnvironment();
+const { STRIPE_API_KEY: stripeApiKey } = loadStripeApiConfigSync();
 
 export const stripe = new Stripe(stripeApiKey);

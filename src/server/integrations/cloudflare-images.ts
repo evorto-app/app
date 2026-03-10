@@ -1,15 +1,15 @@
 import Cloudflare from 'cloudflare';
 
 import {
-  getCloudflareImagesEnvironment,
-  isCloudflareImagesEnvironmentConfigured,
-} from '../config/environment';
+  isCloudflareImagesConfiguredSync,
+  loadCloudflareImagesConfigSync,
+} from '../config/cloudflare-images-config';
 
 const DEFAULT_IMAGE_VARIANT = 'public';
 const TESTING_CLEANUP_CONFIRMATION = 'delete-testing-images-only';
 
 export const isCloudflareImagesConfigured = (): boolean =>
-  isCloudflareImagesEnvironmentConfigured();
+  isCloudflareImagesConfiguredSync();
 
 const resolveCloudflareImagesConfig = (): {
   accountId: string;
@@ -19,8 +19,8 @@ const resolveCloudflareImagesConfig = (): {
   deliveryHash: string;
   variant: string;
 } => {
-  const environment = getCloudflareImagesEnvironment();
-  const apiToken = environment.CLOUDFLARE_TOKEN;
+  const environment = loadCloudflareImagesConfigSync();
+  const apiToken = environment.CLOUDFLARE_IMAGES_API_TOKEN;
   const accountId = environment.CLOUDFLARE_ACCOUNT_ID;
   const deliveryHash = environment.CLOUDFLARE_IMAGES_DELIVERY_HASH;
   const variant =
@@ -90,7 +90,7 @@ export const cleanupTestingCloudflareImages = async (input: {
   inspectedCount: number;
   matchedCount: number;
 }> => {
-  if (getCloudflareImagesEnvironment().NODE_ENV === 'production') {
+  if (loadCloudflareImagesConfigSync().NODE_ENV === 'production') {
     throw new Error('Cleanup is blocked in production');
   }
 

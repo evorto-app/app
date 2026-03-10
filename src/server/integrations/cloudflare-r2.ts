@@ -1,4 +1,4 @@
-import { getObjectStorageEnvironment } from '../config/environment';
+import { loadObjectStorageConfigSync } from '../config/object-storage-config';
 
 interface BunS3Client {
   file(key: string): BunS3File;
@@ -51,7 +51,7 @@ const resolveObjectStorageConfig = (): {
   keySecret: string;
   region: string;
 } => {
-  const environment = getObjectStorageEnvironment();
+  const environment = loadObjectStorageConfigSync();
   const endpoint = environment.endpoint;
   const keyId = environment.accessKeyId;
   const keySecret = environment.secretAccessKey;

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { getObjectStorageEnvironment } from '../config/environment';
+import { loadObjectStorageConfigSync } from '../config/object-storage-config';
 import {
   getSignedReceiptObjectUrlFromR2,
   uploadReceiptOriginalToR2,
@@ -79,13 +79,11 @@ describe('cloudflare-r2', () => {
         contentType: 'image/png',
         key: 'receipts/missing.png',
       }),
-    ).rejects.toThrow(
-      'Bun runtime is required for object storage operations.',
-    );
+    ).rejects.toThrow('Bun runtime is required for object storage operations.');
   });
 
   it('uploads with Bun.S3Client and returns deterministic storage metadata', async () => {
-    const environment = getObjectStorageEnvironment();
+    const environment = loadObjectStorageConfigSync();
     const write = vi.fn(async () => 3);
     const presign = vi.fn(() => 'https://signed.example.com/object');
     const captured = {

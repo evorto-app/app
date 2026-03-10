@@ -1,6 +1,6 @@
 import { Effect } from 'effect';
 
-import { getObjectStorageEnvironment } from '../../../../config/environment';
+import { loadObjectStorageConfigSync } from '../../../../config/object-storage-config';
 import {
   getSignedReceiptObjectUrlFromR2,
   uploadReceiptOriginalToR2,
@@ -30,14 +30,16 @@ const sanitizeFileName = (fileName: string): string =>
 
 const isObjectStorageConfigured = () => {
   try {
-    getObjectStorageEnvironment();
+    loadObjectStorageConfigSync();
     return true;
   } catch {
     return false;
   }
 };
 
-export const withSignedReceiptPreviewUrl = <T extends ReceiptWithStoragePreview>(
+export const withSignedReceiptPreviewUrl = <
+  T extends ReceiptWithStoragePreview,
+>(
   receipt: T,
 ): Effect.Effect<T> =>
   Effect.gen(function* () {
@@ -70,7 +72,9 @@ export const withSignedReceiptPreviewUrl = <T extends ReceiptWithStoragePreview>
     } as T;
   });
 
-export const withSignedReceiptPreviewUrls = <T extends ReceiptWithStoragePreview>(
+export const withSignedReceiptPreviewUrls = <
+  T extends ReceiptWithStoragePreview,
+>(
   receipts: readonly T[],
 ): Effect.Effect<readonly T[]> =>
   Effect.forEach(receipts, (receipt) => withSignedReceiptPreviewUrl(receipt), {
@@ -134,7 +138,9 @@ export class ReceiptMediaService extends Effect.Service<ReceiptMediaService>()(
 
           const uploaded = yield* Effect.tryPromise({
             catch: () =>
-              new ReceiptMediaInternalError({ message: 'Failed to upload file' }),
+              new ReceiptMediaInternalError({
+                message: 'Failed to upload file',
+              }),
             try: () =>
               uploadReceiptOriginalToR2({
                 body,

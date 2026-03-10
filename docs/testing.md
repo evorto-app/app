@@ -12,12 +12,18 @@
 - Start runtime stack in foreground (used by Playwright webServer): `bun run docker:start:test`
 - Stop runtime stack: `bun run docker:stop`
 - Local docker runs now use a real Postgres container, not `neon_local`.
-- `docker:*` and `db:*` commands generate `.env.development` automatically before they run.
+- `docker:*` and `db:*` commands generate `.env.runtime` automatically before they run.
 - `bun run db:push` applies schema only.
 - `bun run db:setup` ensures schema exists, then resets and seeds the local database.
 - `bun run db:reset` is now an alias for `bun run db:setup`.
 
-`.env.development` is loaded automatically by app and tests whenever the file exists.
+Config now resolves in this precedence order:
+
+- real environment variables
+- `.env.local`
+- `.env`
+- `.env.runtime`
+- in-code defaults
 
 ## Deterministic E2E Environment
 
@@ -60,7 +66,7 @@ The seed map emitted during setup includes these handles for CI/debugging.
 
 ## Local Stack Isolation
 
-`.env.development` is generated from the current working directory, so separate worktrees get:
+`.env.runtime` is generated from the current working directory, so separate worktrees get:
 
 - distinct `COMPOSE_PROJECT_NAME`
 - distinct local Postgres port
@@ -75,21 +81,13 @@ If you intentionally need another isolated stack from the same working tree, ove
 
 ## Object Storage Environment (MinIO/R2-Compatible)
 
-Preferred variables:
+Canonical variables:
 
 - `S3_ENDPOINT`
 - `S3_REGION`
 - `S3_BUCKET`
 - `S3_ACCESS_KEY_ID`
 - `S3_SECRET_ACCESS_KEY`
-
-Compatible aliases also supported:
-
-- `AWS_ENDPOINT`
-- `AWS_REGION`
-- `AWS_BUCKET`
-- `AWS_ACCESS_KEY_ID`
-- `AWS_SECRET_ACCESS_KEY`
 
 For local MinIO defaults used by docker-compose:
 
@@ -104,7 +102,7 @@ For local MinIO defaults used by docker-compose:
 Required for full Playwright flows:
 
 - `DATABASE_URL`
-- `BASE_URL` (or `PLAYWRIGHT_TEST_BASE_URL`)
+- `BASE_URL`
 - `CLIENT_ID`
 - `CLIENT_SECRET`
 - `ISSUER_BASE_URL`
@@ -117,6 +115,4 @@ Required in CI baseline docs/functional jobs:
 
 - `CLOUDFLARE_ACCOUNT_ID`
 - `CLOUDFLARE_IMAGES_DELIVERY_HASH`
-- One of:
-  - `CLOUDFLARE_IMAGES_API_TOKEN`
-  - `CLOUDFLARE_TOKEN`
+- `CLOUDFLARE_IMAGES_API_TOKEN`

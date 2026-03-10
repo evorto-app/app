@@ -10,11 +10,7 @@ import {
   KeyValueStore,
   Path,
 } from '@effect/platform';
-import {
-  BunFileSystem,
-  BunHttpServer,
-  BunRuntime,
-} from '@effect/platform-bun';
+import { BunFileSystem, BunHttpServer, BunRuntime } from '@effect/platform-bun';
 import * as Sentry from '@sentry/bun';
 import { Effect, Context as EffectContext, Layer } from 'effect';
 
@@ -27,11 +23,10 @@ import {
   loadAuthSession,
   toAbsoluteRequestUrl,
 } from './server/auth/auth-session';
-import { getServerPort } from './server/config/environment';
+import { makeRuntimeConfigProviderSync } from './server/config/provider';
+import { loadServerConfigSync } from './server/config/server-config';
 import { resolveHttpRequestContext } from './server/context/http-request-context';
-import {
-  toRpcHttpServerRequest,
-} from './server/effect/rpc/app-rpcs.request-handler';
+import { toRpcHttpServerRequest } from './server/effect/rpc/app-rpcs.request-handler';
 import {
   appRpcHttpAppLayer,
   handleAppRpcHttpRequest,
@@ -43,6 +38,8 @@ import { applySecurityHeaders } from './server/http/security-headers';
 import { handleStripeWebhookWebRequest } from './server/http/stripe-webhook.web-handler';
 
 const angularApp = new AngularAppEngine();
+const runtimeConfigProvider = makeRuntimeConfigProviderSync();
+const { PORT: serverPort } = loadServerConfigSync(runtimeConfigProvider);
 const browserDistributionUrl = new URL('../browser/', import.meta.url);
 const cacheControlHeader = 'public, max-age=31536000';
 const keyValueStoreDirectory = '.cache/evorto/server-kv';
@@ -155,7 +152,10 @@ const extractRegistrationId = (
 const renderSsr = (request: HttpServerRequest.HttpServerRequest) =>
   Effect.gen(function* () {
     const authSession = yield* loadAuthSession(request);
-    const requestContext = yield* resolveHttpRequestContext(request, authSession);
+    const requestContext = yield* resolveHttpRequestContext(
+      request,
+      authSession,
+    );
 
     const webRequest = yield* HttpServerRequest.toWeb(request);
     const renderedResponse = yield* Effect.tryPromise(() =>
@@ -238,7 +238,10 @@ const stripeWebhookRouteLayer = HttpLayerRouter.add(
 const rpcRouteLayer = HttpLayerRouter.add('POST', '/rpc', (request) =>
   Effect.gen(function* () {
     const authSession = yield* loadAuthSession(request);
-    const requestContext = yield* resolveHttpRequestContext(request, authSession);
+    const requestContext = yield* resolveHttpRequestContext(
+      request,
+      authSession,
+    );
 
     const webRequest = yield* HttpServerRequest.toWeb(request);
     const rpcRequest = yield* toRpcHttpServerRequest(
@@ -315,7 +318,11 @@ const withSsrFallback = <E, R>(
           Effect.annotateLogs({
             error:
               error instanceof Error
-                ? { message: error.message, name: error.name, stack: error.stack }
+                ? {
+                    message: error.message,
+                    name: error.name,
+                    stack: error.stack,
+                  }
                 : String(error),
           }),
         );
@@ -347,6 +354,7 @@ const handlerRuntimeLayer = Layer.mergeAll(
   otelLayer,
   serverLoggerLayer,
   appRpcHttpAppLayer,
+  Layer.setConfigProvider(runtimeConfigProvider),
 );
 
 const handlerAppLayer = routesLayer.pipe(
@@ -354,9 +362,7 @@ const handlerAppLayer = routesLayer.pipe(
   Layer.provide(databaseLayer),
 );
 
-let cachedRequestHandler:
-  | ((request: Request) => Promise<Response>)
-  | undefined;
+let cachedRequestHandler: ((request: Request) => Promise<Response>) | undefined;
 
 const getRequestHandler = (): ((request: Request) => Promise<Response>) => {
   if (cachedRequestHandler) {
@@ -384,7 +390,7 @@ const requestHandler = createRequestHandler((request) =>
 export { requestHandler as reqHandler };
 
 const serveEffect = Effect.gen(function* () {
-  const port = getServerPort();
+  const port = serverPort;
 
   const serverLayer = HttpLayerRouter.serve(routesLayer, {
     middleware: withSsrFallback,
@@ -414,5 +420,10 @@ const serveEffect = Effect.gen(function* () {
 });
 
 if (import.meta.main) {
-  BunRuntime.runMain(serveEffect.pipe(Effect.provide(databaseLayer)));
+  BunRuntime.runMain(
+    serveEffect.pipe(
+      Effect.withConfigProvider(runtimeConfigProvider),
+      Effect.provide(databaseLayer),
+    ),
+  );
 }

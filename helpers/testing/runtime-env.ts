@@ -4,7 +4,7 @@ const DEFAULT_APP_HOST_PORT = 4_200;
 const DEFAULT_NEON_LOCAL_HOST_PORT = 55_432;
 const DEFAULT_MINIO_CONSOLE_HOST_PORT = 9_001;
 const DEFAULT_MINIO_HOST_PORT = 9_000;
-const OUTPUT_FILE_PATH = path.resolve(process.cwd(), '.env.development');
+const OUTPUT_FILE_PATH = path.resolve(process.cwd(), '.env.runtime');
 
 const databaseName = process.env['NEON_DATABASE_NAME']?.trim() || 'appdb';
 
@@ -90,7 +90,6 @@ const runtimeEnvironment = {
   NEON_DATABASE_NAME: databaseName,
   NEON_LOCAL_HOST_PORT: String(neonLocalHostPort),
   NEON_LOCAL_PROXY: 'true',
-  PLAYWRIGHT_TEST_BASE_URL: baseUrl,
 } as const;
 
 const outputLines = [

@@ -5,10 +5,10 @@ import { Effect } from 'effect';
 
 import { Database, type DatabaseClient } from '../../db';
 import * as schema from '../../db/schema';
-import { getStripeWebhookEnvironment } from '../config/environment';
+import { loadStripeWebhookConfigSync } from '../config/stripe-config';
 import { stripe } from '../stripe-client';
 
-const { STRIPE_WEBHOOK_SECRET: endpointSecret } = getStripeWebhookEnvironment();
+const { STRIPE_WEBHOOK_SECRET: endpointSecret } = loadStripeWebhookConfigSync();
 const MAX_WEBHOOK_SIZE_BYTES = 200 * 1024;
 const STALE_WEBHOOK_CLAIM_AGE_MS = 5 * 60 * 1000;
 

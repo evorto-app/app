@@ -1,10 +1,10 @@
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 
-import { getDatabaseEnvironment } from '../server/config/environment';
+import { loadDatabaseConfigSync } from '../server/config/database-config';
 import { relations } from './relations';
 
-const { DATABASE_URL: databaseUrl } = getDatabaseEnvironment();
+const { DATABASE_URL: databaseUrl } = loadDatabaseConfigSync();
 const pool = new Pool({
   connectionString: databaseUrl,
 });

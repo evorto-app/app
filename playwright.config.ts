@@ -1,11 +1,12 @@
 import { defineConfig, devices } from '@playwright/test';
 
+import { makeRuntimeConfigProviderSync } from './src/server/config/provider';
 import { validatePlaywrightEnvironment } from './tests/support/config/environment';
 
-const environment = validatePlaywrightEnvironment();
+const runtimeConfigProvider = makeRuntimeConfigProviderSync();
+const environment = validatePlaywrightEnvironment(runtimeConfigProvider);
 const resolvedBaseUrl =
-  environment.PLAYWRIGHT_TEST_BASE_URL ??
-  ('BASE_URL' in environment ? environment.BASE_URL : undefined);
+  'BASE_URL' in environment ? environment.BASE_URL : undefined;
 
 /**
  * See https://playwright.dev/docs/test-configuration.
@@ -15,13 +16,9 @@ const webServer = (() => {
     return;
   }
 
-  const url =
-    environment.PLAYWRIGHT_TEST_BASE_URL ??
-    ('BASE_URL' in environment ? environment.BASE_URL : undefined);
+  const url = 'BASE_URL' in environment ? environment.BASE_URL : undefined;
   if (!url) {
-    throw new Error(
-      'Missing base URL for Playwright webServer. Set PLAYWRIGHT_TEST_BASE_URL or BASE_URL.',
-    );
+    throw new Error('Missing base URL for Playwright webServer. Set BASE_URL.');
   }
 
   return {

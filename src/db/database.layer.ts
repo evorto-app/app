@@ -2,10 +2,10 @@ import * as PgClient from '@effect/sql-pg/PgClient';
 import * as PgDrizzle from 'drizzle-orm/effect-postgres';
 import { Effect, Redacted } from 'effect';
 
-import { getDatabaseEnvironment } from '../server/config/environment';
+import { loadDatabaseConfigSync } from '../server/config/database-config';
 import { relations } from './relations';
 
-const { DATABASE_URL } = getDatabaseEnvironment();
+const { DATABASE_URL } = loadDatabaseConfigSync();
 
 const makeDatabase = PgDrizzle.make({
   relations,

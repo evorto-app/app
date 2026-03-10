@@ -16,6 +16,7 @@
 - Assets/public: `public/`; theming in `src/styles.scss` and `_theme-colors.scss`.
 
 Module-local guidance lives in:
+
 - `src/app/AGENTS.md`
 - `src/server/AGENTS.md`
 - `src/db/AGENTS.md`
@@ -75,7 +76,8 @@ Module-local guidance lives in:
 ## Security & Configuration
 
 - Never commit secrets.
-- Bun loads `.env.local` and `.env` automatically.
+- Runtime config is resolved through the config provider with precedence: real env, `.env.local`, `.env`, `.env.runtime`, then in-code defaults.
+- `.env.runtime` is generated for local runtime/test commands; keep canonical keys there and in CI env files.
 - In CI, provide explicit env files in workflow steps rather than runtime dotenv wiring.
 
 ## Agent Editing Workflow

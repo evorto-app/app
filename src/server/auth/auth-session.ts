@@ -13,11 +13,11 @@ import * as HttpServerRequest from '@effect/platform/HttpServerRequest';
 import * as HttpServerResponse from '@effect/platform/HttpServerResponse';
 import { Duration, Effect, Option } from 'effect';
 
-import { getOidcEnvironment } from '../config/environment';
+import { loadAuthConfigSync } from '../config/auth-config';
 
 const SESSION_COOKIE_NAME = 'appSession';
 
-const oidcEnvironment = getOidcEnvironment();
+const oidcEnvironment = loadAuthConfigSync();
 const auth0Domain = new URL(oidcEnvironment.ISSUER_BASE_URL).hostname;
 
 export interface AuthSession {
@@ -222,7 +222,9 @@ const runPromiseOrUndefined = <T>(
         return Effect.succeed(undefined as T | undefined);
       }
 
-      return Effect.logError(`Unexpected Auth0 SDK failure during ${operation}`).pipe(
+      return Effect.logError(
+        `Unexpected Auth0 SDK failure during ${operation}`,
+      ).pipe(
         Effect.annotateLogs({ error }),
         Effect.zipRight(Effect.fail(error)),
       );
@@ -379,15 +381,17 @@ export const handleLoginRequest = (
     const storeOptions = createStoreOptions(request);
     const auth0Client = createAuth0Client(request);
 
-    const authorizationUrl = yield* runPromiseOrUndefined('handleLoginRequest', () =>
-      auth0Client.startInteractiveLogin(
-        {
-          appState: {
-            redirectUrl,
+    const authorizationUrl = yield* runPromiseOrUndefined(
+      'handleLoginRequest',
+      () =>
+        auth0Client.startInteractiveLogin(
+          {
+            appState: {
+              redirectUrl,
+            },
           },
-        },
-        storeOptions,
-      ),
+          storeOptions,
+        ),
     );
 
     if (!authorizationUrl) {
@@ -419,10 +423,10 @@ export const handleCallbackRequest = (
     const completedLogin = yield* runPromiseOrUndefined(
       'handleCallbackRequest',
       () =>
-      auth0Client.completeInteractiveLogin<LoginAppState>(
-        requestUrl,
-        storeOptions,
-      ),
+        auth0Client.completeInteractiveLogin<LoginAppState>(
+          requestUrl,
+          storeOptions,
+        ),
     );
 
     if (!completedLogin) {

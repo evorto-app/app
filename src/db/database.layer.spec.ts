@@ -5,7 +5,7 @@ describe('database.layer', () => {
   afterEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
-    vi.unmock('../server/config/environment');
+    vi.unmock('../server/config/database-config');
     vi.unmock('@effect/sql-pg/PgClient');
     vi.unmock('drizzle-orm/effect-postgres');
   });
@@ -16,8 +16,8 @@ describe('database.layer', () => {
     );
     const makeMock = vi.fn(() => Effect.succeed({}));
 
-    vi.doMock('../server/config/environment', () => ({
-      getDatabaseEnvironment: () => ({
+    vi.doMock('../server/config/database-config', () => ({
+      loadDatabaseConfigSync: () => ({
         DATABASE_URL: 'postgresql://db-user:db-pass@db.example.com/app',
       }),
     }));

@@ -76,7 +76,7 @@ export class LocationSearch {
     const mapsApiKey = this.config.publicConfig.googleMapsApiKey?.trim();
     if (!mapsApiKey) {
       throw new Error(
-        'Google Maps API key is missing. Set PUBLIC_GOOGLE_MAPS_API_KEY (or GOOGLE_MAPS_API_KEY) in the server environment.',
+        'Google Maps API key is missing. Set PUBLIC_GOOGLE_MAPS_API_KEY in the server environment.',
       );
     }
 
