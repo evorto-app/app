@@ -1,6 +1,11 @@
 import consola from 'consola';
+import { Effect } from 'effect';
 
+import { createDatabaseClient } from '../src/db/database-client';
 import { setupDatabase } from '../src/db/setup-database';
+import { formatConfigError } from '../src/server/config/config-error';
+import { databaseConfig } from '../src/server/config/database-config';
+import { makeRuntimeConfigProvider } from '../src/server/config/provider';
 
 /**
  * Database Seeding
@@ -22,7 +27,26 @@ import { setupDatabase } from '../src/db/setup-database';
  */
 
 // Run the database setup with deterministic data
-setupDatabase().catch((error) => {
+Effect.runPromise(
+  Effect.gen(function* () {
+    const runtimeConfigProvider = yield* makeRuntimeConfigProvider();
+    const { DATABASE_URL } = yield* databaseConfig.pipe(
+      Effect.withConfigProvider(runtimeConfigProvider),
+      Effect.mapError(
+        (error) =>
+          new Error(
+            `Invalid database configuration:\n${formatConfigError(error)}`,
+          ),
+      ),
+    );
+    const { database, pool } = createDatabaseClient(DATABASE_URL);
+    try {
+      yield* Effect.tryPromise(() => setupDatabase(database));
+    } finally {
+      yield* Effect.tryPromise(() => pool.end());
+    }
+  }),
+).catch((error) => {
   console.error('Error setting up database:', error);
   process.exit(1);
 });

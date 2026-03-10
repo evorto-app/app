@@ -1,33 +1,10 @@
 import type Stripe from 'stripe';
 
+import { Effect } from 'effect';
 import { DateTime } from 'luxon';
 
 import { getServerNow } from '../clock';
-
-interface StripeClient {
-  checkout: {
-    sessions: {
-      create: typeof Stripe.prototype.checkout.sessions.create;
-    };
-  };
-}
-
-const defaultStripeClientLoader = async (): Promise<StripeClient> => {
-  const { stripe } = await import('../stripe-client');
-  return stripe;
-};
-
-let stripeClientLoader: () => Promise<StripeClient> = defaultStripeClientLoader;
-
-export const __setStripeClientLoaderForTests = (
-  loader: () => Promise<StripeClient>,
-) => {
-  stripeClientLoader = loader;
-};
-
-export const __resetStripeClientLoaderForTests = () => {
-  stripeClientLoader = defaultStripeClientLoader;
-};
+import { StripeClient } from '../stripe-client';
 
 export const buildCheckoutSessionExpiresAt = (
   expiresInMinutes = 30,
@@ -52,16 +29,21 @@ export const buildCheckoutSessionIdempotencyKey = (input: {
 }): string =>
   `registration:${input.registrationId}:transaction:${input.transactionId}`;
 
-export const createHostedCheckoutSession = async (
+export const createHostedCheckoutSession = (
   parameters: Stripe.Checkout.SessionCreateParams,
   options: {
     idempotencyKey: string;
     stripeAccount: string;
   },
-): Promise<Stripe.Checkout.Session> => {
-  const stripeClient = await stripeClientLoader();
-  return stripeClient.checkout.sessions.create(parameters, {
-    idempotencyKey: options.idempotencyKey,
-    stripeAccount: options.stripeAccount,
+): Effect.Effect<Stripe.Checkout.Session, Stripe.errors.StripeError, StripeClient> =>
+  Effect.gen(function* () {
+    const stripeClient = yield* StripeClient;
+    return yield* Effect.tryPromise({
+      catch: (error) => error as Stripe.errors.StripeError,
+      try: () =>
+        stripeClient.checkout.sessions.create(parameters, {
+          idempotencyKey: options.idempotencyKey,
+          stripeAccount: options.stripeAccount,
+        }),
+    });
   });
-};

@@ -8,7 +8,7 @@ import {
   eventRegistrations,
   transactions,
 } from '../../../../../db/schema';
-import { stripe } from '../../../../stripe-client';
+import { StripeClient } from '../../../../stripe-client';
 import { RpcAccess } from '../shared/rpc-access.service';
 import { mapEventRegistrationErrorToRpc } from '../shared/rpc-error-mappers';
 import { EventRegistrationService } from './event-registration.service';
@@ -18,6 +18,7 @@ export const eventRegistrationHandlers = {
 'events.cancelPendingRegistration': ({ registrationId }, _options) =>
       Effect.gen(function* () {
         yield* RpcAccess.ensureAuthenticated();
+        const stripe = yield* StripeClient;
         const { tenant } = yield* RpcAccess.current();
         const user = yield* RpcAccess.requireUser();
 

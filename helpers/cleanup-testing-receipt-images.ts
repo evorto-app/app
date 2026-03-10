@@ -1,3 +1,6 @@
+import { Effect } from 'effect';
+
+import { makeRuntimeConfigProvider } from '../src/server/config/provider';
 import { cleanupTestingCloudflareImages } from '../src/server/integrations/cloudflare-images';
 
 const DELETE_CONFIRMATION = 'delete-testing-images-only';
@@ -23,12 +26,16 @@ const run = async (): Promise<void> => {
     );
   }
 
-  const result = await cleanupTestingCloudflareImages({
-    confirmPhrase,
-    dryRun,
-    ...(maxDeletes === undefined ? {} : { maxDeletes }),
-    source: 'finance-receipt',
-  });
+  const result = await Effect.runPromise(
+    cleanupTestingCloudflareImages({
+      confirmPhrase,
+      dryRun,
+      ...(maxDeletes === undefined ? {} : { maxDeletes }),
+      source: 'finance-receipt',
+    }).pipe(
+      Effect.withConfigProvider(Effect.runSync(makeRuntimeConfigProvider())),
+    ),
+  );
 
   console.info(
     JSON.stringify(

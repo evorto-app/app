@@ -445,52 +445,52 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
             );
           }
 
-          const session = yield* Effect.tryPromise({
-            catch: () =>
-              new EventRegistrationInternalError({
-                message: 'Failed to create stripe checkout session',
-              }),
-            try: () =>
-              createHostedCheckoutSession(
+          const session = yield* createHostedCheckoutSession(
+            {
+              cancel_url: `${eventUrl}?registrationStatus=cancel`,
+              customer_email: user.email,
+              expires_at: buildCheckoutSessionExpiresAt(30),
+              line_items: [
                 {
-                  cancel_url: `${eventUrl}?registrationStatus=cancel`,
-                  customer_email: user.email,
-                  expires_at: buildCheckoutSessionExpiresAt(30),
-                  line_items: [
-                    {
-                      price_data: {
-                        currency: tenant.currency,
-                        product_data: {
-                          name: `Registration fee for ${registrationOption.event.title}`,
-                        },
-                        unit_amount: effectivePrice,
-                      },
-                      ...(selectedTaxRateId
-                        ? { tax_rates: [selectedTaxRateId] as string[] }
-                        : {}),
-                      quantity: 1,
+                  price_data: {
+                    currency: tenant.currency,
+                    product_data: {
+                      name: `Registration fee for ${registrationOption.event.title}`,
                     },
-                  ],
-                  metadata: {
-                    registrationId: userRegistration.id,
-                    tenantId: tenant.id,
-                    transactionId,
+                    unit_amount: effectivePrice,
                   },
-                  mode: 'payment',
-                  payment_intent_data: {
-                    application_fee_amount: applicationFee,
-                  },
-                  success_url: `${eventUrl}?registrationStatus=success`,
+                  ...(selectedTaxRateId
+                    ? { tax_rates: [selectedTaxRateId] as string[] }
+                    : {}),
+                  quantity: 1,
                 },
-                {
-                  idempotencyKey: buildCheckoutSessionIdempotencyKey({
-                    registrationId: userRegistration.id,
-                    transactionId,
-                  }),
-                  stripeAccount,
-                },
-              ),
-          });
+              ],
+              metadata: {
+                registrationId: userRegistration.id,
+                tenantId: tenant.id,
+                transactionId,
+              },
+              mode: 'payment',
+              payment_intent_data: {
+                application_fee_amount: applicationFee,
+              },
+              success_url: `${eventUrl}?registrationStatus=success`,
+            },
+            {
+              idempotencyKey: buildCheckoutSessionIdempotencyKey({
+                registrationId: userRegistration.id,
+                transactionId,
+              }),
+              stripeAccount,
+            },
+          ).pipe(
+            Effect.mapError(
+              () =>
+                new EventRegistrationInternalError({
+                  message: 'Failed to create stripe checkout session',
+                }),
+            ),
+          );
 
           yield* databaseEffect((database) =>
             database.insert(transactions).values({

@@ -1,6 +1,5 @@
 import { Config } from 'effect';
 
-import { loadConfigSync } from './config-error';
 import { optionalTrimmedString } from './config-string';
 
 export const serverConfig = Config.all({
@@ -14,7 +13,3 @@ export const serverConfig = Config.all({
 });
 
 export type ServerConfig = Config.Config.Success<typeof serverConfig>;
-
-export const loadServerConfigSync = (
-  provider?: import('effect').ConfigProvider.ConfigProvider,
-): ServerConfig => loadConfigSync('server', serverConfig, provider);

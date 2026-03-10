@@ -1,6 +1,5 @@
 import * as NodeFileSystem from '@effect/platform-node-shared/NodeFileSystem';
 import * as PlatformConfigProvider from '@effect/platform/PlatformConfigProvider';
-import dotenv from 'dotenv';
 import { ConfigProvider, Effect } from 'effect';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -36,13 +35,6 @@ const loadDotEnvironmentProvider = (filePath: string) =>
       )
     : Effect.succeed(EMPTY_PROVIDER);
 
-const loadDotEnvironmentProviderSync = (filePath: string) =>
-  fs.existsSync(filePath)
-    ? ConfigProvider.fromMap(
-        new Map(Object.entries(dotenv.parse(fs.readFileSync(filePath)))),
-      )
-    : EMPTY_PROVIDER;
-
 export const resolveRuntimeConfigFilePaths = (
   options: RuntimeConfigProviderOptions = {},
 ): string[] => {
@@ -66,16 +58,3 @@ export const makeRuntimeConfigProvider = (
 
     return provider;
   });
-
-export const makeRuntimeConfigProviderSync = (
-  options: RuntimeConfigProviderOptions = {},
-) => {
-  let provider = ConfigProvider.fromEnv();
-
-  for (const filePath of resolveRuntimeConfigFilePaths(options)) {
-    const dotEnvironmentProvider = loadDotEnvironmentProviderSync(filePath);
-    provider = ConfigProvider.orElse(provider, () => dotEnvironmentProvider);
-  }
-
-  return provider;
-};

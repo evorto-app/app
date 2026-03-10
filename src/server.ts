@@ -23,9 +23,10 @@ import {
   loadAuthSession,
   toAbsoluteRequestUrl,
 } from './server/auth/auth-session';
-import { makeRuntimeConfigProviderSync } from './server/config/provider';
+import { formatConfigError } from './server/config/config-error';
+import { makeRuntimeConfigProvider } from './server/config/provider';
 import { RuntimeConfig } from './server/config/runtime-config';
-import { loadServerConfigSync } from './server/config/server-config';
+import { serverConfig } from './server/config/server-config';
 import { resolveHttpRequestContext } from './server/context/http-request-context';
 import { toRpcHttpServerRequest } from './server/effect/rpc/app-rpcs.request-handler';
 import {
@@ -37,14 +38,26 @@ import { handleHealthzWebRequest } from './server/http/healthz.web-handler';
 import { handleQrRegistrationCodeWebRequest } from './server/http/qr-code.web-handler';
 import { applySecurityHeaders } from './server/http/security-headers';
 import { handleStripeWebhookWebRequest } from './server/http/stripe-webhook.web-handler';
+import { stripeClientLayer } from './server/stripe-client';
 
 const angularApp = new AngularAppEngine();
-const runtimeConfigProvider = makeRuntimeConfigProviderSync();
-const { PORT: serverPort } = loadServerConfigSync(runtimeConfigProvider);
+const runtimeConfigProvider = Effect.runSync(makeRuntimeConfigProvider());
+const { PORT: serverPort } = Effect.runSync(
+  serverConfig.pipe(
+    Effect.withConfigProvider(runtimeConfigProvider),
+    Effect.mapError(
+      (error) =>
+        new Error(`Invalid server configuration:\n${formatConfigError(error)}`),
+    ),
+  ),
+);
 const browserDistributionUrl = new URL('../browser/', import.meta.url);
 const cacheControlHeader = 'public, max-age=31536000';
 const keyValueStoreDirectory = '.cache/evorto/server-kv';
 const notFoundServerResponse = HttpServerResponse.empty({ status: 404 });
+const configuredDatabaseLayer = databaseLayer.pipe(
+  Layer.provide(Layer.setConfigProvider(runtimeConfigProvider)),
+);
 
 const sanitizeRedirectPath = (value: null | string): string | undefined => {
   if (!value) {
@@ -355,13 +368,14 @@ const handlerRuntimeLayer = Layer.mergeAll(
   otelLayer,
   serverLoggerLayer,
   appRpcHttpAppLayer,
+  stripeClientLayer,
   RuntimeConfig.Default,
   Layer.setConfigProvider(runtimeConfigProvider),
 );
 
 const handlerAppLayer = routesLayer.pipe(
   Layer.provide(handlerRuntimeLayer),
-  Layer.provide(databaseLayer),
+  Layer.provide(configuredDatabaseLayer),
 );
 
 let cachedRequestHandler: ((request: Request) => Promise<Response>) | undefined;
@@ -407,6 +421,7 @@ const serveEffect = Effect.gen(function* () {
         otelLayer,
         serverLoggerLayer,
         appRpcHttpAppLayer,
+        stripeClientLayer,
         RuntimeConfig.Default,
         Layer.setConfigProvider(runtimeConfigProvider),
       ),
@@ -426,7 +441,7 @@ const serveEffect = Effect.gen(function* () {
 if (import.meta.main) {
   BunRuntime.runMain(
     serveEffect.pipe(
-      Effect.provide(databaseLayer),
+      Effect.provide(configuredDatabaseLayer),
     ),
   );
 }

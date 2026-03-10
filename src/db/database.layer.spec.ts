@@ -1,4 +1,4 @@
-import { Effect } from 'effect';
+import { ConfigProvider, Effect, Layer } from 'effect';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 describe('database.layer', () => {
@@ -12,27 +12,34 @@ describe('database.layer', () => {
 
   it('wires PgClient layer with the configured database URL', async () => {
     const pgLayerMock = vi.fn((_config: { url: unknown }) =>
-      Symbol('pg-layer'),
+      Layer.empty,
     );
     const makeMock = vi.fn(() => Effect.succeed({}));
 
-    vi.doMock('../server/config/database-config', () => ({
-      loadDatabaseConfigSync: () => ({
-        DATABASE_URL: 'postgresql://db-user:db-pass@db.example.com/app',
-      }),
-    }));
     vi.doMock('@effect/sql-pg/PgClient', () => ({
       layer: pgLayerMock,
     }));
     vi.doMock('drizzle-orm/effect-postgres', () => ({
-      DefaultServices: Symbol('default-services'),
+      DefaultServices: Layer.empty,
       EffectLogger: {
-        layer: Symbol('effect-logger'),
+        layer: Layer.empty,
       },
       make: makeMock,
     }));
 
     const module = await import('./database.layer');
+    const provider = ConfigProvider.fromMap(
+      new Map([
+        ['DATABASE_URL', 'postgresql://db-user:db-pass@db.example.com/app'],
+      ]),
+    );
+
+    await Effect.runPromise(
+      module.Database.pipe(
+        Effect.provide(module.databaseLayer),
+        Effect.provide(Layer.setConfigProvider(provider)),
+      ),
+    );
 
     expect(makeMock).toHaveBeenCalledWith({
       relations: expect.anything(),

@@ -1,6 +1,5 @@
 import { Config } from 'effect';
 
-import { loadConfigSync } from './config-error';
 import { nonEmptyTrimmedString, optionalTrimmedString } from './config-string';
 
 export const authConfig = Config.all({
@@ -13,7 +12,3 @@ export const authConfig = Config.all({
 });
 
 export type AuthConfig = Config.Config.Success<typeof authConfig>;
-
-export const loadAuthConfigSync = (
-  provider?: import('effect').ConfigProvider.ConfigProvider,
-): AuthConfig => loadConfigSync('auth', authConfig, provider);

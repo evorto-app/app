@@ -72,16 +72,12 @@ export const editorMediaHandlers = {
           return yield* Effect.fail('BAD_REQUEST' as const);
         }
 
-        return yield* Effect.tryPromise({
-          catch: () => 'INTERNAL_SERVER_ERROR' as const,
-          try: () =>
-            createCloudflareImageDirectUpload({
-              fileName: input.fileName,
-              mimeType: input.mimeType,
-              source: 'editor',
-              tenantId: tenant.id,
-              uploadedByUserId: user.id,
-            }),
-        });
+        return yield* createCloudflareImageDirectUpload({
+          fileName: input.fileName,
+          mimeType: input.mimeType,
+          source: 'editor',
+          tenantId: tenant.id,
+          uploadedByUserId: user.id,
+        }).pipe(Effect.mapError(() => 'INTERNAL_SERVER_ERROR' as const));
       }),
 } satisfies Partial<AppRpcHandlers>;

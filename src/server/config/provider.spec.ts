@@ -1,10 +1,20 @@
+import { Effect } from 'effect';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { loadDatabaseConfigSync } from './database-config';
-import { makeRuntimeConfigProviderSync } from './provider';
+import { databaseConfig } from './database-config';
+import { makeRuntimeConfigProvider } from './provider';
+
+const readDatabaseUrl = async (cwd: string) => {
+  const provider = await Effect.runPromise(makeRuntimeConfigProvider({ cwd }));
+  const config = await Effect.runPromise(
+    databaseConfig.pipe(Effect.withConfigProvider(provider)),
+  );
+
+  return config.DATABASE_URL;
+};
 
 describe('provider', () => {
   const originalDatabaseUrl = process.env['DATABASE_URL'];
@@ -18,7 +28,7 @@ describe('provider', () => {
     process.env['DATABASE_URL'] = originalDatabaseUrl;
   });
 
-  it('applies config precedence env > .env.local > .env > .env.runtime', () => {
+  it('applies config precedence env > .env.local > .env > .env.runtime', async () => {
     const temporaryDirectory = fs.mkdtempSync(
       path.join(os.tmpdir(), 'evorto-config-provider-'),
     );
@@ -38,32 +48,24 @@ describe('provider', () => {
       );
 
       delete process.env['DATABASE_URL'];
-      expect(
-        loadDatabaseConfigSync(
-          makeRuntimeConfigProviderSync({ cwd: temporaryDirectory }),
-        ).DATABASE_URL,
-      ).toBe('postgresql://local.example/app');
+      await expect(readDatabaseUrl(temporaryDirectory)).resolves.toBe(
+        'postgresql://local.example/app',
+      );
 
       fs.unlinkSync(path.join(temporaryDirectory, '.env.local'));
-      expect(
-        loadDatabaseConfigSync(
-          makeRuntimeConfigProviderSync({ cwd: temporaryDirectory }),
-        ).DATABASE_URL,
-      ).toBe('postgresql://shared.example/app');
+      await expect(readDatabaseUrl(temporaryDirectory)).resolves.toBe(
+        'postgresql://shared.example/app',
+      );
 
       fs.unlinkSync(path.join(temporaryDirectory, '.env'));
-      expect(
-        loadDatabaseConfigSync(
-          makeRuntimeConfigProviderSync({ cwd: temporaryDirectory }),
-        ).DATABASE_URL,
-      ).toBe('postgresql://runtime.example/app');
+      await expect(readDatabaseUrl(temporaryDirectory)).resolves.toBe(
+        'postgresql://runtime.example/app',
+      );
 
       process.env['DATABASE_URL'] = 'postgresql://env.example/app';
-      expect(
-        loadDatabaseConfigSync(
-          makeRuntimeConfigProviderSync({ cwd: temporaryDirectory }),
-        ).DATABASE_URL,
-      ).toBe('postgresql://env.example/app');
+      await expect(readDatabaseUrl(temporaryDirectory)).resolves.toBe(
+        'postgresql://env.example/app',
+      );
     } finally {
       fs.rmSync(temporaryDirectory, { force: true, recursive: true });
     }

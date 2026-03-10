@@ -1,4 +1,6 @@
-import { loadObjectStorageConfigSync } from '../config/object-storage-config';
+import { ConfigError, Effect } from 'effect';
+
+import { objectStorageConfig } from '../config/object-storage-config';
 
 interface BunS3Client {
   file(key: string): BunS3File;
@@ -27,6 +29,14 @@ interface BunS3File {
   ): Promise<number>;
 }
 
+interface ObjectStorageRuntimeConfig {
+  bucket: string;
+  endpoint: string;
+  keyId: string;
+  keySecret: string;
+  region: string;
+}
+
 const getBunS3ClientConstructor = (): BunS3ClientConstructor => {
   const bunRuntime = (
     globalThis as typeof globalThis & {
@@ -44,25 +54,22 @@ const getBunS3ClientConstructor = (): BunS3ClientConstructor => {
   return constructor;
 };
 
-const resolveObjectStorageConfig = (): {
-  bucket: string;
-  endpoint: string;
-  keyId: string;
-  keySecret: string;
-  region: string;
-} => {
-  const environment = loadObjectStorageConfigSync();
-  const endpoint = environment.endpoint;
-  const keyId = environment.accessKeyId;
-  const keySecret = environment.secretAccessKey;
-  const bucket = environment.bucket;
-  const region = environment.region;
-
-  return { bucket, endpoint, keyId, keySecret, region };
-};
+const resolveObjectStorageConfig = (): Effect.Effect<
+  ObjectStorageRuntimeConfig,
+  ConfigError.ConfigError
+> =>
+  objectStorageConfig.pipe(
+    Effect.map((environment) => ({
+      bucket: environment.bucket,
+      endpoint: environment.endpoint,
+      keyId: environment.accessKeyId,
+      keySecret: environment.secretAccessKey,
+      region: environment.region,
+    })),
+  );
 
 const buildS3Client = (
-  config: ReturnType<typeof resolveObjectStorageConfig>,
+  config: ObjectStorageRuntimeConfig,
 ): BunS3Client => {
   const S3Client = getBunS3ClientConstructor();
   return new S3Client({
@@ -75,37 +82,44 @@ const buildS3Client = (
   });
 };
 
-export const uploadReceiptOriginalToR2 = async (input: {
+export const uploadReceiptOriginalToR2 = (input: {
   body: Uint8Array;
   contentType: string;
   key: string;
-}): Promise<{
-  storageKey: string;
-  storageUrl: string;
-}> => {
-  const config = resolveObjectStorageConfig();
-  const client = buildS3Client(config);
+}): Effect.Effect<
+  {
+    storageKey: string;
+    storageUrl: string;
+  },
+  ConfigError.ConfigError | Error
+> =>
+  Effect.gen(function* () {
+    const config = yield* resolveObjectStorageConfig();
+    const client = buildS3Client(config);
 
-  await client.file(input.key).write(input.body, {
-    type: input.contentType,
+    yield* Effect.tryPromise(() =>
+      client.file(input.key).write(input.body, {
+        type: input.contentType,
+      }),
+    );
+
+    return {
+      storageKey: input.key,
+      storageUrl: `${config.endpoint.replace(/\/$/, '')}/${config.bucket}/${input.key}`,
+    };
   });
 
-  return {
-    storageKey: input.key,
-    storageUrl: `${config.endpoint.replace(/\/$/, '')}/${config.bucket}/${input.key}`,
-  };
-};
-
-export const getSignedReceiptObjectUrlFromR2 = async (input: {
+export const getSignedReceiptObjectUrlFromR2 = (input: {
   expiresInSeconds?: number;
   key: string;
-}): Promise<string> => {
-  const config = resolveObjectStorageConfig();
-  const client = buildS3Client(config);
+}): Effect.Effect<string, ConfigError.ConfigError | Error> =>
+  Effect.gen(function* () {
+    const config = yield* resolveObjectStorageConfig();
+    const client = buildS3Client(config);
 
-  return client.file(input.key).presign({
-    contentDisposition: 'inline',
-    expiresIn: input.expiresInSeconds ?? 60 * 15,
-    method: 'GET',
+    return client.file(input.key).presign({
+      contentDisposition: 'inline',
+      expiresIn: input.expiresInSeconds ?? 60 * 15,
+      method: 'GET',
+    });
   });
-};

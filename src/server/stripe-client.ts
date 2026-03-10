@@ -1,7 +1,16 @@
+import { Context, Effect, Layer } from 'effect';
 import Stripe from 'stripe';
 
-import { loadStripeApiConfigSync } from './config/stripe-config';
+import { stripeApiConfig } from './config/stripe-config';
 
-const { STRIPE_API_KEY: stripeApiKey } = loadStripeApiConfigSync();
+export class StripeClient extends Context.Tag('@server/StripeClient')<
+  StripeClient,
+  Stripe
+>() {}
 
-export const stripe = new Stripe(stripeApiKey);
+export const stripeClientLayer = Layer.effect(
+  StripeClient,
+  stripeApiConfig.pipe(
+    Effect.map(({ STRIPE_API_KEY }) => new Stripe(STRIPE_API_KEY)),
+  ),
+);

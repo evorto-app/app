@@ -1,7 +1,21 @@
-import { ConfigProvider } from 'effect';
+import { ConfigError, ConfigProvider, Effect } from 'effect';
 import { describe, expect, it } from 'vitest';
 
-import { validatePlaywrightEnvironment } from './test-runtime-config';
+import { formatConfigError } from './config-error';
+import { playwrightEnvironmentConfig } from './test-runtime-config';
+
+const readPlaywrightEnvironment = (provider: ConfigProvider.ConfigProvider) =>
+  Effect.runSync(
+    playwrightEnvironmentConfig.pipe(
+      Effect.withConfigProvider(provider),
+      Effect.mapError(
+        (error: ConfigError.ConfigError) =>
+          new Error(
+            `Invalid Playwright e2e configuration:\n${formatConfigError(error)}`,
+          ),
+      ),
+    ),
+  );
 
 const requiredPlaywrightEntries = [
   ['CLIENT_ID', 'client-id'],
@@ -23,7 +37,7 @@ describe('test-runtime-config', () => {
       ]),
     );
 
-    expect(() => validatePlaywrightEnvironment(provider)).toThrow(/BASE_URL/);
+    expect(() => readPlaywrightEnvironment(provider)).toThrow(/BASE_URL/);
   });
 
   it('accepts BASE_URL as the canonical Playwright app URL', () => {
@@ -33,7 +47,7 @@ describe('test-runtime-config', () => {
         ['BASE_URL', 'http://localhost:4200'],
       ]),
     );
-    const environment = validatePlaywrightEnvironment(provider);
+    const environment = readPlaywrightEnvironment(provider);
 
     expect(environment.NO_WEBSERVER).toBe(false);
     if (environment.NO_WEBSERVER) {

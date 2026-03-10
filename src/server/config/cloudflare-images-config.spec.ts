@@ -1,7 +1,21 @@
-import { ConfigProvider } from 'effect';
+import { ConfigError, ConfigProvider, Effect } from 'effect';
 import { describe, expect, it } from 'vitest';
 
-import { loadCloudflareImagesConfigSync } from './cloudflare-images-config';
+import { cloudflareImagesConfig } from './cloudflare-images-config';
+import { formatConfigError } from './config-error';
+
+const readCloudflareImagesConfig = (provider: ConfigProvider.ConfigProvider) =>
+  Effect.runSync(
+    cloudflareImagesConfig.pipe(
+      Effect.withConfigProvider(provider),
+      Effect.mapError(
+        (error: ConfigError.ConfigError) =>
+          new Error(
+            `Invalid Cloudflare Images configuration:\n${formatConfigError(error)}`,
+          ),
+      ),
+    ),
+  );
 
 describe('cloudflare-images-config', () => {
   it('rejects the deprecated CLOUDFLARE_TOKEN alias', () => {
@@ -13,7 +27,7 @@ describe('cloudflare-images-config', () => {
       ]),
     );
 
-    expect(() => loadCloudflareImagesConfigSync(provider)).toThrow(
+    expect(() => readCloudflareImagesConfig(provider)).toThrow(
       /CLOUDFLARE_IMAGES_API_TOKEN/,
     );
   });
@@ -27,7 +41,7 @@ describe('cloudflare-images-config', () => {
       ]),
     );
 
-    expect(loadCloudflareImagesConfigSync(provider)).toMatchObject({
+    expect(readCloudflareImagesConfig(provider)).toMatchObject({
       CLOUDFLARE_ACCOUNT_ID: 'account-id',
       CLOUDFLARE_IMAGES_API_TOKEN: 'api-token',
       CLOUDFLARE_IMAGES_DELIVERY_HASH: 'delivery-hash',

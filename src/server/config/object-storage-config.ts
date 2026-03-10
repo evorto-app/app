@@ -1,12 +1,10 @@
 import {
   Config,
   ConfigError,
-  type ConfigProvider,
   Effect,
   Option,
 } from 'effect';
 
-import { loadConfigSync } from './config-error';
 import { optionalTrimmedString } from './config-string';
 
 export const objectStorageStateConfig = Config.all({
@@ -62,7 +60,7 @@ const combineConfigErrors = (
   return combinedError;
 };
 
-const objectStorageConfig = Effect.gen(function* () {
+export const objectStorageConfig = Effect.gen(function* () {
   const state = yield* objectStorageStateConfig;
   if (
     Option.isNone(state.S3_ENDPOINT) ||
@@ -104,13 +102,3 @@ const objectStorageConfig = Effect.gen(function* () {
     secretAccessKey,
   } satisfies ObjectStorageConfig;
 });
-
-export const loadObjectStorageConfigSync = (
-  provider?: ConfigProvider.ConfigProvider,
-): ObjectStorageConfig =>
-  loadConfigSync('object storage', objectStorageConfig, provider);
-
-export const loadObjectStorageStateSync = (
-  provider?: ConfigProvider.ConfigProvider,
-): ObjectStorageConfigState =>
-  loadConfigSync('object storage state', objectStorageStateConfig, provider);

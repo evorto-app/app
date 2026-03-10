@@ -7,6 +7,7 @@ import * as RpcServer from '@effect/rpc/RpcServer';
 import { Context, Effect, Layer } from 'effect';
 
 import { RuntimeConfig } from '../../config/runtime-config';
+import { stripeClientLayer } from '../../stripe-client';
 import { serverLoggerLayer } from '../server-logger.layer';
 import { appRpcHandlers, ServerAppRpcs } from './app-rpcs.handlers';
 import { EventRegistrationService } from './handlers/events/event-registration.service';
@@ -21,11 +22,12 @@ class AppRpcHttpApp extends Context.Tag('@server/effect/rpc/AppRpcHttpApp')<
 >() {}
 
 const appRpcDependenciesLayer = Layer.mergeAll(
-  EventRegistrationService.Default,
-  RpcAccess.Default,
-  ReceiptMediaService.Default,
-  SimpleTemplateService.Default,
-  RuntimeConfig.Default,
+    EventRegistrationService.Default,
+    RpcAccess.Default,
+    ReceiptMediaService.Default,
+    SimpleTemplateService.Default,
+    RuntimeConfig.Default,
+    stripeClientLayer,
 );
 const appRpcHandlersLayer = appRpcHandlers.pipe(
   Layer.provide(appRpcDependenciesLayer),

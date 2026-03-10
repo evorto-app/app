@@ -1,7 +1,21 @@
-import { ConfigProvider } from 'effect';
+import { ConfigError, ConfigProvider, Effect } from 'effect';
 import { describe, expect, it } from 'vitest';
 
-import { loadObjectStorageConfigSync } from './object-storage-config';
+import { formatConfigError } from './config-error';
+import { objectStorageConfig } from './object-storage-config';
+
+const readObjectStorageConfig = (provider: ConfigProvider.ConfigProvider) =>
+  Effect.runSync(
+    objectStorageConfig.pipe(
+      Effect.withConfigProvider(provider),
+      Effect.mapError(
+        (error: ConfigError.ConfigError) =>
+          new Error(
+            `Invalid object storage configuration:\n${formatConfigError(error)}`,
+          ),
+      ),
+    ),
+  );
 
 describe('object-storage-config', () => {
   it('requires canonical S3_* variables', () => {
@@ -14,7 +28,7 @@ describe('object-storage-config', () => {
       ]),
     );
 
-    expect(() => loadObjectStorageConfigSync(legacyProvider)).toThrow(
+    expect(() => readObjectStorageConfig(legacyProvider)).toThrow(
       /S3_ENDPOINT/,
     );
   });
@@ -30,7 +44,7 @@ describe('object-storage-config', () => {
       ]),
     );
 
-    expect(loadObjectStorageConfigSync(provider)).toEqual({
+    expect(readObjectStorageConfig(provider)).toEqual({
       accessKeyId: 'test-key',
       bucket: 'test-bucket',
       endpoint: 'https://s3.example.test',

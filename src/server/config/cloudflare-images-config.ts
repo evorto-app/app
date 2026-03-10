@@ -1,12 +1,10 @@
 import {
   Config,
   ConfigError,
-  type ConfigProvider,
   Effect,
   Option,
 } from 'effect';
 
-import { loadConfigSync } from './config-error';
 import { optionalTrimmedString } from './config-string';
 
 export const cloudflareImagesStateConfig = Config.all({
@@ -56,7 +54,7 @@ const combineConfigErrors = (
   return combinedError;
 };
 
-const cloudflareImagesConfig = Effect.gen(function* () {
+export const cloudflareImagesConfig = Effect.gen(function* () {
   const state = yield* cloudflareImagesStateConfig;
   if (
     Option.isNone(state.CLOUDFLARE_ACCOUNT_ID) ||
@@ -104,27 +102,11 @@ const cloudflareImagesConfig = Effect.gen(function* () {
   } satisfies CloudflareImagesConfig;
 });
 
-export const loadCloudflareImagesConfigSync = (
-  provider?: ConfigProvider.ConfigProvider,
-): CloudflareImagesConfig =>
-  loadConfigSync('Cloudflare Images', cloudflareImagesConfig, provider);
-
-export const loadCloudflareImagesStateSync = (
-  provider?: ConfigProvider.ConfigProvider,
-): CloudflareImagesConfigState =>
-  loadConfigSync(
-    'Cloudflare Images state',
-    cloudflareImagesStateConfig,
-    provider,
-  );
-
-export const isCloudflareImagesConfiguredSync = (
-  provider?: ConfigProvider.ConfigProvider,
-): boolean => {
-  const state = loadCloudflareImagesStateSync(provider);
-  return (
-    Option.isSome(state.CLOUDFLARE_ACCOUNT_ID) &&
-    Option.isSome(state.CLOUDFLARE_IMAGES_API_TOKEN) &&
-    Option.isSome(state.CLOUDFLARE_IMAGES_DELIVERY_HASH)
-  );
-};
+export const isCloudflareImagesConfigured = cloudflareImagesStateConfig.pipe(
+  Effect.map(
+    (state) =>
+      Option.isSome(state.CLOUDFLARE_ACCOUNT_ID) &&
+      Option.isSome(state.CLOUDFLARE_IMAGES_API_TOKEN) &&
+      Option.isSome(state.CLOUDFLARE_IMAGES_DELIVERY_HASH),
+  ),
+);

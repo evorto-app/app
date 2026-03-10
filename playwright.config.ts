@@ -1,10 +1,22 @@
 import { defineConfig, devices } from '@playwright/test';
+import { ConfigError, Effect } from 'effect';
 
-import { makeRuntimeConfigProviderSync } from './src/server/config/provider';
-import { validatePlaywrightEnvironment } from './tests/support/config/environment';
+import { formatConfigError } from './src/server/config/config-error';
+import { makeRuntimeConfigProvider } from './src/server/config/provider';
+import { playwrightEnvironmentConfig } from './tests/support/config/environment';
 
-const runtimeConfigProvider = makeRuntimeConfigProviderSync();
-const environment = validatePlaywrightEnvironment(runtimeConfigProvider);
+const runtimeConfigProvider = Effect.runSync(makeRuntimeConfigProvider());
+const environment = Effect.runSync(
+  playwrightEnvironmentConfig.pipe(
+    Effect.withConfigProvider(runtimeConfigProvider),
+    Effect.mapError(
+      (error: ConfigError.ConfigError) =>
+        new Error(
+          `Invalid Playwright e2e configuration:\n${formatConfigError(error)}`,
+        ),
+    ),
+  ),
+);
 const resolvedBaseUrl =
   'BASE_URL' in environment ? environment.BASE_URL : undefined;
 

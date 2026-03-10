@@ -1,13 +1,11 @@
 import {
   Config,
   ConfigError,
-  type ConfigProvider,
   Effect,
   Option,
 } from 'effect';
 import path from 'node:path';
 
-import { loadConfigSync } from './config-error';
 import { nonEmptyTrimmedString, optionalTrimmedString } from './config-string';
 
 const DEFAULT_TEST_CLOCK_ISO = '2026-02-01T12:00:00.000Z';
@@ -175,7 +173,7 @@ const validateCiEnvironment = (
     : Effect.void;
 };
 
-const playwrightEnvironmentConfig = Effect.gen(function* () {
+export const playwrightEnvironmentConfig = Effect.gen(function* () {
   const state = yield* testRuntimeConfigState;
   yield* validateCiEnvironment(state);
 
@@ -251,38 +249,16 @@ const playwrightEnvironmentConfig = Effect.gen(function* () {
   } satisfies PlaywrightEnvironment;
 });
 
-export const validatePlaywrightEnvironment = (
-  provider?: ConfigProvider.ConfigProvider,
-): PlaywrightEnvironment => {
-  return loadConfigSync(
-    'Playwright e2e',
-    playwrightEnvironmentConfig,
-    provider,
-  );
-};
+export const hasAuth0ManagementEnvironment = testRuntimeConfigState.pipe(
+  Effect.map(
+    (state) =>
+      Option.isSome(state.AUTH0_MANAGEMENT_CLIENT_ID) &&
+      Option.isSome(state.AUTH0_MANAGEMENT_CLIENT_SECRET),
+  ),
+);
 
-export const hasAuth0ManagementEnvironment = (
-  provider?: ConfigProvider.ConfigProvider,
-): boolean => {
-  const state = loadConfigSync(
-    'e2e auth state',
-    testRuntimeConfigState,
-    provider,
-  );
-  return Boolean(
-    Option.isSome(state.AUTH0_MANAGEMENT_CLIENT_ID) &&
-    Option.isSome(state.AUTH0_MANAGEMENT_CLIENT_SECRET),
-  );
-};
-
-export const getAuth0ManagementEnvironment = (
-  provider?: ConfigProvider.ConfigProvider,
-): Auth0ManagementEnvironment => {
-  const state = loadConfigSync(
-    'e2e auth state',
-    testRuntimeConfigState,
-    provider,
-  );
+export const auth0ManagementEnvironment = Effect.gen(function* () {
+  const state = yield* testRuntimeConfigState;
   const errors = [
     Option.isSome(state.AUTH0_MANAGEMENT_CLIENT_ID)
       ? undefined
@@ -319,22 +295,11 @@ export const getAuth0ManagementEnvironment = (
     AUTH0_MANAGEMENT_CLIENT_ID: managementClientId,
     AUTH0_MANAGEMENT_CLIENT_SECRET: managementClientSecret,
   };
-};
+});
 
-export const resolveDocumentationOutputEnvironment = (
-  provider?: ConfigProvider.ConfigProvider,
-): DocumentationOutputEnvironment => {
-  const state = loadConfigSync(
-    'documentation output',
-    testRuntimeConfigState,
-    provider,
-  );
-
-  const documentationImageOutputDirectory = state.DOCS_IMG_OUT_DIR;
-  const documentationOutputDirectory = state.DOCS_OUT_DIR;
-
-  return {
-    docsImageOutputDirectory: documentationImageOutputDirectory,
-    docsOutputDirectory: documentationOutputDirectory,
-  };
-};
+export const documentationOutputEnvironment = testRuntimeConfigState.pipe(
+  Effect.map((state): DocumentationOutputEnvironment => ({
+    docsImageOutputDirectory: state.DOCS_IMG_OUT_DIR,
+    docsOutputDirectory: state.DOCS_OUT_DIR,
+  })),
+);

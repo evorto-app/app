@@ -1,6 +1,5 @@
-import { Config, Option } from 'effect';
+import { Config, ConfigError, Effect, Option } from 'effect';
 
-import { loadConfigSync } from './config-error';
 import { optionalTrimmedString } from './config-string';
 
 export const stripeConfig = Config.all({
@@ -11,38 +10,29 @@ export const stripeConfig = Config.all({
 
 export type StripeConfig = Config.Config.Success<typeof stripeConfig>;
 
-export const loadStripeConfigSync = (
-  provider?: import('effect').ConfigProvider.ConfigProvider,
-): StripeConfig => loadConfigSync('stripe', stripeConfig, provider);
+const missingFieldError = (name: string) =>
+  ConfigError.MissingData([name], `Expected ${name} to be configured`);
 
-export const loadStripeApiConfigSync = (
-  provider?: import('effect').ConfigProvider.ConfigProvider,
-): { STRIPE_API_KEY: string } => {
-  const config = loadStripeConfigSync(provider);
-  return Option.match(config.STRIPE_API_KEY, {
-    onNone: () => {
-      throw new Error(
-        'Invalid stripe API configuration:\n- STRIPE_API_KEY: Expected STRIPE_API_KEY to be configured',
-      );
-    },
-    onSome: (apiKey) => ({
-      STRIPE_API_KEY: apiKey,
+export const stripeApiConfig = stripeConfig.pipe(
+  Effect.flatMap((config) =>
+    Option.match(config.STRIPE_API_KEY, {
+      onNone: () => Effect.fail(missingFieldError('STRIPE_API_KEY')),
+      onSome: (apiKey) =>
+        Effect.succeed({
+          STRIPE_API_KEY: apiKey,
+        }),
     }),
-  });
-};
+  ),
+);
 
-export const loadStripeWebhookConfigSync = (
-  provider?: import('effect').ConfigProvider.ConfigProvider,
-): { STRIPE_WEBHOOK_SECRET: string } => {
-  const config = loadStripeConfigSync(provider);
-  return Option.match(config.STRIPE_WEBHOOK_SECRET, {
-    onNone: () => {
-      throw new Error(
-        'Invalid stripe webhook configuration:\n- STRIPE_WEBHOOK_SECRET: Expected STRIPE_WEBHOOK_SECRET to be configured',
-      );
-    },
-    onSome: (webhookSecret) => ({
-      STRIPE_WEBHOOK_SECRET: webhookSecret,
+export const stripeWebhookConfig = stripeConfig.pipe(
+  Effect.flatMap((config) =>
+    Option.match(config.STRIPE_WEBHOOK_SECRET, {
+      onNone: () => Effect.fail(missingFieldError('STRIPE_WEBHOOK_SECRET')),
+      onSome: (webhookSecret) =>
+        Effect.succeed({
+          STRIPE_WEBHOOK_SECRET: webhookSecret,
+        }),
     }),
-  });
-};
+  ),
+);

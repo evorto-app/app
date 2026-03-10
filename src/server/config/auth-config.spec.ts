@@ -1,7 +1,19 @@
-import { ConfigProvider, Option } from 'effect';
+import { ConfigError, ConfigProvider, Effect, Option } from 'effect';
 import { describe, expect, it } from 'vitest';
 
-import { loadAuthConfigSync } from './auth-config';
+import { authConfig } from './auth-config';
+import { formatConfigError } from './config-error';
+
+const readAuthConfig = (provider: ConfigProvider.ConfigProvider) =>
+  Effect.runSync(
+    authConfig.pipe(
+      Effect.withConfigProvider(provider),
+      Effect.mapError(
+        (error: ConfigError.ConfigError) =>
+          new Error(`Invalid auth configuration:\n${formatConfigError(error)}`),
+      ),
+    ),
+  );
 
 describe('auth-config', () => {
   it('keeps optional audience as Option.none when missing or blank', () => {
@@ -25,10 +37,10 @@ describe('auth-config', () => {
       ]),
     );
 
-    expect(loadAuthConfigSync(missingAudienceProvider).AUDIENCE).toEqual(
+    expect(readAuthConfig(missingAudienceProvider).AUDIENCE).toEqual(
       Option.none(),
     );
-    expect(loadAuthConfigSync(blankAudienceProvider).AUDIENCE).toEqual(
+    expect(readAuthConfig(blankAudienceProvider).AUDIENCE).toEqual(
       Option.none(),
     );
   });
@@ -45,7 +57,7 @@ describe('auth-config', () => {
       ]),
     );
 
-    expect(loadAuthConfigSync(provider).AUDIENCE).toEqual(
+    expect(readAuthConfig(provider).AUDIENCE).toEqual(
       Option.some('https://api.example'),
     );
   });
@@ -61,6 +73,6 @@ describe('auth-config', () => {
       ]),
     );
 
-    expect(() => loadAuthConfigSync(provider)).toThrow(/BASE_URL/);
+    expect(() => readAuthConfig(provider)).toThrow(/BASE_URL/);
   });
 });

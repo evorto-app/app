@@ -6,9 +6,11 @@ import type {
   TestCase,
   TestResult,
 } from '@playwright/test/reporter';
+import { Effect } from 'effect';
 import path from 'node:path';
 
-import { resolveDocumentationOutputEnvironment } from '../config/environment';
+import { makeRuntimeConfigProvider } from '../../../src/server/config/provider';
+import { documentationOutputEnvironment } from '../config/environment';
 import { buildSectionContent } from './documentation-reporter/attachments';
 import { DocumentationGroupRegistry } from './documentation-reporter/group-registry';
 import {
@@ -21,16 +23,20 @@ import {
 
 class DocumentationReporter implements Reporter {
   private readonly registry = new DocumentationGroupRegistry();
+  private readonly environment = Effect.runSync(
+    documentationOutputEnvironment.pipe(
+      Effect.withConfigProvider(Effect.runSync(makeRuntimeConfigProvider())),
+    ),
+  );
 
   private docsRoot(options?: { empty?: boolean }): string {
-    const root = resolveDocumentationOutputEnvironment().docsOutputDirectory;
+    const root = this.environment.docsOutputDirectory;
     ensureDirectory(root, options);
     return root;
   }
 
   private imagesRoot(options?: { empty?: boolean }): string {
-    const root =
-      resolveDocumentationOutputEnvironment().docsImageOutputDirectory;
+    const root = this.environment.docsImageOutputDirectory;
     ensureDirectory(root, options);
     return root;
   }

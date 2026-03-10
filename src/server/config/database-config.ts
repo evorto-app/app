@@ -1,6 +1,5 @@
 import { Config, Option } from 'effect';
 
-import { loadConfigSync } from './config-error';
 import { nonEmptyTrimmedString, optionalTrimmedString } from './config-string';
 
 export const databaseConfig = Config.all({
@@ -27,7 +26,3 @@ export const databaseConfig = Config.all({
 });
 
 export type DatabaseConfig = Config.Config.Success<typeof databaseConfig>;
-
-export const loadDatabaseConfigSync = (
-  provider?: import('effect').ConfigProvider.ConfigProvider,
-): DatabaseConfig => loadConfigSync('database', databaseConfig, provider);

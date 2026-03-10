@@ -1,7 +1,7 @@
 export {
-  getAuth0ManagementEnvironment,
   hasAuth0ManagementEnvironment,
-  resolveDocumentationOutputEnvironment,
+  auth0ManagementEnvironment,
+  documentationOutputEnvironment,
   type PlaywrightEnvironment,
-  validatePlaywrightEnvironment,
+  playwrightEnvironmentConfig,
 } from '../../../src/server/config/test-runtime-config';
