@@ -24,6 +24,7 @@ import {
   toAbsoluteRequestUrl,
 } from './server/auth/auth-session';
 import { makeRuntimeConfigProviderSync } from './server/config/provider';
+import { RuntimeConfig } from './server/config/runtime-config';
 import { loadServerConfigSync } from './server/config/server-config';
 import { resolveHttpRequestContext } from './server/context/http-request-context';
 import { toRpcHttpServerRequest } from './server/effect/rpc/app-rpcs.request-handler';
@@ -354,6 +355,7 @@ const handlerRuntimeLayer = Layer.mergeAll(
   otelLayer,
   serverLoggerLayer,
   appRpcHttpAppLayer,
+  RuntimeConfig.Default,
   Layer.setConfigProvider(runtimeConfigProvider),
 );
 
@@ -405,6 +407,8 @@ const serveEffect = Effect.gen(function* () {
         otelLayer,
         serverLoggerLayer,
         appRpcHttpAppLayer,
+        RuntimeConfig.Default,
+        Layer.setConfigProvider(runtimeConfigProvider),
       ),
     ),
   );
@@ -422,7 +426,6 @@ const serveEffect = Effect.gen(function* () {
 if (import.meta.main) {
   BunRuntime.runMain(
     serveEffect.pipe(
-      Effect.withConfigProvider(runtimeConfigProvider),
       Effect.provide(databaseLayer),
     ),
   );
