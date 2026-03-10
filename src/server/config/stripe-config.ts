@@ -1,17 +1,12 @@
 import { Config, Option } from 'effect';
 
 import { loadConfigSync } from './config-error';
-import { toOptionalString, trimmedStringConfig } from './config-string';
-
-const optionalStripeStringConfig = (name: string) =>
-  Config.option(trimmedStringConfig(name)).pipe(
-    Config.map((value) => toOptionalString(Option.getOrUndefined(value))),
-  );
+import { optionalTrimmedString } from './config-string';
 
 export const stripeConfig = Config.all({
-  STRIPE_API_KEY: optionalStripeStringConfig('STRIPE_API_KEY'),
-  STRIPE_TEST_ACCOUNT_ID: optionalStripeStringConfig('STRIPE_TEST_ACCOUNT_ID'),
-  STRIPE_WEBHOOK_SECRET: optionalStripeStringConfig('STRIPE_WEBHOOK_SECRET'),
+  STRIPE_API_KEY: optionalTrimmedString('STRIPE_API_KEY'),
+  STRIPE_TEST_ACCOUNT_ID: optionalTrimmedString('STRIPE_TEST_ACCOUNT_ID'),
+  STRIPE_WEBHOOK_SECRET: optionalTrimmedString('STRIPE_WEBHOOK_SECRET'),
 });
 
 export type StripeConfig = Config.Config.Success<typeof stripeConfig>;
@@ -24,28 +19,30 @@ export const loadStripeApiConfigSync = (
   provider?: import('effect').ConfigProvider.ConfigProvider,
 ): { STRIPE_API_KEY: string } => {
   const config = loadStripeConfigSync(provider);
-  if (!config.STRIPE_API_KEY) {
-    throw new Error(
-      'Invalid stripe API configuration:\n- STRIPE_API_KEY: Expected STRIPE_API_KEY to be configured',
-    );
-  }
-
-  return {
-    STRIPE_API_KEY: config.STRIPE_API_KEY,
-  };
+  return Option.match(config.STRIPE_API_KEY, {
+    onNone: () => {
+      throw new Error(
+        'Invalid stripe API configuration:\n- STRIPE_API_KEY: Expected STRIPE_API_KEY to be configured',
+      );
+    },
+    onSome: (apiKey) => ({
+      STRIPE_API_KEY: apiKey,
+    }),
+  });
 };
 
 export const loadStripeWebhookConfigSync = (
   provider?: import('effect').ConfigProvider.ConfigProvider,
 ): { STRIPE_WEBHOOK_SECRET: string } => {
   const config = loadStripeConfigSync(provider);
-  if (!config.STRIPE_WEBHOOK_SECRET) {
-    throw new Error(
-      'Invalid stripe webhook configuration:\n- STRIPE_WEBHOOK_SECRET: Expected STRIPE_WEBHOOK_SECRET to be configured',
-    );
-  }
-
-  return {
-    STRIPE_WEBHOOK_SECRET: config.STRIPE_WEBHOOK_SECRET,
-  };
+  return Option.match(config.STRIPE_WEBHOOK_SECRET, {
+    onNone: () => {
+      throw new Error(
+        'Invalid stripe webhook configuration:\n- STRIPE_WEBHOOK_SECRET: Expected STRIPE_WEBHOOK_SECRET to be configured',
+      );
+    },
+    onSome: (webhookSecret) => ({
+      STRIPE_WEBHOOK_SECRET: webhookSecret,
+    }),
+  });
 };

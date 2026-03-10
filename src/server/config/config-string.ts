@@ -1,16 +1,15 @@
-import { Config, ConfigError, Either } from 'effect';
+import { Config, ConfigError, Either, Option } from 'effect';
 
 const trimConfigString = (value: string): string => value.trim();
-const isNonEmptyString = (value: string): boolean => value.length > 0;
 
 const nonEmptyValueError = (name: string) =>
   ConfigError.InvalidData([name], `Expected ${name} to be a non-empty string`);
 
-export const trimmedStringConfig = (name: string) =>
+export const trimmedString = (name: string) =>
   Config.string(name).pipe(Config.map((value) => trimConfigString(value)));
 
-export const nonEmptyTrimmedStringConfig = (name: string) =>
-  trimmedStringConfig(name).pipe(
+export const nonEmptyTrimmedString = (name: string) =>
+  trimmedString(name).pipe(
     Config.mapOrFail((value) =>
       value.length > 0
         ? Either.right(value)
@@ -18,12 +17,15 @@ export const nonEmptyTrimmedStringConfig = (name: string) =>
     ),
   );
 
-export const toOptionalString = (
-  value: string | undefined,
-): string | undefined => {
-  if (value === undefined) {
-    return;
-  }
-
-  return isNonEmptyString(value) ? value : undefined;
-};
+export const optionalTrimmedString = (name: string) =>
+  Config.option(trimmedString(name)).pipe(
+    Config.map((value) =>
+      Option.match(value, {
+        onNone: () => Option.none(),
+        onSome: (configuredValue) =>
+          Option.fromNullable(
+            configuredValue.length > 0 ? configuredValue : undefined,
+          ),
+      }),
+    ),
+  );

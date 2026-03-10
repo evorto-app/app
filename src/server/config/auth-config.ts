@@ -1,33 +1,15 @@
-import { Config, Option } from 'effect';
+import { Config } from 'effect';
 
 import { loadConfigSync } from './config-error';
-import {
-  nonEmptyTrimmedStringConfig,
-  trimmedStringConfig,
-} from './config-string';
-
-const optionalAuthStringConfig = (name: string) =>
-  Config.option(trimmedStringConfig(name)).pipe(
-    Config.map((value) =>
-      Option.match(value, {
-        onNone: () => Option.none(),
-        onSome: (entry) => {
-          const trimmedEntry = entry;
-          return Option.fromNullable(
-            trimmedEntry.length > 0 ? trimmedEntry : undefined,
-          );
-        },
-      }),
-    ),
-  );
+import { nonEmptyTrimmedString, optionalTrimmedString } from './config-string';
 
 export const authConfig = Config.all({
-  AUDIENCE: optionalAuthStringConfig('AUDIENCE'),
-  BASE_URL: nonEmptyTrimmedStringConfig('BASE_URL'),
-  CLIENT_ID: nonEmptyTrimmedStringConfig('CLIENT_ID'),
-  CLIENT_SECRET: nonEmptyTrimmedStringConfig('CLIENT_SECRET'),
-  ISSUER_BASE_URL: nonEmptyTrimmedStringConfig('ISSUER_BASE_URL'),
-  SECRET: nonEmptyTrimmedStringConfig('SECRET'),
+  AUDIENCE: optionalTrimmedString('AUDIENCE'),
+  BASE_URL: nonEmptyTrimmedString('BASE_URL'),
+  CLIENT_ID: nonEmptyTrimmedString('CLIENT_ID'),
+  CLIENT_SECRET: nonEmptyTrimmedString('CLIENT_SECRET'),
+  ISSUER_BASE_URL: nonEmptyTrimmedString('ISSUER_BASE_URL'),
+  SECRET: nonEmptyTrimmedString('SECRET'),
 });
 
 export type AuthConfig = Config.Config.Success<typeof authConfig>;

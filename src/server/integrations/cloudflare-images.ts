@@ -1,4 +1,5 @@
 import Cloudflare from 'cloudflare';
+import { Option } from 'effect';
 
 import {
   isCloudflareImagesConfiguredSync,
@@ -23,11 +24,22 @@ const resolveCloudflareImagesConfig = (): {
   const apiToken = environment.CLOUDFLARE_IMAGES_API_TOKEN;
   const accountId = environment.CLOUDFLARE_ACCOUNT_ID;
   const deliveryHash = environment.CLOUDFLARE_IMAGES_DELIVERY_HASH;
-  const variant =
-    environment.CLOUDFLARE_IMAGES_VARIANT ?? DEFAULT_IMAGE_VARIANT;
-  const appEnvironment =
-    environment.CLOUDFLARE_IMAGES_ENVIRONMENT ??
-    (environment.NODE_ENV === 'production' ? 'production' : 'testing');
+  const variant = Option.match(environment.CLOUDFLARE_IMAGES_VARIANT, {
+    onNone: () => DEFAULT_IMAGE_VARIANT,
+    onSome: (configuredVariant) => configuredVariant,
+  });
+  const appEnvironment = Option.match(
+    environment.CLOUDFLARE_IMAGES_ENVIRONMENT,
+    {
+      onNone: () =>
+        Option.match(environment.NODE_ENV, {
+          onNone: () => 'testing',
+          onSome: (nodeEnvironment) =>
+            nodeEnvironment === 'production' ? 'production' : 'testing',
+        }),
+      onSome: (configuredEnvironment) => configuredEnvironment,
+    },
+  );
 
   return {
     accountId,
@@ -90,7 +102,12 @@ export const cleanupTestingCloudflareImages = async (input: {
   inspectedCount: number;
   matchedCount: number;
 }> => {
-  if (loadCloudflareImagesConfigSync().NODE_ENV === 'production') {
+  if (
+    Option.match(loadCloudflareImagesConfigSync().NODE_ENV, {
+      onNone: () => false,
+      onSome: (nodeEnvironment) => nodeEnvironment === 'production',
+    })
+  ) {
     throw new Error('Cleanup is blocked in production');
   }
 

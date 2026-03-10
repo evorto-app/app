@@ -1,4 +1,4 @@
-import { ConfigProvider } from 'effect';
+import { ConfigProvider, Option } from 'effect';
 import { describe, expect, it } from 'vitest';
 
 import { loadServerConfigSync } from './server-config';
@@ -14,9 +14,9 @@ describe('server-config', () => {
 
     expect(
       loadServerConfigSync(legacyProvider).PUBLIC_GOOGLE_MAPS_API_KEY,
-    ).toBe(undefined);
+    ).toEqual(Option.none());
     expect(
       loadServerConfigSync(canonicalProvider).PUBLIC_GOOGLE_MAPS_API_KEY,
-    ).toBe('canonical-key');
+    ).toEqual(Option.some('canonical-key'));
   });
 });

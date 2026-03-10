@@ -8,82 +8,74 @@ import {
 import path from 'node:path';
 
 import { loadConfigSync } from './config-error';
-import {
-  nonEmptyTrimmedStringConfig,
-  toOptionalString,
-  trimmedStringConfig,
-} from './config-string';
+import { nonEmptyTrimmedString, optionalTrimmedString } from './config-string';
 
 const DEFAULT_TEST_CLOCK_ISO = '2026-02-01T12:00:00.000Z';
 const DEFAULT_TEST_SEED_KEY = 'evorto-e2e-default-v1';
 
-const optionalTestRuntimeStringConfig = (name: string) =>
-  Config.option(trimmedStringConfig(name)).pipe(
-    Config.map((value) => toOptionalString(Option.getOrUndefined(value))),
-  );
-
-const optionalTestRuntimeStringWithDefaultConfig = (
-  name: string,
-  defaultValue: string,
-) =>
-  Config.option(trimmedStringConfig(name)).pipe(
-    Config.map((value) => toOptionalString(Option.getOrUndefined(value))),
-    Config.map((value) => value ?? defaultValue),
-  );
-
 export const testRuntimeConfigState = Config.all({
-  AUTH0_MANAGEMENT_CLIENT_ID: optionalTestRuntimeStringConfig(
+  AUTH0_MANAGEMENT_CLIENT_ID: optionalTrimmedString(
     'AUTH0_MANAGEMENT_CLIENT_ID',
   ),
-  AUTH0_MANAGEMENT_CLIENT_SECRET: optionalTestRuntimeStringConfig(
+  AUTH0_MANAGEMENT_CLIENT_SECRET: optionalTrimmedString(
     'AUTH0_MANAGEMENT_CLIENT_SECRET',
   ),
-  BASE_URL: optionalTestRuntimeStringConfig('BASE_URL'),
+  BASE_URL: optionalTrimmedString('BASE_URL'),
   CI: Config.boolean('CI').pipe(Config.withDefault(false)),
-  CLIENT_ID: optionalTestRuntimeStringConfig('CLIENT_ID'),
-  CLIENT_SECRET: optionalTestRuntimeStringConfig('CLIENT_SECRET'),
-  CLOUDFLARE_ACCOUNT_ID: optionalTestRuntimeStringConfig(
-    'CLOUDFLARE_ACCOUNT_ID',
-  ),
-  CLOUDFLARE_IMAGES_API_TOKEN: optionalTestRuntimeStringConfig(
+  CLIENT_ID: optionalTrimmedString('CLIENT_ID'),
+  CLIENT_SECRET: optionalTrimmedString('CLIENT_SECRET'),
+  CLOUDFLARE_ACCOUNT_ID: optionalTrimmedString('CLOUDFLARE_ACCOUNT_ID'),
+  CLOUDFLARE_IMAGES_API_TOKEN: optionalTrimmedString(
     'CLOUDFLARE_IMAGES_API_TOKEN',
   ),
-  CLOUDFLARE_IMAGES_DELIVERY_HASH: optionalTestRuntimeStringConfig(
+  CLOUDFLARE_IMAGES_DELIVERY_HASH: optionalTrimmedString(
     'CLOUDFLARE_IMAGES_DELIVERY_HASH',
   ),
-  DATABASE_URL: nonEmptyTrimmedStringConfig('DATABASE_URL'),
-  DOCS_IMG_OUT_DIR: optionalTestRuntimeStringWithDefaultConfig(
-    'DOCS_IMG_OUT_DIR',
-    path.resolve('test-results/docs/images'),
+  DATABASE_URL: nonEmptyTrimmedString('DATABASE_URL'),
+  DOCS_IMG_OUT_DIR: optionalTrimmedString('DOCS_IMG_OUT_DIR').pipe(
+    Config.map((value) =>
+      Option.match(value, {
+        onNone: () => path.resolve('test-results/docs/images'),
+        onSome: (outputDirectory) => outputDirectory,
+      }),
+    ),
   ),
-  DOCS_OUT_DIR: optionalTestRuntimeStringWithDefaultConfig(
-    'DOCS_OUT_DIR',
-    path.resolve('test-results/docs'),
+  DOCS_OUT_DIR: optionalTrimmedString('DOCS_OUT_DIR').pipe(
+    Config.map((value) =>
+      Option.match(value, {
+        onNone: () => path.resolve('test-results/docs'),
+        onSome: (outputDirectory) => outputDirectory,
+      }),
+    ),
   ),
-  E2E_NOW_ISO: optionalTestRuntimeStringWithDefaultConfig(
-    'E2E_NOW_ISO',
-    DEFAULT_TEST_CLOCK_ISO,
+  E2E_NOW_ISO: optionalTrimmedString('E2E_NOW_ISO').pipe(
+    Config.map((value) =>
+      Option.match(value, {
+        onNone: () => DEFAULT_TEST_CLOCK_ISO,
+        onSome: (nowIso) => nowIso,
+      }),
+    ),
   ),
-  E2E_SEED_KEY: optionalTestRuntimeStringWithDefaultConfig(
-    'E2E_SEED_KEY',
-    DEFAULT_TEST_SEED_KEY,
+  E2E_SEED_KEY: optionalTrimmedString('E2E_SEED_KEY').pipe(
+    Config.map((value) =>
+      Option.match(value, {
+        onNone: () => DEFAULT_TEST_SEED_KEY,
+        onSome: (seedKey) => seedKey,
+      }),
+    ),
   ),
-  ISSUER_BASE_URL: optionalTestRuntimeStringConfig('ISSUER_BASE_URL'),
+  ISSUER_BASE_URL: optionalTrimmedString('ISSUER_BASE_URL'),
   NO_WEBSERVER: Config.boolean('NO_WEBSERVER').pipe(Config.withDefault(false)),
-  S3_ACCESS_KEY_ID: optionalTestRuntimeStringConfig('S3_ACCESS_KEY_ID'),
-  S3_BUCKET: optionalTestRuntimeStringConfig('S3_BUCKET'),
-  S3_ENDPOINT: optionalTestRuntimeStringConfig('S3_ENDPOINT'),
-  S3_REGION: optionalTestRuntimeStringConfig('S3_REGION'),
-  S3_SECRET_ACCESS_KEY: optionalTestRuntimeStringConfig('S3_SECRET_ACCESS_KEY'),
-  SECRET: optionalTestRuntimeStringConfig('SECRET'),
-  STRIPE_API_KEY: optionalTestRuntimeStringConfig('STRIPE_API_KEY'),
-  STRIPE_TEST_ACCOUNT_ID: optionalTestRuntimeStringConfig(
-    'STRIPE_TEST_ACCOUNT_ID',
-  ),
-  STRIPE_WEBHOOK_SECRET: optionalTestRuntimeStringConfig(
-    'STRIPE_WEBHOOK_SECRET',
-  ),
-  TENANT_DOMAIN: optionalTestRuntimeStringConfig('TENANT_DOMAIN'),
+  S3_ACCESS_KEY_ID: optionalTrimmedString('S3_ACCESS_KEY_ID'),
+  S3_BUCKET: optionalTrimmedString('S3_BUCKET'),
+  S3_ENDPOINT: optionalTrimmedString('S3_ENDPOINT'),
+  S3_REGION: optionalTrimmedString('S3_REGION'),
+  S3_SECRET_ACCESS_KEY: optionalTrimmedString('S3_SECRET_ACCESS_KEY'),
+  SECRET: optionalTrimmedString('SECRET'),
+  STRIPE_API_KEY: optionalTrimmedString('STRIPE_API_KEY'),
+  STRIPE_TEST_ACCOUNT_ID: optionalTrimmedString('STRIPE_TEST_ACCOUNT_ID'),
+  STRIPE_WEBHOOK_SECRET: optionalTrimmedString('STRIPE_WEBHOOK_SECRET'),
+  TENANT_DOMAIN: optionalTrimmedString('TENANT_DOMAIN'),
 });
 
 export interface Auth0ManagementEnvironment {
@@ -97,7 +89,17 @@ export interface DocumentationOutputEnvironment {
 }
 
 export type PlaywrightEnvironment =
-  | (Config.Config.Success<typeof testRuntimeConfigState> & {
+  | (Omit<
+      TestRuntimeConfigState,
+      | 'BASE_URL'
+      | 'CLIENT_ID'
+      | 'CLIENT_SECRET'
+      | 'ISSUER_BASE_URL'
+      | 'SECRET'
+      | 'STRIPE_API_KEY'
+      | 'STRIPE_TEST_ACCOUNT_ID'
+      | 'STRIPE_WEBHOOK_SECRET'
+    > & {
       BASE_URL: string;
       CLIENT_ID: string;
       CLIENT_SECRET: string;
@@ -108,7 +110,7 @@ export type PlaywrightEnvironment =
       STRIPE_TEST_ACCOUNT_ID: string;
       STRIPE_WEBHOOK_SECRET: string;
     })
-  | (Config.Config.Success<typeof testRuntimeConfigState> & {
+  | (TestRuntimeConfigState & {
       NO_WEBSERVER: true;
     });
 
@@ -143,23 +145,27 @@ const validateCiEnvironment = (
   }
 
   const errors = [
-    state.CLOUDFLARE_ACCOUNT_ID
+    Option.isSome(state.CLOUDFLARE_ACCOUNT_ID)
       ? undefined
       : missingFieldError('CLOUDFLARE_ACCOUNT_ID'),
-    state.CLOUDFLARE_IMAGES_API_TOKEN
+    Option.isSome(state.CLOUDFLARE_IMAGES_API_TOKEN)
       ? undefined
       : missingFieldError('CLOUDFLARE_IMAGES_API_TOKEN'),
-    state.CLOUDFLARE_IMAGES_DELIVERY_HASH
+    Option.isSome(state.CLOUDFLARE_IMAGES_DELIVERY_HASH)
       ? undefined
       : missingFieldError('CLOUDFLARE_IMAGES_DELIVERY_HASH'),
-    state.S3_ACCESS_KEY_ID ? undefined : missingFieldError('S3_ACCESS_KEY_ID'),
-    state.S3_BUCKET ? undefined : missingFieldError('S3_BUCKET'),
-    state.S3_ENDPOINT ? undefined : missingFieldError('S3_ENDPOINT'),
-    state.S3_REGION ? undefined : missingFieldError('S3_REGION'),
-    state.S3_SECRET_ACCESS_KEY
+    Option.isSome(state.S3_ACCESS_KEY_ID)
+      ? undefined
+      : missingFieldError('S3_ACCESS_KEY_ID'),
+    Option.isSome(state.S3_BUCKET) ? undefined : missingFieldError('S3_BUCKET'),
+    Option.isSome(state.S3_ENDPOINT)
+      ? undefined
+      : missingFieldError('S3_ENDPOINT'),
+    Option.isSome(state.S3_REGION) ? undefined : missingFieldError('S3_REGION'),
+    Option.isSome(state.S3_SECRET_ACCESS_KEY)
       ? undefined
       : missingFieldError('S3_SECRET_ACCESS_KEY'),
-    state.STRIPE_TEST_ACCOUNT_ID
+    Option.isSome(state.STRIPE_TEST_ACCOUNT_ID)
       ? undefined
       : missingFieldError('STRIPE_TEST_ACCOUNT_ID'),
   ].filter((value): value is ConfigError.ConfigError => value !== undefined);
@@ -181,16 +187,22 @@ const playwrightEnvironmentConfig = Effect.gen(function* () {
   }
 
   const errors = [
-    state.BASE_URL ? undefined : missingFieldError('BASE_URL'),
-    state.CLIENT_ID ? undefined : missingFieldError('CLIENT_ID'),
-    state.CLIENT_SECRET ? undefined : missingFieldError('CLIENT_SECRET'),
-    state.ISSUER_BASE_URL ? undefined : missingFieldError('ISSUER_BASE_URL'),
-    state.SECRET ? undefined : missingFieldError('SECRET'),
-    state.STRIPE_API_KEY ? undefined : missingFieldError('STRIPE_API_KEY'),
-    state.STRIPE_TEST_ACCOUNT_ID
+    Option.isSome(state.BASE_URL) ? undefined : missingFieldError('BASE_URL'),
+    Option.isSome(state.CLIENT_ID) ? undefined : missingFieldError('CLIENT_ID'),
+    Option.isSome(state.CLIENT_SECRET)
+      ? undefined
+      : missingFieldError('CLIENT_SECRET'),
+    Option.isSome(state.ISSUER_BASE_URL)
+      ? undefined
+      : missingFieldError('ISSUER_BASE_URL'),
+    Option.isSome(state.SECRET) ? undefined : missingFieldError('SECRET'),
+    Option.isSome(state.STRIPE_API_KEY)
+      ? undefined
+      : missingFieldError('STRIPE_API_KEY'),
+    Option.isSome(state.STRIPE_TEST_ACCOUNT_ID)
       ? undefined
       : missingFieldError('STRIPE_TEST_ACCOUNT_ID'),
-    state.STRIPE_WEBHOOK_SECRET
+    Option.isSome(state.STRIPE_WEBHOOK_SECRET)
       ? undefined
       : missingFieldError('STRIPE_WEBHOOK_SECRET'),
   ].filter((value): value is ConfigError.ConfigError => value !== undefined);
@@ -199,14 +211,18 @@ const playwrightEnvironmentConfig = Effect.gen(function* () {
     return yield* Effect.fail(combineMissingDataErrors(errors));
   }
 
-  const baseUrl = state.BASE_URL;
-  const clientId = state.CLIENT_ID;
-  const clientSecret = state.CLIENT_SECRET;
-  const issuerBaseUrl = state.ISSUER_BASE_URL;
-  const secret = state.SECRET;
-  const stripeApiKey = state.STRIPE_API_KEY;
-  const stripeTestAccountId = state.STRIPE_TEST_ACCOUNT_ID;
-  const stripeWebhookSecret = state.STRIPE_WEBHOOK_SECRET;
+  const baseUrl = Option.getOrUndefined(state.BASE_URL);
+  const clientId = Option.getOrUndefined(state.CLIENT_ID);
+  const clientSecret = Option.getOrUndefined(state.CLIENT_SECRET);
+  const issuerBaseUrl = Option.getOrUndefined(state.ISSUER_BASE_URL);
+  const secret = Option.getOrUndefined(state.SECRET);
+  const stripeApiKey = Option.getOrUndefined(state.STRIPE_API_KEY);
+  const stripeTestAccountId = Option.getOrUndefined(
+    state.STRIPE_TEST_ACCOUNT_ID,
+  );
+  const stripeWebhookSecret = Option.getOrUndefined(
+    state.STRIPE_WEBHOOK_SECRET,
+  );
 
   if (
     !baseUrl ||
@@ -254,7 +270,8 @@ export const hasAuth0ManagementEnvironment = (
     provider,
   );
   return Boolean(
-    state.AUTH0_MANAGEMENT_CLIENT_ID && state.AUTH0_MANAGEMENT_CLIENT_SECRET,
+    Option.isSome(state.AUTH0_MANAGEMENT_CLIENT_ID) &&
+    Option.isSome(state.AUTH0_MANAGEMENT_CLIENT_SECRET),
   );
 };
 
@@ -267,10 +284,10 @@ export const getAuth0ManagementEnvironment = (
     provider,
   );
   const errors = [
-    state.AUTH0_MANAGEMENT_CLIENT_ID
+    Option.isSome(state.AUTH0_MANAGEMENT_CLIENT_ID)
       ? undefined
       : missingFieldError('AUTH0_MANAGEMENT_CLIENT_ID'),
-    state.AUTH0_MANAGEMENT_CLIENT_SECRET
+    Option.isSome(state.AUTH0_MANAGEMENT_CLIENT_SECRET)
       ? undefined
       : missingFieldError('AUTH0_MANAGEMENT_CLIENT_SECRET'),
   ].filter((value): value is ConfigError.ConfigError => value !== undefined);
@@ -287,8 +304,12 @@ export const getAuth0ManagementEnvironment = (
     );
   }
 
-  const managementClientId = state.AUTH0_MANAGEMENT_CLIENT_ID;
-  const managementClientSecret = state.AUTH0_MANAGEMENT_CLIENT_SECRET;
+  const managementClientId = Option.getOrUndefined(
+    state.AUTH0_MANAGEMENT_CLIENT_ID,
+  );
+  const managementClientSecret = Option.getOrUndefined(
+    state.AUTH0_MANAGEMENT_CLIENT_SECRET,
+  );
 
   if (!managementClientId || !managementClientSecret) {
     throw new Error('Expected validated Auth0 management configuration values');

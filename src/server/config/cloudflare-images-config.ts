@@ -7,39 +7,30 @@ import {
 } from 'effect';
 
 import { loadConfigSync } from './config-error';
-import { toOptionalString, trimmedStringConfig } from './config-string';
-
-const optionalCloudflareStringConfig = (name: string) =>
-  Config.option(trimmedStringConfig(name)).pipe(
-    Config.map((value) => toOptionalString(Option.getOrUndefined(value))),
-  );
+import { optionalTrimmedString } from './config-string';
 
 export const cloudflareImagesStateConfig = Config.all({
-  CLOUDFLARE_ACCOUNT_ID: optionalCloudflareStringConfig(
-    'CLOUDFLARE_ACCOUNT_ID',
-  ),
-  CLOUDFLARE_IMAGES_API_TOKEN: optionalCloudflareStringConfig(
+  CLOUDFLARE_ACCOUNT_ID: optionalTrimmedString('CLOUDFLARE_ACCOUNT_ID'),
+  CLOUDFLARE_IMAGES_API_TOKEN: optionalTrimmedString(
     'CLOUDFLARE_IMAGES_API_TOKEN',
   ),
-  CLOUDFLARE_IMAGES_DELIVERY_HASH: optionalCloudflareStringConfig(
+  CLOUDFLARE_IMAGES_DELIVERY_HASH: optionalTrimmedString(
     'CLOUDFLARE_IMAGES_DELIVERY_HASH',
   ),
-  CLOUDFLARE_IMAGES_ENVIRONMENT: optionalCloudflareStringConfig(
+  CLOUDFLARE_IMAGES_ENVIRONMENT: optionalTrimmedString(
     'CLOUDFLARE_IMAGES_ENVIRONMENT',
   ),
-  CLOUDFLARE_IMAGES_VARIANT: optionalCloudflareStringConfig(
-    'CLOUDFLARE_IMAGES_VARIANT',
-  ),
-  NODE_ENV: optionalCloudflareStringConfig('NODE_ENV'),
+  CLOUDFLARE_IMAGES_VARIANT: optionalTrimmedString('CLOUDFLARE_IMAGES_VARIANT'),
+  NODE_ENV: optionalTrimmedString('NODE_ENV'),
 });
 
 export interface CloudflareImagesConfig {
   CLOUDFLARE_ACCOUNT_ID: string;
   CLOUDFLARE_IMAGES_API_TOKEN: string;
   CLOUDFLARE_IMAGES_DELIVERY_HASH: string;
-  CLOUDFLARE_IMAGES_ENVIRONMENT: string | undefined;
-  CLOUDFLARE_IMAGES_VARIANT: string | undefined;
-  NODE_ENV: string | undefined;
+  CLOUDFLARE_IMAGES_ENVIRONMENT: Option.Option<string>;
+  CLOUDFLARE_IMAGES_VARIANT: Option.Option<string>;
+  NODE_ENV: Option.Option<string>;
 }
 
 export type CloudflareImagesConfigState = Config.Config.Success<
@@ -68,18 +59,18 @@ const combineConfigErrors = (
 const cloudflareImagesConfig = Effect.gen(function* () {
   const state = yield* cloudflareImagesStateConfig;
   if (
-    !state.CLOUDFLARE_ACCOUNT_ID ||
-    !state.CLOUDFLARE_IMAGES_API_TOKEN ||
-    !state.CLOUDFLARE_IMAGES_DELIVERY_HASH
+    Option.isNone(state.CLOUDFLARE_ACCOUNT_ID) ||
+    Option.isNone(state.CLOUDFLARE_IMAGES_API_TOKEN) ||
+    Option.isNone(state.CLOUDFLARE_IMAGES_DELIVERY_HASH)
   ) {
     const errors = [
-      state.CLOUDFLARE_ACCOUNT_ID
+      Option.isSome(state.CLOUDFLARE_ACCOUNT_ID)
         ? undefined
         : toMissingFieldError('CLOUDFLARE_ACCOUNT_ID'),
-      state.CLOUDFLARE_IMAGES_API_TOKEN
+      Option.isSome(state.CLOUDFLARE_IMAGES_API_TOKEN)
         ? undefined
         : toMissingFieldError('CLOUDFLARE_IMAGES_API_TOKEN'),
-      state.CLOUDFLARE_IMAGES_DELIVERY_HASH
+      Option.isSome(state.CLOUDFLARE_IMAGES_DELIVERY_HASH)
         ? undefined
         : toMissingFieldError('CLOUDFLARE_IMAGES_DELIVERY_HASH'),
     ].filter((value): value is ConfigError.ConfigError => value !== undefined);
@@ -91,10 +82,22 @@ const cloudflareImagesConfig = Effect.gen(function* () {
     return yield* Effect.fail(combineConfigErrors(errors));
   }
 
+  const accountId = Option.getOrUndefined(state.CLOUDFLARE_ACCOUNT_ID);
+  const apiToken = Option.getOrUndefined(state.CLOUDFLARE_IMAGES_API_TOKEN);
+  const deliveryHash = Option.getOrUndefined(
+    state.CLOUDFLARE_IMAGES_DELIVERY_HASH,
+  );
+
+  if (!accountId || !apiToken || !deliveryHash) {
+    throw new Error(
+      'Expected validated Cloudflare Images configuration values',
+    );
+  }
+
   return {
-    CLOUDFLARE_ACCOUNT_ID: state.CLOUDFLARE_ACCOUNT_ID,
-    CLOUDFLARE_IMAGES_API_TOKEN: state.CLOUDFLARE_IMAGES_API_TOKEN,
-    CLOUDFLARE_IMAGES_DELIVERY_HASH: state.CLOUDFLARE_IMAGES_DELIVERY_HASH,
+    CLOUDFLARE_ACCOUNT_ID: accountId,
+    CLOUDFLARE_IMAGES_API_TOKEN: apiToken,
+    CLOUDFLARE_IMAGES_DELIVERY_HASH: deliveryHash,
     CLOUDFLARE_IMAGES_ENVIRONMENT: state.CLOUDFLARE_IMAGES_ENVIRONMENT,
     CLOUDFLARE_IMAGES_VARIANT: state.CLOUDFLARE_IMAGES_VARIANT,
     NODE_ENV: state.NODE_ENV,
@@ -119,9 +122,9 @@ export const isCloudflareImagesConfiguredSync = (
   provider?: ConfigProvider.ConfigProvider,
 ): boolean => {
   const state = loadCloudflareImagesStateSync(provider);
-  return Boolean(
-    state.CLOUDFLARE_ACCOUNT_ID &&
-    state.CLOUDFLARE_IMAGES_API_TOKEN &&
-    state.CLOUDFLARE_IMAGES_DELIVERY_HASH,
+  return (
+    Option.isSome(state.CLOUDFLARE_ACCOUNT_ID) &&
+    Option.isSome(state.CLOUDFLARE_IMAGES_API_TOKEN) &&
+    Option.isSome(state.CLOUDFLARE_IMAGES_DELIVERY_HASH)
   );
 };
