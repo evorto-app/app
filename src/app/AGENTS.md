@@ -3,6 +3,7 @@
 ## Angular Baseline
 
 - Use standalone components (no NgModules) and do not add `standalone: true`.
+- Respect Angular strict template typing; fix template type issues at the source instead of casting around them.
 - Prefer `inject()` for DI and `providedIn: 'root'` for singleton services.
 - Use `ChangeDetectionStrategy.OnPush` for components.
 - Use signals for local state, `computed()` for derived state, and `effect()` for side effects.

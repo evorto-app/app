@@ -14,6 +14,7 @@
 ## API and Validation
 
 - Keep API contracts in Effect RPC + Effect `Schema`.
+- Server boundaries must use Effect `Schema` for validated input/output.
 - Maintain fully typed input/output boundaries and explicit error mapping.
 - Reuse shared RPC contracts from `src/shared/rpc-contracts/**`.
 

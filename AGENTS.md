@@ -15,12 +15,14 @@
 - Tests: unit tests as `*.spec.ts` in `src/**`; Playwright tests in `tests/**`; legacy reference in `e2e/**`.
 - Assets/public: `public/`; theming in `src/styles.scss` and `_theme-colors.scss`.
 
-Module-local guidance lives in:
+Start with the nearest applicable module guidance:
 
 - `src/app/AGENTS.md`
 - `src/server/AGENTS.md`
 - `src/db/AGENTS.md`
 - `tests/AGENTS.md`
+
+More specific guidance also exists deeper in some subtrees (for example `src/server/config/AGENTS.md`).
 
 ## Build, Test, and Development Commands
 
@@ -37,8 +39,8 @@ Module-local guidance lives in:
 ## Type Safety (Always Full Types)
 
 - End-to-end types are mandatory.
-- Server boundaries must use Effect `Schema` for validated input/output.
 - Prefer inferred/derived types from Drizzle schema and Effect schema outputs.
+- Prefer TypeScript return type inference for functions. Add an explicit return type only when it is genuinely needed for clarity, API boundaries, overloads, recursion, or to prevent an incorrect inferred type from escaping.
 - Avoid `any`, unchecked `as`, and `unknown` without narrowing.
 - Do not use `unknown as ...` (or similar cast bypasses) to force client types to compile; fix the source type contract/runtime mismatch instead.
 
@@ -51,7 +53,7 @@ Module-local guidance lives in:
 
 ## Conventions
 
-- TypeScript strict mode and Angular strict templates are enforced.
+- TypeScript strict mode is enforced.
 - Indentation: 2 spaces; filenames `kebab-case.ts`; symbols `camelCase` and `PascalCase`.
 - Prefer path aliases: `@app/*`, `@server/*`, `@db/*`, `@shared/*`, `@types/*`.
 - Run `bun run lint:fix` before `bun run lint:check`.
@@ -60,7 +62,6 @@ Module-local guidance lives in:
 
 - Keep unit tests deterministic and close to source files.
 - Use Playwright tests in `tests/**` as the active e2e suite.
-- When touching schema or auth/runtime paths, include local verification notes.
 
 ## Commit & Pull Request Guidelines
 
@@ -76,9 +77,7 @@ Module-local guidance lives in:
 ## Security & Configuration
 
 - Never commit secrets.
-- Runtime config is resolved through the config provider with precedence: real env, `.env.local`, `.env`, `.env.runtime`, then in-code defaults.
-- `.env.runtime` is generated for local runtime/test commands; keep canonical keys there and in CI env files.
-- In CI, provide explicit env files in workflow steps rather than runtime dotenv wiring.
+- In CI, do not rely on `.env` files. Use explicit environment variables or generated runtime env artifacts instead.
 
 ## Agent Editing Workflow
 
