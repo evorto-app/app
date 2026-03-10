@@ -1,5 +1,5 @@
 import Cloudflare from 'cloudflare';
-import { ConfigError, Effect, Option } from 'effect';
+import { Effect, Option } from 'effect';
 
 import {
   cloudflareImagesConfig,
@@ -11,17 +11,7 @@ export { isCloudflareImagesConfigured } from '../config/cloudflare-images-config
 const DEFAULT_IMAGE_VARIANT = 'public';
 const TESTING_CLEANUP_CONFIRMATION = 'delete-testing-images-only';
 
-const resolveCloudflareImagesConfig = (): Effect.Effect<
-  {
-    accountId: string;
-    apiToken: string;
-    appEnvironment: string;
-    client: Cloudflare;
-    deliveryHash: string;
-    variant: string;
-  },
-  ConfigError.ConfigError
-> =>
+const resolveCloudflareImagesConfig = () =>
   cloudflareImagesConfig.pipe(
     Effect.map((environment) => {
       const apiToken = environment.CLOUDFLARE_IMAGES_API_TOKEN;
@@ -64,14 +54,7 @@ export const createCloudflareImageDirectUpload = (input: {
   source: 'editor' | 'finance-receipt';
   tenantId: string;
   uploadedByUserId: string;
-}): Effect.Effect<
-  {
-    deliveryUrl: string;
-    imageId: string;
-    uploadUrl: string;
-  },
-  ConfigError.ConfigError | Error
-> =>
+}) =>
   Effect.gen(function* () {
     const config = yield* resolveCloudflareImagesConfig();
     const metadata = {
@@ -112,14 +95,7 @@ export const cleanupTestingCloudflareImages = (input: {
   dryRun: boolean;
   maxDeletes?: number;
   source: 'editor' | 'finance-receipt';
-}): Effect.Effect<
-  {
-    deletedImageIds: string[];
-    inspectedCount: number;
-    matchedCount: number;
-  },
-  ConfigError.ConfigError | Error
-> =>
+}) =>
   Effect.gen(function* () {
     const state = yield* cloudflareImagesStateConfig;
     if (

@@ -13,7 +13,7 @@ const EMPTY_PROVIDER = ConfigProvider.fromMap(new Map());
 
 const resolveDotEnvironmentFiles = (
   options: RuntimeConfigProviderOptions = {},
-): string[] => {
+) => {
   const includeCiDotEnvironment =
     options.includeCiDotEnv ?? process.env['CI'] === 'true';
 
@@ -37,7 +37,7 @@ const loadDotEnvironmentProvider = (filePath: string) =>
 
 export const resolveRuntimeConfigFilePaths = (
   options: RuntimeConfigProviderOptions = {},
-): string[] => {
+) => {
   const cwd = options.cwd ?? process.cwd();
   return resolveDotEnvironmentFiles(options).map((file) =>
     path.resolve(cwd, file),

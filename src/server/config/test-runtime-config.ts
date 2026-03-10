@@ -118,7 +118,7 @@ export type TestRuntimeConfigState = Config.Config.Success<
 
 const combineMissingDataErrors = (
   errors: readonly ConfigError.ConfigError[],
-): ConfigError.ConfigError => {
+) => {
   const [firstError, ...restErrors] = errors;
   if (!firstError) {
     throw new Error('Expected at least one config error');
@@ -137,7 +137,7 @@ const missingFieldError = (name: string) =>
 
 const validateCiEnvironment = (
   state: TestRuntimeConfigState,
-): Effect.Effect<void, ConfigError.ConfigError> => {
+) => {
   if (!state.CI) {
     return Effect.void;
   }
@@ -298,8 +298,8 @@ export const auth0ManagementEnvironment = Effect.gen(function* () {
 });
 
 export const documentationOutputEnvironment = testRuntimeConfigState.pipe(
-  Effect.map((state): DocumentationOutputEnvironment => ({
+  Effect.map((state) => ({
     docsImageOutputDirectory: state.DOCS_IMG_OUT_DIR,
     docsOutputDirectory: state.DOCS_OUT_DIR,
-  })),
+  }) satisfies DocumentationOutputEnvironment),
 );

@@ -46,7 +46,7 @@ const toMissingFieldError = (name: string) =>
 
 const combineConfigErrors = (
   errors: readonly ConfigError.ConfigError[],
-): ConfigError.ConfigError => {
+) => {
   const [firstError, ...remainingErrors] = errors;
   if (!firstError) {
     throw new Error('Expected at least one object storage config error');

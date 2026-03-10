@@ -1,6 +1,6 @@
 import { ConfigError } from 'effect';
 
-const formatPath = (path: readonly string[]): string =>
+const formatPath = (path: readonly string[]) =>
   path.length > 0 ? path.join('.') : '<root>';
 
 const configErrorReducer: ConfigError.ConfigErrorReducer<undefined, string[]> =
@@ -21,7 +21,7 @@ const configErrorReducer: ConfigError.ConfigErrorReducer<undefined, string[]> =
     ],
   };
 
-export const formatConfigError = (error: ConfigError.ConfigError): string => {
+export const formatConfigError = (error: ConfigError.ConfigError) => {
   const lines = ConfigError.reduceWithContext(
     error,
     undefined,

@@ -1,4 +1,4 @@
-import { ConfigError, Effect } from 'effect';
+import { Effect } from 'effect';
 
 import { objectStorageConfig } from '../config/object-storage-config';
 
@@ -37,7 +37,7 @@ interface ObjectStorageRuntimeConfig {
   region: string;
 }
 
-const getBunS3ClientConstructor = (): BunS3ClientConstructor => {
+const getBunS3ClientConstructor = () => {
   const bunRuntime = (
     globalThis as typeof globalThis & {
       Bun?: {
@@ -54,10 +54,7 @@ const getBunS3ClientConstructor = (): BunS3ClientConstructor => {
   return constructor;
 };
 
-const resolveObjectStorageConfig = (): Effect.Effect<
-  ObjectStorageRuntimeConfig,
-  ConfigError.ConfigError
-> =>
+const resolveObjectStorageConfig = () =>
   objectStorageConfig.pipe(
     Effect.map((environment) => ({
       bucket: environment.bucket,
@@ -70,7 +67,7 @@ const resolveObjectStorageConfig = (): Effect.Effect<
 
 const buildS3Client = (
   config: ObjectStorageRuntimeConfig,
-): BunS3Client => {
+) => {
   const S3Client = getBunS3ClientConstructor();
   return new S3Client({
     accessKeyId: config.keyId,
@@ -86,13 +83,7 @@ export const uploadReceiptOriginalToR2 = (input: {
   body: Uint8Array;
   contentType: string;
   key: string;
-}): Effect.Effect<
-  {
-    storageKey: string;
-    storageUrl: string;
-  },
-  ConfigError.ConfigError | Error
-> =>
+}) =>
   Effect.gen(function* () {
     const config = yield* resolveObjectStorageConfig();
     const client = buildS3Client(config);
@@ -112,7 +103,7 @@ export const uploadReceiptOriginalToR2 = (input: {
 export const getSignedReceiptObjectUrlFromR2 = (input: {
   expiresInSeconds?: number;
   key: string;
-}): Effect.Effect<string, ConfigError.ConfigError | Error> =>
+}) =>
   Effect.gen(function* () {
     const config = yield* resolveObjectStorageConfig();
     const client = buildS3Client(config);

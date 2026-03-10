@@ -8,7 +8,7 @@ import { StripeClient } from '../stripe-client';
 
 export const buildCheckoutSessionExpiresAt = (
   expiresInMinutes = 30,
-): number => {
+) => {
   const pinnedNow = getServerNow();
   const wallClockNow = DateTime.now().setZone('utc');
   const baseNow =
@@ -26,7 +26,7 @@ export const buildCheckoutSessionExpiresAt = (
 export const buildCheckoutSessionIdempotencyKey = (input: {
   registrationId: string;
   transactionId: string;
-}): string =>
+}) =>
   `registration:${input.registrationId}:transaction:${input.transactionId}`;
 
 export const createHostedCheckoutSession = (
@@ -35,7 +35,7 @@ export const createHostedCheckoutSession = (
     idempotencyKey: string;
     stripeAccount: string;
   },
-): Effect.Effect<Stripe.Checkout.Session, Stripe.errors.StripeError, StripeClient> =>
+) =>
   Effect.gen(function* () {
     const stripeClient = yield* StripeClient;
     return yield* Effect.tryPromise({

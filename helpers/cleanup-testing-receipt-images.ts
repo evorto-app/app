@@ -5,15 +5,15 @@ import { cleanupTestingCloudflareImages } from '../src/server/integrations/cloud
 
 const DELETE_CONFIRMATION = 'delete-testing-images-only';
 
-const getArgumentValue = (name: string): string | undefined => {
+const getArgumentValue = (name: string) => {
   const prefix = `${name}=`;
   const argument = process.argv.find((value) => value.startsWith(prefix));
   return argument ? argument.slice(prefix.length) : undefined;
 };
 
-const hasFlag = (flag: string): boolean => process.argv.includes(flag);
+const hasFlag = (flag: string) => process.argv.includes(flag);
 
-const run = async (): Promise<void> => {
+const run = async () => {
   const dryRun = hasFlag('--dry-run');
   const confirmPhrase = getArgumentValue('--confirm');
   const maxDeletesArgument = getArgumentValue('--max-deletes');

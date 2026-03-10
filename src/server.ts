@@ -59,7 +59,7 @@ const configuredDatabaseLayer = databaseLayer.pipe(
   Layer.provide(Layer.setConfigProvider(runtimeConfigProvider)),
 );
 
-const sanitizeRedirectPath = (value: null | string): string | undefined => {
+const sanitizeRedirectPath = (value: null | string) => {
   if (!value) {
     return;
   }
@@ -75,10 +75,10 @@ const sanitizeRedirectPath = (value: null | string): string | undefined => {
   return value;
 };
 
-const isStaticMethod = (method: string): boolean =>
+const isStaticMethod = (method: string) =>
   method === 'GET' || method === 'HEAD';
 
-const safeDecodePath = (pathname: string): string | undefined => {
+const safeDecodePath = (pathname: string) => {
   try {
     return decodeURIComponent(pathname);
   } catch {
@@ -149,7 +149,7 @@ const tryServeStatic = (request: HttpServerRequest.HttpServerRequest) =>
 
 const extractRegistrationId = (
   request: HttpServerRequest.HttpServerRequest,
-): string | undefined => {
+) => {
   const requestUrl = toAbsoluteRequestUrl(request);
   const match = /^\/qr\/registration\/([^/]+)$/.exec(requestUrl.pathname);
   if (!match?.[1]) {
@@ -304,7 +304,7 @@ const routesLayer = Layer.mergeAll(
 
 const createInternalErrorResponse = (
   request: HttpServerRequest.HttpServerRequest,
-): HttpServerResponse.HttpServerResponse => {
+) => {
   const acceptHeader = request.headers['accept'] ?? '';
   if (typeof acceptHeader === 'string' && acceptHeader.includes('text/html')) {
     return HttpServerResponse.redirect('/500', { status: 303 });
@@ -380,7 +380,7 @@ const handlerAppLayer = routesLayer.pipe(
 
 let cachedRequestHandler: ((request: Request) => Promise<Response>) | undefined;
 
-const getRequestHandler = (): ((request: Request) => Promise<Response>) => {
+const getRequestHandler = () => {
   if (cachedRequestHandler) {
     return cachedRequestHandler;
   }

@@ -56,15 +56,15 @@ interface LoginAppState {
 const getHeaderValue = (
   headers: Headers.Headers,
   key: string,
-): string | undefined => Option.getOrUndefined(Headers.get(headers, key));
+) => Option.getOrUndefined(Headers.get(headers, key));
 
-const normalizeOrigin = (value: string): string =>
+const normalizeOrigin = (value: string) =>
   value.endsWith('/') ? value.slice(0, -1) : value;
 
-const asString = (value: unknown): string | undefined =>
+const asString = (value: unknown) =>
   typeof value === 'string' ? value : undefined;
 
-const toRecord = (value: unknown): Record<string, unknown> | undefined => {
+const toRecord = (value: unknown) => {
   if (typeof value !== 'object' || value === null) {
     return;
   }
@@ -74,7 +74,7 @@ const toRecord = (value: unknown): Record<string, unknown> | undefined => {
 
 const toCookieRecord = (
   cookies: Record<string, unknown>,
-): Record<string, string> => {
+) => {
   const normalized: Record<string, string> = {};
 
   for (const [key, value] of Object.entries(cookies)) {
@@ -88,7 +88,7 @@ const toCookieRecord = (
 
 const sanitizeReturnPath = (
   value: null | string | undefined,
-): string | undefined => {
+) => {
   if (!value) {
     return;
   }
@@ -175,7 +175,7 @@ const toExpireCookieOptions = (options?: CookieSerializeOptions) => ({
 const applyCookieMutations = (
   response: HttpServerResponse.HttpServerResponse,
   mutations: readonly CookieMutation[],
-): Effect.Effect<HttpServerResponse.HttpServerResponse, unknown> =>
+) =>
   Effect.gen(function* () {
     let nextResponse = response;
 
@@ -209,7 +209,7 @@ const isExpectedAuth0Error = (
 const runPromiseOrUndefined = <T>(
   operation: string,
   thunk: () => Promise<T>,
-): Effect.Effect<T | undefined, unknown> =>
+) =>
   Effect.tryPromise({
     catch: (error) => error,
     try: thunk,
@@ -230,14 +230,14 @@ const runPromiseOrUndefined = <T>(
 
 const createStoreOptions = (
   request: HttpServerRequest.HttpServerRequest,
-): AuthStoreOptions => ({
+) => ({
   cookies: toCookieRecord(request.cookies as Record<string, unknown>),
   mutations: [],
 });
 
 const createAuth0Client = (
   request: HttpServerRequest.HttpServerRequest,
-): Effect.Effect<ServerClient<AuthStoreOptions>, never, RuntimeConfig> =>
+) =>
   Effect.gen(function* () {
     const { auth } = yield* RuntimeConfig;
     const callbackOrigin = normalizeOrigin(auth.BASE_URL);
@@ -283,7 +283,7 @@ const createAuth0Client = (
 
 const toAuthSession = (
   sessionData: SessionData | undefined,
-): AuthSession | undefined => {
+) => {
   if (!sessionData) {
     return;
   }
@@ -308,11 +308,7 @@ const toAuthSession = (
 
 export const resolveRequestOrigin = (
   request: HttpServerRequest.HttpServerRequest,
-): {
-  isSecure: boolean;
-  origin: string;
-  protocol: string;
-} => {
+) => {
   const protocol =
     getHeaderValue(request.headers, 'x-forwarded-proto') ??
     getHeaderValue(request.headers, 'x-forwarded-protocol') ??
@@ -331,18 +327,18 @@ export const resolveRequestOrigin = (
 
 export const toAbsoluteRequestUrl = (
   request: HttpServerRequest.HttpServerRequest,
-): URL => {
+) => {
   const { origin } = resolveRequestOrigin(request);
   return new URL(request.url, origin);
 };
 
 export const getRequestAuthData = (
   authSession: AuthSession | undefined,
-): Record<string, unknown> => authSession?.authData ?? {};
+) => authSession?.authData ?? {};
 
 export const isAuthenticated = (
   authSession: AuthSession | undefined,
-): boolean => authSession !== undefined;
+) => authSession !== undefined;
 
 export const loadAuthSession = (request: HttpServerRequest.HttpServerRequest) =>
   Effect.gen(function* () {
