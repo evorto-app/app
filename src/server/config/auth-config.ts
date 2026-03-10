@@ -3,13 +3,22 @@ import { Config, Option } from 'effect';
 import { loadConfigSync } from './config-error';
 import {
   nonEmptyTrimmedStringConfig,
-  toOptionalString,
   trimmedStringConfig,
 } from './config-string';
 
 const optionalAuthStringConfig = (name: string) =>
   Config.option(trimmedStringConfig(name)).pipe(
-    Config.map((value) => toOptionalString(Option.getOrUndefined(value))),
+    Config.map((value) =>
+      Option.match(value, {
+        onNone: () => Option.none(),
+        onSome: (entry) => {
+          const trimmedEntry = entry;
+          return Option.fromNullable(
+            trimmedEntry.length > 0 ? trimmedEntry : undefined,
+          );
+        },
+      }),
+    ),
   );
 
 export const authConfig = Config.all({

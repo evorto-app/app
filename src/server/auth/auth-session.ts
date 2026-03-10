@@ -244,7 +244,10 @@ const createAuth0Client = (
   const { isSecure, origin } = resolveRequestOrigin(request);
   const callbackUrl = new URL('/callback', origin).toString();
   const authorizationParameters = {
-    ...(oidcEnvironment.AUDIENCE ? { audience: oidcEnvironment.AUDIENCE } : {}),
+    ...Option.match(oidcEnvironment.AUDIENCE, {
+      onNone: () => ({}),
+      onSome: (audience) => ({ audience }),
+    }),
     redirect_uri: callbackUrl,
     scope: 'openid profile email',
   };
