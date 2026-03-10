@@ -12,7 +12,7 @@ const resolvedBaseUrl =
  */
 const webServer = (() => {
   if (environment.NO_WEBSERVER) {
-    return undefined;
+    return;
   }
 
   const url =
@@ -33,17 +33,13 @@ const webServer = (() => {
 })();
 
 // Configure reporters: avoid blocking HTML server opening; prefer terminal output
-const reporters: any[] = [];
-if (environment.CI) {
-  reporters.push(['github'], ['dot']);
-} else {
-  // Local: never auto-open HTML report; still generate artifacts
-  reporters.push(
-    ['html', { open: 'never' }],
-    ['dot'],
-    ['./tests/support/reporters/documentation-reporter.ts'],
-  );
-}
+const reporters = environment.CI
+  ? [['github'], ['dot']]
+  : [
+      ['html', { open: 'never' }],
+      ['dot'],
+      ['./tests/support/reporters/documentation-reporter.ts'],
+    ];
 
 export default defineConfig({
   /* Fail the build on CI if you accidentally left test.only in the source code. */
@@ -54,10 +50,19 @@ export default defineConfig({
   /* Configure projects for major browsers */
   projects: [
     {
+      name: 'database-setup',
+      retries: environment.CI ? 1 : 0,
+      testDir: './tests/setup',
+      testMatch: /database\.setup\.ts$/,
+      timeout: 120_000,
+      use: { ...devices['Desktop Chrome'], channel: 'chromium' },
+    },
+    {
+      dependencies: ['database-setup'],
       name: 'setup',
       retries: environment.CI ? 1 : 0,
       testDir: './tests/setup',
-      testMatch: /.*\.setup\.ts$/,
+      testMatch: /authentication\.setup\.ts$/,
       timeout: 20_000,
       use: { ...devices['Desktop Chrome'], channel: 'chromium' },
     },

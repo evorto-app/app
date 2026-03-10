@@ -116,6 +116,7 @@ export const eventQueryHandlers = {
           ));
         const roleFilters =
           rolesToFilterBy.length > 0 ? [...rolesToFilterBy] : [''];
+        const startAfter = new Date(input.startAfter);
 
         const selectedEvents = yield* databaseEffect((database) =>
           database
@@ -143,7 +144,7 @@ export const eventQueryHandlers = {
             .from(eventInstances)
             .where(
               and(
-                gt(eventInstances.start, new Date(input.startAfter)),
+                gt(eventInstances.start, startAfter),
                 eq(eventInstances.tenantId, tenant.id),
                 inArray(eventInstances.status, [...input.status]),
                 ...(input.includeUnlisted

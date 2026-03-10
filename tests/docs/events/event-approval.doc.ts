@@ -12,9 +12,11 @@ test.use({ storageState: adminStateFile });
 test('Event approval workflow @track(playwright-specs-track-linking_20260126) @doc(EVENT-APPROVAL-DOC-01)', async ({
   database,
   page,
+  seedDate,
   tenant,
 }, testInfo) => {
-  const eventTitle = `Approval Flow ${Date.now()}`;
+  const seedNowMs = seedDate.getTime();
+  const eventTitle = `Approval Flow ${seedDate.toISOString().slice(0, 10)}`;
   const rejectionComment =
     'Please add clearer safety information for participants.';
   const adminUser = usersToAuthenticate.find((user) => user.roles === 'admin');
@@ -28,7 +30,7 @@ test('Event approval workflow @track(playwright-specs-track-linking_20260126) @d
     throw new Error('No template available for approval workflow docs test');
   }
   const eventId = createId();
-  const start = new Date(Date.now() + 1000 * 60 * 60 * 24 * 7);
+  const start = new Date(seedNowMs + 1000 * 60 * 60 * 24 * 7);
   const end = new Date(start.getTime() + 1000 * 60 * 60 * 3);
 
   await database.insert(schema.eventInstances).values({
@@ -50,7 +52,7 @@ test('Event approval workflow @track(playwright-specs-track-linking_20260126) @d
     description: 'Participant registration',
     eventId,
     isPaid: false,
-    openRegistrationTime: new Date(Date.now() - 1000 * 60 * 60 * 24),
+    openRegistrationTime: new Date(seedNowMs - 1000 * 60 * 60 * 24),
     organizingRegistration: false,
     price: 0,
     registeredDescription: 'You are registered',

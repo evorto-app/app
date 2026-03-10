@@ -69,6 +69,9 @@ To run documentation tests:
 bun run test:e2e:docs
 ```
 
+For deterministic test/runtime details, seed profiles, and docker-backed local
+test setup, see `/Users/hedde/.codex/worktrees/6cee/evorto/docs/testing.md`.
+
 ## Additional Resources
 
 For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.

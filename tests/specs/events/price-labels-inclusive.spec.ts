@@ -1,38 +1,46 @@
 import type { Page } from '@playwright/test';
 
-import { defaultStateFile } from '../../../helpers/user-data';
+import { organizerStateFile } from '../../../helpers/user-data';
 import { expect, test } from '../../support/fixtures/parallel-test';
 
-test.use({ storageState: defaultStateFile });
+test.use({ storageState: organizerStateFile });
 
 const openEventDetail = async (page: Page, eventId: string) => {
-  await page.getByRole('link', { name: 'Events' }).click();
-  await expect(page).toHaveURL(/\/events/);
-  await page.locator(`a[href="/events/${eventId}"]`).click();
+  await page.goto(`/events/${eventId}`);
   await expect(page).toHaveURL(`/events/${eventId}`);
+};
+
+const requireScenarioEvent = (
+  events: {
+    id: string;
+    registrationOptions: {
+      id: string;
+      isPaid: boolean;
+      title: string;
+    }[];
+    title: string;
+  }[],
+  eventId: string,
+  label: 'freeOpen' | 'paidOpen',
+) => {
+  const event = events.find((candidate) => candidate.id === eventId);
+  if (!event) {
+    throw new Error(`Seeded ${label} scenario event "${eventId}" was not found`);
+  }
+  return event;
 };
 
 test.describe('Inclusive Price Labels', () => {
   test('paid prices display inclusive tax labels @events @taxRates @priceLabels @track(playwright-specs-track-linking_20260126) @req(PRICE-LABELS-INCLUSIVE-SPEC-01)', async ({
-    page,
     events,
+    page,
+    seeded,
   }) => {
-    // Find an event with paid registration options
-    const paidEvent = events.find(
-      (event) =>
-        event.status === 'APPROVED' &&
-        !event.unlisted &&
-        event.registrationOptions.some(
-          (option) =>
-            option.isPaid && option.title === 'Participant registration',
-        ),
+    const paidEvent = requireScenarioEvent(
+      events,
+      seeded.scenario.events.paidOpen.eventId,
+      'paidOpen',
     );
-
-    if (!paidEvent) {
-      test.skip(
-        'No paid events available for testing @track(playwright-specs-track-linking_20260126) @req(PRICE-LABELS-INCLUSIVE-SPEC-02)',
-      );
-    }
 
     await page.goto('.');
 
@@ -63,25 +71,15 @@ test.describe('Inclusive Price Labels', () => {
   });
 
   test('free prices do not show tax labels @events @taxRates @priceLabels @track(playwright-specs-track-linking_20260126) @req(PRICE-LABELS-INCLUSIVE-SPEC-03)', async ({
-    page,
     events,
+    page,
+    seeded,
   }) => {
-    // Find an event with free registration options
-    const eventWithFreeOptions = events.find(
-      (event) =>
-        event.status === 'APPROVED' &&
-        !event.unlisted &&
-        event.registrationOptions.some(
-          (option) =>
-            !option.isPaid && option.title === 'Participant registration',
-        ),
+    const eventWithFreeOptions = requireScenarioEvent(
+      events,
+      seeded.scenario.events.freeOpen.eventId,
+      'freeOpen',
     );
-
-    if (!eventWithFreeOptions) {
-      test.skip(
-        'No events with free options available for testing @track(playwright-specs-track-linking_20260126) @req(PRICE-LABELS-INCLUSIVE-SPEC-04)',
-      );
-    }
 
     await page.goto('.');
 
@@ -124,23 +122,17 @@ test.describe('Inclusive Price Labels', () => {
   });
 
   test('fallback label shown when tax rate unavailable @events @taxRates @priceLabels @track(playwright-specs-track-linking_20260126) @req(PRICE-LABELS-INCLUSIVE-SPEC-06)', async ({
-    page,
     events,
+    page,
+    seeded,
   }) => {
     // This test validates FR-017: fallback "Incl. Tax" when rate details unavailable
 
-    const paidEvent = events.find(
-      (event) =>
-        event.status === 'APPROVED' &&
-        !event.unlisted &&
-        event.registrationOptions.some((option) => option.isPaid),
+    const paidEvent = requireScenarioEvent(
+      events,
+      seeded.scenario.events.paidOpen.eventId,
+      'paidOpen',
     );
-
-    if (!paidEvent) {
-      test.skip(
-        'No paid events available for testing @track(playwright-specs-track-linking_20260126) @req(PRICE-LABELS-INCLUSIVE-SPEC-07)',
-      );
-    }
 
     await page.goto('.');
 
@@ -157,23 +149,17 @@ test.describe('Inclusive Price Labels', () => {
   });
 
   test('price labels consistent across all pages @events @taxRates @priceLabels @track(playwright-specs-track-linking_20260126) @req(PRICE-LABELS-INCLUSIVE-SPEC-08)', async ({
-    page,
     events,
+    page,
+    seeded,
   }) => {
     // This test validates FR-011: consistent labeling across listings, detail pages, carts, checkout
 
-    const paidEvent = events.find(
-      (event) =>
-        event.status === 'APPROVED' &&
-        !event.unlisted &&
-        event.registrationOptions.some((option) => option.isPaid),
+    const paidEvent = requireScenarioEvent(
+      events,
+      seeded.scenario.events.paidOpen.eventId,
+      'paidOpen',
     );
-
-    if (!paidEvent) {
-      test.skip(
-        'No paid events available for testing @track(playwright-specs-track-linking_20260126) @req(PRICE-LABELS-INCLUSIVE-SPEC-09)',
-      );
-    }
 
     await page.goto('.');
 
@@ -182,7 +168,7 @@ test.describe('Inclusive Price Labels', () => {
     // TODO: Verify price labels are shown in event cards/list items
 
     // Check event detail page
-    await page.locator(`a[href="/events/${paidEvent.id}"]`).click();
+    await page.goto(`/events/${paidEvent.id}`);
     await expect(page).toHaveURL(`/events/${paidEvent.id}`);
     // TODO: Verify same price labels are shown in detail view
 
@@ -196,23 +182,17 @@ test.describe('Inclusive Price Labels', () => {
   });
 
   test('discounted prices maintain inclusive tax labels @events @taxRates @priceLabels @track(playwright-specs-track-linking_20260126) @req(PRICE-LABELS-INCLUSIVE-SPEC-10)', async ({
-    page,
     events,
+    page,
+    seeded,
   }) => {
     // This test validates FR-014: discounts reduce final price while retaining original tax label
 
-    const paidEvent = events.find(
-      (event) =>
-        event.status === 'APPROVED' &&
-        !event.unlisted &&
-        event.registrationOptions.some((option) => option.isPaid),
+    const paidEvent = requireScenarioEvent(
+      events,
+      seeded.scenario.events.paidOpen.eventId,
+      'paidOpen',
     );
-
-    if (!paidEvent) {
-      test.skip(
-        'No paid events available for testing @track(playwright-specs-track-linking_20260126) @req(PRICE-LABELS-INCLUSIVE-SPEC-11)',
-      );
-    }
 
     await page.goto('.');
 
@@ -236,9 +216,7 @@ test.describe('Inclusive Price Labels', () => {
   }) => {
     // Test that template details also show inclusive tax labels for paid options
 
-    await page.goto('.');
-
-    await page.getByRole('link', { name: 'Templates' }).click();
+    await page.goto('/templates');
     await expect(page).toHaveURL(/\/templates/);
 
     // Find a template (assuming templates have registration options)

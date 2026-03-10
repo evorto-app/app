@@ -18,7 +18,7 @@ export const getHikingTemplates = (hikingCategory: {
       },
       name: 'Bahnhof, Murnau a. Staffelsee',
       placeId: 'ChIJj-c4NCWunUcRarPf2welrJU',
-      type: 'google',
+      type: 'google' as const,
     },
     tenantId: hikingCategory.tenantId,
     title: 'Hörnle hike',

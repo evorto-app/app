@@ -23,6 +23,7 @@ export async function setupDatabase(
 ) {
   const seedDate = getSeedDate();
   const seed = seedFalsoForScope('setup-database', seedDate);
+  const stripeTestAccountId = process.env['STRIPE_TEST_ACCOUNT_ID']?.trim();
   consola.info(`Seeded falso with daily seed "${seed}"`);
   consola.start('Reset database schema');
   const resetStart = Date.now();
@@ -37,7 +38,9 @@ export async function setupDatabase(
       {
         domain: 'localhost',
         name: 'Development',
-        stripeAccountId: 'acct_1Qs6S5PPcz51fqyK',
+        ...(stripeTestAccountId
+          ? { stripeAccountId: stripeTestAccountId }
+          : {}),
       },
     ];
   if (!onlyDevelopmentTenants) {
@@ -45,12 +48,16 @@ export async function setupDatabase(
       {
         domain: 'evorto.fly.dev',
         name: 'Fly Deployment',
-        stripeAccountId: 'acct_1Qs6S5PPcz51fqyK',
+        ...(stripeTestAccountId
+          ? { stripeAccountId: stripeTestAccountId }
+          : {}),
       },
       {
         domain: 'alpha.evorto.app',
         name: 'Evorto alpha',
-        stripeAccountId: 'acct_1Qs6S5PPcz51fqyK',
+        ...(stripeTestAccountId
+          ? { stripeAccountId: stripeTestAccountId }
+          : {}),
       },
     );
   }
@@ -60,6 +67,7 @@ export async function setupDatabase(
     const options: SeedTenantOptions = {
       includeExampleUsers: true,
       includeRegistrations: true,
+      profile: 'demo',
       seedDate,
     };
     if (typeof tenant.domain === 'string') {

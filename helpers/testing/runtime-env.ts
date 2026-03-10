@@ -2,6 +2,8 @@ import path from 'node:path';
 
 const DEFAULT_APP_HOST_PORT = 4_200;
 const DEFAULT_NEON_LOCAL_HOST_PORT = 55_432;
+const DEFAULT_MINIO_CONSOLE_HOST_PORT = 9_001;
+const DEFAULT_MINIO_HOST_PORT = 9_000;
 const OUTPUT_FILE_PATH = path.resolve(process.cwd(), '.env.development');
 
 const databaseName = process.env['NEON_DATABASE_NAME']?.trim() || 'appdb';
@@ -27,13 +29,35 @@ const parsePort = (value: string | undefined): number | undefined => {
   return parsed;
 };
 
-const resolvePort = (name: string, fallback: number): number =>
-  parsePort(process.env[name]) ?? fallback;
+const readHexChunk = (start: number): number =>
+  Number.parseInt(digest.slice(start, start + 8), 16);
 
-const appHostPort = resolvePort('APP_HOST_PORT', DEFAULT_APP_HOST_PORT);
+const derivePort = (base: number, span: number, chunkStart: number): number =>
+  base + (readHexChunk(chunkStart) % span);
+
+const resolvePort = (names: readonly string[], fallback: number): number => {
+  for (const name of names) {
+    const parsed = parsePort(process.env[name]);
+    if (parsed !== undefined) {
+      return parsed;
+    }
+  }
+
+  return fallback;
+};
+
+const appHostPort = resolvePort(['APP_HOST_PORT'], DEFAULT_APP_HOST_PORT);
 const neonLocalHostPort = resolvePort(
-  'NEON_LOCAL_HOST_PORT',
-  DEFAULT_NEON_LOCAL_HOST_PORT,
+  ['NEON_LOCAL_HOST_PORT'],
+  derivePort(DEFAULT_NEON_LOCAL_HOST_PORT, 400, 8),
+);
+const minioHostPort = resolvePort(
+  ['MINIO_HOST_PORT'],
+  derivePort(DEFAULT_MINIO_HOST_PORT, 400, 16),
+);
+const minioConsoleHostPort = resolvePort(
+  ['MINIO_CONSOLE_HOST_PORT'],
+  derivePort(DEFAULT_MINIO_CONSOLE_HOST_PORT, 400, 24),
 );
 
 const sanitizeProjectName = (value: string): string =>
@@ -54,13 +78,15 @@ const defaultProjectName = (): string => {
 const composeProjectName =
   process.env['COMPOSE_PROJECT_NAME']?.trim() || defaultProjectName();
 const baseUrl = `http://localhost:${appHostPort}`;
-const databaseUrl = `postgresql://neon:npg@localhost:${neonLocalHostPort}/${databaseName}?sslmode=require`;
+const databaseUrl = `postgresql://neon:npg@localhost:${neonLocalHostPort}/${databaseName}?sslmode=disable`;
 
 const runtimeEnvironment = {
   APP_HOST_PORT: String(appHostPort),
   BASE_URL: baseUrl,
   COMPOSE_PROJECT_NAME: composeProjectName,
   DATABASE_URL: databaseUrl,
+  MINIO_CONSOLE_HOST_PORT: String(minioConsoleHostPort),
+  MINIO_HOST_PORT: String(minioHostPort),
   NEON_DATABASE_NAME: databaseName,
   NEON_LOCAL_HOST_PORT: String(neonLocalHostPort),
   NEON_LOCAL_PROXY: 'true',
@@ -69,7 +95,9 @@ const runtimeEnvironment = {
 
 const outputLines = [
   '# THIS FILE IS AUTO-GENERATED. DO NOT EDIT MANUALLY.',
-  ...Object.entries(runtimeEnvironment).map(([key, value]) => `${key}=${value}`),
+  ...Object.entries(runtimeEnvironment).map(
+    ([key, value]) => `${key}=${value}`,
+  ),
   '',
 ];
 

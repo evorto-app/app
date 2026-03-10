@@ -8,6 +8,11 @@ const optionalNonEmptyString = Schema.optional(Schema.NonEmptyString);
 
 const ServerEnvironmentSchema = Schema.Struct({
   AUDIENCE: optionalNonEmptyString,
+  AWS_ACCESS_KEY_ID: optionalNonEmptyString,
+  AWS_BUCKET: optionalNonEmptyString,
+  AWS_ENDPOINT: optionalNonEmptyString,
+  AWS_REGION: optionalNonEmptyString,
+  AWS_SECRET_ACCESS_KEY: optionalNonEmptyString,
   BASE_URL: optionalNonEmptyString,
   CLIENT_ID: optionalNonEmptyString,
   CLIENT_SECRET: optionalNonEmptyString,
@@ -34,6 +39,11 @@ const ServerEnvironmentSchema = Schema.Struct({
   ),
   PUBLIC_GOOGLE_MAPS_API_KEY: optionalNonEmptyString,
   PUBLIC_SENTRY_DSN: optionalNonEmptyString,
+  S3_ACCESS_KEY_ID: optionalNonEmptyString,
+  S3_BUCKET: optionalNonEmptyString,
+  S3_ENDPOINT: optionalNonEmptyString,
+  S3_REGION: optionalNonEmptyString,
+  S3_SECRET_ACCESS_KEY: optionalNonEmptyString,
   SECRET: optionalNonEmptyString,
   STRIPE_API_KEY: optionalNonEmptyString,
   STRIPE_WEBHOOK_SECRET: optionalNonEmptyString,
@@ -79,15 +89,6 @@ const CloudflareImagesEnvironmentSchema = Schema.Struct({
   NODE_ENV: optionalNonEmptyString,
 }).pipe(Schema.extend(CloudflareImagesTokenEnvironmentSchema));
 
-const CloudflareR2EnvironmentSchema = Schema.Struct({
-  CLOUDFLARE_R2_BUCKET: Schema.optionalWith(Schema.NonEmptyString, {
-    default: () => 'testing',
-  }),
-  CLOUDFLARE_R2_S3_ENDPOINT: Schema.NonEmptyString,
-  CLOUDFLARE_R2_S3_KEY: Schema.NonEmptyString,
-  CLOUDFLARE_R2_S3_KEY_ID: Schema.NonEmptyString,
-});
-
 export type ServerEnvironment = Schema.Schema.Type<
   typeof ServerEnvironmentSchema
 >;
@@ -121,6 +122,9 @@ const decodeOrThrow = <A, I>(
   }
   return parsed.right;
 };
+
+const resolveFirstNonEmpty = (...values: (string | undefined)[]) =>
+  values.find((value) => value && value.trim().length > 0);
 
 export const getServerEnvironment = (
   input: NodeJS.ProcessEnv = process.env,
@@ -234,6 +238,62 @@ export const getCloudflareImagesEnvironment = (
   };
 };
 
+export const getObjectStorageEnvironment = (
+  input: NodeJS.ProcessEnv = process.env,
+): {
+  accessKeyId: string;
+  bucket: string;
+  endpoint: string;
+  region: string;
+  secretAccessKey: string;
+} => {
+  const environment = normalizeEnvironmentInput(input);
+  const endpoint = resolveFirstNonEmpty(
+    environment['S3_ENDPOINT'],
+    environment['AWS_ENDPOINT'],
+    environment['CLOUDFLARE_R2_S3_ENDPOINT'],
+  );
+  const bucket =
+    resolveFirstNonEmpty(
+      environment['S3_BUCKET'],
+      environment['AWS_BUCKET'],
+      environment['CLOUDFLARE_R2_BUCKET'],
+    ) ?? 'testing';
+  const accessKeyId = resolveFirstNonEmpty(
+    environment['S3_ACCESS_KEY_ID'],
+    environment['AWS_ACCESS_KEY_ID'],
+    environment['CLOUDFLARE_R2_S3_KEY_ID'],
+  );
+  const secretAccessKey = resolveFirstNonEmpty(
+    environment['S3_SECRET_ACCESS_KEY'],
+    environment['AWS_SECRET_ACCESS_KEY'],
+    environment['CLOUDFLARE_R2_S3_KEY'],
+  );
+  const region =
+    resolveFirstNonEmpty(environment['S3_REGION'], environment['AWS_REGION']) ??
+    'auto';
+
+  if (!endpoint || !accessKeyId || !secretAccessKey) {
+    const missingFields = [
+      endpoint ? null : 'S3_ENDPOINT/AWS_ENDPOINT',
+      accessKeyId ? null : 'S3_ACCESS_KEY_ID/AWS_ACCESS_KEY_ID',
+      secretAccessKey ? null : 'S3_SECRET_ACCESS_KEY/AWS_SECRET_ACCESS_KEY',
+    ].filter((value): value is string => value !== null);
+
+    throw new Error(
+      `Invalid object storage configuration: missing ${missingFields.join(', ')}`,
+    );
+  }
+
+  return {
+    accessKeyId,
+    bucket,
+    endpoint,
+    region,
+    secretAccessKey,
+  };
+};
+
 export const getCloudflareR2Environment = (
   input: NodeJS.ProcessEnv = process.env,
 ): {
@@ -241,12 +301,15 @@ export const getCloudflareR2Environment = (
   CLOUDFLARE_R2_S3_ENDPOINT: string;
   CLOUDFLARE_R2_S3_KEY: string;
   CLOUDFLARE_R2_S3_KEY_ID: string;
-} =>
-  decodeOrThrow(
-    CloudflareR2EnvironmentSchema,
-    normalizeEnvironmentInput(input),
-    'Cloudflare R2 configuration',
-  );
+} => {
+  const objectStorageEnvironment = getObjectStorageEnvironment(input);
+  return {
+    CLOUDFLARE_R2_BUCKET: objectStorageEnvironment.bucket,
+    CLOUDFLARE_R2_S3_ENDPOINT: objectStorageEnvironment.endpoint,
+    CLOUDFLARE_R2_S3_KEY: objectStorageEnvironment.secretAccessKey,
+    CLOUDFLARE_R2_S3_KEY_ID: objectStorageEnvironment.accessKeyId,
+  };
+};
 
 export const getPublicGoogleMapsApiKey = (
   environment: ServerEnvironment = serverEnvironment,

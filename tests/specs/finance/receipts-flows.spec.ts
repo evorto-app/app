@@ -4,40 +4,15 @@ import type { Page } from '@playwright/test';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { eq } from 'drizzle-orm';
 
-import { defaultStateFile } from '../../../helpers/user-data';
+import { adminStateFile } from '../../../helpers/user-data';
 import { relations } from '../../../src/db/relations';
 import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
 
-test.use({ storageState: defaultStateFile });
+test.use({ storageState: adminStateFile });
 
 const openEventOrganizePage = async (page: Page, eventId: string) => {
   await page.goto(`/events/${eventId}/organize`);
-};
-
-const findOrganizableEventIdFromUi = async (page: Page) => {
-  await page.goto('/events');
-  const eventLinks = page.locator('a[href^="/events/"]');
-  const hrefs = await eventLinks.evaluateAll((elements) =>
-    elements
-      .map((element) => element.getAttribute('href'))
-      .filter((href): href is string => Boolean(href)),
-  );
-  const eventIds = [
-    ...new Set(hrefs.map((href) => href.split('/').at(-1)).filter(Boolean)),
-  ];
-
-  for (const eventId of eventIds.slice(0, 25)) {
-    await openEventOrganizePage(page, eventId);
-    const receiptsHeading = page.getByRole('heading', { name: 'Receipts' });
-    if (await receiptsHeading.isVisible()) {
-      return eventId;
-    }
-  }
-
-  throw new Error(
-    'Expected to find at least one event with organize receipts access',
-  );
 };
 
 const submitReceiptFromFirstEvent = async (
@@ -69,11 +44,13 @@ const submitReceiptFromFirstEvent = async (
 const seedPendingReceiptForApproval = async ({
   database,
   eventId,
+  seedDate,
   submittedByUserId,
   tenantId,
 }: {
   database: NodePgDatabase<Record<string, never>, typeof relations>;
   eventId: string;
+  seedDate: Date;
   submittedByUserId: string;
   tenantId: string;
 }) => {
@@ -87,7 +64,7 @@ const seedPendingReceiptForApproval = async ({
     hasAlcohol: true,
     hasDeposit: true,
     purchaseCountry: 'DE',
-    receiptDate: new Date('2026-02-01T00:00:00.000Z'),
+    receiptDate: new Date(seedDate.getTime() - 1000 * 60 * 60 * 24 * 2),
     status: 'submitted',
     submittedByUserId,
     taxAmount: 0,
@@ -98,33 +75,25 @@ const seedPendingReceiptForApproval = async ({
 
 test('submit receipt from event organize page @track(finance-receipts_20260205) @req(FIN-RECEIPTS-01)', async ({
   page,
-  permissionOverride,
+  seeded,
 }) => {
-  await permissionOverride({
-    add: ['events:organizeAll', 'finance:manageReceipts'],
-    roleName: 'Section member',
-  });
-
-  const eventId = await findOrganizableEventIdFromUi(page);
+  const eventId = seeded.scenario.events.freeOpen.eventId;
   const receiptFile = path.resolve('tests/fixtures/sample-receipt.pdf');
   await submitReceiptFromFirstEvent(page, eventId, receiptFile);
 });
 
 test('approve and refund receipts in finance @track(finance-receipts_20260205) @req(FIN-RECEIPTS-02)', async ({
   database,
-  events,
   page,
+  seedDate,
+  seeded,
   tenant,
 }) => {
-  const seededEventId = events[0]?.id;
-  if (!seededEventId) {
-    throw new Error(
-      'Expected at least one seeded event for receipts approval flow',
-    );
-  }
+  const seededEventId = seeded.scenario.events.freeOpen.eventId;
   await seedPendingReceiptForApproval({
     database,
     eventId: seededEventId,
+    seedDate,
     submittedByUserId: '334967d7626fbd6ad449',
     tenantId: tenant.id,
   });
@@ -193,6 +162,7 @@ test('approve and refund receipts in finance @track(finance-receipts_20260205) @
 test('receipt dialog shows Other option when tenant allows it @track(finance-receipts_20260205) @req(FIN-RECEIPTS-03)', async ({
   database,
   page,
+  seeded,
   tenant,
 }) => {
   const existingTenant = await database.query.tenants.findFirst({
@@ -210,7 +180,7 @@ test('receipt dialog shows Other option when tenant allows it @track(finance-rec
     })
     .where(eq(schema.tenants.id, tenant.id));
 
-  const eventId = await findOrganizableEventIdFromUi(page);
+  const eventId = seeded.scenario.events.freeOpen.eventId;
   await openEventOrganizePage(page, eventId);
   await page.getByRole('button', { name: 'Add receipt' }).click();
   await page.getByLabel('Purchase country').click();

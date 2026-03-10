@@ -9,9 +9,7 @@ const resolveDotenvFiles = (): string[] => {
   if (process.env['CI'] === 'true') {
     files.push('.env.ci');
   }
-  if (process.env['LOAD_ENV_DEVELOPMENT'] === 'true') {
-    files.push('.env.development');
-  }
+  files.push('.env.development');
 
   return files;
 };
@@ -21,16 +19,22 @@ export const loadDotenvFiles = (): void => {
     return;
   }
 
+  const protectedKeys = new Set(Object.keys(process.env));
   for (const file of resolveDotenvFiles()) {
     const filePath = path.resolve(process.cwd(), file);
     if (!fs.existsSync(filePath)) {
       continue;
     }
 
-    dotenv.config({
-      override: false,
-      path: filePath,
-    });
+    const parsed = dotenv.parse(fs.readFileSync(filePath));
+    for (const [key, value] of Object.entries(parsed)) {
+      if (protectedKeys.has(key)) {
+        continue;
+      }
+
+      process.env[key] = value;
+      protectedKeys.add(key);
+    }
   }
 
   loaded = true;

@@ -1,4 +1,6 @@
 import { usersToAuthenticate } from '../../../helpers/user-data';
+import { and, eq } from 'drizzle-orm';
+import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
 
 test.use({
@@ -6,8 +8,9 @@ test.use({
 });
 
 test('register for a free event as regular user @track(playwright-specs-track-linking_20260126) @req(FREE-REGISTRATION-TEST-01)', async ({
-  page,
   database,
+  page,
+  seeded,
   tenant,
 }) => {
   if (!tenant) {
@@ -15,52 +18,37 @@ test('register for a free event as regular user @track(playwright-specs-track-li
     return;
   }
 
-  // Find an approved, listed event with a free participant option
-  const events = await database.query.eventInstances.findMany({
-    orderBy: { start: 'asc' },
-    where: { tenantId: tenant.id, status: 'APPROVED', unlisted: false },
-    with: { registrationOptions: true },
-  });
   const user = usersToAuthenticate.find((u) => u.roles === 'user')!;
-  let target: (typeof events)[number] | undefined;
-  for (const e of events) {
-    const hasFree = e.registrationOptions.some(
-      (o) =>
-        !o.isPaid &&
-        !o.organizingRegistration &&
-        o.title === 'Participant registration' &&
-        (o.confirmedSpots ?? 0) < (o.spots ?? 0),
+  const targetEventId = seeded.scenario.events.freeOpen.eventId;
+  const targetOptionId = seeded.scenario.events.freeOpen.optionId;
+
+  await database
+    .delete(schema.eventRegistrations)
+    .where(
+      and(
+        eq(schema.eventRegistrations.eventId, targetEventId),
+        eq(schema.eventRegistrations.tenantId, tenant.id),
+        eq(schema.eventRegistrations.userId, user.id),
+      ),
     );
-    if (!hasFree) continue;
-    const existing = await database.query.eventRegistrations.findFirst({
-      where: { eventId: e.id, tenantId: tenant.id, userId: user.id },
-    });
-    if (!existing) {
-      target = e;
-      break;
-    }
-  }
-  if (!target) {
-    test.skip(true, 'No suitable free event found');
-    return;
-  }
-  const option = target.registrationOptions.find(
-    (o) =>
-      !o.isPaid &&
-      !o.organizingRegistration &&
-      o.title === 'Participant registration',
-  )!;
+  await database
+    .update(schema.eventRegistrationOptions)
+    .set({
+      confirmedSpots: 0,
+      reservedSpots: 0,
+      waitlistSpots: 0,
+    })
+    .where(eq(schema.eventRegistrationOptions.id, targetOptionId));
 
   // Capture confirmedSpots before
   const before = await database.query.eventRegistrationOptions.findFirst({
-    where: { id: option.id },
+    where: { id: targetOptionId },
   });
   const confirmedBefore = before?.confirmedSpots ?? 0;
 
   // Navigate to event and register
-  await page.goto('/events');
-  await page.locator(`a[href="/events/${target.id}"]`).click();
-  await expect(page).toHaveURL(`/events/${target.id}`);
+  await page.goto(`/events/${targetEventId}`);
+  await expect(page).toHaveURL(`/events/${targetEventId}`);
   // wait until loading state is gone before interacting
   await page
     .getByText('Loading registration status')
@@ -85,7 +73,8 @@ test('register for a free event as regular user @track(playwright-specs-track-li
   // Verify DB registration exists and counts updated
   const registration = await database.query.eventRegistrations.findFirst({
     where: {
-      eventId: target.id,
+      eventId: targetEventId,
+      registrationOptionId: targetOptionId,
       tenantId: tenant.id,
       userId: user.id,
       status: 'CONFIRMED',
@@ -94,7 +83,7 @@ test('register for a free event as regular user @track(playwright-specs-track-li
   expect(registration).toBeTruthy();
 
   const after = await database.query.eventRegistrationOptions.findFirst({
-    where: { id: option.id },
+    where: { id: targetOptionId },
   });
   const confirmedAfter = after?.confirmedSpots ?? confirmedBefore;
   expect(confirmedAfter).toBeGreaterThanOrEqual(confirmedBefore + 1);
