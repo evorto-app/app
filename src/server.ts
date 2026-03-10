@@ -42,21 +42,19 @@ import { stripeClientLayer } from './server/stripe-client';
 
 const angularApp = new AngularAppEngine();
 const runtimeConfigProvider = Effect.runSync(makeRuntimeConfigProvider());
-const { PORT: serverPort } = Effect.runSync(
-  serverConfig.pipe(
-    Effect.withConfigProvider(runtimeConfigProvider),
-    Effect.mapError(
-      (error) =>
-        new Error(`Invalid server configuration:\n${formatConfigError(error)}`),
-    ),
-  ),
-);
 const browserDistributionUrl = new URL('../browser/', import.meta.url);
 const cacheControlHeader = 'public, max-age=31536000';
 const keyValueStoreDirectory = '.cache/evorto/server-kv';
 const notFoundServerResponse = HttpServerResponse.empty({ status: 404 });
 const configuredDatabaseLayer = databaseLayer.pipe(
   Layer.provide(Layer.setConfigProvider(runtimeConfigProvider)),
+);
+const configuredServerConfig = serverConfig.pipe(
+  Effect.withConfigProvider(runtimeConfigProvider),
+  Effect.mapError(
+    (error) =>
+      new Error(`Invalid server configuration:\n${formatConfigError(error)}`),
+  ),
 );
 
 const sanitizeRedirectPath = (value: null | string) => {
@@ -406,7 +404,7 @@ const requestHandler = createRequestHandler((request) =>
 export { requestHandler as reqHandler };
 
 const serveEffect = Effect.gen(function* () {
-  const port = serverPort;
+  const { PORT: port } = yield* configuredServerConfig;
 
   const serverLayer = HttpLayerRouter.serve(routesLayer, {
     middleware: withSsrFallback,
