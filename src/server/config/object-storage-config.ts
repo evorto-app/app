@@ -1,16 +1,39 @@
-import { Config, ConfigError, type ConfigProvider, Effect } from 'effect';
+import {
+  Config,
+  ConfigError,
+  type ConfigProvider,
+  Effect,
+  Option,
+} from 'effect';
 
 import { loadConfigSync } from './config-error';
-import { optionalStringConfig } from './config-helpers';
+import { toOptionalString, trimmedStringConfig } from './config-string';
+
+const optionalObjectStorageStringConfig = (name: string) =>
+  Config.option(trimmedStringConfig(name)).pipe(
+    Config.map((value) => toOptionalString(Option.getOrUndefined(value))),
+  );
+
+const optionalObjectStorageStringWithDefaultConfig = (
+  name: string,
+  defaultValue: string,
+) =>
+  Config.option(trimmedStringConfig(name)).pipe(
+    Config.map((value) => toOptionalString(Option.getOrUndefined(value))),
+    Config.map((value) => value ?? defaultValue),
+  );
 
 export const objectStorageStateConfig = Config.all({
-  S3_ACCESS_KEY_ID: optionalStringConfig('S3_ACCESS_KEY_ID'),
-  S3_BUCKET: optionalStringConfig('S3_BUCKET').pipe(
-    Config.withDefault('testing'),
+  S3_ACCESS_KEY_ID: optionalObjectStorageStringConfig('S3_ACCESS_KEY_ID'),
+  S3_BUCKET: optionalObjectStorageStringWithDefaultConfig(
+    'S3_BUCKET',
+    'testing',
   ),
-  S3_ENDPOINT: optionalStringConfig('S3_ENDPOINT'),
-  S3_REGION: optionalStringConfig('S3_REGION').pipe(Config.withDefault('auto')),
-  S3_SECRET_ACCESS_KEY: optionalStringConfig('S3_SECRET_ACCESS_KEY'),
+  S3_ENDPOINT: optionalObjectStorageStringConfig('S3_ENDPOINT'),
+  S3_REGION: optionalObjectStorageStringWithDefaultConfig('S3_REGION', 'auto'),
+  S3_SECRET_ACCESS_KEY: optionalObjectStorageStringConfig(
+    'S3_SECRET_ACCESS_KEY',
+  ),
 });
 
 export interface ObjectStorageConfig {
@@ -70,9 +93,9 @@ const objectStorageConfig = Effect.gen(function* () {
 
   return {
     accessKeyId: state.S3_ACCESS_KEY_ID,
-    bucket: state.S3_BUCKET ?? 'testing',
+    bucket: state.S3_BUCKET,
     endpoint: state.S3_ENDPOINT,
-    region: state.S3_REGION ?? 'auto',
+    region: state.S3_REGION,
     secretAccessKey: state.S3_SECRET_ACCESS_KEY,
   } satisfies ObjectStorageConfig;
 });

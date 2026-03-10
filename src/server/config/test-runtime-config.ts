@@ -1,59 +1,89 @@
-import { Config, ConfigError, type ConfigProvider, Effect } from 'effect';
+import {
+  Config,
+  ConfigError,
+  type ConfigProvider,
+  Effect,
+  Option,
+} from 'effect';
 import path from 'node:path';
 
 import { loadConfigSync } from './config-error';
 import {
-  booleanWithDefaultConfig,
-  optionalStringConfig,
-  requiredStringConfig,
-} from './config-helpers';
+  nonEmptyTrimmedStringConfig,
+  toOptionalString,
+  trimmedStringConfig,
+} from './config-string';
 
 const DEFAULT_TEST_CLOCK_ISO = '2026-02-01T12:00:00.000Z';
 const DEFAULT_TEST_SEED_KEY = 'evorto-e2e-default-v1';
 
+const optionalTestRuntimeStringConfig = (name: string) =>
+  Config.option(trimmedStringConfig(name)).pipe(
+    Config.map((value) => toOptionalString(Option.getOrUndefined(value))),
+  );
+
+const optionalTestRuntimeStringWithDefaultConfig = (
+  name: string,
+  defaultValue: string,
+) =>
+  Config.option(trimmedStringConfig(name)).pipe(
+    Config.map((value) => toOptionalString(Option.getOrUndefined(value))),
+    Config.map((value) => value ?? defaultValue),
+  );
+
 export const testRuntimeConfigState = Config.all({
-  AUTH0_MANAGEMENT_CLIENT_ID: optionalStringConfig(
+  AUTH0_MANAGEMENT_CLIENT_ID: optionalTestRuntimeStringConfig(
     'AUTH0_MANAGEMENT_CLIENT_ID',
   ),
-  AUTH0_MANAGEMENT_CLIENT_SECRET: optionalStringConfig(
+  AUTH0_MANAGEMENT_CLIENT_SECRET: optionalTestRuntimeStringConfig(
     'AUTH0_MANAGEMENT_CLIENT_SECRET',
   ),
-  BASE_URL: optionalStringConfig('BASE_URL'),
-  CI: booleanWithDefaultConfig('CI', false),
-  CLIENT_ID: optionalStringConfig('CLIENT_ID'),
-  CLIENT_SECRET: optionalStringConfig('CLIENT_SECRET'),
-  CLOUDFLARE_ACCOUNT_ID: optionalStringConfig('CLOUDFLARE_ACCOUNT_ID'),
-  CLOUDFLARE_IMAGES_API_TOKEN: optionalStringConfig(
+  BASE_URL: optionalTestRuntimeStringConfig('BASE_URL'),
+  CI: Config.boolean('CI').pipe(Config.withDefault(false)),
+  CLIENT_ID: optionalTestRuntimeStringConfig('CLIENT_ID'),
+  CLIENT_SECRET: optionalTestRuntimeStringConfig('CLIENT_SECRET'),
+  CLOUDFLARE_ACCOUNT_ID: optionalTestRuntimeStringConfig(
+    'CLOUDFLARE_ACCOUNT_ID',
+  ),
+  CLOUDFLARE_IMAGES_API_TOKEN: optionalTestRuntimeStringConfig(
     'CLOUDFLARE_IMAGES_API_TOKEN',
   ),
-  CLOUDFLARE_IMAGES_DELIVERY_HASH: optionalStringConfig(
+  CLOUDFLARE_IMAGES_DELIVERY_HASH: optionalTestRuntimeStringConfig(
     'CLOUDFLARE_IMAGES_DELIVERY_HASH',
   ),
-  DATABASE_URL: requiredStringConfig('DATABASE_URL'),
-  DOCS_IMG_OUT_DIR: optionalStringConfig('DOCS_IMG_OUT_DIR').pipe(
-    Config.withDefault(path.resolve('test-results/docs/images')),
+  DATABASE_URL: nonEmptyTrimmedStringConfig('DATABASE_URL'),
+  DOCS_IMG_OUT_DIR: optionalTestRuntimeStringWithDefaultConfig(
+    'DOCS_IMG_OUT_DIR',
+    path.resolve('test-results/docs/images'),
   ),
-  DOCS_OUT_DIR: optionalStringConfig('DOCS_OUT_DIR').pipe(
-    Config.withDefault(path.resolve('test-results/docs')),
+  DOCS_OUT_DIR: optionalTestRuntimeStringWithDefaultConfig(
+    'DOCS_OUT_DIR',
+    path.resolve('test-results/docs'),
   ),
-  E2E_NOW_ISO: optionalStringConfig('E2E_NOW_ISO').pipe(
-    Config.withDefault(DEFAULT_TEST_CLOCK_ISO),
+  E2E_NOW_ISO: optionalTestRuntimeStringWithDefaultConfig(
+    'E2E_NOW_ISO',
+    DEFAULT_TEST_CLOCK_ISO,
   ),
-  E2E_SEED_KEY: optionalStringConfig('E2E_SEED_KEY').pipe(
-    Config.withDefault(DEFAULT_TEST_SEED_KEY),
+  E2E_SEED_KEY: optionalTestRuntimeStringWithDefaultConfig(
+    'E2E_SEED_KEY',
+    DEFAULT_TEST_SEED_KEY,
   ),
-  ISSUER_BASE_URL: optionalStringConfig('ISSUER_BASE_URL'),
-  NO_WEBSERVER: booleanWithDefaultConfig('NO_WEBSERVER', false),
-  S3_ACCESS_KEY_ID: optionalStringConfig('S3_ACCESS_KEY_ID'),
-  S3_BUCKET: optionalStringConfig('S3_BUCKET'),
-  S3_ENDPOINT: optionalStringConfig('S3_ENDPOINT'),
-  S3_REGION: optionalStringConfig('S3_REGION'),
-  S3_SECRET_ACCESS_KEY: optionalStringConfig('S3_SECRET_ACCESS_KEY'),
-  SECRET: optionalStringConfig('SECRET'),
-  STRIPE_API_KEY: optionalStringConfig('STRIPE_API_KEY'),
-  STRIPE_TEST_ACCOUNT_ID: optionalStringConfig('STRIPE_TEST_ACCOUNT_ID'),
-  STRIPE_WEBHOOK_SECRET: optionalStringConfig('STRIPE_WEBHOOK_SECRET'),
-  TENANT_DOMAIN: optionalStringConfig('TENANT_DOMAIN'),
+  ISSUER_BASE_URL: optionalTestRuntimeStringConfig('ISSUER_BASE_URL'),
+  NO_WEBSERVER: Config.boolean('NO_WEBSERVER').pipe(Config.withDefault(false)),
+  S3_ACCESS_KEY_ID: optionalTestRuntimeStringConfig('S3_ACCESS_KEY_ID'),
+  S3_BUCKET: optionalTestRuntimeStringConfig('S3_BUCKET'),
+  S3_ENDPOINT: optionalTestRuntimeStringConfig('S3_ENDPOINT'),
+  S3_REGION: optionalTestRuntimeStringConfig('S3_REGION'),
+  S3_SECRET_ACCESS_KEY: optionalTestRuntimeStringConfig('S3_SECRET_ACCESS_KEY'),
+  SECRET: optionalTestRuntimeStringConfig('SECRET'),
+  STRIPE_API_KEY: optionalTestRuntimeStringConfig('STRIPE_API_KEY'),
+  STRIPE_TEST_ACCOUNT_ID: optionalTestRuntimeStringConfig(
+    'STRIPE_TEST_ACCOUNT_ID',
+  ),
+  STRIPE_WEBHOOK_SECRET: optionalTestRuntimeStringConfig(
+    'STRIPE_WEBHOOK_SECRET',
+  ),
+  TENANT_DOMAIN: optionalTestRuntimeStringConfig('TENANT_DOMAIN'),
 });
 
 export interface Auth0ManagementEnvironment {
@@ -279,10 +309,8 @@ export const resolveDocumentationOutputEnvironment = (
     provider,
   );
 
-  const documentationImageOutputDirectory =
-    state.DOCS_IMG_OUT_DIR ?? path.resolve('test-results/docs/images');
-  const documentationOutputDirectory =
-    state.DOCS_OUT_DIR ?? path.resolve('test-results/docs');
+  const documentationImageOutputDirectory = state.DOCS_IMG_OUT_DIR;
+  const documentationOutputDirectory = state.DOCS_OUT_DIR;
 
   return {
     docsImageOutputDirectory: documentationImageOutputDirectory,

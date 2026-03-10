@@ -1,12 +1,17 @@
-import { Config } from 'effect';
+import { Config, Option } from 'effect';
 
 import { loadConfigSync } from './config-error';
-import { optionalStringConfig } from './config-helpers';
+import { toOptionalString, trimmedStringConfig } from './config-string';
+
+const optionalStripeStringConfig = (name: string) =>
+  Config.option(trimmedStringConfig(name)).pipe(
+    Config.map((value) => toOptionalString(Option.getOrUndefined(value))),
+  );
 
 export const stripeConfig = Config.all({
-  STRIPE_API_KEY: optionalStringConfig('STRIPE_API_KEY'),
-  STRIPE_TEST_ACCOUNT_ID: optionalStringConfig('STRIPE_TEST_ACCOUNT_ID'),
-  STRIPE_WEBHOOK_SECRET: optionalStringConfig('STRIPE_WEBHOOK_SECRET'),
+  STRIPE_API_KEY: optionalStripeStringConfig('STRIPE_API_KEY'),
+  STRIPE_TEST_ACCOUNT_ID: optionalStripeStringConfig('STRIPE_TEST_ACCOUNT_ID'),
+  STRIPE_WEBHOOK_SECRET: optionalStripeStringConfig('STRIPE_WEBHOOK_SECRET'),
 });
 
 export type StripeConfig = Config.Config.Success<typeof stripeConfig>;

@@ -1,21 +1,36 @@
-import { Config, ConfigError, type ConfigProvider, Effect } from 'effect';
+import {
+  Config,
+  ConfigError,
+  type ConfigProvider,
+  Effect,
+  Option,
+} from 'effect';
 
 import { loadConfigSync } from './config-error';
-import { optionalStringConfig } from './config-helpers';
+import { toOptionalString, trimmedStringConfig } from './config-string';
+
+const optionalCloudflareStringConfig = (name: string) =>
+  Config.option(trimmedStringConfig(name)).pipe(
+    Config.map((value) => toOptionalString(Option.getOrUndefined(value))),
+  );
 
 export const cloudflareImagesStateConfig = Config.all({
-  CLOUDFLARE_ACCOUNT_ID: optionalStringConfig('CLOUDFLARE_ACCOUNT_ID'),
-  CLOUDFLARE_IMAGES_API_TOKEN: optionalStringConfig(
+  CLOUDFLARE_ACCOUNT_ID: optionalCloudflareStringConfig(
+    'CLOUDFLARE_ACCOUNT_ID',
+  ),
+  CLOUDFLARE_IMAGES_API_TOKEN: optionalCloudflareStringConfig(
     'CLOUDFLARE_IMAGES_API_TOKEN',
   ),
-  CLOUDFLARE_IMAGES_DELIVERY_HASH: optionalStringConfig(
+  CLOUDFLARE_IMAGES_DELIVERY_HASH: optionalCloudflareStringConfig(
     'CLOUDFLARE_IMAGES_DELIVERY_HASH',
   ),
-  CLOUDFLARE_IMAGES_ENVIRONMENT: optionalStringConfig(
+  CLOUDFLARE_IMAGES_ENVIRONMENT: optionalCloudflareStringConfig(
     'CLOUDFLARE_IMAGES_ENVIRONMENT',
   ),
-  CLOUDFLARE_IMAGES_VARIANT: optionalStringConfig('CLOUDFLARE_IMAGES_VARIANT'),
-  NODE_ENV: optionalStringConfig('NODE_ENV'),
+  CLOUDFLARE_IMAGES_VARIANT: optionalCloudflareStringConfig(
+    'CLOUDFLARE_IMAGES_VARIANT',
+  ),
+  NODE_ENV: optionalCloudflareStringConfig('NODE_ENV'),
 });
 
 export interface CloudflareImagesConfig {

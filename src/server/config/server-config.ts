@@ -1,16 +1,21 @@
-import { Config } from 'effect';
+import { Config, Option } from 'effect';
 
 import { loadConfigSync } from './config-error';
-import { optionalStringConfig, portWithDefaultConfig } from './config-helpers';
+import { toOptionalString, trimmedStringConfig } from './config-string';
+
+const optionalServerStringConfig = (name: string) =>
+  Config.option(trimmedStringConfig(name)).pipe(
+    Config.map((value) => toOptionalString(Option.getOrUndefined(value))),
+  );
 
 export const serverConfig = Config.all({
-  BASE_URL: optionalStringConfig('BASE_URL'),
-  NODE_ENV: optionalStringConfig('NODE_ENV'),
-  PORT: portWithDefaultConfig('PORT', 4000),
-  PUBLIC_GOOGLE_MAPS_API_KEY: optionalStringConfig(
+  BASE_URL: optionalServerStringConfig('BASE_URL'),
+  NODE_ENV: optionalServerStringConfig('NODE_ENV'),
+  PORT: Config.port('PORT').pipe(Config.withDefault(4000)),
+  PUBLIC_GOOGLE_MAPS_API_KEY: optionalServerStringConfig(
     'PUBLIC_GOOGLE_MAPS_API_KEY',
   ),
-  PUBLIC_SENTRY_DSN: optionalStringConfig('PUBLIC_SENTRY_DSN'),
+  PUBLIC_SENTRY_DSN: optionalServerStringConfig('PUBLIC_SENTRY_DSN'),
 });
 
 export type ServerConfig = Config.Config.Success<typeof serverConfig>;

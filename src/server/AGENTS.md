@@ -5,6 +5,7 @@
 - Prefer Effect and Effect Platform first.
 - Organize server capabilities with Effect dependency injection (`Effect.Service` + composed `Layer`s).
 - Keep service dependencies declared in service definitions; wire app composition with flat `Layer.mergeAll` / `Layer.provideMerge`.
+- Keep runtime configuration centralized in `src/server/config/**`; prefer native Effect `Config.*` combinators and resolve optional/default behavior at that boundary.
 - Use Bun-native capabilities when Effect does not provide the needed primitive.
 - Do not introduce new Express/Hono server paths.
 

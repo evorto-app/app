@@ -1,15 +1,24 @@
-import { Config } from 'effect';
+import { Config, Option } from 'effect';
 
 import { loadConfigSync } from './config-error';
-import { optionalStringConfig, requiredStringConfig } from './config-helpers';
+import {
+  nonEmptyTrimmedStringConfig,
+  toOptionalString,
+  trimmedStringConfig,
+} from './config-string';
+
+const optionalAuthStringConfig = (name: string) =>
+  Config.option(trimmedStringConfig(name)).pipe(
+    Config.map((value) => toOptionalString(Option.getOrUndefined(value))),
+  );
 
 export const authConfig = Config.all({
-  AUDIENCE: optionalStringConfig('AUDIENCE'),
-  BASE_URL: requiredStringConfig('BASE_URL'),
-  CLIENT_ID: requiredStringConfig('CLIENT_ID'),
-  CLIENT_SECRET: requiredStringConfig('CLIENT_SECRET'),
-  ISSUER_BASE_URL: requiredStringConfig('ISSUER_BASE_URL'),
-  SECRET: requiredStringConfig('SECRET'),
+  AUDIENCE: optionalAuthStringConfig('AUDIENCE'),
+  BASE_URL: nonEmptyTrimmedStringConfig('BASE_URL'),
+  CLIENT_ID: nonEmptyTrimmedStringConfig('CLIENT_ID'),
+  CLIENT_SECRET: nonEmptyTrimmedStringConfig('CLIENT_SECRET'),
+  ISSUER_BASE_URL: nonEmptyTrimmedStringConfig('ISSUER_BASE_URL'),
+  SECRET: nonEmptyTrimmedStringConfig('SECRET'),
 });
 
 export type AuthConfig = Config.Config.Success<typeof authConfig>;
