@@ -1,0 +1,61 @@
+version: 2
+
+registries:
+  fontawesome-npm:
+    type: npm-registry
+    url: https://npm.fontawesome.com
+    token: ${{secrets.FONTAWESOME_NPM_TOKEN}}
+
+updates:
+  - package-ecosystem: "bun"
+    directory: "/"
+    schedule:
+      interval: weekly
+    registries:
+      - fontawesome-npm
+    labels:
+      - dependencies
+      - dependabot
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      bun-patch-and-minor:
+        patterns:
+          - "*"
+        update-types:
+          - patch
+          - minor
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: weekly
+    labels:
+      - dependencies
+      - dependabot
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      github-actions-patch-and-minor:
+        patterns:
+          - "*"
+        update-types:
+          - patch
+          - minor
+
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: weekly
+    labels:
+      - dependencies
+      - dependabot
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      docker-patch-and-minor:
+        patterns:
+          - "*"
+        update-types:
+          - patch
+          - minor
