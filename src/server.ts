@@ -347,10 +347,18 @@ const otelLayer = OtelTracer.layerGlobal.pipe(
   ),
 );
 
-const makeHandlerAppLayer = Effect.gen(function* () {
-  const runtimeConfigProvider = yield* makeRuntimeConfigProvider();
+let cachedRequestHandler: ((request: Request) => Promise<Response>) | undefined;
+const requestHandlerRuntimeConfigProvider = await Effect.runPromise(
+  makeRuntimeConfigProvider(),
+);
+
+const getRequestHandler = () => {
+  if (cachedRequestHandler) {
+    return cachedRequestHandler;
+  }
+
   const configuredDatabaseLayer = databaseLayer.pipe(
-    Layer.provide(Layer.setConfigProvider(runtimeConfigProvider)),
+    Layer.provide(Layer.setConfigProvider(requestHandlerRuntimeConfigProvider)),
   );
   const handlerRuntimeLayer = Layer.mergeAll(
     BunHttpServer.layerContext,
@@ -362,48 +370,30 @@ const makeHandlerAppLayer = Effect.gen(function* () {
     appRpcHttpAppLayer,
     stripeClientLayer,
     RuntimeConfig.Default,
-    Layer.setConfigProvider(runtimeConfigProvider),
+    Layer.setConfigProvider(requestHandlerRuntimeConfigProvider),
   );
   const handlerAppLayer = routesLayer.pipe(
     Layer.provide(handlerRuntimeLayer),
     Layer.provide(configuredDatabaseLayer),
   );
-
-  return handlerAppLayer;
-});
-
-let cachedRequestHandler:
-  | Promise<(request: Request) => Promise<Response>>
-  | undefined;
-
-const getRequestHandler = () => {
-  if (cachedRequestHandler) {
-    return cachedRequestHandler;
-  }
-
-  cachedRequestHandler = Effect.runPromise(
-    makeHandlerAppLayer.pipe(
-      Effect.map((handlerAppLayer) => {
-        const { handler: serverHandler } = HttpLayerRouter.toWebHandler(
-          handlerAppLayer,
-          {
-            middleware: withSsrFallback,
-          },
-        );
-        const handlerContext = EffectContext.empty() as Parameters<
-          typeof serverHandler
-        >[1];
-
-        return (request: Request) => serverHandler(request, handlerContext);
-      }),
-    ),
+  const { handler: serverHandler } = HttpLayerRouter.toWebHandler(
+    handlerAppLayer,
+    {
+      middleware: withSsrFallback,
+    },
   );
+  const handlerContext = EffectContext.empty() as Parameters<
+    typeof serverHandler
+  >[1];
+
+  cachedRequestHandler = (request: Request) =>
+    serverHandler(request, handlerContext);
 
   return cachedRequestHandler;
 };
 
-const requestHandler = createRequestHandler(async (request) =>
-  (await getRequestHandler())(request),
+const requestHandler = createRequestHandler((request) =>
+  getRequestHandler()(request),
 );
 
 export { requestHandler as reqHandler };
@@ -439,6 +429,7 @@ const serveEffect = Effect.gen(function* () {
         Layer.setConfigProvider(runtimeConfigProvider),
       ),
     ),
+    Layer.provide(configuredDatabaseLayer),
   );
 
   yield* Effect.logInfo('Bun Effect server listening').pipe(
@@ -448,9 +439,7 @@ const serveEffect = Effect.gen(function* () {
     }),
   );
 
-  return yield* Layer.launch(serverLayer).pipe(
-    Effect.provide(configuredDatabaseLayer),
-  );
+  return yield* Layer.launch(serverLayer);
 });
 
 if (import.meta.main) {
