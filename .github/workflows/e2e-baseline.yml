@@ -72,6 +72,14 @@ jobs:
             echo "::error::Missing required Stripe connected account id. Set STRIPE_TEST_ACCOUNT_ID as a secret or repository variable."
             exit 1
           fi
+          if [ -z "${CLIENT_SECRET}" ]; then
+            echo "::error::Missing required secret: CLIENT_SECRET"
+            exit 1
+          fi
+          if [ -z "${STRIPE_API_KEY}" ]; then
+            echo "::error::Missing required secret: STRIPE_API_KEY"
+            exit 1
+          fi
 
       - name: Install dependencies
         run: bun install --frozen-lockfile

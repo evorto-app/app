@@ -77,7 +77,7 @@ More specific guidance also exists deeper in some subtrees (for example `src/ser
 ## Security & Configuration
 
 - Never commit secrets.
-- In CI, do not rely on generated env artifacts. Keep checked-in general env files as baseline only, and provide CI-specific configuration via explicit environment variables.
+- In CI, do not rely on generated env artifacts. Use checked-in baseline env files such as `.env.ci` where applicable, and provide CI-specific configuration via explicit environment variables.
 
 ## Agent Editing Workflow
 

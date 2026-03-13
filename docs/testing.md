@@ -13,6 +13,7 @@
 - Stop runtime stack: `bun run docker:stop`
 - Local docker runs now use a real Postgres container, not `neon_local`.
 - `.env.runtime` is an optional worktree-local override created explicitly with `bun run env:runtime`.
+- `.env.ci` is the checked-in CI baseline env file; workflow env should supply CI-specific secrets and overrides.
 - `bun run db:push` applies schema only.
 - `bun run db:setup` ensures schema exists, then resets and seeds the local database.
 - `bun run db:reset` is now an alias for `bun run db:setup`.
