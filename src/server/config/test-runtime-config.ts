@@ -86,31 +86,27 @@ export interface DocumentationOutputEnvironment {
   docsOutputDirectory: string;
 }
 
-export type PlaywrightEnvironment =
-  | (Omit<
-      TestRuntimeConfigState,
-      | 'BASE_URL'
-      | 'CLIENT_ID'
-      | 'CLIENT_SECRET'
-      | 'ISSUER_BASE_URL'
-      | 'SECRET'
-      | 'STRIPE_API_KEY'
-      | 'STRIPE_TEST_ACCOUNT_ID'
-      | 'STRIPE_WEBHOOK_SECRET'
-    > & {
-      BASE_URL: string;
-      CLIENT_ID: string;
-      CLIENT_SECRET: string;
-      ISSUER_BASE_URL: string;
-      NO_WEBSERVER: false;
-      SECRET: string;
-      STRIPE_API_KEY: string;
-      STRIPE_TEST_ACCOUNT_ID: string;
-      STRIPE_WEBHOOK_SECRET: string;
-    })
-  | (TestRuntimeConfigState & {
-      NO_WEBSERVER: true;
-    });
+export type PlaywrightEnvironment = Omit<
+  TestRuntimeConfigState,
+  | 'BASE_URL'
+  | 'CLIENT_ID'
+  | 'CLIENT_SECRET'
+  | 'ISSUER_BASE_URL'
+  | 'SECRET'
+  | 'STRIPE_API_KEY'
+  | 'STRIPE_TEST_ACCOUNT_ID'
+  | 'STRIPE_WEBHOOK_SECRET'
+> & {
+  BASE_URL: string;
+  CLIENT_ID: string;
+  CLIENT_SECRET: string;
+  ISSUER_BASE_URL: string;
+  NO_WEBSERVER: boolean;
+  SECRET: string;
+  STRIPE_API_KEY: string;
+  STRIPE_TEST_ACCOUNT_ID: string;
+  STRIPE_WEBHOOK_SECRET: string;
+};
 
 export type TestRuntimeConfigState = Config.Config.Success<
   typeof testRuntimeConfigState
@@ -177,13 +173,6 @@ export const playwrightEnvironmentConfig = Effect.gen(function* () {
   const state = yield* testRuntimeConfigState;
   yield* validateCiEnvironment(state);
 
-  if (state.NO_WEBSERVER) {
-    return {
-      ...state,
-      NO_WEBSERVER: true as const,
-    } satisfies PlaywrightEnvironment;
-  }
-
   const errors = [
     Option.isSome(state.BASE_URL) ? undefined : missingFieldError('BASE_URL'),
     Option.isSome(state.CLIENT_ID) ? undefined : missingFieldError('CLIENT_ID'),
@@ -241,7 +230,7 @@ export const playwrightEnvironmentConfig = Effect.gen(function* () {
     CLIENT_ID: clientId,
     CLIENT_SECRET: clientSecret,
     ISSUER_BASE_URL: issuerBaseUrl,
-    NO_WEBSERVER: false as const,
+    NO_WEBSERVER: state.NO_WEBSERVER,
     SECRET: secret,
     STRIPE_API_KEY: stripeApiKey,
     STRIPE_TEST_ACCOUNT_ID: stripeTestAccountId,

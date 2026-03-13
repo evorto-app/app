@@ -15,7 +15,7 @@ const environment = Effect.runSync(
     ),
   ),
 );
-const resolvedBaseUrl = environment.NO_WEBSERVER ? undefined : environment.BASE_URL;
+const resolvedBaseUrl = environment.BASE_URL;
 
 /**
  * See https://playwright.dev/docs/test-configuration.

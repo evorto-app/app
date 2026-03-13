@@ -50,9 +50,20 @@ describe('test-runtime-config', () => {
     const environment = readPlaywrightEnvironment(provider);
 
     expect(environment.NO_WEBSERVER).toBe(false);
-    if (environment.NO_WEBSERVER) {
-      throw new Error('Expected a Playwright environment with a web server');
-    }
+    expect(environment.BASE_URL).toBe('http://localhost:4200');
+  });
+
+  it('still resolves BASE_URL when NO_WEBSERVER disables only auto-startup', () => {
+    const provider = ConfigProvider.fromMap(
+      new Map([
+        ...requiredPlaywrightEntries,
+        ['BASE_URL', 'http://localhost:4200'],
+        ['NO_WEBSERVER', 'true'],
+      ]),
+    );
+    const environment = readPlaywrightEnvironment(provider);
+
+    expect(environment.NO_WEBSERVER).toBe(true);
     expect(environment.BASE_URL).toBe('http://localhost:4200');
   });
 });
