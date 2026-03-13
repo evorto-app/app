@@ -67,7 +67,7 @@ bun run db:reset
 
 This will:
 
-1. Generate the local runtime environment (`bun run env:runtime`)
+1. Optionally generate a worktree-local runtime override (`bun run env:runtime`) if you want isolated local ports/project naming
 2. Ensure schema exists and reset/seed the local database (`bun run db:setup`)
 
 ## Modifying the Seeding Process

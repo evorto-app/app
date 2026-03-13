@@ -2,8 +2,12 @@ services:
   db:
     image: postgres:16-alpine
     env_file:
-      - .env.local
-      - .env
+      - path: .env.local
+        required: false
+      - path: .env
+        required: false
+      - path: .env.runtime
+        required: false
     environment:
       POSTGRES_DB: "${NEON_DATABASE_NAME:-appdb}"
       POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-npg}"
@@ -77,8 +81,12 @@ services:
         - action: rebuild
           path: package.json
     env_file:
-      - .env.local
-      - .env
+      - path: .env.local
+        required: false
+      - path: .env
+        required: false
+      - path: .env.runtime
+        required: false
     environment:
       BASE_URL: http://localhost:${APP_HOST_PORT:-4200}
       DATABASE_URL: postgresql://${POSTGRES_USER:-neon}:${POSTGRES_PASSWORD:-npg}@db:5432/${NEON_DATABASE_NAME:-appdb}?sslmode=disable
@@ -102,8 +110,12 @@ services:
     image: stripe/stripe-cli:v1.25.0
     restart: always
     env_file:
-      - .env.local
-      - .env
+      - path: .env.local
+        required: false
+      - path: .env
+        required: false
+      - path: .env.runtime
+        required: false
     environment:
       STRIPE_DEVICE_NAME: integration-tests
     command: "listen --forward-to http://evorto:4200/webhooks/stripe"

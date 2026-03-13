@@ -3,7 +3,7 @@ import { init } from '@paralleldrive/cuid2';
 import { test as base } from '@playwright/test';
 import { ManagementClient } from 'auth0';
 import { drizzle, NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { ConfigError, Effect } from 'effect';
+import { ConfigError, ConfigProvider, Effect, Option } from 'effect';
 import fs from 'node:fs';
 import { DateTime } from 'luxon';
 import path from 'node:path';
@@ -13,7 +13,6 @@ import { getSeedDate } from '../../../helpers/seed-clock';
 import { seedFalsoForScope } from '../../../helpers/seed-falso';
 import { relations } from '../../../src/db/relations';
 import { formatConfigError } from '../../../src/server/config/config-error';
-import { makeRuntimeConfigProvider } from '../../../src/server/config/provider';
 import {
   auth0ManagementEnvironment,
   playwrightEnvironmentConfig,
@@ -21,7 +20,7 @@ import {
 
 const dedupeLength = 4;
 const createDedupeId = init({ length: dedupeLength });
-const runtimeConfigProvider = Effect.runSync(makeRuntimeConfigProvider());
+const runtimeConfigProvider = ConfigProvider.fromEnv();
 const environment = Effect.runSync(
   playwrightEnvironmentConfig.pipe(
     Effect.withConfigProvider(runtimeConfigProvider),
@@ -198,7 +197,7 @@ export const test = base.extend<BaseFixtures>({
         return;
       }
     } catch {}
-    await use(environment.TENANT_DOMAIN);
+    await use(Option.getOrUndefined(environment.TENANT_DOMAIN));
   },
   testClock: [
     async ({ seedDate }, use) => {

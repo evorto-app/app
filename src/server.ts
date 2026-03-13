@@ -41,21 +41,10 @@ import { handleStripeWebhookWebRequest } from './server/http/stripe-webhook.web-
 import { stripeClientLayer } from './server/stripe-client';
 
 const angularApp = new AngularAppEngine();
-const runtimeConfigProvider = Effect.runSync(makeRuntimeConfigProvider());
 const browserDistributionUrl = new URL('../browser/', import.meta.url);
 const cacheControlHeader = 'public, max-age=31536000';
 const keyValueStoreDirectory = '.cache/evorto/server-kv';
 const notFoundServerResponse = HttpServerResponse.empty({ status: 404 });
-const configuredDatabaseLayer = databaseLayer.pipe(
-  Layer.provide(Layer.setConfigProvider(runtimeConfigProvider)),
-);
-const configuredServerConfig = serverConfig.pipe(
-  Effect.withConfigProvider(runtimeConfigProvider),
-  Effect.mapError(
-    (error) =>
-      new Error(`Invalid server configuration:\n${formatConfigError(error)}`),
-  ),
-);
 
 const sanitizeRedirectPath = (value: null | string) => {
   if (!value) {
@@ -358,52 +347,79 @@ const otelLayer = OtelTracer.layerGlobal.pipe(
   ),
 );
 
-const handlerRuntimeLayer = Layer.mergeAll(
-  BunHttpServer.layerContext,
-  BunFileSystem.layer,
-  Path.layer,
-  keyValueStoreLayer,
-  otelLayer,
-  serverLoggerLayer,
-  appRpcHttpAppLayer,
-  stripeClientLayer,
-  RuntimeConfig.Default,
-  Layer.setConfigProvider(runtimeConfigProvider),
-);
+const makeHandlerAppLayer = Effect.gen(function* () {
+  const runtimeConfigProvider = yield* makeRuntimeConfigProvider();
+  const configuredDatabaseLayer = databaseLayer.pipe(
+    Layer.provide(Layer.setConfigProvider(runtimeConfigProvider)),
+  );
+  const handlerRuntimeLayer = Layer.mergeAll(
+    BunHttpServer.layerContext,
+    BunFileSystem.layer,
+    Path.layer,
+    keyValueStoreLayer,
+    otelLayer,
+    serverLoggerLayer,
+    appRpcHttpAppLayer,
+    stripeClientLayer,
+    RuntimeConfig.Default,
+    Layer.setConfigProvider(runtimeConfigProvider),
+  );
+  const handlerAppLayer = routesLayer.pipe(
+    Layer.provide(handlerRuntimeLayer),
+    Layer.provide(configuredDatabaseLayer),
+  );
 
-const handlerAppLayer = routesLayer.pipe(
-  Layer.provide(handlerRuntimeLayer),
-  Layer.provide(configuredDatabaseLayer),
-);
+  return handlerAppLayer;
+});
 
-let cachedRequestHandler: ((request: Request) => Promise<Response>) | undefined;
+let cachedRequestHandler:
+  | Promise<(request: Request) => Promise<Response>>
+  | undefined;
 
 const getRequestHandler = () => {
   if (cachedRequestHandler) {
     return cachedRequestHandler;
   }
 
-  const { handler: serverHandler } = HttpLayerRouter.toWebHandler(
-    handlerAppLayer,
-    {
-      middleware: withSsrFallback,
-    },
-  );
-  const handlerContext = EffectContext.empty() as Parameters<
-    typeof serverHandler
-  >[1];
+  cachedRequestHandler = Effect.runPromise(
+    makeHandlerAppLayer.pipe(
+      Effect.map((handlerAppLayer) => {
+        const { handler: serverHandler } = HttpLayerRouter.toWebHandler(
+          handlerAppLayer,
+          {
+            middleware: withSsrFallback,
+          },
+        );
+        const handlerContext = EffectContext.empty() as Parameters<
+          typeof serverHandler
+        >[1];
 
-  cachedRequestHandler = (request) => serverHandler(request, handlerContext);
+        return (request: Request) => serverHandler(request, handlerContext);
+      }),
+    ),
+  );
+
   return cachedRequestHandler;
 };
 
-const requestHandler = createRequestHandler((request) =>
-  getRequestHandler()(request),
+const requestHandler = createRequestHandler(async (request) =>
+  (await getRequestHandler())(request),
 );
 
 export { requestHandler as reqHandler };
 
 const serveEffect = Effect.gen(function* () {
+  const runtimeConfigProvider = yield* makeRuntimeConfigProvider();
+  const configuredDatabaseLayer = databaseLayer.pipe(
+    Layer.provide(Layer.setConfigProvider(runtimeConfigProvider)),
+  );
+  const configuredServerConfig = serverConfig.pipe(
+    Effect.withConfigProvider(runtimeConfigProvider),
+    Effect.mapError(
+      (error) =>
+        new Error(`Invalid server configuration:\n${formatConfigError(error)}`),
+    ),
+  );
   const { PORT: port } = yield* configuredServerConfig;
 
   const serverLayer = HttpLayerRouter.serve(routesLayer, {
@@ -414,7 +430,6 @@ const serveEffect = Effect.gen(function* () {
         BunHttpServer.layer({ port }),
         BunFileSystem.layer,
         Path.layer,
-        databaseLayer,
         keyValueStoreLayer,
         otelLayer,
         serverLoggerLayer,
@@ -433,13 +448,11 @@ const serveEffect = Effect.gen(function* () {
     }),
   );
 
-  return yield* Layer.launch(serverLayer);
+  return yield* Layer.launch(serverLayer).pipe(
+    Effect.provide(configuredDatabaseLayer),
+  );
 });
 
 if (import.meta.main) {
-  BunRuntime.runMain(
-    serveEffect.pipe(
-      Effect.provide(configuredDatabaseLayer),
-    ),
-  );
+  BunRuntime.runMain(serveEffect);
 }

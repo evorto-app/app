@@ -6,10 +6,9 @@ import type {
   TestCase,
   TestResult,
 } from '@playwright/test/reporter';
-import { Effect } from 'effect';
+import { ConfigProvider, Effect } from 'effect';
 import path from 'node:path';
 
-import { makeRuntimeConfigProvider } from '../../../src/server/config/provider';
 import { documentationOutputEnvironment } from '../config/environment';
 import { buildSectionContent } from './documentation-reporter/attachments';
 import { DocumentationGroupRegistry } from './documentation-reporter/group-registry';
@@ -21,13 +20,15 @@ import {
   writeFile,
 } from './documentation-reporter/shared';
 
+const documentationEnvironment = Effect.runSync(
+  documentationOutputEnvironment.pipe(
+    Effect.withConfigProvider(ConfigProvider.fromEnv()),
+  ),
+);
+
 class DocumentationReporter implements Reporter {
   private readonly registry = new DocumentationGroupRegistry();
-  private readonly environment = Effect.runSync(
-    documentationOutputEnvironment.pipe(
-      Effect.withConfigProvider(Effect.runSync(makeRuntimeConfigProvider())),
-    ),
-  );
+  private readonly environment = documentationEnvironment;
 
   private docsRoot(options?: { empty?: boolean }): string {
     const root = this.environment.docsOutputDirectory;

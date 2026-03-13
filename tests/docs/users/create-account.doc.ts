@@ -1,6 +1,5 @@
-import { Effect } from 'effect';
+import { ConfigProvider, Effect } from 'effect';
 
-import { makeRuntimeConfigProvider } from '../../../src/server/config/provider';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { hasAuth0ManagementEnvironment } from '../../support/config/environment';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
@@ -8,13 +7,13 @@ import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 // test.use({ storageState: defaultStateFile });
 
 // Skip this journey if Auth0 Management credentials are not configured
-if (
-  !Effect.runSync(
-    hasAuth0ManagementEnvironment.pipe(
-      Effect.withConfigProvider(Effect.runSync(makeRuntimeConfigProvider())),
-    ),
-  )
-) {
+const hasManagementEnvironment = Effect.runSync(
+  hasAuth0ManagementEnvironment.pipe(
+    Effect.withConfigProvider(ConfigProvider.fromEnv()),
+  ),
+);
+
+if (!hasManagementEnvironment) {
   test.skip(true, 'Auth0 creds missing');
 }
 

@@ -3,8 +3,8 @@
 ## Provider and Environment Sources
 
 - Runtime config resolution uses provider precedence in this order: real environment variables, `.env.local`, `.env`, `.env.runtime`, then in-code defaults.
-- `.env.runtime` is a generated local runtime/test artifact. Keep canonical keys there for local flows when needed, but do not treat it as a source of truth.
-- In CI and other cloud environments, do not rely on `.env` files or `/Users/hedde/code/effect`. Use explicit environment variables or generated runtime env artifacts instead.
+- `.env.runtime` is an explicit local worktree override artifact. It may be absent; in that case, local runs should use the checked-in env files and real environment variables only.
+- In CI and other cloud environments, do not rely on generated env artifacts or `/Users/hedde/code/effect`. Use explicit environment variables for CI-specific configuration.
 
 ## Effect Config Shape
 

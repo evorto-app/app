@@ -12,7 +12,7 @@
 - Start runtime stack in foreground (used by Playwright webServer): `bun run docker:start:test`
 - Stop runtime stack: `bun run docker:stop`
 - Local docker runs now use a real Postgres container, not `neon_local`.
-- `docker:*` and `db:*` commands generate `.env.runtime` automatically before they run.
+- `.env.runtime` is an optional worktree-local override created explicitly with `bun run env:runtime`.
 - `bun run db:push` applies schema only.
 - `bun run db:setup` ensures schema exists, then resets and seeds the local database.
 - `bun run db:reset` is now an alias for `bun run db:setup`.
@@ -76,6 +76,8 @@ The local app port intentionally stays at `4200` by default because the current 
 
 - database and object-storage state can be isolated per worktree
 - fully authenticated browser stacks still need the shared `4200` app port unless Auth0 callback settings are expanded
+
+If `.env.runtime` is absent, local commands run in the default main-mode environment using checked-in env files and process env only.
 
 If you intentionally need another isolated stack from the same working tree, override the generated ports/project name explicitly before running `bun run env:runtime`.
 

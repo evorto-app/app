@@ -1,14 +1,13 @@
 import { Locator, Page, TestInfo } from '@playwright/test';
-import { Effect } from 'effect';
+import { ConfigProvider, Effect } from 'effect';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-import { makeRuntimeConfigProvider } from '../../../src/server/config/provider';
 import { documentationOutputEnvironment } from '../config/environment';
 
 const docsEnvironment = Effect.runSync(
   documentationOutputEnvironment.pipe(
-    Effect.withConfigProvider(Effect.runSync(makeRuntimeConfigProvider())),
+    Effect.withConfigProvider(ConfigProvider.fromEnv()),
   ),
 );
 

@@ -1,3 +1,5 @@
+import { BunRuntime } from '@effect/platform-bun';
+import { Effect } from 'effect';
 import path from 'node:path';
 
 const DEFAULT_APP_HOST_PORT = 4_200;
@@ -100,5 +102,11 @@ const outputLines = [
   '',
 ];
 
-await Bun.write(OUTPUT_FILE_PATH, outputLines.join('\n'));
-process.stdout.write(`Wrote ${OUTPUT_FILE_PATH}\n`);
+const main = Effect.gen(function* () {
+  yield* Effect.tryPromise(() =>
+    Bun.write(OUTPUT_FILE_PATH, outputLines.join('\n')),
+  );
+  yield* Effect.logInfo(`Wrote ${OUTPUT_FILE_PATH}`);
+});
+
+BunRuntime.runMain(main);

@@ -1,3 +1,4 @@
+import { BunRuntime } from '@effect/platform-bun';
 import { Effect } from 'effect';
 
 import { makeRuntimeConfigProvider } from '../src/server/config/provider';
@@ -13,7 +14,7 @@ const getArgumentValue = (name: string) => {
 
 const hasFlag = (flag: string) => process.argv.includes(flag);
 
-const run = async () => {
+const main = Effect.gen(function* () {
   const dryRun = hasFlag('--dry-run');
   const confirmPhrase = getArgumentValue('--confirm');
   const maxDeletesArgument = getArgumentValue('--max-deletes');
@@ -26,34 +27,32 @@ const run = async () => {
     );
   }
 
-  const result = await Effect.runPromise(
+  const runtimeConfigProvider = yield* makeRuntimeConfigProvider();
+  const result = yield* (
     cleanupTestingCloudflareImages({
       confirmPhrase,
       dryRun,
       ...(maxDeletes === undefined ? {} : { maxDeletes }),
       source: 'finance-receipt',
     }).pipe(
-      Effect.withConfigProvider(Effect.runSync(makeRuntimeConfigProvider())),
-    ),
+      Effect.withConfigProvider(runtimeConfigProvider),
+    )
   );
 
-  console.info(
-    JSON.stringify(
-      {
-        deletedCount: result.deletedImageIds.length,
-        deletedImageIds: result.deletedImageIds,
-        inspectedCount: result.inspectedCount,
-        matchedCount: result.matchedCount,
-      },
-      undefined,
-      2,
-    ),
-  );
-};
+  yield* Effect.sync(() => {
+    console.info(
+      JSON.stringify(
+        {
+          deletedCount: result.deletedImageIds.length,
+          deletedImageIds: result.deletedImageIds,
+          inspectedCount: result.inspectedCount,
+          matchedCount: result.matchedCount,
+        },
+        undefined,
+        2,
+      ),
+    );
+  });
+});
 
-try {
-  await run();
-} catch (error) {
-  console.error(error instanceof Error ? error.message : String(error));
-  process.exitCode = 1;
-}
+BunRuntime.runMain(main);
