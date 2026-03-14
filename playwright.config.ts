@@ -1,11 +1,21 @@
 import { defineConfig, devices } from '@playwright/test';
+import { ConfigError, ConfigProvider, Effect } from 'effect';
 
-import { validatePlaywrightEnvironment } from './tests/support/config/environment';
+import { formatConfigError } from './src/server/config/config-error';
+import { playwrightEnvironmentConfig } from './tests/support/config/environment';
 
-const environment = validatePlaywrightEnvironment();
-const resolvedBaseUrl =
-  environment.PLAYWRIGHT_TEST_BASE_URL ??
-  ('BASE_URL' in environment ? environment.BASE_URL : undefined);
+const environment = Effect.runSync(
+  playwrightEnvironmentConfig.pipe(
+    Effect.withConfigProvider(ConfigProvider.fromEnv()),
+    Effect.mapError(
+      (error: ConfigError.ConfigError) =>
+        new Error(
+          `Invalid Playwright e2e configuration:\n${formatConfigError(error)}`,
+        ),
+    ),
+  ),
+);
+const resolvedBaseUrl = environment.BASE_URL;
 
 /**
  * See https://playwright.dev/docs/test-configuration.
@@ -15,13 +25,9 @@ const webServer = (() => {
     return;
   }
 
-  const url =
-    environment.PLAYWRIGHT_TEST_BASE_URL ??
-    ('BASE_URL' in environment ? environment.BASE_URL : undefined);
+  const url = environment.BASE_URL;
   if (!url) {
-    throw new Error(
-      'Missing base URL for Playwright webServer. Set PLAYWRIGHT_TEST_BASE_URL or BASE_URL.',
-    );
+    throw new Error('Missing base URL for Playwright webServer. Set BASE_URL.');
   }
 
   return {

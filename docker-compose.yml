@@ -2,8 +2,14 @@ services:
   db:
     image: postgres:16-alpine
     env_file:
-      - .env.local
-      - .env
+      - path: .env.local
+        required: false
+      - path: .env
+        required: false
+      - path: .env.ci
+        required: false
+      - path: .env.runtime
+        required: false
     environment:
       POSTGRES_DB: "${NEON_DATABASE_NAME:-appdb}"
       POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-npg}"
@@ -22,6 +28,35 @@ services:
       timeout: 5s
       retries: 20
       start_period: 10s
+
+  db-setup:
+    build:
+      context: .
+      target: build
+      args:
+        FONT_AWESOME_TOKEN: "${FONT_AWESOME_TOKEN:-}"
+      secrets:
+        - FONT_AWESOME_TOKEN
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - path: .env.local
+        required: false
+      - path: .env
+        required: false
+      - path: .env.ci
+        required: false
+      - path: .env.runtime
+        required: false
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-neon}:${POSTGRES_PASSWORD:-npg}@db:5432/${NEON_DATABASE_NAME:-appdb}?sslmode=disable
+      NEON_LOCAL_PROXY: "true"
+    command:
+      - /bin/sh
+      - -lc
+      - bunx --bun drizzle-kit push --force && bun helpers/database.ts
+    restart: "no"
 
   minio:
     image: minio/minio:latest
@@ -66,6 +101,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      db-setup:
+        condition: service_completed_successfully
       minio:
         condition: service_healthy
       minio-init:
@@ -77,10 +114,19 @@ services:
         - action: rebuild
           path: package.json
     env_file:
-      - .env.local
-      - .env
+      - path: .env.local
+        required: false
+      - path: .env
+        required: false
+      - path: .env.ci
+        required: false
+      - path: .env.runtime
+        required: false
     environment:
       BASE_URL: http://localhost:${APP_HOST_PORT:-4200}
+      CLIENT_ID: "${CLIENT_ID:-}"
+      CLIENT_SECRET: "${CLIENT_SECRET:-}"
+      CLOUDFLARE_IMAGES_API_TOKEN: "${CLOUDFLARE_IMAGES_API_TOKEN:-}"
       DATABASE_URL: postgresql://${POSTGRES_USER:-neon}:${POSTGRES_PASSWORD:-npg}@db:5432/${NEON_DATABASE_NAME:-appdb}?sslmode=disable
       NEON_LOCAL_PROXY: "true"
       PORT: "4200"
@@ -89,8 +135,8 @@ services:
       S3_ENDPOINT: "${S3_ENDPOINT:-http://minio:9000}"
       S3_REGION: "${S3_REGION:-us-east-1}"
       S3_SECRET_ACCESS_KEY: "${S3_SECRET_ACCESS_KEY:-minioadmin}"
-      #      This secret is for the local stripe cli, it is not a production secret
-      STRIPE_WEBHOOK_SECRET: whsec_5cc4e8e60977a2f87895f2fe5484040de96728381f08f33617633205a0cafae3
+      STRIPE_API_KEY: "${STRIPE_API_KEY:-}"
+      STRIPE_WEBHOOK_SECRET: "${STRIPE_WEBHOOK_SECRET:-whsec_5cc4e8e60977a2f87895f2fe5484040de96728381f08f33617633205a0cafae3}"
     command:
       - /bin/sh
       - -lc
@@ -102,9 +148,16 @@ services:
     image: stripe/stripe-cli:v1.25.0
     restart: always
     env_file:
-      - .env.local
-      - .env
+      - path: .env.local
+        required: false
+      - path: .env
+        required: false
+      - path: .env.ci
+        required: false
+      - path: .env.runtime
+        required: false
     environment:
+      STRIPE_API_KEY: "${STRIPE_API_KEY:-}"
       STRIPE_DEVICE_NAME: integration-tests
     command: "listen --forward-to http://evorto:4200/webhooks/stripe"
 

@@ -8,17 +8,13 @@ import type { SeedTenantOptions } from '../../helpers/seed-tenant';
 import { getSeedDate } from '../../helpers/seed-clock';
 import { seedFalsoForScope } from '../../helpers/seed-falso';
 import { seedBaseUsers, seedTenant } from '../../helpers/seed-tenant';
-import { database as databaseClient } from './database-client';
 import { relations } from './relations';
 import * as schema from './schema';
 
 export type Database = NodePgDatabase<Record<string, never>, typeof relations>;
 
 export async function setupDatabase(
-  database: NodePgDatabase<
-    Record<string, never>,
-    typeof relations
-  > = databaseClient,
+  database: NodePgDatabase<Record<string, never>, typeof relations>,
   onlyDevelopmentTenants = false,
 ) {
   const seedDate = getSeedDate();

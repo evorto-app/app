@@ -6,6 +6,8 @@ import * as RpcSerialization from '@effect/rpc/RpcSerialization';
 import * as RpcServer from '@effect/rpc/RpcServer';
 import { Context, Effect, Layer } from 'effect';
 
+import { RuntimeConfig } from '../../config/runtime-config';
+import { stripeClientLayer } from '../../stripe-client';
 import { serverLoggerLayer } from '../server-logger.layer';
 import { appRpcHandlers, ServerAppRpcs } from './app-rpcs.handlers';
 import { EventRegistrationService } from './handlers/events/event-registration.service';
@@ -14,15 +16,18 @@ import { rpcRequestContextMiddlewareLive } from './handlers/middleware/rpc-reque
 import { RpcAccess } from './handlers/shared/rpc-access.service';
 import { SimpleTemplateService } from './handlers/templates/simple-template.service';
 
-class AppRpcHttpApp extends Context.Tag(
-  '@server/effect/rpc/AppRpcHttpApp',
-)<AppRpcHttpApp, HttpApp.Default<never, Scope.Scope>>() {}
+class AppRpcHttpApp extends Context.Tag('@server/effect/rpc/AppRpcHttpApp')<
+  AppRpcHttpApp,
+  HttpApp.Default<never, Scope.Scope>
+>() {}
 
 const appRpcDependenciesLayer = Layer.mergeAll(
-  EventRegistrationService.Default,
-  RpcAccess.Default,
-  ReceiptMediaService.Default,
-  SimpleTemplateService.Default,
+    EventRegistrationService.Default,
+    RpcAccess.Default,
+    ReceiptMediaService.Default,
+    SimpleTemplateService.Default,
+    RuntimeConfig.Default,
+    stripeClientLayer,
 );
 const appRpcHandlersLayer = appRpcHandlers.pipe(
   Layer.provide(appRpcDependenciesLayer),
@@ -36,9 +41,7 @@ const appRpcRuntimeLayer = Layer.mergeAll(
 
 export const appRpcHttpAppLayer = Layer.scoped(
   AppRpcHttpApp,
-  RpcServer.toHttpApp(ServerAppRpcs).pipe(
-    Effect.provide(appRpcRuntimeLayer),
-  ),
+  RpcServer.toHttpApp(ServerAppRpcs).pipe(Effect.provide(appRpcRuntimeLayer)),
 );
 
 export const handleAppRpcHttpRequest = (

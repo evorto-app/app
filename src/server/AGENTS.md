@@ -3,14 +3,18 @@
 ## Runtime Architecture
 
 - Prefer Effect and Effect Platform first.
+- For Effect reference material, implementation details, and examples, consult the local Effect repo at `/Users/hedde/code/effect` whenever behavior is unclear or an example is needed. This path is a local workstation reference only and is not expected to exist in cloud environments.
 - Organize server capabilities with Effect dependency injection (`Effect.Service` + composed `Layer`s).
 - Keep service dependencies declared in service definitions; wire app composition with flat `Layer.mergeAll` / `Layer.provideMerge`.
+- Keep runtime configuration centralized in `src/server/config/**`; prefer native Effect `Config.*` combinators and resolve optional/default behavior at that boundary.
+- Preserve honest config types at the config boundary; prefer `Option` for meaningful absence and only flatten to `undefined` or plain values at the consumer boundary that actually needs it.
 - Use Bun-native capabilities when Effect does not provide the needed primitive.
 - Do not introduce new Express/Hono server paths.
 
 ## API and Validation
 
 - Keep API contracts in Effect RPC + Effect `Schema`.
+- Server boundaries must use Effect `Schema` for validated input/output.
 - Maintain fully typed input/output boundaries and explicit error mapping.
 - Reuse shared RPC contracts from `src/shared/rpc-contracts/**`.
 

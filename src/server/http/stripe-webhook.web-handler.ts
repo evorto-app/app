@@ -5,10 +5,8 @@ import { Effect } from 'effect';
 
 import { Database, type DatabaseClient } from '../../db';
 import * as schema from '../../db/schema';
-import { getStripeWebhookEnvironment } from '../config/environment';
-import { stripe } from '../stripe-client';
-
-const { STRIPE_WEBHOOK_SECRET: endpointSecret } = getStripeWebhookEnvironment();
+import { stripeWebhookConfig } from '../config/stripe-config';
+import { StripeClient } from '../stripe-client';
 const MAX_WEBHOOK_SIZE_BYTES = 200 * 1024;
 const STALE_WEBHOOK_CLAIM_AGE_MS = 5 * 60 * 1000;
 
@@ -253,6 +251,8 @@ const markWebhookEventProcessed = (eventId: string) =>
 
 export const handleStripeWebhookWebRequest = (request: Request) =>
   Effect.gen(function* () {
+    const stripe = yield* StripeClient;
+    const { STRIPE_WEBHOOK_SECRET: endpointSecret } = yield* stripeWebhookConfig;
     const signature = request.headers.get('stripe-signature');
     if (!signature) {
       return responseText('No signature', 400);

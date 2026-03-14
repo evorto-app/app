@@ -21,7 +21,6 @@ jobs:
       APP_HOST_PORT: 4200
       BASE_URL: http://localhost:4200
       APP_READY_PATH: /robots.txt
-      PLAYWRIGHT_TEST_BASE_URL: http://localhost:4200
       COMPOSE_PROJECT_NAME: evorto-ci
       NEON_DATABASE_NAME: appdb
       NEON_LOCAL_HOST_PORT: 55432
@@ -42,8 +41,7 @@ jobs:
       S3_ENDPOINT: http://minio:9000
       S3_REGION: us-east-1
       S3_SECRET_ACCESS_KEY: minioadmin
-      CLOUDFLARE_TOKEN: ${{ secrets.CLOUDFLARE_TOKEN }}
-      CLOUDFLARE_IMAGES_API_TOKEN: ${{ secrets.CLOUDFLARE_IMAGES_API_TOKEN }}
+      CLOUDFLARE_IMAGES_API_TOKEN: ${{ secrets.CLOUDFLARE_IMAGES_API_TOKEN || secrets.CLOUDFLARE_TOKEN }}
       PARENT_BRANCH_ID: ${{ secrets.PARENT_BRANCH_ID }}
 
     steps:
@@ -74,40 +72,20 @@ jobs:
             echo "::error::Missing required Stripe connected account id. Set STRIPE_TEST_ACCOUNT_ID as a secret or repository variable."
             exit 1
           fi
+          if [ -z "${CLIENT_SECRET}" ]; then
+            echo "::error::Missing required secret: CLIENT_SECRET"
+            exit 1
+          fi
+          if [ -z "${STRIPE_API_KEY}" ]; then
+            echo "::error::Missing required secret: STRIPE_API_KEY"
+            exit 1
+          fi
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
       - name: Install Playwright browsers
         run: bunx playwright install --with-deps
-
-      - name: Write CI env files
-        run: |
-          cat > .env <<EOF
-          DATABASE_URL=${DATABASE_URL}
-          NEON_LOCAL_PROXY=${NEON_LOCAL_PROXY}
-          NEON_DATABASE_NAME=${NEON_DATABASE_NAME}
-          NEON_API_KEY=${NEON_API_KEY}
-          NEON_PROJECT_ID=${NEON_PROJECT_ID}
-          AUTH0_MANAGEMENT_CLIENT_ID=${AUTH0_MANAGEMENT_CLIENT_ID}
-          AUTH0_MANAGEMENT_CLIENT_SECRET=${AUTH0_MANAGEMENT_CLIENT_SECRET}
-          CLIENT_ID=${CLIENT_ID}
-          CLIENT_SECRET=${CLIENT_SECRET}
-          STRIPE_API_KEY=${STRIPE_API_KEY}
-          STRIPE_TEST_ACCOUNT_ID=${STRIPE_TEST_ACCOUNT_ID}
-          STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
-          S3_ACCESS_KEY_ID=${S3_ACCESS_KEY_ID}
-          S3_BUCKET=${S3_BUCKET}
-          S3_ENDPOINT=${S3_ENDPOINT}
-          S3_REGION=${S3_REGION}
-          S3_SECRET_ACCESS_KEY=${S3_SECRET_ACCESS_KEY}
-          CLOUDFLARE_TOKEN=${CLOUDFLARE_TOKEN}
-          CLOUDFLARE_IMAGES_API_TOKEN=${CLOUDFLARE_IMAGES_API_TOKEN}
-          PARENT_BRANCH_ID=${PARENT_BRANCH_ID}
-          BASE_URL=${BASE_URL}
-          PLAYWRIGHT_TEST_BASE_URL=${PLAYWRIGHT_TEST_BASE_URL}
-          EOF
-          cp .env .env.development
 
       - name: Pull Docker images (compose)
         run: docker compose pull

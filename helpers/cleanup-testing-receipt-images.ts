@@ -1,16 +1,20 @@
+import { BunRuntime } from '@effect/platform-bun';
+import { Effect } from 'effect';
+
+import { makeRuntimeConfigProvider } from '../src/server/config/provider';
 import { cleanupTestingCloudflareImages } from '../src/server/integrations/cloudflare-images';
 
 const DELETE_CONFIRMATION = 'delete-testing-images-only';
 
-const getArgumentValue = (name: string): string | undefined => {
+const getArgumentValue = (name: string) => {
   const prefix = `${name}=`;
   const argument = process.argv.find((value) => value.startsWith(prefix));
   return argument ? argument.slice(prefix.length) : undefined;
 };
 
-const hasFlag = (flag: string): boolean => process.argv.includes(flag);
+const hasFlag = (flag: string) => process.argv.includes(flag);
 
-const run = async (): Promise<void> => {
+const main = Effect.gen(function* () {
   const dryRun = hasFlag('--dry-run');
   const confirmPhrase = getArgumentValue('--confirm');
   const maxDeletesArgument = getArgumentValue('--max-deletes');
@@ -23,30 +27,32 @@ const run = async (): Promise<void> => {
     );
   }
 
-  const result = await cleanupTestingCloudflareImages({
-    confirmPhrase,
-    dryRun,
-    ...(maxDeletes === undefined ? {} : { maxDeletes }),
-    source: 'finance-receipt',
-  });
-
-  console.info(
-    JSON.stringify(
-      {
-        deletedCount: result.deletedImageIds.length,
-        deletedImageIds: result.deletedImageIds,
-        inspectedCount: result.inspectedCount,
-        matchedCount: result.matchedCount,
-      },
-      undefined,
-      2,
-    ),
+  const runtimeConfigProvider = yield* makeRuntimeConfigProvider();
+  const result = yield* (
+    cleanupTestingCloudflareImages({
+      confirmPhrase,
+      dryRun,
+      ...(maxDeletes === undefined ? {} : { maxDeletes }),
+      source: 'finance-receipt',
+    }).pipe(
+      Effect.withConfigProvider(runtimeConfigProvider),
+    )
   );
-};
 
-try {
-  await run();
-} catch (error) {
-  console.error(error instanceof Error ? error.message : String(error));
-  process.exitCode = 1;
-}
+  yield* Effect.sync(() => {
+    console.info(
+      JSON.stringify(
+        {
+          deletedCount: result.deletedImageIds.length,
+          deletedImageIds: result.deletedImageIds,
+          inspectedCount: result.inspectedCount,
+          matchedCount: result.matchedCount,
+        },
+        undefined,
+        2,
+      ),
+    );
+  });
+});
+
+BunRuntime.runMain(main);

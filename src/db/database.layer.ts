@@ -1,28 +1,32 @@
 import * as PgClient from '@effect/sql-pg/PgClient';
 import * as PgDrizzle from 'drizzle-orm/effect-postgres';
-import { Effect, Redacted } from 'effect';
+import { Effect, Layer, Redacted } from 'effect';
 
-import { getDatabaseEnvironment } from '../server/config/environment';
+import { databaseConfig } from '../server/config/database-config';
 import { relations } from './relations';
-
-const { DATABASE_URL } = getDatabaseEnvironment();
 
 const makeDatabase = PgDrizzle.make({
   relations,
 });
 
-const databaseDependencies = [
-  PgDrizzle.DefaultServices,
-  PgDrizzle.EffectLogger.layer,
-  PgClient.layer({
-    url: Redacted.make(DATABASE_URL),
-  }),
-] as const;
+const pgClientLayer = Layer.unwrapEffect(
+  databaseConfig.pipe(
+    Effect.map(({ DATABASE_URL }) =>
+      PgClient.layer({
+        url: Redacted.make(DATABASE_URL),
+      }),
+    ),
+  ),
+);
 
 export type DatabaseClient = Effect.Effect.Success<typeof makeDatabase>;
 
 export class Database extends Effect.Service<Database>()('@db/Database', {
-  dependencies: databaseDependencies,
+  dependencies: [
+    PgDrizzle.DefaultServices,
+    PgDrizzle.EffectLogger.layer,
+    pgClientLayer,
+  ],
   scoped: makeDatabase,
 }) {}
 

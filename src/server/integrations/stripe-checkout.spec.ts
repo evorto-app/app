@@ -1,20 +1,27 @@
+import { Effect } from 'effect';
 import { DateTime } from 'luxon';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { StripeClient } from '../stripe-client';
 import {
-  __resetStripeClientLoaderForTests,
-  __setStripeClientLoaderForTests,
   buildCheckoutSessionExpiresAt,
   buildCheckoutSessionIdempotencyKey,
   createHostedCheckoutSession,
 } from './stripe-checkout';
+
+interface MockStripeClient {
+  checkout: {
+    sessions: {
+      create: typeof createSessionMock;
+    };
+  };
+}
 
 const createSessionMock = vi.fn();
 
 describe('stripe-checkout helpers', () => {
   afterEach(() => {
     createSessionMock.mockReset();
-    __resetStripeClientLoaderForTests();
     vi.unstubAllEnvs();
     vi.useRealTimers();
   });
@@ -67,26 +74,28 @@ describe('stripe-checkout helpers', () => {
 
   it('forwards checkout payload and request options to Stripe client', async () => {
     createSessionMock.mockResolvedValueOnce({ id: 'cs_test_mock' });
-    __setStripeClientLoaderForTests(async () => ({
+    const stripeClient: MockStripeClient = {
       checkout: {
         sessions: {
           create: createSessionMock,
         },
       },
-    }));
+    };
 
-    const session = await createHostedCheckoutSession(
-      {
-        cancel_url:
-          'http://localhost:4200/events/event-1?registrationStatus=cancel',
-        mode: 'payment',
-        success_url:
-          'http://localhost:4200/events/event-1?registrationStatus=success',
-      },
-      {
-        idempotencyKey: 'registration:reg_123:transaction:txn_456',
-        stripeAccount: 'acct_test_123',
-      },
+    const session = await Effect.runPromise(
+      createHostedCheckoutSession(
+        {
+          cancel_url:
+            'http://localhost:4200/events/event-1?registrationStatus=cancel',
+          mode: 'payment',
+          success_url:
+            'http://localhost:4200/events/event-1?registrationStatus=success',
+        },
+        {
+          idempotencyKey: 'registration:reg_123:transaction:txn_456',
+          stripeAccount: 'acct_test_123',
+        },
+      ).pipe(Effect.provideService(StripeClient, stripeClient)),
     );
 
     expect(session).toEqual({ id: 'cs_test_mock' });
@@ -103,27 +112,33 @@ describe('stripe-checkout helpers', () => {
 
   it('surfaces Stripe client errors without requiring env configuration', async () => {
     createSessionMock.mockRejectedValueOnce(new Error('stripe request failed'));
-    __setStripeClientLoaderForTests(async () => ({
-      checkout: {
-        sessions: {
-          create: createSessionMock,
-        },
-      },
-    }));
 
     await expect(
-      createHostedCheckoutSession(
-        {
-          cancel_url:
-            'http://localhost:4200/events/event-1?registrationStatus=cancel',
-          mode: 'payment',
-          success_url:
-            'http://localhost:4200/events/event-1?registrationStatus=success',
-        },
-        {
-          idempotencyKey: 'registration:reg_123:transaction:txn_456',
-          stripeAccount: 'acct_test_123',
-        },
+      Effect.runPromise(
+        createHostedCheckoutSession(
+          {
+            cancel_url:
+              'http://localhost:4200/events/event-1?registrationStatus=cancel',
+            mode: 'payment',
+            success_url:
+              'http://localhost:4200/events/event-1?registrationStatus=success',
+          },
+          {
+            idempotencyKey: 'registration:reg_123:transaction:txn_456',
+            stripeAccount: 'acct_test_123',
+          },
+        ).pipe(
+          Effect.provideService(
+            StripeClient,
+            {
+              checkout: {
+                sessions: {
+                  create: createSessionMock,
+                },
+              },
+            } satisfies MockStripeClient,
+          ),
+        ),
       ),
     ).rejects.toThrow('stripe request failed');
   });

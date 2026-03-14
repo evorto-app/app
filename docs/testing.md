@@ -12,12 +12,33 @@
 - Start runtime stack in foreground (used by Playwright webServer): `bun run docker:start:test`
 - Stop runtime stack: `bun run docker:stop`
 - Local docker runs now use a real Postgres container, not `neon_local`.
-- `docker:*` and `db:*` commands generate `.env.development` automatically before they run.
+- Docker Compose now includes a one-shot `db-setup` service that runs the equivalent of `db:setup` inside Docker before `evorto` starts.
+- `.env.runtime` is an optional worktree-local override created explicitly with `bun run env:runtime`.
+- `.env.ci` is the checked-in CI baseline env file; workflow env should supply CI-specific secrets and overrides.
 - `bun run db:push` applies schema only.
+- `bun run db:studio` opens Drizzle Studio against the current database URL under the same explicit dotenv chain.
 - `bun run db:setup` ensures schema exists, then resets and seeds the local database.
+  It now runs under the same explicit dotenv chain as `db:push`, so if `.env.runtime` exists it will target the Docker Postgres URL instead of the checked-in baseline URL.
 - `bun run db:reset` is now an alias for `bun run db:setup`.
+- The Postgres container does not log every query by default, so a quiet `db` container log is not evidence that `db:reset` missed Docker.
+- Starting the Docker stack is now destructive for local database state by design: the `db-setup` container pushes schema and resets/seeds the Docker database every time the Compose stack starts.
 
-`.env.development` is loaded automatically by app and tests whenever the file exists.
+Config now resolves in this precedence order:
+
+- real environment variables
+- `.env.local`
+- `.env`
+- `.env.runtime`
+- in-code defaults
+
+For external-tool scripts that use `dotenv-cli` (`db:*`, `docker:*`, `test:e2e*`), the file order is intentionally reversed because `dotenv-cli` is first-wins in this repo:
+
+- `.env.runtime`
+- `.env.ci` in CI
+- `.env.local`
+- `.env`
+
+We keep this explicit `-e` ordering instead of `dotenv -c` because `-c` would let `.env` win over `.env.local` for values like `DATABASE_URL` in this repo. `dotenv-cli` also ignores missing `-e` files, so the scripts do not need file-existence checks around `.env.runtime`.
 
 ## Deterministic E2E Environment
 
@@ -60,7 +81,7 @@ The seed map emitted during setup includes these handles for CI/debugging.
 
 ## Local Stack Isolation
 
-`.env.development` is generated from the current working directory, so separate worktrees get:
+`.env.runtime` is generated from the current working directory, so separate worktrees get:
 
 - distinct `COMPOSE_PROJECT_NAME`
 - distinct local Postgres port
@@ -71,25 +92,19 @@ The local app port intentionally stays at `4200` by default because the current 
 - database and object-storage state can be isolated per worktree
 - fully authenticated browser stacks still need the shared `4200` app port unless Auth0 callback settings are expanded
 
+If `.env.runtime` is absent, local commands run in the default main-mode environment using checked-in env files and process env only.
+
 If you intentionally need another isolated stack from the same working tree, override the generated ports/project name explicitly before running `bun run env:runtime`.
 
 ## Object Storage Environment (MinIO/R2-Compatible)
 
-Preferred variables:
+Canonical variables:
 
 - `S3_ENDPOINT`
 - `S3_REGION`
 - `S3_BUCKET`
 - `S3_ACCESS_KEY_ID`
 - `S3_SECRET_ACCESS_KEY`
-
-Compatible aliases also supported:
-
-- `AWS_ENDPOINT`
-- `AWS_REGION`
-- `AWS_BUCKET`
-- `AWS_ACCESS_KEY_ID`
-- `AWS_SECRET_ACCESS_KEY`
 
 For local MinIO defaults used by docker-compose:
 
@@ -104,7 +119,7 @@ For local MinIO defaults used by docker-compose:
 Required for full Playwright flows:
 
 - `DATABASE_URL`
-- `BASE_URL` (or `PLAYWRIGHT_TEST_BASE_URL`)
+- `BASE_URL`
 - `CLIENT_ID`
 - `CLIENT_SECRET`
 - `ISSUER_BASE_URL`
@@ -117,6 +132,4 @@ Required in CI baseline docs/functional jobs:
 
 - `CLOUDFLARE_ACCOUNT_ID`
 - `CLOUDFLARE_IMAGES_DELIVERY_HASH`
-- One of:
-  - `CLOUDFLARE_IMAGES_API_TOKEN`
-  - `CLOUDFLARE_TOKEN`
+- `CLOUDFLARE_IMAGES_API_TOKEN`
