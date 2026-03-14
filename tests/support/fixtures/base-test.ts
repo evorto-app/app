@@ -2,6 +2,8 @@ import { randFirstName, randLastName } from '@ngneat/falso';
 import { init } from '@paralleldrive/cuid2';
 import { test as base } from '@playwright/test';
 import { ManagementClient } from 'auth0';
+import { createNodePgPoolConfig } from '@db/pg-connection-config';
+import { relations } from '@db/relations';
 import { drizzle, NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { ConfigError, ConfigProvider, Effect, Option } from 'effect';
 import fs from 'node:fs';
@@ -11,8 +13,6 @@ import { Pool } from 'pg';
 
 import { getSeedDate } from '../../../helpers/seed-clock';
 import { seedFalsoForScope } from '../../../helpers/seed-falso';
-import { createNodePgPoolConfig } from '../../../src/db/pg-connection-config';
-import { relations } from '../../../src/db/relations';
 import { formatConfigError } from '../../../src/server/config/config-error';
 import {
   auth0ManagementEnvironment,

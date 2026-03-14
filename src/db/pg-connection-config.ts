@@ -7,6 +7,17 @@ import { Redacted } from 'effect';
 const neonLocalSslConfig = {
   rejectUnauthorized: false,
 } satisfies ConnectionOptions;
+const neonLocalHosts = new Set(['127.0.0.1', '::1', 'db', 'localhost']);
+
+const assertNeonLocalHost = (host: string) => {
+  if (neonLocalHosts.has(host)) {
+    return;
+  }
+
+  throw new Error(
+    `NEON_LOCAL_PROXY only supports localhost or docker db hosts. Received "${host}".`,
+  );
+};
 
 const parseDatabaseUrl = (databaseUrl: string) => {
   const databaseUrlObject = new URL(databaseUrl);
@@ -42,6 +53,7 @@ export const createPgClientConfig = ({
   }
 
   const { database, host, password, port, user } = parseDatabaseUrl(databaseUrl);
+  assertNeonLocalHost(host);
 
   return {
     database,
@@ -67,6 +79,7 @@ export const createNodePgPoolConfig = ({
   }
 
   const { database, host, password, port, user } = parseDatabaseUrl(databaseUrl);
+  assertNeonLocalHost(host);
 
   return {
     database,
