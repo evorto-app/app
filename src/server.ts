@@ -429,7 +429,6 @@ const serveEffect = Effect.gen(function* () {
         Layer.setConfigProvider(runtimeConfigProvider),
       ),
     ),
-    Layer.provide(configuredDatabaseLayer),
   );
 
   yield* Effect.logInfo('Bun Effect server listening').pipe(
@@ -439,7 +438,14 @@ const serveEffect = Effect.gen(function* () {
     }),
   );
 
-  return yield* Layer.launch(serverLayer);
+  return yield* Effect.scoped(
+    Effect.gen(function* () {
+      const databaseContext = yield* Layer.build(configuredDatabaseLayer);
+      return yield* Layer.launch(serverLayer).pipe(
+        Effect.provide(databaseContext),
+      );
+    }),
+  );
 });
 
 if (import.meta.main) {

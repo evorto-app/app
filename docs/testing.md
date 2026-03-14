@@ -12,11 +12,16 @@
 - Start runtime stack in foreground (used by Playwright webServer): `bun run docker:start:test`
 - Stop runtime stack: `bun run docker:stop`
 - Local docker runs now use a real Postgres container, not `neon_local`.
+- Docker Compose now includes a one-shot `db-setup` service that runs the equivalent of `db:setup` inside Docker before `evorto` starts.
 - `.env.runtime` is an optional worktree-local override created explicitly with `bun run env:runtime`.
 - `.env.ci` is the checked-in CI baseline env file; workflow env should supply CI-specific secrets and overrides.
 - `bun run db:push` applies schema only.
+- `bun run db:studio` opens Drizzle Studio against the current database URL under the same explicit dotenv chain.
 - `bun run db:setup` ensures schema exists, then resets and seeds the local database.
+  It now runs under the same explicit dotenv chain as `db:push`, so if `.env.runtime` exists it will target the Docker Postgres URL instead of the checked-in baseline URL.
 - `bun run db:reset` is now an alias for `bun run db:setup`.
+- The Postgres container does not log every query by default, so a quiet `db` container log is not evidence that `db:reset` missed Docker.
+- Starting the Docker stack is now destructive for local database state by design: the `db-setup` container pushes schema and resets/seeds the Docker database every time the Compose stack starts.
 
 Config now resolves in this precedence order:
 
@@ -25,6 +30,15 @@ Config now resolves in this precedence order:
 - `.env`
 - `.env.runtime`
 - in-code defaults
+
+For external-tool scripts that use `dotenv-cli` (`db:*`, `docker:*`, `test:e2e*`), the file order is intentionally reversed because `dotenv-cli` is first-wins in this repo:
+
+- `.env.runtime`
+- `.env.ci` in CI
+- `.env.local`
+- `.env`
+
+We keep this explicit `-e` ordering instead of `dotenv -c` because `-c` would let `.env` win over `.env.local` for values like `DATABASE_URL` in this repo. `dotenv-cli` also ignores missing `-e` files, so the scripts do not need file-existence checks around `.env.runtime`.
 
 ## Deterministic E2E Environment
 

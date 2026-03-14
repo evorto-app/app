@@ -29,6 +29,35 @@ services:
       retries: 20
       start_period: 10s
 
+  db-setup:
+    build:
+      context: .
+      target: build
+      args:
+        FONT_AWESOME_TOKEN: "${FONT_AWESOME_TOKEN:-}"
+      secrets:
+        - FONT_AWESOME_TOKEN
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - path: .env.local
+        required: false
+      - path: .env
+        required: false
+      - path: .env.ci
+        required: false
+      - path: .env.runtime
+        required: false
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-neon}:${POSTGRES_PASSWORD:-npg}@db:5432/${NEON_DATABASE_NAME:-appdb}?sslmode=disable
+      NEON_LOCAL_PROXY: "true"
+    command:
+      - /bin/sh
+      - -lc
+      - bunx --bun drizzle-kit push --force && bun helpers/database.ts
+    restart: "no"
+
   minio:
     image: minio/minio:latest
     command: server /data --console-address ":9001"
@@ -72,6 +101,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      db-setup:
+        condition: service_completed_successfully
       minio:
         condition: service_healthy
       minio-init:

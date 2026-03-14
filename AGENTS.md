@@ -56,6 +56,7 @@ More specific guidance also exists deeper in some subtrees (for example `src/ser
 - TypeScript strict mode is enforced.
 - Indentation: 2 spaces; filenames `kebab-case.ts`; symbols `camelCase` and `PascalCase`.
 - Prefer path aliases: `@app/*`, `@server/*`, `@db/*`, `@shared/*`, `@types/*`.
+- For Effect reference and usage patterns, consult the local Effect source at `/Users/hedde/code/effect` when behavior or recommended composition is unclear.
 - Run `bun run lint:fix` before `bun run lint:check`.
 
 ## Testing Guidelines
