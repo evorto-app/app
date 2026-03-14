@@ -5,6 +5,8 @@
 - Unit tests: `bun run test:unit`
 - Functional E2E (Chromium): `bun run test:e2e --project=local-chrome`
 - Documentation E2E: `bun run test:e2e:docs`
+- Playwright UI mode: `bun run test:e2e:ui`
+- Refresh only the shared setup/auth states: `bun run test:e2e:states`
 
 ## Docker Runtime
 
@@ -23,6 +25,7 @@
 - `bun run db:reset` is now an alias for `bun run db:setup`.
 - The Neon Local container does not log every proxied query by default, so a quiet `db` container log is not evidence that `db:reset` missed Docker.
 - Starting the Docker stack is now destructive for local database state by design: the `db-setup` container pushes schema and resets/seeds the Docker database every time the Compose stack starts.
+- `bun run test:e2e:ui` now pre-runs `test:e2e:states` before opening the Playwright UI. This is intentional: Playwright UI mode does not reliably honor the repo's setup-project dependency chain (`database-setup` -> `setup`) the same way the normal CLI run does, so prewarming the shared auth/storage state avoids the UI appearing to hang on the `page` fixture before any spec body starts.
 
 Config now resolves in this precedence order:
 
