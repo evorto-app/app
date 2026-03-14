@@ -44,6 +44,7 @@ Thumbs.db
 # Secrets
 .env
 .env.runtime
+.neon_local/
 
 # Playwright
 /test-results/

@@ -80,13 +80,14 @@ const defaultProjectName = (): string => {
 const composeProjectName =
   process.env['COMPOSE_PROJECT_NAME']?.trim() || defaultProjectName();
 const baseUrl = `http://localhost:${appHostPort}`;
-const databaseUrl = `postgresql://neon:npg@localhost:${neonLocalHostPort}/${databaseName}?sslmode=disable`;
+const databaseUrl = `postgresql://neon:npg@localhost:${neonLocalHostPort}/${databaseName}?sslmode=require`;
 
 const runtimeEnvironment = {
   APP_HOST_PORT: String(appHostPort),
   BASE_URL: baseUrl,
   COMPOSE_PROJECT_NAME: composeProjectName,
   DATABASE_URL: databaseUrl,
+  DELETE_BRANCH: 'false',
   MINIO_CONSOLE_HOST_PORT: String(minioConsoleHostPort),
   MINIO_HOST_PORT: String(minioHostPort),
   NEON_DATABASE_NAME: databaseName,

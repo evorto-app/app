@@ -22,11 +22,13 @@ jobs:
       BASE_URL: http://localhost:4200
       APP_READY_PATH: /robots.txt
       COMPOSE_PROJECT_NAME: evorto-ci
+      DELETE_BRANCH: true
       NEON_DATABASE_NAME: appdb
       NEON_LOCAL_HOST_PORT: 55432
+      NEON_LOCAL_METADATA_DIR: /tmp/neon-local-metadata
       NEON_LOCAL_PROXY: true
       NO_WEBSERVER: true
-      DATABASE_URL: postgresql://neon:npg@localhost:55432/appdb?sslmode=disable
+      DATABASE_URL: postgresql://neon:npg@localhost:55432/appdb?sslmode=require
       NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
       NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
       AUTH0_MANAGEMENT_CLIENT_ID: ${{ secrets.AUTH0_MANAGEMENT_CLIENT_ID }}
@@ -66,6 +68,10 @@ jobs:
           fi
           if [ -z "${NEON_PROJECT_ID}" ]; then
             echo "::error::Missing required repository variable: NEON_PROJECT_ID"
+            exit 1
+          fi
+          if [ -z "${PARENT_BRANCH_ID}" ]; then
+            echo "::error::Missing required secret: PARENT_BRANCH_ID"
             exit 1
           fi
           if [ -z "${STRIPE_TEST_ACCOUNT_ID}" ]; then
