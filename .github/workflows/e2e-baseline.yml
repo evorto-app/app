@@ -105,7 +105,7 @@ jobs:
           docker compose down --remove-orphans
           docker compose up -d db minio stripe minio-init
           for attempt in $(seq 1 60); do
-            if docker compose exec -T db pg_isready -U neon -d "${NEON_DATABASE_NAME}" >/dev/null 2>&1; then
+            if docker compose exec -T db pg_isready -h 127.0.0.1 -p 5432 -U neon -d "${NEON_DATABASE_NAME}" >/dev/null 2>&1; then
               echo "Database is reachable"
               exit 0
             fi
