@@ -16,10 +16,14 @@ describe('pg-connection-config', () => {
         neonLocalProxy: true,
       }),
     ).toMatchObject({
-      connectionString: databaseUrl,
+      database: 'appdb',
+      host: 'localhost',
+      password: 'npg',
+      port: 55_432,
       ssl: {
         rejectUnauthorized: false,
       },
+      user: 'neon',
     });
 
     expect(
