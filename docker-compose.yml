@@ -14,7 +14,7 @@ services:
       DELETE_BRANCH: "${DELETE_BRANCH:-false}"
     volumes:
       - "${NEON_LOCAL_METADATA_DIR:-./.neon_local}:/tmp/.neon_local"
-      - ./.git/HEAD:/tmp/.git/HEAD:ro
+      - "${NEON_LOCAL_GIT_HEAD_PATH:-./.git/HEAD}:/tmp/.git/HEAD:ro,consistent"
     ports:
       - "${NEON_LOCAL_HOST_PORT:-55432}:5432"
     healthcheck:
