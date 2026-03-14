@@ -11,7 +11,12 @@ services:
       - path: .env.runtime
         required: false
     environment:
+      BRANCH_ID: "${BRANCH_ID:-}"
       DELETE_BRANCH: "${DELETE_BRANCH:-false}"
+      NEON_API_KEY: "${NEON_API_KEY:-}"
+      NEON_DATABASE_NAME: "${NEON_DATABASE_NAME:-appdb}"
+      NEON_PROJECT_ID: "${NEON_PROJECT_ID:-}"
+      PARENT_BRANCH_ID: "${PARENT_BRANCH_ID:-}"
     volumes:
       - "${NEON_LOCAL_METADATA_DIR:-./.neon_local}:/tmp/.neon_local"
       - "${NEON_LOCAL_GIT_HEAD_PATH:-./.git/HEAD}:/tmp/.git/HEAD:ro,consistent"

@@ -8,16 +8,24 @@ if (!databaseUrl) {
 const useNeonLocalProxy = process.env['NEON_LOCAL_PROXY'] === 'true';
 const databaseUrlObject = new URL(databaseUrl);
 const databaseName = databaseUrlObject.pathname.replace(/^\/+/, '');
+const databaseHost = databaseUrlObject.hostname;
+const neonLocalHosts = new Set(['127.0.0.1', '::1', 'db', 'localhost']);
 
 if (!databaseName) {
   throw new Error('DATABASE_URL must include a database name for drizzle-kit');
+}
+
+if (useNeonLocalProxy && !neonLocalHosts.has(databaseHost)) {
+  throw new Error(
+    `NEON_LOCAL_PROXY only supports localhost or docker db hosts. Received "${databaseHost}".`,
+  );
 }
 
 export default defineConfig({
   dbCredentials: useNeonLocalProxy
     ? {
         database: databaseName,
-        host: databaseUrlObject.hostname,
+        host: databaseHost,
         password: decodeURIComponent(databaseUrlObject.password),
         port: Number.parseInt(databaseUrlObject.port || '5432', 10),
         ssl: {

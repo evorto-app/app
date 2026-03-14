@@ -61,4 +61,26 @@ describe('pg-connection-config', () => {
       }).ssl,
     ).toBeUndefined();
   });
+
+  it('rejects non-local hosts when the Neon Local proxy flag is enabled', () => {
+    expect(() =>
+      createNodePgPoolConfig({
+        databaseUrl:
+          'postgresql://neon:npg@branch-host.neon.tech:5432/appdb?sslmode=require',
+        neonLocalProxy: true,
+      }),
+    ).toThrowError(
+      'NEON_LOCAL_PROXY only supports localhost or docker db hosts. Received "branch-host.neon.tech".',
+    );
+
+    expect(() =>
+      createPgClientConfig({
+        databaseUrl:
+          'postgresql://neon:npg@branch-host.neon.tech:5432/appdb?sslmode=require',
+        neonLocalProxy: true,
+      }),
+    ).toThrowError(
+      'NEON_LOCAL_PROXY only supports localhost or docker db hosts. Received "branch-host.neon.tech".',
+    );
+  });
 });
