@@ -11,16 +11,17 @@
 - Start runtime stack: `bun run docker:start`
 - Start runtime stack in foreground (used by Playwright webServer): `bun run docker:start:test`
 - Stop runtime stack: `bun run docker:stop`
-- Local docker runs now use a real Postgres container, not `neon_local`.
+- Local docker runs now use Neon Local instead of a plain Postgres container.
 - Docker Compose now includes a one-shot `db-setup` service that runs the equivalent of `db:setup` inside Docker before `evorto` starts.
 - `.env.runtime` is an optional worktree-local override created explicitly with `bun run env:runtime`.
+- Local Neon metadata persists in `.neon_local/`, which lets Neon Local reuse a branch per worktree/git branch by default.
 - `.env.ci` is the checked-in CI baseline env file; workflow env should supply CI-specific secrets and overrides.
 - `bun run db:push` applies schema only.
 - `bun run db:studio` opens Drizzle Studio against the current database URL under the same explicit dotenv chain.
 - `bun run db:setup` ensures schema exists, then resets and seeds the local database.
-  It now runs under the same explicit dotenv chain as `db:push`, so if `.env.runtime` exists it will target the Docker Postgres URL instead of the checked-in baseline URL.
+  It now runs under the same explicit dotenv chain as `db:push`, so if `.env.runtime` exists it will target the local Neon Local proxy instead of the checked-in baseline URL.
 - `bun run db:reset` is now an alias for `bun run db:setup`.
-- The Postgres container does not log every query by default, so a quiet `db` container log is not evidence that `db:reset` missed Docker.
+- The Neon Local container does not log every proxied query by default, so a quiet `db` container log is not evidence that `db:reset` missed Docker.
 - Starting the Docker stack is now destructive for local database state by design: the `db-setup` container pushes schema and resets/seeds the Docker database every time the Compose stack starts.
 
 Config now resolves in this precedence order:
@@ -37,6 +38,11 @@ For external-tool scripts that use `dotenv-cli` (`db:*`, `docker:*`, `test:e2e*`
 - `.env.ci` in CI
 - `.env.local`
 - `.env`
+
+`bun run env:runtime` now generates:
+
+- a host-side `DATABASE_URL` that points at `localhost:${NEON_LOCAL_HOST_PORT}` with `sslmode=require`
+- `DELETE_BRANCH=false` for local persistent Neon Local branches
 
 We keep this explicit `-e` ordering instead of `dotenv -c` because `-c` would let `.env` win over `.env.local` for values like `DATABASE_URL` in this repo. `dotenv-cli` also ignores missing `-e` files, so the scripts do not need file-existence checks around `.env.runtime`.
 
@@ -84,7 +90,7 @@ The seed map emitted during setup includes these handles for CI/debugging.
 `.env.runtime` is generated from the current working directory, so separate worktrees get:
 
 - distinct `COMPOSE_PROJECT_NAME`
-- distinct local Postgres port
+- distinct local Neon Local port
 - distinct local MinIO ports
 
 The local app port intentionally stays at `4200` by default because the current Auth0 local callback configuration expects `localhost:4200`. That means:

@@ -28,7 +28,7 @@ import { makeRuntimeConfigProvider } from '../src/server/config/provider';
 
 const main = Effect.gen(function* () {
   const runtimeConfigProvider = yield* makeRuntimeConfigProvider();
-  const { DATABASE_URL } = yield* databaseConfig.pipe(
+  const { DATABASE_URL, NEON_LOCAL_PROXY } = yield* databaseConfig.pipe(
     Effect.withConfigProvider(runtimeConfigProvider),
     Effect.mapError(
       (error) =>
@@ -37,7 +37,10 @@ const main = Effect.gen(function* () {
         ),
     ),
   );
-  const { database, pool } = createDatabaseClient(DATABASE_URL);
+  const { database, pool } = createDatabaseClient(
+    DATABASE_URL,
+    NEON_LOCAL_PROXY,
+  );
   try {
     yield* Effect.tryPromise(() => setupDatabase(database));
   } finally {
