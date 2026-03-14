@@ -8,7 +8,9 @@ if (!databaseUrl) {
 const useNeonLocalProxy = process.env['NEON_LOCAL_PROXY'] === 'true';
 const databaseUrlObject = new URL(databaseUrl);
 const databaseName = databaseUrlObject.pathname.replace(/^\/+/, '');
-const databaseHost = databaseUrlObject.hostname;
+const normalizeDatabaseHost = (host: string) =>
+  host.replace(/^\[(.*)\]$/, '$1');
+const databaseHost = normalizeDatabaseHost(databaseUrlObject.hostname);
 const neonLocalHosts = new Set(['127.0.0.1', '::1', 'db', 'localhost']);
 
 if (!databaseName) {

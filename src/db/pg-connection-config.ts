@@ -8,9 +8,13 @@ const neonLocalSslConfig = {
   rejectUnauthorized: false,
 } satisfies ConnectionOptions;
 const neonLocalHosts = new Set(['127.0.0.1', '::1', 'db', 'localhost']);
+const normalizeDatabaseHost = (host: string) =>
+  host.replace(/^\[(.*)\]$/, '$1');
 
 const assertNeonLocalHost = (host: string) => {
-  if (neonLocalHosts.has(host)) {
+  const normalizedHost = normalizeDatabaseHost(host);
+
+  if (neonLocalHosts.has(normalizedHost)) {
     return;
   }
 
@@ -29,7 +33,7 @@ const parseDatabaseUrl = (databaseUrl: string) => {
 
   return {
     database,
-    host: databaseUrlObject.hostname,
+    host: normalizeDatabaseHost(databaseUrlObject.hostname),
     password: decodeURIComponent(databaseUrlObject.password),
     port: Number.parseInt(databaseUrlObject.port || '5432', 10),
     user: decodeURIComponent(databaseUrlObject.username),
@@ -52,7 +56,8 @@ export const createPgClientConfig = ({
     };
   }
 
-  const { database, host, password, port, user } = parseDatabaseUrl(databaseUrl);
+  const { database, host, password, port, user } =
+    parseDatabaseUrl(databaseUrl);
   assertNeonLocalHost(host);
 
   return {
@@ -78,7 +83,8 @@ export const createNodePgPoolConfig = ({
     };
   }
 
-  const { database, host, password, port, user } = parseDatabaseUrl(databaseUrl);
+  const { database, host, password, port, user } =
+    parseDatabaseUrl(databaseUrl);
   assertNeonLocalHost(host);
 
   return {

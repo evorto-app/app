@@ -16,6 +16,7 @@
 - Local docker runs now use Neon Local instead of a plain Postgres container.
 - Docker Compose now includes a one-shot `db-setup` service that runs the equivalent of `db:setup` inside Docker before `evorto` starts.
 - `.env.runtime` is an optional worktree-local override created explicitly with `bun run env:runtime`.
+- Local `docker:*`, `db:*`, and Playwright `test:e2e*` scripts now refresh `.env.runtime` automatically before they invoke Docker or Drizzle, so linked worktrees do not fall back to the invalid `./.git/HEAD` mount path.
 - Local Neon metadata persists in `.neon_local/`, which lets Neon Local reuse a branch per worktree/git branch by default.
 - `.env.ci` is the checked-in CI baseline env file; workflow env should supply CI-specific secrets and overrides.
 - `bun run db:push` applies schema only.
