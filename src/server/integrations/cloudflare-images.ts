@@ -80,13 +80,15 @@ export const createCloudflareImageDirectUpload = (input: {
     });
 
     if (!directUpload.id || !directUpload.uploadURL) {
-      throw new Error('Image upload initialization failed');
+      return yield* Effect.fail(new Error('Image upload initialization failed'));
     }
+    const imageId = directUpload.id;
+    const uploadUrl = directUpload.uploadURL;
 
     return {
-      deliveryUrl: `https://imagedelivery.net/${config.deliveryHash}/${directUpload.id}/${config.variant}`,
-      imageId: directUpload.id,
-      uploadUrl: directUpload.uploadURL,
+      deliveryUrl: `https://imagedelivery.net/${config.deliveryHash}/${imageId}/${config.variant}`,
+      imageId,
+      uploadUrl,
     };
   });
 
@@ -104,12 +106,14 @@ export const cleanupTestingCloudflareImages = (input: {
         onSome: (nodeEnvironment) => nodeEnvironment === 'production',
       })
     ) {
-      throw new Error('Cleanup is blocked in production');
+      return yield* Effect.fail(new Error('Cleanup is blocked in production'));
     }
 
     if (!input.dryRun && input.confirmPhrase !== TESTING_CLEANUP_CONFIRMATION) {
-      throw new Error(
-        `Confirmation phrase mismatch. Use "${TESTING_CLEANUP_CONFIRMATION}"`,
+      return yield* Effect.fail(
+        new Error(
+          `Confirmation phrase mismatch. Use "${TESTING_CLEANUP_CONFIRMATION}"`,
+        ),
       );
     }
 

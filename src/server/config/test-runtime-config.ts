@@ -285,15 +285,7 @@ export const auth0ManagementEnvironment = Effect.gen(function* () {
   ].filter((value): value is ConfigError.ConfigError => value !== undefined);
 
   if (errors.length > 0) {
-    throw new Error(
-      `Invalid e2e auth configuration:\n${errors
-        .map((error) =>
-          error._op === 'MissingData'
-            ? `- ${error.path.join('.')}: ${error.message}`
-            : `- ${error.message}`,
-        )
-        .join('\n')}`,
-    );
+    return yield* Effect.fail(combineMissingDataErrors(errors));
   }
 
   const managementClientId = Option.getOrUndefined(

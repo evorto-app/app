@@ -1,7 +1,7 @@
 import { Context, Effect, Layer } from 'effect';
 import Stripe from 'stripe';
 
-import { stripeApiConfig } from './config/stripe-config';
+import { stripeApiConfig } from '@server/config/stripe-config';
 
 const STRIPE_API_VERSION: Stripe.LatestApiVersion = '2026-02-25.clover';
 

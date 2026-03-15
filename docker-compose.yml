@@ -1,6 +1,6 @@
 services:
   db:
-    image: neondatabase/neon_local:latest
+    image: neondatabase/neon_local:v1.5
     env_file:
       - path: .env.local
         required: false

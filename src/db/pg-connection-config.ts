@@ -4,7 +4,7 @@ import type { PoolConfig } from 'pg';
 
 import { Redacted } from 'effect';
 
-const neonLocalSslConfig = {
+export const neonLocalSslConfig = {
   rejectUnauthorized: false,
 } satisfies ConnectionOptions;
 const neonLocalHosts = new Set(['127.0.0.1', '::1', 'db', 'localhost']);

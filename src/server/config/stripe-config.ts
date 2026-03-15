@@ -1,5 +1,6 @@
-import { Config, ConfigError, Effect, Option } from 'effect';
+import { Config, Effect, Option } from 'effect';
 
+import { missingFieldError } from './config-error';
 import { optionalTrimmedString } from './config-string';
 
 export const stripeConfig = Config.all({
@@ -9,9 +10,6 @@ export const stripeConfig = Config.all({
 });
 
 export type StripeConfig = Config.Config.Success<typeof stripeConfig>;
-
-const missingFieldError = (name: string) =>
-  ConfigError.MissingData([name], `Expected ${name} to be configured`);
 
 export const stripeApiConfig = stripeConfig.pipe(
   Effect.flatMap((config) =>

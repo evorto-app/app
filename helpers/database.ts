@@ -1,11 +1,11 @@
 import { BunRuntime } from '@effect/platform-bun';
+import { databaseConfig } from '@db/database-config';
 import { stripeConfig } from '@server/config/stripe-config';
 import { Effect, Option } from 'effect';
 
 import { createDatabaseClient } from '../src/db/database-client';
 import { setupDatabase } from '../src/db/setup-database';
 import { formatConfigError } from '../src/server/config/config-error';
-import { databaseConfig } from '../src/server/config/database-config';
 import { makeRuntimeConfigProvider } from '../src/server/config/provider';
 
 /**
@@ -49,15 +49,16 @@ const main = Effect.gen(function* () {
     DATABASE_URL,
     NEON_LOCAL_PROXY,
   );
-  try {
-    yield* Effect.tryPromise(() =>
-      setupDatabase(database, {
-        stripeTestAccountId: Option.getOrUndefined(STRIPE_TEST_ACCOUNT_ID),
-      }),
-    );
-  } finally {
-    yield* Effect.tryPromise(() => pool.end());
-  }
+  const setupOptions = Option.match(STRIPE_TEST_ACCOUNT_ID, {
+    onNone: () => ({}),
+    onSome: (stripeTestAccountId) => ({ stripeTestAccountId }),
+  });
+
+  yield* Effect.tryPromise(() =>
+    setupDatabase(database, setupOptions),
+  ).pipe(
+    Effect.ensuring(Effect.tryPromise(() => pool.end()).pipe(Effect.orDie)),
+  );
 });
 
 BunRuntime.runMain(main);

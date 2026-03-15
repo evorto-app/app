@@ -30,3 +30,6 @@ export const formatConfigError = (error: ConfigError.ConfigError) => {
 
   return [...new Set(lines)].map((line) => `- ${line}`).join('\n');
 };
+
+export const missingFieldError = (name: string) =>
+  ConfigError.MissingData([name], `Expected ${name} to be configured`);

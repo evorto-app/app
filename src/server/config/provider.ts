@@ -1,7 +1,7 @@
+import * as FileSystem from '@effect/platform/FileSystem';
 import * as NodeFileSystem from '@effect/platform-node-shared/NodeFileSystem';
 import * as PlatformConfigProvider from '@effect/platform/PlatformConfigProvider';
 import { ConfigProvider, Effect } from 'effect';
-import fs from 'node:fs';
 import path from 'node:path';
 
 export interface RuntimeConfigProviderOptions {
@@ -23,17 +23,21 @@ const resolveDotEnvironmentFiles = (
 };
 
 const loadDotEnvironmentProvider = (filePath: string) =>
-  fs.existsSync(filePath)
-    ? PlatformConfigProvider.fromDotEnv(filePath).pipe(
-        Effect.provide(NodeFileSystem.layer),
-        Effect.mapError(
-          (error) =>
-            new Error(
-              `Failed to load config file ${filePath}: ${String(error)}`,
-            ),
-        ),
-      )
-    : Effect.succeed(EMPTY_PROVIDER);
+  Effect.gen(function* () {
+    const fileSystem = yield* FileSystem.FileSystem;
+    const exists = yield* fileSystem.exists(filePath);
+    if (!exists) {
+      return EMPTY_PROVIDER;
+    }
+
+    return yield* PlatformConfigProvider.fromDotEnv(filePath);
+  }).pipe(
+    Effect.provide(NodeFileSystem.layer),
+    Effect.mapError(
+      (error) =>
+        new Error(`Failed to load config file ${filePath}: ${String(error)}`),
+    ),
+  );
 
 export const resolveRuntimeConfigFilePaths = (
   options: RuntimeConfigProviderOptions = {},

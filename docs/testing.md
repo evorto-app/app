@@ -62,18 +62,19 @@ Playwright now defaults deterministic test values in code via
 
 Default values:
 
-- `E2E_NOW_ISO=2026-02-01T12:00:00.000Z`
+- `E2E_NOW_ISO=2026-09-15T12:00:00.000Z`
 - `E2E_SEED_KEY=evorto-e2e-default-v1`
 
 Optional overrides:
 
-- `E2E_NOW_ISO` (example: `2026-02-01T12:00:00.000Z`)
+- `E2E_NOW_ISO` (example: `2026-09-15T12:00:00.000Z`)
 - `E2E_SEED_KEY` (example: `ci-e2e-seed-v1`)
 
 Policy:
 
 - Standard Playwright runs, including CI baseline runs, can omit both values and use the in-code defaults.
 - Set either value only when you deliberately want a different deterministic seed or clock.
+- Keep `E2E_NOW_ISO` ahead of the real current date. `buildCheckoutSessionExpiresAt(...)` falls back to the wall clock once the pinned value is in the past, which breaks deterministic checkout expiry behavior.
 
 ## Baseline vs Integration Projects
 

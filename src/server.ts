@@ -409,12 +409,13 @@ const requestHandler = createRequestHandler((request) =>
 export { requestHandler as reqHandler };
 
 const serveEffect = Effect.gen(function* () {
-  const runtimeConfigProvider = yield* makeRuntimeConfigProvider();
   const configuredDatabaseLayer = databaseLayer.pipe(
-    Layer.provide(Layer.setConfigProvider(runtimeConfigProvider)),
+    Layer.provide(
+      Layer.setConfigProvider(requestHandlerRuntimeConfigProvider),
+    ),
   );
   const configuredServerConfig = serverNetworkConfig.pipe(
-    Effect.withConfigProvider(runtimeConfigProvider),
+    Effect.withConfigProvider(requestHandlerRuntimeConfigProvider),
     Effect.mapError(
       (error) =>
         new Error(`Invalid server configuration:\n${formatConfigError(error)}`),
@@ -436,7 +437,7 @@ const serveEffect = Effect.gen(function* () {
         appRpcHttpAppLayer,
         stripeClientLayer,
         RuntimeConfig.Default,
-        Layer.setConfigProvider(runtimeConfigProvider),
+        Layer.setConfigProvider(requestHandlerRuntimeConfigProvider),
       ),
     ),
   );

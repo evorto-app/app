@@ -6,7 +6,7 @@
 - `.env.runtime` is an explicit local worktree override artifact. It may be absent; in that case, local runs should use the checked-in env files and real environment variables only.
 - For shell/package scripts that use `dotenv-cli`, file order is first-wins. If a script is meant to honor `.env.runtime` as an override, load `.env.runtime` before `.env.local` / `.env`.
 - Prefer explicit `-e` ordering over `dotenv -c` in this repo. The cascade flag does not preserve the `.env.local` over `.env` precedence we need for values like `DATABASE_URL`.
-- In CI and other cloud environments, do not rely on generated env artifacts or `/Users/hedde/code/effect`. Use `.env.ci` as the tracked CI baseline where applicable, and explicit environment variables for CI-specific configuration.
+- In CI and other cloud environments, do not rely on generated local filesystem artifacts or machine-specific checkout paths. Use `.env.ci` as the tracked CI baseline where applicable, and explicit environment variables for CI-specific configuration.
 
 ## Effect Config Shape
 

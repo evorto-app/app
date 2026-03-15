@@ -19,7 +19,20 @@ const main = Effect.gen(function* () {
   const confirmPhrase = getArgumentValue('--confirm');
   const maxDeletesArgument = getArgumentValue('--max-deletes');
   const maxDeletes =
-    maxDeletesArgument === undefined ? undefined : Number(maxDeletesArgument);
+    maxDeletesArgument === undefined
+      ? undefined
+      : Number.parseInt(maxDeletesArgument, 10);
+
+  if (
+    maxDeletesArgument !== undefined &&
+    (maxDeletes === undefined ||
+      !Number.isInteger(maxDeletes) ||
+      maxDeletes < 0)
+  ) {
+    throw new Error(
+      `Invalid --max-deletes value "${maxDeletesArgument}". Expected a non-negative integer.`,
+    );
+  }
 
   if (!dryRun && confirmPhrase !== DELETE_CONFIRMATION) {
     throw new Error(

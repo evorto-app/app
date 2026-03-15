@@ -42,8 +42,10 @@ testem.log
 Thumbs.db
 
 # Secrets
-.env
-.env.runtime
+.env*
+!.env.ci
+!.env.example
+!.env.template
 .neon_local/
 
 # Playwright

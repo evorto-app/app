@@ -78,6 +78,17 @@ export const editorMediaHandlers = {
           source: 'editor',
           tenantId: tenant.id,
           uploadedByUserId: user.id,
-        }).pipe(Effect.mapError(() => 'INTERNAL_SERVER_ERROR' as const));
+        }).pipe(
+          Effect.tapError((error) =>
+            Effect.logError('Cloudflare image direct upload initialization failed').pipe(
+              Effect.annotateLogs({
+                error: error instanceof Error ? error.message : String(error),
+                tenantId: tenant.id,
+                userId: user.id,
+              }),
+            ),
+          ),
+          Effect.mapError(() => 'INTERNAL_SERVER_ERROR' as const),
+        );
       }),
 } satisfies Partial<AppRpcHandlers>;

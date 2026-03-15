@@ -15,21 +15,35 @@ const decodeHeaderJson = <A, I>(
   schema: Schema.Schema<A, I, never>,
 ) => Schema.decodeUnknownSync(schema)(decodeRpcContextHeaderJson(value));
 
+const decodeHeaderJsonEffect = <A, I>(
+  headerName: string,
+  value: string | undefined,
+  schema: Schema.Schema<A, I, never>,
+) =>
+  Effect.try({
+    catch: (cause) =>
+      new Error(`Failed to decode RPC context header ${headerName}`, {
+        cause: cause instanceof Error ? cause : new Error(String(cause)),
+      }),
+    try: () => decodeHeaderJson(value, schema),
+  }).pipe(Effect.orDie);
+
 export const configHandlers = {
   'config.isAuthenticated': (_payload, options) =>
     Effect.succeed(
       options.headers[RPC_CONTEXT_HEADERS.AUTHENTICATED] === 'true',
     ),
   'config.permissions': (_payload, options) =>
-    Effect.sync(() =>
-      decodeHeaderJson(
-        options.headers[RPC_CONTEXT_HEADERS.PERMISSIONS],
-        ConfigPermissions,
-      ),
+    decodeHeaderJsonEffect(
+      RPC_CONTEXT_HEADERS.PERMISSIONS,
+      options.headers[RPC_CONTEXT_HEADERS.PERMISSIONS],
+      ConfigPermissions,
     ),
   'config.public': () => getPublicConfigEffect,
   'config.tenant': (_payload, options) =>
-    Effect.sync(() =>
-      decodeHeaderJson(options.headers[RPC_CONTEXT_HEADERS.TENANT], Tenant),
+    decodeHeaderJsonEffect(
+      RPC_CONTEXT_HEADERS.TENANT,
+      options.headers[RPC_CONTEXT_HEADERS.TENANT],
+      Tenant,
     ),
 } satisfies Partial<AppRpcHandlers>;

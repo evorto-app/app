@@ -1,6 +1,9 @@
 import { defineConfig } from 'drizzle-kit';
 
-import { parseNeonLocalDatabaseUrl } from './src/db/pg-connection-config';
+import {
+  neonLocalSslConfig,
+  parseNeonLocalDatabaseUrl,
+} from './src/db/pg-connection-config';
 
 const databaseUrl = process.env['DATABASE_URL'];
 if (!databaseUrl) {
@@ -20,9 +23,7 @@ const createDrizzleCredentials = (url: string) => {
     host,
     password,
     port,
-    ssl: {
-      rejectUnauthorized: false,
-    },
+    ssl: neonLocalSslConfig,
     user,
   };
 };

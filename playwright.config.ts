@@ -50,9 +50,6 @@ const webServer = (() => {
   }
 
   const url = environment.BASE_URL;
-  if (!url) {
-    throw new Error('Missing base URL for Playwright webServer. Set BASE_URL.');
-  }
 
   return {
     command: 'bun run docker:start:test',

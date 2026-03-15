@@ -6,7 +6,7 @@ name = "evorto"
 script = '''
 set -euo pipefail
 
-SOURCE_ROOT=${CODEX_SOURCE_ROOT:-/Users/hedde/code/evorto}
+SOURCE_ROOT=${CODEX_SOURCE_ROOT:-$(pwd -P)}
 
 echo "[setup] Copying environment files"
 if [ "$(pwd -P)" != "$SOURCE_ROOT" ]; then

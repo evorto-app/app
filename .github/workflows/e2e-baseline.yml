@@ -90,7 +90,7 @@ jobs:
         run: |
           rm -rf "${NEON_LOCAL_METADATA_DIR}"
           mkdir -p "${NEON_LOCAL_METADATA_DIR}"
-          chmod 0777 "${NEON_LOCAL_METADATA_DIR}"
+          chmod 0755 "${NEON_LOCAL_METADATA_DIR}"
 
       - name: Pull Docker images (compose)
         run: docker compose pull

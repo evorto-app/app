@@ -1,6 +1,6 @@
 import { Effect } from 'effect';
 
-import { objectStorageConfig } from '../../../../config/object-storage-config';
+import { objectStorageConfig } from '@server/config/object-storage-config';
 import {
   getSignedReceiptObjectUrlFromR2,
   uploadReceiptOriginalToR2,
@@ -54,11 +54,13 @@ export const withSignedReceiptPreviewUrl = <
       expiresInSeconds: RECEIPT_PREVIEW_SIGNED_URL_TTL_SECONDS,
       key: receiptStorageKey,
     }).pipe(
-      Effect.mapError(
-        () =>
-          new ReceiptMediaInternalError({
-            message: 'Failed to sign receipt preview URL',
+      Effect.tapError((error) =>
+        Effect.logWarning('Failed to sign receipt preview URL').pipe(
+          Effect.annotateLogs({
+            error: error instanceof Error ? error.message : String(error),
+            receiptStorageKey,
           }),
+        ),
       ),
       Effect.orElseSucceed(() => null),
     );

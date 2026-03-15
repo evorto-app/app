@@ -1,5 +1,5 @@
 import { ConfigProvider, Effect, Layer } from 'effect';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { objectStorageConfig } from '../config/object-storage-config';
 import {
@@ -13,61 +13,13 @@ const runtimeGlobal = globalThis as typeof globalThis & {
   };
 };
 
-runtimeGlobal.Bun ??= {};
 const bunRuntime = runtimeGlobal.Bun as {
   S3Client?: unknown;
 };
 const originalS3Client = bunRuntime.S3Client;
-const originalObjectStorageEnvironment = {
-  S3_ACCESS_KEY_ID: process.env['S3_ACCESS_KEY_ID'],
-  S3_BUCKET: process.env['S3_BUCKET'],
-  S3_ENDPOINT: process.env['S3_ENDPOINT'],
-  S3_REGION: process.env['S3_REGION'],
-  S3_SECRET_ACCESS_KEY: process.env['S3_SECRET_ACCESS_KEY'],
-} as const;
-
-beforeEach(() => {
-  process.env['S3_ENDPOINT'] = 'https://s3.example.test';
-  process.env['S3_REGION'] = 'auto';
-  process.env['S3_BUCKET'] = 'test-bucket';
-  process.env['S3_ACCESS_KEY_ID'] = 'test-key';
-  process.env['S3_SECRET_ACCESS_KEY'] = 'test-secret';
-});
 
 afterEach(() => {
   bunRuntime.S3Client = originalS3Client;
-
-  if (originalObjectStorageEnvironment.S3_ACCESS_KEY_ID) {
-    process.env['S3_ACCESS_KEY_ID'] =
-      originalObjectStorageEnvironment.S3_ACCESS_KEY_ID;
-  } else {
-    delete process.env['S3_ACCESS_KEY_ID'];
-  }
-
-  if (originalObjectStorageEnvironment.S3_BUCKET) {
-    process.env['S3_BUCKET'] = originalObjectStorageEnvironment.S3_BUCKET;
-  } else {
-    delete process.env['S3_BUCKET'];
-  }
-
-  if (originalObjectStorageEnvironment.S3_ENDPOINT) {
-    process.env['S3_ENDPOINT'] = originalObjectStorageEnvironment.S3_ENDPOINT;
-  } else {
-    delete process.env['S3_ENDPOINT'];
-  }
-
-  if (originalObjectStorageEnvironment.S3_REGION) {
-    process.env['S3_REGION'] = originalObjectStorageEnvironment.S3_REGION;
-  } else {
-    delete process.env['S3_REGION'];
-  }
-
-  if (originalObjectStorageEnvironment.S3_SECRET_ACCESS_KEY) {
-    process.env['S3_SECRET_ACCESS_KEY'] =
-      originalObjectStorageEnvironment.S3_SECRET_ACCESS_KEY;
-  } else {
-    delete process.env['S3_SECRET_ACCESS_KEY'];
-  }
 });
 
 describe('cloudflare-r2', () => {

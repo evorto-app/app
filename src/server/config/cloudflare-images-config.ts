@@ -5,6 +5,7 @@ import {
   Option,
 } from 'effect';
 
+import { missingFieldError } from './config-error';
 import { optionalTrimmedString } from './config-string';
 
 export const cloudflareImagesStateConfig = Config.all({
@@ -35,9 +36,6 @@ export type CloudflareImagesConfigState = Config.Config.Success<
   typeof cloudflareImagesStateConfig
 >;
 
-const toMissingFieldError = (name: string) =>
-  ConfigError.MissingData([name], `Expected ${name} to be configured`);
-
 const combineConfigErrors = (
   errors: readonly ConfigError.ConfigError[],
 ) => {
@@ -54,6 +52,15 @@ const combineConfigErrors = (
   return combinedError;
 };
 
+const getRequiredConfigValue = <A>(
+  option: Option.Option<A>,
+  message: string,
+) =>
+  Option.match(option, {
+    onNone: () => Effect.die(new Error(message)),
+    onSome: (value) => Effect.succeed(value),
+  });
+
 export const cloudflareImagesConfig = Effect.gen(function* () {
   const state = yield* cloudflareImagesStateConfig;
   if (
@@ -64,33 +71,30 @@ export const cloudflareImagesConfig = Effect.gen(function* () {
     const errors = [
       Option.isSome(state.CLOUDFLARE_ACCOUNT_ID)
         ? undefined
-        : toMissingFieldError('CLOUDFLARE_ACCOUNT_ID'),
+        : missingFieldError('CLOUDFLARE_ACCOUNT_ID'),
       Option.isSome(state.CLOUDFLARE_IMAGES_API_TOKEN)
         ? undefined
-        : toMissingFieldError('CLOUDFLARE_IMAGES_API_TOKEN'),
+        : missingFieldError('CLOUDFLARE_IMAGES_API_TOKEN'),
       Option.isSome(state.CLOUDFLARE_IMAGES_DELIVERY_HASH)
         ? undefined
-        : toMissingFieldError('CLOUDFLARE_IMAGES_DELIVERY_HASH'),
+        : missingFieldError('CLOUDFLARE_IMAGES_DELIVERY_HASH'),
     ].filter((value): value is ConfigError.ConfigError => value !== undefined);
-
-    if (errors.length === 0) {
-      throw new Error('Expected missing Cloudflare Images config errors');
-    }
 
     return yield* Effect.fail(combineConfigErrors(errors));
   }
 
-  const accountId = Option.getOrUndefined(state.CLOUDFLARE_ACCOUNT_ID);
-  const apiToken = Option.getOrUndefined(state.CLOUDFLARE_IMAGES_API_TOKEN);
-  const deliveryHash = Option.getOrUndefined(
-    state.CLOUDFLARE_IMAGES_DELIVERY_HASH,
+  const accountId = yield* getRequiredConfigValue(
+    state.CLOUDFLARE_ACCOUNT_ID,
+    'Expected validated Cloudflare account id',
   );
-
-  if (!accountId || !apiToken || !deliveryHash) {
-    throw new Error(
-      'Expected validated Cloudflare Images configuration values',
-    );
-  }
+  const apiToken = yield* getRequiredConfigValue(
+    state.CLOUDFLARE_IMAGES_API_TOKEN,
+    'Expected validated Cloudflare images API token',
+  );
+  const deliveryHash = yield* getRequiredConfigValue(
+    state.CLOUDFLARE_IMAGES_DELIVERY_HASH,
+    'Expected validated Cloudflare delivery hash',
+  );
 
   return {
     CLOUDFLARE_ACCOUNT_ID: accountId,

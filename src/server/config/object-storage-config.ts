@@ -5,6 +5,7 @@ import {
   Option,
 } from 'effect';
 
+import { missingFieldError } from './config-error';
 import { optionalTrimmedString } from './config-string';
 
 export const objectStorageStateConfig = Config.all({
@@ -41,9 +42,6 @@ export type ObjectStorageConfigState = Config.Config.Success<
   typeof objectStorageStateConfig
 >;
 
-const toMissingFieldError = (name: string) =>
-  ConfigError.MissingData([name], `Expected ${name} to be configured`);
-
 const combineConfigErrors = (
   errors: readonly ConfigError.ConfigError[],
 ) => {
@@ -60,6 +58,15 @@ const combineConfigErrors = (
   return combinedError;
 };
 
+const getRequiredConfigValue = <A>(
+  option: Option.Option<A>,
+  message: string,
+) =>
+  Option.match(option, {
+    onNone: () => Effect.die(new Error(message)),
+    onSome: (value) => Effect.succeed(value),
+  });
+
 export const objectStorageConfig = Effect.gen(function* () {
   const state = yield* objectStorageStateConfig;
   if (
@@ -70,29 +77,36 @@ export const objectStorageConfig = Effect.gen(function* () {
     const errors = [
       Option.isSome(state.S3_ENDPOINT)
         ? undefined
-        : toMissingFieldError('S3_ENDPOINT'),
+        : missingFieldError('S3_ENDPOINT'),
       Option.isSome(state.S3_ACCESS_KEY_ID)
         ? undefined
-        : toMissingFieldError('S3_ACCESS_KEY_ID'),
+        : missingFieldError('S3_ACCESS_KEY_ID'),
       Option.isSome(state.S3_SECRET_ACCESS_KEY)
         ? undefined
-        : toMissingFieldError('S3_SECRET_ACCESS_KEY'),
+        : missingFieldError('S3_SECRET_ACCESS_KEY'),
     ].filter((value): value is ConfigError.ConfigError => value !== undefined);
 
     if (errors.length === 0) {
-      throw new Error('Expected missing object storage config errors');
+      return yield* Effect.die(
+        new Error('Expected missing object storage config errors'),
+      );
     }
 
     return yield* Effect.fail(combineConfigErrors(errors));
   }
 
-  const accessKeyId = Option.getOrUndefined(state.S3_ACCESS_KEY_ID);
-  const endpoint = Option.getOrUndefined(state.S3_ENDPOINT);
-  const secretAccessKey = Option.getOrUndefined(state.S3_SECRET_ACCESS_KEY);
-
-  if (!accessKeyId || !endpoint || !secretAccessKey) {
-    throw new Error('Expected validated object storage configuration values');
-  }
+  const accessKeyId = yield* getRequiredConfigValue(
+    state.S3_ACCESS_KEY_ID,
+    'Expected validated object storage access key id',
+  );
+  const endpoint = yield* getRequiredConfigValue(
+    state.S3_ENDPOINT,
+    'Expected validated object storage endpoint',
+  );
+  const secretAccessKey = yield* getRequiredConfigValue(
+    state.S3_SECRET_ACCESS_KEY,
+    'Expected validated object storage secret access key',
+  );
 
   return {
     accessKeyId,

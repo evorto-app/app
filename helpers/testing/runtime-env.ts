@@ -126,9 +126,14 @@ const outputLines = [
 ];
 
 const main = Effect.gen(function* () {
-  yield* Effect.tryPromise(() =>
-    Bun.write(OUTPUT_FILE_PATH, outputLines.join('\n')),
-  );
+  yield* Effect.tryPromise({
+    catch: (cause) =>
+      new Error(`Failed to write runtime env file at ${OUTPUT_FILE_PATH}`, {
+        cause:
+          cause instanceof Error ? cause : new Error(String(cause)),
+      }),
+    try: () => Bun.write(OUTPUT_FILE_PATH, outputLines.join('\n')),
+  });
   yield* Effect.logInfo(`Wrote ${OUTPUT_FILE_PATH}`);
 });
 

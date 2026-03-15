@@ -243,6 +243,14 @@ const createAuth0Client = (
     const callbackOrigin = normalizeOrigin(auth.BASE_URL);
     const requestOrigin = resolveRequestOrigin(request);
     const callbackUrl = new URL('/callback', callbackOrigin).toString();
+    const issuerHostname = yield* Effect.try({
+      catch: (cause) =>
+        new Error(
+          `Invalid ISSUER_BASE_URL configuration: ${auth.ISSUER_BASE_URL}`,
+          { cause: cause instanceof Error ? cause : new Error(String(cause)) },
+        ),
+      try: () => new URL(auth.ISSUER_BASE_URL).hostname,
+    });
     const authorizationParameters = {
       ...Option.match(auth.AUDIENCE, {
         onNone: () => ({}),
@@ -256,7 +264,7 @@ const createAuth0Client = (
       authorizationParams: authorizationParameters,
       clientId: auth.CLIENT_ID,
       clientSecret: auth.CLIENT_SECRET,
-      domain: new URL(auth.ISSUER_BASE_URL).hostname,
+      domain: issuerHostname,
       // StatelessStateStore keeps session state in encrypted cookies.
       stateStore: new StatelessStateStore<AuthStoreOptions>(
         {

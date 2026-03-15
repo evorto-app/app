@@ -2,7 +2,7 @@ import * as PgClient from '@effect/sql-pg/PgClient';
 import * as PgDrizzle from 'drizzle-orm/effect-postgres';
 import { Effect, Layer } from 'effect';
 
-import { databaseConfig } from '../server/config/database-config';
+import { databaseConfig } from '@db/database-config';
 import { createPgClientConfig } from './pg-connection-config';
 import { relations } from './relations';
 

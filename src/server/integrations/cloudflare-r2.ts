@@ -88,11 +88,16 @@ export const uploadReceiptOriginalToR2 = (input: {
     const config = yield* resolveObjectStorageConfig();
     const client = buildS3Client(config);
 
-    yield* Effect.tryPromise(() =>
-      client.file(input.key).write(input.body, {
-        type: input.contentType,
-      }),
-    );
+    yield* Effect.tryPromise({
+      catch: (cause) =>
+        new Error(`R2 upload failed for key ${input.key}`, {
+          cause: cause instanceof Error ? cause : new Error(String(cause)),
+        }),
+      try: () =>
+        client.file(input.key).write(input.body, {
+          type: input.contentType,
+        }),
+    });
 
     return {
       storageKey: input.key,

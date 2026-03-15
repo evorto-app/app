@@ -33,6 +33,17 @@ const environment = Effect.runSync(
     ),
   ),
 );
+const auth0Environment = Effect.runSync(
+  auth0ManagementEnvironment.pipe(
+    Effect.withConfigProvider(runtimeConfigProvider),
+    Effect.mapError(
+      (error: ConfigError.ConfigError) =>
+        new Error(
+          `Invalid e2e auth configuration:\n${formatConfigError(error)}`,
+        ),
+    ),
+  ),
+);
 process.env['E2E_NOW_ISO'] ??= environment.E2E_NOW_ISO;
 process.env['E2E_SEED_KEY'] ??= environment.E2E_SEED_KEY;
 const databaseUrl = environment.DATABASE_URL;
@@ -83,17 +94,6 @@ export const test = base.extend<BaseFixtures>({
     { auto: true },
   ],
   newUser: async ({}, use) => {
-    const auth0Environment = Effect.runSync(
-      auth0ManagementEnvironment.pipe(
-        Effect.withConfigProvider(runtimeConfigProvider),
-        Effect.mapError(
-          (error: ConfigError.ConfigError) =>
-            new Error(
-              `Invalid e2e auth configuration:\n${formatConfigError(error)}`,
-            ),
-        ),
-      ),
-    );
     const auth0 = new ManagementClient({
       clientId: auth0Environment.AUTH0_MANAGEMENT_CLIENT_ID,
       clientSecret: auth0Environment.AUTH0_MANAGEMENT_CLIENT_SECRET,
@@ -132,7 +132,7 @@ export const test = base.extend<BaseFixtures>({
       }
       const realDate = Date;
       class FixedDate extends realDate {
-        constructor(...args: any[]) {
+        constructor(...args: [] | ConstructorParameters<typeof realDate>) {
           if (args.length === 0) {
             super(value);
             return;
@@ -140,7 +140,7 @@ export const test = base.extend<BaseFixtures>({
           super(...args);
         }
 
-        static now() {
+        static override now() {
           return value;
         }
       }

@@ -16,7 +16,7 @@ import {
 import { resolveTenantDiscountProviders, type TenantDiscountProviders } from '../../../../../shared/tenant-config';
 import { type Tenant } from '../../../../../types/custom/tenant';
 import { type User } from '../../../../../types/custom/user';
-import { RuntimeConfig } from '../../../../config/runtime-config';
+import { serverConfig } from '../../../../config/server-config';
 import {
   buildCheckoutSessionExpiresAt,
   buildCheckoutSessionIdempotencyKey,
@@ -150,6 +150,10 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
         tenant,
         user,
       }: RegisterForEventArguments) {
+        const pinnedNowIso = Option.getOrUndefined(
+          (yield* serverConfig).E2E_NOW_ISO,
+        );
+
         // Phase 1: ensure this user can register (no active registration + valid option + capacity).
         const existingRegistration = yield* databaseEffect((database) =>
           database.query.eventRegistrations.findFirst({
@@ -439,10 +443,6 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
           // Phase 4: paid registration path (Stripe session + pending transaction record).
           const applicationFee = Math.round(effectivePrice * 0.035);
           const stripeAccount = tenant.stripeAccountId;
-          const runtimeConfig = yield* RuntimeConfig;
-          const pinnedNowIso = Option.getOrUndefined(
-            runtimeConfig.server.E2E_NOW_ISO,
-          );
           if (!stripeAccount) {
             return yield* Effect.fail(
               new EventRegistrationInternalError({

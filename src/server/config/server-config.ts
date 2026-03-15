@@ -76,7 +76,7 @@ const serverLogLevelConfig = optionalTrimmedString('SERVER_LOG_LEVEL').pipe(
       onNone: () => Either.right(Option.none()),
       onSome: (value) =>
         parseServerLogLevel(value).pipe(
-          Either.map((parsedLevel) => Option.fromNullable(parsedLevel)),
+          Either.map((parsedLevel) => Option.some(parsedLevel)),
         ),
     }),
   ),

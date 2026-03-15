@@ -2,6 +2,11 @@
 
 This project was generated using [Angular CLI](https://github.com/angular/angular-cli) and is maintained on Angular 21 with Bun-first tooling.
 
+## Prerequisites
+
+- Docker Compose 2.24.0 or later is required. This repo uses the object form of `env_file` with `path` and `required` in `docker-compose.yml`, which older Compose versions do not support.
+- If your local Compose is older, upgrade Docker Desktop or the standalone Compose plugin before running the Docker-backed setup and E2E flows.
+
 ## Git workflow
 
 This repository uses Git Town to manage branching, syncing, and shipping. Prefer `git town` commands for daily workflow.
