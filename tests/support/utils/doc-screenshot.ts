@@ -1,8 +1,15 @@
 import { Locator, Page, TestInfo } from '@playwright/test';
+import { ConfigProvider, Effect } from 'effect';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-import { resolveDocumentationOutputEnvironment } from '../config/environment';
+import { documentationOutputEnvironment } from '../config/environment';
+
+const docsEnvironment = Effect.runSync(
+  documentationOutputEnvironment.pipe(
+    Effect.withConfigProvider(ConfigProvider.fromEnv()),
+  ),
+);
 
 function ensureDir(dir: string) {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -29,8 +36,7 @@ export async function docScreenshot(
   _page: Page,
   name?: string,
 ): Promise<string> {
-  const imagesRoot =
-    resolveDocumentationOutputEnvironment().docsImageOutputDirectory;
+  const imagesRoot = docsEnvironment.docsImageOutputDirectory;
   ensureDir(imagesRoot);
 
   // organize by test folder for readability

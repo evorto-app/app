@@ -1,28 +1,15 @@
-import { Context, Effect, Layer } from 'effect';
+import { Effect, Option } from 'effect';
 
 import { type PublicConfig } from '../../../shared/rpc-contracts/app-rpcs/config.rpcs';
-import {
-  getPublicGoogleMapsApiKey,
-  type ServerEnvironment,
-} from '../../config/environment';
+import { RuntimeConfig } from '../../config/runtime-config';
 
-class RuntimeEnvironment extends Context.Tag('RuntimeEnvironment')<
-  RuntimeEnvironment,
-  ServerEnvironment
->() {}
-
-const makePublicConfig = Effect.gen(function* () {
-  const environment = yield* RuntimeEnvironment;
-  const googleMapsApiKey = getPublicGoogleMapsApiKey(environment);
+export const getPublicConfigEffect = Effect.gen(function* () {
+  const runtimeConfig = yield* RuntimeConfig;
 
   return {
-    googleMapsApiKey: googleMapsApiKey ?? null,
-    sentryDsn: environment.PUBLIC_SENTRY_DSN ?? null,
+    googleMapsApiKey: Option.getOrNull(
+      runtimeConfig.server.PUBLIC_GOOGLE_MAPS_API_KEY,
+    ),
+    sentryDsn: Option.getOrNull(runtimeConfig.server.PUBLIC_SENTRY_DSN),
   } satisfies PublicConfig;
 });
-
-const provideEnvironment = (environment: ServerEnvironment) =>
-  Layer.succeed(RuntimeEnvironment, environment);
-
-export const getPublicConfigEffect = (environment: ServerEnvironment) =>
-  makePublicConfig.pipe(Effect.provide(provideEnvironment(environment)));

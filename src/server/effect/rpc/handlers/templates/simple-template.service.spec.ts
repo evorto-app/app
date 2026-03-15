@@ -1,11 +1,12 @@
+import { describe, expect, it } from '@effect/vitest';
 import { Effect, Layer } from 'effect';
-import { describe, expect, it } from 'vitest';
 
 import { Database } from '../../../../../db';
 import { SimpleTemplateService } from './simple-template.service';
 
 describe('SimpleTemplateService', () => {
-  it('fails with bad request for non-meaningful rich text description', async () => {
+  it.effect('fails with bad request for non-meaningful rich text description', () =>
+    Effect.gen(function* () {
     const program = SimpleTemplateService.createSimpleTemplate({
       input: {
         categoryId: 'category-1',
@@ -44,7 +45,8 @@ describe('SimpleTemplateService', () => {
       Effect.provide(Layer.succeed(Database, {} as never)),
     );
 
-    const error = await Effect.runPromise(program);
+    const error = yield* program;
     expect(error['_tag']).toBe('TemplateSimpleBadRequestError');
-  });
+    })
+  );
 });

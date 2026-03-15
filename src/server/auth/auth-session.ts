@@ -13,12 +13,9 @@ import * as HttpServerRequest from '@effect/platform/HttpServerRequest';
 import * as HttpServerResponse from '@effect/platform/HttpServerResponse';
 import { Duration, Effect, Option } from 'effect';
 
-import { getOidcEnvironment } from '../config/environment';
+import { RuntimeConfig } from '../config/runtime-config';
 
 const SESSION_COOKIE_NAME = 'appSession';
-
-const oidcEnvironment = getOidcEnvironment();
-const auth0Domain = new URL(oidcEnvironment.ISSUER_BASE_URL).hostname;
 
 export interface AuthSession {
   accessToken: string;
@@ -59,15 +56,15 @@ interface LoginAppState {
 const getHeaderValue = (
   headers: Headers.Headers,
   key: string,
-): string | undefined => Option.getOrUndefined(Headers.get(headers, key));
+) => Option.getOrUndefined(Headers.get(headers, key));
 
-const normalizeOrigin = (value: string): string =>
+const normalizeOrigin = (value: string) =>
   value.endsWith('/') ? value.slice(0, -1) : value;
 
-const asString = (value: unknown): string | undefined =>
+const asString = (value: unknown) =>
   typeof value === 'string' ? value : undefined;
 
-const toRecord = (value: unknown): Record<string, unknown> | undefined => {
+const toRecord = (value: unknown) => {
   if (typeof value !== 'object' || value === null) {
     return;
   }
@@ -77,7 +74,7 @@ const toRecord = (value: unknown): Record<string, unknown> | undefined => {
 
 const toCookieRecord = (
   cookies: Record<string, unknown>,
-): Record<string, string> => {
+) => {
   const normalized: Record<string, string> = {};
 
   for (const [key, value] of Object.entries(cookies)) {
@@ -91,7 +88,7 @@ const toCookieRecord = (
 
 const sanitizeReturnPath = (
   value: null | string | undefined,
-): string | undefined => {
+) => {
   if (!value) {
     return;
   }
@@ -178,7 +175,7 @@ const toExpireCookieOptions = (options?: CookieSerializeOptions) => ({
 const applyCookieMutations = (
   response: HttpServerResponse.HttpServerResponse,
   mutations: readonly CookieMutation[],
-): Effect.Effect<HttpServerResponse.HttpServerResponse, unknown> =>
+) =>
   Effect.gen(function* () {
     let nextResponse = response;
 
@@ -212,7 +209,7 @@ const isExpectedAuth0Error = (
 const runPromiseOrUndefined = <T>(
   operation: string,
   thunk: () => Promise<T>,
-): Effect.Effect<T | undefined, unknown> =>
+) =>
   Effect.tryPromise({
     catch: (error) => error,
     try: thunk,
@@ -222,7 +219,9 @@ const runPromiseOrUndefined = <T>(
         return Effect.succeed(undefined as T | undefined);
       }
 
-      return Effect.logError(`Unexpected Auth0 SDK failure during ${operation}`).pipe(
+      return Effect.logError(
+        `Unexpected Auth0 SDK failure during ${operation}`,
+      ).pipe(
         Effect.annotateLogs({ error }),
         Effect.zipRight(Effect.fail(error)),
       );
@@ -231,54 +230,68 @@ const runPromiseOrUndefined = <T>(
 
 const createStoreOptions = (
   request: HttpServerRequest.HttpServerRequest,
-): AuthStoreOptions => ({
+) => ({
   cookies: toCookieRecord(request.cookies as Record<string, unknown>),
   mutations: [],
 });
 
 const createAuth0Client = (
   request: HttpServerRequest.HttpServerRequest,
-): ServerClient<AuthStoreOptions> => {
-  const { isSecure, origin } = resolveRequestOrigin(request);
-  const callbackUrl = new URL('/callback', origin).toString();
-  const authorizationParameters = {
-    ...(oidcEnvironment.AUDIENCE ? { audience: oidcEnvironment.AUDIENCE } : {}),
-    redirect_uri: callbackUrl,
-    scope: 'openid profile email',
-  };
+) =>
+  Effect.gen(function* () {
+    const { auth } = yield* RuntimeConfig;
+    const callbackOrigin = normalizeOrigin(auth.BASE_URL);
+    const requestOrigin = resolveRequestOrigin(request);
+    const callbackUrl = new URL('/callback', callbackOrigin).toString();
+    const issuerHostname = yield* Effect.try({
+      catch: (cause) =>
+        new Error(
+          `Invalid ISSUER_BASE_URL configuration: ${auth.ISSUER_BASE_URL}`,
+          { cause: cause instanceof Error ? cause : new Error(String(cause)) },
+        ),
+      try: () => new URL(auth.ISSUER_BASE_URL).hostname,
+    });
+    const authorizationParameters = {
+      ...Option.match(auth.AUDIENCE, {
+        onNone: () => ({}),
+        onSome: (audience) => ({ audience }),
+      }),
+      redirect_uri: callbackUrl,
+      scope: 'openid profile email',
+    };
 
-  return new ServerClient<AuthStoreOptions>({
-    authorizationParams: authorizationParameters,
-    clientId: oidcEnvironment.CLIENT_ID,
-    clientSecret: oidcEnvironment.CLIENT_SECRET,
-    domain: auth0Domain,
-    // StatelessStateStore keeps session state in encrypted cookies.
-    stateStore: new StatelessStateStore<AuthStoreOptions>(
-      {
-        cookie: {
-          name: SESSION_COOKIE_NAME,
-          path: '/',
-          sameSite: 'lax',
-          secure: isSecure,
+    return new ServerClient<AuthStoreOptions>({
+      authorizationParams: authorizationParameters,
+      clientId: auth.CLIENT_ID,
+      clientSecret: auth.CLIENT_SECRET,
+      domain: issuerHostname,
+      // StatelessStateStore keeps session state in encrypted cookies.
+      stateStore: new StatelessStateStore<AuthStoreOptions>(
+        {
+          cookie: {
+            name: SESSION_COOKIE_NAME,
+            path: '/',
+            sameSite: 'lax',
+            secure: requestOrigin.isSecure,
+          },
+          rolling: false,
+          secret: auth.SECRET,
         },
-        rolling: false,
-        secret: oidcEnvironment.SECRET,
-      },
-      cookieHandler,
-    ),
-    // CookieTransactionStore tracks in-flight OIDC login transactions.
-    transactionStore: new CookieTransactionStore<AuthStoreOptions>(
-      {
-        secret: oidcEnvironment.SECRET,
-      },
-      cookieHandler,
-    ),
+        cookieHandler,
+      ),
+      // CookieTransactionStore tracks in-flight OIDC login transactions.
+      transactionStore: new CookieTransactionStore<AuthStoreOptions>(
+        {
+          secret: auth.SECRET,
+        },
+        cookieHandler,
+      ),
+    });
   });
-};
 
 const toAuthSession = (
   sessionData: SessionData | undefined,
-): AuthSession | undefined => {
+) => {
   if (!sessionData) {
     return;
   }
@@ -303,20 +316,7 @@ const toAuthSession = (
 
 export const resolveRequestOrigin = (
   request: HttpServerRequest.HttpServerRequest,
-): {
-  isSecure: boolean;
-  origin: string;
-  protocol: string;
-} => {
-  if (oidcEnvironment.BASE_URL) {
-    const origin = normalizeOrigin(oidcEnvironment.BASE_URL);
-    return {
-      isSecure: origin.startsWith('https://'),
-      origin,
-      protocol: origin.startsWith('https://') ? 'https' : 'http',
-    };
-  }
-
+) => {
   const protocol =
     getHeaderValue(request.headers, 'x-forwarded-proto') ??
     getHeaderValue(request.headers, 'x-forwarded-protocol') ??
@@ -335,23 +335,23 @@ export const resolveRequestOrigin = (
 
 export const toAbsoluteRequestUrl = (
   request: HttpServerRequest.HttpServerRequest,
-): URL => {
+) => {
   const { origin } = resolveRequestOrigin(request);
   return new URL(request.url, origin);
 };
 
 export const getRequestAuthData = (
   authSession: AuthSession | undefined,
-): Record<string, unknown> => authSession?.authData ?? {};
+) => authSession?.authData ?? {};
 
 export const isAuthenticated = (
   authSession: AuthSession | undefined,
-): boolean => authSession !== undefined;
+) => authSession !== undefined;
 
 export const loadAuthSession = (request: HttpServerRequest.HttpServerRequest) =>
   Effect.gen(function* () {
     const storeOptions = createStoreOptions(request);
-    const auth0Client = createAuth0Client(request);
+    const auth0Client = yield* createAuth0Client(request);
 
     const sessionData = yield* runPromiseOrUndefined('loadAuthSession', () =>
       auth0Client.getSession(storeOptions),
@@ -377,17 +377,19 @@ export const handleLoginRequest = (
       ) ?? '/';
 
     const storeOptions = createStoreOptions(request);
-    const auth0Client = createAuth0Client(request);
+    const auth0Client = yield* createAuth0Client(request);
 
-    const authorizationUrl = yield* runPromiseOrUndefined('handleLoginRequest', () =>
-      auth0Client.startInteractiveLogin(
-        {
-          appState: {
-            redirectUrl,
+    const authorizationUrl = yield* runPromiseOrUndefined(
+      'handleLoginRequest',
+      () =>
+        auth0Client.startInteractiveLogin(
+          {
+            appState: {
+              redirectUrl,
+            },
           },
-        },
-        storeOptions,
-      ),
+          storeOptions,
+        ),
     );
 
     if (!authorizationUrl) {
@@ -414,15 +416,15 @@ export const handleCallbackRequest = (
     }
 
     const storeOptions = createStoreOptions(request);
-    const auth0Client = createAuth0Client(request);
+    const auth0Client = yield* createAuth0Client(request);
 
     const completedLogin = yield* runPromiseOrUndefined(
       'handleCallbackRequest',
       () =>
-      auth0Client.completeInteractiveLogin<LoginAppState>(
-        requestUrl,
-        storeOptions,
-      ),
+        auth0Client.completeInteractiveLogin<LoginAppState>(
+          requestUrl,
+          storeOptions,
+        ),
     );
 
     if (!completedLogin) {
@@ -445,6 +447,7 @@ export const handleLogoutRequest = (
   request: HttpServerRequest.HttpServerRequest,
 ) =>
   Effect.gen(function* () {
+    const { auth } = yield* RuntimeConfig;
     const requestUrl = toAbsoluteRequestUrl(request);
     const returnPath =
       sanitizeReturnPath(
@@ -452,9 +455,10 @@ export const handleLogoutRequest = (
           requestUrl.searchParams.get('returnTo'),
       ) ?? '/';
 
-    const { isSecure, origin } = resolveRequestOrigin(request);
+    const { isSecure } = resolveRequestOrigin(request);
+    const origin = normalizeOrigin(auth.BASE_URL);
     const storeOptions = createStoreOptions(request);
-    const auth0Client = createAuth0Client(request);
+    const auth0Client = yield* createAuth0Client(request);
 
     const logoutUrl = yield* runPromiseOrUndefined('handleLogoutRequest', () =>
       auth0Client.logout(

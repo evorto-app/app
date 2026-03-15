@@ -1,7 +1,5 @@
 import { and, eq } from 'drizzle-orm';
-import { createInsertSchema } from 'drizzle-orm/effect-schema';
 import { Effect } from 'effect';
-import { Schema } from 'effect';
 
 import type { AppRpcHandlers } from '../shared/handler-types';
 
@@ -25,28 +23,6 @@ const databaseEffect = <A>(
   operation: (database: DatabaseClient) => Effect.Effect<A, unknown, never>,
 ): Effect.Effect<A, never, Database> =>
   Database.pipe(Effect.flatMap((database) => operation(database).pipe(Effect.orDie)));
-
-const EventTemplateInsertCoreSchema = createInsertSchema(eventTemplates).pick(
-  'categoryId',
-  'description',
-  'simpleModeEnabled',
-  'tenantId',
-  'title',
-);
-const TemplateRegistrationOptionInsertSchema =
-  createInsertSchema(templateRegistrationOptions).pick(
-    'closeRegistrationOffset',
-    'isPaid',
-    'openRegistrationOffset',
-    'organizingRegistration',
-    'price',
-    'registrationMode',
-    'roleIds',
-    'spots',
-    'stripeTaxRateId',
-    'templateId',
-    'title',
-  );
 
 type CreateSimpleTemplateInput = Parameters<
   AppRpcHandlers['templates.createSimpleTemplate']
@@ -73,18 +49,14 @@ const buildTemplateInsertValues = ({
   sanitizedDescription: string;
   tenantId: string;
 }): EventTemplateInsert => {
-  const templateInsertCore = Schema.decodeUnknownSync(EventTemplateInsertCoreSchema)({
+  return {
     categoryId: input.categoryId,
     description: sanitizedDescription,
+    icon: input.icon,
+    location: input.location,
     simpleModeEnabled: true,
     tenantId,
     title: input.title,
-  });
-
-  return {
-    ...templateInsertCore,
-    icon: input.icon,
-    location: input.location,
   };
 };
 
@@ -97,25 +69,20 @@ const buildRegistrationOptionInsert = ({
   organizingRegistration: boolean;
   templateId: string;
 }): TemplateRegistrationOptionInsert => {
-  const insertCore = Schema.decodeUnknownSync(TemplateRegistrationOptionInsertSchema)({
+  return {
     closeRegistrationOffset: input.closeRegistrationOffset,
     isPaid: input.isPaid,
     openRegistrationOffset: input.openRegistrationOffset,
     organizingRegistration,
     price: input.price,
     registrationMode: input.registrationMode,
-    roleIds: input.roleIds,
+    roleIds: [...input.roleIds],
     spots: input.spots,
     stripeTaxRateId: input.stripeTaxRateId ?? null,
     templateId,
     title: organizingRegistration
       ? 'Organizer registration'
       : 'Participant registration',
-  });
-
-  return {
-    ...insertCore,
-    roleIds: [...(insertCore.roleIds ?? [])],
   };
 };
 

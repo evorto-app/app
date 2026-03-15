@@ -27,7 +27,7 @@ import {
 import { ConfigPermissions } from '../../../../shared/rpc-contracts/app-rpcs/config.rpcs';
 import { Tenant } from '../../../../types/custom/tenant';
 import { normalizeEsnCardConfig } from '../../../discounts/discount-provider-config';
-import { stripe } from '../../../stripe-client';
+import { StripeClient } from '../../../stripe-client';
 import {
   decodeRpcContextHeaderJson,
   RPC_CONTEXT_HEADERS,
@@ -328,6 +328,7 @@ export const adminHandlers = {
     'admin.tenant.importStripeTaxRates': ({ ids }, options) =>
       Effect.gen(function* () {
         yield* ensurePermission(options.headers, 'admin:tax');
+        const stripe = yield* StripeClient;
         const tenant = decodeHeaderJson(
           options.headers[RPC_CONTEXT_HEADERS.TENANT],
           Tenant,
@@ -411,6 +412,7 @@ export const adminHandlers = {
     'admin.tenant.listStripeTaxRates': (_payload, options) =>
       Effect.gen(function* () {
         yield* ensurePermission(options.headers, 'admin:tax');
+        const stripe = yield* StripeClient;
         const tenant = decodeHeaderJson(
           options.headers[RPC_CONTEXT_HEADERS.TENANT],
           Tenant,

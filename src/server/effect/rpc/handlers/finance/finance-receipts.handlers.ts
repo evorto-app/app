@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { TransactionRollbackError, and, desc, eq, inArray } from 'drizzle-orm';
 import { Effect } from 'effect';
 
 import type { AppRpcHandlers } from '../shared/handler-types';
@@ -23,6 +23,11 @@ import {
   withSignedReceiptPreviewUrl,
   withSignedReceiptPreviewUrls,
 } from './receipt-media.service';
+
+const isTransactionRollbackError = (
+  error: unknown,
+): error is TransactionRollbackError =>
+  error instanceof TransactionRollbackError;
 
 export const financeReceiptsHandlers = {
 'finance.receipts.byEvent': ({ eventId }, _options) =>
@@ -142,6 +147,8 @@ export const financeReceiptsHandlers = {
         ];
         const eventId = uniqueEventIds.length === 1 ? uniqueEventIds[0] : null;
 
+        let transactionFailure: 'BAD_REQUEST' | 'INTERNAL_SERVER_ERROR' | null =
+          null;
         const createdTransaction = yield* databaseEffect((database) =>
           database.transaction((tx) =>
             Effect.gen(function* () {
@@ -165,7 +172,8 @@ export const financeReceiptsHandlers = {
                 });
               const transaction = insertedTransactions[0];
               if (!transaction) {
-                return yield* Effect.fail('INTERNAL_SERVER_ERROR' as const);
+                transactionFailure = 'INTERNAL_SERVER_ERROR';
+                yield* tx.rollback();
               }
 
               const updatedReceipts = yield* tx
@@ -189,7 +197,8 @@ export const financeReceiptsHandlers = {
                 });
 
               if (updatedReceipts.length !== input.receiptIds.length) {
-                return yield* Effect.fail('BAD_REQUEST' as const);
+                transactionFailure = 'BAD_REQUEST';
+                yield* tx.rollback();
               }
 
               return transaction;
@@ -197,8 +206,8 @@ export const financeReceiptsHandlers = {
           ),
         ).pipe(
           Effect.catchAll((error) =>
-            error === 'BAD_REQUEST'
-              ? Effect.fail('BAD_REQUEST' as const)
+            isTransactionRollbackError(error) && transactionFailure
+              ? Effect.fail(transactionFailure)
               : Effect.fail('INTERNAL_SERVER_ERROR' as const),
           ),
         );

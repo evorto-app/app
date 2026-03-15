@@ -1,10 +1,12 @@
+import { BunRuntime } from '@effect/platform-bun';
+import { Effect } from 'effect';
 import path from 'node:path';
 
 const DEFAULT_APP_HOST_PORT = 4_200;
 const DEFAULT_NEON_LOCAL_HOST_PORT = 55_432;
 const DEFAULT_MINIO_CONSOLE_HOST_PORT = 9_001;
 const DEFAULT_MINIO_HOST_PORT = 9_000;
-const OUTPUT_FILE_PATH = path.resolve(process.cwd(), '.env.development');
+const OUTPUT_FILE_PATH = path.resolve(process.cwd(), '.env.runtime');
 
 const databaseName = process.env['NEON_DATABASE_NAME']?.trim() || 'appdb';
 
@@ -78,28 +80,42 @@ const defaultProjectName = (): string => {
 const composeProjectName =
   process.env['COMPOSE_PROJECT_NAME']?.trim() || defaultProjectName();
 const baseUrl = `http://localhost:${appHostPort}`;
-const databaseUrl = `postgresql://neon:npg@localhost:${neonLocalHostPort}/${databaseName}?sslmode=disable`;
+const databaseUrl = `postgresql://neon:npg@localhost:${neonLocalHostPort}/${databaseName}?sslmode=require`;
 
 const runtimeEnvironment = {
   APP_HOST_PORT: String(appHostPort),
   BASE_URL: baseUrl,
   COMPOSE_PROJECT_NAME: composeProjectName,
   DATABASE_URL: databaseUrl,
+  DELETE_BRANCH: 'true',
   MINIO_CONSOLE_HOST_PORT: String(minioConsoleHostPort),
   MINIO_HOST_PORT: String(minioHostPort),
   NEON_DATABASE_NAME: databaseName,
   NEON_LOCAL_HOST_PORT: String(neonLocalHostPort),
   NEON_LOCAL_PROXY: 'true',
-  PLAYWRIGHT_TEST_BASE_URL: baseUrl,
 } as const;
+
+const escapeEnvironmentValue = (value: string): string =>
+  JSON.stringify(value);
 
 const outputLines = [
   '# THIS FILE IS AUTO-GENERATED. DO NOT EDIT MANUALLY.',
   ...Object.entries(runtimeEnvironment).map(
-    ([key, value]) => `${key}=${value}`,
+    ([key, value]) => `${key}=${escapeEnvironmentValue(value)}`,
   ),
   '',
 ];
 
-await Bun.write(OUTPUT_FILE_PATH, outputLines.join('\n'));
-process.stdout.write(`Wrote ${OUTPUT_FILE_PATH}\n`);
+const main = Effect.gen(function* () {
+  yield* Effect.tryPromise({
+    catch: (cause) =>
+      new Error(`Failed to write runtime env file at ${OUTPUT_FILE_PATH}`, {
+        cause:
+          cause instanceof Error ? cause : new Error(String(cause)),
+      }),
+    try: () => Bun.write(OUTPUT_FILE_PATH, outputLines.join('\n')),
+  });
+  yield* Effect.logInfo(`Wrote ${OUTPUT_FILE_PATH}`);
+});
+
+BunRuntime.runMain(main);

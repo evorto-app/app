@@ -1,13 +1,13 @@
 import type { InferInsertModel, InferSelectModel } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
+import { relations } from '@db/relations';
+import * as schema from '@db/schema';
 import consola from 'consola';
 import { DateTime } from 'luxon';
 
 import type { SeedTemplate } from './add-templates';
 
-import { relations } from '../src/db/relations';
-import * as schema from '../src/db/schema';
 import { getId } from './get-id';
 import { getSeedDate } from './seed-clock';
 import { usersToAuthenticate } from './user-data';
@@ -36,12 +36,35 @@ export interface SeedScenarioEvents {
   past: { eventId: string };
 }
 
+interface RedistributableEvent {
+  end: Date;
+  id: string;
+  start: Date;
+  status: 'APPROVED' | 'DRAFT' | 'PENDING_REVIEW' | 'REJECTED';
+  title: string;
+}
+
+interface RedistributableRegistrationOption {
+  closeRegistrationTime: Date;
+  eventId: string;
+  openRegistrationTime: Date;
+}
+
 interface ScenarioCandidates {
   closedReg?: SeedScenarioOptionHandle;
   draft?: { eventId: string };
   open?: SeedScenarioOptionHandle;
   past?: { eventId: string };
 }
+
+type SeedEventInsert = InferInsertModel<typeof schema.eventInstances> &
+  RedistributableEvent;
+
+type SeedRegistrationOptionInsert =
+  InferInsertModel<typeof schema.eventRegistrationOptions> &
+    RedistributableRegistrationOption & {
+      id: string;
+    };
 
 interface SeedScenarioOptionHandle {
   eventId: string;
@@ -55,6 +78,14 @@ interface TaxRateSelection {
 }
 
 type TenantStripeTaxRate = InferSelectModel<typeof schema.tenantStripeTaxRates>;
+const demoTemplateLimits = {
+  'city-tour': 2,
+  'city-trip': 2,
+  'example-config': 2,
+  hike: 3,
+  sports: 1,
+  'weekend-trip': 2,
+} satisfies Record<SeedTemplate['seedKey'], number>;
 
 const resolveTaxRateSelection = (
   taxRates: TenantStripeTaxRate[],
@@ -105,6 +136,149 @@ const computeEventClock = (
   };
 };
 
+const compareSeedEvents = (
+  eventA: RedistributableEvent,
+  eventB: RedistributableEvent,
+) =>
+  eventA.start.getTime() - eventB.start.getTime() ||
+  eventA.title.localeCompare(eventB.title) ||
+  eventA.id.localeCompare(eventB.id);
+
+const buildShiftedStart = (
+  seedNow: DateTime,
+  originalStart: Date,
+  dayOffset: number,
+) => {
+  const originalDateTime = DateTime.fromJSDate(originalStart, {
+    zone: 'utc',
+  });
+
+  return seedNow
+    .plus({ days: dayOffset })
+    .set({
+      hour: originalDateTime.hour,
+      millisecond: 0,
+      minute: originalDateTime.minute,
+      second: 0,
+    })
+    .toJSDate();
+};
+
+const applyEventSchedule = <
+  TEvent extends RedistributableEvent,
+  TRegistrationOption extends RedistributableRegistrationOption,
+>(
+  events: readonly TEvent[],
+  registrationOptionsByEventId: ReadonlyMap<string, TRegistrationOption[]>,
+  seedNow: DateTime,
+  resolveDayOffset: (index: number) => number,
+) => {
+  const scheduledEvents = events.toSorted(compareSeedEvents);
+
+  for (const [index, event] of scheduledEvents.entries()) {
+    const shiftedStart = buildShiftedStart(
+      seedNow,
+      event.start,
+      resolveDayOffset(index),
+    );
+    const shiftedStartDateTime = DateTime.fromJSDate(shiftedStart, {
+      zone: 'utc',
+    });
+
+    event.start = shiftedStart;
+    event.end = shiftedStartDateTime.plus({ hours: 6 }).toJSDate();
+
+    for (const option of registrationOptionsByEventId.get(event.id) ?? []) {
+      option.openRegistrationTime = shiftedStartDateTime
+        .minus({ days: 14 })
+        .toJSDate();
+      option.closeRegistrationTime = shiftedStartDateTime
+        .minus({ hours: 2 })
+        .toJSDate();
+    }
+  }
+};
+
+export const redistributeDemoEventTimeline = <
+  TEvent extends RedistributableEvent,
+  TRegistrationOption extends RedistributableRegistrationOption,
+>(
+  events: readonly TEvent[],
+  registrationOptions: readonly TRegistrationOption[],
+  seedNow: DateTime,
+) => {
+  const redistributedEvents = events.map((event) => ({ ...event }));
+  const redistributedRegistrationOptions = registrationOptions.map((option) => ({
+    ...option,
+  }));
+  const registrationOptionsByEventId = new Map<string, TRegistrationOption[]>();
+
+  for (const option of redistributedRegistrationOptions) {
+    const eventOptions = registrationOptionsByEventId.get(option.eventId) ?? [];
+    eventOptions.push(option);
+    registrationOptionsByEventId.set(option.eventId, eventOptions);
+  }
+
+  const approvedPast = redistributedEvents.filter(
+    (event) =>
+      event.status === 'APPROVED' && event.start.getTime() < seedNow.toMillis(),
+  );
+  const approvedUpcoming = redistributedEvents.filter(
+    (event) =>
+      event.status === 'APPROVED' && event.start.getTime() >= seedNow.toMillis(),
+  );
+  const draft = redistributedEvents.filter((event) => event.status === 'DRAFT');
+  const pendingReview = redistributedEvents.filter(
+    (event) => event.status === 'PENDING_REVIEW',
+  );
+
+  applyEventSchedule(
+    approvedPast,
+    registrationOptionsByEventId,
+    seedNow,
+    (index) =>
+      [
+        -1,
+        -1,
+        -2,
+        -2,
+        -3,
+        -3,
+        -4,
+        -5,
+        -6,
+        -7,
+        -8,
+        -10,
+      ][index] ?? -(12 + (index - 12) * 2),
+  );
+  applyEventSchedule(
+    approvedUpcoming,
+    registrationOptionsByEventId,
+    seedNow,
+    (index) => [2, 2, 2, 3, 3, 3, 4, 4, 5, 5, 6, 7][index] ?? 8 + index - 12,
+  );
+  applyEventSchedule(
+    pendingReview,
+    registrationOptionsByEventId,
+    seedNow,
+    (index) =>
+      [4, 4, 5, 5, 6, 7, 8, 10, 12, 14, 16, 18][index] ??
+      20 + (index - 12) * 2,
+  );
+  applyEventSchedule(
+    draft,
+    registrationOptionsByEventId,
+    seedNow,
+    (index) => 8 + index * 2,
+  );
+
+  return {
+    events: redistributedEvents,
+    registrationOptions: redistributedRegistrationOptions,
+  };
+};
+
 const pickTemplateSet = (
   templates: SeedTemplate[],
   profile: SeedProfile,
@@ -116,7 +290,7 @@ const pickTemplateSet = (
   }
 
   if (profile === 'demo') {
-    return matchingTemplates;
+    return matchingTemplates.slice(0, demoTemplateLimits[seedKey]);
   }
 
   return matchingTemplates.slice(0, 1);
@@ -133,16 +307,12 @@ const createEvents = (
     profile: SeedProfile;
   },
 ): {
-  events: InferInsertModel<typeof schema.eventInstances>[];
-  registrationOptions: InferInsertModel<
-    typeof schema.eventRegistrationOptions
-  >[];
+  events: SeedEventInsert[];
+  registrationOptions: SeedRegistrationOptionInsert[];
   scenario: ScenarioCandidates;
 } => {
-  const events: InferInsertModel<typeof schema.eventInstances>[] = [];
-  const registrationOptions: InferInsertModel<
-    typeof schema.eventRegistrationOptions
-  >[] = [];
+  const events: SeedEventInsert[] = [];
+  const registrationOptions: SeedRegistrationOptionInsert[] = [];
   const scenario: ScenarioCandidates = {};
 
   const eventsPerTemplate = options.profile === 'demo' ? 4 : 3;
@@ -443,10 +613,20 @@ export const addEvents = async (
     exampleConfigEvents,
     sportsEvents,
   ];
-  const allEvents = eventGroups.flatMap((group) => group.events);
-  const allRegistrationOptions = eventGroups.flatMap(
+  let allEvents = eventGroups.flatMap((group) => group.events);
+  let allRegistrationOptions = eventGroups.flatMap(
     (group) => group.registrationOptions,
   );
+
+  if (profile === 'demo') {
+    const redistributed = redistributeDemoEventTimeline(
+      allEvents,
+      allRegistrationOptions,
+      seedNow,
+    );
+    allEvents = redistributed.events;
+    allRegistrationOptions = redistributed.registrationOptions;
+  }
 
   consola.start(`Inserting ${allEvents.length} events`);
   const insertStart = Date.now();
@@ -466,8 +646,7 @@ export const addEvents = async (
         option,
       ): option is typeof option & {
         id: string;
-      } =>
-        option.isPaid && !option.organizingRegistration && typeof option.id === 'string',
+      } => option.isPaid && !option.organizingRegistration,
     );
     if (paidParticipantOptions.length > 0) {
       await database.insert(schema.eventRegistrationOptionDiscounts).values(

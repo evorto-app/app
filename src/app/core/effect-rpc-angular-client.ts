@@ -19,40 +19,69 @@ import { AppRpcs } from '../../shared/rpc-contracts/app-rpcs';
 const normalizeBaseUrl = (value: string): string =>
   value.endsWith('/') ? value.slice(0, -1) : value;
 
-const resolveServerBaseUrl = (): string => {
-  const processEnvironment = (
-    globalThis as {
-      process?: {
-        env?: Record<string, string | undefined>;
-      };
-    }
-  ).process?.env;
+const injectionContextErrorPattern = /\bNG0203\b/;
 
-  const configuredBaseUrl = processEnvironment?.['BASE_URL']?.trim();
-  if (configuredBaseUrl) {
-    return normalizeBaseUrl(configuredBaseUrl);
+const isMissingInjectionContextError = (error: unknown): boolean =>
+  error instanceof Error && injectionContextErrorPattern.test(error.message);
+
+interface ServerRequestLike {
+  readonly headers?: Headers;
+  readonly url: string;
+}
+
+const resolveOriginFromHeaders = (headers?: Headers): string | undefined => {
+  if (!headers) {
+    return;
   }
 
-  return 'http://localhost:4200';
+  const protocol =
+    headers.get('x-forwarded-proto')?.split(',')[0]?.trim() ??
+    headers.get('x-forwarded-protocol')?.split(',')[0]?.trim() ??
+    'http';
+  const host =
+    headers.get('x-forwarded-host')?.split(',')[0]?.trim() ??
+    headers.get('host')?.trim();
+
+  if (!host) {
+    return;
+  }
+
+  return normalizeBaseUrl(`${protocol}://${host}`);
 };
 
-const resolveRequestOrigin = (): string | undefined => {
+const resolveRequest = (): ServerRequestLike | undefined => {
   try {
     const request = inject(REQUEST, { optional: true });
     if (request && typeof request.url === 'string') {
-      return new URL(request.url).origin;
+      return request;
     }
-  } catch {
-    // Ignore missing DI context while resolving fallback URL.
+  } catch (error) {
+    if (isMissingInjectionContextError(error)) {
+      return;
+    }
+    throw error;
   }
 
   return;
 };
 
+export const resolveServerRpcOrigin = (request?: ServerRequestLike): string => {
+  if (request) {
+    try {
+      return normalizeBaseUrl(new URL(request.url).origin);
+    } catch {
+      const headerOrigin = resolveOriginFromHeaders(request.headers);
+      if (headerOrigin) {
+        return headerOrigin;
+      }
+    }
+  }
+
+  return 'http://localhost:4200';
+};
+
 export const resolveRpcUrl = (): string =>
-  'window' in globalThis
-    ? '/rpc'
-    : `${normalizeBaseUrl(resolveRequestOrigin() ?? resolveServerBaseUrl())}/rpc`;
+  'window' in globalThis ? '/rpc' : `${resolveServerRpcOrigin(resolveRequest())}/rpc`;
 
 const createAppRpcFactory = (
   rpcLayer: Layer.Layer<RpcClient.Protocol, never, never>,

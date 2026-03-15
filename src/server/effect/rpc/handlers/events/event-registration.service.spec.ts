@@ -1,12 +1,34 @@
 import * as Headers from '@effect/platform/Headers';
-import { Effect, Layer } from 'effect';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from '@effect/vitest';
+import { ConfigProvider, Effect, Layer } from 'effect';
+import Stripe from 'stripe';
 
 import { Database } from '../../../../../db';
+import { RuntimeConfig } from '../../../../config/runtime-config';
+import { StripeClient } from '../../../../stripe-client';
 import { EventRegistrationService } from './event-registration.service';
 
+const stripeClient = new Stripe('sk_test_123');
+const runtimeConfigLayer = RuntimeConfig.Default.pipe(
+  Layer.provide(
+    Layer.setConfigProvider(
+      ConfigProvider.fromMap(
+        new Map([
+          ['BASE_URL', 'https://app.example'],
+          ['CLIENT_ID', 'client-id'],
+          ['CLIENT_SECRET', 'client-secret'],
+          ['DATABASE_URL', 'postgresql://db.example/app'],
+          ['ISSUER_BASE_URL', 'https://issuer.example'],
+          ['SECRET', 'secret'],
+        ]),
+      ),
+    ),
+  ),
+);
+
 describe('EventRegistrationService', () => {
-  it('fails with conflict when user already has a registration', async () => {
+  it.effect('fails with conflict when user already has a registration', () =>
+    Effect.gen(function* () {
     const mockDatabase = {
       query: {
         eventRegistrations: {
@@ -35,13 +57,17 @@ describe('EventRegistrationService', () => {
       Effect.flip,
       Effect.provide(EventRegistrationService.Default),
       Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+      Effect.provideService(StripeClient, stripeClient),
+      Effect.provide(runtimeConfigLayer),
     );
 
-    const error = await Effect.runPromise(program);
+    const error = yield* program;
     expect(error['_tag']).toBe('EventRegistrationConflictError');
-  });
+    })
+  );
 
-  it('queries registration options with explicit projection columns', async () => {
+  it.effect('queries registration options with explicit projection columns', () =>
+    Effect.gen(function* () {
     const findRegistrationOption = vi.fn(() => Effect.succeed(null));
     const mockDatabase = {
       query: {
@@ -71,9 +97,11 @@ describe('EventRegistrationService', () => {
       Effect.flip,
       Effect.provide(EventRegistrationService.Default),
       Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+      Effect.provideService(StripeClient, stripeClient),
+      Effect.provide(runtimeConfigLayer),
     );
 
-    const error = await Effect.runPromise(program);
+    const error = yield* program;
     expect(error['_tag']).toBe('EventRegistrationNotFoundError');
     expect(findRegistrationOption).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -89,5 +117,6 @@ describe('EventRegistrationService', () => {
         }),
       }),
     );
-  });
+    })
+  );
 });

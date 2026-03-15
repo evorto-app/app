@@ -1,21 +1,29 @@
+import { afterEach, describe, expect, it, vi } from '@effect/vitest';
+import { Effect } from 'effect';
 import { DateTime } from 'luxon';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import Stripe from 'stripe';
 
+import { StripeClient } from '../stripe-client';
 import {
-  __resetStripeClientLoaderForTests,
-  __setStripeClientLoaderForTests,
   buildCheckoutSessionExpiresAt,
   buildCheckoutSessionIdempotencyKey,
   createHostedCheckoutSession,
 } from './stripe-checkout';
 
 const createSessionMock = vi.fn();
+const dummyStripeKey = 'test_stripe_key';
+
+const createStripeClient = () => {
+  const stripeClient = new Stripe(dummyStripeKey);
+  vi.spyOn(stripeClient.checkout.sessions, 'create').mockImplementation(
+    createSessionMock,
+  );
+  return stripeClient;
+};
 
 describe('stripe-checkout helpers', () => {
   afterEach(() => {
     createSessionMock.mockReset();
-    __resetStripeClientLoaderForTests();
-    vi.unstubAllEnvs();
     vi.useRealTimers();
   });
 
@@ -31,51 +39,55 @@ describe('stripe-checkout helpers', () => {
   it('derives checkout expiry from E2E_NOW_ISO when it is ahead of wall clock', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-01-15T12:00:00.000Z'));
-    vi.stubEnv('E2E_NOW_ISO', '2026-01-15T18:00:00.000Z');
 
     const expected = Math.ceil(
       DateTime.fromISO('2026-01-15T18:00:00.000Z', { zone: 'utc' })
         .plus({ minutes: 30 })
         .toSeconds(),
     );
-    expect(buildCheckoutSessionExpiresAt(30)).toBe(expected);
+    expect(
+      buildCheckoutSessionExpiresAt(30, {
+        pinnedNowIso: '2026-01-15T18:00:00.000Z',
+      }),
+    ).toBe(expected);
   });
 
   it('falls back to wall clock when E2E_NOW_ISO is in the past', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-03-01T12:00:00.000Z'));
-    vi.stubEnv('E2E_NOW_ISO', '2026-02-01T12:00:00.000Z');
 
     const expected = Math.ceil(
       DateTime.fromISO('2026-03-01T12:00:00.000Z', { zone: 'utc' })
         .plus({ minutes: 30 })
         .toSeconds(),
     );
-    expect(buildCheckoutSessionExpiresAt(30)).toBe(expected);
+    expect(
+      buildCheckoutSessionExpiresAt(30, {
+        pinnedNowIso: '2026-02-01T12:00:00.000Z',
+      }),
+    ).toBe(expected);
   });
 
   it("clamps checkout expiry to Stripe's 24-hour maximum", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-01-15T12:00:00.000Z'));
-    vi.stubEnv('E2E_NOW_ISO', '2026-01-17T18:00:00.000Z');
 
     const expected = Math.ceil(
       DateTime.fromISO('2026-01-16T12:00:00.000Z', { zone: 'utc' }).toSeconds(),
     );
-    expect(buildCheckoutSessionExpiresAt(30)).toBe(expected);
+    expect(
+      buildCheckoutSessionExpiresAt(30, {
+        pinnedNowIso: '2026-01-17T18:00:00.000Z',
+      }),
+    ).toBe(expected);
   });
 
-  it('forwards checkout payload and request options to Stripe client', async () => {
+  it.effect('forwards checkout payload and request options to Stripe client', () =>
+    Effect.gen(function* () {
     createSessionMock.mockResolvedValueOnce({ id: 'cs_test_mock' });
-    __setStripeClientLoaderForTests(async () => ({
-      checkout: {
-        sessions: {
-          create: createSessionMock,
-        },
-      },
-    }));
+    const stripeClient = createStripeClient();
 
-    const session = await createHostedCheckoutSession(
+    const session = yield* createHostedCheckoutSession(
       {
         cancel_url:
           'http://localhost:4200/events/event-1?registrationStatus=cancel',
@@ -87,7 +99,7 @@ describe('stripe-checkout helpers', () => {
         idempotencyKey: 'registration:reg_123:transaction:txn_456',
         stripeAccount: 'acct_test_123',
       },
-    );
+    ).pipe(Effect.provideService(StripeClient, stripeClient));
 
     expect(session).toEqual({ id: 'cs_test_mock' });
     expect(createSessionMock).toHaveBeenCalledWith(
@@ -99,19 +111,15 @@ describe('stripe-checkout helpers', () => {
         stripeAccount: 'acct_test_123',
       },
     );
-  });
+    })
+  );
 
-  it('surfaces Stripe client errors without requiring env configuration', async () => {
+  it.effect('surfaces Stripe client errors without requiring env configuration', () =>
+    Effect.gen(function* () {
     createSessionMock.mockRejectedValueOnce(new Error('stripe request failed'));
-    __setStripeClientLoaderForTests(async () => ({
-      checkout: {
-        sessions: {
-          create: createSessionMock,
-        },
-      },
-    }));
+    const stripeClient = createStripeClient();
 
-    await expect(
+    const error = yield* Effect.flip(
       createHostedCheckoutSession(
         {
           cancel_url:
@@ -124,7 +132,9 @@ describe('stripe-checkout helpers', () => {
           idempotencyKey: 'registration:reg_123:transaction:txn_456',
           stripeAccount: 'acct_test_123',
         },
-      ),
-    ).rejects.toThrow('stripe request failed');
-  });
+      ).pipe(Effect.provideService(StripeClient, stripeClient)),
+    );
+    expect(error.message).toBe('stripe request failed');
+    })
+  );
 });

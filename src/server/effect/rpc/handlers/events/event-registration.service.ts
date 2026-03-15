@@ -1,7 +1,8 @@
 import type { Headers } from '@effect/platform';
+import type Stripe from 'stripe';
 
 import { and, eq } from 'drizzle-orm';
-import { Effect } from 'effect';
+import { Effect, Option } from 'effect';
 
 import { Database, type DatabaseClient } from '../../../../../db';
 import { createId } from '../../../../../db/create-id';
@@ -15,6 +16,8 @@ import {
 import { resolveTenantDiscountProviders, type TenantDiscountProviders } from '../../../../../shared/tenant-config';
 import { type Tenant } from '../../../../../types/custom/tenant';
 import { type User } from '../../../../../types/custom/user';
+import { formatConfigError } from '../../../../config/config-error';
+import { serverConfig } from '../../../../config/server-config';
 import {
   buildCheckoutSessionExpiresAt,
   buildCheckoutSessionIdempotencyKey,
@@ -148,6 +151,18 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
         tenant,
         user,
       }: RegisterForEventArguments) {
+        const serverEnvironment = yield* serverConfig.pipe(
+          Effect.mapError(
+            (error) =>
+              new EventRegistrationInternalError({
+                message: `Invalid server configuration:\n${formatConfigError(error)}`,
+              }),
+          ),
+        );
+        const pinnedNowIso = Option.getOrUndefined(
+          serverEnvironment.E2E_NOW_ISO,
+        );
+
         // Phase 1: ensure this user can register (no active registration + valid option + capacity).
         const existingRegistration = yield* databaseEffect((database) =>
           database.query.eventRegistrations.findFirst({
@@ -445,52 +460,52 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
             );
           }
 
-          const session = yield* Effect.tryPromise({
-            catch: () =>
-              new EventRegistrationInternalError({
-                message: 'Failed to create stripe checkout session',
+          const checkoutLineItem: Stripe.Checkout.SessionCreateParams.LineItem = {
+            price_data: {
+              currency: tenant.currency,
+              product_data: {
+                name: `Registration fee for ${registrationOption.event.title}`,
+              },
+              unit_amount: effectivePrice,
+            },
+            ...(selectedTaxRateId
+              ? { tax_rates: [selectedTaxRateId] }
+              : {}),
+            quantity: 1,
+          };
+
+          const session = yield* createHostedCheckoutSession(
+            {
+              cancel_url: `${eventUrl}?registrationStatus=cancel`,
+              customer_email: user.email,
+              expires_at: buildCheckoutSessionExpiresAt(30, { pinnedNowIso }),
+              line_items: [checkoutLineItem],
+              metadata: {
+                registrationId: userRegistration.id,
+                tenantId: tenant.id,
+                transactionId,
+              },
+              mode: 'payment',
+              payment_intent_data: {
+                application_fee_amount: applicationFee,
+              },
+              success_url: `${eventUrl}?registrationStatus=success`,
+            },
+            {
+              idempotencyKey: buildCheckoutSessionIdempotencyKey({
+                registrationId: userRegistration.id,
+                transactionId,
               }),
-            try: () =>
-              createHostedCheckoutSession(
-                {
-                  cancel_url: `${eventUrl}?registrationStatus=cancel`,
-                  customer_email: user.email,
-                  expires_at: buildCheckoutSessionExpiresAt(30),
-                  line_items: [
-                    {
-                      price_data: {
-                        currency: tenant.currency,
-                        product_data: {
-                          name: `Registration fee for ${registrationOption.event.title}`,
-                        },
-                        unit_amount: effectivePrice,
-                      },
-                      ...(selectedTaxRateId
-                        ? { tax_rates: [selectedTaxRateId] as string[] }
-                        : {}),
-                      quantity: 1,
-                    },
-                  ],
-                  metadata: {
-                    registrationId: userRegistration.id,
-                    tenantId: tenant.id,
-                    transactionId,
-                  },
-                  mode: 'payment',
-                  payment_intent_data: {
-                    application_fee_amount: applicationFee,
-                  },
-                  success_url: `${eventUrl}?registrationStatus=success`,
-                },
-                {
-                  idempotencyKey: buildCheckoutSessionIdempotencyKey({
-                    registrationId: userRegistration.id,
-                    transactionId,
-                  }),
-                  stripeAccount,
-                },
-              ),
-          });
+              stripeAccount,
+            },
+          ).pipe(
+            Effect.mapError(
+              () =>
+                new EventRegistrationInternalError({
+                  message: 'Failed to create stripe checkout session',
+                }),
+            ),
+          );
 
           yield* databaseEffect((database) =>
             database.insert(transactions).values({

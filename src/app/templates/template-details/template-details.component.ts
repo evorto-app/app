@@ -20,6 +20,7 @@ import {
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
+import { IconComponent } from '../../shared/components/icon/icon.component';
 import { RegistrationStartOffsetPipe } from '../../shared/pipes/registration-start-offset.pipe';
 
 @Component({
@@ -31,6 +32,7 @@ import { RegistrationStartOffsetPipe } from '../../shared/pipes/registration-sta
     RouterLink,
     FontAwesomeModule,
     MatMenuModule,
+    IconComponent,
     CurrencyPipe,
     TitleCasePipe,
     MatChipsModule,

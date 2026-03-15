@@ -3,6 +3,7 @@
 ## Angular Baseline
 
 - Use standalone components (no NgModules) and do not add `standalone: true`.
+- Respect Angular strict template typing; fix template type issues at the source instead of casting around them.
 - Prefer `inject()` for DI and `providedIn: 'root'` for singleton services.
 - Use `ChangeDetectionStrategy.OnPush` for components.
 - Use signals for local state, `computed()` for derived state, and `effect()` for side effects.
@@ -35,4 +36,4 @@
 - Normalize optional string fields to `null` at submit boundaries where APIs expect `null` over empty strings.
 - Use `consola/browser` instead of `console.*`.
 - Create scoped loggers with `consola.withTag('app/<feature>')`.
-- After editing an app file, run WebStorm `get_file_problems` on that file when possible before finishing.
+- After editing an app file, run `bun run lint:fix` first and then run WebStorm `get_file_problems` on that file when possible before finishing.

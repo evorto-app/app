@@ -1,15 +1,25 @@
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 
-import { getDatabaseEnvironment } from '../server/config/environment';
+import { createNodePgPoolConfig } from './pg-connection-config';
 import { relations } from './relations';
 
-const { DATABASE_URL: databaseUrl } = getDatabaseEnvironment();
-const pool = new Pool({
-  connectionString: databaseUrl,
-});
+export const createDatabaseClient = (
+  databaseUrl: string,
+  neonLocalProxy = false,
+) => {
+  const pool = new Pool(
+    createNodePgPoolConfig({
+      databaseUrl,
+      neonLocalProxy,
+    }),
+  );
 
-export const database = drizzle({
-  client: pool,
-  relations,
-});
+  return {
+    database: drizzle({
+      client: pool,
+      relations,
+    }),
+    pool,
+  };
+};

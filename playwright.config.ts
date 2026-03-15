@@ -1,11 +1,45 @@
 import { defineConfig, devices } from '@playwright/test';
+import { ConfigError, ConfigProvider, Effect } from 'effect';
 
-import { validatePlaywrightEnvironment } from './tests/support/config/environment';
+import { formatConfigError } from './src/server/config/config-error';
+import { playwrightEnvironmentConfig } from './tests/support/config/environment';
 
-const environment = validatePlaywrightEnvironment();
-const resolvedBaseUrl =
-  environment.PLAYWRIGHT_TEST_BASE_URL ??
-  ('BASE_URL' in environment ? environment.BASE_URL : undefined);
+const environment = Effect.runSync(
+  playwrightEnvironmentConfig.pipe(
+    Effect.withConfigProvider(ConfigProvider.fromEnv()),
+    Effect.mapError(
+      (error: ConfigError.ConfigError) =>
+        new Error(
+          `Invalid Playwright e2e configuration:\n${formatConfigError(error)}`,
+        ),
+    ),
+  ),
+);
+const resolvedBaseUrl = environment.BASE_URL;
+const integrationOnlyTestTagPattern =
+  /@needs-(auth0-management|cloudflare|google-maps)\b/;
+
+const createModeProject = (
+  name: string,
+  options: {
+    dependencies: readonly string[];
+    integrationOnly: boolean;
+    testIgnore?: RegExp;
+    testMatch?: RegExp;
+    timeout?: number;
+  },
+) => ({
+  dependencies: [...options.dependencies],
+  grep: options.integrationOnly ? integrationOnlyTestTagPattern : undefined,
+  grepInvert: options.integrationOnly
+    ? undefined
+    : integrationOnlyTestTagPattern,
+  name,
+  ...(options.testIgnore ? { testIgnore: options.testIgnore } : {}),
+  ...(options.testMatch ? { testMatch: options.testMatch } : {}),
+  ...(options.timeout ? { timeout: options.timeout } : {}),
+  use: { ...devices['Desktop Chrome'], channel: 'chromium' },
+});
 
 /**
  * See https://playwright.dev/docs/test-configuration.
@@ -15,14 +49,7 @@ const webServer = (() => {
     return;
   }
 
-  const url =
-    environment.PLAYWRIGHT_TEST_BASE_URL ??
-    ('BASE_URL' in environment ? environment.BASE_URL : undefined);
-  if (!url) {
-    throw new Error(
-      'Missing base URL for Playwright webServer. Set PLAYWRIGHT_TEST_BASE_URL or BASE_URL.',
-    );
-  }
+  const url = environment.BASE_URL;
 
   return {
     command: 'bun run docker:start:test',
@@ -66,19 +93,23 @@ export default defineConfig({
       timeout: 20_000,
       use: { ...devices['Desktop Chrome'], channel: 'chromium' },
     },
-    {
+    createModeProject('docs-baseline', {
       dependencies: ['setup'],
-      name: 'docs',
+      integrationOnly: false,
       testMatch: /docs\/.*\.doc\.ts$/,
-      timeout: 60 * 1000,
-      use: { ...devices['Desktop Chrome'], channel: 'chromium' },
-    },
-    {
+      timeout: 60_000,
+    }),
+    createModeProject('local-chrome-baseline', {
       dependencies: ['setup'],
-      name: 'local-chrome',
+      integrationOnly: false,
       testIgnore: /docs\/.*\.doc\.ts$/,
-      use: { ...devices['Desktop Chrome'], channel: 'chromium' },
-    },
+    }),
+    createModeProject('docs-integration', {
+      dependencies: ['setup'],
+      integrationOnly: true,
+      testMatch: /docs\/.*\.doc\.ts$/,
+      timeout: 60_000,
+    }),
     // {
     //   dependencies: ['setup'],
     //   name: 'chromium',

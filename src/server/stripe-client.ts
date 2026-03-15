@@ -1,7 +1,21 @@
+import { Context, Effect, Layer } from 'effect';
 import Stripe from 'stripe';
 
-import { getStripeApiEnvironment } from './config/environment';
+import { stripeApiConfig } from '@server/config/stripe-config';
 
-const { STRIPE_API_KEY: stripeApiKey } = getStripeApiEnvironment();
+const STRIPE_API_VERSION: Stripe.LatestApiVersion = '2026-02-25.clover';
 
-export const stripe = new Stripe(stripeApiKey);
+export class StripeClient extends Context.Tag('@server/StripeClient')<
+  StripeClient,
+  Stripe
+>() {}
+
+export const stripeClientLayer = Layer.effect(
+  StripeClient,
+  stripeApiConfig.pipe(
+    Effect.map(
+      ({ STRIPE_API_KEY }) =>
+        new Stripe(STRIPE_API_KEY, { apiVersion: STRIPE_API_VERSION }),
+    ),
+  ),
+);

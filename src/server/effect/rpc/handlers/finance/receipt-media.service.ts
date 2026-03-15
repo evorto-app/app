@@ -1,6 +1,7 @@
-import { Effect } from 'effect';
+import { formatConfigError } from '@server/config/config-error';
+import { objectStorageConfig } from '@server/config/object-storage-config';
+import { ConfigError, Effect } from 'effect';
 
-import { getObjectStorageEnvironment } from '../../../../config/environment';
 import {
   getSignedReceiptObjectUrlFromR2,
   uploadReceiptOriginalToR2,
@@ -28,16 +29,21 @@ const sanitizeFileName = (fileName: string): string =>
     .replaceAll(/[^A-Za-z0-9._-]+/g, '-')
     .slice(0, 120) || 'receipt';
 
-const isObjectStorageConfigured = () => {
-  try {
-    getObjectStorageEnvironment();
-    return true;
-  } catch {
-    return false;
-  }
-};
+const isObjectStorageConfigured = objectStorageConfig.pipe(
+  Effect.as(true),
+  Effect.catchIf(ConfigError.isConfigError, (error) =>
+    Effect.logWarning('Object storage configuration unavailable').pipe(
+      Effect.annotateLogs({
+        error: formatConfigError(error),
+      }),
+      Effect.as(false),
+    ),
+  ),
+);
 
-export const withSignedReceiptPreviewUrl = <T extends ReceiptWithStoragePreview>(
+export const withSignedReceiptPreviewUrl = <
+  T extends ReceiptWithStoragePreview,
+>(
   receipt: T,
 ): Effect.Effect<T> =>
   Effect.gen(function* () {
@@ -52,17 +58,20 @@ export const withSignedReceiptPreviewUrl = <T extends ReceiptWithStoragePreview>
     }
 
     const receiptStorageKey = receipt.attachmentStorageKey as string;
-    const signedPreviewUrl = yield* Effect.tryPromise({
-      catch: () =>
-        new ReceiptMediaInternalError({
-          message: 'Failed to sign receipt preview URL',
-        }),
-      try: () =>
-        getSignedReceiptObjectUrlFromR2({
-          expiresInSeconds: RECEIPT_PREVIEW_SIGNED_URL_TTL_SECONDS,
-          key: receiptStorageKey,
-        }),
-    }).pipe(Effect.orElseSucceed(() => null));
+    const signedPreviewUrl = yield* getSignedReceiptObjectUrlFromR2({
+      expiresInSeconds: RECEIPT_PREVIEW_SIGNED_URL_TTL_SECONDS,
+      key: receiptStorageKey,
+    }).pipe(
+      Effect.tapError((error) =>
+        Effect.logWarning('Failed to sign receipt preview URL').pipe(
+          Effect.annotateLogs({
+            error: error instanceof Error ? error.message : String(error),
+            receiptStorageKey,
+          }),
+        ),
+      ),
+      Effect.orElseSucceed(() => null),
+    );
 
     return {
       ...receipt,
@@ -70,7 +79,9 @@ export const withSignedReceiptPreviewUrl = <T extends ReceiptWithStoragePreview>
     } as T;
   });
 
-export const withSignedReceiptPreviewUrls = <T extends ReceiptWithStoragePreview>(
+export const withSignedReceiptPreviewUrls = <
+  T extends ReceiptWithStoragePreview,
+>(
   receipts: readonly T[],
 ): Effect.Effect<readonly T[]> =>
   Effect.forEach(receipts, (receipt) => withSignedReceiptPreviewUrl(receipt), {
@@ -132,23 +143,28 @@ export class ReceiptMediaService extends Effect.Service<ReceiptMediaService>()(
             `${Date.now()}-${safeFileName}`,
           ].join('/');
 
-          const uploaded = yield* Effect.tryPromise({
-            catch: () =>
-              new ReceiptMediaInternalError({ message: 'Failed to upload file' }),
-            try: () =>
-              uploadReceiptOriginalToR2({
-                body,
-                contentType: mimeType,
-                key: storageKey,
-              }),
+          const uploaded = yield* uploadReceiptOriginalToR2({
+            body,
+            contentType: mimeType,
+            key: storageKey,
           }).pipe(
+            Effect.mapError(
+              () =>
+                new ReceiptMediaInternalError({
+                  message: 'Failed to upload file',
+                }),
+            ),
             Effect.catchAll((error) =>
-              isObjectStorageConfigured()
-                ? Effect.fail(error)
-                : Effect.succeed({
-                    storageKey: `${LOCAL_RECEIPT_STORAGE_KEY_PREFIX}${storageKey}`,
-                    storageUrl: 'local-unavailable://receipt',
-                  }),
+              isObjectStorageConfigured.pipe(
+                Effect.flatMap((configured) =>
+                  configured
+                    ? Effect.fail(error)
+                    : Effect.succeed({
+                        storageKey: `${LOCAL_RECEIPT_STORAGE_KEY_PREFIX}${storageKey}`,
+                        storageUrl: 'local-unavailable://receipt',
+                      }),
+                ),
+              ),
             ),
           );
 

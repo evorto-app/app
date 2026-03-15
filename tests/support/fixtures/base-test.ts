@@ -2,7 +2,10 @@ import { randFirstName, randLastName } from '@ngneat/falso';
 import { init } from '@paralleldrive/cuid2';
 import { test as base } from '@playwright/test';
 import { ManagementClient } from 'auth0';
+import { createNodePgPoolConfig } from '@db/pg-connection-config';
+import { relations } from '@db/relations';
 import { drizzle, NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { ConfigError, ConfigProvider, Effect, Option } from 'effect';
 import fs from 'node:fs';
 import { DateTime } from 'luxon';
 import path from 'node:path';
@@ -10,26 +13,40 @@ import { Pool } from 'pg';
 
 import { getSeedDate } from '../../../helpers/seed-clock';
 import { seedFalsoForScope } from '../../../helpers/seed-falso';
-import { relations } from '../../../src/db/relations';
+import { formatConfigError } from '../../../src/server/config/config-error';
 import {
-  getAuth0ManagementEnvironment,
-  validatePlaywrightEnvironment,
+  auth0ManagementEnvironment,
+  playwrightEnvironmentConfig,
 } from '../config/environment';
 
 const dedupeLength = 4;
 const createDedupeId = init({ length: dedupeLength });
-const environment = validatePlaywrightEnvironment();
+const runtimeConfigProvider = ConfigProvider.fromEnv();
+const environment = Effect.runSync(
+  playwrightEnvironmentConfig.pipe(
+    Effect.withConfigProvider(runtimeConfigProvider),
+    Effect.mapError(
+      (error: ConfigError.ConfigError) =>
+        new Error(
+          `Invalid Playwright e2e configuration:\n${formatConfigError(error)}`,
+        ),
+    ),
+  ),
+);
+const auth0Environment = Effect.runSync(
+  auth0ManagementEnvironment.pipe(
+    Effect.withConfigProvider(runtimeConfigProvider),
+    Effect.mapError(
+      (error: ConfigError.ConfigError) =>
+        new Error(
+          `Invalid e2e auth configuration:\n${formatConfigError(error)}`,
+        ),
+    ),
+  ),
+);
 process.env['E2E_NOW_ISO'] ??= environment.E2E_NOW_ISO;
 process.env['E2E_SEED_KEY'] ??= environment.E2E_SEED_KEY;
 const databaseUrl = environment.DATABASE_URL;
-const databaseConnectionUrl = new URL(databaseUrl);
-const databaseHost = databaseConnectionUrl.hostname;
-const isLocalDatabaseHost =
-  databaseHost === 'localhost' || databaseHost === '127.0.0.1';
-if (isLocalDatabaseHost) {
-  databaseConnectionUrl.searchParams.set('sslmode', 'disable');
-}
-const resolvedDatabaseUrl = databaseConnectionUrl.toString();
 
 interface BaseFixtures {
   database: NodePgDatabase<Record<string, never>, typeof relations>;
@@ -47,9 +64,12 @@ interface BaseFixtures {
 
 export const test = base.extend<BaseFixtures>({
   database: async ({}, use) => {
-    const pool = new Pool({
-      connectionString: resolvedDatabaseUrl,
-    });
+    const pool = new Pool(
+      createNodePgPoolConfig({
+        databaseUrl,
+        neonLocalProxy: environment.NEON_LOCAL_PROXY,
+      }),
+    );
     const database = drizzle({
       client: pool,
       relations,
@@ -74,7 +94,6 @@ export const test = base.extend<BaseFixtures>({
     { auto: true },
   ],
   newUser: async ({}, use) => {
-    const auth0Environment = getAuth0ManagementEnvironment();
     const auth0 = new ManagementClient({
       clientId: auth0Environment.AUTH0_MANAGEMENT_CLIENT_ID,
       clientSecret: auth0Environment.AUTH0_MANAGEMENT_CLIENT_SECRET,
@@ -113,7 +132,7 @@ export const test = base.extend<BaseFixtures>({
       }
       const realDate = Date;
       class FixedDate extends realDate {
-        constructor(...args: any[]) {
+        constructor(...args: [] | ConstructorParameters<typeof realDate>) {
           if (args.length === 0) {
             super(value);
             return;
@@ -121,7 +140,7 @@ export const test = base.extend<BaseFixtures>({
           super(...args);
         }
 
-        static now() {
+        static override now() {
           return value;
         }
       }
@@ -174,7 +193,7 @@ export const test = base.extend<BaseFixtures>({
         return;
       }
     } catch {}
-    await use(environment.TENANT_DOMAIN);
+    await use(Option.getOrUndefined(environment.TENANT_DOMAIN));
   },
   testClock: [
     async ({ seedDate }, use) => {

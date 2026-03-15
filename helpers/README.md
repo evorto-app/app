@@ -47,8 +47,9 @@ The seeding approach is deterministic, but not every profile has the same goal:
    - Playwright defaults both values in code, so normal test runs do not need extra env wiring.
 
 4. **Deterministic Events**
-   - Fixed number of events per template type (3 events × 6 template types = ~18 total events)
-   - Events are created relative to the seeded clock
+   - Fixed number of events per template type
+   - `demo` keeps the richer local dataset to roughly 50 events and spreads approved, draft, and pending-review states across a more gradual timeline
+   - `test` and `docs` keep the smaller stable schedule that backs scenario handles
    - Deterministic assignment of status, visibility, and creator
    - Template selection is based on stable `seedKey` metadata, not title matching
 
@@ -67,8 +68,15 @@ bun run db:reset
 
 This will:
 
-1. Generate the local runtime environment (`bun run env:runtime`)
+1. Generate `.env.runtime` with `bun run env:runtime` and re-run it whenever local runtime settings change, such as changing local ports or renaming the local project, so Docker and Playwright keep isolated ports/project naming
 2. Ensure schema exists and reset/seed the local database (`bun run db:setup`)
+
+`bun run db:setup` now uses the same explicit dotenv loading as `db:push`. In CI, `.env.ci` is loaded first because `dotenv-cli` is first-wins here. For local runs, `.env.runtime` is loaded before `.env.local` and `.env`, so a present `.env.runtime` overrides the checked-in baseline env files and points the reset at the local Neon Local proxy. `bun run db:studio` uses the same chain. We keep the explicit `-e` list instead of `dotenv -c` because this repo needs `.env.local` to beat `.env`, and `dotenv-cli`'s cascade mode does not preserve that precedence here.
+Bun also implicitly loads `.env.local` and `.env`, which is why the scripts keep using explicit `dotenv-cli -e` precedence instead of relying on Bun defaults.
+
+The Neon Local container does not emit every proxied query in its default logging configuration, so `docker logs` staying quiet during `db:reset` does not mean the reset missed Docker.
+
+Docker Compose now also runs a one-shot `db-setup` container before `evorto` starts. That service pushes schema and resets/seeds the Docker database on every stack start, and local Neon branches are configured to be deleted automatically on shutdown.
 
 ## Modifying the Seeding Process
 

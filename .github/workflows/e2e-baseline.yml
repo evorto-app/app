@@ -18,20 +18,21 @@ jobs:
     env:
       FONT_AWESOME_TOKEN: ${{ secrets.FONT_AWESOME_TOKEN }}
       CI: true
+      E2E_MODE: baseline
       APP_HOST_PORT: 4200
       BASE_URL: http://localhost:4200
       APP_READY_PATH: /robots.txt
-      PLAYWRIGHT_TEST_BASE_URL: http://localhost:4200
       COMPOSE_PROJECT_NAME: evorto-ci
+      DELETE_BRANCH: true
       NEON_DATABASE_NAME: appdb
       NEON_LOCAL_HOST_PORT: 55432
+      NEON_LOCAL_METADATA_DIR: /tmp/neon-local-metadata
       NEON_LOCAL_PROXY: true
       NO_WEBSERVER: true
-      DATABASE_URL: postgresql://neon:npg@localhost:55432/appdb?sslmode=disable
+      DATABASE_URL: postgresql://neon:npg@localhost:55432/appdb?sslmode=require
       NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
       NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
-      AUTH0_MANAGEMENT_CLIENT_ID: ${{ secrets.AUTH0_MANAGEMENT_CLIENT_ID }}
-      AUTH0_MANAGEMENT_CLIENT_SECRET: ${{ secrets.AUTH0_MANAGEMENT_CLIENT_SECRET }}
+      PARENT_BRANCH_ID: ${{ secrets.PARENT_BRANCH_ID }}
       CLIENT_ID: ${{ secrets.CLIENT_ID }}
       CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
       STRIPE_API_KEY: ${{ secrets.STRIPE_API_KEY }}
@@ -42,10 +43,6 @@ jobs:
       S3_ENDPOINT: http://minio:9000
       S3_REGION: us-east-1
       S3_SECRET_ACCESS_KEY: minioadmin
-      CLOUDFLARE_TOKEN: ${{ secrets.CLOUDFLARE_TOKEN }}
-      CLOUDFLARE_IMAGES_API_TOKEN: ${{ secrets.CLOUDFLARE_IMAGES_API_TOKEN }}
-      PARENT_BRANCH_ID: ${{ secrets.PARENT_BRANCH_ID }}
-
     steps:
       - name: Checkout repository
         # Use sparse-checkout false to ensure .env and Docker context are available
@@ -74,6 +71,14 @@ jobs:
             echo "::error::Missing required Stripe connected account id. Set STRIPE_TEST_ACCOUNT_ID as a secret or repository variable."
             exit 1
           fi
+          if [ -z "${CLIENT_SECRET}" ]; then
+            echo "::error::Missing required secret: CLIENT_SECRET"
+            exit 1
+          fi
+          if [ -z "${STRIPE_API_KEY}" ]; then
+            echo "::error::Missing required secret: STRIPE_API_KEY"
+            exit 1
+          fi
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
@@ -81,33 +86,11 @@ jobs:
       - name: Install Playwright browsers
         run: bunx playwright install --with-deps
 
-      - name: Write CI env files
+      - name: Prepare Neon Local metadata directory
         run: |
-          cat > .env <<EOF
-          DATABASE_URL=${DATABASE_URL}
-          NEON_LOCAL_PROXY=${NEON_LOCAL_PROXY}
-          NEON_DATABASE_NAME=${NEON_DATABASE_NAME}
-          NEON_API_KEY=${NEON_API_KEY}
-          NEON_PROJECT_ID=${NEON_PROJECT_ID}
-          AUTH0_MANAGEMENT_CLIENT_ID=${AUTH0_MANAGEMENT_CLIENT_ID}
-          AUTH0_MANAGEMENT_CLIENT_SECRET=${AUTH0_MANAGEMENT_CLIENT_SECRET}
-          CLIENT_ID=${CLIENT_ID}
-          CLIENT_SECRET=${CLIENT_SECRET}
-          STRIPE_API_KEY=${STRIPE_API_KEY}
-          STRIPE_TEST_ACCOUNT_ID=${STRIPE_TEST_ACCOUNT_ID}
-          STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
-          S3_ACCESS_KEY_ID=${S3_ACCESS_KEY_ID}
-          S3_BUCKET=${S3_BUCKET}
-          S3_ENDPOINT=${S3_ENDPOINT}
-          S3_REGION=${S3_REGION}
-          S3_SECRET_ACCESS_KEY=${S3_SECRET_ACCESS_KEY}
-          CLOUDFLARE_TOKEN=${CLOUDFLARE_TOKEN}
-          CLOUDFLARE_IMAGES_API_TOKEN=${CLOUDFLARE_IMAGES_API_TOKEN}
-          PARENT_BRANCH_ID=${PARENT_BRANCH_ID}
-          BASE_URL=${BASE_URL}
-          PLAYWRIGHT_TEST_BASE_URL=${PLAYWRIGHT_TEST_BASE_URL}
-          EOF
-          cp .env .env.development
+          rm -rf "${NEON_LOCAL_METADATA_DIR}"
+          mkdir -p "${NEON_LOCAL_METADATA_DIR}"
+          chmod 0755 "${NEON_LOCAL_METADATA_DIR}"
 
       - name: Pull Docker images (compose)
         run: docker compose pull
@@ -120,7 +103,7 @@ jobs:
           docker compose down --remove-orphans
           docker compose up -d db minio stripe minio-init
           for attempt in $(seq 1 60); do
-            if docker compose exec -T db pg_isready -U neon -d "${NEON_DATABASE_NAME}" >/dev/null 2>&1; then
+            if docker compose exec -T db pg_isready -h 127.0.0.1 -p 5432 -U neon -d "${NEON_DATABASE_NAME}" >/dev/null 2>&1; then
               echo "Database is reachable"
               exit 0
             fi
@@ -167,11 +150,11 @@ jobs:
             trap cleanup EXIT
           fi
 
-          bun run test:e2e --project=local-chrome
+          bun run test:e2e
 
           DOCS_OUT_DIR=test-results/docs \
           DOCS_IMG_OUT_DIR=test-results/docs/images \
-          bunx playwright test --project=docs --grep-invert "@finance" \
+          bunx playwright test --project=docs-baseline --grep-invert "@finance" \
             --reporter=github,dot,./tests/support/reporters/documentation-reporter.ts
 
       - name: Collect Docker logs

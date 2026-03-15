@@ -1,6 +1,7 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from '@effect/vitest';
+import { ConfigProvider, Effect, Layer } from 'effect';
 
-import { getObjectStorageEnvironment } from '../config/environment';
+import { objectStorageConfig } from '../config/object-storage-config';
 import {
   getSignedReceiptObjectUrlFromR2,
   uploadReceiptOriginalToR2,
@@ -12,80 +13,56 @@ const runtimeGlobal = globalThis as typeof globalThis & {
   };
 };
 
-runtimeGlobal.Bun ??= {};
-const bunRuntime = runtimeGlobal.Bun as {
+const originalBunRuntime = runtimeGlobal.Bun;
+const bunRuntime = (runtimeGlobal.Bun ??= {}) as {
   S3Client?: unknown;
 };
 const originalS3Client = bunRuntime.S3Client;
-const originalObjectStorageEnvironment = {
-  S3_ACCESS_KEY_ID: process.env['S3_ACCESS_KEY_ID'],
-  S3_BUCKET: process.env['S3_BUCKET'],
-  S3_ENDPOINT: process.env['S3_ENDPOINT'],
-  S3_REGION: process.env['S3_REGION'],
-  S3_SECRET_ACCESS_KEY: process.env['S3_SECRET_ACCESS_KEY'],
-} as const;
-
-beforeEach(() => {
-  process.env['S3_ENDPOINT'] = 'https://s3.example.test';
-  process.env['S3_REGION'] = 'auto';
-  process.env['S3_BUCKET'] = 'test-bucket';
-  process.env['S3_ACCESS_KEY_ID'] = 'test-key';
-  process.env['S3_SECRET_ACCESS_KEY'] = 'test-secret';
-});
 
 afterEach(() => {
+  runtimeGlobal.Bun = bunRuntime;
+
+  if (originalBunRuntime) {
+    originalBunRuntime.S3Client = originalS3Client;
+    runtimeGlobal.Bun = originalBunRuntime;
+    return;
+  }
+
   bunRuntime.S3Client = originalS3Client;
-
-  if (originalObjectStorageEnvironment.S3_ACCESS_KEY_ID) {
-    process.env['S3_ACCESS_KEY_ID'] =
-      originalObjectStorageEnvironment.S3_ACCESS_KEY_ID;
-  } else {
-    delete process.env['S3_ACCESS_KEY_ID'];
-  }
-
-  if (originalObjectStorageEnvironment.S3_BUCKET) {
-    process.env['S3_BUCKET'] = originalObjectStorageEnvironment.S3_BUCKET;
-  } else {
-    delete process.env['S3_BUCKET'];
-  }
-
-  if (originalObjectStorageEnvironment.S3_ENDPOINT) {
-    process.env['S3_ENDPOINT'] = originalObjectStorageEnvironment.S3_ENDPOINT;
-  } else {
-    delete process.env['S3_ENDPOINT'];
-  }
-
-  if (originalObjectStorageEnvironment.S3_REGION) {
-    process.env['S3_REGION'] = originalObjectStorageEnvironment.S3_REGION;
-  } else {
-    delete process.env['S3_REGION'];
-  }
-
-  if (originalObjectStorageEnvironment.S3_SECRET_ACCESS_KEY) {
-    process.env['S3_SECRET_ACCESS_KEY'] =
-      originalObjectStorageEnvironment.S3_SECRET_ACCESS_KEY;
-  } else {
-    delete process.env['S3_SECRET_ACCESS_KEY'];
-  }
 });
 
 describe('cloudflare-r2', () => {
+  const objectStorageProvider = ConfigProvider.fromMap(
+    new Map([
+      ['S3_ACCESS_KEY_ID', 'test-key'],
+      ['S3_BUCKET', 'test-bucket'],
+      ['S3_ENDPOINT', 'https://s3.example.test'],
+      ['S3_REGION', 'auto'],
+      ['S3_SECRET_ACCESS_KEY', 'test-secret'],
+    ]),
+  );
+
   it('fails when Bun.S3Client is unavailable', async () => {
     bunRuntime.S3Client = undefined;
 
     await expect(
+      Effect.runPromise(
       uploadReceiptOriginalToR2({
         body: new Uint8Array([1, 2, 3]),
         contentType: 'image/png',
         key: 'receipts/missing.png',
-      }),
+      }).pipe(Effect.provide(Layer.setConfigProvider(objectStorageProvider))),
+      ),
     ).rejects.toThrow(
       'Bun runtime is required for object storage operations.',
     );
   });
 
-  it('uploads with Bun.S3Client and returns deterministic storage metadata', async () => {
-    const environment = getObjectStorageEnvironment();
+  it.effect('uploads with Bun.S3Client and returns deterministic storage metadata', () =>
+    Effect.gen(function* () {
+    const environment = yield* objectStorageConfig.pipe(
+      Effect.withConfigProvider(objectStorageProvider),
+    );
     const write = vi.fn(async () => 3);
     const presign = vi.fn(() => 'https://signed.example.com/object');
     const captured = {
@@ -125,11 +102,11 @@ describe('cloudflare-r2', () => {
 
     bunRuntime.S3Client = FakeS3Client;
 
-    const result = await uploadReceiptOriginalToR2({
+    const result = yield* uploadReceiptOriginalToR2({
       body: new Uint8Array([1, 2, 3]),
       contentType: 'image/png',
       key: 'receipts/example.png',
-    });
+    }).pipe(Effect.provide(Layer.setConfigProvider(objectStorageProvider)));
 
     expect(captured.config).toEqual({
       accessKeyId: environment.accessKeyId,
@@ -147,9 +124,11 @@ describe('cloudflare-r2', () => {
       storageKey: 'receipts/example.png',
       storageUrl: `${environment.endpoint.replace(/\/$/, '')}/${environment.bucket}/receipts/example.png`,
     });
-  });
+    })
+  );
 
-  it('presigns receipt objects with default and custom expiry', async () => {
+  it.effect('presigns receipt objects with default and custom expiry', () =>
+    Effect.gen(function* () {
     const presign = vi.fn(() => 'https://signed.example.com/object');
 
     class FakeS3Client {
@@ -163,13 +142,13 @@ describe('cloudflare-r2', () => {
 
     bunRuntime.S3Client = FakeS3Client;
 
-    const defaultUrl = await getSignedReceiptObjectUrlFromR2({
+    const defaultUrl = yield* getSignedReceiptObjectUrlFromR2({
       key: 'receipts/default.pdf',
-    });
-    const customUrl = await getSignedReceiptObjectUrlFromR2({
+    }).pipe(Effect.provide(Layer.setConfigProvider(objectStorageProvider)));
+    const customUrl = yield* getSignedReceiptObjectUrlFromR2({
       expiresInSeconds: 30,
       key: 'receipts/custom.pdf',
-    });
+    }).pipe(Effect.provide(Layer.setConfigProvider(objectStorageProvider)));
 
     expect(defaultUrl).toBe('https://signed.example.com/object');
     expect(customUrl).toBe('https://signed.example.com/object');
@@ -183,5 +162,6 @@ describe('cloudflare-r2', () => {
       expiresIn: 30,
       method: 'GET',
     });
-  });
+    })
+  );
 });

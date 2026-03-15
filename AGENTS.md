@@ -15,11 +15,14 @@
 - Tests: unit tests as `*.spec.ts` in `src/**`; Playwright tests in `tests/**`; legacy reference in `e2e/**`.
 - Assets/public: `public/`; theming in `src/styles.scss` and `_theme-colors.scss`.
 
-Module-local guidance lives in:
+Start with the nearest applicable module guidance:
+
 - `src/app/AGENTS.md`
 - `src/server/AGENTS.md`
 - `src/db/AGENTS.md`
 - `tests/AGENTS.md`
+
+More specific guidance also exists deeper in some subtrees (for example `src/server/config/AGENTS.md`).
 
 ## Build, Test, and Development Commands
 
@@ -36,8 +39,8 @@ Module-local guidance lives in:
 ## Type Safety (Always Full Types)
 
 - End-to-end types are mandatory.
-- Server boundaries must use Effect `Schema` for validated input/output.
 - Prefer inferred/derived types from Drizzle schema and Effect schema outputs.
+- Prefer TypeScript return type inference for functions. Add an explicit return type only when it is genuinely needed for clarity, API boundaries, overloads, recursion, or to prevent an incorrect inferred type from escaping.
 - Avoid `any`, unchecked `as`, and `unknown` without narrowing.
 - Do not use `unknown as ...` (or similar cast bypasses) to force client types to compile; fix the source type contract/runtime mismatch instead.
 
@@ -50,16 +53,16 @@ Module-local guidance lives in:
 
 ## Conventions
 
-- TypeScript strict mode and Angular strict templates are enforced.
+- TypeScript strict mode is enforced.
 - Indentation: 2 spaces; filenames `kebab-case.ts`; symbols `camelCase` and `PascalCase`.
 - Prefer path aliases: `@app/*`, `@server/*`, `@db/*`, `@shared/*`, `@types/*`.
+- For Effect reference and usage patterns, consult the local Effect source at `/Users/hedde/code/effect` when behavior or recommended composition is unclear.
 - Run `bun run lint:fix` before `bun run lint:check`.
 
 ## Testing Guidelines
 
 - Keep unit tests deterministic and close to source files.
 - Use Playwright tests in `tests/**` as the active e2e suite.
-- When touching schema or auth/runtime paths, include local verification notes.
 
 ## Commit & Pull Request Guidelines
 
@@ -70,14 +73,18 @@ Module-local guidance lives in:
 ## Git Workflow
 
 - Use Git Town commands for branch management and shipping.
+- For substantial work in a new worktree created from `main`, immediately run `git town hack <branch-name>` in that worktree before making commits.
+- For large multi-phase work, keep an assembly branch plus one reviewable child branch per phase or slice.
+- Create stacked child branches with `git town append <branch-name>` from the current assembly branch or stack tip.
+- Run `git town sync --stack` before starting work and again before proposing review so parent branches stay current.
+- Open PRs with `git town propose` so each branch targets its parent branch in the stack instead of manually selecting a base.
 
 ## Security & Configuration
 
 - Never commit secrets.
-- Bun loads `.env.local` and `.env` automatically.
-- In CI, provide explicit env files in workflow steps rather than runtime dotenv wiring.
+- In CI, do not rely on generated env artifacts. Use checked-in baseline env files such as `.env.ci` where applicable, and provide CI-specific configuration via explicit environment variables.
 
 ## Agent Editing Workflow
 
-- After editing a file, run WebStorm `get_file_problems` on that file when possible before finishing.
+- After editing a file, run `bun run lint:fix` first and then run WebStorm `get_file_problems` on that file when possible before finishing.
 - WebStorm MCP tools are available; prefer sequential `get_file_problems` checks (parallel runs can timeout).

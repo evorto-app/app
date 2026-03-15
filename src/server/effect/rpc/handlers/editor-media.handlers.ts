@@ -72,16 +72,23 @@ export const editorMediaHandlers = {
           return yield* Effect.fail('BAD_REQUEST' as const);
         }
 
-        return yield* Effect.tryPromise({
-          catch: () => 'INTERNAL_SERVER_ERROR' as const,
-          try: () =>
-            createCloudflareImageDirectUpload({
-              fileName: input.fileName,
-              mimeType: input.mimeType,
-              source: 'editor',
-              tenantId: tenant.id,
-              uploadedByUserId: user.id,
-            }),
-        });
+        return yield* createCloudflareImageDirectUpload({
+          fileName: input.fileName,
+          mimeType: input.mimeType,
+          source: 'editor',
+          tenantId: tenant.id,
+          uploadedByUserId: user.id,
+        }).pipe(
+          Effect.tapError((error) =>
+            Effect.logError('Cloudflare image direct upload initialization failed').pipe(
+              Effect.annotateLogs({
+                error: error instanceof Error ? error.message : String(error),
+                tenantId: tenant.id,
+                userId: user.id,
+              }),
+            ),
+          ),
+          Effect.mapError(() => 'INTERNAL_SERVER_ERROR' as const),
+        );
       }),
 } satisfies Partial<AppRpcHandlers>;

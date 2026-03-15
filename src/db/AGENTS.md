@@ -5,7 +5,7 @@
 - Keep migrations explicit and committed when schema changes.
 - Avoid `any`/unchecked casts in query helpers.
 - When changing schema or constraints, document required local reset/setup steps in track/handoff docs.
-- After editing a DB file, run WebStorm `get_file_problems` on that file when possible before finishing.
+- After editing a DB file, run `bun run lint:fix` first and then run WebStorm `get_file_problems` on that file when possible before finishing.
 
 ## Drizzle Relations v2 Schema Design Notes
 

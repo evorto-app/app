@@ -10,13 +10,9 @@ import {
   KeyValueStore,
   Path,
 } from '@effect/platform';
-import {
-  BunFileSystem,
-  BunHttpServer,
-  BunRuntime,
-} from '@effect/platform-bun';
+import { BunFileSystem, BunHttpServer, BunRuntime } from '@effect/platform-bun';
 import * as Sentry from '@sentry/bun';
-import { Effect, Context as EffectContext, Layer } from 'effect';
+import { Effect, Context as EffectContext, Fiber, Layer, Option } from 'effect';
 
 import { databaseLayer } from './db';
 import {
@@ -27,11 +23,15 @@ import {
   loadAuthSession,
   toAbsoluteRequestUrl,
 } from './server/auth/auth-session';
-import { getServerPort } from './server/config/environment';
-import { resolveHttpRequestContext } from './server/context/http-request-context';
+import { formatConfigError } from './server/config/config-error';
+import { makeRuntimeConfigProvider } from './server/config/provider';
+import { RuntimeConfig } from './server/config/runtime-config';
 import {
-  toRpcHttpServerRequest,
-} from './server/effect/rpc/app-rpcs.request-handler';
+  serverNetworkConfig,
+  serverTelemetryConfig,
+} from './server/config/server-config';
+import { resolveHttpRequestContext } from './server/context/http-request-context';
+import { toRpcHttpServerRequest } from './server/effect/rpc/app-rpcs.request-handler';
 import {
   appRpcHttpAppLayer,
   handleAppRpcHttpRequest,
@@ -41,6 +41,7 @@ import { handleHealthzWebRequest } from './server/http/healthz.web-handler';
 import { handleQrRegistrationCodeWebRequest } from './server/http/qr-code.web-handler';
 import { applySecurityHeaders } from './server/http/security-headers';
 import { handleStripeWebhookWebRequest } from './server/http/stripe-webhook.web-handler';
+import { stripeClientLayer } from './server/stripe-client';
 
 const angularApp = new AngularAppEngine();
 const browserDistributionUrl = new URL('../browser/', import.meta.url);
@@ -48,7 +49,7 @@ const cacheControlHeader = 'public, max-age=31536000';
 const keyValueStoreDirectory = '.cache/evorto/server-kv';
 const notFoundServerResponse = HttpServerResponse.empty({ status: 404 });
 
-const sanitizeRedirectPath = (value: null | string): string | undefined => {
+const sanitizeRedirectPath = (value: null | string) => {
   if (!value) {
     return;
   }
@@ -64,10 +65,10 @@ const sanitizeRedirectPath = (value: null | string): string | undefined => {
   return value;
 };
 
-const isStaticMethod = (method: string): boolean =>
+const isStaticMethod = (method: string) =>
   method === 'GET' || method === 'HEAD';
 
-const safeDecodePath = (pathname: string): string | undefined => {
+const safeDecodePath = (pathname: string) => {
   try {
     return decodeURIComponent(pathname);
   } catch {
@@ -138,7 +139,7 @@ const tryServeStatic = (request: HttpServerRequest.HttpServerRequest) =>
 
 const extractRegistrationId = (
   request: HttpServerRequest.HttpServerRequest,
-): string | undefined => {
+) => {
   const requestUrl = toAbsoluteRequestUrl(request);
   const match = /^\/qr\/registration\/([^/]+)$/.exec(requestUrl.pathname);
   if (!match?.[1]) {
@@ -155,7 +156,10 @@ const extractRegistrationId = (
 const renderSsr = (request: HttpServerRequest.HttpServerRequest) =>
   Effect.gen(function* () {
     const authSession = yield* loadAuthSession(request);
-    const requestContext = yield* resolveHttpRequestContext(request, authSession);
+    const requestContext = yield* resolveHttpRequestContext(
+      request,
+      authSession,
+    );
 
     const webRequest = yield* HttpServerRequest.toWeb(request);
     const renderedResponse = yield* Effect.tryPromise(() =>
@@ -238,7 +242,10 @@ const stripeWebhookRouteLayer = HttpLayerRouter.add(
 const rpcRouteLayer = HttpLayerRouter.add('POST', '/rpc', (request) =>
   Effect.gen(function* () {
     const authSession = yield* loadAuthSession(request);
-    const requestContext = yield* resolveHttpRequestContext(request, authSession);
+    const requestContext = yield* resolveHttpRequestContext(
+      request,
+      authSession,
+    );
 
     const webRequest = yield* HttpServerRequest.toWeb(request);
     const rpcRequest = yield* toRpcHttpServerRequest(
@@ -287,7 +294,7 @@ const routesLayer = Layer.mergeAll(
 
 const createInternalErrorResponse = (
   request: HttpServerRequest.HttpServerRequest,
-): HttpServerResponse.HttpServerResponse => {
+) => {
   const acceptHeader = request.headers['accept'] ?? '';
   if (typeof acceptHeader === 'string' && acceptHeader.includes('text/html')) {
     return HttpServerResponse.redirect('/500', { status: 303 });
@@ -315,7 +322,11 @@ const withSsrFallback = <E, R>(
           Effect.annotateLogs({
             error:
               error instanceof Error
-                ? { message: error.message, name: error.name, stack: error.stack }
+                ? {
+                    message: error.message,
+                    name: error.name,
+                    stack: error.stack,
+                  }
                 : String(error),
           }),
         );
@@ -328,41 +339,53 @@ const withSsrFallback = <E, R>(
 const keyValueStoreLayer = KeyValueStore.layerFileSystem(
   keyValueStoreDirectory,
 ).pipe(Layer.provide(Layer.mergeAll(BunFileSystem.layer, Path.layer)));
-const otelLayer = OtelTracer.layerGlobal.pipe(
-  Layer.provide(
-    OtelResource.layer({
-      serviceName: 'evorto-server',
-      ...(process.env['npm_package_version']
-        ? { serviceVersion: process.env['npm_package_version'] }
-        : {}),
-    }),
+const otelLayer = Layer.unwrapEffect(
+  serverTelemetryConfig.pipe(
+    Effect.map(({ PACKAGE_VERSION }) =>
+      OtelTracer.layerGlobal.pipe(
+        Layer.provide(
+          OtelResource.layer({
+            serviceName: 'evorto-server',
+            ...Option.match(PACKAGE_VERSION, {
+              onNone: () => ({}),
+              onSome: (serviceVersion) => ({ serviceVersion }),
+            }),
+          }),
+        ),
+      ),
+    ),
   ),
 );
 
-const handlerRuntimeLayer = Layer.mergeAll(
-  BunHttpServer.layerContext,
-  BunFileSystem.layer,
-  Path.layer,
-  keyValueStoreLayer,
-  otelLayer,
-  serverLoggerLayer,
-  appRpcHttpAppLayer,
+let cachedRequestHandler: ((request: Request) => Promise<Response>) | undefined;
+const requestHandlerRuntimeConfigProvider = await Effect.runPromise(
+  makeRuntimeConfigProvider(),
 );
 
-const handlerAppLayer = routesLayer.pipe(
-  Layer.provide(handlerRuntimeLayer),
-  Layer.provide(databaseLayer),
-);
-
-let cachedRequestHandler:
-  | ((request: Request) => Promise<Response>)
-  | undefined;
-
-const getRequestHandler = (): ((request: Request) => Promise<Response>) => {
+const getRequestHandler = () => {
   if (cachedRequestHandler) {
     return cachedRequestHandler;
   }
 
+  const configuredDatabaseLayer = databaseLayer.pipe(
+    Layer.provide(Layer.setConfigProvider(requestHandlerRuntimeConfigProvider)),
+  );
+  const handlerRuntimeLayer = Layer.mergeAll(
+    BunHttpServer.layerContext,
+    BunFileSystem.layer,
+    Path.layer,
+    keyValueStoreLayer,
+    otelLayer,
+    serverLoggerLayer,
+    appRpcHttpAppLayer,
+    stripeClientLayer,
+    RuntimeConfig.Default,
+    Layer.setConfigProvider(requestHandlerRuntimeConfigProvider),
+  );
+  const handlerAppLayer = routesLayer.pipe(
+    Layer.provide(handlerRuntimeLayer),
+    Layer.provide(configuredDatabaseLayer),
+  );
   const { handler: serverHandler } = HttpLayerRouter.toWebHandler(
     handlerAppLayer,
     {
@@ -373,7 +396,9 @@ const getRequestHandler = (): ((request: Request) => Promise<Response>) => {
     typeof serverHandler
   >[1];
 
-  cachedRequestHandler = (request) => serverHandler(request, handlerContext);
+  cachedRequestHandler = (request: Request) =>
+    serverHandler(request, handlerContext);
+
   return cachedRequestHandler;
 };
 
@@ -384,7 +409,19 @@ const requestHandler = createRequestHandler((request) =>
 export { requestHandler as reqHandler };
 
 const serveEffect = Effect.gen(function* () {
-  const port = getServerPort();
+  const configuredDatabaseLayer = databaseLayer.pipe(
+    Layer.provide(
+      Layer.setConfigProvider(requestHandlerRuntimeConfigProvider),
+    ),
+  );
+  const configuredServerConfig = serverNetworkConfig.pipe(
+    Effect.withConfigProvider(requestHandlerRuntimeConfigProvider),
+    Effect.mapError(
+      (error) =>
+        new Error(`Invalid server configuration:\n${formatConfigError(error)}`),
+    ),
+  );
+  const { PORT: port } = yield* configuredServerConfig;
 
   const serverLayer = HttpLayerRouter.serve(routesLayer, {
     middleware: withSsrFallback,
@@ -394,25 +431,35 @@ const serveEffect = Effect.gen(function* () {
         BunHttpServer.layer({ port }),
         BunFileSystem.layer,
         Path.layer,
-        databaseLayer,
         keyValueStoreLayer,
         otelLayer,
         serverLoggerLayer,
         appRpcHttpAppLayer,
+        stripeClientLayer,
+        RuntimeConfig.Default,
+        Layer.setConfigProvider(requestHandlerRuntimeConfigProvider),
       ),
     ),
   );
 
-  yield* Effect.logInfo('Bun Effect server listening').pipe(
-    Effect.annotateLogs({
-      port,
-      url: `http://localhost:${port}`,
+  return yield* Effect.scoped(
+    Effect.gen(function* () {
+      const databaseContext = yield* Layer.build(configuredDatabaseLayer);
+      const serverFiber = yield* Layer.launch(serverLayer).pipe(
+        Effect.provide(databaseContext),
+        Effect.forkScoped,
+      );
+      yield* Effect.logInfo('Bun Effect server listening').pipe(
+        Effect.annotateLogs({
+          port,
+          url: `http://localhost:${port}`,
+        }),
+      );
+      return yield* Fiber.join(serverFiber);
     }),
   );
-
-  return yield* Layer.launch(serverLayer);
 });
 
 if (import.meta.main) {
-  BunRuntime.runMain(serveEffect.pipe(Effect.provide(databaseLayer)));
+  BunRuntime.runMain(serveEffect);
 }

@@ -3,14 +3,18 @@
 ## Runtime Architecture
 
 - Prefer Effect and Effect Platform first.
+- For Effect reference material, implementation details, and examples, consult the upstream Effect repo at [Effect-TS/effect](https://github.com/Effect-TS/effect). If you keep a local clone for faster lookup, point repo-specific tooling or an environment variable at that clone instead of hardcoding a workstation path.
 - Organize server capabilities with Effect dependency injection (`Effect.Service` + composed `Layer`s).
 - Keep service dependencies declared in service definitions; wire app composition with flat `Layer.mergeAll` / `Layer.provideMerge`.
+- Keep runtime configuration centralized in `src/server/config/**`; prefer native Effect `Config.*` combinators and resolve optional/default behavior at that boundary.
+- Preserve honest config types at the config boundary; prefer `Option` for meaningful absence and only flatten to `undefined` or plain values at the consumer boundary that actually needs it.
 - Use Bun-native capabilities when Effect does not provide the needed primitive.
 - Do not introduce new Express/Hono server paths.
 
 ## API and Validation
 
 - Keep API contracts in Effect RPC + Effect `Schema`.
+- Server boundaries must use Effect `Schema` for validated input/output.
 - Maintain fully typed input/output boundaries and explicit error mapping.
 - Reuse shared RPC contracts from `src/shared/rpc-contracts/**`.
 
@@ -29,4 +33,4 @@
 - Use Effect platform logging (`Effect.log`, `Effect.logInfo`, `Effect.logWarning`, `Effect.logError`).
 - Prefer structured log annotations (`Effect.annotateLogs`) over interpolated log strings.
 - Do not use `consola` or direct `console.*` in server runtime code.
-- After editing a server file, run WebStorm `get_file_problems` on that file when possible before finishing.
+- After editing a server file, run `bun run lint:fix` first and then run WebStorm `get_file_problems` on that file when possible before finishing.
