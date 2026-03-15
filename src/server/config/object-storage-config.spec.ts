@@ -1,24 +1,23 @@
+import { describe, expect, it } from '@effect/vitest';
 import { ConfigError, ConfigProvider, Effect } from 'effect';
-import { describe, expect, it } from 'vitest';
 
 import { formatConfigError } from './config-error';
 import { objectStorageConfig } from './object-storage-config';
 
 const readObjectStorageConfig = (provider: ConfigProvider.ConfigProvider) =>
-  Effect.runSync(
-    objectStorageConfig.pipe(
-      Effect.withConfigProvider(provider),
-      Effect.mapError(
-        (error: ConfigError.ConfigError) =>
-          new Error(
-            `Invalid object storage configuration:\n${formatConfigError(error)}`,
-          ),
-      ),
+  objectStorageConfig.pipe(
+    Effect.withConfigProvider(provider),
+    Effect.mapError(
+      (error: ConfigError.ConfigError) =>
+        new Error(
+          `Invalid object storage configuration:\n${formatConfigError(error)}`,
+        ),
     ),
   );
 
 describe('object-storage-config', () => {
-  it('requires canonical S3_* variables', () => {
+  it.effect('requires canonical S3_* variables', () =>
+    Effect.gen(function* () {
     const legacyProvider = ConfigProvider.fromMap(
       new Map([
         ['AWS_ACCESS_KEY_ID', 'legacy-key'],
@@ -28,12 +27,13 @@ describe('object-storage-config', () => {
       ]),
     );
 
-    expect(() => readObjectStorageConfig(legacyProvider)).toThrow(
-      /S3_ENDPOINT/,
-    );
-  });
+    const error = yield* Effect.flip(readObjectStorageConfig(legacyProvider));
+    expect(error.message).toMatch(/S3_ENDPOINT/);
+    })
+  );
 
-  it('loads canonical S3_* variables', () => {
+  it.effect('loads canonical S3_* variables', () =>
+    Effect.gen(function* () {
     const provider = ConfigProvider.fromMap(
       new Map([
         ['S3_ACCESS_KEY_ID', 'test-key'],
@@ -44,12 +44,13 @@ describe('object-storage-config', () => {
       ]),
     );
 
-    expect(readObjectStorageConfig(provider)).toEqual({
+    expect(yield* readObjectStorageConfig(provider)).toEqual({
       accessKeyId: 'test-key',
       bucket: 'test-bucket',
       endpoint: 'https://s3.example.test',
       region: 'auto',
       secretAccessKey: 'test-secret',
     });
-  });
+    })
+  );
 });

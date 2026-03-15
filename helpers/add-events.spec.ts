@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from '@effect/vitest';
 import { DateTime } from 'luxon';
 
 import { redistributeDemoEventTimeline } from './add-events';
@@ -86,16 +86,13 @@ describe('redistributeDemoEventTimeline', () => {
     const pendingReview = redistributed.events.filter(
       (event) => event.status === 'PENDING_REVIEW',
     );
-    const eventsByDay = redistributed.events.reduce(
-      (accumulator, event) => {
-        const day = DateTime.fromJSDate(event.start, { zone: 'utc' }).toFormat(
-          'yyyy-LL-dd',
-        );
-        accumulator.set(day, (accumulator.get(day) ?? 0) + 1);
-        return accumulator;
-      },
-      new Map<string, number>(),
-    );
+    const eventsByDay = new Map<string, number>();
+    for (const event of redistributed.events) {
+      const day = DateTime.fromJSDate(event.start, { zone: 'utc' }).toFormat(
+        'yyyy-LL-dd',
+      );
+      eventsByDay.set(day, (eventsByDay.get(day) ?? 0) + 1);
+    }
 
     expect(approvedPast.length).toBeGreaterThan(0);
     expect(
@@ -140,9 +137,14 @@ describe('redistributeDemoEventTimeline', () => {
     for (const option of redistributed.registrationOptions) {
       const event = redistributedById.get(option.eventId);
       expect(event).toBeDefined();
+      if (!event) {
+        throw new Error(
+          `Expected redistributed event for registration option ${option.eventId}`,
+        );
+      }
 
-      const eventStart = DateTime.fromJSDate(event!.start, { zone: 'utc' });
-      const eventEnd = DateTime.fromJSDate(event!.end, { zone: 'utc' });
+      const eventStart = DateTime.fromJSDate(event.start, { zone: 'utc' });
+      const eventEnd = DateTime.fromJSDate(event.end, { zone: 'utc' });
       const openRegistrationTime = DateTime.fromJSDate(
         option.openRegistrationTime,
         { zone: 'utc' },

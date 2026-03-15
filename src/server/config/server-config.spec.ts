@@ -1,24 +1,21 @@
+import { describe, expect, it } from '@effect/vitest';
 import { ConfigError, ConfigProvider, Effect, LogLevel, Option } from 'effect';
-import { describe, expect, it } from 'vitest';
 
 import { formatConfigError } from './config-error';
 import { serverConfig } from './server-config';
 
 const readServerConfig = (provider: ConfigProvider.ConfigProvider) =>
-  Effect.runSync(
-    serverConfig.pipe(
-      Effect.withConfigProvider(provider),
-      Effect.mapError(
-        (error: ConfigError.ConfigError) =>
-          new Error(
-            `Invalid server configuration:\n${formatConfigError(error)}`,
-          ),
-      ),
+  serverConfig.pipe(
+    Effect.withConfigProvider(provider),
+    Effect.mapError(
+      (error: ConfigError.ConfigError) =>
+        new Error(`Invalid server configuration:\n${formatConfigError(error)}`),
     ),
   );
 
 describe('server-config', () => {
-  it('only reads PUBLIC_GOOGLE_MAPS_API_KEY', () => {
+  it.effect('only reads PUBLIC_GOOGLE_MAPS_API_KEY', () =>
+    Effect.gen(function* () {
     const legacyProvider = ConfigProvider.fromMap(
       new Map([['GOOGLE_MAPS_API_KEY', 'legacy-key']]),
     );
@@ -27,14 +24,16 @@ describe('server-config', () => {
     );
 
     expect(
-      readServerConfig(legacyProvider).PUBLIC_GOOGLE_MAPS_API_KEY,
+      (yield* readServerConfig(legacyProvider)).PUBLIC_GOOGLE_MAPS_API_KEY,
     ).toEqual(Option.none());
     expect(
-      readServerConfig(canonicalProvider).PUBLIC_GOOGLE_MAPS_API_KEY,
+      (yield* readServerConfig(canonicalProvider)).PUBLIC_GOOGLE_MAPS_API_KEY,
     ).toEqual(Option.some('canonical-key'));
-  });
+    })
+  );
 
-  it('captures optional runtime-only server fields through the config boundary', () => {
+  it.effect('captures optional runtime-only server fields through the config boundary', () =>
+    Effect.gen(function* () {
     const provider = ConfigProvider.fromMap(
       new Map([
         ['E2E_NOW_ISO', '2026-03-01T12:00:00.000Z'],
@@ -43,7 +42,7 @@ describe('server-config', () => {
       ]),
     );
 
-    const config = readServerConfig(provider);
+    const config = yield* readServerConfig(provider);
 
     expect(config.E2E_NOW_ISO).toEqual(
       Option.some('2026-03-01T12:00:00.000Z'),
@@ -52,15 +51,17 @@ describe('server-config', () => {
     expect(config.SERVER_LOG_LEVEL).toEqual(
       Option.some(LogLevel.fromLiteral('Warning')),
     );
-  });
+    })
+  );
 
-  it('rejects unsupported server log levels at the config boundary', () => {
+  it.effect('rejects unsupported server log levels at the config boundary', () =>
+    Effect.gen(function* () {
     const provider = ConfigProvider.fromMap(
       new Map([['SERVER_LOG_LEVEL', 'warnng']]),
     );
 
-    expect(() => readServerConfig(provider)).toThrow(
-      /Expected SERVER_LOG_LEVEL to be one of/,
-    );
-  });
+    const error = yield* Effect.flip(readServerConfig(provider));
+    expect(error.message).toMatch(/Expected SERVER_LOG_LEVEL to be one of/);
+    })
+  );
 });

@@ -86,5 +86,5 @@ More specific guidance also exists deeper in some subtrees (for example `src/ser
 
 ## Agent Editing Workflow
 
-- After editing a file, run WebStorm `get_file_problems` on that file when possible before finishing.
+- After editing a file, run `bun run lint:fix` first and then run WebStorm `get_file_problems` on that file when possible before finishing.
 - WebStorm MCP tools are available; prefer sequential `get_file_problems` checks (parallel runs can timeout).

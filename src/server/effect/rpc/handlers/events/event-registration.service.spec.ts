@@ -1,7 +1,7 @@
 import * as Headers from '@effect/platform/Headers';
+import { describe, expect, it, vi } from '@effect/vitest';
 import { ConfigProvider, Effect, Layer } from 'effect';
 import Stripe from 'stripe';
-import { describe, expect, it, vi } from 'vitest';
 
 import { Database } from '../../../../../db';
 import { RuntimeConfig } from '../../../../config/runtime-config';
@@ -27,7 +27,8 @@ const runtimeConfigLayer = RuntimeConfig.Default.pipe(
 );
 
 describe('EventRegistrationService', () => {
-  it('fails with conflict when user already has a registration', async () => {
+  it.effect('fails with conflict when user already has a registration', () =>
+    Effect.gen(function* () {
     const mockDatabase = {
       query: {
         eventRegistrations: {
@@ -60,11 +61,13 @@ describe('EventRegistrationService', () => {
       Effect.provide(runtimeConfigLayer),
     );
 
-    const error = await Effect.runPromise(program);
+    const error = yield* program;
     expect(error['_tag']).toBe('EventRegistrationConflictError');
-  });
+    })
+  );
 
-  it('queries registration options with explicit projection columns', async () => {
+  it.effect('queries registration options with explicit projection columns', () =>
+    Effect.gen(function* () {
     const findRegistrationOption = vi.fn(() => Effect.succeed(null));
     const mockDatabase = {
       query: {
@@ -98,7 +101,7 @@ describe('EventRegistrationService', () => {
       Effect.provide(runtimeConfigLayer),
     );
 
-    const error = await Effect.runPromise(program);
+    const error = yield* program;
     expect(error['_tag']).toBe('EventRegistrationNotFoundError');
     expect(findRegistrationOption).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -114,5 +117,6 @@ describe('EventRegistrationService', () => {
         }),
       }),
     );
-  });
+    })
+  );
 });

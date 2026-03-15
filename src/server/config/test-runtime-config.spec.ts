@@ -1,19 +1,17 @@
+import { describe, expect, it } from '@effect/vitest';
 import { ConfigError, ConfigProvider, Effect } from 'effect';
-import { describe, expect, it } from 'vitest';
 
 import { formatConfigError } from './config-error';
 import { playwrightEnvironmentConfig } from './test-runtime-config';
 
 const readPlaywrightEnvironment = (provider: ConfigProvider.ConfigProvider) =>
-  Effect.runSync(
-    playwrightEnvironmentConfig.pipe(
-      Effect.withConfigProvider(provider),
-      Effect.mapError(
-        (error: ConfigError.ConfigError) =>
-          new Error(
-            `Invalid Playwright e2e configuration:\n${formatConfigError(error)}`,
-          ),
-      ),
+  playwrightEnvironmentConfig.pipe(
+    Effect.withConfigProvider(provider),
+    Effect.mapError(
+      (error: ConfigError.ConfigError) =>
+        new Error(
+          `Invalid Playwright e2e configuration:\n${formatConfigError(error)}`,
+        ),
     ),
   );
 
@@ -29,19 +27,22 @@ const requiredPlaywrightEntries = [
 ] as const;
 
 describe('test-runtime-config', () => {
-  it('defaults E2E_MODE to baseline', () => {
+  it.effect('defaults E2E_MODE to baseline', () =>
+    Effect.gen(function* () {
     const provider = ConfigProvider.fromMap(
       new Map([
         ...requiredPlaywrightEntries,
         ['BASE_URL', 'http://localhost:4200'],
       ]),
     );
-    const environment = readPlaywrightEnvironment(provider);
+    const environment = yield* readPlaywrightEnvironment(provider);
 
     expect(environment.E2E_MODE).toBe('baseline');
-  });
+    })
+  );
 
-  it('requires BASE_URL and ignores PLAYWRIGHT_TEST_BASE_URL', () => {
+  it.effect('requires BASE_URL and ignores PLAYWRIGHT_TEST_BASE_URL', () =>
+    Effect.gen(function* () {
     const provider = ConfigProvider.fromMap(
       new Map([
         ...requiredPlaywrightEntries,
@@ -49,23 +50,28 @@ describe('test-runtime-config', () => {
       ]),
     );
 
-    expect(() => readPlaywrightEnvironment(provider)).toThrow(/BASE_URL/);
-  });
+    const error = yield* Effect.flip(readPlaywrightEnvironment(provider));
+    expect(error.message).toMatch(/BASE_URL/);
+    })
+  );
 
-  it('accepts BASE_URL as the canonical Playwright app URL', () => {
+  it.effect('accepts BASE_URL as the canonical Playwright app URL', () =>
+    Effect.gen(function* () {
     const provider = ConfigProvider.fromMap(
       new Map([
         ...requiredPlaywrightEntries,
         ['BASE_URL', 'http://localhost:4200'],
       ]),
     );
-    const environment = readPlaywrightEnvironment(provider);
+    const environment = yield* readPlaywrightEnvironment(provider);
 
     expect(environment.NO_WEBSERVER).toBe(false);
     expect(environment.BASE_URL).toBe('http://localhost:4200');
-  });
+    })
+  );
 
-  it('still resolves BASE_URL when NO_WEBSERVER disables only auto-startup', () => {
+  it.effect('still resolves BASE_URL when NO_WEBSERVER disables only auto-startup', () =>
+    Effect.gen(function* () {
     const provider = ConfigProvider.fromMap(
       new Map([
         ...requiredPlaywrightEntries,
@@ -73,13 +79,15 @@ describe('test-runtime-config', () => {
         ['NO_WEBSERVER', 'true'],
       ]),
     );
-    const environment = readPlaywrightEnvironment(provider);
+    const environment = yield* readPlaywrightEnvironment(provider);
 
     expect(environment.NO_WEBSERVER).toBe(true);
     expect(environment.BASE_URL).toBe('http://localhost:4200');
-  });
+    })
+  );
 
-  it('does not require Auth0 Management or Cloudflare Images in CI baseline mode', () => {
+  it.effect('does not require Auth0 Management or Cloudflare Images in CI baseline mode', () =>
+    Effect.gen(function* () {
     const provider = ConfigProvider.fromMap(
       new Map([
         ...requiredPlaywrightEntries,
@@ -92,13 +100,15 @@ describe('test-runtime-config', () => {
         ['S3_SECRET_ACCESS_KEY', 'secret-key'],
       ]),
     );
-    const environment = readPlaywrightEnvironment(provider);
+    const environment = yield* readPlaywrightEnvironment(provider);
 
     expect(environment.CI).toBe(true);
     expect(environment.E2E_MODE).toBe('baseline');
-  });
+    })
+  );
 
-  it('requires Auth0 Management and Cloudflare Images in CI integration mode', () => {
+  it.effect('requires Auth0 Management and Cloudflare Images in CI integration mode', () =>
+    Effect.gen(function* () {
     const provider = ConfigProvider.fromMap(
       new Map([
         ...requiredPlaywrightEntries,
@@ -113,8 +123,10 @@ describe('test-runtime-config', () => {
       ]),
     );
 
-    expect(() => readPlaywrightEnvironment(provider)).toThrow(
+    const error = yield* Effect.flip(readPlaywrightEnvironment(provider));
+    expect(error.message).toMatch(
       /AUTH0_MANAGEMENT_CLIENT_ID[\s\S]*CLOUDFLARE_ACCOUNT_ID|CLOUDFLARE_ACCOUNT_ID[\s\S]*AUTH0_MANAGEMENT_CLIENT_ID/,
     );
-  });
+    })
+  );
 });

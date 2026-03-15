@@ -1,10 +1,11 @@
+import { describe, expect, it } from '@effect/vitest';
 import { Effect } from 'effect';
-import { describe, expect, it } from 'vitest';
 
 import { ReceiptMediaService } from './receipt-media.service';
 
 describe('ReceiptMediaService', () => {
-  it('fails with bad request for unsupported mime type', async () => {
+  it.effect('fails with bad request for unsupported mime type', () =>
+    Effect.gen(function* () {
     const program = ReceiptMediaService.uploadOriginal({
       fileBase64: Buffer.from('hello').toString('base64'),
       fileName: 'receipt.txt',
@@ -14,7 +15,8 @@ describe('ReceiptMediaService', () => {
       userId: 'user-1',
     }).pipe(Effect.flip, Effect.provide(ReceiptMediaService.Default));
 
-    const error = await Effect.runPromise(program);
+    const error = yield* program;
     expect(error['_tag']).toBe('ReceiptMediaBadRequestError');
-  });
+    })
+  );
 });

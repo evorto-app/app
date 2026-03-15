@@ -1,22 +1,21 @@
+import { describe, expect, it } from '@effect/vitest';
 import { ConfigError, ConfigProvider, Effect, Option } from 'effect';
-import { describe, expect, it } from 'vitest';
 
 import { authConfig } from './auth-config';
 import { formatConfigError } from './config-error';
 
 const readAuthConfig = (provider: ConfigProvider.ConfigProvider) =>
-  Effect.runSync(
-    authConfig.pipe(
-      Effect.withConfigProvider(provider),
-      Effect.mapError(
-        (error: ConfigError.ConfigError) =>
-          new Error(`Invalid auth configuration:\n${formatConfigError(error)}`),
-      ),
+  authConfig.pipe(
+    Effect.withConfigProvider(provider),
+    Effect.mapError(
+      (error: ConfigError.ConfigError) =>
+        new Error(`Invalid auth configuration:\n${formatConfigError(error)}`),
     ),
   );
 
 describe('auth-config', () => {
-  it('keeps optional audience as Option.none when missing or blank', () => {
+  it.effect('keeps optional audience as Option.none when missing or blank', () =>
+    Effect.gen(function* () {
     const missingAudienceProvider = ConfigProvider.fromMap(
       new Map([
         ['BASE_URL', 'https://app.example'],
@@ -37,15 +36,17 @@ describe('auth-config', () => {
       ]),
     );
 
-    expect(readAuthConfig(missingAudienceProvider).AUDIENCE).toEqual(
+    expect((yield* readAuthConfig(missingAudienceProvider)).AUDIENCE).toEqual(
       Option.none(),
     );
-    expect(readAuthConfig(blankAudienceProvider).AUDIENCE).toEqual(
+    expect((yield* readAuthConfig(blankAudienceProvider)).AUDIENCE).toEqual(
       Option.none(),
     );
-  });
+    })
+  );
 
-  it('trims and keeps optional audience as Option.some when provided', () => {
+  it.effect('trims and keeps optional audience as Option.some when provided', () =>
+    Effect.gen(function* () {
     const provider = ConfigProvider.fromMap(
       new Map([
         ['AUDIENCE', '  https://api.example  '],
@@ -57,12 +58,14 @@ describe('auth-config', () => {
       ]),
     );
 
-    expect(readAuthConfig(provider).AUDIENCE).toEqual(
+    expect((yield* readAuthConfig(provider)).AUDIENCE).toEqual(
       Option.some('https://api.example'),
     );
-  });
+    })
+  );
 
-  it('rejects whitespace-only required values after trimming', () => {
+  it.effect('rejects whitespace-only required values after trimming', () =>
+    Effect.gen(function* () {
     const provider = ConfigProvider.fromMap(
       new Map([
         ['BASE_URL', '   '],
@@ -73,6 +76,8 @@ describe('auth-config', () => {
       ]),
     );
 
-    expect(() => readAuthConfig(provider)).toThrow(/BASE_URL/);
-  });
+    const error = yield* Effect.flip(readAuthConfig(provider));
+    expect(error.message).toMatch(/BASE_URL/);
+    })
+  );
 });

@@ -2,7 +2,9 @@
 
 ## Commands
 
-- Unit tests: `bun run test:unit`
+- Angular/UI unit tests: `bun run test:unit`
+- Server/db/helper unit tests: `bun run test:unit:server`
+- Server/db/helper unit tests (watch): `bun run test:unit:server:watch`
 - Functional E2E (Chromium baseline): `bun run test:e2e`
 - Documentation E2E: `bun run test:e2e:docs`
 - Documentation E2E (integration-only): `bun run test:e2e:docs:integration`
@@ -54,6 +56,13 @@ For external-tool scripts that use `dotenv-cli` (`db:*`, `docker:*`, `test:e2e*`
 We keep this explicit `-e` ordering instead of `dotenv -c` because `-c` would let `.env` win over `.env.local` for values like `DATABASE_URL` in this repo. `dotenv-cli` also ignores missing `-e` files, so the scripts do not need file-existence checks around `.env.runtime`.
 
 In CI and other hosted automation, keep `.env.ci` as the tracked baseline and pass secrets through explicit environment variables instead of generating extra dotenv artifacts.
+
+## Unit Test Lanes
+
+- Angular component/browser-facing unit tests stay on the Angular builder via `ng test`.
+- Server, database, and helper unit tests run through Vitest with `@effect/vitest`.
+- The dedicated Vitest lane includes `src/server/**/*.spec.ts`, `src/db/**/*.spec.ts`, and `helpers/**/*.spec.ts`.
+- It intentionally excludes `src/app/**/*.spec.ts` and everything under `tests/**` so Playwright and Angular specs stay on their existing runners.
 
 ## Deterministic E2E Environment
 

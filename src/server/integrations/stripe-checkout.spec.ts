@@ -1,7 +1,7 @@
+import { afterEach, describe, expect, it, vi } from '@effect/vitest';
 import { Effect } from 'effect';
 import { DateTime } from 'luxon';
 import Stripe from 'stripe';
-import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { StripeClient } from '../stripe-client';
 import {
@@ -82,11 +82,44 @@ describe('stripe-checkout helpers', () => {
     ).toBe(expected);
   });
 
-  it('forwards checkout payload and request options to Stripe client', async () => {
+  it.effect('forwards checkout payload and request options to Stripe client', () =>
+    Effect.gen(function* () {
     createSessionMock.mockResolvedValueOnce({ id: 'cs_test_mock' });
     const stripeClient = createStripeClient();
 
-    const session = await Effect.runPromise(
+    const session = yield* createHostedCheckoutSession(
+      {
+        cancel_url:
+          'http://localhost:4200/events/event-1?registrationStatus=cancel',
+        mode: 'payment',
+        success_url:
+          'http://localhost:4200/events/event-1?registrationStatus=success',
+      },
+      {
+        idempotencyKey: 'registration:reg_123:transaction:txn_456',
+        stripeAccount: 'acct_test_123',
+      },
+    ).pipe(Effect.provideService(StripeClient, stripeClient));
+
+    expect(session).toEqual({ id: 'cs_test_mock' });
+    expect(createSessionMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mode: 'payment',
+      }),
+      {
+        idempotencyKey: 'registration:reg_123:transaction:txn_456',
+        stripeAccount: 'acct_test_123',
+      },
+    );
+    })
+  );
+
+  it.effect('surfaces Stripe client errors without requiring env configuration', () =>
+    Effect.gen(function* () {
+    createSessionMock.mockRejectedValueOnce(new Error('stripe request failed'));
+    const stripeClient = createStripeClient();
+
+    const error = yield* Effect.flip(
       createHostedCheckoutSession(
         {
           cancel_url:
@@ -101,39 +134,7 @@ describe('stripe-checkout helpers', () => {
         },
       ).pipe(Effect.provideService(StripeClient, stripeClient)),
     );
-
-    expect(session).toEqual({ id: 'cs_test_mock' });
-    expect(createSessionMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        mode: 'payment',
-      }),
-      {
-        idempotencyKey: 'registration:reg_123:transaction:txn_456',
-        stripeAccount: 'acct_test_123',
-      },
-    );
-  });
-
-  it('surfaces Stripe client errors without requiring env configuration', async () => {
-    createSessionMock.mockRejectedValueOnce(new Error('stripe request failed'));
-    const stripeClient = createStripeClient();
-
-    await expect(
-      Effect.runPromise(
-        createHostedCheckoutSession(
-          {
-            cancel_url:
-              'http://localhost:4200/events/event-1?registrationStatus=cancel',
-            mode: 'payment',
-            success_url:
-              'http://localhost:4200/events/event-1?registrationStatus=success',
-          },
-          {
-            idempotencyKey: 'registration:reg_123:transaction:txn_456',
-            stripeAccount: 'acct_test_123',
-          },
-        ).pipe(Effect.provideService(StripeClient, stripeClient)),
-      ),
-    ).rejects.toThrow('stripe request failed');
-  });
+    expect(error.message).toBe('stripe request failed');
+    })
+  );
 });

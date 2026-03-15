@@ -1,24 +1,23 @@
+import { describe, expect, it } from '@effect/vitest';
 import { ConfigError, ConfigProvider, Effect } from 'effect';
-import { describe, expect, it } from 'vitest';
 
 import { cloudflareImagesConfig } from './cloudflare-images-config';
 import { formatConfigError } from './config-error';
 
 const readCloudflareImagesConfig = (provider: ConfigProvider.ConfigProvider) =>
-  Effect.runSync(
-    cloudflareImagesConfig.pipe(
-      Effect.withConfigProvider(provider),
-      Effect.mapError(
-        (error: ConfigError.ConfigError) =>
-          new Error(
-            `Invalid Cloudflare Images configuration:\n${formatConfigError(error)}`,
-          ),
-      ),
+  cloudflareImagesConfig.pipe(
+    Effect.withConfigProvider(provider),
+    Effect.mapError(
+      (error: ConfigError.ConfigError) =>
+        new Error(
+          `Invalid Cloudflare Images configuration:\n${formatConfigError(error)}`,
+        ),
     ),
   );
 
 describe('cloudflare-images-config', () => {
-  it('rejects the deprecated CLOUDFLARE_TOKEN alias', () => {
+  it.effect('rejects the deprecated CLOUDFLARE_TOKEN alias', () =>
+    Effect.gen(function* () {
     const provider = ConfigProvider.fromMap(
       new Map([
         ['CLOUDFLARE_ACCOUNT_ID', 'account-id'],
@@ -27,12 +26,13 @@ describe('cloudflare-images-config', () => {
       ]),
     );
 
-    expect(() => readCloudflareImagesConfig(provider)).toThrow(
-      /CLOUDFLARE_IMAGES_API_TOKEN/,
-    );
-  });
+    const error = yield* Effect.flip(readCloudflareImagesConfig(provider));
+    expect(error.message).toMatch(/CLOUDFLARE_IMAGES_API_TOKEN/);
+    })
+  );
 
-  it('accepts CLOUDFLARE_IMAGES_API_TOKEN', () => {
+  it.effect('accepts CLOUDFLARE_IMAGES_API_TOKEN', () =>
+    Effect.gen(function* () {
     const provider = ConfigProvider.fromMap(
       new Map([
         ['CLOUDFLARE_ACCOUNT_ID', 'account-id'],
@@ -41,10 +41,11 @@ describe('cloudflare-images-config', () => {
       ]),
     );
 
-    expect(readCloudflareImagesConfig(provider)).toMatchObject({
+    expect(yield* readCloudflareImagesConfig(provider)).toMatchObject({
       CLOUDFLARE_ACCOUNT_ID: 'account-id',
       CLOUDFLARE_IMAGES_API_TOKEN: 'api-token',
       CLOUDFLARE_IMAGES_DELIVERY_HASH: 'delivery-hash',
     });
-  });
+    })
+  );
 });

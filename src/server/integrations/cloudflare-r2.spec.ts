@@ -1,5 +1,5 @@
+import { afterEach, describe, expect, it, vi } from '@effect/vitest';
 import { ConfigProvider, Effect, Layer } from 'effect';
-import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { objectStorageConfig } from '../config/object-storage-config';
 import {
@@ -13,12 +13,21 @@ const runtimeGlobal = globalThis as typeof globalThis & {
   };
 };
 
-const bunRuntime = runtimeGlobal.Bun as {
+const originalBunRuntime = runtimeGlobal.Bun;
+const bunRuntime = (runtimeGlobal.Bun ??= {}) as {
   S3Client?: unknown;
 };
 const originalS3Client = bunRuntime.S3Client;
 
 afterEach(() => {
+  runtimeGlobal.Bun = bunRuntime;
+
+  if (originalBunRuntime) {
+    originalBunRuntime.S3Client = originalS3Client;
+    runtimeGlobal.Bun = originalBunRuntime;
+    return;
+  }
+
   bunRuntime.S3Client = originalS3Client;
 });
 
@@ -38,20 +47,21 @@ describe('cloudflare-r2', () => {
 
     await expect(
       Effect.runPromise(
-        uploadReceiptOriginalToR2({
-          body: new Uint8Array([1, 2, 3]),
-          contentType: 'image/png',
-          key: 'receipts/missing.png',
-        }).pipe(Effect.provide(Layer.setConfigProvider(objectStorageProvider))),
+      uploadReceiptOriginalToR2({
+        body: new Uint8Array([1, 2, 3]),
+        contentType: 'image/png',
+        key: 'receipts/missing.png',
+      }).pipe(Effect.provide(Layer.setConfigProvider(objectStorageProvider))),
       ),
-    ).rejects.toThrow('Bun runtime is required for object storage operations.');
+    ).rejects.toThrow(
+      'Bun runtime is required for object storage operations.',
+    );
   });
 
-  it('uploads with Bun.S3Client and returns deterministic storage metadata', async () => {
-    const environment = Effect.runSync(
-      objectStorageConfig.pipe(
-        Effect.withConfigProvider(objectStorageProvider),
-      ),
+  it.effect('uploads with Bun.S3Client and returns deterministic storage metadata', () =>
+    Effect.gen(function* () {
+    const environment = yield* objectStorageConfig.pipe(
+      Effect.withConfigProvider(objectStorageProvider),
     );
     const write = vi.fn(async () => 3);
     const presign = vi.fn(() => 'https://signed.example.com/object');
@@ -92,13 +102,11 @@ describe('cloudflare-r2', () => {
 
     bunRuntime.S3Client = FakeS3Client;
 
-    const result = await Effect.runPromise(
-      uploadReceiptOriginalToR2({
-        body: new Uint8Array([1, 2, 3]),
-        contentType: 'image/png',
-        key: 'receipts/example.png',
-      }).pipe(Effect.provide(Layer.setConfigProvider(objectStorageProvider))),
-    );
+    const result = yield* uploadReceiptOriginalToR2({
+      body: new Uint8Array([1, 2, 3]),
+      contentType: 'image/png',
+      key: 'receipts/example.png',
+    }).pipe(Effect.provide(Layer.setConfigProvider(objectStorageProvider)));
 
     expect(captured.config).toEqual({
       accessKeyId: environment.accessKeyId,
@@ -116,9 +124,11 @@ describe('cloudflare-r2', () => {
       storageKey: 'receipts/example.png',
       storageUrl: `${environment.endpoint.replace(/\/$/, '')}/${environment.bucket}/receipts/example.png`,
     });
-  });
+    })
+  );
 
-  it('presigns receipt objects with default and custom expiry', async () => {
+  it.effect('presigns receipt objects with default and custom expiry', () =>
+    Effect.gen(function* () {
     const presign = vi.fn(() => 'https://signed.example.com/object');
 
     class FakeS3Client {
@@ -132,17 +142,13 @@ describe('cloudflare-r2', () => {
 
     bunRuntime.S3Client = FakeS3Client;
 
-    const defaultUrl = await Effect.runPromise(
-      getSignedReceiptObjectUrlFromR2({
-        key: 'receipts/default.pdf',
-      }).pipe(Effect.provide(Layer.setConfigProvider(objectStorageProvider))),
-    );
-    const customUrl = await Effect.runPromise(
-      getSignedReceiptObjectUrlFromR2({
-        expiresInSeconds: 30,
-        key: 'receipts/custom.pdf',
-      }).pipe(Effect.provide(Layer.setConfigProvider(objectStorageProvider))),
-    );
+    const defaultUrl = yield* getSignedReceiptObjectUrlFromR2({
+      key: 'receipts/default.pdf',
+    }).pipe(Effect.provide(Layer.setConfigProvider(objectStorageProvider)));
+    const customUrl = yield* getSignedReceiptObjectUrlFromR2({
+      expiresInSeconds: 30,
+      key: 'receipts/custom.pdf',
+    }).pipe(Effect.provide(Layer.setConfigProvider(objectStorageProvider)));
 
     expect(defaultUrl).toBe('https://signed.example.com/object');
     expect(customUrl).toBe('https://signed.example.com/object');
@@ -156,5 +162,6 @@ describe('cloudflare-r2', () => {
       expiresIn: 30,
       method: 'GET',
     });
-  });
+    })
+  );
 });
