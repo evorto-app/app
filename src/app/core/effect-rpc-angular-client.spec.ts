@@ -5,7 +5,22 @@ import { resolveServerRpcOrigin } from './effect-rpc-angular-client';
 describe('effect-rpc-angular-client', () => {
   it('uses the incoming request origin for SSR RPC calls', () => {
     expect(
-      resolveServerRpcOrigin('https://alpha.evorto.app/events?foo=bar'),
+      resolveServerRpcOrigin({
+        url: 'https://alpha.evorto.app/events?foo=bar',
+      }),
+    ).toBe('https://alpha.evorto.app');
+  });
+
+  it('uses forwarded headers when SSR request urls are relative', () => {
+    expect(
+      resolveServerRpcOrigin({
+        headers: new Headers({
+          host: 'internal.evorto.local',
+          'x-forwarded-host': 'alpha.evorto.app',
+          'x-forwarded-proto': 'https',
+        }),
+        url: '/events?foo=bar',
+      }),
     ).toBe('https://alpha.evorto.app');
   });
 

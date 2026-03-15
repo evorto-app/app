@@ -20,4 +20,4 @@ export const resolvePinnedNow = (
 
 export const getServerNow = (
   pinnedNowIso: string | undefined,
-): DateTime => resolvePinnedNow(pinnedNowIso) ?? DateTime.now().setZone('utc');
+): DateTime => resolvePinnedNow(pinnedNowIso) ?? DateTime.utc();

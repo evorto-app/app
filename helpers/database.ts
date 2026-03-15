@@ -1,12 +1,12 @@
 import { BunRuntime } from '@effect/platform-bun';
 import { Effect, Option } from 'effect';
+import { stripeConfig } from '@server/config/stripe-config';
 
 import { createDatabaseClient } from '../src/db/database-client';
 import { setupDatabase } from '../src/db/setup-database';
 import { formatConfigError } from '../src/server/config/config-error';
 import { databaseConfig } from '../src/server/config/database-config';
 import { makeRuntimeConfigProvider } from '../src/server/config/provider';
-import { stripeConfig } from '../src/server/config/stripe-config';
 
 /**
  * Database Seeding
