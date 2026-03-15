@@ -3,8 +3,10 @@
 ## Commands
 
 - Unit tests: `bun run test:unit`
-- Functional E2E (Chromium): `bun run test:e2e --project=local-chrome`
+- Functional E2E (Chromium baseline): `bun run test:e2e`
 - Documentation E2E: `bun run test:e2e:docs`
+- Functional E2E (integration-only): `bun run test:e2e:integration`
+- Documentation E2E (integration-only): `bun run test:e2e:docs:integration`
 - Playwright UI mode: `bun run test:e2e:ui`
 - Refresh only the shared setup/auth states: `bun run test:e2e:states`
 
@@ -69,6 +71,28 @@ Policy:
 
 - Standard Playwright runs, including CI baseline runs, can omit both values and use the in-code defaults.
 - Set either value only when you deliberately want a different deterministic seed or clock.
+
+## Baseline vs Integration Projects
+
+Playwright now separates external-service coverage with dedicated projects instead of a single global grep toggle:
+
+- baseline projects:
+  - `local-chrome-baseline`
+  - `docs-baseline`
+- integration-only projects:
+  - `local-chrome-integration`
+  - `docs-integration`
+
+`E2E_MODE` still exists as a runtime contract for config validation:
+
+- `E2E_MODE=baseline` is the default and is what CI baseline uses.
+- `E2E_MODE=integration` is required when running the integration-only projects so CI/runtime validation demands the extra external-service credentials.
+
+Integration-only coverage is tagged at the test-title level:
+
+- `@needs-auth0-management`
+- `@needs-cloudflare`
+- `@needs-google-maps`
 
 ## Seed Profiles And Scenario Contract
 
@@ -140,6 +164,16 @@ Required for full Playwright flows:
 
 Required in CI baseline docs/functional jobs:
 
+- `S3_ENDPOINT`
+- `S3_REGION`
+- `S3_BUCKET`
+- `S3_ACCESS_KEY_ID`
+- `S3_SECRET_ACCESS_KEY`
+
+Required only for integration-tagged Playwright projects:
+
+- `AUTH0_MANAGEMENT_CLIENT_ID`
+- `AUTH0_MANAGEMENT_CLIENT_SECRET`
 - `CLOUDFLARE_ACCOUNT_ID`
 - `CLOUDFLARE_IMAGES_DELIVERY_HASH`
 - `CLOUDFLARE_IMAGES_API_TOKEN`

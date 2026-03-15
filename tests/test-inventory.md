@@ -20,7 +20,7 @@ Generated: 2026-03-09
   - docs/template.doc.ts
   - docs/template-categories/categories.doc.ts
   - docs/templates/templates.doc.ts
-  - docs/users/create-account.doc.ts [@needs-auth0]
+  - docs/users/create-account.doc.ts [@needs-auth0-management]
 
 - Functional tests (`*.test.ts`):
   - specs/auth/storage-state-refresh.test.ts
