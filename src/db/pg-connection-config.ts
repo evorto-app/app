@@ -40,6 +40,12 @@ const parseDatabaseUrl = (databaseUrl: string) => {
   };
 };
 
+export const parseNeonLocalDatabaseUrl = (databaseUrl: string) => {
+  const parsed = parseDatabaseUrl(databaseUrl);
+  assertNeonLocalHost(parsed.host);
+  return parsed;
+};
+
 export const createPgClientConfig = ({
   databaseUrl,
   neonLocalProxy,
@@ -57,8 +63,7 @@ export const createPgClientConfig = ({
   }
 
   const { database, host, password, port, user } =
-    parseDatabaseUrl(databaseUrl);
-  assertNeonLocalHost(host);
+    parseNeonLocalDatabaseUrl(databaseUrl);
 
   return {
     database,
@@ -84,8 +89,7 @@ export const createNodePgPoolConfig = ({
   }
 
   const { database, host, password, port, user } =
-    parseDatabaseUrl(databaseUrl);
-  assertNeonLocalHost(host);
+    parseNeonLocalDatabaseUrl(databaseUrl);
 
   return {
     database,

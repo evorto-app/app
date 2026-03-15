@@ -146,6 +146,10 @@ The screenshot captures the controls where reviewers approve or reject.
   await page.getByRole('button', { name: 'Reject' }).click();
   await page.getByLabel('Review Comment').fill(rejectionComment);
   await page.getByRole('button', { name: 'Reject Event' }).click();
+  await expect(
+    page.locator('app-event-status').getByText('Rejected', { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText(rejectionComment)).toBeVisible();
 
   await page.goto(`/events/${eventId}`);
   await expect(

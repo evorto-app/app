@@ -80,6 +80,8 @@ const defaultProjectName = (): string => {
 const composeProjectName =
   process.env['COMPOSE_PROJECT_NAME']?.trim() || defaultProjectName();
 const gitHeadPath = (() => {
+  // Linked worktrees expose `.git` as a file, so Neon Local needs the
+  // resolved HEAD file path instead of assuming `./.git/HEAD` exists.
   const result = Bun.spawnSync({
     cmd: ['git', 'rev-parse', '--git-path', 'HEAD'],
     cwd: process.cwd(),
