@@ -1,11 +1,12 @@
 import { BunRuntime } from '@effect/platform-bun';
-import { Effect } from 'effect';
+import { Effect, Option } from 'effect';
 
 import { createDatabaseClient } from '../src/db/database-client';
 import { setupDatabase } from '../src/db/setup-database';
 import { formatConfigError } from '../src/server/config/config-error';
 import { databaseConfig } from '../src/server/config/database-config';
 import { makeRuntimeConfigProvider } from '../src/server/config/provider';
+import { stripeConfig } from '../src/server/config/stripe-config';
 
 /**
  * Database Seeding
@@ -37,12 +38,23 @@ const main = Effect.gen(function* () {
         ),
     ),
   );
+  const { STRIPE_TEST_ACCOUNT_ID } = yield* stripeConfig.pipe(
+    Effect.withConfigProvider(runtimeConfigProvider),
+    Effect.mapError(
+      (error) =>
+        new Error(`Invalid stripe configuration:\n${formatConfigError(error)}`),
+    ),
+  );
   const { database, pool } = createDatabaseClient(
     DATABASE_URL,
     NEON_LOCAL_PROXY,
   );
   try {
-    yield* Effect.tryPromise(() => setupDatabase(database));
+    yield* Effect.tryPromise(() =>
+      setupDatabase(database, {
+        stripeTestAccountId: Option.getOrUndefined(STRIPE_TEST_ACCOUNT_ID),
+      }),
+    );
   } finally {
     yield* Effect.tryPromise(() => pool.end());
   }
