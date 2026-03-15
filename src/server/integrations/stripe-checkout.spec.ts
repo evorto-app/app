@@ -11,9 +11,10 @@ import {
 } from './stripe-checkout';
 
 const createSessionMock = vi.fn();
+const dummyStripeKey = 'test_stripe_key';
 
 const createStripeClient = () => {
-  const stripeClient = new Stripe('sk_test_123');
+  const stripeClient = new Stripe(dummyStripeKey);
   vi.spyOn(stripeClient.checkout.sessions, 'create').mockImplementation(
     createSessionMock,
   );
