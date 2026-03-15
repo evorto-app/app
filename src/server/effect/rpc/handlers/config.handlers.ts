@@ -21,12 +21,9 @@ const decodeHeaderJsonEffect = <A, I>(
   schema: Schema.Schema<A, I, never>,
 ) =>
   Effect.try({
-    catch: (cause) =>
-      new Error(`Failed to decode RPC context header ${headerName}`, {
-        cause: cause instanceof Error ? cause : new Error(String(cause)),
-      }),
+    catch: () => 'BAD_REQUEST' as const,
     try: () => decodeHeaderJson(value, schema),
-  }).pipe(Effect.orDie);
+  });
 
 export const configHandlers = {
   'config.isAuthenticated': (_payload, options) =>

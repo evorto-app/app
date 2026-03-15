@@ -1,6 +1,7 @@
-import { Effect } from 'effect';
-
+import { formatConfigError } from '@server/config/config-error';
 import { objectStorageConfig } from '@server/config/object-storage-config';
+import { ConfigError, Effect } from 'effect';
+
 import {
   getSignedReceiptObjectUrlFromR2,
   uploadReceiptOriginalToR2,
@@ -30,7 +31,14 @@ const sanitizeFileName = (fileName: string): string =>
 
 const isObjectStorageConfigured = objectStorageConfig.pipe(
   Effect.as(true),
-  Effect.catchAll(() => Effect.succeed(false)),
+  Effect.catchIf(ConfigError.isConfigError, (error) =>
+    Effect.logWarning('Object storage configuration unavailable').pipe(
+      Effect.annotateLogs({
+        error: formatConfigError(error),
+      }),
+      Effect.as(false),
+    ),
+  ),
 );
 
 export const withSignedReceiptPreviewUrl = <

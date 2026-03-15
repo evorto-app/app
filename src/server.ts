@@ -12,7 +12,7 @@ import {
 } from '@effect/platform';
 import { BunFileSystem, BunHttpServer, BunRuntime } from '@effect/platform-bun';
 import * as Sentry from '@sentry/bun';
-import { Effect, Context as EffectContext, Layer, Option } from 'effect';
+import { Effect, Context as EffectContext, Fiber, Layer, Option } from 'effect';
 
 import { databaseLayer } from './db';
 import {
@@ -442,19 +442,20 @@ const serveEffect = Effect.gen(function* () {
     ),
   );
 
-  yield* Effect.logInfo('Bun Effect server listening').pipe(
-    Effect.annotateLogs({
-      port,
-      url: `http://localhost:${port}`,
-    }),
-  );
-
   return yield* Effect.scoped(
     Effect.gen(function* () {
       const databaseContext = yield* Layer.build(configuredDatabaseLayer);
-      return yield* Layer.launch(serverLayer).pipe(
+      const serverFiber = yield* Layer.launch(serverLayer).pipe(
         Effect.provide(databaseContext),
+        Effect.forkScoped,
       );
+      yield* Effect.logInfo('Bun Effect server listening').pipe(
+        Effect.annotateLogs({
+          port,
+          url: `http://localhost:${port}`,
+        }),
+      );
+      return yield* Fiber.join(serverFiber);
     }),
   );
 });

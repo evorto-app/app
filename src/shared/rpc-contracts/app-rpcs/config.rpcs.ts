@@ -16,6 +16,12 @@ export const ConfigPermissions = Schema.Array(PermissionSchema);
 
 export type ConfigPermissions = Schema.Schema.Type<typeof ConfigPermissions>;
 
+export const ConfigHeaderRpcError = Schema.Literal('BAD_REQUEST');
+
+export type ConfigHeaderRpcError = Schema.Schema.Type<
+  typeof ConfigHeaderRpcError
+>;
+
 export const ConfigPublic = asRpcQuery(
   Rpc.make('config.public', {
     payload: Schema.Void,
@@ -32,6 +38,7 @@ export const ConfigIsAuthenticated = asRpcQuery(
 
 export const ConfigPermissionList = asRpcQuery(
   Rpc.make('config.permissions', {
+    error: ConfigHeaderRpcError,
     payload: Schema.Void,
     success: ConfigPermissions,
   }),
@@ -39,6 +46,7 @@ export const ConfigPermissionList = asRpcQuery(
 
 export const ConfigTenant = asRpcQuery(
   Rpc.make('config.tenant', {
+    error: ConfigHeaderRpcError,
     payload: Schema.Void,
     success: Tenant,
   }),
