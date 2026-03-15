@@ -79,17 +79,37 @@ const defaultProjectName = (): string => {
 
 const composeProjectName =
   process.env['COMPOSE_PROJECT_NAME']?.trim() || defaultProjectName();
+const gitHeadPath = (() => {
+  // Linked worktrees expose `.git` as a file, so Neon Local needs the
+  // resolved HEAD file path instead of assuming `./.git/HEAD` exists.
+  const result = Bun.spawnSync({
+    cmd: ['git', 'rev-parse', '--git-path', 'HEAD'],
+    cwd: process.cwd(),
+    stderr: 'pipe',
+    stdout: 'pipe',
+  });
+
+  if (result.exitCode !== 0) {
+    throw new Error(
+      `Failed to resolve git HEAD path: ${result.stderr.toString().trim()}`,
+    );
+  }
+
+  return path.resolve(process.cwd(), result.stdout.toString().trim());
+})();
 const baseUrl = `http://localhost:${appHostPort}`;
-const databaseUrl = `postgresql://neon:npg@localhost:${neonLocalHostPort}/${databaseName}?sslmode=disable`;
+const databaseUrl = `postgresql://neon:npg@localhost:${neonLocalHostPort}/${databaseName}?sslmode=require`;
 
 const runtimeEnvironment = {
   APP_HOST_PORT: String(appHostPort),
   BASE_URL: baseUrl,
   COMPOSE_PROJECT_NAME: composeProjectName,
   DATABASE_URL: databaseUrl,
+  DELETE_BRANCH: 'false',
   MINIO_CONSOLE_HOST_PORT: String(minioConsoleHostPort),
   MINIO_HOST_PORT: String(minioHostPort),
   NEON_DATABASE_NAME: databaseName,
+  NEON_LOCAL_GIT_HEAD_PATH: gitHeadPath,
   NEON_LOCAL_HOST_PORT: String(neonLocalHostPort),
   NEON_LOCAL_PROXY: 'true',
 } as const;

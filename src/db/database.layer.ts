@@ -1,8 +1,9 @@
 import * as PgClient from '@effect/sql-pg/PgClient';
 import * as PgDrizzle from 'drizzle-orm/effect-postgres';
-import { Effect, Layer, Redacted } from 'effect';
+import { Effect, Layer } from 'effect';
 
 import { databaseConfig } from '../server/config/database-config';
+import { createPgClientConfig } from './pg-connection-config';
 import { relations } from './relations';
 
 const makeDatabase = PgDrizzle.make({
@@ -11,10 +12,13 @@ const makeDatabase = PgDrizzle.make({
 
 const pgClientLayer = Layer.unwrapEffect(
   databaseConfig.pipe(
-    Effect.map(({ DATABASE_URL }) =>
-      PgClient.layer({
-        url: Redacted.make(DATABASE_URL),
-      }),
+    Effect.map(({ DATABASE_URL, NEON_LOCAL_PROXY }) =>
+      PgClient.layer(
+        createPgClientConfig({
+          databaseUrl: DATABASE_URL,
+          neonLocalProxy: NEON_LOCAL_PROXY,
+        }),
+      ),
     ),
   ),
 );
