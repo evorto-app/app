@@ -1,4 +1,4 @@
-import { and, eq, inArray } from 'drizzle-orm';
+import { TransactionRollbackError, and, eq, inArray } from 'drizzle-orm';
 import { Effect } from 'effect';
 
 import type { AppRpcHandlers } from '../shared/handler-types';
@@ -23,6 +23,11 @@ import {
   type EventRegistrationOptionDiscountInsert,
   isEsnCardEnabled,
 } from './events.shared';
+
+const isTransactionRollbackError = (
+  error: unknown,
+): error is TransactionRollbackError =>
+  error instanceof TransactionRollbackError;
 
 export const eventLifecycleHandlers = {
 'events.create': (input, _options) =>
@@ -316,6 +321,7 @@ export const eventLifecycleHandlers = {
           }
         }
 
+        let transactionFailure: 'BAD_REQUEST' | 'CONFLICT' | null = null;
         const updatedEvent = yield* databaseEffect((database) =>
           database.transaction((tx) =>
             Effect.gen(function* () {
@@ -343,7 +349,8 @@ export const eventLifecycleHandlers = {
                 });
               const eventRow = updatedEvents[0];
               if (!eventRow) {
-                return yield* Effect.fail('CONFLICT' as const);
+                transactionFailure = 'CONFLICT';
+                yield* tx.rollback();
               }
 
               const existingRegistrationRows =
@@ -360,7 +367,8 @@ export const eventLifecycleHandlers = {
               );
               for (const option of sanitizedRegistrationOptions) {
                 if (!existingRegistrationOptionIds.has(option.id)) {
-                  return yield* Effect.fail('BAD_REQUEST' as const);
+                  transactionFailure = 'BAD_REQUEST';
+                  yield* tx.rollback();
                 }
               }
 
@@ -474,8 +482,8 @@ export const eventLifecycleHandlers = {
           ),
         ).pipe(
           Effect.catchAll((error) =>
-            error === 'BAD_REQUEST' || error === 'CONFLICT'
-              ? Effect.fail(error)
+            isTransactionRollbackError(error) && transactionFailure
+              ? Effect.fail(transactionFailure)
               : Effect.fail('INTERNAL_SERVER_ERROR' as const),
           ),
         );

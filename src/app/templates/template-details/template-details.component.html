@@ -2,9 +2,16 @@
   <a routerLink="/templates" mat-icon-button class="lg:hidden! block">
     <fa-duotone-icon [icon]="faArrowLeft" />
   </a>
-  <h1 class="title-large">
-    {{ templateQuery.data()?.title ?? "Loading ..." }}
-  </h1>
+  @if (templateQuery.data(); as template) {
+    <app-icon [iconCommonName]="template.icon" size="28" />
+    <h1 class="title-large">
+      {{ template.title }}
+    </h1>
+  } @else {
+    <h1 class="title-large">
+      Loading ...
+    </h1>
+  }
   <div class="grow"></div>
   <button
     title="menu"

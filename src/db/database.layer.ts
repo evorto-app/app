@@ -1,14 +1,17 @@
 import * as PgClient from '@effect/sql-pg/PgClient';
 import * as PgDrizzle from 'drizzle-orm/effect-postgres';
-import { Effect, Layer } from 'effect';
+import { Context, Effect, Layer } from 'effect';
 
 import { databaseConfig } from '@db/database-config';
 import { createPgClientConfig } from './pg-connection-config';
 import { relations } from './relations';
+import * as schema from './schema';
 
-const makeDatabase = PgDrizzle.make({
-  relations,
-});
+const makeDatabase = (client: PgClient.PgClient) =>
+  PgDrizzle.drizzle(client, {
+    relations,
+    schema,
+  });
 
 const pgClientLayer = Layer.unwrapEffect(
   databaseConfig.pipe(
@@ -23,15 +26,14 @@ const pgClientLayer = Layer.unwrapEffect(
   ),
 );
 
-export type DatabaseClient = Effect.Effect.Success<typeof makeDatabase>;
+export type DatabaseClient = ReturnType<typeof makeDatabase>;
 
-export class Database extends Effect.Service<Database>()('@db/Database', {
-  dependencies: [
-    PgDrizzle.DefaultServices,
-    PgDrizzle.EffectLogger.layer,
-    pgClientLayer,
-  ],
-  scoped: makeDatabase,
-}) {}
+export class Database extends Context.Tag('@db/Database')<
+  Database,
+  DatabaseClient
+>() {}
 
-export const databaseLayer = Database.Default;
+export const databaseLayer = Layer.effect(
+  Database,
+  Effect.map(PgClient.PgClient, makeDatabase),
+).pipe(Layer.provide(pgClientLayer));
