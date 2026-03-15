@@ -22,13 +22,16 @@ jobs:
       BASE_URL: http://localhost:4200
       APP_READY_PATH: /robots.txt
       COMPOSE_PROJECT_NAME: evorto-ci
+      DELETE_BRANCH: true
       NEON_DATABASE_NAME: appdb
       NEON_LOCAL_HOST_PORT: 55432
+      NEON_LOCAL_METADATA_DIR: /tmp/neon-local-metadata
       NEON_LOCAL_PROXY: true
       NO_WEBSERVER: true
-      DATABASE_URL: postgresql://neon:npg@localhost:55432/appdb?sslmode=disable
+      DATABASE_URL: postgresql://neon:npg@localhost:55432/appdb?sslmode=require
       NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
       NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+      PARENT_BRANCH_ID: ${{ secrets.PARENT_BRANCH_ID }}
       AUTH0_MANAGEMENT_CLIENT_ID: ${{ secrets.AUTH0_MANAGEMENT_CLIENT_ID }}
       AUTH0_MANAGEMENT_CLIENT_SECRET: ${{ secrets.AUTH0_MANAGEMENT_CLIENT_SECRET }}
       CLIENT_ID: ${{ secrets.CLIENT_ID }}
@@ -42,8 +45,6 @@ jobs:
       S3_REGION: us-east-1
       S3_SECRET_ACCESS_KEY: minioadmin
       CLOUDFLARE_IMAGES_API_TOKEN: ${{ secrets.CLOUDFLARE_IMAGES_API_TOKEN || secrets.CLOUDFLARE_TOKEN }}
-      PARENT_BRANCH_ID: ${{ secrets.PARENT_BRANCH_ID }}
-
     steps:
       - name: Checkout repository
         # Use sparse-checkout false to ensure .env and Docker context are available
@@ -87,6 +88,12 @@ jobs:
       - name: Install Playwright browsers
         run: bunx playwright install --with-deps
 
+      - name: Prepare Neon Local metadata directory
+        run: |
+          rm -rf "${NEON_LOCAL_METADATA_DIR}"
+          mkdir -p "${NEON_LOCAL_METADATA_DIR}"
+          chmod 0777 "${NEON_LOCAL_METADATA_DIR}"
+
       - name: Pull Docker images (compose)
         run: docker compose pull
 
@@ -98,7 +105,7 @@ jobs:
           docker compose down --remove-orphans
           docker compose up -d db minio stripe minio-init
           for attempt in $(seq 1 60); do
-            if docker compose exec -T db pg_isready -U neon -d "${NEON_DATABASE_NAME}" >/dev/null 2>&1; then
+            if docker compose exec -T db pg_isready -h 127.0.0.1 -p 5432 -U neon -d "${NEON_DATABASE_NAME}" >/dev/null 2>&1; then
               echo "Database is reachable"
               exit 0
             fi

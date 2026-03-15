@@ -16,7 +16,7 @@
     "deps:update:angular": "bunx --bun ng update @angular/cli @angular/cdk @angular/core @angular/material angular-eslint --allow-dirty",
     "deps:update:drizzle": "bun add drizzle-orm@beta && bun add -D drizzle-seed@beta drizzle-kit@beta",
     "test:e2e": "sh -c './node_modules/.bin/dotenv ${CI:+-e .env.ci} -e .env.runtime -e .env.local -e .env -- ./node_modules/.bin/playwright test'",
-    "test:e2e:ui": "sh -c './node_modules/.bin/dotenv ${CI:+-e .env.ci} -e .env.runtime -e .env.local -e .env -- ./node_modules/.bin/playwright test --ui'",
+    "test:e2e:ui": "bun run test:e2e:states && sh -c './node_modules/.bin/dotenv ${CI:+-e .env.ci} -e .env.runtime -e .env.local -e .env -- ./node_modules/.bin/playwright test --ui'",
     "test:e2e:browser": "sh -c './node_modules/.bin/dotenv ${CI:+-e .env.ci} -e .env.runtime -e .env.local -e .env -- ./node_modules/.bin/playwright test --workers 1 --headed'",
     "test:e2e:report": "./node_modules/.bin/playwright show-report",
     "test:e2e:docs": "sh -c './node_modules/.bin/dotenv ${CI:+-e .env.ci} -e .env.runtime -e .env.local -e .env -- ./node_modules/.bin/playwright test --project docs'",

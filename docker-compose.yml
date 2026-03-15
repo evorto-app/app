@@ -1,6 +1,6 @@
 services:
   db:
-    image: postgres:16-alpine
+    image: neondatabase/neon_local:latest
     env_file:
       - path: .env.local
         required: false
@@ -11,18 +11,22 @@ services:
       - path: .env.runtime
         required: false
     environment:
-      POSTGRES_DB: "${NEON_DATABASE_NAME:-appdb}"
-      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-npg}"
-      POSTGRES_USER: "${POSTGRES_USER:-neon}"
+      BRANCH_ID:
+      DELETE_BRANCH: "${DELETE_BRANCH:-false}"
+      NEON_API_KEY:
+      NEON_DATABASE_NAME: "${NEON_DATABASE_NAME:-appdb}"
+      NEON_PROJECT_ID:
+      PARENT_BRANCH_ID:
     volumes:
-      - ./docker/postgres/initdb:/docker-entrypoint-initdb.d:ro
+      - "${NEON_LOCAL_METADATA_DIR:-./.neon_local}:/tmp/.neon_local"
+      - "${NEON_LOCAL_GIT_HEAD_PATH:-./.git/HEAD}:/tmp/.git/HEAD:ro,consistent"
     ports:
       - "${NEON_LOCAL_HOST_PORT:-55432}:5432"
     healthcheck:
       test:
         [
           "CMD-SHELL",
-          "pg_isready -h 127.0.0.1 -p 5432 -U ${POSTGRES_USER:-neon} -d ${NEON_DATABASE_NAME:-appdb}",
+          "pg_isready -h 127.0.0.1 -p 5432 -U neon -d ${NEON_DATABASE_NAME:-appdb}",
         ]
       interval: 5s
       timeout: 5s
@@ -50,7 +54,7 @@ services:
       - path: .env.runtime
         required: false
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-neon}:${POSTGRES_PASSWORD:-npg}@db:5432/${NEON_DATABASE_NAME:-appdb}?sslmode=disable
+      DATABASE_URL: postgresql://neon:npg@db:5432/${NEON_DATABASE_NAME:-appdb}?sslmode=require
       NEON_LOCAL_PROXY: "true"
     command:
       - /bin/sh
@@ -124,10 +128,10 @@ services:
         required: false
     environment:
       BASE_URL: http://localhost:${APP_HOST_PORT:-4200}
-      CLIENT_ID: "${CLIENT_ID:-}"
-      CLIENT_SECRET: "${CLIENT_SECRET:-}"
-      CLOUDFLARE_IMAGES_API_TOKEN: "${CLOUDFLARE_IMAGES_API_TOKEN:-}"
-      DATABASE_URL: postgresql://${POSTGRES_USER:-neon}:${POSTGRES_PASSWORD:-npg}@db:5432/${NEON_DATABASE_NAME:-appdb}?sslmode=disable
+      CLIENT_ID:
+      CLIENT_SECRET:
+      CLOUDFLARE_IMAGES_API_TOKEN:
+      DATABASE_URL: postgresql://neon:npg@db:5432/${NEON_DATABASE_NAME:-appdb}?sslmode=require
       NEON_LOCAL_PROXY: "true"
       PORT: "4200"
       S3_ACCESS_KEY_ID: "${S3_ACCESS_KEY_ID:-minioadmin}"
@@ -135,8 +139,8 @@ services:
       S3_ENDPOINT: "${S3_ENDPOINT:-http://minio:9000}"
       S3_REGION: "${S3_REGION:-us-east-1}"
       S3_SECRET_ACCESS_KEY: "${S3_SECRET_ACCESS_KEY:-minioadmin}"
-      STRIPE_API_KEY: "${STRIPE_API_KEY:-}"
-      STRIPE_WEBHOOK_SECRET: "${STRIPE_WEBHOOK_SECRET:-whsec_5cc4e8e60977a2f87895f2fe5484040de96728381f08f33617633205a0cafae3}"
+      STRIPE_API_KEY:
+      STRIPE_WEBHOOK_SECRET:
     command:
       - /bin/sh
       - -lc
@@ -157,7 +161,7 @@ services:
       - path: .env.runtime
         required: false
     environment:
-      STRIPE_API_KEY: "${STRIPE_API_KEY:-}"
+      STRIPE_API_KEY:
       STRIPE_DEVICE_NAME: integration-tests
     command: "listen --forward-to http://evorto:4200/webhooks/stripe"
 

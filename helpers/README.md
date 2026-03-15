@@ -67,12 +67,13 @@ bun run db:reset
 
 This will:
 
-1. Optionally generate a worktree-local runtime override (`bun run env:runtime`) if you want isolated local ports/project naming
+1. In linked worktrees, generate `.env.runtime` with `bun run env:runtime` and re-run it whenever the resolved Git HEAD or local runtime settings change, such as after switching worktrees or branches, rebasing or merging onto a new HEAD, changing local ports, or renaming the local project, so Neon Local keeps the correct HEAD path and isolated ports/project naming
 2. Ensure schema exists and reset/seed the local database (`bun run db:setup`)
 
-`bun run db:setup` now uses the same explicit dotenv loading as `db:push`, with `.env.runtime` loaded first because `dotenv-cli` is first-wins here. That makes a present `.env.runtime` override the checked-in baseline env files and point the reset at the local Docker database. `bun run db:studio` uses the same chain. We keep the explicit `-e` list instead of `dotenv -c` because this repo needs `.env.local` to beat `.env`, and `dotenv-cli`'s cascade mode does not preserve that precedence here.
+`bun run db:setup` now uses the same explicit dotenv loading as `db:push`, with `.env.runtime` loaded first because `dotenv-cli` is first-wins here. That makes a present `.env.runtime` override the checked-in baseline env files and point the reset at the local Neon Local proxy. `bun run db:studio` uses the same chain. We keep the explicit `-e` list instead of `dotenv -c` because this repo needs `.env.local` to beat `.env`, and `dotenv-cli`'s cascade mode does not preserve that precedence here.
+Bun also implicitly loads `.env.local` and `.env`, which is why the scripts keep using explicit `dotenv-cli -e` precedence instead of relying on Bun defaults.
 
-The Postgres container does not emit every statement in its default logging configuration, so `docker logs` staying quiet during `db:reset` does not mean the reset missed Docker.
+The Neon Local container does not emit every proxied query in its default logging configuration, so `docker logs` staying quiet during `db:reset` does not mean the reset missed Docker.
 
 Docker Compose now also runs a one-shot `db-setup` container before `evorto` starts. That service pushes schema and resets/seeds the Docker database on every stack start.
 

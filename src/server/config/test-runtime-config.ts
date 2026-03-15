@@ -1,9 +1,4 @@
-import {
-  Config,
-  ConfigError,
-  Effect,
-  Option,
-} from 'effect';
+import { Config, ConfigError, Effect, Option } from 'effect';
 import path from 'node:path';
 
 import { nonEmptyTrimmedString, optionalTrimmedString } from './config-string';
@@ -63,6 +58,9 @@ export const testRuntimeConfigState = Config.all({
     ),
   ),
   ISSUER_BASE_URL: optionalTrimmedString('ISSUER_BASE_URL'),
+  NEON_LOCAL_PROXY: Config.boolean('NEON_LOCAL_PROXY').pipe(
+    Config.withDefault(false),
+  ),
   NO_WEBSERVER: Config.boolean('NO_WEBSERVER').pipe(Config.withDefault(false)),
   S3_ACCESS_KEY_ID: optionalTrimmedString('S3_ACCESS_KEY_ID'),
   S3_BUCKET: optionalTrimmedString('S3_BUCKET'),
@@ -131,9 +129,7 @@ const combineMissingDataErrors = (
 const missingFieldError = (name: string) =>
   ConfigError.MissingData([name], `Expected ${name} to be configured`);
 
-const validateCiEnvironment = (
-  state: TestRuntimeConfigState,
-) => {
+const validateCiEnvironment = (state: TestRuntimeConfigState) => {
   if (!state.CI) {
     return Effect.void;
   }
@@ -287,8 +283,11 @@ export const auth0ManagementEnvironment = Effect.gen(function* () {
 });
 
 export const documentationOutputEnvironment = testRuntimeConfigState.pipe(
-  Effect.map((state) => ({
-    docsImageOutputDirectory: state.DOCS_IMG_OUT_DIR,
-    docsOutputDirectory: state.DOCS_OUT_DIR,
-  }) satisfies DocumentationOutputEnvironment),
+  Effect.map(
+    (state) =>
+      ({
+        docsImageOutputDirectory: state.DOCS_IMG_OUT_DIR,
+        docsOutputDirectory: state.DOCS_OUT_DIR,
+      }) satisfies DocumentationOutputEnvironment,
+  ),
 );
