@@ -18,8 +18,8 @@
 - Local docker runs now use Neon Local instead of a plain Postgres container.
 - Docker Compose now includes a one-shot `db-setup` service that runs the equivalent of `db:setup` inside Docker before `evorto` starts.
 - `.env.runtime` is an explicit worktree-local override created with `bun run env:runtime`.
-- For linked worktrees that run the Neon Local Docker stack, generate `.env.runtime` once when the worktree is created so `NEON_LOCAL_GIT_HEAD_PATH` points at the resolved Git HEAD file.
-- Local Neon metadata persists in `.neon_local/`, which lets Neon Local reuse a branch per worktree/git branch by default.
+- Local Neon metadata persists in `.neon_local/`, but local Docker no longer ties branch selection to Git HEAD.
+- Local Docker branches are ephemeral by default and are deleted on stack shutdown.
 - `.env.ci` is the checked-in CI baseline env file; workflow env should supply CI-specific secrets and overrides.
 - `bun run db:push` applies schema only.
 - `bun run db:studio` opens Drizzle Studio against the current database URL under the same explicit dotenv chain.
@@ -49,7 +49,7 @@ For external-tool scripts that use `dotenv-cli` (`db:*`, `docker:*`, `test:e2e*`
 `bun run env:runtime` now generates:
 
 - a host-side `DATABASE_URL` that points at `localhost:${NEON_LOCAL_HOST_PORT}` with `sslmode=require`
-- `DELETE_BRANCH=false` for local persistent Neon Local branches
+- `DELETE_BRANCH=true` so local Neon branches are cleaned up automatically
 
 We keep this explicit `-e` ordering instead of `dotenv -c` because `-c` would let `.env` win over `.env.local` for values like `DATABASE_URL` in this repo. `dotenv-cli` also ignores missing `-e` files, so the scripts do not need file-existence checks around `.env.runtime`.
 
@@ -131,7 +131,7 @@ The local app port intentionally stays at `4200` by default because the current 
 - database and object-storage state can be isolated per worktree
 - fully authenticated browser stacks still need the shared `4200` app port unless Auth0 callback settings are expanded
 
-If `.env.runtime` is absent, local commands fall back to the checked-in env files and process env only. In linked worktrees that also means Docker Compose falls back to `./.git/HEAD`, which is only valid for non-worktree clones.
+If `.env.runtime` is absent, local commands fall back to the checked-in env files and process env only.
 
 If you intentionally need another isolated stack from the same working tree, override the generated ports/project name explicitly before running `bun run env:runtime`.
 

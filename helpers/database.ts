@@ -15,11 +15,13 @@ import { makeRuntimeConfigProvider } from '../src/server/config/provider';
  *
  * Key features:
  * 1. Uses a daily seed for @ngneat/falso to ensure consistent random data
- * 2. Creates a fixed number of events (approx. 18 total)
+ * 2. Creates a fixed number of events per profile
+ *    - demo: richer local dataset with roughly 50 events and a gradual timeline
+ *    - docs/test: stable deterministic fixtures for scenario-driven tests
  * 3. Events are created relative to the current date:
  *    - Past events (completed)
- *    - Current/upcoming events
- *    - Future events
+ *    - Current/upcoming approved events
+ *    - Further-future draft and pending review events
  * 4. Ensures a good mix of event statuses and visibilities
  *
  * This approach provides a reliable and consistent database structure

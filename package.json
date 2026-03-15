@@ -58,6 +58,7 @@
     "@effect/platform": "^0.94.5",
     "@effect/platform-bun": "^0.87.1",
     "@effect/rpc": "^0.73.2",
+    "@effect/sql-pg": "0.50.3",
     "@fortawesome/angular-fontawesome": "4.0.0",
     "@fortawesome/duotone-regular-svg-icons": "^7.2.0",
     "@fortawesome/free-brands-svg-icons": "^7.2.0",

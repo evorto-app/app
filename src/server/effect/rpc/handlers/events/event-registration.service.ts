@@ -16,6 +16,7 @@ import {
 import { resolveTenantDiscountProviders, type TenantDiscountProviders } from '../../../../../shared/tenant-config';
 import { type Tenant } from '../../../../../types/custom/tenant';
 import { type User } from '../../../../../types/custom/user';
+import { formatConfigError } from '../../../../config/config-error';
 import { serverConfig } from '../../../../config/server-config';
 import {
   buildCheckoutSessionExpiresAt,
@@ -150,8 +151,16 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
         tenant,
         user,
       }: RegisterForEventArguments) {
+        const serverEnvironment = yield* serverConfig.pipe(
+          Effect.mapError(
+            (error) =>
+              new EventRegistrationInternalError({
+                message: `Invalid server configuration:\n${formatConfigError(error)}`,
+              }),
+          ),
+        );
         const pinnedNowIso = Option.getOrUndefined(
-          (yield* serverConfig).E2E_NOW_ISO,
+          serverEnvironment.E2E_NOW_ISO,
         );
 
         // Phase 1: ensure this user can register (no active registration + valid option + capacity).
