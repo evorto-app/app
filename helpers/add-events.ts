@@ -1,13 +1,13 @@
 import type { InferInsertModel, InferSelectModel } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
+import { relations } from '@db/relations';
+import * as schema from '@db/schema';
 import consola from 'consola';
 import { DateTime } from 'luxon';
 
 import type { SeedTemplate } from './add-templates';
 
-import { relations } from '../src/db/relations';
-import * as schema from '../src/db/schema';
 import { getId } from './get-id';
 import { getSeedDate } from './seed-clock';
 import { usersToAuthenticate } from './user-data';
@@ -36,24 +36,6 @@ export interface SeedScenarioEvents {
   past: { eventId: string };
 }
 
-interface ScenarioCandidates {
-  closedReg?: SeedScenarioOptionHandle;
-  draft?: { eventId: string };
-  open?: SeedScenarioOptionHandle;
-  past?: { eventId: string };
-}
-
-interface SeedScenarioOptionHandle {
-  eventId: string;
-  optionId: string;
-}
-
-interface TaxRateSelection {
-  defaultRateId: null | string;
-  vat7Id: null | string;
-  vat19Id: null | string;
-}
-
 interface RedistributableEvent {
   end: Date;
   id: string;
@@ -66,6 +48,33 @@ interface RedistributableRegistrationOption {
   closeRegistrationTime: Date;
   eventId: string;
   openRegistrationTime: Date;
+}
+
+interface ScenarioCandidates {
+  closedReg?: SeedScenarioOptionHandle;
+  draft?: { eventId: string };
+  open?: SeedScenarioOptionHandle;
+  past?: { eventId: string };
+}
+
+type SeedEventInsert = InferInsertModel<typeof schema.eventInstances> &
+  RedistributableEvent;
+
+type SeedRegistrationOptionInsert =
+  InferInsertModel<typeof schema.eventRegistrationOptions> &
+    RedistributableRegistrationOption & {
+      id: string;
+    };
+
+interface SeedScenarioOptionHandle {
+  eventId: string;
+  optionId: string;
+}
+
+interface TaxRateSelection {
+  defaultRateId: null | string;
+  vat7Id: null | string;
+  vat19Id: null | string;
 }
 
 type TenantStripeTaxRate = InferSelectModel<typeof schema.tenantStripeTaxRates>;
@@ -164,7 +173,7 @@ const applyEventSchedule = <
   seedNow: DateTime,
   resolveDayOffset: (index: number) => number,
 ) => {
-  const scheduledEvents = [...events].sort(compareSeedEvents);
+  const scheduledEvents = events.toSorted(compareSeedEvents);
 
   for (const [index, event] of scheduledEvents.entries()) {
     const shiftedStart = buildShiftedStart(
@@ -298,16 +307,12 @@ const createEvents = (
     profile: SeedProfile;
   },
 ): {
-  events: InferInsertModel<typeof schema.eventInstances>[];
-  registrationOptions: InferInsertModel<
-    typeof schema.eventRegistrationOptions
-  >[];
+  events: SeedEventInsert[];
+  registrationOptions: SeedRegistrationOptionInsert[];
   scenario: ScenarioCandidates;
 } => {
-  const events: InferInsertModel<typeof schema.eventInstances>[] = [];
-  const registrationOptions: InferInsertModel<
-    typeof schema.eventRegistrationOptions
-  >[] = [];
+  const events: SeedEventInsert[] = [];
+  const registrationOptions: SeedRegistrationOptionInsert[] = [];
   const scenario: ScenarioCandidates = {};
 
   const eventsPerTemplate = options.profile === 'demo' ? 4 : 3;
@@ -641,8 +646,7 @@ export const addEvents = async (
         option,
       ): option is typeof option & {
         id: string;
-      } =>
-        option.isPaid && !option.organizingRegistration && typeof option.id === 'string',
+      } => option.isPaid && !option.organizingRegistration,
     );
     if (paidParticipantOptions.length > 0) {
       await database.insert(schema.eventRegistrationOptionDiscounts).values(
