@@ -6,6 +6,8 @@ This project was generated using [Angular CLI](https://github.com/angular/angula
 
 This repository uses Git Town to manage branching, syncing, and shipping. Prefer `git town` commands for daily workflow.
 
+For large multi-phase changes, keep an assembly branch plus one child branch per reviewable phase. Create the next branch with `git town append`, keep the stack current with `git town sync --stack`, and open PRs with `git town propose`.
+
 ## Release documentation
 
 We use Knope for release notes.
@@ -69,8 +71,7 @@ To run documentation tests:
 bun run test:e2e:docs
 ```
 
-For deterministic test/runtime details, seed profiles, and docker-backed local
-test setup, see `/Users/hedde/.codex/worktrees/6cee/evorto/docs/testing.md`.
+For deterministic test/runtime details, seed profiles, docker-backed local test setup, and the stacked delivery workflow used for infra/config changes, see [docs/testing.md](docs/testing.md).
 
 ## Additional Resources
 
