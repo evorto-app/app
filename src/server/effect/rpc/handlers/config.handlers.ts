@@ -23,7 +23,7 @@ const decodeHeaderJsonEffect = <A, I>(
 ) =>
   Effect.try({
     catch: (error) =>
-      new RpcBadRequestError({
+      RpcBadRequestError.make({
         message: `Invalid RPC header: ${headerName}`,
         reason: error instanceof Error ? error.message : String(error),
       }),

@@ -77,7 +77,7 @@ const ensureAuthenticated = (
 ): Effect.Effect<void, RpcUnauthorizedError> =>
   headers[RPC_CONTEXT_HEADERS.AUTHENTICATED] === 'true'
     ? Effect.void
-    : Effect.fail(new RpcUnauthorizedError({ message: 'Authentication required' }));
+    : Effect.fail(RpcUnauthorizedError.make({ message: 'Authentication required' }));
 
 const ensurePermission = (
   headers: Headers.Headers,
@@ -91,7 +91,7 @@ const ensurePermission = (
     );
 
     if (!currentPermissions.includes(permission)) {
-      return yield* Effect.fail(new RpcForbiddenError({ message: 'Forbidden' }));
+      return yield* Effect.fail(RpcForbiddenError.make({ message: 'Forbidden' }));
     }
   });
 
@@ -129,7 +129,7 @@ export const adminHandlers = {
         );
         const createdRole = createdRoles[0];
         if (!createdRole) {
-          return yield* Effect.fail(new RpcNotFoundError({ message: 'Resource not found' }));
+          return yield* Effect.fail(RpcNotFoundError.make({ message: 'Resource not found' }));
         }
 
         return createdRole;
@@ -150,7 +150,7 @@ export const adminHandlers = {
             }),
         );
         if (deletedRoles.length === 0) {
-          return yield* Effect.fail(new RpcNotFoundError({ message: 'Resource not found' }));
+          return yield* Effect.fail(RpcNotFoundError.make({ message: 'Resource not found' }));
         }
       }),
     'admin.roles.findHubRoles': (_payload, options) =>
@@ -254,7 +254,7 @@ export const adminHandlers = {
           }),
         );
         if (!role) {
-          return yield* Effect.fail(new RpcNotFoundError({ message: 'Resource not found' }));
+          return yield* Effect.fail(RpcNotFoundError.make({ message: 'Resource not found' }));
         }
 
         return role;
@@ -324,7 +324,7 @@ export const adminHandlers = {
         );
         const updatedRole = updatedRoles[0];
         if (!updatedRole) {
-          return yield* Effect.fail(new RpcNotFoundError({ message: 'Resource not found' }));
+          return yield* Effect.fail(RpcNotFoundError.make({ message: 'Resource not found' }));
         }
 
         return updatedRole;
@@ -347,7 +347,7 @@ export const adminHandlers = {
             stripe.taxRates.retrieve(id, undefined, { stripeAccount }),
           );
           if (!stripeRate.inclusive) {
-            return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
+            return yield* Effect.fail(RpcBadRequestError.make({ message: 'Bad request' }));
           }
 
         const existingRate = yield* databaseEffect((database) =>
@@ -464,7 +464,7 @@ export const adminHandlers = {
           esnCard: {
             config: yield* Effect.try({
               catch: (error) =>
-                new RpcBadRequestError({
+                RpcBadRequestError.make({
                   message: 'Invalid ESN card configuration',
                   reason: error instanceof Error ? error.message : String(error),
                 }),
@@ -497,7 +497,7 @@ export const adminHandlers = {
         );
         const updatedTenant = updatedTenants[0];
         if (!updatedTenant) {
-          return yield* Effect.fail(new RpcForbiddenError({ message: 'Forbidden' }));
+          return yield* Effect.fail(RpcForbiddenError.make({ message: 'Forbidden' }));
         }
 
         const nextTenant = {
@@ -513,7 +513,7 @@ export const adminHandlers = {
 
         return yield* Effect.try({
           catch: (error) =>
-            new RpcBadRequestError({
+            RpcBadRequestError.make({
               message: 'Updated tenant settings failed validation',
               reason: error instanceof Error ? error.message : String(error),
             }),

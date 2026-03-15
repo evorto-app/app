@@ -39,7 +39,7 @@ const ensureAuthenticated = (
 ): Effect.Effect<void, RpcUnauthorizedError> =>
   headers[RPC_CONTEXT_HEADERS.AUTHENTICATED] === 'true'
     ? Effect.void
-    : Effect.fail(new RpcUnauthorizedError({ message: 'Authentication required' }));
+    : Effect.fail(RpcUnauthorizedError.make({ message: 'Authentication required' }));
 
 const ensurePermission = (
   headers: Headers.Headers,
@@ -53,7 +53,7 @@ const ensurePermission = (
     );
 
     if (!currentPermissions.includes(permission)) {
-      return yield* Effect.fail(new RpcForbiddenError({ message: 'Forbidden' }));
+      return yield* Effect.fail(RpcForbiddenError.make({ message: 'Forbidden' }));
     }
   });
 
@@ -122,7 +122,7 @@ export const templateCategoryHandlers = {
         );
         const updatedCategory = updatedCategories[0];
         if (!updatedCategory) {
-          return yield* Effect.fail(new RpcForbiddenError({ message: 'Forbidden' }));
+          return yield* Effect.fail(RpcForbiddenError.make({ message: 'Forbidden' }));
         }
 
         return updatedCategory;

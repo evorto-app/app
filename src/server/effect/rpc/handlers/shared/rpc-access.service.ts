@@ -39,7 +39,7 @@ export class RpcAccess extends Effect.Service<RpcAccess>()(
               context.authenticated
                 ? Effect.void
                 : Effect.fail(
-                    new RpcUnauthorizedError({
+                    RpcUnauthorizedError.make({
                       message: 'Authentication required',
                     }),
                   ),
@@ -55,14 +55,14 @@ export class RpcAccess extends Effect.Service<RpcAccess>()(
             const context = yield* requireContext();
             if (!context.authenticated) {
               return yield* Effect.fail(
-                new RpcUnauthorizedError({
+                RpcUnauthorizedError.make({
                   message: 'Authentication required',
                 }),
               );
             }
             if (!context.permissions.includes(permission)) {
               return yield* Effect.fail(
-                new RpcForbiddenError({
+                RpcForbiddenError.make({
                   message: 'Missing required permission',
                   permission,
                 }),
@@ -78,7 +78,7 @@ export class RpcAccess extends Effect.Service<RpcAccess>()(
               context.user
                 ? Effect.succeed(context.user)
                 : Effect.fail(
-                    new RpcUnauthorizedError({
+                    RpcUnauthorizedError.make({
                       message: 'Authenticated user required',
                     }),
                   ),

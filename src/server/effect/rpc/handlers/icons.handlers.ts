@@ -39,7 +39,7 @@ const getFriendlyIconName = (
     Effect.flatMap(([name, set]) => {
       if (!name) {
         return Effect.fail(
-          new InvalidIconNameError({
+          InvalidIconNameError.make({
             iconName: icon,
             message: 'Invalid icon name',
           }),
@@ -69,7 +69,7 @@ const ensureAuthenticated = (
 ): Effect.Effect<void, RpcUnauthorizedError> =>
   headers[RPC_CONTEXT_HEADERS.AUTHENTICATED] === 'true'
     ? Effect.void
-    : Effect.fail(new RpcUnauthorizedError({ message: 'Authentication required' }));
+    : Effect.fail(RpcUnauthorizedError.make({ message: 'Authentication required' }));
 
 export const iconHandlers = {
     'icons.add': ({ icon }, options) =>

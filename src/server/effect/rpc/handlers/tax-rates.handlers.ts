@@ -32,7 +32,7 @@ export const taxRateHandlers = {
             ConfigPermissions,
           );
           if (!currentPermissions.includes('templates:view')) {
-            return yield* Effect.fail(new RpcForbiddenError({ message: 'Forbidden' }));
+            return yield* Effect.fail(RpcForbiddenError.make({ message: 'Forbidden' }));
           }
         }
 

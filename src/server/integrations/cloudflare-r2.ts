@@ -91,7 +91,7 @@ export const uploadReceiptOriginalToR2 = (input: {
 
     yield* Effect.tryPromise({
       catch: (cause) =>
-        new RpcInternalServerError({
+        RpcInternalServerError.make({
           cause,
           message: `R2 upload failed for key ${input.key}`,
         }),

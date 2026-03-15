@@ -110,7 +110,7 @@ const ensureAuthenticated = (
 ): Effect.Effect<void, RpcUnauthorizedError> =>
   headers[RPC_CONTEXT_HEADERS.AUTHENTICATED] === 'true'
     ? Effect.void
-    : Effect.fail(new RpcUnauthorizedError({ message: 'Authentication required' }));
+    : Effect.fail(RpcUnauthorizedError.make({ message: 'Authentication required' }));
 
 export const templateHandlers = {
     'templates.createSimpleTemplate': (input, options) =>
@@ -170,7 +170,7 @@ export const templateHandlers = {
         );
         if (!template) {
           return yield* Effect.fail(
-            new TemplateSimpleNotFoundError({ message: 'Template not found' }),
+            TemplateSimpleNotFoundError.make({ message: 'Template not found' }),
           );
         }
 

@@ -46,12 +46,12 @@ export const eventLifecycleHandlers = {
         const start = new Date(input.start);
         const end = new Date(input.end);
         if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-          return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
+          return yield* Effect.fail(RpcBadRequestError.make({ message: 'Bad request' }));
         }
 
         const sanitizedDescription = sanitizeRichTextHtml(input.description);
         if (!isMeaningfulRichTextHtml(sanitizedDescription)) {
-          return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
+          return yield* Effect.fail(RpcBadRequestError.make({ message: 'Bad request' }));
         }
 
         const sanitizedRegistrationOptions = input.registrationOptions.map(
@@ -71,7 +71,7 @@ export const eventLifecycleHandlers = {
             Number.isNaN(option.closeRegistrationTime.getTime()) ||
             Number.isNaN(option.openRegistrationTime.getTime())
           ) {
-            return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
+            return yield* Effect.fail(RpcBadRequestError.make({ message: 'Bad request' }));
           }
 
           const validation = yield* databaseEffect((database) =>
@@ -82,7 +82,7 @@ export const eventLifecycleHandlers = {
             }),
           );
           if (!validation.success) {
-            return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
+            return yield* Effect.fail(RpcBadRequestError.make({ message: 'Bad request' }));
           }
         }
 
@@ -113,7 +113,7 @@ export const eventLifecycleHandlers = {
         );
         const event = events[0];
         if (!event) {
-          return yield* Effect.fail(new RpcInternalServerError({ message: 'Internal server error' }));
+          return yield* Effect.fail(RpcInternalServerError.make({ message: 'Internal server error' }));
         }
 
         const createdOptions = yield* databaseEffect((database) =>
@@ -230,12 +230,12 @@ export const eventLifecycleHandlers = {
         const start = new Date(input.start);
         const end = new Date(input.end);
         if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-          return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
+          return yield* Effect.fail(RpcBadRequestError.make({ message: 'Bad request' }));
         }
 
         const sanitizedDescription = sanitizeRichTextHtml(input.description);
         if (!isMeaningfulRichTextHtml(sanitizedDescription)) {
-          return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
+          return yield* Effect.fail(RpcBadRequestError.make({ message: 'Bad request' }));
         }
         const sanitizedRegistrationOptions = input.registrationOptions.map(
           (option) => ({
@@ -266,7 +266,7 @@ export const eventLifecycleHandlers = {
           }),
         );
         if (!event) {
-          return yield* Effect.fail(new RpcNotFoundError({ message: 'Resource not found' }));
+          return yield* Effect.fail(RpcNotFoundError.make({ message: 'Resource not found' }));
         }
         if (
           !canEditEvent({
@@ -275,14 +275,14 @@ export const eventLifecycleHandlers = {
             userId: user.id,
           })
         ) {
-          return yield* Effect.fail(new RpcForbiddenError({ message: 'Forbidden' }));
+          return yield* Effect.fail(RpcForbiddenError.make({ message: 'Forbidden' }));
         }
         if (
           !EDITABLE_EVENT_STATUSES.includes(
             event.status as (typeof EDITABLE_EVENT_STATUSES)[number],
           )
         ) {
-          return yield* Effect.fail(new RpcConflictError({ message: 'Conflict' }));
+          return yield* Effect.fail(RpcConflictError.make({ message: 'Conflict' }));
         }
 
         const esnCardEnabledForTenant = isEsnCardEnabled(
@@ -294,7 +294,7 @@ export const eventLifecycleHandlers = {
             Number.isNaN(option.closeRegistrationTime.getTime()) ||
             Number.isNaN(option.openRegistrationTime.getTime())
           ) {
-            return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
+            return yield* Effect.fail(RpcBadRequestError.make({ message: 'Bad request' }));
           }
 
           const validation = yield* databaseEffect((database) =>
@@ -305,14 +305,14 @@ export const eventLifecycleHandlers = {
             }),
           );
           if (!validation.success) {
-            return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
+            return yield* Effect.fail(RpcBadRequestError.make({ message: 'Bad request' }));
           }
 
           if (
             option.esnCardDiscountedPrice !== null &&
             option.esnCardDiscountedPrice > option.price
           ) {
-            return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
+            return yield* Effect.fail(RpcBadRequestError.make({ message: 'Bad request' }));
           }
 
           if (
@@ -320,11 +320,11 @@ export const eventLifecycleHandlers = {
             !esnCardEnabledForTenant &&
             option.isPaid
           ) {
-            return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
+            return yield* Effect.fail(RpcBadRequestError.make({ message: 'Bad request' }));
           }
 
           if (option.spots < 0) {
-            return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
+            return yield* Effect.fail(RpcBadRequestError.make({ message: 'Bad request' }));
           }
         }
 
@@ -357,7 +357,7 @@ export const eventLifecycleHandlers = {
                 });
               const eventRow = updatedEvents[0];
               if (!eventRow) {
-                transactionFailure = new RpcConflictError({
+                transactionFailure = RpcConflictError.make({
                   message: 'Event update conflict',
                   resource: 'event',
                 });
@@ -378,7 +378,7 @@ export const eventLifecycleHandlers = {
               );
               for (const option of sanitizedRegistrationOptions) {
                 if (!existingRegistrationOptionIds.has(option.id)) {
-                  transactionFailure = new RpcBadRequestError({
+                  transactionFailure = RpcBadRequestError.make({
                     message: 'Registration option does not belong to event',
                     reason: 'registrationOptionMismatch',
                   });
