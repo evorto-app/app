@@ -18,6 +18,7 @@ jobs:
     env:
       FONT_AWESOME_TOKEN: ${{ secrets.FONT_AWESOME_TOKEN }}
       CI: true
+      E2E_MODE: baseline
       APP_HOST_PORT: 4200
       BASE_URL: http://localhost:4200
       APP_READY_PATH: /robots.txt
@@ -32,8 +33,6 @@ jobs:
       NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
       NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
       PARENT_BRANCH_ID: ${{ secrets.PARENT_BRANCH_ID }}
-      AUTH0_MANAGEMENT_CLIENT_ID: ${{ secrets.AUTH0_MANAGEMENT_CLIENT_ID }}
-      AUTH0_MANAGEMENT_CLIENT_SECRET: ${{ secrets.AUTH0_MANAGEMENT_CLIENT_SECRET }}
       CLIENT_ID: ${{ secrets.CLIENT_ID }}
       CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
       STRIPE_API_KEY: ${{ secrets.STRIPE_API_KEY }}
@@ -44,7 +43,6 @@ jobs:
       S3_ENDPOINT: http://minio:9000
       S3_REGION: us-east-1
       S3_SECRET_ACCESS_KEY: minioadmin
-      CLOUDFLARE_IMAGES_API_TOKEN: ${{ secrets.CLOUDFLARE_IMAGES_API_TOKEN || secrets.CLOUDFLARE_TOKEN }}
     steps:
       - name: Checkout repository
         # Use sparse-checkout false to ensure .env and Docker context are available
@@ -152,11 +150,11 @@ jobs:
             trap cleanup EXIT
           fi
 
-          bun run test:e2e --project=local-chrome
+          bun run test:e2e
 
           DOCS_OUT_DIR=test-results/docs \
           DOCS_IMG_OUT_DIR=test-results/docs/images \
-          bunx playwright test --project=docs --grep-invert "@finance" \
+          bunx playwright test --project=docs-baseline --grep-invert "@finance" \
             --reporter=github,dot,./tests/support/reporters/documentation-reporter.ts
 
       - name: Collect Docker logs

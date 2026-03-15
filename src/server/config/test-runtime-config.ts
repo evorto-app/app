@@ -6,6 +6,8 @@ import { nonEmptyTrimmedString, optionalTrimmedString } from './config-string';
 const DEFAULT_TEST_CLOCK_ISO = '2026-02-01T12:00:00.000Z';
 const DEFAULT_TEST_SEED_KEY = 'evorto-e2e-default-v1';
 
+export type E2EMode = 'baseline' | 'integration';
+
 export const testRuntimeConfigState = Config.all({
   AUTH0_MANAGEMENT_CLIENT_ID: optionalTrimmedString(
     'AUTH0_MANAGEMENT_CLIENT_ID',
@@ -39,6 +41,18 @@ export const testRuntimeConfigState = Config.all({
         onNone: () => path.resolve('test-results/docs'),
         onSome: (outputDirectory) => outputDirectory,
       }),
+    ),
+  ),
+  E2E_MODE: Config.literal(
+    'baseline',
+    'integration',
+    'BASELINE',
+    'INTEGRATION',
+  )('E2E_MODE').pipe(
+    Config.withDefault('baseline'),
+    Config.map(
+      (mode): E2EMode =>
+        mode === 'BASELINE' || mode === 'baseline' ? 'baseline' : 'integration',
     ),
   ),
   E2E_NOW_ISO: optionalTrimmedString('E2E_NOW_ISO').pipe(
@@ -129,36 +143,53 @@ const combineMissingDataErrors = (
 const missingFieldError = (name: string) =>
   ConfigError.MissingData([name], `Expected ${name} to be configured`);
 
+const collectMissingFieldErrors = (
+  fields: readonly [name: string, configured: boolean][],
+) =>
+  fields
+    .map(([name, configured]) =>
+      configured ? undefined : missingFieldError(name),
+    )
+    .filter((value): value is ConfigError.ConfigError => value !== undefined);
+
 const validateCiEnvironment = (state: TestRuntimeConfigState) => {
   if (!state.CI) {
     return Effect.void;
   }
 
-  const errors = [
-    Option.isSome(state.CLOUDFLARE_ACCOUNT_ID)
-      ? undefined
-      : missingFieldError('CLOUDFLARE_ACCOUNT_ID'),
-    Option.isSome(state.CLOUDFLARE_IMAGES_API_TOKEN)
-      ? undefined
-      : missingFieldError('CLOUDFLARE_IMAGES_API_TOKEN'),
-    Option.isSome(state.CLOUDFLARE_IMAGES_DELIVERY_HASH)
-      ? undefined
-      : missingFieldError('CLOUDFLARE_IMAGES_DELIVERY_HASH'),
-    Option.isSome(state.S3_ACCESS_KEY_ID)
-      ? undefined
-      : missingFieldError('S3_ACCESS_KEY_ID'),
-    Option.isSome(state.S3_BUCKET) ? undefined : missingFieldError('S3_BUCKET'),
-    Option.isSome(state.S3_ENDPOINT)
-      ? undefined
-      : missingFieldError('S3_ENDPOINT'),
-    Option.isSome(state.S3_REGION) ? undefined : missingFieldError('S3_REGION'),
-    Option.isSome(state.S3_SECRET_ACCESS_KEY)
-      ? undefined
-      : missingFieldError('S3_SECRET_ACCESS_KEY'),
-    Option.isSome(state.STRIPE_TEST_ACCOUNT_ID)
-      ? undefined
-      : missingFieldError('STRIPE_TEST_ACCOUNT_ID'),
-  ].filter((value): value is ConfigError.ConfigError => value !== undefined);
+  const errors = collectMissingFieldErrors([
+    ['S3_ACCESS_KEY_ID', Option.isSome(state.S3_ACCESS_KEY_ID)],
+    ['S3_BUCKET', Option.isSome(state.S3_BUCKET)],
+    ['S3_ENDPOINT', Option.isSome(state.S3_ENDPOINT)],
+    ['S3_REGION', Option.isSome(state.S3_REGION)],
+    ['S3_SECRET_ACCESS_KEY', Option.isSome(state.S3_SECRET_ACCESS_KEY)],
+    ['STRIPE_TEST_ACCOUNT_ID', Option.isSome(state.STRIPE_TEST_ACCOUNT_ID)],
+    [
+      'AUTH0_MANAGEMENT_CLIENT_ID',
+      state.E2E_MODE === 'baseline' ||
+        Option.isSome(state.AUTH0_MANAGEMENT_CLIENT_ID),
+    ],
+    [
+      'AUTH0_MANAGEMENT_CLIENT_SECRET',
+      state.E2E_MODE === 'baseline' ||
+        Option.isSome(state.AUTH0_MANAGEMENT_CLIENT_SECRET),
+    ],
+    [
+      'CLOUDFLARE_ACCOUNT_ID',
+      state.E2E_MODE === 'baseline' ||
+        Option.isSome(state.CLOUDFLARE_ACCOUNT_ID),
+    ],
+    [
+      'CLOUDFLARE_IMAGES_API_TOKEN',
+      state.E2E_MODE === 'baseline' ||
+        Option.isSome(state.CLOUDFLARE_IMAGES_API_TOKEN),
+    ],
+    [
+      'CLOUDFLARE_IMAGES_DELIVERY_HASH',
+      state.E2E_MODE === 'baseline' ||
+        Option.isSome(state.CLOUDFLARE_IMAGES_DELIVERY_HASH),
+    ],
+  ]);
 
   return errors.length > 0
     ? Effect.fail(combineMissingDataErrors(errors))
