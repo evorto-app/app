@@ -15,8 +15,8 @@
 - Stop runtime stack: `bun run docker:stop`
 - Local docker runs now use Neon Local instead of a plain Postgres container.
 - Docker Compose now includes a one-shot `db-setup` service that runs the equivalent of `db:setup` inside Docker before `evorto` starts.
-- `.env.runtime` is an optional worktree-local override created explicitly with `bun run env:runtime`.
-- Local `docker:*`, `db:*`, and Playwright `test:e2e*` scripts now refresh `.env.runtime` automatically before they invoke Docker or Drizzle, so linked worktrees do not fall back to the invalid `./.git/HEAD` mount path.
+- `.env.runtime` is an explicit worktree-local override created with `bun run env:runtime`.
+- For linked worktrees that run the Neon Local Docker stack, generate `.env.runtime` once when the worktree is created so `NEON_LOCAL_GIT_HEAD_PATH` points at the resolved Git HEAD file.
 - Local Neon metadata persists in `.neon_local/`, which lets Neon Local reuse a branch per worktree/git branch by default.
 - `.env.ci` is the checked-in CI baseline env file; workflow env should supply CI-specific secrets and overrides.
 - `bun run db:push` applies schema only.
@@ -102,7 +102,7 @@ The local app port intentionally stays at `4200` by default because the current 
 - database and object-storage state can be isolated per worktree
 - fully authenticated browser stacks still need the shared `4200` app port unless Auth0 callback settings are expanded
 
-If `.env.runtime` is absent, local commands run in the default main-mode environment using checked-in env files and process env only.
+If `.env.runtime` is absent, local commands fall back to the checked-in env files and process env only. In linked worktrees that also means Docker Compose falls back to `./.git/HEAD`, which is only valid for non-worktree clones.
 
 If you intentionally need another isolated stack from the same working tree, override the generated ports/project name explicitly before running `bun run env:runtime`.
 

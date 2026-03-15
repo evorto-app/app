@@ -67,7 +67,7 @@ bun run db:reset
 
 This will:
 
-1. Optionally generate a worktree-local runtime override (`bun run env:runtime`) if you want isolated local ports/project naming
+1. In linked worktrees, generate `.env.runtime` once with `bun run env:runtime` so Neon Local gets the resolved Git HEAD path and isolated local ports/project naming
 2. Ensure schema exists and reset/seed the local database (`bun run db:setup`)
 
 `bun run db:setup` now uses the same explicit dotenv loading as `db:push`, with `.env.runtime` loaded first because `dotenv-cli` is first-wins here. That makes a present `.env.runtime` override the checked-in baseline env files and point the reset at the local Neon Local proxy. `bun run db:studio` uses the same chain. We keep the explicit `-e` list instead of `dotenv -c` because this repo needs `.env.local` to beat `.env`, and `dotenv-cli`'s cascade mode does not preserve that precedence here.
