@@ -1,7 +1,9 @@
- 
-
 import type { Headers } from '@effect/platform';
 
+import {
+  RpcUnauthorizedError,
+  TemplateSimpleNotFoundError,
+} from '@shared/errors/rpc-errors';
 import { Effect, Schema } from 'effect';
 
 import type { AppRpcHandlers } from './shared/handler-types';
@@ -15,7 +17,6 @@ import {
   decodeRpcContextHeaderJson,
   RPC_CONTEXT_HEADERS,
 } from '../rpc-context-headers';
-import { mapTemplateSimpleErrorToRpc } from './shared/rpc-error-mappers';
 import { SimpleTemplateService } from './templates/simple-template.service';
 
 const databaseEffect = <A>(
@@ -106,10 +107,10 @@ const normalizeTemplateFindOneRecord = (
 
 const ensureAuthenticated = (
   headers: Headers.Headers,
-): Effect.Effect<void, 'UNAUTHORIZED'> =>
+): Effect.Effect<void, RpcUnauthorizedError> =>
   headers[RPC_CONTEXT_HEADERS.AUTHENTICATED] === 'true'
     ? Effect.void
-    : Effect.fail('UNAUTHORIZED' as const);
+    : Effect.fail(new RpcUnauthorizedError({ message: 'Authentication required' }));
 
 export const templateHandlers = {
     'templates.createSimpleTemplate': (input, options) =>
@@ -123,11 +124,7 @@ export const templateHandlers = {
         return yield* SimpleTemplateService.createSimpleTemplate({
           input,
           tenantId: tenant.id,
-        }).pipe(
-          Effect.catchAll((error) =>
-            Effect.fail(mapTemplateSimpleErrorToRpc(error)),
-          ),
-        );
+        });
       }),
     'templates.findOne': ({ id }, options) =>
       Effect.gen(function* () {
@@ -172,7 +169,9 @@ export const templateHandlers = {
           }),
         );
         if (!template) {
-          return yield* Effect.fail('NOT_FOUND' as const);
+          return yield* Effect.fail(
+            new TemplateSimpleNotFoundError({ message: 'Template not found' }),
+          );
         }
 
         const combinedRegistrationOptionRoleIds =
@@ -254,10 +253,6 @@ export const templateHandlers = {
         return yield* SimpleTemplateService.updateSimpleTemplate({
           input,
           tenantId: tenant.id,
-        }).pipe(
-          Effect.catchAll((error) =>
-            Effect.fail(mapTemplateSimpleErrorToRpc(error)),
-          ),
-        );
+        });
       }),
 } satisfies Partial<AppRpcHandlers>;

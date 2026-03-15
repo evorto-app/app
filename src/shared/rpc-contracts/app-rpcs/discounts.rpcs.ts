@@ -3,9 +3,14 @@ import * as RpcGroup from '@effect/rpc/RpcGroup';
 import { asRpcMutation, asRpcQuery } from '@heddendorp/effect-angular-query';
 import { Schema } from 'effect';
 
-export const DiscountsRpcError = Schema.Literal('UNAUTHORIZED');
+import {
+  BadRequestConflictForbiddenInternalNotFoundUnauthorizedRpcError,
+  UnauthorizedRpcError,
+} from '../../errors/rpc-errors';
 
-export type DiscountsRpcError = Schema.Schema.Type<typeof DiscountsRpcError>;
+export const DiscountsRpcError = UnauthorizedRpcError;
+
+export type DiscountsRpcError = UnauthorizedRpcError;
 
 export const DiscountProviderRecord = Schema.Struct({
   config: Schema.Struct({
@@ -45,17 +50,11 @@ export const DiscountsGetMyCards = asRpcQuery(
   }),
 );
 
-export const DiscountsCardMutationError = Schema.Literal(
-  'BAD_REQUEST',
-  'CONFLICT',
-  'FORBIDDEN',
-  'NOT_FOUND',
-  'UNAUTHORIZED',
-);
+export const DiscountsCardMutationError =
+  BadRequestConflictForbiddenInternalNotFoundUnauthorizedRpcError;
 
-export type DiscountsCardMutationError = Schema.Schema.Type<
-  typeof DiscountsCardMutationError
->;
+export type DiscountsCardMutationError =
+  BadRequestConflictForbiddenInternalNotFoundUnauthorizedRpcError;
 
 const DiscountsCardTypeInput = Schema.Struct({
   type: Schema.Literal('esnCard'),

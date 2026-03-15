@@ -3,15 +3,11 @@ import * as RpcGroup from '@effect/rpc/RpcGroup';
 import { asRpcMutation } from '@heddendorp/effect-angular-query';
 import { Schema } from 'effect';
 
-export const EditorMediaRpcError = Schema.Literal(
-  'BAD_REQUEST',
-  'INTERNAL_SERVER_ERROR',
-  'UNAUTHORIZED',
-);
+import { BadRequestInternalUnauthorizedRpcError } from '../../errors/rpc-errors';
 
-export type EditorMediaRpcError = Schema.Schema.Type<
-  typeof EditorMediaRpcError
->;
+export const EditorMediaRpcError = BadRequestInternalUnauthorizedRpcError;
+
+export type EditorMediaRpcError = BadRequestInternalUnauthorizedRpcError;
 
 export const EditorMediaCreateImageDirectUpload = asRpcMutation(
   Rpc.make('editorMedia.createImageDirectUpload', {

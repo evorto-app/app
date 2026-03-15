@@ -1,7 +1,9 @@
- 
-
 import type { Headers } from '@effect/platform';
 
+import {
+  RpcForbiddenError,
+  RpcUnauthorizedError,
+} from '@shared/errors/rpc-errors';
 import { Effect, Schema } from 'effect';
 
 import type { AppRpcHandlers } from './shared/handler-types';
@@ -21,10 +23,10 @@ const databaseEffect = <A>(
 
 const ensureAuthenticated = (
   headers: Headers.Headers,
-): Effect.Effect<void, 'UNAUTHORIZED'> =>
+): Effect.Effect<void, RpcUnauthorizedError> =>
   headers[RPC_CONTEXT_HEADERS.AUTHENTICATED] === 'true'
     ? Effect.void
-    : Effect.fail('UNAUTHORIZED' as const);
+    : Effect.fail(new RpcUnauthorizedError({ message: 'Authentication required' }));
 
 const decodeHeaderJson = <A, I>(
   value: string | undefined,
@@ -34,7 +36,7 @@ const decodeHeaderJson = <A, I>(
 const ensurePermission = (
   headers: Headers.Headers,
   permission: Permission,
-): Effect.Effect<void, 'FORBIDDEN' | 'UNAUTHORIZED'> =>
+): Effect.Effect<void, RpcForbiddenError | RpcUnauthorizedError> =>
   Effect.gen(function* () {
     yield* ensureAuthenticated(headers);
     const currentPermissions = decodeHeaderJson(
@@ -43,7 +45,7 @@ const ensurePermission = (
     );
 
     if (!currentPermissions.includes(permission)) {
-      return yield* Effect.fail('FORBIDDEN' as const);
+      return yield* Effect.fail(new RpcForbiddenError({ message: 'Forbidden' }));
     }
   });
 

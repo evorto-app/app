@@ -3,15 +3,19 @@ import * as RpcGroup from '@effect/rpc/RpcGroup';
 import { asRpcMutation, asRpcQuery } from '@heddendorp/effect-angular-query';
 import { Schema } from 'effect';
 
-export const FinanceRpcError = Schema.Literal(
-  'BAD_REQUEST',
-  'FORBIDDEN',
-  'INTERNAL_SERVER_ERROR',
-  'NOT_FOUND',
-  'UNAUTHORIZED',
-);
+import {
+  BadRequestForbiddenInternalNotFoundUnauthorizedRpcError,
+  ReceiptMediaBadRequestError,
+  ReceiptMediaInternalError,
+  ReceiptMediaServiceUnavailableError,
+  RpcUnauthorizedError,
+} from '../../errors/rpc-errors';
 
-export type FinanceRpcError = Schema.Schema.Type<typeof FinanceRpcError>;
+export const FinanceRpcError =
+  BadRequestForbiddenInternalNotFoundUnauthorizedRpcError;
+
+export type FinanceRpcError =
+  BadRequestForbiddenInternalNotFoundUnauthorizedRpcError;
 
 export const FinanceReceiptStatus = Schema.Literal(
   'approved',
@@ -238,7 +242,12 @@ export const FinanceReceiptsSubmit = asRpcMutation(
 
 export const FinanceReceiptMediaUploadOriginal = asRpcMutation(
   Rpc.make('finance.receiptMedia.uploadOriginal', {
-    error: FinanceRpcError,
+    error: Schema.Union(
+      ReceiptMediaBadRequestError,
+      ReceiptMediaInternalError,
+      ReceiptMediaServiceUnavailableError,
+      RpcUnauthorizedError,
+    ),
     payload: Schema.Struct({
       fileBase64: Schema.NonEmptyString,
       fileName: Schema.NonEmptyString,

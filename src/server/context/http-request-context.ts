@@ -38,7 +38,7 @@ export const resolveHttpRequestContext = (
       yield* Effect.logError('Tenant not found').pipe(
         Effect.annotateLogs({ cause }),
       );
-      return yield* Effect.fail(new Error('Tenant not found', { cause }));
+      return yield* Effect.die(new Error('Tenant not found', { cause }));
     }
 
     const user = yield* resolveUserContext({

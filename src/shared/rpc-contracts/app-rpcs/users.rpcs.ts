@@ -4,9 +4,14 @@ import { asRpcMutation, asRpcQuery } from '@heddendorp/effect-angular-query';
 import { Schema } from 'effect';
 
 import { User } from '../../../types/custom/user';
-export const UserRpcError = Schema.Literal('UNAUTHORIZED');
+import {
+  ConflictOrUnauthorizedRpcError,
+  ForbiddenOrUnauthorizedRpcError,
+  UnauthorizedRpcError,
+} from '../../errors/rpc-errors';
+export const UserRpcError = UnauthorizedRpcError;
 
-export type UserRpcError = Schema.Schema.Type<typeof UserRpcError>;
+export type UserRpcError = UnauthorizedRpcError;
 
 export const UsersAuthData = Schema.Struct({
   email: Schema.optional(Schema.NullOr(Schema.String)),
@@ -35,14 +40,9 @@ export type UsersCreateAccountInput = Schema.Schema.Type<
   typeof UsersCreateAccountInput
 >;
 
-export const UsersCreateAccountError = Schema.Literal(
-  'CONFLICT',
-  'UNAUTHORIZED',
-);
+export const UsersCreateAccountError = ConflictOrUnauthorizedRpcError;
 
-export type UsersCreateAccountError = Schema.Schema.Type<
-  typeof UsersCreateAccountError
->;
+export type UsersCreateAccountError = ConflictOrUnauthorizedRpcError;
 
 export const UsersCreateAccount = asRpcMutation(
   Rpc.make('users.createAccount', {
@@ -81,9 +81,9 @@ export type UsersFindManyResult = Schema.Schema.Type<
   typeof UsersFindManyResult
 >;
 
-export const UsersFindManyError = Schema.Literal('FORBIDDEN', 'UNAUTHORIZED');
+export const UsersFindManyError = ForbiddenOrUnauthorizedRpcError;
 
-export type UsersFindManyError = Schema.Schema.Type<typeof UsersFindManyError>;
+export type UsersFindManyError = ForbiddenOrUnauthorizedRpcError;
 
 export const UsersFindMany = asRpcQuery(
   Rpc.make('users.findMany', {

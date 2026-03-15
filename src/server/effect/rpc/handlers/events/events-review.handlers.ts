@@ -1,3 +1,8 @@
+import {
+  RpcConflictError,
+  RpcForbiddenError,
+  RpcNotFoundError,
+} from '@shared/errors/rpc-errors';
 import { and, eq, inArray } from 'drizzle-orm';
 import { Effect } from 'effect';
 
@@ -71,10 +76,10 @@ export const eventReviewHandlers = {
           }),
         );
         if (!event) {
-          return yield* Effect.fail('NOT_FOUND' as const);
+          return yield* Effect.fail(new RpcNotFoundError({ message: 'Resource not found' }));
         }
 
-        return yield* Effect.fail('CONFLICT' as const);
+        return yield* Effect.fail(new RpcConflictError({ message: 'Conflict' }));
       }),
 'events.submitForReview': ({ eventId }, _options) =>
       Effect.gen(function* () {
@@ -96,7 +101,7 @@ export const eventReviewHandlers = {
           }),
         );
         if (!event) {
-          return yield* Effect.fail('NOT_FOUND' as const);
+          return yield* Effect.fail(new RpcNotFoundError({ message: 'Resource not found' }));
         }
 
         if (
@@ -106,10 +111,10 @@ export const eventReviewHandlers = {
             userId: user.id,
           })
         ) {
-          return yield* Effect.fail('FORBIDDEN' as const);
+          return yield* Effect.fail(new RpcForbiddenError({ message: 'Forbidden' }));
         }
         if (event.status !== 'DRAFT' && event.status !== 'REJECTED') {
-          return yield* Effect.fail('CONFLICT' as const);
+          return yield* Effect.fail(new RpcConflictError({ message: 'Conflict' }));
         }
 
         const submittedEvents = yield* databaseEffect((database) =>
@@ -136,6 +141,6 @@ export const eventReviewHandlers = {
           return;
         }
 
-        return yield* Effect.fail('CONFLICT' as const);
+        return yield* Effect.fail(new RpcConflictError({ message: 'Conflict' }));
       }),
 } satisfies Partial<AppRpcHandlers>;

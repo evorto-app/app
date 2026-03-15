@@ -1,4 +1,9 @@
 import {
+  RpcConflictError,
+  RpcForbiddenError,
+  RpcNotFoundError,
+} from '@shared/errors/rpc-errors';
+import {
   and,
   arrayOverlaps,
   eq,
@@ -91,14 +96,14 @@ export const eventQueryHandlers = {
           !onlyApprovedStatus &&
           !userPermissions.includes('events:seeDrafts')
         ) {
-          return yield* Effect.fail('FORBIDDEN' as const);
+          return yield* Effect.fail(new RpcForbiddenError({ message: 'Forbidden' }));
         }
 
         if (
           input.includeUnlisted &&
           !userPermissions.includes('events:seeUnlisted')
         ) {
-          return yield* Effect.fail('FORBIDDEN' as const);
+          return yield* Effect.fail(new RpcForbiddenError({ message: 'Forbidden' }));
         }
 
         const rolesToFilterBy =
@@ -266,7 +271,7 @@ export const eventQueryHandlers = {
           }),
         );
         if (!event) {
-          return yield* Effect.fail('NOT_FOUND' as const);
+          return yield* Effect.fail(new RpcNotFoundError({ message: 'Resource not found' }));
         }
 
         const canSeeDrafts = user?.permissions.includes('events:seeDrafts');
@@ -284,7 +289,7 @@ export const eventQueryHandlers = {
           !canReviewEvents &&
           !canEditEvent_
         ) {
-          return yield* Effect.fail('NOT_FOUND' as const);
+          return yield* Effect.fail(new RpcNotFoundError({ message: 'Resource not found' }));
         }
 
         const registrationOptionIds = event.registrationOptions.map(
@@ -450,18 +455,18 @@ export const eventQueryHandlers = {
         );
 
         if (!event) {
-          return yield* Effect.fail('NOT_FOUND' as const);
+          return yield* Effect.fail(new RpcNotFoundError({ message: 'Resource not found' }));
         }
 
         const canEdit =
           event.creatorId === user.id ||
           user.permissions.includes('events:editAll');
         if (!canEdit) {
-          return yield* Effect.fail('FORBIDDEN' as const);
+          return yield* Effect.fail(new RpcForbiddenError({ message: 'Forbidden' }));
         }
 
         if (event.status !== 'DRAFT' && event.status !== 'REJECTED') {
-          return yield* Effect.fail('CONFLICT' as const);
+          return yield* Effect.fail(new RpcConflictError({ message: 'Conflict' }));
         }
 
         const registrationOptionIds = event.registrationOptions.map(

@@ -13,6 +13,7 @@ import { injectQuery } from '@tanstack/angular-query-experimental';
 import { DateTime } from 'luxon';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
+import { getErrorMessage } from '../../core/error-message';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -42,15 +43,6 @@ export class HandleRegistrationComponent {
   }
 
   protected errorMessage(error: unknown): string {
-    if (typeof error === 'string') {
-      return error;
-    }
-    if (error && typeof error === 'object') {
-      const message = Reflect.get(error, 'message');
-      if (typeof message === 'string') {
-        return message;
-      }
-    }
-    return 'Unknown error';
+    return getErrorMessage(error, 'Unknown error');
   }
 }

@@ -1,5 +1,5 @@
-import * as FileSystem from '@effect/platform/FileSystem';
 import * as NodeFileSystem from '@effect/platform-node-shared/NodeFileSystem';
+import * as FileSystem from '@effect/platform/FileSystem';
 import * as PlatformConfigProvider from '@effect/platform/PlatformConfigProvider';
 import { ConfigProvider, Effect } from 'effect';
 import path from 'node:path';

@@ -20,6 +20,7 @@ import {
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
+import { getErrorMessage } from '../../core/error-message';
 import { IconComponent } from '../../shared/components/icon/icon.component';
 import { RegistrationStartOffsetPipe } from '../../shared/pipes/registration-start-offset.pipe';
 
@@ -63,16 +64,7 @@ export class TemplateDetailsComponent {
   );
 
   protected errorMessage(error: unknown): string {
-    if (typeof error === 'string') {
-      return error;
-    }
-    if (error && typeof error === 'object') {
-      const message = Reflect.get(error, 'message');
-      if (typeof message === 'string') {
-        return message;
-      }
-    }
-    return 'Unknown error';
+    return getErrorMessage(error, 'Unknown error');
   }
 
   protected findRateByStripeId(id: null | string | undefined) {

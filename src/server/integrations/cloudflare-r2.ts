@@ -1,3 +1,4 @@
+import { RpcInternalServerError } from '@shared/errors/rpc-errors';
 import { Effect } from 'effect';
 
 import { objectStorageConfig } from '../config/object-storage-config';
@@ -90,8 +91,9 @@ export const uploadReceiptOriginalToR2 = (input: {
 
     yield* Effect.tryPromise({
       catch: (cause) =>
-        new Error(`R2 upload failed for key ${input.key}`, {
-          cause: cause instanceof Error ? cause : new Error(String(cause)),
+        new RpcInternalServerError({
+          cause,
+          message: `R2 upload failed for key ${input.key}`,
         }),
       try: () =>
         client.file(input.key).write(input.body, {

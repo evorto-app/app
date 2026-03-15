@@ -3,9 +3,11 @@ import * as RpcGroup from '@effect/rpc/RpcGroup';
 import { asRpcMutation, asRpcQuery } from '@heddendorp/effect-angular-query';
 import { Schema } from 'effect';
 
-export const IconRpcError = Schema.Literal('INVALID_ICON_NAME', 'UNAUTHORIZED');
+import { InvalidIconOrUnauthorizedRpcError } from '../../errors/rpc-errors';
 
-export type IconRpcError = Schema.Schema.Type<typeof IconRpcError>;
+export const IconRpcError = InvalidIconOrUnauthorizedRpcError;
+
+export type IconRpcError = InvalidIconOrUnauthorizedRpcError;
 
 export const IconRecord = Schema.Struct({
   commonName: Schema.NonEmptyString,

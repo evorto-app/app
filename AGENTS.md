@@ -50,6 +50,9 @@ More specific guidance also exists deeper in some subtrees (for example `src/ser
 - If an error is expected and recoverable, map it explicitly to a typed/domain outcome.
 - If an error is unexpected, fail loudly and keep enough context to debug root cause.
 - Prefer preventing repeated failures with follow-up fixes/tests over adding silent fallbacks.
+- RPC and Effect error channels use `Schema.TaggedError` end to end; do not introduce string-literal business errors in contracts or handlers.
+- Keep defects as defects until the HTTP/RPC boundary. Only expected recoverable failures belong in typed error unions.
+- When an external unknown error must cross a typed boundary, wrap it in a tagged error field using `Schema.Defect`.
 
 ## Conventions
 

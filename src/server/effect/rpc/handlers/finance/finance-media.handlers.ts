@@ -3,7 +3,6 @@ import { Effect } from 'effect';
 import type { AppRpcHandlers } from '../shared/handler-types';
 
 import { RpcAccess } from '../shared/rpc-access.service';
-import { mapReceiptMediaErrorToRpc } from '../shared/rpc-error-mappers';
 import { ReceiptMediaService } from './receipt-media.service';
 
 export const financeMediaHandlers = {
@@ -20,9 +19,7 @@ export const financeMediaHandlers = {
           mimeType: input.mimeType,
           tenantId: tenant.id,
           userId: user.id,
-        }).pipe(
-          Effect.catchAll((error) => Effect.fail(mapReceiptMediaErrorToRpc(error))),
-        );
+        });
 
         return {
           sizeBytes: input.fileSizeBytes,

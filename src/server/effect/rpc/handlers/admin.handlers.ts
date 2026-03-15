@@ -1,7 +1,11 @@
- 
-
 import type { Headers } from '@effect/platform';
 
+import {
+  RpcBadRequestError,
+  RpcForbiddenError,
+  RpcNotFoundError,
+  RpcUnauthorizedError,
+} from '@shared/errors/rpc-errors';
 import {
   resolveTenantReceiptSettings,
   type TenantDiscountProviders,
@@ -70,15 +74,15 @@ const normalizeHubRoleRecord = (role: {
 
 const ensureAuthenticated = (
   headers: Headers.Headers,
-): Effect.Effect<void, 'UNAUTHORIZED'> =>
+): Effect.Effect<void, RpcUnauthorizedError> =>
   headers[RPC_CONTEXT_HEADERS.AUTHENTICATED] === 'true'
     ? Effect.void
-    : Effect.fail('UNAUTHORIZED' as const);
+    : Effect.fail(new RpcUnauthorizedError({ message: 'Authentication required' }));
 
 const ensurePermission = (
   headers: Headers.Headers,
   permission: Permission,
-): Effect.Effect<void, 'FORBIDDEN' | 'UNAUTHORIZED'> =>
+): Effect.Effect<void, RpcForbiddenError | RpcUnauthorizedError> =>
   Effect.gen(function* () {
     yield* ensureAuthenticated(headers);
     const currentPermissions = decodeHeaderJson(
@@ -87,7 +91,7 @@ const ensurePermission = (
     );
 
     if (!currentPermissions.includes(permission)) {
-      return yield* Effect.fail('FORBIDDEN' as const);
+      return yield* Effect.fail(new RpcForbiddenError({ message: 'Forbidden' }));
     }
   });
 
@@ -125,7 +129,7 @@ export const adminHandlers = {
         );
         const createdRole = createdRoles[0];
         if (!createdRole) {
-          return yield* Effect.fail('NOT_FOUND' as const);
+          return yield* Effect.fail(new RpcNotFoundError({ message: 'Resource not found' }));
         }
 
         return createdRole;
@@ -146,7 +150,7 @@ export const adminHandlers = {
             }),
         );
         if (deletedRoles.length === 0) {
-          return yield* Effect.fail('NOT_FOUND' as const);
+          return yield* Effect.fail(new RpcNotFoundError({ message: 'Resource not found' }));
         }
       }),
     'admin.roles.findHubRoles': (_payload, options) =>
@@ -250,7 +254,7 @@ export const adminHandlers = {
           }),
         );
         if (!role) {
-          return yield* Effect.fail('NOT_FOUND' as const);
+          return yield* Effect.fail(new RpcNotFoundError({ message: 'Resource not found' }));
         }
 
         return role;
@@ -320,7 +324,7 @@ export const adminHandlers = {
         );
         const updatedRole = updatedRoles[0];
         if (!updatedRole) {
-          return yield* Effect.fail('NOT_FOUND' as const);
+          return yield* Effect.fail(new RpcNotFoundError({ message: 'Resource not found' }));
         }
 
         return updatedRole;
@@ -343,7 +347,7 @@ export const adminHandlers = {
             stripe.taxRates.retrieve(id, undefined, { stripeAccount }),
           );
           if (!stripeRate.inclusive) {
-            return yield* Effect.fail('BAD_REQUEST' as const);
+            return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
           }
 
         const existingRate = yield* databaseEffect((database) =>
@@ -459,7 +463,11 @@ export const adminHandlers = {
         const discountProviders: TenantDiscountProviders = {
           esnCard: {
             config: yield* Effect.try({
-              catch: () => 'BAD_REQUEST' as const,
+              catch: (error) =>
+                new RpcBadRequestError({
+                  message: 'Invalid ESN card configuration',
+                  reason: error instanceof Error ? error.message : String(error),
+                }),
               try: () =>
                 normalizeEsnCardConfig(
                   { buyEsnCardUrl: input.buyEsnCardUrl },
@@ -489,7 +497,7 @@ export const adminHandlers = {
         );
         const updatedTenant = updatedTenants[0];
         if (!updatedTenant) {
-          return yield* Effect.fail('FORBIDDEN' as const);
+          return yield* Effect.fail(new RpcForbiddenError({ message: 'Forbidden' }));
         }
 
         const nextTenant = {
@@ -504,7 +512,11 @@ export const adminHandlers = {
         };
 
         return yield* Effect.try({
-          catch: () => 'FORBIDDEN' as const,
+          catch: (error) =>
+            new RpcBadRequestError({
+              message: 'Updated tenant settings failed validation',
+              reason: error instanceof Error ? error.message : String(error),
+            }),
           try: () => Schema.decodeUnknownSync(Tenant)(nextTenant),
         });
       }),

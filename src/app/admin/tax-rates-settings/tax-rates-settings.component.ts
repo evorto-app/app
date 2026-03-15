@@ -19,6 +19,7 @@ import {
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
+import { getErrorMessage } from '../../core/error-message';
 import { ImportTaxRatesDialogComponent } from '../components/import-tax-rates-dialog/import-tax-rates-dialog.component';
 
 @Component({
@@ -335,18 +336,7 @@ export class TaxRatesSettingsComponent {
   private readonly dialog = inject(MatDialog);
 
   protected errorMessage(error: unknown): string {
-    if (typeof error === 'string') {
-      return error;
-    }
-    if (
-      error &&
-      typeof error === 'object' &&
-      'message' in error &&
-      typeof (error as { message?: unknown }).message === 'string'
-    ) {
-      return (error as { message: string }).message;
-    }
-    return 'Unknown error';
+    return getErrorMessage(error, 'Unknown error');
   }
 
   protected openImportDialog(): void {

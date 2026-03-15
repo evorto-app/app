@@ -1,8 +1,8 @@
+import { databaseConfig } from '@db/database-config';
 import * as PgClient from '@effect/sql-pg/PgClient';
 import * as PgDrizzle from 'drizzle-orm/effect-postgres';
 import { Context, Effect, Layer } from 'effect';
 
-import { databaseConfig } from '@db/database-config';
 import { createPgClientConfig } from './pg-connection-config';
 import { relations } from './relations';
 import * as schema from './schema';
@@ -35,5 +35,8 @@ export class Database extends Context.Tag('@db/Database')<
 
 export const databaseLayer = Layer.effect(
   Database,
-  Effect.map(PgClient.PgClient, makeDatabase),
+  Effect.gen(function* () {
+    const pgClient = yield* PgClient.PgClient;
+    return makeDatabase(pgClient);
+  }),
 ).pipe(Layer.provide(pgClientLayer));

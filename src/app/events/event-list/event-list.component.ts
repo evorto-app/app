@@ -25,6 +25,7 @@ import {
 import { firstValueFrom } from 'rxjs';
 
 import { ConfigService } from '../../core/config.service';
+import { getErrorMessage } from '../../core/error-message';
 import { IconComponent } from '../../shared/components/icon/icon.component';
 import { IfAnyPermissionDirective } from '../../shared/directives/if-any-permission.directive';
 import { EventFilterDialogComponent } from '../event-filter-dialog/event-filter-dialog.component';
@@ -60,15 +61,7 @@ export class EventListComponent {
   protected readonly eventQuery = this.eventListService.eventQuery;
   protected readonly eventErrorMessage = computed(() => {
     const error = this.eventQuery.error();
-    if (!error) {
-      return 'Failed to load events';
-    }
-
-    if (typeof error === 'string') {
-      return error;
-    }
-
-    return error.message;
+    return error ? getErrorMessage(error, 'Failed to load events') : 'Failed to load events';
   });
   protected readonly faClock = faClock;
   protected readonly faEllipsisVertical = faEllipsisVertical;

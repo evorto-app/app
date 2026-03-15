@@ -1,9 +1,8 @@
-import { Config, Option } from 'effect';
-
 import {
   nonEmptyTrimmedString,
   optionalTrimmedString,
 } from '@server/config/config-string';
+import { Config, Option } from 'effect';
 
 export const databaseConfig = Config.all({
   BRANCH_ID: optionalTrimmedString('BRANCH_ID'),

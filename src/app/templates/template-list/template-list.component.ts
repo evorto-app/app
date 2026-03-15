@@ -13,6 +13,7 @@ import { faEllipsisVertical } from '@fortawesome/duotone-regular-svg-icons';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
+import { getErrorMessage } from '../../core/error-message';
 import { IconComponent } from '../../shared/components/icon/icon.component';
 
 @Component({
@@ -40,8 +41,6 @@ export class TemplateListComponent {
   );
   protected readonly templateQueryErrorMessage = computed(() => {
     const error = this.templateQuery.error();
-    return typeof error === 'string'
-      ? error
-      : (error?.message ?? 'Unknown error');
+    return getErrorMessage(error, 'Unknown error');
   });
 }
