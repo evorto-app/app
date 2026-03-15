@@ -25,6 +25,7 @@ import {
 import { firstValueFrom } from 'rxjs';
 
 import { AppRpc } from '../../../core/effect-rpc-angular-client';
+import { getErrorMessage } from '../../../core/error-message';
 import { IconComponent } from '../../../shared/components/icon/icon.component';
 import { CreateEditCategoryDialogComponent } from '../create-edit-category-dialog/create-edit-category-dialog.component';
 
@@ -59,9 +60,7 @@ export class CategoryListComponent {
   );
   protected readonly templateCategoryGroupsErrorMessage = computed(() => {
     const error = this.templateCategoryGroupsQuery.error();
-    return typeof error === 'string'
-      ? error
-      : (error?.message ?? 'Unknown error');
+    return getErrorMessage(error, 'Unknown error');
   });
   private createCategoryMutation = injectMutation(() =>
     this.rpc.templateCategories.create.mutationOptions(),

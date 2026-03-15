@@ -1,7 +1,12 @@
- 
-
 import type { Headers } from '@effect/platform';
 
+import {
+  RpcUnauthorizedError,
+} from '@shared/errors/rpc-errors';
+import {
+  IconRpcError,
+  InvalidIconNameError,
+} from '@shared/rpc-contracts/app-rpcs/icons.errors';
 import { Effect, Schema } from 'effect';
 
 import type { AppRpcHandlers } from './shared/handler-types';
@@ -10,9 +15,6 @@ import { Database, type DatabaseClient } from '../../../../db';
 import {
   icons,
 } from '../../../../db/schema';
-import {
-  type IconRpcError,
-} from '../../../../shared/rpc-contracts/app-rpcs/icons.rpcs';
 import { Tenant } from '../../../../types/custom/tenant';
 import { computeIconSourceColor } from '../../../utils/icon-color';
 import {
@@ -36,7 +38,12 @@ const getFriendlyIconName = (
   Effect.sync(() => icon.split(':')).pipe(
     Effect.flatMap(([name, set]) => {
       if (!name) {
-        return Effect.fail('INVALID_ICON_NAME' as const);
+        return Effect.fail(
+          new InvalidIconNameError({
+            iconName: icon,
+            message: 'Invalid icon name',
+          }),
+        );
       }
 
       let friendlyName = name;
@@ -59,10 +66,10 @@ const getFriendlyIconName = (
 
 const ensureAuthenticated = (
   headers: Headers.Headers,
-): Effect.Effect<void, 'UNAUTHORIZED'> =>
+): Effect.Effect<void, RpcUnauthorizedError> =>
   headers[RPC_CONTEXT_HEADERS.AUTHENTICATED] === 'true'
     ? Effect.void
-    : Effect.fail('UNAUTHORIZED' as const);
+    : Effect.fail(new RpcUnauthorizedError({ message: 'Authentication required' }));
 
 export const iconHandlers = {
     'icons.add': ({ icon }, options) =>

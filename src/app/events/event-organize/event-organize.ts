@@ -27,6 +27,7 @@ import { firstValueFrom } from 'rxjs';
 
 import { ConfigService } from '../../core/config.service';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
+import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
 import {
   ReceiptSubmitDialogComponent,
@@ -194,9 +195,7 @@ export class EventOrganize {
       );
     } catch (error) {
       this.notifications.showError(
-        error instanceof Error
-          ? error.message
-          : 'Failed to upload receipt file',
+        getErrorMessage(error, 'Failed to upload receipt file'),
       );
     }
   }

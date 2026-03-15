@@ -263,16 +263,14 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
       return responseText('Payload too large', 413);
     }
 
-    const event = yield* Effect.try({
-      catch: (error) => error,
-      try: () =>
-        stripe.webhooks.constructEvent(
-          Buffer.from(rawBody),
-          signature,
-          endpointSecret,
-        ),
-    }).pipe(
-      Effect.catchAll((error) =>
+    const event = yield* Effect.sync(() =>
+      stripe.webhooks.constructEvent(
+        Buffer.from(rawBody),
+        signature,
+        endpointSecret,
+      ),
+    ).pipe(
+      Effect.catchAllDefect((error) =>
         Effect.gen(function* () {
           yield* Effect.logError(
             'Stripe webhook signature verification failed',
@@ -440,20 +438,18 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
               return;
             }
 
-            const paymentIntent = yield* Effect.tryPromise({
-              catch: (error) => error,
-              try: () =>
-                stripe.paymentIntents.retrieve(
-                  paymentIntentField,
-                  {
-                    expand: ['latest_charge'],
-                  },
-                  {
-                    stripeAccount,
-                  },
-                ),
-            }).pipe(
-              Effect.catchAll((error) => {
+            const paymentIntent = yield* Effect.promise(() =>
+              stripe.paymentIntents.retrieve(
+                paymentIntentField,
+                {
+                  expand: ['latest_charge'],
+                },
+                {
+                  stripeAccount,
+                },
+              ),
+            ).pipe(
+              Effect.catchAllDefect((error) => {
                 if (isStripeMissingResourceError(error)) {
                   return Effect.logWarning(
                     'Stripe payment intent missing during checkout completion',

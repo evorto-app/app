@@ -4,6 +4,7 @@ import { asRpcQuery } from '@heddendorp/effect-angular-query';
 import { Schema } from 'effect';
 
 import { Tenant } from '../../../types/custom/tenant';
+import { BadRequestRpcError } from '../../errors/rpc-errors';
 import { PermissionSchema } from '../../permissions/permissions';
 export const PublicConfig = Schema.Struct({
   googleMapsApiKey: Schema.NullOr(Schema.NonEmptyString),
@@ -16,11 +17,9 @@ export const ConfigPermissions = Schema.Array(PermissionSchema);
 
 export type ConfigPermissions = Schema.Schema.Type<typeof ConfigPermissions>;
 
-export const ConfigHeaderRpcError = Schema.Literal('BAD_REQUEST');
+export const ConfigHeaderRpcError = BadRequestRpcError;
 
-export type ConfigHeaderRpcError = Schema.Schema.Type<
-  typeof ConfigHeaderRpcError
->;
+export type ConfigHeaderRpcError = BadRequestRpcError;
 
 export const ConfigPublic = asRpcQuery(
   Rpc.make('config.public', {

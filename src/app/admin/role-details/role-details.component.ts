@@ -12,6 +12,7 @@ import {
   PERMISSION_GROUPS,
 } from '../../../shared/permissions/permissions';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
+import { getErrorMessage } from '../../core/error-message';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -45,17 +46,6 @@ export class RoleDetailsComponent {
   }
 
   protected errorMessage(error: unknown): string {
-    if (typeof error === 'string') {
-      return error;
-    }
-    if (
-      error &&
-      typeof error === 'object' &&
-      'message' in error &&
-      typeof (error as { message?: unknown }).message === 'string'
-    ) {
-      return (error as { message: string }).message;
-    }
-    return 'Unknown error';
+    return getErrorMessage(error, 'Unknown error');
   }
 }

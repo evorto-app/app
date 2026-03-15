@@ -1,3 +1,7 @@
+import {
+  EventRegistrationInternalError,
+  EventRegistrationNotFoundError,
+} from '@shared/rpc-contracts/app-rpcs/events.errors';
 import { eq } from 'drizzle-orm';
 import { Effect } from 'effect';
 
@@ -10,7 +14,6 @@ import {
 } from '../../../../../db/schema';
 import { StripeClient } from '../../../../stripe-client';
 import { RpcAccess } from '../shared/rpc-access.service';
-import { mapEventRegistrationErrorToRpc } from '../shared/rpc-error-mappers';
 import { EventRegistrationService } from './event-registration.service';
 import { databaseEffect } from './events.shared';
 
@@ -53,7 +56,11 @@ export const eventRegistrationHandlers = {
         );
 
         if (!registration) {
-          return yield* Effect.fail('NOT_FOUND' as const);
+          return yield* Effect.fail(
+            new EventRegistrationNotFoundError({
+              message: 'Registration not found',
+            }),
+          );
         }
 
         yield* databaseEffect((database) =>
@@ -70,7 +77,9 @@ export const eventRegistrationHandlers = {
                 registration.registrationOption?.reservedSpots;
               if (reservedSpots === undefined) {
                 return yield* Effect.fail(
-                  new Error('Registration option missing'),
+                  new EventRegistrationInternalError({
+                    message: 'Registration option missing',
+                  }),
                 );
               }
 
@@ -110,7 +119,11 @@ export const eventRegistrationHandlers = {
 
               const stripeAccount = tenant.stripeAccountId;
               if (!stripeAccount) {
-                return yield* Effect.fail(new Error('Stripe account not found'));
+                return yield* Effect.fail(
+                  new EventRegistrationInternalError({
+                    message: 'Stripe account not found',
+                  }),
+                );
               }
               yield* Effect.tryPromise(() =>
                 stripe.checkout.sessions.expire(
@@ -136,7 +149,11 @@ export const eventRegistrationHandlers = {
               );
             }),
           ),
-        ).pipe(Effect.mapError(() => 'INTERNAL_SERVER_ERROR' as const));
+        ).pipe(
+          Effect.mapError(
+            () => new EventRegistrationInternalError({ message: 'Internal server error' }),
+          ),
+        );
       }),
 'events.getRegistrationStatus': ({ eventId }, _options) =>
       Effect.gen(function* () {
@@ -268,11 +285,7 @@ export const eventRegistrationHandlers = {
             email: user.email,
             id: user.id,
           },
-        }).pipe(
-          Effect.catchAll((error) =>
-            Effect.fail(mapEventRegistrationErrorToRpc(error)),
-          ),
-        );
+        });
       }),
 'events.registrationScanned': ({ registrationId }, _options) =>
       Effect.gen(function* () {
@@ -319,8 +332,17 @@ export const eventRegistrationHandlers = {
             },
           }),
         );
-        if (!registration || !registration.user || !registration.event) {
-          return yield* Effect.fail('NOT_FOUND' as const);
+        if (
+          !registration ||
+          !registration.user ||
+          !registration.event ||
+          !registration.registrationOption
+        ) {
+          return yield* Effect.fail(
+            new EventRegistrationNotFoundError({
+              message: 'Registration not found',
+            }),
+          );
         }
 
         const sameUserIssue = registration.userId === user.id;

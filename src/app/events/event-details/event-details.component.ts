@@ -28,6 +28,7 @@ import { firstValueFrom } from 'rxjs';
 
 import { ConfigService } from '../../core/config.service';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
+import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
 import { PermissionsService } from '../../core/permissions.service';
 import { EventStatusComponent } from '../../shared/components/event-status/event-status.component';
@@ -248,10 +249,10 @@ export class EventDetailsComponent {
   }
 
   private async handleReviewActionError(error: unknown): Promise<void> {
-    const message =
-      error instanceof Error
-        ? error.message
-        : 'Failed to update event review status';
+    const message = getErrorMessage(
+      error,
+      'Failed to update event review status',
+    );
     const normalizedMessage = message.toLowerCase();
     if (
       normalizedMessage.includes('status changed') ||

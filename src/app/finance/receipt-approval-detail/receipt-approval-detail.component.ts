@@ -24,6 +24,7 @@ import {
 
 import { ConfigService } from '../../core/config.service';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
+import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
 import { ReceiptFormFieldsComponent } from '../shared/receipt-form/receipt-form-fields.component';
 import { createReceiptForm } from '../shared/receipt-form/receipt-form.model';
@@ -216,9 +217,7 @@ export class ReceiptApprovalDetailComponent {
       );
       await this.router.navigate(['/finance/receipts-approval']);
     } catch (error) {
-      this.notifications.showError(
-        error instanceof Error ? error.message : 'Failed to review receipt',
-      );
+      this.notifications.showError(getErrorMessage(error, 'Failed to review receipt'));
     }
   }
 }

@@ -1,3 +1,4 @@
+import { RpcBadRequestError } from '@shared/errors/rpc-errors';
 import { Effect, Schema } from 'effect';
 
 import type { AppRpcHandlers } from './shared/handler-types';
@@ -21,7 +22,11 @@ const decodeHeaderJsonEffect = <A, I>(
   schema: Schema.Schema<A, I, never>,
 ) =>
   Effect.try({
-    catch: () => 'BAD_REQUEST' as const,
+    catch: (error) =>
+      new RpcBadRequestError({
+        message: `Invalid RPC header: ${headerName}`,
+        reason: error instanceof Error ? error.message : String(error),
+      }),
     try: () => decodeHeaderJson(value, schema),
   });
 

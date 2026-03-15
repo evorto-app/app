@@ -1,7 +1,9 @@
- 
-
 import type { Headers } from '@effect/platform';
 
+import {
+  RpcBadRequestError,
+  RpcUnauthorizedError,
+} from '@shared/errors/rpc-errors';
 import { Effect, Schema } from 'effect';
 
 import type { AppRpcHandlers } from './shared/handler-types';
@@ -30,10 +32,10 @@ const decodeHeaderJson = <A, I>(
 
 const ensureAuthenticated = (
   headers: Headers.Headers,
-): Effect.Effect<void, 'UNAUTHORIZED'> =>
+): Effect.Effect<void, RpcUnauthorizedError> =>
   headers[RPC_CONTEXT_HEADERS.AUTHENTICATED] === 'true'
     ? Effect.void
-    : Effect.fail('UNAUTHORIZED' as const);
+    : Effect.fail(new RpcUnauthorizedError({ message: 'Authentication required' }));
 
 const decodeUserHeader = (headers: Headers.Headers) =>
   Effect.sync(() =>
@@ -42,11 +44,11 @@ const decodeUserHeader = (headers: Headers.Headers) =>
 
 const requireUserHeader = (
   headers: Headers.Headers,
-): Effect.Effect<User, 'UNAUTHORIZED'> =>
+): Effect.Effect<User, RpcUnauthorizedError> =>
   Effect.gen(function* () {
     const user = yield* decodeUserHeader(headers);
     if (!user) {
-      return yield* Effect.fail('UNAUTHORIZED' as const);
+      return yield* Effect.fail(new RpcUnauthorizedError({ message: 'Authentication required' }));
     }
     return user;
   });
@@ -62,14 +64,14 @@ export const editorMediaHandlers = {
         const user = yield* requireUserHeader(options.headers);
 
         if (!ALLOWED_IMAGE_MIME_TYPE_SET.has(input.mimeType)) {
-          return yield* Effect.fail('BAD_REQUEST' as const);
+          return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
         }
 
         if (
           input.fileSizeBytes <= 0 ||
           input.fileSizeBytes > MAX_IMAGE_SIZE_BYTES
         ) {
-          return yield* Effect.fail('BAD_REQUEST' as const);
+          return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
         }
 
         return yield* createCloudflareImageDirectUpload({
@@ -88,7 +90,6 @@ export const editorMediaHandlers = {
               }),
             ),
           ),
-          Effect.mapError(() => 'INTERNAL_SERVER_ERROR' as const),
         );
       }),
 } satisfies Partial<AppRpcHandlers>;

@@ -4,14 +4,7 @@ import { asRpcMutation, asRpcQuery } from '@heddendorp/effect-angular-query';
 import { Schema } from 'effect';
 
 import { iconSchema } from '../../types/icon';
-export const TemplateCategoryRpcError = Schema.Literal(
-  'FORBIDDEN',
-  'UNAUTHORIZED',
-);
-
-export type TemplateCategoryRpcError = Schema.Schema.Type<
-  typeof TemplateCategoryRpcError
->;
+import { TemplateCategoryRpcError } from './template-categories.errors';
 
 export const TemplateCategoryRecord = Schema.Struct({
   icon: iconSchema,

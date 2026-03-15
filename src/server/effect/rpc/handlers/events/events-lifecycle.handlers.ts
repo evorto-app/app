@@ -1,4 +1,13 @@
-import { TransactionRollbackError, and, eq, inArray } from 'drizzle-orm';
+import {
+  RpcBadRequestError,
+  RpcForbiddenError,
+  RpcInternalServerError,
+} from '@shared/errors/rpc-errors';
+import {
+  EventConflictError,
+  EventNotFoundError,
+} from '@shared/rpc-contracts/app-rpcs/events.errors';
+import { and, eq, inArray, TransactionRollbackError } from 'drizzle-orm';
 import { Effect } from 'effect';
 
 import type { AppRpcHandlers } from '../shared/handler-types';
@@ -39,12 +48,12 @@ export const eventLifecycleHandlers = {
         const start = new Date(input.start);
         const end = new Date(input.end);
         if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-          return yield* Effect.fail('BAD_REQUEST' as const);
+          return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
         }
 
         const sanitizedDescription = sanitizeRichTextHtml(input.description);
         if (!isMeaningfulRichTextHtml(sanitizedDescription)) {
-          return yield* Effect.fail('BAD_REQUEST' as const);
+          return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
         }
 
         const sanitizedRegistrationOptions = input.registrationOptions.map(
@@ -64,7 +73,7 @@ export const eventLifecycleHandlers = {
             Number.isNaN(option.closeRegistrationTime.getTime()) ||
             Number.isNaN(option.openRegistrationTime.getTime())
           ) {
-            return yield* Effect.fail('BAD_REQUEST' as const);
+            return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
           }
 
           const validation = yield* databaseEffect((database) =>
@@ -75,7 +84,7 @@ export const eventLifecycleHandlers = {
             }),
           );
           if (!validation.success) {
-            return yield* Effect.fail('BAD_REQUEST' as const);
+            return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
           }
         }
 
@@ -106,7 +115,7 @@ export const eventLifecycleHandlers = {
         );
         const event = events[0];
         if (!event) {
-          return yield* Effect.fail('INTERNAL_SERVER_ERROR' as const);
+          return yield* Effect.fail(new RpcInternalServerError({ message: 'Internal server error' }));
         }
 
         const createdOptions = yield* databaseEffect((database) =>
@@ -223,12 +232,12 @@ export const eventLifecycleHandlers = {
         const start = new Date(input.start);
         const end = new Date(input.end);
         if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-          return yield* Effect.fail('BAD_REQUEST' as const);
+          return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
         }
 
         const sanitizedDescription = sanitizeRichTextHtml(input.description);
         if (!isMeaningfulRichTextHtml(sanitizedDescription)) {
-          return yield* Effect.fail('BAD_REQUEST' as const);
+          return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
         }
         const sanitizedRegistrationOptions = input.registrationOptions.map(
           (option) => ({
@@ -259,7 +268,12 @@ export const eventLifecycleHandlers = {
           }),
         );
         if (!event) {
-          return yield* Effect.fail('NOT_FOUND' as const);
+          return yield* Effect.fail(
+            new EventNotFoundError({
+              id: input.eventId,
+              message: 'Event not found',
+            }),
+          );
         }
         if (
           !canEditEvent({
@@ -268,14 +282,18 @@ export const eventLifecycleHandlers = {
             userId: user.id,
           })
         ) {
-          return yield* Effect.fail('FORBIDDEN' as const);
+          return yield* Effect.fail(new RpcForbiddenError({ message: 'Forbidden' }));
         }
         if (
           !EDITABLE_EVENT_STATUSES.includes(
             event.status as (typeof EDITABLE_EVENT_STATUSES)[number],
           )
         ) {
-          return yield* Effect.fail('CONFLICT' as const);
+          return yield* Effect.fail(
+            new EventConflictError({
+              message: 'Event cannot be updated in its current state',
+            }),
+          );
         }
 
         const esnCardEnabledForTenant = isEsnCardEnabled(
@@ -287,7 +305,7 @@ export const eventLifecycleHandlers = {
             Number.isNaN(option.closeRegistrationTime.getTime()) ||
             Number.isNaN(option.openRegistrationTime.getTime())
           ) {
-            return yield* Effect.fail('BAD_REQUEST' as const);
+            return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
           }
 
           const validation = yield* databaseEffect((database) =>
@@ -298,14 +316,14 @@ export const eventLifecycleHandlers = {
             }),
           );
           if (!validation.success) {
-            return yield* Effect.fail('BAD_REQUEST' as const);
+            return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
           }
 
           if (
             option.esnCardDiscountedPrice !== null &&
             option.esnCardDiscountedPrice > option.price
           ) {
-            return yield* Effect.fail('BAD_REQUEST' as const);
+            return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
           }
 
           if (
@@ -313,15 +331,16 @@ export const eventLifecycleHandlers = {
             !esnCardEnabledForTenant &&
             option.isPaid
           ) {
-            return yield* Effect.fail('BAD_REQUEST' as const);
+            return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
           }
 
           if (option.spots < 0) {
-            return yield* Effect.fail('BAD_REQUEST' as const);
+            return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
           }
         }
 
-        let transactionFailure: 'BAD_REQUEST' | 'CONFLICT' | null = null;
+        let transactionFailure: EventConflictError | null | RpcBadRequestError =
+          null;
         const updatedEvent = yield* databaseEffect((database) =>
           database.transaction((tx) =>
             Effect.gen(function* () {
@@ -349,7 +368,9 @@ export const eventLifecycleHandlers = {
                 });
               const eventRow = updatedEvents[0];
               if (!eventRow) {
-                transactionFailure = 'CONFLICT';
+                transactionFailure = new EventConflictError({
+                  message: 'Event update conflict',
+                });
                 yield* tx.rollback();
               }
 
@@ -367,7 +388,10 @@ export const eventLifecycleHandlers = {
               );
               for (const option of sanitizedRegistrationOptions) {
                 if (!existingRegistrationOptionIds.has(option.id)) {
-                  transactionFailure = 'BAD_REQUEST';
+                  transactionFailure = new RpcBadRequestError({
+                    message: 'Registration option does not belong to event',
+                    reason: 'registrationOptionMismatch',
+                  });
                   yield* tx.rollback();
                 }
               }
@@ -481,12 +505,24 @@ export const eventLifecycleHandlers = {
             }),
           ),
         ).pipe(
-          Effect.catchAll((error) =>
-            isTransactionRollbackError(error) && transactionFailure
-              ? Effect.fail(transactionFailure)
-              : Effect.fail('INTERNAL_SERVER_ERROR' as const),
-          ),
+          Effect.catchAllDefect((defect) => {
+            if (!isTransactionRollbackError(defect)) {
+              return Effect.die(defect);
+            }
+
+            {
+              const failure = transactionFailure;
+              return failure === null
+                ? Effect.dieMessage(
+                    'Transaction rollback triggered without a tracked failure',
+                  )
+                : Effect.fail(failure);
+            }
+          }),
         );
+        if (!updatedEvent) {
+          return yield* Effect.dieMessage('Event update returned no updated row');
+        }
 
         return {
           id: updatedEvent.id,

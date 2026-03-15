@@ -1,7 +1,15 @@
- 
-
 import type { Headers } from '@effect/platform';
 
+import {
+  RpcBadRequestError,
+  RpcForbiddenError,
+  RpcInternalServerError,
+  RpcUnauthorizedError,
+} from '@shared/errors/rpc-errors';
+import {
+  DiscountCardConflictError,
+  DiscountCardNotFoundError,
+} from '@shared/rpc-contracts/app-rpcs/discounts.errors';
 import {
   resolveTenantDiscountProviders,
 } from '@shared/tenant-config';
@@ -55,10 +63,10 @@ const normalizeUserDiscountCardRecord = (
 
 const ensureAuthenticated = (
   headers: Headers.Headers,
-): Effect.Effect<void, 'UNAUTHORIZED'> =>
+): Effect.Effect<void, RpcUnauthorizedError> =>
   headers[RPC_CONTEXT_HEADERS.AUTHENTICATED] === 'true'
     ? Effect.void
-    : Effect.fail('UNAUTHORIZED' as const);
+    : Effect.fail(new RpcUnauthorizedError({ message: 'Authentication required' }));
 
 const decodeUserHeader = (headers: Headers.Headers) =>
   Effect.sync(() =>
@@ -67,11 +75,11 @@ const decodeUserHeader = (headers: Headers.Headers) =>
 
 const requireUserHeader = (
   headers: Headers.Headers,
-): Effect.Effect<User, 'UNAUTHORIZED'> =>
+): Effect.Effect<User, RpcUnauthorizedError> =>
   Effect.gen(function* () {
     const user = yield* decodeUserHeader(headers);
     if (!user) {
-      return yield* Effect.fail('UNAUTHORIZED' as const);
+      return yield* Effect.fail(new RpcUnauthorizedError({ message: 'Authentication required' }));
     }
     return user;
   });
@@ -173,7 +181,7 @@ export const discountHandlers = {
         );
         const provider = providers[input.type];
         if (!provider || provider.status !== 'enabled') {
-          return yield* Effect.fail('FORBIDDEN' as const);
+          return yield* Effect.fail(new RpcForbiddenError({ message: 'Forbidden' }));
         }
 
         const card = yield* databaseEffect((database) =>
@@ -193,7 +201,9 @@ export const discountHandlers = {
           }),
         );
         if (!card) {
-          return yield* Effect.fail('NOT_FOUND' as const);
+          return yield* Effect.fail(
+            new DiscountCardNotFoundError({ message: 'Discount card not found' }),
+          );
         }
 
         const adapter = Adapters[input.type];
@@ -228,7 +238,11 @@ export const discountHandlers = {
         );
         const updatedCard = updatedCards[0];
         if (!updatedCard) {
-          return yield* Effect.fail('NOT_FOUND' as const);
+          return yield* Effect.fail(
+            new RpcInternalServerError({
+              message: 'Discount card update returned no rows',
+            }),
+          );
         }
 
         return normalizeUserDiscountCardRecord(updatedCard);
@@ -257,7 +271,7 @@ export const discountHandlers = {
         );
         const provider = providers[input.type];
         if (!provider || provider.status !== 'enabled') {
-          return yield* Effect.fail('FORBIDDEN' as const);
+          return yield* Effect.fail(new RpcForbiddenError({ message: 'Forbidden' }));
         }
 
         const existingIdentifier = yield* databaseEffect((database) =>
@@ -272,7 +286,11 @@ export const discountHandlers = {
           }),
         );
         if (existingIdentifier && existingIdentifier.userId !== user.id) {
-          return yield* Effect.fail('CONFLICT' as const);
+          return yield* Effect.fail(
+            new DiscountCardConflictError({
+              message: 'Discount card identifier already exists',
+            }),
+          );
         }
 
         const existingCard = yield* databaseEffect((database) =>
@@ -327,7 +345,7 @@ export const discountHandlers = {
             );
         const upsertedCard = upsertedCards[0];
         if (!upsertedCard) {
-          return yield* Effect.fail('BAD_REQUEST' as const);
+          return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
         }
 
         const adapter = Adapters[input.type];
@@ -362,11 +380,11 @@ export const discountHandlers = {
         );
         const updatedCard = updatedCards[0];
         if (!updatedCard) {
-          return yield* Effect.fail('BAD_REQUEST' as const);
+          return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
         }
 
         if (updatedCard.status !== 'verified') {
-          return yield* Effect.fail('BAD_REQUEST' as const);
+          return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
         }
 
         return normalizeUserDiscountCardRecord(updatedCard);

@@ -18,6 +18,7 @@ import {
 } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
+import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
 import { ReceiptPreviewDialogComponent } from '../shared/receipt-preview-dialog/receipt-preview-dialog.component';
 
@@ -233,9 +234,7 @@ export class ReceiptRefundListComponent {
         [group.submittedByUserId]: {},
       }));
     } catch (error) {
-      this.notifications.showError(
-        error instanceof Error ? error.message : 'Failed to create refund',
-      );
+      this.notifications.showError(getErrorMessage(error, 'Failed to create refund'));
     }
   }
 

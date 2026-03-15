@@ -71,13 +71,22 @@ const parseServerLogLevel = (
 };
 
 const serverLogLevelConfig = optionalTrimmedString('SERVER_LOG_LEVEL').pipe(
-  Config.mapOrFail((configuredLevel) =>
+  Config.mapOrFail(
+    (
+      configuredLevel,
+    ): Either.Either<
+      Option.Option<LogLevel.LogLevel>,
+      ConfigError.ConfigError
+    > =>
     Option.match(configuredLevel, {
       onNone: () => Either.right(Option.none()),
-      onSome: (value) =>
-        parseServerLogLevel(value).pipe(
-          Either.map((parsedLevel) => Option.some(parsedLevel)),
-        ),
+      onSome: (value) => {
+        const parsedLevelResult = parseServerLogLevel(value);
+        if (Either.isLeft(parsedLevelResult)) {
+          return Either.left(parsedLevelResult.left);
+        }
+        return Either.right(Option.fromIterable([parsedLevelResult.right]));
+      },
     }),
   ),
 );
