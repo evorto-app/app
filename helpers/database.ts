@@ -1,6 +1,6 @@
 import { BunRuntime } from '@effect/platform-bun';
-import { Effect, Option } from 'effect';
 import { stripeConfig } from '@server/config/stripe-config';
+import { Effect, Option } from 'effect';
 
 import { createDatabaseClient } from '../src/db/database-client';
 import { setupDatabase } from '../src/db/setup-database';

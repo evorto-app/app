@@ -9,7 +9,7 @@ describe('server-logger.layer', () => {
       resolveServerLogLevel({
         ACTIONS_STEP_DEBUG: false,
         CI: false,
-        SERVER_LOG_LEVEL: Option.some('error'),
+        SERVER_LOG_LEVEL: Option.some(LogLevel.fromLiteral('Error')),
       }),
     ).toBe(LogLevel.Error);
   });
@@ -32,5 +32,15 @@ describe('server-logger.layer', () => {
         SERVER_LOG_LEVEL: Option.none(),
       }),
     ).toBe(LogLevel.Debug);
+  });
+
+  it('defaults to info when no explicit log level or CI debug flags are set', () => {
+    expect(
+      resolveServerLogLevel({
+        ACTIONS_STEP_DEBUG: false,
+        CI: false,
+        SERVER_LOG_LEVEL: Option.none(),
+      }),
+    ).toBe(LogLevel.Info);
   });
 });

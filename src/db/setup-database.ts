@@ -64,22 +64,22 @@ export async function setupDatabase(
   for (const tenant of developmentTenants) {
     consola.start(`Seeding tenant ${tenant.domain}`);
     const tenantStart = Date.now();
-    const options: SeedTenantOptions = {
+    const seedOptions: SeedTenantOptions = {
       includeExampleUsers: true,
       includeRegistrations: true,
       profile: 'demo',
       seedDate,
     };
     if (typeof tenant.domain === 'string') {
-      options.domain = tenant.domain;
+      seedOptions.domain = tenant.domain;
     }
     if (typeof tenant.name === 'string') {
-      options.name = tenant.name;
+      seedOptions.name = tenant.name;
     }
     if (typeof tenant.stripeAccountId === 'string') {
-      options.stripeAccountId = tenant.stripeAccountId;
+      seedOptions.stripeAccountId = tenant.stripeAccountId;
     }
-    await seedTenant(database, options);
+    await seedTenant(database, seedOptions);
     consola.success(
       `Tenant ${tenant.domain} ready in ${Date.now() - tenantStart}ms`,
     );

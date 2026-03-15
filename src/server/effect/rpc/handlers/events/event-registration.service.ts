@@ -1,4 +1,5 @@
 import type { Headers } from '@effect/platform';
+import type Stripe from 'stripe';
 
 import { and, eq } from 'drizzle-orm';
 import { Effect, Option } from 'effect';
@@ -450,29 +451,26 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
             );
           }
 
+          const checkoutLineItem: Stripe.Checkout.SessionCreateParams.LineItem = {
+            price_data: {
+              currency: tenant.currency,
+              product_data: {
+                name: `Registration fee for ${registrationOption.event.title}`,
+              },
+              unit_amount: effectivePrice,
+            },
+            ...(selectedTaxRateId
+              ? { tax_rates: [selectedTaxRateId] }
+              : {}),
+            quantity: 1,
+          };
+
           const session = yield* createHostedCheckoutSession(
             {
               cancel_url: `${eventUrl}?registrationStatus=cancel`,
               customer_email: user.email,
-              expires_at: buildCheckoutSessionExpiresAt(
-                30,
-                pinnedNowIso ? { pinnedNowIso } : undefined,
-              ),
-              line_items: [
-                {
-                  price_data: {
-                    currency: tenant.currency,
-                    product_data: {
-                      name: `Registration fee for ${registrationOption.event.title}`,
-                    },
-                    unit_amount: effectivePrice,
-                  },
-                  ...(selectedTaxRateId
-                    ? { tax_rates: [selectedTaxRateId] as string[] }
-                    : {}),
-                  quantity: 1,
-                },
-              ],
+              expires_at: buildCheckoutSessionExpiresAt(30, { pinnedNowIso }),
+              line_items: [checkoutLineItem],
               metadata: {
                 registrationId: userRegistration.id,
                 tenantId: tenant.id,

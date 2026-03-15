@@ -26,7 +26,10 @@ import {
 import { formatConfigError } from './server/config/config-error';
 import { makeRuntimeConfigProvider } from './server/config/provider';
 import { RuntimeConfig } from './server/config/runtime-config';
-import { serverConfig } from './server/config/server-config';
+import {
+  serverNetworkConfig,
+  serverTelemetryConfig,
+} from './server/config/server-config';
 import { resolveHttpRequestContext } from './server/context/http-request-context';
 import { toRpcHttpServerRequest } from './server/effect/rpc/app-rpcs.request-handler';
 import {
@@ -337,7 +340,7 @@ const keyValueStoreLayer = KeyValueStore.layerFileSystem(
   keyValueStoreDirectory,
 ).pipe(Layer.provide(Layer.mergeAll(BunFileSystem.layer, Path.layer)));
 const otelLayer = Layer.unwrapEffect(
-  serverConfig.pipe(
+  serverTelemetryConfig.pipe(
     Effect.map(({ PACKAGE_VERSION }) =>
       OtelTracer.layerGlobal.pipe(
         Layer.provide(
@@ -410,7 +413,7 @@ const serveEffect = Effect.gen(function* () {
   const configuredDatabaseLayer = databaseLayer.pipe(
     Layer.provide(Layer.setConfigProvider(runtimeConfigProvider)),
   );
-  const configuredServerConfig = serverConfig.pipe(
+  const configuredServerConfig = serverNetworkConfig.pipe(
     Effect.withConfigProvider(runtimeConfigProvider),
     Effect.mapError(
       (error) =>

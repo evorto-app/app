@@ -11,7 +11,7 @@ export const resolvePinnedNow = (
   const parsed = DateTime.fromISO(normalizedPinnedNowIso, { zone: 'utc' });
   if (!parsed.isValid) {
     throw new Error(
-      `Invalid E2E_NOW_ISO value "${normalizedPinnedNowIso}": ${parsed.invalidExplanation ?? parsed.invalidReason ?? 'unknown reason'}`,
+      `Invalid pinnedNowIso value "${normalizedPinnedNowIso}": ${parsed.invalidExplanation ?? parsed.invalidReason ?? 'unknown reason'}`,
     );
   }
 
