@@ -8,8 +8,11 @@ import { StripeClient } from '../stripe-client';
 
 export const buildCheckoutSessionExpiresAt = (
   expiresInMinutes = 30,
+  options?: {
+    pinnedNowIso?: string;
+  },
 ) => {
-  const pinnedNow = getServerNow();
+  const pinnedNow = getServerNow(options?.pinnedNowIso);
   const wallClockNow = DateTime.now().setZone('utc');
   const baseNow =
     pinnedNow.toMillis() > wallClockNow.toMillis() ? pinnedNow : wallClockNow;

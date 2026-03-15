@@ -1,5 +1,6 @@
 import { Effect } from 'effect';
 import { DateTime } from 'luxon';
+import Stripe from 'stripe';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { StripeClient } from '../stripe-client';
@@ -9,20 +10,19 @@ import {
   createHostedCheckoutSession,
 } from './stripe-checkout';
 
-interface MockStripeClient {
-  checkout: {
-    sessions: {
-      create: typeof createSessionMock;
-    };
-  };
-}
-
 const createSessionMock = vi.fn();
+
+const createStripeClient = () => {
+  const stripeClient = new Stripe('sk_test_123');
+  vi.spyOn(stripeClient.checkout.sessions, 'create').mockImplementation(
+    createSessionMock,
+  );
+  return stripeClient;
+};
 
 describe('stripe-checkout helpers', () => {
   afterEach(() => {
     createSessionMock.mockReset();
-    vi.unstubAllEnvs();
     vi.useRealTimers();
   });
 
@@ -38,49 +38,52 @@ describe('stripe-checkout helpers', () => {
   it('derives checkout expiry from E2E_NOW_ISO when it is ahead of wall clock', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-01-15T12:00:00.000Z'));
-    vi.stubEnv('E2E_NOW_ISO', '2026-01-15T18:00:00.000Z');
 
     const expected = Math.ceil(
       DateTime.fromISO('2026-01-15T18:00:00.000Z', { zone: 'utc' })
         .plus({ minutes: 30 })
         .toSeconds(),
     );
-    expect(buildCheckoutSessionExpiresAt(30)).toBe(expected);
+    expect(
+      buildCheckoutSessionExpiresAt(30, {
+        pinnedNowIso: '2026-01-15T18:00:00.000Z',
+      }),
+    ).toBe(expected);
   });
 
   it('falls back to wall clock when E2E_NOW_ISO is in the past', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-03-01T12:00:00.000Z'));
-    vi.stubEnv('E2E_NOW_ISO', '2026-02-01T12:00:00.000Z');
 
     const expected = Math.ceil(
       DateTime.fromISO('2026-03-01T12:00:00.000Z', { zone: 'utc' })
         .plus({ minutes: 30 })
         .toSeconds(),
     );
-    expect(buildCheckoutSessionExpiresAt(30)).toBe(expected);
+    expect(
+      buildCheckoutSessionExpiresAt(30, {
+        pinnedNowIso: '2026-02-01T12:00:00.000Z',
+      }),
+    ).toBe(expected);
   });
 
   it("clamps checkout expiry to Stripe's 24-hour maximum", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-01-15T12:00:00.000Z'));
-    vi.stubEnv('E2E_NOW_ISO', '2026-01-17T18:00:00.000Z');
 
     const expected = Math.ceil(
       DateTime.fromISO('2026-01-16T12:00:00.000Z', { zone: 'utc' }).toSeconds(),
     );
-    expect(buildCheckoutSessionExpiresAt(30)).toBe(expected);
+    expect(
+      buildCheckoutSessionExpiresAt(30, {
+        pinnedNowIso: '2026-01-17T18:00:00.000Z',
+      }),
+    ).toBe(expected);
   });
 
   it('forwards checkout payload and request options to Stripe client', async () => {
     createSessionMock.mockResolvedValueOnce({ id: 'cs_test_mock' });
-    const stripeClient: MockStripeClient = {
-      checkout: {
-        sessions: {
-          create: createSessionMock,
-        },
-      },
-    };
+    const stripeClient = createStripeClient();
 
     const session = await Effect.runPromise(
       createHostedCheckoutSession(
@@ -112,6 +115,7 @@ describe('stripe-checkout helpers', () => {
 
   it('surfaces Stripe client errors without requiring env configuration', async () => {
     createSessionMock.mockRejectedValueOnce(new Error('stripe request failed'));
+    const stripeClient = createStripeClient();
 
     await expect(
       Effect.runPromise(
@@ -127,18 +131,7 @@ describe('stripe-checkout helpers', () => {
             idempotencyKey: 'registration:reg_123:transaction:txn_456',
             stripeAccount: 'acct_test_123',
           },
-        ).pipe(
-          Effect.provideService(
-            StripeClient,
-            {
-              checkout: {
-                sessions: {
-                  create: createSessionMock,
-                },
-              },
-            } satisfies MockStripeClient,
-          ),
-        ),
+        ).pipe(Effect.provideService(StripeClient, stripeClient)),
       ),
     ).rejects.toThrow('stripe request failed');
   });

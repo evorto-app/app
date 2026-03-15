@@ -33,4 +33,22 @@ describe('server-config', () => {
       readServerConfig(canonicalProvider).PUBLIC_GOOGLE_MAPS_API_KEY,
     ).toEqual(Option.some('canonical-key'));
   });
+
+  it('captures optional runtime-only server fields through the config boundary', () => {
+    const provider = ConfigProvider.fromMap(
+      new Map([
+        ['E2E_NOW_ISO', '2026-03-01T12:00:00.000Z'],
+        ['npm_package_version', '1.2.3'],
+        ['SERVER_LOG_LEVEL', 'debug'],
+      ]),
+    );
+
+    const config = readServerConfig(provider);
+
+    expect(config.E2E_NOW_ISO).toEqual(
+      Option.some('2026-03-01T12:00:00.000Z'),
+    );
+    expect(config.PACKAGE_VERSION).toEqual(Option.some('1.2.3'));
+    expect(config.SERVER_LOG_LEVEL).toEqual(Option.some('debug'));
+  });
 });

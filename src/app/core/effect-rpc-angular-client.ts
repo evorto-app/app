@@ -19,28 +19,21 @@ import { AppRpcs } from '../../shared/rpc-contracts/app-rpcs';
 const normalizeBaseUrl = (value: string): string =>
   value.endsWith('/') ? value.slice(0, -1) : value;
 
-const resolveServerBaseUrl = (): string => {
-  const processEnvironment = (
-    globalThis as {
-      process?: {
-        env?: Record<string, string | undefined>;
-      };
-    }
-  ).process?.env;
-
-  const configuredBaseUrl = processEnvironment?.['BASE_URL']?.trim();
-  if (configuredBaseUrl) {
-    return normalizeBaseUrl(configuredBaseUrl);
+export const resolveServerRpcOrigin = (requestUrl?: string): string => {
+  if (requestUrl) {
+    return normalizeBaseUrl(
+      new URL(requestUrl, 'http://localhost:4200').origin,
+    );
   }
 
   return 'http://localhost:4200';
 };
 
-const resolveRequestOrigin = (): string | undefined => {
+const resolveRequestUrl = (): string | undefined => {
   try {
     const request = inject(REQUEST, { optional: true });
     if (request && typeof request.url === 'string') {
-      return new URL(request.url).origin;
+      return request.url;
     }
   } catch {
     // Ignore missing DI context while resolving fallback URL.
@@ -52,7 +45,7 @@ const resolveRequestOrigin = (): string | undefined => {
 export const resolveRpcUrl = (): string =>
   'window' in globalThis
     ? '/rpc'
-    : `${normalizeBaseUrl(resolveRequestOrigin() ?? resolveServerBaseUrl())}/rpc`;
+    : `${resolveServerRpcOrigin(resolveRequestUrl())}/rpc`;
 
 const createAppRpcFactory = (
   rpcLayer: Layer.Layer<RpcClient.Protocol, never, never>,
