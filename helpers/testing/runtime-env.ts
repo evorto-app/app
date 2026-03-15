@@ -114,10 +114,13 @@ const runtimeEnvironment = {
   NEON_LOCAL_PROXY: 'true',
 } as const;
 
+const escapeEnvironmentValue = (value: string): string =>
+  JSON.stringify(value);
+
 const outputLines = [
   '# THIS FILE IS AUTO-GENERATED. DO NOT EDIT MANUALLY.',
   ...Object.entries(runtimeEnvironment).map(
-    ([key, value]) => `${key}=${value}`,
+    ([key, value]) => `${key}=${escapeEnvironmentValue(value)}`,
   ),
   '',
 ];

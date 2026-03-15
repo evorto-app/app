@@ -111,4 +111,24 @@ describe('pg-connection-config', () => {
       },
     });
   });
+
+  it('rejects non-postgres URL schemes for Neon Local parsing', () => {
+    expect(() =>
+      createNodePgPoolConfig({
+        databaseUrl: 'mysql://neon:npg@localhost:55432/appdb',
+        neonLocalProxy: true,
+      }),
+    ).toThrowError(
+      'DATABASE_URL must use postgres or postgresql scheme. Received "mysql:".',
+    );
+
+    expect(() =>
+      createPgClientConfig({
+        databaseUrl: 'mysql://neon:npg@localhost:55432/appdb',
+        neonLocalProxy: true,
+      }),
+    ).toThrowError(
+      'DATABASE_URL must use postgres or postgresql scheme. Received "mysql:".',
+    );
+  });
 });

@@ -25,6 +25,16 @@ const assertNeonLocalHost = (host: string) => {
 
 const parseDatabaseUrl = (databaseUrl: string) => {
   const databaseUrlObject = new URL(databaseUrl);
+
+  if (
+    databaseUrlObject.protocol !== 'postgres:' &&
+    databaseUrlObject.protocol !== 'postgresql:'
+  ) {
+    throw new Error(
+      `DATABASE_URL must use postgres or postgresql scheme. Received "${databaseUrlObject.protocol}".`,
+    );
+  }
+
   const database = databaseUrlObject.pathname.replace(/^\/+/, '');
 
   if (!database) {
