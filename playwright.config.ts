@@ -113,11 +113,6 @@ export default defineConfig({
       testMatch: /docs\/.*\.doc\.ts$/,
       timeout: 60_000,
     }),
-    createModeProject('local-chrome-integration', {
-      dependencies: ['setup'],
-      integrationOnly: true,
-      testIgnore: /docs\/.*\.doc\.ts$/,
-    }),
     // {
     //   dependencies: ['setup'],
     //   name: 'chromium',

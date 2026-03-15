@@ -29,7 +29,6 @@ All tests in `tests/**/*.ts` are linted with a custom ESLint rule:
 ```bash
 bun run test:e2e
 bun run test:e2e:docs
-bun run test:e2e:integration
 bun run test:e2e:docs:integration
 bun run lint:check
 ```

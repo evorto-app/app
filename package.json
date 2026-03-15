@@ -20,7 +20,6 @@
     "test:e2e:browser": "sh -c 'E2E_MODE=baseline ./node_modules/.bin/dotenv ${CI:+-e .env.ci} -e .env.runtime -e .env.local -e .env -- ./node_modules/.bin/playwright test --project=local-chrome-baseline --workers 1 --headed'",
     "test:e2e:report": "./node_modules/.bin/playwright show-report",
     "test:e2e:docs": "sh -c 'E2E_MODE=baseline ./node_modules/.bin/dotenv ${CI:+-e .env.ci} -e .env.runtime -e .env.local -e .env -- ./node_modules/.bin/playwright test --project=docs-baseline'",
-    "test:e2e:integration": "sh -c 'E2E_MODE=integration ./node_modules/.bin/dotenv ${CI:+-e .env.ci} -e .env.runtime -e .env.local -e .env -- ./node_modules/.bin/playwright test --project=local-chrome-integration'",
     "test:e2e:docs:integration": "sh -c 'E2E_MODE=integration ./node_modules/.bin/dotenv ${CI:+-e .env.ci} -e .env.runtime -e .env.local -e .env -- ./node_modules/.bin/playwright test --project=docs-integration'",
     "test:e2e:states": "sh -c 'E2E_MODE=baseline ./node_modules/.bin/dotenv ${CI:+-e .env.ci} -e .env.runtime -e .env.local -e .env -- ./node_modules/.bin/playwright test --project=setup'",
     "ops:stripe:listen": "stripe listen --forward-to http://localhost:4200/webhooks/stripe",

@@ -5,7 +5,6 @@
 - Unit tests: `bun run test:unit`
 - Functional E2E (Chromium baseline): `bun run test:e2e`
 - Documentation E2E: `bun run test:e2e:docs`
-- Functional E2E (integration-only): `bun run test:e2e:integration`
 - Documentation E2E (integration-only): `bun run test:e2e:docs:integration`
 - Playwright UI mode: `bun run test:e2e:ui`
 - Refresh only the shared setup/auth states: `bun run test:e2e:states`
@@ -80,8 +79,9 @@ Playwright now separates external-service coverage with dedicated projects inste
   - `local-chrome-baseline`
   - `docs-baseline`
 - integration-only projects:
-  - `local-chrome-integration`
   - `docs-integration`
+
+There is currently no non-doc integration-only project because the repo does not yet have a functional Playwright spec that directly exercises Auth0 Management, Cloudflare Images, or Google Maps.
 
 `E2E_MODE` still exists as a runtime contract for config validation:
 

@@ -114,7 +114,7 @@ describe('test-runtime-config', () => {
     );
 
     expect(() => readPlaywrightEnvironment(provider)).toThrow(
-      /AUTH0_MANAGEMENT_CLIENT_ID|CLOUDFLARE_ACCOUNT_ID/,
+      /AUTH0_MANAGEMENT_CLIENT_ID[\s\S]*CLOUDFLARE_ACCOUNT_ID|CLOUDFLARE_ACCOUNT_ID[\s\S]*AUTH0_MANAGEMENT_CLIENT_ID/,
     );
   });
 });

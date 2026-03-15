@@ -50,3 +50,4 @@ Generated: 2026-03-09
 - `tests/setup/database.setup.ts` seeds a shared `docs` profile tenant and persists `.e2e-runtime.json`.
 - Scenario handles from `seeded.scenario.events.*` are the preferred way to address seeded entities.
 - Finance-tagged specs remain the main candidates for selective CI filtering when needed.
+- `docs/users/create-account.doc.ts` is the only current integration-tagged Playwright path; there is no non-doc integration-only spec yet.

@@ -20,15 +20,16 @@ import {
   writeFile,
 } from './documentation-reporter/shared';
 
-const documentationEnvironment = Effect.runSync(
-  documentationOutputEnvironment.pipe(
-    Effect.withConfigProvider(ConfigProvider.fromEnv()),
-  ),
-);
+const readDocumentationEnvironment = () =>
+  Effect.runSync(
+    documentationOutputEnvironment.pipe(
+      Effect.withConfigProvider(ConfigProvider.fromEnv()),
+    ),
+  );
 
 class DocumentationReporter implements Reporter {
+  private readonly environment = readDocumentationEnvironment();
   private readonly registry = new DocumentationGroupRegistry();
-  private readonly environment = documentationEnvironment;
 
   private docsRoot(options?: { empty?: boolean }): string {
     const root = this.environment.docsOutputDirectory;
