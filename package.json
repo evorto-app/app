@@ -1,6 +1,6 @@
 {
   "name": "evorto",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "scripts": {
     "env:runtime": "bun helpers/testing/runtime-env.ts",
     "dev:ng": "bunx --bun ng",
