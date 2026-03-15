@@ -12,7 +12,7 @@ import {
 } from '@effect/platform';
 import { BunFileSystem, BunHttpServer, BunRuntime } from '@effect/platform-bun';
 import * as Sentry from '@sentry/bun';
-import { Effect, Context as EffectContext, Layer } from 'effect';
+import { Effect, Context as EffectContext, Layer, Option } from 'effect';
 
 import { databaseLayer } from './db';
 import {
@@ -26,7 +26,10 @@ import {
 import { formatConfigError } from './server/config/config-error';
 import { makeRuntimeConfigProvider } from './server/config/provider';
 import { RuntimeConfig } from './server/config/runtime-config';
-import { serverConfig } from './server/config/server-config';
+import {
+  serverNetworkConfig,
+  serverTelemetryConfig,
+} from './server/config/server-config';
 import { resolveHttpRequestContext } from './server/context/http-request-context';
 import { toRpcHttpServerRequest } from './server/effect/rpc/app-rpcs.request-handler';
 import {
@@ -336,14 +339,21 @@ const withSsrFallback = <E, R>(
 const keyValueStoreLayer = KeyValueStore.layerFileSystem(
   keyValueStoreDirectory,
 ).pipe(Layer.provide(Layer.mergeAll(BunFileSystem.layer, Path.layer)));
-const otelLayer = OtelTracer.layerGlobal.pipe(
-  Layer.provide(
-    OtelResource.layer({
-      serviceName: 'evorto-server',
-      ...(process.env['npm_package_version']
-        ? { serviceVersion: process.env['npm_package_version'] }
-        : {}),
-    }),
+const otelLayer = Layer.unwrapEffect(
+  serverTelemetryConfig.pipe(
+    Effect.map(({ PACKAGE_VERSION }) =>
+      OtelTracer.layerGlobal.pipe(
+        Layer.provide(
+          OtelResource.layer({
+            serviceName: 'evorto-server',
+            ...Option.match(PACKAGE_VERSION, {
+              onNone: () => ({}),
+              onSome: (serviceVersion) => ({ serviceVersion }),
+            }),
+          }),
+        ),
+      ),
+    ),
   ),
 );
 
@@ -403,7 +413,7 @@ const serveEffect = Effect.gen(function* () {
   const configuredDatabaseLayer = databaseLayer.pipe(
     Layer.provide(Layer.setConfigProvider(runtimeConfigProvider)),
   );
-  const configuredServerConfig = serverConfig.pipe(
+  const configuredServerConfig = serverNetworkConfig.pipe(
     Effect.withConfigProvider(runtimeConfigProvider),
     Effect.mapError(
       (error) =>

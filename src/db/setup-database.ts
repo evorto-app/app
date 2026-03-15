@@ -15,11 +15,15 @@ export type Database = NodePgDatabase<Record<string, never>, typeof relations>;
 
 export async function setupDatabase(
   database: NodePgDatabase<Record<string, never>, typeof relations>,
-  onlyDevelopmentTenants = false,
+  options?: {
+    onlyDevelopmentTenants?: boolean;
+    stripeTestAccountId?: string;
+  },
 ) {
   const seedDate = getSeedDate();
   const seed = seedFalsoForScope('setup-database', seedDate);
-  const stripeTestAccountId = process.env['STRIPE_TEST_ACCOUNT_ID']?.trim();
+  const onlyDevelopmentTenants = options?.onlyDevelopmentTenants ?? false;
+  const stripeTestAccountId = options?.stripeTestAccountId?.trim();
   consola.info(`Seeded falso with daily seed "${seed}"`);
   consola.start('Reset database schema');
   const resetStart = Date.now();
@@ -60,22 +64,22 @@ export async function setupDatabase(
   for (const tenant of developmentTenants) {
     consola.start(`Seeding tenant ${tenant.domain}`);
     const tenantStart = Date.now();
-    const options: SeedTenantOptions = {
+    const seedOptions: SeedTenantOptions = {
       includeExampleUsers: true,
       includeRegistrations: true,
       profile: 'demo',
       seedDate,
     };
     if (typeof tenant.domain === 'string') {
-      options.domain = tenant.domain;
+      seedOptions.domain = tenant.domain;
     }
     if (typeof tenant.name === 'string') {
-      options.name = tenant.name;
+      seedOptions.name = tenant.name;
     }
     if (typeof tenant.stripeAccountId === 'string') {
-      options.stripeAccountId = tenant.stripeAccountId;
+      seedOptions.stripeAccountId = tenant.stripeAccountId;
     }
-    await seedTenant(database, options);
+    await seedTenant(database, seedOptions);
     consola.success(
       `Tenant ${tenant.domain} ready in ${Date.now() - tenantStart}ms`,
     );

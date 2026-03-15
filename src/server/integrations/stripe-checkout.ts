@@ -8,8 +8,11 @@ import { StripeClient } from '../stripe-client';
 
 export const buildCheckoutSessionExpiresAt = (
   expiresInMinutes = 30,
+  options?: {
+    pinnedNowIso?: string | undefined;
+  },
 ) => {
-  const pinnedNow = getServerNow();
+  const pinnedNow = getServerNow(options?.pinnedNowIso);
   const wallClockNow = DateTime.now().setZone('utc');
   const baseNow =
     pinnedNow.toMillis() > wallClockNow.toMillis() ? pinnedNow : wallClockNow;
@@ -39,7 +42,10 @@ export const createHostedCheckoutSession = (
   Effect.gen(function* () {
     const stripeClient = yield* StripeClient;
     return yield* Effect.tryPromise({
-      catch: (error) => error as Stripe.errors.StripeError,
+      catch: (error) =>
+        error instanceof Error
+          ? error
+          : new Error(`Unexpected Stripe checkout failure: ${String(error)}`),
       try: () =>
         stripeClient.checkout.sessions.create(parameters, {
           idempotencyKey: options.idempotencyKey,

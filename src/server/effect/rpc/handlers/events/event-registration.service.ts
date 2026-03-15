@@ -1,7 +1,8 @@
 import type { Headers } from '@effect/platform';
+import type Stripe from 'stripe';
 
 import { and, eq } from 'drizzle-orm';
-import { Effect } from 'effect';
+import { Effect, Option } from 'effect';
 
 import { Database, type DatabaseClient } from '../../../../../db';
 import { createId } from '../../../../../db/create-id';
@@ -15,6 +16,7 @@ import {
 import { resolveTenantDiscountProviders, type TenantDiscountProviders } from '../../../../../shared/tenant-config';
 import { type Tenant } from '../../../../../types/custom/tenant';
 import { type User } from '../../../../../types/custom/user';
+import { RuntimeConfig } from '../../../../config/runtime-config';
 import {
   buildCheckoutSessionExpiresAt,
   buildCheckoutSessionIdempotencyKey,
@@ -437,6 +439,10 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
           // Phase 4: paid registration path (Stripe session + pending transaction record).
           const applicationFee = Math.round(effectivePrice * 0.035);
           const stripeAccount = tenant.stripeAccountId;
+          const runtimeConfig = yield* RuntimeConfig;
+          const pinnedNowIso = Option.getOrUndefined(
+            runtimeConfig.server.E2E_NOW_ISO,
+          );
           if (!stripeAccount) {
             return yield* Effect.fail(
               new EventRegistrationInternalError({
@@ -445,26 +451,26 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
             );
           }
 
+          const checkoutLineItem: Stripe.Checkout.SessionCreateParams.LineItem = {
+            price_data: {
+              currency: tenant.currency,
+              product_data: {
+                name: `Registration fee for ${registrationOption.event.title}`,
+              },
+              unit_amount: effectivePrice,
+            },
+            ...(selectedTaxRateId
+              ? { tax_rates: [selectedTaxRateId] }
+              : {}),
+            quantity: 1,
+          };
+
           const session = yield* createHostedCheckoutSession(
             {
               cancel_url: `${eventUrl}?registrationStatus=cancel`,
               customer_email: user.email,
-              expires_at: buildCheckoutSessionExpiresAt(30),
-              line_items: [
-                {
-                  price_data: {
-                    currency: tenant.currency,
-                    product_data: {
-                      name: `Registration fee for ${registrationOption.event.title}`,
-                    },
-                    unit_amount: effectivePrice,
-                  },
-                  ...(selectedTaxRateId
-                    ? { tax_rates: [selectedTaxRateId] as string[] }
-                    : {}),
-                  quantity: 1,
-                },
-              ],
+              expires_at: buildCheckoutSessionExpiresAt(30, { pinnedNowIso }),
+              line_items: [checkoutLineItem],
               metadata: {
                 registrationId: userRegistration.id,
                 tenantId: tenant.id,
