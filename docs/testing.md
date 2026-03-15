@@ -11,6 +11,7 @@
 
 ## Docker Runtime
 
+- Generate or refresh worktree-local runtime overrides: `bun run env:runtime`
 - Start runtime stack: `bun run docker:start`
 - Start runtime stack in foreground (used by Playwright webServer): `bun run docker:start:test`
 - Stop runtime stack: `bun run docker:stop`
@@ -34,13 +35,14 @@ Config now resolves in this precedence order:
 - real environment variables
 - `.env.local`
 - `.env`
+- `.env.ci` in CI
 - `.env.runtime`
 - in-code defaults
 
 For external-tool scripts that use `dotenv-cli` (`db:*`, `docker:*`, `test:e2e*`), the file order is intentionally reversed because `dotenv-cli` is first-wins in this repo:
 
-- `.env.runtime`
 - `.env.ci` in CI
+- `.env.runtime`
 - `.env.local`
 - `.env`
 
@@ -50,6 +52,8 @@ For external-tool scripts that use `dotenv-cli` (`db:*`, `docker:*`, `test:e2e*`
 - `DELETE_BRANCH=false` for local persistent Neon Local branches
 
 We keep this explicit `-e` ordering instead of `dotenv -c` because `-c` would let `.env` win over `.env.local` for values like `DATABASE_URL` in this repo. `dotenv-cli` also ignores missing `-e` files, so the scripts do not need file-existence checks around `.env.runtime`.
+
+In CI and other hosted automation, keep `.env.ci` as the tracked baseline and pass secrets through explicit environment variables instead of generating extra dotenv artifacts.
 
 ## Deterministic E2E Environment
 
@@ -177,3 +181,14 @@ Required only for integration-tagged Playwright projects:
 - `CLOUDFLARE_ACCOUNT_ID`
 - `CLOUDFLARE_IMAGES_DELIVERY_HASH`
 - `CLOUDFLARE_IMAGES_API_TOKEN`
+
+## Stacked Delivery Workflow
+
+Large infra and configuration changes ship as a Git Town stack instead of a single long-lived feature branch:
+
+- keep one assembly branch for the overall initiative
+- create the next reviewable phase branch with `git town append <branch-name>`
+- sync the entire stack with `git town sync --stack` before starting work and before proposing review
+- open PRs with `git town propose` so each branch targets its parent branch in the stack
+
+When a phase is tracked in Linear, use the Linear branch name for that child branch and stack it on top of the current assembly branch or stack tip.

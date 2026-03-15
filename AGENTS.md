@@ -74,6 +74,10 @@ More specific guidance also exists deeper in some subtrees (for example `src/ser
 
 - Use Git Town commands for branch management and shipping.
 - For substantial work in a new worktree created from `main`, immediately run `git town hack <branch-name>` in that worktree before making commits.
+- For large multi-phase work, keep an assembly branch plus one reviewable child branch per phase or slice.
+- Create stacked child branches with `git town append <branch-name>` from the current assembly branch or stack tip.
+- Run `git town sync --stack` before starting work and again before proposing review so parent branches stay current.
+- Open PRs with `git town propose` so each branch targets its parent branch in the stack instead of manually selecting a base.
 
 ## Security & Configuration
 
