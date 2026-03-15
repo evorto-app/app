@@ -3,11 +3,8 @@ import * as RpcGroup from '@effect/rpc/RpcGroup';
 import { asRpcMutation, asRpcQuery } from '@heddendorp/effect-angular-query';
 import { Schema } from 'effect';
 
-import { ForbiddenOrUnauthorizedRpcError } from '../../errors/rpc-errors';
 import { iconSchema } from '../../types/icon';
-export const TemplateCategoryRpcError = ForbiddenOrUnauthorizedRpcError;
-
-export type TemplateCategoryRpcError = ForbiddenOrUnauthorizedRpcError;
+import { TemplateCategoryRpcError } from './template-categories.errors';
 
 export const TemplateCategoryRecord = Schema.Struct({
   icon: iconSchema,

@@ -35,7 +35,7 @@ const ensureAuthenticated = (
 ): Effect.Effect<void, RpcUnauthorizedError> =>
   headers[RPC_CONTEXT_HEADERS.AUTHENTICATED] === 'true'
     ? Effect.void
-    : Effect.fail(RpcUnauthorizedError.make({ message: 'Authentication required' }));
+    : Effect.fail(new RpcUnauthorizedError({ message: 'Authentication required' }));
 
 const decodeUserHeader = (headers: Headers.Headers) =>
   Effect.sync(() =>
@@ -48,7 +48,7 @@ const requireUserHeader = (
   Effect.gen(function* () {
     const user = yield* decodeUserHeader(headers);
     if (!user) {
-      return yield* Effect.fail(RpcUnauthorizedError.make({ message: 'Authentication required' }));
+      return yield* Effect.fail(new RpcUnauthorizedError({ message: 'Authentication required' }));
     }
     return user;
   });
@@ -64,14 +64,14 @@ export const editorMediaHandlers = {
         const user = yield* requireUserHeader(options.headers);
 
         if (!ALLOWED_IMAGE_MIME_TYPE_SET.has(input.mimeType)) {
-          return yield* Effect.fail(RpcBadRequestError.make({ message: 'Bad request' }));
+          return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
         }
 
         if (
           input.fileSizeBytes <= 0 ||
           input.fileSizeBytes > MAX_IMAGE_SIZE_BYTES
         ) {
-          return yield* Effect.fail(RpcBadRequestError.make({ message: 'Bad request' }));
+          return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
         }
 
         return yield* createCloudflareImageDirectUpload({

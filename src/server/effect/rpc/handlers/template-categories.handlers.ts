@@ -4,6 +4,7 @@ import {
   RpcForbiddenError,
   RpcUnauthorizedError,
 } from '@shared/errors/rpc-errors';
+import { TemplateCategoryNotFoundError } from '@shared/rpc-contracts/app-rpcs/template-categories.errors';
 import {
   and,
   eq,
@@ -39,7 +40,7 @@ const ensureAuthenticated = (
 ): Effect.Effect<void, RpcUnauthorizedError> =>
   headers[RPC_CONTEXT_HEADERS.AUTHENTICATED] === 'true'
     ? Effect.void
-    : Effect.fail(RpcUnauthorizedError.make({ message: 'Authentication required' }));
+    : Effect.fail(new RpcUnauthorizedError({ message: 'Authentication required' }));
 
 const ensurePermission = (
   headers: Headers.Headers,
@@ -53,7 +54,7 @@ const ensurePermission = (
     );
 
     if (!currentPermissions.includes(permission)) {
-      return yield* Effect.fail(RpcForbiddenError.make({ message: 'Forbidden' }));
+      return yield* Effect.fail(new RpcForbiddenError({ message: 'Forbidden' }));
     }
   });
 
@@ -122,7 +123,12 @@ export const templateCategoryHandlers = {
         );
         const updatedCategory = updatedCategories[0];
         if (!updatedCategory) {
-          return yield* Effect.fail(RpcForbiddenError.make({ message: 'Forbidden' }));
+          return yield* Effect.fail(
+            new TemplateCategoryNotFoundError({
+              id,
+              message: 'Category not found',
+            }),
+          );
         }
 
         return updatedCategory;

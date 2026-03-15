@@ -3,4 +3,4 @@ export {
   type TemplateSimpleError,
   TemplateSimpleInternalError,
   TemplateSimpleNotFoundError,
-} from '../../../../../shared/errors/rpc-errors';
+} from '@shared/rpc-contracts/app-rpcs/templates.errors';

@@ -3,4 +3,4 @@ export {
   type ReceiptMediaError,
   ReceiptMediaInternalError,
   ReceiptMediaServiceUnavailableError,
-} from '../../../../../shared/errors/rpc-errors';
+} from '@shared/rpc-contracts/app-rpcs/finance.errors';

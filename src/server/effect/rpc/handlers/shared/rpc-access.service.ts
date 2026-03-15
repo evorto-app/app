@@ -1,14 +1,14 @@
-import { Effect, Option } from 'effect';
-
 import {
   RpcForbiddenError,
   RpcUnauthorizedError,
-} from '../../../../../shared/errors/rpc-errors';
-import { type Permission } from '../../../../../shared/permissions/permissions';
+} from '@shared/errors/rpc-errors';
+import { type Permission } from '@shared/permissions/permissions';
 import {
   RpcRequestContext,
   type RpcRequestContextShape,
-} from '../../../../../shared/rpc-contracts/app-rpcs';
+} from '@shared/rpc-contracts/app-rpcs';
+import { Effect, Option } from 'effect';
+
 import { type User } from '../../../../../types/custom/user';
 
 export class RpcAccess extends Effect.Service<RpcAccess>()(
@@ -39,7 +39,7 @@ export class RpcAccess extends Effect.Service<RpcAccess>()(
               context.authenticated
                 ? Effect.void
                 : Effect.fail(
-                    RpcUnauthorizedError.make({
+                    new RpcUnauthorizedError({
                       message: 'Authentication required',
                     }),
                   ),
@@ -55,14 +55,14 @@ export class RpcAccess extends Effect.Service<RpcAccess>()(
             const context = yield* requireContext();
             if (!context.authenticated) {
               return yield* Effect.fail(
-                RpcUnauthorizedError.make({
+                new RpcUnauthorizedError({
                   message: 'Authentication required',
                 }),
               );
             }
             if (!context.permissions.includes(permission)) {
               return yield* Effect.fail(
-                RpcForbiddenError.make({
+                new RpcForbiddenError({
                   message: 'Missing required permission',
                   permission,
                 }),
@@ -78,7 +78,7 @@ export class RpcAccess extends Effect.Service<RpcAccess>()(
               context.user
                 ? Effect.succeed(context.user)
                 : Effect.fail(
-                    RpcUnauthorizedError.make({
+                    new RpcUnauthorizedError({
                       message: 'Authenticated user required',
                     }),
                   ),

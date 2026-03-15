@@ -3,26 +3,11 @@ import * as RpcGroup from '@effect/rpc/RpcGroup';
 import { asRpcMutation, asRpcQuery } from '@heddendorp/effect-angular-query';
 import { Schema } from 'effect';
 
-import {
-  ForbiddenOrUnauthorizedRpcError,
-  RpcForbiddenError,
-  RpcUnauthorizedError,
-  TemplateSimpleBadRequestError,
-  TemplateSimpleInternalError,
-  TemplateSimpleNotFoundError,
-} from '../../errors/rpc-errors';
 import { iconSchema } from '../../types/icon';
-export const TemplateSimpleRpcError = Schema.Union(
-  RpcForbiddenError,
-  RpcUnauthorizedError,
-  TemplateSimpleBadRequestError,
-  TemplateSimpleInternalError,
-  TemplateSimpleNotFoundError,
-);
-
-export type TemplateSimpleRpcError = Schema.Schema.Type<
-  typeof TemplateSimpleRpcError
->;
+import {
+  TemplatesGroupedByCategoryError,
+  TemplateSimpleRpcError,
+} from './templates.errors';
 
 export const TemplateRegistrationMode = Schema.Literal(
   'application',
@@ -135,7 +120,7 @@ export type TemplatesByCategoryRecord = Schema.Schema.Type<
 
 export const TemplatesGroupedByCategory = asRpcQuery(
   Rpc.make('templates.groupedByCategory', {
-    error: ForbiddenOrUnauthorizedRpcError,
+    error: TemplatesGroupedByCategoryError,
     payload: Schema.Void,
     success: Schema.Array(TemplatesByCategoryRecord),
   }),

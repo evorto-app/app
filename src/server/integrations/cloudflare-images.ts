@@ -51,7 +51,7 @@ const resolveCloudflareImagesConfig = () =>
     }),
     Effect.mapError(
       (error) =>
-        RpcInternalServerError.make({
+        new RpcInternalServerError({
           cause: error,
           message: 'Cloudflare Images configuration is invalid',
         }),
@@ -79,7 +79,7 @@ export const createCloudflareImageDirectUpload = (input: {
     };
     const directUpload = yield* Effect.tryPromise({
       catch: (error) =>
-        RpcInternalServerError.make({
+        new RpcInternalServerError({
           cause: error,
           message: 'Image upload initialization failed',
         }),
@@ -93,7 +93,7 @@ export const createCloudflareImageDirectUpload = (input: {
 
     if (!directUpload.id || !directUpload.uploadURL) {
       return yield* Effect.fail(
-        RpcInternalServerError.make({
+        new RpcInternalServerError({
           message: 'Image upload initialization failed',
         }),
       );
@@ -123,7 +123,7 @@ export const cleanupTestingCloudflareImages = (input: {
       })
     ) {
       return yield* Effect.fail(
-        RpcBadRequestError.make({
+        new RpcBadRequestError({
           message: 'Cleanup is blocked in production',
         }),
       );
@@ -131,7 +131,7 @@ export const cleanupTestingCloudflareImages = (input: {
 
     if (!input.dryRun && input.confirmPhrase !== TESTING_CLEANUP_CONFIRMATION) {
       return yield* Effect.fail(
-        RpcBadRequestError.make({
+        new RpcBadRequestError({
           message: `Confirmation phrase mismatch. Use "${TESTING_CLEANUP_CONFIRMATION}"`,
         }),
       );
@@ -146,7 +146,7 @@ export const cleanupTestingCloudflareImages = (input: {
     do {
       const page = yield* Effect.tryPromise({
         catch: (error) =>
-          RpcInternalServerError.make({
+          new RpcInternalServerError({
             cause: error,
             message: 'Failed to list Cloudflare Images',
           }),
@@ -200,7 +200,7 @@ export const cleanupTestingCloudflareImages = (input: {
       for (const imageId of toDelete) {
         yield* Effect.tryPromise({
           catch: (error) =>
-            RpcInternalServerError.make({
+            new RpcInternalServerError({
               cause: error,
               message: 'Failed to delete Cloudflare Image',
             }),

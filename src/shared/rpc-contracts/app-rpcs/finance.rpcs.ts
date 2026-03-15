@@ -4,18 +4,14 @@ import { asRpcMutation, asRpcQuery } from '@heddendorp/effect-angular-query';
 import { Schema } from 'effect';
 
 import {
-  BadRequestForbiddenInternalNotFoundUnauthorizedRpcError,
+  RpcUnauthorizedError,
+} from '../../errors/rpc-errors';
+import {
+  FinanceRpcError,
   ReceiptMediaBadRequestError,
   ReceiptMediaInternalError,
   ReceiptMediaServiceUnavailableError,
-  RpcUnauthorizedError,
-} from '../../errors/rpc-errors';
-
-export const FinanceRpcError =
-  BadRequestForbiddenInternalNotFoundUnauthorizedRpcError;
-
-export type FinanceRpcError =
-  BadRequestForbiddenInternalNotFoundUnauthorizedRpcError;
+} from './finance.errors';
 
 export const FinanceReceiptStatus = Schema.Literal(
   'approved',

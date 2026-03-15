@@ -1,8 +1,10 @@
 import {
-  RpcConflictError,
   RpcForbiddenError,
-  RpcNotFoundError,
 } from '@shared/errors/rpc-errors';
+import {
+  EventConflictError,
+  EventNotFoundError,
+} from '@shared/rpc-contracts/app-rpcs/events.errors';
 import {
   and,
   arrayOverlaps,
@@ -96,14 +98,14 @@ export const eventQueryHandlers = {
           !onlyApprovedStatus &&
           !userPermissions.includes('events:seeDrafts')
         ) {
-          return yield* Effect.fail(RpcForbiddenError.make({ message: 'Forbidden' }));
+          return yield* Effect.fail(new RpcForbiddenError({ message: 'Forbidden' }));
         }
 
         if (
           input.includeUnlisted &&
           !userPermissions.includes('events:seeUnlisted')
         ) {
-          return yield* Effect.fail(RpcForbiddenError.make({ message: 'Forbidden' }));
+          return yield* Effect.fail(new RpcForbiddenError({ message: 'Forbidden' }));
         }
 
         const rolesToFilterBy =
@@ -271,7 +273,9 @@ export const eventQueryHandlers = {
           }),
         );
         if (!event) {
-          return yield* Effect.fail(RpcNotFoundError.make({ message: 'Resource not found' }));
+          return yield* Effect.fail(
+            new EventNotFoundError({ id, message: 'Event not found' }),
+          );
         }
 
         const canSeeDrafts = user?.permissions.includes('events:seeDrafts');
@@ -289,7 +293,9 @@ export const eventQueryHandlers = {
           !canReviewEvents &&
           !canEditEvent_
         ) {
-          return yield* Effect.fail(RpcNotFoundError.make({ message: 'Resource not found' }));
+          return yield* Effect.fail(
+            new EventNotFoundError({ id, message: 'Event not found' }),
+          );
         }
 
         const registrationOptionIds = event.registrationOptions.map(
@@ -455,18 +461,24 @@ export const eventQueryHandlers = {
         );
 
         if (!event) {
-          return yield* Effect.fail(RpcNotFoundError.make({ message: 'Resource not found' }));
+          return yield* Effect.fail(
+            new EventNotFoundError({ id, message: 'Event not found' }),
+          );
         }
 
         const canEdit =
           event.creatorId === user.id ||
           user.permissions.includes('events:editAll');
         if (!canEdit) {
-          return yield* Effect.fail(RpcForbiddenError.make({ message: 'Forbidden' }));
+          return yield* Effect.fail(new RpcForbiddenError({ message: 'Forbidden' }));
         }
 
         if (event.status !== 'DRAFT' && event.status !== 'REJECTED') {
-          return yield* Effect.fail(RpcConflictError.make({ message: 'Conflict' }));
+          return yield* Effect.fail(
+            new EventConflictError({
+              message: 'Event cannot be edited in its current state',
+            }),
+          );
         }
 
         const registrationOptionIds = event.registrationOptions.map(

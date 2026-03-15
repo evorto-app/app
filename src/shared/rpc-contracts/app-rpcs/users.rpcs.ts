@@ -5,13 +5,10 @@ import { Schema } from 'effect';
 
 import { User } from '../../../types/custom/user';
 import {
-  ConflictOrUnauthorizedRpcError,
-  ForbiddenOrUnauthorizedRpcError,
-  UnauthorizedRpcError,
-} from '../../errors/rpc-errors';
-export const UserRpcError = UnauthorizedRpcError;
-
-export type UserRpcError = UnauthorizedRpcError;
+  UserRpcError,
+  UsersCreateAccountError,
+  UsersFindManyError,
+} from './users.errors';
 
 export const UsersAuthData = Schema.Struct({
   email: Schema.optional(Schema.NullOr(Schema.String)),
@@ -39,10 +36,6 @@ export const UsersCreateAccountInput = Schema.Struct({
 export type UsersCreateAccountInput = Schema.Schema.Type<
   typeof UsersCreateAccountInput
 >;
-
-export const UsersCreateAccountError = ConflictOrUnauthorizedRpcError;
-
-export type UsersCreateAccountError = ConflictOrUnauthorizedRpcError;
 
 export const UsersCreateAccount = asRpcMutation(
   Rpc.make('users.createAccount', {
@@ -80,10 +73,6 @@ export const UsersFindManyResult = Schema.Struct({
 export type UsersFindManyResult = Schema.Schema.Type<
   typeof UsersFindManyResult
 >;
-
-export const UsersFindManyError = ForbiddenOrUnauthorizedRpcError;
-
-export type UsersFindManyError = ForbiddenOrUnauthorizedRpcError;
 
 export const UsersFindMany = asRpcQuery(
   Rpc.make('users.findMany', {

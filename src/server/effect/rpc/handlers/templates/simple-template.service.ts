@@ -128,7 +128,7 @@ export class SimpleTemplateService extends Effect.Service<SimpleTemplateService>
                 }),
               );
               return yield* Effect.fail(
-                TemplateSimpleBadRequestError.make({
+                new TemplateSimpleBadRequestError({
                   message: `${kind} registration tax rate validation failed`,
                 }),
               );
@@ -138,7 +138,7 @@ export class SimpleTemplateService extends Effect.Service<SimpleTemplateService>
           const sanitizedDescription = sanitizeRichTextHtml(input.description);
           if (!isMeaningfulRichTextHtml(sanitizedDescription)) {
             return yield* Effect.fail(
-              TemplateSimpleBadRequestError.make({
+              new TemplateSimpleBadRequestError({
                 message: 'Description is not meaningful rich text',
               }),
             );
@@ -189,7 +189,7 @@ export class SimpleTemplateService extends Effect.Service<SimpleTemplateService>
           const template = templateResponse[0];
           if (!template) {
             return yield* Effect.fail(
-              TemplateSimpleInternalError.make({
+              new TemplateSimpleInternalError({
                 message: 'Template insert failed',
               }),
             );
@@ -259,7 +259,7 @@ export class SimpleTemplateService extends Effect.Service<SimpleTemplateService>
           const template = updatedTemplate[0];
           if (!template) {
             return yield* Effect.fail(
-              TemplateSimpleNotFoundError.make({ message: 'Template not found' }),
+              new TemplateSimpleNotFoundError({ message: 'Template not found' }),
             );
           }
 

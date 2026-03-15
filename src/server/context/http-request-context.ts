@@ -1,9 +1,11 @@
 import type * as HttpServerRequest from '@effect/platform/HttpServerRequest';
 
+import { DrizzleQueryError } from 'drizzle-orm';
 import { Effect, Schema } from 'effect';
 
 import type { AuthSession } from '../auth/auth-session';
 
+import { Database } from '../../db';
 import { Context as RequestContext } from '../../types/custom/context';
 import { isAuthenticated, resolveRequestOrigin } from '../auth/auth-session';
 import {
@@ -11,6 +13,15 @@ import {
   resolveTenantContext,
   resolveUserContext,
 } from './request-context-resolver';
+
+export class HttpRequestTenantNotFoundError extends Schema.TaggedError<HttpRequestTenantNotFoundError>()(
+  'HttpRequestTenantNotFoundError',
+  {
+    domain: Schema.String,
+    message: Schema.String,
+    tenantCookie: Schema.String,
+  },
+) {}
 
 const resolveRequestHost = (
   request: HttpServerRequest.HttpServerRequest,
@@ -20,7 +31,11 @@ const resolveRequestHost = (
 export const resolveHttpRequestContext = (
   request: HttpServerRequest.HttpServerRequest,
   authSession: AuthSession | undefined,
-) =>
+): Effect.Effect<
+  Schema.Schema.Type<typeof RequestContext>,
+  DrizzleQueryError | HttpRequestTenantNotFoundError,
+  Database
+> =>
   Effect.gen(function* () {
     const requestOrigin = resolveRequestOrigin(request);
     const authentication = resolveAuthenticationContext({
@@ -38,18 +53,28 @@ export const resolveHttpRequestContext = (
       yield* Effect.logError('Tenant not found').pipe(
         Effect.annotateLogs({ cause }),
       );
-      return yield* Effect.die(new Error('Tenant not found', { cause }));
+      yield* new HttpRequestTenantNotFoundError({
+        domain: cause.domain,
+        message: 'Tenant not found',
+        tenantCookie: cause.tenantCookie,
+      });
     }
+
+    const resolvedTenant =
+      tenant ??
+      (yield* Effect.dieMessage(
+        'Tenant resolution did not terminate after not-found error',
+      ));
 
     const user = yield* resolveUserContext({
       isAuthenticated: isAuthenticated(authSession),
       oidcUser: authSession?.authData,
-      tenantId: tenant.id,
+      tenantId: resolvedTenant.id,
     });
 
     return Schema.decodeUnknownSync(RequestContext)({
       authentication,
-      tenant,
+      tenant: resolvedTenant,
       user,
     });
   });

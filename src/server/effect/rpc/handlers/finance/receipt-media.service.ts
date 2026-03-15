@@ -111,7 +111,7 @@ export class ReceiptMediaService extends Effect.Service<ReceiptMediaService>()(
         }) {
           if (!isAllowedReceiptMimeType(mimeType)) {
             return yield* Effect.fail(
-              ReceiptMediaBadRequestError.make({
+              new ReceiptMediaBadRequestError({
                 message: 'Unsupported MIME type',
               }),
             );
@@ -120,14 +120,14 @@ export class ReceiptMediaService extends Effect.Service<ReceiptMediaService>()(
           const body = Buffer.from(fileBase64, 'base64');
           if (body.byteLength !== fileSizeBytes) {
             return yield* Effect.fail(
-              ReceiptMediaBadRequestError.make({
+              new ReceiptMediaBadRequestError({
                 message: 'Uploaded file size does not match payload metadata',
               }),
             );
           }
           if (body.byteLength > MAX_RECEIPT_ORIGINAL_SIZE_BYTES) {
             return yield* Effect.fail(
-              ReceiptMediaBadRequestError.make({
+              new ReceiptMediaBadRequestError({
                 message: 'File exceeds size limit',
               }),
             );
@@ -150,7 +150,7 @@ export class ReceiptMediaService extends Effect.Service<ReceiptMediaService>()(
           }).pipe(
             Effect.mapError(
               () =>
-                ReceiptMediaInternalError.make({
+                new ReceiptMediaInternalError({
                   message: 'Failed to upload file',
                 }),
             ),

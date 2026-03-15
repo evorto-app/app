@@ -154,7 +154,7 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
         const serverEnvironment = yield* serverConfig.pipe(
           Effect.mapError(
             (error) =>
-              EventRegistrationInternalError.make({
+              new EventRegistrationInternalError({
                 message: `Invalid server configuration:\n${formatConfigError(error)}`,
               }),
           ),
@@ -178,7 +178,7 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
         );
         if (existingRegistration) {
           return yield* Effect.fail(
-            EventRegistrationConflictError.make({
+            new EventRegistrationConflictError({
               message: 'User is already registered for this event',
             }),
           );
@@ -209,14 +209,14 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
         );
         if (!registrationOption) {
           return yield* Effect.fail(
-            EventRegistrationNotFoundError.make({
+            new EventRegistrationNotFoundError({
               message: 'Registration option not found',
             }),
           );
         }
         if (!registrationOption.event) {
           return yield* Effect.fail(
-            EventRegistrationInternalError.make({
+            new EventRegistrationInternalError({
               message: 'Registration option event relation missing',
             }),
           );
@@ -226,7 +226,7 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
           registrationOption.spots
         ) {
           return yield* Effect.fail(
-            EventRegistrationConflictError.make({
+            new EventRegistrationConflictError({
               message: 'Registration option has no available spots',
             }),
           );
@@ -275,7 +275,7 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
         const userRegistration = createdRegistrations[0];
         if (!userRegistration) {
           return yield* Effect.fail(
-            EventRegistrationInternalError.make({
+            new EventRegistrationInternalError({
               message: 'Failed to create registration',
             }),
           );
@@ -454,7 +454,7 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
           const stripeAccount = tenant.stripeAccountId;
           if (!stripeAccount) {
             return yield* Effect.fail(
-              EventRegistrationInternalError.make({
+              new EventRegistrationInternalError({
                 message: 'Stripe account not found',
               }),
             );
@@ -501,7 +501,7 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
           ).pipe(
             Effect.mapError(
               () =>
-                EventRegistrationInternalError.make({
+                new EventRegistrationInternalError({
                   message: 'Failed to create stripe checkout session',
                 }),
             ),
@@ -534,10 +534,10 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
         return yield* paymentFlow.pipe(
           // Any failure after reservation must rollback reservation + inserted
           // registration so callers never observe a half-created paid flow.
-          Effect.catchTag('EventRegistrationInternalError', (error) =>
+          Effect.catchAllCause((cause) =>
             rollbackOnFailure().pipe(
               Effect.orDie,
-              Effect.zipRight(Effect.fail(error)),
+              Effect.zipRight(Effect.failCause(cause)),
             ),
           ),
         );

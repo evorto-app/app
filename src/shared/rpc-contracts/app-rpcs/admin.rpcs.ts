@@ -4,14 +4,11 @@ import { asRpcMutation, asRpcQuery } from '@heddendorp/effect-angular-query';
 import { Schema } from 'effect';
 
 import { Tenant } from '../../../types/custom/tenant';
-import {
-  BadRequestForbiddenOrUnauthorizedRpcError,
-  ForbiddenNotFoundUnauthorizedRpcError,
-} from '../../errors/rpc-errors';
 import { PermissionSchema } from '../../permissions/permissions';
-export const AdminRoleRpcError = ForbiddenNotFoundUnauthorizedRpcError;
-
-export type AdminRoleRpcError = ForbiddenNotFoundUnauthorizedRpcError;
+import {
+  AdminRoleRpcError,
+  AdminTenantRpcError,
+} from './admin.errors';
 
 export const AdminRoleRecord = Schema.Struct({
   collapseMembersInHup: Schema.Boolean,
@@ -137,10 +134,6 @@ export const AdminRolesUpdate = asRpcMutation(
     success: AdminRoleRecord,
   }),
 );
-
-export const AdminTenantRpcError = BadRequestForbiddenOrUnauthorizedRpcError;
-
-export type AdminTenantRpcError = BadRequestForbiddenOrUnauthorizedRpcError;
 
 export const AdminTenantTaxRateRecord = Schema.Struct({
   active: Schema.Boolean,

@@ -1,10 +1,10 @@
 import type { Headers } from '@effect/platform';
 
 import {
-  RpcConflictError,
   RpcForbiddenError,
   RpcUnauthorizedError,
 } from '@shared/errors/rpc-errors';
+import { UserConflictError } from '@shared/rpc-contracts/app-rpcs/users.errors';
 import {
   and,
   count,
@@ -46,7 +46,7 @@ const ensureAuthenticated = (
 ): Effect.Effect<void, RpcUnauthorizedError> =>
   headers[RPC_CONTEXT_HEADERS.AUTHENTICATED] === 'true'
     ? Effect.void
-    : Effect.fail(RpcUnauthorizedError.make({ message: 'Authentication required' }));
+    : Effect.fail(new RpcUnauthorizedError({ message: 'Authentication required' }));
 
 const ensurePermission = (
   headers: Headers.Headers,
@@ -54,13 +54,15 @@ const ensurePermission = (
 ): Effect.Effect<void, RpcForbiddenError | RpcUnauthorizedError> =>
   Effect.gen(function* () {
     yield* ensureAuthenticated(headers);
-    const currentPermissions = decodeHeaderJson(
+        const currentPermissions = decodeHeaderJson(
       headers[RPC_CONTEXT_HEADERS.PERMISSIONS],
       ConfigPermissions,
     );
 
     if (!currentPermissions.includes(permission)) {
-      return yield* Effect.fail(RpcForbiddenError.make({ message: 'Forbidden' }));
+      return yield* Effect.fail(
+        new RpcForbiddenError({ message: 'Forbidden', permission }),
+      );
     }
   });
 
@@ -78,7 +80,7 @@ const requireUserHeader = (
   Effect.gen(function* () {
     const user = yield* decodeUserHeader(headers);
     if (!user) {
-      return yield* Effect.fail(RpcUnauthorizedError.make({ message: 'Authentication required' }));
+      return yield* Effect.fail(new RpcUnauthorizedError({ message: 'Authentication required' }));
     }
     return user;
   });
@@ -98,7 +100,9 @@ export const userHandlers = {
         const email = authData.email?.trim();
 
         if (!auth0Id || !email) {
-          return yield* Effect.fail(RpcUnauthorizedError.make({ message: 'Authentication required' }));
+          return yield* Effect.fail(
+            new RpcUnauthorizedError({ message: 'Authentication required' }),
+          );
         }
 
         const existingUser = yield* databaseEffect((database) =>
@@ -109,7 +113,9 @@ export const userHandlers = {
             .limit(1),
         );
         if (existingUser.length > 0) {
-          return yield* Effect.fail(RpcConflictError.make({ message: 'Conflict' }));
+          return yield* Effect.fail(
+            new UserConflictError({ message: 'User account already exists' }),
+          );
         }
 
         const defaultUserRoles = yield* databaseEffect((database) =>
@@ -136,7 +142,7 @@ export const userHandlers = {
         );
         const createdUser = userCreateResponse[0];
         if (!createdUser) {
-          return yield* Effect.fail(RpcUnauthorizedError.make({ message: 'Authentication required' }));
+          return yield* Effect.dieMessage('User insert returned no rows');
         }
 
         const userTenantCreateResponse = yield* databaseEffect((database) =>
@@ -152,7 +158,9 @@ export const userHandlers = {
         );
         const createdUserTenant = userTenantCreateResponse[0];
         if (!createdUserTenant) {
-          return yield* Effect.fail(RpcUnauthorizedError.make({ message: 'Authentication required' }));
+          return yield* Effect.dieMessage(
+            'User tenant association insert returned no rows',
+          );
         }
 
         if (defaultUserRoles.length > 0) {

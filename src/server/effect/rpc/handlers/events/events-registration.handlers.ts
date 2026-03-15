@@ -1,7 +1,7 @@
 import {
-  RpcInternalServerError,
-  RpcNotFoundError,
-} from '@shared/errors/rpc-errors';
+  EventRegistrationInternalError,
+  EventRegistrationNotFoundError,
+} from '@shared/rpc-contracts/app-rpcs/events.errors';
 import { eq } from 'drizzle-orm';
 import { Effect } from 'effect';
 
@@ -56,7 +56,11 @@ export const eventRegistrationHandlers = {
         );
 
         if (!registration) {
-          return yield* Effect.fail(RpcNotFoundError.make({ message: 'Resource not found' }));
+          return yield* Effect.fail(
+            new EventRegistrationNotFoundError({
+              message: 'Registration not found',
+            }),
+          );
         }
 
         yield* databaseEffect((database) =>
@@ -73,7 +77,7 @@ export const eventRegistrationHandlers = {
                 registration.registrationOption?.reservedSpots;
               if (reservedSpots === undefined) {
                 return yield* Effect.fail(
-                  RpcInternalServerError.make({
+                  new EventRegistrationInternalError({
                     message: 'Registration option missing',
                   }),
                 );
@@ -116,7 +120,7 @@ export const eventRegistrationHandlers = {
               const stripeAccount = tenant.stripeAccountId;
               if (!stripeAccount) {
                 return yield* Effect.fail(
-                  RpcInternalServerError.make({
+                  new EventRegistrationInternalError({
                     message: 'Stripe account not found',
                   }),
                 );
@@ -145,7 +149,11 @@ export const eventRegistrationHandlers = {
               );
             }),
           ),
-        ).pipe(Effect.mapError(() => RpcInternalServerError.make({ message: 'Internal server error' })));
+        ).pipe(
+          Effect.mapError(
+            () => new EventRegistrationInternalError({ message: 'Internal server error' }),
+          ),
+        );
       }),
 'events.getRegistrationStatus': ({ eventId }, _options) =>
       Effect.gen(function* () {
@@ -324,11 +332,15 @@ export const eventRegistrationHandlers = {
             },
           }),
         );
-        if (!registration || !registration.user || !registration.event) {
+        if (
+          !registration ||
+          !registration.user ||
+          !registration.event ||
+          !registration.registrationOption
+        ) {
           return yield* Effect.fail(
-            RpcNotFoundError.make({
+            new EventRegistrationNotFoundError({
               message: 'Registration not found',
-              resource: 'eventRegistration',
             }),
           );
         }

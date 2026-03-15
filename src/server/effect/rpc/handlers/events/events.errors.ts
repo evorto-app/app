@@ -3,4 +3,4 @@ export {
   type EventRegistrationError,
   EventRegistrationInternalError,
   EventRegistrationNotFoundError,
-} from '../../../../../shared/errors/rpc-errors';
+} from '@shared/rpc-contracts/app-rpcs/events.errors';

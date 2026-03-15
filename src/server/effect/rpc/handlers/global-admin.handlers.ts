@@ -26,7 +26,7 @@ const ensureAuthenticated = (
 ): Effect.Effect<void, RpcUnauthorizedError> =>
   headers[RPC_CONTEXT_HEADERS.AUTHENTICATED] === 'true'
     ? Effect.void
-    : Effect.fail(RpcUnauthorizedError.make({ message: 'Authentication required' }));
+    : Effect.fail(new RpcUnauthorizedError({ message: 'Authentication required' }));
 
 const decodeHeaderJson = <A, I>(
   value: string | undefined,
@@ -45,7 +45,7 @@ const ensurePermission = (
     );
 
     if (!currentPermissions.includes(permission)) {
-      return yield* Effect.fail(RpcForbiddenError.make({ message: 'Forbidden' }));
+      return yield* Effect.fail(new RpcForbiddenError({ message: 'Forbidden' }));
     }
   });
 
