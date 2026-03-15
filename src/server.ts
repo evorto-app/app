@@ -12,7 +12,7 @@ import {
 } from '@effect/platform';
 import { BunFileSystem, BunHttpServer, BunRuntime } from '@effect/platform-bun';
 import * as Sentry from '@sentry/bun';
-import { Effect, Context as EffectContext, Layer } from 'effect';
+import { Effect, Context as EffectContext, Layer, Option } from 'effect';
 
 import { databaseLayer } from './db';
 import {
@@ -336,14 +336,21 @@ const withSsrFallback = <E, R>(
 const keyValueStoreLayer = KeyValueStore.layerFileSystem(
   keyValueStoreDirectory,
 ).pipe(Layer.provide(Layer.mergeAll(BunFileSystem.layer, Path.layer)));
-const otelLayer = OtelTracer.layerGlobal.pipe(
-  Layer.provide(
-    OtelResource.layer({
-      serviceName: 'evorto-server',
-      ...(process.env['npm_package_version']
-        ? { serviceVersion: process.env['npm_package_version'] }
-        : {}),
-    }),
+const otelLayer = Layer.unwrapEffect(
+  serverConfig.pipe(
+    Effect.map(({ PACKAGE_VERSION }) =>
+      OtelTracer.layerGlobal.pipe(
+        Layer.provide(
+          OtelResource.layer({
+            serviceName: 'evorto-server',
+            ...Option.match(PACKAGE_VERSION, {
+              onNone: () => ({}),
+              onSome: (serviceVersion) => ({ serviceVersion }),
+            }),
+          }),
+        ),
+      ),
+    ),
   ),
 );
 

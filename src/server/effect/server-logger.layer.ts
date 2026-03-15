@@ -1,9 +1,16 @@
-import { Layer, Logger, LogLevel } from 'effect';
+import { Effect, Layer, Logger, LogLevel, Option } from 'effect';
 
-const resolveServerLogLevel = (
-  input: NodeJS.ProcessEnv = process.env,
+import { serverConfig, type ServerConfig } from '../config/server-config';
+
+export const resolveServerLogLevel = (
+  input: Pick<
+    ServerConfig,
+    'ACTIONS_STEP_DEBUG' | 'CI' | 'SERVER_LOG_LEVEL'
+  >,
 ): LogLevel.LogLevel => {
-  const configuredLevel = input['SERVER_LOG_LEVEL']?.trim().toLowerCase();
+  const configuredLevel = Option.getOrUndefined(input.SERVER_LOG_LEVEL)
+    ?.trim()
+    .toLowerCase();
   switch (configuredLevel) {
     case 'all': {
       return LogLevel.All;
@@ -32,10 +39,10 @@ const resolveServerLogLevel = (
       return LogLevel.Warning;
     }
     default: {
-      if (input['ACTIONS_STEP_DEBUG'] === 'true') {
+      if (input.ACTIONS_STEP_DEBUG) {
         return LogLevel.Debug;
       }
-      if (input['CI'] === 'true') {
+      if (input.CI) {
         return LogLevel.Warning;
       }
       return LogLevel.Info;
@@ -45,5 +52,11 @@ const resolveServerLogLevel = (
 
 export const serverLoggerLayer = Layer.mergeAll(
   Logger.replace(Logger.defaultLogger, Logger.prettyLoggerDefault),
-  Logger.minimumLogLevel(resolveServerLogLevel()),
+  Layer.unwrapEffect(
+    serverConfig.pipe(
+      Effect.map((configuredServerConfig) =>
+        Logger.minimumLogLevel(resolveServerLogLevel(configuredServerConfig)),
+      ),
+    ),
+  ),
 );

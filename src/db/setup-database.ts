@@ -15,11 +15,15 @@ export type Database = NodePgDatabase<Record<string, never>, typeof relations>;
 
 export async function setupDatabase(
   database: NodePgDatabase<Record<string, never>, typeof relations>,
-  onlyDevelopmentTenants = false,
+  options?: {
+    onlyDevelopmentTenants?: boolean;
+    stripeTestAccountId?: string;
+  },
 ) {
   const seedDate = getSeedDate();
   const seed = seedFalsoForScope('setup-database', seedDate);
-  const stripeTestAccountId = process.env['STRIPE_TEST_ACCOUNT_ID']?.trim();
+  const onlyDevelopmentTenants = options?.onlyDevelopmentTenants ?? false;
+  const stripeTestAccountId = options?.stripeTestAccountId?.trim();
   consola.info(`Seeded falso with daily seed "${seed}"`);
   consola.start('Reset database schema');
   const resetStart = Date.now();

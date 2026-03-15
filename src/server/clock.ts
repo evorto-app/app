@@ -1,20 +1,23 @@
 import { DateTime } from 'luxon';
 
-const resolvePinnedNow = (): DateTime | undefined => {
-  const raw = process.env['E2E_NOW_ISO']?.trim();
-  if (!raw) {
+export const resolvePinnedNow = (
+  pinnedNowIso: string | undefined,
+): DateTime | undefined => {
+  const normalizedPinnedNowIso = pinnedNowIso?.trim();
+  if (!normalizedPinnedNowIso) {
     return undefined;
   }
 
-  const parsed = DateTime.fromISO(raw, { zone: 'utc' });
+  const parsed = DateTime.fromISO(normalizedPinnedNowIso, { zone: 'utc' });
   if (!parsed.isValid) {
     throw new Error(
-      `Invalid E2E_NOW_ISO value "${raw}": ${parsed.invalidExplanation ?? parsed.invalidReason ?? 'unknown reason'}`,
+      `Invalid E2E_NOW_ISO value "${normalizedPinnedNowIso}": ${parsed.invalidExplanation ?? parsed.invalidReason ?? 'unknown reason'}`,
     );
   }
 
   return parsed;
 };
 
-export const getServerNow = (): DateTime =>
-  resolvePinnedNow() ?? DateTime.now().setZone('utc');
+export const getServerNow = (
+  pinnedNowIso: string | undefined,
+): DateTime => resolvePinnedNow(pinnedNowIso) ?? DateTime.utc();
