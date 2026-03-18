@@ -21,6 +21,15 @@ export class FinanceReceiptNotFoundError extends Schema.TaggedError<FinanceRecei
   },
 ) {}
 
+export class FinanceResourceNotFoundError extends Schema.TaggedError<FinanceResourceNotFoundError>()(
+  'FinanceResourceNotFoundError',
+  {
+    id: Schema.optional(Schema.String),
+    message: Schema.String,
+    resource: Schema.optional(Schema.String),
+  },
+) {}
+
 export class ReceiptMediaBadRequestError extends Schema.TaggedError<ReceiptMediaBadRequestError>()(
   'ReceiptMediaBadRequestError',
   {
@@ -49,6 +58,7 @@ export const FinanceRpcError = Schema.Union(
   RpcForbiddenError,
   RpcInternalServerError,
   FinanceReceiptNotFoundError,
+  FinanceResourceNotFoundError,
   RpcUnauthorizedError,
 );
 export type FinanceRpcError = Schema.Schema.Type<typeof FinanceRpcError>;

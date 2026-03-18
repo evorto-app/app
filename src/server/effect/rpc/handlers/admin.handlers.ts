@@ -353,52 +353,66 @@ export const adminHandlers = {
           return;
         }
 
-        for (const id of ids) {
-          const stripeRate = yield* Effect.promise(() =>
-            stripe.taxRates.retrieve(id, undefined, { stripeAccount }),
-          );
-          if (!stripeRate.inclusive) {
-            return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
-          }
+        const stripeRates = yield* Effect.all(
+          ids.map((id) =>
+            Effect.promise(() =>
+              stripe.taxRates.retrieve(id, undefined, { stripeAccount }),
+            ).pipe(
+              Effect.flatMap((stripeRate) =>
+                stripeRate.inclusive
+                  ? Effect.succeed(stripeRate)
+                  : Effect.fail(
+                      new RpcBadRequestError({
+                        message: 'Stripe tax rate must be inclusive',
+                        reason: 'nonInclusiveTaxRate',
+                      }),
+                    ),
+              ),
+            ),
+          ),
+        );
 
-        const existingRate = yield* databaseEffect((database) =>
-          database.query.tenantStripeTaxRates.findFirst({
-              columns: {
-                id: true,
-              },
-              where: {
-                stripeTaxRateId: id,
-                tenantId: tenant.id,
-              },
-            }),
-          );
+        yield* databaseEffect((database) =>
+          database.transaction((tx) =>
+            Effect.all(
+              stripeRates.map((stripeRate) =>
+                Effect.gen(function* () {
+                  const existingRate = yield* tx.query.tenantStripeTaxRates.findFirst({
+                    columns: {
+                      id: true,
+                    },
+                    where: {
+                      stripeTaxRateId: stripeRate.id,
+                      tenantId: tenant.id,
+                    },
+                  });
 
-          const values: Omit<typeof tenantStripeTaxRates.$inferInsert, 'id'> = {
-            active: !!stripeRate.active,
-            country: stripeRate.country ?? null,
-            displayName: stripeRate.display_name ?? null,
-            inclusive: !!stripeRate.inclusive,
-            percentage:
-              stripeRate.percentage !== null &&
-              stripeRate.percentage !== undefined
-                ? String(stripeRate.percentage)
-                : undefined,
-            state: stripeRate.state ?? null,
-            stripeTaxRateId: stripeRate.id,
-            tenantId: tenant.id,
-          };
+                  const values: Omit<typeof tenantStripeTaxRates.$inferInsert, 'id'> = {
+                    active: !!stripeRate.active,
+                    country: stripeRate.country ?? null,
+                    displayName: stripeRate.display_name ?? null,
+                    inclusive: !!stripeRate.inclusive,
+                    percentage:
+                      stripeRate.percentage !== null &&
+                      stripeRate.percentage !== undefined
+                        ? String(stripeRate.percentage)
+                        : undefined,
+                    state: stripeRate.state ?? null,
+                    stripeTaxRateId: stripeRate.id,
+                    tenantId: tenant.id,
+                  };
 
-          yield* existingRate
-            ? databaseEffect((database) =>
-          database
-                  .update(tenantStripeTaxRates)
-                  .set(values)
-                  .where(eq(tenantStripeTaxRates.id, existingRate.id)),
-              )
-            : databaseEffect((database) =>
-          database.insert(tenantStripeTaxRates).values(values),
-              );
-        }
+                  yield* existingRate
+                    ? tx
+                        .update(tenantStripeTaxRates)
+                        .set(values)
+                        .where(eq(tenantStripeTaxRates.id, existingRate.id))
+                    : tx.insert(tenantStripeTaxRates).values(values);
+                }),
+              ),
+            ).pipe(Effect.asVoid),
+          ),
+        );
       }),
     'admin.tenant.listImportedTaxRates': (_payload, options) =>
       Effect.gen(function* () {
@@ -489,6 +503,26 @@ export const adminHandlers = {
           },
         };
 
+        const nextTenant = {
+          ...tenant,
+          defaultLocation: input.defaultLocation,
+          discountProviders,
+          receiptSettings: resolveTenantReceiptSettings({
+            allowOther: input.allowOther,
+            receiptCountries: input.receiptCountries,
+          }),
+          theme: input.theme,
+        };
+
+        const validatedTenant = yield* Effect.try({
+          catch: (error) =>
+            new RpcBadRequestError({
+              message: 'Updated tenant settings failed validation',
+              reason: error instanceof Error ? error.message : String(error),
+            }),
+          try: () => Schema.decodeUnknownSync(Tenant)(nextTenant),
+        });
+
         const updatedTenants = yield* databaseEffect((database) =>
           database
             .update(tenants)
@@ -516,24 +550,6 @@ export const adminHandlers = {
           );
         }
 
-        const nextTenant = {
-          ...tenant,
-          defaultLocation: input.defaultLocation,
-          discountProviders,
-          receiptSettings: resolveTenantReceiptSettings({
-            allowOther: input.allowOther,
-            receiptCountries: input.receiptCountries,
-          }),
-          theme: input.theme,
-        };
-
-        return yield* Effect.try({
-          catch: (error) =>
-            new RpcBadRequestError({
-              message: 'Updated tenant settings failed validation',
-              reason: error instanceof Error ? error.message : String(error),
-            }),
-          try: () => Schema.decodeUnknownSync(Tenant)(nextTenant),
-        });
+        return validatedTenant;
       }),
 } satisfies Partial<AppRpcHandlers>;

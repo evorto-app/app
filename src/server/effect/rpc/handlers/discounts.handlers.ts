@@ -345,9 +345,15 @@ export const discountHandlers = {
             );
         const upsertedCard = upsertedCards[0];
         if (!upsertedCard) {
+          yield* Effect.logError('Discount card upsert returned no rows').pipe(
+            Effect.annotateLogs({
+              discountType: input.type,
+              userId: user.id,
+            }),
+          );
           return yield* Effect.fail(
             new RpcInternalServerError({
-              message: `Discount card upsert returned no rows for type ${input.type} and user ${user.id}`,
+              message: 'Discount card upsert returned no rows',
             }),
           );
         }
@@ -384,9 +390,18 @@ export const discountHandlers = {
         );
         const updatedCard = updatedCards[0];
         if (!updatedCard) {
+          yield* Effect.logError(
+            'Discount card validation update returned no rows',
+          ).pipe(
+            Effect.annotateLogs({
+              cardId: upsertedCard.id,
+              discountType: input.type,
+              userId: user.id,
+            }),
+          );
           return yield* Effect.fail(
             new RpcInternalServerError({
-              message: `Discount card validation update returned no rows for card ${upsertedCard.id}`,
+              message: 'Discount card validation update returned no rows',
             }),
           );
         }

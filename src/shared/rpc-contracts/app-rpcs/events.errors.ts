@@ -1,5 +1,3 @@
-import { Schema } from 'effect';
-
 import {
   ForbiddenOrUnauthorizedRpcError,
   RpcBadRequestError,
@@ -7,7 +5,8 @@ import {
   RpcInternalServerError,
   RpcUnauthorizedError,
   UnauthorizedRpcError,
-} from '../../errors/rpc-errors';
+} from '@shared/errors/rpc-errors';
+import { Schema } from 'effect';
 
 export type EventRegistrationError =
   | EventRegistrationConflictError

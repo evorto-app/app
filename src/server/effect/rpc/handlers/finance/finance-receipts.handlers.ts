@@ -2,7 +2,10 @@ import {
   RpcBadRequestError,
   RpcForbiddenError,
 } from '@shared/errors/rpc-errors';
-import { FinanceReceiptNotFoundError } from '@shared/rpc-contracts/app-rpcs/finance.errors';
+import {
+  FinanceReceiptNotFoundError,
+  FinanceResourceNotFoundError,
+} from '@shared/rpc-contracts/app-rpcs/finance.errors';
 import { and, desc, eq, inArray, TransactionRollbackError } from 'drizzle-orm';
 import { Effect } from 'effect';
 
@@ -144,7 +147,7 @@ export const financeReceiptsHandlers = {
         );
         if (!payoutUser) {
           return yield* Effect.fail(
-            new FinanceReceiptNotFoundError({
+            new FinanceResourceNotFoundError({
               id: targetUserId,
               message: 'Refund recipient not found',
               resource: 'payoutUser',
@@ -567,11 +570,17 @@ export const financeReceiptsHandlers = {
             new FinanceReceiptNotFoundError({
               id: input.id,
               message: 'Receipt not found',
+              resource: 'receipt',
             }),
           );
         }
         if (receipt.status === 'refunded') {
-          return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
+          return yield* Effect.fail(
+            new RpcBadRequestError({
+              message: 'Refunded receipts cannot be reviewed again',
+              reason: 'refundedReceipt',
+            }),
+          );
         }
 
         const depositAmount = input.hasDeposit ? input.depositAmount : 0;
@@ -581,18 +590,38 @@ export const financeReceiptsHandlers = {
           input.purchaseCountry,
         );
         if (!purchaseCountry) {
-          return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
+          return yield* Effect.fail(
+            new RpcBadRequestError({
+              message: 'Receipt purchase country is invalid',
+              reason: 'invalidPurchaseCountry',
+            }),
+          );
         }
         if (depositAmount + alcoholAmount > input.totalAmount) {
-          return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
+          return yield* Effect.fail(
+            new RpcBadRequestError({
+              message: 'Deposit and alcohol amounts exceed the total amount',
+              reason: 'inconsistentAmounts',
+            }),
+          );
         }
         if (input.status === 'rejected' && !input.rejectionReason) {
-          return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
+          return yield* Effect.fail(
+            new RpcBadRequestError({
+              message: 'A rejection reason is required when rejecting a receipt',
+              reason: 'missingRejectionReason',
+            }),
+          );
         }
 
         const receiptDate = new Date(input.receiptDate);
         if (Number.isNaN(receiptDate.getTime())) {
-          return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
+          return yield* Effect.fail(
+            new RpcBadRequestError({
+              message: 'Receipt date is invalid',
+              reason: 'invalidReceiptDate',
+            }),
+          );
         }
 
         const updatedReceipts = yield* databaseEffect((database) =>
@@ -633,6 +662,7 @@ export const financeReceiptsHandlers = {
             new FinanceReceiptNotFoundError({
               id: input.id,
               message: 'Receipt not found',
+              resource: 'receipt',
             }),
           );
         }
@@ -661,7 +691,12 @@ export const financeReceiptsHandlers = {
           );
         }
         if (!isAllowedReceiptMimeType(input.attachment.mimeType)) {
-          return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
+          return yield* Effect.fail(
+            new RpcBadRequestError({
+              message: 'Receipt attachment mime type is not supported',
+              reason: 'invalid_mime_type',
+            }),
+          );
         }
 
         const event = yield* databaseEffect((database) =>
@@ -677,9 +712,10 @@ export const financeReceiptsHandlers = {
         );
         if (!event) {
           return yield* Effect.fail(
-            new FinanceReceiptNotFoundError({
+            new FinanceResourceNotFoundError({
               id: input.eventId,
               message: 'Event not found for receipt submission',
+              resource: 'event',
             }),
           );
         }
@@ -695,15 +731,30 @@ export const financeReceiptsHandlers = {
           input.fields.purchaseCountry,
         );
         if (!purchaseCountry) {
-          return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
+          return yield* Effect.fail(
+            new RpcBadRequestError({
+              message: 'Receipt purchase country is invalid',
+              reason: 'invalid_purchase_country',
+            }),
+          );
         }
         if (depositAmount + alcoholAmount > input.fields.totalAmount) {
-          return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
+          return yield* Effect.fail(
+            new RpcBadRequestError({
+              message: 'Deposit and alcohol amounts exceed the total amount',
+              reason: 'amount_mismatch',
+            }),
+          );
         }
 
         const receiptDate = new Date(input.fields.receiptDate);
         if (Number.isNaN(receiptDate.getTime())) {
-          return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
+          return yield* Effect.fail(
+            new RpcBadRequestError({
+              message: 'Receipt date is invalid',
+              reason: 'invalid_receipt_date',
+            }),
+          );
         }
 
         const createdReceipts = yield* databaseEffect((database) =>

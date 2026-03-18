@@ -111,6 +111,10 @@ export const eventLifecycleHandlers = {
         );
 
         for (const option of sanitizedRegistrationOptions) {
+          if (!Number.isInteger(option.spots) || option.spots < 0) {
+            return yield* Effect.fail(invalidRegistrationOptionSpotsError());
+          }
+
           if (
             Number.isNaN(option.closeRegistrationTime.getTime()) ||
             Number.isNaN(option.openRegistrationTime.getTime())
@@ -343,6 +347,10 @@ export const eventLifecycleHandlers = {
         );
 
         for (const option of sanitizedRegistrationOptions) {
+          if (!Number.isInteger(option.spots) || option.spots < 0) {
+            return yield* Effect.fail(invalidRegistrationOptionSpotsError());
+          }
+
           if (
             Number.isNaN(option.closeRegistrationTime.getTime()) ||
             Number.isNaN(option.openRegistrationTime.getTime())
@@ -376,9 +384,6 @@ export const eventLifecycleHandlers = {
             return yield* Effect.fail(unavailableEsnCardDiscountError());
           }
 
-          if (option.spots < 0) {
-            return yield* Effect.fail(invalidRegistrationOptionSpotsError());
-          }
         }
 
         let transactionFailure: EventConflictError | null | RpcBadRequestError =

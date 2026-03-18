@@ -1,10 +1,9 @@
-import { Schema } from 'effect';
-
 import {
   RpcBadRequestError,
   RpcForbiddenError,
   RpcUnauthorizedError,
-} from '../../errors/rpc-errors';
+} from '@shared/errors/rpc-errors';
+import { Schema } from 'effect';
 
 export class AdminRoleNotFoundError extends Schema.TaggedError<AdminRoleNotFoundError>()(
   'AdminRoleNotFoundError',
