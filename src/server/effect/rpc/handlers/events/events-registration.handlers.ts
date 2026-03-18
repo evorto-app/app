@@ -1,8 +1,13 @@
-import { eq } from 'drizzle-orm';
+import {
+  EventRegistrationInternalError,
+  EventRegistrationNotFoundError,
+} from '@shared/rpc-contracts/app-rpcs/events.errors';
+import { and, eq, gte, sql } from 'drizzle-orm';
 import { Effect } from 'effect';
 
 import type { AppRpcHandlers } from '../shared/handler-types';
 
+import { Database } from '../../../../../db';
 import {
   eventRegistrationOptions,
   eventRegistrations,
@@ -10,7 +15,6 @@ import {
 } from '../../../../../db/schema';
 import { StripeClient } from '../../../../stripe-client';
 import { RpcAccess } from '../shared/rpc-access.service';
-import { mapEventRegistrationErrorToRpc } from '../shared/rpc-error-mappers';
 import { EventRegistrationService } from './event-registration.service';
 import { databaseEffect } from './events.shared';
 
@@ -53,90 +57,142 @@ export const eventRegistrationHandlers = {
         );
 
         if (!registration) {
-          return yield* Effect.fail('NOT_FOUND' as const);
+          return yield* Effect.fail(
+            new EventRegistrationNotFoundError({
+              message: 'Registration not found',
+            }),
+          );
         }
 
-        yield* databaseEffect((database) =>
-          database.transaction((tx) =>
-            Effect.gen(function* () {
-              yield* tx
-                .update(eventRegistrations)
-                .set({
-                  status: 'CANCELLED',
-                })
-                .where(eq(eventRegistrations.id, registration.id));
-
-              const reservedSpots =
-                registration.registrationOption?.reservedSpots;
-              if (reservedSpots === undefined) {
-                return yield* Effect.fail(
-                  new Error('Registration option missing'),
-                );
-              }
-
-              yield* tx
-                .update(eventRegistrationOptions)
-                .set({
-                  reservedSpots: reservedSpots - 1,
-                })
-                .where(
-                  eq(
-                    eventRegistrationOptions.id,
-                    registration.registrationOptionId,
-                  ),
-                );
-
-              const transaction = registration.transactions.find(
-                (currentTransaction) =>
-                  currentTransaction.status === 'pending' &&
-                  currentTransaction.method === 'stripe',
-              );
-
-              if (!transaction) {
-                return;
-              }
-
-              yield* tx
-                .update(transactions)
-                .set({
-                  status: 'cancelled',
-                })
-                .where(eq(transactions.id, transaction.id));
-
-              const stripeCheckoutSessionId = transaction.stripeCheckoutSessionId;
-              if (!stripeCheckoutSessionId) {
-                return;
-              }
-
-              const stripeAccount = tenant.stripeAccountId;
-              if (!stripeAccount) {
-                return yield* Effect.fail(new Error('Stripe account not found'));
-              }
-              yield* Effect.tryPromise(() =>
-                stripe.checkout.sessions.expire(
-                  stripeCheckoutSessionId,
-                  undefined,
-                  {
-                    stripeAccount,
-                  },
-                ),
-              ).pipe(
-                Effect.tapError((error) =>
-                  Effect.logError(
-                    'Failed to expire Stripe checkout session on registration cancellation',
-                  ).pipe(
-                    Effect.annotateLogs({
-                      error,
-                      registrationId: registration.id,
-                      stripeCheckoutSessionId,
-                      transactionId: transaction.id,
-                    }),
-                  ),
-                ),
-              );
+        const pendingStripeTransaction = registration.transactions.find(
+          (currentTransaction) =>
+            currentTransaction.status === 'pending' &&
+            currentTransaction.method === 'stripe',
+        );
+        const stripeCheckoutSessionId =
+          pendingStripeTransaction?.stripeCheckoutSessionId;
+        const stripeAccount = tenant.stripeAccountId;
+        if (stripeCheckoutSessionId && !stripeAccount) {
+          return yield* Effect.fail(
+            new EventRegistrationInternalError({
+              message: 'Stripe account not found',
             }),
+          );
+        }
+
+        const cancelledStripeTransaction = yield* Database.pipe(
+          Effect.flatMap((database) =>
+            database.transaction((tx) =>
+              Effect.gen(function* () {
+                const cancelledRegistrations = yield* tx
+                  .update(eventRegistrations)
+                  .set({
+                    status: 'CANCELLED',
+                  })
+                  .where(
+                    and(
+                      eq(eventRegistrations.id, registration.id),
+                      eq(eventRegistrations.status, 'PENDING'),
+                    ),
+                  )
+                  .returning({
+                    id: eventRegistrations.id,
+                  });
+                if (cancelledRegistrations.length === 0) {
+                  return yield* Effect.fail(
+                    new EventRegistrationNotFoundError({
+                      message: 'Registration not found',
+                    }),
+                  );
+                }
+
+                const updatedOptions = yield* tx
+                  .update(eventRegistrationOptions)
+                  .set({
+                    reservedSpots: sql`${eventRegistrationOptions.reservedSpots} - 1`,
+                  })
+                  .where(
+                    and(
+                      eq(
+                        eventRegistrationOptions.id,
+                        registration.registrationOptionId,
+                      ),
+                      gte(eventRegistrationOptions.reservedSpots, 1),
+                    ),
+                  )
+                  .returning({
+                    id: eventRegistrationOptions.id,
+                  });
+                if (updatedOptions.length === 0) {
+                  return yield* Effect.fail(
+                    new EventRegistrationInternalError({
+                      message: 'Registration option missing',
+                    }),
+                  );
+                }
+
+                if (!pendingStripeTransaction) {
+                  return null;
+                }
+
+                yield* tx
+                  .update(transactions)
+                  .set({
+                    status: 'cancelled',
+                  })
+                  .where(eq(transactions.id, pendingStripeTransaction.id));
+
+                return {
+                  stripeCheckoutSessionId,
+                  transactionId: pendingStripeTransaction.id,
+                };
+              }),
+            ),
           ),
-        ).pipe(Effect.mapError(() => 'INTERNAL_SERVER_ERROR' as const));
+          Effect.catchAll((error) =>
+            error instanceof EventRegistrationInternalError
+              ? Effect.fail(error)
+              : Effect.fail(
+                  new EventRegistrationInternalError({
+                    cause: error,
+                    message: 'Internal server error',
+                  }),
+                ),
+          ),
+        );
+
+        if (!cancelledStripeTransaction || !stripeCheckoutSessionId || !stripeAccount) {
+          return;
+        }
+
+        yield* Effect.tryPromise(() =>
+          Promise.race([
+            stripe.checkout.sessions.expire(
+              stripeCheckoutSessionId,
+              undefined,
+              {
+                stripeAccount,
+              },
+            ),
+            new Promise<never>((_, reject) => {
+              setTimeout(() => reject(new Error('Stripe checkout expiry timed out')), 5000);
+            }),
+          ]),
+        ).pipe(
+          Effect.tapError((error) =>
+            Effect.logError(
+              'Failed to expire Stripe checkout session on registration cancellation',
+            ).pipe(
+              Effect.annotateLogs({
+                error,
+                registrationId: registration.id,
+                stripeCheckoutSessionId,
+                transactionId: cancelledStripeTransaction.transactionId,
+              }),
+            ),
+          ),
+          Effect.catchAll(() => Effect.void),
+        );
       }),
 'events.getRegistrationStatus': ({ eventId }, _options) =>
       Effect.gen(function* () {
@@ -268,11 +324,7 @@ export const eventRegistrationHandlers = {
             email: user.email,
             id: user.id,
           },
-        }).pipe(
-          Effect.catchAll((error) =>
-            Effect.fail(mapEventRegistrationErrorToRpc(error)),
-          ),
-        );
+        });
       }),
 'events.registrationScanned': ({ registrationId }, _options) =>
       Effect.gen(function* () {
@@ -319,8 +371,17 @@ export const eventRegistrationHandlers = {
             },
           }),
         );
-        if (!registration || !registration.user || !registration.event) {
-          return yield* Effect.fail('NOT_FOUND' as const);
+        if (
+          !registration ||
+          !registration.user ||
+          !registration.event ||
+          !registration.registrationOption
+        ) {
+          return yield* Effect.fail(
+            new EventRegistrationNotFoundError({
+              message: 'Registration not found',
+            }),
+          );
         }
 
         const sameUserIssue = registration.userId === user.id;

@@ -4,15 +4,21 @@ import { asRpcMutation, asRpcQuery } from '@heddendorp/effect-angular-query';
 import { Schema } from 'effect';
 
 import { iconSchema } from '../../types/icon';
-export const EventsRpcError = Schema.Literal('UNAUTHORIZED');
-
-export type EventsRpcError = Schema.Schema.Type<typeof EventsRpcError>;
-
-export const EventsReviewRpcError = Schema.Literal('FORBIDDEN', 'UNAUTHORIZED');
-
-export type EventsReviewRpcError = Schema.Schema.Type<
-  typeof EventsReviewRpcError
->;
+import {
+  EventsCancelPendingRegistrationError,
+  EventsCreateRpcError,
+  EventsEventListRpcError,
+  EventsFindOneForEditRpcError,
+  EventsFindOneRpcError,
+  EventsRegisterForEventError,
+  EventsRegistrationScannedError,
+  EventsReviewEventRpcError,
+  EventsReviewRpcError,
+  EventsRpcError,
+  EventsSubmitForReviewRpcError,
+  EventsUpdateListingRpcError,
+  EventsUpdateRpcError,
+} from './events.errors';
 
 export const EventReviewStatus = Schema.Literal(
   'APPROVED',
@@ -33,16 +39,6 @@ export const EventsCanOrganize = asRpcQuery(
   }),
 );
 
-export const EventsCancelPendingRegistrationError = Schema.Literal(
-  'INTERNAL_SERVER_ERROR',
-  'NOT_FOUND',
-  'UNAUTHORIZED',
-);
-
-export type EventsCancelPendingRegistrationError = Schema.Schema.Type<
-  typeof EventsCancelPendingRegistrationError
->;
-
 export const EventsCancelPendingRegistration = asRpcMutation(
   Rpc.make('events.cancelPendingRegistration', {
     error: EventsCancelPendingRegistrationError,
@@ -52,17 +48,6 @@ export const EventsCancelPendingRegistration = asRpcMutation(
     success: Schema.Void,
   }),
 );
-
-export const EventsCreateRpcError = Schema.Literal(
-  'BAD_REQUEST',
-  'FORBIDDEN',
-  'INTERNAL_SERVER_ERROR',
-  'UNAUTHORIZED',
-);
-
-export type EventsCreateRpcError = Schema.Schema.Type<
-  typeof EventsCreateRpcError
->;
 
 export const EventsCreateRegistrationOptionInput = Schema.Struct({
   closeRegistrationTime: Schema.NonEmptyString,
@@ -96,12 +81,6 @@ export const EventsCreate = asRpcMutation(
     }),
   }),
 );
-
-export const EventsEventListRpcError = Schema.Literal('FORBIDDEN');
-
-export type EventsEventListRpcError = Schema.Schema.Type<
-  typeof EventsEventListRpcError
->;
 
 export const EventsEventListInput = Schema.Struct({
   includeUnlisted: Schema.optional(Schema.Boolean),
@@ -156,17 +135,6 @@ export const EventsEventList = asRpcQuery(
   }),
 );
 
-export const EventsFindOneForEditRpcError = Schema.Literal(
-  'CONFLICT',
-  'FORBIDDEN',
-  'NOT_FOUND',
-  'UNAUTHORIZED',
-);
-
-export type EventsFindOneForEditRpcError = Schema.Schema.Type<
-  typeof EventsFindOneForEditRpcError
->;
-
 export const EventsFindOneForEditRegistrationMode = Schema.Literal(
   'application',
   'fcfs',
@@ -208,12 +176,6 @@ export const EventsFindOneForEdit = asRpcQuery(
     }),
   }),
 );
-
-export const EventsFindOneRpcError = Schema.Literal('NOT_FOUND');
-
-export type EventsFindOneRpcError = Schema.Schema.Type<
-  typeof EventsFindOneRpcError
->;
 
 export const EventsFindOneRegistrationOption = Schema.Struct({
   appliedDiscountType: Schema.NullOr(Schema.Literal('esnCard')),
@@ -347,17 +309,6 @@ export const EventsGetPendingReviews = asRpcQuery(
   }),
 );
 
-export const EventsReviewEventRpcError = Schema.Literal(
-  'CONFLICT',
-  'FORBIDDEN',
-  'NOT_FOUND',
-  'UNAUTHORIZED',
-);
-
-export type EventsReviewEventRpcError = Schema.Schema.Type<
-  typeof EventsReviewEventRpcError
->;
-
 export const EventsReviewEvent = asRpcMutation(
   Rpc.make('events.reviewEvent', {
     error: EventsReviewEventRpcError,
@@ -370,17 +321,6 @@ export const EventsReviewEvent = asRpcMutation(
   }),
 );
 
-export const EventsRegisterForEventError = Schema.Literal(
-  'CONFLICT',
-  'INTERNAL_SERVER_ERROR',
-  'NOT_FOUND',
-  'UNAUTHORIZED',
-);
-
-export type EventsRegisterForEventError = Schema.Schema.Type<
-  typeof EventsRegisterForEventError
->;
-
 export const EventsRegisterForEvent = asRpcMutation(
   Rpc.make('events.registerForEvent', {
     error: EventsRegisterForEventError,
@@ -391,15 +331,6 @@ export const EventsRegisterForEvent = asRpcMutation(
     success: Schema.Void,
   }),
 );
-
-export const EventsRegistrationScannedError = Schema.Literal(
-  'NOT_FOUND',
-  'UNAUTHORIZED',
-);
-
-export type EventsRegistrationScannedError = Schema.Schema.Type<
-  typeof EventsRegistrationScannedError
->;
 
 export const EventsRegistrationScanned = asRpcQuery(
   Rpc.make('events.registrationScanned', {
@@ -427,17 +358,6 @@ export const EventsRegistrationScanned = asRpcQuery(
   }),
 );
 
-export const EventsSubmitForReviewRpcError = Schema.Literal(
-  'CONFLICT',
-  'FORBIDDEN',
-  'NOT_FOUND',
-  'UNAUTHORIZED',
-);
-
-export type EventsSubmitForReviewRpcError = Schema.Schema.Type<
-  typeof EventsSubmitForReviewRpcError
->;
-
 export const EventsSubmitForReview = asRpcMutation(
   Rpc.make('events.submitForReview', {
     error: EventsSubmitForReviewRpcError,
@@ -447,15 +367,6 @@ export const EventsSubmitForReview = asRpcMutation(
     success: Schema.Void,
   }),
 );
-
-export const EventsUpdateListingRpcError = Schema.Literal(
-  'FORBIDDEN',
-  'UNAUTHORIZED',
-);
-
-export type EventsUpdateListingRpcError = Schema.Schema.Type<
-  typeof EventsUpdateListingRpcError
->;
 
 export const EventsUpdateListing = asRpcMutation(
   Rpc.make('events.updateListing', {
@@ -467,19 +378,6 @@ export const EventsUpdateListing = asRpcMutation(
     success: Schema.Void,
   }),
 );
-
-export const EventsUpdateRpcError = Schema.Literal(
-  'BAD_REQUEST',
-  'CONFLICT',
-  'FORBIDDEN',
-  'INTERNAL_SERVER_ERROR',
-  'NOT_FOUND',
-  'UNAUTHORIZED',
-);
-
-export type EventsUpdateRpcError = Schema.Schema.Type<
-  typeof EventsUpdateRpcError
->;
 
 export const EventsUpdateRegistrationOptionInput = Schema.Struct({
   closeRegistrationTime: Schema.NonEmptyString,

@@ -3,14 +3,11 @@ import * as RpcGroup from '@effect/rpc/RpcGroup';
 import { asRpcQuery } from '@heddendorp/effect-angular-query';
 import { Schema } from 'effect';
 
-export const GlobalAdminRpcError = Schema.Literal(
-  'FORBIDDEN',
-  'UNAUTHORIZED',
-);
+import { ForbiddenOrUnauthorizedRpcError } from '../../errors/rpc-errors';
 
-export type GlobalAdminRpcError = Schema.Schema.Type<
-  typeof GlobalAdminRpcError
->;
+export const GlobalAdminRpcError = ForbiddenOrUnauthorizedRpcError;
+
+export type GlobalAdminRpcError = ForbiddenOrUnauthorizedRpcError;
 
 export const GlobalAdminTenantRecord = Schema.Struct({
   domain: Schema.NonEmptyString,

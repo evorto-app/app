@@ -3,9 +3,11 @@ import * as RpcGroup from '@effect/rpc/RpcGroup';
 import { asRpcQuery } from '@heddendorp/effect-angular-query';
 import { Schema } from 'effect';
 
-export const TaxRatesRpcError = Schema.Literal('FORBIDDEN');
+import { ForbiddenRpcError } from '../../errors/rpc-errors';
 
-export type TaxRatesRpcError = Schema.Schema.Type<typeof TaxRatesRpcError>;
+export const TaxRatesRpcError = ForbiddenRpcError;
+
+export type TaxRatesRpcError = ForbiddenRpcError;
 
 export const TaxRatesListActiveRecord = Schema.Struct({
   country: Schema.NullOr(Schema.String),

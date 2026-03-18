@@ -210,11 +210,8 @@ const runPromiseOrUndefined = <T>(
   operation: string,
   thunk: () => Promise<T>,
 ) =>
-  Effect.tryPromise({
-    catch: (error) => error,
-    try: thunk,
-  }).pipe(
-    Effect.catchAll((error) => {
+  Effect.promise(thunk).pipe(
+    Effect.catchAllDefect((error) => {
       if (isExpectedAuth0Error(error)) {
         return Effect.succeed(undefined as T | undefined);
       }
@@ -223,7 +220,7 @@ const runPromiseOrUndefined = <T>(
         `Unexpected Auth0 SDK failure during ${operation}`,
       ).pipe(
         Effect.annotateLogs({ error }),
-        Effect.zipRight(Effect.fail(error)),
+        Effect.zipRight(Effect.die(error)),
       );
     }),
   );

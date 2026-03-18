@@ -1,10 +1,6 @@
- 
-
-
-
-
-
-
+import {
+  RpcForbiddenError,
+} from '@shared/errors/rpc-errors';
 import { Effect, Schema } from 'effect';
 
 import type { AppRpcHandlers } from './shared/handler-types';
@@ -36,7 +32,12 @@ export const taxRateHandlers = {
             ConfigPermissions,
           );
           if (!currentPermissions.includes('templates:view')) {
-            return yield* Effect.fail('FORBIDDEN' as const);
+            return yield* Effect.fail(
+              new RpcForbiddenError({
+                message: 'Forbidden',
+                permission: 'templates:view',
+              }),
+            );
           }
         }
 

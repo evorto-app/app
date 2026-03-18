@@ -1,3 +1,10 @@
+import {
+  RpcForbiddenError,
+} from '@shared/errors/rpc-errors';
+import {
+  EventConflictError,
+  EventNotFoundError,
+} from '@shared/rpc-contracts/app-rpcs/events.errors';
 import { and, eq, inArray } from 'drizzle-orm';
 import { Effect } from 'effect';
 
@@ -71,10 +78,19 @@ export const eventReviewHandlers = {
           }),
         );
         if (!event) {
-          return yield* Effect.fail('NOT_FOUND' as const);
+          return yield* Effect.fail(
+            new EventNotFoundError({
+              id: eventId,
+              message: 'Event not found',
+            }),
+          );
         }
 
-        return yield* Effect.fail('CONFLICT' as const);
+        return yield* Effect.fail(
+          new EventConflictError({
+            message: 'Event cannot be reviewed in its current state',
+          }),
+        );
       }),
 'events.submitForReview': ({ eventId }, _options) =>
       Effect.gen(function* () {
@@ -96,7 +112,12 @@ export const eventReviewHandlers = {
           }),
         );
         if (!event) {
-          return yield* Effect.fail('NOT_FOUND' as const);
+          return yield* Effect.fail(
+            new EventNotFoundError({
+              id: eventId,
+              message: 'Event not found',
+            }),
+          );
         }
 
         if (
@@ -106,10 +127,14 @@ export const eventReviewHandlers = {
             userId: user.id,
           })
         ) {
-          return yield* Effect.fail('FORBIDDEN' as const);
+          return yield* Effect.fail(new RpcForbiddenError({ message: 'Forbidden' }));
         }
         if (event.status !== 'DRAFT' && event.status !== 'REJECTED') {
-          return yield* Effect.fail('CONFLICT' as const);
+          return yield* Effect.fail(
+            new EventConflictError({
+              message: 'Event cannot be submitted for review in its current state',
+            }),
+          );
         }
 
         const submittedEvents = yield* databaseEffect((database) =>
@@ -136,6 +161,10 @@ export const eventReviewHandlers = {
           return;
         }
 
-        return yield* Effect.fail('CONFLICT' as const);
+        return yield* Effect.fail(
+          new EventConflictError({
+            message: 'Event review submission preconditions failed',
+          }),
+        );
       }),
 } satisfies Partial<AppRpcHandlers>;

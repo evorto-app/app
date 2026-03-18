@@ -30,7 +30,9 @@ import {
   serverNetworkConfig,
   serverTelemetryConfig,
 } from './server/config/server-config';
-import { resolveHttpRequestContext } from './server/context/http-request-context';
+import {
+  resolveHttpRequestContext,
+} from './server/context/http-request-context';
 import { toRpcHttpServerRequest } from './server/effect/rpc/app-rpcs.request-handler';
 import {
   appRpcHttpAppLayer,
@@ -156,10 +158,19 @@ const extractRegistrationId = (
 const renderSsr = (request: HttpServerRequest.HttpServerRequest) =>
   Effect.gen(function* () {
     const authSession = yield* loadAuthSession(request);
-    const requestContext = yield* resolveHttpRequestContext(
+    const requestContextOption = yield* resolveHttpRequestContext(
       request,
       authSession,
+    ).pipe(
+      Effect.map((context) => Option.fromNullable(context)),
+      Effect.catchTag('HttpRequestTenantNotFoundError', () =>
+        Effect.succeed(Option.none()),
+      ),
     );
+    if (Option.isNone(requestContextOption)) {
+      return notFoundServerResponse;
+    }
+    const requestContext = requestContextOption.value;
 
     const webRequest = yield* HttpServerRequest.toWeb(request);
     const renderedResponse = yield* Effect.tryPromise(() =>
@@ -242,10 +253,19 @@ const stripeWebhookRouteLayer = HttpLayerRouter.add(
 const rpcRouteLayer = HttpLayerRouter.add('POST', '/rpc', (request) =>
   Effect.gen(function* () {
     const authSession = yield* loadAuthSession(request);
-    const requestContext = yield* resolveHttpRequestContext(
+    const requestContextOption = yield* resolveHttpRequestContext(
       request,
       authSession,
+    ).pipe(
+      Effect.map((context) => Option.fromNullable(context)),
+      Effect.catchTag('HttpRequestTenantNotFoundError', () =>
+        Effect.succeed(Option.none()),
+      ),
     );
+    if (Option.isNone(requestContextOption)) {
+      return notFoundServerResponse;
+    }
+    const requestContext = requestContextOption.value;
 
     const webRequest = yield* HttpServerRequest.toWeb(request);
     const rpcRequest = yield* toRpcHttpServerRequest(
@@ -331,6 +351,26 @@ const withSsrFallback = <E, R>(
           }),
         );
         Sentry.captureException(error);
+        return createInternalErrorResponse(request);
+      }),
+    ),
+    Effect.catchAllDefect((defect) =>
+      Effect.gen(function* () {
+        const request = yield* HttpServerRequest.HttpServerRequest;
+
+        yield* Effect.logError('Unhandled server defect').pipe(
+          Effect.annotateLogs({
+            error:
+              defect instanceof Error
+                ? {
+                    message: defect.message,
+                    name: defect.name,
+                    stack: defect.stack,
+                  }
+                : String(defect),
+          }),
+        );
+        Sentry.captureException(defect);
         return createInternalErrorResponse(request);
       }),
     ),

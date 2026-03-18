@@ -5,13 +5,10 @@ import { Schema } from 'effect';
 
 import { Tenant } from '../../../types/custom/tenant';
 import { PermissionSchema } from '../../permissions/permissions';
-export const AdminRoleRpcError = Schema.Literal(
-  'FORBIDDEN',
-  'NOT_FOUND',
-  'UNAUTHORIZED',
-);
-
-export type AdminRoleRpcError = Schema.Schema.Type<typeof AdminRoleRpcError>;
+import {
+  AdminRoleRpcError,
+  AdminTenantRpcError,
+} from './admin.errors';
 
 export const AdminRoleRecord = Schema.Struct({
   collapseMembersInHup: Schema.Boolean,
@@ -137,16 +134,6 @@ export const AdminRolesUpdate = asRpcMutation(
     success: AdminRoleRecord,
   }),
 );
-
-export const AdminTenantRpcError = Schema.Literal(
-  'BAD_REQUEST',
-  'FORBIDDEN',
-  'UNAUTHORIZED',
-);
-
-export type AdminTenantRpcError = Schema.Schema.Type<
-  typeof AdminTenantRpcError
->;
 
 export const AdminTenantTaxRateRecord = Schema.Struct({
   active: Schema.Boolean,

@@ -152,14 +152,4 @@ export const validateTaxRate = (
 
     // Validation passed
     return validationSuccess(input);
-  }).pipe(
-    Effect.catchAll((error) =>
-      Effect.succeed(
-        validationError(
-          TAX_RATE_ERROR_CODES.ERR_INCOMPATIBLE_TAX_RATE,
-          'Failed to validate tax rate: ' +
-            (error instanceof Error ? error.message : 'Unknown error'),
-        ),
-      ),
-    ),
-  );
+  }).pipe(Effect.orDie);

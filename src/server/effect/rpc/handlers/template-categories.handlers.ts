@@ -1,7 +1,10 @@
- 
-
 import type { Headers } from '@effect/platform';
 
+import {
+  RpcForbiddenError,
+  RpcUnauthorizedError,
+} from '@shared/errors/rpc-errors';
+import { TemplateCategoryNotFoundError } from '@shared/rpc-contracts/app-rpcs/template-categories.errors';
 import {
   and,
   eq,
@@ -34,15 +37,15 @@ const decodeHeaderJson = <A, I>(
 
 const ensureAuthenticated = (
   headers: Headers.Headers,
-): Effect.Effect<void, 'UNAUTHORIZED'> =>
+): Effect.Effect<void, RpcUnauthorizedError> =>
   headers[RPC_CONTEXT_HEADERS.AUTHENTICATED] === 'true'
     ? Effect.void
-    : Effect.fail('UNAUTHORIZED' as const);
+    : Effect.fail(new RpcUnauthorizedError({ message: 'Authentication required' }));
 
 const ensurePermission = (
   headers: Headers.Headers,
   permission: Permission,
-): Effect.Effect<void, 'FORBIDDEN' | 'UNAUTHORIZED'> =>
+): Effect.Effect<void, RpcForbiddenError | RpcUnauthorizedError> =>
   Effect.gen(function* () {
     yield* ensureAuthenticated(headers);
     const currentPermissions = decodeHeaderJson(
@@ -51,7 +54,7 @@ const ensurePermission = (
     );
 
     if (!currentPermissions.includes(permission)) {
-      return yield* Effect.fail('FORBIDDEN' as const);
+      return yield* Effect.fail(new RpcForbiddenError({ message: 'Forbidden' }));
     }
   });
 
@@ -120,7 +123,12 @@ export const templateCategoryHandlers = {
         );
         const updatedCategory = updatedCategories[0];
         if (!updatedCategory) {
-          return yield* Effect.fail('FORBIDDEN' as const);
+          return yield* Effect.fail(
+            new TemplateCategoryNotFoundError({
+              id,
+              message: 'Category not found',
+            }),
+          );
         }
 
         return updatedCategory;

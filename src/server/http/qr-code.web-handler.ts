@@ -57,22 +57,16 @@ export const handleQrRegistrationCodeWebRequest = (
         width: 200,
       }),
     ).pipe(
-      Effect.catchAll(() =>
-        Effect.gen(function* () {
-          yield* Effect.logError('Failed to generate QR code').pipe(
-            Effect.annotateLogs({
-              registrationId,
-              tenantDomain: tenant.domain,
-            }),
-          );
-          return Buffer.alloc(0);
-        }),
+      Effect.tapError(() =>
+        Effect.logError('Failed to generate QR code').pipe(
+          Effect.annotateLogs({
+            registrationId,
+            tenantDomain: tenant.domain,
+          }),
+        ),
       ),
+      Effect.orDie,
     );
-
-    if (imageBuffer.byteLength === 0) {
-      return responseText('Failed to generate QR code', 500);
-    }
 
     const imageBytes = new Uint8Array(imageBuffer);
     return new Response(imageBytes, {

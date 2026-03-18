@@ -4,9 +4,11 @@ import { asRpcMutation, asRpcQuery } from '@heddendorp/effect-angular-query';
 import { Schema } from 'effect';
 
 import { User } from '../../../types/custom/user';
-export const UserRpcError = Schema.Literal('UNAUTHORIZED');
-
-export type UserRpcError = Schema.Schema.Type<typeof UserRpcError>;
+import {
+  UserRpcError,
+  UsersCreateAccountError,
+  UsersFindManyError,
+} from './users.errors';
 
 export const UsersAuthData = Schema.Struct({
   email: Schema.optional(Schema.NullOr(Schema.String)),
@@ -33,15 +35,6 @@ export const UsersCreateAccountInput = Schema.Struct({
 
 export type UsersCreateAccountInput = Schema.Schema.Type<
   typeof UsersCreateAccountInput
->;
-
-export const UsersCreateAccountError = Schema.Literal(
-  'CONFLICT',
-  'UNAUTHORIZED',
-);
-
-export type UsersCreateAccountError = Schema.Schema.Type<
-  typeof UsersCreateAccountError
 >;
 
 export const UsersCreateAccount = asRpcMutation(
@@ -80,10 +73,6 @@ export const UsersFindManyResult = Schema.Struct({
 export type UsersFindManyResult = Schema.Schema.Type<
   typeof UsersFindManyResult
 >;
-
-export const UsersFindManyError = Schema.Literal('FORBIDDEN', 'UNAUTHORIZED');
-
-export type UsersFindManyError = Schema.Schema.Type<typeof UsersFindManyError>;
 
 export const UsersFindMany = asRpcQuery(
   Rpc.make('users.findMany', {

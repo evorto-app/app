@@ -7,6 +7,7 @@ import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
+import { getErrorMessage } from '../../core/error-message';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -23,17 +24,6 @@ export class RoleListComponent {
   );
 
   protected errorMessage(error: unknown): string {
-    if (typeof error === 'string') {
-      return error;
-    }
-    if (
-      error &&
-      typeof error === 'object' &&
-      'message' in error &&
-      typeof (error as { message?: unknown }).message === 'string'
-    ) {
-      return (error as { message: string }).message;
-    }
-    return 'Unknown error';
+    return getErrorMessage(error, 'Unknown error');
   }
 }

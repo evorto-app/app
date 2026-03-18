@@ -534,16 +534,10 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
         return yield* paymentFlow.pipe(
           // Any failure after reservation must rollback reservation + inserted
           // registration so callers never observe a half-created paid flow.
-          Effect.catchAllCause(() =>
+          Effect.catchAllCause((cause) =>
             rollbackOnFailure().pipe(
               Effect.orDie,
-              Effect.zipRight(
-                Effect.fail(
-                  new EventRegistrationInternalError({
-                    message: 'Failed to initialize paid event registration',
-                  }),
-                ),
-              ),
+              Effect.zipRight(Effect.failCause(cause)),
             ),
           ),
         );

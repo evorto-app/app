@@ -36,6 +36,7 @@ import {
 import { firstValueFrom } from 'rxjs';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
+import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
 import {
   EditProfileDialogComponent,
@@ -209,7 +210,10 @@ export class UserProfileComponent {
     if (!result) return;
     this.updateProfileMutation.mutate(result, {
       onError: (error) => {
-        const errorMessage = typeof error === 'string' ? error : error.message;
+        const errorMessage = getErrorMessage(
+          error,
+          'Failed to update profile',
+        );
         this.notifications.showError(
           'Failed to update profile: ' + errorMessage,
         );

@@ -1,7 +1,14 @@
- 
-
 import type { Headers } from '@effect/platform';
 
+import {
+  RpcBadRequestError,
+  RpcForbiddenError,
+  RpcUnauthorizedError,
+} from '@shared/errors/rpc-errors';
+import {
+  AdminRoleNotFoundError,
+  AdminTenantNotFoundError,
+} from '@shared/rpc-contracts/app-rpcs/admin.errors';
 import {
   resolveTenantReceiptSettings,
   type TenantDiscountProviders,
@@ -70,15 +77,15 @@ const normalizeHubRoleRecord = (role: {
 
 const ensureAuthenticated = (
   headers: Headers.Headers,
-): Effect.Effect<void, 'UNAUTHORIZED'> =>
+): Effect.Effect<void, RpcUnauthorizedError> =>
   headers[RPC_CONTEXT_HEADERS.AUTHENTICATED] === 'true'
     ? Effect.void
-    : Effect.fail('UNAUTHORIZED' as const);
+    : Effect.fail(new RpcUnauthorizedError({ message: 'Authentication required' }));
 
 const ensurePermission = (
   headers: Headers.Headers,
   permission: Permission,
-): Effect.Effect<void, 'FORBIDDEN' | 'UNAUTHORIZED'> =>
+): Effect.Effect<void, RpcForbiddenError | RpcUnauthorizedError> =>
   Effect.gen(function* () {
     yield* ensureAuthenticated(headers);
     const currentPermissions = decodeHeaderJson(
@@ -87,7 +94,9 @@ const ensurePermission = (
     );
 
     if (!currentPermissions.includes(permission)) {
-      return yield* Effect.fail('FORBIDDEN' as const);
+      return yield* Effect.fail(
+        new RpcForbiddenError({ message: 'Forbidden', permission }),
+      );
     }
   });
 
@@ -125,7 +134,7 @@ export const adminHandlers = {
         );
         const createdRole = createdRoles[0];
         if (!createdRole) {
-          return yield* Effect.fail('NOT_FOUND' as const);
+          return yield* Effect.dieMessage('Role insert returned no rows');
         }
 
         return createdRole;
@@ -146,7 +155,9 @@ export const adminHandlers = {
             }),
         );
         if (deletedRoles.length === 0) {
-          return yield* Effect.fail('NOT_FOUND' as const);
+          return yield* Effect.fail(
+            new AdminRoleNotFoundError({ id, message: 'Role not found' }),
+          );
         }
       }),
     'admin.roles.findHubRoles': (_payload, options) =>
@@ -250,7 +261,9 @@ export const adminHandlers = {
           }),
         );
         if (!role) {
-          return yield* Effect.fail('NOT_FOUND' as const);
+          return yield* Effect.fail(
+            new AdminRoleNotFoundError({ id, message: 'Role not found' }),
+          );
         }
 
         return role;
@@ -320,7 +333,9 @@ export const adminHandlers = {
         );
         const updatedRole = updatedRoles[0];
         if (!updatedRole) {
-          return yield* Effect.fail('NOT_FOUND' as const);
+          return yield* Effect.fail(
+            new AdminRoleNotFoundError({ id, message: 'Role not found' }),
+          );
         }
 
         return updatedRole;
@@ -338,52 +353,66 @@ export const adminHandlers = {
           return;
         }
 
-        for (const id of ids) {
-          const stripeRate = yield* Effect.promise(() =>
-            stripe.taxRates.retrieve(id, undefined, { stripeAccount }),
-          );
-          if (!stripeRate.inclusive) {
-            return yield* Effect.fail('BAD_REQUEST' as const);
-          }
+        const stripeRates = yield* Effect.all(
+          ids.map((id) =>
+            Effect.promise(() =>
+              stripe.taxRates.retrieve(id, undefined, { stripeAccount }),
+            ).pipe(
+              Effect.flatMap((stripeRate) =>
+                stripeRate.inclusive
+                  ? Effect.succeed(stripeRate)
+                  : Effect.fail(
+                      new RpcBadRequestError({
+                        message: 'Stripe tax rate must be inclusive',
+                        reason: 'nonInclusiveTaxRate',
+                      }),
+                    ),
+              ),
+            ),
+          ),
+        );
 
-        const existingRate = yield* databaseEffect((database) =>
-          database.query.tenantStripeTaxRates.findFirst({
-              columns: {
-                id: true,
-              },
-              where: {
-                stripeTaxRateId: id,
-                tenantId: tenant.id,
-              },
-            }),
-          );
+        yield* databaseEffect((database) =>
+          database.transaction((tx) =>
+            Effect.all(
+              stripeRates.map((stripeRate) =>
+                Effect.gen(function* () {
+                  const existingRate = yield* tx.query.tenantStripeTaxRates.findFirst({
+                    columns: {
+                      id: true,
+                    },
+                    where: {
+                      stripeTaxRateId: stripeRate.id,
+                      tenantId: tenant.id,
+                    },
+                  });
 
-          const values: Omit<typeof tenantStripeTaxRates.$inferInsert, 'id'> = {
-            active: !!stripeRate.active,
-            country: stripeRate.country ?? null,
-            displayName: stripeRate.display_name ?? null,
-            inclusive: !!stripeRate.inclusive,
-            percentage:
-              stripeRate.percentage !== null &&
-              stripeRate.percentage !== undefined
-                ? String(stripeRate.percentage)
-                : undefined,
-            state: stripeRate.state ?? null,
-            stripeTaxRateId: stripeRate.id,
-            tenantId: tenant.id,
-          };
+                  const values: Omit<typeof tenantStripeTaxRates.$inferInsert, 'id'> = {
+                    active: !!stripeRate.active,
+                    country: stripeRate.country ?? null,
+                    displayName: stripeRate.display_name ?? null,
+                    inclusive: !!stripeRate.inclusive,
+                    percentage:
+                      stripeRate.percentage !== null &&
+                      stripeRate.percentage !== undefined
+                        ? String(stripeRate.percentage)
+                        : undefined,
+                    state: stripeRate.state ?? null,
+                    stripeTaxRateId: stripeRate.id,
+                    tenantId: tenant.id,
+                  };
 
-          yield* existingRate
-            ? databaseEffect((database) =>
-          database
-                  .update(tenantStripeTaxRates)
-                  .set(values)
-                  .where(eq(tenantStripeTaxRates.id, existingRate.id)),
-              )
-            : databaseEffect((database) =>
-          database.insert(tenantStripeTaxRates).values(values),
-              );
-        }
+                  yield* existingRate
+                    ? tx
+                        .update(tenantStripeTaxRates)
+                        .set(values)
+                        .where(eq(tenantStripeTaxRates.id, existingRate.id))
+                    : tx.insert(tenantStripeTaxRates).values(values);
+                }),
+              ),
+            ).pipe(Effect.asVoid),
+          ),
+        );
       }),
     'admin.tenant.listImportedTaxRates': (_payload, options) =>
       Effect.gen(function* () {
@@ -459,7 +488,11 @@ export const adminHandlers = {
         const discountProviders: TenantDiscountProviders = {
           esnCard: {
             config: yield* Effect.try({
-              catch: () => 'BAD_REQUEST' as const,
+              catch: (error) =>
+                new RpcBadRequestError({
+                  message: 'Invalid ESN card configuration',
+                  reason: error instanceof Error ? error.message : String(error),
+                }),
               try: () =>
                 normalizeEsnCardConfig(
                   { buyEsnCardUrl: input.buyEsnCardUrl },
@@ -469,6 +502,26 @@ export const adminHandlers = {
             status: input.esnCardEnabled ? 'enabled' : 'disabled',
           },
         };
+
+        const nextTenant = {
+          ...tenant,
+          defaultLocation: input.defaultLocation,
+          discountProviders,
+          receiptSettings: resolveTenantReceiptSettings({
+            allowOther: input.allowOther,
+            receiptCountries: input.receiptCountries,
+          }),
+          theme: input.theme,
+        };
+
+        const validatedTenant = yield* Effect.try({
+          catch: (error) =>
+            new RpcBadRequestError({
+              message: 'Updated tenant settings failed validation',
+              reason: error instanceof Error ? error.message : String(error),
+            }),
+          try: () => Schema.decodeUnknownSync(Tenant)(nextTenant),
+        });
 
         const updatedTenants = yield* databaseEffect((database) =>
           database
@@ -489,23 +542,14 @@ export const adminHandlers = {
         );
         const updatedTenant = updatedTenants[0];
         if (!updatedTenant) {
-          return yield* Effect.fail('FORBIDDEN' as const);
+          return yield* Effect.fail(
+            new AdminTenantNotFoundError({
+              id: tenant.id,
+              message: 'Tenant not found or stale',
+            }),
+          );
         }
 
-        const nextTenant = {
-          ...tenant,
-          defaultLocation: input.defaultLocation,
-          discountProviders,
-          receiptSettings: resolveTenantReceiptSettings({
-            allowOther: input.allowOther,
-            receiptCountries: input.receiptCountries,
-          }),
-          theme: input.theme,
-        };
-
-        return yield* Effect.try({
-          catch: () => 'FORBIDDEN' as const,
-          try: () => Schema.decodeUnknownSync(Tenant)(nextTenant),
-        });
+        return validatedTenant;
       }),
 } satisfies Partial<AppRpcHandlers>;

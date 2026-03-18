@@ -1,3 +1,7 @@
+import {
+  RpcBadRequestError,
+  RpcInternalServerError,
+} from '@shared/errors/rpc-errors';
 import Cloudflare from 'cloudflare';
 import { Effect, Option } from 'effect';
 
@@ -45,6 +49,13 @@ const resolveCloudflareImagesConfig = () =>
         variant,
       };
     }),
+    Effect.mapError(
+      (error) =>
+        new RpcInternalServerError({
+          cause: error,
+          message: 'Cloudflare Images configuration is invalid',
+        }),
+    ),
   );
 
 export const createCloudflareImageDirectUpload = (input: {
@@ -68,9 +79,10 @@ export const createCloudflareImageDirectUpload = (input: {
     };
     const directUpload = yield* Effect.tryPromise({
       catch: (error) =>
-        error instanceof Error
-          ? error
-          : new Error('Image upload initialization failed'),
+        new RpcInternalServerError({
+          cause: error,
+          message: 'Image upload initialization failed',
+        }),
       try: () =>
         config.client.images.v2.directUploads.create({
           account_id: config.accountId,
@@ -80,7 +92,12 @@ export const createCloudflareImageDirectUpload = (input: {
     });
 
     if (!directUpload.id || !directUpload.uploadURL) {
-      return yield* Effect.fail(new Error('Image upload initialization failed'));
+      return yield* Effect.fail(
+        new RpcInternalServerError({
+          cause: directUpload,
+          message: 'Image upload initialization failed',
+        }),
+      );
     }
     const imageId = directUpload.id;
     const uploadUrl = directUpload.uploadURL;
@@ -106,14 +123,18 @@ export const cleanupTestingCloudflareImages = (input: {
         onSome: (nodeEnvironment) => nodeEnvironment === 'production',
       })
     ) {
-      return yield* Effect.fail(new Error('Cleanup is blocked in production'));
+      return yield* Effect.fail(
+        new RpcBadRequestError({
+          message: 'Cleanup is blocked in production',
+        }),
+      );
     }
 
     if (!input.dryRun && input.confirmPhrase !== TESTING_CLEANUP_CONFIRMATION) {
       return yield* Effect.fail(
-        new Error(
-          `Confirmation phrase mismatch. Use "${TESTING_CLEANUP_CONFIRMATION}"`,
-        ),
+        new RpcBadRequestError({
+          message: `Confirmation phrase mismatch. Use "${TESTING_CLEANUP_CONFIRMATION}"`,
+        }),
       );
     }
 
@@ -126,9 +147,10 @@ export const cleanupTestingCloudflareImages = (input: {
     do {
       const page = yield* Effect.tryPromise({
         catch: (error) =>
-          error instanceof Error
-            ? error
-            : new Error('Failed to list Cloudflare Images'),
+          new RpcInternalServerError({
+            cause: error,
+            message: 'Failed to list Cloudflare Images',
+          }),
         try: () =>
           config.client.images.v2.list({
             account_id: config.accountId,
@@ -179,9 +201,10 @@ export const cleanupTestingCloudflareImages = (input: {
       for (const imageId of toDelete) {
         yield* Effect.tryPromise({
           catch: (error) =>
-            error instanceof Error
-              ? error
-              : new Error('Failed to delete Cloudflare Image'),
+            new RpcInternalServerError({
+              cause: error,
+              message: 'Failed to delete Cloudflare Image',
+            }),
           try: () =>
             config.client.images.v1.delete(imageId, {
               account_id: config.accountId,
