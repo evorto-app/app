@@ -184,7 +184,11 @@ export async function seedTenant(
             if (data.roles === 'organizer')
               return role.defaultUserRole || role.defaultOrganizerRole;
             if (data.roles === 'admin')
-              return role.defaultUserRole || role.name === 'Admin';
+              return (
+                role.defaultUserRole ||
+                role.name === 'Admin' ||
+                role.name === 'Section member'
+              );
             return false;
           })
           .map((role) => ({ roleId: role.id, userId: data.id })),
