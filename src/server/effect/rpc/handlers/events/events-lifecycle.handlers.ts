@@ -38,6 +38,48 @@ const isTransactionRollbackError = (
 ): error is TransactionRollbackError =>
   error instanceof TransactionRollbackError;
 
+const invalidEventDatesError = () =>
+  new RpcBadRequestError({
+    message: 'Invalid start/end date',
+    reason: 'invalidDates',
+  });
+
+const invalidEventDescriptionError = () =>
+  new RpcBadRequestError({
+    message: 'Event description must contain meaningful content',
+    reason: 'invalidDescription',
+  });
+
+const invalidRegistrationOptionTimesError = () =>
+  new RpcBadRequestError({
+    message: 'Registration option has invalid open/close times',
+    reason: 'invalidRegistrationOptionTimes',
+  });
+
+const invalidRegistrationOptionTaxRateError = () =>
+  new RpcBadRequestError({
+    message: 'Registration option has an invalid tax rate',
+    reason: 'invalidRegistrationOptionTaxRate',
+  });
+
+const invalidEsnCardDiscountPriceError = () =>
+  new RpcBadRequestError({
+    message: 'ESN card discount cannot exceed the registration price',
+    reason: 'esnDiscountExceedsPrice',
+  });
+
+const unavailableEsnCardDiscountError = () =>
+  new RpcBadRequestError({
+    message: 'ESN card discounts are not enabled for this tenant',
+    reason: 'esnDiscountUnavailable',
+  });
+
+const invalidRegistrationOptionSpotsError = () =>
+  new RpcBadRequestError({
+    message: 'Registration option spots must not be negative',
+    reason: 'negativeSpots',
+  });
+
 export const eventLifecycleHandlers = {
 'events.create': (input, _options) =>
       Effect.gen(function* () {
@@ -48,12 +90,12 @@ export const eventLifecycleHandlers = {
         const start = new Date(input.start);
         const end = new Date(input.end);
         if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-          return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
+          return yield* Effect.fail(invalidEventDatesError());
         }
 
         const sanitizedDescription = sanitizeRichTextHtml(input.description);
         if (!isMeaningfulRichTextHtml(sanitizedDescription)) {
-          return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
+          return yield* Effect.fail(invalidEventDescriptionError());
         }
 
         const sanitizedRegistrationOptions = input.registrationOptions.map(
@@ -73,7 +115,7 @@ export const eventLifecycleHandlers = {
             Number.isNaN(option.closeRegistrationTime.getTime()) ||
             Number.isNaN(option.openRegistrationTime.getTime())
           ) {
-            return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
+            return yield* Effect.fail(invalidRegistrationOptionTimesError());
           }
 
           const validation = yield* databaseEffect((database) =>
@@ -84,7 +126,7 @@ export const eventLifecycleHandlers = {
             }),
           );
           if (!validation.success) {
-            return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
+            return yield* Effect.fail(invalidRegistrationOptionTaxRateError());
           }
         }
 
@@ -232,12 +274,12 @@ export const eventLifecycleHandlers = {
         const start = new Date(input.start);
         const end = new Date(input.end);
         if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-          return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
+          return yield* Effect.fail(invalidEventDatesError());
         }
 
         const sanitizedDescription = sanitizeRichTextHtml(input.description);
         if (!isMeaningfulRichTextHtml(sanitizedDescription)) {
-          return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
+          return yield* Effect.fail(invalidEventDescriptionError());
         }
         const sanitizedRegistrationOptions = input.registrationOptions.map(
           (option) => ({
@@ -305,7 +347,7 @@ export const eventLifecycleHandlers = {
             Number.isNaN(option.closeRegistrationTime.getTime()) ||
             Number.isNaN(option.openRegistrationTime.getTime())
           ) {
-            return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
+            return yield* Effect.fail(invalidRegistrationOptionTimesError());
           }
 
           const validation = yield* databaseEffect((database) =>
@@ -316,14 +358,14 @@ export const eventLifecycleHandlers = {
             }),
           );
           if (!validation.success) {
-            return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
+            return yield* Effect.fail(invalidRegistrationOptionTaxRateError());
           }
 
           if (
             option.esnCardDiscountedPrice !== null &&
             option.esnCardDiscountedPrice > option.price
           ) {
-            return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
+            return yield* Effect.fail(invalidEsnCardDiscountPriceError());
           }
 
           if (
@@ -331,11 +373,11 @@ export const eventLifecycleHandlers = {
             !esnCardEnabledForTenant &&
             option.isPaid
           ) {
-            return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
+            return yield* Effect.fail(unavailableEsnCardDiscountError());
           }
 
           if (option.spots < 0) {
-            return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
+            return yield* Effect.fail(invalidRegistrationOptionSpotsError());
           }
         }
 

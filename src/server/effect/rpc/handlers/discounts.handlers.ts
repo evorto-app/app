@@ -345,7 +345,11 @@ export const discountHandlers = {
             );
         const upsertedCard = upsertedCards[0];
         if (!upsertedCard) {
-          return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
+          return yield* Effect.fail(
+            new RpcInternalServerError({
+              message: `Discount card upsert returned no rows for type ${input.type} and user ${user.id}`,
+            }),
+          );
         }
 
         const adapter = Adapters[input.type];
@@ -380,11 +384,20 @@ export const discountHandlers = {
         );
         const updatedCard = updatedCards[0];
         if (!updatedCard) {
-          return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
+          return yield* Effect.fail(
+            new RpcInternalServerError({
+              message: `Discount card validation update returned no rows for card ${upsertedCard.id}`,
+            }),
+          );
         }
 
         if (updatedCard.status !== 'verified') {
-          return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
+          return yield* Effect.fail(
+            new RpcBadRequestError({
+              message: `Discount card validation failed with status ${updatedCard.status}`,
+              reason: updatedCard.status,
+            }),
+          );
         }
 
         return normalizeUserDiscountCardRecord(updatedCard);

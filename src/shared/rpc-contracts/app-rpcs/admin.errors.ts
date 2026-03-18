@@ -1,7 +1,7 @@
 import { Schema } from 'effect';
 
 import {
-  BadRequestForbiddenOrUnauthorizedRpcError,
+  RpcBadRequestError,
   RpcForbiddenError,
   RpcUnauthorizedError,
 } from '../../errors/rpc-errors';
@@ -21,5 +21,18 @@ export const AdminRoleRpcError = Schema.Union(
 );
 export type AdminRoleRpcError = Schema.Schema.Type<typeof AdminRoleRpcError>;
 
-export const AdminTenantRpcError = BadRequestForbiddenOrUnauthorizedRpcError;
-export type AdminTenantRpcError = BadRequestForbiddenOrUnauthorizedRpcError;
+export class AdminTenantNotFoundError extends Schema.TaggedError<AdminTenantNotFoundError>()(
+  'AdminTenantNotFoundError',
+  {
+    id: Schema.optional(Schema.String),
+    message: Schema.String,
+  },
+) {}
+
+export const AdminTenantRpcError = Schema.Union(
+  RpcBadRequestError,
+  RpcForbiddenError,
+  AdminTenantNotFoundError,
+  RpcUnauthorizedError,
+);
+export type AdminTenantRpcError = Schema.Schema.Type<typeof AdminTenantRpcError>;

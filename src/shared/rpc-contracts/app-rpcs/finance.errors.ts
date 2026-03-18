@@ -17,6 +17,7 @@ export class FinanceReceiptNotFoundError extends Schema.TaggedError<FinanceRecei
   {
     id: Schema.optional(Schema.String),
     message: Schema.String,
+    resource: Schema.optional(Schema.String),
   },
 ) {}
 

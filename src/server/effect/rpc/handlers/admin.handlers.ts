@@ -5,7 +5,10 @@ import {
   RpcForbiddenError,
   RpcUnauthorizedError,
 } from '@shared/errors/rpc-errors';
-import { AdminRoleNotFoundError } from '@shared/rpc-contracts/app-rpcs/admin.errors';
+import {
+  AdminRoleNotFoundError,
+  AdminTenantNotFoundError,
+} from '@shared/rpc-contracts/app-rpcs/admin.errors';
 import {
   resolveTenantReceiptSettings,
   type TenantDiscountProviders,
@@ -91,7 +94,9 @@ const ensurePermission = (
     );
 
     if (!currentPermissions.includes(permission)) {
-      return yield* Effect.fail(new RpcForbiddenError({ message: 'Forbidden' }));
+      return yield* Effect.fail(
+        new RpcForbiddenError({ message: 'Forbidden', permission }),
+      );
     }
   });
 
@@ -503,7 +508,12 @@ export const adminHandlers = {
         );
         const updatedTenant = updatedTenants[0];
         if (!updatedTenant) {
-          return yield* Effect.fail(new RpcForbiddenError({ message: 'Forbidden' }));
+          return yield* Effect.fail(
+            new AdminTenantNotFoundError({
+              id: tenant.id,
+              message: 'Tenant not found or stale',
+            }),
+          );
         }
 
         const nextTenant = {

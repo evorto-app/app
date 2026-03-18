@@ -1,7 +1,6 @@
 import {
   RpcBadRequestError,
   RpcForbiddenError,
-  RpcInternalServerError,
 } from '@shared/errors/rpc-errors';
 import { FinanceReceiptNotFoundError } from '@shared/rpc-contracts/app-rpcs/finance.errors';
 import { and, desc, eq, inArray, TransactionRollbackError } from 'drizzle-orm';
@@ -43,7 +42,12 @@ export const financeReceiptsHandlers = {
         const user = yield* RpcAccess.requireUser();
         const canView = yield* canViewEventReceipts(tenant.id, user, eventId);
         if (!canView) {
-          return yield* Effect.fail(new RpcForbiddenError({ message: 'Forbidden' }));
+          return yield* Effect.fail(
+            new RpcForbiddenError({
+              message: 'Forbidden',
+              permission: `finance:viewReceipts:${eventId}`,
+            }),
+          );
         }
 
         const receipts = yield* databaseEffect((database) =>
@@ -98,17 +102,32 @@ export const financeReceiptsHandlers = {
             ),
         );
         if (receipts.length !== input.receiptIds.length) {
-          return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
+          return yield* Effect.fail(
+            new RpcBadRequestError({
+              message: 'Some receipts are missing or not refundable',
+              reason: 'receiptCountMismatch',
+            }),
+          );
         }
 
         const targetUserId = receipts[0]?.submittedByUserId;
         if (!targetUserId) {
-          return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
+          return yield* Effect.fail(
+            new RpcBadRequestError({
+              message: 'Refund target user is missing',
+              reason: 'missingTargetUser',
+            }),
+          );
         }
         if (
           receipts.some((receipt) => receipt.submittedByUserId !== targetUserId)
         ) {
-          return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
+          return yield* Effect.fail(
+            new RpcBadRequestError({
+              message: 'Refund receipts must belong to the same submitter',
+              reason: 'mismatchedSubmitter',
+            }),
+          );
         }
 
         const payoutUser = yield* databaseEffect((database) =>
@@ -128,14 +147,25 @@ export const financeReceiptsHandlers = {
             new FinanceReceiptNotFoundError({
               id: targetUserId,
               message: 'Refund recipient not found',
+              resource: 'payoutUser',
             }),
           );
         }
         if (input.payoutType === 'iban' && !payoutUser.iban) {
-          return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
+          return yield* Effect.fail(
+            new RpcBadRequestError({
+              message: 'Refund recipient is missing an IBAN',
+              reason: 'missingIban',
+            }),
+          );
         }
         if (input.payoutType === 'paypal' && !payoutUser.paypalEmail) {
-          return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
+          return yield* Effect.fail(
+            new RpcBadRequestError({
+              message: 'Refund recipient is missing a PayPal email address',
+              reason: 'missingPaypal',
+            }),
+          );
         }
 
         const expectedPayoutReference =
@@ -146,7 +176,12 @@ export const financeReceiptsHandlers = {
           !expectedPayoutReference ||
           input.payoutReference !== expectedPayoutReference
         ) {
-          return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
+          return yield* Effect.fail(
+            new RpcBadRequestError({
+              message: 'Payout reference does not match the selected recipient',
+              reason: 'payoutReferenceMismatch',
+            }),
+          );
         }
 
         const totalAmount = receipts.reduce(
@@ -158,10 +193,7 @@ export const financeReceiptsHandlers = {
         ];
         const eventId = uniqueEventIds.length === 1 ? uniqueEventIds[0] : null;
 
-        let transactionFailure:
-          | null
-          | RpcBadRequestError
-          | RpcInternalServerError = null;
+        let transactionFailure: null | RpcBadRequestError = null;
         const createdTransaction = yield* databaseEffect((database) =>
           database.transaction((tx) =>
             Effect.gen(function* () {
@@ -185,10 +217,9 @@ export const financeReceiptsHandlers = {
                 });
               const transaction = insertedTransactions[0];
               if (!transaction) {
-                transactionFailure = new RpcInternalServerError({
-                  message: 'Refund transaction insert failed',
-                });
-                yield* tx.rollback();
+                return yield* Effect.dieMessage(
+                  `Refund transaction insert returned no rows for target user ${targetUserId}`,
+                );
               }
 
               const updatedReceipts = yield* tx
@@ -227,15 +258,11 @@ export const financeReceiptsHandlers = {
             if (!isTransactionRollbackError(defect)) {
               return Effect.die(defect);
             }
-
-            {
-              const failure = transactionFailure;
-              return failure === null
-                ? Effect.dieMessage(
-                    'Transaction rollback triggered without a tracked failure',
-                  )
-                : Effect.fail(failure);
-            }
+            return transactionFailure === null
+              ? Effect.dieMessage(
+                  'Transaction rollback triggered without a tracked failure',
+                )
+              : Effect.fail(transactionFailure);
           }),
         );
 
@@ -626,7 +653,12 @@ export const financeReceiptsHandlers = {
           input.eventId,
         );
         if (!canSubmit) {
-          return yield* Effect.fail(new RpcForbiddenError({ message: 'Forbidden' }));
+          return yield* Effect.fail(
+            new RpcForbiddenError({
+              message: 'Forbidden',
+              permission: `finance:submitReceipts:${input.eventId}`,
+            }),
+          );
         }
         if (!isAllowedReceiptMimeType(input.attachment.mimeType)) {
           return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
@@ -702,7 +734,9 @@ export const financeReceiptsHandlers = {
         );
         const created = createdReceipts[0];
         if (!created) {
-          return yield* Effect.fail(new RpcInternalServerError({ message: 'Internal server error' }));
+          return yield* Effect.dieMessage(
+            `Receipt insert returned no rows for event ${input.eventId}`,
+          );
         }
 
         return {

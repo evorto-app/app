@@ -94,6 +94,7 @@ export const createCloudflareImageDirectUpload = (input: {
     if (!directUpload.id || !directUpload.uploadURL) {
       return yield* Effect.fail(
         new RpcInternalServerError({
+          cause: directUpload,
           message: 'Image upload initialization failed',
         }),
       );

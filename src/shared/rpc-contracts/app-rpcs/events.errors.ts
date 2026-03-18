@@ -39,6 +39,7 @@ export class EventRegistrationConflictError extends Schema.TaggedError<EventRegi
 export class EventRegistrationInternalError extends Schema.TaggedError<EventRegistrationInternalError>()(
   'EventRegistrationInternalError',
   {
+    cause: Schema.optional(Schema.Defect),
     message: Schema.String,
   },
 ) {}

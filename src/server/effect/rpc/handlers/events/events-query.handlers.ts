@@ -98,14 +98,24 @@ export const eventQueryHandlers = {
           !onlyApprovedStatus &&
           !userPermissions.includes('events:seeDrafts')
         ) {
-          return yield* Effect.fail(new RpcForbiddenError({ message: 'Forbidden' }));
+          return yield* Effect.fail(
+            new RpcForbiddenError({
+              message: 'Forbidden',
+              permission: 'events:seeDrafts',
+            }),
+          );
         }
 
         if (
           input.includeUnlisted &&
           !userPermissions.includes('events:seeUnlisted')
         ) {
-          return yield* Effect.fail(new RpcForbiddenError({ message: 'Forbidden' }));
+          return yield* Effect.fail(
+            new RpcForbiddenError({
+              message: 'Forbidden',
+              permission: 'events:seeUnlisted',
+            }),
+          );
         }
 
         const rolesToFilterBy =
