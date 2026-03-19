@@ -7,11 +7,12 @@ import { createPgClientConfig } from './pg-connection-config';
 import { relations } from './relations';
 import * as schema from './schema';
 
-const makeDatabase = (client: PgClient.PgClient) =>
-  PgDrizzle.drizzle(client, {
+const databaseEffect = PgDrizzle
+  .make({
     relations,
     schema,
-  });
+  })
+  .pipe(Effect.provide(PgDrizzle.DefaultServices));
 
 const pgClientLayer = Layer.unwrapEffect(
   databaseConfig.pipe(
@@ -26,17 +27,13 @@ const pgClientLayer = Layer.unwrapEffect(
   ),
 );
 
-export type DatabaseClient = ReturnType<typeof makeDatabase>;
+export type DatabaseClient = Effect.Effect.Success<typeof databaseEffect>;
 
 export class Database extends Context.Tag('@db/Database')<
   Database,
   DatabaseClient
 >() {}
 
-export const databaseLayer = Layer.effect(
-  Database,
-  Effect.gen(function* () {
-    const pgClient = yield* PgClient.PgClient;
-    return makeDatabase(pgClient);
-  }),
-).pipe(Layer.provide(pgClientLayer));
+export const databaseLayer = Layer.effect(Database, databaseEffect).pipe(
+  Layer.provide(pgClientLayer),
+);
