@@ -1,0 +1,6 @@
+Please clean up all remaining worktrees of this repo that i have locally
+
+
+---
+
+I think all branches except main can be removed locally and remotely

@@ -1,0 +1,51 @@
+<div class="mb-4 flex flex-row items-center gap-2">
+  <a routerLink=".." mat-icon-button>
+    <fa-duotone-icon [icon]="faArrowLeft" />
+  </a>
+  <h1 class="title-large">Create {{ templateQuery.data()?.title }} event</h1>
+</div>
+
+<main class="flex flex-col gap-6">
+  @if (templateQuery.isSuccess()) {
+    <form (submit)="onSubmit($event)">
+      <div class="grid gap-6">
+        <section class="bg-surface text-on-surface rounded-2xl p-4">
+          <h2 class="title-large mb-4">Event Details</h2>
+          <app-event-general-form [generalForm]="createEventForm" />
+        </section>
+
+        <section
+          class="bg-surface-container-high text-on-surface-container-high rounded-2xl p-2"
+        >
+          <h2 class="title-large mb-4 p-2">Registration Options</h2>
+          <div
+            class="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:[grid-template-rows:auto_auto_auto_auto_auto_auto_auto]"
+          >
+            @for (option of createEventForm.registrationOptions; track option) {
+              <app-registration-option-form
+                class="bg-surface text-on-surface rounded-xl p-4 grid gap-4 lg:row-span-7 lg:grid-rows-subgrid"
+                [esnEnabled]="esnEnabled()"
+                [registrationOptionForm]="option"
+                [registrationModes]="registrationModes"
+              />
+            }
+          </div>
+        </section>
+
+        <div class="flex justify-end">
+          <button
+            type="submit"
+            mat-button
+            [disabled]="
+              createEventForm().invalid() ||
+              createEventForm().submitting() ||
+              createEventMutation.isPending()
+            "
+          >
+            Create event
+          </button>
+        </div>
+      </div>
+    </form>
+  }
+</main>

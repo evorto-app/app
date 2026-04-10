@@ -1,0 +1,15 @@
+# See https://www.git-town.com/configuration-file for details
+#
+# Large infra/config efforts in this repo ship as a stack:
+# - keep `main` as the perennial branch
+# - keep one assembly branch for the overall effort
+# - create reviewable child branches with `git town append`
+# - keep the stack current with `git town sync --stack`
+# - open PRs with `git town propose` so each child branch targets its parent
+
+[branches]
+main = "main"
+
+[hosting]
+forge-type = "github"
+github-connector = "gh"
