@@ -215,3 +215,9 @@ Also explain why we have the sh commands in our scripts and if we can remove the
 ---
 
 I would like to remove the --env-file flags from the docker commands, they should not be needed anymore
+
+
+---
+
+Why do we have zone.js installed?
+The angular app should be zoneless
