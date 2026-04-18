@@ -27,3 +27,53 @@ In CI we should make use of githubs options to configure the environment to our 
 ---
 
 We should make .env.dev.local the tracked default config and .env.dev the generated override, so that it is not needed in the main directory
+
+
+---
+
+I think you fucked up the first wins implecations, Look at this comment again. The order still starts with .env
+```dotenv-cli loads files **in order**, but only sets variables if they **haven’t already been set**.```
+
+---
+
+For others:
+
+This is rather counter-intuitive, you wouldn't expect `FOO=1 FOO=2 sh -c 'echo $FOO'` to return `1`? - Rectifying this behaviour would be a significant breaking change.
+
+To explain code with code, this `dotenv-cli` effectively does this:
+```ts
+const processEnv = { MY_VAR: "from_cli" };
+const env1 = { MY_VAR: "from_env1" };
+const env2 = { MY_VAR: "from_env2" };
+
+const finalEnv = { ...env2, ...env1, ...processEnv };
+console.log(finalEnv); // { MY_VAR: "from_cli" }
+```
+
+Running `MY_VAR=from_cli dotenv -e .env1 -e .env2 -- sh -c 'echo $MY_VAR'`
+
+Will output: `from_cli`
+
+Similarly without specifying `MY_VAR` in the cli, it will output `from_env1`
+
+---
+
+```
+Some applications load environment variables from multiple `.env` files depending on the environment:
+
+- `.env`
+- `.env.local`
+- `.env.development`
+- `.env.development.local`
+
+`dotenv-cli` supports this using the `-c` flag:
+
+- `-c` loads `.env` and `.env.local`
+- `-c test` loads `.env`, `.env.local`, `.env.test`, and `.env.test.local`
+
+See [issue #37](https://github.com/dotenv-org/cli/issues/37) for more details.
+```
+
+---
+
+I mean it's been 5 years and no one else has complained, but I spent about half an hour figuring out why I was connecting to my local database instead of my staging one 🙁
