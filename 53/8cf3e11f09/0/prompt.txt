@@ -373,3 +373,11 @@ Available cache options:
 EffectCache.Default - No-op cache (no caching occurs) - this is the default
 EffectCache.fromDrizzle(cache) - Wraps a Drizzle Cache instance for use with Effect
 EffectCache.layerFromDrizzle(cache) - Creates an Effect Layer from a Drizzle cache (useful for composing with other layers)
+
+---
+
+Please commit
+
+---
+
+Please commit
