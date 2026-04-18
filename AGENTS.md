@@ -5,6 +5,7 @@
 - Keep relevant technical and operational context in repository files (track docs, handoff notes, revisit logs, and module-level `AGENTS.md` files).
 - Update context files when reality changes, assumptions are invalidated, or new constraints are discovered.
 - Prefer small, dated updates in files over implicit context in chat history.
+- Keep context next to the code it describes. For example, testing/runtime guidance belongs in `tests/README.md` and `helpers/README.md`, not in a generic top-level `docs/` page.
 
 ## Project Structure & Module Organization
 
@@ -33,7 +34,6 @@ More specific guidance also exists deeper in some subtrees (for example `src/ser
 - `bun run lint:fix` / `bun run lint:check` — lint with autofix and verification.
 - `bun run format:write` — format with Prettier.
 - `bun run docker:start` / `bun run docker:stop` — start/stop local services.
-- `bun run maintenance -- list` — inspect less-common maintenance tasks.
 - Database: `bun run db:migrate`, `bun run db:push`, `bun run db:setup`, `bun run db:reset`.
 
 ## Type Safety (Always Full Types)
@@ -89,5 +89,6 @@ More specific guidance also exists deeper in some subtrees (for example `src/ser
 
 ## Agent Editing Workflow
 
-- After editing a file, run `bun run lint:fix` first and then run WebStorm `get_file_problems` on that file when possible before finishing.
+- Before calling WebStorm `get_file_problems` on edited files, run `bun run lint:fix` first.
+- After editing a file, run WebStorm `get_file_problems` on that file when possible before finishing.
 - WebStorm MCP tools are available; prefer sequential `get_file_problems` checks (parallel runs can timeout).

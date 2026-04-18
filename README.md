@@ -76,7 +76,7 @@ To run documentation tests:
 bun run test:e2e:docs
 ```
 
-For advanced Playwright flows, forward extra arguments to the slimmer scripts:
+For advanced Playwright flows, forward extra arguments to the core scripts:
 
 ```bash
 bun run test:e2e -- --headed --workers 1
@@ -84,22 +84,7 @@ bun run test:e2e -- --project=setup
 bun run test:e2e:docs -- --project=docs-integration
 ```
 
-For deterministic test/runtime details, seed profiles, docker-backed local test setup, and the stacked delivery workflow used for infra/config changes, see [docs/testing.md](docs/testing.md).
-
-## Maintenance Tasks
-
-Less common maintenance commands now live behind a single entrypoint:
-
-```bash
-bun run maintenance -- list
-```
-
-Examples:
-
-```bash
-bun run maintenance -- playwright:report
-bun run maintenance -- ui:theme:generate
-```
+For deterministic runtime/test setup and Playwright project details, see [tests/README.md](tests/README.md) and [helpers/README.md](helpers/README.md).
 
 ## Additional Resources
 

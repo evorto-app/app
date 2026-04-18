@@ -6,3 +6,13 @@ I dislike how many scripts we have in the [package.json](package.json) and how c
 
 Please do that, also I like your ideas for reducing the playwright scripts, make sure that we mention this in any relevant docs. I also think we can ignore the serve commands as that should be handled by the docker image, also when tying locally. Where do you want to move the scripts that should no longer stay in the package?
 Some of them are still convenient for maintanance
+
+
+---
+
+Don't create a new branch for this, we just want to do some work on our project.
+I think we should get rid of the docs directory in favor of context next to the code it is related to. Also make sure to keep a reference to that in local instructions files if you find a good place
+
+Also please update our guidance to include a run of lint:fix before callind the webstorm tools for file issues.
+
+Also I don't think I like the way you moved the commands into typescript, I would like to keep the important scripts in the package, see the full config of it and rather clean up and only keep the important parts to make it easy to understand and access
