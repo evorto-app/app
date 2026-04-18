@@ -211,3 +211,7 @@ I would like to remove the --env-file flags from the docker commands, they shoul
 
 Why do we have zone.js installed?
 The angular app should be zoneless
+
+---
+
+Please go ahead, commit first
