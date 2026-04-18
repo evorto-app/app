@@ -1,0 +1,140 @@
+@let form = registrationOptionForm();
+<h3 class="font-medium">{{ form.title().value() }}</h3>
+
+<section class="grid content-start gap-4">
+  <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+    <mat-form-field class="w-full">
+      <mat-label>Registration mode</mat-label>
+      <mat-select [formField]="form.registrationMode">
+        @for (mode of registrationModes(); track mode) {
+          <mat-option [value]="mode">{{ mode | titlecase }} </mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field class="w-full">
+      <mat-label>Spots</mat-label>
+      <input matInput type="number" [formField]="form.spots" />
+    </mat-form-field>
+  </div>
+</section>
+
+<section>
+  <app-role-select [formField]="form.roleIds" />
+</section>
+
+<section class="grid content-start gap-4">
+  <h4 class="title-medium">Registration Period</h4>
+
+  <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+    <mat-form-field class="w-full">
+      <mat-label>Start date</mat-label>
+      <input
+        matInput
+        [matDatepicker]="startDatePicker"
+        [formField]="form.openRegistrationTime"
+      />
+      <mat-hint>MM/DD/YYYY</mat-hint>
+      <mat-datepicker-toggle matIconSuffix [for]="startDatePicker" />
+      <mat-datepicker #startDatePicker />
+    </mat-form-field>
+
+    <mat-form-field class="w-full">
+      <mat-label>Start time</mat-label>
+      <input
+        matInput
+        [matTimepicker]="startTimePicker"
+        [formField]="form.openRegistrationTime"
+      />
+      <mat-timepicker #startTimePicker />
+      <mat-timepicker-toggle matSuffix [for]="startTimePicker" />
+    </mat-form-field>
+
+    <mat-form-field class="w-full">
+      <mat-label>End date</mat-label>
+      <input
+        matInput
+        [matDatepicker]="endDatePicker"
+        [formField]="form.closeRegistrationTime"
+      />
+      <mat-hint>MM/DD/YYYY</mat-hint>
+      <mat-datepicker-toggle matIconSuffix [for]="endDatePicker" />
+      <mat-datepicker #endDatePicker />
+    </mat-form-field>
+
+    <mat-form-field class="w-full">
+      <mat-label>End time</mat-label>
+      <input
+        matInput
+        [matTimepicker]="endTimePicker"
+        [formField]="form.closeRegistrationTime"
+      />
+      <mat-timepicker #endTimePicker />
+      <mat-timepicker-toggle matSuffix [for]="endTimePicker" />
+    </mat-form-field>
+  </div>
+</section>
+
+<section class="grid content-start gap-3">
+  <mat-checkbox [formField]="form.isPaid">Paid registration</mat-checkbox>
+
+  @if (!form.price().hidden()) {
+    <div class="grid gap-4">
+      <mat-form-field class="w-full">
+        <mat-label>Price (in cents)</mat-label>
+        <input matInput type="number" [formField]="form.price" />
+        <mat-hint>{{ form.price().value() | currency }}</mat-hint>
+      </mat-form-field>
+
+      @if (esnEnabled()) {
+        <mat-form-field class="w-full">
+          <mat-label>ESNcard discounted price (in cents)</mat-label>
+          <input
+            matInput
+            type="number"
+            [formField]="form.esnCardDiscountedPrice"
+            placeholder="Optional"
+          />
+          <mat-hint>
+            Leave empty to disable ESNcard pricing for this option.
+          </mat-hint>
+        </mat-form-field>
+      }
+
+      <mat-form-field class="w-full">
+        <mat-label>Tax rate</mat-label>
+        <mat-select [formField]="form.stripeTaxRateId">
+          @if (taxRatesQuery.isPending()) {
+            <mat-option disabled>Loading tax rates...</mat-option>
+          } @else if (taxRatesQuery.isSuccess()) {
+            @for (rate of taxRatesQuery.data(); track rate.id) {
+              <mat-option [value]="rate.stripeTaxRateId">
+                {{ rate.displayName || rate.stripeTaxRateId }} —
+                {{ rate.percentage ?? "?" }}%
+              </mat-option>
+            }
+          } @else {
+            <mat-option disabled>Failed to load tax rates</mat-option>
+          }
+        </mat-select>
+        <mat-hint>Inclusive tax; shown price is final</mat-hint>
+      </mat-form-field>
+    </div>
+  }
+
+  <mat-checkbox [formField]="form.organizingRegistration">
+    Organizing registration
+  </mat-checkbox>
+</section>
+
+<section class="flex flex-col gap-2">
+  <span class="text-on-surface-variant text-sm">Description</span>
+  <app-editor [control]="form.description" />
+</section>
+
+<section class="flex flex-col gap-2">
+  <span class="text-on-surface-variant text-sm"
+    >Description for registered users</span
+  >
+  <app-editor [control]="form.registeredDescription" />
+</section>

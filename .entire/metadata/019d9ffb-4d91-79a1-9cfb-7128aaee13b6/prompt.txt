@@ -1,0 +1,8 @@
+Don't create new branches in this session, just work with me.
+I dislike how many scripts we have in the [package.json](package.json) and how complex those scripts are. Explore what is going on, what these scripts are meant for and make suggestions about how to clean that up
+
+
+---
+
+Please do that, also I like your ideas for reducing the playwright scripts, make sure that we mention this in any relevant docs. I also think we can ignore the serve commands as that should be handled by the docker image, also when tying locally. Where do you want to move the scripts that should no longer stay in the package?
+Some of them are still convenient for maintanance

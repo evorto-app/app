@@ -1,0 +1,139 @@
+@let field = control();
+@if (field && !field().hidden()) {
+  @if (!isMounted()) {
+    <div class="flex flex-col gap-2">
+      <div class="group relative">
+        <div
+          class="prose prose-sm max-w-none border-outline min-h-[100px] cursor-pointer rounded border p-2 opacity-80"
+          [innerHTML]="field().value()"
+          role="button"
+          tabindex="0"
+          aria-label="Click to edit content"
+          data-testid="rich-editor-placeholder"
+          (click)="activateEditor()"
+          (keydown.enter)="activateEditor()"
+          (keydown.space)="activateEditor(); $event.preventDefault()"
+        ></div>
+        <button
+          mat-button
+          type="button"
+          class="absolute! bottom-2 right-2 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
+          (click)="activateEditor()"
+        >
+          <fa-duotone-icon [icon]="faPencil" />
+          Edit
+        </button>
+      </div>
+    </div>
+  } @else {
+    <div
+      class="border-outline focus-within:border-primary/80 focus-within:ring-primary/20 rounded border focus-within:ring-2"
+      data-testid="rich-editor"
+    >
+      <div
+        class="editor-toolbar border-outline flex flex-wrap items-center gap-2 border-b p-2"
+        role="toolbar"
+        aria-label="Rich text editor toolbar"
+      >
+        <mat-form-field appearance="outline" class="w-48">
+          <mat-label>Text style</mat-label>
+          <mat-select
+            [value]="activeTextStyle()"
+            [disabled]="isReadonly()"
+            (selectionChange)="setTextStyle($event.value)"
+          >
+            @for (option of textStyleOptions; track option.value) {
+              <mat-option [value]="option.value">{{ option.label }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+
+        <mat-button-toggle-group
+          multiple
+          aria-label="Text formatting"
+          [disabled]="isReadonly()"
+        >
+          <mat-button-toggle [checked]="isBoldActive()" (click)="toggleBold()">
+            Bold
+          </mat-button-toggle>
+          <mat-button-toggle
+            [checked]="isItalicActive()"
+            (click)="toggleItalic()"
+          >
+            Italic
+          </mat-button-toggle>
+          <mat-button-toggle
+            [checked]="isBulletListActive()"
+            (click)="toggleBulletList()"
+          >
+            Bullets
+          </mat-button-toggle>
+          <mat-button-toggle
+            [checked]="isOrderedListActive()"
+            (click)="toggleOrderedList()"
+          >
+            Numbered
+          </mat-button-toggle>
+          <mat-button-toggle [checked]="isLinkActive()" (click)="toggleLink()">
+            Link
+          </mat-button-toggle>
+        </mat-button-toggle-group>
+
+        <button
+          mat-button
+          type="button"
+          [disabled]="isReadonly()"
+          (click)="insertTable()"
+        >
+          Table
+        </button>
+        <button
+          mat-button
+          type="button"
+          [disabled]="isReadonly()"
+          (click)="openImagePicker()"
+        >
+          Image
+        </button>
+        <button
+          mat-button
+          type="button"
+          [disabled]="!canUndo() || isReadonly()"
+          (click)="undo()"
+        >
+          Undo
+        </button>
+        <button
+          mat-button
+          type="button"
+          [disabled]="!canRedo() || isReadonly()"
+          (click)="redo()"
+        >
+          Redo
+        </button>
+      </div>
+
+      <div #editorContainer class="editor-content"></div>
+
+      <input
+        #fileInput
+        type="file"
+        class="hidden"
+        accept="image/gif,image/jpeg,image/png,image/webp"
+        (change)="onFileInputChange($event)"
+      />
+
+      @if (isUploading()) {
+        <div class="text-on-surface-variant px-3 pb-3 text-sm">
+          Uploading image...
+        </div>
+      }
+
+      @if (uploadErrorMessage()) {
+        <div class="text-error px-3 pb-3 text-sm">
+          {{ uploadErrorMessage() }}
+        </div>
+      }
+    </div>
+  }
+}

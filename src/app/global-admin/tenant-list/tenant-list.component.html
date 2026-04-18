@@ -1,0 +1,32 @@
+<div class="mb-4 flex flex-row items-center gap-2">
+  <h1 class="title-large">Tenants</h1>
+  <div class="grow"></div>
+  <!-- <a
+    [routerLink]="['/admin/roles', roleQuery.data()?.id, 'edit']"
+    mat-icon-button
+  >
+    <fa-icon [icon]="faEdit"></fa-icon>
+  </a> -->
+</div>
+@if (tenantQuery.isPending()) {
+  <div
+    class="bg-surface text-on-surface flex animate-pulse cursor-progress flex-col gap-2 rounded-2xl p-4"
+  >
+    <h2 class="title-medium">Loading ...</h2>
+  </div>
+} @else if (tenantQuery.isError()) {
+  <div class="bg-error text-on-error rounded-2xl p-4">
+    <h2 class="title-medium mb-4">There was an error</h2>
+    <p class="body-medium">Error: {{ tenantQuery.error() }}</p>
+  </div>
+} @else if (tenantQuery.isSuccess()) {
+  @for (tenant of tenantQuery.data(); track tenant.id) {
+    <div class="bg-surface text-on-surface rounded-2xl p-4">
+      <h2 class="title-medium">{{ tenant.name }}</h2>
+    </div>
+  } @empty {
+    <div class="bg-surface text-on-surface rounded-2xl p-4">
+      <h2 class="title-medium">No tenants found</h2>
+    </div>
+  }
+}
