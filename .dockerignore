@@ -1,0 +1,13 @@
+.git
+.angular
+node_modules
+e2e
+playwright.config.ts
+.env
+.env.dev
+.env.dev.local
+.env.local
+.env.runtime
+.env.ci
+old
+dist

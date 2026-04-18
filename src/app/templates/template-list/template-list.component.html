@@ -1,0 +1,90 @@
+<div class="grid grid-cols-1 lg:h-full lg:grid-cols-[450px_1fr] lg:gap-4">
+  <div class="lg:h-full lg:overflow-y-auto lg:py-4 lg:pr-4">
+    <div
+      class="mb-4 {{
+        outletActive() ? 'hidden' : 'flex'
+      }} lg:flex w-full flex-row items-center gap-2"
+    >
+      <h1 class="title-large">Event templates</h1>
+      <div class="grow"></div>
+      <a mat-button routerLink="categories" class="hidden! lg:flex!">
+        Manage categories
+      </a>
+      <button
+        class="lg:hidden!"
+        title="menu"
+        mat-icon-button
+        [matMenuTriggerFor]="menu"
+      >
+        <fa-duotone-icon [icon]="faEllipsisVertical" />
+      </button>
+      <mat-menu #menu="matMenu">
+        <a routerLink="categories" mat-menu-item>Manage categories</a>
+        <!-- <a routerLink="../create" mat-menu-item>Create template</a> -->
+      </mat-menu>
+    </div>
+    <nav
+      class="{{ outletActive() ? 'hidden' : 'flex' }} lg:flex flex-col gap-4"
+    >
+      @if (templateQuery.isPending()) {
+        <div
+          class="bg-surface text-on-surface flex animate-pulse cursor-progress flex-col gap-2 rounded-2xl p-4"
+        >
+          <h2 class="title-medium">Loading ...</h2>
+        </div>
+      } @else if (templateQuery.isError()) {
+        <p>Error: {{ templateQueryErrorMessage() }}</p>
+      } @else if (templateQuery.isSuccess()) {
+        <a mat-flat-button routerLink="create" class="hidden! lg:flex!">
+          Create template
+        </a>
+        @for (
+          templateCategory of templateQuery.data();
+          track templateCategory.id
+        ) {
+          <div
+            class="bg-surface text-on-surface flex flex-col gap-2 rounded-2xl p-4"
+          >
+            <div class="mb-4 flex flex-row items-start gap-4">
+              <app-icon [iconCommonName]="templateCategory.icon" size="28" />
+              <h2 class="title-large">{{ templateCategory.title }}</h2>
+            </div>
+            @for (template of templateCategory.templates; track template.id) {
+              <a
+                class="title-medium flex flex-row items-start gap-2 rounded-full p-2"
+                routerLink="{{ template.id }}"
+                routerLinkActive="bg-secondary-container! text-on-secondary-container!"
+              >
+                <app-icon [iconCommonName]="template.icon" size="24" />
+                <span>{{ template.title }}</span>
+              </a>
+            } @empty {
+              <p>No templates found in this category</p>
+              <a mat-button routerLink="create/{{ templateCategory.id }}">
+                Add template to this category
+              </a>
+            }
+          </div>
+        } @empty {
+          <p>No template categories found</p>
+        }
+      }
+    </nav>
+  </div>
+  <div class="lg:h-full lg:overflow-y-auto lg:p-4">
+    <router-outlet
+      (activate)="outletActive.set(true)"
+      (deactivate)="outletActive.set(false)"
+    />
+  </div>
+</div>
+
+<a
+  routerLink="create"
+  class="fab-fixed {{ outletActive() ? 'hidden!' : 'block' }} lg:hidden!"
+  mat-fab
+  extended
+>
+  <mat-icon svgIcon="faPlus" />
+  Create template
+</a>

@@ -1,0 +1,44 @@
+<div class="mb-4 flex flex-row items-center gap-2">
+  <a routerLink="/templates" mat-icon-button class="lg:hidden! block">
+    <fa-duotone-icon [icon]="faArrowLeft" />
+  </a>
+  <h1 class="title-large">Create template</h1>
+</div>
+<main class="flex flex-col gap-4">
+  <form (submit)="onSubmit($event)" class="text-on-surface flex flex-col gap-6">
+    <div class="bg-surface rounded-2xl p-4">
+      <app-template-general-form [generalForm]="templateForm" />
+    </div>
+
+    <div class="bg-surface rounded-2xl p-4">
+      <h2 class="mb-4 text-lg font-semibold">Simple Registration Setup</h2>
+      <p class="mb-4 text-sm">
+        This is the simple registration mode, which creates one registration
+        option for organizers and one for participants.
+      </p>
+
+      <div
+        class="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:[grid-template-rows:auto_auto_auto_auto_auto]"
+      >
+        <app-template-registration-option-form
+          class="bg-surface-container-lowest rounded-xl p-4 grid gap-4 lg:row-span-5 lg:grid-rows-subgrid"
+          [registrationForm]="templateForm.organizerRegistration"
+          [registrationModes]="registrationModes"
+        />
+        <app-template-registration-option-form
+          class="bg-surface-container-lowest rounded-xl p-4 grid gap-4 lg:row-span-5 lg:grid-rows-subgrid"
+          [registrationForm]="templateForm.participantRegistration"
+          [registrationModes]="registrationModes"
+        />
+      </div>
+    </div>
+
+    <button
+      type="submit"
+      mat-button
+      [disabled]="templateForm().invalid() || templateForm().submitting()"
+    >
+      Save template
+    </button>
+  </form>
+</main>
