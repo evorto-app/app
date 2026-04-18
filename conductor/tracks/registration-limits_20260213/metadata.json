@@ -1,8 +1,0 @@
-{
-  "track_id": "registration-limits_20260213",
-  "type": "feature",
-  "status": "new",
-  "created_at": "2026-02-13T12:42:00Z",
-  "updated_at": "2026-02-13T12:42:00Z",
-  "description": "Registration settings for deregistration cutoff timing, paid fee-refund toggle, and tenant-wide daily/weekly registration limits with optional free/paid split and organizing-registration inclusion."
-}

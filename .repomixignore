@@ -1,6 +1,0 @@
-# Add patterns to ignore here, one per line
-# Example:
-# *.log
-# tmp/
-old/
-.github/copilot-instructions.md

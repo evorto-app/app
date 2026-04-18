@@ -68,15 +68,16 @@ bun run db:reset
 
 This will:
 
-1. Generate `.env.runtime` with `bun run env:runtime` and re-run it whenever local runtime settings change, such as changing local ports or renaming the local project, so Docker and Playwright keep isolated ports/project naming
+1. Generate `.env.dev` with `bun run env:runtime` and re-run it whenever local runtime settings change, such as changing local ports or renaming the local project, so Docker and Playwright keep isolated ports/project naming
 2. Ensure schema exists and reset/seed the local database (`bun run db:setup`)
 
-`bun run db:setup` now uses the same explicit dotenv loading as `db:push`. In CI, `.env.ci` is loaded first because `dotenv-cli` is first-wins here. For local runs, `.env.runtime` is loaded before `.env.local` and `.env`, so a present `.env.runtime` overrides the checked-in baseline env files and points the reset at the local Neon Local proxy. `bun run db:push`, Docker's `db-setup` service, and `bun run db:studio` all invoke the bundled `drizzle-kit` CLI with Bun. We keep the explicit `-e` list instead of `dotenv -c` because this repo needs `.env.local` to beat `.env`, and `dotenv-cli`'s cascade mode does not preserve that precedence here.
-Bun also implicitly loads `.env.local` and `.env`, which is why the scripts keep using explicit `dotenv-cli -e` precedence instead of relying on Bun defaults.
+`bun run db:setup` now uses the same `dotenv -c dev` loading model as `db:push`. In this repo, the supported local files are `.env` for developer secrets, `.env.dev.local` for tracked shared defaults, and `.env.dev` for generated worktree overrides. `bun run db:push`, Docker's `db-setup` service, and `bun run db:studio` all consume the same local environment contract.
 
 The Neon Local container does not emit every proxied query in its default logging configuration, so `docker logs` staying quiet during `db:reset` does not mean the reset missed Docker.
 
-Docker Compose now also runs a one-shot `db-setup` container before `evorto` starts. That service pushes schema and resets/seeds the Docker database on every stack start, and local Neon branches are configured to be deleted automatically on shutdown.
+Docker Compose now also runs a one-shot `db-setup` container before `evorto` starts. That service pushes schema and resets/seeds the Docker database on every stack start, and local Neon branches are configured to be deleted automatically on shutdown. The package scripts preload the needed environment with `dotenv -c dev` before invoking Docker.
+
+Testing/runtime context that depends on these seed flows lives in [tests/README.md](../tests/README.md).
 
 ## Modifying the Seeding Process
 

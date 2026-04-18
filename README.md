@@ -4,8 +4,17 @@ This project was generated using [Angular CLI](https://github.com/angular/angula
 
 ## Prerequisites
 
-- Docker Compose 2.24.0 or later is required. This repo uses the object form of `env_file` with `path` and `required` in `docker-compose.yml`, which older Compose versions do not support.
-- If your local Compose is older, upgrade Docker Desktop or the standalone Compose plugin before running the Docker-backed setup and E2E flows.
+- Docker Compose 2.24.0 or later is required for the local Docker-backed runtime and E2E flows.
+
+## Local Environment Files
+
+This repo uses three local env files:
+
+- `.env` — untracked developer secrets
+- `.env.dev.local` — tracked shared default dev config
+- `.env.dev` — generated worktree-specific overrides via `bun run env:runtime`
+
+`.env.local`, `.env.runtime`, and `.env.ci` are unsupported in this repo.
 
 ## Git workflow
 
@@ -56,7 +65,7 @@ This will compile your project and store the build artifacts in the `dist/` dire
 
 ## Running unit tests
 
-To execute unit tests with the [Karma](https://karma-runner.github.io) test runner, use the following command:
+To execute Angular/UI unit tests, use the following command:
 
 ```bash
 bun run test:unit
@@ -76,7 +85,15 @@ To run documentation tests:
 bun run test:e2e:docs
 ```
 
-For deterministic test/runtime details, seed profiles, docker-backed local test setup, and the stacked delivery workflow used for infra/config changes, see [docs/testing.md](docs/testing.md).
+For advanced Playwright flows, forward extra arguments to the core scripts:
+
+```bash
+bun run test:e2e -- --headed --workers 1
+bun run test:e2e -- --project=setup
+bun run test:e2e:docs -- --project=docs-integration
+```
+
+For deterministic runtime/test setup and Playwright project details, see [tests/README.md](tests/README.md) and [helpers/README.md](helpers/README.md).
 
 ## Additional Resources
 

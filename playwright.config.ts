@@ -1,7 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
+import { formatConfigError } from '@server/config/config-error';
 import { ConfigError, ConfigProvider, Effect } from 'effect';
 
-import { formatConfigError } from './src/server/config/config-error';
 import { playwrightEnvironmentConfig } from './tests/support/config/environment';
 
 const environment = Effect.runSync(
@@ -52,7 +52,7 @@ const webServer = (() => {
   const url = environment.BASE_URL;
 
   return {
-    command: 'bun run docker:start:test',
+    command: 'bun run docker:start:foreground',
     reuseExistingServer: true,
     timeout: 240_000,
     url,
@@ -70,7 +70,7 @@ const reporters = environment.CI
 
 export default defineConfig({
   /* Fail the build on CI if you accidentally left test.only in the source code. */
-  forbidOnly: !!environment.CI,
+  forbidOnly: environment.CI,
   ...(environment.CI ? { maxFailures: 1 } : {}),
   /* Run tests in files in parallel */
   fullyParallel: true,

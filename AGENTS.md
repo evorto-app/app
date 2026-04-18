@@ -5,6 +5,7 @@
 - Keep relevant technical and operational context in repository files (track docs, handoff notes, revisit logs, and module-level `AGENTS.md` files).
 - Update context files when reality changes, assumptions are invalidated, or new constraints are discovered.
 - Prefer small, dated updates in files over implicit context in chat history.
+- Keep context next to the code it describes. For example, testing/runtime guidance belongs in `tests/README.md` and `helpers/README.md`, not in a generic top-level `docs/` page.
 
 ## Project Structure & Module Organization
 
@@ -28,7 +29,6 @@ More specific guidance also exists deeper in some subtrees (for example `src/ser
 
 - `bun run dev:start` — run Angular dev server at `http://localhost:4200`.
 - `bun run build:app` — build client + server bundles.
-- `bun run serve:ssr` — serve the built SSR server.
 - `bun run test:unit` — run unit tests.
 - `bun run test:e2e` — run Playwright e2e.
 - `bun run lint:fix` / `bun run lint:check` — lint with autofix and verification.
@@ -85,9 +85,13 @@ More specific guidance also exists deeper in some subtrees (for example `src/ser
 ## Security & Configuration
 
 - Never commit secrets.
-- In CI, do not rely on generated env artifacts. Use checked-in baseline env files such as `.env.ci` where applicable, and provide CI-specific configuration via explicit environment variables.
+- Keep repo env context next to the code that uses it. Use `tests/README.md`, `helpers/README.md`, and `src/server/config/AGENTS.md` as the source of truth for local env behavior.
+- Local env model: `.env` is untracked developer secrets, `.env.dev.local` is tracked shared dev config, and `.env.dev` is the generated worktree override from `bun run env:runtime`.
+- `.env.local`, `.env.runtime`, and `.env.ci` are unsupported in this repo.
+- In CI, do not rely on tracked or generated dotenv artifacts; use GitHub Actions `env`, `vars`, and `secrets`.
 
 ## Agent Editing Workflow
 
-- After editing a file, run `bun run lint:fix` first and then run WebStorm `get_file_problems` on that file when possible before finishing.
+- Before calling WebStorm `get_file_problems` on edited files, run `bun run lint:fix` first.
+- After editing a file, run WebStorm `get_file_problems` on that file when possible before finishing.
 - WebStorm MCP tools are available; prefer sequential `get_file_problems` checks (parallel runs can timeout).

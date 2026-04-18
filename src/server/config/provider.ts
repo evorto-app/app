@@ -6,21 +6,13 @@ import path from 'node:path';
 
 export interface RuntimeConfigProviderOptions {
   cwd?: string;
-  includeCiDotEnv?: boolean;
 }
 
 const EMPTY_PROVIDER = ConfigProvider.fromMap(new Map());
 
 const resolveDotEnvironmentFiles = (
-  options: RuntimeConfigProviderOptions = {},
-) => {
-  const includeCiDotEnvironment =
-    options.includeCiDotEnv ?? process.env['CI'] === 'true';
-
-  return includeCiDotEnvironment
-    ? ['.env.local', '.env', '.env.ci', '.env.runtime']
-    : ['.env.local', '.env', '.env.runtime'];
-};
+  _options: RuntimeConfigProviderOptions = {},
+) => ['.env.dev.local', '.env.dev', '.env'];
 
 const loadDotEnvironmentProvider = (filePath: string) =>
   Effect.gen(function* () {
