@@ -77,3 +77,129 @@ See [issue #37](https://github.com/dotenv-org/cli/issues/37) for more details.
 ---
 
 I mean it's been 5 years and no one else has complained, but I spent about half an hour figuring out why I was connecting to my local database instead of my staging one 🙁
+
+
+---
+
+PLEASE IMPLEMENT THIS PLAN:
+## Simplify Env Config with `dotenv -c dev` and Repo-Specific File Roles
+
+### Summary
+
+Adopt a simplified local env model based on `dotenv -c dev`, with repo-specific file roles chosen to match the actual `dotenv-cli` first-wins behavior:
+
+- `.env`: untracked, developer secrets
+- `.env.dev.local`: tracked, shared default dev config
+- `.env.dev`: generated, untracked worktree override
+
+Keep `bun run env:runtime` as the generator command, but change it to write `.env.dev`.
+
+Remove dotenv loading from Docker Compose entirely. Local scripts preload env with `dotenv -c dev` before invoking `docker compose`. CI uses only GitHub Actions `env`, `vars`, and `secrets`.
+
+### Important Behavior to Lock In
+
+With `dotenv -c dev`, the effective dotenv file precedence is:
+
+1. `.env.dev.local`
+2. `.env.local`
+3. `.env.dev`
+4. `.env`
+
+Because loading is first-wins, `.env.dev.local` beats `.env.dev`, and `.env.dev` beats `.env`.
+
+For this repo, that means:
+
+- `.env.dev.local` should hold tracked shared defaults.
+- `.env.dev` should hold generated worktree-specific overrides.
+- `.env.local` should be unsupported and documented as forbidden to avoid accidental precedence surprises.
+
+### Key Changes
+
+- **File contract**
+  - Remove `.env.ci` and `.env.runtime` from the supported model.
+  - Add tracked `.env.dev.local` with non-secret shared default config.
+  - Keep `.env` untracked for secrets only.
+  - Generate `.env.dev` for worktree-specific overrides.
+  - Update `.gitignore` so `.env` and `.env.dev` stay untracked, while `.env.dev.local` is tracked.
+
+- **Generated worktree overrides**
+  - Keep `bun run env:runtime`.
+  - Change `helpers/testing/runtime-env.ts` to write `.env.dev`.
+  - Preserve the current generated worktree values there: `COMPOSE_PROJECT_NAME`, `APP_HOST_PORT`, `BASE_URL`, `DATABASE_URL`, `NEON_LOCAL_HOST_PORT`, `MINIO_HOST_PORT`, `MINIO_CONSOLE_HOST_PORT`, `DELETE_BRANCH`, `NEON_LOCAL_PROXY`, and related Neon-local values.
+  - Document that the generator should be run on worktree creation and whenever local runtime settings need to be refreshed.
+
+- **Scripts and Docker**
+  - Simplify `package.json` scripts to use `dotenv -c dev` instead of the current repeated explicit `-e` chain.
+  - Keep important scripts directly visible in `package.json`.
+  - Update `test:e2e*`, `db:*`, and `docker:*` scripts to rely on the new cascade model.
+  - Remove all `env_file` blocks from `docker-compose.yml`.
+  - Keep Compose reading only normal environment variables supplied by the invoking shell.
+
+- **Runtime/provider logic**
+  - Update `src/server/config/provider.ts` so repo-local config precedence becomes:
+    - real environment variables
+    - `.env`
+    - `.env.dev.local`
+    - `.env.dev`
+    - in-code defaults
+  - Remove CI dotenv handling from the provider.
+  - Update provider tests to reflect the new filenames and precedence.
+  - Update `src/server/config/AGENTS.md` to explain the repo-specific file roles and to explicitly forbid `.env.local`.
+
+- **CI**
+  - Remove `.env.ci` from workflows and docs.
+  - Configure all CI values through workflow/job `env`, GitHub `vars`, and GitHub `secrets`.
+  - Keep local `dotenv -c dev` usage out of CI assumptions; CI already has exported env, and dotenv will not override it.
+
+- **Docs and local instructions**
+  - Update `tests/README.md`, `helpers/README.md`, root `README.md`, and relevant `AGENTS.md` files to describe:
+    - `.env` as secrets
+    - `.env.dev.local` as tracked shared defaults
+    - `.env.dev` as generated worktree overrides
+  - Keep testing/runtime context in `tests/README.md` and seeding/runtime-generation context in `helpers/README.md`.
+  - Keep the instruction that `bun run lint:fix` must run before WebStorm `get_file_problems`.
+
+### Public Surface / Contract Changes
+
+- `bun run env:runtime` remains the command name, but now generates `.env.dev`.
+- Supported local env files become:
+  - `.env`
+  - `.env.dev.local`
+  - `.env.dev`
+- Unsupported files in this repo model:
+  - `.env.local`
+  - `.env.runtime`
+  - `.env.ci`
+- Docker Compose no longer reads dotenv files directly.
+
+### Test Plan
+
+- Provider tests:
+  - real env beats dotenv files
+  - `.env.dev.local` beats `.env.dev`
+  - `.env.dev` beats `.env`
+  - missing `.env.dev` still works
+- Script smoke tests:
+  - `bun run test:e2e -- --help`
+  - `bun run test:e2e:docs -- --help`
+  - `bun run db:push -- --help`
+  - `bun run docker:stop`
+- Generator verification:
+  - `bun run env:runtime` writes `.env.dev`
+  - different worktrees still get distinct ports/project names
+- CI verification:
+  - e2e workflow still runs with GitHub-provided env only
+- Final checks:
+  - `bun run lint:fix`
+  - targeted WebStorm `get_file_problems` on changed TS/config files
+
+### Assumptions and Defaults
+
+- Chosen approach: use plain `dotenv -c dev`.
+- Chosen command name: keep `env:runtime`.
+- Chosen file-role mapping:
+  - `.env` = untracked secrets
+  - `.env.dev.local` = tracked shared defaults
+  - `.env.dev` = generated worktree overrides
+- Chosen repo policy: `.env.local` is unsupported and should not be used.
+- Chosen CI policy: no tracked CI dotenv file; GitHub Actions env is the only CI source of truth.

@@ -43,7 +43,7 @@ Thumbs.db
 
 # Secrets
 .env*
-!.env.ci
+!.env.dev.local
 !.env.example
 !.env.template
 .neon_local/

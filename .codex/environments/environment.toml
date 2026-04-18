@@ -10,7 +10,7 @@ SOURCE_ROOT=${CODEX_SOURCE_ROOT:-$(pwd -P)}
 
 echo "[setup] Copying environment files"
 if [ "$(pwd -P)" != "$SOURCE_ROOT" ]; then
-  for file in .env .env.local .env.ci .npmrc; do
+  for file in .env .env.dev.local .npmrc; do
     if [ -f "$SOURCE_ROOT/$file" ]; then
       cp "$SOURCE_ROOT/$file" .
     fi

@@ -28,7 +28,7 @@ describe('provider', () => {
   });
 
   it.effect(
-    'applies config precedence env > .env.local > .env > .env.runtime',
+    'applies config precedence env > .env.dev.local > .env.dev > .env',
     () =>
       Effect.gen(function* () {
         const temporaryDirectory = fs.mkdtempSync(
@@ -37,31 +37,31 @@ describe('provider', () => {
 
         try {
           fs.writeFileSync(
-            path.join(temporaryDirectory, '.env.runtime'),
-            'DATABASE_URL=postgresql://runtime.example/app\n',
-          );
-          fs.writeFileSync(
             path.join(temporaryDirectory, '.env'),
-            'DATABASE_URL=postgresql://shared.example/app\n',
+            'DATABASE_URL=postgresql://secrets.example/app\n',
           );
           fs.writeFileSync(
-            path.join(temporaryDirectory, '.env.local'),
-            'DATABASE_URL=postgresql://local.example/app\n',
+            path.join(temporaryDirectory, '.env.dev'),
+            'DATABASE_URL=postgresql://worktree.example/app\n',
+          );
+          fs.writeFileSync(
+            path.join(temporaryDirectory, '.env.dev.local'),
+            'DATABASE_URL=postgresql://shared.example/app\n',
           );
 
           delete process.env['DATABASE_URL'];
           expect(yield* readDatabaseUrl(temporaryDirectory)).toBe(
-            'postgresql://local.example/app',
-          );
-
-          fs.unlinkSync(path.join(temporaryDirectory, '.env.local'));
-          expect(yield* readDatabaseUrl(temporaryDirectory)).toBe(
             'postgresql://shared.example/app',
           );
 
-          fs.unlinkSync(path.join(temporaryDirectory, '.env'));
+          fs.unlinkSync(path.join(temporaryDirectory, '.env.dev.local'));
           expect(yield* readDatabaseUrl(temporaryDirectory)).toBe(
-            'postgresql://runtime.example/app',
+            'postgresql://worktree.example/app',
+          );
+
+          fs.unlinkSync(path.join(temporaryDirectory, '.env.dev'));
+          expect(yield* readDatabaseUrl(temporaryDirectory)).toBe(
+            'postgresql://secrets.example/app',
           );
 
           process.env['DATABASE_URL'] = 'postgresql://env.example/app';

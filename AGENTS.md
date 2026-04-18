@@ -85,7 +85,10 @@ More specific guidance also exists deeper in some subtrees (for example `src/ser
 ## Security & Configuration
 
 - Never commit secrets.
-- In CI, do not rely on generated env artifacts. Use checked-in baseline env files such as `.env.ci` where applicable, and provide CI-specific configuration via explicit environment variables.
+- Keep repo env context next to the code that uses it. Use `tests/README.md`, `helpers/README.md`, and `src/server/config/AGENTS.md` as the source of truth for local env behavior.
+- Local env model: `.env` is untracked developer secrets, `.env.dev.local` is tracked shared dev config, and `.env.dev` is the generated worktree override from `bun run env:runtime`.
+- `.env.local`, `.env.runtime`, and `.env.ci` are unsupported in this repo.
+- In CI, do not rely on tracked or generated dotenv artifacts; use GitHub Actions `env`, `vars`, and `secrets`.
 
 ## Agent Editing Workflow
 

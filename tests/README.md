@@ -46,29 +46,32 @@ bun run lint:check
 - Stop the local runtime stack: `bun run docker:stop`
 - Local Docker runs use Neon Local instead of a plain Postgres container.
 - Docker Compose includes a one-shot `db-setup` service that runs the equivalent of `db:setup` before `evorto` starts.
-- `.env.runtime` is a worktree-local override created by `bun run env:runtime`.
+- `bun run env:runtime` generates `.env.dev`, the untracked worktree-local override file.
+- `.env.dev.local` is the tracked shared default dev config file.
+- `.env` is the untracked developer-secrets file.
+- `.env.local`, `.env.runtime`, and `.env.ci` are unsupported in this repo.
 - Starting the Docker stack is destructive for local database state by design because `db-setup` pushes schema and resets/seeds the Docker database on every start.
 - `bun run test:e2e:ui` pre-runs the Playwright `setup` project before opening UI mode because Playwright UI does not reliably honor the repo's setup dependency chain.
+- Docker Compose does not load repo dotenv files directly; local scripts preload the environment with `dotenv -c dev` before invoking Compose.
 
 ## Runtime Environment Precedence
 
-Application/test config resolves in this precedence order:
+Application runtime config resolves in this precedence order:
 
 - real environment variables
-- `.env.local`
+- `.env.dev.local`
+- `.env.dev`
 - `.env`
-- `.env.ci` in CI
-- `.env.runtime`
 - in-code defaults
 
-External-tool scripts use explicit `dotenv-cli` files in reverse order because `dotenv-cli` is first-wins here:
+External-tool scripts use `dotenv -c dev`. Because `dotenv-cli` is first-wins, the effective dotenv precedence for those scripts is:
 
-- `.env.ci` in CI
-- `.env.runtime`
-- `.env.local`
+- `.env.dev.local`
+- `.env.local` if someone creates it manually; this file is unsupported and should not exist
+- `.env.dev`
 - `.env`
 
-We keep explicit `-e` ordering instead of `dotenv -c` because this repo needs `.env.local` to beat `.env`.
+CI should not rely on dotenv files at all; workflows provide values via exported environment variables.
 
 ## Deterministic E2E Environment
 
@@ -137,7 +140,7 @@ Required only for integration-tagged Playwright projects:
 
 ## Local Stack Isolation
 
-`.env.runtime` is generated from the current working directory, so separate worktrees get:
+`.env.dev` is generated from the current working directory, so separate worktrees get:
 
 - distinct `COMPOSE_PROJECT_NAME`
 - distinct local Neon Local port

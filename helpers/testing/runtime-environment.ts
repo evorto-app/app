@@ -2,11 +2,11 @@ import { BunRuntime } from '@effect/platform-bun';
 import { Effect } from 'effect';
 import path from 'node:path';
 
-const DEFAULT_APP_HOST_PORT = 4_200;
+const DEFAULT_APP_HOST_PORT = 4200;
 const DEFAULT_NEON_LOCAL_HOST_PORT = 55_432;
-const DEFAULT_MINIO_CONSOLE_HOST_PORT = 9_001;
-const DEFAULT_MINIO_HOST_PORT = 9_000;
-const OUTPUT_FILE_PATH = path.resolve(process.cwd(), '.env.runtime');
+const DEFAULT_MINIO_CONSOLE_HOST_PORT = 9001;
+const DEFAULT_MINIO_HOST_PORT = 9000;
+const OUTPUT_FILE_PATH = path.resolve(process.cwd(), '.env.dev');
 
 const databaseName = process.env['NEON_DATABASE_NAME']?.trim() || 'appdb';
 
@@ -25,7 +25,7 @@ const digest = new Bun.CryptoHasher('sha256').update(seed).digest('hex');
 
 const parsePort = (value: string | undefined): number | undefined => {
   const parsed = Number.parseInt(value ?? '', 10);
-  if (!Number.isInteger(parsed) || parsed < 1_024 || parsed > 65_535) {
+  if (!Number.isInteger(parsed) || parsed < 1024 || parsed > 65_535) {
     return undefined;
   }
   return parsed;
@@ -100,6 +100,7 @@ const escapeEnvironmentValue = (value: string): string =>
 
 const outputLines = [
   '# THIS FILE IS AUTO-GENERATED. DO NOT EDIT MANUALLY.',
+  '# Worktree-specific overrides for local runtime commands.',
   ...Object.entries(runtimeEnvironment).map(
     ([key, value]) => `${key}=${escapeEnvironmentValue(value)}`,
   ),

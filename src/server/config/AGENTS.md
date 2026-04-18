@@ -2,11 +2,13 @@
 
 ## Provider and Environment Sources
 
-- Runtime config resolution uses provider precedence in this order: real environment variables, `.env.local`, `.env`, `.env.ci` in CI, `.env.runtime`, then in-code defaults.
-- `.env.runtime` is an explicit local worktree override artifact. It may be absent; in that case, local runs should use the checked-in env files and real environment variables only.
-- For shell/package scripts that use `dotenv-cli`, file order is first-wins. If a script is meant to honor `.env.runtime` as an override, load `.env.runtime` before `.env.local` / `.env`.
-- Prefer explicit `-e` ordering over `dotenv -c` in this repo. The cascade flag does not preserve the `.env.local` over `.env` precedence we need for values like `DATABASE_URL`.
-- In CI and other cloud environments, do not rely on generated local filesystem artifacts or machine-specific checkout paths. Use `.env.ci` as the tracked CI baseline where applicable, and explicit environment variables for CI-specific configuration.
+- Runtime config resolution uses provider precedence in this order: real environment variables, `.env.dev.local`, `.env.dev`, `.env`, then in-code defaults.
+- `.env.dev` is the generated local worktree override artifact written by `bun run env:runtime`. It may be absent; in that case, local runs should use `.env.dev.local`, `.env`, and real environment variables only.
+- `.env.dev.local` is the tracked shared default dev config file.
+- `.env` is the untracked developer-secrets file.
+- For shell/package scripts that use `dotenv-cli`, this repo standardizes on `dotenv -c dev`. Because `dotenv-cli` is first-wins, the effective dotenv precedence is `.env.dev.local`, `.env.local` if present, `.env.dev`, then `.env`.
+- `.env.local`, `.env.runtime`, and `.env.ci` are unsupported in this repo and should not be created or referenced.
+- In CI and other cloud environments, do not rely on tracked or generated dotenv artifacts. Use explicit environment variables provided by GitHub Actions `env`, `vars`, and `secrets`.
 
 ## Effect Config Shape
 

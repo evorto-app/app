@@ -1,15 +1,6 @@
 services:
   db:
     image: neondatabase/neon_local:v1.5
-    env_file:
-      - path: .env.local
-        required: false
-      - path: .env
-        required: false
-      - path: .env.ci
-        required: false
-      - path: .env.runtime
-        required: false
     environment:
       BRANCH_ID:
       DELETE_BRANCH: "${DELETE_BRANCH:-true}"
@@ -43,15 +34,6 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    env_file:
-      - path: .env.local
-        required: false
-      - path: .env
-        required: false
-      - path: .env.ci
-        required: false
-      - path: .env.runtime
-        required: false
     environment:
       DATABASE_URL: postgresql://neon:npg@db:5432/${NEON_DATABASE_NAME:-appdb}?sslmode=require
       NEON_LOCAL_PROXY: "true"
@@ -116,15 +98,6 @@ services:
           path: ./src
         - action: rebuild
           path: package.json
-    env_file:
-      - path: .env.local
-        required: false
-      - path: .env
-        required: false
-      - path: .env.ci
-        required: false
-      - path: .env.runtime
-        required: false
     environment:
       BASE_URL: http://localhost:${APP_HOST_PORT:-4200}
       CLIENT_ID:
@@ -150,15 +123,6 @@ services:
   stripe:
     image: stripe/stripe-cli:v1.25.0
     restart: always
-    env_file:
-      - path: .env.local
-        required: false
-      - path: .env
-        required: false
-      - path: .env.ci
-        required: false
-      - path: .env.runtime
-        required: false
     environment:
       STRIPE_API_KEY:
       STRIPE_DEVICE_NAME: integration-tests
