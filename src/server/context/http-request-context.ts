@@ -1,6 +1,6 @@
 import type * as HttpServerRequest from '@effect/platform/HttpServerRequest';
 
-import { EffectDrizzleQueryError } from 'drizzle-orm/effect-core';
+import { DrizzleQueryError } from 'drizzle-orm';
 import { Effect, Schema } from 'effect';
 
 import type { AuthSession } from '../auth/auth-session';
@@ -33,7 +33,7 @@ export const resolveHttpRequestContext = (
   authSession: AuthSession | undefined,
 ): Effect.Effect<
   Schema.Schema.Type<typeof RequestContext>,
-  EffectDrizzleQueryError | HttpRequestTenantNotFoundError,
+  DrizzleQueryError | HttpRequestTenantNotFoundError,
   Database
 > =>
   Effect.gen(function* () {
