@@ -1,0 +1,190 @@
+name: E2E Baseline
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, develop]
+  pull_request:
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: Playwright E2E (functional + docs)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      FONT_AWESOME_TOKEN: ${{ secrets.FONT_AWESOME_TOKEN }}
+      CI: true
+      APP_HOST_PORT: 4200
+      BASE_URL: http://localhost:4200
+      APP_READY_PATH: /robots.txt
+      COMPOSE_PROJECT_NAME: evorto-ci
+      DELETE_BRANCH: true
+      NEON_DATABASE_NAME: appdb
+      NEON_LOCAL_HOST_PORT: 55432
+      NEON_LOCAL_METADATA_DIR: /tmp/neon-local-metadata
+      NEON_LOCAL_PROXY: true
+      NO_WEBSERVER: true
+      DATABASE_URL: postgresql://neon:npg@localhost:55432/appdb?sslmode=require
+      NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+      NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+      PARENT_BRANCH_ID: ${{ secrets.PARENT_BRANCH_ID }}
+      CLIENT_ID: ${{ secrets.CLIENT_ID }}
+      CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
+      STRIPE_API_KEY: ${{ secrets.STRIPE_API_KEY }}
+      STRIPE_TEST_ACCOUNT_ID: ${{ secrets.STRIPE_TEST_ACCOUNT_ID || vars.STRIPE_TEST_ACCOUNT_ID }}
+      STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+      S3_ACCESS_KEY_ID: minioadmin
+      S3_BUCKET: evorto-ci
+      S3_ENDPOINT: http://minio:9000
+      S3_REGION: us-east-1
+      S3_SECRET_ACCESS_KEY: minioadmin
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.7"
+
+      - name: Validate required configuration
+        run: |
+          if [ -z "${FONT_AWESOME_TOKEN}" ]; then
+            echo "::error::Missing required secret: FONT_AWESOME_TOKEN"
+            exit 1
+          fi
+          if [ -z "${NEON_API_KEY}" ]; then
+            echo "::error::Missing required secret: NEON_API_KEY"
+            exit 1
+          fi
+          if [ -z "${NEON_PROJECT_ID}" ]; then
+            echo "::error::Missing required repository variable: NEON_PROJECT_ID"
+            exit 1
+          fi
+          if [ -z "${STRIPE_TEST_ACCOUNT_ID}" ]; then
+            echo "::error::Missing required Stripe connected account id. Set STRIPE_TEST_ACCOUNT_ID as a secret or repository variable."
+            exit 1
+          fi
+          if [ -z "${CLIENT_SECRET}" ]; then
+            echo "::error::Missing required secret: CLIENT_SECRET"
+            exit 1
+          fi
+          if [ -z "${STRIPE_API_KEY}" ]; then
+            echo "::error::Missing required secret: STRIPE_API_KEY"
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: bunx playwright install --with-deps
+
+      - name: Prepare Neon Local metadata directory
+        run: |
+          rm -rf "${NEON_LOCAL_METADATA_DIR}"
+          mkdir -p "${NEON_LOCAL_METADATA_DIR}"
+          chmod 0755 "${NEON_LOCAL_METADATA_DIR}"
+
+      - name: Pull Docker images (compose)
+        run: docker compose pull
+
+      - name: Build Docker images (compose)
+        run: docker compose build --pull
+
+      - name: Start Docker stack for E2E
+        run: |
+          docker compose down --remove-orphans
+          docker compose up -d db minio stripe minio-init
+          for attempt in $(seq 1 60); do
+            if docker compose exec -T db pg_isready -h 127.0.0.1 -p 5432 -U neon -d "${NEON_DATABASE_NAME}" >/dev/null 2>&1; then
+              echo "Database is reachable"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::Database did not become reachable within 120 seconds"
+          docker compose ps
+          docker compose logs --no-color --tail=100 db evorto
+          exit 1
+
+      - name: Apply latest schema
+        run: bun run db:push
+
+      - name: Start application container
+        run: docker compose up -d evorto
+
+      - name: Wait for application
+        run: |
+          ready_url="${BASE_URL}${APP_READY_PATH}"
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent --show-error "${ready_url}" >/dev/null; then
+              echo "Application is reachable at ${ready_url}"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::Application did not become reachable at ${ready_url} within 120 seconds"
+          docker compose ps
+          docker compose logs --no-color --tail=100
+          exit 1
+
+      - name: Run Playwright suites
+        run: |
+          mkdir -p test-results/docker-logs
+          if [ "${ACTIONS_STEP_DEBUG:-false}" = "true" ]; then
+            docker compose logs -f --no-color 2>&1 | tee test-results/docker-logs/live-docker.log &
+            LOG_STREAM_PID=$!
+            cleanup() {
+              if [ -n "${LOG_STREAM_PID:-}" ] && kill -0 "${LOG_STREAM_PID}" 2>/dev/null; then
+                kill "${LOG_STREAM_PID}" || true
+                wait "${LOG_STREAM_PID}" || true
+              fi
+            }
+            trap cleanup EXIT
+          fi
+
+          bun run test:e2e
+
+          DOCS_OUT_DIR=test-results/docs \
+          DOCS_IMG_OUT_DIR=test-results/docs/images \
+          bunx playwright test --project=docs-baseline --grep-invert "@finance" \
+            --reporter=github,dot,./tests/support/reporters/documentation-reporter.ts
+
+      - name: Collect Docker logs
+        if: always()
+        run: |
+          mkdir -p test-results/docker-logs
+          docker compose logs --no-color > test-results/docker-logs/docker-compose.log || true
+          evorto_container_id="$(docker compose ps -q evorto)"
+          if [ -n "${evorto_container_id}" ]; then
+            docker cp "${evorto_container_id}:/app/logs/server.log" test-results/docker-logs/server.log || true
+          fi
+
+      - name: Stop Docker stack
+        if: always()
+        run: docker compose down --remove-orphans
+
+      - name: Upload Playwright test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-test-results
+          path: |
+            test-results/**
+            playwright-report/**
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload generated docs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-docs
+          path: test-results/docs/**
+          if-no-files-found: ignore
+          retention-days: 14

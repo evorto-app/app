@@ -1,0 +1,87 @@
+<div class="mb-4 flex flex-row items-center gap-2">
+  <a routerLink="/admin" mat-icon-button class="lg:hidden! block">
+    <fa-duotone-icon [icon]="faArrowLeft" />
+  </a>
+  <h1 class="title-large">General settings</h1>
+  <div class="grow"></div>
+</div>
+<div class="grid grid-cols-1 gap-4">
+  <div class="bg-surface text-on-surface rounded-2xl p-4">
+    <form class="grid grid-cols-1" (submit)="saveSettings($event)">
+      <p class="text-on-surface-variant mb-4 text-sm">
+        Tax rates are managed on the dedicated
+        <a class="underline" routerLink="/admin/tax-rates">Tax Rates</a> page.
+      </p>
+
+      <div class="mb-4">
+        <p class="text-sm font-medium mb-2 block">Default Location</p>
+        <p class="text-xs text-gray-600 mb-2">
+          Set a default location to improve Google Places search results for
+          your events. This location will be used as the center point for
+          location searches.
+        </p>
+        <app-location-selector-field
+          [formField]="settingsForm.defaultLocation"
+        />
+      </div>
+      <mat-form-field>
+        <mat-label>Site theme</mat-label>
+        <mat-select [formField]="settingsForm.theme">
+          <mat-option value="evorto">Default theme</mat-option>
+          <mat-option value="esn">ESN theme</mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <h3 class="title-small mb-2 mt-6">Finance settings</h3>
+      <p class="text-on-surface-variant mb-3 text-sm">
+        Configure which countries can be selected when users submit receipts.
+      </p>
+      <mat-form-field>
+        <mat-label>Allowed receipt countries</mat-label>
+        <mat-select [formField]="settingsForm.receiptCountries" multiple>
+          @for (country of receiptCountryOptions; track country.code) {
+            <mat-option [value]="country.code">
+              {{ country.label }} ({{ country.code }})
+            </mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+      <mat-checkbox [formField]="settingsForm.allowOther">
+        Allow other
+      </mat-checkbox>
+      <p class="text-on-surface-variant mt-1 text-xs">
+        Adds an “Other” option for receipts outside the selected countries.
+      </p>
+
+      <h3 class="title-small mb-2 mt-6">Discount providers</h3>
+      <div class="mb-4">
+        <mat-slide-toggle
+          [checked]="esnEnabled()"
+          (change)="setEsnEnabled($event.checked)"
+        >
+          ESN Card discounts
+        </mat-slide-toggle>
+      </div>
+      @if (esnEnabled()) {
+        <mat-form-field class="mb-4">
+          <mat-label>Buy ESNcard URL</mat-label>
+          <input
+            matInput
+            [formField]="settingsForm.buyEsnCardUrl"
+            placeholder="https://esncard.org/"
+          />
+          <mat-hint>
+            Optional link shown to users without a verified ESNcard.
+          </mat-hint>
+        </mat-form-field>
+      }
+      <button
+        mat-flat-button
+        type="submit"
+        [disabled]="settingsForm().invalid() || settingsForm().submitting()"
+      >
+        Save
+      </button>
+    </form>
+  </div>
+</div>

@@ -1,0 +1,117 @@
+import { COMMA, ENTER } from '@angular/cdk/keycodes';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  input,
+  model,
+  signal,
+} from '@angular/core';
+import {
+  debounce,
+  disabled,
+  form,
+  FormField,
+  FormValueControl,
+} from '@angular/forms/signals';
+import {
+  MatAutocompleteModule,
+  MatAutocompleteSelectedEvent,
+} from '@angular/material/autocomplete';
+import { MatChipsModule } from '@angular/material/chips';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
+import { faCircleXmark } from '@fortawesome/duotone-regular-svg-icons';
+import { injectQuery } from '@tanstack/angular-query-experimental';
+import { injectQueries } from '@tanstack/angular-query-experimental/inject-queries-experimental';
+
+import { AppRpc } from '../../../../core/effect-rpc-angular-client';
+
+@Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    FontAwesomeModule,
+    MatFormFieldModule,
+    MatAutocompleteModule,
+    MatChipsModule,
+    FormField,
+  ],
+  selector: 'app-role-select',
+  styles: ``,
+  templateUrl: './role-select.component.html',
+})
+export class RoleSelectComponent implements FormValueControl<string[]> {
+  readonly disabled = input<boolean>(false);
+  readonly hidden = input<boolean>(false);
+  readonly readonly = input<boolean>(false);
+  readonly separatorKeysCodes: number[] = [ENTER, COMMA];
+  readonly touched = model<boolean>(false);
+  readonly value = model<string[]>([]);
+
+  protected readonly searchModel = signal({ query: '' });
+  protected readonly searchForm = form(this.searchModel, (schema) => {
+    debounce(schema, 300);
+    disabled(schema.query, () => this.disabled() || this.readonly());
+  });
+  protected readonly searchValue = computed(
+    () => this.searchForm().value().query,
+  );
+  private readonly rpc = AppRpc.injectClient();
+  protected searchRoleQuery = injectQuery(() =>
+    this.rpc.admin.roles.search.queryOptions({ search: this.searchValue() }),
+  );
+  protected currentRolesQuery = injectQueries(() => ({
+    queries: this.value().map((roleId) =>
+      this.rpc.admin.roles.findOne.queryOptions({ id: roleId }),
+    ),
+  }));
+  protected readonly selectedRoleIds = computed(() => {
+    const selected = new Set((this.value() ?? []).filter(Boolean));
+    for (const role of this.currentRolesQuery()) {
+      const roleId = role.data()?.id;
+      if (roleId) {
+        selected.add(roleId);
+      }
+    }
+    return selected;
+  });
+  protected readonly availableRoles = computed(() => {
+    return (this.searchRoleQuery.data() ?? []).filter(
+      (role) => !this.selectedRoleIds().has(role.id),
+    );
+  });
+  protected faCircleXmark = faCircleXmark;
+
+  add() {
+    if (this.disabled() || this.readonly()) return;
+    const currentOptions = this.availableRoles();
+    if (currentOptions?.length === 1) {
+      const next = [
+        ...this.value().filter((value) => value !== currentOptions[0].id),
+        currentOptions[0].id,
+      ];
+      this.value.set(next);
+      this.touched.set(true);
+      this.searchForm.query().value.set('');
+    }
+  }
+
+  remove(id?: string) {
+    if (this.disabled() || this.readonly()) return;
+    if (id) {
+      this.value.set(this.value().filter((roleId) => roleId !== id));
+      this.touched.set(true);
+    }
+  }
+
+  selected(event: MatAutocompleteSelectedEvent) {
+    if (this.disabled() || this.readonly()) return;
+    this.value.set([
+      ...this.value().filter((roleId) => roleId !== event.option.value),
+      event.option.value,
+    ]);
+    this.touched.set(true);
+    this.searchForm.query().value.set('');
+    event.option.deselect();
+  }
+}
