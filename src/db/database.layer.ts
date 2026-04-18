@@ -7,12 +7,14 @@ import { createPgClientConfig } from './pg-connection-config';
 import { relations } from './relations';
 import * as schema from './schema';
 
-const databaseEffect = PgDrizzle
-  .make({
-    relations,
-    schema,
-  })
-  .pipe(Effect.provide(PgDrizzle.DefaultServices));
+const databaseEffect = PgClient.PgClient.pipe(
+  Effect.map((client) =>
+    PgDrizzle.drizzle(client, {
+      relations,
+      schema,
+    }),
+  ),
+);
 
 const pgClientLayer = Layer.unwrapEffect(
   databaseConfig.pipe(
