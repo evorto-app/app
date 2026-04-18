@@ -58,7 +58,7 @@ services:
     command:
       - /bin/sh
       - -lc
-      - bunx --bun drizzle-kit push --force && bun helpers/database.ts
+      - bun ./node_modules/drizzle-kit/bin.cjs push --force && bun helpers/database.ts
     restart: "no"
 
   minio:

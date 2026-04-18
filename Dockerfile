@@ -1,4 +1,4 @@
-FROM oven/bun:1.3.7 AS base
+FROM oven/bun:1.3.11 AS base
 
 # Canvas dependencies removed - not currently used in production
 # RUN apk add --no-cache \
