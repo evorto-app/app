@@ -75,7 +75,7 @@ This will:
 
 The Neon Local container does not emit every proxied query in its default logging configuration, so `docker logs` staying quiet during `db:reset` does not mean the reset missed Docker.
 
-Docker Compose now also runs a one-shot `db-setup` container before `evorto` starts. That service pushes schema and resets/seeds the Docker database on every stack start, and local Neon branches are configured to be deleted automatically on shutdown. Compose itself does not load repo dotenv files directly; the package scripts preload the needed environment before invoking Docker.
+Docker Compose now also runs a one-shot `db-setup` container before `evorto` starts. That service pushes schema and resets/seeds the Docker database on every stack start, and local Neon branches are configured to be deleted automatically on shutdown. The package scripts preload the needed environment with `dotenv -c dev` before invoking Docker.
 
 Testing/runtime context that depends on these seed flows lives in [tests/README.md](../tests/README.md).
 

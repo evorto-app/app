@@ -52,7 +52,7 @@ bun run lint:check
 - `.env.local`, `.env.runtime`, and `.env.ci` are unsupported in this repo.
 - Starting the Docker stack is destructive for local database state by design because `db-setup` pushes schema and resets/seeds the Docker database on every start.
 - `bun run test:e2e:ui` opens unrestricted Playwright UI mode so you can choose projects and tests interactively.
-- Docker Compose does not load repo dotenv files directly; local scripts preload the environment with `dotenv -c dev` before invoking Compose.
+- Local Docker scripts preload the environment with `dotenv -c dev` before invoking Compose.
 
 ## Runtime Environment Precedence
 
