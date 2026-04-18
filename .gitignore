@@ -1,0 +1,66 @@
+# See https://docs.github.com/get-started/getting-started-with-git/ignoring-files for more about ignoring files.
+
+# Compiled output
+/dist
+/tmp
+/out-tsc
+/bazel-out
+
+# Node
+/node_modules
+npm-debug.log
+yarn-error.log
+bun.lockb
+
+# IDEs and editors
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+
+# Visual Studio Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.history/*
+
+# Miscellaneous
+/.angular/cache
+.sass-cache/
+/connect.lock
+/coverage
+/libpeerconnection.log
+testem.log
+/typings
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Secrets
+.env*
+!.env.dev.local
+!.env.example
+!.env.template
+.neon_local/
+
+# Playwright
+/test-results/
+/playwright-report/
+/playwright/.cache/
+/e2e/.auth
+/tests/.auth
+.e2e-runtime.json
+.playwright-cli
+
+# windsurf rules
+.windsurfrules
+
+# Sentry Config File
+.sentryclirc
+
+repomix-output.md

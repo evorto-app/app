@@ -1,0 +1,155 @@
+<div class="mb-4 flex flex-row items-center gap-2">
+  <a routerLink="/templates" mat-icon-button class="lg:hidden! block">
+    <fa-duotone-icon [icon]="faArrowLeft" />
+  </a>
+  @if (templateQuery.data(); as template) {
+    <app-icon [iconCommonName]="template.icon" size="28" />
+    <h1 class="title-large">
+      {{ template.title }}
+    </h1>
+  } @else {
+    <h1 class="title-large">
+      Loading ...
+    </h1>
+  }
+  <div class="grow"></div>
+  <button
+    title="menu"
+    mat-icon-button
+    [matMenuTriggerFor]="menu"
+    class="lg:hidden! block"
+  >
+    <fa-duotone-icon [icon]="faEllipsisVertical" />
+  </button>
+  <mat-menu #menu="matMenu">
+    <a mat-menu-item routerLink="edit">Edit template</a>
+  </mat-menu>
+  <button mat-button routerLink="edit" class="hidden! lg:block!">
+    Edit template
+  </button>
+</div>
+
+@if (templateQuery.isError()) {
+  <p>Error: {{ errorMessage(templateQuery.error()) }}</p>
+} @else if (templateQuery.isSuccess()) {
+  <a mat-fab extended routerLink="create-event" class="fab-fixed">
+    <fa-duotone-icon [icon]="faPlus" />
+    Create event
+  </a>
+
+  <div class="flex flex-col gap-4">
+    <section class="bg-surface text-on-surface rounded-2xl p-4">
+      <div
+        class="prose dark:prose-invert max-w-none"
+        [innerHTML]="templateQuery.data().description"
+      ></div>
+    </section>
+
+    <section class="bg-surface text-on-surface rounded-2xl p-4">
+      <h2 class="mb-6 text-lg font-semibold">Additional configuration</h2>
+      @if (templateQuery.data().location) {
+        <div>Location: {{ templateQuery.data().location?.name }}</div>
+      }
+    </section>
+
+    <section
+      class="bg-surface-container-high text-on-surface-container-high rounded-2xl p-4"
+    >
+      <h2 class="mb-6 text-lg font-semibold">Registration Options</h2>
+
+      <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        @for (
+          option of templateQuery.data().registrationOptions;
+          track option.id
+        ) {
+          <div
+            class="bg-surface text-on-surface flex flex-col gap-4 rounded-xl p-4"
+          >
+            <div class="flex items-center gap-2">
+              <h3 class="text-lg font-medium">{{ option.title }}</h3>
+              <div
+                class="bg-primary-container flex items-center gap-1 rounded px-2 py-0.5 text-sm"
+              >
+                <span>{{ option.spots }}</span>
+                <span>spots</span>
+              </div>
+            </div>
+
+            <div class="grid gap-3">
+              <div class="flex flex-col">
+                <span class="text-on-surface-variant text-sm">
+                  Registration
+                </span>
+                <div class="flex items-center gap-1">
+                  <span class="font-medium">{{
+                    option.registrationMode | titlecase
+                  }}</span>
+                  <span class="text-on-surface-variant">·</span>
+                  @if (option.isPaid) {
+                    <span>{{ option.price / 100 | currency }}</span>
+                    @if (
+                      taxRatesQuery.isSuccess() &&
+                        findRateByStripeId(option.stripeTaxRateId);
+                      as rate
+                    ) {
+                      <span class="text-on-surface-variant">·</span>
+                      <span class="text-on-surface-variant">
+                        Incl. {{ rate.percentage }}%
+                        {{ rate.displayName || "Tax" }}
+                      </span>
+                    }
+                  } @else {
+                    <span>Free</span>
+                  }
+                </div>
+              </div>
+
+              <div class="grid gap-3">
+                <div class="flex flex-col">
+                  <span class="text-on-surface-variant text-sm">
+                    Allowed roles
+                  </span>
+                  <mat-chip-set role="list">
+                    @for (role of option.roles; track role.id) {
+                      <mat-chip role="listitem">{{ role.name }}</mat-chip>
+                    }
+                  </mat-chip-set>
+                </div>
+              </div>
+
+              <div class="flex flex-col">
+                <span class="text-on-surface-variant text-sm">Timeline</span>
+                <div class="flex flex-col gap-1">
+                  <div class="flex items-center gap-2">
+                    <fa-duotone-icon
+                      [icon]="faClock"
+                      class="text-on-surface-variant text-sm"
+                    />
+                    <span>
+                      Opens
+                      {{
+                        option.openRegistrationOffset | registrationStartOffset
+                      }}
+                    </span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <fa-duotone-icon
+                      [icon]="faClockFour"
+                      class="text-on-surface-variant text-sm"
+                    />
+                    <span>
+                      Closes
+                      {{
+                        option.closeRegistrationOffset | registrationStartOffset
+                      }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        }
+      </div>
+    </section>
+  </div>
+}

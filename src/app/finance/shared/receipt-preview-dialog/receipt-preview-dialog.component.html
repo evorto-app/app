@@ -1,0 +1,31 @@
+<h2 mat-dialog-title>{{ data.attachmentFileName }}</h2>
+<mat-dialog-content class="max-h-[80vh]">
+  @if (isImage()) {
+    <img
+      [src]="data.previewUrl"
+      [alt]="data.attachmentFileName"
+      class="max-h-[70vh] w-full rounded-xl object-contain"
+    />
+  } @else if (isPdf()) {
+    <iframe
+      [src]="safePdfPreviewUrl()"
+      title="Receipt preview"
+      class="h-[70vh] w-full rounded-xl border border-outline-variant"
+    ></iframe>
+  } @else {
+    <p class="text-on-surface-variant text-sm">
+      Preview is not supported for this file type.
+    </p>
+  }
+</mat-dialog-content>
+<mat-dialog-actions align="end">
+  <a
+    mat-stroked-button
+    [href]="data.previewUrl"
+    target="_blank"
+    rel="noopener noreferrer"
+  >
+    Open in new tab
+  </a>
+  <button mat-button mat-dialog-close>Close</button>
+</mat-dialog-actions>
