@@ -9,6 +9,7 @@
 
 [branches]
 main = "main"
+perennial-regex = "^entire/.*"
 
 [hosting]
 forge-type = "github"
