@@ -1,0 +1,68 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "538cf3e11f09",
+  "session_id": "019d9ffb-4d91-79a1-9cfb-7128aaee13b6",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-18T19:06:40.57402Z",
+  "branch": "main",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "bun.lock",
+    "package.json",
+    "src/db/database.layer.ts",
+    "src/server/context/http-request-context.ts"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.4",
+  "turn_id": "806f98b3e5a3",
+  "token_usage": {
+    "input_tokens": 24289527,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 23102336,
+    "output_tokens": 165584,
+    "api_call_count": 220
+  },
+  "session_metrics": {
+    "turn_count": 12
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-18T19:06:40.501989Z",
+    "agent_lines": 0,
+    "agent_removed": 0,
+    "human_added": 22,
+    "human_modified": 444,
+    "human_removed": 0,
+    "total_committed": 22,
+    "total_lines_changed": 466,
+    "agent_percentage": 0,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 466,
+      "user_lines_removed": 444,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        "bun.lock": 414,
+        "package.json": 42,
+        "src/db/database.layer.ts": 8,
+        "src/server/context/http-request-context.ts": 2
+      },
+      "user_removed_per_file": {
+        "bun.lock": 394,
+        "package.json": 42,
+        "src/db/database.layer.ts": 6,
+        "src/server/context/http-request-context.ts": 2
+      }
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 466,
+      "agent_lines_removed": 444
+    }
+  ]
+}
