@@ -1,0 +1,56 @@
+@let form = generalForm();
+<div class="grid gap-4">
+  <div class="grid grid-cols-1 gap-4 lg:grid-cols-[auto_1fr]">
+    <app-icon-selector-field [formField]="form.icon" />
+
+    <mat-form-field>
+      <mat-label>Event title</mat-label>
+      <input matInput [formField]="form.title" />
+    </mat-form-field>
+  </div>
+
+  <app-location-selector-field [formField]="form.location" />
+
+  <div class="flex flex-col gap-2">
+    <span class="text-on-surface-variant text-sm">Description</span>
+    <app-editor [control]="form.description" />
+  </div>
+
+  <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
+    <mat-form-field>
+      <mat-label>Start date</mat-label>
+      <input
+        matInput
+        [matDatepicker]="startDatePicker"
+        [formField]="form.start"
+      />
+      <mat-hint>MM/DD/YYYY</mat-hint>
+      <mat-datepicker-toggle matIconSuffix [for]="startDatePicker" />
+      <mat-datepicker #startDatePicker />
+    </mat-form-field>
+    <mat-form-field>
+      <mat-label>Start time</mat-label>
+      <input
+        matInput
+        [matTimepicker]="startTimePicker"
+        [formField]="form.start"
+      />
+      <mat-timepicker #startTimePicker />
+      <mat-timepicker-toggle matSuffix [for]="startTimePicker" />
+    </mat-form-field>
+
+    <mat-form-field>
+      <mat-label>End date</mat-label>
+      <input matInput [matDatepicker]="endDatePicker" [formField]="form.end" />
+      <mat-hint>MM/DD/YYYY</mat-hint>
+      <mat-datepicker-toggle matIconSuffix [for]="endDatePicker" />
+      <mat-datepicker #endDatePicker />
+    </mat-form-field>
+    <mat-form-field>
+      <mat-label>End time</mat-label>
+      <input matInput [matTimepicker]="endTimePicker" [formField]="form.end" />
+      <mat-timepicker #endTimePicker />
+      <mat-timepicker-toggle matSuffix [for]="endTimePicker" />
+    </mat-form-field>
+  </div>
+</div>

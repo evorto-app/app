@@ -1,0 +1,28 @@
+<div class="space-y-4">
+  <div class="flex items-center space-x-4">
+    <a [routerLink]="['..']" mat-icon-button>
+      <fa-icon [icon]="faArrowLeft" />
+    </a>
+    <h1 class="text-2xl font-medium">Edit Role</h1>
+  </div>
+
+  @if (roleQuery.isPending()) {
+    <div
+      class="bg-surface text-on-surface flex animate-pulse cursor-progress flex-col gap-2 rounded-2xl p-4"
+    >
+      <h2 class="title-medium">Loading ...</h2>
+    </div>
+  } @else if (roleQuery.isError()) {
+    <p>Error: {{ errorMessage(roleQuery.error()) }}</p>
+  } @else if (roleQuery.isSuccess()) {
+    <div
+      class="bg-surface-container-low text-on-surface-container-low flex flex-col gap-4 rounded-2xl p-4"
+    >
+      <app-role-form
+        [roleForm]="roleForm"
+        [isSubmitting]="updateRoleMutation.isPending()"
+        (formSubmit)="onSubmit($event)"
+      />
+    </div>
+  }
+</div>

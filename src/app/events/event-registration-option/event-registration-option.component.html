@@ -1,0 +1,90 @@
+<div
+  class="flex flex-col gap-2 rounded-2xl bg-surface p-4 text-on-surface {{
+    registrationMutation.isPending()
+      ? 'animate-pulse cursor-progress pointer-events-none'
+      : ''
+  }}"
+>
+  <div class="flex flex-row items-center gap-4">
+    <h3 class="title-medium">{{ registrationOption().title }}</h3>
+    @if (registrationOption().isPaid) {
+      <div class="grow"></div>
+      <div class="flex flex-col items-end gap-1">
+        <p class="title-small">
+          {{
+            (registrationOption().effectivePrice ??
+              registrationOption().price) / 100 | currency
+          }}
+        </p>
+        @if (registrationOption().discountApplied) {
+          <p class="text-on-surface-variant text-xs line-through">
+            {{ registrationOption().price / 100 | currency }}
+          </p>
+          <p class="text-primary text-xs">ESNcard discount applied</p>
+        }
+      </div>
+    }
+  </div>
+
+  <div
+    class="prose dark:prose-invert max-w-none"
+    [innerHTML]="registrationOption().description"
+  ></div>
+
+  @if (authenticationQuery.data()) {
+    @switch (registrationOpen()) {
+      @case ("open") {
+        @if (registrationOption().isPaid) {
+          <button
+            (click)="register(registrationOption())"
+            mat-flat-button
+            [disabled]="registrationMutation.isPending()"
+          >
+            Pay
+            {{
+              (registrationOption().effectivePrice ??
+                registrationOption().price) / 100 | currency
+            }}
+            and register
+          </button>
+        } @else {
+          <button
+            (click)="register(registrationOption())"
+            mat-flat-button
+            [disabled]="registrationMutation.isPending()"
+          >
+            Register
+          </button>
+        }
+      }
+      @case ("tooEarly") {
+        <p class="body-large">
+          Registration is not open yet, it will open
+          {{ registrationOption().openRegistrationTime | date: "medium" }}
+        </p>
+      }
+      @case ("tooLate") {
+        <p class="body-large">
+          Registration is closed, it closed
+          {{ registrationOption().closeRegistrationTime | date: "medium" }}
+        </p>
+      }
+    }
+  } @else {
+    <p class="body-large">You can only register after logging in</p>
+    <a
+      href="/forward-login?redirectUrl=/events/{{
+        registrationOption().eventId
+      }}"
+      mat-flat-button
+    >
+      Log in now
+    </a>
+  }
+</div>
+@if (registrationMutation.isError()) {
+  <div class="bg-error text-on-error mt-4 flex flex-col gap-2 rounded-2xl p-4">
+    <h3 class="title-medium">Registration failed</h3>
+    <p>{{ errorMessage(registrationMutation.error()) }}</p>
+  </div>
+}

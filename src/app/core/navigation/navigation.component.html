@@ -1,0 +1,207 @@
+<div
+  class="navigation z-5 bg-surface-container-highest text-on-surface-container-highest lg:text-on-surface-container lg:pt-18 fixed bottom-0 flex w-screen flex-row justify-around gap-2 pb-4 pt-3 lg:bottom-0 lg:left-0 lg:top-0 lg:w-20 lg:flex-col lg:justify-start lg:gap-4 lg:bg-inherit lg:bg-transparent lg:px-2 lg:text-inherit"
+>
+  <a routerLink="/events" class="flex flex-col items-center gap-1">
+    <div
+      class="flex min-w-16 flex-row justify-center rounded-full py-1"
+      routerLinkActive="bg-secondary-container text-on-secondary-container navigation-active"
+    >
+      <fa-duotone-icon [icon]="faCalendarDays" size="xl" />
+    </div>
+    <span class="body-medium text-center">Events</span>
+  </a>
+  <a
+    routerLink="/templates"
+    class="flex flex-col items-center gap-1"
+    *appIfPermission="'templates:*'"
+  >
+    <div
+      class="flex min-w-16 flex-row justify-center rounded-full py-1"
+      routerLinkActive="bg-secondary-container text-on-secondary-container navigation-active"
+    >
+      <fa-duotone-icon [icon]="faFolders" size="xl" />
+    </div>
+    <span class="body-medium text-center">Templates</span>
+  </a>
+  @if (authenticationQuery.data()) {
+    <a routerLink="/profile" class="flex flex-col items-center gap-1">
+      <div
+        class="flex min-w-16 flex-row justify-center rounded-full py-1"
+        routerLinkActive="bg-secondary-container text-on-secondary-container navigation-active"
+      >
+        <fa-duotone-icon [icon]="faUser" size="xl" />
+      </div>
+      <span class="body-medium text-center">Profile</span>
+    </a>
+  } @else {
+    <a href="/login" class="flex flex-col items-center gap-1 lg:hidden">
+      <div class="flex min-w-16 flex-row justify-center rounded-full py-1">
+        <fa-duotone-icon [icon]="faRightToBracket" size="xl" />
+      </div>
+      <span class="body-medium text-center">Login</span>
+    </a>
+  }
+  <a
+    routerLink="/internal"
+    class="hidden flex-col items-center gap-1 lg:flex"
+    *appIfPermission="'internal:viewInternalPages'"
+  >
+    <div
+      class="flex min-w-16 flex-row justify-center rounded-full py-1"
+      routerLinkActive="bg-secondary-container text-on-secondary-container navigation-active"
+    >
+      <fa-duotone-icon [icon]="faHouseChimney" size="xl" />
+    </div>
+    <span class="body-medium text-center">Internal</span>
+  </a>
+  <a
+    routerLink="/global-admin"
+    *appIfPermission="'globalAdmin:*'"
+    class="hidden flex-col items-center gap-1 lg:flex"
+  >
+    <div
+      class="flex min-w-16 flex-row justify-center rounded-full py-1"
+      routerLinkActive="bg-secondary-container text-on-secondary-container navigation-active"
+    >
+      <fa-duotone-icon [icon]="faLockKeyhole" size="xl" />
+    </div>
+    <span class="body-medium text-center">Global admin</span>
+  </a>
+  <a
+    routerLink="/finance"
+    class="hidden flex-col items-center gap-1 lg:flex"
+    *appIfPermission="'finance:*'"
+  >
+    <div
+      class="flex min-w-16 flex-row justify-center rounded-full py-1"
+      routerLinkActive="bg-secondary-container text-on-secondary-container navigation-active"
+    >
+      <fa-duotone-icon [icon]="faMoneyBill" size="xl" />
+    </div>
+    <span class="body-medium text-center">Finances</span>
+  </a>
+  <a
+    routerLink="/admin"
+    class="hidden flex-col items-center gap-1 lg:flex"
+    *appIfPermission="'admin:*'"
+  >
+    <div
+      class="flex min-w-16 flex-row justify-center rounded-full py-1"
+      routerLinkActive="bg-secondary-container text-on-secondary-container navigation-active"
+    >
+      <fa-duotone-icon [icon]="faFolderGear" size="xl" />
+    </div>
+    <span class="body-medium text-center">Admin Tools</span>
+  </a>
+  <button
+    title="menu"
+    (click)="openSheet()"
+    class="flex flex-col items-center gap-1 lg:hidden"
+    *appIfPermission="'admin:*'"
+  >
+    <div class="flex min-w-16 flex-row justify-center rounded-full py-1">
+      <fa-duotone-icon [icon]="faEllipsisVertical" size="xl" />
+    </div>
+    <span class="body-medium text-center">More</span>
+  </button>
+  <div class="hidden grow lg:block"></div>
+
+  <a routerLink="/scan" class="hidden flex-col items-center gap-1 lg:flex">
+    <div
+      class="flex min-w-16 flex-row justify-center rounded-full py-1"
+      routerLinkActive="bg-secondary-container text-on-secondary-container navigation-active"
+    >
+      <fa-duotone-icon [icon]="faScannerGun" size="xl" />
+    </div>
+    <span class="body-medium text-center">Scanner</span>
+  </a>
+  @if (authenticationQuery.data()) {
+    <a href="/logout" class="hidden flex-col items-center gap-1 lg:flex">
+      <div class="flex min-w-16 flex-row justify-center rounded-full py-1">
+        <fa-duotone-icon [icon]="faRightFromBracket" size="xl" />
+      </div>
+      <span class="body-medium text-center">Logout</span>
+    </a>
+  } @else {
+    <a href="/login" class="hidden flex-col items-center gap-1 lg:flex">
+      <div class="flex min-w-16 flex-row justify-center rounded-full py-1">
+        <fa-duotone-icon [icon]="faRightToBracket" size="xl" />
+      </div>
+      <span class="body-medium text-center">Login</span>
+    </a>
+  }
+</div>
+<div class="h-24 w-full lg:hidden"></div>
+<ng-template #navigationSheet>
+  <div class="flex w-full flex-row justify-around gap-2 pb-4 pt-3">
+    <a
+      routerLink="/global-admin"
+      *appIfPermission="'globalAdmin:*'"
+      class="flex flex-col items-center gap-1"
+      (click)="closeSheet()"
+    >
+      <div
+        class="flex min-w-16 flex-row justify-center rounded-full py-1"
+        routerLinkActive="bg-secondary-container text-on-secondary-container"
+      >
+        <fa-duotone-icon [icon]="faLockKeyhole" size="xl" />
+      </div>
+      <span class="body-medium text-center">Global admin</span>
+    </a>
+    <a
+      routerLink="/scan"
+      class="flex flex-col items-center gap-1"
+      (click)="closeSheet()"
+    >
+      <div
+        class="flex min-w-16 flex-row justify-center rounded-full py-1"
+        routerLinkActive="bg-secondary-container text-on-secondary-container"
+      >
+        <fa-duotone-icon [icon]="faScannerGun" size="xl" />
+      </div>
+      <span class="body-medium text-center">Scanner</span>
+    </a>
+    <a
+      routerLink="/finance"
+      class="flex flex-col items-center gap-1"
+      (click)="closeSheet()"
+      *appIfPermission="'finance:*'"
+    >
+      <div
+        class="flex min-w-16 flex-row justify-center rounded-full py-1"
+        routerLinkActive="bg-secondary-container text-on-secondary-container"
+      >
+        <fa-duotone-icon [icon]="faMoneyBill" size="xl" />
+      </div>
+      <span class="body-medium text-center">Finances</span>
+    </a>
+    <a
+      routerLink="/internal"
+      class="flex flex-col items-center gap-1"
+      (click)="closeSheet()"
+      *appIfPermission="'internal:viewInternalPages'"
+    >
+      <div
+        class="flex min-w-16 flex-row justify-center rounded-full py-1"
+        routerLinkActive="bg-secondary-container text-on-secondary-container"
+      >
+        <fa-duotone-icon [icon]="faHouseChimney" size="xl" />
+      </div>
+      <span class="body-medium text-center">Internal</span>
+    </a>
+    <a
+      routerLink="/admin"
+      class="flex flex-col items-center gap-1"
+      (click)="closeSheet()"
+      *appIfPermission="'admin:*'"
+    >
+      <div
+        class="flex min-w-16 flex-row justify-center rounded-full py-1"
+        routerLinkActive="bg-secondary-container text-on-secondary-container"
+      >
+        <fa-duotone-icon [icon]="faFolderGear" size="xl" />
+      </div>
+      <span class="body-medium text-center">Admin Tools</span>
+    </a>
+  </div>
+</ng-template>

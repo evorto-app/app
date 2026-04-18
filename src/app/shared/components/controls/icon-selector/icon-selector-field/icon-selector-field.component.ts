@@ -1,0 +1,53 @@
+import type { IconValue } from '@shared/types/icon';
+
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  input,
+  model,
+} from '@angular/core';
+import { FormValueControl } from '@angular/forms/signals';
+import { MatButtonModule } from '@angular/material/button';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+import { firstValueFrom } from 'rxjs';
+
+import { IconComponent } from '../../../icon/icon.component';
+import { IconSelectorDialogComponent } from '../icon-selector-dialog/icon-selector-dialog.component';
+
+@Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [IconComponent, MatButtonModule, MatDialogModule],
+  selector: 'app-icon-selector-field',
+  styles: ``,
+  templateUrl: './icon-selector-field.component.html',
+})
+export class IconSelectorFieldComponent implements FormValueControl<IconValue | null> {
+  readonly disabled = input<boolean>(false);
+  readonly hidden = input<boolean>(false);
+  readonly invalid = input<boolean>(false);
+  readonly readonly = input<boolean>(false);
+  readonly touched = model<boolean>(false);
+  readonly value = model<IconValue | null>(
+    null,
+  );
+  protected readonly showError = computed(
+    () => this.touched() && this.invalid(),
+  );
+
+  private dialog = inject(MatDialog);
+
+  async openSelectionDialog() {
+    if (this.disabled() || this.readonly()) return;
+    const icon = await firstValueFrom(
+      this.dialog
+        .open(IconSelectorDialogComponent, { minWidth: '70dvw' })
+        .afterClosed(),
+    );
+    this.touched.set(true);
+    if (icon) {
+      this.value.set(icon);
+    }
+  }
+}
