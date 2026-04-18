@@ -5,8 +5,7 @@ import { nonEmptyTrimmedString, optionalTrimmedString } from './config-string';
 
 const DEFAULT_TEST_CLOCK_ISO = '2026-02-01T12:00:00.000Z';
 const DEFAULT_TEST_SEED_KEY = 'evorto-e2e-default-v1';
-
-export type E2EMode = 'baseline' | 'integration';
+const INTEGRATION_PROJECT_NAMES = ['docs-integration'] as const;
 
 export const testRuntimeConfigState = Config.all({
   AUTH0_MANAGEMENT_CLIENT_ID: optionalTrimmedString(
@@ -41,18 +40,6 @@ export const testRuntimeConfigState = Config.all({
         onNone: () => path.resolve('test-results/docs'),
         onSome: (outputDirectory) => outputDirectory,
       }),
-    ),
-  ),
-  E2E_MODE: Config.literal(
-    'baseline',
-    'integration',
-    'BASELINE',
-    'INTEGRATION',
-  )('E2E_MODE').pipe(
-    Config.withDefault('baseline'),
-    Config.map(
-      (mode): E2EMode =>
-        mode === 'BASELINE' || mode === 'baseline' ? 'baseline' : 'integration',
     ),
   ),
   E2E_NOW_ISO: optionalTrimmedString('E2E_NOW_ISO').pipe(
@@ -152,11 +139,79 @@ const collectMissingFieldErrors = (
     )
     .filter((value): value is ConfigError.ConfigError => value !== undefined);
 
-const validateCiEnvironment = (state: TestRuntimeConfigState) => {
+const matchesProjectPattern = (pattern: string, projectName: string) => {
+  const escapedPattern = pattern.replaceAll(/[|\\{}()[\]^$+?.]/g, String.raw`\$&`);
+  const projectPattern = new RegExp(
+    `^${escapedPattern.replaceAll('*', '.*')}$`,
+    'u',
+  );
+  return projectPattern.test(projectName);
+};
+
+const resolveRequestedProjectNames = (argv: readonly string[]) => {
+  const requestedProjectNames: string[] = [];
+
+  for (let index = 0; index < argv.length; index += 1) {
+    const argument = argv[index];
+    if (!argument) {
+      continue;
+    }
+
+    if (argument === '--project') {
+      const nextArgument = argv[index + 1];
+      if (!nextArgument) {
+        continue;
+      }
+
+      requestedProjectNames.push(
+        ...nextArgument.split(',').map((projectName) => projectName.trim()),
+      );
+      index += 1;
+      continue;
+    }
+
+    if (argument.startsWith('--project=')) {
+      requestedProjectNames.push(
+        ...argument
+          .slice('--project='.length)
+          .split(',')
+          .map((projectName) => projectName.trim()),
+      );
+    }
+  }
+
+  return requestedProjectNames.filter((projectName) => projectName.length > 0);
+};
+
+export const requiresIntegrationOnlyPlaywrightEnvironment = (
+  argv: readonly string[] = process.argv,
+) => {
+  if (argv.includes('--ui')) {
+    return false;
+  }
+
+  const requestedProjectNames = resolveRequestedProjectNames(argv);
+  if (requestedProjectNames.length === 0) {
+    return true;
+  }
+
+  return requestedProjectNames.some((requestedProjectName) =>
+    INTEGRATION_PROJECT_NAMES.some((integrationProjectName) =>
+      matchesProjectPattern(requestedProjectName, integrationProjectName),
+    ),
+  );
+};
+
+const validateCiEnvironment = (
+  state: TestRuntimeConfigState,
+  argv: readonly string[] = process.argv,
+) => {
   if (!state.CI) {
     return Effect.void;
   }
 
+  const requiresIntegrationEnvironment =
+    requiresIntegrationOnlyPlaywrightEnvironment(argv);
   const errors = collectMissingFieldErrors([
     ['S3_ACCESS_KEY_ID', Option.isSome(state.S3_ACCESS_KEY_ID)],
     ['S3_BUCKET', Option.isSome(state.S3_BUCKET)],
@@ -166,27 +221,27 @@ const validateCiEnvironment = (state: TestRuntimeConfigState) => {
     ['STRIPE_TEST_ACCOUNT_ID', Option.isSome(state.STRIPE_TEST_ACCOUNT_ID)],
     [
       'AUTH0_MANAGEMENT_CLIENT_ID',
-      state.E2E_MODE === 'baseline' ||
+      !requiresIntegrationEnvironment ||
         Option.isSome(state.AUTH0_MANAGEMENT_CLIENT_ID),
     ],
     [
       'AUTH0_MANAGEMENT_CLIENT_SECRET',
-      state.E2E_MODE === 'baseline' ||
+      !requiresIntegrationEnvironment ||
         Option.isSome(state.AUTH0_MANAGEMENT_CLIENT_SECRET),
     ],
     [
       'CLOUDFLARE_ACCOUNT_ID',
-      state.E2E_MODE === 'baseline' ||
+      !requiresIntegrationEnvironment ||
         Option.isSome(state.CLOUDFLARE_ACCOUNT_ID),
     ],
     [
       'CLOUDFLARE_IMAGES_API_TOKEN',
-      state.E2E_MODE === 'baseline' ||
+      !requiresIntegrationEnvironment ||
         Option.isSome(state.CLOUDFLARE_IMAGES_API_TOKEN),
     ],
     [
       'CLOUDFLARE_IMAGES_DELIVERY_HASH',
-      state.E2E_MODE === 'baseline' ||
+      !requiresIntegrationEnvironment ||
         Option.isSome(state.CLOUDFLARE_IMAGES_DELIVERY_HASH),
     ],
   ]);
@@ -196,9 +251,12 @@ const validateCiEnvironment = (state: TestRuntimeConfigState) => {
     : Effect.void;
 };
 
-export const playwrightEnvironmentConfig = Effect.gen(function* () {
+export const makePlaywrightEnvironmentConfig = (
+  argv: readonly string[] = process.argv,
+) =>
+  Effect.gen(function* () {
   const state = yield* testRuntimeConfigState;
-  yield* validateCiEnvironment(state);
+  yield* validateCiEnvironment(state, argv);
 
   const errors = [
     Option.isSome(state.BASE_URL) ? undefined : missingFieldError('BASE_URL'),
@@ -264,6 +322,8 @@ export const playwrightEnvironmentConfig = Effect.gen(function* () {
     STRIPE_WEBHOOK_SECRET: stripeWebhookSecret,
   } satisfies PlaywrightEnvironment;
 });
+
+export const playwrightEnvironmentConfig = makePlaywrightEnvironmentConfig();
 
 export const hasAuth0ManagementEnvironment = testRuntimeConfigState.pipe(
   Effect.map(

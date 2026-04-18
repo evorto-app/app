@@ -51,7 +51,7 @@ bun run lint:check
 - `.env` is the untracked developer-secrets file.
 - `.env.local`, `.env.runtime`, and `.env.ci` are unsupported in this repo.
 - Starting the Docker stack is destructive for local database state by design because `db-setup` pushes schema and resets/seeds the Docker database on every start.
-- `bun run test:e2e:ui` pre-runs the Playwright `setup` project before opening UI mode because Playwright UI does not reliably honor the repo's setup dependency chain.
+- `bun run test:e2e:ui` opens unrestricted Playwright UI mode so you can choose projects and tests interactively.
 - Docker Compose does not load repo dotenv files directly; local scripts preload the environment with `dotenv -c dev` before invoking Compose.
 
 ## Runtime Environment Precedence
@@ -99,8 +99,9 @@ Playwright separates external-service coverage with dedicated projects:
 - integration-only:
   - `docs-integration`
 
-`E2E_MODE=baseline` is the default.
-`E2E_MODE=integration` is required when running integration-only projects so runtime validation demands the extra external-service credentials.
+CI infers whether integration-only credentials are required from the selected Playwright projects.
+If you select `docs-integration`, CI/runtime validation demands the extra external-service credentials.
+UI mode is intentionally unrestricted and does not force integration-only credentials at startup.
 
 Integration-only coverage is tagged at the test-title level:
 

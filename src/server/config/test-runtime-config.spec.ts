@@ -2,10 +2,16 @@ import { describe, expect, it } from '@effect/vitest';
 import { ConfigError, ConfigProvider, Effect } from 'effect';
 
 import { formatConfigError } from './config-error';
-import { playwrightEnvironmentConfig } from './test-runtime-config';
+import {
+  makePlaywrightEnvironmentConfig,
+  requiresIntegrationOnlyPlaywrightEnvironment,
+} from './test-runtime-config';
 
-const readPlaywrightEnvironment = (provider: ConfigProvider.ConfigProvider) =>
-  playwrightEnvironmentConfig.pipe(
+const readPlaywrightEnvironment = (
+  provider: ConfigProvider.ConfigProvider,
+  argv?: readonly string[],
+) =>
+  makePlaywrightEnvironmentConfig(argv).pipe(
     Effect.withConfigProvider(provider),
     Effect.mapError(
       (error: ConfigError.ConfigError) =>
@@ -27,19 +33,47 @@ const requiredPlaywrightEntries = [
 ] as const;
 
 describe('test-runtime-config', () => {
-  it.effect('defaults E2E_MODE to baseline', () =>
-    Effect.gen(function* () {
-    const provider = ConfigProvider.fromMap(
-      new Map([
-        ...requiredPlaywrightEntries,
-        ['BASE_URL', 'http://localhost:4200'],
+  it('treats UI mode as unrestricted for integration-only credentials', () => {
+    expect(
+      requiresIntegrationOnlyPlaywrightEnvironment([
+        'node',
+        'playwright',
+        'test',
+        '--ui',
       ]),
-    );
-    const environment = yield* readPlaywrightEnvironment(provider);
+    ).toBe(false);
+  });
 
-    expect(environment.E2E_MODE).toBe('baseline');
-    })
-  );
+  it('treats explicitly selected baseline projects as baseline-only', () => {
+    expect(
+      requiresIntegrationOnlyPlaywrightEnvironment([
+        'node',
+        'playwright',
+        'test',
+        '--project=local-chrome-baseline',
+      ]),
+    ).toBe(false);
+    expect(
+      requiresIntegrationOnlyPlaywrightEnvironment([
+        'node',
+        'playwright',
+        'test',
+        '--project',
+        'docs-baseline',
+      ]),
+    ).toBe(false);
+  });
+
+  it('treats integration project selection as requiring integration credentials', () => {
+    expect(
+      requiresIntegrationOnlyPlaywrightEnvironment([
+        'node',
+        'playwright',
+        'test',
+        '--project=docs-integration',
+      ]),
+    ).toBe(true);
+  });
 
   it.effect('requires BASE_URL and ignores PLAYWRIGHT_TEST_BASE_URL', () =>
     Effect.gen(function* () {
@@ -57,76 +91,86 @@ describe('test-runtime-config', () => {
 
   it.effect('accepts BASE_URL as the canonical Playwright app URL', () =>
     Effect.gen(function* () {
-    const provider = ConfigProvider.fromMap(
-      new Map([
-        ...requiredPlaywrightEntries,
-        ['BASE_URL', 'http://localhost:4200'],
-      ]),
-    );
-    const environment = yield* readPlaywrightEnvironment(provider);
+      const provider = ConfigProvider.fromMap(
+        new Map([
+          ...requiredPlaywrightEntries,
+          ['BASE_URL', 'http://localhost:4200'],
+        ]),
+      );
+      const environment = yield* readPlaywrightEnvironment(provider);
 
-    expect(environment.NO_WEBSERVER).toBe(false);
-    expect(environment.BASE_URL).toBe('http://localhost:4200');
-    })
+      expect(environment.NO_WEBSERVER).toBe(false);
+      expect(environment.BASE_URL).toBe('http://localhost:4200');
+    }),
   );
 
   it.effect('still resolves BASE_URL when NO_WEBSERVER disables only auto-startup', () =>
     Effect.gen(function* () {
-    const provider = ConfigProvider.fromMap(
-      new Map([
-        ...requiredPlaywrightEntries,
-        ['BASE_URL', 'http://localhost:4200'],
-        ['NO_WEBSERVER', 'true'],
-      ]),
-    );
-    const environment = yield* readPlaywrightEnvironment(provider);
+      const provider = ConfigProvider.fromMap(
+        new Map([
+          ...requiredPlaywrightEntries,
+          ['BASE_URL', 'http://localhost:4200'],
+          ['NO_WEBSERVER', 'true'],
+        ]),
+      );
+      const environment = yield* readPlaywrightEnvironment(provider);
 
-    expect(environment.NO_WEBSERVER).toBe(true);
-    expect(environment.BASE_URL).toBe('http://localhost:4200');
-    })
+      expect(environment.NO_WEBSERVER).toBe(true);
+      expect(environment.BASE_URL).toBe('http://localhost:4200');
+    }),
   );
 
-  it.effect('does not require Auth0 Management or Cloudflare Images in CI baseline mode', () =>
+  it.effect('does not require Auth0 Management or Cloudflare Images in CI when only baseline projects are selected', () =>
     Effect.gen(function* () {
-    const provider = ConfigProvider.fromMap(
-      new Map([
-        ...requiredPlaywrightEntries,
-        ['BASE_URL', 'http://localhost:4200'],
-        ['CI', 'true'],
-        ['S3_ACCESS_KEY_ID', 'access-key'],
-        ['S3_BUCKET', 'bucket'],
-        ['S3_ENDPOINT', 'http://minio:9000'],
-        ['S3_REGION', 'us-east-1'],
-        ['S3_SECRET_ACCESS_KEY', 'secret-key'],
-      ]),
-    );
-    const environment = yield* readPlaywrightEnvironment(provider);
+      const provider = ConfigProvider.fromMap(
+        new Map([
+          ...requiredPlaywrightEntries,
+          ['BASE_URL', 'http://localhost:4200'],
+          ['CI', 'true'],
+          ['S3_ACCESS_KEY_ID', 'access-key'],
+          ['S3_BUCKET', 'bucket'],
+          ['S3_ENDPOINT', 'http://minio:9000'],
+          ['S3_REGION', 'us-east-1'],
+          ['S3_SECRET_ACCESS_KEY', 'secret-key'],
+        ]),
+      );
+      const environment = yield* readPlaywrightEnvironment(provider, [
+        'node',
+        'playwright',
+        'test',
+        '--project=local-chrome-baseline',
+      ]);
 
-    expect(environment.CI).toBe(true);
-    expect(environment.E2E_MODE).toBe('baseline');
-    })
+      expect(environment.CI).toBe(true);
+    }),
   );
 
-  it.effect('requires Auth0 Management and Cloudflare Images in CI integration mode', () =>
+  it.effect('requires Auth0 Management and Cloudflare Images in CI when an integration project is selected', () =>
     Effect.gen(function* () {
-    const provider = ConfigProvider.fromMap(
-      new Map([
-        ...requiredPlaywrightEntries,
-        ['BASE_URL', 'http://localhost:4200'],
-        ['CI', 'true'],
-        ['E2E_MODE', 'integration'],
-        ['S3_ACCESS_KEY_ID', 'access-key'],
-        ['S3_BUCKET', 'bucket'],
-        ['S3_ENDPOINT', 'http://minio:9000'],
-        ['S3_REGION', 'us-east-1'],
-        ['S3_SECRET_ACCESS_KEY', 'secret-key'],
-      ]),
-    );
+      const provider = ConfigProvider.fromMap(
+        new Map([
+          ...requiredPlaywrightEntries,
+          ['BASE_URL', 'http://localhost:4200'],
+          ['CI', 'true'],
+          ['S3_ACCESS_KEY_ID', 'access-key'],
+          ['S3_BUCKET', 'bucket'],
+          ['S3_ENDPOINT', 'http://minio:9000'],
+          ['S3_REGION', 'us-east-1'],
+          ['S3_SECRET_ACCESS_KEY', 'secret-key'],
+        ]),
+      );
 
-    const error = yield* Effect.flip(readPlaywrightEnvironment(provider));
-    expect(error.message).toMatch(
-      /AUTH0_MANAGEMENT_CLIENT_ID[\s\S]*CLOUDFLARE_ACCOUNT_ID|CLOUDFLARE_ACCOUNT_ID[\s\S]*AUTH0_MANAGEMENT_CLIENT_ID/,
-    );
-    })
+      const error = yield* Effect.flip(
+        readPlaywrightEnvironment(provider, [
+          'node',
+          'playwright',
+          'test',
+          '--project=docs-integration',
+        ]),
+      );
+      expect(error.message).toMatch(
+        /AUTH0_MANAGEMENT_CLIENT_ID[\s\S]*CLOUDFLARE_ACCOUNT_ID|CLOUDFLARE_ACCOUNT_ID[\s\S]*AUTH0_MANAGEMENT_CLIENT_ID/,
+      );
+    }),
   );
 });

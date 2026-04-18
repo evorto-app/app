@@ -203,3 +203,10 @@ For this repo, that means:
   - `.env.dev` = generated worktree overrides
 - Chosen repo policy: `.env.local` is unsupported and should not be used.
 - Chosen CI policy: no tracked CI dotenv file; GitHub Actions env is the only CI source of truth.
+
+
+---
+
+We should be able to get rid of the E2E_MODE variable and instead use the playwright projects. For the UI mode, there should be no restrictions as the UI allows selecting the correct tests to run.
+Also explain why we have the sh commands in our scripts and if we can remove them from our scripts.
+
