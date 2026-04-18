@@ -22,3 +22,8 @@ Also I don't think I like the way you moved the commands into typescript, I woul
 
 Read the following docs and prepare a solution for how we can massively simplify our env config while keeping the needed flexibility. I think we should be fine with -C dev. And then be able to name our files `.env` which is untracked and keeps actual secrets. `.env.dev` which includes non secret default config and `.env.dev.local` that includes only overrides for worktrees. In docker, we should not load the .env files but instead take needed things from the regular env and use the dotenv cli to load the files before executing docker commands. This should hopefully make our scripts much simpler and easier to understand
 In CI we should make use of githubs options to configure the environment to our needs as the dotenv cli will not override those.
+
+
+---
+
+We should make .env.dev.local the tracked default config and .env.dev the generated override, so that it is not needed in the main directory
