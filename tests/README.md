@@ -46,6 +46,7 @@ bun run lint
 - Stop the local runtime stack: `bun run docker:stop`
 - Local Docker runs use Neon Local instead of a plain Postgres container.
 - Docker Compose includes a one-shot `db-setup` service that runs the equivalent of `db:reset` before `evorto` starts.
+- The `evorto` container now requires `CLIENT_ID`, `CLIENT_SECRET`, `ISSUER_BASE_URL`, and `SECRET` to be non-empty when Compose renders the stack, so blank higher-precedence values fail fast instead of starting a broken app container.
 - `bun run env:runtime` generates `.env.dev`, the untracked worktree-local override file.
 - `.env.dev.local` is the tracked shared default dev config file.
 - `.env` is the untracked developer-secrets file.
