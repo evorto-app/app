@@ -11,3 +11,7 @@ I think if we format the entire repo now in the future it should not be a proble
 ---
 
 Commit the formatting separately
+
+---
+
+Please commit those changes too
