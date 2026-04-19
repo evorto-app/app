@@ -7,9 +7,7 @@ import { Config, Option } from 'effect';
 export const databaseConfig = Config.all({
   BRANCH_ID: optionalTrimmedString('BRANCH_ID'),
   DATABASE_URL: nonEmptyTrimmedString('DATABASE_URL'),
-  DELETE_BRANCH: Config.boolean('DELETE_BRANCH').pipe(
-    Config.withDefault(true),
-  ),
+  DELETE_BRANCH: Config.boolean('DELETE_BRANCH').pipe(Config.withDefault(true)),
   NEON_API_KEY: optionalTrimmedString('NEON_API_KEY'),
   NEON_DATABASE_NAME: optionalTrimmedString('NEON_DATABASE_NAME').pipe(
     Config.map((value) =>

@@ -1,9 +1,4 @@
-import {
-  Config,
-  ConfigError,
-  Effect,
-  Option,
-} from 'effect';
+import { Config, ConfigError, Effect, Option } from 'effect';
 
 import { missingFieldError } from './config-error';
 import { optionalTrimmedString } from './config-string';
@@ -36,9 +31,7 @@ export type CloudflareImagesConfigState = Config.Config.Success<
   typeof cloudflareImagesStateConfig
 >;
 
-const combineConfigErrors = (
-  errors: readonly ConfigError.ConfigError[],
-) => {
+const combineConfigErrors = (errors: readonly ConfigError.ConfigError[]) => {
   const [firstError, ...remainingErrors] = errors;
   if (!firstError) {
     throw new Error('Expected at least one Cloudflare Images config error');
@@ -52,10 +45,7 @@ const combineConfigErrors = (
   return combinedError;
 };
 
-const getRequiredConfigValue = <A>(
-  option: Option.Option<A>,
-  message: string,
-) =>
+const getRequiredConfigValue = <A>(option: Option.Option<A>, message: string) =>
   Option.match(option, {
     onNone: () => Effect.die(new Error(message)),
     onSome: (value) => Effect.succeed(value),

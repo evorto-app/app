@@ -30,9 +30,7 @@ import {
   serverNetworkConfig,
   serverTelemetryConfig,
 } from './server/config/server-config';
-import {
-  resolveHttpRequestContext,
-} from './server/context/http-request-context';
+import { resolveHttpRequestContext } from './server/context/http-request-context';
 import { toRpcHttpServerRequest } from './server/effect/rpc/app-rpcs.request-handler';
 import {
   appRpcHttpAppLayer,
@@ -450,9 +448,7 @@ export { requestHandler as reqHandler };
 
 const serveEffect = Effect.gen(function* () {
   const configuredDatabaseLayer = databaseLayer.pipe(
-    Layer.provide(
-      Layer.setConfigProvider(requestHandlerRuntimeConfigProvider),
-    ),
+    Layer.provide(Layer.setConfigProvider(requestHandlerRuntimeConfigProvider)),
   );
   const configuredServerConfig = serverNetworkConfig.pipe(
     Effect.withConfigProvider(requestHandlerRuntimeConfigProvider),

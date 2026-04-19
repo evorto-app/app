@@ -34,4 +34,6 @@ export const AdminTenantRpcError = Schema.Union(
   AdminTenantNotFoundError,
   RpcUnauthorizedError,
 );
-export type AdminTenantRpcError = Schema.Schema.Type<typeof AdminTenantRpcError>;
+export type AdminTenantRpcError = Schema.Schema.Type<
+  typeof AdminTenantRpcError
+>;

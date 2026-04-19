@@ -42,9 +42,15 @@ const withRpcContextHeaders = (
     RPC_CONTEXT_HEADERS.PERMISSIONS,
     encodeRpcContextHeaderJson(user?.permissions ?? []),
   );
-  headers.set(RPC_CONTEXT_HEADERS.USER, encodeRpcContextHeaderJson(user ?? null));
+  headers.set(
+    RPC_CONTEXT_HEADERS.USER,
+    encodeRpcContextHeaderJson(user ?? null),
+  );
   headers.set(RPC_CONTEXT_HEADERS.USER_ASSIGNED, user ? 'true' : 'false');
-  headers.set(RPC_CONTEXT_HEADERS.AUTH_DATA, encodeRpcContextHeaderJson(authData));
+  headers.set(
+    RPC_CONTEXT_HEADERS.AUTH_DATA,
+    encodeRpcContextHeaderJson(authData),
+  );
   headers.set(
     RPC_CONTEXT_HEADERS.TENANT,
     encodeRpcContextHeaderJson(context.tenant),
@@ -85,5 +91,7 @@ export const toRpcHttpServerRequest = (
 
     // Non-GET requests can only be read once; buffer before cloning.
     const body = yield* Effect.tryPromise(() => request.arrayBuffer());
-    return HttpServerRequest.fromWeb(toRequestWithHeaders(request, headers, body));
+    return HttpServerRequest.fromWeb(
+      toRequestWithHeaders(request, headers, body),
+    );
   });

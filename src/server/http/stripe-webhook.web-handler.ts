@@ -252,7 +252,8 @@ const markWebhookEventProcessed = (eventId: string) =>
 export const handleStripeWebhookWebRequest = (request: Request) =>
   Effect.gen(function* () {
     const stripe = yield* StripeClient;
-    const { STRIPE_WEBHOOK_SECRET: endpointSecret } = yield* stripeWebhookConfig;
+    const { STRIPE_WEBHOOK_SECRET: endpointSecret } =
+      yield* stripeWebhookConfig;
     const signature = request.headers.get('stripe-signature');
     if (!signature) {
       return responseText('No signature', 400);

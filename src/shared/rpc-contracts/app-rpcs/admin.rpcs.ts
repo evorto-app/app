@@ -5,10 +5,7 @@ import { Schema } from 'effect';
 
 import { Tenant } from '../../../types/custom/tenant';
 import { PermissionSchema } from '../../permissions/permissions';
-import {
-  AdminRoleRpcError,
-  AdminTenantRpcError,
-} from './admin.errors';
+import { AdminRoleRpcError, AdminTenantRpcError } from './admin.errors';
 
 export const AdminRoleRecord = Schema.Struct({
   collapseMembersInHup: Schema.Boolean,

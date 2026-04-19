@@ -1,17 +1,13 @@
 import type { Headers } from '@effect/platform';
 
-import {
-  RpcUnauthorizedError,
-} from '@shared/errors/rpc-errors';
+import { RpcUnauthorizedError } from '@shared/errors/rpc-errors';
 import { TemplateSimpleNotFoundError } from '@shared/rpc-contracts/app-rpcs/templates.errors';
 import { Effect, Schema } from 'effect';
 
 import type { AppRpcHandlers } from './shared/handler-types';
 
 import { Database, type DatabaseClient } from '../../../../db';
-import {
-  eventTemplates,
-} from '../../../../db/schema';
+import { eventTemplates } from '../../../../db/schema';
 import { Tenant } from '../../../../types/custom/tenant';
 import {
   decodeRpcContextHeaderJson,
@@ -22,7 +18,9 @@ import { SimpleTemplateService } from './templates/simple-template.service';
 const databaseEffect = <A>(
   operation: (database: DatabaseClient) => Effect.Effect<A, unknown, never>,
 ): Effect.Effect<A, never, Database> =>
-  Database.pipe(Effect.flatMap((database) => operation(database).pipe(Effect.orDie)));
+  Database.pipe(
+    Effect.flatMap((database) => operation(database).pipe(Effect.orDie)),
+  );
 
 const decodeHeaderJson = <A, I>(
   value: string | undefined,
@@ -110,149 +108,151 @@ const ensureAuthenticated = (
 ): Effect.Effect<void, RpcUnauthorizedError> =>
   headers[RPC_CONTEXT_HEADERS.AUTHENTICATED] === 'true'
     ? Effect.void
-    : Effect.fail(new RpcUnauthorizedError({ message: 'Authentication required' }));
+    : Effect.fail(
+        new RpcUnauthorizedError({ message: 'Authentication required' }),
+      );
 
 export const templateHandlers = {
-    'templates.createSimpleTemplate': (input, options) =>
-      Effect.gen(function* () {
-        yield* ensureAuthenticated(options.headers);
-        const tenant = decodeHeaderJson(
-          options.headers[RPC_CONTEXT_HEADERS.TENANT],
-          Tenant,
-        );
+  'templates.createSimpleTemplate': (input, options) =>
+    Effect.gen(function* () {
+      yield* ensureAuthenticated(options.headers);
+      const tenant = decodeHeaderJson(
+        options.headers[RPC_CONTEXT_HEADERS.TENANT],
+        Tenant,
+      );
 
-        return yield* SimpleTemplateService.createSimpleTemplate({
-          input,
-          tenantId: tenant.id,
-        });
-      }),
-    'templates.findOne': ({ id }, options) =>
-      Effect.gen(function* () {
-        yield* ensureAuthenticated(options.headers);
-        const tenant = decodeHeaderJson(
-          options.headers[RPC_CONTEXT_HEADERS.TENANT],
-          Tenant,
-        );
-        const template = yield* databaseEffect((database) =>
-          database.query.eventTemplates.findFirst({
-            columns: {
-              categoryId: true,
-              description: true,
-              icon: true,
-              id: true,
-              location: true,
-              title: true,
-            },
-            where: {
-              id,
-              tenantId: tenant.id,
-            },
-            with: {
-              registrationOptions: {
-                columns: {
-                  closeRegistrationOffset: true,
-                  description: true,
-                  id: true,
-                  isPaid: true,
-                  openRegistrationOffset: true,
-                  organizingRegistration: true,
-                  price: true,
-                  registeredDescription: true,
-                  registrationMode: true,
-                  roleIds: true,
-                  spots: true,
-                  stripeTaxRateId: true,
-                  title: true,
-                },
+      return yield* SimpleTemplateService.createSimpleTemplate({
+        input,
+        tenantId: tenant.id,
+      });
+    }),
+  'templates.findOne': ({ id }, options) =>
+    Effect.gen(function* () {
+      yield* ensureAuthenticated(options.headers);
+      const tenant = decodeHeaderJson(
+        options.headers[RPC_CONTEXT_HEADERS.TENANT],
+        Tenant,
+      );
+      const template = yield* databaseEffect((database) =>
+        database.query.eventTemplates.findFirst({
+          columns: {
+            categoryId: true,
+            description: true,
+            icon: true,
+            id: true,
+            location: true,
+            title: true,
+          },
+          where: {
+            id,
+            tenantId: tenant.id,
+          },
+          with: {
+            registrationOptions: {
+              columns: {
+                closeRegistrationOffset: true,
+                description: true,
+                id: true,
+                isPaid: true,
+                openRegistrationOffset: true,
+                organizingRegistration: true,
+                price: true,
+                registeredDescription: true,
+                registrationMode: true,
+                roleIds: true,
+                spots: true,
+                stripeTaxRateId: true,
+                title: true,
               },
             },
-          }),
+          },
+        }),
+      );
+      if (!template) {
+        return yield* Effect.fail(
+          new TemplateSimpleNotFoundError({ message: 'Template not found' }),
         );
-        if (!template) {
-          return yield* Effect.fail(
-            new TemplateSimpleNotFoundError({ message: 'Template not found' }),
-          );
-        }
+      }
 
-        const combinedRegistrationOptionRoleIds =
-          template.registrationOptions.flatMap((option) => option.roleIds);
-        const templateRoles =
-          combinedRegistrationOptionRoleIds.length > 0
-            ? yield* databaseEffect((database) =>
-          database.query.roles.findMany({
-                  columns: {
-                    id: true,
-                    name: true,
-                  },
-                  where: {
-                    id: {
-                      in: combinedRegistrationOptionRoleIds,
-                    },
-                    tenantId: tenant.id,
-                  },
-                }),
-              )
-            : [];
-        const rolesById = new Map(
-          templateRoles.map((role) => [
-            role.id,
-            { id: role.id, name: role.name },
-          ]),
-        );
-
-        return normalizeTemplateFindOneRecord(template, rolesById);
-      }),
-    'templates.groupedByCategory': (_payload, options) =>
-      Effect.gen(function* () {
-        yield* ensureAuthenticated(options.headers);
-        const tenant = decodeHeaderJson(
-          options.headers[RPC_CONTEXT_HEADERS.TENANT],
-          Tenant,
-        );
-        const templateCategories = yield* databaseEffect((database) =>
-          database.query.eventTemplateCategories.findMany({
-            columns: {
-              icon: true,
-              id: true,
-              title: true,
-            },
-            orderBy: (categories, { asc }) => [asc(categories.title)],
-            where: { tenantId: tenant.id },
-            with: {
-              templates: {
+      const combinedRegistrationOptionRoleIds =
+        template.registrationOptions.flatMap((option) => option.roleIds);
+      const templateRoles =
+        combinedRegistrationOptionRoleIds.length > 0
+          ? yield* databaseEffect((database) =>
+              database.query.roles.findMany({
                 columns: {
-                  icon: true,
                   id: true,
-                  title: true,
+                  name: true,
                 },
-                orderBy: { createdAt: 'asc' },
+                where: {
+                  id: {
+                    in: combinedRegistrationOptionRoleIds,
+                  },
+                  tenantId: tenant.id,
+                },
+              }),
+            )
+          : [];
+      const rolesById = new Map(
+        templateRoles.map((role) => [
+          role.id,
+          { id: role.id, name: role.name },
+        ]),
+      );
+
+      return normalizeTemplateFindOneRecord(template, rolesById);
+    }),
+  'templates.groupedByCategory': (_payload, options) =>
+    Effect.gen(function* () {
+      yield* ensureAuthenticated(options.headers);
+      const tenant = decodeHeaderJson(
+        options.headers[RPC_CONTEXT_HEADERS.TENANT],
+        Tenant,
+      );
+      const templateCategories = yield* databaseEffect((database) =>
+        database.query.eventTemplateCategories.findMany({
+          columns: {
+            icon: true,
+            id: true,
+            title: true,
+          },
+          orderBy: (categories, { asc }) => [asc(categories.title)],
+          where: { tenantId: tenant.id },
+          with: {
+            templates: {
+              columns: {
+                icon: true,
+                id: true,
+                title: true,
               },
+              orderBy: { createdAt: 'asc' },
             },
-          }),
-        );
+          },
+        }),
+      );
 
-        return templateCategories.map((templateCategory) => ({
-          icon: templateCategory.icon,
-          id: templateCategory.id,
-          templates: templateCategory.templates.map((template) => ({
-            icon: template.icon,
-            id: template.id,
-            title: template.title,
-          })),
-          title: templateCategory.title,
-        }));
-      }),
-    'templates.updateSimpleTemplate': (input, options) =>
-      Effect.gen(function* () {
-        yield* ensureAuthenticated(options.headers);
-        const tenant = decodeHeaderJson(
-          options.headers[RPC_CONTEXT_HEADERS.TENANT],
-          Tenant,
-        );
+      return templateCategories.map((templateCategory) => ({
+        icon: templateCategory.icon,
+        id: templateCategory.id,
+        templates: templateCategory.templates.map((template) => ({
+          icon: template.icon,
+          id: template.id,
+          title: template.title,
+        })),
+        title: templateCategory.title,
+      }));
+    }),
+  'templates.updateSimpleTemplate': (input, options) =>
+    Effect.gen(function* () {
+      yield* ensureAuthenticated(options.headers);
+      const tenant = decodeHeaderJson(
+        options.headers[RPC_CONTEXT_HEADERS.TENANT],
+        Tenant,
+      );
 
-        return yield* SimpleTemplateService.updateSimpleTemplate({
-          input,
-          tenantId: tenant.id,
-        });
-      }),
+      return yield* SimpleTemplateService.updateSimpleTemplate({
+        input,
+        tenantId: tenant.id,
+      });
+    }),
 } satisfies Partial<AppRpcHandlers>;

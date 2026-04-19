@@ -87,100 +87,103 @@ describe('userHandlers', () => {
         },
       };
 
-      const result = yield* userHandlers['users.events'](undefined as never, {
-        headers,
-      } as never).pipe(
-        Effect.provide(Layer.succeed(Database, mockDatabase as never)),
-      );
+      const result = yield* userHandlers['users.events'](
+        undefined as never,
+        {
+          headers,
+        } as never,
+      ).pipe(Effect.provide(Layer.succeed(Database, mockDatabase as never)));
 
       expect(result.map((event) => event.id)).toEqual(['event-1', 'event-2']);
     }),
   );
 
-  it.effect('users.findMany uses distinct tenant users count with role-join rows', () =>
-    Effect.gen(function* () {
-      const tenant = createTenant();
-      const headers = {
-        [RPC_CONTEXT_HEADERS.AUTHENTICATED]: 'true',
-        [RPC_CONTEXT_HEADERS.PERMISSIONS]: encodeRpcContextHeaderJson([
-          'users:viewAll',
-        ]),
-        [RPC_CONTEXT_HEADERS.TENANT]: encodeRpcContextHeaderJson(tenant),
-      };
-      const select = vi
-        .fn()
-        .mockImplementationOnce(() => ({
-          from: () => ({
-            where: () => Effect.succeed([{ count: 2 }]),
-          }),
-        }))
-        .mockImplementationOnce(() => ({
-          from: () => ({
-            orderBy: () => ({
-              offset: () => ({
-                limit: () => ({
-                  innerJoin: () => ({
-                    leftJoin: () => ({
-                      leftJoin: () =>
-                        Effect.succeed([
-                          {
-                            email: 'a@example.com',
-                            firstName: 'Alice',
-                            id: 'user-1',
-                            lastName: 'One',
-                            role: 'Admin',
-                          },
-                          {
-                            email: 'a@example.com',
-                            firstName: 'Alice',
-                            id: 'user-1',
-                            lastName: 'One',
-                            role: 'Editor',
-                          },
-                          {
-                            email: 'b@example.com',
-                            firstName: 'Bob',
-                            id: 'user-2',
-                            lastName: 'Two',
-                            role: null,
-                          },
-                        ]),
+  it.effect(
+    'users.findMany uses distinct tenant users count with role-join rows',
+    () =>
+      Effect.gen(function* () {
+        const tenant = createTenant();
+        const headers = {
+          [RPC_CONTEXT_HEADERS.AUTHENTICATED]: 'true',
+          [RPC_CONTEXT_HEADERS.PERMISSIONS]: encodeRpcContextHeaderJson([
+            'users:viewAll',
+          ]),
+          [RPC_CONTEXT_HEADERS.TENANT]: encodeRpcContextHeaderJson(tenant),
+        };
+        const select = vi
+          .fn()
+          .mockImplementationOnce(() => ({
+            from: () => ({
+              where: () => Effect.succeed([{ count: 2 }]),
+            }),
+          }))
+          .mockImplementationOnce(() => ({
+            from: () => ({
+              orderBy: () => ({
+                offset: () => ({
+                  limit: () => ({
+                    innerJoin: () => ({
+                      leftJoin: () => ({
+                        leftJoin: () =>
+                          Effect.succeed([
+                            {
+                              email: 'a@example.com',
+                              firstName: 'Alice',
+                              id: 'user-1',
+                              lastName: 'One',
+                              role: 'Admin',
+                            },
+                            {
+                              email: 'a@example.com',
+                              firstName: 'Alice',
+                              id: 'user-1',
+                              lastName: 'One',
+                              role: 'Editor',
+                            },
+                            {
+                              email: 'b@example.com',
+                              firstName: 'Bob',
+                              id: 'user-2',
+                              lastName: 'Two',
+                              role: null,
+                            },
+                          ]),
+                      }),
                     }),
                   }),
                 }),
               }),
             }),
-          }),
-        }));
-      const mockDatabase = { select };
+          }));
+        const mockDatabase = { select };
 
-      const result = yield* userHandlers['users.findMany'](
-        {
-          limit: 25,
-          offset: 0,
-        },
-        { headers } as never,
-      ).pipe(Effect.provide(Layer.succeed(Database, mockDatabase as never)));
+        const result = yield* userHandlers['users.findMany'](
+          {
+            limit: 25,
+            offset: 0,
+          },
+          { headers } as never,
+        ).pipe(Effect.provide(Layer.succeed(Database, mockDatabase as never)));
 
-      expect(result.usersCount).toBe(2);
-      expect(result.users).toEqual([
-        {
-          email: 'a@example.com',
-          firstName: 'Alice',
-          id: 'user-1',
-          lastName: 'One',
-          role: 'Admin',
-          roles: ['Admin', 'Editor'],
-        },
-        {
-          email: 'b@example.com',
-          firstName: 'Bob',
-          id: 'user-2',
-          lastName: 'Two',
-          role: null,
-          roles: [],
-        },
-      ]);
-    }),
+        expect(result.usersCount).toBe(2);
+        expect(result.users).toEqual([
+          {
+            email: 'a@example.com',
+            firstName: 'Alice',
+            id: 'user-1',
+            lastName: 'One',
+            role: 'Admin',
+            roles: ['Admin', 'Editor'],
+          },
+          {
+            email: 'b@example.com',
+            firstName: 'Bob',
+            id: 'user-2',
+            lastName: 'Two',
+            role: null,
+            roles: [],
+          },
+        ]);
+      }),
   );
 });

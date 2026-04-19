@@ -56,9 +56,7 @@ const main = Effect.gen(function* () {
     onSome: (stripeTestAccountId) => ({ stripeTestAccountId }),
   });
 
-  yield* Effect.tryPromise(() =>
-    setupDatabase(database, setupOptions),
-  ).pipe(
+  yield* Effect.tryPromise(() => setupDatabase(database, setupOptions)).pipe(
     Effect.ensuring(Effect.tryPromise(() => pool.end()).pipe(Effect.orDie)),
   );
 });

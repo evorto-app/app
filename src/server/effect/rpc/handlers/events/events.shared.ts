@@ -6,7 +6,9 @@ import { eventRegistrationOptionDiscounts } from '../../../../../db/schema';
 export const databaseEffect = <A>(
   operation: (database: DatabaseClient) => Effect.Effect<A, unknown, never>,
 ): Effect.Effect<A, never, Database> =>
-  Database.pipe(Effect.flatMap((database) => operation(database).pipe(Effect.orDie)));
+  Database.pipe(
+    Effect.flatMap((database) => operation(database).pipe(Effect.orDie)),
+  );
 
 export const getEsnCardDiscountedPriceByOptionId = (
   discounts: readonly {

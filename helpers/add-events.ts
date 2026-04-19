@@ -60,11 +60,12 @@ interface ScenarioCandidates {
 type SeedEventInsert = InferInsertModel<typeof schema.eventInstances> &
   RedistributableEvent;
 
-type SeedRegistrationOptionInsert =
-  InferInsertModel<typeof schema.eventRegistrationOptions> &
-    RedistributableRegistrationOption & {
-      id: string;
-    };
+type SeedRegistrationOptionInsert = InferInsertModel<
+  typeof schema.eventRegistrationOptions
+> &
+  RedistributableRegistrationOption & {
+    id: string;
+  };
 
 interface SeedScenarioOptionHandle {
   eventId: string;
@@ -208,9 +209,11 @@ export const redistributeDemoEventTimeline = <
   seedNow: DateTime,
 ) => {
   const redistributedEvents = events.map((event) => ({ ...event }));
-  const redistributedRegistrationOptions = registrationOptions.map((option) => ({
-    ...option,
-  }));
+  const redistributedRegistrationOptions = registrationOptions.map(
+    (option) => ({
+      ...option,
+    }),
+  );
   const registrationOptionsByEventId = new Map<string, TRegistrationOption[]>();
 
   for (const option of redistributedRegistrationOptions) {
@@ -225,7 +228,8 @@ export const redistributeDemoEventTimeline = <
   );
   const approvedUpcoming = redistributedEvents.filter(
     (event) =>
-      event.status === 'APPROVED' && event.start.getTime() >= seedNow.toMillis(),
+      event.status === 'APPROVED' &&
+      event.start.getTime() >= seedNow.toMillis(),
   );
   const draft = redistributedEvents.filter((event) => event.status === 'DRAFT');
   const pendingReview = redistributedEvents.filter(
@@ -237,20 +241,8 @@ export const redistributeDemoEventTimeline = <
     registrationOptionsByEventId,
     seedNow,
     (index) =>
-      [
-        -1,
-        -1,
-        -2,
-        -2,
-        -3,
-        -3,
-        -4,
-        -5,
-        -6,
-        -7,
-        -8,
-        -10,
-      ][index] ?? -(12 + (index - 12) * 2),
+      [-1, -1, -2, -2, -3, -3, -4, -5, -6, -7, -8, -10][index] ??
+      -(12 + (index - 12) * 2),
   );
   applyEventSchedule(
     approvedUpcoming,
@@ -263,8 +255,7 @@ export const redistributeDemoEventTimeline = <
     registrationOptionsByEventId,
     seedNow,
     (index) =>
-      [4, 4, 5, 5, 6, 7, 8, 10, 12, 14, 16, 18][index] ??
-      20 + (index - 12) * 2,
+      [4, 4, 5, 5, 6, 7, 8, 10, 12, 14, 16, 18][index] ?? 20 + (index - 12) * 2,
   );
   applyEventSchedule(
     draft,
@@ -284,7 +275,9 @@ const pickTemplateSet = (
   profile: SeedProfile,
   seedKey: SeedTemplate['seedKey'],
 ) => {
-  const matchingTemplates = templates.filter((template) => template.seedKey === seedKey);
+  const matchingTemplates = templates.filter(
+    (template) => template.seedKey === seedKey,
+  );
   if (matchingTemplates.length === 0) {
     throw new Error(`No templates found for seed key "${seedKey}"`);
   }
@@ -332,68 +325,68 @@ const createEvents = (
       let creatorId: string;
 
       switch (index) {
-      case 0: {
-        eventStart = seedNow
-          .plus({ days: 7 })
-          .set({
-            hour: eventClock.hour,
-            millisecond: 0,
-            minute: eventClock.minute,
-            second: 0,
-          })
-          .toJSDate();
-        status = 'APPROVED';
-        unlisted = false;
-        creatorId = organizerUser;
-      
-      break;
-      }
-      case 1: {
-        eventStart = seedNow
-          .minus({ days: 3 })
-          .set({
-            hour: eventClock.hour,
-            millisecond: 0,
-            minute: eventClock.minute,
-            second: 0,
-          })
-          .toJSDate();
-        status = 'APPROVED';
-        unlisted = false;
-        creatorId = organizerUser;
-      
-      break;
-      }
-      case 2: {
-        eventStart = seedNow
-          .plus({ days: 21 })
-          .set({
-            hour: eventClock.hour,
-            millisecond: 0,
-            minute: eventClock.minute,
-            second: 0,
-          })
-          .toJSDate();
-        status = 'DRAFT';
-        unlisted = true;
-        creatorId = organizerUser;
-      
-      break;
-      }
-      default: {
-        eventStart = seedNow
-          .plus({ days: 35 + templateIndex })
-          .set({
-            hour: eventClock.hour,
-            millisecond: 0,
-            minute: eventClock.minute,
-            second: 0,
-          })
-          .toJSDate();
-        status = 'PENDING_REVIEW';
-        unlisted = false;
-        creatorId = adminUser;
-      }
+        case 0: {
+          eventStart = seedNow
+            .plus({ days: 7 })
+            .set({
+              hour: eventClock.hour,
+              millisecond: 0,
+              minute: eventClock.minute,
+              second: 0,
+            })
+            .toJSDate();
+          status = 'APPROVED';
+          unlisted = false;
+          creatorId = organizerUser;
+
+          break;
+        }
+        case 1: {
+          eventStart = seedNow
+            .minus({ days: 3 })
+            .set({
+              hour: eventClock.hour,
+              millisecond: 0,
+              minute: eventClock.minute,
+              second: 0,
+            })
+            .toJSDate();
+          status = 'APPROVED';
+          unlisted = false;
+          creatorId = organizerUser;
+
+          break;
+        }
+        case 2: {
+          eventStart = seedNow
+            .plus({ days: 21 })
+            .set({
+              hour: eventClock.hour,
+              millisecond: 0,
+              minute: eventClock.minute,
+              second: 0,
+            })
+            .toJSDate();
+          status = 'DRAFT';
+          unlisted = true;
+          creatorId = organizerUser;
+
+          break;
+        }
+        default: {
+          eventStart = seedNow
+            .plus({ days: 35 + templateIndex })
+            .set({
+              hour: eventClock.hour,
+              millisecond: 0,
+              minute: eventClock.minute,
+              second: 0,
+            })
+            .toJSDate();
+          status = 'PENDING_REVIEW';
+          unlisted = false;
+          creatorId = adminUser;
+        }
       }
 
       const eventId = getId();
@@ -661,7 +654,10 @@ export const addEvents = async (
     consola.warn('Failed to seed event discounts', error);
   }
 
-  const createdEvents = await loadCreatedEvents(database, templates[0].tenantId);
+  const createdEvents = await loadCreatedEvents(
+    database,
+    templates[0].tenantId,
+  );
   consola.success(`Loaded ${createdEvents.length} created events`);
 
   const freeScenarioSource =
@@ -671,7 +667,8 @@ export const addEvents = async (
         ? cityToursEvents.scenario
         : cityTripsEvents.scenario.open && cityTripsEvents.scenario.closedReg
           ? cityTripsEvents.scenario
-          : weekendTripsEvents.scenario.open && weekendTripsEvents.scenario.closedReg
+          : weekendTripsEvents.scenario.open &&
+              weekendTripsEvents.scenario.closedReg
             ? weekendTripsEvents.scenario
             : exampleConfigEvents.scenario;
 

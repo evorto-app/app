@@ -18,6 +18,5 @@ export const resolvePinnedNow = (
   return parsed;
 };
 
-export const getServerNow = (
-  pinnedNowIso: string | undefined,
-): DateTime => resolvePinnedNow(pinnedNowIso) ?? DateTime.utc();
+export const getServerNow = (pinnedNowIso: string | undefined): DateTime =>
+  resolvePinnedNow(pinnedNowIso) ?? DateTime.utc();

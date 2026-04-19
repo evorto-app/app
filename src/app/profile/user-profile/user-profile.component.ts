@@ -210,10 +210,7 @@ export class UserProfileComponent {
     if (!result) return;
     this.updateProfileMutation.mutate(result, {
       onError: (error) => {
-        const errorMessage = getErrorMessage(
-          error,
-          'Failed to update profile',
-        );
+        const errorMessage = getErrorMessage(error, 'Failed to update profile');
         this.notifications.showError(
           'Failed to update profile: ' + errorMessage,
         );

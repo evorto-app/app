@@ -29,9 +29,7 @@ export class IconSelectorFieldComponent implements FormValueControl<IconValue | 
   readonly invalid = input<boolean>(false);
   readonly readonly = input<boolean>(false);
   readonly touched = model<boolean>(false);
-  readonly value = model<IconValue | null>(
-    null,
-  );
+  readonly value = model<IconValue | null>(null);
   protected readonly showError = computed(
     () => this.touched() && this.invalid(),
   );

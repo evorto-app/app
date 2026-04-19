@@ -1,8 +1,6 @@
 import type { Headers } from '@effect/platform';
 
-import {
-  RpcUnauthorizedError,
-} from '@shared/errors/rpc-errors';
+import { RpcUnauthorizedError } from '@shared/errors/rpc-errors';
 import {
   IconRpcError,
   InvalidIconNameError,
@@ -12,9 +10,7 @@ import { Effect, Schema } from 'effect';
 import type { AppRpcHandlers } from './shared/handler-types';
 
 import { Database, type DatabaseClient } from '../../../../db';
-import {
-  icons,
-} from '../../../../db/schema';
+import { icons } from '../../../../db/schema';
 import { Tenant } from '../../../../types/custom/tenant';
 import { computeIconSourceColor } from '../../../utils/icon-color';
 import {
@@ -25,7 +21,9 @@ import {
 const databaseEffect = <A>(
   operation: (database: DatabaseClient) => Effect.Effect<A, unknown, never>,
 ): Effect.Effect<A, never, Database> =>
-  Database.pipe(Effect.flatMap((database) => operation(database).pipe(Effect.orDie)));
+  Database.pipe(
+    Effect.flatMap((database) => operation(database).pipe(Effect.orDie)),
+  );
 
 const decodeHeaderJson = <A, I>(
   value: string | undefined,
@@ -69,62 +67,64 @@ const ensureAuthenticated = (
 ): Effect.Effect<void, RpcUnauthorizedError> =>
   headers[RPC_CONTEXT_HEADERS.AUTHENTICATED] === 'true'
     ? Effect.void
-    : Effect.fail(new RpcUnauthorizedError({ message: 'Authentication required' }));
+    : Effect.fail(
+        new RpcUnauthorizedError({ message: 'Authentication required' }),
+      );
 
 export const iconHandlers = {
-    'icons.add': ({ icon }, options) =>
-      Effect.gen(function* () {
-        yield* ensureAuthenticated(options.headers);
-        const tenant = decodeHeaderJson(
-          options.headers[RPC_CONTEXT_HEADERS.TENANT],
-          Tenant,
-        );
-        const friendlyName = yield* getFriendlyIconName(icon);
-        const sourceColor = yield* Effect.promise(() =>
-          computeIconSourceColor(icon),
-        );
-        const insertedIcons = yield* databaseEffect((database) =>
-          database
-            .insert(icons)
-            .values({
-              commonName: icon,
-              friendlyName,
-              sourceColor,
-              tenantId: tenant.id,
-            })
-            .returning({
-              commonName: icons.commonName,
-              friendlyName: icons.friendlyName,
-              id: icons.id,
-              sourceColor: icons.sourceColor,
-            }),
-        );
-
-        return insertedIcons;
-      }),
-    'icons.search': ({ search }, options) =>
-      Effect.gen(function* () {
-        yield* ensureAuthenticated(options.headers);
-        const tenant = decodeHeaderJson(
-          options.headers[RPC_CONTEXT_HEADERS.TENANT],
-          Tenant,
-        );
-        const matchingIcons = yield* databaseEffect((database) =>
-          database.query.icons.findMany({
-            columns: {
-              commonName: true,
-              friendlyName: true,
-              id: true,
-              sourceColor: true,
-            },
-            orderBy: { commonName: 'asc' },
-            where: {
-              commonName: { ilike: `%${search}%` },
-              tenantId: tenant.id,
-            },
+  'icons.add': ({ icon }, options) =>
+    Effect.gen(function* () {
+      yield* ensureAuthenticated(options.headers);
+      const tenant = decodeHeaderJson(
+        options.headers[RPC_CONTEXT_HEADERS.TENANT],
+        Tenant,
+      );
+      const friendlyName = yield* getFriendlyIconName(icon);
+      const sourceColor = yield* Effect.promise(() =>
+        computeIconSourceColor(icon),
+      );
+      const insertedIcons = yield* databaseEffect((database) =>
+        database
+          .insert(icons)
+          .values({
+            commonName: icon,
+            friendlyName,
+            sourceColor,
+            tenantId: tenant.id,
+          })
+          .returning({
+            commonName: icons.commonName,
+            friendlyName: icons.friendlyName,
+            id: icons.id,
+            sourceColor: icons.sourceColor,
           }),
-        );
+      );
 
-        return matchingIcons;
-      }),
+      return insertedIcons;
+    }),
+  'icons.search': ({ search }, options) =>
+    Effect.gen(function* () {
+      yield* ensureAuthenticated(options.headers);
+      const tenant = decodeHeaderJson(
+        options.headers[RPC_CONTEXT_HEADERS.TENANT],
+        Tenant,
+      );
+      const matchingIcons = yield* databaseEffect((database) =>
+        database.query.icons.findMany({
+          columns: {
+            commonName: true,
+            friendlyName: true,
+            id: true,
+            sourceColor: true,
+          },
+          orderBy: { commonName: 'asc' },
+          where: {
+            commonName: { ilike: `%${search}%` },
+            tenantId: tenant.id,
+          },
+        }),
+      );
+
+      return matchingIcons;
+    }),
 } satisfies Partial<AppRpcHandlers>;

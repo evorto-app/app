@@ -65,17 +65,20 @@ export type EventsCancelPendingRegistrationError = Schema.Schema.Type<
   typeof EventsCancelPendingRegistrationError
 >;
 
-export const EventsCreateRpcError =
-  Schema.Union(
-    RpcBadRequestError,
-    RpcForbiddenError,
-    RpcInternalServerError,
-    RpcUnauthorizedError,
-  );
-export type EventsCreateRpcError = Schema.Schema.Type<typeof EventsCreateRpcError>;
+export const EventsCreateRpcError = Schema.Union(
+  RpcBadRequestError,
+  RpcForbiddenError,
+  RpcInternalServerError,
+  RpcUnauthorizedError,
+);
+export type EventsCreateRpcError = Schema.Schema.Type<
+  typeof EventsCreateRpcError
+>;
 
 export const EventsEventListRpcError = RpcForbiddenError;
-export type EventsEventListRpcError = Schema.Schema.Type<typeof EventsEventListRpcError>;
+export type EventsEventListRpcError = Schema.Schema.Type<
+  typeof EventsEventListRpcError
+>;
 
 export const EventsFindOneForEditRpcError = Schema.Union(
   EventConflictError,
@@ -88,7 +91,9 @@ export type EventsFindOneForEditRpcError = Schema.Schema.Type<
 >;
 
 export const EventsFindOneRpcError = EventNotFoundError;
-export type EventsFindOneRpcError = Schema.Schema.Type<typeof EventsFindOneRpcError>;
+export type EventsFindOneRpcError = Schema.Schema.Type<
+  typeof EventsFindOneRpcError
+>;
 
 export const EventsReviewEventRpcError = Schema.Union(
   EventConflictError,
@@ -139,4 +144,6 @@ export const EventsUpdateRpcError = Schema.Union(
   EventNotFoundError,
   RpcUnauthorizedError,
 );
-export type EventsUpdateRpcError = Schema.Schema.Type<typeof EventsUpdateRpcError>;
+export type EventsUpdateRpcError = Schema.Schema.Type<
+  typeof EventsUpdateRpcError
+>;

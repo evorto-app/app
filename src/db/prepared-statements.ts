@@ -45,7 +45,10 @@ const buildPreparedStatements = (database: DatabaseClient) => ({
 
 type PreparedStatements = ReturnType<typeof buildPreparedStatements>;
 
-const preparedStatementsCache = new WeakMap<DatabaseClient, PreparedStatements>();
+const preparedStatementsCache = new WeakMap<
+  DatabaseClient,
+  PreparedStatements
+>();
 
 export const getPreparedStatements = (
   database: DatabaseClient,

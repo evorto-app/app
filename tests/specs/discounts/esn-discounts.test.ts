@@ -33,7 +33,9 @@ test('applies ESN discount to paid registrations @finance @track(playwright-spec
     })
     .first();
   const discountedPrice = `€${(expectedAmount / 100).toFixed(2)}`;
-  await expect(registrationOptionCard.getByText('ESNcard discount applied')).toBeVisible();
+  await expect(
+    registrationOptionCard.getByText('ESNcard discount applied'),
+  ).toBeVisible();
   await expect(
     registrationOptionCard.locator('p', { hasText: discountedPrice }).first(),
   ).toBeVisible();

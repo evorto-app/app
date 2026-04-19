@@ -53,10 +53,8 @@ interface LoginAppState {
 // pluggable stores. We bridge those mutations back into Effect Platform
 // responses so the rest of the server stays framework-agnostic.
 // Reference: https://github.com/auth0/auth0-auth-js/tree/main/packages/auth0-server-js
-const getHeaderValue = (
-  headers: Headers.Headers,
-  key: string,
-) => Option.getOrUndefined(Headers.get(headers, key));
+const getHeaderValue = (headers: Headers.Headers, key: string) =>
+  Option.getOrUndefined(Headers.get(headers, key));
 
 const normalizeOrigin = (value: string) =>
   value.endsWith('/') ? value.slice(0, -1) : value;
@@ -72,9 +70,7 @@ const toRecord = (value: unknown) => {
   return value as Record<string, unknown>;
 };
 
-const toCookieRecord = (
-  cookies: Record<string, unknown>,
-) => {
+const toCookieRecord = (cookies: Record<string, unknown>) => {
   const normalized: Record<string, string> = {};
 
   for (const [key, value] of Object.entries(cookies)) {
@@ -86,9 +82,7 @@ const toCookieRecord = (
   return normalized;
 };
 
-const sanitizeReturnPath = (
-  value: null | string | undefined,
-) => {
+const sanitizeReturnPath = (value: null | string | undefined) => {
   if (!value) {
     return;
   }
@@ -206,10 +200,7 @@ const isExpectedAuth0Error = (
   error instanceof MissingSessionError ||
   error instanceof MissingTransactionError;
 
-const runPromiseOrUndefined = <T>(
-  operation: string,
-  thunk: () => Promise<T>,
-) =>
+const runPromiseOrUndefined = <T>(operation: string, thunk: () => Promise<T>) =>
   Effect.promise(thunk).pipe(
     Effect.catchAllDefect((error) => {
       if (isExpectedAuth0Error(error)) {
@@ -225,16 +216,12 @@ const runPromiseOrUndefined = <T>(
     }),
   );
 
-const createStoreOptions = (
-  request: HttpServerRequest.HttpServerRequest,
-) => ({
+const createStoreOptions = (request: HttpServerRequest.HttpServerRequest) => ({
   cookies: toCookieRecord(request.cookies as Record<string, unknown>),
   mutations: [],
 });
 
-const createAuth0Client = (
-  request: HttpServerRequest.HttpServerRequest,
-) =>
+const createAuth0Client = (request: HttpServerRequest.HttpServerRequest) =>
   Effect.gen(function* () {
     const { auth } = yield* RuntimeConfig;
     const callbackOrigin = normalizeOrigin(auth.BASE_URL);
@@ -286,9 +273,7 @@ const createAuth0Client = (
     });
   });
 
-const toAuthSession = (
-  sessionData: SessionData | undefined,
-) => {
+const toAuthSession = (sessionData: SessionData | undefined) => {
   if (!sessionData) {
     return;
   }
@@ -337,13 +322,11 @@ export const toAbsoluteRequestUrl = (
   return new URL(request.url, origin);
 };
 
-export const getRequestAuthData = (
-  authSession: AuthSession | undefined,
-) => authSession?.authData ?? {};
+export const getRequestAuthData = (authSession: AuthSession | undefined) =>
+  authSession?.authData ?? {};
 
-export const isAuthenticated = (
-  authSession: AuthSession | undefined,
-) => authSession !== undefined;
+export const isAuthenticated = (authSession: AuthSession | undefined) =>
+  authSession !== undefined;
 
 export const loadAuthSession = (request: HttpServerRequest.HttpServerRequest) =>
   Effect.gen(function* () {

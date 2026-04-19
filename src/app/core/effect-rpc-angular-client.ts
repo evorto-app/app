@@ -81,7 +81,9 @@ export const resolveServerRpcOrigin = (request?: ServerRequestLike): string => {
 };
 
 export const resolveRpcUrl = (): string =>
-  'window' in globalThis ? '/rpc' : `${resolveServerRpcOrigin(resolveRequest())}/rpc`;
+  'window' in globalThis
+    ? '/rpc'
+    : `${resolveServerRpcOrigin(resolveRequest())}/rpc`;
 
 const createAppRpcFactory = (
   rpcLayer: Layer.Layer<RpcClient.Protocol, never, never>,
@@ -96,7 +98,9 @@ const createAppRpcFactory = (
     rpcLayer,
   });
 
-type AppRpcClient = ReturnType<ReturnType<typeof createAppRpcFactory>['injectClient']>;
+type AppRpcClient = ReturnType<
+  ReturnType<typeof createAppRpcFactory>['injectClient']
+>;
 
 const APP_RPC_CLIENT = new InjectionToken<AppRpcClient>('APP_RPC_CLIENT');
 
@@ -113,7 +117,9 @@ const createAppRpcClient = (): AppRpcClient => {
   );
   destroyReference.onDestroy(() => scopedInjector.destroy());
 
-  return runInInjectionContext(scopedInjector, () => appRpcFactory.injectClient());
+  return runInInjectionContext(scopedInjector, () =>
+    appRpcFactory.injectClient(),
+  );
 };
 
 export const AppRpc = {

@@ -1,9 +1,4 @@
-import {
-  Config,
-  ConfigError,
-  Effect,
-  Option,
-} from 'effect';
+import { Config, ConfigError, Effect, Option } from 'effect';
 
 import { missingFieldError } from './config-error';
 import { optionalTrimmedString } from './config-string';
@@ -42,9 +37,7 @@ export type ObjectStorageConfigState = Config.Config.Success<
   typeof objectStorageStateConfig
 >;
 
-const combineConfigErrors = (
-  errors: readonly ConfigError.ConfigError[],
-) => {
+const combineConfigErrors = (errors: readonly ConfigError.ConfigError[]) => {
   const [firstError, ...remainingErrors] = errors;
   if (!firstError) {
     throw new Error('Expected at least one object storage config error');
@@ -58,10 +51,7 @@ const combineConfigErrors = (
   return combinedError;
 };
 
-const getRequiredConfigValue = <A>(
-  option: Option.Option<A>,
-  message: string,
-) =>
+const getRequiredConfigValue = <A>(option: Option.Option<A>, message: string) =>
   Option.match(option, {
     onNone: () => Effect.die(new Error(message)),
     onSome: (value) => Effect.succeed(value),

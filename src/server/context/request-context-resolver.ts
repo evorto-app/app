@@ -149,9 +149,9 @@ export const resolveUserContext = (input: {
     const appMetadata = asRecord(oidcUser?.['evorto.app/app_metadata']);
     const permissions: Permission[] =
       appMetadata?.['globalAdmin'] === true
-        // Global admins bypass tenant role scoping but still include role-based
-        // permissions for parity with existing permission checks.
-        ? [...ALL_PERMISSIONS, 'globalAdmin:manageTenants']
+        ? // Global admins bypass tenant role scoping but still include role-based
+          // permissions for parity with existing permission checks.
+          [...ALL_PERMISSIONS, 'globalAdmin:manageTenants']
         : user.tenantAssignments
             .flatMap((assignment) => assignment.roles)
             .flatMap((role) => role.permissions);
@@ -162,12 +162,12 @@ export const resolveUserContext = (input: {
 
     const attributeResponse = yield* databaseEffect((database) =>
       Effect.map(
-        getPreparedStatements(database).getUserAttributesByTenantAndUser.execute(
-          {
-            tenantId: input.tenantId,
-            userId: user.id,
-          },
-        ),
+        getPreparedStatements(
+          database,
+        ).getUserAttributesByTenantAndUser.execute({
+          tenantId: input.tenantId,
+          userId: user.id,
+        }),
         (result) => result[0],
       ),
     );
@@ -182,7 +182,9 @@ export const resolveUserContext = (input: {
       ...user,
       attributes,
       permissions: uniq(
-        permissions.flatMap((permission) => expandPermissionAliases(permission)),
+        permissions.flatMap((permission) =>
+          expandPermissionAliases(permission),
+        ),
       ),
       roleIds,
     };

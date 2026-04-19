@@ -135,9 +135,7 @@ export const addTemplates = async (
 
   const createdFreeTemplatesRaw = await database
     .insert(schema.eventTemplates)
-    .values(
-      freeTemplates.map(({ seedKey: _seedKey, ...template }) => template),
-    )
+    .values(freeTemplates.map(({ seedKey: _seedKey, ...template }) => template))
     .returning();
   consola.success(`Inserted ${createdFreeTemplatesRaw.length} free templates`);
 
@@ -145,17 +143,19 @@ export const addTemplates = async (
     throw new Error('Failed to create freeTemplates');
   }
 
-  const createdFreeTemplates = createdFreeTemplatesRaw.map((template, index) => {
-    const freeTemplate = freeTemplates[index];
-    if (!freeTemplate) {
-      throw new Error('Free template seed metadata is missing');
-    }
+  const createdFreeTemplates = createdFreeTemplatesRaw.map(
+    (template, index) => {
+      const freeTemplate = freeTemplates[index];
+      if (!freeTemplate) {
+        throw new Error('Free template seed metadata is missing');
+      }
 
-    return {
-      ...template,
-      seedKey: freeTemplate.seedKey,
-    };
-  });
+      return {
+        ...template,
+        seedKey: freeTemplate.seedKey,
+      };
+    },
+  );
 
   const registrationOptionsToAdd: InferInsertModel<
     typeof schema.templateRegistrationOptions
@@ -206,9 +206,7 @@ export const addTemplates = async (
     }));
   const createdPaidTemplatesRaw = await database
     .insert(schema.eventTemplates)
-    .values(
-      paidTemplates.map(({ seedKey: _seedKey, ...template }) => template),
-    )
+    .values(paidTemplates.map(({ seedKey: _seedKey, ...template }) => template))
     .returning();
   consola.success(`Inserted ${createdPaidTemplatesRaw.length} paid templates`);
 
@@ -216,17 +214,19 @@ export const addTemplates = async (
     throw new Error('Failed to create paidTemplates');
   }
 
-  const createdPaidTemplates = createdPaidTemplatesRaw.map((template, index) => {
-    const paidTemplate = paidTemplates[index];
-    if (!paidTemplate) {
-      throw new Error('Paid template seed metadata is missing');
-    }
+  const createdPaidTemplates = createdPaidTemplatesRaw.map(
+    (template, index) => {
+      const paidTemplate = paidTemplates[index];
+      if (!paidTemplate) {
+        throw new Error('Paid template seed metadata is missing');
+      }
 
-    return {
-      ...template,
-      seedKey: paidTemplate.seedKey,
-    };
-  });
+      return {
+        ...template,
+        seedKey: paidTemplate.seedKey,
+      };
+    },
+  );
 
   const paidOptionValues: InferInsertModel<
     typeof schema.templateRegistrationOptions

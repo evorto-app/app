@@ -32,7 +32,9 @@ export class RpcUnauthorizedError extends Schema.TaggedError<RpcUnauthorizedErro
 ) {}
 
 export const UnauthorizedRpcError = RpcUnauthorizedError;
-export type UnauthorizedRpcError = Schema.Schema.Type<typeof UnauthorizedRpcError>;
+export type UnauthorizedRpcError = Schema.Schema.Type<
+  typeof UnauthorizedRpcError
+>;
 
 export const ForbiddenRpcError = RpcForbiddenError;
 export type ForbiddenRpcError = Schema.Schema.Type<typeof ForbiddenRpcError>;
@@ -80,6 +82,5 @@ export const BadRequestForbiddenInternalUnauthorizedRpcError = Schema.Union(
   RpcInternalServerError,
   RpcUnauthorizedError,
 );
-export type BadRequestForbiddenInternalUnauthorizedRpcError = Schema.Schema.Type<
-  typeof BadRequestForbiddenInternalUnauthorizedRpcError
->;
+export type BadRequestForbiddenInternalUnauthorizedRpcError =
+  Schema.Schema.Type<typeof BadRequestForbiddenInternalUnauthorizedRpcError>;

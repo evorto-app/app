@@ -22,12 +22,12 @@ class AppRpcHttpApp extends Context.Tag('@server/effect/rpc/AppRpcHttpApp')<
 >() {}
 
 const appRpcDependenciesLayer = Layer.mergeAll(
-    EventRegistrationService.Default,
-    RpcAccess.Default,
-    ReceiptMediaService.Default,
-    SimpleTemplateService.Default,
-    RuntimeConfig.Default,
-    stripeClientLayer,
+  EventRegistrationService.Default,
+  RpcAccess.Default,
+  ReceiptMediaService.Default,
+  SimpleTemplateService.Default,
+  RuntimeConfig.Default,
+  stripeClientLayer,
 );
 const appRpcHandlersLayer = appRpcHandlers.pipe(
   Layer.provide(appRpcDependenciesLayer),

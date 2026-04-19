@@ -92,9 +92,10 @@ export const hasCompatibleTaxRates = (
   database: DatabaseClient,
   tenantId: string,
 ): Effect.Effect<boolean> =>
-  Effect.map(getCompatibleTaxRates(database, tenantId), (rates) => rates.length > 0).pipe(
-    Effect.orDie,
-  );
+  Effect.map(
+    getCompatibleTaxRates(database, tenantId),
+    (rates) => rates.length > 0,
+  ).pipe(Effect.orDie);
 
 /**
  * Validates tax rate assignment rules for registration options

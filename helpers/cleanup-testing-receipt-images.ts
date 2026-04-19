@@ -41,16 +41,12 @@ const main = Effect.gen(function* () {
   }
 
   const runtimeConfigProvider = yield* makeRuntimeConfigProvider();
-  const result = yield* (
-    cleanupTestingCloudflareImages({
-      confirmPhrase,
-      dryRun,
-      ...(maxDeletes === undefined ? {} : { maxDeletes }),
-      source: 'finance-receipt',
-    }).pipe(
-      Effect.withConfigProvider(runtimeConfigProvider),
-    )
-  );
+  const result = yield* cleanupTestingCloudflareImages({
+    confirmPhrase,
+    dryRun,
+    ...(maxDeletes === undefined ? {} : { maxDeletes }),
+    source: 'finance-receipt',
+  }).pipe(Effect.withConfigProvider(runtimeConfigProvider));
 
   yield* Effect.sync(() => {
     console.info(

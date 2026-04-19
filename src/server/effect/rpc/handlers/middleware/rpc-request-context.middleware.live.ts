@@ -18,15 +18,23 @@ const decodeHeaderJson = <A, I>(
   schema: Schema.Schema<A, I, never>,
 ) => Schema.decodeUnknownSync(schema)(decodeRpcContextHeaderJson(value));
 
-export const decodeRpcRequestContextFromHeaders = (headers: Headers.Headers) => ({
-  authData: decodeHeaderJson(headers[RPC_CONTEXT_HEADERS.AUTH_DATA], UsersAuthData),
+export const decodeRpcRequestContextFromHeaders = (
+  headers: Headers.Headers,
+) => ({
+  authData: decodeHeaderJson(
+    headers[RPC_CONTEXT_HEADERS.AUTH_DATA],
+    UsersAuthData,
+  ),
   authenticated: headers[RPC_CONTEXT_HEADERS.AUTHENTICATED] === 'true',
   permissions: decodeHeaderJson(
     headers[RPC_CONTEXT_HEADERS.PERMISSIONS],
     ConfigPermissions,
   ) as readonly Permission[],
   tenant: decodeHeaderJson(headers[RPC_CONTEXT_HEADERS.TENANT], Tenant),
-  user: decodeHeaderJson(headers[RPC_CONTEXT_HEADERS.USER], Schema.NullOr(User)),
+  user: decodeHeaderJson(
+    headers[RPC_CONTEXT_HEADERS.USER],
+    Schema.NullOr(User),
+  ),
   userAssigned: headers[RPC_CONTEXT_HEADERS.USER_ASSIGNED] === 'true',
 });
 

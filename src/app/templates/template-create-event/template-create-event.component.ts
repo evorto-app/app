@@ -74,12 +74,8 @@ export class TemplateCreateEventComponent {
   protected readonly templateQuery = injectQuery(() =>
     this.rpc.templates.findOne.queryOptions({ id: this.templateId() }),
   );
-  private readonly initializedTemplateId = signal<null | string>(
-    null,
-  );
-  private readonly lastStart = signal<DateTime | null>(
-    null,
-  );
+  private readonly initializedTemplateId = signal<null | string>(null);
+  private readonly lastStart = signal<DateTime | null>(null);
 
   private readonly queryClient = inject(QueryClient);
   private readonly router = inject(Router);
@@ -184,9 +180,7 @@ export class TemplateCreateEventComponent {
             closeRegistrationTime: this.toDateTime(option.closeRegistrationTime)
               .toJSDate()
               .toISOString(),
-            description: option.description?.trim()
-              ? option.description
-              : null,
+            description: option.description?.trim() ? option.description : null,
             isPaid: option.isPaid,
             openRegistrationTime: this.toDateTime(option.openRegistrationTime)
               .toJSDate()

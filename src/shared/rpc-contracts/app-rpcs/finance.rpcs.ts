@@ -3,9 +3,7 @@ import * as RpcGroup from '@effect/rpc/RpcGroup';
 import { asRpcMutation, asRpcQuery } from '@heddendorp/effect-angular-query';
 import { Schema } from 'effect';
 
-import {
-  RpcUnauthorizedError,
-} from '../../errors/rpc-errors';
+import { RpcUnauthorizedError } from '../../errors/rpc-errors';
 import {
   FinanceRpcError,
   ReceiptMediaBadRequestError,
@@ -19,7 +17,9 @@ export const FinanceReceiptStatus = Schema.Literal(
   'rejected',
   'submitted',
 );
-export type FinanceReceiptStatus = Schema.Schema.Type<typeof FinanceReceiptStatus>;
+export type FinanceReceiptStatus = Schema.Schema.Type<
+  typeof FinanceReceiptStatus
+>;
 
 export const FinanceReceiptAttachmentInput = Schema.Struct({
   fileName: Schema.NonEmptyString,
@@ -74,7 +74,10 @@ export type FinanceReceiptBaseRecord = Schema.Schema.Type<
   typeof FinanceReceiptBaseRecord
 >;
 const FinanceReceiptIdRecord = FinanceReceiptBaseRecord.pick('id');
-const FinanceReceiptReviewRecord = FinanceReceiptBaseRecord.pick('id', 'status');
+const FinanceReceiptReviewRecord = FinanceReceiptBaseRecord.pick(
+  'id',
+  'status',
+);
 
 export const FinanceReceiptWithSubmitterRecord = Schema.extend(
   FinanceReceiptBaseRecord,

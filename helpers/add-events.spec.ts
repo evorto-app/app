@@ -24,7 +24,9 @@ const buildEvent = (
   status: 'APPROVED' | 'DRAFT' | 'PENDING_REVIEW',
   start: Date,
 ) => ({
-  end: DateTime.fromJSDate(start, { zone: 'utc' }).plus({ hours: 6 }).toJSDate(),
+  end: DateTime.fromJSDate(start, { zone: 'utc' })
+    .plus({ hours: 6 })
+    .toJSDate(),
   id,
   start,
   status,
@@ -77,12 +79,16 @@ describe('redistributeDemoEventTimeline', () => {
       redistributed.events.map((event) => [event.id, event]),
     );
     const approvedPast = redistributed.events.filter(
-      (event) => event.status === 'APPROVED' && event.start < seedNow.toJSDate(),
+      (event) =>
+        event.status === 'APPROVED' && event.start < seedNow.toJSDate(),
     );
     const approvedUpcoming = redistributed.events.filter(
-      (event) => event.status === 'APPROVED' && event.start >= seedNow.toJSDate(),
+      (event) =>
+        event.status === 'APPROVED' && event.start >= seedNow.toJSDate(),
     );
-    const draft = redistributed.events.filter((event) => event.status === 'DRAFT');
+    const draft = redistributed.events.filter(
+      (event) => event.status === 'DRAFT',
+    );
     const pendingReview = redistributed.events.filter(
       (event) => event.status === 'PENDING_REVIEW',
     );
@@ -102,18 +108,17 @@ describe('redistributeDemoEventTimeline', () => {
     );
     expect(
       Math.min(...pendingReview.map((event) => event.start.getTime())),
-    ).toBeLessThan(
-      Math.max(...draft.map((event) => event.start.getTime())),
-    );
+    ).toBeLessThan(Math.max(...draft.map((event) => event.start.getTime())));
     expect([...eventsByDay.values()].every((count) => count <= 10)).toBe(true);
 
     const nearFutureMax = Math.max(
       ...[...eventsByDay.entries()]
         .filter(([day]) => {
           const dayOffset = Math.round(
-            DateTime.fromFormat(day, 'yyyy-LL-dd', { zone: 'utc' })
-              .diff(seedNow.startOf('day'), 'days')
-              .days,
+            DateTime.fromFormat(day, 'yyyy-LL-dd', { zone: 'utc' }).diff(
+              seedNow.startOf('day'),
+              'days',
+            ).days,
           );
           return dayOffset >= 2 && dayOffset <= 8;
         })
@@ -123,9 +128,10 @@ describe('redistributeDemoEventTimeline', () => {
       ...[...eventsByDay.entries()]
         .filter(([day]) => {
           const dayOffset = Math.round(
-            DateTime.fromFormat(day, 'yyyy-LL-dd', { zone: 'utc' })
-              .diff(seedNow.startOf('day'), 'days')
-              .days,
+            DateTime.fromFormat(day, 'yyyy-LL-dd', { zone: 'utc' }).diff(
+              seedNow.startOf('day'),
+              'days',
+            ).days,
           );
           return dayOffset >= 18;
         })

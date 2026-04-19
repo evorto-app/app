@@ -25,7 +25,9 @@ const requireScenarioEvent = (
 ) => {
   const event = events.find((candidate) => candidate.id === eventId);
   if (!event) {
-    throw new Error(`Seeded ${label} scenario event "${eventId}" was not found`);
+    throw new Error(
+      `Seeded ${label} scenario event "${eventId}" was not found`,
+    );
   }
   return event;
 };

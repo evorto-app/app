@@ -30,6 +30,4 @@ export const TaxRatesListActive = asRpcQuery(
   }),
 );
 
-export class TaxRatesRpcs extends RpcGroup.make(
-  TaxRatesListActive,
-) {}
+export class TaxRatesRpcs extends RpcGroup.make(TaxRatesListActive) {}

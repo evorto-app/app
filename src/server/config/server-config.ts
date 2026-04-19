@@ -78,16 +78,16 @@ const serverLogLevelConfig = optionalTrimmedString('SERVER_LOG_LEVEL').pipe(
       Option.Option<LogLevel.LogLevel>,
       ConfigError.ConfigError
     > =>
-    Option.match(configuredLevel, {
-      onNone: () => Either.right(Option.none()),
-      onSome: (value) => {
-        const parsedLevelResult = parseServerLogLevel(value);
-        if (Either.isLeft(parsedLevelResult)) {
-          return Either.left(parsedLevelResult.left);
-        }
-        return Either.right(Option.fromIterable([parsedLevelResult.right]));
-      },
-    }),
+      Option.match(configuredLevel, {
+        onNone: () => Either.right(Option.none()),
+        onSome: (value) => {
+          const parsedLevelResult = parseServerLogLevel(value);
+          if (Either.isLeft(parsedLevelResult)) {
+            return Either.left(parsedLevelResult.left);
+          }
+          return Either.right(Option.fromIterable([parsedLevelResult.right]));
+        },
+      }),
   ),
 );
 
@@ -120,4 +120,6 @@ export const serverConfig = Config.all({
 });
 
 export type ServerConfig = Config.Config.Success<typeof serverConfig>;
-export type ServerLoggingConfig = Config.Config.Success<typeof serverLoggingConfig>;
+export type ServerLoggingConfig = Config.Config.Success<
+  typeof serverLoggingConfig
+>;

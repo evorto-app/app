@@ -119,7 +119,10 @@ Navigate to **Templates** and open an existing paid template to see the enforced
     if (!paidTemplate) {
       throw new Error('Seeded paid sports template was not found');
     }
-    await page.locator(`a[href="/templates/${paidTemplate.id}"]`).first().click();
+    await page
+      .locator(`a[href="/templates/${paidTemplate.id}"]`)
+      .first()
+      .click();
 
     await expect(
       page.getByRole('heading', { level: 1, name: paidTemplate.title }),
@@ -179,7 +182,10 @@ Paid organizer registrations require a compatible inclusive tax rate. The dropdo
     await expect(
       page.getByRole('heading', { name: 'Event templates' }),
     ).toBeVisible();
-    await page.locator(`a[href="/templates/${paidTemplate.id}"]`).first().click();
+    await page
+      .locator(`a[href="/templates/${paidTemplate.id}"]`)
+      .first()
+      .click();
     await expect(
       page.getByRole('heading', { level: 1, name: paidTemplate.title }),
     ).toBeVisible();

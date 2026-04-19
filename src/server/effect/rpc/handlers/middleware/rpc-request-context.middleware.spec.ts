@@ -1,7 +1,10 @@
 import * as Headers from '@effect/platform/Headers';
 import { describe, expect, it } from '@effect/vitest';
 
-import { encodeRpcContextHeaderJson, RPC_CONTEXT_HEADERS } from '../../rpc-context-headers';
+import {
+  encodeRpcContextHeaderJson,
+  RPC_CONTEXT_HEADERS,
+} from '../../rpc-context-headers';
 import { decodeRpcRequestContextFromHeaders } from './rpc-request-context.middleware.live';
 
 describe('rpc-request-context.middleware', () => {

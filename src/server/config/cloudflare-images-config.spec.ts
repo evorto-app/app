@@ -18,34 +18,34 @@ const readCloudflareImagesConfig = (provider: ConfigProvider.ConfigProvider) =>
 describe('cloudflare-images-config', () => {
   it.effect('rejects the deprecated CLOUDFLARE_TOKEN alias', () =>
     Effect.gen(function* () {
-    const provider = ConfigProvider.fromMap(
-      new Map([
-        ['CLOUDFLARE_ACCOUNT_ID', 'account-id'],
-        ['CLOUDFLARE_IMAGES_DELIVERY_HASH', 'delivery-hash'],
-        ['CLOUDFLARE_TOKEN', 'legacy-token'],
-      ]),
-    );
+      const provider = ConfigProvider.fromMap(
+        new Map([
+          ['CLOUDFLARE_ACCOUNT_ID', 'account-id'],
+          ['CLOUDFLARE_IMAGES_DELIVERY_HASH', 'delivery-hash'],
+          ['CLOUDFLARE_TOKEN', 'legacy-token'],
+        ]),
+      );
 
-    const error = yield* Effect.flip(readCloudflareImagesConfig(provider));
-    expect(error.message).toMatch(/CLOUDFLARE_IMAGES_API_TOKEN/);
-    })
+      const error = yield* Effect.flip(readCloudflareImagesConfig(provider));
+      expect(error.message).toMatch(/CLOUDFLARE_IMAGES_API_TOKEN/);
+    }),
   );
 
   it.effect('accepts CLOUDFLARE_IMAGES_API_TOKEN', () =>
     Effect.gen(function* () {
-    const provider = ConfigProvider.fromMap(
-      new Map([
-        ['CLOUDFLARE_ACCOUNT_ID', 'account-id'],
-        ['CLOUDFLARE_IMAGES_API_TOKEN', 'api-token'],
-        ['CLOUDFLARE_IMAGES_DELIVERY_HASH', 'delivery-hash'],
-      ]),
-    );
+      const provider = ConfigProvider.fromMap(
+        new Map([
+          ['CLOUDFLARE_ACCOUNT_ID', 'account-id'],
+          ['CLOUDFLARE_IMAGES_API_TOKEN', 'api-token'],
+          ['CLOUDFLARE_IMAGES_DELIVERY_HASH', 'delivery-hash'],
+        ]),
+      );
 
-    expect(yield* readCloudflareImagesConfig(provider)).toMatchObject({
-      CLOUDFLARE_ACCOUNT_ID: 'account-id',
-      CLOUDFLARE_IMAGES_API_TOKEN: 'api-token',
-      CLOUDFLARE_IMAGES_DELIVERY_HASH: 'delivery-hash',
-    });
-    })
+      expect(yield* readCloudflareImagesConfig(provider)).toMatchObject({
+        CLOUDFLARE_ACCOUNT_ID: 'account-id',
+        CLOUDFLARE_IMAGES_API_TOKEN: 'api-token',
+        CLOUDFLARE_IMAGES_DELIVERY_HASH: 'delivery-hash',
+      });
+    }),
   );
 });

@@ -30,7 +30,4 @@ export const IconsAdd = asRpcMutation(
   }),
 );
 
-export class IconsRpcs extends RpcGroup.make(
-  IconsSearch,
-  IconsAdd,
-) {}
+export class IconsRpcs extends RpcGroup.make(IconsSearch, IconsAdd) {}
