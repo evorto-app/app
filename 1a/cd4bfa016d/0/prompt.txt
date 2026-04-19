@@ -21,3 +21,7 @@ Please commit those changes too
 When I start my project now I get evorto-1      |   Error: (Missing data at ISSUER_BASE_URL: "Expected ISSUER_BASE_URL to exist in the process context") or (Missing data at ISSUER_BASE_URL: "Expected ISSUER_BASE_URL to exist in the provided map") or (Missing data at ISSUER_BASE_URL: "Expected ISSUER_BASE_URL to exist in the provided map") or (Missing data at ISSUER_BASE_URL: "Expected ISSUER_BASE_URL to exist in the provided map") and (Missing data at SECRET: "Expected SECRET to exist in the process context") or (Missing data at SECRET: "Expected SECRET to exist in the provided map") or (Missing data at SECRET: "Expected SECRET to exist in the provided map") or (Missing data at SECRET: "Expected SECRET to exist in the provided map")
 
 Check to make sure that we don't have empty env values that have precedence over the filled ones
+
+---
+
+Commit please
