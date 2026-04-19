@@ -1,0 +1,54 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "1acd4bfa016d",
+  "session_id": "019d9ffb-4d91-79a1-9cfb-7128aaee13b6",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-19T17:57:48.092501Z",
+  "branch": "main",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "docker-compose.yml",
+    "tests/README.md"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.4",
+  "turn_id": "9d3ff72dceaf",
+  "token_usage": {
+    "input_tokens": 30422846,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 28766208,
+    "output_tokens": 197171,
+    "api_call_count": 339
+  },
+  "session_metrics": {
+    "turn_count": 20
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-19T17:57:48.002477Z",
+    "agent_lines": 5,
+    "agent_removed": 2,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 5,
+    "total_lines_changed": 7,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 5,
+      "agent_lines_removed": 2
+    }
+  ]
+}
