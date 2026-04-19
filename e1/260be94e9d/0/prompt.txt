@@ -1,0 +1,13 @@
+Deduplicate the db reset and setup scripts, only keep one, make sure to update needed things
+Also I think we can retire the lint fix script in favor of always fixing.
+I think we don't need the test unit server watch
+Add to our instructions to run lint and format after every file edit
+
+---
+
+Add to our instructions that it is not needed to get file problems for md files
+I think if we format the entire repo now in the future it should not be a problem anymore since all non touched files are formatted already
+
+---
+
+Commit the formatting separately

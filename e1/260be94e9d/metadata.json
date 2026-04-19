@@ -1,0 +1,36 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "e1260be94e9d",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "AGENTS.md",
+    "helpers/README.md",
+    "package.json",
+    "src/app/AGENTS.md",
+    "src/app/events/AGENTS.md",
+    "src/app/finance/AGENTS.md",
+    "src/app/templates/AGENTS.md",
+    "src/db/AGENTS.md",
+    "src/server/AGENTS.md",
+    "src/server/effect/AGENTS.md",
+    "tests/AGENTS.md",
+    "tests/README.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/e1/260be94e9d/0/metadata.json",
+      "transcript": "/e1/260be94e9d/0/full.jsonl",
+      "content_hash": "/e1/260be94e9d/0/content_hash.txt",
+      "prompt": "/e1/260be94e9d/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 29050004,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 27498880,
+    "output_tokens": 189328,
+    "api_call_count": 307
+  }
+}
