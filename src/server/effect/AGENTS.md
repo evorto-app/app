@@ -9,5 +9,7 @@
 - Use Effect logging primitives for runtime diagnostics (`Effect.log*`), not ad-hoc console logging.
 - When middleware or runtime behavior changes, update track handoff/revisit docs in the same change.
 - In Effect runtime adapters, never swallow promise failures; use `Effect.tryPromise(...)` and map only known, expected errors.
-- Before calling WebStorm `get_file_problems` on edited Effect runtime files, run `bun run lint:fix` first.
+- After every Effect runtime file edit, run `bun run lint` and `bun run format:write`.
+- Before calling WebStorm `get_file_problems` on edited Effect runtime files, run `bun run lint` first.
+- Markdown files do not need a WebStorm `get_file_problems` pass.
 - After editing an Effect runtime file, run WebStorm `get_file_problems` on that file when possible before finishing.

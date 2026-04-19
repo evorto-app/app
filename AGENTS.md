@@ -31,10 +31,10 @@ More specific guidance also exists deeper in some subtrees (for example `src/ser
 - `bun run build:app` — build client + server bundles.
 - `bun run test:unit` — run unit tests.
 - `bun run test:e2e` — run Playwright e2e.
-- `bun run lint:fix` / `bun run lint:check` — lint with autofix and verification.
+- `bun run lint` — lint with autofix.
 - `bun run format:write` — format with Prettier.
 - `bun run docker:start` / `bun run docker:stop` — start/stop local services.
-- Database: `bun run db:migrate`, `bun run db:push`, `bun run db:setup`, `bun run db:reset`.
+- Database: `bun run db:migrate`, `bun run db:push`, `bun run db:reset`.
 
 ## Type Safety (Always Full Types)
 
@@ -60,7 +60,7 @@ More specific guidance also exists deeper in some subtrees (for example `src/ser
 - Indentation: 2 spaces; filenames `kebab-case.ts`; symbols `camelCase` and `PascalCase`.
 - Prefer path aliases: `@app/*`, `@server/*`, `@db/*`, `@shared/*`, `@types/*`.
 - For Effect reference and usage patterns, consult the local Effect source at `/Users/hedde/code/effect` when behavior or recommended composition is unclear.
-- Run `bun run lint:fix` before `bun run lint:check`.
+- After every file edit, run `bun run lint` and `bun run format:write`.
 
 ## Testing Guidelines
 
@@ -92,6 +92,8 @@ More specific guidance also exists deeper in some subtrees (for example `src/ser
 
 ## Agent Editing Workflow
 
-- Before calling WebStorm `get_file_problems` on edited files, run `bun run lint:fix` first.
+- After every file edit, run `bun run lint` and `bun run format:write`.
+- Before calling WebStorm `get_file_problems` on edited files, run `bun run lint` first.
+- Markdown files do not need a WebStorm `get_file_problems` pass.
 - After editing a file, run WebStorm `get_file_problems` on that file when possible before finishing.
 - WebStorm MCP tools are available; prefer sequential `get_file_problems` checks (parallel runs can timeout).

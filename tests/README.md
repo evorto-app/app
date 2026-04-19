@@ -34,7 +34,7 @@ bun run test:e2e -- --project=setup
 bun run test:e2e -- --headed --workers 1
 bun run test:e2e:docs -- --project=docs-integration
 bun run test:e2e:report
-bun run lint:check
+bun run lint
 ```
 
 ## Docker Runtime
@@ -45,7 +45,7 @@ bun run lint:check
 - Start the local runtime stack in watch mode: `bun run docker:start:watch`
 - Stop the local runtime stack: `bun run docker:stop`
 - Local Docker runs use Neon Local instead of a plain Postgres container.
-- Docker Compose includes a one-shot `db-setup` service that runs the equivalent of `db:setup` before `evorto` starts.
+- Docker Compose includes a one-shot `db-setup` service that runs the equivalent of `db:reset` before `evorto` starts.
 - `bun run env:runtime` generates `.env.dev`, the untracked worktree-local override file.
 - `.env.dev.local` is the tracked shared default dev config file.
 - `.env` is the untracked developer-secrets file.

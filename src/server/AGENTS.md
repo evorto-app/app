@@ -33,5 +33,7 @@
 - Use Effect platform logging (`Effect.log`, `Effect.logInfo`, `Effect.logWarning`, `Effect.logError`).
 - Prefer structured log annotations (`Effect.annotateLogs`) over interpolated log strings.
 - Do not use `consola` or direct `console.*` in server runtime code.
-- Before calling WebStorm `get_file_problems` on edited server files, run `bun run lint:fix` first.
+- After every server file edit, run `bun run lint` and `bun run format:write`.
+- Before calling WebStorm `get_file_problems` on edited server files, run `bun run lint` first.
+- Markdown files do not need a WebStorm `get_file_problems` pass.
 - After editing a server file, run WebStorm `get_file_problems` on that file when possible before finishing.
