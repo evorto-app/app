@@ -43,7 +43,17 @@ When whitespace-only input must be rejected, **trim first, then validate non-emp
 // Correct: trim first, then reject empty
 Config.string(name).pipe(
   Config.map((s) => s.trim()),
-  Config.mapOrFail((s) => (s.length > 0 ? Either.right(s) : Either.left(ConfigError.MissingData([name], `Expected ${name} to be a non-empty string`)))),
+  Config.mapOrFail((s) =>
+    s.length > 0
+      ? Effect.succeed(s)
+      : Effect.fail(
+          new Config.ConfigError(
+            new ConfigProvider.SourceError({
+              message: `Expected ${name} to be a non-empty string`,
+            }),
+          ),
+        ),
+  ),
 );
 
 // Wrong: validates raw value, whitespace-only strings pass through
