@@ -1,0 +1,66 @@
+Deduplicate the db reset and setup scripts, only keep one, make sure to update needed things
+Also I think we can retire the lint fix script in favor of always fixing.
+I think we don't need the test unit server watch
+Add to our instructions to run lint and format after every file edit
+
+---
+
+Add to our instructions that it is not needed to get file problems for md files
+I think if we format the entire repo now in the future it should not be a problem anymore since all non touched files are formatted already
+
+---
+
+Commit the formatting separately
+
+---
+
+Please commit those changes too
+
+---
+
+When I start my project now I get evorto-1      |   Error: (Missing data at ISSUER_BASE_URL: "Expected ISSUER_BASE_URL to exist in the process context") or (Missing data at ISSUER_BASE_URL: "Expected ISSUER_BASE_URL to exist in the provided map") or (Missing data at ISSUER_BASE_URL: "Expected ISSUER_BASE_URL to exist in the provided map") or (Missing data at ISSUER_BASE_URL: "Expected ISSUER_BASE_URL to exist in the provided map") and (Missing data at SECRET: "Expected SECRET to exist in the process context") or (Missing data at SECRET: "Expected SECRET to exist in the provided map") or (Missing data at SECRET: "Expected SECRET to exist in the provided map") or (Missing data at SECRET: "Expected SECRET to exist in the provided map")
+
+Check to make sure that we don't have empty env values that have precedence over the filled ones
+
+---
+
+Commit please
+
+---
+
+https://github.com/drizzle-team/drizzle-orm
+Check out what happened since the release we are using and update us to the latest rc
+
+---
+
+I also want to update to effect 4
+
+---
+
+I think that I want to use the effect speicific adapter with effect v4. The effect migration needs to happen across the entire repo
+I want to stay close to the examples and suggested usage
+
+---
+
+https://github.com/Effect-TS/effect-smol already includes effect platform and rpc as part of the unstable group. Check again please, consider cloning the effect source to have a good reference
+
+---
+
+Published versions:
+
+@heddendorp/effect-platform-angular@0.0.9
+@heddendorp/effect-angular-query@0.1.4
+
+These should be effect v4 compatible
+
+---
+
+Please continue
+
+---
+
+Are we using the native dirzzle effect integration now?
+
+---
+
+Make sure to create all relevant commits for the changes
