@@ -1,5 +1,5 @@
 import { and, eq } from 'drizzle-orm';
-import { Effect } from 'effect';
+import { Context, Effect, Layer } from 'effect';
 
 import type { AppRpcHandlers } from '../shared/handler-types';
 
@@ -22,10 +22,12 @@ import {
 const databaseEffect = <A>(
   operation: (database: DatabaseClient) => Effect.Effect<A, unknown, never>,
 ): Effect.Effect<A, never, Database> =>
-  Database.pipe(
-    Effect.flatMap((database) => operation(database).pipe(Effect.orDie)),
-  );
+  Database.use((database) => operation(database).pipe(Effect.orDie));
 
+interface CreateSimpleTemplateArguments {
+  input: CreateSimpleTemplateInput;
+  tenantId: string;
+}
 type CreateSimpleTemplateInput = Parameters<
   AppRpcHandlers['templates.createSimpleTemplate']
 >[0];
@@ -38,6 +40,11 @@ type SimpleTemplateValidationInput = Pick<
 >;
 type TemplateRegistrationOptionInsert =
   typeof templateRegistrationOptions.$inferInsert;
+interface UpdateSimpleTemplateArguments {
+  input: UpdateSimpleTemplateInput;
+  tenantId: string;
+}
+
 type UpdateSimpleTemplateInput = Parameters<
   AppRpcHandlers['templates.updateSimpleTemplate']
 >[0];
@@ -88,11 +95,10 @@ const buildRegistrationOptionInsert = ({
   };
 };
 
-export class SimpleTemplateService extends Effect.Service<SimpleTemplateService>()(
+export class SimpleTemplateService extends Context.Service<SimpleTemplateService>()(
   '@server/effect/rpc/handlers/templates/SimpleTemplateService',
   {
-    accessors: true,
-    effect: Effect.sync(() => {
+    make: Effect.sync(() => {
       const validateSimpleTemplateInput = Effect.fn(
         'SimpleTemplateService.validateSimpleTemplateInput',
       )(function* ({
@@ -159,13 +165,7 @@ export class SimpleTemplateService extends Effect.Service<SimpleTemplateService>
 
       const createSimpleTemplate = Effect.fn(
         'SimpleTemplateService.createSimpleTemplate',
-      )(function* ({
-        input,
-        tenantId,
-      }: {
-        input: CreateSimpleTemplateInput;
-        tenantId: string;
-      }) {
+      )(function* ({ input, tenantId }: CreateSimpleTemplateArguments) {
         const { sanitizedDescription } = yield* validateSimpleTemplateInput({
           input,
           tenantId,
@@ -219,13 +219,7 @@ export class SimpleTemplateService extends Effect.Service<SimpleTemplateService>
 
       const updateSimpleTemplate = Effect.fn(
         'SimpleTemplateService.updateSimpleTemplate',
-      )(function* ({
-        input,
-        tenantId,
-      }: {
-        input: UpdateSimpleTemplateInput;
-        tenantId: string;
-      }) {
+      )(function* ({ input, tenantId }: UpdateSimpleTemplateArguments) {
         const { sanitizedDescription } = yield* validateSimpleTemplateInput({
           input,
           tenantId,
@@ -317,4 +311,19 @@ export class SimpleTemplateService extends Effect.Service<SimpleTemplateService>
       } as const;
     }),
   },
-) {}
+) {
+  static readonly Default = Layer.effect(
+    SimpleTemplateService,
+    SimpleTemplateService.make,
+  );
+
+  static readonly createSimpleTemplate = (
+    input: CreateSimpleTemplateArguments,
+  ) =>
+    SimpleTemplateService.use((service) => service.createSimpleTemplate(input));
+
+  static readonly updateSimpleTemplate = (
+    input: UpdateSimpleTemplateArguments,
+  ) =>
+    SimpleTemplateService.use((service) => service.updateSimpleTemplate(input));
+}

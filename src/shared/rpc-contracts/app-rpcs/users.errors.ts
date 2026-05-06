@@ -6,7 +6,7 @@ import {
   UnauthorizedRpcError,
 } from '../../errors/rpc-errors';
 
-export class UserConflictError extends Schema.TaggedError<UserConflictError>()(
+export class UserConflictError extends Schema.TaggedErrorClass<UserConflictError>()(
   'UserConflictError',
   {
     message: Schema.String,
@@ -16,10 +16,10 @@ export class UserConflictError extends Schema.TaggedError<UserConflictError>()(
 export const UserRpcError = UnauthorizedRpcError;
 export type UserRpcError = UnauthorizedRpcError;
 
-export const UsersCreateAccountError = Schema.Union(
+export const UsersCreateAccountError = Schema.Union([
   UserConflictError,
   RpcUnauthorizedError,
-);
+]);
 export type UsersCreateAccountError = Schema.Schema.Type<
   typeof UsersCreateAccountError
 >;

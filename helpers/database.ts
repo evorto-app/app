@@ -1,4 +1,4 @@
-import { BunRuntime } from '@effect/platform-bun';
+import * as BunRuntime from '@effect/platform-bun/BunRuntime';
 import { databaseConfig } from '@db/database-config';
 import { stripeConfig } from '@server/config/stripe-config';
 import { Effect, Option } from 'effect';
@@ -31,22 +31,26 @@ import { makeRuntimeConfigProvider } from '../src/server/config/provider';
 
 const main = Effect.gen(function* () {
   const runtimeConfigProvider = yield* makeRuntimeConfigProvider();
-  const { DATABASE_URL, NEON_LOCAL_PROXY } = yield* databaseConfig.pipe(
-    Effect.withConfigProvider(runtimeConfigProvider),
-    Effect.mapError(
-      (error) =>
-        new Error(
-          `Invalid database configuration:\n${formatConfigError(error)}`,
-        ),
-    ),
-  );
-  const { STRIPE_TEST_ACCOUNT_ID } = yield* stripeConfig.pipe(
-    Effect.withConfigProvider(runtimeConfigProvider),
-    Effect.mapError(
-      (error) =>
-        new Error(`Invalid stripe configuration:\n${formatConfigError(error)}`),
-    ),
-  );
+  const { DATABASE_URL, NEON_LOCAL_PROXY } = yield* databaseConfig
+    .parse(runtimeConfigProvider)
+    .pipe(
+      Effect.mapError(
+        (error) =>
+          new Error(
+            `Invalid database configuration:\n${formatConfigError(error)}`,
+          ),
+      ),
+    );
+  const { STRIPE_TEST_ACCOUNT_ID } = yield* stripeConfig
+    .parse(runtimeConfigProvider)
+    .pipe(
+      Effect.mapError(
+        (error) =>
+          new Error(
+            `Invalid stripe configuration:\n${formatConfigError(error)}`,
+          ),
+      ),
+    );
   const { database, pool } = createDatabaseClient(
     DATABASE_URL,
     NEON_LOCAL_PROXY,

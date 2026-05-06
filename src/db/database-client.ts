@@ -16,7 +16,7 @@ export const createDatabaseClient = (
   );
 
   return {
-    database: drizzle({
+    database: drizzle<typeof relations>({
       client: pool,
       relations,
     }),

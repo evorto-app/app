@@ -11,15 +11,15 @@ import {
   RPC_CONTEXT_HEADERS,
 } from '../rpc-context-headers';
 
-const decodeHeaderJson = <A, I>(
+const decodeHeaderJson = <A>(
   value: string | undefined,
-  schema: Schema.Schema<A, I, never>,
-) => Schema.decodeUnknownSync(schema)(decodeRpcContextHeaderJson(value));
+  schema: Schema.Decoder<A>,
+): A => Schema.decodeUnknownSync(schema)(decodeRpcContextHeaderJson(value));
 
-const decodeHeaderJsonEffect = <A, I>(
+const decodeHeaderJsonEffect = <A>(
   headerName: string,
   value: string | undefined,
-  schema: Schema.Schema<A, I, never>,
+  schema: Schema.Decoder<A>,
 ) =>
   Effect.try({
     catch: (error) =>

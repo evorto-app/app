@@ -1,5 +1,5 @@
-import type * as RpcClient from '@effect/rpc/RpcClient';
-import type * as Layer from 'effect/Layer';
+import type { Layer } from 'effect';
+import type * as RpcClient from 'effect/unstable/rpc/RpcClient';
 
 import {
   createEnvironmentInjector,

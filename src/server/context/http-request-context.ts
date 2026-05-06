@@ -1,6 +1,6 @@
-import type * as HttpServerRequest from '@effect/platform/HttpServerRequest';
+import type * as HttpServerRequest from 'effect/unstable/http/HttpServerRequest';
 
-import { DrizzleQueryError } from 'drizzle-orm';
+import { EffectDrizzleQueryError } from 'drizzle-orm/effect-core';
 import { Effect, Schema } from 'effect';
 
 import type { AuthSession } from '../auth/auth-session';
@@ -14,7 +14,7 @@ import {
   resolveUserContext,
 } from './request-context-resolver';
 
-export class HttpRequestTenantNotFoundError extends Schema.TaggedError<HttpRequestTenantNotFoundError>()(
+export class HttpRequestTenantNotFoundError extends Schema.TaggedErrorClass<HttpRequestTenantNotFoundError>()(
   'HttpRequestTenantNotFoundError',
   {
     domain: Schema.String,
@@ -33,7 +33,7 @@ export const resolveHttpRequestContext = (
   authSession: AuthSession | undefined,
 ): Effect.Effect<
   Schema.Schema.Type<typeof RequestContext>,
-  DrizzleQueryError | HttpRequestTenantNotFoundError,
+  EffectDrizzleQueryError | HttpRequestTenantNotFoundError,
   Database
 > =>
   Effect.gen(function* () {
@@ -62,8 +62,8 @@ export const resolveHttpRequestContext = (
 
     const resolvedTenant =
       tenant ??
-      (yield* Effect.dieMessage(
-        'Tenant resolution did not terminate after not-found error',
+      (yield* Effect.die(
+        new Error('Tenant resolution did not terminate after not-found error'),
       ));
 
     const user = yield* resolveUserContext({

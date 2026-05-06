@@ -6,9 +6,7 @@ import * as path from 'node:path';
 import { documentationOutputEnvironment } from '../config/environment';
 
 const docsEnvironment = Effect.runSync(
-  documentationOutputEnvironment.pipe(
-    Effect.withConfigProvider(ConfigProvider.fromEnv()),
-  ),
+  documentationOutputEnvironment.parse(ConfigProvider.fromEnv()),
 );
 
 function ensureDir(dir: string) {

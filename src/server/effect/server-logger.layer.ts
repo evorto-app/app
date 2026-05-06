@@ -1,4 +1,4 @@
-import { Effect, Layer, Logger, LogLevel, Option } from 'effect';
+import { Effect, Logger, LogLevel, Option } from 'effect';
 
 import {
   serverLoggingConfig,
@@ -17,21 +17,24 @@ export const resolveServerLogLevel = (
   }
 
   if (input.ACTIONS_STEP_DEBUG) {
-    return LogLevel.Debug;
+    return 'Debug';
   }
   if (input.CI) {
-    return LogLevel.Warning;
+    return 'Warn';
   }
-  return LogLevel.Info;
+  return 'Info';
 };
 
-export const serverLoggerLayer = Layer.mergeAll(
-  Logger.replace(Logger.defaultLogger, Logger.prettyLoggerDefault),
-  Layer.unwrapEffect(
-    serverLoggingConfig.pipe(
-      Effect.map((configuredServerConfig) =>
-        Logger.minimumLogLevel(resolveServerLogLevel(configuredServerConfig)),
-      ),
-    ),
-  ),
-);
+const configuredPrettyLogger = Effect.gen(function* () {
+  const configuredServerConfig = yield* serverLoggingConfig;
+  const minimumLogLevel = resolveServerLogLevel(configuredServerConfig);
+  const prettyLogger = Logger.consolePretty();
+
+  return Logger.make((options) => {
+    if (LogLevel.isGreaterThanOrEqualTo(options.logLevel, minimumLogLevel)) {
+      prettyLogger.log(options);
+    }
+  });
+});
+
+export const serverLoggerLayer = Logger.layer([configuredPrettyLogger]);

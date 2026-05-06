@@ -1,5 +1,5 @@
-import * as HttpServerRequest from '@effect/platform/HttpServerRequest';
 import { Effect } from 'effect';
+import * as HttpServerRequest from 'effect/unstable/http/HttpServerRequest';
 
 import { type Context as RequestContext } from '../../../types/custom/context';
 import {

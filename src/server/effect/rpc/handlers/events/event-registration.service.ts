@@ -1,8 +1,8 @@
-import type { Headers } from '@effect/platform';
+import type { Headers } from 'effect/unstable/http';
 import type Stripe from 'stripe';
 
 import { and, eq } from 'drizzle-orm';
-import { Effect, Option } from 'effect';
+import { ConfigProvider, Context, Effect, Layer, Option } from 'effect';
 
 import { Database, type DatabaseClient } from '../../../../../db';
 import { createId } from '../../../../../db/create-id';
@@ -37,9 +37,7 @@ const databaseEffect = <A>(
 ): Effect.Effect<A, never, Database> =>
   // Registration write flows should fail fast on unexpected DB errors so
   // callers get deterministic domain errors instead of partial success.
-  Database.pipe(
-    Effect.flatMap((database) => operation(database).pipe(Effect.orDie)),
-  );
+  Database.use((database) => operation(database).pipe(Effect.orDie));
 
 type DiscountCardRecord = Pick<
   typeof userDiscountCards.$inferSelect,
@@ -142,11 +140,10 @@ interface RegisterForEventArguments {
   user: Pick<User, 'email' | 'id'>;
 }
 
-export class EventRegistrationService extends Effect.Service<EventRegistrationService>()(
+export class EventRegistrationService extends Context.Service<EventRegistrationService>()(
   '@server/effect/rpc/handlers/events/EventRegistrationService',
   {
-    accessors: true,
-    effect: Effect.sync(() => {
+    make: Effect.sync(() => {
       const registerForEvent = Effect.fn(
         'EventRegistrationService.registerForEvent',
       )(function* ({
@@ -156,14 +153,17 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
         tenant,
         user,
       }: RegisterForEventArguments) {
-        const serverEnvironment = yield* serverConfig.pipe(
-          Effect.mapError(
-            (error) =>
-              new EventRegistrationInternalError({
-                message: `Invalid server configuration:\n${formatConfigError(error)}`,
-              }),
-          ),
-        );
+        const configProvider = yield* ConfigProvider.ConfigProvider;
+        const serverEnvironment = yield* serverConfig
+          .parse(configProvider)
+          .pipe(
+            Effect.mapError(
+              (error) =>
+                new EventRegistrationInternalError({
+                  message: `Invalid server configuration:\n${formatConfigError(error)}`,
+                }),
+            ),
+          );
         const pinnedNowIso = Option.getOrUndefined(
           serverEnvironment.E2E_NOW_ISO,
         );
@@ -546,10 +546,10 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
         return yield* paymentFlow.pipe(
           // Any failure after reservation must rollback reservation + inserted
           // registration so callers never observe a half-created paid flow.
-          Effect.catchAllCause((cause) =>
+          Effect.catchCause((cause) =>
             rollbackOnFailure().pipe(
               Effect.orDie,
-              Effect.zipRight(Effect.failCause(cause)),
+              Effect.andThen(Effect.failCause(cause)),
             ),
           ),
         );
@@ -560,4 +560,12 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
       } as const;
     }),
   },
-) {}
+) {
+  static readonly Default = Layer.effect(
+    EventRegistrationService,
+    EventRegistrationService.make,
+  );
+
+  static readonly registerForEvent = (input: RegisterForEventArguments) =>
+    EventRegistrationService.use((service) => service.registerForEvent(input));
+}

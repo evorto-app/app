@@ -30,7 +30,7 @@ export type SeedTemplateKey =
   | 'weekend-trip';
 
 export const addTemplates = async (
-  database: NodePgDatabase<Record<string, never>, typeof relations>,
+  database: NodePgDatabase<typeof relations>,
   categories: { id: string; tenantId: string; title: string }[],
   roles: {
     defaultOrganizerRole: boolean;

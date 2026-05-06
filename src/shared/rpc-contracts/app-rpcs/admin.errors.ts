@@ -5,7 +5,7 @@ import {
 } from '@shared/errors/rpc-errors';
 import { Schema } from 'effect';
 
-export class AdminRoleNotFoundError extends Schema.TaggedError<AdminRoleNotFoundError>()(
+export class AdminRoleNotFoundError extends Schema.TaggedErrorClass<AdminRoleNotFoundError>()(
   'AdminRoleNotFoundError',
   {
     id: Schema.optional(Schema.String),
@@ -13,14 +13,14 @@ export class AdminRoleNotFoundError extends Schema.TaggedError<AdminRoleNotFound
   },
 ) {}
 
-export const AdminRoleRpcError = Schema.Union(
+export const AdminRoleRpcError = Schema.Union([
   RpcForbiddenError,
   AdminRoleNotFoundError,
   RpcUnauthorizedError,
-);
+]);
 export type AdminRoleRpcError = Schema.Schema.Type<typeof AdminRoleRpcError>;
 
-export class AdminTenantNotFoundError extends Schema.TaggedError<AdminTenantNotFoundError>()(
+export class AdminTenantNotFoundError extends Schema.TaggedErrorClass<AdminTenantNotFoundError>()(
   'AdminTenantNotFoundError',
   {
     id: Schema.optional(Schema.String),
@@ -28,12 +28,12 @@ export class AdminTenantNotFoundError extends Schema.TaggedError<AdminTenantNotF
   },
 ) {}
 
-export const AdminTenantRpcError = Schema.Union(
+export const AdminTenantRpcError = Schema.Union([
   RpcBadRequestError,
   RpcForbiddenError,
   AdminTenantNotFoundError,
   RpcUnauthorizedError,
-);
+]);
 export type AdminTenantRpcError = Schema.Schema.Type<
   typeof AdminTenantRpcError
 >;

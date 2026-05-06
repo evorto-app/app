@@ -5,7 +5,7 @@ import { ManagementClient } from 'auth0';
 import { createNodePgPoolConfig } from '@db/pg-connection-config';
 import { relations } from '@db/relations';
 import { drizzle, NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { ConfigError, ConfigProvider, Effect, Option } from 'effect';
+import { ConfigProvider, Effect, Option } from 'effect';
 import fs from 'node:fs';
 import { DateTime } from 'luxon';
 import path from 'node:path';
@@ -23,33 +23,35 @@ const dedupeLength = 4;
 const createDedupeId = init({ length: dedupeLength });
 const runtimeConfigProvider = ConfigProvider.fromEnv();
 const environment = Effect.runSync(
-  playwrightEnvironmentConfig.pipe(
-    Effect.withConfigProvider(runtimeConfigProvider),
-    Effect.mapError(
-      (error: ConfigError.ConfigError) =>
-        new Error(
-          `Invalid Playwright e2e configuration:\n${formatConfigError(error)}`,
-        ),
+  playwrightEnvironmentConfig
+    .parse(runtimeConfigProvider)
+    .pipe(
+      Effect.mapError(
+        (error) =>
+          new Error(
+            `Invalid Playwright e2e configuration:\n${formatConfigError(error)}`,
+          ),
+      ),
     ),
-  ),
 );
 const auth0Environment = Effect.runSync(
-  auth0ManagementEnvironment.pipe(
-    Effect.withConfigProvider(runtimeConfigProvider),
-    Effect.mapError(
-      (error: ConfigError.ConfigError) =>
-        new Error(
-          `Invalid e2e auth configuration:\n${formatConfigError(error)}`,
-        ),
+  auth0ManagementEnvironment
+    .parse(runtimeConfigProvider)
+    .pipe(
+      Effect.mapError(
+        (error) =>
+          new Error(
+            `Invalid e2e auth configuration:\n${formatConfigError(error)}`,
+          ),
+      ),
     ),
-  ),
 );
 process.env['E2E_NOW_ISO'] ??= environment.E2E_NOW_ISO;
 process.env['E2E_SEED_KEY'] ??= environment.E2E_SEED_KEY;
 const databaseUrl = environment.DATABASE_URL;
 
 interface BaseFixtures {
-  database: NodePgDatabase<Record<string, never>, typeof relations>;
+  database: NodePgDatabase<typeof relations>;
   falsoSeed: string;
   newUser: {
     email: string;

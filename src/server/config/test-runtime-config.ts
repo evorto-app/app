@@ -1,4 +1,4 @@
-import { Config, ConfigError, Effect, Option } from 'effect';
+import { Config, Effect, Option } from 'effect';
 import path from 'node:path';
 
 import { nonEmptyTrimmedString, optionalTrimmedString } from './config-string';
@@ -107,28 +107,25 @@ export type PlaywrightEnvironment = Omit<
   STRIPE_WEBHOOK_SECRET: string;
 };
 
-export type TestRuntimeConfigState = Config.Config.Success<
+export type TestRuntimeConfigState = Config.Success<
   typeof testRuntimeConfigState
 >;
 
-const combineMissingDataErrors = (
-  errors: readonly ConfigError.ConfigError[],
-) => {
+const combineMissingDataErrors = (errors: readonly Error[]) => {
   const [firstError, ...restErrors] = errors;
   if (!firstError) {
     throw new Error('Expected at least one config error');
   }
 
-  let combinedError = firstError;
-  for (const error of restErrors) {
-    combinedError = ConfigError.And(combinedError, error);
-  }
-
-  return combinedError;
+  return new Error(
+    [
+      ...new Set([firstError, ...restErrors].map((error) => error.message)),
+    ].join('\n'),
+  );
 };
 
 const missingFieldError = (name: string) =>
-  ConfigError.MissingData([name], `Expected ${name} to be configured`);
+  new Error(`Expected ${name} to be configured`);
 
 const collectMissingFieldErrors = (
   fields: readonly [name: string, configured: boolean][],
@@ -137,7 +134,7 @@ const collectMissingFieldErrors = (
     .map(([name, configured]) =>
       configured ? undefined : missingFieldError(name),
     )
-    .filter((value): value is ConfigError.ConfigError => value !== undefined);
+    .filter((value): value is Error => value !== undefined);
 
 const matchesProjectPattern = (pattern: string, projectName: string) => {
   const escapedPattern = pattern.replaceAll(
@@ -282,7 +279,7 @@ export const makePlaywrightEnvironmentConfig = (
       Option.isSome(state.STRIPE_WEBHOOK_SECRET)
         ? undefined
         : missingFieldError('STRIPE_WEBHOOK_SECRET'),
-    ].filter((value): value is ConfigError.ConfigError => value !== undefined);
+    ].filter((value): value is Error => value !== undefined);
 
     if (errors.length > 0) {
       return yield* Effect.fail(combineMissingDataErrors(errors));
@@ -330,13 +327,14 @@ export const makePlaywrightEnvironmentConfig = (
 
 export const playwrightEnvironmentConfig = makePlaywrightEnvironmentConfig();
 
-export const hasAuth0ManagementEnvironment = testRuntimeConfigState.pipe(
-  Effect.map(
-    (state) =>
-      Option.isSome(state.AUTH0_MANAGEMENT_CLIENT_ID) &&
-      Option.isSome(state.AUTH0_MANAGEMENT_CLIENT_SECRET),
-  ),
-);
+export const hasAuth0ManagementEnvironment = Effect.gen(function* () {
+  const state = yield* testRuntimeConfigState;
+
+  return (
+    Option.isSome(state.AUTH0_MANAGEMENT_CLIENT_ID) &&
+    Option.isSome(state.AUTH0_MANAGEMENT_CLIENT_SECRET)
+  );
+});
 
 export const auth0ManagementEnvironment = Effect.gen(function* () {
   const state = yield* testRuntimeConfigState;
@@ -347,7 +345,7 @@ export const auth0ManagementEnvironment = Effect.gen(function* () {
     Option.isSome(state.AUTH0_MANAGEMENT_CLIENT_SECRET)
       ? undefined
       : missingFieldError('AUTH0_MANAGEMENT_CLIENT_SECRET'),
-  ].filter((value): value is ConfigError.ConfigError => value !== undefined);
+  ].filter((value): value is Error => value !== undefined);
 
   if (errors.length > 0) {
     return yield* Effect.fail(combineMissingDataErrors(errors));
@@ -370,12 +368,11 @@ export const auth0ManagementEnvironment = Effect.gen(function* () {
   };
 });
 
-export const documentationOutputEnvironment = testRuntimeConfigState.pipe(
-  Effect.map(
-    (state) =>
-      ({
-        docsImageOutputDirectory: state.DOCS_IMG_OUT_DIR,
-        docsOutputDirectory: state.DOCS_OUT_DIR,
-      }) satisfies DocumentationOutputEnvironment,
-  ),
-);
+export const documentationOutputEnvironment = Effect.gen(function* () {
+  const state = yield* testRuntimeConfigState;
+
+  return {
+    docsImageOutputDirectory: state.DOCS_IMG_OUT_DIR,
+    docsOutputDirectory: state.DOCS_OUT_DIR,
+  } satisfies DocumentationOutputEnvironment;
+});

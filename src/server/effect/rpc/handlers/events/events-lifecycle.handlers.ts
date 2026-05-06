@@ -552,7 +552,7 @@ export const eventLifecycleHandlers = {
           }),
         ),
       ).pipe(
-        Effect.catchAllDefect((defect) => {
+        Effect.catchDefect((defect) => {
           if (!isTransactionRollbackError(defect)) {
             return Effect.die(defect);
           }
@@ -560,15 +560,19 @@ export const eventLifecycleHandlers = {
           {
             const failure = transactionFailure;
             return failure === null
-              ? Effect.dieMessage(
-                  'Transaction rollback triggered without a tracked failure',
+              ? Effect.die(
+                  new Error(
+                    'Transaction rollback triggered without a tracked failure',
+                  ),
                 )
               : Effect.fail(failure);
           }
         }),
       );
       if (!updatedEvent) {
-        return yield* Effect.dieMessage('Event update returned no updated row');
+        return yield* Effect.die(
+          new Error('Event update returned no updated row'),
+        );
       }
 
       return {

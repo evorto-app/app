@@ -1,4 +1,11 @@
-import { Config, ConfigError, Either, LogLevel, Option } from 'effect';
+import {
+  Config,
+  ConfigProvider,
+  Effect,
+  LogLevel,
+  Option,
+  Schema,
+} from 'effect';
 
 import { optionalTrimmedString } from './config-string';
 
@@ -29,64 +36,47 @@ const publicGoogleMapsApiKeyConfig = optionalTrimmedString(
 );
 const publicSentryDsnConfig = optionalTrimmedString('PUBLIC_SENTRY_DSN');
 
-const parseServerLogLevel = (
-  configuredLevel: string,
-): Either.Either<LogLevel.LogLevel, ConfigError.ConfigError> => {
-  switch (configuredLevel.toLowerCase()) {
-    case 'all': {
-      return Either.right(LogLevel.All);
-    }
-    case 'debug': {
-      return Either.right(LogLevel.Debug);
-    }
-    case 'error': {
-      return Either.right(LogLevel.Error);
-    }
-    case 'fatal': {
-      return Either.right(LogLevel.Fatal);
-    }
-    case 'info': {
-      return Either.right(LogLevel.Info);
-    }
-    case 'none':
-    case 'off': {
-      return Either.right(LogLevel.None);
-    }
-    case 'trace': {
-      return Either.right(LogLevel.Trace);
-    }
-    case 'warn':
-    case 'warning': {
-      return Either.right(LogLevel.Warning);
-    }
-    default: {
-      return Either.left(
-        ConfigError.InvalidData(
-          ['SERVER_LOG_LEVEL'],
-          `Expected SERVER_LOG_LEVEL to be one of (${serverLogLevelNames.join(', ')}) but received ${JSON.stringify(configuredLevel)}`,
+const serverLogLevelName = Schema.Literals(serverLogLevelNames);
+const serverLogLevelByName = {
+  all: 'All',
+  debug: 'Debug',
+  error: 'Error',
+  fatal: 'Fatal',
+  info: 'Info',
+  none: 'None',
+  off: 'None',
+  trace: 'Trace',
+  warn: 'Warn',
+  warning: 'Warn',
+} satisfies Record<(typeof serverLogLevelNames)[number], LogLevel.LogLevel>;
+const serverLogLevelNamesList = serverLogLevelNames.join(', ');
+
+const parseServerLogLevel = (configuredLevel: string) =>
+  Schema.decodeUnknownEffect(serverLogLevelName)(
+    configuredLevel.toLowerCase(),
+  ).pipe(
+    Effect.map((levelName) => serverLogLevelByName[levelName]),
+    Effect.mapError(
+      () =>
+        new Config.ConfigError(
+          new ConfigProvider.SourceError({
+            message: `Expected SERVER_LOG_LEVEL to be one of ${serverLogLevelNamesList}, got "${configuredLevel}"`,
+          }),
         ),
-      );
-    }
-  }
-};
+    ),
+  );
 
 const serverLogLevelConfig = optionalTrimmedString('SERVER_LOG_LEVEL').pipe(
   Config.mapOrFail(
     (
       configuredLevel,
-    ): Either.Either<
-      Option.Option<LogLevel.LogLevel>,
-      ConfigError.ConfigError
-    > =>
+    ): Effect.Effect<Option.Option<LogLevel.LogLevel>, Config.ConfigError> =>
       Option.match(configuredLevel, {
-        onNone: () => Either.right(Option.none()),
-        onSome: (value) => {
-          const parsedLevelResult = parseServerLogLevel(value);
-          if (Either.isLeft(parsedLevelResult)) {
-            return Either.left(parsedLevelResult.left);
-          }
-          return Either.right(Option.fromIterable([parsedLevelResult.right]));
-        },
+        onNone: () => Effect.succeed(Option.none()),
+        onSome: (value) =>
+          parseServerLogLevel(value).pipe(
+            Effect.map((parsedLevel) => Option.fromIterable([parsedLevel])),
+          ),
       }),
   ),
 );
@@ -119,7 +109,5 @@ export const serverConfig = Config.all({
   SERVER_LOG_LEVEL: serverLogLevelConfig,
 });
 
-export type ServerConfig = Config.Config.Success<typeof serverConfig>;
-export type ServerLoggingConfig = Config.Config.Success<
-  typeof serverLoggingConfig
->;
+export type ServerConfig = Config.Success<typeof serverConfig>;
+export type ServerLoggingConfig = Config.Success<typeof serverLoggingConfig>;

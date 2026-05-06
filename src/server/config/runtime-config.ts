@@ -1,4 +1,4 @@
-import { Effect } from 'effect';
+import { Context, Effect, Layer } from 'effect';
 
 import { authConfig, type AuthConfig } from './auth-config';
 import {
@@ -27,20 +27,23 @@ export interface RuntimeConfigShape {
   testRuntime: TestRuntimeConfigState;
 }
 
-export class RuntimeConfig extends Effect.Service<RuntimeConfig>()(
-  '@server/config/RuntimeConfig',
-  {
-    accessors: true,
-    effect: Effect.gen(function* () {
-      return {
-        auth: yield* authConfig,
-        cloudflareImages: yield* cloudflareImagesStateConfig,
-        database: yield* databaseConfig,
-        objectStorage: yield* objectStorageStateConfig,
-        server: yield* serverConfig,
-        stripe: yield* stripeConfig,
-        testRuntime: yield* testRuntimeConfigState,
-      } satisfies RuntimeConfigShape;
-    }),
-  },
-) {}
+const runtimeConfigEffect = Effect.gen(function* () {
+  return {
+    auth: yield* authConfig,
+    cloudflareImages: yield* cloudflareImagesStateConfig,
+    database: yield* databaseConfig,
+    objectStorage: yield* objectStorageStateConfig,
+    server: yield* serverConfig,
+    stripe: yield* stripeConfig,
+    testRuntime: yield* testRuntimeConfigState,
+  } satisfies RuntimeConfigShape;
+});
+
+export class RuntimeConfig extends Context.Service<
+  RuntimeConfig,
+  RuntimeConfigShape
+>()('@server/config/RuntimeConfig', {
+  make: runtimeConfigEffect,
+}) {
+  static readonly Default = Layer.effect(RuntimeConfig, RuntimeConfig.make);
+}

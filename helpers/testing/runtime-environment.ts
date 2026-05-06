@@ -1,4 +1,4 @@
-import { BunRuntime } from '@effect/platform-bun';
+import * as BunRuntime from '@effect/platform-bun/BunRuntime';
 import { Effect } from 'effect';
 import path from 'node:path';
 

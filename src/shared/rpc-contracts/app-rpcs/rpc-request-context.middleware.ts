@@ -1,7 +1,7 @@
-import type { Headers } from '@effect/platform';
+import type { Headers } from 'effect/unstable/http';
 
-import { RpcMiddleware } from '@effect/rpc';
 import { Context } from 'effect';
+import { RpcMiddleware } from 'effect/unstable/rpc';
 
 import { Tenant } from '../../../types/custom/tenant';
 import { User } from '../../../types/custom/user';
@@ -19,13 +19,12 @@ export interface RpcRequestContextShape {
   userAssigned: boolean;
 }
 
-export class RpcRequestContext extends Context.Tag(
-  '@shared/rpc-contracts/app-rpcs/RpcRequestContext',
-)<RpcRequestContext, RpcRequestContextShape>() {}
+export class RpcRequestContext extends Context.Service<
+  RpcRequestContext,
+  RpcRequestContextShape
+>()('@shared/rpc-contracts/app-rpcs/RpcRequestContext') {}
 
-export class RpcRequestContextMiddleware extends RpcMiddleware.Tag<RpcRequestContextMiddleware>()(
-  '@shared/rpc-contracts/app-rpcs/RpcRequestContextMiddleware',
-  {
-    provides: RpcRequestContext,
-  },
-) {}
+export class RpcRequestContextMiddleware extends RpcMiddleware.Service<
+  RpcRequestContextMiddleware,
+  { provides: RpcRequestContext }
+>()('@shared/rpc-contracts/app-rpcs/RpcRequestContextMiddleware') {}

@@ -27,4 +27,4 @@ export const databaseConfig = Config.all({
   PARENT_BRANCH_ID: optionalTrimmedString('PARENT_BRANCH_ID'),
 });
 
-export type DatabaseConfig = Config.Config.Success<typeof databaseConfig>;
+export type DatabaseConfig = Config.Success<typeof databaseConfig>;

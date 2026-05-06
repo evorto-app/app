@@ -1,5 +1,5 @@
-import { BunRuntime } from '@effect/platform-bun';
-import { Effect } from 'effect';
+import * as BunRuntime from '@effect/platform-bun/BunRuntime';
+import { ConfigProvider, Effect } from 'effect';
 
 import { makeRuntimeConfigProvider } from '../src/server/config/provider';
 import { cleanupTestingCloudflareImages } from '../src/server/integrations/cloudflare-images';
@@ -46,7 +46,7 @@ const main = Effect.gen(function* () {
     dryRun,
     ...(maxDeletes === undefined ? {} : { maxDeletes }),
     source: 'finance-receipt',
-  }).pipe(Effect.withConfigProvider(runtimeConfigProvider));
+  }).pipe(Effect.provide(ConfigProvider.layer(runtimeConfigProvider)));
 
   yield* Effect.sync(() => {
     console.info(

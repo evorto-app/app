@@ -1,5 +1,5 @@
-import * as Headers from '@effect/platform/Headers';
 import { describe, expect, it } from '@effect/vitest';
+import * as Headers from 'effect/unstable/http/Headers';
 
 import {
   encodeRpcContextHeaderJson,

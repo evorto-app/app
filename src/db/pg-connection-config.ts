@@ -3,6 +3,7 @@ import type { ConnectionOptions } from 'node:tls';
 import type { PoolConfig } from 'pg';
 
 import { Redacted } from 'effect';
+import { types } from 'pg';
 
 export const neonLocalSslConfig = {
   rejectUnauthorized: false,
@@ -10,6 +11,19 @@ export const neonLocalSslConfig = {
 const neonLocalHosts = new Set(['127.0.0.1', '::1', 'db', 'localhost']);
 const normalizeDatabaseHost = (host: string) =>
   host.replace(/^\[(.*)\]$/, '$1');
+const dateTimeTypeIds = new Set([
+  1082, 1114, 1115, 1182, 1184, 1185, 1186, 1187, 1231,
+]);
+
+const pgTypes = {
+  getTypeParser: (typeId: number, format?: 'binary' | 'text') => {
+    if (dateTimeTypeIds.has(typeId)) {
+      return (value: string) => value;
+    }
+
+    return types.getTypeParser(typeId, format);
+  },
+};
 
 const assertNeonLocalHost = (host: string) => {
   const normalizedHost = normalizeDatabaseHost(host);
@@ -64,10 +78,18 @@ export const createPgClientConfig = ({
   neonLocalProxy: boolean;
 }): Pick<
   PgClientConfig,
-  'database' | 'host' | 'password' | 'port' | 'ssl' | 'url' | 'username'
+  | 'database'
+  | 'host'
+  | 'password'
+  | 'port'
+  | 'ssl'
+  | 'types'
+  | 'url'
+  | 'username'
 > => {
   if (!neonLocalProxy) {
     return {
+      types: pgTypes,
       url: Redacted.make(databaseUrl),
     };
   }
@@ -81,6 +103,7 @@ export const createPgClientConfig = ({
     password: Redacted.make(password),
     port,
     ssl: neonLocalSslConfig,
+    types: pgTypes,
     username: user,
   };
 };

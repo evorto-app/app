@@ -80,9 +80,9 @@ export const eventRegistrationHandlers = {
         );
       }
 
-      const cancelledStripeTransaction = yield* Database.pipe(
-        Effect.flatMap((database) =>
-          database.transaction((tx) =>
+      const cancelledStripeTransaction = yield* Database.use((database) =>
+        database
+          .transaction((tx) =>
             Effect.gen(function* () {
               const cancelledRegistrations = yield* tx
                 .update(eventRegistrations)
@@ -147,18 +147,19 @@ export const eventRegistrationHandlers = {
                 transactionId: pendingStripeTransaction.id,
               };
             }),
+          )
+          .pipe(
+            Effect.catch((error) =>
+              error instanceof EventRegistrationInternalError
+                ? Effect.fail(error)
+                : Effect.fail(
+                    new EventRegistrationInternalError({
+                      cause: error,
+                      message: 'Internal server error',
+                    }),
+                  ),
+            ),
           ),
-        ),
-        Effect.catchAll((error) =>
-          error instanceof EventRegistrationInternalError
-            ? Effect.fail(error)
-            : Effect.fail(
-                new EventRegistrationInternalError({
-                  cause: error,
-                  message: 'Internal server error',
-                }),
-              ),
-        ),
       );
 
       if (
@@ -194,7 +195,7 @@ export const eventRegistrationHandlers = {
             }),
           ),
         ),
-        Effect.catchAll(() => Effect.void),
+        Effect.catch(() => Effect.void),
       );
     }),
   'events.getRegistrationStatus': ({ eventId }, _options) =>

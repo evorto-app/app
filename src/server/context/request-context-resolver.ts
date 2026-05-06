@@ -60,7 +60,7 @@ const isLocalRequestHost = (domain: string): boolean =>
 
 const databaseEffect = <A, E>(
   operation: (database: DatabaseClient) => Effect.Effect<A, E, never>,
-) => Database.pipe(Effect.flatMap((database) => operation(database)));
+) => Database.use((database) => operation(database));
 
 const findTenantByDomain = (domain: string) =>
   databaseEffect((database) =>

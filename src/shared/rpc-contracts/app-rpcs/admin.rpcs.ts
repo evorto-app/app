@@ -1,7 +1,8 @@
-import * as Rpc from '@effect/rpc/Rpc';
-import * as RpcGroup from '@effect/rpc/RpcGroup';
 import { asRpcMutation, asRpcQuery } from '@heddendorp/effect-angular-query';
+import { literalUnion } from '@shared/schema-utilities';
 import { Schema } from 'effect';
+import * as Rpc from 'effect/unstable/rpc/Rpc';
+import * as RpcGroup from 'effect/unstable/rpc/RpcGroup';
 
 import { Tenant } from '../../../types/custom/tenant';
 import { PermissionSchema } from '../../permissions/permissions';
@@ -195,7 +196,7 @@ export const AdminTenantUpdateSettings = asRpcMutation(
       defaultLocation: Schema.NullOr(Schema.Any),
       esnCardEnabled: Schema.Boolean,
       receiptCountries: Schema.Array(Schema.NonEmptyString),
-      theme: Schema.mutable(Schema.Literal('evorto', 'esn')),
+      theme: literalUnion('evorto', 'esn'),
     }),
     success: Tenant,
   }),

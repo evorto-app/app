@@ -14,7 +14,7 @@ const length = 4;
 export const createId = init({ length });
 
 export const createTenant = async (
-  database: NodePgDatabase<Record<string, never>, typeof relations>,
+  database: NodePgDatabase<typeof relations>,
   tenantData?: Partial<InferInsertModel<typeof schema.tenants>>,
 ) => {
   const t0 = Date.now();

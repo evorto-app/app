@@ -11,4 +11,4 @@ export const authConfig = Config.all({
   SECRET: nonEmptyTrimmedString('SECRET'),
 });
 
-export type AuthConfig = Config.Config.Success<typeof authConfig>;
+export type AuthConfig = Config.Success<typeof authConfig>;

@@ -48,7 +48,7 @@ const seedPendingReceiptForApproval = async ({
   submittedByUserId,
   tenantId,
 }: {
-  database: NodePgDatabase<Record<string, never>, typeof relations>;
+  database: NodePgDatabase<typeof relations>;
   eventId: string;
   seedDate: Date;
   submittedByUserId: string;

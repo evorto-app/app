@@ -104,7 +104,7 @@ export interface SeedTenantResult {
 }
 
 export const seedBaseUsers = async (
-  database: NodePgDatabase<Record<string, never>, typeof relations>,
+  database: NodePgDatabase<typeof relations>,
 ) => {
   const values = usersToAuthenticate
     .filter((data) => data.addToDb)
@@ -127,7 +127,7 @@ export const seedBaseUsers = async (
 };
 
 export async function seedTenant(
-  database: NodePgDatabase<Record<string, never>, typeof relations>,
+  database: NodePgDatabase<typeof relations>,
   {
     domain,
     ensureUsers = false,

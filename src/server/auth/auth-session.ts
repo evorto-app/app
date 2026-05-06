@@ -8,10 +8,10 @@ import {
   type SessionData,
   StatelessStateStore,
 } from '@auth0/auth0-server-js';
-import * as Headers from '@effect/platform/Headers';
-import * as HttpServerRequest from '@effect/platform/HttpServerRequest';
-import * as HttpServerResponse from '@effect/platform/HttpServerResponse';
 import { Duration, Effect, Option } from 'effect';
+import * as Headers from 'effect/unstable/http/Headers';
+import * as HttpServerRequest from 'effect/unstable/http/HttpServerRequest';
+import * as HttpServerResponse from 'effect/unstable/http/HttpServerResponse';
 
 import { RuntimeConfig } from '../config/runtime-config';
 
@@ -184,7 +184,7 @@ const applyCookieMutations = (
         continue;
       }
 
-      nextResponse = HttpServerResponse.expireCookie(
+      nextResponse = yield* HttpServerResponse.expireCookie(
         nextResponse,
         mutation.name,
         toExpireCookieOptions(mutation.options),
@@ -202,17 +202,14 @@ const isExpectedAuth0Error = (
 
 const runPromiseOrUndefined = <T>(operation: string, thunk: () => Promise<T>) =>
   Effect.promise(thunk).pipe(
-    Effect.catchAllDefect((error) => {
+    Effect.catchDefect((error) => {
       if (isExpectedAuth0Error(error)) {
         return Effect.succeed(undefined as T | undefined);
       }
 
       return Effect.logError(
         `Unexpected Auth0 SDK failure during ${operation}`,
-      ).pipe(
-        Effect.annotateLogs({ error }),
-        Effect.zipRight(Effect.die(error)),
-      );
+      ).pipe(Effect.annotateLogs({ error }), Effect.andThen(Effect.die(error)));
     }),
   );
 
@@ -450,7 +447,7 @@ export const handleLogoutRequest = (
     );
 
     if (!logoutUrl) {
-      const fallbackResponse = HttpServerResponse.expireCookie(
+      const fallbackResponse = yield* HttpServerResponse.expireCookie(
         HttpServerResponse.redirect(returnPath),
         SESSION_COOKIE_NAME,
         {

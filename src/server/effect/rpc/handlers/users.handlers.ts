@@ -1,4 +1,4 @@
-import type { Headers } from '@effect/platform';
+import type { Headers } from 'effect/unstable/http';
 
 import {
   RpcForbiddenError,
@@ -30,14 +30,12 @@ import {
 const databaseEffect = <A>(
   operation: (database: DatabaseClient) => Effect.Effect<A, unknown, never>,
 ): Effect.Effect<A, never, Database> =>
-  Database.pipe(
-    Effect.flatMap((database) => operation(database).pipe(Effect.orDie)),
-  );
+  Database.use((database) => operation(database).pipe(Effect.orDie));
 
-const decodeHeaderJson = <A, I>(
+const decodeHeaderJson = <A>(
   value: string | undefined,
-  schema: Schema.Schema<A, I, never>,
-) => Schema.decodeUnknownSync(schema)(decodeRpcContextHeaderJson(value));
+  schema: Schema.Decoder<A>,
+): A => Schema.decodeUnknownSync(schema)(decodeRpcContextHeaderJson(value));
 
 const ensureAuthenticated = (
   headers: Headers.Headers,
@@ -144,7 +142,7 @@ export const userHandlers = {
       );
       const createdUser = userCreateResponse[0];
       if (!createdUser) {
-        return yield* Effect.dieMessage('User insert returned no rows');
+        return yield* Effect.die(new Error('User insert returned no rows'));
       }
 
       const userTenantCreateResponse = yield* databaseEffect((database) =>
@@ -160,8 +158,8 @@ export const userHandlers = {
       );
       const createdUserTenant = userTenantCreateResponse[0];
       if (!createdUserTenant) {
-        return yield* Effect.dieMessage(
-          'User tenant association insert returned no rows',
+        return yield* Effect.die(
+          new Error('User tenant association insert returned no rows'),
         );
       }
 

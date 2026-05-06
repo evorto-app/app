@@ -1,7 +1,13 @@
-import * as Rpc from '@effect/rpc/Rpc';
-import * as RpcGroup from '@effect/rpc/RpcGroup';
 import { asRpcMutation, asRpcQuery } from '@heddendorp/effect-angular-query';
+import {
+  literalUnion,
+  nonNegativeNumber,
+  pickStruct,
+  positiveNumber,
+} from '@shared/schema-utilities';
 import { Schema } from 'effect';
+import * as Rpc from 'effect/unstable/rpc/Rpc';
+import * as RpcGroup from 'effect/unstable/rpc/RpcGroup';
 
 import { iconSchema } from '../../types/icon';
 import {
@@ -9,20 +15,20 @@ import {
   TemplateSimpleRpcError,
 } from './templates.errors';
 
-export const TemplateRegistrationMode = Schema.Literal(
+export const TemplateRegistrationMode = literalUnion(
   'application',
   'fcfs',
   'random',
 );
 
 export const TemplateSimpleRegistrationInput = Schema.Struct({
-  closeRegistrationOffset: Schema.Number.pipe(Schema.nonNegative()),
+  closeRegistrationOffset: nonNegativeNumber,
   isPaid: Schema.Boolean,
-  openRegistrationOffset: Schema.Number.pipe(Schema.nonNegative()),
-  price: Schema.Number.pipe(Schema.nonNegative()),
+  openRegistrationOffset: nonNegativeNumber,
+  price: nonNegativeNumber,
   registrationMode: TemplateRegistrationMode,
   roleIds: Schema.mutable(Schema.Array(Schema.NonEmptyString)),
-  spots: Schema.Positive,
+  spots: positiveNumber,
   stripeTaxRateId: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
 });
 
@@ -75,7 +81,7 @@ export const TemplateListRecord = Schema.Struct({
 });
 
 export type TemplateListRecord = Schema.Schema.Type<typeof TemplateListRecord>;
-export const TemplateIdRecord = TemplateListRecord.pick('id');
+export const TemplateIdRecord = pickStruct(TemplateListRecord, ['id']);
 export type TemplateIdRecord = Schema.Schema.Type<typeof TemplateIdRecord>;
 
 export const TemplatesCreateSimpleTemplate = asRpcMutation(

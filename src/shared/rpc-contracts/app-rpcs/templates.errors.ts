@@ -11,34 +11,34 @@ export type TemplateSimpleError =
   | TemplateSimpleInternalError
   | TemplateSimpleNotFoundError;
 
-export class TemplateSimpleBadRequestError extends Schema.TaggedError<TemplateSimpleBadRequestError>()(
+export class TemplateSimpleBadRequestError extends Schema.TaggedErrorClass<TemplateSimpleBadRequestError>()(
   'TemplateSimpleBadRequestError',
   {
     message: Schema.String,
   },
 ) {}
 
-export class TemplateSimpleInternalError extends Schema.TaggedError<TemplateSimpleInternalError>()(
+export class TemplateSimpleInternalError extends Schema.TaggedErrorClass<TemplateSimpleInternalError>()(
   'TemplateSimpleInternalError',
   {
     message: Schema.String,
   },
 ) {}
 
-export class TemplateSimpleNotFoundError extends Schema.TaggedError<TemplateSimpleNotFoundError>()(
+export class TemplateSimpleNotFoundError extends Schema.TaggedErrorClass<TemplateSimpleNotFoundError>()(
   'TemplateSimpleNotFoundError',
   {
     message: Schema.String,
   },
 ) {}
 
-export const TemplateSimpleRpcError = Schema.Union(
+export const TemplateSimpleRpcError = Schema.Union([
   RpcForbiddenError,
   RpcUnauthorizedError,
   TemplateSimpleBadRequestError,
   TemplateSimpleInternalError,
   TemplateSimpleNotFoundError,
-);
+]);
 
 export type TemplateSimpleRpcError = Schema.Schema.Type<
   typeof TemplateSimpleRpcError

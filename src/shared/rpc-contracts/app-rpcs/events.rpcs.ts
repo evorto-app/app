@@ -1,7 +1,8 @@
-import * as Rpc from '@effect/rpc/Rpc';
-import * as RpcGroup from '@effect/rpc/RpcGroup';
 import { asRpcMutation, asRpcQuery } from '@heddendorp/effect-angular-query';
-import { Schema } from 'effect';
+import { literalUnion, nonNegativeNumber } from '@shared/schema-utilities';
+import { Effect, Schema } from 'effect';
+import * as Rpc from 'effect/unstable/rpc/Rpc';
+import * as RpcGroup from 'effect/unstable/rpc/RpcGroup';
 
 import { iconSchema } from '../../types/icon';
 import {
@@ -20,7 +21,7 @@ import {
   EventsUpdateRpcError,
 } from './events.errors';
 
-export const EventReviewStatus = Schema.Literal(
+export const EventReviewStatus = literalUnion(
   'APPROVED',
   'DRAFT',
   'PENDING_REVIEW',
@@ -55,11 +56,11 @@ export const EventsCreateRegistrationOptionInput = Schema.Struct({
   isPaid: Schema.Boolean,
   openRegistrationTime: Schema.NonEmptyString,
   organizingRegistration: Schema.Boolean,
-  price: Schema.Number.pipe(Schema.nonNegative()),
+  price: nonNegativeNumber,
   registeredDescription: Schema.NullOr(Schema.NonEmptyString),
-  registrationMode: Schema.Literal('application', 'fcfs', 'random'),
+  registrationMode: literalUnion('application', 'fcfs', 'random'),
   roleIds: Schema.Array(Schema.NonEmptyString),
-  spots: Schema.Number.pipe(Schema.nonNegative()),
+  spots: nonNegativeNumber,
   stripeTaxRateId: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
   title: Schema.NonEmptyString,
 });
@@ -84,18 +85,20 @@ export const EventsCreate = asRpcMutation(
 
 export const EventsEventListInput = Schema.Struct({
   includeUnlisted: Schema.optional(Schema.Boolean),
-  limit: Schema.optionalWith(Schema.Number.pipe(Schema.nonNegative()), {
-    default: () => 100,
-  }),
-  offset: Schema.optionalWith(Schema.Number.pipe(Schema.nonNegative()), {
-    default: () => 0,
-  }),
-  startAfter: Schema.optionalWith(Schema.NonEmptyString, {
-    default: () => new Date().toISOString(),
-  }),
-  status: Schema.optionalWith(Schema.Array(EventReviewStatus), {
-    default: () => [],
-  }),
+  limit: nonNegativeNumber.pipe(
+    Schema.withDecodingDefaultTypeKey(Effect.succeed(100)),
+  ),
+  offset: nonNegativeNumber.pipe(
+    Schema.withDecodingDefaultTypeKey(Effect.succeed(0)),
+  ),
+  startAfter: Schema.NonEmptyString.pipe(
+    Schema.withDecodingDefaultTypeKey(
+      Effect.sync(() => new Date().toISOString()),
+    ),
+  ),
+  status: Schema.Array(EventReviewStatus).pipe(
+    Schema.withDecodingDefaultTypeKey(Effect.succeed([])),
+  ),
   userId: Schema.optional(Schema.NonEmptyString),
 });
 
@@ -135,7 +138,7 @@ export const EventsEventList = asRpcQuery(
   }),
 );
 
-export const EventsFindOneForEditRegistrationMode = Schema.Literal(
+export const EventsFindOneForEditRegistrationMode = literalUnion(
   'application',
   'fcfs',
   'random',
@@ -382,18 +385,16 @@ export const EventsUpdateListing = asRpcMutation(
 export const EventsUpdateRegistrationOptionInput = Schema.Struct({
   closeRegistrationTime: Schema.NonEmptyString,
   description: Schema.NullOr(Schema.NonEmptyString),
-  esnCardDiscountedPrice: Schema.optional(
-    Schema.NullOr(Schema.Number.pipe(Schema.nonNegative())),
-  ),
+  esnCardDiscountedPrice: Schema.optional(Schema.NullOr(nonNegativeNumber)),
   id: Schema.NonEmptyString,
   isPaid: Schema.Boolean,
   openRegistrationTime: Schema.NonEmptyString,
   organizingRegistration: Schema.Boolean,
-  price: Schema.Number.pipe(Schema.nonNegative()),
+  price: nonNegativeNumber,
   registeredDescription: Schema.NullOr(Schema.NonEmptyString),
-  registrationMode: Schema.Literal('application', 'fcfs', 'random'),
+  registrationMode: literalUnion('application', 'fcfs', 'random'),
   roleIds: Schema.Array(Schema.NonEmptyString),
-  spots: Schema.Number.pipe(Schema.nonNegative()),
+  spots: nonNegativeNumber,
   stripeTaxRateId: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
   title: Schema.NonEmptyString,
 });

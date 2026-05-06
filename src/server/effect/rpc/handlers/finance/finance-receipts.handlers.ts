@@ -218,8 +218,10 @@ export const financeReceiptsHandlers = {
               });
             const transaction = insertedTransactions[0];
             if (!transaction) {
-              return yield* Effect.dieMessage(
-                `Refund transaction insert returned no rows for target user ${targetUserId}`,
+              return yield* Effect.die(
+                new Error(
+                  `Refund transaction insert returned no rows for target user ${targetUserId}`,
+                ),
               );
             }
 
@@ -255,13 +257,15 @@ export const financeReceiptsHandlers = {
           }),
         ),
       ).pipe(
-        Effect.catchAllDefect((defect) => {
+        Effect.catchDefect((defect) => {
           if (!isTransactionRollbackError(defect)) {
             return Effect.die(defect);
           }
           return transactionFailure === null
-            ? Effect.dieMessage(
-                'Transaction rollback triggered without a tracked failure',
+            ? Effect.die(
+                new Error(
+                  'Transaction rollback triggered without a tracked failure',
+                ),
               )
             : Effect.fail(transactionFailure);
         }),
@@ -776,8 +780,10 @@ export const financeReceiptsHandlers = {
       );
       const created = createdReceipts[0];
       if (!created) {
-        return yield* Effect.dieMessage(
-          `Receipt insert returned no rows for event ${input.eventId}`,
+        return yield* Effect.die(
+          new Error(
+            `Receipt insert returned no rows for event ${input.eventId}`,
+          ),
         );
       }
 

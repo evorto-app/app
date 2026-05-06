@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@effect/vitest';
-import { ConfigError, ConfigProvider, Effect } from 'effect';
+import { ConfigProvider, Effect } from 'effect';
 
 import { formatConfigError } from './config-error';
 import {
@@ -12,9 +12,9 @@ const readPlaywrightEnvironment = (
   argv?: readonly string[],
 ) =>
   makePlaywrightEnvironmentConfig(argv).pipe(
-    Effect.withConfigProvider(provider),
+    Effect.provide(ConfigProvider.layer(provider)),
     Effect.mapError(
-      (error: ConfigError.ConfigError) =>
+      (error) =>
         new Error(
           `Invalid Playwright e2e configuration:\n${formatConfigError(error)}`,
         ),
@@ -31,6 +31,9 @@ const requiredPlaywrightEntries = [
   ['STRIPE_TEST_ACCOUNT_ID', 'acct_123'],
   ['STRIPE_WEBHOOK_SECRET', 'whsec_123'],
 ] as const;
+
+const providerFromEntries = (entries: readonly (readonly [string, string])[]) =>
+  ConfigProvider.fromEnv({ env: Object.fromEntries(entries) });
 
 describe('test-runtime-config', () => {
   it('treats UI mode as unrestricted for integration-only credentials', () => {
@@ -77,12 +80,10 @@ describe('test-runtime-config', () => {
 
   it.effect('requires BASE_URL and ignores PLAYWRIGHT_TEST_BASE_URL', () =>
     Effect.gen(function* () {
-      const provider = ConfigProvider.fromMap(
-        new Map([
-          ...requiredPlaywrightEntries,
-          ['PLAYWRIGHT_TEST_BASE_URL', 'http://localhost:4200'],
-        ]),
-      );
+      const provider = providerFromEntries([
+        ...requiredPlaywrightEntries,
+        ['PLAYWRIGHT_TEST_BASE_URL', 'http://localhost:4200'],
+      ]);
 
       const error = yield* Effect.flip(readPlaywrightEnvironment(provider));
       expect(error.message).toMatch(/BASE_URL/);
@@ -91,12 +92,10 @@ describe('test-runtime-config', () => {
 
   it.effect('accepts BASE_URL as the canonical Playwright app URL', () =>
     Effect.gen(function* () {
-      const provider = ConfigProvider.fromMap(
-        new Map([
-          ...requiredPlaywrightEntries,
-          ['BASE_URL', 'http://localhost:4200'],
-        ]),
-      );
+      const provider = providerFromEntries([
+        ...requiredPlaywrightEntries,
+        ['BASE_URL', 'http://localhost:4200'],
+      ]);
       const environment = yield* readPlaywrightEnvironment(provider);
 
       expect(environment.NO_WEBSERVER).toBe(false);
@@ -108,13 +107,11 @@ describe('test-runtime-config', () => {
     'still resolves BASE_URL when NO_WEBSERVER disables only auto-startup',
     () =>
       Effect.gen(function* () {
-        const provider = ConfigProvider.fromMap(
-          new Map([
-            ...requiredPlaywrightEntries,
-            ['BASE_URL', 'http://localhost:4200'],
-            ['NO_WEBSERVER', 'true'],
-          ]),
-        );
+        const provider = providerFromEntries([
+          ...requiredPlaywrightEntries,
+          ['BASE_URL', 'http://localhost:4200'],
+          ['NO_WEBSERVER', 'true'],
+        ]);
         const environment = yield* readPlaywrightEnvironment(provider);
 
         expect(environment.NO_WEBSERVER).toBe(true);
@@ -126,18 +123,16 @@ describe('test-runtime-config', () => {
     'does not require Auth0 Management or Cloudflare Images in CI when only baseline projects are selected',
     () =>
       Effect.gen(function* () {
-        const provider = ConfigProvider.fromMap(
-          new Map([
-            ...requiredPlaywrightEntries,
-            ['BASE_URL', 'http://localhost:4200'],
-            ['CI', 'true'],
-            ['S3_ACCESS_KEY_ID', 'access-key'],
-            ['S3_BUCKET', 'bucket'],
-            ['S3_ENDPOINT', 'http://minio:9000'],
-            ['S3_REGION', 'us-east-1'],
-            ['S3_SECRET_ACCESS_KEY', 'secret-key'],
-          ]),
-        );
+        const provider = providerFromEntries([
+          ...requiredPlaywrightEntries,
+          ['BASE_URL', 'http://localhost:4200'],
+          ['CI', 'true'],
+          ['S3_ACCESS_KEY_ID', 'access-key'],
+          ['S3_BUCKET', 'bucket'],
+          ['S3_ENDPOINT', 'http://minio:9000'],
+          ['S3_REGION', 'us-east-1'],
+          ['S3_SECRET_ACCESS_KEY', 'secret-key'],
+        ]);
         const environment = yield* readPlaywrightEnvironment(provider, [
           'node',
           'playwright',
@@ -153,18 +148,16 @@ describe('test-runtime-config', () => {
     'requires Auth0 Management and Cloudflare Images in CI when an integration project is selected',
     () =>
       Effect.gen(function* () {
-        const provider = ConfigProvider.fromMap(
-          new Map([
-            ...requiredPlaywrightEntries,
-            ['BASE_URL', 'http://localhost:4200'],
-            ['CI', 'true'],
-            ['S3_ACCESS_KEY_ID', 'access-key'],
-            ['S3_BUCKET', 'bucket'],
-            ['S3_ENDPOINT', 'http://minio:9000'],
-            ['S3_REGION', 'us-east-1'],
-            ['S3_SECRET_ACCESS_KEY', 'secret-key'],
-          ]),
-        );
+        const provider = providerFromEntries([
+          ...requiredPlaywrightEntries,
+          ['BASE_URL', 'http://localhost:4200'],
+          ['CI', 'true'],
+          ['S3_ACCESS_KEY_ID', 'access-key'],
+          ['S3_BUCKET', 'bucket'],
+          ['S3_ENDPOINT', 'http://minio:9000'],
+          ['S3_REGION', 'us-east-1'],
+          ['S3_SECRET_ACCESS_KEY', 'secret-key'],
+        ]);
 
         const error = yield* Effect.flip(
           readPlaywrightEnvironment(provider, [

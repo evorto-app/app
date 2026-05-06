@@ -2,7 +2,7 @@ import { Schema } from 'effect';
 
 import { RpcUnauthorizedError } from '../../errors/rpc-errors';
 
-export class InvalidIconNameError extends Schema.TaggedError<InvalidIconNameError>()(
+export class InvalidIconNameError extends Schema.TaggedErrorClass<InvalidIconNameError>()(
   'InvalidIconNameError',
   {
     iconName: Schema.String,
@@ -10,8 +10,8 @@ export class InvalidIconNameError extends Schema.TaggedError<InvalidIconNameErro
   },
 ) {}
 
-export const IconRpcError = Schema.Union(
+export const IconRpcError = Schema.Union([
   InvalidIconNameError,
   RpcUnauthorizedError,
-);
+]);
 export type IconRpcError = Schema.Schema.Type<typeof IconRpcError>;

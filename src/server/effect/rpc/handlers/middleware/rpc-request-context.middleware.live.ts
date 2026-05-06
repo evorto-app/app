@@ -1,10 +1,13 @@
-import type { Headers } from '@effect/platform';
+import type { Headers } from 'effect/unstable/http';
 
 import { Effect, Layer, Schema } from 'effect';
 
 import { type Permission } from '../../../../../shared/permissions/permissions';
 import { ConfigPermissions } from '../../../../../shared/rpc-contracts/app-rpcs/config.rpcs';
-import { RpcRequestContextMiddleware } from '../../../../../shared/rpc-contracts/app-rpcs/rpc-request-context.middleware';
+import {
+  RpcRequestContext,
+  RpcRequestContextMiddleware,
+} from '../../../../../shared/rpc-contracts/app-rpcs/rpc-request-context.middleware';
 import { UsersAuthData } from '../../../../../shared/rpc-contracts/app-rpcs/users.rpcs';
 import { Tenant } from '../../../../../types/custom/tenant';
 import { User } from '../../../../../types/custom/user';
@@ -13,10 +16,10 @@ import {
   RPC_CONTEXT_HEADERS,
 } from '../../rpc-context-headers';
 
-const decodeHeaderJson = <A, I>(
+const decodeHeaderJson = <A>(
   value: string | undefined,
-  schema: Schema.Schema<A, I, never>,
-) => Schema.decodeUnknownSync(schema)(decodeRpcContextHeaderJson(value));
+  schema: Schema.Decoder<A>,
+): A => Schema.decodeUnknownSync(schema)(decodeRpcContextHeaderJson(value));
 
 export const decodeRpcRequestContextFromHeaders = (
   headers: Headers.Headers,
@@ -40,7 +43,12 @@ export const decodeRpcRequestContextFromHeaders = (
 
 export const rpcRequestContextMiddlewareLive = Layer.succeed(
   RpcRequestContextMiddleware,
-  RpcRequestContextMiddleware.of(({ headers }) =>
-    Effect.sync(() => decodeRpcRequestContextFromHeaders(headers)),
+  RpcRequestContextMiddleware.of((effect, { headers }) =>
+    effect.pipe(
+      Effect.provideService(
+        RpcRequestContext,
+        decodeRpcRequestContextFromHeaders(headers),
+      ),
+    ),
   ),
 );

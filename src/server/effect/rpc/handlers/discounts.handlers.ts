@@ -1,4 +1,4 @@
-import type { Headers } from '@effect/platform';
+import type { Headers } from 'effect/unstable/http';
 
 import {
   RpcBadRequestError,
@@ -34,14 +34,12 @@ import {
 const databaseEffect = <A>(
   operation: (database: DatabaseClient) => Effect.Effect<A, unknown, never>,
 ): Effect.Effect<A, never, Database> =>
-  Database.pipe(
-    Effect.flatMap((database) => operation(database).pipe(Effect.orDie)),
-  );
+  Database.use((database) => operation(database).pipe(Effect.orDie));
 
-const decodeHeaderJson = <A, I>(
+const decodeHeaderJson = <A>(
   value: string | undefined,
-  schema: Schema.Schema<A, I, never>,
-) => Schema.decodeUnknownSync(schema)(decodeRpcContextHeaderJson(value));
+  schema: Schema.Decoder<A>,
+): A => Schema.decodeUnknownSync(schema)(decodeRpcContextHeaderJson(value));
 
 const normalizeUserDiscountCardRecord = (
   card: Pick<

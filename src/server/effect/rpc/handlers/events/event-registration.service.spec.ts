@@ -1,6 +1,6 @@
-import * as Headers from '@effect/platform/Headers';
 import { describe, expect, it, vi } from '@effect/vitest';
 import { ConfigProvider, Effect, Layer } from 'effect';
+import * as Headers from 'effect/unstable/http/Headers';
 import Stripe from 'stripe';
 
 import { Database } from '../../../../../db';
@@ -11,9 +11,9 @@ import { EventRegistrationService } from './event-registration.service';
 const stripeClient = new Stripe('sk_test_123');
 const runtimeConfigLayer = RuntimeConfig.Default.pipe(
   Layer.provide(
-    Layer.setConfigProvider(
-      ConfigProvider.fromMap(
-        new Map([
+    ConfigProvider.layer(
+      ConfigProvider.fromEnv({
+        env: Object.fromEntries([
           ['BASE_URL', 'https://app.example'],
           ['CLIENT_ID', 'client-id'],
           ['CLIENT_SECRET', 'client-secret'],
@@ -21,7 +21,7 @@ const runtimeConfigLayer = RuntimeConfig.Default.pipe(
           ['ISSUER_BASE_URL', 'https://issuer.example'],
           ['SECRET', 'secret'],
         ]),
-      ),
+      }),
     ),
   ),
 );

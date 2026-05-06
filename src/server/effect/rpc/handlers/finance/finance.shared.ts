@@ -27,9 +27,7 @@ interface ReceiptCountryConfigTenant {
 export const databaseEffect = <A>(
   operation: (database: DatabaseClient) => Effect.Effect<A, unknown, never>,
 ): Effect.Effect<A, never, Database> =>
-  Database.pipe(
-    Effect.flatMap((database) => operation(database).pipe(Effect.orDie)),
-  );
+  Database.use((database) => operation(database).pipe(Effect.orDie));
 
 export const isAllowedReceiptMimeType = (mimeType: string): boolean =>
   mimeType.startsWith('image/') || mimeType === 'application/pdf';

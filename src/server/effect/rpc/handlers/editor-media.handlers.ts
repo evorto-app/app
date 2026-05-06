@@ -1,4 +1,4 @@
-import type { Headers } from '@effect/platform';
+import type { Headers } from 'effect/unstable/http';
 
 import {
   RpcBadRequestError,
@@ -25,10 +25,10 @@ const ALLOWED_IMAGE_MIME_TYPES = [
 const ALLOWED_IMAGE_MIME_TYPE_SET = new Set<string>(ALLOWED_IMAGE_MIME_TYPES);
 const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024;
 
-const decodeHeaderJson = <A, I>(
+const decodeHeaderJson = <A>(
   value: string | undefined,
-  schema: Schema.Schema<A, I, never>,
-) => Schema.decodeUnknownSync(schema)(decodeRpcContextHeaderJson(value));
+  schema: Schema.Decoder<A>,
+): A => Schema.decodeUnknownSync(schema)(decodeRpcContextHeaderJson(value));
 
 const ensureAuthenticated = (
   headers: Headers.Headers,

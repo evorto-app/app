@@ -102,7 +102,7 @@ const resolveTaxRateSelection = (
 };
 
 const fetchTenantTaxRates = async (
-  database: NodePgDatabase<Record<string, never>, typeof relations>,
+  database: NodePgDatabase<typeof relations>,
   tenantId: string,
 ): Promise<TenantStripeTaxRate[]> => {
   for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -508,7 +508,7 @@ const requireScenarioEvent = (
 };
 
 const loadCreatedEvents = async (
-  database: NodePgDatabase<Record<string, never>, typeof relations>,
+  database: NodePgDatabase<typeof relations>,
   tenantId: string,
 ) => {
   return database.query.eventInstances.findMany({
@@ -523,7 +523,7 @@ const loadCreatedEvents = async (
 };
 
 export const addEvents = async (
-  database: NodePgDatabase<Record<string, never>, typeof relations>,
+  database: NodePgDatabase<typeof relations>,
   templates: SeedTemplate[],
   roles: {
     defaultOrganizerRole: boolean;

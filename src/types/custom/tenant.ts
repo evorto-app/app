@@ -1,61 +1,79 @@
+import { literalUnion, optionalNullable } from '@shared/schema-utilities';
 import {
   createDefaultTenantDiscountProviders,
   DEFAULT_TENANT_RECEIPT_ALLOW_OTHER,
   DEFAULT_TENANT_RECEIPT_COUNTRIES,
 } from '@shared/tenant-config';
-import { Schema } from 'effect';
+import { Effect, Schema, SchemaGetter } from 'effect';
+
+import { GoogleLocation } from '../location';
+
+const OptionalGoogleLocation = Schema.NullishOr(GoogleLocation).pipe(
+  Schema.decodeTo(Schema.UndefinedOr(GoogleLocation), {
+    decode: SchemaGetter.transform((value) => value ?? undefined),
+    encode: SchemaGetter.transform((value) => value ?? null),
+  }),
+);
+
+const TenantReceiptSettings = Schema.Struct({
+  allowOther: Schema.optional(Schema.Boolean).pipe(
+    Schema.withDecodingDefaultType(
+      Effect.sync(() => DEFAULT_TENANT_RECEIPT_ALLOW_OTHER),
+    ),
+  ),
+  receiptCountries: Schema.optional(Schema.Array(Schema.NonEmptyString)).pipe(
+    Schema.withDecodingDefaultType(
+      Effect.sync(() => [...DEFAULT_TENANT_RECEIPT_COUNTRIES]),
+    ),
+  ),
+});
+
+const OptionalTenantReceiptSettings = Schema.NullishOr(
+  TenantReceiptSettings,
+).pipe(
+  Schema.decodeTo(Schema.UndefinedOr(TenantReceiptSettings), {
+    decode: SchemaGetter.transform((value) => value ?? undefined),
+    encode: SchemaGetter.transform((value) => value ?? null),
+  }),
+  Schema.withDecodingDefaultType(
+    Effect.sync(() => ({
+      allowOther: DEFAULT_TENANT_RECEIPT_ALLOW_OTHER,
+      receiptCountries: [...DEFAULT_TENANT_RECEIPT_COUNTRIES],
+    })),
+  ),
+);
 
 export class Tenant extends Schema.Class<Tenant>('Tenant')({
-  currency: Schema.Literal('EUR', 'CZK', 'AUD'),
-  defaultLocation: Schema.optionalWith(Schema.Any, {
-    nullable: true,
-  }),
-  discountProviders: Schema.optionalWith(
-    Schema.Struct({
-      esnCard: Schema.optionalWith(
-        Schema.Struct({
-          config: Schema.Struct({
-            buyEsnCardUrl: Schema.optional(Schema.NonEmptyString),
-          }),
-          status: Schema.Literal('disabled', 'enabled'),
-        }),
-        {
-          default: () => createDefaultTenantDiscountProviders().esnCard,
-        },
-      ),
-    }),
-    {
-      default: () => createDefaultTenantDiscountProviders(),
-      nullable: true,
-    },
+  currency: literalUnion('EUR', 'CZK', 'AUD'),
+  defaultLocation: OptionalGoogleLocation,
+  discountProviders: Schema.optional(
+    Schema.NullOr(
+      Schema.Struct({
+        esnCard: Schema.optional(
+          Schema.Struct({
+            config: Schema.Struct({
+              buyEsnCardUrl: Schema.optional(Schema.NonEmptyString),
+            }),
+            status: literalUnion('disabled', 'enabled'),
+          }).pipe(
+            Schema.withDecodingDefaultType(
+              Effect.sync(() => createDefaultTenantDiscountProviders().esnCard),
+            ),
+          ),
+        ),
+      }),
+    ),
+  ).pipe(
+    Schema.withDecodingDefaultType(
+      Effect.sync(() => createDefaultTenantDiscountProviders()),
+    ),
   ),
   domain: Schema.NonEmptyString,
   id: Schema.NonEmptyString,
   locale: Schema.NonEmptyString,
   name: Schema.NonEmptyString,
-  receiptSettings: Schema.optionalWith(
-    Schema.Struct({
-      allowOther: Schema.optionalWith(Schema.Boolean, {
-        default: () => DEFAULT_TENANT_RECEIPT_ALLOW_OTHER,
-      }),
-      receiptCountries: Schema.optionalWith(
-        Schema.Array(Schema.NonEmptyString),
-        {
-          default: () => [...DEFAULT_TENANT_RECEIPT_COUNTRIES],
-        },
-      ),
-    }),
-    {
-      default: () => ({
-        allowOther: DEFAULT_TENANT_RECEIPT_ALLOW_OTHER,
-        receiptCountries: [...DEFAULT_TENANT_RECEIPT_COUNTRIES],
-      }),
-      nullable: true,
-    },
-  ),
-  stripeAccountId: Schema.optionalWith(Schema.NonEmptyString, {
-    nullable: true,
-  }),
-  theme: Schema.Literal('evorto', 'esn'),
+  receiptSettings: OptionalTenantReceiptSettings,
+  stripeAccountId: optionalNullable(Schema.NonEmptyString),
+  theme: literalUnion('evorto', 'esn'),
   timezone: Schema.NonEmptyString,
 }) {}
