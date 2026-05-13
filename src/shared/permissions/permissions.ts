@@ -234,18 +234,15 @@ export const ALL_PERMISSIONS = PERMISSION_GROUPS.flatMap((group) =>
   group.permissions.map((perm) => perm.key),
 ) satisfies Permission[];
 
-export const PermissionSchema = Schema.declare(
-  (input: unknown): input is Permission => {
-    if (typeof input !== 'string') {
-      return false;
-    }
-    return [
-      'admin:manageTaxes',
-      'globalAdmin:*',
-      'globalAdmin:manageTenants',
-      ...ALL_PERMISSIONS,
-    ].includes(input as Permission);
-  },
+const PERMISSION_LITERALS = [
+  'admin:manageTaxes',
+  'globalAdmin:*',
+  'globalAdmin:manageTenants',
+  ...ALL_PERMISSIONS,
+] as const satisfies readonly Permission[];
+
+export const PermissionSchema = Schema.Union(
+  PERMISSION_LITERALS.map((permission) => Schema.Literal(permission)),
 );
 
 export const PERMISSION_DEPENDENCIES: Record<Permission, Permission[]> =

@@ -55,4 +55,46 @@ describe('rpc-request-context.middleware', () => {
     expect(decoded.permissions).toEqual(['users:viewAll']);
     expect(decoded.authData.sub).toBe('auth0|abc');
   });
+
+  it('decodes user context after undefined optional fields are omitted from JSON headers', () => {
+    const headers = Headers.fromInput({
+      [RPC_CONTEXT_HEADERS.AUTH_DATA]: encodeRpcContextHeaderJson({
+        email: 'alice@example.com',
+        sub: 'auth0|abc',
+      }),
+      [RPC_CONTEXT_HEADERS.AUTHENTICATED]: 'true',
+      [RPC_CONTEXT_HEADERS.PERMISSIONS]: encodeRpcContextHeaderJson([
+        'users:viewAll',
+      ]),
+      [RPC_CONTEXT_HEADERS.TENANT]: encodeRpcContextHeaderJson({
+        currency: 'EUR',
+        domain: 'example.org',
+        id: 'tenant-1',
+        locale: 'en',
+        name: 'Example Tenant',
+        stripeAccountId: null,
+        theme: 'evorto',
+        timezone: 'Europe/Prague',
+      }),
+      [RPC_CONTEXT_HEADERS.USER]: encodeRpcContextHeaderJson({
+        attributes: [],
+        auth0Id: 'auth0|abc',
+        email: 'alice@example.com',
+        firstName: 'Alice',
+        id: 'user-1',
+        lastName: 'Example',
+        permissions: ['users:viewAll'],
+        roleIds: ['role-1'],
+      }),
+      [RPC_CONTEXT_HEADERS.USER_ASSIGNED]: 'true',
+    });
+
+    const decoded = decodeRpcRequestContextFromHeaders(headers);
+
+    expect(decoded.user).toMatchObject({
+      iban: undefined,
+      id: 'user-1',
+      paypalEmail: undefined,
+    });
+  });
 });

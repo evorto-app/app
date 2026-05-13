@@ -200,9 +200,9 @@ export class UserProfileComponent {
     >(EditProfileDialogComponent, {
       data: {
         firstName: user.firstName,
-        iban: user.iban,
+        iban: user.iban ?? null,
         lastName: user.lastName,
-        paypalEmail: user.paypalEmail,
+        paypalEmail: user.paypalEmail ?? null,
       },
       width: '420px',
     });

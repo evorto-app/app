@@ -13,6 +13,11 @@ const OptionalGoogleLocation = Schema.NullishOr(GoogleLocation).pipe(
     decode: SchemaGetter.transform((value) => value ?? undefined),
     encode: SchemaGetter.transform((value) => value ?? null),
   }),
+  Schema.withDecodingDefaultTypeKey(
+    Effect.sync(function missingDefaultLocation(): undefined {
+      return;
+    }),
+  ),
 );
 
 const TenantReceiptSettings = Schema.Struct({
