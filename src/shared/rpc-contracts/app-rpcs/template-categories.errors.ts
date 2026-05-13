@@ -5,7 +5,7 @@ import {
   RpcUnauthorizedError,
 } from '../../errors/rpc-errors';
 
-export class TemplateCategoryNotFoundError extends Schema.TaggedError<TemplateCategoryNotFoundError>()(
+export class TemplateCategoryNotFoundError extends Schema.TaggedErrorClass<TemplateCategoryNotFoundError>()(
   'TemplateCategoryNotFoundError',
   {
     id: Schema.optional(Schema.String),
@@ -13,11 +13,11 @@ export class TemplateCategoryNotFoundError extends Schema.TaggedError<TemplateCa
   },
 ) {}
 
-export const TemplateCategoryRpcError = Schema.Union(
+export const TemplateCategoryRpcError = Schema.Union([
   TemplateCategoryNotFoundError,
   RpcForbiddenError,
   RpcUnauthorizedError,
-);
+]);
 export type TemplateCategoryRpcError = Schema.Schema.Type<
   typeof TemplateCategoryRpcError
 >;

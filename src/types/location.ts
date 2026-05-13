@@ -1,10 +1,11 @@
+import { extendStruct, literalUnion } from '@shared/schema-utilities';
 import { Schema } from 'effect';
 
 const BaseLocation = Schema.Struct({
   name: Schema.String,
 });
 
-const BasePhysicalLocation = Schema.extend(
+const BasePhysicalLocation = extendStruct(
   BaseLocation,
   Schema.Struct({
     address: Schema.optional(Schema.String),
@@ -15,14 +16,14 @@ const BasePhysicalLocation = Schema.extend(
   }),
 );
 
-export const CoordinateLocation = Schema.extend(
+export const CoordinateLocation = extendStruct(
   BasePhysicalLocation,
   Schema.Struct({
     type: Schema.Literal('coordinate'),
   }),
 );
 
-export const GoogleLocation = Schema.extend(
+export const GoogleLocation = extendStruct(
   BasePhysicalLocation,
   Schema.Struct({
     placeId: Schema.String,
@@ -30,26 +31,21 @@ export const GoogleLocation = Schema.extend(
   }),
 );
 
-export const OnlineLocation = Schema.extend(
+export const OnlineLocation = extendStruct(
   BaseLocation,
   Schema.Struct({
     meetingInstructions: Schema.optional(Schema.String),
-    meetingProvider: Schema.Union(
-      Schema.Literal('googleMeet'),
-      Schema.Literal('other'),
-      Schema.Literal('teams'),
-      Schema.Literal('zoom'),
-    ),
+    meetingProvider: literalUnion('googleMeet', 'other', 'teams', 'zoom'),
     meetingUrl: Schema.String,
     type: Schema.Literal('online'),
   }),
 );
 
-export const EventLocation = Schema.Union(
+export const EventLocation = Schema.Union([
   CoordinateLocation,
   GoogleLocation,
   OnlineLocation,
-);
+]);
 
 export type CoordinateLocationType = typeof CoordinateLocation.Type;
 export type EventLocationType = typeof EventLocation.Type;

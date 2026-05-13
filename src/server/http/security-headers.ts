@@ -1,4 +1,4 @@
-import * as HttpServerResponse from '@effect/platform/HttpServerResponse';
+import * as HttpServerResponse from 'effect/unstable/http/HttpServerResponse';
 
 const SECURITY_HEADERS = {
   'Permissions-Policy': 'camera=(), geolocation=(), microphone=()',

@@ -1,6 +1,6 @@
 import { formatConfigError } from '@server/config/config-error';
 import { objectStorageConfig } from '@server/config/object-storage-config';
-import { ConfigError, Effect } from 'effect';
+import { Context, Effect, Layer } from 'effect';
 
 import {
   getSignedReceiptObjectUrlFromR2,
@@ -31,7 +31,9 @@ const sanitizeFileName = (fileName: string): string =>
 
 const isObjectStorageConfigured = objectStorageConfig.pipe(
   Effect.as(true),
-  Effect.catchIf(ConfigError.isConfigError, (error) =>
+  // False positive: this is Effect error-channel handling, not a Promise chain.
+  // eslint-disable-next-line unicorn/prefer-top-level-await
+  Effect.catch((error) =>
     Effect.logWarning('Object storage configuration unavailable').pipe(
       Effect.annotateLogs({
         error: formatConfigError(error),
@@ -88,11 +90,19 @@ export const withSignedReceiptPreviewUrls = <
     concurrency: 'unbounded',
   });
 
-export class ReceiptMediaService extends Effect.Service<ReceiptMediaService>()(
+interface UploadOriginalInput {
+  fileBase64: string;
+  fileName: string;
+  fileSizeBytes: number;
+  mimeType: string;
+  tenantId: string;
+  userId: string;
+}
+
+export class ReceiptMediaService extends Context.Service<ReceiptMediaService>()(
   '@server/effect/rpc/handlers/finance/ReceiptMediaService',
   {
-    accessors: true,
-    effect: Effect.sync(() => {
+    make: Effect.sync(() => {
       const uploadOriginal = Effect.fn('ReceiptMediaService.uploadOriginal')(
         function* ({
           fileBase64,
@@ -101,14 +111,7 @@ export class ReceiptMediaService extends Effect.Service<ReceiptMediaService>()(
           mimeType,
           tenantId,
           userId,
-        }: {
-          fileBase64: string;
-          fileName: string;
-          fileSizeBytes: number;
-          mimeType: string;
-          tenantId: string;
-          userId: string;
-        }) {
+        }: UploadOriginalInput) {
           if (!isAllowedReceiptMimeType(mimeType)) {
             return yield* Effect.fail(
               new ReceiptMediaBadRequestError({
@@ -154,7 +157,7 @@ export class ReceiptMediaService extends Effect.Service<ReceiptMediaService>()(
                   message: 'Failed to upload file',
                 }),
             ),
-            Effect.catchAll((error) =>
+            Effect.catch((error) =>
               isObjectStorageConfigured.pipe(
                 Effect.flatMap((configured) =>
                   configured
@@ -181,4 +184,12 @@ export class ReceiptMediaService extends Effect.Service<ReceiptMediaService>()(
       };
     }),
   },
-) {}
+) {
+  static readonly Default = Layer.effect(
+    ReceiptMediaService,
+    ReceiptMediaService.make,
+  );
+
+  static readonly uploadOriginal = (input: UploadOriginalInput) =>
+    ReceiptMediaService.use((service) => service.uploadOriginal(input));
+}

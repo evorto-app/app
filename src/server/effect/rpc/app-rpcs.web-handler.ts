@@ -1,10 +1,10 @@
 import type * as Scope from 'effect/Scope';
 
-import * as HttpApp from '@effect/platform/HttpApp';
-import * as HttpServerRequest from '@effect/platform/HttpServerRequest';
-import * as RpcSerialization from '@effect/rpc/RpcSerialization';
-import * as RpcServer from '@effect/rpc/RpcServer';
 import { Context, Effect, Layer } from 'effect';
+import * as HttpServerRequest from 'effect/unstable/http/HttpServerRequest';
+import * as HttpServerResponse from 'effect/unstable/http/HttpServerResponse';
+import * as RpcSerialization from 'effect/unstable/rpc/RpcSerialization';
+import * as RpcServer from 'effect/unstable/rpc/RpcServer';
 
 import { RuntimeConfig } from '../../config/runtime-config';
 import { stripeClientLayer } from '../../stripe-client';
@@ -16,18 +16,22 @@ import { rpcRequestContextMiddlewareLive } from './handlers/middleware/rpc-reque
 import { RpcAccess } from './handlers/shared/rpc-access.service';
 import { SimpleTemplateService } from './handlers/templates/simple-template.service';
 
-class AppRpcHttpApp extends Context.Tag('@server/effect/rpc/AppRpcHttpApp')<
+class AppRpcHttpApp extends Context.Service<
   AppRpcHttpApp,
-  HttpApp.Default<never, Scope.Scope>
->() {}
+  Effect.Effect<
+    HttpServerResponse.HttpServerResponse,
+    never,
+    HttpServerRequest.HttpServerRequest | Scope.Scope
+  >
+>()('@server/effect/rpc/AppRpcHttpApp') {}
 
 const appRpcDependenciesLayer = Layer.mergeAll(
-    EventRegistrationService.Default,
-    RpcAccess.Default,
-    ReceiptMediaService.Default,
-    SimpleTemplateService.Default,
-    RuntimeConfig.Default,
-    stripeClientLayer,
+  EventRegistrationService.Default,
+  RpcAccess.Default,
+  ReceiptMediaService.Default,
+  SimpleTemplateService.Default,
+  RuntimeConfig.Default,
+  stripeClientLayer,
 );
 const appRpcHandlersLayer = appRpcHandlers.pipe(
   Layer.provide(appRpcDependenciesLayer),
@@ -39,18 +43,17 @@ const appRpcRuntimeLayer = Layer.mergeAll(
   serverLoggerLayer,
 );
 
-export const appRpcHttpAppLayer = Layer.scoped(
-  AppRpcHttpApp,
-  RpcServer.toHttpApp(ServerAppRpcs).pipe(Effect.provide(appRpcRuntimeLayer)),
+export const appRpcHttpAppLayer = Layer.effect(AppRpcHttpApp)(
+  RpcServer.toHttpEffect(ServerAppRpcs).pipe(
+    Effect.provide(appRpcRuntimeLayer),
+  ),
 );
 
 export const handleAppRpcHttpRequest = (
   request: HttpServerRequest.HttpServerRequest,
 ) =>
-  AppRpcHttpApp.pipe(
-    Effect.flatMap((appRpcHttpApp) =>
-      appRpcHttpApp.pipe(
-        Effect.provideService(HttpServerRequest.HttpServerRequest, request),
-      ),
+  AppRpcHttpApp.use((appRpcHttpApp) =>
+    appRpcHttpApp.pipe(
+      Effect.provideService(HttpServerRequest.HttpServerRequest, request),
     ),
   );

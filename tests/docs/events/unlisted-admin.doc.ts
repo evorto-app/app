@@ -10,9 +10,13 @@ test('Admin: manage unlisted events @track(playwright-specs-track-linking_202601
   seeded,
 }, testInfo) => {
   // Use a deterministic scenario event that is approved and listed by seed contract.
-  const target = events.find((event) => event.id === seeded.scenario.events.freeOpen.eventId);
+  const target = events.find(
+    (event) => event.id === seeded.scenario.events.freeOpen.eventId,
+  );
   if (!target)
-    throw new Error('Seeded freeOpen scenario event was not found for unlisted admin demo');
+    throw new Error(
+      'Seeded freeOpen scenario event was not found for unlisted admin demo',
+    );
 
   await page.goto(`/events/${target.id}`);
 

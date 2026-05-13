@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@effect/vitest';
-import { LogLevel, Option } from 'effect';
+import { Option } from 'effect';
 
 import { resolveServerLogLevel } from './server-logger.layer';
 
@@ -9,9 +9,9 @@ describe('server-logger.layer', () => {
       resolveServerLogLevel({
         ACTIONS_STEP_DEBUG: false,
         CI: false,
-        SERVER_LOG_LEVEL: Option.some(LogLevel.fromLiteral('Error')),
+        SERVER_LOG_LEVEL: Option.some('Error'),
       }),
-    ).toBe(LogLevel.Error);
+    ).toBe('Error');
   });
 
   it('elevates CI to warning when no explicit log level is configured', () => {
@@ -21,7 +21,7 @@ describe('server-logger.layer', () => {
         CI: true,
         SERVER_LOG_LEVEL: Option.none(),
       }),
-    ).toBe(LogLevel.Warning);
+    ).toBe('Warn');
   });
 
   it('elevates GitHub step debug to debug when no explicit log level is configured', () => {
@@ -31,7 +31,7 @@ describe('server-logger.layer', () => {
         CI: false,
         SERVER_LOG_LEVEL: Option.none(),
       }),
-    ).toBe(LogLevel.Debug);
+    ).toBe('Debug');
   });
 
   it('defaults to info when no explicit log level or CI debug flags are set', () => {
@@ -41,6 +41,6 @@ describe('server-logger.layer', () => {
         CI: false,
         SERVER_LOG_LEVEL: Option.none(),
       }),
-    ).toBe(LogLevel.Info);
+    ).toBe('Info');
   });
 });

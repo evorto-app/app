@@ -9,28 +9,28 @@ export const stripeConfig = Config.all({
   STRIPE_WEBHOOK_SECRET: optionalTrimmedString('STRIPE_WEBHOOK_SECRET'),
 });
 
-export type StripeConfig = Config.Config.Success<typeof stripeConfig>;
+export type StripeConfig = Config.Success<typeof stripeConfig>;
 
-export const stripeApiConfig = stripeConfig.pipe(
-  Effect.flatMap((config) =>
-    Option.match(config.STRIPE_API_KEY, {
-      onNone: () => Effect.fail(missingFieldError('STRIPE_API_KEY')),
-      onSome: (apiKey) =>
-        Effect.succeed({
-          STRIPE_API_KEY: apiKey,
-        }),
-    }),
-  ),
-);
+export const stripeApiConfig = Effect.gen(function* () {
+  const config = yield* stripeConfig;
 
-export const stripeWebhookConfig = stripeConfig.pipe(
-  Effect.flatMap((config) =>
-    Option.match(config.STRIPE_WEBHOOK_SECRET, {
-      onNone: () => Effect.fail(missingFieldError('STRIPE_WEBHOOK_SECRET')),
-      onSome: (webhookSecret) =>
-        Effect.succeed({
-          STRIPE_WEBHOOK_SECRET: webhookSecret,
-        }),
-    }),
-  ),
-);
+  return yield* Option.match(config.STRIPE_API_KEY, {
+    onNone: () => Effect.fail(missingFieldError('STRIPE_API_KEY')),
+    onSome: (apiKey) =>
+      Effect.succeed({
+        STRIPE_API_KEY: apiKey,
+      }),
+  });
+});
+
+export const stripeWebhookConfig = Effect.gen(function* () {
+  const config = yield* stripeConfig;
+
+  return yield* Option.match(config.STRIPE_WEBHOOK_SECRET, {
+    onNone: () => Effect.fail(missingFieldError('STRIPE_WEBHOOK_SECRET')),
+    onSome: (webhookSecret) =>
+      Effect.succeed({
+        STRIPE_WEBHOOK_SECRET: webhookSecret,
+      }),
+  });
+});

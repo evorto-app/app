@@ -4,7 +4,7 @@
 
 - Prefer Effect and Effect Platform first.
 - For Effect reference material, implementation details, and examples, consult the upstream Effect repo at [Effect-TS/effect](https://github.com/Effect-TS/effect). If you keep a local clone for faster lookup, point repo-specific tooling or an environment variable at that clone instead of hardcoding a workstation path.
-- Organize server capabilities with Effect dependency injection (`Effect.Service` + composed `Layer`s).
+- Organize server capabilities with Effect dependency injection (`Context.Service` + composed `Layer`s).
 - Keep service dependencies declared in service definitions; wire app composition with flat `Layer.mergeAll` / `Layer.provideMerge`.
 - Keep runtime configuration centralized in `src/server/config/**`; prefer native Effect `Config.*` combinators and resolve optional/default behavior at that boundary.
 - Preserve honest config types at the config boundary; prefer `Option` for meaningful absence and only flatten to `undefined` or plain values at the consumer boundary that actually needs it.
@@ -33,5 +33,7 @@
 - Use Effect platform logging (`Effect.log`, `Effect.logInfo`, `Effect.logWarning`, `Effect.logError`).
 - Prefer structured log annotations (`Effect.annotateLogs`) over interpolated log strings.
 - Do not use `consola` or direct `console.*` in server runtime code.
-- Before calling WebStorm `get_file_problems` on edited server files, run `bun run lint:fix` first.
+- After every server file edit, run `bun run lint` and `bun run format:write`.
+- Before calling WebStorm `get_file_problems` on edited server files, run `bun run lint` first.
+- Markdown files do not need a WebStorm `get_file_problems` pass.
 - After editing a server file, run WebStorm `get_file_problems` on that file when possible before finishing.

@@ -234,7 +234,9 @@ export class ReceiptRefundListComponent {
         [group.submittedByUserId]: {},
       }));
     } catch (error) {
-      this.notifications.showError(getErrorMessage(error, 'Failed to create refund'));
+      this.notifications.showError(
+        getErrorMessage(error, 'Failed to create refund'),
+      );
     }
   }
 

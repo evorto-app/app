@@ -12,7 +12,7 @@ const STALE_WEBHOOK_CLAIM_AGE_MS = 5 * 60 * 1000;
 
 const databaseEffect = <A, E>(
   operation: (database: DatabaseClient) => Effect.Effect<A, E, never>,
-) => Database.pipe(Effect.flatMap((database) => operation(database)));
+) => Database.use((database) => operation(database));
 
 const responseText = (body: string, status = 200): Response =>
   new Response(body, { status });
@@ -252,7 +252,8 @@ const markWebhookEventProcessed = (eventId: string) =>
 export const handleStripeWebhookWebRequest = (request: Request) =>
   Effect.gen(function* () {
     const stripe = yield* StripeClient;
-    const { STRIPE_WEBHOOK_SECRET: endpointSecret } = yield* stripeWebhookConfig;
+    const { STRIPE_WEBHOOK_SECRET: endpointSecret } =
+      yield* stripeWebhookConfig;
     const signature = request.headers.get('stripe-signature');
     if (!signature) {
       return responseText('No signature', 400);
@@ -270,7 +271,7 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
         endpointSecret,
       ),
     ).pipe(
-      Effect.catchAllDefect((error) =>
+      Effect.catchDefect((error) =>
         Effect.gen(function* () {
           yield* Effect.logError(
             'Stripe webhook signature verification failed',
@@ -449,7 +450,7 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
                 },
               ),
             ).pipe(
-              Effect.catchAllDefect((error) => {
+              Effect.catchDefect((error) => {
                 if (isStripeMissingResourceError(error)) {
                   return Effect.logWarning(
                     'Stripe payment intent missing during checkout completion',
@@ -459,7 +460,7 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
                       sessionId: eventSession.id,
                       tenantId,
                     }),
-                    Effect.zipRight(
+                    Effect.andThen(
                       Effect.succeed<null | Stripe.Response<Stripe.PaymentIntent>>(
                         null,
                       ),
@@ -563,9 +564,9 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
         }
       }
     }).pipe(
-      Effect.catchAllCause((cause) =>
+      Effect.catchCause((cause) =>
         (ownsClaim ? releaseWebhookEventClaim(event.id) : Effect.void).pipe(
-          Effect.zipRight(Effect.failCause(cause)),
+          Effect.andThen(Effect.failCause(cause)),
         ),
       ),
     );

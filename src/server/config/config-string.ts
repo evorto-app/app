@@ -1,4 +1,7 @@
-import { Config, ConfigError, Either, Option } from 'effect';
+import { Config, ConfigProvider, Effect, Option } from 'effect';
+
+const configFailure = (message: string) =>
+  new Config.ConfigError(new ConfigProvider.SourceError({ message }));
 
 export const trimmedString = (name: string) =>
   Config.string(name).pipe(Config.map((value) => value.trim()));
@@ -7,13 +10,8 @@ export const nonEmptyTrimmedString = (name: string) =>
   trimmedString(name).pipe(
     Config.mapOrFail((value) =>
       value.length > 0
-        ? Either.right(value)
-        : Either.left(
-            ConfigError.MissingData(
-              [name],
-              `Expected ${name} to be a non-empty string`,
-            ),
-          ),
+        ? Effect.succeed(value)
+        : Effect.fail(configFailure(`Expected ${name} to be non-empty`)),
     ),
   );
 

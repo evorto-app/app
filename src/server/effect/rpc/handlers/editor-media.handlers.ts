@@ -1,4 +1,4 @@
-import type { Headers } from '@effect/platform';
+import type { Headers } from 'effect/unstable/http';
 
 import {
   RpcBadRequestError,
@@ -25,17 +25,19 @@ const ALLOWED_IMAGE_MIME_TYPES = [
 const ALLOWED_IMAGE_MIME_TYPE_SET = new Set<string>(ALLOWED_IMAGE_MIME_TYPES);
 const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024;
 
-const decodeHeaderJson = <A, I>(
+const decodeHeaderJson = <A>(
   value: string | undefined,
-  schema: Schema.Schema<A, I, never>,
-) => Schema.decodeUnknownSync(schema)(decodeRpcContextHeaderJson(value));
+  schema: Schema.Decoder<A>,
+): A => Schema.decodeUnknownSync(schema)(decodeRpcContextHeaderJson(value));
 
 const ensureAuthenticated = (
   headers: Headers.Headers,
 ): Effect.Effect<void, RpcUnauthorizedError> =>
   headers[RPC_CONTEXT_HEADERS.AUTHENTICATED] === 'true'
     ? Effect.void
-    : Effect.fail(new RpcUnauthorizedError({ message: 'Authentication required' }));
+    : Effect.fail(
+        new RpcUnauthorizedError({ message: 'Authentication required' }),
+      );
 
 const decodeUserHeader = (headers: Headers.Headers) =>
   Effect.sync(() =>
@@ -48,48 +50,56 @@ const requireUserHeader = (
   Effect.gen(function* () {
     const user = yield* decodeUserHeader(headers);
     if (!user) {
-      return yield* Effect.fail(new RpcUnauthorizedError({ message: 'Authentication required' }));
+      return yield* Effect.fail(
+        new RpcUnauthorizedError({ message: 'Authentication required' }),
+      );
     }
     return user;
   });
 
 export const editorMediaHandlers = {
-    'editorMedia.createImageDirectUpload': (input, options) =>
-      Effect.gen(function* () {
-        yield* ensureAuthenticated(options.headers);
-        const tenant = decodeHeaderJson(
-          options.headers[RPC_CONTEXT_HEADERS.TENANT],
-          Tenant,
+  'editorMedia.createImageDirectUpload': (input, options) =>
+    Effect.gen(function* () {
+      yield* ensureAuthenticated(options.headers);
+      const tenant = decodeHeaderJson(
+        options.headers[RPC_CONTEXT_HEADERS.TENANT],
+        Tenant,
+      );
+      const user = yield* requireUserHeader(options.headers);
+
+      if (!ALLOWED_IMAGE_MIME_TYPE_SET.has(input.mimeType)) {
+        return yield* Effect.fail(
+          new RpcBadRequestError({ message: 'Bad request' }),
         );
-        const user = yield* requireUserHeader(options.headers);
+      }
 
-        if (!ALLOWED_IMAGE_MIME_TYPE_SET.has(input.mimeType)) {
-          return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
-        }
+      if (
+        input.fileSizeBytes <= 0 ||
+        input.fileSizeBytes > MAX_IMAGE_SIZE_BYTES
+      ) {
+        return yield* Effect.fail(
+          new RpcBadRequestError({ message: 'Bad request' }),
+        );
+      }
 
-        if (
-          input.fileSizeBytes <= 0 ||
-          input.fileSizeBytes > MAX_IMAGE_SIZE_BYTES
-        ) {
-          return yield* Effect.fail(new RpcBadRequestError({ message: 'Bad request' }));
-        }
-
-        return yield* createCloudflareImageDirectUpload({
-          fileName: input.fileName,
-          mimeType: input.mimeType,
-          source: 'editor',
-          tenantId: tenant.id,
-          uploadedByUserId: user.id,
-        }).pipe(
-          Effect.tapError((error) =>
-            Effect.logError('Cloudflare image direct upload initialization failed').pipe(
-              Effect.annotateLogs({
-                error: error instanceof Error ? error.message : String(error),
-                tenantId: tenant.id,
-                userId: user.id,
-              }),
-            ),
+      return yield* createCloudflareImageDirectUpload({
+        fileName: input.fileName,
+        mimeType: input.mimeType,
+        source: 'editor',
+        tenantId: tenant.id,
+        uploadedByUserId: user.id,
+      }).pipe(
+        Effect.tapError((error) =>
+          Effect.logError(
+            'Cloudflare image direct upload initialization failed',
+          ).pipe(
+            Effect.annotateLogs({
+              error: error instanceof Error ? error.message : String(error),
+              tenantId: tenant.id,
+              userId: user.id,
+            }),
           ),
-        );
-      }),
+        ),
+      );
+    }),
 } satisfies Partial<AppRpcHandlers>;

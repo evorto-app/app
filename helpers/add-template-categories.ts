@@ -6,7 +6,7 @@ import * as schema from '../src/db/schema';
 import { getId } from './get-id';
 
 export const addTemplateCategories = async (
-  database: NodePgDatabase<Record<string, never>, typeof relations>,
+  database: NodePgDatabase<typeof relations>,
   tenant: { id: string },
   iconsParameter?: {
     commonName: string;

@@ -7,7 +7,7 @@ import { computeIconSourceColor } from '../src/server/utils/icon-color';
 import { getId } from './get-id';
 
 export const addIcons = async (
-  database: NodePgDatabase<Record<string, never>, typeof relations>,
+  database: NodePgDatabase<typeof relations>,
   tenant: { id: string },
 ) => {
   const seed = [

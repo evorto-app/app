@@ -58,7 +58,7 @@ export interface EventRegistrationInput {
  * @returns The created registrations
  */
 export async function addRegistrations(
-  database: NodePgDatabase<Record<string, never>, typeof relations>,
+  database: NodePgDatabase<typeof relations>,
   events: EventRegistrationInput[],
   seedDate?: Date,
 ) {

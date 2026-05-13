@@ -12,7 +12,7 @@ export type PermissionDiff = {
 };
 
 export async function applyPermissionDiff(
-  database: NodePgDatabase<Record<string, never>, typeof relations>,
+  database: NodePgDatabase<typeof relations>,
   tenant: { id: string },
   diff: PermissionDiff,
 ): Promise<void> {

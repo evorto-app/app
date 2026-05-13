@@ -8,7 +8,7 @@ import { getId } from './get-id';
 import { usersToAuthenticate } from './user-data';
 
 export const addFinanceReceipts = async (
-  database: NodePgDatabase<Record<string, never>, typeof relations>,
+  database: NodePgDatabase<typeof relations>,
   options: {
     eventIds: string[];
     tenantId: string;

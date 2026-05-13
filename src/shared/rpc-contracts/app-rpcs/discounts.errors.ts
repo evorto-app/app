@@ -8,14 +8,14 @@ import {
   UnauthorizedRpcError,
 } from '../../errors/rpc-errors';
 
-export class DiscountCardConflictError extends Schema.TaggedError<DiscountCardConflictError>()(
+export class DiscountCardConflictError extends Schema.TaggedErrorClass<DiscountCardConflictError>()(
   'DiscountCardConflictError',
   {
     message: Schema.String,
   },
 ) {}
 
-export class DiscountCardNotFoundError extends Schema.TaggedError<DiscountCardNotFoundError>()(
+export class DiscountCardNotFoundError extends Schema.TaggedErrorClass<DiscountCardNotFoundError>()(
   'DiscountCardNotFoundError',
   {
     message: Schema.String,
@@ -25,14 +25,14 @@ export class DiscountCardNotFoundError extends Schema.TaggedError<DiscountCardNo
 export const DiscountsRpcError = UnauthorizedRpcError;
 export type DiscountsRpcError = UnauthorizedRpcError;
 
-export const DiscountsCardMutationError = Schema.Union(
+export const DiscountsCardMutationError = Schema.Union([
   RpcBadRequestError,
   DiscountCardConflictError,
   RpcForbiddenError,
   RpcInternalServerError,
   DiscountCardNotFoundError,
   RpcUnauthorizedError,
-);
+]);
 export type DiscountsCardMutationError = Schema.Schema.Type<
   typeof DiscountsCardMutationError
 >;

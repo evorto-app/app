@@ -1,8 +1,8 @@
-import type { Headers } from '@effect/platform';
+import type { Headers } from 'effect/unstable/http';
 import type Stripe from 'stripe';
 
 import { and, eq } from 'drizzle-orm';
-import { Effect, Option } from 'effect';
+import { ConfigProvider, Context, Effect, Layer, Option } from 'effect';
 
 import { Database, type DatabaseClient } from '../../../../../db';
 import { createId } from '../../../../../db/create-id';
@@ -13,7 +13,10 @@ import {
   transactions,
   userDiscountCards,
 } from '../../../../../db/schema';
-import { resolveTenantDiscountProviders, type TenantDiscountProviders } from '../../../../../shared/tenant-config';
+import {
+  resolveTenantDiscountProviders,
+  type TenantDiscountProviders,
+} from '../../../../../shared/tenant-config';
 import { type Tenant } from '../../../../../types/custom/tenant';
 import { type User } from '../../../../../types/custom/user';
 import { formatConfigError } from '../../../../config/config-error';
@@ -34,7 +37,7 @@ const databaseEffect = <A>(
 ): Effect.Effect<A, never, Database> =>
   // Registration write flows should fail fast on unexpected DB errors so
   // callers get deterministic domain errors instead of partial success.
-  Database.pipe(Effect.flatMap((database) => operation(database).pipe(Effect.orDie)));
+  Database.use((database) => operation(database).pipe(Effect.orDie));
 
 type DiscountCardRecord = Pick<
   typeof userDiscountCards.$inferSelect,
@@ -137,11 +140,10 @@ interface RegisterForEventArguments {
   user: Pick<User, 'email' | 'id'>;
 }
 
-export class EventRegistrationService extends Effect.Service<EventRegistrationService>()(
+export class EventRegistrationService extends Context.Service<EventRegistrationService>()(
   '@server/effect/rpc/handlers/events/EventRegistrationService',
   {
-    accessors: true,
-    effect: Effect.sync(() => {
+    make: Effect.sync(() => {
       const registerForEvent = Effect.fn(
         'EventRegistrationService.registerForEvent',
       )(function* ({
@@ -151,14 +153,17 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
         tenant,
         user,
       }: RegisterForEventArguments) {
-        const serverEnvironment = yield* serverConfig.pipe(
-          Effect.mapError(
-            (error) =>
-              new EventRegistrationInternalError({
-                message: `Invalid server configuration:\n${formatConfigError(error)}`,
-              }),
-          ),
-        );
+        const configProvider = yield* ConfigProvider.ConfigProvider;
+        const serverEnvironment = yield* serverConfig
+          .parse(configProvider)
+          .pipe(
+            Effect.mapError(
+              (error) =>
+                new EventRegistrationInternalError({
+                  message: `Invalid server configuration:\n${formatConfigError(error)}`,
+                }),
+            ),
+          );
         const pinnedNowIso = Option.getOrUndefined(
           serverEnvironment.E2E_NOW_ISO,
         );
@@ -222,7 +227,8 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
           );
         }
         if (
-          registrationOption.confirmedSpots + registrationOption.reservedSpots >=
+          registrationOption.confirmedSpots +
+            registrationOption.reservedSpots >=
           registrationOption.spots
         ) {
           return yield* Effect.fail(
@@ -233,7 +239,8 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
         }
 
         // Phase 2: create registration row and reserve/confirm a spot immediately.
-        const selectedTaxRateId = registrationOption.stripeTaxRateId ?? undefined;
+        const selectedTaxRateId =
+          registrationOption.stripeTaxRateId ?? undefined;
         const selectedTaxRate = selectedTaxRateId
           ? yield* databaseEffect((database) =>
               database.query.tenantStripeTaxRates.findFirst({
@@ -305,11 +312,11 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
 
         const rollbackOnFailure = Effect.fn(
           'EventRegistrationService.registerForEvent.rollbackOnFailure',
-        )(
-          () =>
-            Effect.gen(function* () {
-              // Undo any DB writes if payment initialization fails after reservation.
-              const rollbackRegistrationOption = yield* databaseEffect((database) =>
+        )(() =>
+          Effect.gen(function* () {
+            // Undo any DB writes if payment initialization fails after reservation.
+            const rollbackRegistrationOption = yield* databaseEffect(
+              (database) =>
                 database.query.eventRegistrationOptions.findFirst({
                   columns: {
                     id: true,
@@ -320,33 +327,36 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
                     id: registrationOptionId,
                   },
                 }),
-              );
+            );
 
-              if (rollbackRegistrationOption) {
-                yield* databaseEffect((database) =>
-                  database
-                    .update(eventRegistrationOptions)
-                    .set({
-                      reservedSpots: Math.max(
-                        0,
-                        rollbackRegistrationOption.reservedSpots - 1,
-                      ),
-                    })
-                    .where(
-                      and(
-                        eq(eventRegistrationOptions.id, rollbackRegistrationOption.id),
-                        eq(eventRegistrationOptions.eventId, eventId),
-                      ),
-                    ),
-                );
-              }
-
+            if (rollbackRegistrationOption) {
               yield* databaseEffect((database) =>
                 database
-                  .delete(eventRegistrations)
-                  .where(eq(eventRegistrations.id, userRegistration.id)),
+                  .update(eventRegistrationOptions)
+                  .set({
+                    reservedSpots: Math.max(
+                      0,
+                      rollbackRegistrationOption.reservedSpots - 1,
+                    ),
+                  })
+                  .where(
+                    and(
+                      eq(
+                        eventRegistrationOptions.id,
+                        rollbackRegistrationOption.id,
+                      ),
+                      eq(eventRegistrationOptions.eventId, eventId),
+                    ),
+                  ),
               );
-            }),
+            }
+
+            yield* databaseEffect((database) =>
+              database
+                .delete(eventRegistrations)
+                .where(eq(eventRegistrations.id, userRegistration.id)),
+            );
+          }),
         );
 
         const paymentFlow = Effect.gen(function* () {
@@ -442,7 +452,10 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
                 .update(eventRegistrationOptions)
                 .set({
                   confirmedSpots: registrationOption.confirmedSpots + 1,
-                  reservedSpots: Math.max(0, registrationOption.reservedSpots - 1),
+                  reservedSpots: Math.max(
+                    0,
+                    registrationOption.reservedSpots - 1,
+                  ),
                 })
                 .where(eq(eventRegistrationOptions.id, registrationOption.id)),
             );
@@ -460,19 +473,18 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
             );
           }
 
-          const checkoutLineItem: Stripe.Checkout.SessionCreateParams.LineItem = {
-            price_data: {
-              currency: tenant.currency,
-              product_data: {
-                name: `Registration fee for ${registrationOption.event.title}`,
+          const checkoutLineItem: Stripe.Checkout.SessionCreateParams.LineItem =
+            {
+              price_data: {
+                currency: tenant.currency,
+                product_data: {
+                  name: `Registration fee for ${registrationOption.event.title}`,
+                },
+                unit_amount: effectivePrice,
               },
-              unit_amount: effectivePrice,
-            },
-            ...(selectedTaxRateId
-              ? { tax_rates: [selectedTaxRateId] }
-              : {}),
-            quantity: 1,
-          };
+              ...(selectedTaxRateId ? { tax_rates: [selectedTaxRateId] } : {}),
+              quantity: 1,
+            };
 
           const session = yield* createHostedCheckoutSession(
             {
@@ -534,10 +546,10 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
         return yield* paymentFlow.pipe(
           // Any failure after reservation must rollback reservation + inserted
           // registration so callers never observe a half-created paid flow.
-          Effect.catchAllCause((cause) =>
+          Effect.catchCause((cause) =>
             rollbackOnFailure().pipe(
               Effect.orDie,
-              Effect.zipRight(Effect.failCause(cause)),
+              Effect.andThen(Effect.failCause(cause)),
             ),
           ),
         );
@@ -548,4 +560,12 @@ export class EventRegistrationService extends Effect.Service<EventRegistrationSe
       } as const;
     }),
   },
-) {}
+) {
+  static readonly Default = Layer.effect(
+    EventRegistrationService,
+    EventRegistrationService.make,
+  );
+
+  static readonly registerForEvent = (input: RegisterForEventArguments) =>
+    EventRegistrationService.use((service) => service.registerForEvent(input));
+}

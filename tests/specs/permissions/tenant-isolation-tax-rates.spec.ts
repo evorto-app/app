@@ -33,14 +33,17 @@ test.describe('Tax Rates Tenant Isolation', () => {
     const primaryRateName = `Primary Tax ${getId().slice(0, 6)}`;
     const secondaryRateName = `Secondary Tax ${getId().slice(0, 6)}`;
 
-    await database.insert(schema.tenantStripeTaxRates).values([
-      buildTaxRate(primaryRateName, tenant.id),
-      buildTaxRate(secondaryRateName, secondaryTenant.tenant.id),
-    ]);
+    await database
+      .insert(schema.tenantStripeTaxRates)
+      .values([
+        buildTaxRate(primaryRateName, tenant.id),
+        buildTaxRate(secondaryRateName, secondaryTenant.tenant.id),
+      ]);
 
-    const primaryTenantRates = await database.query.tenantStripeTaxRates.findMany({
-      where: { tenantId: tenant.id },
-    });
+    const primaryTenantRates =
+      await database.query.tenantStripeTaxRates.findMany({
+        where: { tenantId: tenant.id },
+      });
     const secondaryTenantRates =
       await database.query.tenantStripeTaxRates.findMany({
         where: { tenantId: secondaryTenant.tenant.id },
@@ -53,7 +56,9 @@ test.describe('Tax Rates Tenant Isolation', () => {
       primaryTenantRates.some((rate) => rate.displayName === secondaryRateName),
     ).toBe(false);
     expect(
-      secondaryTenantRates.some((rate) => rate.displayName === secondaryRateName),
+      secondaryTenantRates.some(
+        (rate) => rate.displayName === secondaryRateName,
+      ),
     ).toBe(true);
     expect(
       secondaryTenantRates.some((rate) => rate.displayName === primaryRateName),
@@ -82,14 +87,17 @@ test.describe('Tax Rates Tenant Isolation', () => {
     const primaryRateName = `Primary DB Tax ${getId().slice(0, 6)}`;
     const secondaryRateName = `Secondary DB Tax ${getId().slice(0, 6)}`;
 
-    await database.insert(schema.tenantStripeTaxRates).values([
-      buildTaxRate(primaryRateName, tenant.id),
-      buildTaxRate(secondaryRateName, secondaryTenant.tenant.id),
-    ]);
+    await database
+      .insert(schema.tenantStripeTaxRates)
+      .values([
+        buildTaxRate(primaryRateName, tenant.id),
+        buildTaxRate(secondaryRateName, secondaryTenant.tenant.id),
+      ]);
 
-    const primaryTenantRates = await database.query.tenantStripeTaxRates.findMany({
-      where: { tenantId: tenant.id },
-    });
+    const primaryTenantRates =
+      await database.query.tenantStripeTaxRates.findMany({
+        where: { tenantId: tenant.id },
+      });
     const secondaryTenantRates =
       await database.query.tenantStripeTaxRates.findMany({
         where: { tenantId: secondaryTenant.tenant.id },

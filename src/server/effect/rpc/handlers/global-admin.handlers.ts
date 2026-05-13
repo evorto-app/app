@@ -1,4 +1,4 @@
-import type { Headers } from '@effect/platform';
+import type { Headers } from 'effect/unstable/http';
 
 import {
   RpcForbiddenError,
@@ -19,19 +19,21 @@ import {
 const databaseEffect = <A>(
   operation: (database: DatabaseClient) => Effect.Effect<A, unknown, never>,
 ): Effect.Effect<A, never, Database> =>
-  Database.pipe(Effect.flatMap((database) => operation(database).pipe(Effect.orDie)));
+  Database.use((database) => operation(database).pipe(Effect.orDie));
 
 const ensureAuthenticated = (
   headers: Headers.Headers,
 ): Effect.Effect<void, RpcUnauthorizedError> =>
   headers[RPC_CONTEXT_HEADERS.AUTHENTICATED] === 'true'
     ? Effect.void
-    : Effect.fail(new RpcUnauthorizedError({ message: 'Authentication required' }));
+    : Effect.fail(
+        new RpcUnauthorizedError({ message: 'Authentication required' }),
+      );
 
-const decodeHeaderJson = <A, I>(
+const decodeHeaderJson = <A>(
   value: string | undefined,
-  schema: Schema.Schema<A, I, never>,
-) => Schema.decodeUnknownSync(schema)(decodeRpcContextHeaderJson(value));
+  schema: Schema.Decoder<A>,
+): A => Schema.decodeUnknownSync(schema)(decodeRpcContextHeaderJson(value));
 
 const ensurePermission = (
   headers: Headers.Headers,
@@ -45,25 +47,27 @@ const ensurePermission = (
     );
 
     if (!currentPermissions.includes(permission)) {
-      return yield* Effect.fail(new RpcForbiddenError({ message: 'Forbidden' }));
+      return yield* Effect.fail(
+        new RpcForbiddenError({ message: 'Forbidden' }),
+      );
     }
   });
 
 export const globalAdminHandlers = {
-    'globalAdmin.tenants.findMany': (_payload, options) =>
-      Effect.gen(function* () {
-        yield* ensurePermission(options.headers, 'globalAdmin:manageTenants');
-        const allTenants = yield* databaseEffect((database) =>
-          database.query.tenants.findMany({
-            columns: {
-              domain: true,
-              id: true,
-              name: true,
-            },
-            orderBy: (table, { asc }) => [asc(table.name)],
-          }),
-        );
+  'globalAdmin.tenants.findMany': (_payload, options) =>
+    Effect.gen(function* () {
+      yield* ensurePermission(options.headers, 'globalAdmin:manageTenants');
+      const allTenants = yield* databaseEffect((database) =>
+        database.query.tenants.findMany({
+          columns: {
+            domain: true,
+            id: true,
+            name: true,
+          },
+          orderBy: (table, { asc }) => [asc(table.name)],
+        }),
+      );
 
-        return allTenants;
-      }),
+      return allTenants;
+    }),
 } satisfies Partial<AppRpcHandlers>;

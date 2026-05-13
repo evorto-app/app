@@ -1,7 +1,7 @@
-import * as Rpc from '@effect/rpc/Rpc';
-import * as RpcGroup from '@effect/rpc/RpcGroup';
 import { asRpcQuery } from '@heddendorp/effect-angular-query';
 import { Schema } from 'effect';
+import * as Rpc from 'effect/unstable/rpc/Rpc';
+import * as RpcGroup from 'effect/unstable/rpc/RpcGroup';
 
 import { ForbiddenRpcError } from '../../errors/rpc-errors';
 
@@ -30,6 +30,4 @@ export const TaxRatesListActive = asRpcQuery(
   }),
 );
 
-export class TaxRatesRpcs extends RpcGroup.make(
-  TaxRatesListActive,
-) {}
+export class TaxRatesRpcs extends RpcGroup.make(TaxRatesListActive) {}

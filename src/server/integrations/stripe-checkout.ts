@@ -29,8 +29,7 @@ export const buildCheckoutSessionExpiresAt = (
 export const buildCheckoutSessionIdempotencyKey = (input: {
   registrationId: string;
   transactionId: string;
-}) =>
-  `registration:${input.registrationId}:transaction:${input.transactionId}`;
+}) => `registration:${input.registrationId}:transaction:${input.transactionId}`;
 
 export const createHostedCheckoutSession = (
   parameters: Stripe.Checkout.SessionCreateParams,

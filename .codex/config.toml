@@ -7,4 +7,4 @@ command = "npx"
 args = ["-y", "@angular/cli@latest", "mcp", "-E", "modernize"]
 
 [features]
-codex_hooks = true
+hooks = true

@@ -1,6 +1,4 @@
-import {
-  RpcForbiddenError,
-} from '@shared/errors/rpc-errors';
+import { RpcForbiddenError } from '@shared/errors/rpc-errors';
 import { Effect, Schema } from 'effect';
 
 import type { AppRpcHandlers } from './shared/handler-types';
@@ -16,57 +14,57 @@ import {
 const databaseEffect = <A>(
   operation: (database: DatabaseClient) => Effect.Effect<A, unknown, never>,
 ): Effect.Effect<A, never, Database> =>
-  Database.pipe(Effect.flatMap((database) => operation(database).pipe(Effect.orDie)));
+  Database.use((database) => operation(database).pipe(Effect.orDie));
 
-const decodeHeaderJson = <A, I>(
+const decodeHeaderJson = <A>(
   value: string | undefined,
-  schema: Schema.Schema<A, I, never>,
-) => Schema.decodeUnknownSync(schema)(decodeRpcContextHeaderJson(value));
+  schema: Schema.Decoder<A>,
+): A => Schema.decodeUnknownSync(schema)(decodeRpcContextHeaderJson(value));
 
 export const taxRateHandlers = {
-    'taxRates.listActive': (_payload, options) =>
-      Effect.gen(function* () {
-        if (options.headers[RPC_CONTEXT_HEADERS.AUTHENTICATED] === 'true') {
-          const currentPermissions = decodeHeaderJson(
-            options.headers[RPC_CONTEXT_HEADERS.PERMISSIONS],
-            ConfigPermissions,
+  'taxRates.listActive': (_payload, options) =>
+    Effect.gen(function* () {
+      if (options.headers[RPC_CONTEXT_HEADERS.AUTHENTICATED] === 'true') {
+        const currentPermissions = decodeHeaderJson(
+          options.headers[RPC_CONTEXT_HEADERS.PERMISSIONS],
+          ConfigPermissions,
+        );
+        if (!currentPermissions.includes('templates:view')) {
+          return yield* Effect.fail(
+            new RpcForbiddenError({
+              message: 'Forbidden',
+              permission: 'templates:view',
+            }),
           );
-          if (!currentPermissions.includes('templates:view')) {
-            return yield* Effect.fail(
-              new RpcForbiddenError({
-                message: 'Forbidden',
-                permission: 'templates:view',
-              }),
-            );
-          }
         }
+      }
 
-        const tenant = decodeHeaderJson(
-          options.headers[RPC_CONTEXT_HEADERS.TENANT],
-          Tenant,
-        );
-        const activeTaxRates = yield* databaseEffect((database) =>
-          database.query.tenantStripeTaxRates.findMany({
-            columns: {
-              country: true,
-              displayName: true,
-              id: true,
-              percentage: true,
-              state: true,
-              stripeTaxRateId: true,
-            },
-            orderBy: (table, { asc }) => [
-              asc(table.displayName),
-              asc(table.stripeTaxRateId),
-            ],
-            where: {
-              active: true,
-              inclusive: true,
-              tenantId: tenant.id,
-            },
-          }),
-        );
+      const tenant = decodeHeaderJson(
+        options.headers[RPC_CONTEXT_HEADERS.TENANT],
+        Tenant,
+      );
+      const activeTaxRates = yield* databaseEffect((database) =>
+        database.query.tenantStripeTaxRates.findMany({
+          columns: {
+            country: true,
+            displayName: true,
+            id: true,
+            percentage: true,
+            state: true,
+            stripeTaxRateId: true,
+          },
+          orderBy: (table, { asc }) => [
+            asc(table.displayName),
+            asc(table.stripeTaxRateId),
+          ],
+          where: {
+            active: true,
+            inclusive: true,
+            tenantId: tenant.id,
+          },
+        }),
+      );
 
-        return activeTaxRates;
-      }),
+      return activeTaxRates;
+    }),
 } satisfies Partial<AppRpcHandlers>;

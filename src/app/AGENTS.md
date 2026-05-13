@@ -36,5 +36,7 @@
 - Normalize optional string fields to `null` at submit boundaries where APIs expect `null` over empty strings.
 - Use `consola/browser` instead of `console.*`.
 - Create scoped loggers with `consola.withTag('app/<feature>')`.
-- Before calling WebStorm `get_file_problems` on edited app files, run `bun run lint:fix` first.
+- After every app file edit, run `bun run lint` and `bun run format:write`.
+- Before calling WebStorm `get_file_problems` on edited app files, run `bun run lint` first.
+- Markdown files do not need a WebStorm `get_file_problems` pass.
 - After editing an app file, run WebStorm `get_file_problems` on that file when possible before finishing.

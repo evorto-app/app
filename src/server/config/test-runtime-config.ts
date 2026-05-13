@@ -1,4 +1,4 @@
-import { Config, ConfigError, Effect, Option } from 'effect';
+import { Config, Effect, Option } from 'effect';
 import path from 'node:path';
 
 import { nonEmptyTrimmedString, optionalTrimmedString } from './config-string';
@@ -107,28 +107,25 @@ export type PlaywrightEnvironment = Omit<
   STRIPE_WEBHOOK_SECRET: string;
 };
 
-export type TestRuntimeConfigState = Config.Config.Success<
+export type TestRuntimeConfigState = Config.Success<
   typeof testRuntimeConfigState
 >;
 
-const combineMissingDataErrors = (
-  errors: readonly ConfigError.ConfigError[],
-) => {
+const combineMissingDataErrors = (errors: readonly Error[]) => {
   const [firstError, ...restErrors] = errors;
   if (!firstError) {
     throw new Error('Expected at least one config error');
   }
 
-  let combinedError = firstError;
-  for (const error of restErrors) {
-    combinedError = ConfigError.And(combinedError, error);
-  }
-
-  return combinedError;
+  return new Error(
+    [
+      ...new Set([firstError, ...restErrors].map((error) => error.message)),
+    ].join('\n'),
+  );
 };
 
 const missingFieldError = (name: string) =>
-  ConfigError.MissingData([name], `Expected ${name} to be configured`);
+  new Error(`Expected ${name} to be configured`);
 
 const collectMissingFieldErrors = (
   fields: readonly [name: string, configured: boolean][],
@@ -137,10 +134,13 @@ const collectMissingFieldErrors = (
     .map(([name, configured]) =>
       configured ? undefined : missingFieldError(name),
     )
-    .filter((value): value is ConfigError.ConfigError => value !== undefined);
+    .filter((value): value is Error => value !== undefined);
 
 const matchesProjectPattern = (pattern: string, projectName: string) => {
-  const escapedPattern = pattern.replaceAll(/[|\\{}()[\]^$+?.]/g, String.raw`\$&`);
+  const escapedPattern = pattern.replaceAll(
+    /[|\\{}()[\]^$+?.]/g,
+    String.raw`\$&`,
+  );
   const projectPattern = new RegExp(
     `^${escapedPattern.replaceAll('*', '.*')}$`,
     'u',
@@ -255,83 +255,86 @@ export const makePlaywrightEnvironmentConfig = (
   argv: readonly string[] = process.argv,
 ) =>
   Effect.gen(function* () {
-  const state = yield* testRuntimeConfigState;
-  yield* validateCiEnvironment(state, argv);
+    const state = yield* testRuntimeConfigState;
+    yield* validateCiEnvironment(state, argv);
 
-  const errors = [
-    Option.isSome(state.BASE_URL) ? undefined : missingFieldError('BASE_URL'),
-    Option.isSome(state.CLIENT_ID) ? undefined : missingFieldError('CLIENT_ID'),
-    Option.isSome(state.CLIENT_SECRET)
-      ? undefined
-      : missingFieldError('CLIENT_SECRET'),
-    Option.isSome(state.ISSUER_BASE_URL)
-      ? undefined
-      : missingFieldError('ISSUER_BASE_URL'),
-    Option.isSome(state.SECRET) ? undefined : missingFieldError('SECRET'),
-    Option.isSome(state.STRIPE_API_KEY)
-      ? undefined
-      : missingFieldError('STRIPE_API_KEY'),
-    Option.isSome(state.STRIPE_TEST_ACCOUNT_ID)
-      ? undefined
-      : missingFieldError('STRIPE_TEST_ACCOUNT_ID'),
-    Option.isSome(state.STRIPE_WEBHOOK_SECRET)
-      ? undefined
-      : missingFieldError('STRIPE_WEBHOOK_SECRET'),
-  ].filter((value): value is ConfigError.ConfigError => value !== undefined);
+    const errors = [
+      Option.isSome(state.BASE_URL) ? undefined : missingFieldError('BASE_URL'),
+      Option.isSome(state.CLIENT_ID)
+        ? undefined
+        : missingFieldError('CLIENT_ID'),
+      Option.isSome(state.CLIENT_SECRET)
+        ? undefined
+        : missingFieldError('CLIENT_SECRET'),
+      Option.isSome(state.ISSUER_BASE_URL)
+        ? undefined
+        : missingFieldError('ISSUER_BASE_URL'),
+      Option.isSome(state.SECRET) ? undefined : missingFieldError('SECRET'),
+      Option.isSome(state.STRIPE_API_KEY)
+        ? undefined
+        : missingFieldError('STRIPE_API_KEY'),
+      Option.isSome(state.STRIPE_TEST_ACCOUNT_ID)
+        ? undefined
+        : missingFieldError('STRIPE_TEST_ACCOUNT_ID'),
+      Option.isSome(state.STRIPE_WEBHOOK_SECRET)
+        ? undefined
+        : missingFieldError('STRIPE_WEBHOOK_SECRET'),
+    ].filter((value): value is Error => value !== undefined);
 
-  if (errors.length > 0) {
-    return yield* Effect.fail(combineMissingDataErrors(errors));
-  }
+    if (errors.length > 0) {
+      return yield* Effect.fail(combineMissingDataErrors(errors));
+    }
 
-  const baseUrl = Option.getOrUndefined(state.BASE_URL);
-  const clientId = Option.getOrUndefined(state.CLIENT_ID);
-  const clientSecret = Option.getOrUndefined(state.CLIENT_SECRET);
-  const issuerBaseUrl = Option.getOrUndefined(state.ISSUER_BASE_URL);
-  const secret = Option.getOrUndefined(state.SECRET);
-  const stripeApiKey = Option.getOrUndefined(state.STRIPE_API_KEY);
-  const stripeTestAccountId = Option.getOrUndefined(
-    state.STRIPE_TEST_ACCOUNT_ID,
-  );
-  const stripeWebhookSecret = Option.getOrUndefined(
-    state.STRIPE_WEBHOOK_SECRET,
-  );
+    const baseUrl = Option.getOrUndefined(state.BASE_URL);
+    const clientId = Option.getOrUndefined(state.CLIENT_ID);
+    const clientSecret = Option.getOrUndefined(state.CLIENT_SECRET);
+    const issuerBaseUrl = Option.getOrUndefined(state.ISSUER_BASE_URL);
+    const secret = Option.getOrUndefined(state.SECRET);
+    const stripeApiKey = Option.getOrUndefined(state.STRIPE_API_KEY);
+    const stripeTestAccountId = Option.getOrUndefined(
+      state.STRIPE_TEST_ACCOUNT_ID,
+    );
+    const stripeWebhookSecret = Option.getOrUndefined(
+      state.STRIPE_WEBHOOK_SECRET,
+    );
 
-  if (
-    !baseUrl ||
-    !clientId ||
-    !clientSecret ||
-    !issuerBaseUrl ||
-    !secret ||
-    !stripeApiKey ||
-    !stripeTestAccountId ||
-    !stripeWebhookSecret
-  ) {
-    throw new Error('Expected validated Playwright configuration values');
-  }
+    if (
+      !baseUrl ||
+      !clientId ||
+      !clientSecret ||
+      !issuerBaseUrl ||
+      !secret ||
+      !stripeApiKey ||
+      !stripeTestAccountId ||
+      !stripeWebhookSecret
+    ) {
+      throw new Error('Expected validated Playwright configuration values');
+    }
 
-  return {
-    ...state,
-    BASE_URL: baseUrl,
-    CLIENT_ID: clientId,
-    CLIENT_SECRET: clientSecret,
-    ISSUER_BASE_URL: issuerBaseUrl,
-    NO_WEBSERVER: state.NO_WEBSERVER,
-    SECRET: secret,
-    STRIPE_API_KEY: stripeApiKey,
-    STRIPE_TEST_ACCOUNT_ID: stripeTestAccountId,
-    STRIPE_WEBHOOK_SECRET: stripeWebhookSecret,
-  } satisfies PlaywrightEnvironment;
-});
+    return {
+      ...state,
+      BASE_URL: baseUrl,
+      CLIENT_ID: clientId,
+      CLIENT_SECRET: clientSecret,
+      ISSUER_BASE_URL: issuerBaseUrl,
+      NO_WEBSERVER: state.NO_WEBSERVER,
+      SECRET: secret,
+      STRIPE_API_KEY: stripeApiKey,
+      STRIPE_TEST_ACCOUNT_ID: stripeTestAccountId,
+      STRIPE_WEBHOOK_SECRET: stripeWebhookSecret,
+    } satisfies PlaywrightEnvironment;
+  });
 
 export const playwrightEnvironmentConfig = makePlaywrightEnvironmentConfig();
 
-export const hasAuth0ManagementEnvironment = testRuntimeConfigState.pipe(
-  Effect.map(
-    (state) =>
-      Option.isSome(state.AUTH0_MANAGEMENT_CLIENT_ID) &&
-      Option.isSome(state.AUTH0_MANAGEMENT_CLIENT_SECRET),
-  ),
-);
+export const hasAuth0ManagementEnvironment = Effect.gen(function* () {
+  const state = yield* testRuntimeConfigState;
+
+  return (
+    Option.isSome(state.AUTH0_MANAGEMENT_CLIENT_ID) &&
+    Option.isSome(state.AUTH0_MANAGEMENT_CLIENT_SECRET)
+  );
+});
 
 export const auth0ManagementEnvironment = Effect.gen(function* () {
   const state = yield* testRuntimeConfigState;
@@ -342,7 +345,7 @@ export const auth0ManagementEnvironment = Effect.gen(function* () {
     Option.isSome(state.AUTH0_MANAGEMENT_CLIENT_SECRET)
       ? undefined
       : missingFieldError('AUTH0_MANAGEMENT_CLIENT_SECRET'),
-  ].filter((value): value is ConfigError.ConfigError => value !== undefined);
+  ].filter((value): value is Error => value !== undefined);
 
   if (errors.length > 0) {
     return yield* Effect.fail(combineMissingDataErrors(errors));
@@ -365,12 +368,11 @@ export const auth0ManagementEnvironment = Effect.gen(function* () {
   };
 });
 
-export const documentationOutputEnvironment = testRuntimeConfigState.pipe(
-  Effect.map(
-    (state) =>
-      ({
-        docsImageOutputDirectory: state.DOCS_IMG_OUT_DIR,
-        docsOutputDirectory: state.DOCS_OUT_DIR,
-      }) satisfies DocumentationOutputEnvironment,
-  ),
-);
+export const documentationOutputEnvironment = Effect.gen(function* () {
+  const state = yield* testRuntimeConfigState;
+
+  return {
+    docsImageOutputDirectory: state.DOCS_IMG_OUT_DIR,
+    docsOutputDirectory: state.DOCS_OUT_DIR,
+  } satisfies DocumentationOutputEnvironment;
+});

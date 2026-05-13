@@ -9,7 +9,7 @@ import * as schema from '../src/db/schema';
  * Rates are inclusive VAT-style and active.
  */
 export const addTaxRates = async (
-  database: NodePgDatabase<Record<string, never>, typeof relations>,
+  database: NodePgDatabase<typeof relations>,
   tenant: { id: string },
 ) => {
   const seedRates: Array<{

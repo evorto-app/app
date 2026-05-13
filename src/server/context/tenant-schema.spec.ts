@@ -1,0 +1,47 @@
+import { describe, expect, it } from '@effect/vitest';
+import { Tenant } from '@types/custom/tenant';
+import { Schema } from 'effect';
+
+const tenantInput = {
+  currency: 'EUR',
+  domain: 'tenant.example.com',
+  id: 'tenant-1',
+  locale: 'en-GB',
+  name: 'Tenant',
+  stripeAccountId: null,
+  theme: 'evorto',
+  timezone: 'Europe/Berlin',
+};
+
+const omitUndefinedValues = (value: Record<string, unknown>) =>
+  Object.fromEntries(
+    Object.entries(value).filter(([, entryValue]) => entryValue !== undefined),
+  );
+
+describe('Tenant schema', () => {
+  it('accepts tenant context after an undefined default location is omitted from JSON', () => {
+    const tenant = Schema.decodeUnknownSync(Tenant)({
+      ...tenantInput,
+      defaultLocation: null,
+    });
+
+    const encodedHeaderPayload = omitUndefinedValues(tenant);
+
+    expect(encodedHeaderPayload).not.toHaveProperty('defaultLocation');
+    expect(
+      Schema.decodeUnknownSync(Tenant)(encodedHeaderPayload),
+    ).toMatchObject({
+      defaultLocation: undefined,
+      domain: 'tenant.example.com',
+      id: 'tenant-1',
+    });
+  });
+
+  it('encodes a missing default location as null for RPC responses', () => {
+    const tenant = Schema.decodeUnknownSync(Tenant)(tenantInput);
+
+    expect(Schema.encodeSync(Tenant)(tenant)).toMatchObject({
+      defaultLocation: null,
+    });
+  });
+});

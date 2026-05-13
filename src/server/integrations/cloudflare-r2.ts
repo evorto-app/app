@@ -66,9 +66,7 @@ const resolveObjectStorageConfig = () =>
     })),
   );
 
-const buildS3Client = (
-  config: ObjectStorageRuntimeConfig,
-) => {
+const buildS3Client = (config: ObjectStorageRuntimeConfig) => {
   const S3Client = getBunS3ClientConstructor();
   return new S3Client({
     accessKeyId: config.keyId,

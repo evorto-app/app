@@ -9,7 +9,7 @@ import { ALL_PERMISSIONS } from '../src/shared/permissions/permissions';
 import { getId } from './get-id';
 
 export const addRoles = (
-  database: NodePgDatabase<Record<string, never>, typeof relations>,
+  database: NodePgDatabase<typeof relations>,
   tenant: { id: string },
 ) => {
   return database
@@ -76,7 +76,7 @@ export const addRoles = (
 };
 
 export const addUsersToRoles = async (
-  database: NodePgDatabase<Record<string, never>, typeof relations>,
+  database: NodePgDatabase<typeof relations>,
   assignments: { roleId: string; userId: string }[],
   tenant: { id: string },
 ) => {
@@ -115,7 +115,7 @@ export const addUsersToRoles = async (
 };
 
 export const addExampleUsers = async (
-  database: NodePgDatabase<Record<string, never>, typeof relations>,
+  database: NodePgDatabase<typeof relations>,
   roles: { defaultUserRole: boolean; id: string }[],
   tenant: { id: string },
 ) => {

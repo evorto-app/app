@@ -1,35 +1,31 @@
-import * as NodeFileSystem from '@effect/platform-node-shared/NodeFileSystem';
-import * as FileSystem from '@effect/platform/FileSystem';
-import * as PlatformConfigProvider from '@effect/platform/PlatformConfigProvider';
 import { ConfigProvider, Effect } from 'effect';
+import fs from 'node:fs';
 import path from 'node:path';
 
 export interface RuntimeConfigProviderOptions {
   cwd?: string;
 }
 
-const EMPTY_PROVIDER = ConfigProvider.fromMap(new Map());
+const EMPTY_PROVIDER = ConfigProvider.fromUnknown({});
 
 const resolveDotEnvironmentFiles = (
   _options: RuntimeConfigProviderOptions = {},
 ) => ['.env.dev.local', '.env.dev', '.env'];
 
 const loadDotEnvironmentProvider = (filePath: string) =>
-  Effect.gen(function* () {
-    const fileSystem = yield* FileSystem.FileSystem;
-    const exists = yield* fileSystem.exists(filePath);
-    if (!exists) {
-      return EMPTY_PROVIDER;
-    }
+  Effect.try({
+    catch: (error) =>
+      new Error(`Failed to load config file ${filePath}: ${String(error)}`),
+    try: () => {
+      if (!fs.existsSync(filePath)) {
+        return EMPTY_PROVIDER;
+      }
 
-    return yield* PlatformConfigProvider.fromDotEnv(filePath);
-  }).pipe(
-    Effect.provide(NodeFileSystem.layer),
-    Effect.mapError(
-      (error) =>
-        new Error(`Failed to load config file ${filePath}: ${String(error)}`),
-    ),
-  );
+      return ConfigProvider.fromDotEnvContents(
+        fs.readFileSync(filePath, 'utf8'),
+      );
+    },
+  });
 
 export const resolveRuntimeConfigFilePaths = (
   options: RuntimeConfigProviderOptions = {},
@@ -49,7 +45,7 @@ export const makeRuntimeConfigProvider = (
     for (const filePath of resolveRuntimeConfigFilePaths(options)) {
       const dotEnvironmentProvider =
         yield* loadDotEnvironmentProvider(filePath);
-      provider = ConfigProvider.orElse(provider, () => dotEnvironmentProvider);
+      provider = ConfigProvider.orElse(provider, dotEnvironmentProvider);
     }
 
     return provider;

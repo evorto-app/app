@@ -69,13 +69,13 @@ bun run db:reset
 This will:
 
 1. Generate `.env.dev` with `bun run env:runtime` and re-run it whenever local runtime settings change, such as changing local ports or renaming the local project, so Docker and Playwright keep isolated ports/project naming
-2. Ensure schema exists and reset/seed the local database (`bun run db:setup`)
+2. Ensure schema exists and reset/seed the local database (`bun run db:reset`)
 
-`bun run db:setup` now uses the same `dotenv -c dev` loading model as `db:push`. In this repo, the supported local files are `.env` for developer secrets, `.env.dev.local` for tracked shared defaults, and `.env.dev` for generated worktree overrides. `bun run db:push`, Docker's `db-setup` service, and `bun run db:studio` all consume the same local environment contract.
+`bun run db:reset` now uses the same `dotenv -c dev` loading model as `db:push`. In this repo, the supported local files are `.env` for developer secrets, `.env.dev.local` for tracked shared defaults, and `.env.dev` for generated worktree overrides. `bun run db:push`, Docker's `db-setup` service, and `bun run db:studio` all consume the same local environment contract.
 
 The Neon Local container does not emit every proxied query in its default logging configuration, so `docker logs` staying quiet during `db:reset` does not mean the reset missed Docker.
 
-Docker Compose now also runs a one-shot `db-setup` container before `evorto` starts. That service pushes schema and resets/seeds the Docker database on every stack start, and local Neon branches are configured to be deleted automatically on shutdown. The package scripts preload the needed environment with `dotenv -c dev` before invoking Docker.
+Docker Compose now also runs a one-shot `db-setup` container before `evorto` starts. That service runs the equivalent of `bun run db:reset` against the Docker database on every stack start, and local Neon branches are configured to be deleted automatically on shutdown. The package scripts preload the needed environment with `dotenv -c dev` before invoking Docker.
 
 Testing/runtime context that depends on these seed flows lives in [tests/README.md](../tests/README.md).
 

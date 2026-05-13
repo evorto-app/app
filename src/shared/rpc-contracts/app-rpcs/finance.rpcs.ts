@@ -1,11 +1,16 @@
-import * as Rpc from '@effect/rpc/Rpc';
-import * as RpcGroup from '@effect/rpc/RpcGroup';
 import { asRpcMutation, asRpcQuery } from '@heddendorp/effect-angular-query';
-import { Schema } from 'effect';
-
 import {
-  RpcUnauthorizedError,
-} from '../../errors/rpc-errors';
+  extendStruct,
+  literalUnion,
+  nonNegativeNumber,
+  pickStruct,
+  positiveNumber,
+} from '@shared/schema-utilities';
+import { Schema } from 'effect';
+import * as Rpc from 'effect/unstable/rpc/Rpc';
+import * as RpcGroup from 'effect/unstable/rpc/RpcGroup';
+
+import { RpcUnauthorizedError } from '../../errors/rpc-errors';
 import {
   FinanceRpcError,
   ReceiptMediaBadRequestError,
@@ -13,18 +18,20 @@ import {
   ReceiptMediaServiceUnavailableError,
 } from './finance.errors';
 
-export const FinanceReceiptStatus = Schema.Literal(
+export const FinanceReceiptStatus = literalUnion(
   'approved',
   'refunded',
   'rejected',
   'submitted',
 );
-export type FinanceReceiptStatus = Schema.Schema.Type<typeof FinanceReceiptStatus>;
+export type FinanceReceiptStatus = Schema.Schema.Type<
+  typeof FinanceReceiptStatus
+>;
 
 export const FinanceReceiptAttachmentInput = Schema.Struct({
   fileName: Schema.NonEmptyString,
   mimeType: Schema.NonEmptyString,
-  sizeBytes: Schema.Number.pipe(Schema.positive()),
+  sizeBytes: positiveNumber,
   storageKey: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
   storageUrl: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
 });
@@ -33,14 +40,14 @@ export type FinanceReceiptAttachmentInput = Schema.Schema.Type<
 >;
 
 export const FinanceReceiptFieldsInput = Schema.Struct({
-  alcoholAmount: Schema.Number.pipe(Schema.nonNegative()),
-  depositAmount: Schema.Number.pipe(Schema.nonNegative()),
+  alcoholAmount: nonNegativeNumber,
+  depositAmount: nonNegativeNumber,
   hasAlcohol: Schema.Boolean,
   hasDeposit: Schema.Boolean,
   purchaseCountry: Schema.NonEmptyString,
   receiptDate: Schema.NonEmptyString,
-  taxAmount: Schema.Number.pipe(Schema.nonNegative()),
-  totalAmount: Schema.Number.pipe(Schema.nonNegative()),
+  taxAmount: nonNegativeNumber,
+  totalAmount: nonNegativeNumber,
 });
 export type FinanceReceiptFieldsInput = Schema.Schema.Type<
   typeof FinanceReceiptFieldsInput
@@ -73,10 +80,13 @@ export const FinanceReceiptBaseRecord = Schema.Struct({
 export type FinanceReceiptBaseRecord = Schema.Schema.Type<
   typeof FinanceReceiptBaseRecord
 >;
-const FinanceReceiptIdRecord = FinanceReceiptBaseRecord.pick('id');
-const FinanceReceiptReviewRecord = FinanceReceiptBaseRecord.pick('id', 'status');
+const FinanceReceiptIdRecord = pickStruct(FinanceReceiptBaseRecord, ['id']);
+const FinanceReceiptReviewRecord = pickStruct(FinanceReceiptBaseRecord, [
+  'id',
+  'status',
+]);
 
-export const FinanceReceiptWithSubmitterRecord = Schema.extend(
+export const FinanceReceiptWithSubmitterRecord = extendStruct(
   FinanceReceiptBaseRecord,
   Schema.Struct({
     submittedByEmail: Schema.NonEmptyString,
@@ -88,7 +98,7 @@ export type FinanceReceiptWithSubmitterRecord = Schema.Schema.Type<
   typeof FinanceReceiptWithSubmitterRecord
 >;
 
-export const FinanceReceiptWithEventRecord = Schema.extend(
+export const FinanceReceiptWithEventRecord = extendStruct(
   FinanceReceiptBaseRecord,
   Schema.Struct({
     eventStart: Schema.NonEmptyString,
@@ -99,7 +109,7 @@ export type FinanceReceiptWithEventRecord = Schema.Schema.Type<
   typeof FinanceReceiptWithEventRecord
 >;
 
-export const FinanceReceiptForApprovalRecord = Schema.extend(
+export const FinanceReceiptForApprovalRecord = extendStruct(
   FinanceReceiptWithSubmitterRecord,
   Schema.Struct({
     eventStart: Schema.NonEmptyString,
@@ -120,7 +130,7 @@ export type FinanceReceiptPendingGroupRecord = Schema.Schema.Type<
   typeof FinanceReceiptPendingGroupRecord
 >;
 
-export const FinanceReceiptRefundableRecord = Schema.extend(
+export const FinanceReceiptRefundableRecord = extendStruct(
   FinanceReceiptWithSubmitterRecord,
   Schema.Struct({
     eventStart: Schema.NonEmptyString,
@@ -164,7 +174,7 @@ export const FinanceReceiptsCreateRefund = asRpcMutation(
     error: FinanceRpcError,
     payload: Schema.Struct({
       payoutReference: Schema.NonEmptyString,
-      payoutType: Schema.Literal('iban', 'paypal'),
+      payoutType: literalUnion('iban', 'paypal'),
       receiptIds: Schema.NonEmptyArray(Schema.NonEmptyString),
     }),
     success: Schema.Struct({
@@ -212,11 +222,11 @@ export const FinanceReceiptsRefundableGroupedByRecipient = asRpcQuery(
 export const FinanceReceiptsReview = asRpcMutation(
   Rpc.make('finance.receipts.review', {
     error: FinanceRpcError,
-    payload: Schema.extend(
+    payload: extendStruct(
       Schema.Struct({
         id: Schema.NonEmptyString,
         rejectionReason: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
-        status: Schema.Literal('approved', 'rejected'),
+        status: literalUnion('approved', 'rejected'),
       }),
       FinanceReceiptFieldsInput,
     ),
@@ -238,20 +248,20 @@ export const FinanceReceiptsSubmit = asRpcMutation(
 
 export const FinanceReceiptMediaUploadOriginal = asRpcMutation(
   Rpc.make('finance.receiptMedia.uploadOriginal', {
-    error: Schema.Union(
+    error: Schema.Union([
       ReceiptMediaBadRequestError,
       ReceiptMediaInternalError,
       ReceiptMediaServiceUnavailableError,
       RpcUnauthorizedError,
-    ),
+    ]),
     payload: Schema.Struct({
       fileBase64: Schema.NonEmptyString,
       fileName: Schema.NonEmptyString,
-      fileSizeBytes: Schema.Number.pipe(Schema.positive()),
+      fileSizeBytes: positiveNumber,
       mimeType: Schema.NonEmptyString,
     }),
     success: Schema.Struct({
-      sizeBytes: Schema.Number.pipe(Schema.positive()),
+      sizeBytes: positiveNumber,
       storageKey: Schema.NonEmptyString,
       storageUrl: Schema.NonEmptyString,
     }),
@@ -264,8 +274,8 @@ export const FinanceTransactionRecord = Schema.Struct({
   comment: Schema.NullOr(Schema.String),
   createdAt: Schema.NonEmptyString,
   id: Schema.NonEmptyString,
-  method: Schema.Literal('cash', 'paypal', 'stripe', 'transfer'),
-  status: Schema.Literal('cancelled', 'pending', 'successful'),
+  method: literalUnion('cash', 'paypal', 'stripe', 'transfer'),
+  status: literalUnion('cancelled', 'pending', 'successful'),
   stripeFee: Schema.NullOr(Schema.Number),
 });
 export type FinanceTransactionRecord = Schema.Schema.Type<

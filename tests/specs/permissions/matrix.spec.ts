@@ -18,7 +18,9 @@ for (const [index, matrixCase] of permissionMatrix.entries()) {
       if (matrixCase.capability === 'admin tax rates access') {
         await page.goto('.');
         await openAdminTools(page, isMobile);
-        await expect(page.getByRole('link', { name: 'Tax Rates' })).toBeVisible();
+        await expect(
+          page.getByRole('link', { name: 'Tax Rates' }),
+        ).toBeVisible();
         return;
       }
 

@@ -7,9 +7,7 @@ export interface ProviderAdapter<TConfig> {
   }) => Promise<ValidationResult>;
 }
 
-export interface ProviderConfig<
-  TConfig extends Schema.Schema.Any = Schema.Schema.Any,
-> {
+export interface ProviderConfig<TConfig extends Schema.Top = Schema.Top> {
   configSchema: TConfig;
   description?: string;
   displayName: string;

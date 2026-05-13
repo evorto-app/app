@@ -9,9 +9,7 @@ import { makeRuntimeConfigProvider } from './provider';
 
 const readDatabaseUrl = (cwd: string) =>
   makeRuntimeConfigProvider({ cwd }).pipe(
-    Effect.flatMap((provider) =>
-      databaseConfig.pipe(Effect.withConfigProvider(provider)),
-    ),
+    Effect.flatMap((provider) => databaseConfig.parse(provider)),
     Effect.map((config) => config.DATABASE_URL),
   );
 

@@ -1,4 +1,4 @@
-import { BunRuntime } from '@effect/platform-bun';
+import * as BunRuntime from '@effect/platform-bun/BunRuntime';
 import { Effect } from 'effect';
 import path from 'node:path';
 
@@ -95,8 +95,7 @@ const runtimeEnvironment = {
   NEON_LOCAL_PROXY: 'true',
 } as const;
 
-const escapeEnvironmentValue = (value: string): string =>
-  JSON.stringify(value);
+const escapeEnvironmentValue = (value: string): string => JSON.stringify(value);
 
 const outputLines = [
   '# THIS FILE IS AUTO-GENERATED. DO NOT EDIT MANUALLY.',
@@ -111,8 +110,7 @@ const main = Effect.gen(function* () {
   yield* Effect.tryPromise({
     catch: (cause) =>
       new Error(`Failed to write runtime env file at ${OUTPUT_FILE_PATH}`, {
-        cause:
-          cause instanceof Error ? cause : new Error(String(cause)),
+        cause: cause instanceof Error ? cause : new Error(String(cause)),
       }),
     try: () => Bun.write(OUTPUT_FILE_PATH, outputLines.join('\n')),
   });

@@ -61,7 +61,9 @@ export class EventListComponent {
   protected readonly eventQuery = this.eventListService.eventQuery;
   protected readonly eventErrorMessage = computed(() => {
     const error = this.eventQuery.error();
-    return error ? getErrorMessage(error, 'Failed to load events') : 'Failed to load events';
+    return error
+      ? getErrorMessage(error, 'Failed to load events')
+      : 'Failed to load events';
   });
   protected readonly faClock = faClock;
   protected readonly faEllipsisVertical = faEllipsisVertical;

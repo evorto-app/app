@@ -8,7 +8,7 @@ const responseText = (body: string, status = 200): Response =>
 
 const databaseEffect = <A, E>(
   operation: (database: DatabaseClient) => Effect.Effect<A, E, never>,
-) => Database.pipe(Effect.flatMap((database) => operation(database)));
+) => Database.use((database) => operation(database));
 
 export const handleQrRegistrationCodeWebRequest = (
   request: Request,

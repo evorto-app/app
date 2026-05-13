@@ -1,7 +1,8 @@
-import * as Rpc from '@effect/rpc/Rpc';
-import * as RpcGroup from '@effect/rpc/RpcGroup';
 import { asRpcMutation } from '@heddendorp/effect-angular-query';
+import { nonNegativeNumber } from '@shared/schema-utilities';
 import { Schema } from 'effect';
+import * as Rpc from 'effect/unstable/rpc/Rpc';
+import * as RpcGroup from 'effect/unstable/rpc/RpcGroup';
 
 import { BadRequestInternalUnauthorizedRpcError } from '../../errors/rpc-errors';
 
@@ -14,7 +15,7 @@ export const EditorMediaCreateImageDirectUpload = asRpcMutation(
     error: EditorMediaRpcError,
     payload: Schema.Struct({
       fileName: Schema.NonEmptyString,
-      fileSizeBytes: Schema.Number.pipe(Schema.nonNegative()),
+      fileSizeBytes: nonNegativeNumber,
       mimeType: Schema.NonEmptyString,
     }),
     success: Schema.Struct({

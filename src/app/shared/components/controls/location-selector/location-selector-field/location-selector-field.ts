@@ -27,9 +27,7 @@ export class LocationSelectorField implements FormValueControl<EventLocationType
   readonly invalid = input<boolean>(false);
   readonly readonly = input<boolean>(false);
   readonly touched = model<boolean>(false);
-  readonly value = model<EventLocationType | null>(
-    null,
-  );
+  readonly value = model<EventLocationType | null>(null);
   protected readonly showError = computed(
     () => this.touched() && this.invalid(),
   );

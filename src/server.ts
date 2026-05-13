@@ -1,18 +1,19 @@
 import { AngularAppEngine, createRequestHandler } from '@angular/ssr';
 import * as OtelResource from '@effect/opentelemetry/Resource';
 import * as OtelTracer from '@effect/opentelemetry/Tracer';
+import * as BunFileSystem from '@effect/platform-bun/BunFileSystem';
+import * as BunHttpServer from '@effect/platform-bun/BunHttpServer';
+import * as BunRuntime from '@effect/platform-bun/BunRuntime';
+import * as Sentry from '@sentry/bun';
+import { ConfigProvider, FileSystem, Path } from 'effect';
+import { Effect, Context as EffectContext, Fiber, Layer, Option } from 'effect';
 import {
-  FileSystem,
-  HttpLayerRouter,
+  HttpRouter as HttpLayerRouter,
   HttpServerError,
   HttpServerRequest,
   HttpServerResponse,
-  KeyValueStore,
-  Path,
-} from '@effect/platform';
-import { BunFileSystem, BunHttpServer, BunRuntime } from '@effect/platform-bun';
-import * as Sentry from '@sentry/bun';
-import { Effect, Context as EffectContext, Fiber, Layer, Option } from 'effect';
+} from 'effect/unstable/http';
+import { KeyValueStore } from 'effect/unstable/persistence';
 
 import { databaseLayer } from './db';
 import {
@@ -30,9 +31,7 @@ import {
   serverNetworkConfig,
   serverTelemetryConfig,
 } from './server/config/server-config';
-import {
-  resolveHttpRequestContext,
-} from './server/context/http-request-context';
+import { resolveHttpRequestContext } from './server/context/http-request-context';
 import { toRpcHttpServerRequest } from './server/effect/rpc/app-rpcs.request-handler';
 import {
   appRpcHttpAppLayer,
@@ -162,7 +161,7 @@ const renderSsr = (request: HttpServerRequest.HttpServerRequest) =>
       request,
       authSession,
     ).pipe(
-      Effect.map((context) => Option.fromNullable(context)),
+      Effect.map((context) => Option.fromNullishOr(context)),
       Effect.catchTag('HttpRequestTenantNotFoundError', () =>
         Effect.succeed(Option.none()),
       ),
@@ -257,7 +256,7 @@ const rpcRouteLayer = HttpLayerRouter.add('POST', '/rpc', (request) =>
       request,
       authSession,
     ).pipe(
-      Effect.map((context) => Option.fromNullable(context)),
+      Effect.map((context) => Option.fromNullishOr(context)),
       Effect.catchTag('HttpRequestTenantNotFoundError', () =>
         Effect.succeed(Option.none()),
       ),
@@ -320,7 +319,7 @@ const createInternalErrorResponse = (
     return HttpServerResponse.redirect('/500', { status: 303 });
   }
 
-  return HttpServerResponse.unsafeJson(
+  return HttpServerResponse.jsonUnsafe(
     { error: 'Internal Server Error' },
     { status: 500 },
   );
@@ -330,7 +329,7 @@ const withSsrFallback = <E, R>(
   effect: Effect.Effect<HttpServerResponse.HttpServerResponse, E, R>,
 ) =>
   effect.pipe(
-    Effect.catchAll((error) =>
+    Effect.catch((error) =>
       Effect.gen(function* () {
         const request = yield* HttpServerRequest.HttpServerRequest;
 
@@ -354,7 +353,7 @@ const withSsrFallback = <E, R>(
         return createInternalErrorResponse(request);
       }),
     ),
-    Effect.catchAllDefect((defect) =>
+    Effect.catchDefect((defect) =>
       Effect.gen(function* () {
         const request = yield* HttpServerRequest.HttpServerRequest;
 
@@ -379,22 +378,22 @@ const withSsrFallback = <E, R>(
 const keyValueStoreLayer = KeyValueStore.layerFileSystem(
   keyValueStoreDirectory,
 ).pipe(Layer.provide(Layer.mergeAll(BunFileSystem.layer, Path.layer)));
-const otelLayer = Layer.unwrapEffect(
-  serverTelemetryConfig.pipe(
-    Effect.map(({ PACKAGE_VERSION }) =>
-      OtelTracer.layerGlobal.pipe(
-        Layer.provide(
-          OtelResource.layer({
-            serviceName: 'evorto-server',
-            ...Option.match(PACKAGE_VERSION, {
-              onNone: () => ({}),
-              onSome: (serviceVersion) => ({ serviceVersion }),
-            }),
+const otelLayer = Layer.unwrap(
+  Effect.gen(function* () {
+    const { PACKAGE_VERSION } = yield* serverTelemetryConfig;
+
+    return OtelTracer.layerGlobal.pipe(
+      Layer.provide(
+        OtelResource.layer({
+          serviceName: 'evorto-server',
+          ...Option.match(PACKAGE_VERSION, {
+            onNone: () => ({}),
+            onSome: (serviceVersion) => ({ serviceVersion }),
           }),
-        ),
+        }),
       ),
-    ),
-  ),
+    );
+  }),
 );
 
 let cachedRequestHandler: ((request: Request) => Promise<Response>) | undefined;
@@ -408,10 +407,10 @@ const getRequestHandler = () => {
   }
 
   const configuredDatabaseLayer = databaseLayer.pipe(
-    Layer.provide(Layer.setConfigProvider(requestHandlerRuntimeConfigProvider)),
+    Layer.provide(ConfigProvider.layer(requestHandlerRuntimeConfigProvider)),
   );
   const handlerRuntimeLayer = Layer.mergeAll(
-    BunHttpServer.layerContext,
+    BunHttpServer.layerHttpServices,
     BunFileSystem.layer,
     Path.layer,
     keyValueStoreLayer,
@@ -420,7 +419,7 @@ const getRequestHandler = () => {
     appRpcHttpAppLayer,
     stripeClientLayer,
     RuntimeConfig.Default,
-    Layer.setConfigProvider(requestHandlerRuntimeConfigProvider),
+    ConfigProvider.layer(requestHandlerRuntimeConfigProvider),
   );
   const handlerAppLayer = routesLayer.pipe(
     Layer.provide(handlerRuntimeLayer),
@@ -450,17 +449,18 @@ export { requestHandler as reqHandler };
 
 const serveEffect = Effect.gen(function* () {
   const configuredDatabaseLayer = databaseLayer.pipe(
-    Layer.provide(
-      Layer.setConfigProvider(requestHandlerRuntimeConfigProvider),
-    ),
+    Layer.provide(ConfigProvider.layer(requestHandlerRuntimeConfigProvider)),
   );
-  const configuredServerConfig = serverNetworkConfig.pipe(
-    Effect.withConfigProvider(requestHandlerRuntimeConfigProvider),
-    Effect.mapError(
-      (error) =>
-        new Error(`Invalid server configuration:\n${formatConfigError(error)}`),
-    ),
-  );
+  const configuredServerConfig = serverNetworkConfig
+    .parse(requestHandlerRuntimeConfigProvider)
+    .pipe(
+      Effect.mapError(
+        (error) =>
+          new Error(
+            `Invalid server configuration:\n${formatConfigError(error)}`,
+          ),
+      ),
+    );
   const { PORT: port } = yield* configuredServerConfig;
 
   const serverLayer = HttpLayerRouter.serve(routesLayer, {
@@ -477,7 +477,7 @@ const serveEffect = Effect.gen(function* () {
         appRpcHttpAppLayer,
         stripeClientLayer,
         RuntimeConfig.Default,
-        Layer.setConfigProvider(requestHandlerRuntimeConfigProvider),
+        ConfigProvider.layer(requestHandlerRuntimeConfigProvider),
       ),
     ),
   );

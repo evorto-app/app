@@ -82,59 +82,65 @@ describe('stripe-checkout helpers', () => {
     ).toBe(expected);
   });
 
-  it.effect('forwards checkout payload and request options to Stripe client', () =>
-    Effect.gen(function* () {
-    createSessionMock.mockResolvedValueOnce({ id: 'cs_test_mock' });
-    const stripeClient = createStripeClient();
+  it.effect(
+    'forwards checkout payload and request options to Stripe client',
+    () =>
+      Effect.gen(function* () {
+        createSessionMock.mockResolvedValueOnce({ id: 'cs_test_mock' });
+        const stripeClient = createStripeClient();
 
-    const session = yield* createHostedCheckoutSession(
-      {
-        cancel_url:
-          'http://localhost:4200/events/event-1?registrationStatus=cancel',
-        mode: 'payment',
-        success_url:
-          'http://localhost:4200/events/event-1?registrationStatus=success',
-      },
-      {
-        idempotencyKey: 'registration:reg_123:transaction:txn_456',
-        stripeAccount: 'acct_test_123',
-      },
-    ).pipe(Effect.provideService(StripeClient, stripeClient));
+        const session = yield* createHostedCheckoutSession(
+          {
+            cancel_url:
+              'http://localhost:4200/events/event-1?registrationStatus=cancel',
+            mode: 'payment',
+            success_url:
+              'http://localhost:4200/events/event-1?registrationStatus=success',
+          },
+          {
+            idempotencyKey: 'registration:reg_123:transaction:txn_456',
+            stripeAccount: 'acct_test_123',
+          },
+        ).pipe(Effect.provideService(StripeClient, stripeClient));
 
-    expect(session).toEqual({ id: 'cs_test_mock' });
-    expect(createSessionMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        mode: 'payment',
+        expect(session).toEqual({ id: 'cs_test_mock' });
+        expect(createSessionMock).toHaveBeenCalledWith(
+          expect.objectContaining({
+            mode: 'payment',
+          }),
+          {
+            idempotencyKey: 'registration:reg_123:transaction:txn_456',
+            stripeAccount: 'acct_test_123',
+          },
+        );
       }),
-      {
-        idempotencyKey: 'registration:reg_123:transaction:txn_456',
-        stripeAccount: 'acct_test_123',
-      },
-    );
-    })
   );
 
-  it.effect('surfaces Stripe client errors without requiring env configuration', () =>
-    Effect.gen(function* () {
-    createSessionMock.mockRejectedValueOnce(new Error('stripe request failed'));
-    const stripeClient = createStripeClient();
+  it.effect(
+    'surfaces Stripe client errors without requiring env configuration',
+    () =>
+      Effect.gen(function* () {
+        createSessionMock.mockRejectedValueOnce(
+          new Error('stripe request failed'),
+        );
+        const stripeClient = createStripeClient();
 
-    const error = yield* Effect.flip(
-      createHostedCheckoutSession(
-        {
-          cancel_url:
-            'http://localhost:4200/events/event-1?registrationStatus=cancel',
-          mode: 'payment',
-          success_url:
-            'http://localhost:4200/events/event-1?registrationStatus=success',
-        },
-        {
-          idempotencyKey: 'registration:reg_123:transaction:txn_456',
-          stripeAccount: 'acct_test_123',
-        },
-      ).pipe(Effect.provideService(StripeClient, stripeClient)),
-    );
-    expect(error.message).toBe('stripe request failed');
-    })
+        const error = yield* Effect.flip(
+          createHostedCheckoutSession(
+            {
+              cancel_url:
+                'http://localhost:4200/events/event-1?registrationStatus=cancel',
+              mode: 'payment',
+              success_url:
+                'http://localhost:4200/events/event-1?registrationStatus=success',
+            },
+            {
+              idempotencyKey: 'registration:reg_123:transaction:txn_456',
+              stripeAccount: 'acct_test_123',
+            },
+          ).pipe(Effect.provideService(StripeClient, stripeClient)),
+        );
+        expect(error.message).toBe('stripe request failed');
+      }),
   );
 });

@@ -11,10 +11,10 @@ import { seedBaseUsers, seedTenant } from '../../helpers/seed-tenant';
 import { relations } from './relations';
 import * as schema from './schema';
 
-export type Database = NodePgDatabase<Record<string, never>, typeof relations>;
+export type Database = NodePgDatabase<typeof relations>;
 
 export async function setupDatabase(
-  database: NodePgDatabase<Record<string, never>, typeof relations>,
+  database: NodePgDatabase<typeof relations>,
   options?: {
     onlyDevelopmentTenants?: boolean;
     stripeTestAccountId?: string;

@@ -45,13 +45,19 @@ Config.string(name).pipe(
   Config.map((s) => s.trim()),
   Config.mapOrFail((s) =>
     s.length > 0
-      ? Either.right(s)
-      : Either.left(ConfigError.MissingData([name], `Expected ${name} to be a non-empty string`))
-  )
-)
+      ? Effect.succeed(s)
+      : Effect.fail(
+          new Config.ConfigError(
+            new ConfigProvider.SourceError({
+              message: `Expected ${name} to be a non-empty string`,
+            }),
+          ),
+        ),
+  ),
+);
 
 // Wrong: validates raw value, whitespace-only strings pass through
-Config.nonEmptyString(name).pipe(Config.map((s) => s.trim()))
+Config.nonEmptyString(name).pipe(Config.map((s) => s.trim()));
 ```
 
 Use `Config.nonEmptyString` only when you trust the provider to not supply
@@ -82,10 +88,10 @@ whitespace-only values (e.g. structured JSON providers, test maps).
 
 `Config.option` and `Config.withDefault` are distinct tools:
 
-| Tool | Use when |
-|---|---|
-| `Config.withDefault(fallback)` | Missing value has a known fallback; result type is `A` |
-| `Config.option(...)` | Absence meaningfully changes behaviour; result type is `Option<A>` |
+| Tool                           | Use when                                                           |
+| ------------------------------ | ------------------------------------------------------------------ |
+| `Config.withDefault(fallback)` | Missing value has a known fallback; result type is `A`             |
+| `Config.option(...)`           | Absence meaningfully changes behaviour; result type is `Option<A>` |
 
 When using `Config.option`, resolve the `Option` inside the config module or service
 layer. Prefer `Option.filter` over `Option.match` when the only goal is to convert
@@ -93,17 +99,15 @@ blank values to `None`:
 
 ```typescript
 // Preferred
-Config.option(trimmedString(name)).pipe(
-  Config.map(Option.filter((s) => s.length > 0))
-)
+Config.option(trimmedString(name)).pipe(Config.map(Option.filter((s) => s.length > 0)));
 
 // Avoid — verbose, hides intent
 Config.option(trimmedString(name)).pipe(
   Config.map((value) =>
     Option.match(value, {
       onNone: () => Option.none(),
-      onSome: (s) => s.length > 0 ? Option.some(s) : Option.none(),
-    })
-  )
-)
+      onSome: (s) => (s.length > 0 ? Option.some(s) : Option.none()),
+    }),
+  ),
+);
 ```

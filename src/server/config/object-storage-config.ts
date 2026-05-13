@@ -1,9 +1,4 @@
-import {
-  Config,
-  ConfigError,
-  Effect,
-  Option,
-} from 'effect';
+import { Config, Effect, Option } from 'effect';
 
 import { missingFieldError } from './config-error';
 import { optionalTrimmedString } from './config-string';
@@ -38,30 +33,26 @@ export interface ObjectStorageConfig {
   secretAccessKey: string;
 }
 
-export type ObjectStorageConfigState = Config.Config.Success<
+export type ObjectStorageConfigState = Config.Success<
   typeof objectStorageStateConfig
 >;
 
-const combineConfigErrors = (
-  errors: readonly ConfigError.ConfigError[],
-) => {
+const combineConfigErrors = (errors: readonly Error[]) => {
   const [firstError, ...remainingErrors] = errors;
   if (!firstError) {
     throw new Error('Expected at least one object storage config error');
   }
 
-  let combinedError = firstError;
-  for (const error of remainingErrors) {
-    combinedError = ConfigError.And(combinedError, error);
-  }
-
-  return combinedError;
+  return new Error(
+    [
+      ...new Set(
+        [firstError, ...remainingErrors].map((error) => error.message),
+      ),
+    ].join('\n'),
+  );
 };
 
-const getRequiredConfigValue = <A>(
-  option: Option.Option<A>,
-  message: string,
-) =>
+const getRequiredConfigValue = <A>(option: Option.Option<A>, message: string) =>
   Option.match(option, {
     onNone: () => Effect.die(new Error(message)),
     onSome: (value) => Effect.succeed(value),
@@ -84,7 +75,7 @@ export const objectStorageConfig = Effect.gen(function* () {
       Option.isSome(state.S3_SECRET_ACCESS_KEY)
         ? undefined
         : missingFieldError('S3_SECRET_ACCESS_KEY'),
-    ].filter((value): value is ConfigError.ConfigError => value !== undefined);
+    ].filter((value): value is Error => value !== undefined);
 
     if (errors.length === 0) {
       return yield* Effect.die(

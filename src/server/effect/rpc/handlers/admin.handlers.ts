@@ -1,4 +1,4 @@
-import type { Headers } from '@effect/platform';
+import type { Headers } from 'effect/unstable/http';
 
 import {
   RpcBadRequestError,
@@ -13,24 +13,15 @@ import {
   resolveTenantReceiptSettings,
   type TenantDiscountProviders,
 } from '@shared/tenant-config';
-import {
-  and,
-  eq,
-} from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { Effect, Schema } from 'effect';
 
 import type { AppRpcHandlers } from './shared/handler-types';
 
 import { Database, type DatabaseClient } from '../../../../db';
-import {
-  roles,
-  tenants,
-  tenantStripeTaxRates,
-} from '../../../../db/schema';
+import { roles, tenants, tenantStripeTaxRates } from '../../../../db/schema';
 import { type Permission } from '../../../../shared/permissions/permissions';
-import {
-  type AdminHubRoleRecord,
-} from '../../../../shared/rpc-contracts/app-rpcs/admin.rpcs';
+import { type AdminHubRoleRecord } from '../../../../shared/rpc-contracts/app-rpcs/admin.rpcs';
 import { ConfigPermissions } from '../../../../shared/rpc-contracts/app-rpcs/config.rpcs';
 import { Tenant } from '../../../../types/custom/tenant';
 import { normalizeEsnCardConfig } from '../../../discounts/discount-provider-config';
@@ -43,12 +34,12 @@ import {
 const databaseEffect = <A>(
   operation: (database: DatabaseClient) => Effect.Effect<A, unknown, never>,
 ): Effect.Effect<A, never, Database> =>
-  Database.pipe(Effect.flatMap((database) => operation(database).pipe(Effect.orDie)));
+  Database.use((database) => operation(database).pipe(Effect.orDie));
 
-const decodeHeaderJson = <A, I>(
+const decodeHeaderJson = <A>(
   value: string | undefined,
-  schema: Schema.Schema<A, I, never>,
-) => Schema.decodeUnknownSync(schema)(decodeRpcContextHeaderJson(value));
+  schema: Schema.Decoder<A>,
+): A => Schema.decodeUnknownSync(schema)(decodeRpcContextHeaderJson(value));
 
 const normalizeHubRoleRecord = (role: {
   description: null | string;
@@ -80,7 +71,9 @@ const ensureAuthenticated = (
 ): Effect.Effect<void, RpcUnauthorizedError> =>
   headers[RPC_CONTEXT_HEADERS.AUTHENTICATED] === 'true'
     ? Effect.void
-    : Effect.fail(new RpcUnauthorizedError({ message: 'Authentication required' }));
+    : Effect.fail(
+        new RpcUnauthorizedError({ message: 'Authentication required' }),
+      );
 
 const ensurePermission = (
   headers: Headers.Headers,
@@ -101,283 +94,284 @@ const ensurePermission = (
   });
 
 export const adminHandlers = {
-    'admin.roles.create': (input, options) =>
-      Effect.gen(function* () {
-        yield* ensurePermission(options.headers, 'admin:manageRoles');
-        const tenant = decodeHeaderJson(
-          options.headers[RPC_CONTEXT_HEADERS.TENANT],
-          Tenant,
-        );
-        const createdRoles = yield* databaseEffect((database) =>
-          database
-            .insert(roles)
-            .values({
-              defaultOrganizerRole: input.defaultOrganizerRole,
-              defaultUserRole: input.defaultUserRole,
-              description: input.description,
-              name: input.name,
-              permissions: input.permissions,
-              tenantId: tenant.id,
-            })
-            .returning({
-              collapseMembersInHup: roles.collapseMembersInHup,
-              defaultOrganizerRole: roles.defaultOrganizerRole,
-              defaultUserRole: roles.defaultUserRole,
-              description: roles.description,
-              displayInHub: roles.displayInHub,
-              id: roles.id,
-              name: roles.name,
-              permissions: roles.permissions,
-              showInHub: roles.showInHub,
-              sortOrder: roles.sortOrder,
-            }),
-        );
-        const createdRole = createdRoles[0];
-        if (!createdRole) {
-          return yield* Effect.dieMessage('Role insert returned no rows');
-        }
+  'admin.roles.create': (input, options) =>
+    Effect.gen(function* () {
+      yield* ensurePermission(options.headers, 'admin:manageRoles');
+      const tenant = decodeHeaderJson(
+        options.headers[RPC_CONTEXT_HEADERS.TENANT],
+        Tenant,
+      );
+      const createdRoles = yield* databaseEffect((database) =>
+        database
+          .insert(roles)
+          .values({
+            defaultOrganizerRole: input.defaultOrganizerRole,
+            defaultUserRole: input.defaultUserRole,
+            description: input.description,
+            name: input.name,
+            permissions: input.permissions,
+            tenantId: tenant.id,
+          })
+          .returning({
+            collapseMembersInHup: roles.collapseMembersInHup,
+            defaultOrganizerRole: roles.defaultOrganizerRole,
+            defaultUserRole: roles.defaultUserRole,
+            description: roles.description,
+            displayInHub: roles.displayInHub,
+            id: roles.id,
+            name: roles.name,
+            permissions: roles.permissions,
+            showInHub: roles.showInHub,
+            sortOrder: roles.sortOrder,
+          }),
+      );
+      const createdRole = createdRoles[0];
+      if (!createdRole) {
+        return yield* Effect.die(new Error('Role insert returned no rows'));
+      }
 
-        return createdRole;
-      }),
-    'admin.roles.delete': ({ id }, options) =>
-      Effect.gen(function* () {
-        yield* ensurePermission(options.headers, 'admin:manageRoles');
-        const tenant = decodeHeaderJson(
-          options.headers[RPC_CONTEXT_HEADERS.TENANT],
-          Tenant,
+      return createdRole;
+    }),
+  'admin.roles.delete': ({ id }, options) =>
+    Effect.gen(function* () {
+      yield* ensurePermission(options.headers, 'admin:manageRoles');
+      const tenant = decodeHeaderJson(
+        options.headers[RPC_CONTEXT_HEADERS.TENANT],
+        Tenant,
+      );
+      const deletedRoles = yield* databaseEffect((database) =>
+        database
+          .delete(roles)
+          .where(and(eq(roles.id, id), eq(roles.tenantId, tenant.id)))
+          .returning({
+            id: roles.id,
+          }),
+      );
+      if (deletedRoles.length === 0) {
+        return yield* Effect.fail(
+          new AdminRoleNotFoundError({ id, message: 'Role not found' }),
         );
-        const deletedRoles = yield* databaseEffect((database) =>
-          database
-            .delete(roles)
-            .where(and(eq(roles.id, id), eq(roles.tenantId, tenant.id)))
-            .returning({
-              id: roles.id,
-            }),
-        );
-        if (deletedRoles.length === 0) {
-          return yield* Effect.fail(
-            new AdminRoleNotFoundError({ id, message: 'Role not found' }),
-          );
-        }
-      }),
-    'admin.roles.findHubRoles': (_payload, options) =>
-      Effect.gen(function* () {
-        yield* ensureAuthenticated(options.headers);
-        const tenant = decodeHeaderJson(
-          options.headers[RPC_CONTEXT_HEADERS.TENANT],
-          Tenant,
-        );
-        const hubRoles = yield* databaseEffect((database) =>
-          database.query.roles.findMany({
-            columns: {
-              description: true,
-              id: true,
-              name: true,
-            },
-            orderBy: (roles_, { asc }) => [
-              asc(roles_.sortOrder),
-              asc(roles_.name),
-            ],
-            where: {
-              displayInHub: true,
-              tenantId: tenant.id,
-            },
-            with: {
-              usersToTenants: {
-                with: {
-                  user: {
-                    columns: {
-                      firstName: true,
-                      id: true,
-                      lastName: true,
-                    },
+      }
+    }),
+  'admin.roles.findHubRoles': (_payload, options) =>
+    Effect.gen(function* () {
+      yield* ensureAuthenticated(options.headers);
+      const tenant = decodeHeaderJson(
+        options.headers[RPC_CONTEXT_HEADERS.TENANT],
+        Tenant,
+      );
+      const hubRoles = yield* databaseEffect((database) =>
+        database.query.roles.findMany({
+          columns: {
+            description: true,
+            id: true,
+            name: true,
+          },
+          orderBy: (roles_, { asc }) => [
+            asc(roles_.sortOrder),
+            asc(roles_.name),
+          ],
+          where: {
+            displayInHub: true,
+            tenantId: tenant.id,
+          },
+          with: {
+            usersToTenants: {
+              with: {
+                user: {
+                  columns: {
+                    firstName: true,
+                    id: true,
+                    lastName: true,
                   },
                 },
               },
             },
-          }),
-        );
+          },
+        }),
+      );
 
-        return hubRoles.map((role) => normalizeHubRoleRecord(role));
-      }),
-    'admin.roles.findMany': (input, options) =>
-      Effect.gen(function* () {
-        yield* ensureAuthenticated(options.headers);
-        const tenant = decodeHeaderJson(
-          options.headers[RPC_CONTEXT_HEADERS.TENANT],
-          Tenant,
-        );
-        const tenantRoles = yield* databaseEffect((database) =>
-          database.query.roles.findMany({
-            columns: {
-              collapseMembersInHup: true,
-              defaultOrganizerRole: true,
-              defaultUserRole: true,
-              description: true,
-              displayInHub: true,
-              id: true,
-              name: true,
-              permissions: true,
-              showInHub: true,
-              sortOrder: true,
-            },
-            orderBy: { name: 'asc' },
-            where: {
-              tenantId: tenant.id,
-              ...(input.defaultUserRole !== undefined && {
-                defaultUserRole: input.defaultUserRole,
-              }),
-              ...(input.defaultOrganizerRole !== undefined && {
-                defaultOrganizerRole: input.defaultOrganizerRole,
-              }),
-            },
-          }),
-        );
-
-        return tenantRoles;
-      }),
-    'admin.roles.findOne': ({ id }, options) =>
-      Effect.gen(function* () {
-        yield* ensurePermission(options.headers, 'admin:manageRoles');
-        const tenant = decodeHeaderJson(
-          options.headers[RPC_CONTEXT_HEADERS.TENANT],
-          Tenant,
-        );
-        const role = yield* databaseEffect((database) =>
-          database.query.roles.findFirst({
-            columns: {
-              collapseMembersInHup: true,
-              defaultOrganizerRole: true,
-              defaultUserRole: true,
-              description: true,
-              displayInHub: true,
-              id: true,
-              name: true,
-              permissions: true,
-              showInHub: true,
-              sortOrder: true,
-            },
-            where: { id, tenantId: tenant.id },
-          }),
-        );
-        if (!role) {
-          return yield* Effect.fail(
-            new AdminRoleNotFoundError({ id, message: 'Role not found' }),
-          );
-        }
-
-        return role;
-      }),
-    'admin.roles.search': ({ search }, options) =>
-      Effect.gen(function* () {
-        yield* ensurePermission(options.headers, 'admin:manageRoles');
-        const tenant = decodeHeaderJson(
-          options.headers[RPC_CONTEXT_HEADERS.TENANT],
-          Tenant,
-        );
-        const matchingRoles = yield* databaseEffect((database) =>
-          database.query.roles.findMany({
-            columns: {
-              collapseMembersInHup: true,
-              defaultOrganizerRole: true,
-              defaultUserRole: true,
-              description: true,
-              displayInHub: true,
-              id: true,
-              name: true,
-              permissions: true,
-              showInHub: true,
-              sortOrder: true,
-            },
-            limit: 15,
-            orderBy: { name: 'asc' },
-            where: {
-              name: { ilike: `%${search}%` },
-              tenantId: tenant.id,
-            },
-          }),
-        );
-
-        return matchingRoles;
-      }),
-    'admin.roles.update': ({ id, ...input }, options) =>
-      Effect.gen(function* () {
-        yield* ensurePermission(options.headers, 'admin:manageRoles');
-        const tenant = decodeHeaderJson(
-          options.headers[RPC_CONTEXT_HEADERS.TENANT],
-          Tenant,
-        );
-        const updatedRoles = yield* databaseEffect((database) =>
-          database
-            .update(roles)
-            .set({
-              defaultOrganizerRole: input.defaultOrganizerRole,
+      return hubRoles.map((role) => normalizeHubRoleRecord(role));
+    }),
+  'admin.roles.findMany': (input, options) =>
+    Effect.gen(function* () {
+      yield* ensureAuthenticated(options.headers);
+      const tenant = decodeHeaderJson(
+        options.headers[RPC_CONTEXT_HEADERS.TENANT],
+        Tenant,
+      );
+      const tenantRoles = yield* databaseEffect((database) =>
+        database.query.roles.findMany({
+          columns: {
+            collapseMembersInHup: true,
+            defaultOrganizerRole: true,
+            defaultUserRole: true,
+            description: true,
+            displayInHub: true,
+            id: true,
+            name: true,
+            permissions: true,
+            showInHub: true,
+            sortOrder: true,
+          },
+          orderBy: { name: 'asc' },
+          where: {
+            tenantId: tenant.id,
+            ...(input.defaultUserRole !== undefined && {
               defaultUserRole: input.defaultUserRole,
-              description: input.description,
-              name: input.name,
-              permissions: input.permissions,
-            })
-            .where(and(eq(roles.id, id), eq(roles.tenantId, tenant.id)))
-            .returning({
-              collapseMembersInHup: roles.collapseMembersInHup,
-              defaultOrganizerRole: roles.defaultOrganizerRole,
-              defaultUserRole: roles.defaultUserRole,
-              description: roles.description,
-              displayInHub: roles.displayInHub,
-              id: roles.id,
-              name: roles.name,
-              permissions: roles.permissions,
-              showInHub: roles.showInHub,
-              sortOrder: roles.sortOrder,
             }),
-        );
-        const updatedRole = updatedRoles[0];
-        if (!updatedRole) {
-          return yield* Effect.fail(
-            new AdminRoleNotFoundError({ id, message: 'Role not found' }),
-          );
-        }
+            ...(input.defaultOrganizerRole !== undefined && {
+              defaultOrganizerRole: input.defaultOrganizerRole,
+            }),
+          },
+        }),
+      );
 
-        return updatedRole;
-      }),
-    'admin.tenant.importStripeTaxRates': ({ ids }, options) =>
-      Effect.gen(function* () {
-        yield* ensurePermission(options.headers, 'admin:tax');
-        const stripe = yield* StripeClient;
-        const tenant = decodeHeaderJson(
-          options.headers[RPC_CONTEXT_HEADERS.TENANT],
-          Tenant,
+      return tenantRoles;
+    }),
+  'admin.roles.findOne': ({ id }, options) =>
+    Effect.gen(function* () {
+      yield* ensurePermission(options.headers, 'admin:manageRoles');
+      const tenant = decodeHeaderJson(
+        options.headers[RPC_CONTEXT_HEADERS.TENANT],
+        Tenant,
+      );
+      const role = yield* databaseEffect((database) =>
+        database.query.roles.findFirst({
+          columns: {
+            collapseMembersInHup: true,
+            defaultOrganizerRole: true,
+            defaultUserRole: true,
+            description: true,
+            displayInHub: true,
+            id: true,
+            name: true,
+            permissions: true,
+            showInHub: true,
+            sortOrder: true,
+          },
+          where: { id, tenantId: tenant.id },
+        }),
+      );
+      if (!role) {
+        return yield* Effect.fail(
+          new AdminRoleNotFoundError({ id, message: 'Role not found' }),
         );
-        const stripeAccount = tenant.stripeAccountId;
-        if (!stripeAccount) {
-          return;
-        }
+      }
 
-        const stripeRates = yield* Effect.all(
-          ids.map((id) =>
-            Effect.promise(() =>
-              stripe.taxRates.retrieve(id, undefined, { stripeAccount }),
-            ).pipe(
-              Effect.flatMap((stripeRate) =>
-                stripeRate.inclusive
-                  ? Effect.succeed(stripeRate)
-                  : Effect.fail(
-                      new RpcBadRequestError({
-                        message: 'Stripe tax rate must be inclusive',
-                        reason: 'nonInclusiveTaxRate',
-                      }),
-                    ),
-              ),
+      return role;
+    }),
+  'admin.roles.search': ({ search }, options) =>
+    Effect.gen(function* () {
+      yield* ensurePermission(options.headers, 'admin:manageRoles');
+      const tenant = decodeHeaderJson(
+        options.headers[RPC_CONTEXT_HEADERS.TENANT],
+        Tenant,
+      );
+      const matchingRoles = yield* databaseEffect((database) =>
+        database.query.roles.findMany({
+          columns: {
+            collapseMembersInHup: true,
+            defaultOrganizerRole: true,
+            defaultUserRole: true,
+            description: true,
+            displayInHub: true,
+            id: true,
+            name: true,
+            permissions: true,
+            showInHub: true,
+            sortOrder: true,
+          },
+          limit: 15,
+          orderBy: { name: 'asc' },
+          where: {
+            name: { ilike: `%${search}%` },
+            tenantId: tenant.id,
+          },
+        }),
+      );
+
+      return matchingRoles;
+    }),
+  'admin.roles.update': ({ id, ...input }, options) =>
+    Effect.gen(function* () {
+      yield* ensurePermission(options.headers, 'admin:manageRoles');
+      const tenant = decodeHeaderJson(
+        options.headers[RPC_CONTEXT_HEADERS.TENANT],
+        Tenant,
+      );
+      const updatedRoles = yield* databaseEffect((database) =>
+        database
+          .update(roles)
+          .set({
+            defaultOrganizerRole: input.defaultOrganizerRole,
+            defaultUserRole: input.defaultUserRole,
+            description: input.description,
+            name: input.name,
+            permissions: input.permissions,
+          })
+          .where(and(eq(roles.id, id), eq(roles.tenantId, tenant.id)))
+          .returning({
+            collapseMembersInHup: roles.collapseMembersInHup,
+            defaultOrganizerRole: roles.defaultOrganizerRole,
+            defaultUserRole: roles.defaultUserRole,
+            description: roles.description,
+            displayInHub: roles.displayInHub,
+            id: roles.id,
+            name: roles.name,
+            permissions: roles.permissions,
+            showInHub: roles.showInHub,
+            sortOrder: roles.sortOrder,
+          }),
+      );
+      const updatedRole = updatedRoles[0];
+      if (!updatedRole) {
+        return yield* Effect.fail(
+          new AdminRoleNotFoundError({ id, message: 'Role not found' }),
+        );
+      }
+
+      return updatedRole;
+    }),
+  'admin.tenant.importStripeTaxRates': ({ ids }, options) =>
+    Effect.gen(function* () {
+      yield* ensurePermission(options.headers, 'admin:tax');
+      const stripe = yield* StripeClient;
+      const tenant = decodeHeaderJson(
+        options.headers[RPC_CONTEXT_HEADERS.TENANT],
+        Tenant,
+      );
+      const stripeAccount = tenant.stripeAccountId;
+      if (!stripeAccount) {
+        return;
+      }
+
+      const stripeRates = yield* Effect.all(
+        ids.map((id) =>
+          Effect.promise(() =>
+            stripe.taxRates.retrieve(id, undefined, { stripeAccount }),
+          ).pipe(
+            Effect.flatMap((stripeRate) =>
+              stripeRate.inclusive
+                ? Effect.succeed(stripeRate)
+                : Effect.fail(
+                    new RpcBadRequestError({
+                      message: 'Stripe tax rate must be inclusive',
+                      reason: 'nonInclusiveTaxRate',
+                    }),
+                  ),
             ),
           ),
-        );
+        ),
+      );
 
-        yield* databaseEffect((database) =>
-          database.transaction((tx) =>
-            Effect.all(
-              stripeRates.map((stripeRate) =>
-                Effect.gen(function* () {
-                  const existingRate = yield* tx.query.tenantStripeTaxRates.findFirst({
+      yield* databaseEffect((database) =>
+        database.transaction((tx) =>
+          Effect.all(
+            stripeRates.map((stripeRate) =>
+              Effect.gen(function* () {
+                const existingRate =
+                  yield* tx.query.tenantStripeTaxRates.findFirst({
                     columns: {
                       id: true,
                     },
@@ -387,169 +381,169 @@ export const adminHandlers = {
                     },
                   });
 
-                  const values: Omit<typeof tenantStripeTaxRates.$inferInsert, 'id'> = {
-                    active: !!stripeRate.active,
-                    country: stripeRate.country ?? null,
-                    displayName: stripeRate.display_name ?? null,
-                    inclusive: !!stripeRate.inclusive,
-                    percentage:
-                      stripeRate.percentage !== null &&
-                      stripeRate.percentage !== undefined
-                        ? String(stripeRate.percentage)
-                        : undefined,
-                    state: stripeRate.state ?? null,
-                    stripeTaxRateId: stripeRate.id,
-                    tenantId: tenant.id,
-                  };
+                const values: Omit<
+                  typeof tenantStripeTaxRates.$inferInsert,
+                  'id'
+                > = {
+                  active: !!stripeRate.active,
+                  country: stripeRate.country ?? null,
+                  displayName: stripeRate.display_name ?? null,
+                  inclusive: !!stripeRate.inclusive,
+                  percentage:
+                    stripeRate.percentage !== null &&
+                    stripeRate.percentage !== undefined
+                      ? String(stripeRate.percentage)
+                      : undefined,
+                  state: stripeRate.state ?? null,
+                  stripeTaxRateId: stripeRate.id,
+                  tenantId: tenant.id,
+                };
 
-                  yield* existingRate
-                    ? tx
-                        .update(tenantStripeTaxRates)
-                        .set(values)
-                        .where(eq(tenantStripeTaxRates.id, existingRate.id))
-                    : tx.insert(tenantStripeTaxRates).values(values);
-                }),
-              ),
-            ).pipe(Effect.asVoid),
-          ),
-        );
-      }),
-    'admin.tenant.listImportedTaxRates': (_payload, options) =>
-      Effect.gen(function* () {
-        yield* ensurePermission(options.headers, 'admin:tax');
-        const tenant = decodeHeaderJson(
-          options.headers[RPC_CONTEXT_HEADERS.TENANT],
-          Tenant,
-        );
-        const importedTaxRates = yield* databaseEffect((database) =>
-          database.query.tenantStripeTaxRates.findMany({
-            columns: {
-              active: true,
-              country: true,
-              displayName: true,
-              inclusive: true,
-              percentage: true,
-              state: true,
-              stripeTaxRateId: true,
-            },
-            where: { tenantId: tenant.id },
-          }),
-        );
-
-        return importedTaxRates;
-      }),
-    'admin.tenant.listStripeTaxRates': (_payload, options) =>
-      Effect.gen(function* () {
-        yield* ensurePermission(options.headers, 'admin:tax');
-        const stripe = yield* StripeClient;
-        const tenant = decodeHeaderJson(
-          options.headers[RPC_CONTEXT_HEADERS.TENANT],
-          Tenant,
-        );
-        const stripeAccount = tenant.stripeAccountId;
-        if (!stripeAccount) {
-          return [];
-        }
-
-        const [activeRates, archivedRates] = yield* Effect.promise(() =>
-          Promise.all([
-            stripe.taxRates.list(
-              { active: true, limit: 100 },
-              { stripeAccount },
-            ),
-            stripe.taxRates.list(
-              { active: false, limit: 100 },
-              { stripeAccount },
-            ),
-          ]),
-        );
-        const mapRate = (rate: (typeof activeRates)['data'][number]) => ({
-          active: !!rate.active,
-          country: rate.country ?? null,
-          displayName: rate.display_name ?? null,
-          id: rate.id,
-          inclusive: !!rate.inclusive,
-          percentage: rate.percentage ?? null,
-          state: rate.state ?? null,
-        });
-
-        return [
-          ...activeRates.data.map((rate) => mapRate(rate)),
-          ...archivedRates.data.map((rate) => mapRate(rate)),
-        ];
-      }),
-    'admin.tenant.updateSettings': (input, options) =>
-      Effect.gen(function* () {
-        yield* ensurePermission(options.headers, 'admin:changeSettings');
-        const tenant = decodeHeaderJson(
-          options.headers[RPC_CONTEXT_HEADERS.TENANT],
-          Tenant,
-        );
-        const discountProviders: TenantDiscountProviders = {
-          esnCard: {
-            config: yield* Effect.try({
-              catch: (error) =>
-                new RpcBadRequestError({
-                  message: 'Invalid ESN card configuration',
-                  reason: error instanceof Error ? error.message : String(error),
-                }),
-              try: () =>
-                normalizeEsnCardConfig(
-                  { buyEsnCardUrl: input.buyEsnCardUrl },
-                  { rejectInvalidUrl: true },
-                ),
-            }),
-            status: input.esnCardEnabled ? 'enabled' : 'disabled',
-          },
-        };
-
-        const nextTenant = {
-          ...tenant,
-          defaultLocation: input.defaultLocation,
-          discountProviders,
-          receiptSettings: resolveTenantReceiptSettings({
-            allowOther: input.allowOther,
-            receiptCountries: input.receiptCountries,
-          }),
-          theme: input.theme,
-        };
-
-        const validatedTenant = yield* Effect.try({
-          catch: (error) =>
-            new RpcBadRequestError({
-              message: 'Updated tenant settings failed validation',
-              reason: error instanceof Error ? error.message : String(error),
-            }),
-          try: () => Schema.decodeUnknownSync(Tenant)(nextTenant),
-        });
-
-        const updatedTenants = yield* databaseEffect((database) =>
-          database
-            .update(tenants)
-            .set({
-              defaultLocation: input.defaultLocation,
-              discountProviders,
-              receiptSettings: resolveTenantReceiptSettings({
-                allowOther: input.allowOther,
-                receiptCountries: input.receiptCountries,
+                yield* existingRate
+                  ? tx
+                      .update(tenantStripeTaxRates)
+                      .set(values)
+                      .where(eq(tenantStripeTaxRates.id, existingRate.id))
+                  : tx.insert(tenantStripeTaxRates).values(values);
               }),
-              theme: input.theme,
-            })
-            .where(eq(tenants.id, tenant.id))
-            .returning({
-              id: tenants.id,
-            }),
-        );
-        const updatedTenant = updatedTenants[0];
-        if (!updatedTenant) {
-          return yield* Effect.fail(
-            new AdminTenantNotFoundError({
-              id: tenant.id,
-              message: 'Tenant not found or stale',
-            }),
-          );
-        }
+            ),
+          ).pipe(Effect.asVoid),
+        ),
+      );
+    }),
+  'admin.tenant.listImportedTaxRates': (_payload, options) =>
+    Effect.gen(function* () {
+      yield* ensurePermission(options.headers, 'admin:tax');
+      const tenant = decodeHeaderJson(
+        options.headers[RPC_CONTEXT_HEADERS.TENANT],
+        Tenant,
+      );
+      const importedTaxRates = yield* databaseEffect((database) =>
+        database.query.tenantStripeTaxRates.findMany({
+          columns: {
+            active: true,
+            country: true,
+            displayName: true,
+            inclusive: true,
+            percentage: true,
+            state: true,
+            stripeTaxRateId: true,
+          },
+          where: { tenantId: tenant.id },
+        }),
+      );
 
-        return validatedTenant;
-      }),
+      return importedTaxRates;
+    }),
+  'admin.tenant.listStripeTaxRates': (_payload, options) =>
+    Effect.gen(function* () {
+      yield* ensurePermission(options.headers, 'admin:tax');
+      const stripe = yield* StripeClient;
+      const tenant = decodeHeaderJson(
+        options.headers[RPC_CONTEXT_HEADERS.TENANT],
+        Tenant,
+      );
+      const stripeAccount = tenant.stripeAccountId;
+      if (!stripeAccount) {
+        return [];
+      }
+
+      const [activeRates, archivedRates] = yield* Effect.promise(() =>
+        Promise.all([
+          stripe.taxRates.list({ active: true, limit: 100 }, { stripeAccount }),
+          stripe.taxRates.list(
+            { active: false, limit: 100 },
+            { stripeAccount },
+          ),
+        ]),
+      );
+      const mapRate = (rate: (typeof activeRates)['data'][number]) => ({
+        active: !!rate.active,
+        country: rate.country ?? null,
+        displayName: rate.display_name ?? null,
+        id: rate.id,
+        inclusive: !!rate.inclusive,
+        percentage: rate.percentage ?? null,
+        state: rate.state ?? null,
+      });
+
+      return [
+        ...activeRates.data.map((rate) => mapRate(rate)),
+        ...archivedRates.data.map((rate) => mapRate(rate)),
+      ];
+    }),
+  'admin.tenant.updateSettings': (input, options) =>
+    Effect.gen(function* () {
+      yield* ensurePermission(options.headers, 'admin:changeSettings');
+      const tenant = decodeHeaderJson(
+        options.headers[RPC_CONTEXT_HEADERS.TENANT],
+        Tenant,
+      );
+      const discountProviders: TenantDiscountProviders = {
+        esnCard: {
+          config: yield* Effect.try({
+            catch: (error) =>
+              new RpcBadRequestError({
+                message: 'Invalid ESN card configuration',
+                reason: error instanceof Error ? error.message : String(error),
+              }),
+            try: () =>
+              normalizeEsnCardConfig(
+                { buyEsnCardUrl: input.buyEsnCardUrl },
+                { rejectInvalidUrl: true },
+              ),
+          }),
+          status: input.esnCardEnabled ? 'enabled' : 'disabled',
+        },
+      };
+
+      const nextTenant = {
+        ...tenant,
+        defaultLocation: input.defaultLocation,
+        discountProviders,
+        receiptSettings: resolveTenantReceiptSettings({
+          allowOther: input.allowOther,
+          receiptCountries: input.receiptCountries,
+        }),
+        theme: input.theme,
+      };
+
+      const validatedTenant = yield* Effect.try({
+        catch: (error) =>
+          new RpcBadRequestError({
+            message: 'Updated tenant settings failed validation',
+            reason: error instanceof Error ? error.message : String(error),
+          }),
+        try: () => Schema.decodeUnknownSync(Tenant)(nextTenant),
+      });
+
+      const updatedTenants = yield* databaseEffect((database) =>
+        database
+          .update(tenants)
+          .set({
+            defaultLocation: input.defaultLocation,
+            discountProviders,
+            receiptSettings: resolveTenantReceiptSettings({
+              allowOther: input.allowOther,
+              receiptCountries: input.receiptCountries,
+            }),
+            theme: input.theme,
+          })
+          .where(eq(tenants.id, tenant.id))
+          .returning({
+            id: tenants.id,
+          }),
+      );
+      const updatedTenant = updatedTenants[0];
+      if (!updatedTenant) {
+        return yield* Effect.fail(
+          new AdminTenantNotFoundError({
+            id: tenant.id,
+            message: 'Tenant not found or stale',
+          }),
+        );
+      }
+
+      return validatedTenant;
+    }),
 } satisfies Partial<AppRpcHandlers>;

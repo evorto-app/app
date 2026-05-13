@@ -5,7 +5,7 @@ import { relations } from '../db/relations';
 import * as schema from '../db/schema';
 import { ALL_PERMISSIONS } from '../shared/permissions/permissions';
 
-export type Database = NodePgDatabase<Record<string, never>, typeof relations>;
+export type Database = NodePgDatabase<typeof relations>;
 
 export async function addRoles(database: Database, tenant: { id: string }) {
   return database

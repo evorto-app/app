@@ -1,4 +1,4 @@
-import type { Headers } from '@effect/platform';
+import type { Headers } from 'effect/unstable/http';
 
 import {
   RpcBadRequestError,
@@ -10,21 +10,14 @@ import {
   DiscountCardConflictError,
   DiscountCardNotFoundError,
 } from '@shared/rpc-contracts/app-rpcs/discounts.errors';
-import {
-  resolveTenantDiscountProviders,
-} from '@shared/tenant-config';
-import {
-  and,
-  eq,
-} from 'drizzle-orm';
+import { resolveTenantDiscountProviders } from '@shared/tenant-config';
+import { and, eq } from 'drizzle-orm';
 import { Effect, Schema } from 'effect';
 
 import type { AppRpcHandlers } from './shared/handler-types';
 
 import { Database, type DatabaseClient } from '../../../../db';
-import {
-  userDiscountCards,
-} from '../../../../db/schema';
+import { userDiscountCards } from '../../../../db/schema';
 import { Tenant } from '../../../../types/custom/tenant';
 import { User } from '../../../../types/custom/user';
 import { normalizeEsnCardConfig } from '../../../discounts/discount-provider-config';
@@ -41,12 +34,12 @@ import {
 const databaseEffect = <A>(
   operation: (database: DatabaseClient) => Effect.Effect<A, unknown, never>,
 ): Effect.Effect<A, never, Database> =>
-  Database.pipe(Effect.flatMap((database) => operation(database).pipe(Effect.orDie)));
+  Database.use((database) => operation(database).pipe(Effect.orDie));
 
-const decodeHeaderJson = <A, I>(
+const decodeHeaderJson = <A>(
   value: string | undefined,
-  schema: Schema.Schema<A, I, never>,
-) => Schema.decodeUnknownSync(schema)(decodeRpcContextHeaderJson(value));
+  schema: Schema.Decoder<A>,
+): A => Schema.decodeUnknownSync(schema)(decodeRpcContextHeaderJson(value));
 
 const normalizeUserDiscountCardRecord = (
   card: Pick<
@@ -66,7 +59,9 @@ const ensureAuthenticated = (
 ): Effect.Effect<void, RpcUnauthorizedError> =>
   headers[RPC_CONTEXT_HEADERS.AUTHENTICATED] === 'true'
     ? Effect.void
-    : Effect.fail(new RpcUnauthorizedError({ message: 'Authentication required' }));
+    : Effect.fail(
+        new RpcUnauthorizedError({ message: 'Authentication required' }),
+      );
 
 const decodeUserHeader = (headers: Headers.Headers) =>
   Effect.sync(() =>
@@ -79,342 +74,348 @@ const requireUserHeader = (
   Effect.gen(function* () {
     const user = yield* decodeUserHeader(headers);
     if (!user) {
-      return yield* Effect.fail(new RpcUnauthorizedError({ message: 'Authentication required' }));
+      return yield* Effect.fail(
+        new RpcUnauthorizedError({ message: 'Authentication required' }),
+      );
     }
     return user;
   });
 
 export const discountHandlers = {
-    'discounts.deleteMyCard': (input, options) =>
-      Effect.gen(function* () {
-        yield* ensureAuthenticated(options.headers);
-        const tenant = decodeHeaderJson(
-          options.headers[RPC_CONTEXT_HEADERS.TENANT],
-          Tenant,
-        );
-        const user = yield* requireUserHeader(options.headers);
+  'discounts.deleteMyCard': (input, options) =>
+    Effect.gen(function* () {
+      yield* ensureAuthenticated(options.headers);
+      const tenant = decodeHeaderJson(
+        options.headers[RPC_CONTEXT_HEADERS.TENANT],
+        Tenant,
+      );
+      const user = yield* requireUserHeader(options.headers);
 
-        yield* databaseEffect((database) =>
-          database
-            .delete(userDiscountCards)
-            .where(
-              and(
-                eq(userDiscountCards.tenantId, tenant.id),
-                eq(userDiscountCards.userId, user.id),
-                eq(userDiscountCards.type, input.type),
-              ),
+      yield* databaseEffect((database) =>
+        database
+          .delete(userDiscountCards)
+          .where(
+            and(
+              eq(userDiscountCards.tenantId, tenant.id),
+              eq(userDiscountCards.userId, user.id),
+              eq(userDiscountCards.type, input.type),
             ),
+          ),
+      );
+    }),
+  'discounts.getMyCards': (_payload, options) =>
+    Effect.gen(function* () {
+      yield* ensureAuthenticated(options.headers);
+      const tenant = decodeHeaderJson(
+        options.headers[RPC_CONTEXT_HEADERS.TENANT],
+        Tenant,
+      );
+      const user = yield* requireUserHeader(options.headers);
+      const cards = yield* databaseEffect((database) =>
+        database.query.userDiscountCards.findMany({
+          columns: {
+            id: true,
+            identifier: true,
+            status: true,
+            type: true,
+            validTo: true,
+          },
+          where: {
+            tenantId: tenant.id,
+            userId: user.id,
+          },
+        }),
+      );
+
+      return cards.map((card) => normalizeUserDiscountCardRecord(card));
+    }),
+  'discounts.getTenantProviders': (_payload, options) =>
+    Effect.gen(function* () {
+      yield* ensureAuthenticated(options.headers);
+      const tenant = decodeHeaderJson(
+        options.headers[RPC_CONTEXT_HEADERS.TENANT],
+        Tenant,
+      );
+      const resolvedTenant = yield* databaseEffect((database) =>
+        database.query.tenants.findFirst({
+          columns: {
+            discountProviders: true,
+          },
+          where: { id: tenant.id },
+        }),
+      );
+      const config = resolveTenantDiscountProviders(
+        resolvedTenant?.discountProviders,
+      );
+
+      return (Object.keys(PROVIDERS) as ProviderType[]).map((type) => ({
+        config: normalizeEsnCardConfig(config[type].config),
+        status: config[type].status,
+        type,
+      }));
+    }),
+  'discounts.refreshMyCard': (input, options) =>
+    Effect.gen(function* () {
+      yield* ensureAuthenticated(options.headers);
+      const tenant = decodeHeaderJson(
+        options.headers[RPC_CONTEXT_HEADERS.TENANT],
+        Tenant,
+      );
+      const user = yield* requireUserHeader(options.headers);
+
+      const tenantRecord = yield* databaseEffect((database) =>
+        database.query.tenants.findFirst({
+          columns: {
+            discountProviders: true,
+          },
+          where: {
+            id: tenant.id,
+          },
+        }),
+      );
+      const providers = resolveTenantDiscountProviders(
+        tenantRecord?.discountProviders,
+      );
+      const provider = providers[input.type];
+      if (!provider || provider.status !== 'enabled') {
+        return yield* Effect.fail(
+          new RpcForbiddenError({ message: 'Forbidden' }),
         );
-      }),
-    'discounts.getMyCards': (_payload, options) =>
-      Effect.gen(function* () {
-        yield* ensureAuthenticated(options.headers);
-        const tenant = decodeHeaderJson(
-          options.headers[RPC_CONTEXT_HEADERS.TENANT],
-          Tenant,
+      }
+
+      const card = yield* databaseEffect((database) =>
+        database.query.userDiscountCards.findFirst({
+          columns: {
+            id: true,
+            identifier: true,
+            status: true,
+            type: true,
+            validTo: true,
+          },
+          where: {
+            tenantId: tenant.id,
+            type: input.type,
+            userId: user.id,
+          },
+        }),
+      );
+      if (!card) {
+        return yield* Effect.fail(
+          new DiscountCardNotFoundError({ message: 'Discount card not found' }),
         );
-        const user = yield* requireUserHeader(options.headers);
-        const cards = yield* databaseEffect((database) =>
-          database.query.userDiscountCards.findMany({
-            columns: {
-              id: true,
-              identifier: true,
-              status: true,
-              type: true,
-              validTo: true,
-            },
-            where: {
-              tenantId: tenant.id,
-              userId: user.id,
-            },
+      }
+
+      const adapter = Adapters[input.type];
+      if (!adapter) {
+        return normalizeUserDiscountCardRecord(card);
+      }
+
+      const result = yield* Effect.promise(() =>
+        adapter.validate({
+          config: provider.config,
+          identifier: card.identifier,
+        }),
+      );
+      const updatedCards = yield* databaseEffect((database) =>
+        database
+          .update(userDiscountCards)
+          .set({
+            lastCheckedAt: new Date(),
+            metadata: result.metadata,
+            status: result.status,
+            validFrom: result.validFrom ?? undefined,
+            validTo: result.validTo ?? undefined,
+          })
+          .where(eq(userDiscountCards.id, card.id))
+          .returning({
+            id: userDiscountCards.id,
+            identifier: userDiscountCards.identifier,
+            status: userDiscountCards.status,
+            type: userDiscountCards.type,
+            validTo: userDiscountCards.validTo,
+          }),
+      );
+      const updatedCard = updatedCards[0];
+      if (!updatedCard) {
+        return yield* Effect.fail(
+          new RpcInternalServerError({
+            message: 'Discount card update returned no rows',
           }),
         );
+      }
 
-        return cards.map((card) => normalizeUserDiscountCardRecord(card));
-      }),
-    'discounts.getTenantProviders': (_payload, options) =>
-      Effect.gen(function* () {
-        yield* ensureAuthenticated(options.headers);
-        const tenant = decodeHeaderJson(
-          options.headers[RPC_CONTEXT_HEADERS.TENANT],
-          Tenant,
-        );
-        const resolvedTenant = yield* databaseEffect((database) =>
-          database.query.tenants.findFirst({
-            columns: {
-              discountProviders: true,
-            },
-            where: { id: tenant.id },
-          }),
-        );
-        const config = resolveTenantDiscountProviders(
-          resolvedTenant?.discountProviders,
-        );
+      return normalizeUserDiscountCardRecord(updatedCard);
+    }),
+  'discounts.upsertMyCard': (input, options) =>
+    Effect.gen(function* () {
+      yield* ensureAuthenticated(options.headers);
+      const tenant = decodeHeaderJson(
+        options.headers[RPC_CONTEXT_HEADERS.TENANT],
+        Tenant,
+      );
+      const user = yield* requireUserHeader(options.headers);
 
-        return (Object.keys(PROVIDERS) as ProviderType[]).map((type) => ({
-          config: normalizeEsnCardConfig(config[type].config),
-          status: config[type].status,
-          type,
-        }));
-      }),
-    'discounts.refreshMyCard': (input, options) =>
-      Effect.gen(function* () {
-        yield* ensureAuthenticated(options.headers);
-        const tenant = decodeHeaderJson(
-          options.headers[RPC_CONTEXT_HEADERS.TENANT],
-          Tenant,
+      const tenantRecord = yield* databaseEffect((database) =>
+        database.query.tenants.findFirst({
+          columns: {
+            discountProviders: true,
+          },
+          where: {
+            id: tenant.id,
+          },
+        }),
+      );
+      const providers = resolveTenantDiscountProviders(
+        tenantRecord?.discountProviders,
+      );
+      const provider = providers[input.type];
+      if (!provider || provider.status !== 'enabled') {
+        return yield* Effect.fail(
+          new RpcForbiddenError({ message: 'Forbidden' }),
         );
-        const user = yield* requireUserHeader(options.headers);
+      }
 
-        const tenantRecord = yield* databaseEffect((database) =>
-          database.query.tenants.findFirst({
-            columns: {
-              discountProviders: true,
-            },
-            where: {
-              id: tenant.id,
-            },
-          }),
-        );
-        const providers = resolveTenantDiscountProviders(
-          tenantRecord?.discountProviders,
-        );
-        const provider = providers[input.type];
-        if (!provider || provider.status !== 'enabled') {
-          return yield* Effect.fail(new RpcForbiddenError({ message: 'Forbidden' }));
-        }
-
-        const card = yield* databaseEffect((database) =>
-          database.query.userDiscountCards.findFirst({
-            columns: {
-              id: true,
-              identifier: true,
-              status: true,
-              type: true,
-              validTo: true,
-            },
-            where: {
-              tenantId: tenant.id,
-              type: input.type,
-              userId: user.id,
-            },
-          }),
-        );
-        if (!card) {
-          return yield* Effect.fail(
-            new DiscountCardNotFoundError({ message: 'Discount card not found' }),
-          );
-        }
-
-        const adapter = Adapters[input.type];
-        if (!adapter) {
-          return normalizeUserDiscountCardRecord(card);
-        }
-
-        const result = yield* Effect.promise(() =>
-          adapter.validate({
-            config: provider.config,
-            identifier: card.identifier,
-          }),
-        );
-        const updatedCards = yield* databaseEffect((database) =>
-          database
-            .update(userDiscountCards)
-            .set({
-              lastCheckedAt: new Date(),
-              metadata: result.metadata,
-              status: result.status,
-              validFrom: result.validFrom ?? undefined,
-              validTo: result.validTo ?? undefined,
-            })
-            .where(eq(userDiscountCards.id, card.id))
-            .returning({
-              id: userDiscountCards.id,
-              identifier: userDiscountCards.identifier,
-              status: userDiscountCards.status,
-              type: userDiscountCards.type,
-              validTo: userDiscountCards.validTo,
-            }),
-        );
-        const updatedCard = updatedCards[0];
-        if (!updatedCard) {
-          return yield* Effect.fail(
-            new RpcInternalServerError({
-              message: 'Discount card update returned no rows',
-            }),
-          );
-        }
-
-        return normalizeUserDiscountCardRecord(updatedCard);
-      }),
-    'discounts.upsertMyCard': (input, options) =>
-      Effect.gen(function* () {
-        yield* ensureAuthenticated(options.headers);
-        const tenant = decodeHeaderJson(
-          options.headers[RPC_CONTEXT_HEADERS.TENANT],
-          Tenant,
-        );
-        const user = yield* requireUserHeader(options.headers);
-
-        const tenantRecord = yield* databaseEffect((database) =>
-          database.query.tenants.findFirst({
-            columns: {
-              discountProviders: true,
-            },
-            where: {
-              id: tenant.id,
-            },
-          }),
-        );
-        const providers = resolveTenantDiscountProviders(
-          tenantRecord?.discountProviders,
-        );
-        const provider = providers[input.type];
-        if (!provider || provider.status !== 'enabled') {
-          return yield* Effect.fail(new RpcForbiddenError({ message: 'Forbidden' }));
-        }
-
-        const existingIdentifier = yield* databaseEffect((database) =>
-          database.query.userDiscountCards.findFirst({
-            columns: {
-              userId: true,
-            },
-            where: {
-              identifier: input.identifier,
-              type: input.type,
-            },
-          }),
-        );
-        if (existingIdentifier && existingIdentifier.userId !== user.id) {
-          return yield* Effect.fail(
-            new DiscountCardConflictError({
-              message: 'Discount card identifier already exists',
-            }),
-          );
-        }
-
-        const existingCard = yield* databaseEffect((database) =>
-          database.query.userDiscountCards.findFirst({
-            columns: {
-              id: true,
-              identifier: true,
-              status: true,
-              type: true,
-              validTo: true,
-            },
-            where: {
-              tenantId: tenant.id,
-              type: input.type,
-              userId: user.id,
-            },
-          }),
-        );
-
-        const upsertedCards = existingCard
-          ? yield* databaseEffect((database) =>
-          database
-                .update(userDiscountCards)
-                .set({
-                  identifier: input.identifier,
-                })
-                .where(eq(userDiscountCards.id, existingCard.id))
-                .returning({
-                  id: userDiscountCards.id,
-                  identifier: userDiscountCards.identifier,
-                  status: userDiscountCards.status,
-                  type: userDiscountCards.type,
-                  validTo: userDiscountCards.validTo,
-                }),
-            )
-          : yield* databaseEffect((database) =>
-          database
-                .insert(userDiscountCards)
-                .values({
-                  identifier: input.identifier,
-                  tenantId: tenant.id,
-                  type: input.type,
-                  userId: user.id,
-                })
-                .returning({
-                  id: userDiscountCards.id,
-                  identifier: userDiscountCards.identifier,
-                  status: userDiscountCards.status,
-                  type: userDiscountCards.type,
-                  validTo: userDiscountCards.validTo,
-                }),
-            );
-        const upsertedCard = upsertedCards[0];
-        if (!upsertedCard) {
-          yield* Effect.logError('Discount card upsert returned no rows').pipe(
-            Effect.annotateLogs({
-              discountType: input.type,
-              userId: user.id,
-            }),
-          );
-          return yield* Effect.fail(
-            new RpcInternalServerError({
-              message: 'Discount card upsert returned no rows',
-            }),
-          );
-        }
-
-        const adapter = Adapters[input.type];
-        if (!adapter) {
-          return normalizeUserDiscountCardRecord(upsertedCard);
-        }
-
-        const result = yield* Effect.promise(() =>
-          adapter.validate({
-            config: provider.config,
+      const existingIdentifier = yield* databaseEffect((database) =>
+        database.query.userDiscountCards.findFirst({
+          columns: {
+            userId: true,
+          },
+          where: {
             identifier: input.identifier,
+            type: input.type,
+          },
+        }),
+      );
+      if (existingIdentifier && existingIdentifier.userId !== user.id) {
+        return yield* Effect.fail(
+          new DiscountCardConflictError({
+            message: 'Discount card identifier already exists',
           }),
         );
-        const updatedCards = yield* databaseEffect((database) =>
-          database
-            .update(userDiscountCards)
-            .set({
-              lastCheckedAt: new Date(),
-              metadata: result.metadata,
-              status: result.status,
-              validFrom: result.validFrom ?? undefined,
-              validTo: result.validTo ?? undefined,
-            })
-            .where(eq(userDiscountCards.id, upsertedCard.id))
-            .returning({
-              id: userDiscountCards.id,
-              identifier: userDiscountCards.identifier,
-              status: userDiscountCards.status,
-              type: userDiscountCards.type,
-              validTo: userDiscountCards.validTo,
-            }),
+      }
+
+      const existingCard = yield* databaseEffect((database) =>
+        database.query.userDiscountCards.findFirst({
+          columns: {
+            id: true,
+            identifier: true,
+            status: true,
+            type: true,
+            validTo: true,
+          },
+          where: {
+            tenantId: tenant.id,
+            type: input.type,
+            userId: user.id,
+          },
+        }),
+      );
+
+      const upsertedCards = existingCard
+        ? yield* databaseEffect((database) =>
+            database
+              .update(userDiscountCards)
+              .set({
+                identifier: input.identifier,
+              })
+              .where(eq(userDiscountCards.id, existingCard.id))
+              .returning({
+                id: userDiscountCards.id,
+                identifier: userDiscountCards.identifier,
+                status: userDiscountCards.status,
+                type: userDiscountCards.type,
+                validTo: userDiscountCards.validTo,
+              }),
+          )
+        : yield* databaseEffect((database) =>
+            database
+              .insert(userDiscountCards)
+              .values({
+                identifier: input.identifier,
+                tenantId: tenant.id,
+                type: input.type,
+                userId: user.id,
+              })
+              .returning({
+                id: userDiscountCards.id,
+                identifier: userDiscountCards.identifier,
+                status: userDiscountCards.status,
+                type: userDiscountCards.type,
+                validTo: userDiscountCards.validTo,
+              }),
+          );
+      const upsertedCard = upsertedCards[0];
+      if (!upsertedCard) {
+        yield* Effect.logError('Discount card upsert returned no rows').pipe(
+          Effect.annotateLogs({
+            discountType: input.type,
+            userId: user.id,
+          }),
         );
-        const updatedCard = updatedCards[0];
-        if (!updatedCard) {
-          yield* Effect.logError(
-            'Discount card validation update returned no rows',
-          ).pipe(
-            Effect.annotateLogs({
-              cardId: upsertedCard.id,
-              discountType: input.type,
-              userId: user.id,
-            }),
-          );
-          return yield* Effect.fail(
-            new RpcInternalServerError({
-              message: 'Discount card validation update returned no rows',
-            }),
-          );
-        }
+        return yield* Effect.fail(
+          new RpcInternalServerError({
+            message: 'Discount card upsert returned no rows',
+          }),
+        );
+      }
 
-        if (updatedCard.status !== 'verified') {
-          return yield* Effect.fail(
-            new RpcBadRequestError({
-              message: `Discount card validation failed with status ${updatedCard.status}`,
-              reason: updatedCard.status,
-            }),
-          );
-        }
+      const adapter = Adapters[input.type];
+      if (!adapter) {
+        return normalizeUserDiscountCardRecord(upsertedCard);
+      }
 
-        return normalizeUserDiscountCardRecord(updatedCard);
-      }),
+      const result = yield* Effect.promise(() =>
+        adapter.validate({
+          config: provider.config,
+          identifier: input.identifier,
+        }),
+      );
+      const updatedCards = yield* databaseEffect((database) =>
+        database
+          .update(userDiscountCards)
+          .set({
+            lastCheckedAt: new Date(),
+            metadata: result.metadata,
+            status: result.status,
+            validFrom: result.validFrom ?? undefined,
+            validTo: result.validTo ?? undefined,
+          })
+          .where(eq(userDiscountCards.id, upsertedCard.id))
+          .returning({
+            id: userDiscountCards.id,
+            identifier: userDiscountCards.identifier,
+            status: userDiscountCards.status,
+            type: userDiscountCards.type,
+            validTo: userDiscountCards.validTo,
+          }),
+      );
+      const updatedCard = updatedCards[0];
+      if (!updatedCard) {
+        yield* Effect.logError(
+          'Discount card validation update returned no rows',
+        ).pipe(
+          Effect.annotateLogs({
+            cardId: upsertedCard.id,
+            discountType: input.type,
+            userId: user.id,
+          }),
+        );
+        return yield* Effect.fail(
+          new RpcInternalServerError({
+            message: 'Discount card validation update returned no rows',
+          }),
+        );
+      }
+
+      if (updatedCard.status !== 'verified') {
+        return yield* Effect.fail(
+          new RpcBadRequestError({
+            message: `Discount card validation failed with status ${updatedCard.status}`,
+            reason: updatedCard.status,
+          }),
+        );
+      }
+
+      return normalizeUserDiscountCardRecord(updatedCard);
+    }),
 } satisfies Partial<AppRpcHandlers>;

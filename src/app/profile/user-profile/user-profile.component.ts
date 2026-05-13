@@ -200,9 +200,9 @@ export class UserProfileComponent {
     >(EditProfileDialogComponent, {
       data: {
         firstName: user.firstName,
-        iban: user.iban,
+        iban: user.iban ?? null,
         lastName: user.lastName,
-        paypalEmail: user.paypalEmail,
+        paypalEmail: user.paypalEmail ?? null,
       },
       width: '420px',
     });
@@ -210,10 +210,7 @@ export class UserProfileComponent {
     if (!result) return;
     this.updateProfileMutation.mutate(result, {
       onError: (error) => {
-        const errorMessage = getErrorMessage(
-          error,
-          'Failed to update profile',
-        );
+        const errorMessage = getErrorMessage(error, 'Failed to update profile');
         this.notifications.showError(
           'Failed to update profile: ' + errorMessage,
         );

@@ -1,9 +1,4 @@
-import {
-  Config,
-  ConfigError,
-  Effect,
-  Option,
-} from 'effect';
+import { Config, Effect, Option } from 'effect';
 
 import { missingFieldError } from './config-error';
 import { optionalTrimmedString } from './config-string';
@@ -32,30 +27,26 @@ export interface CloudflareImagesConfig {
   NODE_ENV: Option.Option<string>;
 }
 
-export type CloudflareImagesConfigState = Config.Config.Success<
+export type CloudflareImagesConfigState = Config.Success<
   typeof cloudflareImagesStateConfig
 >;
 
-const combineConfigErrors = (
-  errors: readonly ConfigError.ConfigError[],
-) => {
+const combineConfigErrors = (errors: readonly Error[]) => {
   const [firstError, ...remainingErrors] = errors;
   if (!firstError) {
     throw new Error('Expected at least one Cloudflare Images config error');
   }
 
-  let combinedError = firstError;
-  for (const error of remainingErrors) {
-    combinedError = ConfigError.And(combinedError, error);
-  }
-
-  return combinedError;
+  return new Error(
+    [
+      ...new Set(
+        [firstError, ...remainingErrors].map((error) => error.message),
+      ),
+    ].join('\n'),
+  );
 };
 
-const getRequiredConfigValue = <A>(
-  option: Option.Option<A>,
-  message: string,
-) =>
+const getRequiredConfigValue = <A>(option: Option.Option<A>, message: string) =>
   Option.match(option, {
     onNone: () => Effect.die(new Error(message)),
     onSome: (value) => Effect.succeed(value),
@@ -78,7 +69,7 @@ export const cloudflareImagesConfig = Effect.gen(function* () {
       Option.isSome(state.CLOUDFLARE_IMAGES_DELIVERY_HASH)
         ? undefined
         : missingFieldError('CLOUDFLARE_IMAGES_DELIVERY_HASH'),
-    ].filter((value): value is ConfigError.ConfigError => value !== undefined);
+    ].filter((value): value is Error => value !== undefined);
 
     return yield* Effect.fail(combineConfigErrors(errors));
   }
@@ -106,11 +97,12 @@ export const cloudflareImagesConfig = Effect.gen(function* () {
   } satisfies CloudflareImagesConfig;
 });
 
-export const isCloudflareImagesConfigured = cloudflareImagesStateConfig.pipe(
-  Effect.map(
-    (state) =>
-      Option.isSome(state.CLOUDFLARE_ACCOUNT_ID) &&
-      Option.isSome(state.CLOUDFLARE_IMAGES_API_TOKEN) &&
-      Option.isSome(state.CLOUDFLARE_IMAGES_DELIVERY_HASH),
-  ),
-);
+export const isCloudflareImagesConfigured = Effect.gen(function* () {
+  const state = yield* cloudflareImagesStateConfig;
+
+  return (
+    Option.isSome(state.CLOUDFLARE_ACCOUNT_ID) &&
+    Option.isSome(state.CLOUDFLARE_IMAGES_API_TOKEN) &&
+    Option.isSome(state.CLOUDFLARE_IMAGES_DELIVERY_HASH)
+  );
+});
