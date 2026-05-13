@@ -1,0 +1,1163 @@
+Please check out https://openai.com/index/harness-engineering/ 
+This is goal for me in this project as I think that something similar to this is the only way forward for this project that is worked on only by me nest to my full time job. Check out the article and make an overview of what we need to work on for you to become more efficient in this project.
+
+---
+
+I'm no longer so sure about the connection of tracks and test and so on. That seems overly complicated now.
+As for the browser, I think that the [@Browser](plugin://browser-use@openai-bundled) is our best option, I'm not sure how that relates to playwright and which scripts would be helpful.
+
+Please give me a prompt for the root info files that I can feed to an agents so it can question me about all things that have to go in there
+
+---
+
+Here come the results:
+apply these to our project
+
+Below are draft full contents for the four root-level files.
+
+## `PRODUCT.md`
+
+```md
+# Product Context
+
+Evorto is a tenant-based event management platform for associations that organize recurring events. It started from ESN-style university sections where events were previously managed through offline coordination, spreadsheets, cash payments, and tacit organizer knowledge.
+
+Evorto should reduce repetitive administrative work, preserve event knowledge across semesters, and make it practical for associations to run many events with changing volunteer teams.
+
+## Product Goal
+
+Evorto is intended to replace the current paid production version with a more flexible and better-modeled system.
+
+The relaunch target is a full production replacement, not a prototype. Core workflows that exist in the current product should be available in the new implementation before rollout.
+
+## Product Principles
+
+- **Progressive disclosure over feature hiding**: common workflows should look simple even when the underlying model is more flexible.
+  - Example: the default event setup UI can show “participant signup settings” and “organizer signup settings” while creating separate registration options internally.
+- **Tenant-first**: associations/sections own their events, templates, roles, registrations, settings, branding, and configuration.
+- **Role-based eligibility**: access to registration options should be modeled through tenant roles and capabilities, not scattered special-case flags.
+- **Account-required registration**: anonymous users may browse eligible listed events, but registration requires an account.
+- **Stripe is the payment source of truth**: local state may mirror payment details for app behavior, but payment lifecycle changes must respect Stripe state and webhooks.
+- **Templates preserve organizational memory**: repeated events should be easy to recreate without losing reusable event knowledge.
+- **No hidden deliverables**: a new user-facing feature or page is not complete if it can only be reached by typing a URL.
+- **Documentation is part of the product**: essential flows should be documented for users and admins, preferably through Playwright-generated documentation.
+
+## Tenants and Identity
+
+Associations or sections are tenants.
+
+Tenant-scoped data includes:
+
+- roles and capabilities
+- event templates
+- events
+- registration options
+- registrations
+- tenant settings
+- branding
+- legal/privacy configuration
+- payment-related tenant configuration where applicable
+
+Users are global and may belong to multiple tenants. A user should ideally have a home tenant so the app can warn when they are browsing a tenant that is not where they usually belong.
+
+Tenants are resolved by domain. A tenant may use an Evorto-provided subdomain or bring its own domain. If a domain does not match a tenant, fail closed or show a tenant-not-found state; do not guess a tenant.
+
+## Personas
+
+Evorto has configurable tenant roles, but the product should be understood through three main personas.
+
+### Admins / board members
+
+People with elevated access. Depending on the tenant, this may include board members, event managers, treasurers, reviewers, and tenant administrators.
+
+They configure roles, permissions, tenant settings, templates, review/publishing behavior, legal pages, branding, payment settings, and financial workflows.
+
+### Section members / organizers
+
+People who create and organize events. They can prepare events, sign up as organizers/helpers, submit events for review, run events, check in participants, and submit receipts.
+
+A tenant may model different organizer categories, such as main organizer and helper, through registration options.
+
+### Participants
+
+People who browse public/listed events, register, pay if required, attend events, transfer registrations where supported, and receive registration/check-in information.
+
+## Core Workflows
+
+The core product lifecycle is:
+
+1. Create an event, usually from a template.
+2. Configure participant and organizer signup settings.
+3. Submit the event for review.
+4. Publish the event through someone with the required capability.
+5. Let eligible users register.
+6. Collect payment through Stripe when required.
+7. Run the event, including QR-code check-in.
+8. Collect post-event data, including receipt submissions.
+9. Review receipts and support reimbursements.
+10. Preserve non-personal event records after the event is archived.
+
+Other important workflows:
+
+- browse listed events
+- manage templates
+- manage tenant roles and capabilities
+- manage tenant branding/legal settings
+- manage registrations and cancellations
+- transfer/resell a registration
+- use waitlists as lightweight demand indicators
+- generate user/admin documentation from Playwright flows
+
+## Event Lifecycle
+
+Events should support this core lifecycle:
+
+- `draft`
+- `pending review`
+- `published`
+
+When an event is submitted for review, material fields should be locked. Material fields include dates/times, prices, capacity, registration options, and other fields that affect what users can sign up for or pay for.
+
+Minor content edits may remain possible while an event is pending review, such as typo fixes in descriptions, but material changes should require returning the event to draft.
+
+Publishing is the approval act. There is no separate “approved but not published” state for now.
+
+Listing is separate from publishing. A published event may be:
+
+- listed for participants
+- listed for organizers
+- listed for both
+- unlisted for both, reachable only by direct link
+
+Anonymous users may see events when those events have registration options available to roles that every new user receives by default in that tenant. Anonymous visibility should not show events that a user would lose access to immediately after signing in.
+
+## Registration Model
+
+Registration is one of the most important and complex parts of Evorto.
+
+An event has registration options. Registration options can represent participant tickets, organizer/helper signup, ESN-card discounted access, or other tenant-defined categories.
+
+Important rules:
+
+- Registration options are mutually exclusive per event.
+- A user cannot be both an organizer/helper and a participant for the same event.
+- Registration requires an account.
+- Guest spots are allowed as extra quantity attached to one logged-in buyer’s registration.
+- Guest spots do not need separate accounts or contact information in the first version.
+- Check-in must account for guest quantities.
+- Registration options define role-based eligibility.
+- Eligibility should be role-based for now.
+- Special cases such as banned users, ESN-card-only access, and participation in another program should be modeled through roles and registration-option eligibility.
+
+Registration should support:
+
+- capacity limits
+- registration start and end times
+- free registrations
+- paid registrations
+- Stripe Checkout
+- pending registration cleanup when checkout expires
+- lightweight waitlists
+- cancellation by participant
+- cancellation by admin/organizer
+- transfer/resale of a registration
+- limits on how many events a person can register for in a configured time frame
+
+## Discounts
+
+Discounts belong to registration options.
+
+For example, an ESN-card discount should not create a separate capacity pool unless explicitly designed that way. The discounted and regular price should usually draw from the same registration-option capacity.
+
+ESN-card behavior should be opt-in because not every tenant is an ESN section.
+
+## Waitlists
+
+Waitlists should stay lightweight.
+
+They are useful for:
+
+- showing organizers demand for an event
+- notifying interested users when capacity opens
+
+They do not need to behave like a strict reservation queue. A simple model such as notifying the top people on the waitlist when a spot becomes available is acceptable.
+
+## Transfers and Resale
+
+A participant should be able to transfer or resell a registration through Evorto.
+
+The intended workflow:
+
+1. Existing participant creates a transfer link or code.
+2. New participant uses the link/code.
+3. New participant completes their registration and payment.
+4. Existing participant’s registration is cancelled.
+5. Existing participant receives a refund through Stripe.
+
+The goal is to let users transfer spots without trusting each other directly.
+
+## Templates
+
+Templates are central to Evorto.
+
+Most events repeat across semesters or are reused by different organizers. Templates should preserve reusable event knowledge so future organizers do not start from scratch.
+
+Templates should include as much reusable information as practical, such as:
+
+- title
+- description
+- location
+- participant signup defaults
+- organizer signup defaults
+- registration options
+- registration-option descriptions
+- prices
+- discounts
+- capacity defaults
+- role eligibility
+- registration windows or offsets
+- registration questions
+- organizer notes or checklist-like internal information
+
+An event instance is an editable copy of a template. The user should be able to change relevant details during event setup. Some duplication between templates and event instances is acceptable if it keeps event instances stable and understandable.
+
+## Roles, Capabilities, and Eligibility
+
+Tenants can define their own roles. There is no single system-defined default role.
+
+Instead, roles can be marked as default by the tenant. Default roles are assigned to users by default in that tenant.
+
+Permissions should be modeled as capabilities. Each capability should have:
+
+- a stable internal key
+- a friendly admin-facing name
+- a short description
+- dependency/implication notes where needed
+
+The exact capability list may evolve with the product, but these areas are expected:
+
+- create events
+- submit events for review
+- publish events
+- manage event listing/visibility
+- manage templates
+- manage roles
+- manage tenant settings
+- manage registrations
+- cancel registrations
+- check in attendees
+- review receipts
+- manage financial/reimbursement workflows
+- view unpublished or pending events where required by review/publishing duties
+
+Capability dependencies matter. For example, a user who can publish events likely needs to see pending/unpublished events, including events created by other users.
+
+Agents must not bypass capability checks or make authorization behavior more permissive for convenience.
+
+## Payments
+
+Stripe is the source of truth for payment state.
+
+Evorto may duplicate relevant Stripe data locally for app behavior, reporting, and user experience, but agents should treat payment lifecycle logic, webhook handling, refunds, checkout expiry, and transfer/resale flows as high-risk areas.
+
+Users should receive registration confirmation and QR code only after registration is successful. For paid events, that means after successful payment.
+
+## Receipts and Reimbursements
+
+Organizers may submit receipts after an event.
+
+Receipts are used for later review and reimbursement. The first version does not need sophisticated budget planning or receipt categories unless a feature specifically requires them.
+
+Receipt review should support email notification when a receipt is reviewed.
+
+## Notifications
+
+Email is the first notification channel.
+
+In scope:
+
+- successful registration confirmation, including QR code
+- waitlist spot available
+- event cancelled, when cancellation workflow exists
+- registration cancelled by participant or admin
+- transfer completed
+- receipt reviewed
+
+Not in scope for now:
+
+- push notifications
+- separate payment success/failure emails
+- checkout expiry emails
+- transfer-started emails
+- receipt-submitted emails
+
+## Tenant Customization
+
+Tenants should be able to customize:
+
+- domain
+- logo
+- favicon
+- theme choice
+- legal/imprint/privacy/terms links or text
+- default roles
+- available roles and capabilities
+- review/publishing workflow settings
+- registration limits
+- enabled complexity where applicable
+- email sender name, likely derived from tenant config
+
+Stripe branding is handled in Stripe where possible.
+
+Legal pages are tenant-specific plus platform-specific. Evorto should not provide fake fallback legal pages that pretend to cover a tenant’s legal obligations. Exact legal fields and responsibility split need legal review before production rollout.
+
+## Documentation Expectations
+
+Essential product flows should be documented.
+
+Generated documentation should be grouped by feature area, with persona tags or metadata added later if useful.
+
+Important documentation areas include:
+
+- browsing events
+- registering for events
+- transferring a registration
+- creating an event from a template
+- submitting an event for review
+- publishing an event
+- managing templates
+- configuring roles and capabilities
+- checking in participants
+- submitting receipts
+- reviewing receipts
+- tenant branding/settings
+- legal/privacy settings
+
+Playwright-generated documentation is primarily user/admin product documentation. It also provides useful verification evidence for future agents.
+
+## Out of Scope for Now
+
+Avoid adding these without an explicit product decision:
+
+- anonymous or guest registration without an account
+- private invite-only events
+- complex strict waitlist reservation queues
+- automatic event archival
+- push notifications
+- sophisticated budgeting and receipt-category planning
+- hard-coded ESN-only assumptions
+- rigid requirements/test ID matrices
+
+## Design Watchpoints
+
+### Permission dependencies
+
+Current default: permissions are capabilities with admin-facing names and descriptions. Some capabilities imply access to related data.
+
+Raise this when: changing authorization, event review, publishing, registration management, tenant settings, or role configuration.
+
+Do not: make authorization more permissive to unblock a UI flow.
+
+### Event archival
+
+Current default: build the data model so archived event records can retain non-personal event history while removing user personal data where possible.
+
+Raise this when: changing event, registration, payment, receipt, or check-in persistence.
+
+Do not: add automatic archival behavior without an explicit product decision.
+
+### Legal pages
+
+Current default: tenants provide tenant-specific legal/privacy/imprint/terms information, possibly alongside platform-provided sections.
+
+Raise this when: changing tenant onboarding, legal page rendering, domains, privacy copy, or production readiness.
+
+Do not: invent generic legal fallback text and treat it as production-ready.
+
+### Registration complexity
+
+Current default: simple UI first, flexible registration-option model underneath.
+
+Raise this when: adding new registration modes, discounts, eligibility logic, capacity handling, guest quantities, or waitlist behavior.
+
+Do not: add one-off flags when the concept can be modeled through roles, capabilities, or registration options.
+```
+
+---
+
+## `ARCHITECTURE.md`
+
+```md
+# Architecture Context
+
+Evorto is an Angular SSR application with a server/runtime layer built around Effect, typed RPC contracts, Drizzle, Postgres, Stripe, Auth0, and object storage.
+
+This file gives future agents the high-level map. More specific guidance belongs near the code it governs.
+
+## System Shape
+
+Evorto is a tenant-based app.
+
+At a high level:
+
+- Angular renders the app, including authenticated SSR pages.
+- Cookie-based authentication allows authenticated server-side rendering.
+- The server/runtime layer exposes typed Effect RPC APIs.
+- Data is persisted in Postgres through Drizzle.
+- Payments and refunds are handled through Stripe.
+- Auth is handled through Auth0 for now.
+- Blob/object storage is used for uploaded files such as receipts.
+- Tenants are resolved from domains.
+- Playwright drives regression tests and generated product documentation.
+
+## Non-Negotiable Architecture Choices
+
+Do not casually replace these choices:
+
+- Angular
+- Angular SSR
+- cookie-based authentication
+- Angular Material for components
+- Material 3 design direction
+- Tailwind for styling/layout utilities
+- TanStack Query for client data/query state
+- Effect v4
+- Effect RPC for app/server contracts
+- Effect Schema at server/API boundaries
+- Drizzle as the database schema/query layer
+- Postgres as the persisted relational store
+- Stripe for payment and refund lifecycle
+- tenant/domain-based product model
+
+Changing one of these requires an explicit design decision, not incidental refactoring.
+
+## Runtime and Rendering
+
+Evorto uses server-side rendering.
+
+Cookie-based authentication is important because authenticated pages should be renderable on the server. Agents should avoid introducing assumptions that authentication only exists client-side.
+
+SSR-sensitive work should consider:
+
+- tenant resolution from request domain
+- authenticated user context
+- cookie/session behavior
+- redirects
+- server/client data consistency
+- whether a page must work before client hydration
+
+## Tenant Resolution
+
+Tenants are resolved by domain.
+
+A tenant may use:
+
+- an Evorto-provided subdomain
+- its own custom domain
+
+Tenant configuration should include the domain(s) that identify it.
+
+If no tenant matches the request domain, fail closed or show a tenant-not-found state. Do not guess a tenant.
+
+Tenant context affects:
+
+- visible events
+- available roles
+- user role assignments
+- registration eligibility
+- templates
+- tenant settings
+- branding
+- legal pages
+- Stripe/payment configuration where applicable
+
+## Angular App Boundary
+
+The Angular app should follow the repo’s app guidance:
+
+- standalone components
+- no NgModules
+- no explicit `standalone: true`
+- `ChangeDetectionStrategy.OnPush`
+- signals for local state
+- `computed()` for derived state
+- `effect()` for side effects
+- native control flow
+- Signal Forms for new form work
+- Angular Material components where suitable
+- Material 3 design direction
+- Tailwind for styling and responsive layout
+- Font Awesome Duotone icons through `<fa-duotone-icon>`
+- no new `<mat-icon>` usage
+
+Use the typed RPC Angular client for data access. Do not reintroduce legacy client patterns or bypass type errors with cast hacks.
+
+## Server/API Boundary
+
+The server should remain Effect-first.
+
+Use:
+
+- Effect services
+- `Context.Service`
+- composed `Layer`s
+- Effect RPC
+- Effect Schema for input/output validation
+- typed error channels
+- explicit domain error mapping
+
+Do not introduce new Express/Hono server paths.
+
+Unexpected runtime failures should remain defects until the boundary where they can be logged and surfaced correctly. Do not hide defects with silent fallbacks.
+
+## Data Boundary
+
+Drizzle schema is the source of truth for persisted shapes.
+
+Agents should:
+
+- derive types from Drizzle where possible
+- avoid duplicate handwritten DB model types
+- keep migrations explicit and committed
+- define real database constraints where needed
+- keep relation optionality accurate
+- be careful with event/registration/payment archival model changes
+
+High-risk data areas:
+
+- tenant isolation
+- role and capability assignment
+- event lifecycle state
+- registration options
+- registration exclusivity
+- capacity and waitlist handling
+- pending paid registrations
+- Stripe payment/refund mapping
+- guest quantities
+- check-in state
+- receipt persistence
+- event archival
+
+## Auth Boundary
+
+Auth0 is the current auth provider.
+
+The product does not require anonymous registration. Users need an account to register, but anonymous users may browse eligible listed events.
+
+Auth-related changes should preserve:
+
+- cookie-based auth
+- SSR support for authenticated pages
+- global users across tenants
+- tenant-scoped role assignments
+- home tenant support
+- social login / lightweight account creation where available
+
+Changing auth provider is possible in the future, but not an incidental task.
+
+## Payment Boundary
+
+Stripe is the source of truth for payment state.
+
+Evorto should use local payment data only as application state derived from Stripe and app workflow needs.
+
+High-risk payment flows:
+
+- Stripe Checkout
+- webhook processing
+- pending registration cleanup
+- registration confirmation after payment
+- refunds
+- transfer/resale flow
+- tenant payment configuration
+- financial reporting
+
+Agents must not fake successful payment state locally without respecting Stripe lifecycle.
+
+## Storage Boundary
+
+Object/blob storage is used for uploaded files such as receipts.
+
+Local development uses MinIO. Production storage may differ behind the same app-level storage boundary.
+
+Agents should avoid tying application behavior to MinIO-specific assumptions unless working on local runtime tooling.
+
+## Local Runtime and Worktrees
+
+The local runtime should make dependencies easy to start and isolate.
+
+Expected local dependency stack:
+
+- Docker Compose
+- Neon Local for ephemeral Postgres branches
+- MinIO for blob storage
+- app server on a configurable local port where possible
+
+The project should support multiple worktrees running in parallel. Worktree-local generated env/runtime configuration should avoid collisions in Docker project names and service ports.
+
+The app port may remain constrained by Auth0 callback configuration, but the architecture should not make parallel worktrees harder than necessary.
+
+## Common Change Areas
+
+Agents should usually start in these areas when working on related changes:
+
+- event browsing and listing
+- event creation/editing
+- template management
+- review and publishing workflow
+- registration options
+- registration eligibility
+- registration checkout/payment
+- waitlists
+- transfer/resale
+- guest quantities
+- QR code generation/check-in
+- roles and capabilities
+- tenant settings/branding/legal pages
+- receipts/reimbursements
+- generated Playwright documentation
+- local runtime/test helpers
+
+Use module-local `AGENTS.md` files and READMEs for implementation-specific guidance.
+
+## Browser and Playwright Relationship
+
+The Browser plugin is for exploratory verification and manual validation:
+
+- understand page structure
+- reproduce issues
+- inspect console/network behavior
+- check visual states
+- validate that a changed UI feels correct
+- explore flows before encoding them in tests
+
+Playwright is for repeatable confidence:
+
+- regression tests
+- CI coverage
+- deterministic product flows
+- generated user/admin documentation
+- screenshots and evidence for documented flows
+
+A useful pattern is:
+
+1. Use Browser to explore and validate behavior.
+2. Encode the final expected behavior in Playwright.
+3. Use Playwright screenshots/docs as durable evidence.
+
+## Documentation Architecture
+
+Playwright-generated documentation should be grouped by feature area, not by persona first.
+
+Persona metadata or tags may be added later.
+
+Feature-area grouping should align with test organization where practical.
+
+## Architecture Watchpoints
+
+### SSR and auth
+
+Current default: authenticated pages should work with cookie-based SSR.
+
+Raise this when: changing auth, redirects, tenant resolution, page loading, or server/client data fetching.
+
+Do not: make authenticated pages depend only on client-side auth unless explicitly approved.
+
+### Tenant isolation
+
+Current default: tenant data is isolated except for global users and cross-tenant membership.
+
+Raise this when: changing queries, caching, roles, templates, registrations, payments, files, or generated docs.
+
+Do not: load tenant-scoped data without an explicit tenant boundary.
+
+### Registration data model
+
+Current default: registration options are flexible, mutually exclusive per event, role-gated, and used for both participant and organizer signup.
+
+Raise this when: changing schema, event setup UI, checkout, capacity, discounts, waitlists, guests, or check-in.
+
+Do not: flatten the model in ways that block the known product workflows.
+
+### Event archival
+
+Current default: support archival at the data-model level for relaunch, but do not add automatic archival without explicit product direction.
+
+Raise this when: changing event graph persistence or personal-data retention behavior.
+
+Do not: copy personal data into archive records unless there is a clear retention reason.
+```
+
+---
+
+## `QUALITY.md`
+
+```md
+# Quality Context
+
+Evorto quality means the app preserves core product behavior, remains understandable to future agents, and can be verified without relying on chat history or human memory.
+
+Avoid a heavy requirements/test matrix for now. Use a lightweight behavior and verification model:
+
+1. Describe important workflows.
+2. Verify those workflows with the right tool.
+3. Keep generated docs and tests current.
+4. Provide clear evidence before finishing.
+
+## What Good Means
+
+A good Evorto change is:
+
+- correct for the product workflow
+- tenant-safe
+- permission-safe
+- type-safe
+- SSR-safe where relevant
+- payment-safe where relevant
+- documented if it affects user/admin behavior
+- discoverable through the UI
+- verified through tests and/or Browser walkthroughs
+- consistent with existing architecture choices
+
+A change is not done if:
+
+- it only works by typing a hidden URL
+- it bypasses roles/capabilities
+- it weakens tenant isolation
+- it fakes Stripe/payment state
+- it leaves essential generated docs stale
+- it adds a new workflow without a repeatable verification path
+- it silently ignores errors
+- it relies on unclear assumptions that should have been raised
+
+## Lightweight Behavior and Verification Model
+
+For each meaningful change, agents should identify:
+
+- affected workflow
+- affected persona
+- affected tenant boundary
+- affected capabilities/permissions
+- expected user-visible behavior
+- verification performed
+- remaining risks or watchpoints
+
+This is not a rigid ID system. Do not introduce a complex requirements matrix unless explicitly requested.
+
+## Browser Plugin vs Playwright
+
+Use the Browser plugin for exploratory and manual-style verification.
+
+Good Browser use cases:
+
+- understand current page structure
+- reproduce a bug
+- inspect console errors
+- inspect network behavior
+- validate a changed UI visually
+- check that a flow feels usable
+- find selectors or stable user paths before writing Playwright
+- verify that a new page is reachable through a click path
+
+Use Playwright for repeatable verification.
+
+Good Playwright use cases:
+
+- essential regression coverage
+- deterministic end-to-end flows
+- CI coverage
+- generated product documentation
+- screenshot-backed user/admin docs
+- proving that a bug is fixed
+
+Preferred flow for UI behavior changes:
+
+1. Use Browser to explore and validate manually.
+2. Add or update Playwright coverage for the durable expected behavior.
+3. Update generated documentation when the user/admin workflow changes.
+
+## Unit Tests
+
+Use unit tests for deterministic logic close to the source.
+
+Good unit-test targets:
+
+- pure transformation logic
+- schema validation behavior
+- permission/capability helper logic
+- date/time calculations
+- registration eligibility calculations
+- capacity/waitlist calculations
+- transfer/resale state transitions where isolated
+- receipt/payment helper behavior where isolated
+
+Do not use unit tests as a substitute for verifying complete user flows.
+
+## Playwright Regression Tests
+
+Use Playwright for important user journeys and integration behavior.
+
+High-value Playwright flows include:
+
+- browsing listed events
+- creating an event from a template
+- configuring participant and organizer signup settings
+- submitting an event for review
+- returning an event to draft
+- publishing an event
+- registering for a free event
+- registering for a paid event
+- receiving registration confirmation / QR code
+- joining a waitlist
+- cancelling a registration
+- transferring/reselling a registration
+- checking in participants
+- checking in guest quantities
+- submitting a receipt
+- reviewing a receipt
+- managing roles/capabilities
+- tenant branding/settings/legal page behavior
+
+Keep tests deterministic. Prefer seeded scenario handles over fuzzy discovery.
+
+Avoid noisy Playwright tests that only assert implementation details without protecting meaningful behavior.
+
+## Playwright-Generated Documentation
+
+Generated documentation is product documentation first and verification evidence second.
+
+Essential product flows should have generated documentation with screenshots where helpful.
+
+Organize generated docs by feature area, such as:
+
+- events
+- templates
+- registrations
+- payments
+- check-in
+- roles and permissions
+- tenant settings
+- receipts
+- documentation/help
+
+Persona tags or metadata may be added later.
+
+When a user/admin workflow changes, update the generated documentation scenario as part of the change.
+
+## Visual and Manual Verification
+
+Use screenshots for visible UI changes.
+
+Use Browser verification for:
+
+- layout changes
+- Material 3 component behavior
+- Tailwind responsive behavior
+- forms
+- modals/dialogs
+- event cards/lists
+- registration flows
+- check-in flows
+- admin settings
+- generated documentation pages
+
+For visible UI changes, evidence should usually include:
+
+- a short description of the browser walkthrough
+- screenshot(s) if the visual result matters
+- confirmation that console/network behavior was checked when relevant
+- Playwright coverage or explanation why it was not useful
+
+## Done Criteria
+
+For a typical change, before finishing:
+
+- relevant tests pass
+- lint/format expectations are satisfied
+- new or changed behavior has tests where practical
+- Browser walkthrough was performed for UI behavior changes
+- Playwright coverage was added or updated for durable behavior
+- generated docs were updated for relevant user/admin workflow changes
+- screenshots are provided for visual changes
+- the feature has a discoverable click path
+- release/change-file expectations are met when release-relevant
+- any unresolved design watchpoint is called out
+
+For a bug fix:
+
+- reproduce the bug where practical
+- add or update a test that would have failed before the fix
+- verify the fixed behavior
+- mention any related generated docs or screenshots if user-visible
+
+For a new feature:
+
+- verify the happy path
+- verify important edge cases
+- add Playwright coverage for the durable flow
+- update generated documentation
+- check tenant/permission boundaries
+- provide Browser evidence for the implemented UI
+
+For a refactor:
+
+- keep behavior unchanged
+- run targeted tests
+- avoid changing product behavior accidentally
+- mention if any product behavior changed intentionally
+
+## High-Risk Areas
+
+Use extra caution when touching:
+
+- tenant resolution
+- tenant isolation in queries and caches
+- roles and capabilities
+- event review/publishing lifecycle
+- event listing/visibility
+- registration options
+- registration exclusivity
+- capacity limits
+- waitlists
+- guest quantities
+- Stripe checkout/webhooks/refunds
+- transfer/resale
+- QR code check-in
+- receipts/reimbursements
+- event archival
+- SSR/auth/cookie behavior
+- generated documentation flows
+- local runtime/worktree isolation
+
+## Browser Evidence Expectations
+
+When Browser verification is used, summarize:
+
+- page or flow checked
+- user path followed
+- visible result
+- whether console/network looked clean, if relevant
+- screenshots captured, if relevant
+- any issue found and fixed
+
+Do not claim Browser verification was performed if it was not.
+
+## Playwright Evidence Expectations
+
+When Playwright is used, summarize:
+
+- command or project run
+- tests added or updated
+- result
+- generated docs affected
+- trace/video/screenshot evidence if relevant
+
+Use Playwright traces/videos when they help explain a failure or validate a complex workflow.
+
+## Release and Change Files
+
+For release-relevant work, add a Knope change file in `.changeset/*.md`.
+
+A change is release-relevant when it affects:
+
+- user-visible behavior
+- admin-visible behavior
+- API/runtime behavior
+- schema/data behavior
+- payment behavior
+- generated documentation
+- deployment/runtime expectations
+
+## Open Questions and Watchpoints
+
+Root docs may include open questions when they are actionable.
+
+A good watchpoint includes:
+
+- current default
+- when to raise it
+- what not to decide casually
+
+Agents should mention a watchpoint when working nearby instead of silently choosing a product direction.
+
+## Quality Watchpoints
+
+### Generated documentation coverage
+
+Current default: every essential product flow should eventually be documented through Playwright-generated docs.
+
+Raise this when: adding or changing a user/admin flow.
+
+Do not: ship an important workflow change while leaving docs knowingly stale.
+
+### Browser versus Playwright
+
+Current default: Browser is for exploration and manual validation; Playwright is for durable regression and documentation.
+
+Raise this when: a flow is hard to verify repeatably or Browser finds behavior that should become a regression test.
+
+Do not: rely only on screenshots for behavior that should be covered by Playwright.
+
+### Hidden pages
+
+Current default: new pages and features need discoverable click paths.
+
+Raise this when: adding routes, admin pages, settings pages, documentation pages, or feature entry points.
+
+Do not: leave functionality accessible only through a manually typed URL unless it is explicitly internal/debug-only.
+
+### Permission-sensitive changes
+
+Current default: role/capability checks are product behavior and must be verified.
+
+Raise this when: changing visibility, registration eligibility, event review/publishing, tenant settings, or admin workflows.
+
+Do not: relax permission checks to make tests or UI flows pass.
+```
+
+---
+
+## Suggested simplified `AGENTS.md`
+
+```md
+# Repository Guidelines
+
+## Context Discipline
+
+- Keep repository knowledge in small, relevant files.
+- Use this file as the map, not the full manual.
+- Read the nearest applicable guidance before editing:
+  - root product/system context
+  - module-level `AGENTS.md`
+  - local README files
+- Update context files when reality changes, assumptions are invalidated, or new constraints are discovered.
+- Prefer small, accurate updates over large stale manuals.
+
+## Root Context Files
+
+- `PRODUCT.md` — product goals, personas, core workflows, domain concepts, and product invariants.
+- `ARCHITECTURE.md` — high-level system shape, architectural boundaries, and where to look first for common changes.
+- `QUALITY.md` — behavior-focused verification guidance, Browser/Playwright expectations, and done criteria.
+
+Keep these files concise. Put implementation-specific guidance in the nearest module-level `AGENTS.md` or README.
+
+## Project Structure
+
+- App code: `src/app/**`
+- Server runtime and APIs: `src/server/**`
+- Data layer: `src/db/**`
+- Shared contracts/types/utilities: `src/shared/**` and `src/types/**`
+- Unit tests: `*.spec.ts` in `src/**`
+- Playwright tests: `tests/**`
+- Legacy e2e reference: `e2e/**`
+- Assets/public: `public/`
+- Theming: `src/styles.scss` and `_theme-colors.scss`
+
+Start with the nearest applicable module guidance:
+
+- `src/app/AGENTS.md`
+- `src/server/AGENTS.md`
+- `src/db/AGENTS.md`
+- `tests/AGENTS.md`
+
+More specific guidance may exist deeper in some subtrees.
+
+## Build, Test, and Development Commands
+
+- `bun run dev:start` — run Angular dev server at `http://localhost:4200`.
+- `bun run build:app` — build client + server bundles.
+- `bun run test:unit` — run unit tests.
+- `bun run test:unit:server` — run server unit tests.
+- `bun run test:e2e` — run Playwright e2e.
+- `bun run test:e2e:docs` — run Playwright documentation tests.
+- `bun run lint` — lint with autofix.
+- `bun run format:write` — format with Prettier.
+- `bun run docker:start` / `bun run docker:stop` — start/stop local services.
+- `bun run db:migrate`, `bun run db:push`, `bun run db:reset` — database commands.
+
+## Local Environment
+
+Supported local env files:
+
+- `.env` — untracked developer secrets
+- `.env.dev.local` — tracked shared dev config
+- `.env.dev` — generated worktree override from `bun run env:runtime`
+
+Unsupported files:
+
+- `.env.local`
+- `.env.runtime`
+- `.env.ci`
+
+In CI, do not rely on tracked or generated dotenv artifacts. Use GitHub Actions `env`, `vars`, and `secrets`.
+
+For runtime/test details, read:
+
+- `tests/README.md`
+- `helpers/README.md`
+- `src/server/config/AGENTS.md`
+
+## Type Safety
+
+- End-to-end types are mandatory.
+- Prefer inferred/derived types from Drizzle schema and Effect schema outputs.
+- Prefer TypeScript return type inference unless explicit return types clarify a boundary or prevent incorrect inference from escaping.
+- Avoid `any`, unchecked `as`, and `unknown` without narrowing.
+- Do not use `unknown as ...` or similar cast bypasses to force client/server types to compile.
+- Fix the source type contract or runtime mismatch instead.
+
+## Error Handling
+
+- Do not swallow defects.
+- If an error is expected and recoverable, map it explicitly to a typed/domain outcome.
+- If an error is unexpected, fail loudly and preserve enough context to debug it.
+- RPC and Effect error channels use `Schema.TaggedError` end to end.
+- Do not introduce string-literal business errors in contracts or handlers.
+- Only expected recoverable failures belong in typed error unions.
+- When an external unknown error must cross a typed boundary, wrap it in a tagged error field using `Schema.Defect`.
+
+## Architecture Guardrails
+
+- Angular app guidance lives in `src/app/AGENTS.md`.
+- Server/runtime guidance lives in `src/server/AGENTS.md`.
+- Database guidance lives in `src/db/AGENTS.md`.
+- Use Angular Material components, Material 3 design direction, and Tailwind styling.
+- Use Effect RPC and Effect Schema for API boundaries.
+- Use Drizzle as the source of truth for persisted shapes.
+- Use Stripe as the source of truth for payment state.
+- Keep tenant isolation, auth, payments, registration, and permissions explicit.
+
+## Verification
+
+- After every file edit, run `bun run lint` and `bun run format:write`.
+- Markdown-only edits do not need a WebStorm `get_file_problems` pass.
+- Before calling WebStorm `get_file_problems` on edited files, run `bun run lint`.
+- After editing non-Markdown files, run WebStorm `get_file_problems` on those files when possible.
+- Prefer sequential `get_file_problems` checks; parallel runs can time out.
+- For UI behavior changes, use Browser verification where useful and add/update Playwright coverage for durable behavior.
+- For generated documentation flows, keep Playwright docs current.
+- See `QUALITY.md` for done criteria and Browser/Playwright guidance.
+
+## Conventions
+
+- TypeScript strict mode is enforced.
+- Indentation: 2 spaces.
+- Filenames: `kebab-case.ts`.
+- Symbols: `camelCase` and `PascalCase`.
+- Prefer path aliases: `@app/*`, `@server/*`, `@db/*`, `@shared/*`, `@types/*`.
+- For Effect reference and usage patterns, consult the local Effect source at `/Users/hedde/code/effect` when behavior or recommended composition is unclear.
+
+## Commit, PR, and Release Notes
+
+- Use Git Town commands for branch management and shipping.
+- For substantial work in a new worktree created from `main`, immediately run `git town hack <branch-name>` before making commits.
+- For large multi-phase work, keep an assembly branch plus one reviewable child branch per phase or slice.
+- Create stacked child branches with `git town append <branch-name>`.
+- Run `git town sync --stack` before starting work and before proposing review.
+- Open PRs with `git town propose`.
+- Commit messages should be imperative and concise.
+- PRs should include purpose, scope, schema/runtime impact, and UI evidence where relevant.
+- For release-relevant work, add a Knope change file in `.changeset/*.md`.
+```
+
+I recommend replacing the current root `AGENTS.md` with the simplified version above after adding `PRODUCT.md`, `ARCHITECTURE.md`, and `QUALITY.md`. This keeps `AGENTS.md` as the entry map and moves product/architecture/quality context into purpose-specific files.
