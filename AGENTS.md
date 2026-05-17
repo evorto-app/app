@@ -56,6 +56,10 @@ More specific guidance may exist deeper in some subtrees.
 
 ## Local Environment
 
+Codex environment setup refreshes a clean worktree to the parent/source branch
+tip before installing dependencies and generating `.env.dev`. If local changes
+already exist, setup skips branch refresh rather than overwriting work.
+
 Supported local env files:
 
 - `.env` - untracked developer secrets

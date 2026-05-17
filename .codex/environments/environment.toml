@@ -8,6 +8,36 @@ set -euo pipefail
 
 SOURCE_ROOT=${CODEX_SOURCE_ROOT:-$(pwd -P)}
 
+echo "[setup] Refreshing git branch content"
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  if [ -n "$(git status --porcelain)" ]; then
+    echo "[setup] Worktree has local changes; skipping branch refresh."
+  else
+    CURRENT_BRANCH=$(git symbolic-ref --quiet --short HEAD || true)
+    SOURCE_BRANCH=""
+    if [ -d "$SOURCE_ROOT/.git" ] || git -C "$SOURCE_ROOT" rev-parse --git-dir >/dev/null 2>&1; then
+      SOURCE_BRANCH=$(git -C "$SOURCE_ROOT" symbolic-ref --quiet --short HEAD || true)
+    fi
+    TARGET_BRANCH=${CURRENT_BRANCH:-$SOURCE_BRANCH}
+
+    if [ -n "$TARGET_BRANCH" ]; then
+      git fetch --quiet origin "$TARGET_BRANCH" || true
+      TARGET_REF=$TARGET_BRANCH
+      if git rev-parse --verify --quiet "origin/$TARGET_BRANCH" >/dev/null; then
+        TARGET_REF=origin/$TARGET_BRANCH
+      fi
+
+      if [ -n "$CURRENT_BRANCH" ]; then
+        git merge --ff-only "$TARGET_REF"
+      else
+        git checkout --detach "$TARGET_REF"
+      fi
+    else
+      echo "[setup] Could not infer a source branch; skipping branch refresh."
+    fi
+  fi
+fi
+
 echo "[setup] Copying environment files"
 if [ "$(pwd -P)" != "$SOURCE_ROOT" ]; then
   for file in .env .env.dev.local .npmrc; do
