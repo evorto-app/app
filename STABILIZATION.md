@@ -10,7 +10,7 @@ and useful for small cleanup batches.
 | ----------------------------------------------- | --------------------------------- | ---------- | -------------------------------------------------------------------------------------------- |
 | Events                                          | First pass complete               | partial    | Code, tests, docs, and an unauthenticated Browser walkthrough reviewed.                      |
 | Registrations                                   | First pass complete               | partial    | Free/paid registration paths reviewed; several server-side precondition gaps need follow-up. |
-| Templates                                       | Not started                       | unknown    | Review next because event creation depends on template defaults.                             |
+| Templates                                       | First pass complete               | partial    | Simple-mode template flow reviewed; permission and model-depth gaps need follow-up.          |
 | Roles and permissions                           | Not started                       | unknown    | Needed to validate event eligibility and admin surfaces.                                     |
 | Finance/receipts                                | Not started                       | unknown    | Payment and receipt flows are high-risk and partially coupled to registrations.              |
 | Scanning/check-in                               | Not started                       | unknown    | Registration QR and organizer permissions depend on this.                                    |
@@ -29,6 +29,11 @@ and useful for small cleanup batches.
 - Event and registration schema: `src/db/schema/event-instances.ts`, `src/db/schema/event-registration-options.ts`, `src/db/schema/event-registrations.ts`
 - Playwright specs/docs: `tests/specs/events/**`, `tests/docs/events/**`
 - Browser walkthrough: anonymous `/events` list and event detail at local `http://localhost:4200`
+- Templates app code: `src/app/templates/**`
+- Templates RPC contracts and handlers: `src/shared/rpc-contracts/app-rpcs/templates.*`, `src/server/effect/rpc/handlers/templates**`
+- Template schema: `src/db/schema/event-templates.ts`, `src/db/schema/template-registration-options.ts`, `src/db/schema/template-registration-option-discounts.ts`, `src/db/schema/template-event-addons.ts`
+- Template Playwright specs/docs: `tests/specs/templates/**`, `tests/docs/templates/templates.doc.ts`, `tests/docs/template.doc.ts`
+- Browser walkthrough: organizer `/templates` list and template detail at local `http://localhost:4200`
 
 ## Events
 
@@ -129,6 +134,61 @@ and useful for small cleanup batches.
 - Either implement waitlist behavior or remove/label waitlist UI/data paths as seeded/demo-only until implemented.
 - Replace placeholder price-label specs with assertions that match current behavior, or quarantine them as known pending coverage.
 
+## Templates
+
+### Current Behavior
+
+- Template routes are under authenticated `/templates`; anonymous Browser access redirects to Auth0.
+- Authenticated organizers can browse template categories, open a template detail page, and start event creation from a template.
+- The visible template model is simple mode: one organizer registration block and one participant registration block.
+- Template detail pages show description, optional location, registration option role chips, price/tax label when paid, capacity, mode, and registration open/close offsets.
+- Template creation preselects default organizer roles and default user roles, then saves a template plus two template registration options.
+- Creating an event from a template copies template details into the event form and converts registration offsets into concrete open/close timestamps relative to the event start.
+- Category create/update handlers enforce `templates:manageCategories`.
+
+### Intended Behavior From Product Context
+
+- Templates preserve organizational memory for repeated events.
+- Templates should include reusable event information, participant and organizer signup defaults, registration options, prices, discounts, capacity defaults, role eligibility, registration windows/offsets, registration questions, and organizer notes/checklists where practical.
+- Event instances are editable copies of templates, and some duplication is acceptable to keep instances stable.
+- Template workflows should be discoverable through the UI.
+
+### Issues and Risks
+
+- **Must fix before agent scaling:** `templates.createSimpleTemplate`, `templates.updateSimpleTemplate`, `templates.findOne`, and `templates.groupedByCategory` only check authentication, not `templates:view`, `templates:create`, or `templates:editAll`. UI links hide some actions, but direct RPC calls remain too permissive.
+- **Must fix before agent scaling:** template create/update accept `categoryId` and registration `roleIds` without checking that those ids belong to the current tenant. The database may reject some invalid category ids, but the error is not an explicit domain error and role ids are stored as arrays without FK constraints.
+- **Must fix before agent scaling:** template registration offsets validate as non-negative numbers, but the server does not enforce that registration opens before it closes. Because offsets are "hours before event", `openRegistrationOffset` should be greater than or equal to `closeRegistrationOffset` for a normal window.
+- **Must fix before agent scaling:** template location is `Schema.Any`, matching the event boundary issue. It should use a real shared location schema or an explicit documented escape hatch.
+- **Should fix before relaunch:** simple-mode create/update always writes exactly two registration options. That matches the current UI but is thinner than the product model for reusable event knowledge.
+- **Should fix before relaunch:** template discounts and add-ons exist in schema, but simple-mode template create/update does not expose or persist discounts/add-ons. Event creation has separate discount-copying logic, but the simple template editing path cannot maintain those richer fields.
+- **Should fix before relaunch:** registration mode allows `random` and `application`, while docs mark random as not available and registration behavior currently acts like first-come-first-served. The UI should either restrict unsupported modes or document that they are stored-only.
+- **Should fix before relaunch:** template create/edit components still use `console.*` instead of the app guidance to use `consola/browser`.
+- **Acceptable for now:** the template detail page is a useful read-only summary and the "Create event" action is discoverable from the detail surface.
+
+### Test and Documentation Quality
+
+- `tests/specs/templates/templates.test.ts` covers create, view, empty-category add flow, and role autocomplete duplicate hiding.
+- `tests/docs/templates/templates.doc.ts` documents simple-mode template creation, role defaults, payment field visibility, and role-picker behavior.
+- `tests/specs/templates/paid-option-requires-tax-rate.spec.ts` is fully `test.fixme(...)` and contains placeholder assertions. It should not be treated as active tax-rate validation coverage.
+- `tests/docs/template.doc.ts` is only a discovery/tagging placeholder, not product documentation.
+- Permission matrix tests check template create link visibility, but they do not prove direct route or RPC denial.
+
+### Open Product Questions
+
+- Is simple mode the intended relaunch template scope, or should richer registration options/add-ons/questions/organizer notes be available before relaunch?
+- Should `random` and `application` registration modes be selectable now if registration fulfillment does not implement those semantics?
+- Should template view require `templates:view`, or should organizers with `events:create` inherit template view through permission dependencies only?
+- Should template category management remain a separate capability from template creation/editing?
+
+### Recommended Cleanup Actions
+
+- Add server-side permission checks for template view/create/edit RPCs and route-level guards for direct `/templates/create`, `/templates/:id/edit`, and `/templates/:id/create-event` access.
+- Validate template category and role ids against the current tenant before persisting.
+- Add server-side offset ordering validation and focused unit tests in `SimpleTemplateService`.
+- Replace `Schema.Any` location fields with a shared schema or document why the boundary remains intentionally loose.
+- Quarantine or replace placeholder/fixme template tax-rate specs with active coverage for the current simple-mode UI.
+- Decide whether unsupported registration modes should be hidden until their behavior exists.
+
 ## Prioritized Cleanup Backlog
 
 ### Must Fix Before Agent Scaling
@@ -137,7 +197,9 @@ and useful for small cleanup batches.
 2. Registration capacity updates must be concurrency-safe and transactional.
 3. Event create/update date validation must reject invalid ordering and invalid registration windows.
 4. Replace or validate `Schema.Any` event location at the RPC boundary.
-5. Remove misleading placeholder tests/docs from the event registration and event management surfaces.
+5. Add server-side template permission checks for view/create/edit and direct route guards for template write flows.
+6. Validate template category/role ids and template offset ordering at the server boundary.
+7. Remove misleading placeholder tests/docs from the event registration, event management, and template tax-rate surfaces.
 
 ### Should Fix Before Relaunch
 
@@ -145,12 +207,15 @@ and useful for small cleanup batches.
 2. Fix template discount copying to use stable identities instead of title matching.
 3. Add Playwright coverage for negative registration paths and role-ineligible direct links.
 4. Make organizer signup semantics visible and distinct if it remains modeled as a registration option.
+5. Decide whether simple-mode templates are sufficient for relaunch or expand template support for discounts, add-ons, questions, and organizer notes.
+6. Hide unsupported template registration modes until their runtime behavior exists, or clearly mark them as draft-only configuration.
 
 ### Acceptable For Now
 
 1. Server-side edit locks are duplicated with UI guards; keep until broader event authorization is reviewed.
 2. Browser walkthrough coverage for anonymous event browsing is enough for this first pass; authenticated manual behavior should be revisited after server preconditions are fixed.
 3. Rich seeded demo data is useful even if some seeded states are ahead of implemented product behavior, as long as tests do not treat those states as complete features.
+4. The current template detail page is discoverable and useful as a summary of simple template defaults.
 
 ### Product Decision Needed
 
@@ -158,11 +223,14 @@ and useful for small cleanup batches.
 2. Exact UX for role-ineligible direct event links.
 3. Whether rejected events can be resubmitted unchanged.
 4. Whether event creation may produce organizer-only events.
+5. Whether simple-mode templates are a temporary authoring UI or the intended relaunch model.
+6. Whether random/application registration modes should remain selectable before their semantics exist.
 
 ## Fixes Applied In This Pass
 
 - None. The obvious issues found in Events and Registrations affect server-side behavior and need focused tests, so they should be handled as small follow-up cleanup commits rather than opportunistic edits inside the audit document commit.
+- None in the Templates pass. The highest-value issues are permission and contract validation gaps that need targeted tests with the fixes.
 
 ## Review Next
 
-Review Templates next. Event creation, registration defaults, role eligibility, discounts, and misleading docs all depend on template behavior, so it is the highest-leverage next area before moving to roles/permissions and finance.
+Review Roles and permissions next. The Events, Registrations, and Templates passes all found capability/eligibility questions that should be resolved before touching finance or check-in behavior.
