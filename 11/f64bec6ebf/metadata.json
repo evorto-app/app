@@ -1401,6 +1401,19 @@
       "transcript": "/11/f64bec6ebf/0/full.jsonl",
       "content_hash": "/11/f64bec6ebf/0/content_hash.txt",
       "prompt": ""
+    },
+    {
+      "metadata": "/11/f64bec6ebf/1/metadata.json",
+      "transcript": "/11/f64bec6ebf/1/full.jsonl",
+      "content_hash": "/11/f64bec6ebf/1/content_hash.txt",
+      "prompt": "/11/f64bec6ebf/1/prompt.txt"
     }
-  ]
+  ],
+  "token_usage": {
+    "input_tokens": 418957,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 4102528,
+    "output_tokens": 8502,
+    "api_call_count": 45
+  }
 }
