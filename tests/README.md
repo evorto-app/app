@@ -47,7 +47,7 @@ bun run lint
 - Stop the local runtime stack: `bun run docker:stop`
 - Local Docker runs use Neon Local instead of a plain Postgres container.
 - Docker Compose includes a one-shot `db-setup` service that runs the equivalent of `db:reset` before `evorto` starts.
-- Local `test:e2e`, `test:e2e:ui`, `test:e2e:docs`, `db:*`, and `docker:*` package scripts refresh `.env.dev` before invoking `dotenv -c dev`, so new worktrees get isolated local ports and database URLs by default.
+- Local `dev:start`, `test:e2e`, `test:e2e:ui`, `test:e2e:docs`, `db:*`, and `docker:*` package scripts refresh `.env.dev` before invoking `dotenv -c dev`, so new worktrees get isolated local app/service ports and database URLs by default.
 - The `evorto` container now requires `CLIENT_ID`, `CLIENT_SECRET`, `ISSUER_BASE_URL`, and `SECRET` to be non-empty when Compose renders the stack, so blank higher-precedence values fail fast instead of starting a broken app container.
 - `bun run env:runtime` generates `.env.dev`, the untracked worktree-local override file.
 - `.env.dev.local` is the tracked shared default dev config file.
@@ -158,7 +158,8 @@ Required only for integration-tagged Playwright projects:
 `.env.dev` is generated from the current working directory, so separate worktrees get:
 
 - distinct `COMPOSE_PROJECT_NAME`
+- distinct local app port and `BASE_URL`
 - distinct local Neon Local port
 - distinct local MinIO ports
 
-The local app port stays at `4200` by default because the current Auth0 local callback configuration expects `localhost:4200`.
+Set `APP_HOST_PORT` before running `bun run env:runtime` only when you need a specific callback URL such as `localhost:4200`.

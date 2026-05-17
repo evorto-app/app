@@ -48,7 +48,10 @@ const resolvePort = (names: readonly string[], fallback: number): number => {
   return fallback;
 };
 
-const appHostPort = resolvePort(['APP_HOST_PORT'], DEFAULT_APP_HOST_PORT);
+const appHostPort = resolvePort(
+  ['APP_HOST_PORT'],
+  derivePort(DEFAULT_APP_HOST_PORT, 400, 0),
+);
 const neonLocalHostPort = resolvePort(
   ['NEON_LOCAL_HOST_PORT'],
   derivePort(DEFAULT_NEON_LOCAL_HOST_PORT, 400, 8),
