@@ -22,7 +22,12 @@ import {
 
 const readDocumentationEnvironment = () =>
   Effect.runSync(
-    documentationOutputEnvironment.parse(ConfigProvider.fromEnv()),
+    documentationOutputEnvironment.pipe(
+      Effect.provideService(
+        ConfigProvider.ConfigProvider,
+        ConfigProvider.fromEnv(),
+      ),
+    ),
   );
 
 class DocumentationReporter implements Reporter {

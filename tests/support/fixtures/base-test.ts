@@ -23,28 +23,26 @@ const dedupeLength = 4;
 const createDedupeId = init({ length: dedupeLength });
 const runtimeConfigProvider = ConfigProvider.fromEnv();
 const environment = Effect.runSync(
-  playwrightEnvironmentConfig
-    .parse(runtimeConfigProvider)
-    .pipe(
-      Effect.mapError(
-        (error) =>
-          new Error(
-            `Invalid Playwright e2e configuration:\n${formatConfigError(error)}`,
-          ),
-      ),
+  playwrightEnvironmentConfig.pipe(
+    Effect.provideService(ConfigProvider.ConfigProvider, runtimeConfigProvider),
+    Effect.mapError(
+      (error) =>
+        new Error(
+          `Invalid Playwright e2e configuration:\n${formatConfigError(error)}`,
+        ),
     ),
+  ),
 );
 const auth0Environment = Effect.runSync(
-  auth0ManagementEnvironment
-    .parse(runtimeConfigProvider)
-    .pipe(
-      Effect.mapError(
-        (error) =>
-          new Error(
-            `Invalid e2e auth configuration:\n${formatConfigError(error)}`,
-          ),
-      ),
+  auth0ManagementEnvironment.pipe(
+    Effect.provideService(ConfigProvider.ConfigProvider, runtimeConfigProvider),
+    Effect.mapError(
+      (error) =>
+        new Error(
+          `Invalid e2e auth configuration:\n${formatConfigError(error)}`,
+        ),
     ),
+  ),
 );
 process.env['E2E_NOW_ISO'] ??= environment.E2E_NOW_ISO;
 process.env['E2E_SEED_KEY'] ??= environment.E2E_SEED_KEY;

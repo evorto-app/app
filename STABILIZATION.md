@@ -6,18 +6,18 @@ and useful for small cleanup batches.
 
 ## Review Status
 
-| Area                                            | Status                            | Confidence | Notes                                                                                        |
-| ----------------------------------------------- | --------------------------------- | ---------- | -------------------------------------------------------------------------------------------- |
-| Events                                          | First pass complete               | partial    | Code, tests, docs, and an unauthenticated Browser walkthrough reviewed.                      |
-| Registrations                                   | First pass complete               | partial    | Free/paid registration paths reviewed; several server-side precondition gaps need follow-up. |
-| Templates                                       | First pass complete               | partial    | Simple-mode template flow reviewed; permission and model-depth gaps need follow-up.          |
-| Roles and permissions                           | First pass complete               | partial    | Core permission model reviewed; route/RPC semantics and role management gaps need follow-up. |
-| Finance/receipts                                | First pass complete               | partial    | Payments, transactions, receipt review/refund, and docs reviewed; high-risk gaps remain.     |
-| Scanning/check-in                               | First pass complete               | partial    | QR display and scan read path exist, but actual check-in mutation and gating are incomplete. |
-| Profile/account flows                           | First pass complete               | partial    | Profile, account creation, discount cards, receipts, and auth guards reviewed.               |
-| Tenant/global admin                             | First pass complete               | partial    | Tenant resolution, tenant settings, and global-admin list surface reviewed.                  |
-| Generated documentation and Playwright coverage | First pass for event-related docs | partial    | Event docs exist, but some docs/specs encode aspirational or placeholder behavior.           |
-| Local runtime/developer workflow                | Lightly reviewed                  | partial    | Root/test/helper guidance and visible scripts reviewed.                                      |
+| Area                                            | Status              | Confidence | Notes                                                                                        |
+| ----------------------------------------------- | ------------------- | ---------- | -------------------------------------------------------------------------------------------- |
+| Events                                          | First pass complete | partial    | Code, tests, docs, and an unauthenticated Browser walkthrough reviewed.                      |
+| Registrations                                   | First pass complete | partial    | Free/paid registration paths reviewed; several server-side precondition gaps need follow-up. |
+| Templates                                       | First pass complete | partial    | Simple-mode template flow reviewed; permission and model-depth gaps need follow-up.          |
+| Roles and permissions                           | First pass complete | partial    | Core permission model reviewed; route/RPC semantics and role management gaps need follow-up. |
+| Finance/receipts                                | First pass complete | partial    | Payments, transactions, receipt review/refund, and docs reviewed; high-risk gaps remain.     |
+| Scanning/check-in                               | First pass complete | partial    | QR display and scan read path exist, but actual check-in mutation and gating are incomplete. |
+| Profile/account flows                           | First pass complete | partial    | Profile, account creation, discount cards, receipts, and auth guards reviewed.               |
+| Tenant/global admin                             | First pass complete | partial    | Tenant resolution, tenant settings, and global-admin list surface reviewed.                  |
+| Generated documentation and Playwright coverage | First pass complete | partial    | Docs/spec inventory is discoverable again, but several docs/specs are stale or misleading.   |
+| Local runtime/developer workflow                | Lightly reviewed    | partial    | Root/test/helper guidance and visible scripts reviewed.                                      |
 
 ## Evidence Checked
 
@@ -57,6 +57,11 @@ and useful for small cleanup batches.
 - Tenant/global admin RPC, context, and schema paths: `src/shared/rpc-contracts/app-rpcs/global-admin.rpcs.ts`, `src/shared/rpc-contracts/app-rpcs/admin.rpcs.ts`, `src/server/effect/rpc/handlers/global-admin.handlers.ts`, `src/server/effect/rpc/handlers/admin.handlers.ts`, `src/server/context/**`, `src/server/effect/rpc/app-rpcs.request-handler.ts`, `src/db/schema/tenants.ts`, `src/types/custom/tenant.ts`, `src/shared/tenant-config.ts`
 - Tenant/global admin seed/test/docs coverage: `helpers/seed-tenant.ts`, `helpers/create-tenant.ts`, `tests/specs/permissions/tenant-isolation-tax-rates.spec.ts`, `tests/specs/finance/tax-rates/admin-import-tax-rates.spec.ts`, `tests/specs/auth/storage-state-refresh.test.ts`, `tests/docs/finance/inclusive-tax-rates.doc.ts`, `tests/test-inventory.md`
 - Runtime walkthrough: unknown host `no-such-tenant.invalid` returned 404; anonymous `/global-admin` redirected to Auth0. Stored auth states were stale, so authenticated global-admin UI behavior was not reverified in this pass.
+- Generated docs and Playwright configuration: `playwright.config.ts`, `tests/README.md`, `tests/AGENTS.md`, `tests/test-inventory.md`, `package.json`
+- Documentation reporter and screenshot helpers: `tests/support/reporters/documentation-reporter.ts`, `tests/support/reporters/documentation-reporter/**`, `tests/support/utils/doc-screenshot.ts`
+- Generated documentation specs: `tests/docs/**`
+- Playwright specs with stabilization-relevant gaps: `tests/specs/events/**`, `tests/specs/templates/**`, `tests/specs/finance/**`, `tests/specs/scanning/scanner.test.ts`, `tests/specs/permissions/**`, `tests/specs/reporting/reporter-paths.test.ts`, `tests/specs/screenshot/doc-screenshot.test.ts`
+- Lightweight Playwright checks: `bun run test:e2e -- --list`, `bun run test:e2e:docs -- --list`, `bun run test:e2e -- tests/specs/reporting/reporter-paths.test.ts --no-deps`, `bun run test:e2e -- tests/specs/screenshot/doc-screenshot.test.ts --no-deps`
 
 ## Events
 
@@ -533,6 +538,69 @@ and useful for small cleanup batches.
 - Add tenant settings docs/specs for current settings and clearly mark missing branding/legal/domain settings as not implemented.
 - Decide whether `seoTitle` / `seoDescription` are product fields, then expose them through tenant config or remove/defer them.
 
+## Generated Documentation and Playwright Coverage
+
+### Current Behavior
+
+- Playwright has separate baseline spec and docs projects. Baseline specs exclude `tests/docs/**`; docs baseline runs `tests/docs/**/*.doc.ts`; integration-only docs are selected with `@needs-*` tags.
+- Local docs/spec discovery is runnable again after replacing stale Effect config APIs in `playwright.config.ts` and Playwright support files.
+- `bun run test:e2e -- --list` discovers 60 baseline tests across 22 files, including setup projects.
+- `bun run test:e2e:docs -- --list` discovers 22 docs tests across 15 files, including setup projects.
+- The custom documentation reporter writes grouped Markdown pages and image assets to paths from `DOCS_OUT_DIR` / `DOCS_IMG_OUT_DIR`. In the current local env those resolve into the sibling `evorto-pages` checkout, not this repository.
+- The reporter initializes and clears docs/image output roots on `onBegin`, including during list-only commands.
+- Reporter-path tests pass with `bun run test:e2e -- tests/specs/reporting/reporter-paths.test.ts --no-deps`.
+- The focused screenshot helper test cannot currently run here because the configured Playwright Chromium binary is missing.
+
+### Intended Behavior From Product Context
+
+- Generated documentation should reflect real product workflows and should not describe unimplemented UI.
+- Browser/manual exploration is useful for discovery, while Playwright is the durable layer for regressions and generated documentation.
+- Documentation and tests should stay lightweight and operational, not become a heavyweight requirements matrix.
+- Product-critical flows should be discoverable for users and repeatable for future agents.
+
+### Issues and Risks
+
+- **Must fix before agent scaling:** `tests/specs/events/price-labels-inclusive.spec.ts` contains active `@req` tests with TODOs and placeholder page-load assertions. These tests can go green while protecting none of the price-label semantics their names claim.
+- **Must fix before agent scaling:** several specs silently return or skip when required product state is missing. Examples include receipt approval/refund rows, receipt dialog options, event creation setup, unlisted-event seed state, and scanner preconditions. This makes future agents trust coverage that may not have exercised behavior.
+- **Must fix before agent scaling:** `tests/docs/events/event-management.doc.ts` documents attendee management, event categories/tags, featured images, settings tabs, notification settings, custom confirmations, integrations, deletion, and messaging that do not match the current reviewed UI.
+- **Must fix before agent scaling:** `tests/docs/finance/finance-overview.doc.ts` claims finance permissions and dashboard behavior that do not match the current permission names or the reviewed finance implementation.
+- **Must fix before agent scaling:** Playwright discovery was broken by stale Effect config APIs until this pass. This is fixed locally, but it shows the e2e/docs surface was not being exercised recently enough.
+- **Should fix before relaunch:** list-only Playwright commands still initialize the docs reporter and can clear generated docs/image output directories. Discovery should be side-effect-light.
+- **Should fix before relaunch:** page-backed Playwright specs still fail in this checkout because the configured Chromium binary is missing. `tests/specs/screenshot/doc-screenshot.test.ts` seeds data and then fails at browser launch.
+- **Should fix before relaunch:** `tests/test-inventory.md` is stale and still reads like a March 2026 snapshot rather than a current guide for generated docs and Playwright coverage.
+- **Should fix before relaunch:** docs coverage is missing or thin for scanning/check-in mutation behavior, tenant/global-admin settings, account creation outside Auth0-management integration, profile discount add/refresh/remove flows, finance route gates, receipt review/refund behavior, role assignment/user management, and registration negative paths.
+- **Should fix before relaunch:** `tests/docs/template.doc.ts` is a generic template placeholder and should not ship as product documentation.
+- **Should fix before relaunch:** docs screenshot helpers use fixed waits or import-time environment reads in some paths. That adds flakiness and makes focused helper tests less reliable.
+- **Acceptable for now:** required `@track`, `@req`, and `@doc` tags make test intent easier to inventory.
+- **Acceptable for now:** the documentation reporter has focused tests for output paths, cleanup, grouping, and permissions callouts.
+- **Acceptable for now:** deterministic seed helpers and scenario handles exist; the issue is where specs turn missing seeded state into skips or no-op passes.
+
+### Test and Documentation Quality
+
+- Generated docs are valuable but currently mix real walkthroughs with aspirational copy. Future agents need stale docs removed or clearly marked before treating docs as product truth.
+- The docs suite favors screenshots and prose, but many docs do not assert that the workflow was completed or persisted.
+- Some functional specs have strong names and tags but weak assertions. These are more dangerous than absent tests because they imply coverage.
+- Integration-only docs are correctly taggable, but baseline docs should still cover account/profile/tenant flows that do not require Auth0 Management or external APIs.
+- The current reporter output target points outside this repository, so this repo does not contain the generated documentation artifact it depends on.
+
+### Open Product Questions
+
+- Should generated documentation be checked into this repository, the sibling documentation app, or treated only as generated CI artifacts?
+- Which generated docs are product-facing and must be accurate before relaunch, versus internal examples for agent/testing workflows?
+- Should list/discovery commands run reporters at all, or should docs generation be a separate explicit command?
+- Should placeholder `@req` ids be retired when the behavior is not implemented, or kept only as `test.fixme` with no green path?
+- What is the minimum durable Playwright coverage for relaunch across registration, finance, scanning, roles, tenant admin, and profile flows?
+
+### Recommended Cleanup Actions
+
+- Replace placeholder price-label specs with focused assertions or mark them `test.fixme` until the behavior is implemented.
+- Rewrite or remove stale event-management and finance-overview docs before agents use generated docs as product guidance.
+- Convert silent no-op passes in finance, scanner, unlisted-event, and event-creation specs into explicit fixture setup, hard failures, or honest `test.fixme` states.
+- Make docs/list commands avoid reporter output cleanup and make the local browser installation expectation explicit.
+- Remove `tests/docs/template.doc.ts` or replace it with a real product doc.
+- Update `tests/test-inventory.md` after stale/placeholder docs are pruned.
+- Add missing docs/specs for scanning mutation, tenant/global-admin settings, account/profile persistence, role/user management, and negative registration paths as those flows are stabilized.
+
 ## Prioritized Cleanup Backlog
 
 ### Must Fix Before Agent Scaling
@@ -557,6 +625,7 @@ and useful for small cleanup batches.
 18. Add route-level global-admin protection and decouple global-admin authorization from current tenant membership.
 19. Add focused tenant-resolution tests for host/cookie precedence and unknown-host failure.
 20. Remove misleading placeholder tests/docs from the event registration, event management, template tax-rate, role-assignment, finance overview, scanner, and profile/account surfaces.
+21. Replace green placeholder specs and silent no-op Playwright tests with real assertions, hard fixture setup, or explicit `test.fixme` states.
 
 ### Should Fix Before Relaunch
 
@@ -573,6 +642,8 @@ and useful for small cleanup batches.
 11. Add check-in timing, duplicate-scan, camera-error, and guest-quantity behavior before treating scanner UI as relaunch-ready.
 12. Clarify profile event cards, communication email, payout preference scope, and ESNcard validation UX before relaunch.
 13. Fill the tenant settings gap for domain/custom domain, branding, legal links/text, locale/currency/timezone, SEO fields, and global tenant-admin workflows.
+14. Make Playwright list/discovery side-effect-light and document or automate the local browser installation expectation.
+15. Update or regenerate `tests/test-inventory.md` after placeholder docs/specs are pruned.
 
 ### Acceptable For Now
 
@@ -587,6 +658,7 @@ and useful for small cleanup batches.
 9. Verified ESNcard discounts are checked in both event detail price display and registration payment resolution.
 10. Unknown tenant hosts fail closed with 404 in the current runtime.
 11. Tenant settings writes are tenant-scoped and validate the returned tenant shape before responding.
+12. Documentation reporter path/grouping tests pass after the Effect config compatibility fix.
 
 ### Product Decision Needed
 
@@ -606,6 +678,7 @@ and useful for small cleanup batches.
 14. Whether `communicationEmail`, payout details, and ESNcard records are global user data or tenant-specific profile data.
 15. Whether global admins are independent platform principals or tenant users with special metadata/current-tenant assignment.
 16. Whether tenants need multiple verified domains for relaunch, and which branding/legal settings are production blockers.
+17. Whether generated documentation is checked into this repository, checked into the sibling documentation app, or published only from CI artifacts.
 
 ## Fixes Applied In This Pass
 
@@ -616,7 +689,8 @@ and useful for small cleanup batches.
 - None in the Scanning/check-in pass. The obvious issue is a missing state-changing workflow; it should be fixed as a focused mutation plus authorization and persistence tests.
 - None in the Profile/account pass. The high-value issues affect account transactionality, multi-tenant user semantics, and profile data modeling, so they need focused contract/schema tests with the fixes.
 - None in the Tenant/global admin pass. The obvious fixes affect authorization semantics and tenant-resolution tests, so they should be done as focused code/test commits rather than mixed into the audit document commit.
+- Generated docs/Playwright pass: replaced stale Effect config-provider calls in Playwright config/support files so `test:e2e -- --list` and `test:e2e:docs -- --list` can discover tests again.
 
 ## Review Next
 
-Review generated documentation and Playwright coverage next. Several passes found stale docs, placeholder specs, missing route-denial coverage, and manual behavior that should become durable Playwright evidence.
+Review local runtime/developer workflow next. The generated-docs pass found Playwright browser installation and reporter/discovery issues that should be folded into the workflow review alongside scripts, env setup, Docker/database helpers, and local verification guidance.

@@ -6,7 +6,10 @@ import { playwrightEnvironmentConfig } from './tests/support/config/environment'
 
 const environment = Effect.runSync(
   playwrightEnvironmentConfig.pipe(
-    Effect.withConfigProvider(ConfigProvider.fromEnv()),
+    Effect.provideService(
+      ConfigProvider.ConfigProvider,
+      ConfigProvider.fromEnv(),
+    ),
     Effect.mapError(
       (error: ConfigError.ConfigError) =>
         new Error(

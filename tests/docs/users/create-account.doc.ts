@@ -8,7 +8,12 @@ import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 
 // Skip this journey if Auth0 Management credentials are not configured
 const hasManagementEnvironment = Effect.runSync(
-  hasAuth0ManagementEnvironment.parse(ConfigProvider.fromEnv()),
+  hasAuth0ManagementEnvironment.pipe(
+    Effect.provideService(
+      ConfigProvider.ConfigProvider,
+      ConfigProvider.fromEnv(),
+    ),
+  ),
 );
 
 if (!hasManagementEnvironment) {
