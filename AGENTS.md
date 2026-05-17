@@ -105,6 +105,14 @@ For runtime/test details, read:
 - Use Stripe as the source of truth for payment state.
 - Keep tenant isolation, auth, payments, registration, and permissions explicit.
 
+## Vendored Repositories
+
+- External source repositories are vendored under `repos/` as read-only reference material.
+- When writing Effect code, read `repos/effect/LLMS.md` first, then inspect `repos/effect/packages/**` for Effect v4 (`effect-smol`) implementation details, tests, module structure, and idiomatic patterns.
+- Prefer the vendored Effect source over web search or generated guesses when Effect behavior or composition is unclear.
+- Do not edit files under `repos/` unless explicitly asked.
+- Do not import from `repos/`; application code must continue importing from normal package dependencies such as `effect`, `@effect/platform-bun`, and `@effect/sql-pg`.
+
 ## Verification
 
 - After every file edit, run `bun run lint` and `bun run format:write`.

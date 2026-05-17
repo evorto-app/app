@@ -22,6 +22,9 @@ const baseConfig = [
 
 export default defineConfig(
   {
+    ignores: ["repos/**/*"],
+  },
+  {
     files: ["**/*.ts"],
     ignores: ["old/**/*", "tests/**/*"],
     extends: [baseConfig, ...angular.configs.tsRecommended],

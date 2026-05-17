@@ -3,7 +3,8 @@
 ## Runtime Architecture
 
 - Prefer Effect and Effect Platform first.
-- For Effect reference material, implementation details, and examples, consult the upstream Effect repo at [Effect-TS/effect](https://github.com/Effect-TS/effect). If you keep a local clone for faster lookup, point repo-specific tooling or an environment variable at that clone instead of hardcoding a workstation path.
+- For Effect v4 reference material, read `repos/effect/LLMS.md` first, then inspect the vendored `effect-smol` source under `repos/effect/packages/**` for implementation details, tests, and examples.
+- Treat `repos/effect` as read-only reference material. Do not import from it; app code should keep importing from normal Effect packages.
 - Organize server capabilities with Effect dependency injection (`Context.Service` + composed `Layer`s).
 - Keep service dependencies declared in service definitions; wire app composition with flat `Layer.mergeAll` / `Layer.provideMerge`.
 - Keep runtime configuration centralized in `src/server/config/**`; prefer native Effect `Config.*` combinators and resolve optional/default behavior at that boundary.
