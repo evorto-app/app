@@ -1,6 +1,9 @@
 # Database Guidelines
 
 - Drizzle schema is the source of truth for persisted shapes.
+- For Drizzle reference material, inspect the vendored upstream source under `repos/drizzle/drizzle-orm/**` first.
+- For relation behavior, query builders, dialect details, and type inference, prefer upstream tests in `repos/drizzle/drizzle-orm/tests/**`, `repos/drizzle/drizzle-orm/type-tests/**`, and `repos/drizzle/integration-tests/**` over stale examples.
+- Treat `repos/drizzle` as read-only reference material. Do not import from it; app code should keep importing from normal Drizzle packages.
 - Prefer inferred Drizzle types across callers; avoid duplicate handwritten DB model types.
 - Keep migrations explicit and committed when schema changes.
 - Avoid `any`/unchecked casts in query helpers.

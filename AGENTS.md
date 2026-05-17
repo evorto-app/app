@@ -114,9 +114,10 @@ package scripts instead of bare `dotenv` shell commands.
 
 - External source repositories are vendored under `repos/` as read-only reference material.
 - When writing Effect code, read `repos/effect/LLMS.md` first, then inspect `repos/effect/packages/**` for Effect v4 (`effect-smol`) implementation details, tests, module structure, and idiomatic patterns.
-- Prefer the vendored Effect source over web search or generated guesses when Effect behavior or composition is unclear.
+- When changing Drizzle schema, queries, migrations, or relational query behavior, inspect `repos/drizzle/drizzle-orm/src/**`, `repos/drizzle/drizzle-orm/tests/**`, and `repos/drizzle/integration-tests/**` for current upstream behavior and examples.
+- Prefer vendored upstream sources over web search or generated guesses when library behavior or composition is unclear.
 - Do not edit files under `repos/` unless explicitly asked.
-- Do not import from `repos/`; application code must continue importing from normal package dependencies such as `effect`, `@effect/platform-bun`, and `@effect/sql-pg`.
+- Do not import from `repos/`; application code must continue importing from normal package dependencies such as `effect`, `@effect/platform-bun`, `@effect/sql-pg`, and `drizzle-orm`.
 
 ## Verification
 
