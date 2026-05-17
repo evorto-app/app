@@ -19,6 +19,417 @@ and useful for small cleanup batches.
 | Generated documentation and Playwright coverage | First pass complete | partial    | Docs/spec inventory is discoverable again, but several docs/specs are stale or misleading.   |
 | Local runtime/developer workflow                | First pass complete | partial    | Scripts, env loading, Docker/Playwright setup, and unit-test ownership reviewed.             |
 
+## Product Decision Draft
+
+These are proposed answers to the open questions in this review. Treat them as
+the current working direction until a product decision overrides them.
+
+### Events
+
+- **Rejected event resubmission:** allow resubmission without requiring a
+  material edit, but reconsider the separate rejected state.
+  - Option A: allow unchanged resubmission.
+  - Option B: require an acknowledgement/revision note before resubmission.
+  - Option C: require the event to return to draft and save a material or
+    non-material edit before resubmission.
+  - Decision: Option A for the immediate answer. Product direction: consider
+    removing `REJECTED` as a durable event state in favor of returning the event
+    to draft with reviewer comments/feedback, because a separate rejected ->
+    resubmitted loop is harder to explain.
+- **Pending-event admin edits:** reviewers should approve, reject, or return to
+  draft; they should not directly edit material pending-event fields.
+  - Option A: `events:review` can approve/reject only.
+  - Option B: `events:review` can also edit pending events.
+  - Option C: add a separate `events:editPending` capability.
+  - Decision: Option A for `events:review`. Reviewers should not edit pending
+    events through review permission alone. Users with a separate edit-all
+    permission can make direct event changes when that capability is granted.
+- **Organizer-only/private operational events:** allow private operational
+  events without any registration option.
+  - Option A: require at least one participant registration option.
+  - Option B: allow organizer-only events with organizer/helper options.
+  - Option C: allow private operational events without any registration option.
+  - Decision: Option C. Optionless events can act as tenant-visible event
+    notifications in the general overview. Later they may support an external
+    signup link without forcing an internal registration option.
+
+### Registrations
+
+- **Full registration options:** expose a separate lightweight waitlist action
+  when a participant option is full.
+  - Option A: join the waitlist automatically.
+  - Option B: show a distinct "Join waitlist" action.
+  - Option C: fail as full until waitlists are implemented.
+  - Decision: Option B. Users should intentionally join the lightweight
+    waitlist.
+- **Organizer signup affordance:** organizer/helper signup should have distinct
+  copy and affordance, even though it uses the same registration-option model.
+  - Option A: use the same user-facing register button.
+  - Option B: use separate organizer/helper signup copy and grouping.
+  - Option C: move organizer signup into an organizer-only management surface.
+  - Decision: Option B. Progressive disclosure can keep the model unified while
+    avoiding participant-ticket wording for helpers.
+- **Guest quantities, transfer/resale, cancellation scope:** guest quantities,
+  participant/admin cancellation, and transfer/resale are relaunch scope.
+  - Option A: relaunch with all three.
+  - Option B: relaunch with guest quantities plus participant/admin
+    cancellation, defer transfer/resale.
+  - Option C: defer all three and remove claims/docs until implemented.
+  - Decision: Option A. All three are required for the production replacement.
+- **Role-ineligible direct links:** show the event with an explicit ineligible
+  state in the registration-options area and no registration action.
+  - Option A: hide the event entirely.
+  - Option B: show the event but omit all options.
+  - Option C: show an explicit ineligible state.
+  - Decision: Option C. The ineligible state should replace the registration
+    options area instead of silently hiding the whole event.
+
+### Templates
+
+- **Relaunch template scope:** keep simple mode as the primary authoring UI, but
+  include the reusable fields needed for production replacement.
+  - Option A: simple mode only.
+  - Option B: simple mode plus discounts, add-ons, questions, and organizer
+    notes/checklists where practical.
+  - Option C: full advanced registration-option editor before relaunch.
+  - Decision: Option B. It fits progressive disclosure and prevents templates
+    from losing core organizational memory.
+- **Unsupported registration modes:** `random` and `application` must not remain
+  selectable without working fulfillment semantics.
+  - Option A: keep selectable as stored-only configuration.
+  - Option B: show disabled/draft-only with explanatory admin copy.
+  - Option C: hide from normal template creation/editing.
+  - Decision: add implementation work for these registration modes to the launch
+    blockers if they remain part of the relaunch UI. Stored-only modes create
+    misleading expectations and unsafe generated docs.
+- **Template view permission:** require `templates:view`, and resolve permission
+  dependencies before server handlers enforce access.
+  - Option A: require only `templates:view`.
+  - Option B: let `events:create` imply template view only in the client.
+  - Option C: server-side resolved permissions include dependencies, with
+    `events:create` implying `templates:view` when configured.
+  - Decision: Option C. Server and client should share the same dependency
+    semantics.
+- **Template category management:** keep category management separate from
+  template create/edit.
+  - Option A: same capability as template editing.
+  - Option B: separate `templates:manageCategories`.
+  - Option C: tenant-admin-only setting.
+  - Decision: Option B. Categories affect discovery and taxonomy, not just a
+    single template.
+
+### Roles and Permissions
+
+- **Organizer role reads:** provide a least-privilege tenant role lookup for
+  event/template eligibility editing, returning only id, name, and default/hub
+  metadata needed by the UI.
+  - Option A: reuse admin role APIs.
+  - Option B: expose minimal role lookup to organizers with event/template
+    creation rights.
+  - Option C: expose only default roles.
+  - Decision: Option B. Organizers need role reads to choose role-based
+    eligibility for event/template registration options. This lookup must not
+    expose permission arrays or role-management fields.
+- **Permission dependency resolution:** resolved permissions should include
+  dependencies before server handlers enforce access.
+  - Option A: dependencies only in the client.
+  - Option B: dependencies expanded in a shared evaluator used by client and
+    server.
+  - Option C: store expanded permissions on user/role assignment.
+  - Decision: Option B. It preserves source-of-truth role definitions while
+    keeping authorization consistent.
+- **Admin overview visibility:** visible to users with any capability that
+  exposes at least one admin child, but each child remains guarded by its own
+  capability.
+  - Option A: require a broad `admin:*` or admin overview permission.
+  - Option B: show overview for any visible child capability.
+  - Option C: hide overview and link only directly to each child.
+  - Decision: Option B. This should be the general admin navigation pattern:
+    show parent surfaces when any child is visible, and keep each child guarded
+    by its own capability.
+- **Role assignment relaunch scope:** role assignment for relaunch is covered by
+  the production migration from current magic strings to tenant roles.
+  - Option A: implement assignment UI/RPC for relaunch.
+  - Option B: defer and remove user-list assignment affordances/docs.
+  - Option C: keep seed/helper-only role changes.
+  - Decision: migration will create roles with equivalent permissions and assign
+    the correct users. For relaunch use cases, assume users start with correct
+    roles; product UI for role assignment is not the blocker.
+- **Hub role visibility field:** use one canonical field and migrate/remove the
+  other.
+  - Option A: keep `showInHub`.
+  - Option B: keep `displayInHub`.
+  - Option C: replace both with a clearer field name.
+  - Decision: Option B if it already drives reads; migrate form/write paths
+    to it and remove or deprecate `showInHub`.
+
+### Finance and Receipts
+
+- **Paid-registration counters:** keep stored counters for now and update them
+  transactionally from webhook completion/expiry.
+  - Option A: update `confirmedSpots`/`reservedSpots` in webhook handling.
+  - Option B: derive counters entirely from registration rows.
+  - Option C: store counters only as cache rebuilt by jobs.
+  - Decision: Option A. Stored counters are the important registration-capacity
+    invariant; deriving counts from registration rows adds database cost that is
+    not worth the convenience.
+- **`paymentStatus`:** remove or deprecate it in favor of registration status
+  plus transactions unless a concrete UI/API need remains.
+  - Option A: maintain `paymentStatus` everywhere.
+  - Option B: remove/deprecate `paymentStatus`.
+  - Option C: keep only as derived/read model.
+  - Decision: Option B, after a migration/test pass confirms no active
+    behavior depends on it.
+- **Transaction-list capability:** add/use an explicit
+  `finance:viewTransactions` capability.
+  - Option A: `finance:viewTransactions`.
+  - Option B: `finance:manageReceipts`.
+  - Option C: broad finance overview permission.
+  - Decision: Option A. Transaction visibility is more sensitive than receipt
+    review and should be named directly; receipt approvers do not necessarily
+    need access to all transactions.
+- **Receipt uploads:** issue upload sessions from an authorized receipt-submit
+  preflight tied to event/user context.
+  - Option A: upload only after submit authorization succeeds.
+  - Option B: preflight returns an upload/session token, then submit consumes it.
+  - Option C: keep authenticated-only uploads and clean orphans later.
+  - Decision: Option B. It supports normal file-pick flows without creating
+    unbounded authenticated object writes.
+- **Receipt reimbursement:** relaunch as manual ledger action with honest copy;
+  payout-provider integration can come later.
+  - Option A: manual ledger reimbursement.
+  - Option B: integrate payout provider before relaunch.
+  - Option C: remove reimbursement recording until payouts exist.
+  - Decision: Option A, renamed away from "refund" unless money is actually
+    moved.
+- **Receipt timing:** allow pre-event spending, but gate final receipt
+  submission/review by event policy.
+  - Option A: only after event end.
+  - Option B: allow pre-event spending/submission.
+  - Option C: tenant/event-configurable.
+  - Decision: Option B for practical organizer purchases, with clear event
+    association and no fake reimbursement guarantee.
+
+### Scanning and Check-In
+
+- **Who can check in:** allow confirmed organizer/helper registrations and users
+  with `events:organizeAll`.
+  - Option A: confirmed organizers/helpers only.
+  - Option B: `events:organizeAll` only.
+  - Option C: dedicated `events:checkIn` plus organizer/helper eligibility.
+  - Decision: Option A plus `events:organizeAll`. A dedicated check-in
+    capability is not part of the relaunch requirement unless the organizer role
+    model proves too broad.
+- **Scan timing:** allow scanning within a configurable window before event
+  start, with organizer override later if needed.
+  - Option A: only after event start.
+  - Option B: within a fixed/configurable pre-start window.
+  - Option C: only after manual organizer override.
+  - Decision: Option B. Use a pre-start scanning window for entrance logistics,
+    and design it so the window can become tenant-configurable.
+- **Duplicate scans:** make duplicate scans idempotent success with a visible
+  "already checked in" warning.
+  - Option A: idempotent success.
+  - Option B: warning-only, no mutation.
+  - Option C: blocked hard error.
+  - Decision: Option A. It is safest for busy entrances while preserving
+    audit visibility.
+- **QR generation authorization:** an unguessable registration id is enough to
+  render the QR image.
+  - Option A: unguessable id is enough.
+  - Option B: require owner or organizer/check-in authorization.
+  - Option C: signed expiring QR URLs.
+  - Decision: Option A. QR links behave like common event paper tickets and must
+    be usable in email. Check-in should validate registration status and expose
+    attendee identity so the scanner can confirm the right person is presenting
+    the ticket.
+- **Scanner URL validation:** accept the ticket URL as the routing source, then
+  enforce authorization against the resolved registration/event.
+  - Option A: current tenant domain only.
+  - Option B: any known domain for the registration tenant.
+  - Option C: any URL with the expected path.
+  - Decision: the scanner must support QR links opened through native phone
+    cameras, so the domain embedded in the ticket URL should be treated as the
+    routing source. Safety comes from resolving the registration/event and
+    checking that the scanning user is authorized to check in attendees for that
+    event.
+- **Guest quantity check-in:** relaunch check-in must account for guest quantity
+  in counters and UI.
+  - Option A: one scan checks in buyer plus all guests.
+  - Option B: scanner chooses how many guest spots to check in.
+  - Option C: defer guest quantities entirely.
+  - Decision: Option B. The scanner should choose how many guest spots to check
+    in so partial guest arrival is supported.
+
+### Profile and Account Flows
+
+- **Existing global user joining tenant:** allow adding the current authenticated
+  global user to a tenant automatically when they complete tenant account
+  creation, unless tenant policy requires invite approval.
+  - Option A: automatic join on Auth0 login/account creation.
+  - Option B: invite/admin approval only.
+  - Option C: tenant-configurable.
+  - Decision: Option A. Accounts currently travel seamlessly across tenants.
+- **Home tenant model:** store a home tenant per global user and warn when the
+  current tenant differs.
+  - Option A: no home tenant.
+  - Option B: one home tenant with warning.
+  - Option C: multiple favorites/defaults.
+  - Decision: Option B. This matches the root product context: users have a home
+    tenant and should be warned when browsing another tenant.
+- **Communication email:** treat it as a user-managed notification email that
+  may differ from Auth0 login email.
+  - Option A: always Auth0 email.
+  - Option B: separate notification email.
+  - Option C: tenant-specific notification email.
+  - Decision: Option B. Also investigate whether users can change their login
+    email where the auth method allows it; social-login email may not be
+    directly editable.
+- **Payout details scope:** keep payout details global per person.
+  - Option A: global per person.
+  - Option B: tenant-specific.
+  - Option C: per receipt/reimbursement request.
+  - Decision: Option A. People should not need different reimbursement targets
+    per tenant. Follow-up needed: define when payout fields are shown/required
+    in the profile UI.
+- **ESNcard scope:** store ESNcard records globally per user.
+  - Option A: global per user.
+  - Option B: tenant-specific.
+  - Option C: globally unique by card identifier.
+  - Decision: Option A. One natural person can only have one ESNcard. ESNcard UI
+    should be enabled when the user is connected to any tenant that has ESNcard
+    support enabled.
+- **Profile event actions:** relaunch profile should expose payment
+  continuation, ticket QR, participant cancellation, waitlist status/action, and
+  transfer/resale only for implemented flows.
+  - Option A: show all intended actions.
+  - Option B: show only implemented stateful actions and remove deferred copy.
+  - Option C: keep informational cards only.
+  - Decision: Option B. Profile is a primary recovery surface for user event
+    actions.
+
+### Tenant and Global Admin
+
+- **Global admin identity:** model global admins as platform principals separate
+  from tenant roles, with optional tenant-user assignment only when they need to
+  act inside a tenant as a tenant user.
+  - Option A: independent platform principals.
+  - Option B: tenant users with special metadata.
+  - Option C: tenant users plus separate platform-role table.
+  - Decision: Option A. Global admins are platform-level principals independent
+    from tenant roles. Current implementation may identify them as normal Auth0
+    accounts with specific Auth0 metadata.
+- **Global admin before tenant assignment:** yes, global admins can administer
+  tenant records before being assigned to the current tenant.
+  - Option A: require tenant assignment.
+  - Option B: allow platform-level administration without tenant assignment.
+  - Option C: require temporary impersonation assignment.
+  - Decision: Option B. Current-tenant membership should not gate platform
+    administration. When a global admin opens a tenant domain, the request still
+    resolves to and is related to that current tenant context.
+- **Tenant domains:** support one domain per tenant for relaunch; keep
+  multi-domain/custom-domain automation as later work.
+  - Option A: one domain only.
+  - Option B: multiple domains with verification/ownership records.
+  - Option C: defer custom domains.
+  - Decision: Option A for relaunch. Current domain setup is manual; a more
+    automated process would be useful later but is not relaunch scope.
+- **Branding/legal relaunch scope:** branding basics and legal links/text are
+  production blockers; advanced onboarding can wait.
+  - Option A: minimal name/logo/theme only.
+  - Option B: domain, logo/favicon/theme, legal/imprint/privacy/terms
+    links/text, locale/timezone/currency.
+  - Option C: full tenant onboarding portal.
+  - Decision: Option B.
+- **Currency/locale/timezone editability:** allow edits before dependent data
+  exists; restrict or require migration plan after payment/event data exists.
+  - Option A: always editable.
+  - Option B: locked after dependent data exists.
+  - Option C: editable with explicit migration/audit workflow.
+  - Decision: Option B for relaunch. These settings are locked once dependent
+    event/payment data exists.
+- **Global admin capabilities:** global admin should create tenants, edit
+  domains/settings, and support tenant admin views through explicit
+  impersonation/audit, not silent access.
+  - Option A: list tenants only.
+  - Option B: create/edit tenants and domains/settings.
+  - Option C: include audited impersonation/support mode.
+  - Decision: Option B for relaunch administration; Option C when support
+    workflows are needed.
+
+### Generated Documentation and Playwright Coverage
+
+- **Generated docs location:** default local output to this repository's ignored
+  `test-results/docs`; publish to the sibling docs app only through an explicit
+  docs-publish flow.
+  - Option A: check generated docs into this repo.
+  - Option B: check/publish to sibling documentation app.
+  - Option C: CI artifacts only.
+  - Decision: local Option A output path for safety, with explicit publish to a
+    docs app when desired.
+- **Product-facing docs:** docs for core workflows are product-facing and must
+  be accurate before relaunch; internal examples should be clearly tagged or
+  moved out of product docs.
+  - Option A: all generated docs are product-facing.
+  - Option B: split product docs from internal/testing examples.
+  - Option C: generated docs are internal evidence only.
+  - Decision: Option A. Generated docs are product-facing and should not mix in
+    internal/testing examples.
+- **List/discovery reporter side effects:** list/discovery commands should not
+  run reporters that clean or write docs output.
+  - Option A: current behavior acceptable.
+  - Option B: list/discovery avoids reporter output.
+  - Option C: docs generation is only a separate explicit command.
+  - Decision: Option C. Docs generation should be a separate explicit command.
+- **Placeholder `@req` ids and test tags:** retire placeholder requirement tags
+  and remove the requirement for `@req`/tracking-style tags if they do not
+  provide useful product or verification value.
+  - Option A: keep placeholder `@req` ids.
+  - Option B: convert to `test.fixme`.
+  - Option C: delete until behavior exists.
+  - Decision: Option C. The current `@req` and related tracking tags are not
+    needed as a mandatory system.
+- **Minimum durable Playwright relaunch coverage:** require deterministic
+  happy-path and key negative-path coverage for registration, finance, scanning,
+  roles, tenant admin, and profile/account flows.
+  - Option A: happy paths only.
+  - Option B: happy paths plus critical permission/tenant/payment negative
+    paths.
+  - Option C: broad matrix coverage.
+  - Decision: Option B, with enough extended critical-path coverage to be
+    confident about shipping. Avoid a broad matrix, but cover the paths that
+    would make relaunch unsafe if broken.
+
+### Local Runtime and Developer Workflow
+
+- **Docs output default:** default local docs output to ignored
+  `test-results/docs`; require explicit publish command for `evorto-pages`.
+  - Option A: direct sibling checkout output by default.
+  - Option B: local ignored output by default plus explicit publish.
+  - Option C: CI artifact only.
+  - Decision: Option B. Local docs output defaults to ignored repository-local
+    paths, with an explicit publish command for `evorto-pages`.
+- **Docker start reset behavior:** split destructive reset/start from
+  non-destructive start/restart.
+  - Option A: `docker:start` keeps resetting data.
+  - Option B: `docker:start` is non-destructive; add `docker:reset`.
+  - Option C: keep current behavior but rename it to make reset explicit.
+  - Decision: Option A. `docker:start` may reset local data because the intended
+    workflow is to seed enough data to get going from zero.
+- **Finance docs in CI baseline:** keep finance docs excluded only until finance
+  docs are rewritten to current behavior, with a visible follow-up.
+  - Option A: keep excluded indefinitely.
+  - Option B: fail loudly now.
+  - Option C: temporary exclusion with tracked cleanup.
+  - Decision: Option C.
+- **Playwright browser channel:** use bundled Playwright Chromium for CI and
+  default local runs; allow opt-in system Chrome for exploratory local
+  debugging.
+  - Option A: bundled Chromium only.
+  - Option B: prefer system Chrome locally.
+  - Option C: bundled by default, opt-in system channel.
+  - Decision: Option C.
+
 ## Evidence Checked
 
 - Root guidance: `AGENTS.md`, `PRODUCT.md`, `ARCHITECTURE.md`, `QUALITY.md`
@@ -93,7 +504,7 @@ and useful for small cleanup batches.
 - **Should fix before relaunch:** direct event detail access for unlisted events is covered and seems intended, but the UI should make sharing semantics clearer for organizers/admins.
 - **Acceptable for now:** event edit locks are duplicated in guard, details `canEdit`, `findOneForEdit`, and `events.update`. Duplication is not ideal, but server-side checks are the source of truth.
 
-### Open Product Questions
+### Product Questions Answered Above
 
 - Should rejected events be resubmitted without requiring any edit, or should the app require creators to acknowledge/change something first?
 - Should admins with `events:review` be able to edit pending events, or only approve/reject them?
@@ -148,7 +559,7 @@ and useful for small cleanup batches.
 - No reviewed test covers registration rejection for unpublished events, closed windows, ineligible roles, same user registering for organizer plus participant options, or concurrent capacity.
 - `tests/specs/events/price-labels-inclusive.spec.ts` is mostly placeholder assertions with TODOs. It should not be treated as real price-label regression coverage.
 
-### Open Product Questions
+### Product Questions Answered Above
 
 - Should full options join a waitlist automatically, expose a separate waitlist action, or fail until a later waitlist feature lands?
 - Are organizer registrations meant to use the same user-facing register button, or should organizer signup have a separate affordance/copy?
@@ -203,7 +614,7 @@ and useful for small cleanup batches.
 - `tests/docs/template.doc.ts` is only a discovery/tagging placeholder, not product documentation.
 - Permission matrix tests check template create link visibility, but they do not prove direct route or RPC denial.
 
-### Open Product Questions
+### Product Questions Answered Above
 
 - Is simple mode the intended relaunch template scope, or should richer registration options/add-ons/questions/organizer notes be available before relaunch?
 - Should `random` and `application` registration modes be selectable now if registration fulfillment does not implement those semantics?
@@ -217,7 +628,9 @@ and useful for small cleanup batches.
 - Add server-side offset ordering validation and focused unit tests in `SimpleTemplateService`.
 - Replace `Schema.Any` location fields with a shared schema or document why the boundary remains intentionally loose.
 - Quarantine or replace placeholder/fixme template tax-rate specs with active coverage for the current simple-mode UI.
-- Decide whether unsupported registration modes should be hidden until their behavior exists.
+- Implement `random` and `application` registration fulfillment semantics if
+  those modes remain visible for relaunch; otherwise hide them until their
+  behavior exists.
 
 ## Roles and Permissions
 
@@ -263,7 +676,7 @@ and useful for small cleanup batches.
 - `tests/specs/templates/templates.test.ts` skips the role autocomplete assertion when no role options are available, which can hide the non-admin role lookup problem.
 - `src/server/effect/rpc/handlers/users.handlers.spec.ts` expects `users.findMany` to return an extra `role` property not present in the RPC contract. That test encodes an implementation leak rather than the contract shape.
 
-### Open Product Questions
+### Product Questions Answered Above
 
 - Which role reads should be available to organizers creating events/templates, and should they expose only id/name/default flags instead of permissions?
 - Should `events:create` imply `templates:view` only in the client, or should resolved permissions always include dependencies before reaching server handlers?
@@ -328,7 +741,7 @@ and useful for small cleanup batches.
 - Tax-rate docs and specs provide better active coverage for `admin:tax` and inclusive Stripe tax-rate import/selection.
 - Server finance unit tests are thin: handler composition and one receipt media MIME-type rejection. Receipt preconditions and transaction visibility are mostly untested at the handler level.
 
-### Open Product Questions
+### Product Questions Answered Above
 
 - Should paid registration webhook handling update `confirmedSpots`/`reservedSpots`, or should counters be derived from registration rows instead of stored?
 - Is `paymentStatus` still part of the model, or should it be removed/migrated in favor of registration status plus transactions?
@@ -344,7 +757,8 @@ and useful for small cleanup batches.
 - Tie receipt media upload to authorized receipt submission or add a submit preflight/upload-token flow to prevent orphan object creation.
 - Rename receipt reimbursement UI copy from "refund" to "record reimbursement" unless an actual payout integration is added.
 - Validate receipt tax amount against total amount on submit and review.
-- Decide whether `paymentStatus` remains a supported field; then either maintain it in payment flows or remove/deprecate it.
+- Remove or deprecate `paymentStatus` in favor of registration status plus
+  transaction rows after confirming no active behavior depends on it.
 - Replace early-return receipt flow tests with deterministic fixtures and hard assertions for approval and reimbursement.
 - Rewrite finance overview docs so they describe the current tabbed UI and current permission names only.
 
@@ -388,7 +802,7 @@ and useful for small cleanup batches.
 - `tests/docs/events/register.doc.ts` documents that the ticket QR code is available after registration/payment, but there is no generated documentation journey for organizers scanning attendees.
 - `QUALITY.md` lists participant and guest-quantity check-in as high-value Playwright flows, but guest quantities are not represented in the reviewed check-in contract/UI.
 
-### Open Product Questions
+### Product Questions Answered Above
 
 - Should check-in be allowed for confirmed organizer/helper registrations, users with `events:organizeAll`, a new `events:checkIn` capability, or all of those?
 - Should scanning be allowed before event start, within a configurable window, or only after a manual organizer override?
@@ -453,7 +867,7 @@ and useful for small cleanup batches.
 - `tests/docs/users/create-account.doc.ts` is integration-tagged and skips without Auth0 Management credentials, so baseline docs do not prove the account-creation path.
 - `src/server/effect/rpc/handlers/users.handlers.spec.ts` covers `users.events` sorting and `users.findMany` role aggregation, but not account creation transactionality, existing-global-user tenant joining, profile update validation, or `userAssigned` behavior.
 
-### Open Product Questions
+### Product Questions Answered Above
 
 - Should a previously known global user be able to join a tenant automatically after Auth0 login, or should tenant joining require an invite/admin approval flow?
 - What is the intended home-tenant model, and should profile expose or warn about current tenant vs home tenant?
@@ -521,7 +935,7 @@ and useful for small cleanup batches.
 - `tests/docs/finance/inclusive-tax-rates.doc.ts` documents tenant tax-rate management, but there is no generated documentation for tenant general settings, tenant branding/legal settings, or global tenant administration.
 - Playwright browser probing was limited because the bundled Playwright browser was not installed and stored auth states were stale; system Chrome confirmed anonymous/global-admin redirects to Auth0.
 
-### Open Product Questions
+### Product Questions Answered Above
 
 - Should global admins be independent platform principals, tenant users with special metadata, or tenant users plus a separate platform-role table?
 - Can a global admin administer tenants before being assigned to the current tenant?
@@ -533,10 +947,12 @@ and useful for small cleanup batches.
 ### Recommended Cleanup Actions
 
 - Add route-level `globalAdmin:manageTenants` protection and Playwright denial coverage for `/global-admin` and `/global-admin/tenants`.
-- Decouple global-admin authorization from current tenant membership, or document and enforce that global admins must always have a platform tenant assignment.
+- Decouple global-admin authorization from current tenant membership while still
+  resolving tenant context when a global admin opens a tenant domain.
 - Centralize server permission evaluation so wildcard permissions, aliases, and dependencies match the client.
 - Add unit tests for `resolveTenantContext` covering host-first resolution, local cookie fallback, unknown-host 404 behavior, and stale tenant-cookie behavior.
-- Introduce an explicit tenant-domain model if custom domains are in relaunch scope; otherwise document one-domain-per-tenant as a temporary limit.
+- Document one-domain-per-tenant as the relaunch scope; leave automated
+  multi-domain/custom-domain management for later work.
 - Add tenant settings docs/specs for current settings and clearly mark missing branding/legal/domain settings as not implemented.
 - Decide whether `seoTitle` / `seoDescription` are product fields, then expose them through tenant config or remove/defer them.
 
@@ -573,7 +989,8 @@ and useful for small cleanup batches.
 - **Should fix before relaunch:** docs coverage is missing or thin for scanning/check-in mutation behavior, tenant/global-admin settings, account creation outside Auth0-management integration, profile discount add/refresh/remove flows, finance route gates, receipt review/refund behavior, role assignment/user management, and registration negative paths.
 - **Should fix before relaunch:** `tests/docs/template.doc.ts` is a generic template placeholder and should not ship as product documentation.
 - **Should fix before relaunch:** docs screenshot helpers use fixed waits or import-time environment reads in some paths. That adds flakiness and makes focused helper tests less reliable.
-- **Acceptable for now:** required `@track`, `@req`, and `@doc` tags make test intent easier to inventory.
+- **Should fix before relaunch:** required `@track`, `@req`, and `@doc` tags
+  should be removed if they do not provide useful product or verification value.
 - **Acceptable for now:** the documentation reporter has focused tests for output paths, cleanup, grouping, and permissions callouts.
 - **Acceptable for now:** deterministic seed helpers and scenario handles exist; the issue is where specs turn missing seeded state into skips or no-op passes.
 
@@ -585,12 +1002,12 @@ and useful for small cleanup batches.
 - Integration-only docs are correctly taggable, but baseline docs should still cover account/profile/tenant flows that do not require Auth0 Management or external APIs.
 - The current reporter output target points outside this repository, so this repo does not contain the generated documentation artifact it depends on.
 
-### Open Product Questions
+### Product Questions Answered Above
 
 - Should generated documentation be checked into this repository, the sibling documentation app, or treated only as generated CI artifacts?
 - Which generated docs are product-facing and must be accurate before relaunch, versus internal examples for agent/testing workflows?
 - Should list/discovery commands run reporters at all, or should docs generation be a separate explicit command?
-- Should placeholder `@req` ids be retired when the behavior is not implemented, or kept only as `test.fixme` with no green path?
+- Should required `@req` / tracking-style Playwright tags be removed?
 - What is the minimum durable Playwright coverage for relaunch across registration, finance, scanning, roles, tenant admin, and profile flows?
 
 ### Recommended Cleanup Actions
@@ -644,7 +1061,7 @@ and useful for small cleanup batches.
 - The generated-docs pass already records stale docs and placeholder Playwright coverage; the workflow pass adds the operational risk that default docs output can mutate a sibling checkout.
 - CI and local setup both install or expose Playwright browser installation, but full local e2e still was not run because it would start/reset the Docker runtime; an earlier page-backed check showed the matching browser binary still needs `bun run test:e2e:install`.
 
-### Open Product Questions
+### Product Questions Answered Above
 
 - Should generated docs output default to this repository's ignored `test-results/docs` locally, with publishing to `evorto-pages` handled by an explicit docs-publish flow?
 - Should `docker:start` keep resetting local database state on every start, or should there be separate reset and non-reset local server commands?
@@ -687,23 +1104,25 @@ and useful for small cleanup batches.
 
 ### Should Fix Before Relaunch
 
-1. Implement or explicitly defer guest quantities, waitlists, participant/admin cancellation, and transfer/resale.
+1. Implement guest quantities, distinct waitlist joining, participant/admin cancellation, and transfer/resale.
 2. Fix template discount copying to use stable identities instead of title matching.
 3. Add Playwright coverage for negative registration paths and role-ineligible direct links.
 4. Make organizer signup semantics visible and distinct if it remains modeled as a registration option.
-5. Decide whether simple-mode templates are sufficient for relaunch or expand template support for discounts, add-ons, questions, and organizer notes.
-6. Hide unsupported template registration modes until their runtime behavior exists, or clearly mark them as draft-only configuration.
+5. Keep simple-mode templates as the primary authoring UI, but expand reusable template support for discounts, add-ons, questions, and organizer notes/checklists where practical.
+6. Implement `random` and `application` registration fulfillment semantics if
+   those modes remain in the relaunch UI; otherwise hide them until their
+   runtime behavior exists.
 7. Fix role hub display persistence or remove the currently misleading hub flags from the role form.
-8. Implement or explicitly defer user-role assignment, then align `users:assignRoles`, user-list actions, and role docs.
-9. Clarify receipt reimbursement as a manual ledger action or add a real payout integration.
-10. Validate receipt tax amount consistency and decide whether receipts can be submitted before an event ends.
+8. Align role-assignment UI/docs with the migration-owned relaunch scope: migrated users start with correct roles, and product role-assignment UI is not the relaunch blocker.
+9. Clarify receipt reimbursement as a manual ledger action and rename UI away from "refund" unless money is actually moved.
+10. Validate receipt tax amount consistency and support pre-event receipt spending/submission.
 11. Add check-in timing, duplicate-scan, camera-error, and guest-quantity behavior before treating scanner UI as relaunch-ready.
-12. Clarify profile event cards, communication email, payout preference scope, and ESNcard validation UX before relaunch.
-13. Fill the tenant settings gap for domain/custom domain, branding, legal links/text, locale/currency/timezone, SEO fields, and global tenant-admin workflows.
-14. Make Playwright list/discovery side-effect-light and document or automate the local browser installation expectation.
+12. Clarify profile event cards, notification/login email behavior, global payout preference visibility, and global-per-user ESNcard validation UX before relaunch.
+13. Fill the tenant settings gap for one-domain relaunch support, branding, legal links/text, locale/currency/timezone, SEO fields, and global tenant-admin workflows.
+14. Make Playwright list/discovery side-effect-free and document or automate the local browser installation expectation.
 15. Update or regenerate `tests/test-inventory.md` after placeholder docs/specs are pruned.
 16. Move local generated docs defaults away from the sibling documentation checkout, or introduce an explicit docs-publish flow that cannot run accidentally during list/discovery.
-17. Decide whether Docker start should always reset local data or whether a non-destructive local restart command is needed.
+17. Keep `docker:start` reset behavior intentional and ensure seeded data is sufficient to get going from zero.
 
 ### Acceptable For Now
 
@@ -722,27 +1141,11 @@ and useful for small cleanup batches.
 13. Local runtime scripts now refresh `.env.dev` before running Playwright, database, or Docker commands.
 14. Angular and server unit-test commands now have separate test discovery ownership.
 
-### Product Decision Needed
+### Product Decisions Recorded
 
-1. Minimum relaunch scope for guest quantities, waitlists, transfers/resale, and cancellation.
-2. Exact UX for role-ineligible direct event links.
-3. Whether rejected events can be resubmitted unchanged.
-4. Whether event creation may produce organizer-only events.
-5. Whether simple-mode templates are a temporary authoring UI or the intended relaunch model.
-6. Whether random/application registration modes should remain selectable before their semantics exist.
-7. Which role reads are safe for organizers and whether those reads should expose permissions.
-8. Whether role hub visibility should use `showInHub`, `displayInHub`, or a migrated replacement field.
-9. Whether `event_registrations.paymentStatus` remains a supported model field.
-10. Whether receipts are allowed before event end, and whether manual reimbursement is enough for relaunch.
-11. Which users/capabilities can check in attendees, when scanning is allowed, and how duplicate scans should behave.
-12. Whether QR image generation and scanner URL parsing should enforce attendee/organizer identity or tenant-domain origin.
-13. How existing global users join additional tenants, and whether tenant joining needs invitation/approval.
-14. Whether `communicationEmail`, payout details, and ESNcard records are global user data or tenant-specific profile data.
-15. Whether global admins are independent platform principals or tenant users with special metadata/current-tenant assignment.
-16. Whether tenants need multiple verified domains for relaunch, and which branding/legal settings are production blockers.
-17. Whether generated documentation is checked into this repository, checked into the sibling documentation app, or published only from CI artifacts.
-18. Whether generated documentation should ever write directly into `evorto-pages` during local runs.
-19. Whether local Docker starts should remain destructive by default.
+The product questions from the first stabilization pass are answered in the
+Product Decision Draft near the top of this document. Future cleanup should
+implement those decisions or explicitly revise them there before changing code.
 
 ## Fixes Applied In This Pass
 

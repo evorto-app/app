@@ -115,7 +115,7 @@ Anonymous users may see events when those events have registration options avail
 
 Registration is one of the most important and complex parts of Evorto.
 
-An event has registration options. Registration options can represent participant tickets, organizer/helper signup, ESN-card discounted access, or other tenant-defined categories.
+A sign-up event has registration options. Registration options can represent participant tickets, organizer/helper signup, ESN-card discounted access, or other tenant-defined categories. Operational or announcement-style events may have no internal registration options and may later link to an external signup.
 
 Important rules:
 
@@ -124,7 +124,7 @@ Important rules:
 - Registration requires an account.
 - Guest spots are allowed as extra quantity attached to one logged-in buyer's registration.
 - Guest spots do not need separate accounts or contact information in the first version.
-- Check-in must account for guest quantities.
+- Check-in must account for guest quantities, including partial guest arrival.
 - Registration options define role-based eligibility.
 - Eligibility should be role-based for now.
 - Special cases such as banned users, ESN-card-only access, and participation in another program should be modeled through roles and registration-option eligibility.
@@ -161,6 +161,8 @@ They are useful for:
 - notifying interested users when capacity opens
 
 They do not need to behave like a strict reservation queue. A simple model such as notifying the top people on the waitlist when a spot becomes available is acceptable.
+
+Users should intentionally join a waitlist through a distinct action when an option is full. Do not silently add a user to a waitlist as a side effect of failed registration.
 
 ## Transfers and Resale
 
@@ -242,11 +244,13 @@ Evorto may duplicate relevant Stripe data locally for app behavior, reporting, a
 
 Users should receive registration confirmation and QR code only after registration is successful. For paid events, that means after successful payment.
 
+QR links behave like paper tickets: possession of the unguessable ticket URL is enough to render the QR image so it can be included in email. Check-in must validate registration status and show enough attendee identity for organizers to confirm the right person is presenting the ticket.
+
 ## Receipts and Reimbursements
 
-Organizers may submit receipts after an event.
+Organizers may submit receipts for event-related spending before or after an event.
 
-Receipts are used for later review and reimbursement. The first version does not need sophisticated budget planning or receipt categories unless a feature specifically requires them.
+Receipts are used for later review and manual reimbursement tracking. The first version does not need sophisticated budget planning, receipt categories, or payout-provider integration unless a feature specifically requires them.
 
 Receipt review should support email notification when a receipt is reviewed.
 
@@ -295,7 +299,7 @@ Legal pages are tenant-specific plus platform-specific. Evorto should not provid
 
 Essential product flows should be documented.
 
-Generated documentation should be grouped by feature area, with persona tags or metadata added later if useful.
+Generated documentation is product-facing. It should be grouped by feature area and should not mix in internal testing examples.
 
 Important documentation areas include:
 

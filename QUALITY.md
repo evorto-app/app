@@ -124,6 +124,9 @@ High-value Playwright flows include:
 - tenant branding/settings/legal page behavior
 
 Keep tests deterministic. Prefer seeded scenario handles over fuzzy discovery.
+Relaunch coverage should include happy paths plus the critical permission,
+tenant, payment, and recovery-path failures that would make shipping unsafe if
+broken. Do not turn this into a broad matrix for its own sake.
 
 Avoid noisy Playwright tests that only assert implementation details without protecting meaningful behavior.
 
@@ -132,6 +135,8 @@ Avoid noisy Playwright tests that only assert implementation details without pro
 Generated documentation is product documentation first and verification evidence second.
 
 Essential product flows should have generated documentation with screenshots where helpful.
+Documentation generation should happen through explicit docs commands; list or
+discovery commands should not clean or rewrite generated docs output.
 
 Organize generated docs by feature area, such as:
 

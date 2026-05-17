@@ -51,7 +51,9 @@ More specific guidance may exist deeper in some subtrees.
 - `bun run test:e2e:install` - install the local Playwright browser binaries.
 - `bun run lint` - lint with autofix.
 - `bun run format:write` - format with Prettier.
-- `bun run docker:start` / `bun run docker:stop` - start/stop local services.
+- `bun run docker:start` / `bun run docker:stop` - start/stop local services;
+  `docker:start` may reset local data and should leave enough seeded data to
+  get going from zero.
 - `bun run db:migrate`, `bun run db:push`, `bun run db:reset` - database commands.
 
 ## Local Environment
