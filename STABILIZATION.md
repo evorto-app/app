@@ -15,7 +15,7 @@ and useful for small cleanup batches.
 | Finance/receipts                                | First pass complete               | partial    | Payments, transactions, receipt review/refund, and docs reviewed; high-risk gaps remain.     |
 | Scanning/check-in                               | First pass complete               | partial    | QR display and scan read path exist, but actual check-in mutation and gating are incomplete. |
 | Profile/account flows                           | First pass complete               | partial    | Profile, account creation, discount cards, receipts, and auth guards reviewed.               |
-| Tenant/global admin                             | Not started                       | unknown    | Tenant resolution, branding, and global admin boundaries need review.                        |
+| Tenant/global admin                             | First pass complete               | partial    | Tenant resolution, tenant settings, and global-admin list surface reviewed.                  |
 | Generated documentation and Playwright coverage | First pass for event-related docs | partial    | Event docs exist, but some docs/specs encode aspirational or placeholder behavior.           |
 | Local runtime/developer workflow                | Lightly reviewed                  | partial    | Root/test/helper guidance and visible scripts reviewed.                                      |
 
@@ -53,6 +53,10 @@ and useful for small cleanup batches.
 - Profile/account RPC, auth, and schema paths: `src/shared/rpc-contracts/app-rpcs/users.*`, `src/shared/rpc-contracts/app-rpcs/discounts.*`, `src/server/effect/rpc/handlers/users.handlers.ts`, `src/server/effect/rpc/handlers/discounts.handlers.ts`, `src/server/auth/auth-session.ts`, `src/server/context/**`, `src/db/schema/users.ts`, `src/db/schema/user-discount-cards.ts`
 - Profile/account docs and specs: `tests/docs/profile/**`, `tests/docs/users/create-account.doc.ts`, `tests/specs/discounts/esn-discounts.test.ts`, `tests/specs/auth/storage-state-refresh.test.ts`, `src/server/effect/rpc/handlers/users.handlers.spec.ts`
 - Browser walkthrough: unauthenticated direct `/profile` redirects to Auth0 login; unauthenticated direct `/create-account` renders the create-account page with an email-verification error at local `http://localhost:4200`
+- Tenant/global admin app code: `src/app/global-admin/**`, `src/app/admin/general-settings/**`, `src/app/admin/admin.routes.ts`, `src/app/core/config.service.ts`, `src/app/core/effect-rpc-angular-client.ts`, `src/app/core/navigation/**`
+- Tenant/global admin RPC, context, and schema paths: `src/shared/rpc-contracts/app-rpcs/global-admin.rpcs.ts`, `src/shared/rpc-contracts/app-rpcs/admin.rpcs.ts`, `src/server/effect/rpc/handlers/global-admin.handlers.ts`, `src/server/effect/rpc/handlers/admin.handlers.ts`, `src/server/context/**`, `src/server/effect/rpc/app-rpcs.request-handler.ts`, `src/db/schema/tenants.ts`, `src/types/custom/tenant.ts`, `src/shared/tenant-config.ts`
+- Tenant/global admin seed/test/docs coverage: `helpers/seed-tenant.ts`, `helpers/create-tenant.ts`, `tests/specs/permissions/tenant-isolation-tax-rates.spec.ts`, `tests/specs/finance/tax-rates/admin-import-tax-rates.spec.ts`, `tests/specs/auth/storage-state-refresh.test.ts`, `tests/docs/finance/inclusive-tax-rates.doc.ts`, `tests/test-inventory.md`
+- Runtime walkthrough: unknown host `no-such-tenant.invalid` returned 404; anonymous `/global-admin` redirected to Auth0. Stored auth states were stale, so authenticated global-admin UI behavior was not reverified in this pass.
 
 ## Events
 
@@ -461,6 +465,74 @@ and useful for small cleanup batches.
 - Replace raw ESNcard mutation errors with `getErrorMessage(...)` and explicit retry/invalid-card copy.
 - Add profile/account tests for account creation retry/tenant-join behavior, profile edit persistence, ESNcard add/refresh/remove, and submitted receipt visibility.
 
+## Tenant/Global Admin
+
+### Current Behavior
+
+- Tenants are resolved from request host first. On local hosts, the `evorto-tenant` cookie can select the tenant domain; otherwise the host domain is authoritative.
+- If tenant resolution fails, SSR and RPC requests fail closed with a 404. A local probe with `Host: no-such-tenant.invalid` returned 404.
+- Tenant records currently store one unique `domain`, name, currency, locale, timezone, theme, default location, Stripe account id, receipt settings, discount provider settings, and SEO title/description.
+- Client config loads the current tenant and permission list through RPC and applies `theme-${tenant.theme}` to the document root.
+- Tenant admin "General settings" lets tenant admins change default location, site theme, receipt countries/allow-other, and ESNcard provider enablement plus buy URL.
+- Tenant settings writes are tenant-scoped and require `admin:changeSettings`; tax-rate admin reads/writes require `admin:tax`.
+- `/global-admin` is guarded by authentication only at the route level. The navigation link is hidden behind `globalAdmin:*`, and the tenant list RPC requires `globalAdmin:manageTenants`.
+- Global admin currently exposes only a tenant list with id/name/domain. There is no tenant create/edit/detail flow.
+- Global-admin permissions are derived from Auth0 app metadata `evorto.app/app_metadata.globalAdmin === true`, but only after a global user row and current-tenant assignment are found.
+- Anonymous direct `/global-admin` redirects to Auth0. Stored auth states were stale, so authenticated global-admin UI was not reverified through Playwright in this pass.
+
+### Intended Behavior From Product Context
+
+- Tenants own events, templates, roles, registrations, settings, branding, legal/privacy configuration, and payment-related tenant configuration.
+- Tenants are resolved by domain, including Evorto-provided subdomains and custom domains. Unknown domains should fail closed or show tenant-not-found.
+- Users are global and may belong to multiple tenants; home tenant support is desirable.
+- Admins configure tenant settings, roles, legal pages, branding, payment settings, review/publishing behavior, and financial workflows.
+- Global/admin workflows should remain permission-safe, tenant-safe, SSR-safe, and discoverable through the UI.
+
+### Issues and Risks
+
+- **Must fix before agent scaling:** global-admin app routes are only protected by `authGuard`. Direct `/global-admin` access by a non-global authenticated tenant user can reach the global-admin shell and rely on the RPC to fail. Route-level permission denial should match the RPC and navigation rules.
+- **Must fix before agent scaling:** global-admin status depends on Auth0 app metadata but is only evaluated after finding a tenant-scoped user assignment. That makes the global-admin model coupled to the current tenant and conflicts with the need to administer tenants even when tenant membership is missing, broken, or being repaired.
+- **Must fix before agent scaling:** server permission checks compare exact permission strings and do not share the client wildcard/dependency logic. A user with `globalAdmin:*` can see the client navigation but fail `globalAdmin:manageTenants` RPC authorization.
+- **Must fix before agent scaling:** tenant resolution has no focused unit tests for host-first precedence, local cookie fallback, unknown-host failure, or stale/wrong tenant cookies. Current coverage checks storage-state freshness and tenant schema headers, but not the resolver contract itself.
+- **Should fix before relaunch:** the tenant schema supports one `domain`, not multiple domains or domain verification states. Product context allows Evorto subdomains plus custom domains.
+- **Should fix before relaunch:** tenant settings UI does not expose tenant name, domain/custom domain, logo, favicon, legal/privacy/terms/imprint configuration, email sender name, review/publishing settings, registration limits, locale, currency, timezone, or Stripe account state.
+- **Should fix before relaunch:** tenant schema has `seoTitle` and `seoDescription`, but the `Tenant` RPC schema and settings UI do not expose or use them.
+- **Should fix before relaunch:** route-level guards are inconsistent in tenant admin. `/admin/tax-rates` and event reviews have route guards, but `/admin/settings`, roles, and users rely on links/RPCs or broader prior findings.
+- **Should fix before relaunch:** tenant settings save has no visible success/error feedback beyond mutation state, and raw errors can surface through the form flow.
+- **Acceptable for now:** tenant settings writes are scoped to the current tenant id and validate the returned tenant shape before responding.
+- **Acceptable for now:** unknown host requests fail closed with 404 instead of guessing a tenant.
+- **Acceptable for now:** RPC request-context headers are overwritten server-side before handler execution, so client-supplied `x-evorto-*` headers are not trusted as the source of tenant/user context.
+
+### Test and Documentation Quality
+
+- `src/server/context/tenant-schema.spec.ts` covers tenant schema defaults and RPC header serialization around optional default location.
+- `src/server/effect/rpc/handlers/middleware/rpc-request-context.middleware.spec.ts` covers decoding RPC context headers, including tenant and permissions.
+- `src/app/core/effect-rpc-angular-client.spec.ts` covers SSR RPC origin selection from incoming URL and forwarded headers.
+- `tests/specs/auth/storage-state-refresh.test.ts` covers stale/wrong tenant cookies in saved Playwright storage state, not runtime tenant resolution.
+- `tests/specs/permissions/tenant-isolation-tax-rates.spec.ts` checks seeded tenant tax-rate isolation directly in the database, but does not exercise the RPC/UI tenant context switch.
+- `tests/specs/finance/tax-rates/admin-import-tax-rates.spec.ts` covers route denial for `/admin/tax-rates`, but there is no matching coverage for `/admin/settings` or `/global-admin`.
+- `tests/docs/finance/inclusive-tax-rates.doc.ts` documents tenant tax-rate management, but there is no generated documentation for tenant general settings, tenant branding/legal settings, or global tenant administration.
+- Playwright browser probing was limited because the bundled Playwright browser was not installed and stored auth states were stale; system Chrome confirmed anonymous/global-admin redirects to Auth0.
+
+### Open Product Questions
+
+- Should global admins be independent platform principals, tenant users with special metadata, or tenant users plus a separate platform-role table?
+- Can a global admin administer tenants before being assigned to the current tenant?
+- Should tenants support multiple domains, and how should custom domain verification/ownership be modeled?
+- What is the minimum relaunch scope for tenant branding/legal settings versus later tenant onboarding work?
+- Should tenant currency/locale/timezone be editable after payment/event data exists?
+- Should global admin be able to create tenants, edit domains/settings, impersonate tenant admin views, or only list tenants for support?
+
+### Recommended Cleanup Actions
+
+- Add route-level `globalAdmin:manageTenants` protection and Playwright denial coverage for `/global-admin` and `/global-admin/tenants`.
+- Decouple global-admin authorization from current tenant membership, or document and enforce that global admins must always have a platform tenant assignment.
+- Centralize server permission evaluation so wildcard permissions, aliases, and dependencies match the client.
+- Add unit tests for `resolveTenantContext` covering host-first resolution, local cookie fallback, unknown-host 404 behavior, and stale tenant-cookie behavior.
+- Introduce an explicit tenant-domain model if custom domains are in relaunch scope; otherwise document one-domain-per-tenant as a temporary limit.
+- Add tenant settings docs/specs for current settings and clearly mark missing branding/legal/domain settings as not implemented.
+- Decide whether `seoTitle` / `seoDescription` are product fields, then expose them through tenant config or remove/defer them.
+
 ## Prioritized Cleanup Backlog
 
 ### Must Fix Before Agent Scaling
@@ -482,7 +554,9 @@ and useful for small cleanup batches.
 15. Make account creation transactional and compatible with global users joining multiple tenants.
 16. Fix anonymous `/create-account` behavior so it requires authentication or starts the login flow.
 17. Align ESNcard uniqueness/storage with the tenant/global user model.
-18. Remove misleading placeholder tests/docs from the event registration, event management, template tax-rate, role-assignment, finance overview, scanner, and profile/account surfaces.
+18. Add route-level global-admin protection and decouple global-admin authorization from current tenant membership.
+19. Add focused tenant-resolution tests for host/cookie precedence and unknown-host failure.
+20. Remove misleading placeholder tests/docs from the event registration, event management, template tax-rate, role-assignment, finance overview, scanner, and profile/account surfaces.
 
 ### Should Fix Before Relaunch
 
@@ -498,6 +572,7 @@ and useful for small cleanup batches.
 10. Validate receipt tax amount consistency and decide whether receipts can be submitted before an event ends.
 11. Add check-in timing, duplicate-scan, camera-error, and guest-quantity behavior before treating scanner UI as relaunch-ready.
 12. Clarify profile event cards, communication email, payout preference scope, and ESNcard validation UX before relaunch.
+13. Fill the tenant settings gap for domain/custom domain, branding, legal links/text, locale/currency/timezone, SEO fields, and global tenant-admin workflows.
 
 ### Acceptable For Now
 
@@ -510,6 +585,8 @@ and useful for small cleanup batches.
 7. QR code display is limited to confirmed registrations in the active registration UI.
 8. Profile receipt reads are tenant-scoped and user-scoped.
 9. Verified ESNcard discounts are checked in both event detail price display and registration payment resolution.
+10. Unknown tenant hosts fail closed with 404 in the current runtime.
+11. Tenant settings writes are tenant-scoped and validate the returned tenant shape before responding.
 
 ### Product Decision Needed
 
@@ -527,6 +604,8 @@ and useful for small cleanup batches.
 12. Whether QR image generation and scanner URL parsing should enforce attendee/organizer identity or tenant-domain origin.
 13. How existing global users join additional tenants, and whether tenant joining needs invitation/approval.
 14. Whether `communicationEmail`, payout details, and ESNcard records are global user data or tenant-specific profile data.
+15. Whether global admins are independent platform principals or tenant users with special metadata/current-tenant assignment.
+16. Whether tenants need multiple verified domains for relaunch, and which branding/legal settings are production blockers.
 
 ## Fixes Applied In This Pass
 
@@ -536,7 +615,8 @@ and useful for small cleanup batches.
 - None in the Finance/receipts pass. The highest-value issues touch payment-derived state, transaction visibility, and upload authorization, so they need targeted regression tests with the fixes.
 - None in the Scanning/check-in pass. The obvious issue is a missing state-changing workflow; it should be fixed as a focused mutation plus authorization and persistence tests.
 - None in the Profile/account pass. The high-value issues affect account transactionality, multi-tenant user semantics, and profile data modeling, so they need focused contract/schema tests with the fixes.
+- None in the Tenant/global admin pass. The obvious fixes affect authorization semantics and tenant-resolution tests, so they should be done as focused code/test commits rather than mixed into the audit document commit.
 
 ## Review Next
 
-Review Tenant/global admin next. Tenant resolution, tenant settings, global admin boundaries, and multi-tenant user behavior now connect directly to the profile/account findings above.
+Review generated documentation and Playwright coverage next. Several passes found stale docs, placeholder specs, missing route-denial coverage, and manual behavior that should become durable Playwright evidence.
