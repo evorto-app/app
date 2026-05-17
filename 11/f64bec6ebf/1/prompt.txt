@@ -1,14 +1,1 @@
-Do you think that a subtree for dirzzle would be helpful here as well?
-Potentially even tanstack query?
-
----
-
-Alright, please set up drizzle for us then
-
----
-
-I think that my PC went to sleep shortly, check up if it is fiine still
-
----
-
 Continue, I had to cancel for a while
