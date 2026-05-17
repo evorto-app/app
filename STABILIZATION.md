@@ -11,7 +11,7 @@ and useful for small cleanup batches.
 | Events                                          | First pass complete               | partial    | Code, tests, docs, and an unauthenticated Browser walkthrough reviewed.                      |
 | Registrations                                   | First pass complete               | partial    | Free/paid registration paths reviewed; several server-side precondition gaps need follow-up. |
 | Templates                                       | First pass complete               | partial    | Simple-mode template flow reviewed; permission and model-depth gaps need follow-up.          |
-| Roles and permissions                           | Not started                       | unknown    | Needed to validate event eligibility and admin surfaces.                                     |
+| Roles and permissions                           | First pass complete               | partial    | Core permission model reviewed; route/RPC semantics and role management gaps need follow-up. |
 | Finance/receipts                                | Not started                       | unknown    | Payment and receipt flows are high-risk and partially coupled to registrations.              |
 | Scanning/check-in                               | Not started                       | unknown    | Registration QR and organizer permissions depend on this.                                    |
 | Profile/account flows                           | Not started                       | unknown    | Account-required registration and discount cards depend on this.                             |
@@ -34,6 +34,11 @@ and useful for small cleanup batches.
 - Template schema: `src/db/schema/event-templates.ts`, `src/db/schema/template-registration-options.ts`, `src/db/schema/template-registration-option-discounts.ts`, `src/db/schema/template-event-addons.ts`
 - Template Playwright specs/docs: `tests/specs/templates/**`, `tests/docs/templates/templates.doc.ts`, `tests/docs/template.doc.ts`
 - Browser walkthrough: organizer `/templates` list and template detail at local `http://localhost:4200`
+- Roles and permissions code: `src/shared/permissions/**`, `src/app/admin/**`, `src/app/core/permissions.service.ts`, `src/app/core/guards/permission.guard.ts`, `src/app/shared/directives/*permission*`
+- Role/user RPC contracts and handlers: `src/shared/rpc-contracts/app-rpcs/admin.rpcs.ts`, `src/shared/rpc-contracts/app-rpcs/users.rpcs.ts`, `src/server/effect/rpc/handlers/admin.handlers.ts`, `src/server/effect/rpc/handlers/users.handlers.ts`
+- Role schema and seed data: `src/db/schema/roles.ts`, `src/db/schema/users.ts`, `helpers/add-roles.ts`, `helpers/user-data.ts`
+- Permission Playwright specs/docs: `tests/specs/permissions/**`, `tests/docs/roles/roles.doc.ts`, `tests/support/permissions/matrix.ts`
+- Browser walkthrough: organizer direct `/admin` and `/admin/roles` routes at local `http://localhost:4200`
 
 ## Events
 
@@ -189,6 +194,67 @@ and useful for small cleanup batches.
 - Quarantine or replace placeholder/fixme template tax-rate specs with active coverage for the current simple-mode UI.
 - Decide whether unsupported registration modes should be hidden until their behavior exists.
 
+## Roles and Permissions
+
+### Current Behavior
+
+- Permissions are string capabilities grouped by admin, internal, events, templates, users, and finance.
+- Tenant roles store permission arrays plus default user/organizer flags and hub-display fields.
+- New accounts receive tenant roles marked as default user roles.
+- Event/template registration eligibility is modeled through role ids stored on registration options.
+- The client `PermissionsService` supports direct permissions, group wildcard checks, the legacy `admin:manageTaxes` alias, and configured permission dependencies.
+- The role form automatically selects dependent permissions and marks them read-only when a parent permission is selected.
+- Admin role create, update, delete, find-one, and search RPCs require `admin:manageRoles`; `users.findMany` requires `users:viewAll`.
+- `admin.roles.findMany` and `admin.roles.findHubRoles` require only authentication.
+- Admin role routes, user routes, and general settings routes do not have route-level guards; tax rates and event reviews do.
+- Browser verification with an organizer account showed direct `/admin` and `/admin/roles` stay on the requested URL but render only the app shell/navigation instead of a clear not-allowed page.
+
+### Intended Behavior From Product Context
+
+- Tenants define their own roles; there is no single system-defined default role.
+- Default roles are tenant-managed and assigned to users by default in that tenant.
+- Capabilities should have admin-facing names/descriptions and can imply access to related data.
+- Role-based eligibility should remain the main way to model special cases instead of scattered flags.
+- Administrators manage tenant roles, permissions, tenant settings, and user-role assignment.
+- Tenant isolation and permission safety are core quality gates.
+
+### Issues and Risks
+
+- **Must fix before agent scaling:** client and server permission semantics are not centralized. The client expands dependencies and wildcard checks, while most server handlers check raw header permissions with `includes(...)`; `RpcAccess.ensurePermission` also checks only direct permissions. Future fixes can easily pass a UI guard while failing or bypassing server behavior.
+- **Must fix before agent scaling:** admin role/user/settings routes are missing capability guards. Direct navigation can reach admin URLs without a clear `403` result, and route-level behavior is inconsistent across admin children.
+- **Must fix before agent scaling:** `admin.roles.findMany` returns permission-bearing role records to any authenticated user. This currently supports template default-role queries, but it mixes low-risk role lookup with role administration data.
+- **Must fix before agent scaling:** shared role selection uses `admin.roles.search` and `admin.roles.findOne`, both gated by `admin:manageRoles`. Organizers need role selection for event/template registration options, so this should be split into a least-privilege role lookup API instead of borrowing the admin role-management API.
+- **Should fix before relaunch:** role form fields for hub display are misleading. The form exposes "Show this role in the hub" and "Collapse the members of this role by default", but create/update contracts and handlers ignore those fields, and `findHubRoles` filters `displayInHub` while the form edits `showInHub`.
+- **Should fix before relaunch:** `users:assignRoles` exists and depends on `users:viewAll`, but there is no reviewed role-assignment RPC or working UI. The user list shows role chips and placeholder "Edit template" actions.
+- **Should fix before relaunch:** permission metadata is mostly generated from camelCase keys and lacks durable admin-facing descriptions, even though product context says capabilities should have admin-facing names and descriptions.
+- **Acceptable for now:** roles are tenant-scoped in schema and role-management write queries include tenant boundaries.
+
+### Test and Documentation Quality
+
+- `src/shared/permissions/permissions.spec.ts` only checks schema literal round-tripping; it does not cover dependency expansion or client/server parity.
+- Permission matrix coverage currently checks admin tax rates and template creation link visibility, but it does not cover admin role/user/settings routes, role lookup APIs, or direct route denial for template creation.
+- `tests/docs/roles/roles.doc.ts` documents role creation and dependent permissions, but says users can be assigned to roles even though the reviewed UI/API does not implement role assignment.
+- `tests/docs/roles/roles.doc.ts` links to `/docs/about-permissions`; no matching checked-in documentation source was found in this pass.
+- `tests/specs/templates/templates.test.ts` skips the role autocomplete assertion when no role options are available, which can hide the non-admin role lookup problem.
+- `src/server/effect/rpc/handlers/users.handlers.spec.ts` expects `users.findMany` to return an extra `role` property not present in the RPC contract. That test encodes an implementation leak rather than the contract shape.
+
+### Open Product Questions
+
+- Which role reads should be available to organizers creating events/templates, and should they expose only id/name/default flags instead of permissions?
+- Should `events:create` imply `templates:view` only in the client, or should resolved permissions always include dependencies before reaching server handlers?
+- Should admin overview be visible to users with any `admin:*` capability, or should each admin child be discoverable only by its own permission?
+- What is the intended relaunch scope for assigning users to roles?
+- Should hub role visibility use `showInHub` or `displayInHub`, and should one of those fields be removed/migrated?
+
+### Recommended Cleanup Actions
+
+- Add a shared permission evaluation helper that handles dependencies, legacy aliases, and group checks consistently for client and server authorization.
+- Add route guards and Playwright denial coverage for admin role, user, settings, template write, and other permission-sensitive direct routes.
+- Split role lookup into separate APIs: admin role management for `admin:manageRoles`, and minimal tenant role lookup for event/template eligibility editing.
+- Fix or remove hub role form fields until `showInHub` / `displayInHub` semantics are explicit and persisted.
+- Implement or explicitly defer user-role assignment; remove placeholder "Edit template" actions from the user list if assignment is out of scope.
+- Replace skip-based role autocomplete coverage with an assertion that proves least-privilege organizers can see selectable roles when editing event/template eligibility.
+
 ## Prioritized Cleanup Backlog
 
 ### Must Fix Before Agent Scaling
@@ -199,7 +265,10 @@ and useful for small cleanup batches.
 4. Replace or validate `Schema.Any` event location at the RPC boundary.
 5. Add server-side template permission checks for view/create/edit and direct route guards for template write flows.
 6. Validate template category/role ids and template offset ordering at the server boundary.
-7. Remove misleading placeholder tests/docs from the event registration, event management, and template tax-rate surfaces.
+7. Centralize permission evaluation so client and server agree on dependencies, legacy aliases, and direct permission checks.
+8. Add route guards and direct-route denial coverage for admin role/user/settings and other permission-sensitive routes.
+9. Split role lookup APIs so organizers can select event/template eligibility roles without receiving admin role-management data.
+10. Remove misleading placeholder tests/docs from the event registration, event management, template tax-rate, and role-assignment surfaces.
 
 ### Should Fix Before Relaunch
 
@@ -209,6 +278,8 @@ and useful for small cleanup batches.
 4. Make organizer signup semantics visible and distinct if it remains modeled as a registration option.
 5. Decide whether simple-mode templates are sufficient for relaunch or expand template support for discounts, add-ons, questions, and organizer notes.
 6. Hide unsupported template registration modes until their runtime behavior exists, or clearly mark them as draft-only configuration.
+7. Fix role hub display persistence or remove the currently misleading hub flags from the role form.
+8. Implement or explicitly defer user-role assignment, then align `users:assignRoles`, user-list actions, and role docs.
 
 ### Acceptable For Now
 
@@ -216,6 +287,7 @@ and useful for small cleanup batches.
 2. Browser walkthrough coverage for anonymous event browsing is enough for this first pass; authenticated manual behavior should be revisited after server preconditions are fixed.
 3. Rich seeded demo data is useful even if some seeded states are ahead of implemented product behavior, as long as tests do not treat those states as complete features.
 4. The current template detail page is discoverable and useful as a summary of simple template defaults.
+5. Tenant scoping for role-management writes is explicit in the reviewed handlers and schema.
 
 ### Product Decision Needed
 
@@ -225,12 +297,15 @@ and useful for small cleanup batches.
 4. Whether event creation may produce organizer-only events.
 5. Whether simple-mode templates are a temporary authoring UI or the intended relaunch model.
 6. Whether random/application registration modes should remain selectable before their semantics exist.
+7. Which role reads are safe for organizers and whether those reads should expose permissions.
+8. Whether role hub visibility should use `showInHub`, `displayInHub`, or a migrated replacement field.
 
 ## Fixes Applied In This Pass
 
 - None. The obvious issues found in Events and Registrations affect server-side behavior and need focused tests, so they should be handled as small follow-up cleanup commits rather than opportunistic edits inside the audit document commit.
 - None in the Templates pass. The highest-value issues are permission and contract validation gaps that need targeted tests with the fixes.
+- None in the Roles and permissions pass. The obvious fixes touch authorization behavior and should be done with route/RPC denial tests instead of as opportunistic audit edits.
 
 ## Review Next
 
-Review Roles and permissions next. The Events, Registrations, and Templates passes all found capability/eligibility questions that should be resolved before touching finance or check-in behavior.
+Review Finance/receipts next. Registration payment behavior and organizer/admin capabilities depend on finance boundaries, receipt permissions, and Stripe-derived state.
