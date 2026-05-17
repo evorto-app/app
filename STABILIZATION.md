@@ -13,7 +13,7 @@ and useful for small cleanup batches.
 | Templates                                       | First pass complete               | partial    | Simple-mode template flow reviewed; permission and model-depth gaps need follow-up.          |
 | Roles and permissions                           | First pass complete               | partial    | Core permission model reviewed; route/RPC semantics and role management gaps need follow-up. |
 | Finance/receipts                                | First pass complete               | partial    | Payments, transactions, receipt review/refund, and docs reviewed; high-risk gaps remain.     |
-| Scanning/check-in                               | Not started                       | unknown    | Registration QR and organizer permissions depend on this.                                    |
+| Scanning/check-in                               | First pass complete               | partial    | QR display and scan read path exist, but actual check-in mutation and gating are incomplete. |
 | Profile/account flows                           | Not started                       | unknown    | Account-required registration and discount cards depend on this.                             |
 | Tenant/global admin                             | Not started                       | unknown    | Tenant resolution, branding, and global admin boundaries need review.                        |
 | Generated documentation and Playwright coverage | First pass for event-related docs | partial    | Event docs exist, but some docs/specs encode aspirational or placeholder behavior.           |
@@ -45,6 +45,10 @@ and useful for small cleanup batches.
 - Finance schema and seed data: `src/db/schema/finance-receipts.ts`, `src/db/schema/transactions.ts`, `src/db/schema/tenant-stripe-tax-rates.ts`, `helpers/add-finance-receipts.ts`, `helpers/add-tax-rates.ts`
 - Finance Playwright specs/docs: `tests/specs/finance/**`, `tests/docs/finance/**`, event registration payment docs in `tests/docs/events/register.doc.ts`
 - Browser walkthrough: unauthenticated direct `/finance` route redirects to Auth0 login at local `http://localhost:4200`
+- Scanning app code: `src/app/scanning/**`, QR display in `src/app/events/event-active-registration/**`, check-in counts in `src/app/events/event-organize/**`
+- Scanning RPC, HTTP, and schema paths: `events.registrationScanned` in `src/shared/rpc-contracts/app-rpcs/events.*`, `src/server/effect/rpc/handlers/events/events-registration.handlers.ts`, `src/server/http/qr-code.web-handler.ts`, `src/db/schema/event-registrations.ts`, `src/db/schema/event-registration-options.ts`
+- Scanning seed/test/docs coverage: `helpers/add-registrations.ts`, `tests/specs/scanning/scanner.test.ts`, QR mentions in `tests/docs/events/register.doc.ts`, `tests/test-inventory.md`
+- Browser walkthrough: unauthenticated direct `/scan` route renders Auth0 login at local `http://localhost:4200`
 
 ## Events
 
@@ -329,6 +333,64 @@ and useful for small cleanup batches.
 - Replace early-return receipt flow tests with deterministic fixtures and hard assertions for approval and reimbursement.
 - Rewrite finance overview docs so they describe the current tabbed UI and current permission names only.
 
+## Scanning/Check-In
+
+### Current Behavior
+
+- Confirmed user registrations show a "Your event ticket" card with a QR image at `/qr/registration/:registrationId`.
+- The QR HTTP route looks up the registration by id, finds the registration tenant, and encodes a scan target URL using the current request protocol plus the tenant domain.
+- `/scan` is an authenticated route that starts a camera-based QR scanner and navigates to `/scan/registration/:registrationId` when the QR URL path starts with `/scan/registration/`.
+- `/scan/registration/:registrationId` calls `events.registrationScanned`, shows attendee name, event title/start time, registration option title, ESNcard discount notice, same-user warning, future-event warning, and registration-status warning.
+- The scan result enables "Confirm Check In" when the scanned registration is confirmed and does not belong to the scanner.
+- `events.registrationScanned` is a read-only RPC. It does not update `event_registrations.checkInTime` or `event_registration_options.checkedInSpots`.
+- Event organize pages show aggregate checked-in counts from option counters and participant lists from registration rows; the old table-based check-in status UI is commented out.
+- Seed data simulates check-ins for past events by writing `checkInTime` and `checkedInSpots`, so local/demo data can look more complete than the runtime behavior.
+
+### Intended Behavior From Product Context
+
+- Organizers run events and check in participants with QR-code check-in.
+- Participants receive registration/check-in information only after successful registration; paid participants should only receive QR/check-in access after successful payment.
+- Check-in is a high-risk event/registration state transition because it touches registration persistence, organizer access, guest quantities, QR codes, and event archival.
+- Playwright should cover checking in participants and guest quantities for durable behavior.
+
+### Issues and Risks
+
+- **Must fix before agent scaling:** "Confirm Check In" is a no-op. The component method returns after checking `allowCheckin`, and there is no check-in mutation in the RPC contract or handler set. This makes the primary check-in workflow appear implemented while it cannot update attendance.
+- **Must fix before agent scaling:** `events.registrationScanned` only requires authentication. Any authenticated tenant user who obtains a registration id can read attendee first/last name, event title/start, option title, and discount flag. The route and RPC should be restricted to event organizers or an explicit check-in capability.
+- **Must fix before agent scaling:** check-in permission/capability is not modeled. Current permissions include event create/review/listing/organize-all, but no stable `events:checkIn` or equivalent capability for organizers/helpers who can scan without broad event-management rights.
+- **Must fix before agent scaling:** scan eligibility does not consider whether the registration was already checked in. The handler does not read `checkInTime`, so duplicate scans would still look allowable once a mutation is added unless the write path handles it explicitly.
+- **Should fix before relaunch:** event timing is only a UI warning. `allowCheckin` is true for any confirmed other-user registration, even if the event starts more than one hour in the future.
+- **Should fix before relaunch:** QR generation is unauthenticated. Registration ids are not discoverable in normal UI except by the holder, but the endpoint will generate a ticket QR for any known registration id without proving the requester is the attendee or an organizer.
+- **Should fix before relaunch:** the scanner accepts any absolute URL whose path starts with `/scan/registration/`, ignoring origin. That keeps tenant-domain QR codes portable, but it should be an explicit product/security decision.
+- **Should fix before relaunch:** camera startup errors are not mapped to a visible typed state. `qrScanner.start()` is fired without awaited error handling, so denied camera permission or unsupported devices can fail outside the component's error display.
+- **Acceptable for now:** QR code display is limited to confirmed registrations in the active registration UI, so pending paid registrations do not show the ticket card there.
+
+### Test and Documentation Quality
+
+- `tests/specs/scanning/scanner.test.ts` verifies that a confirmed registration opens the scan-result page and enables "Confirm Check In".
+- The scanner test can skip when no confirmed registration is found, and it does not click the button or assert any persisted check-in state. It currently encodes the misleading no-op behavior by stopping at button enabled.
+- No server unit/integration test covers scan authorization, same-user denial, already-checked-in behavior, future-event behavior, or check-in counter updates.
+- `tests/docs/events/register.doc.ts` documents that the ticket QR code is available after registration/payment, but there is no generated documentation journey for organizers scanning attendees.
+- `QUALITY.md` lists participant and guest-quantity check-in as high-value Playwright flows, but guest quantities are not represented in the reviewed check-in contract/UI.
+
+### Open Product Questions
+
+- Should check-in be allowed for confirmed organizer/helper registrations, users with `events:organizeAll`, a new `events:checkIn` capability, or all of those?
+- Should scanning be allowed before event start, within a configurable window, or only after a manual organizer override?
+- Should duplicate scans be idempotent success, warning-only, or blocked after the first check-in?
+- Should QR generation require the registration owner/organizer, or is an unguessable registration id considered enough for the image endpoint?
+- Should scanner URL validation require the current tenant domain, any known tenant domain, or any URL with the expected path?
+- What is the minimum relaunch scope for guest quantity check-in?
+
+### Recommended Cleanup Actions
+
+- Add an `events.checkInRegistration` mutation that atomically sets `checkInTime`, increments `checkedInSpots`, and rejects or idempotently handles duplicate scans.
+- Gate scan routes and scan/check-in RPCs through event organizer status or a dedicated check-in capability.
+- Add server tests for same-user scans, unauthorized tenant users, pending/cancelled/waitlisted registrations, duplicate scans, event timing, and counter updates.
+- Update the Playwright scanner spec to click "Confirm Check In" and assert persisted organizer overview/check-in state instead of only checking that the button is enabled.
+- Add generated organizer documentation for scanning an attendee once the mutation exists.
+- Add visible scanner camera-error handling for permission denial and unsupported devices.
+
 ## Prioritized Cleanup Backlog
 
 ### Must Fix Before Agent Scaling
@@ -345,7 +407,9 @@ and useful for small cleanup batches.
 10. Fix paid-registration webhook counter updates so Stripe completion/expiry keeps `reservedSpots` and `confirmedSpots` consistent.
 11. Gate finance transaction listing and finance routes with explicit finance permissions.
 12. Tie receipt media upload to receipt-submit authorization or an upload preflight to avoid orphan authenticated uploads.
-13. Remove misleading placeholder tests/docs from the event registration, event management, template tax-rate, role-assignment, and finance overview surfaces.
+13. Implement real check-in mutation behavior and make the visible scan UI persist `checkInTime` / `checkedInSpots`.
+14. Gate scan result and check-in behavior to organizers or a dedicated check-in capability.
+15. Remove misleading placeholder tests/docs from the event registration, event management, template tax-rate, role-assignment, finance overview, and scanner surfaces.
 
 ### Should Fix Before Relaunch
 
@@ -359,6 +423,7 @@ and useful for small cleanup batches.
 8. Implement or explicitly defer user-role assignment, then align `users:assignRoles`, user-list actions, and role docs.
 9. Clarify receipt reimbursement as a manual ledger action or add a real payout integration.
 10. Validate receipt tax amount consistency and decide whether receipts can be submitted before an event ends.
+11. Add check-in timing, duplicate-scan, camera-error, and guest-quantity behavior before treating scanner UI as relaunch-ready.
 
 ### Acceptable For Now
 
@@ -368,6 +433,7 @@ and useful for small cleanup batches.
 4. The current template detail page is discoverable and useful as a summary of simple template defaults.
 5. Tenant scoping for role-management writes is explicit in the reviewed handlers and schema.
 6. Receipt review/refund write paths are tenant-scoped and use status preconditions before changing receipt state.
+7. QR code display is limited to confirmed registrations in the active registration UI.
 
 ### Product Decision Needed
 
@@ -381,6 +447,8 @@ and useful for small cleanup batches.
 8. Whether role hub visibility should use `showInHub`, `displayInHub`, or a migrated replacement field.
 9. Whether `event_registrations.paymentStatus` remains a supported model field.
 10. Whether receipts are allowed before event end, and whether manual reimbursement is enough for relaunch.
+11. Which users/capabilities can check in attendees, when scanning is allowed, and how duplicate scans should behave.
+12. Whether QR image generation and scanner URL parsing should enforce attendee/organizer identity or tenant-domain origin.
 
 ## Fixes Applied In This Pass
 
@@ -388,7 +456,8 @@ and useful for small cleanup batches.
 - None in the Templates pass. The highest-value issues are permission and contract validation gaps that need targeted tests with the fixes.
 - None in the Roles and permissions pass. The obvious fixes touch authorization behavior and should be done with route/RPC denial tests instead of as opportunistic audit edits.
 - None in the Finance/receipts pass. The highest-value issues touch payment-derived state, transaction visibility, and upload authorization, so they need targeted regression tests with the fixes.
+- None in the Scanning/check-in pass. The obvious issue is a missing state-changing workflow; it should be fixed as a focused mutation plus authorization and persistence tests.
 
 ## Review Next
 
-Review Scanning/check-in next. Registration QR visibility, organizer access, and confirmed registration state now depend on the registration/payment findings above.
+Review Profile/account flows next. Account-required registration, profile receipt visibility, QR/ticket display, and discount-card behavior depend on the registration, finance, and scanning findings above.
