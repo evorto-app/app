@@ -12,7 +12,7 @@ and useful for small cleanup batches.
 | Registrations                                   | First pass complete               | partial    | Free/paid registration paths reviewed; several server-side precondition gaps need follow-up. |
 | Templates                                       | First pass complete               | partial    | Simple-mode template flow reviewed; permission and model-depth gaps need follow-up.          |
 | Roles and permissions                           | First pass complete               | partial    | Core permission model reviewed; route/RPC semantics and role management gaps need follow-up. |
-| Finance/receipts                                | Not started                       | unknown    | Payment and receipt flows are high-risk and partially coupled to registrations.              |
+| Finance/receipts                                | First pass complete               | partial    | Payments, transactions, receipt review/refund, and docs reviewed; high-risk gaps remain.     |
 | Scanning/check-in                               | Not started                       | unknown    | Registration QR and organizer permissions depend on this.                                    |
 | Profile/account flows                           | Not started                       | unknown    | Account-required registration and discount cards depend on this.                             |
 | Tenant/global admin                             | Not started                       | unknown    | Tenant resolution, branding, and global admin boundaries need review.                        |
@@ -39,6 +39,12 @@ and useful for small cleanup batches.
 - Role schema and seed data: `src/db/schema/roles.ts`, `src/db/schema/users.ts`, `helpers/add-roles.ts`, `helpers/user-data.ts`
 - Permission Playwright specs/docs: `tests/specs/permissions/**`, `tests/docs/roles/roles.doc.ts`, `tests/support/permissions/matrix.ts`
 - Browser walkthrough: organizer direct `/admin` and `/admin/roles` routes at local `http://localhost:4200`
+- Finance app code: `src/app/finance/**`, receipt submission in `src/app/events/event-organize/**`, profile receipt display in `src/app/profile/user-profile/**`
+- Finance RPC contracts and handlers: `src/shared/rpc-contracts/app-rpcs/finance.*`, `src/server/effect/rpc/handlers/finance/**`
+- Payment/webhook paths: `src/server/effect/rpc/handlers/events/event-registration.service.ts`, `src/server/http/stripe-webhook.web-handler.ts`
+- Finance schema and seed data: `src/db/schema/finance-receipts.ts`, `src/db/schema/transactions.ts`, `src/db/schema/tenant-stripe-tax-rates.ts`, `helpers/add-finance-receipts.ts`, `helpers/add-tax-rates.ts`
+- Finance Playwright specs/docs: `tests/specs/finance/**`, `tests/docs/finance/**`, event registration payment docs in `tests/docs/events/register.doc.ts`
+- Browser walkthrough: unauthenticated direct `/finance` route redirects to Auth0 login at local `http://localhost:4200`
 
 ## Events
 
@@ -255,6 +261,74 @@ and useful for small cleanup batches.
 - Implement or explicitly defer user-role assignment; remove placeholder "Edit template" actions from the user list if assignment is out of scope.
 - Replace skip-based role autocomplete coverage with an assertion that proves least-privilege organizers can see selectable roles when editing event/template eligibility.
 
+## Finance/Receipts
+
+### Current Behavior
+
+- Paid event registration creates a pending registration, reserves a spot, creates a Stripe Checkout session, and stores a pending `registration` transaction with Stripe checkout ids.
+- Stripe `checkout.session.completed` marks the local transaction successful and the registration confirmed when the session is complete and paid.
+- Stripe `checkout.session.expired` marks the local transaction cancelled and the registration cancelled.
+- Finance navigation is hidden behind `finance:*`, but `/finance` and its child routes are only guarded by authentication/user-account guards.
+- The finance overview links to transactions, receipt approvals, and receipt refunds.
+- `finance.transactions.findMany` returns non-cancelled tenant transactions to any authenticated user.
+- Event organizers or users with receipt-management capabilities can submit receipts from the event organize page.
+- Receipt upload is a separate authenticated RPC that stores image/PDF originals in object storage, or a local-unavailable placeholder when storage config is absent.
+- Finance reviewers can approve/reject submitted receipts; refund users can group approved receipts by submitter and create manual refund/reimbursement transactions.
+- Profile shows the current user's submitted receipts.
+
+### Intended Behavior From Product Context
+
+- Stripe is the payment source of truth; local state should mirror Stripe lifecycle and must not fake successful payment state.
+- Users should receive registration confirmation and QR code only after successful registration; for paid events, after successful payment.
+- Organizers may submit receipts after an event.
+- Receipts are reviewed and reimbursed; the first version does not need sophisticated budgeting or receipt categories.
+- Receipt review should support email notification when a receipt is reviewed.
+- Finance and payment flows are high-risk and should be permission-safe, tenant-safe, and payment-safe.
+
+### Issues and Risks
+
+- **Must fix before agent scaling:** Stripe checkout completion confirms the registration but does not move the registration option counters from `reservedSpots` to `confirmedSpots`. Checkout expiry also cancels the registration but does not decrement `reservedSpots`. This makes paid registration capacity/state drift after webhook processing.
+- **Must fix before agent scaling:** `finance.transactions.findMany` only checks authentication, while navigation and docs imply finance capability gating. Any authenticated tenant user can call the RPC directly and read transaction amounts, comments, methods, and fees.
+- **Must fix before agent scaling:** finance routes have no capability guards. Some child RPCs will fail, but direct routes do not consistently produce a clear `403`, and the transaction route currently has a permissive RPC behind it.
+- **Must fix before agent scaling:** receipt media upload is authenticated-only and not tied to an event, pending receipt, or receipt-submit permission check. A signed-in user can create orphan receipt objects even if `finance.receipts.submit` later rejects the event.
+- **Should fix before relaunch:** manual receipt reimbursement is labeled as "Issue refund" / "Refund transaction created", but it only records a successful local transfer/PayPal transaction. The UI should avoid implying that money was actually sent through a payout provider.
+- **Should fix before relaunch:** receipt submission and review validate deposit/alcohol against total, but do not reject tax amounts greater than the total amount.
+- **Should fix before relaunch:** receipts are intended as post-event submissions, but the reviewed server path allows receipt submission for any event where the user is allowed to organize/manage receipts.
+- **Should fix before relaunch:** `event_registrations.paymentStatus` exists and tests seed it as `PENDING`, but the reviewed registration/payment paths do not maintain it. It is stale unless the product intentionally uses registration `status` as the only payment lifecycle state.
+- **Should fix before relaunch:** receipt review records status locally but no reviewed-email or notification delivery path was found.
+- **Acceptable for now:** receipt review/refund queries are tenant-scoped, and receipt refund creation uses a transaction plus status preconditions to avoid refunding the wrong submitter or already-refunded receipts.
+
+### Test and Documentation Quality
+
+- Stripe webhook replay specs cover idempotent completed sessions, processing-claim behavior, stale-claim reclaim, payment-intent fallback, and ignoring unpaid completed sessions.
+- Existing Stripe webhook specs assert registration/transaction status but not paid-registration capacity counters or `paymentStatus`, so they miss the counter drift.
+- Receipt flow specs cover receipt submission UI, receipt approval/refund path, and tenant "Other" receipt country visibility.
+- `tests/specs/finance/receipts-flows.spec.ts` contains early `return` paths when no pending receipt, no refundable receipt, no checkbox, or no enabled refund action exists. Those branches can make the approval/refund test pass without proving the behavior.
+- Finance overview docs describe totals, recent transactions, filtering, and sorting that are not visible in the current finance UI.
+- Finance overview docs use stale permission names (`finance:view`, `finance:manage`) instead of current capabilities.
+- Tax-rate docs and specs provide better active coverage for `admin:tax` and inclusive Stripe tax-rate import/selection.
+- Server finance unit tests are thin: handler composition and one receipt media MIME-type rejection. Receipt preconditions and transaction visibility are mostly untested at the handler level.
+
+### Open Product Questions
+
+- Should paid registration webhook handling update `confirmedSpots`/`reservedSpots`, or should counters be derived from registration rows instead of stored?
+- Is `paymentStatus` still part of the model, or should it be removed/migrated in favor of registration status plus transactions?
+- Which finance capability should gate the transaction list: `finance:viewTransactions`, `finance:manageReceipts`, or a broader finance overview permission?
+- Should receipt uploads be created only after submit authorization succeeds, or should upload sessions be issued from a receipt-submit preflight?
+- Should receipt reimbursement remain a manual ledger action, or will it eventually integrate with a payout provider?
+- Should receipts be restricted to event end dates, or is pre-event spending intentionally allowed?
+
+### Recommended Cleanup Actions
+
+- Add webhook-side counter updates for paid checkout completion/expiry and regression tests that assert registration status, transaction status, and option counters together.
+- Gate finance routes and `finance.transactions.findMany` with explicit finance permissions and direct-route Playwright denial coverage.
+- Tie receipt media upload to authorized receipt submission or add a submit preflight/upload-token flow to prevent orphan object creation.
+- Rename receipt reimbursement UI copy from "refund" to "record reimbursement" unless an actual payout integration is added.
+- Validate receipt tax amount against total amount on submit and review.
+- Decide whether `paymentStatus` remains a supported field; then either maintain it in payment flows or remove/deprecate it.
+- Replace early-return receipt flow tests with deterministic fixtures and hard assertions for approval and reimbursement.
+- Rewrite finance overview docs so they describe the current tabbed UI and current permission names only.
+
 ## Prioritized Cleanup Backlog
 
 ### Must Fix Before Agent Scaling
@@ -268,7 +342,10 @@ and useful for small cleanup batches.
 7. Centralize permission evaluation so client and server agree on dependencies, legacy aliases, and direct permission checks.
 8. Add route guards and direct-route denial coverage for admin role/user/settings and other permission-sensitive routes.
 9. Split role lookup APIs so organizers can select event/template eligibility roles without receiving admin role-management data.
-10. Remove misleading placeholder tests/docs from the event registration, event management, template tax-rate, and role-assignment surfaces.
+10. Fix paid-registration webhook counter updates so Stripe completion/expiry keeps `reservedSpots` and `confirmedSpots` consistent.
+11. Gate finance transaction listing and finance routes with explicit finance permissions.
+12. Tie receipt media upload to receipt-submit authorization or an upload preflight to avoid orphan authenticated uploads.
+13. Remove misleading placeholder tests/docs from the event registration, event management, template tax-rate, role-assignment, and finance overview surfaces.
 
 ### Should Fix Before Relaunch
 
@@ -280,6 +357,8 @@ and useful for small cleanup batches.
 6. Hide unsupported template registration modes until their runtime behavior exists, or clearly mark them as draft-only configuration.
 7. Fix role hub display persistence or remove the currently misleading hub flags from the role form.
 8. Implement or explicitly defer user-role assignment, then align `users:assignRoles`, user-list actions, and role docs.
+9. Clarify receipt reimbursement as a manual ledger action or add a real payout integration.
+10. Validate receipt tax amount consistency and decide whether receipts can be submitted before an event ends.
 
 ### Acceptable For Now
 
@@ -288,6 +367,7 @@ and useful for small cleanup batches.
 3. Rich seeded demo data is useful even if some seeded states are ahead of implemented product behavior, as long as tests do not treat those states as complete features.
 4. The current template detail page is discoverable and useful as a summary of simple template defaults.
 5. Tenant scoping for role-management writes is explicit in the reviewed handlers and schema.
+6. Receipt review/refund write paths are tenant-scoped and use status preconditions before changing receipt state.
 
 ### Product Decision Needed
 
@@ -299,13 +379,16 @@ and useful for small cleanup batches.
 6. Whether random/application registration modes should remain selectable before their semantics exist.
 7. Which role reads are safe for organizers and whether those reads should expose permissions.
 8. Whether role hub visibility should use `showInHub`, `displayInHub`, or a migrated replacement field.
+9. Whether `event_registrations.paymentStatus` remains a supported model field.
+10. Whether receipts are allowed before event end, and whether manual reimbursement is enough for relaunch.
 
 ## Fixes Applied In This Pass
 
 - None. The obvious issues found in Events and Registrations affect server-side behavior and need focused tests, so they should be handled as small follow-up cleanup commits rather than opportunistic edits inside the audit document commit.
 - None in the Templates pass. The highest-value issues are permission and contract validation gaps that need targeted tests with the fixes.
 - None in the Roles and permissions pass. The obvious fixes touch authorization behavior and should be done with route/RPC denial tests instead of as opportunistic audit edits.
+- None in the Finance/receipts pass. The highest-value issues touch payment-derived state, transaction visibility, and upload authorization, so they need targeted regression tests with the fixes.
 
 ## Review Next
 
-Review Finance/receipts next. Registration payment behavior and organizer/admin capabilities depend on finance boundaries, receipt permissions, and Stripe-derived state.
+Review Scanning/check-in next. Registration QR visibility, organizer access, and confirmed registration state now depend on the registration/payment findings above.
