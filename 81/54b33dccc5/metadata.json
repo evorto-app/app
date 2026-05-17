@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "8154b33dccc5",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".github/workflows/copilot-setup-steps.yml",
+    ".github/workflows/e2e-baseline.yml",
+    "AGENTS.md",
+    "README.md",
+    "STABILIZATION.md",
+    "angular.json",
+    "helpers/README.md",
+    "package.json",
+    "tests/README.md",
+    "tsconfig.spec.json"
+  ],
+  "sessions": [
+    {
+      "metadata": "/81/54b33dccc5/0/metadata.json",
+      "transcript": "/81/54b33dccc5/0/full.jsonl",
+      "content_hash": "/81/54b33dccc5/0/content_hash.txt",
+      "prompt": ""
+    }
+  ]
+}
