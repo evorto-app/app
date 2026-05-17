@@ -1,0 +1,54 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "e82dcf4b4886",
+  "session_id": "019e3540-e5d0-7ac2-82d8-08076ec89a2e",
+  "strategy": "manual-commit",
+  "created_at": "2026-05-17T11:13:24.138331Z",
+  "branch": "main",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "STABILIZATION.md"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.5",
+  "turn_id": "edcce32b9c1d",
+  "checkpoint_transcript_start": 402,
+  "transcript_lines_at_start": 402,
+  "token_usage": {
+    "input_tokens": 593477,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 16413184,
+    "output_tokens": 40164,
+    "api_call_count": 135
+  },
+  "session_metrics": {
+    "turn_count": 6
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-05-17T11:13:24.039594Z",
+    "agent_lines": 0,
+    "agent_removed": 0,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 5,
+    "total_committed": 0,
+    "total_lines_changed": 5,
+    "agent_percentage": 0,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 231,
+      "user_lines_removed": 5,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        "STABILIZATION.md": 231
+      },
+      "user_removed_per_file": {
+        "STABILIZATION.md": 5
+      }
+    }
+  ]
+}
