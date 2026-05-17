@@ -17,7 +17,7 @@ and useful for small cleanup batches.
 | Profile/account flows                           | First pass complete | partial    | Profile, account creation, discount cards, receipts, and auth guards reviewed.               |
 | Tenant/global admin                             | First pass complete | partial    | Tenant resolution, tenant settings, and global-admin list surface reviewed.                  |
 | Generated documentation and Playwright coverage | First pass complete | partial    | Docs/spec inventory is discoverable again, but several docs/specs are stale or misleading.   |
-| Local runtime/developer workflow                | Lightly reviewed    | partial    | Root/test/helper guidance and visible scripts reviewed.                                      |
+| Local runtime/developer workflow                | First pass complete | partial    | Scripts, env loading, Docker/Playwright setup, and unit-test ownership reviewed.             |
 
 ## Evidence Checked
 
@@ -62,6 +62,8 @@ and useful for small cleanup batches.
 - Generated documentation specs: `tests/docs/**`
 - Playwright specs with stabilization-relevant gaps: `tests/specs/events/**`, `tests/specs/templates/**`, `tests/specs/finance/**`, `tests/specs/scanning/scanner.test.ts`, `tests/specs/permissions/**`, `tests/specs/reporting/reporter-paths.test.ts`, `tests/specs/screenshot/doc-screenshot.test.ts`
 - Lightweight Playwright checks: `bun run test:e2e -- --list`, `bun run test:e2e:docs -- --list`, `bun run test:e2e -- tests/specs/reporting/reporter-paths.test.ts --no-deps`, `bun run test:e2e -- tests/specs/screenshot/doc-screenshot.test.ts --no-deps`
+- Local runtime/developer workflow: `README.md`, `AGENTS.md`, `tests/README.md`, `helpers/README.md`, `src/server/config/AGENTS.md`, `package.json`, `docker-compose.yml`, `Dockerfile`, `helpers/testing/runtime-environment.ts`, `angular.json`, `tsconfig.spec.json`, `.github/workflows/e2e-baseline.yml`, `.github/workflows/copilot-setup-steps.yml`
+- Local workflow checks: `bun run env:runtime`, `bun --version`, `node --version`, `bunx playwright --version`, `docker compose version`, `node_modules/.bin/dotenv -c dev -- docker compose config --quiet`, `bun run build:app`, `bun run test:unit -- --watch=false`, `bun run test:unit:server`, `DOCS_OUT_DIR=test-results/docs DOCS_IMG_OUT_DIR=test-results/docs/images bun run test:e2e -- --list`, `DOCS_OUT_DIR=test-results/docs DOCS_IMG_OUT_DIR=test-results/docs/images bun run test:e2e:docs -- --list`
 
 ## Events
 
@@ -601,6 +603,62 @@ and useful for small cleanup batches.
 - Update `tests/test-inventory.md` after stale/placeholder docs are pruned.
 - Add missing docs/specs for scanning mutation, tenant/global-admin settings, account/profile persistence, role/user management, and negative registration paths as those flows are stabilized.
 
+## Local Runtime/Developer Workflow
+
+### Current Behavior
+
+- The repo is Bun-first. `packageManager`, the Docker base image, local Bun, and CI setup now agree on Bun `1.3.11`.
+- Important entrypoints remain visible in `package.json`: app build/dev, unit tests, Playwright e2e/docs, Docker stack, database commands, dependency updates, Stripe/Sentry ops, theme generation, and receipt-image cleanup.
+- Local runtime config uses `.env.dev.local` for tracked shared defaults, `.env.dev` for generated worktree-specific values, and `.env` for untracked developer secrets.
+- `bun run env:runtime` writes `.env.dev` with worktree-specific `COMPOSE_PROJECT_NAME`, Neon Local port, MinIO ports, `BASE_URL`, and local `DATABASE_URL`.
+- Local `test:e2e`, `test:e2e:ui`, `test:e2e:docs`, `db:*`, and `docker:*` scripts now refresh `.env.dev` before running `dotenv -c dev`, reducing fresh-worktree and wrong-database risk.
+- Docker Compose uses Neon Local, MinIO, Stripe CLI, a one-shot `db-setup` service, and an `evorto` app container that fails fast when required Auth0/session values are missing.
+- `bun run build:app`, `bun run test:unit -- --watch=false`, and `bun run test:unit:server` pass in the current checkout.
+- Playwright test discovery works through the package scripts, but full page-backed Playwright execution still requires installing the matching browser binaries.
+- The shell has another `dotenv` binary earlier on `PATH`; bare `dotenv -c dev` fails, while package scripts and `node_modules/.bin/dotenv -c dev` work.
+
+### Intended Behavior From Product Context
+
+- Future agents should be able to find the correct local command without reconstructing workflow rules from chat history.
+- Local runtime setup should be deterministic, worktree-safe, tenant-safe, and hard to accidentally point at shared/remote state.
+- Verification commands should be honest: each script should own a clear slice of tests and should not hide stale, duplicate, or misleading coverage.
+- Documentation should stay lightweight, operational, and close to the code or workflow it governs.
+
+### Issues and Risks
+
+- **Must fix before agent scaling:** fixed in this pass: `bun run test:unit` previously let Angular's unit-test builder discover server/database specs that belong to `test:unit:server`, causing a hard compile failure before the fix and noisy duplicate bundling after only narrowing `tsconfig.spec.json`.
+- **Must fix before agent scaling:** fixed in this pass: local destructive/runtime scripts could run without first generating `.env.dev`, which made fresh worktrees dependent on stale or missing local runtime overrides and increased wrong-database risk.
+- **Must fix before agent scaling:** fixed in this pass: local docs did not expose a package script for installing Playwright browser binaries even though page-backed Playwright specs fail without them.
+- **Should fix before relaunch:** docs generation defaults can still point to paths from `.env` outside this repository, so list-only Playwright commands can clear generated docs in a sibling checkout unless callers override `DOCS_OUT_DIR` / `DOCS_IMG_OUT_DIR`.
+- **Should fix before relaunch:** CI e2e docs intentionally skip `@finance` docs in the baseline docs run. That may be pragmatic while finance docs are unstable, but it should remain visible because finance documentation can drift from product behavior.
+- **Should fix before relaunch:** `docker:start` and Playwright `webServer` run the foreground Docker stack through a destructive `docker compose down` and `db-setup` reset. This is documented, but future agents should treat it as a database-resetting command, not a harmless server start.
+- **Should fix before relaunch:** the direct shell `dotenv` command is ambiguous on this machine. Future instructions should consistently say `bun run ...` or `node_modules/.bin/dotenv`, not bare `dotenv`.
+- **Acceptable for now:** keeping core commands visible in `package.json` makes the workflow easier for agents than hiding orchestration in helper wrappers.
+- **Acceptable for now:** `.env.dev` is ignored and generated per worktree, while `.env.dev.local` remains tracked for shared defaults.
+- **Acceptable for now:** Docker Compose config validates with the local dotenv-cli path without starting services.
+
+### Test and Documentation Quality
+
+- Root, test, helper, and config docs now agree that local runtime scripts refresh `.env.dev` and use `dotenv -c dev`.
+- The Angular unit-test target now has explicit app/shared discovery ownership; server/db/helper specs remain covered by Vitest through `test:unit:server`.
+- The generated-docs pass already records stale docs and placeholder Playwright coverage; the workflow pass adds the operational risk that default docs output can mutate a sibling checkout.
+- CI and local setup both install or expose Playwright browser installation, but full local e2e still was not run because it would start/reset the Docker runtime; an earlier page-backed check showed the matching browser binary still needs `bun run test:e2e:install`.
+
+### Open Product Questions
+
+- Should generated docs output default to this repository's ignored `test-results/docs` locally, with publishing to `evorto-pages` handled by an explicit docs-publish flow?
+- Should `docker:start` keep resetting local database state on every start, or should there be separate reset and non-reset local server commands?
+- Should finance docs remain excluded from CI docs baseline until the finance behavior is stabilized, or should they fail loudly now?
+- Should Playwright use bundled Chromium only, or should local development prefer a system Chrome channel when available?
+
+### Recommended Cleanup Actions
+
+- Make docs output side effects explicit by defaulting local generated docs to `test-results/docs` or adding a dedicated publish command for `evorto-pages`.
+- Consider splitting Docker commands into destructive reset/start and non-destructive restart flows if local developer data preservation becomes important.
+- Revisit the CI docs `@finance` exclusion after finance docs are rewritten to current behavior.
+- Add a small preflight command or checklist that reports Bun, Docker Compose, Playwright browser, `.env.dev`, and Compose config status without starting/resetting the stack.
+- Keep `package.json` as the visible command surface and avoid moving core workflow commands into hidden helper CLIs.
+
 ## Prioritized Cleanup Backlog
 
 ### Must Fix Before Agent Scaling
@@ -644,6 +702,8 @@ and useful for small cleanup batches.
 13. Fill the tenant settings gap for domain/custom domain, branding, legal links/text, locale/currency/timezone, SEO fields, and global tenant-admin workflows.
 14. Make Playwright list/discovery side-effect-light and document or automate the local browser installation expectation.
 15. Update or regenerate `tests/test-inventory.md` after placeholder docs/specs are pruned.
+16. Move local generated docs defaults away from the sibling documentation checkout, or introduce an explicit docs-publish flow that cannot run accidentally during list/discovery.
+17. Decide whether Docker start should always reset local data or whether a non-destructive local restart command is needed.
 
 ### Acceptable For Now
 
@@ -659,6 +719,8 @@ and useful for small cleanup batches.
 10. Unknown tenant hosts fail closed with 404 in the current runtime.
 11. Tenant settings writes are tenant-scoped and validate the returned tenant shape before responding.
 12. Documentation reporter path/grouping tests pass after the Effect config compatibility fix.
+13. Local runtime scripts now refresh `.env.dev` before running Playwright, database, or Docker commands.
+14. Angular and server unit-test commands now have separate test discovery ownership.
 
 ### Product Decision Needed
 
@@ -679,6 +741,8 @@ and useful for small cleanup batches.
 15. Whether global admins are independent platform principals or tenant users with special metadata/current-tenant assignment.
 16. Whether tenants need multiple verified domains for relaunch, and which branding/legal settings are production blockers.
 17. Whether generated documentation is checked into this repository, checked into the sibling documentation app, or published only from CI artifacts.
+18. Whether generated documentation should ever write directly into `evorto-pages` during local runs.
+19. Whether local Docker starts should remain destructive by default.
 
 ## Fixes Applied In This Pass
 
@@ -690,7 +754,8 @@ and useful for small cleanup batches.
 - None in the Profile/account pass. The high-value issues affect account transactionality, multi-tenant user semantics, and profile data modeling, so they need focused contract/schema tests with the fixes.
 - None in the Tenant/global admin pass. The obvious fixes affect authorization semantics and tenant-resolution tests, so they should be done as focused code/test commits rather than mixed into the audit document commit.
 - Generated docs/Playwright pass: replaced stale Effect config-provider calls in Playwright config/support files so `test:e2e -- --list` and `test:e2e:docs -- --list` can discover tests again.
+- Local runtime/developer workflow pass: refreshed `.env.dev` automatically in local runtime scripts, added a visible Playwright browser-install script, split Angular/server unit-test discovery, aligned CI Bun with the repo runtime, and updated workflow docs.
 
 ## Review Next
 
-Review local runtime/developer workflow next. The generated-docs pass found Playwright browser installation and reporter/discovery issues that should be folded into the workflow review alongside scripts, env setup, Docker/database helpers, and local verification guidance.
+All ten first-pass review areas are now represented in this document. The next stabilization work should start with small cleanup commits from the top of the backlog, especially server-side registration preconditions, permission evaluation consistency, and misleading green Playwright specs/docs.

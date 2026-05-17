@@ -30,6 +30,7 @@ All tests in `tests/**/*.ts` are linted with a custom ESLint rule:
 bun run test:e2e
 bun run test:e2e:ui
 bun run test:e2e:docs
+bun run test:e2e:install
 bun run test:e2e -- --project=setup
 bun run test:e2e -- --headed --workers 1
 bun run test:e2e:docs -- --project=docs-integration
@@ -46,6 +47,7 @@ bun run lint
 - Stop the local runtime stack: `bun run docker:stop`
 - Local Docker runs use Neon Local instead of a plain Postgres container.
 - Docker Compose includes a one-shot `db-setup` service that runs the equivalent of `db:reset` before `evorto` starts.
+- Local `test:e2e`, `test:e2e:ui`, `test:e2e:docs`, `db:*`, and `docker:*` package scripts refresh `.env.dev` before invoking `dotenv -c dev`, so new worktrees get isolated local ports and database URLs by default.
 - The `evorto` container now requires `CLIENT_ID`, `CLIENT_SECRET`, `ISSUER_BASE_URL`, and `SECRET` to be non-empty when Compose renders the stack, so blank higher-precedence values fail fast instead of starting a broken app container.
 - `bun run env:runtime` generates `.env.dev`, the untracked worktree-local override file.
 - `.env.dev.local` is the tracked shared default dev config file.
@@ -54,6 +56,17 @@ bun run lint
 - Starting the Docker stack is destructive for local database state by design because `db-setup` pushes schema and resets/seeds the Docker database on every start.
 - `bun run test:e2e:ui` opens unrestricted Playwright UI mode so you can choose projects and tests interactively.
 - Local Docker scripts preload the environment with `dotenv -c dev` before invoking Compose.
+- Use `bun run ...` package scripts, not a bare shell `dotenv` command. Local shells may resolve a different `dotenv` executable than `node_modules/.bin/dotenv`.
+
+## Playwright Browsers
+
+Install the browser binaries after dependency installation and whenever the Playwright package version changes:
+
+```bash
+bun run test:e2e:install
+```
+
+CI runs `bunx playwright install --with-deps`, but local macOS/Linux development only needs the package script unless the host is missing OS-level browser dependencies.
 
 ## Runtime Environment Precedence
 
@@ -65,7 +78,7 @@ Application runtime config resolves in this precedence order:
 - `.env`
 - in-code defaults
 
-External-tool scripts use `dotenv -c dev`. Because `dotenv-cli` is first-wins, the effective dotenv precedence for those scripts is:
+External-tool package scripts use `dotenv -c dev`. Because `dotenv-cli` is first-wins, the effective dotenv precedence for those scripts is:
 
 - `.env.dev.local`
 - `.env.local` if someone creates it manually; this file is unsupported and should not exist

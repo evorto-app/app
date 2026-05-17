@@ -73,6 +73,12 @@ bun run test:unit
 
 ## Running end-to-end tests
 
+Install the matching Playwright browsers once after dependency install or Playwright upgrades:
+
+```bash
+bun run test:e2e:install
+```
+
 For end-to-end (e2e) testing, run:
 
 ```bash
