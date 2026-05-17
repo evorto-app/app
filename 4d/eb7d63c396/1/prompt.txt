@@ -1,0 +1,6 @@
+# In app browser:
+- The user has the in-app browser open.
+- Current URL: https://tumi-dev.eu.auth0.com/u/login?REDACTED
+
+## My request for Codex:
+I'm running a subtree add in a separate session, it should be cleaned up now
