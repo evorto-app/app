@@ -1,0 +1,18 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "bbce81dc3116",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "STABILIZATION.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/bb/ce81dc3116/0/metadata.json",
+      "transcript": "/bb/ce81dc3116/0/full.jsonl",
+      "content_hash": "/bb/ce81dc3116/0/content_hash.txt",
+      "prompt": ""
+    }
+  ]
+}
