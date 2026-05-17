@@ -1,0 +1,165 @@
+/goal Goal: run a stabilization audit of Evorto before deeper agent-driven development.
+
+Context:
+Evorto contains older code and product behavior produced with weaker model guidance. Before expanding agent-based development, we want to manually clean up past mistakes, unclear behavior, brittle code, and misleading tests. This is not a formal requirements/test matrix exercise. It is a pragmatic stabilization pass over the existing app behavior and implementation.
+
+Repository: `/Users/hedde/code/evorto`
+
+Start by reading:
+- `AGENTS.md`
+- `PRODUCT.md`
+- `ARCHITECTURE.md`
+- `QUALITY.md`
+- relevant module-level `AGENTS.md` files as you enter each area
+- `tests/README.md`
+- `helpers/README.md`
+
+Primary objective:
+Produce and maintain a checked-in stabilization review document, then use it to drive small cleanup fixes.
+
+Suggested document:
+- `STABILIZATION.md`
+
+Review areas:
+1. Events
+2. Registrations
+3. Templates
+4. Roles and permissions
+5. Finance/receipts
+6. Scanning/check-in
+7. Profile/account flows
+8. Tenant/global admin
+9. Generated documentation and Playwright coverage
+10. Local runtime/developer workflow
+
+For each area, inspect both code and actual app behavior. Use Browser for manual app walkthroughs where useful, and Playwright/tests for repeatable behavior.
+
+For each area, capture:
+- current behavior
+- intended behavior from `PRODUCT.md`
+- code quality issues
+- UI/UX or discoverability issues
+- tenant/permission risks
+- type/model/schema issues
+- error-handling risks
+- test/docs quality issues
+- stale or misleading implementation patterns
+- open product questions
+- recommended cleanup actions
+- confidence rating: `solid`, `partial`, `thin`, or `unknown`
+
+Important:
+- Do not create a heavy requirements/test matrix.
+- Do not try to fix everything at once.
+- Prioritize issues that make future agent work unsafe or inefficient.
+- Favor small, reviewable cleanup commits.
+- Update root or module docs when a discovered rule should guide future agents.
+- If behavior is unclear, record the question instead of guessing.
+- If a test encodes bad behavior, call that out explicitly.
+- If Browser/manual verification reveals behavior not covered by tests, record whether it should become Playwright coverage.
+
+Suggested process:
+1. Create `STABILIZATION.md` with a lightweight structure and status table.
+2. Start with Events and Registrations, because they are central to product behavior.
+3. For each area, perform a code read, Browser walkthrough where practical, and test/docs review.
+4. Add findings to `STABILIZATION.md`.
+5. Sort findings into:
+   - must fix before agent scaling
+   - should fix before relaunch
+   - acceptable for now
+   - product decision needed
+6. Implement only the highest-value cleanup fixes in small batches.
+7. After each batch, run required verification from `AGENTS.md`.
+8. Keep the stabilization document updated with what was fixed, deferred, or decided.
+
+Initial expected output:
+- A committed `STABILIZATION.md` containing the first audit pass for Events and Registrations.
+- A short prioritized cleanup backlog.
+- Any small obvious fixes found during that first pass, if low-risk.
+- A clear note on what should be reviewed next.
+
+---
+
+How can I remove the budget from the goal
+
+---
+
+/goal Goal: run a stabilization audit of Evorto before deeper agent-driven development.
+
+Context:
+Evorto contains older code and product behavior produced with weaker model guidance. Before expanding agent-based development, we want to manually clean up past mistakes, unclear behavior, brittle code, and misleading tests. This is not a formal requirements/test matrix exercise. It is a pragmatic stabilization pass over the existing app behavior and implementation.
+
+Repository: `/Users/hedde/code/evorto`
+
+Start by reading:
+- `AGENTS.md`
+- `PRODUCT.md`
+- `ARCHITECTURE.md`
+- `QUALITY.md`
+- relevant module-level `AGENTS.md` files as you enter each area
+- `tests/README.md`
+- `helpers/README.md`
+
+Primary objective:
+Produce and maintain a checked-in stabilization review document, then use it to drive small cleanup fixes.
+
+Suggested document:
+- `STABILIZATION.md`
+
+Review areas:
+1. Events
+2. Registrations
+3. Templates
+4. Roles and permissions
+5. Finance/receipts
+6. Scanning/check-in
+7. Profile/account flows
+8. Tenant/global admin
+9. Generated documentation and Playwright coverage
+10. Local runtime/developer workflow
+
+For each area, inspect both code and actual app behavior. Use Browser for manual app walkthroughs where useful, and Playwright/tests for repeatable behavior.
+
+For each area, capture:
+- current behavior
+- intended behavior from `PRODUCT.md`
+- code quality issues
+- UI/UX or discoverability issues
+- tenant/permission risks
+- type/model/schema issues
+- error-handling risks
+- test/docs quality issues
+- stale or misleading implementation patterns
+- open product questions
+- recommended cleanup actions
+- confidence rating: `solid`, `partial`, `thin`, or `unknown`
+
+Important:
+- Do not create a heavy requirements/test matrix.
+- Do not try to fix everything at once.
+- Prioritize issues that make future agent work unsafe or inefficient.
+- Favor small, reviewable cleanup commits.
+- Update root or module docs when a discovered rule should guide future agents.
+- If behavior is unclear, record the question instead of guessing.
+- If a test encodes bad behavior, call that out explicitly.
+- If Browser/manual verification reveals behavior not covered by tests, record whether it should become Playwright coverage.
+
+Suggested process:
+1. Create `STABILIZATION.md` with a lightweight structure and status table.
+2. Start with Events and Registrations, because they are central to product behavior.
+3. For each area, perform a code read, Browser walkthrough where practical, and test/docs review.
+4. Add findings to `STABILIZATION.md`.
+5. Sort findings into:
+   - must fix before agent scaling
+   - should fix before relaunch
+   - acceptable for now
+   - product decision needed
+6. Implement only the highest-value cleanup fixes in small batches.
+7. After each batch, run required verification from `AGENTS.md`.
+8. Keep the stabilization document updated with what was fixed, deferred, or decided.
+
+Initial expected output:
+- A committed `STABILIZATION.md` containing the first audit pass for Events and Registrations.
+- A short prioritized cleanup backlog.
+- Any small obvious fixes found during that first pass, if low-risk.
+- A clear note on what should be reviewed next.
