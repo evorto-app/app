@@ -14,7 +14,7 @@ and useful for small cleanup batches.
 | Roles and permissions                           | First pass complete               | partial    | Core permission model reviewed; route/RPC semantics and role management gaps need follow-up. |
 | Finance/receipts                                | First pass complete               | partial    | Payments, transactions, receipt review/refund, and docs reviewed; high-risk gaps remain.     |
 | Scanning/check-in                               | First pass complete               | partial    | QR display and scan read path exist, but actual check-in mutation and gating are incomplete. |
-| Profile/account flows                           | Not started                       | unknown    | Account-required registration and discount cards depend on this.                             |
+| Profile/account flows                           | First pass complete               | partial    | Profile, account creation, discount cards, receipts, and auth guards reviewed.               |
 | Tenant/global admin                             | Not started                       | unknown    | Tenant resolution, branding, and global admin boundaries need review.                        |
 | Generated documentation and Playwright coverage | First pass for event-related docs | partial    | Event docs exist, but some docs/specs encode aspirational or placeholder behavior.           |
 | Local runtime/developer workflow                | Lightly reviewed                  | partial    | Root/test/helper guidance and visible scripts reviewed.                                      |
@@ -49,6 +49,10 @@ and useful for small cleanup batches.
 - Scanning RPC, HTTP, and schema paths: `events.registrationScanned` in `src/shared/rpc-contracts/app-rpcs/events.*`, `src/server/effect/rpc/handlers/events/events-registration.handlers.ts`, `src/server/http/qr-code.web-handler.ts`, `src/db/schema/event-registrations.ts`, `src/db/schema/event-registration-options.ts`
 - Scanning seed/test/docs coverage: `helpers/add-registrations.ts`, `tests/specs/scanning/scanner.test.ts`, QR mentions in `tests/docs/events/register.doc.ts`, `tests/test-inventory.md`
 - Browser walkthrough: unauthenticated direct `/scan` route renders Auth0 login at local `http://localhost:4200`
+- Profile/account app code: `src/app/profile/**`, `src/app/core/create-account/**`, `src/app/core/guards/auth.guard.ts`, `src/app/core/guards/user-account.guard.ts`, `src/app/core/navigation/**`
+- Profile/account RPC, auth, and schema paths: `src/shared/rpc-contracts/app-rpcs/users.*`, `src/shared/rpc-contracts/app-rpcs/discounts.*`, `src/server/effect/rpc/handlers/users.handlers.ts`, `src/server/effect/rpc/handlers/discounts.handlers.ts`, `src/server/auth/auth-session.ts`, `src/server/context/**`, `src/db/schema/users.ts`, `src/db/schema/user-discount-cards.ts`
+- Profile/account docs and specs: `tests/docs/profile/**`, `tests/docs/users/create-account.doc.ts`, `tests/specs/discounts/esn-discounts.test.ts`, `tests/specs/auth/storage-state-refresh.test.ts`, `src/server/effect/rpc/handlers/users.handlers.spec.ts`
+- Browser walkthrough: unauthenticated direct `/profile` redirects to Auth0 login; unauthenticated direct `/create-account` renders the create-account page with an email-verification error at local `http://localhost:4200`
 
 ## Events
 
@@ -391,6 +395,72 @@ and useful for small cleanup batches.
 - Add generated organizer documentation for scanning an attendee once the mutation exists.
 - Add visible scanner camera-error handling for permission denial and unsupported devices.
 
+## Profile/Account Flows
+
+### Current Behavior
+
+- `/profile` is guarded by `userAccountGuard` and `authGuard`; anonymous direct access redirects to Auth0 login.
+- `/create-account` is not route-guarded. Anonymous direct access renders the create-account page and shows "Your email is not verified" because `users.authData` returns an empty auth-data object.
+- Authenticated users without a tenant user assignment are redirected to `/create-account` by `userAccountGuard`.
+- `users.createAccount` creates a global user row, creates a current-tenant assignment, and assigns tenant default-user roles.
+- If a user with the same Auth0 id already exists globally, `users.createAccount` fails with a conflict instead of adding the current tenant assignment.
+- Profile overview shows name/email, logout, an edit dialog for first name, last name, IBAN, and PayPal email, a simple event list, discount-card management when ESNcard is enabled, and submitted receipts.
+- Profile edit updates global user name and payout fields; it does not expose or update the `communicationEmail` collected during account creation.
+- ESNcard profile management stores one card per user/tenant/type, validates through `esncard.org`, and shows current card status/validity.
+- Submitted receipts on profile are fetched through `finance.receipts.my`, scoped by current tenant and current user.
+
+### Intended Behavior From Product Context
+
+- Anonymous users may browse eligible listed events, but registration requires an account.
+- Users are global and may belong to multiple tenants. A user should ideally have a home tenant so the app can warn when they are browsing another tenant.
+- Role-based eligibility and default tenant roles should determine what a new user can access after account creation.
+- ESN-card behavior should be opt-in because not every tenant is an ESN section.
+- Special cases such as ESN-card-only access should be modeled through roles and registration-option eligibility rather than scattered flags.
+- Essential profile/account flows should be documented through generated Playwright docs where practical.
+
+### Issues and Risks
+
+- **Must fix before agent scaling:** account creation does not support adding an existing global Auth0 user to another tenant. The global user conflict contradicts the product model that users may belong to multiple tenants and makes future multi-tenant account work unsafe.
+- **Must fix before agent scaling:** `users.createAccount` performs user insert, tenant assignment insert, and default-role insert as separate database effects. A mid-flow failure can leave a global user without tenant assignment or default roles, after which retrying can hit the global-user conflict path.
+- **Must fix before agent scaling:** `/create-account` is anonymous-reachable and renders a misleading "Your email is not verified" error instead of requiring login or explaining that account creation starts after authentication.
+- **Must fix before agent scaling:** discount card uniqueness is global by `(type, identifier)`, while the app stores cards as tenant/user records. The handler allows the same user to reuse an identifier, but a second-tenant insert for the same user/card can still hit the database unique constraint.
+- **Should fix before relaunch:** create-account collects `communicationEmail`, but profile displays Auth0 `email` and profile edit cannot view or update `communicationEmail`. Notification/contact email semantics are unclear.
+- **Should fix before relaunch:** profile event cards show only event title and start date. They do not link to event details, show registration status, option, payment state, waitlist state, QR/ticket availability, or cancellation/refund state.
+- **Should fix before relaunch:** profile payout fields are global user fields. That may be fine for a global user model, but reimbursement workflows may need tenant-specific payout preferences or at least clear copy.
+- **Should fix before relaunch:** ESNcard mutation failures render raw error objects in the profile form and validation uses no visible loading/error state beyond the mutation text.
+- **Should fix before relaunch:** ESNcard validation calls the external provider without an explicit timeout or typed provider-error distinction. Provider downtime currently maps through adapter status, but the UX cannot explain retry vs invalid card clearly.
+- **Acceptable for now:** profile receipt reads are tenant-scoped and user-scoped through `finance.receipts.my`.
+- **Acceptable for now:** event price reads and registration writes both require a verified ESNcard in the current tenant before applying the ESNcard discount.
+
+### Test and Documentation Quality
+
+- `tests/docs/profile/user-profile.doc.ts` documents navigation, profile display, edit dialog validation, and the receipts tab.
+- The profile doc uses a fixed `waitForTimeout(1000)` and does not save a profile edit, prove persistence, or cover event-card semantics.
+- `tests/docs/profile/discounts.doc.ts` documents the discount-card section but does not add, refresh, remove, or assert any ESNcard validation outcome.
+- `tests/specs/discounts/esn-discounts.test.ts` verifies a seeded verified ESNcard affects paid event price labels and the register button copy.
+- No reviewed Playwright spec proves profile discount-card management itself, account creation fallback behavior without Auth0 Management credentials, profile event links/statuses, or submitted receipt visibility after receipt submission.
+- `tests/docs/users/create-account.doc.ts` is integration-tagged and skips without Auth0 Management credentials, so baseline docs do not prove the account-creation path.
+- `src/server/effect/rpc/handlers/users.handlers.spec.ts` covers `users.events` sorting and `users.findMany` role aggregation, but not account creation transactionality, existing-global-user tenant joining, profile update validation, or `userAssigned` behavior.
+
+### Open Product Questions
+
+- Should a previously known global user be able to join a tenant automatically after Auth0 login, or should tenant joining require an invite/admin approval flow?
+- What is the intended home-tenant model, and should profile expose or warn about current tenant vs home tenant?
+- Is `communicationEmail` a user-managed notification email, and should it differ from Auth0 login email?
+- Are payout details global per person or tenant-specific per reimbursement context?
+- Are ESNcard records intended to be global per user, tenant-specific, or shared globally by card identifier?
+- Which profile event states should users be able to act on from the profile page: payment continuation, ticket QR, cancellation, waitlist, transfer/resale?
+
+### Recommended Cleanup Actions
+
+- Rework account creation into an atomic "ensure current tenant account" flow that can create a new global user, attach an existing global user to the current tenant, and assign default roles transactionally.
+- Guard `/create-account` with authentication or replace anonymous rendering with a login-start state that preserves the intended redirect.
+- Decide and encode the uniqueness model for ESNcard identifiers; make the database constraint match tenant/global product semantics.
+- Expose and validate `communicationEmail` consistently in profile edit, or remove it from account creation until it is used.
+- Add profile event cards that link to events and display registration/payment/waitlist/ticket state from durable contract fields.
+- Replace raw ESNcard mutation errors with `getErrorMessage(...)` and explicit retry/invalid-card copy.
+- Add profile/account tests for account creation retry/tenant-join behavior, profile edit persistence, ESNcard add/refresh/remove, and submitted receipt visibility.
+
 ## Prioritized Cleanup Backlog
 
 ### Must Fix Before Agent Scaling
@@ -409,7 +479,10 @@ and useful for small cleanup batches.
 12. Tie receipt media upload to receipt-submit authorization or an upload preflight to avoid orphan authenticated uploads.
 13. Implement real check-in mutation behavior and make the visible scan UI persist `checkInTime` / `checkedInSpots`.
 14. Gate scan result and check-in behavior to organizers or a dedicated check-in capability.
-15. Remove misleading placeholder tests/docs from the event registration, event management, template tax-rate, role-assignment, finance overview, and scanner surfaces.
+15. Make account creation transactional and compatible with global users joining multiple tenants.
+16. Fix anonymous `/create-account` behavior so it requires authentication or starts the login flow.
+17. Align ESNcard uniqueness/storage with the tenant/global user model.
+18. Remove misleading placeholder tests/docs from the event registration, event management, template tax-rate, role-assignment, finance overview, scanner, and profile/account surfaces.
 
 ### Should Fix Before Relaunch
 
@@ -424,6 +497,7 @@ and useful for small cleanup batches.
 9. Clarify receipt reimbursement as a manual ledger action or add a real payout integration.
 10. Validate receipt tax amount consistency and decide whether receipts can be submitted before an event ends.
 11. Add check-in timing, duplicate-scan, camera-error, and guest-quantity behavior before treating scanner UI as relaunch-ready.
+12. Clarify profile event cards, communication email, payout preference scope, and ESNcard validation UX before relaunch.
 
 ### Acceptable For Now
 
@@ -434,6 +508,8 @@ and useful for small cleanup batches.
 5. Tenant scoping for role-management writes is explicit in the reviewed handlers and schema.
 6. Receipt review/refund write paths are tenant-scoped and use status preconditions before changing receipt state.
 7. QR code display is limited to confirmed registrations in the active registration UI.
+8. Profile receipt reads are tenant-scoped and user-scoped.
+9. Verified ESNcard discounts are checked in both event detail price display and registration payment resolution.
 
 ### Product Decision Needed
 
@@ -449,6 +525,8 @@ and useful for small cleanup batches.
 10. Whether receipts are allowed before event end, and whether manual reimbursement is enough for relaunch.
 11. Which users/capabilities can check in attendees, when scanning is allowed, and how duplicate scans should behave.
 12. Whether QR image generation and scanner URL parsing should enforce attendee/organizer identity or tenant-domain origin.
+13. How existing global users join additional tenants, and whether tenant joining needs invitation/approval.
+14. Whether `communicationEmail`, payout details, and ESNcard records are global user data or tenant-specific profile data.
 
 ## Fixes Applied In This Pass
 
@@ -457,7 +535,8 @@ and useful for small cleanup batches.
 - None in the Roles and permissions pass. The obvious fixes touch authorization behavior and should be done with route/RPC denial tests instead of as opportunistic audit edits.
 - None in the Finance/receipts pass. The highest-value issues touch payment-derived state, transaction visibility, and upload authorization, so they need targeted regression tests with the fixes.
 - None in the Scanning/check-in pass. The obvious issue is a missing state-changing workflow; it should be fixed as a focused mutation plus authorization and persistence tests.
+- None in the Profile/account pass. The high-value issues affect account transactionality, multi-tenant user semantics, and profile data modeling, so they need focused contract/schema tests with the fixes.
 
 ## Review Next
 
-Review Profile/account flows next. Account-required registration, profile receipt visibility, QR/ticket display, and discount-card behavior depend on the registration, finance, and scanning findings above.
+Review Tenant/global admin next. Tenant resolution, tenant settings, global admin boundaries, and multi-tenant user behavior now connect directly to the profile/account findings above.
