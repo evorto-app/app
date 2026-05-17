@@ -1,0 +1,1 @@
+Look at https://effect.website/blog/the-one-weird-git-trick-that-makes-coding-agents-more-effect-ive/ and set up the effect subtree in our project. We want to use effect-smol, the v4 version
