@@ -888,7 +888,7 @@ the current working direction until a product decision overrides them.
 
 - `tests/docs/profile/user-profile.doc.ts` documents navigation, profile display, edit dialog validation, and the receipts tab.
 - `src/app/profile/user-profile/edit-profile-dialog.component.spec.ts` covers profile edit payload normalization for notification email and optional global reimbursement details before the update mutation receives the dialog result.
-- `src/app/profile/user-profile/user-profile.component.spec.ts` covers profile event action, guest-quantity, deferred-action notes, payment-state, registration-status labels, and readable ESNcard mutation error fallback/provider messages.
+- `src/app/profile/user-profile/user-profile.component.spec.ts` covers profile event action, guest-quantity, deferred-action notes, payment-state, registration-status labels, submitted-receipt status labels, and readable ESNcard mutation error fallback/provider messages.
 - **Addressed in stabilization pass:** the profile doc no longer uses a fixed stabilization wait before the profile screenshot and now opens the Events section to document event-card semantics. It still does not save a profile edit or prove persistence.
 - `tests/docs/profile/discounts.doc.ts` documents the discount-card section and current pending/error behavior, but does not add, refresh, remove, or assert any ESNcard validation outcome.
 - `tests/specs/discounts/esn-discounts.test.ts` verifies a seeded verified ESNcard affects paid event price labels and the register button copy.
@@ -1203,6 +1203,7 @@ implement those decisions or explicitly revise them there before changing code.
 - Profile ESNcard message coverage pass: covered readable save/refresh/remove fallback messages and provider/RPC message preference in app unit tests.
 - Profile edit-dialog coverage pass: covered profile edit payload normalization so notification email and optional global reimbursement details are trimmed/null-normalized before persistence.
 - Create-account payload coverage pass: normalized submitted account-creation names and notification email before the RPC mutation and covered that behavior in helper unit tests.
+- Profile receipt-label coverage pass: rendered submitted receipt statuses through readable profile labels and covered all persisted receipt states in app unit tests.
 - Tenant/global-admin pass: guarded global-admin routes with `globalAdmin:manageTenants`, decoupled global-admin permission resolution from current-tenant assignment, required tenant user context to have a current-tenant assignment, and fixed granted group wildcards such as `globalAdmin:*` to satisfy concrete permission checks.
 - Tenant-resolution pass: added focused `resolveTenantContext` coverage for non-local host precedence over cookies, localhost cookie fallback, stale localhost cookie fallback, and unknown non-local host failure.
 - Generated docs/Playwright pass: replaced stale Effect config-provider calls in Playwright config/support files so `test:e2e -- --list` and `test:e2e:docs -- --list` can discover tests again.
