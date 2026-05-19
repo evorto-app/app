@@ -138,8 +138,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     joins, duplicate-assignment conflicts, and visible create-account error
     message mapping.
 - Finance/receipts:
-  - Finance route gates for transactions, receipt approvals, and reimbursement
-    pages.
+  - Keep finance route-denial cases and route-manifest specs aligned as
+    transaction, receipt approval, and reimbursement routes change.
   - Receipt review and reimbursement behavior in generated docs.
   - Notification or email follow-up behavior once the product path exists.
 - Scanning/check-in:
