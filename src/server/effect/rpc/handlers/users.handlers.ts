@@ -88,6 +88,9 @@ const requireUserHeader = (
     return user;
   });
 
+const mapCreateAccountUnexpectedError = (error: unknown) =>
+  error instanceof UserConflictError ? Effect.fail(error) : Effect.die(error);
+
 export const userHandlers = {
   'users.authData': (_payload, options) =>
     Effect.sync(() => decodeAuthDataHeader(options.headers)),
@@ -108,74 +111,97 @@ export const userHandlers = {
         );
       }
 
-      const existingUser = yield* databaseEffect((database) =>
+      yield* Database.use((database) =>
         database
-          .select({ id: users.id })
-          .from(users)
-          .where(eq(users.auth0Id, auth0Id))
-          .limit(1),
-      );
-      if (existingUser.length > 0) {
-        return yield* Effect.fail(
-          new UserConflictError({ message: 'User account already exists' }),
-        );
-      }
+          .transaction((tx) =>
+            Effect.gen(function* () {
+              const existingUser = yield* tx.query.users.findFirst({
+                columns: {
+                  id: true,
+                },
+                where: {
+                  auth0Id,
+                },
+              });
 
-      const defaultUserRoles = yield* databaseEffect((database) =>
-        database.query.roles.findMany({
-          columns: {
-            id: true,
-          },
-          where: { defaultUserRole: true, tenantId: tenant.id },
-        }),
-      );
-      const userCreateResponse = yield* databaseEffect((database) =>
-        database
-          .insert(users)
-          .values({
-            auth0Id,
-            communicationEmail: input.communicationEmail,
-            email,
-            firstName: input.firstName,
-            lastName: input.lastName,
-          })
-          .returning({
-            id: users.id,
-          }),
-      );
-      const createdUser = userCreateResponse[0];
-      if (!createdUser) {
-        return yield* Effect.die(new Error('User insert returned no rows'));
-      }
+              const userId =
+                existingUser?.id ??
+                (yield* tx
+                  .insert(users)
+                  .values({
+                    auth0Id,
+                    communicationEmail: input.communicationEmail,
+                    email,
+                    firstName: input.firstName,
+                    lastName: input.lastName,
+                  })
+                  .returning({
+                    id: users.id,
+                  })
+                  .pipe(
+                    Effect.map((createdUsers) => {
+                      const createdUser = createdUsers[0];
+                      if (!createdUser) {
+                        throw new Error('User insert returned no rows');
+                      }
+                      return createdUser.id;
+                    }),
+                  ));
 
-      const userTenantCreateResponse = yield* databaseEffect((database) =>
-        database
-          .insert(usersToTenants)
-          .values({
-            tenantId: tenant.id,
-            userId: createdUser.id,
-          })
-          .returning({
-            id: usersToTenants.id,
-          }),
-      );
-      const createdUserTenant = userTenantCreateResponse[0];
-      if (!createdUserTenant) {
-        return yield* Effect.die(
-          new Error('User tenant association insert returned no rows'),
-        );
-      }
+              const existingTenantAssignment =
+                yield* tx.query.usersToTenants.findFirst({
+                  columns: {
+                    id: true,
+                  },
+                  where: {
+                    tenantId: tenant.id,
+                    userId,
+                  },
+                });
 
-      if (defaultUserRoles.length > 0) {
-        yield* databaseEffect((database) =>
-          database.insert(rolesToTenantUsers).values(
-            defaultUserRoles.map((role) => ({
-              roleId: role.id,
-              userTenantId: createdUserTenant.id,
-            })),
-          ),
-        );
-      }
+              if (existingTenantAssignment) {
+                return yield* Effect.fail(
+                  new UserConflictError({
+                    message: 'User account already exists',
+                  }),
+                );
+              }
+
+              const defaultUserRoles = yield* tx.query.roles.findMany({
+                columns: {
+                  id: true,
+                },
+                where: { defaultUserRole: true, tenantId: tenant.id },
+              });
+
+              const userTenantCreateResponse = yield* tx
+                .insert(usersToTenants)
+                .values({
+                  tenantId: tenant.id,
+                  userId,
+                })
+                .returning({
+                  id: usersToTenants.id,
+                });
+              const createdUserTenant = userTenantCreateResponse[0];
+              if (!createdUserTenant) {
+                return yield* Effect.die(
+                  new Error('User tenant association insert returned no rows'),
+                );
+              }
+
+              if (defaultUserRoles.length > 0) {
+                yield* tx.insert(rolesToTenantUsers).values(
+                  defaultUserRoles.map((role) => ({
+                    roleId: role.id,
+                    userTenantId: createdUserTenant.id,
+                  })),
+                );
+              }
+            }),
+          )
+          .pipe(Effect.catch(mapCreateAccountUnexpectedError)),
+      );
     }),
   'users.events': (_payload, options) =>
     Effect.gen(function* () {
