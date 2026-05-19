@@ -19,11 +19,11 @@
       An organizer registration should be available to this role by default
     </mat-checkbox>
 
-    <mat-checkbox [formField]="form.showInHub">
+    <mat-checkbox [formField]="form.displayInHub">
       Show this role in the hub
     </mat-checkbox>
 
-    @if (form.showInHub().value()) {
+    @if (form.displayInHub().value()) {
       <mat-checkbox [formField]="form.collapseMembersInHup">
         Collapse the members of this role by default
       </mat-checkbox>

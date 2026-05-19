@@ -663,7 +663,7 @@ the current working direction until a product decision overrides them.
 - **Addressed in this stabilization pass:** admin role, user, settings, tax-rate, and event-review child routes now have route-level permission guards, and the admin shell requires at least one admin-child capability.
 - **Addressed in this stabilization pass:** `admin.roles.findMany` now requires `admin:manageRoles`; permission-bearing role records are no longer exposed to every authenticated tenant user.
 - **Addressed in this stabilization pass:** shared role selection and template default-role queries now use lookup-only `roles.findMany` / `roles.findOne` RPCs. The lookup API returns only id, name, and default-role flags and is available to event/template authoring permissions plus role admins.
-- **Should fix before relaunch:** role form fields for hub display are misleading. The form exposes "Show this role in the hub" and "Collapse the members of this role by default", but create/update contracts and handlers ignore those fields, and `findHubRoles` filters `displayInHub` while the form edits `showInHub`.
+- **Addressed in stabilization pass:** role create/update now writes `displayInHub` and `collapseMembersInHup`, and the role form uses the same `displayInHub` field that `findHubRoles` reads. The legacy `showInHub` column remains readable on role records until a later migration removes or backfills it.
 - **Should fix before relaunch:** `users:assignRoles` exists and depends on `users:viewAll`, but there is no reviewed role-assignment RPC or working UI.
 - **Addressed in stabilization pass:** the user list no longer shows placeholder selection or "Edit template" actions for user-role assignment.
 - **Should fix before relaunch:** permission metadata is mostly generated from camelCase keys and lacks durable admin-facing descriptions, even though product context says capabilities should have admin-facing names and descriptions.
@@ -684,14 +684,14 @@ the current working direction until a product decision overrides them.
 - Should `events:create` imply `templates:view` only in the client, or should resolved permissions always include dependencies before reaching server handlers?
 - Should admin overview be visible to users with any `admin:*` capability, or should each admin child be discoverable only by its own permission?
 - What is the intended relaunch scope for assigning users to roles?
-- Should hub role visibility use `showInHub` or `displayInHub`, and should one of those fields be removed/migrated?
+- Should the legacy `showInHub` field be removed in a migration or backfilled before removal?
 
 ### Recommended Cleanup Actions
 
 - Keep permission checks routed through `includesPermission` or `RpcAccess.ensurePermission`; avoid reintroducing direct `.includes(...)` authorization checks.
 - Extend route-guard coverage to the remaining permission-sensitive surfaces, including finance routes and global-admin routes.
 - Add UI/E2E coverage that least-privilege organizers can search/select tenant roles in event/template eligibility forms once Browser/runtime review is available.
-- Fix or remove hub role form fields until `showInHub` / `displayInHub` semantics are explicit and persisted.
+- Add a migration/backfill for the legacy `showInHub` column once production data shape is known.
 - Implement or explicitly defer user-role assignment before exposing assignment controls.
 - Replace skip-based role autocomplete coverage with an assertion that proves least-privilege organizers can see selectable roles when editing event/template eligibility.
 
@@ -1081,7 +1081,7 @@ the current working direction until a product decision overrides them.
 5. Implement `random` and `application` registration fulfillment semantics if
    those modes remain in the relaunch UI; otherwise hide them until their
    runtime behavior exists.
-6. Fix role hub display persistence or remove the currently misleading hub flags from the role form.
+6. Remove or backfill the legacy `showInHub` role column now that active role writes use `displayInHub`.
 7. Clarify receipt reimbursement as a manual ledger action and rename UI away from "refund" unless money is actually moved.
 8. Validate receipt tax amount consistency and support pre-event receipt spending/submission.
 9. Add check-in timing, duplicate-scan, camera-error, and guest-quantity behavior before treating scanner UI as relaunch-ready.
@@ -1131,6 +1131,7 @@ implement those decisions or explicitly revise them there before changing code.
 - Template docs/spec cleanup pass: removed the generic template doc discovery placeholder, converted the deferred template tax-rate spec to honest fixme-only declarations, and updated the Playwright inventory.
 - Permission evaluator pass: routed legacy server permission checks through the shared `includesPermission` helper so client and server agree on dependencies, wildcards, and legacy aliases, and added direct unit coverage for the shared evaluator plus tax-rate dependency behavior.
 - Role/user cleanup pass: removed placeholder user-list selection/edit affordances, aligned the roles doc with the current no-role-assignment UI, and fixed `users.findMany` to return only the RPC contract shape.
+- Role hub-field pass: migrated active role create/update form and RPC writes to `displayInHub`, persisted `collapseMembersInHup`, and updated role docs while leaving legacy `showInHub` readable until a later migration.
 - None in the Finance/receipts pass. The highest-value issues touch payment-derived state, transaction visibility, and upload authorization, so they need targeted regression tests with the fixes.
 - Scanning/check-in pass: added `events.checkInRegistration`, gated scan reads and check-in writes to event organizers or `events:organizeAll`, made duplicate check-ins idempotent, wired the scanner button to persist and refetch state, and extended scanner tests to assert persisted check-in state.
 - Profile/account pass: guarded `/create-account` with authentication, reworked `users.createAccount` into a transactional tenant-account creation flow that can attach an existing global user to the current tenant while assigning default roles, and aligned ESNcard records with the global-per-user decision.

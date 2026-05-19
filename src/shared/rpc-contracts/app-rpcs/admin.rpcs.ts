@@ -79,9 +79,11 @@ export const AdminRolesFindHubRoles = asRpcQuery(
 );
 
 export const AdminRolesCreateInput = Schema.Struct({
+  collapseMembersInHup: Schema.Boolean,
   defaultOrganizerRole: Schema.Boolean,
   defaultUserRole: Schema.Boolean,
   description: Schema.NullOr(Schema.NonEmptyString),
+  displayInHub: Schema.Boolean,
   name: Schema.NonEmptyString,
   permissions: Schema.mutable(Schema.Array(PermissionSchema)),
 });
@@ -122,9 +124,11 @@ export const AdminRolesUpdate = asRpcMutation(
   Rpc.make('admin.roles.update', {
     error: AdminRoleRpcError,
     payload: Schema.Struct({
+      collapseMembersInHup: Schema.Boolean,
       defaultOrganizerRole: Schema.Boolean,
       defaultUserRole: Schema.Boolean,
       description: Schema.NullOr(Schema.NonEmptyString),
+      displayInHub: Schema.Boolean,
       id: Schema.NonEmptyString,
       name: Schema.NonEmptyString,
       permissions: Schema.mutable(Schema.Array(PermissionSchema)),

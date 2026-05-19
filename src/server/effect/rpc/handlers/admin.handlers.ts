@@ -108,9 +108,11 @@ export const adminHandlers = {
         database
           .insert(roles)
           .values({
+            collapseMembersInHup: input.collapseMembersInHup,
             defaultOrganizerRole: input.defaultOrganizerRole,
             defaultUserRole: input.defaultUserRole,
             description: input.description,
+            displayInHub: input.displayInHub,
             name: input.name,
             permissions: input.permissions,
             tenantId: tenant.id,
@@ -307,9 +309,11 @@ export const adminHandlers = {
         database
           .update(roles)
           .set({
+            collapseMembersInHup: input.collapseMembersInHup,
             defaultOrganizerRole: input.defaultOrganizerRole,
             defaultUserRole: input.defaultUserRole,
             description: input.description,
+            displayInHub: input.displayInHub,
             name: input.name,
             permissions: input.permissions,
           })

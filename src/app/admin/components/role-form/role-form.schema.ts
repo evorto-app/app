@@ -11,9 +11,9 @@ export interface RoleFormData {
   defaultOrganizerRole: boolean;
   defaultUserRole: boolean;
   description: null | string;
+  displayInHub: boolean;
   name: string;
   permissions: Permission[];
-  showInHub: boolean;
 }
 
 export interface RoleFormModel {
@@ -21,9 +21,9 @@ export interface RoleFormModel {
   defaultOrganizerRole: boolean;
   defaultUserRole: boolean;
   description: string;
+  displayInHub: boolean;
   name: string;
   permissions: Record<Permission, boolean>;
-  showInHub: boolean;
 }
 
 export interface RoleFormOverrides extends Partial<
@@ -64,9 +64,9 @@ export const createRoleFormModel = (
   defaultOrganizerRole: overrides.defaultOrganizerRole ?? false,
   defaultUserRole: overrides.defaultUserRole ?? false,
   description: overrides.description ?? '',
+  displayInHub: overrides.displayInHub ?? false,
   name: overrides.name ?? '',
   permissions: buildPermissions(overrides.permissions),
-  showInHub: overrides.showInHub ?? false,
 });
 
 export const mergeRoleFormOverrides = (
