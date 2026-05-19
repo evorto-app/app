@@ -38,4 +38,20 @@ describe('tenantIdentityRows', () => {
       value: 'Not connected',
     });
   });
+
+  it('treats an undefined Stripe account as not connected', () => {
+    const rows = tenantIdentityRows({
+      currency: 'EUR',
+      domain: 'tenant.example.com',
+      locale: 'en-GB',
+      name: 'Example Tenant',
+      stripeAccountId: undefined,
+      timezone: 'Europe/Berlin',
+    });
+
+    expect(rows.at(-1)).toEqual({
+      label: 'Stripe account',
+      value: 'Not connected',
+    });
+  });
 });

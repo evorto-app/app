@@ -245,6 +245,7 @@ export const EventsFindOne = asRpcQuery(
       id: Schema.NonEmptyString,
       location: Schema.NullOr(EventLocation),
       registrationOptions: Schema.Array(EventsFindOneRegistrationOption),
+      registrationOptionsHiddenByEligibility: Schema.Boolean,
       reviewer: Schema.NullOr(
         Schema.Struct({
           firstName: Schema.String,

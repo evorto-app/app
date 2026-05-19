@@ -39,6 +39,23 @@ import { EventReviewDialogComponent } from '../event-review-dialog/event-review-
 import { SubmitEventDialogComponent } from '../submit-event-dialog/submit-event-dialog.component';
 import { UpdateVisibilityDialogComponent } from '../update-visibility-dialog/update-visibility-dialog.component';
 
+export type RegistrationOptionsState =
+  | 'hiddenByEligibility'
+  | 'none'
+  | 'visible';
+
+export const registrationOptionsState = (event: {
+  registrationOptions: readonly unknown[];
+  registrationOptionsHiddenByEligibility: boolean;
+}): RegistrationOptionsState => {
+  if (event.registrationOptions.length > 0) {
+    return 'visible';
+  }
+  return event.registrationOptionsHiddenByEligibility
+    ? 'hiddenByEligibility'
+    : 'none';
+};
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -133,7 +150,6 @@ export class EventDetailsComponent {
     if (!latestValidTo) return false;
     return latestValidTo <= new Date(event.start);
   });
-
   protected readonly eventIconColor = computed(() => {
     const event = this.eventQuery.data();
     if (!event) {
@@ -141,8 +157,13 @@ export class EventDetailsComponent {
     }
     return event.icon.iconColor;
   });
+
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faEllipsisVertical = faEllipsisVertical;
+  protected readonly registrationOptionsState = computed(() => {
+    const event = this.eventQuery.data();
+    return event ? registrationOptionsState(event) : 'none';
+  });
   protected readonly registrationStatusQuery = injectQuery(() =>
     this.rpc.events.getRegistrationStatus.queryOptions({
       eventId: this.eventId(),

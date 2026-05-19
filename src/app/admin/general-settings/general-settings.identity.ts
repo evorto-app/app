@@ -3,7 +3,7 @@ export interface TenantIdentity {
   domain: string;
   locale: string;
   name: string;
-  stripeAccountId?: null | string;
+  stripeAccountId?: null | string | undefined;
   timezone: string;
 }
 

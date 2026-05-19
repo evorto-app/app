@@ -157,16 +157,40 @@
                 [registrations]="registrationStatusQuery.data().registrations"
               />
             } @else {
-              <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                @for (
-                  registrationOption of eventQuery.data().registrationOptions;
-                  track registrationOption.id
-                ) {
-                  <app-event-registration-option
-                    [registrationOption]="registrationOption"
-                  />
+              @switch (registrationOptionsState()) {
+                @case ("visible") {
+                  <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    @for (
+                      registrationOption of eventQuery.data()
+                        .registrationOptions;
+                      track registrationOption.id
+                    ) {
+                      <app-event-registration-option
+                        [registrationOption]="registrationOption"
+                      />
+                    }
+                  </div>
                 }
-              </div>
+                @case ("hiddenByEligibility") {
+                  <div class="bg-surface text-on-surface rounded-2xl p-4">
+                    <h3 class="title-small">Registration unavailable</h3>
+                    <p class="body-medium text-on-surface-variant mt-2">
+                      This event is visible from the direct link, but your
+                      account is not eligible for the available registration
+                      options.
+                    </p>
+                  </div>
+                }
+                @case ("none") {
+                  <div class="bg-surface text-on-surface rounded-2xl p-4">
+                    <h3 class="title-small">No registration options</h3>
+                    <p class="body-medium text-on-surface-variant mt-2">
+                      This event does not currently offer registration through
+                      the app.
+                    </p>
+                  </div>
+                }
+              }
             }
           }
         </section>
