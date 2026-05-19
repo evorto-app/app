@@ -717,7 +717,7 @@ the current working direction until a product decision overrides them.
   `paymentStatus`, and `payment_status` artifacts are dropped when the
   schema/API surface is applied.
 - Keep user-role assignment explicitly deferred until a real role-assignment RPC and UI are implemented.
-- Replace skip-based role autocomplete coverage with an assertion that proves least-privilege organizers can see selectable roles when editing event/template eligibility.
+- Add Browser-backed least-privilege organizer review for event/template role selectors once the local runtime is available; current server coverage proves lookup permissions and lookup-only result shaping, and the template Playwright autocomplete spec fails loudly when seeded roles are missing.
 
 ## Finance/Receipts
 
@@ -1230,6 +1230,7 @@ implement those decisions or explicitly revise them there before changing code.
 - Tenant admin route-guard audit: confirmed and documented route-level guards plus permission-matrix coverage for tenant admin settings, roles, users, and tax rates.
 - Permission metadata pass: replaced generated camelCase permission labels with explicit admin-facing labels/descriptions and rendered descriptions in the role form.
 - Route-guard backlog cleanup: replaced the stale "extend route-guard coverage" follow-up after admin, finance, template, and global-admin route-manifest specs plus permission-matrix denial coverage were in place.
+- Role autocomplete backlog cleanup: replaced the stale skip-based autocomplete follow-up with the remaining Browser-backed least-privilege organizer review, after confirming role lookup unit coverage and the active template autocomplete spec already fail loudly on missing seeded roles.
 
 ## Review Next
 
