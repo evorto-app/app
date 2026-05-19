@@ -505,6 +505,7 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
                   )
                   .returning({
                     eventId: schema.eventRegistrations.eventId,
+                    guestCount: schema.eventRegistrations.guestCount,
                     registrationOptionId:
                       schema.eventRegistrations.registrationOptionId,
                   })
@@ -514,12 +515,14 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
                       if (!updatedRegistration) {
                         return Effect.void;
                       }
+                      const registeredSpotCount =
+                        updatedRegistration.guestCount + 1;
 
                       return tx
                         .update(schema.eventRegistrationOptions)
                         .set({
-                          confirmedSpots: sql`${schema.eventRegistrationOptions.confirmedSpots} + 1`,
-                          reservedSpots: sql`GREATEST(${schema.eventRegistrationOptions.reservedSpots} - 1, 0)`,
+                          confirmedSpots: sql`${schema.eventRegistrationOptions.confirmedSpots} + ${registeredSpotCount}`,
+                          reservedSpots: sql`GREATEST(${schema.eventRegistrationOptions.reservedSpots} - ${registeredSpotCount}, 0)`,
                         })
                         .where(
                           and(
@@ -586,6 +589,7 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
                   )
                   .returning({
                     eventId: schema.eventRegistrations.eventId,
+                    guestCount: schema.eventRegistrations.guestCount,
                     registrationOptionId:
                       schema.eventRegistrations.registrationOptionId,
                   })
@@ -595,11 +599,13 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
                       if (!updatedRegistration) {
                         return Effect.void;
                       }
+                      const registeredSpotCount =
+                        updatedRegistration.guestCount + 1;
 
                       return tx
                         .update(schema.eventRegistrationOptions)
                         .set({
-                          reservedSpots: sql`GREATEST(${schema.eventRegistrationOptions.reservedSpots} - 1, 0)`,
+                          reservedSpots: sql`GREATEST(${schema.eventRegistrationOptions.reservedSpots} - ${registeredSpotCount}, 0)`,
                         })
                         .where(
                           and(

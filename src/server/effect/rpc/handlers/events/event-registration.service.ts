@@ -152,6 +152,7 @@ interface JoinWaitlistArguments {
 
 interface RegisterForEventArguments {
   eventId: string;
+  guestCount: number;
   headers: Headers.Headers;
   registrationOptionId: string;
   tenant: Pick<Tenant, 'currency' | 'id' | 'stripeAccountId'>;
@@ -166,6 +167,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
         'EventRegistrationService.registerForEvent',
       )(function* ({
         eventId,
+        guestCount,
         headers,
         registrationOptionId,
         tenant,
@@ -186,6 +188,14 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           serverEnvironment.E2E_NOW_ISO,
         );
         const now = getServerNow(pinnedNowIso).toJSDate();
+        if (!Number.isInteger(guestCount) || guestCount < 0) {
+          return yield* Effect.fail(
+            new EventRegistrationConflictError({
+              message: 'Guest count must be a non-negative integer',
+            }),
+          );
+        }
+        const requestedSpotCount = guestCount + 1;
 
         // Phase 1: ensure this user can register (no active registration + valid option + capacity).
         const existingRegistration = yield* databaseEffect((database) =>
@@ -218,6 +228,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
               id: true,
               isPaid: true,
               openRegistrationTime: true,
+              organizingRegistration: true,
               price: true,
               registrationMode: true,
               reservedSpots: true,
@@ -295,9 +306,17 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
             }),
           );
         }
+        if (registrationOption.organizingRegistration && guestCount > 0) {
+          return yield* Effect.fail(
+            new EventRegistrationConflictError({
+              message: 'Guest spots are only available for participant options',
+            }),
+          );
+        }
         if (
           registrationOption.confirmedSpots +
-            registrationOption.reservedSpots >=
+            registrationOption.reservedSpots +
+            requestedSpotCount >
           registrationOption.spots
         ) {
           return yield* Effect.fail(
@@ -350,17 +369,17 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                 .set(
                   registrationOption.isPaid
                     ? {
-                        reservedSpots: sql`${eventRegistrationOptions.reservedSpots} + 1`,
+                        reservedSpots: sql`${eventRegistrationOptions.reservedSpots} + ${requestedSpotCount}`,
                       }
                     : {
-                        confirmedSpots: sql`${eventRegistrationOptions.confirmedSpots} + 1`,
+                        confirmedSpots: sql`${eventRegistrationOptions.confirmedSpots} + ${requestedSpotCount}`,
                       },
                 )
                 .where(
                   and(
                     eq(eventRegistrationOptions.id, registrationOption.id),
                     eq(eventRegistrationOptions.eventId, eventId),
-                    sql`${eventRegistrationOptions.confirmedSpots} + ${eventRegistrationOptions.reservedSpots} < ${eventRegistrationOptions.spots}`,
+                    sql`${eventRegistrationOptions.confirmedSpots} + ${eventRegistrationOptions.reservedSpots} + ${requestedSpotCount} <= ${eventRegistrationOptions.spots}`,
                   ),
                 )
                 .returning({
@@ -374,6 +393,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                 .insert(eventRegistrations)
                 .values({
                   eventId,
+                  guestCount,
                   registrationOptionId: registrationOption.id,
                   status: registrationOption.isPaid ? 'PENDING' : 'CONFIRMED',
                   ...(selectedTaxRateId
@@ -433,13 +453,13 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
               database
                 .update(eventRegistrationOptions)
                 .set({
-                  reservedSpots: sql`${eventRegistrationOptions.reservedSpots} - 1`,
+                  reservedSpots: sql`${eventRegistrationOptions.reservedSpots} - ${requestedSpotCount}`,
                 })
                 .where(
                   and(
                     eq(eventRegistrationOptions.id, registrationOption.id),
                     eq(eventRegistrationOptions.eventId, eventId),
-                    sql`${eventRegistrationOptions.reservedSpots} > 0`,
+                    sql`${eventRegistrationOptions.reservedSpots} >= ${requestedSpotCount}`,
                   ),
                 ),
             );
@@ -515,6 +535,8 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
             discountAmount,
             effectivePrice,
           } = discountResolution;
+          const effectiveTotalPrice =
+            effectivePrice + registrationOption.price * guestCount;
 
           yield* databaseEffect((database) =>
             database
@@ -529,7 +551,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           );
 
           // Free registrations skip Stripe but still transition reservation -> confirmed.
-          if (effectivePrice <= 0) {
+          if (effectiveTotalPrice <= 0) {
             yield* databaseEffect((database) =>
               database
                 .update(eventRegistrations)
@@ -543,14 +565,14 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
               database
                 .update(eventRegistrationOptions)
                 .set({
-                  confirmedSpots: sql`${eventRegistrationOptions.confirmedSpots} + 1`,
-                  reservedSpots: sql`${eventRegistrationOptions.reservedSpots} - 1`,
+                  confirmedSpots: sql`${eventRegistrationOptions.confirmedSpots} + ${requestedSpotCount}`,
+                  reservedSpots: sql`${eventRegistrationOptions.reservedSpots} - ${requestedSpotCount}`,
                 })
                 .where(
                   and(
                     eq(eventRegistrationOptions.id, registrationOption.id),
                     eq(eventRegistrationOptions.eventId, eventId),
-                    sql`${eventRegistrationOptions.reservedSpots} > 0`,
+                    sql`${eventRegistrationOptions.reservedSpots} >= ${requestedSpotCount}`,
                   ),
                 ),
             );
@@ -558,7 +580,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           }
 
           // Phase 4: paid registration path (Stripe session + pending transaction record).
-          const applicationFee = Math.round(effectivePrice * 0.035);
+          const applicationFee = Math.round(effectiveTotalPrice * 0.035);
           const stripeAccount = tenant.stripeAccountId;
           if (!stripeAccount) {
             return yield* Effect.fail(
@@ -568,8 +590,10 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
             );
           }
 
-          const checkoutLineItem: Stripe.Checkout.SessionCreateParams.LineItem =
-            {
+          const checkoutLineItems: Stripe.Checkout.SessionCreateParams.LineItem[] =
+            [];
+          if (effectivePrice > 0) {
+            checkoutLineItems.push({
               price_data: {
                 currency: tenant.currency,
                 product_data: {
@@ -579,14 +603,40 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
               },
               ...(selectedTaxRateId ? { tax_rates: [selectedTaxRateId] } : {}),
               quantity: 1,
-            };
+            });
+          }
+          if (guestCount > 0) {
+            if (
+              effectivePrice === registrationOption.price &&
+              checkoutLineItems.length === 1
+            ) {
+              checkoutLineItems[0] = {
+                ...checkoutLineItems[0],
+                quantity: requestedSpotCount,
+              };
+            } else {
+              checkoutLineItems.push({
+                price_data: {
+                  currency: tenant.currency,
+                  product_data: {
+                    name: `Guest registration fee for ${registrationOption.event.title}`,
+                  },
+                  unit_amount: registrationOption.price,
+                },
+                ...(selectedTaxRateId
+                  ? { tax_rates: [selectedTaxRateId] }
+                  : {}),
+                quantity: guestCount,
+              });
+            }
+          }
 
           const session = yield* createHostedCheckoutSession(
             {
               cancel_url: `${eventUrl}?registrationStatus=cancel`,
               customer_email: user.email,
               expires_at: buildCheckoutSessionExpiresAt(30, { pinnedNowIso }),
-              line_items: [checkoutLineItem],
+              line_items: checkoutLineItems,
               metadata: {
                 registrationId: userRegistration.id,
                 tenantId: tenant.id,
@@ -616,7 +666,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
 
           yield* databaseEffect((database) =>
             database.insert(transactions).values({
-              amount: effectivePrice,
+              amount: effectiveTotalPrice,
               comment: `Registration for event ${registrationOption.event.title} ${registrationOption.eventId}`,
               currency: tenant.currency,
               eventId: registrationOption.eventId,

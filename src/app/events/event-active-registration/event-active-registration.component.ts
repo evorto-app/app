@@ -58,6 +58,7 @@ export class EventActiveRegistrationComponent {
       basePriceAtRegistration?: null | number | undefined;
       checkoutUrl?: null | string | undefined;
       discountAmount?: null | number | undefined;
+      guestCount: number;
       id: string;
       paymentPending: boolean;
       registeredDescription?: null | string | undefined;

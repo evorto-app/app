@@ -321,6 +321,7 @@ export const EventsRegistrationStatusRecord = Schema.Struct({
   basePriceAtRegistration: Schema.optional(Schema.NullOr(Schema.Number)),
   checkoutUrl: Schema.optional(Schema.NullOr(Schema.String)),
   discountAmount: Schema.optional(Schema.NullOr(Schema.Number)),
+  guestCount: Schema.Number,
   id: Schema.NonEmptyString,
   paymentPending: Schema.Boolean,
   registeredDescription: Schema.optional(Schema.NullOr(Schema.String)),
@@ -380,6 +381,7 @@ export const EventsRegisterForEvent = asRpcMutation(
     error: EventsRegisterForEventError,
     payload: Schema.Struct({
       eventId: Schema.NonEmptyString,
+      guestCount: nonNegativeNumber,
       registrationOptionId: Schema.NonEmptyString,
     }),
     success: Schema.Void,

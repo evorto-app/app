@@ -132,6 +132,7 @@ const cancelRegistration = ({
         columns: {
           checkInTime: true,
           eventId: true,
+          guestCount: true,
           id: true,
           registrationOptionId: true,
           status: true,
@@ -211,6 +212,7 @@ const cancelRegistration = ({
         }),
       );
     }
+    const registeredSpotCount = registration.guestCount + 1;
 
     const pendingStripeTransaction = registration.transactions.find(
       (currentTransaction) =>
@@ -259,10 +261,10 @@ const cancelRegistration = ({
               .set(
                 registration.status === 'PENDING'
                   ? {
-                      reservedSpots: sql`${eventRegistrationOptions.reservedSpots} - 1`,
+                      reservedSpots: sql`${eventRegistrationOptions.reservedSpots} - ${registeredSpotCount}`,
                     }
                   : {
-                      confirmedSpots: sql`${eventRegistrationOptions.confirmedSpots} - 1`,
+                      confirmedSpots: sql`${eventRegistrationOptions.confirmedSpots} - ${registeredSpotCount}`,
                     },
               )
               .where(
@@ -272,8 +274,14 @@ const cancelRegistration = ({
                     registration.registrationOptionId,
                   ),
                   registration.status === 'PENDING'
-                    ? gte(eventRegistrationOptions.reservedSpots, 1)
-                    : gte(eventRegistrationOptions.confirmedSpots, 1),
+                    ? gte(
+                        eventRegistrationOptions.reservedSpots,
+                        registeredSpotCount,
+                      )
+                    : gte(
+                        eventRegistrationOptions.confirmedSpots,
+                        registeredSpotCount,
+                      ),
                 ),
               )
               .returning({
@@ -531,6 +539,7 @@ export const eventRegistrationHandlers = {
             appliedDiscountType: true,
             basePriceAtRegistration: true,
             discountAmount: true,
+            guestCount: true,
             id: true,
             registrationOptionId: true,
             status: true,
@@ -606,6 +615,7 @@ export const eventRegistrationHandlers = {
               transaction.type === 'registration',
           )?.stripeCheckoutUrl,
           discountAmount,
+          guestCount: registration.guestCount,
           id: registration.id,
           paymentPending: registration.transactions.some(
             (transaction) =>
@@ -642,7 +652,10 @@ export const eventRegistrationHandlers = {
         },
       });
     }),
-  'events.registerForEvent': ({ eventId, registrationOptionId }, options) =>
+  'events.registerForEvent': (
+    { eventId, guestCount, registrationOptionId },
+    options,
+  ) =>
     Effect.gen(function* () {
       yield* RpcAccess.ensureAuthenticated();
       const { tenant } = yield* RpcAccess.current();
@@ -650,6 +663,7 @@ export const eventRegistrationHandlers = {
 
       return yield* EventRegistrationService.registerForEvent({
         eventId,
+        guestCount,
         headers: options.headers,
         registrationOptionId,
         tenant: {
