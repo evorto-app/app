@@ -4,9 +4,9 @@ services:
     environment:
       BRANCH_ID:
       DELETE_BRANCH: "${DELETE_BRANCH:-true}"
-      NEON_API_KEY:
+      NEON_API_KEY: "${NEON_API_KEY:?NEON_API_KEY is required for Neon Local}"
       NEON_DATABASE_NAME: "${NEON_DATABASE_NAME:-appdb}"
-      NEON_PROJECT_ID:
+      NEON_PROJECT_ID: "${NEON_PROJECT_ID:?NEON_PROJECT_ID is required for Neon Local}"
       PARENT_BRANCH_ID:
     volumes:
       - "${NEON_LOCAL_METADATA_DIR:-./.neon_local}:/tmp/.neon_local"
