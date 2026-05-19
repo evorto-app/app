@@ -1270,6 +1270,10 @@ implement those decisions or explicitly revise them there before changing code.
   variables that are already available without printing secret values, so
   Font Awesome premium/brand icon registry access can be confirmed even when
   missing runtime secrets still block Docker startup.
+- Profile discount-fragment pass: kept `/profile#discounts` stable while
+  tenant ESNcard provider data loads, so direct links and docs journeys do not
+  fall back permanently to the overview before the Discounts section becomes
+  available.
 
 ## Review Next
 

@@ -149,6 +149,25 @@ export const profileReceiptStatusLabel = (
   }
 };
 
+export const profileSectionFromFragment = (
+  fragment: null | string,
+  esnEnabled: boolean,
+): ProfileSection => {
+  if (fragment === 'discounts' && esnEnabled) {
+    return 'discounts';
+  }
+
+  if (fragment === 'events') {
+    return 'events';
+  }
+
+  if (fragment === 'receipts') {
+    return 'receipts';
+  }
+
+  return 'overview';
+};
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -252,42 +271,33 @@ export class UserProfileComponent {
   protected readonly userEventsQuery = injectQuery(() =>
     this.rpc.users.events.queryOptions(),
   );
-
   protected readonly userQuery = injectQuery(() =>
     this.rpc.users.self.queryOptions(),
   );
-  private readonly dialog = inject(MatDialog);
 
+  private readonly dialog = inject(MatDialog);
   private readonly notifications = inject(NotificationService);
 
   private readonly queryClient = inject(QueryClient);
 
   private readonly route = inject(ActivatedRoute);
 
+  private readonly routeFragment = signal<null | string>(null);
+
   constructor() {
     effect(() => {
-      if (!this.esnEnabled() && this.selectedSection() === 'discounts') {
-        this.selectedSection.set('overview');
+      if (this.routeFragment() === 'discounts') {
+        this.selectedSection.set(
+          profileSectionFromFragment(this.routeFragment(), this.esnEnabled()),
+        );
       }
     });
 
     this.route.fragment.subscribe((fragment) => {
-      if (fragment === 'discounts' && this.esnEnabled()) {
-        this.selectedSection.set('discounts');
-        return;
-      }
-
-      if (fragment === 'events') {
-        this.selectedSection.set('events');
-        return;
-      }
-
-      if (fragment === 'receipts') {
-        this.selectedSection.set('receipts');
-        return;
-      }
-
-      this.selectedSection.set('overview');
+      this.routeFragment.set(fragment);
+      this.selectedSection.set(
+        profileSectionFromFragment(fragment, this.esnEnabled()),
+      );
     });
   }
 
