@@ -4,7 +4,7 @@ import { reset } from 'drizzle-seed';
 import { DateTime } from 'luxon';
 
 import * as oldSchema from '../old/drizzle';
-import { database } from '../src/db';
+import { database } from './database';
 import * as schema from '../src/db/schema';
 import { oldDatabase } from './migrator-database';
 import { migrateEvents } from './steps/events';
@@ -17,6 +17,7 @@ import { migrateUsers } from './steps/users';
 import { addUniqueIndexTenantStripeTaxRates } from './steps/001_add_unique_index_tenant_stripe_tax_rates';
 import { backfillAndSeedTaxRates } from './steps/002_backfill_and_seed_tax_rates';
 import { addAdminTaxPermission } from './steps/003_add_admin_manage_taxes_permission';
+import { dropLegacyStabilizationFields } from './steps/004_drop_legacy_stabilization_fields';
 
 type Features =
   | 'users'
@@ -75,6 +76,7 @@ async function main() {
   // Run global migration steps first
   consola.start('Running global migration steps');
   await addUniqueIndexTenantStripeTaxRates();
+  await dropLegacyStabilizationFields();
   consola.success('Global migration steps complete');
 
   consola.start('Begin migration');

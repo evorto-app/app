@@ -692,7 +692,9 @@ the current working direction until a product decision overrides them.
 - Keep permission checks routed through `includesPermission` or `RpcAccess.ensurePermission`; avoid reintroducing direct `.includes(...)` authorization checks.
 - Extend route-guard coverage to the remaining permission-sensitive surfaces, including finance routes and global-admin routes.
 - Add UI/E2E coverage that least-privilege organizers can search/select tenant roles in event/template eligibility forms once Browser/runtime review is available.
-- Confirm the production migration path for dropping any existing physical `showInHub` column before applying schema changes to live data.
+- Keep `migration/steps/004_drop_legacy_stabilization_fields.ts` in the
+  production migration path so any existing physical `showInHub` column is
+  dropped when the schema/API surface is applied.
 - Implement or explicitly defer user-role assignment before exposing assignment controls.
 - Replace skip-based role autocomplete coverage with an assertion that proves least-privilege organizers can see selectable roles when editing event/template eligibility.
 
@@ -757,7 +759,10 @@ the current working direction until a product decision overrides them.
 - Keep direct-route Playwright denial coverage for finance transaction, receipt approval, and receipt reimbursement routes.
 - Keep receipt reimbursement UI copy honest about recording a manual reimbursement unless an actual payout integration is added.
 - Keep receipt amount consistency checks aligned between submit and review.
-- Confirm the production database migration path for dropping any existing physical `paymentStatus` column and `payment_status` enum once production data/backward-compatibility risk is understood.
+- Keep `migration/steps/004_drop_legacy_stabilization_fields.ts` in the
+  production migration path so any existing physical `paymentStatus` column and
+  unused `payment_status` enum are dropped when the schema/API surface is
+  applied.
 - Keep receipt flow specs deterministic: seeded approval/reimbursement paths should fail loudly when expected rows, controls, or options are missing.
 - Keep finance overview docs aligned with current navigation UI and permission names as reimbursement wording changes.
 
@@ -1083,7 +1088,7 @@ the current working direction until a product decision overrides them.
 5. Implement `random` and `application` registration fulfillment semantics if
    those modes remain in the relaunch UI; otherwise hide them until their
    runtime behavior exists.
-6. Confirm the production database migration path for dropping any existing physical `showInHub` role column now that active schema/API code uses `displayInHub`.
+6. Run the legacy-field migration path in production so any existing physical `showInHub` role column is dropped now that active schema/API code uses `displayInHub`.
 7. Decide whether pre-event receipt spending/submission remains allowed or needs event-policy gating.
 8. Add scanner guest-quantity behavior before treating scanner UI as relaunch-ready.
 9. Clarify profile payment-continuation/ticket/cancellation actions and ESNcard provider failure semantics before relaunch.
@@ -1160,9 +1165,12 @@ implement those decisions or explicitly revise them there before changing code.
 - Receipt timing pass: restricted receipt submission to events whose end time has passed and pointed receipt Playwright setup at the deterministic past event fixture.
 - Scanner status-coverage pass: added focused scan-read and direct-check-in coverage for pending, cancelled, and waitlisted registrations.
 - Tenant settings feedback pass: added explicit success and readable error notifications for general settings saves.
+- Legacy schema migration pass: added an idempotent migration step that drops
+  physical `roles.showInHub`, `event_registrations.paymentStatus`, and the
+  unused `payment_status` enum when present.
 - Tenant admin route-guard audit: confirmed and documented route-level guards plus permission-matrix coverage for tenant admin settings, roles, users, and tax rates.
 - Permission metadata pass: replaced generated camelCase permission labels with explicit admin-facing labels/descriptions and rendered descriptions in the role form.
 
 ## Review Next
 
-All ten first-pass review areas are now represented in this document. The next stabilization work should continue with small cleanup commits around the remaining relaunch gaps: profile payment/ticket/action clarity, receipt notification follow-ups, scanner guest-quantity behavior, tenant settings scope, production database drop planning for removed legacy fields, and replacing intentionally fixme-only price/tax specs with active Browser-backed coverage once the local runtime is available.
+All ten first-pass review areas are now represented in this document. The next stabilization work should continue with small cleanup commits around the remaining relaunch gaps: profile payment/ticket/action clarity, receipt notification follow-ups, scanner guest-quantity behavior, tenant settings scope, running the legacy-field migration path for production data, and replacing intentionally fixme-only price/tax specs with active Browser-backed coverage once the local runtime is available.

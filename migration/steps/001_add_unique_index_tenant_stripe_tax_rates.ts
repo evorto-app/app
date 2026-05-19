@@ -1,7 +1,7 @@
 import consola from 'consola';
 import { sql } from 'drizzle-orm';
 
-import { database } from '../../src/db';
+import { database } from '../database';
 
 export const addUniqueIndexTenantStripeTaxRates = async () => {
   consola.info(

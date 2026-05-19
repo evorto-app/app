@@ -4,7 +4,7 @@ import { uniq } from 'es-toolkit';
 import { DateTime } from 'luxon';
 
 import * as oldSchema from '../../old/drizzle';
-import { database } from '../../src/db';
+import { database } from '../database';
 import * as schema from '../../src/db/schema';
 import { transformAuthId } from '../config';
 import { oldDatabase } from '../migrator-database';

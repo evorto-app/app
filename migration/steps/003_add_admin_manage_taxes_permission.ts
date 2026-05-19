@@ -1,7 +1,7 @@
 import consola from 'consola';
 import { and, eq, sql } from 'drizzle-orm';
 
-import { database } from '../../src/db';
+import { database } from '../database';
 import * as schema from '../../src/db/schema';
 
 export const addAdminTaxPermission = async (tenantId: string) => {
