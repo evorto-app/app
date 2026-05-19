@@ -30,6 +30,6 @@ describe('tenantLegalLinks', () => {
   });
 
   it('returns no links before tenant config is available', () => {
-    expect(tenantLegalLinks()).toEqual([]);
+    expect(tenantLegalLinks(null)).toEqual([]);
   });
 });
