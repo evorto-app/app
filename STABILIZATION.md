@@ -6,18 +6,18 @@ and useful for small cleanup batches.
 
 ## Review Status
 
-| Area                                            | Status              | Confidence | Notes                                                                                        |
-| ----------------------------------------------- | ------------------- | ---------- | -------------------------------------------------------------------------------------------- |
-| Events                                          | First pass complete | partial    | Code, tests, docs, and an unauthenticated Browser walkthrough reviewed.                      |
-| Registrations                                   | First pass complete | partial    | Free/paid registration paths reviewed; several server-side precondition gaps need follow-up. |
-| Templates                                       | First pass complete | partial    | Simple-mode template flow reviewed; permission and model-depth gaps need follow-up.          |
-| Roles and permissions                           | First pass complete | partial    | Core permission model reviewed; route/RPC semantics and role management gaps need follow-up. |
-| Finance/receipts                                | First pass complete | partial    | Payments, transactions, receipt review/refund, and docs reviewed; high-risk gaps remain.     |
-| Scanning/check-in                               | First pass complete | partial    | QR display and scan read path exist, but actual check-in mutation and gating are incomplete. |
-| Profile/account flows                           | First pass complete | partial    | Profile, account creation, discount cards, receipts, and auth guards reviewed.               |
-| Tenant/global admin                             | First pass complete | partial    | Tenant resolution, tenant settings, and global-admin list surface reviewed.                  |
-| Generated documentation and Playwright coverage | First pass complete | partial    | Docs/spec inventory is discoverable again, but several docs/specs are stale or misleading.   |
-| Local runtime/developer workflow                | First pass complete | partial    | Scripts, env loading, Docker/Playwright setup, and unit-test ownership reviewed.             |
+| Area                                            | Status              | Confidence | Notes                                                                                                   |
+| ----------------------------------------------- | ------------------- | ---------- | ------------------------------------------------------------------------------------------------------- |
+| Events                                          | First pass complete | partial    | Code, tests, docs, and an unauthenticated Browser walkthrough reviewed.                                 |
+| Registrations                                   | First pass complete | partial    | Free/paid registration paths reviewed; several server-side precondition gaps need follow-up.            |
+| Templates                                       | First pass complete | partial    | Simple-mode template flow reviewed; permission and model-depth gaps need follow-up.                     |
+| Roles and permissions                           | First pass complete | partial    | Core permission model reviewed; route/RPC semantics and role management gaps need follow-up.            |
+| Finance/receipts                                | First pass complete | partial    | Payments, transactions, receipt review/refund, and docs reviewed; high-risk gaps remain.                |
+| Scanning/check-in                               | First pass complete | partial    | QR display and persisted check-in mutation exist; timing, camera, and guest-quantity follow-ups remain. |
+| Profile/account flows                           | First pass complete | partial    | Profile, account creation, discount cards, receipts, and auth guards reviewed.                          |
+| Tenant/global admin                             | First pass complete | partial    | Tenant resolution, tenant settings, and global-admin list surface reviewed.                             |
+| Generated documentation and Playwright coverage | First pass complete | partial    | Docs/spec inventory is discoverable again, but several docs/specs are stale or misleading.              |
+| Local runtime/developer workflow                | First pass complete | partial    | Scripts, env loading, Docker/Playwright setup, and unit-test ownership reviewed.                        |
 
 ## Product Decision Draft
 
@@ -766,9 +766,10 @@ the current working direction until a product decision overrides them.
 - Confirmed user registrations show a "Your event ticket" card with a QR image at `/qr/registration/:registrationId`.
 - The QR HTTP route looks up the registration by id, finds the registration tenant, and encodes a scan target URL using the current request protocol plus the tenant domain.
 - `/scan` is an authenticated route that starts a camera-based QR scanner and navigates to `/scan/registration/:registrationId` when the QR URL path starts with `/scan/registration/`.
-- `/scan/registration/:registrationId` calls `events.registrationScanned`, shows attendee name, event title/start time, registration option title, ESNcard discount notice, same-user warning, future-event warning, and registration-status warning.
-- The scan result enables "Confirm Check In" when the scanned registration is confirmed and does not belong to the scanner.
-- `events.registrationScanned` is a read-only RPC. It does not update `event_registrations.checkInTime` or `event_registration_options.checkedInSpots`.
+- `/scan/registration/:registrationId` calls `events.registrationScanned`, shows attendee name, event title/start time, registration option title, ESNcard discount notice, same-user warning, future-event warning, registration-status warning, and already-checked-in warning.
+- The scan result enables "Confirm Check In" when the scanned registration is confirmed and does not belong to the scanner. The button calls `events.checkInRegistration`, then refetches scan state and shows a recorded-check-in state.
+- `events.registrationScanned` and `events.checkInRegistration` require event check-in access: either `events:organizeAll` or a confirmed organizer/helper registration for the same event.
+- `events.checkInRegistration` sets `event_registrations.checkInTime` and increments `event_registration_options.checkedInSpots` in one transaction. Duplicate scans return idempotent success without incrementing the option counter again.
 - Event organize pages show aggregate checked-in counts from option counters and participant lists from registration rows; the old table-based check-in status UI is commented out.
 - Seed data simulates check-ins for past events by writing `checkInTime` and `checkedInSpots`, so local/demo data can look more complete than the runtime behavior.
 
@@ -781,10 +782,9 @@ the current working direction until a product decision overrides them.
 
 ### Issues and Risks
 
-- **Must fix before agent scaling:** "Confirm Check In" is a no-op. The component method returns after checking `allowCheckin`, and there is no check-in mutation in the RPC contract or handler set. This makes the primary check-in workflow appear implemented while it cannot update attendance.
-- **Must fix before agent scaling:** `events.registrationScanned` only requires authentication. Any authenticated tenant user who obtains a registration id can read attendee first/last name, event title/start, option title, and discount flag. The route and RPC should be restricted to event organizers or an explicit check-in capability.
-- **Must fix before agent scaling:** check-in permission/capability is not modeled. Current permissions include event create/review/listing/organize-all, but no stable `events:checkIn` or equivalent capability for organizers/helpers who can scan without broad event-management rights.
-- **Must fix before agent scaling:** scan eligibility does not consider whether the registration was already checked in. The handler does not read `checkInTime`, so duplicate scans would still look allowable once a mutation is added unless the write path handles it explicitly.
+- **Addressed in this stabilization pass:** "Confirm Check In" now persists check-in state through `events.checkInRegistration` and updates both `checkInTime` and `checkedInSpots` transactionally.
+- **Addressed in this stabilization pass:** scan reads and check-in writes are gated to `events:organizeAll` or a confirmed organizer/helper registration for the same event, so a normal authenticated tenant user cannot read attendee scan details by registration id.
+- **Addressed in this stabilization pass:** duplicate scans are idempotent; already-checked-in registrations show a warning and the write path does not increment counters again.
 - **Should fix before relaunch:** event timing is only a UI warning. `allowCheckin` is true for any confirmed other-user registration, even if the event starts more than one hour in the future.
 - **Should fix before relaunch:** QR generation is unauthenticated. Registration ids are not discoverable in normal UI except by the holder, but the endpoint will generate a ticket QR for any known registration id without proving the requester is the attendee or an organizer.
 - **Should fix before relaunch:** the scanner accepts any absolute URL whose path starts with `/scan/registration/`, ignoring origin. That keeps tenant-domain QR codes portable, but it should be an explicit product/security decision.
@@ -793,9 +793,9 @@ the current working direction until a product decision overrides them.
 
 ### Test and Documentation Quality
 
-- `tests/specs/scanning/scanner.test.ts` verifies that a confirmed registration opens the scan-result page and enables "Confirm Check In".
-- The scanner test can skip when no confirmed registration is found, and it does not click the button or assert any persisted check-in state. It currently encodes the misleading no-op behavior by stopping at button enabled.
-- No server unit/integration test covers scan authorization, same-user denial, already-checked-in behavior, future-event behavior, or check-in counter updates.
+- `tests/specs/scanning/scanner.test.ts` now clicks "Confirm Check In" and asserts that `checkInTime` is set and `checkedInSpots` increments, then restores the seeded row.
+- Server unit coverage proves scan-read denial for unauthorized tenant users, check-in counter updates for organizer access, idempotent duplicate check-in behavior, and same-user check-in denial.
+- No server unit/integration test covers pending/cancelled/waitlisted scan denial or future-event timing enforcement.
 - `tests/docs/events/register.doc.ts` documents that the ticket QR code is available after registration/payment, but there is no generated documentation journey for organizers scanning attendees.
 - `QUALITY.md` lists participant and guest-quantity check-in as high-value Playwright flows, but guest quantities are not represented in the reviewed check-in contract/UI.
 
@@ -810,10 +810,9 @@ the current working direction until a product decision overrides them.
 
 ### Recommended Cleanup Actions
 
-- Add an `events.checkInRegistration` mutation that atomically sets `checkInTime`, increments `checkedInSpots`, and rejects or idempotently handles duplicate scans.
-- Gate scan routes and scan/check-in RPCs through event organizer status or a dedicated check-in capability.
-- Add server tests for same-user scans, unauthorized tenant users, pending/cancelled/waitlisted registrations, duplicate scans, event timing, and counter updates.
-- Update the Playwright scanner spec to click "Confirm Check In" and assert persisted organizer overview/check-in state instead of only checking that the button is enabled.
+- Keep server tests for same-user scans, unauthorized tenant users, duplicate scans, and counter updates.
+- Add server tests for pending/cancelled/waitlisted registrations and event timing when the timing behavior is enforced.
+- Extend the Playwright scanner spec to assert the organizer overview/check-in aggregate once runtime Browser review is available.
 - Add generated organizer documentation for scanning an attendee once the mutation exists.
 - Add visible scanner camera-error handling for permission denial and unsupported devices.
 
@@ -1088,15 +1087,13 @@ the current working direction until a product decision overrides them.
 8. Add route guards and direct-route denial coverage for admin role/user/settings and other permission-sensitive routes.
 9. Split role lookup APIs so organizers can select event/template eligibility roles without receiving admin role-management data.
 10. Tie receipt media upload to receipt-submit authorization or an upload preflight to avoid orphan authenticated uploads.
-11. Implement real check-in mutation behavior and make the visible scan UI persist `checkInTime` / `checkedInSpots`.
-12. Gate scan result and check-in behavior to organizers or a dedicated check-in capability.
-13. Make account creation transactional and compatible with global users joining multiple tenants.
-14. Fix anonymous `/create-account` behavior so it requires authentication or starts the login flow.
-15. Align ESNcard uniqueness/storage with the tenant/global user model.
-16. Add route-level global-admin protection and decouple global-admin authorization from current tenant membership.
-17. Add focused tenant-resolution tests for host/cookie precedence and unknown-host failure.
-18. Remove misleading placeholder tests/docs from the event registration, event management, template tax-rate, role-assignment, finance overview, scanner, and profile/account surfaces.
-19. Replace green placeholder specs and silent no-op Playwright tests with real assertions, hard fixture setup, or explicit `test.fixme` states.
+11. Make account creation transactional and compatible with global users joining multiple tenants.
+12. Fix anonymous `/create-account` behavior so it requires authentication or starts the login flow.
+13. Align ESNcard uniqueness/storage with the tenant/global user model.
+14. Add route-level global-admin protection and decouple global-admin authorization from current tenant membership.
+15. Add focused tenant-resolution tests for host/cookie precedence and unknown-host failure.
+16. Remove misleading placeholder tests/docs from the event registration, event management, template tax-rate, role-assignment, finance overview, scanner, and profile/account surfaces.
+17. Replace green placeholder specs and silent no-op Playwright tests with real assertions, hard fixture setup, or explicit `test.fixme` states.
 
 ### Should Fix Before Relaunch
 
@@ -1149,7 +1146,7 @@ implement those decisions or explicitly revise them there before changing code.
 - None in the Templates pass. The highest-value issues are permission and contract validation gaps that need targeted tests with the fixes.
 - None in the Roles and permissions pass. The obvious fixes touch authorization behavior and should be done with route/RPC denial tests instead of as opportunistic audit edits.
 - None in the Finance/receipts pass. The highest-value issues touch payment-derived state, transaction visibility, and upload authorization, so they need targeted regression tests with the fixes.
-- None in the Scanning/check-in pass. The obvious issue is a missing state-changing workflow; it should be fixed as a focused mutation plus authorization and persistence tests.
+- Scanning/check-in pass: added `events.checkInRegistration`, gated scan reads and check-in writes to event organizers or `events:organizeAll`, made duplicate check-ins idempotent, wired the scanner button to persist and refetch state, and extended scanner tests to assert persisted check-in state.
 - None in the Profile/account pass. The high-value issues affect account transactionality, multi-tenant user semantics, and profile data modeling, so they need focused contract/schema tests with the fixes.
 - None in the Tenant/global admin pass. The obvious fixes affect authorization semantics and tenant-resolution tests, so they should be done as focused code/test commits rather than mixed into the audit document commit.
 - Generated docs/Playwright pass: replaced stale Effect config-provider calls in Playwright config/support files so `test:e2e -- --list` and `test:e2e:docs -- --list` can discover tests again.

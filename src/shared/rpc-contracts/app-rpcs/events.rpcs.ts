@@ -8,6 +8,7 @@ import { EventLocation } from '../../../types/location';
 import { iconSchema } from '../../types/icon';
 import {
   EventsCancelPendingRegistrationError,
+  EventsCheckInRegistrationError,
   EventsCreateRpcError,
   EventsEventListRpcError,
   EventsFindOneForEditRpcError,
@@ -59,6 +60,19 @@ export const EventsCancelPendingRegistration = asRpcMutation(
       registrationId: Schema.NonEmptyString,
     }),
     success: Schema.Void,
+  }),
+);
+
+export const EventsCheckInRegistration = asRpcMutation(
+  Rpc.make('events.checkInRegistration', {
+    error: EventsCheckInRegistrationError,
+    payload: Schema.Struct({
+      registrationId: Schema.NonEmptyString,
+    }),
+    success: Schema.Struct({
+      alreadyCheckedIn: Schema.Boolean,
+      checkInTime: Schema.NonEmptyString,
+    }),
   }),
 );
 
@@ -357,6 +371,7 @@ export const EventsRegistrationScanned = asRpcQuery(
     }),
     success: Schema.Struct({
       allowCheckin: Schema.Boolean,
+      alreadyCheckedInIssue: Schema.Boolean,
       appliedDiscountType: Schema.NullOr(Schema.Literal('esnCard')),
       event: Schema.Struct({
         start: Schema.NonEmptyString,
@@ -435,6 +450,7 @@ export const EventsUpdate = asRpcMutation(
 export class EventsRpcs extends RpcGroup.make(
   EventsCancelPendingRegistration,
   EventsCanOrganize,
+  EventsCheckInRegistration,
   EventsCreate,
   EventsEventList,
   EventsFindOne,

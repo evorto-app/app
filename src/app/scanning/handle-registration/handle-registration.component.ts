@@ -3,13 +3,19 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  inject,
   input,
+  signal,
 } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { RouterLink } from '@angular/router';
 import { FaDuotoneIconComponent } from '@fortawesome/angular-fontawesome';
 import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
-import { injectQuery } from '@tanstack/angular-query-experimental';
+import {
+  injectMutation,
+  injectQuery,
+  QueryClient,
+} from '@tanstack/angular-query-experimental';
 import { DateTime } from 'luxon';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
@@ -24,8 +30,12 @@ import { getErrorMessage } from '../../core/error-message';
 })
 export class HandleRegistrationComponent {
   public readonly registrationId = input.required<string>();
-  protected readonly faArrowLeft = faArrowLeft;
+  protected readonly checkInCompleted = signal(false);
   private readonly rpc = AppRpc.injectClient();
+  protected readonly checkInMutation = injectMutation(() =>
+    this.rpc.events.checkInRegistration.mutationOptions(),
+  );
+  protected readonly faArrowLeft = faArrowLeft;
   protected readonly scanResultQuery = injectQuery(() =>
     this.rpc.events.registrationScanned.queryOptions({
       registrationId: this.registrationId(),
@@ -36,10 +46,25 @@ export class HandleRegistrationComponent {
     if (!scanResult) return false;
     return DateTime.fromISO(scanResult.event.start).diffNow('hours').hours < 1;
   });
+  private readonly queryClient = inject(QueryClient);
 
   checkIn() {
     const scanResult = this.scanResultQuery.data();
-    if (!scanResult?.allowCheckin) return;
+    if (!scanResult?.allowCheckin || this.checkInMutation.isPending()) return;
+
+    this.checkInMutation.mutate(
+      {
+        registrationId: this.registrationId(),
+      },
+      {
+        onSuccess: async () => {
+          this.checkInCompleted.set(true);
+          await this.queryClient.invalidateQueries(
+            this.rpc.queryFilter(['events', 'registrationScanned']),
+          );
+        },
+      },
+    );
   }
 
   protected errorMessage(error: unknown): string {
