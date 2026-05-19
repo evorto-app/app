@@ -6,6 +6,7 @@ import {
   profileEventDetailActionLabel,
   profileEventGuestLabel,
   profileReceiptStatusLabel,
+  profileSectionFromFragment,
   registrationPaymentLabel,
   registrationStatusLabel,
 } from './user-profile.component';
@@ -110,5 +111,19 @@ describe('profile receipt labels', () => {
     expect(profileReceiptStatusLabel('refunded')).toBe('Reimbursed');
     expect(profileReceiptStatusLabel('rejected')).toBe('Rejected');
     expect(profileReceiptStatusLabel('submitted')).toBe('Submitted');
+  });
+});
+
+describe('profile section fragments', () => {
+  it('keeps ESN discounts hidden until the tenant provider is enabled', () => {
+    expect(profileSectionFromFragment('discounts', false)).toBe('overview');
+    expect(profileSectionFromFragment('discounts', true)).toBe('discounts');
+  });
+
+  it('routes stable non-provider-gated fragments directly', () => {
+    expect(profileSectionFromFragment('events', false)).toBe('events');
+    expect(profileSectionFromFragment('receipts', false)).toBe('receipts');
+    expect(profileSectionFromFragment(null, true)).toBe('overview');
+    expect(profileSectionFromFragment('unknown', true)).toBe('overview');
   });
 });
