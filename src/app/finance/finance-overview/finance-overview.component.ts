@@ -7,9 +7,17 @@ import {
   faRotateExclamation,
 } from '@fortawesome/duotone-regular-svg-icons';
 
+import { IfPermissionDirective } from '../../shared/directives/if-permission.directive';
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FaDuotoneIconComponent, RouterLink, RouterLinkActive, RouterOutlet],
+  imports: [
+    FaDuotoneIconComponent,
+    IfPermissionDirective,
+    RouterLink,
+    RouterLinkActive,
+    RouterOutlet,
+  ],
   selector: 'app-finance-overview',
   styles: ``,
   templateUrl: './finance-overview.component.html',

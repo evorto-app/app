@@ -101,6 +101,57 @@ export const permissionMatrix: PermissionMatrixCase[] = [
   },
   {
     allowedDiff: {
+      add: ['finance:viewTransactions'],
+      remove: [],
+      roleName: 'Admin',
+    },
+    allowedRoute: '/finance/transactions',
+    capability: 'finance transaction list access',
+    deniedDiff: {
+      add: [],
+      remove: ['finance:viewTransactions'],
+      roleName: 'Admin',
+    },
+    deniedRoute: '/finance/transactions',
+    requiredPermissions: ['finance:viewTransactions'],
+    storageState: adminStateFile,
+  },
+  {
+    allowedDiff: {
+      add: ['finance:approveReceipts'],
+      remove: [],
+      roleName: 'Admin',
+    },
+    allowedRoute: '/finance/receipts-approval',
+    capability: 'finance receipt approval access',
+    deniedDiff: {
+      add: [],
+      remove: ['finance:approveReceipts'],
+      roleName: 'Admin',
+    },
+    deniedRoute: '/finance/receipts-approval',
+    requiredPermissions: ['finance:approveReceipts'],
+    storageState: adminStateFile,
+  },
+  {
+    allowedDiff: {
+      add: ['finance:refundReceipts'],
+      remove: [],
+      roleName: 'Admin',
+    },
+    allowedRoute: '/finance/receipts-refunds',
+    capability: 'finance receipt refund access',
+    deniedDiff: {
+      add: [],
+      remove: ['finance:refundReceipts'],
+      roleName: 'Admin',
+    },
+    deniedRoute: '/finance/receipts-refunds',
+    requiredPermissions: ['finance:refundReceipts'],
+    storageState: adminStateFile,
+  },
+  {
+    allowedDiff: {
       add: ['templates:editAll', 'templates:view'],
       remove: [],
       roleName: 'Section member',

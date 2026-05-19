@@ -21,14 +21,15 @@ test('Manage finances @finance @track(playwright-specs-track-linking_20260126) @
   await testInfo.attach('markdown', {
     body: `
 {% callout type="note" title="User permissions" %}
-For this guide, we assume you have an admin account with all required permissions. These are:
-- **finance:view**: This permission is required to view financial information.
-- **finance:manage**: This permission is required to manage financial transactions.
+For this guide, we assume you have the finance permissions needed for each child page:
+- **finance:viewTransactions**: view the tenant transaction list.
+- **finance:approveReceipts**: review submitted receipts.
+- **finance:refundReceipts**: record receipt reimbursement batches.
 {% /callout %}
 
 # Finance Management
 
-The finance management feature allows you to track and manage all financial transactions in the application. This includes payments for event registrations, refunds, and other financial activities.
+The finance area groups transaction review, receipt approval, and receipt reimbursement recording. Each child page is guarded by its own finance permission.
 
 ## Accessing Finance Overview
 
@@ -47,14 +48,7 @@ To access the finance overview, navigate to the **Finances** section from the ma
     body: `
 ## Finance Overview
 
-The finance overview page provides a summary of all financial transactions. You can see:
-
-- Total revenue
-- Recent transactions
-- Transaction status (completed, pending, failed)
-- Payment methods used
-
-This gives you a complete picture of the financial health of your organization.
+The finance overview is a navigation surface. It shows links only for the finance capabilities you have, so users with receipt approval access do not automatically see the transaction list.
 `,
   });
 
@@ -82,11 +76,9 @@ The transaction list shows all financial transactions with details such as:
 - Amount
 - Status
 - Date
-- User
-- Event (if applicable)
 - Payment method
 
-You can filter and sort this list to find specific transactions.
+Cancelled transactions are omitted from this list.
 `,
   });
 
@@ -109,7 +101,7 @@ The **Receipt approvals** tab shows all receipts waiting for finance review, gro
     body: `
 ## Receipt Refunds
 
-The **Receipt refunds** tab groups approved receipts by recipient and renders each group in a selectable table. Finance users can select one or more rows, verify payout details (IBAN/PayPal), and issue a refund transaction for the selected batch.
+The **Receipt refunds** tab groups approved receipts by recipient and renders each group in a selectable table. Finance users can select one or more rows, verify payout details (IBAN/PayPal), and record the reimbursement transaction for the selected batch.
 `,
   });
   await page.getByRole('link', { name: 'Receipt refunds' }).click();
