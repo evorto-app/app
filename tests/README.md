@@ -16,13 +16,15 @@ This directory contains the active Playwright suite.
 - Specs should consume deterministic scenario handles from `seeded.scenario`
 - Do not discover test entities by template title fragments, fuzzy event searches, or wall-clock checks
 
-## Required Tags
+## Test Titles and Optional Tags
 
-All tests in `tests/**/*.ts` are linted with a custom ESLint rule:
+Prefer clear behavior-oriented test titles because Playwright `--list`,
+generated docs, and inventory reviews depend on readable names.
 
-- `@track(<track_id>)` is required for every test title
-- `@req(<id>)` is required for non-doc tests
-- `@doc(<id>)` is required for doc tests under `tests/docs/**`
+Legacy `@track(...)`, `@req(...)`, and `@doc(...)` tags may still appear in
+existing titles, but they are not mandatory for new or updated tests. Prefer a
+plain title over placeholder metadata. Dynamic titles are acceptable for compact
+matrix-style coverage when the listed output remains readable.
 
 ## Commands
 

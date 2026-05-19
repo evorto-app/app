@@ -1025,8 +1025,10 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** the generic `tests/docs/template.doc.ts` discovery placeholder was removed; current template documentation lives in `tests/docs/templates/templates.doc.ts`.
 - **Addressed in stabilization pass:** the focused `docScreenshot` helper now resolves `DOCS_IMG_OUT_DIR` at call time instead of import time, so tests and docs jobs can set output paths per run. Some docs journeys still contain fixed waits and should be tightened as those flows are revisited.
 - **Addressed in stabilization pass:** `tests/docs/events/event-management.doc.ts` now waits on concrete headings instead of fixed one-second delays before its major screenshots.
-- **Should fix before relaunch:** required `@track`, `@req`, and `@doc` tags
-  should be removed if they do not provide useful product or verification value.
+- **Addressed in stabilization pass:** required `@track`, `@req`, and `@doc`
+  title metadata was removed from the custom Playwright lint rule and the rule
+  was dropped. Test guidance now prefers clear behavior-oriented titles without
+  forcing placeholder metadata.
 - **Acceptable for now:** the documentation reporter has focused tests for output paths, cleanup, grouping, and permissions callouts.
 - **Acceptable for now:** deterministic seed helpers and scenario handles exist; the issue is where specs turn missing seeded state into skips or no-op passes.
 
@@ -1202,6 +1204,9 @@ implement those decisions or explicitly revise them there before changing code.
 - Docker Stripe-webhook pass: added `STRIPE_WEBHOOK_SECRET_FILE` support so the Compose-managed Stripe CLI listener can write its generated webhook signing secret into a shared volume and the app can verify forwarded local checkout webhooks against the same runtime secret.
 - Playwright discovery pass: deferred Auth0 Management config reads to the `newUser` fixture so baseline list/discovery does not require integration-only credentials.
 - Playwright inventory pass: refreshed `tests/test-inventory.md` into a current suite-ownership and stabilization-gap guide for specs/docs instead of a flat stale snapshot.
+- Playwright title-metadata pass: removed mandatory `@track`, `@req`, and
+  `@doc` title metadata from test workflow docs and dropped the custom
+  Playwright title-tag lint rule.
 - Finance access pass: gated finance transaction reads with `finance:viewTransactions`, added finance route guards/link visibility for transaction, receipt approval, and receipt reimbursement pages, added permission-matrix coverage, and rewrote the finance overview doc copy to current permissions and UI behavior.
 - Finance webhook counter pass: moved paid checkout completion/expiry counter updates into the Stripe webhook transaction and extended webhook replay specs to assert registration status, transaction status, and option counters together.
 - Finance receipt-upload pass: added event-scoped receipt-media upload preflight so object storage writes require receipt-submit authorization before upload, while `finance.receipts.submit` keeps its own authorization check.
