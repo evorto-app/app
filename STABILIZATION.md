@@ -907,7 +907,7 @@ the current working direction until a product decision overrides them.
 - **Should fix before relaunch:** tenant settings UI does not expose tenant name, domain/custom domain, logo, favicon, legal/privacy/terms/imprint configuration, email sender name, review/publishing settings, registration limits, locale, currency, timezone, or Stripe account state.
 - **Should fix before relaunch:** tenant schema has `seoTitle` and `seoDescription`, but the `Tenant` RPC schema and settings UI do not expose or use them.
 - **Should fix before relaunch:** route-level guards are inconsistent in tenant admin. `/admin/tax-rates` and event reviews have route guards, but `/admin/settings`, roles, and users rely on links/RPCs or broader prior findings.
-- **Should fix before relaunch:** tenant settings save has no visible success/error feedback beyond mutation state, and raw errors can surface through the form flow.
+- **Addressed in stabilization pass:** tenant settings saves now show a success notification and map failed updates through the shared readable error-message helper instead of relying only on mutation state.
 - **Acceptable for now:** tenant settings writes are scoped to the current tenant id and validate the returned tenant shape before responding.
 - **Acceptable for now:** unknown host requests fail closed with 404 instead of guessing a tenant.
 - **Acceptable for now:** RPC request-context headers are overwritten server-side before handler execution, so client-supplied `x-evorto-*` headers are not trusted as the source of tenant/user context.
@@ -940,6 +940,7 @@ the current working direction until a product decision overrides them.
 - Document one-domain-per-tenant as the relaunch scope; leave automated
   multi-domain/custom-domain management for later work.
 - Add tenant settings docs/specs for current settings and clearly mark missing branding/legal/domain settings as not implemented.
+- Keep tenant settings save feedback aligned with the shared notification/error-message pattern.
 - Decide whether `seoTitle` / `seoDescription` are product fields, then expose them through tenant config or remove/defer them.
 
 ## Generated Documentation and Playwright Coverage
@@ -1155,6 +1156,7 @@ implement those decisions or explicitly revise them there before changing code.
 - Payment-status deprecation pass: stopped active profile/user-event reads and fixture setup from relying on `event_registrations.paymentStatus`; user-facing payment state now derives from registration transaction rows while the nullable legacy column awaits a later schema migration.
 - Receipt timing pass: restricted receipt submission to events whose end time has passed and pointed receipt Playwright setup at the deterministic past event fixture.
 - Scanner status-coverage pass: added focused scan-read and direct-check-in coverage for pending, cancelled, and waitlisted registrations.
+- Tenant settings feedback pass: added explicit success and readable error notifications for general settings saves.
 
 ## Review Next
 

@@ -29,6 +29,8 @@ import {
 import { GoogleLocationType } from '../../../types/location';
 import { ConfigService } from '../../core/config.service';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
+import { getErrorMessage } from '../../core/error-message';
+import { NotificationService } from '../../core/notification.service';
 import { LocationSelectorField } from '../../shared/components/controls/location-selector/location-selector-field/location-selector-field';
 
 @Component({
@@ -72,6 +74,7 @@ export class GeneralSettingsComponent {
   protected readonly receiptCountryOptions = RECEIPT_COUNTRY_OPTIONS;
   protected readonly settingsForm = form(this.settingsModel);
   private readonly configService = inject(ConfigService);
+  private readonly notifications = inject(NotificationService);
   private readonly queryClient = inject(QueryClient);
   private readonly rpc = AppRpc.injectClient();
 
@@ -105,26 +108,33 @@ export class GeneralSettingsComponent {
     event.preventDefault();
     await submit(this.settingsForm, async (formState) => {
       const settings = formState().value();
-      this.updateSettingsMutation.mutate(
-        {
-          allowOther: settings.allowOther,
-          buyEsnCardUrl: settings.buyEsnCardUrl.trim() || undefined,
-          defaultLocation: settings.defaultLocation,
-          esnCardEnabled: settings.esnCardEnabled,
-          receiptCountries: settings.receiptCountries,
-          theme: settings.theme,
-        },
-        {
-          onSuccess: async () => {
-            await this.queryClient.invalidateQueries({
-              queryKey: this.rpc.pathKey(['config', 'tenant']),
-            });
-            await this.queryClient.invalidateQueries(
-              this.rpc.queryFilter(['discounts', 'getTenantProviders']),
-            );
+      try {
+        await this.updateSettingsMutation.mutateAsync(
+          {
+            allowOther: settings.allowOther,
+            buyEsnCardUrl: settings.buyEsnCardUrl.trim() || undefined,
+            defaultLocation: settings.defaultLocation,
+            esnCardEnabled: settings.esnCardEnabled,
+            receiptCountries: settings.receiptCountries,
+            theme: settings.theme,
           },
-        },
-      );
+          {
+            onSuccess: async () => {
+              await this.queryClient.invalidateQueries({
+                queryKey: this.rpc.pathKey(['config', 'tenant']),
+              });
+              await this.queryClient.invalidateQueries(
+                this.rpc.queryFilter(['discounts', 'getTenantProviders']),
+              );
+            },
+          },
+        );
+        this.notifications.showSuccess('Tenant settings updated');
+      } catch (error) {
+        this.notifications.showError(
+          getErrorMessage(error, 'Failed to update tenant settings'),
+        );
+      }
     });
   }
 
