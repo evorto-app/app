@@ -108,6 +108,17 @@
                           {{ event.registrationOptionTitle }}
                         </dd>
                       </div>
+                      @if (
+                        profileEventGuestLabel(event.guestCount);
+                        as guestLabel
+                      ) {
+                        <div>
+                          <dt class="text-on-surface-variant inline">
+                            Guests:
+                          </dt>
+                          <dd class="inline">{{ guestLabel }}</dd>
+                        </div>
+                      }
                       <div>
                         <dt class="text-on-surface-variant inline">Payment:</dt>
                         <dd class="inline">

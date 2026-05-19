@@ -121,7 +121,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 - Profile/account:
   - Browser-backed profile edit persistence for notification email.
   - Browser-backed profile event-card assertions for event links, registration
-    status, payment state, and check-in state.
+    status, guest quantity, payment state, and check-in state.
   - Profile ESNcard save, refresh, and remove flows with readable error states.
 - Finance/receipts:
   - Finance route gates for transactions, receipt approvals, and reimbursement

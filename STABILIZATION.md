@@ -862,7 +862,7 @@ the current working direction until a product decision overrides them.
 ### Issues and Risks
 
 - **Addressed in stabilization pass:** create-account stores `communicationEmail`, and profile now shows the Auth0 login email separately from the editable notification email. Profile edit updates `communicationEmail` alongside name and reimbursement fields.
-- **Addressed in stabilization pass:** profile event cards now link to event details and show registration status, selected option, payment state, and check-in time when available. Profile still leaves payment continuation, QR/ticket display, cancellation/refund action, and transfer/resale workflows to the event-detail flow or future work.
+- **Addressed in stabilization pass:** profile event cards now link to event details and show registration status, selected option, guest quantity when applicable, payment state, and check-in time when available. Profile still leaves QR/ticket display, cancellation/refund action, and transfer/resale workflows to the event-detail flow or future work while exposing pending checkout continuation directly.
 - **Addressed in stabilization pass:** profile event cards now label their event-details action as "Open event page" instead of implying that the profile card itself renders the ticket; confirmed ticket access remains on the event detail surface.
 - **Addressed in stabilization pass:** profile event cards now explicitly say that waitlist movement, cancellation/refund, and transfer/resale actions are not managed from the profile page yet, while keeping pending checkout continuation as the implemented profile-level recovery action.
 - **Addressed in stabilization pass:** profile reimbursement fields are global user fields by product decision, and the profile copy now labels them as optional global reimbursement details used for manual receipt reimbursements across tenants.
@@ -874,7 +874,7 @@ the current working direction until a product decision overrides them.
 ### Test and Documentation Quality
 
 - `tests/docs/profile/user-profile.doc.ts` documents navigation, profile display, edit dialog validation, and the receipts tab.
-- `src/app/profile/user-profile/user-profile.component.spec.ts` covers profile event action, deferred-action notes, payment-state, and registration-status labels.
+- `src/app/profile/user-profile/user-profile.component.spec.ts` covers profile event action, guest-quantity, deferred-action notes, payment-state, and registration-status labels.
 - **Addressed in stabilization pass:** the profile doc no longer uses a fixed stabilization wait before the profile screenshot and now opens the Events section to document event-card semantics. It still does not save a profile edit or prove persistence.
 - `tests/docs/profile/discounts.doc.ts` documents the discount-card section and current pending/error behavior, but does not add, refresh, remove, or assert any ESNcard validation outcome.
 - `tests/specs/discounts/esn-discounts.test.ts` verifies a seeded verified ESNcard affects paid event price labels and the register button copy.
@@ -896,7 +896,7 @@ the current working direction until a product decision overrides them.
 ### Recommended Cleanup Actions
 
 - Add Browser-backed profile edit persistence coverage for notification email once runtime review is available.
-- Add Browser-backed profile event-card coverage for event links and registration/payment/check-in state once runtime review is available.
+- Add Browser-backed profile event-card coverage for event links and registration/guest/payment/check-in state once runtime review is available.
 - Add profile discount-card tests for add/refresh/remove and provider validation outcomes once runtime/browser review is available.
 - Add profile/account tests for account creation retry/tenant-join behavior, profile edit persistence, ESNcard add/refresh/remove, profile event action rendering, and submitted receipt visibility.
 
@@ -1178,7 +1178,7 @@ implement those decisions or explicitly revise them there before changing code.
 - Profile ESNcard UX pass: mapped discount-card save/refresh/remove failures through readable error messages, added visible pending button states, and documented the current profile discount-card behavior.
 - Profile ESNcard provider pass: added bounded ESNcard provider requests and mapped provider outages to retryable validation errors instead of invalid-card state.
 - Profile notification-email pass: exposed login email and notification email separately in the profile UI, made notification email editable through the profile dialog, and persisted it through `users.updateProfile`.
-- Profile event-card pass: extended `users.events` to return active registration summaries with option, status, payment, and check-in fields, and rendered profile event cards with event-detail links and readable registration state.
+- Profile event-card pass: extended `users.events` to return active registration summaries with option, guest quantity, status, payment, and check-in fields, and rendered profile event cards with event-detail links and readable registration state.
 - Profile event-action pass: extended `users.events` to return pending checkout URLs and rendered profile event cards with an implemented "Continue payment" action for pending Stripe registrations plus clearer confirmed-ticket routing.
 - Profile reimbursement-details pass: clarified that profile IBAN and PayPal fields are optional global reimbursement details used across tenants when finance users record manual receipt reimbursements.
 - Tenant/global-admin pass: guarded global-admin routes with `globalAdmin:manageTenants`, decoupled global-admin permission resolution from current-tenant assignment, required tenant user context to have a current-tenant assignment, and fixed granted group wildcards such as `globalAdmin:*` to satisfy concrete permission checks.

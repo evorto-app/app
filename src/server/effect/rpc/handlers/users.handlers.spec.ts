@@ -265,6 +265,7 @@ describe('userHandlers', () => {
                     title: 'Later Event',
                   },
                   eventId: 'event-2',
+                  guestCount: 2,
                   id: 'registration-2',
                   registrationOption: {
                     title: 'Standard',
@@ -289,6 +290,7 @@ describe('userHandlers', () => {
                     title: 'Earlier Event',
                   },
                   eventId: 'event-1',
+                  guestCount: 0,
                   id: 'registration-1',
                   registrationOption: {
                     title: 'Participant',
@@ -307,6 +309,7 @@ describe('userHandlers', () => {
                   checkInTime: null,
                   event: null,
                   eventId: 'event-missing',
+                  guestCount: 0,
                   id: 'registration-missing',
                   registrationOption: {
                     title: 'Missing',
@@ -333,6 +336,7 @@ describe('userHandlers', () => {
           description: 'earlier',
           end: '2026-02-01T11:00:00.000Z',
           eventId: 'event-1',
+          guestCount: 0,
           paymentState: 'recorded',
           registrationId: 'registration-1',
           registrationOptionTitle: 'Participant',
@@ -346,6 +350,7 @@ describe('userHandlers', () => {
           description: 'later',
           end: '2026-03-01T11:00:00.000Z',
           eventId: 'event-2',
+          guestCount: 2,
           paymentState: 'pending',
           registrationId: 'registration-2',
           registrationOptionTitle: 'Standard',
