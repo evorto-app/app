@@ -48,6 +48,16 @@ type ProfileSection = 'discounts' | 'events' | 'overview' | 'receipts';
 
 export const profileEventDetailActionLabel = (): string => 'Open event page';
 
+export const profileEventGuestLabel = (guestCount: number): null | string => {
+  if (guestCount <= 0) {
+    return null;
+  }
+
+  return guestCount === 1
+    ? 'Includes 1 guest'
+    : `Includes ${guestCount} guests`;
+};
+
 export const profileEventActionNote = (
   status: 'CONFIRMED' | 'PENDING' | 'WAITLIST',
 ): string => {
@@ -179,6 +189,7 @@ export class UserProfileComponent {
   protected readonly profileEventActionNote = profileEventActionNote;
   protected readonly profileEventDetailActionLabel =
     profileEventDetailActionLabel;
+  protected readonly profileEventGuestLabel = profileEventGuestLabel;
   protected readonly refreshCardMutation = injectMutation(() =>
     this.rpc.discounts.refreshMyCard.mutationOptions(),
   );

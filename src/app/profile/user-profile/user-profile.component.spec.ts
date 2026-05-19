@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   profileEventActionNote,
   profileEventDetailActionLabel,
+  profileEventGuestLabel,
   registrationPaymentLabel,
   registrationStatusLabel,
 } from './user-profile.component';
@@ -22,6 +23,12 @@ describe('profile event labels', () => {
     expect(profileEventActionNote('WAITLIST')).toBe(
       'Waitlist movement is not managed from profile yet. Open the event page for current details.',
     );
+  });
+
+  it('labels guest quantities only when a registration includes guests', () => {
+    expect(profileEventGuestLabel(0)).toBeNull();
+    expect(profileEventGuestLabel(1)).toBe('Includes 1 guest');
+    expect(profileEventGuestLabel(2)).toBe('Includes 2 guests');
   });
 
   it('keeps registration payment states readable', () => {
