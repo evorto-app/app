@@ -443,7 +443,7 @@ the current working direction until a product decision overrides them.
 - Templates app code: `src/app/templates/**`
 - Templates RPC contracts and handlers: `src/shared/rpc-contracts/app-rpcs/templates.*`, `src/server/effect/rpc/handlers/templates**`
 - Template schema: `src/db/schema/event-templates.ts`, `src/db/schema/template-registration-options.ts`, `src/db/schema/template-registration-option-discounts.ts`, `src/db/schema/template-event-addons.ts`
-- Template Playwright specs/docs: `tests/specs/templates/**`, `tests/docs/templates/templates.doc.ts`, `tests/docs/template.doc.ts`
+- Template Playwright specs/docs: `tests/specs/templates/**`, `tests/docs/templates/templates.doc.ts`
 - Browser walkthrough: organizer `/templates` list and template detail at local `http://localhost:4200`
 - Roles and permissions code: `src/shared/permissions/**`, `src/app/admin/**`, `src/app/core/permissions.service.ts`, `src/app/core/guards/permission.guard.ts`, `src/app/shared/directives/*permission*`
 - Role/user RPC contracts and handlers: `src/shared/rpc-contracts/app-rpcs/admin.rpcs.ts`, `src/shared/rpc-contracts/app-rpcs/users.rpcs.ts`, `src/server/effect/rpc/handlers/admin.handlers.ts`, `src/server/effect/rpc/handlers/users.handlers.ts`
@@ -609,8 +609,8 @@ the current working direction until a product decision overrides them.
 
 - `tests/specs/templates/templates.test.ts` covers create, view, empty-category add flow, and role autocomplete duplicate hiding.
 - `tests/docs/templates/templates.doc.ts` documents simple-mode template creation, role defaults, payment field visibility, and role-picker behavior.
-- `tests/specs/templates/paid-option-requires-tax-rate.spec.ts` is fully `test.fixme(...)` and contains placeholder assertions. It should not be treated as active tax-rate validation coverage.
-- `tests/docs/template.doc.ts` is only a discovery/tagging placeholder, not product documentation.
+- `tests/specs/templates/paid-option-requires-tax-rate.spec.ts` is intentionally fixme-only until template tax-rate behavior has active simple-mode UI coverage.
+- The generic `tests/docs/template.doc.ts` discovery placeholder was removed; product template documentation lives in `tests/docs/templates/templates.doc.ts`.
 - Permission matrix coverage checks template create link visibility plus direct route denial for template create/edit/create-event routes. Server unit coverage proves template RPC denial, template offset ordering, tenant-owned template category/role validation, and template location schema rejection.
 
 ### Product Questions Answered Above
@@ -626,7 +626,7 @@ the current working direction until a product decision overrides them.
 - Keep focused `SimpleTemplateService` coverage for tenant-owned template category/role validation.
 - Keep focused `SimpleTemplateService` coverage for template offset ordering.
 - Keep template and event RPC location fields aligned on the shared `EventLocation` schema.
-- Quarantine or replace placeholder/fixme template tax-rate specs with active coverage for the current simple-mode UI.
+- Replace fixme-only template tax-rate specs with active coverage for the current simple-mode UI.
 - Keep `random` and `application` hidden until their fulfillment semantics are
   implemented end to end.
 
@@ -971,7 +971,7 @@ the current working direction until a product decision overrides them.
 - **Should fix before relaunch:** page-backed Playwright specs still fail in this checkout because the configured Chromium binary is missing. `tests/specs/screenshot/doc-screenshot.test.ts` seeds data and then fails at browser launch.
 - **Should fix before relaunch:** `tests/test-inventory.md` is stale and still reads like a March 2026 snapshot rather than a current guide for generated docs and Playwright coverage.
 - **Should fix before relaunch:** docs coverage is missing or thin for scanning/check-in mutation behavior, tenant/global-admin settings, account creation outside Auth0-management integration, profile discount add/refresh/remove flows, finance route gates, receipt review/refund behavior, role assignment/user management, and registration negative paths.
-- **Should fix before relaunch:** `tests/docs/template.doc.ts` is a generic template placeholder and should not ship as product documentation.
+- **Addressed in stabilization pass:** the generic `tests/docs/template.doc.ts` discovery placeholder was removed; current template documentation lives in `tests/docs/templates/templates.doc.ts`.
 - **Should fix before relaunch:** docs screenshot helpers use fixed waits or import-time environment reads in some paths. That adds flakiness and makes focused helper tests less reliable.
 - **Should fix before relaunch:** required `@track`, `@req`, and `@doc` tags
   should be removed if they do not provide useful product or verification value.
@@ -1000,7 +1000,6 @@ the current working direction until a product decision overrides them.
 - Rewrite or remove stale event-management and finance-overview docs before agents use generated docs as product guidance.
 - Convert silent no-op passes in finance, scanner, unlisted-event, and event-creation specs into explicit fixture setup, hard failures, or honest `test.fixme` states.
 - Make docs/list commands avoid reporter output cleanup and make the local browser installation expectation explicit.
-- Remove `tests/docs/template.doc.ts` or replace it with a real product doc.
 - Update `tests/test-inventory.md` after stale/placeholder docs are pruned.
 - Add missing docs/specs for scanning mutation, tenant/global-admin settings, account/profile persistence, role/user management, and negative registration paths as those flows are stabilized.
 
@@ -1070,7 +1069,7 @@ the current working direction until a product decision overrides them.
 3. Add route guards and direct-route denial coverage for admin role/user/settings and other permission-sensitive routes.
 4. Split role lookup APIs so organizers can select event/template eligibility roles without receiving admin role-management data.
 5. Tie receipt media upload to receipt-submit authorization or an upload preflight to avoid orphan authenticated uploads.
-6. Remove misleading placeholder tests/docs from the event registration, event management, template tax-rate, role-assignment, finance overview, scanner, and profile/account surfaces.
+6. Remove misleading placeholder tests/docs from the event registration, event management, role-assignment, finance overview, scanner, and profile/account surfaces.
 7. Replace green placeholder specs and silent no-op Playwright tests with real assertions, hard fixture setup, or explicit `test.fixme` states.
 
 ### Should Fix Before Relaunch
@@ -1123,6 +1122,7 @@ implement those decisions or explicitly revise them there before changing code.
 - None. The obvious issues found in Events and Registrations affect server-side behavior and need focused tests, so they should be handled as small follow-up cleanup commits rather than opportunistic edits inside the audit document commit.
 - Registration race-coverage pass: added focused `EventRegistrationService` tests for same-event second registrations across options, transactional duplicate races, and transactional capacity races.
 - None in the Templates pass. The highest-value issues are permission and contract validation gaps that need targeted tests with the fixes.
+- Template docs/spec cleanup pass: removed the generic template doc discovery placeholder, converted the deferred template tax-rate spec to honest fixme-only declarations, and updated the Playwright inventory.
 - Permission evaluator pass: routed legacy server permission checks through the shared `includesPermission` helper so client and server agree on dependencies, wildcards, and legacy aliases, and added direct unit coverage for the shared evaluator plus tax-rate dependency behavior.
 - None in the Finance/receipts pass. The highest-value issues touch payment-derived state, transaction visibility, and upload authorization, so they need targeted regression tests with the fixes.
 - Scanning/check-in pass: added `events.checkInRegistration`, gated scan reads and check-in writes to event organizers or `events:organizeAll`, made duplicate check-ins idempotent, wired the scanner button to persist and refetch state, and extended scanner tests to assert persisted check-in state.
