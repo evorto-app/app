@@ -151,7 +151,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - Browser-backed profile event-card assertions for event links, registration
     status, guest quantity, payment state, and check-in state.
     App coverage already proves event-detail action copy, guest/status/payment
-    labels, deferred-action notes, and the payment-continuation next-step copy.
+    labels, deferred-action notes, waitlist event-page routing, and the
+    payment-continuation next-step copy.
   - Profile ESNcard save, refresh, and remove flows with readable error states.
     App and server coverage already prove upsert payload normalization,
     readable mutation errors, global per-user card reads/upserts, refresh
@@ -218,7 +219,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     role-ineligible direct links, and waitlist affordances. Server/app unit
     coverage already proves closed-window rejection, role eligibility,
     unsupported stored registration-mode rejection, unsupported-mode no-waitlist
-    card behavior, and waitlist edge cases.
+    card behavior, waitlist joining, and leave-waitlist cancellation.
 
 ## Current Notes
 

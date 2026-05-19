@@ -49,7 +49,7 @@ export const registrationCancellationCopy = (registration: {
     return {
       buttonLabel: 'Leave waitlist',
       helperText:
-        'This removes you from the waitlist and releases your waitlist spot.',
+        'This removes your waitlist registration and releases your waitlist position.',
     };
   }
 

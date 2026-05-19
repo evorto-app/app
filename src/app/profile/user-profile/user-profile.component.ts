@@ -101,7 +101,7 @@ export const profileEventActionNote = (event: {
       return 'Open the event page for pending-registration details and available cancellation actions. Transfer/resale is not implemented yet.';
     }
     case 'WAITLIST': {
-      return 'Waitlist movement is not managed from profile yet. Open the event page for current details; transfer/resale is not available for waitlist registrations.';
+      return 'Open the event page for waitlist details and the leave-waitlist action. Transfer/resale is not available for waitlist registrations.';
     }
   }
 };
