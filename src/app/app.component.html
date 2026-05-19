@@ -1,6 +1,22 @@
 <div class="lg:ml-22 lg:relative lg:flex lg:h-dvh lg:p-0">
-  <div class="lg:mt-6 lg:flex-grow">
+  <div class="flex min-h-dvh flex-col lg:mt-6 lg:flex-grow">
     <router-outlet />
+    @if (legalLinks().length > 0) {
+      <footer
+        class="text-on-surface-variant mt-auto flex flex-wrap justify-center gap-x-4 gap-y-2 px-4 pb-28 pt-8 text-sm lg:pb-6"
+      >
+        @for (link of legalLinks(); track link.label) {
+          <a
+            class="underline-offset-4 hover:underline"
+            [href]="link.href"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {{ link.label }}
+          </a>
+        }
+      </footer>
+    }
   </div>
 </div>
 
