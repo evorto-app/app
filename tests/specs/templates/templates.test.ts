@@ -16,7 +16,10 @@ test('create template in empty category @track(playwright-specs-track-linking_20
   const icon = await database.query.icons.findFirst({
     where: { tenantId: tenant.id },
   });
-  if (!icon) test.skip(true, 'No icons found');
+  if (!icon) {
+    throw new Error('Expected seeded icons for template category creation');
+  }
+
   const categoryTitle = `Empty ${getId().slice(0, 6)}`;
   const [category] = await database
     .insert(schema.eventTemplateCategories)
@@ -87,21 +90,23 @@ test('template create form hides selected roles in autocomplete @track(playwrigh
   const roleOptions = page.locator('mat-option');
   const optionsCount = await roleOptions.count();
   if (optionsCount === 0) {
-    test.skip(true, 'No roles available for autocomplete test');
+    throw new Error('Expected seeded roles for template autocomplete');
   }
 
   const firstOption = roleOptions.first();
   const firstRoleText = await firstOption.textContent();
   const selectedRoleName = firstRoleText?.trim();
+  if (!selectedRoleName) {
+    throw new Error('Expected template autocomplete option to have role text');
+  }
+
   await firstOption.click();
 
   await organizerRoleInput.click();
-  if (selectedRoleName) {
-    await expect(
-      page.getByRole('option', {
-        exact: true,
-        name: selectedRoleName,
-      }),
-    ).toHaveCount(0);
-  }
+  await expect(
+    page.getByRole('option', {
+      exact: true,
+      name: selectedRoleName,
+    }),
+  ).toHaveCount(0);
 });
