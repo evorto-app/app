@@ -143,6 +143,13 @@ const resolveDiscount = ({
   };
 };
 
+interface JoinWaitlistArguments {
+  eventId: string;
+  registrationOptionId: string;
+  tenant: Pick<Tenant, 'id'>;
+  user: Pick<User, 'id' | 'roleIds'>;
+}
+
 interface RegisterForEventArguments {
   eventId: string;
   headers: Headers.Headers;
@@ -643,7 +650,228 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
         );
       });
 
+      const joinWaitlist = Effect.fn('EventRegistrationService.joinWaitlist')(
+        function* ({
+          eventId,
+          registrationOptionId,
+          tenant,
+          user,
+        }: JoinWaitlistArguments) {
+          const configProvider = yield* ConfigProvider.ConfigProvider;
+          const serverEnvironment = yield* serverConfig
+            .parse(configProvider)
+            .pipe(
+              Effect.mapError(
+                (error) =>
+                  new EventRegistrationInternalError({
+                    message: `Invalid server configuration:\n${formatConfigError(error)}`,
+                  }),
+              ),
+            );
+          const pinnedNowIso = Option.getOrUndefined(
+            serverEnvironment.E2E_NOW_ISO,
+          );
+          const now = getServerNow(pinnedNowIso).toJSDate();
+
+          const existingRegistration = yield* databaseEffect((database) =>
+            database.query.eventRegistrations.findFirst({
+              columns: {
+                id: true,
+              },
+              where: {
+                eventId,
+                status: { NOT: 'CANCELLED' },
+                tenantId: tenant.id,
+                userId: user.id,
+              },
+            }),
+          );
+          if (existingRegistration) {
+            return yield* Effect.fail(
+              new EventRegistrationConflictError({
+                message: 'User is already registered for this event',
+              }),
+            );
+          }
+
+          const registrationOption = yield* databaseEffect((database) =>
+            database.query.eventRegistrationOptions.findFirst({
+              columns: {
+                closeRegistrationTime: true,
+                confirmedSpots: true,
+                eventId: true,
+                id: true,
+                openRegistrationTime: true,
+                organizingRegistration: true,
+                registrationMode: true,
+                reservedSpots: true,
+                roleIds: true,
+                spots: true,
+              },
+              where: { eventId, id: registrationOptionId },
+              with: {
+                event: {
+                  columns: {
+                    status: true,
+                    tenantId: true,
+                  },
+                },
+              },
+            }),
+          );
+          if (!registrationOption) {
+            return yield* Effect.fail(
+              new EventRegistrationNotFoundError({
+                message: 'Registration option not found',
+              }),
+            );
+          }
+          if (!registrationOption.event) {
+            return yield* Effect.fail(
+              new EventRegistrationInternalError({
+                message: 'Registration option event relation missing',
+              }),
+            );
+          }
+          if (registrationOption.event.tenantId !== tenant.id) {
+            return yield* Effect.fail(
+              new EventRegistrationNotFoundError({
+                message: 'Registration option not found',
+              }),
+            );
+          }
+          if (registrationOption.event.status !== 'APPROVED') {
+            return yield* Effect.fail(
+              new EventRegistrationConflictError({
+                message: 'Event is not open for registration',
+              }),
+            );
+          }
+          if (
+            now < registrationOption.openRegistrationTime ||
+            now > registrationOption.closeRegistrationTime
+          ) {
+            return yield* Effect.fail(
+              new EventRegistrationConflictError({
+                message: 'Registration is not open',
+              }),
+            );
+          }
+          if (
+            !registrationOption.roleIds.some((roleId) =>
+              user.roleIds.includes(roleId),
+            )
+          ) {
+            return yield* Effect.fail(
+              new EventRegistrationConflictError({
+                message: 'User is not eligible for this registration option',
+              }),
+            );
+          }
+          if (registrationOption.organizingRegistration) {
+            return yield* Effect.fail(
+              new EventRegistrationConflictError({
+                message: 'Waitlist is only available for participant options',
+              }),
+            );
+          }
+          if (registrationOption.registrationMode !== 'fcfs') {
+            return yield* Effect.fail(
+              new EventRegistrationConflictError({
+                message: 'Registration option mode is not available yet',
+              }),
+            );
+          }
+          if (
+            registrationOption.confirmedSpots +
+              registrationOption.reservedSpots <
+            registrationOption.spots
+          ) {
+            return yield* Effect.fail(
+              new EventRegistrationConflictError({
+                message: 'Registration option still has available spots',
+              }),
+            );
+          }
+
+          const waitlistResult = yield* databaseEffect((database) =>
+            database.transaction((tx) =>
+              Effect.gen(function* () {
+                const activeRegistrations =
+                  yield* tx.query.eventRegistrations.findMany({
+                    columns: {
+                      id: true,
+                    },
+                    where: {
+                      eventId,
+                      status: { NOT: 'CANCELLED' },
+                      tenantId: tenant.id,
+                      userId: user.id,
+                    },
+                  });
+                if (activeRegistrations.length > 0) {
+                  return { _tag: 'AlreadyRegistered' } as const;
+                }
+
+                const updatedOptions = yield* tx
+                  .update(eventRegistrationOptions)
+                  .set({
+                    waitlistSpots: sql`${eventRegistrationOptions.waitlistSpots} + 1`,
+                  })
+                  .where(
+                    and(
+                      eq(eventRegistrationOptions.id, registrationOption.id),
+                      eq(eventRegistrationOptions.eventId, eventId),
+                      sql`${eventRegistrationOptions.confirmedSpots} + ${eventRegistrationOptions.reservedSpots} >= ${eventRegistrationOptions.spots}`,
+                    ),
+                  )
+                  .returning({
+                    id: eventRegistrationOptions.id,
+                  });
+                if (updatedOptions.length === 0) {
+                  return { _tag: 'CapacityAvailable' } as const;
+                }
+
+                const createdRegistrations = yield* tx
+                  .insert(eventRegistrations)
+                  .values({
+                    eventId,
+                    registrationOptionId: registrationOption.id,
+                    status: 'WAITLIST',
+                    tenantId: tenant.id,
+                    userId: user.id,
+                  })
+                  .returning({
+                    id: eventRegistrations.id,
+                  });
+                if (!createdRegistrations[0]) {
+                  return { _tag: 'CapacityAvailable' } as const;
+                }
+
+                return { _tag: 'Joined' } as const;
+              }),
+            ),
+          );
+
+          if (waitlistResult._tag === 'AlreadyRegistered') {
+            return yield* Effect.fail(
+              new EventRegistrationConflictError({
+                message: 'User is already registered for this event',
+              }),
+            );
+          }
+          if (waitlistResult._tag === 'CapacityAvailable') {
+            return yield* Effect.fail(
+              new EventRegistrationConflictError({
+                message: 'Registration option still has available spots',
+              }),
+            );
+          }
+        },
+      );
+
       return {
+        joinWaitlist,
         registerForEvent,
       } as const;
     }),
@@ -653,6 +881,9 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
     EventRegistrationService,
     EventRegistrationService.make,
   );
+
+  static readonly joinWaitlist = (input: JoinWaitlistArguments) =>
+    EventRegistrationService.use((service) => service.joinWaitlist(input));
 
   static readonly registerForEvent = (input: RegisterForEventArguments) =>
     EventRegistrationService.use((service) => service.registerForEvent(input));

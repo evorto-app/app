@@ -32,6 +32,7 @@ export interface EventRegistrationOptionView {
   openRegistrationTime: string;
   organizingRegistration: boolean;
   price: number;
+  registrationMode: 'application' | 'fcfs' | 'random';
   reservedSpots: number;
   spots: number;
   title: string;
@@ -67,6 +68,20 @@ export const registrationOptionIsFull = (
     'confirmedSpots' | 'reservedSpots' | 'spots'
   >,
 ): boolean => option.confirmedSpots + option.reservedSpots >= option.spots;
+
+export const registrationOptionCanJoinWaitlist = (
+  option: Pick<
+    EventRegistrationOptionView,
+    | 'confirmedSpots'
+    | 'organizingRegistration'
+    | 'registrationMode'
+    | 'reservedSpots'
+    | 'spots'
+  >,
+): boolean =>
+  !option.organizingRegistration &&
+  option.registrationMode === 'fcfs' &&
+  registrationOptionIsFull(option);
 
 export const registrationOptionAvailability = (
   option: Pick<
@@ -107,6 +122,14 @@ export class EventRegistrationOptionComponent {
   protected readonly registrationMutation = injectMutation(() =>
     this.rpc.events.registerForEvent.mutationOptions(),
   );
+  protected readonly waitlistMutation = injectMutation(() =>
+    this.rpc.events.joinWaitlist.mutationOptions(),
+  );
+  protected readonly mutationPending = computed(
+    () =>
+      this.registrationMutation.isPending() ||
+      this.waitlistMutation.isPending(),
+  );
   private currentTime = toSignal(interval(1000).pipe(map(() => new Date())), {
     initialValue: new Date(),
   });
@@ -116,8 +139,34 @@ export class EventRegistrationOptionComponent {
       this.currentTime(),
     );
   });
+  protected readonly waitlistAvailable = computed(() => {
+    return registrationOptionCanJoinWaitlist(this.registrationOption());
+  });
 
   private queryClient = inject(QueryClient);
+
+  joinWaitlist(registrationOption: { eventId: string; id: string }) {
+    this.waitlistMutation.mutate(
+      {
+        eventId: registrationOption.eventId,
+        registrationOptionId: registrationOption.id,
+      },
+      {
+        onSuccess: async () => {
+          await this.queryClient.invalidateQueries({
+            queryKey: this.rpc.events.getRegistrationStatus.queryKey({
+              eventId: registrationOption.eventId,
+            }),
+          });
+          await this.queryClient.invalidateQueries({
+            queryKey: this.rpc.events.findOne.queryKey({
+              id: registrationOption.eventId,
+            }),
+          });
+        },
+      },
+    );
+  }
 
   register(registrationOption: { eventId: string; id: string }) {
     this.registrationMutation.mutate(

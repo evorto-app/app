@@ -386,6 +386,17 @@ export const EventsRegisterForEvent = asRpcMutation(
   }),
 );
 
+export const EventsJoinWaitlist = asRpcMutation(
+  Rpc.make('events.joinWaitlist', {
+    error: EventsRegisterForEventError,
+    payload: Schema.Struct({
+      eventId: Schema.NonEmptyString,
+      registrationOptionId: Schema.NonEmptyString,
+    }),
+    success: Schema.Void,
+  }),
+);
+
 export const EventsRegistrationScanned = asRpcQuery(
   Rpc.make('events.registrationScanned', {
     error: EventsRegistrationScannedError,
@@ -483,6 +494,7 @@ export class EventsRpcs extends RpcGroup.make(
   EventsGetOrganizeOverview,
   EventsGetPendingReviews,
   EventsGetRegistrationStatus,
+  EventsJoinWaitlist,
   EventsRegisterForEvent,
   EventsRegistrationScanned,
   EventsReviewEvent,
