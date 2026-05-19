@@ -343,6 +343,7 @@ export const userHandlers = {
         database
           .update(users)
           .set({
+            communicationEmail: input.communicationEmail,
             firstName: input.firstName,
             iban: input.iban ?? null,
             lastName: input.lastName,

@@ -4,7 +4,13 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { form, FormField, required, submit } from '@angular/forms/signals';
+import {
+  form,
+  FormField,
+  pattern,
+  required,
+  submit,
+} from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import {
   MAT_DIALOG_DATA,
@@ -18,6 +24,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 
 export interface EditProfileDialogData {
+  communicationEmail: string;
   firstName: string;
   iban: null | string;
   lastName: string;
@@ -25,6 +32,7 @@ export interface EditProfileDialogData {
 }
 
 export interface EditProfileDialogResult {
+  communicationEmail: string;
   firstName: string;
   iban: null | string;
   lastName: string;
@@ -50,12 +58,15 @@ export interface EditProfileDialogResult {
 export class EditProfileDialogComponent {
   protected readonly data = inject(MAT_DIALOG_DATA) as EditProfileDialogData;
   protected readonly profileModel = signal({
+    communicationEmail: this.data.communicationEmail,
     firstName: this.data.firstName ?? '',
     iban: this.data.iban ?? '',
     lastName: this.data.lastName ?? '',
     paypalEmail: this.data.paypalEmail ?? '',
   });
   protected readonly profileForm = form(this.profileModel, (schemaPath) => {
+    required(schemaPath.communicationEmail);
+    pattern(schemaPath.communicationEmail, /^[^\s@]+@[^\s@]+\.[^\s@]+$/);
     required(schemaPath.firstName);
     required(schemaPath.lastName);
   });
@@ -66,6 +77,7 @@ export class EditProfileDialogComponent {
     await submit(this.profileForm, async (formState) => {
       const formValue = formState().value();
       this.dialogRef.close({
+        communicationEmail: formValue.communicationEmail.trim(),
         firstName: formValue.firstName.trim(),
         iban: formValue.iban.trim() || null,
         lastName: formValue.lastName.trim(),

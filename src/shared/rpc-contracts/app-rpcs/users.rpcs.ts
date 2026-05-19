@@ -98,6 +98,7 @@ export const UsersSelf = asRpcQuery(
 );
 
 export const UsersUpdateProfileInput = Schema.Struct({
+  communicationEmail: Schema.NonEmptyString,
   firstName: Schema.NonEmptyString,
   iban: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
   lastName: Schema.NonEmptyString,
