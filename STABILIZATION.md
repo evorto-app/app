@@ -1059,7 +1059,9 @@ the current working direction until a product decision overrides them.
 - The docs suite favors screenshots and prose, but many docs do not assert that the workflow was completed or persisted.
 - Some functional specs have strong names and tags but weak assertions. These are more dangerous than absent tests because they imply coverage.
 - Integration-only docs are correctly taggable, but baseline docs should still cover account/profile/tenant flows that do not require Auth0 Management or external APIs.
-- The current reporter output target points outside this repository, so this repo does not contain the generated documentation artifact it depends on.
+- Normal local docs output now stays in this repository's ignored
+  `test-results/docs` paths. Publishing into the sibling documentation checkout
+  is intentionally explicit through `bun run test:e2e:docs:publish`.
 
 ### Product Questions Answered Above
 
@@ -1159,10 +1161,7 @@ the current working direction until a product decision overrides them.
 6. Add Browser-backed scanner/organizer aggregate review once local runtime is available.
 7. Add Browser-backed profile coverage for payment-continuation, ticket/cancellation routing, waitlist messaging, and ESNcard provider failure semantics once local runtime is available.
 8. Fill the remaining tenant settings implementation gap for branding uploads, legal text pages, onboarding/domain workflows, locale/currency/timezone policy, and global tenant-admin workflows. The current general-settings page exposes SEO fields, externally hosted logo/favicon URLs, tenant legal links, read-only runtime identity, and a visible deferred-settings summary.
-9. Make Playwright list/discovery side-effect-free and document or automate the local browser installation expectation.
-10. Update or regenerate `tests/test-inventory.md` after placeholder docs/specs are pruned.
-11. Move local generated docs defaults away from the sibling documentation checkout, or introduce an explicit docs-publish flow that cannot run accidentally during list/discovery.
-12. Keep `docker:start` reset behavior intentional and ensure seeded data is sufficient to get going from zero.
+9. Keep `docker:start` reset behavior intentional and ensure seeded data is sufficient to get going from zero.
 
 ### Acceptable For Now
 
@@ -1329,6 +1328,11 @@ implement those decisions or explicitly revise them there before changing code.
   placeholder metadata in real test titles.
 - Playwright inventory metadata pass: refreshed `tests/test-inventory.md` and
   the generated-docs/current-behavior counts after title metadata cleanup.
+- Runtime blocker refresh: reran `bun run docker:check`; Docker remains
+  intentionally blocked until `NEON_API_KEY`, `CLIENT_SECRET`, and
+  `STRIPE_API_KEY` are provided, while Font Awesome premium/brand registry
+  access and Docker Compose config still validate. Playwright browser cache is
+  still missing and needs `bun run test:e2e:install` before page-backed runs.
 
 ## Review Next
 
