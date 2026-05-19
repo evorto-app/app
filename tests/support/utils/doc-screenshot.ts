@@ -1,18 +1,6 @@
 import { Locator, Page, TestInfo } from '@playwright/test';
-import { ConfigProvider, Effect } from 'effect';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-
-import { documentationOutputEnvironment } from '../config/environment';
-
-const docsEnvironment = Effect.runSync(
-  documentationOutputEnvironment.pipe(
-    Effect.provideService(
-      ConfigProvider.ConfigProvider,
-      ConfigProvider.fromEnv(),
-    ),
-  ),
-);
 
 function ensureDir(dir: string) {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -28,6 +16,15 @@ function slugify(input: string) {
   );
 }
 
+export function resolveDocsImageOutputDirectory(
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  const configured = env['DOCS_IMG_OUT_DIR']?.trim();
+  return configured && configured.length > 0
+    ? configured
+    : path.resolve('test-results/docs/images');
+}
+
 /**
  * Focused documentation screenshot helper.
  * - Wraps Locator.screenshot and saves to DOCS_IMG_OUT_DIR (or default)
@@ -39,7 +36,7 @@ export async function docScreenshot(
   _page: Page,
   name?: string,
 ): Promise<string> {
-  const imagesRoot = docsEnvironment.docsImageOutputDirectory;
+  const imagesRoot = resolveDocsImageOutputDirectory();
   ensureDir(imagesRoot);
 
   // organize by test folder for readability
