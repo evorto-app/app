@@ -235,6 +235,18 @@ describe('evaluateRuntimePreflight', () => {
     );
   });
 
+  it('keeps the no-secret env example aligned with required Docker variables', () => {
+    const envExample = fs.readFileSync(
+      path.join(process.cwd(), '.env.example'),
+      'utf8',
+    );
+
+    for (const { name } of requiredByTarget.docker) {
+      expect(envExample).toContain(`${name}=`);
+    }
+    expect(envExample).toContain('Do not put real secret values in this file.');
+  });
+
   it('warns about missing Playwright browsers without blocking Docker start', () => {
     const result = evaluateRuntimePreflight('docker', {
       cwd: '/repo',
