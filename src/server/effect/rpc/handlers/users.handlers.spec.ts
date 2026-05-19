@@ -270,7 +270,14 @@ describe('userHandlers', () => {
                     title: 'Standard',
                   },
                   status: 'PENDING',
-                  transactions: [{ status: 'pending', type: 'registration' }],
+                  transactions: [
+                    {
+                      method: 'stripe',
+                      status: 'pending',
+                      stripeCheckoutUrl: 'https://checkout.stripe.test/pay',
+                      type: 'registration',
+                    },
+                  ],
                 },
                 {
                   checkInTime: new Date('2026-02-01T10:30:00.000Z'),
@@ -288,7 +295,12 @@ describe('userHandlers', () => {
                   },
                   status: 'CONFIRMED',
                   transactions: [
-                    { status: 'successful', type: 'registration' },
+                    {
+                      method: 'stripe',
+                      status: 'successful',
+                      stripeCheckoutUrl: null,
+                      type: 'registration',
+                    },
                   ],
                 },
                 {
@@ -317,6 +329,7 @@ describe('userHandlers', () => {
       expect(result).toEqual([
         {
           checkInTime: '2026-02-01T10:30:00.000Z',
+          checkoutUrl: null,
           description: 'earlier',
           end: '2026-02-01T11:00:00.000Z',
           eventId: 'event-1',
@@ -329,6 +342,7 @@ describe('userHandlers', () => {
         },
         {
           checkInTime: null,
+          checkoutUrl: 'https://checkout.stripe.test/pay',
           description: 'later',
           end: '2026-03-01T11:00:00.000Z',
           eventId: 'event-2',

@@ -122,6 +122,22 @@ const resolveRegistrationPaymentState = (
   return 'notRequired';
 };
 
+const resolvePendingRegistrationCheckoutUrl = (
+  transactions: readonly {
+    method?: string;
+    status: string;
+    stripeCheckoutUrl?: null | string;
+    type: string;
+  }[],
+): null | string =>
+  transactions.find(
+    (transaction) =>
+      transaction.method === 'stripe' &&
+      transaction.status === 'pending' &&
+      transaction.type === 'registration' &&
+      transaction.stripeCheckoutUrl,
+  )?.stripeCheckoutUrl ?? null;
+
 export const userHandlers = {
   'users.authData': (_payload, options) =>
     Effect.sync(() => decodeAuthDataHeader(options.headers)),
@@ -274,7 +290,9 @@ export const userHandlers = {
             },
             transactions: {
               columns: {
+                method: true,
                 status: true,
+                stripeCheckoutUrl: true,
                 type: true,
               },
             },
@@ -294,6 +312,9 @@ export const userHandlers = {
             ? [
                 {
                   checkInTime: registration.checkInTime,
+                  checkoutUrl: resolvePendingRegistrationCheckoutUrl(
+                    registration.transactions,
+                  ),
                   event: registration.event,
                   paymentState: resolveRegistrationPaymentState(
                     registration.transactions,
@@ -313,6 +334,7 @@ export const userHandlers = {
         )
         .map((registration) => ({
           checkInTime: registration.checkInTime?.toISOString() ?? null,
+          checkoutUrl: registration.checkoutUrl,
           description: registration.event.description ?? null,
           end: registration.event.end.toISOString(),
           eventId: registration.event.id,

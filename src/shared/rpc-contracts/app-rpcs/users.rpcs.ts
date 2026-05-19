@@ -120,6 +120,7 @@ export const UsersUpdateProfile = asRpcMutation(
 
 export const UsersEventSummaryRecord = Schema.Struct({
   checkInTime: Schema.NullOr(Schema.String),
+  checkoutUrl: Schema.NullOr(Schema.String),
   description: Schema.NullOr(Schema.String),
   end: Schema.String,
   eventId: Schema.NonEmptyString,
