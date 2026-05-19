@@ -599,7 +599,7 @@ the current working direction until a product decision overrides them.
 - **Addressed in this stabilization pass:** template write routes now have route-level permission guards for direct `/templates/create`, `/templates/:id/edit`, and `/templates/:id/create-event` access.
 - **Addressed in this stabilization pass:** template create/update validates `categoryId` and registration `roleIds` against the current tenant before persisting. Invalid references now fail with typed bad-request errors instead of relying on database constraints or unconstrained role-id arrays.
 - **Addressed in this stabilization pass:** template registration offsets now fail with a typed bad request when a registration would open after it closes. Because offsets are "hours before event", `openRegistrationOffset` must be greater than or equal to `closeRegistrationOffset` for a normal window.
-- **Must fix before agent scaling:** template location is `Schema.Any`, matching the event boundary issue. It should use a real shared location schema or an explicit documented escape hatch.
+- **Addressed in this stabilization pass:** template create/update and find-one RPC location fields now use the shared `EventLocation` schema instead of `Schema.Any`, matching the event boundary behavior.
 - **Should fix before relaunch:** simple-mode create/update always writes exactly two registration options. That matches the current UI but is thinner than the product model for reusable event knowledge.
 - **Should fix before relaunch:** template discounts and add-ons exist in schema, but simple-mode template create/update does not expose or persist discounts/add-ons. Event creation has separate discount-copying logic, but the simple template editing path cannot maintain those richer fields.
 - **Addressed in this stabilization pass:** registration mode now only offers first-come-first-served in event/template authoring controls. The contracts still accept existing stored `random`/`application` values, but new/edit UI no longer presents unsupported fulfillment modes.
@@ -612,7 +612,7 @@ the current working direction until a product decision overrides them.
 - `tests/docs/templates/templates.doc.ts` documents simple-mode template creation, role defaults, payment field visibility, and role-picker behavior.
 - `tests/specs/templates/paid-option-requires-tax-rate.spec.ts` is fully `test.fixme(...)` and contains placeholder assertions. It should not be treated as active tax-rate validation coverage.
 - `tests/docs/template.doc.ts` is only a discovery/tagging placeholder, not product documentation.
-- Permission matrix coverage checks template create link visibility plus direct route denial for template create/edit/create-event routes. Server unit coverage proves template RPC denial, template offset ordering, and tenant-owned template category/role validation.
+- Permission matrix coverage checks template create link visibility plus direct route denial for template create/edit/create-event routes. Server unit coverage proves template RPC denial, template offset ordering, tenant-owned template category/role validation, and template location schema rejection.
 
 ### Product Questions Answered Above
 
@@ -626,7 +626,7 @@ the current working direction until a product decision overrides them.
 - Keep permission-matrix coverage for direct template write-route denial.
 - Keep focused `SimpleTemplateService` coverage for tenant-owned template category/role validation.
 - Keep focused `SimpleTemplateService` coverage for template offset ordering.
-- Replace `Schema.Any` location fields with a shared schema or document why the boundary remains intentionally loose.
+- Keep template and event RPC location fields aligned on the shared `EventLocation` schema.
 - Quarantine or replace placeholder/fixme template tax-rate specs with active coverage for the current simple-mode UI.
 - Keep `random` and `application` hidden until their fulfillment semantics are
   implemented end to end.
