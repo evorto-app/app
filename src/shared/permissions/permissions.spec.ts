@@ -46,8 +46,11 @@ describe('PERMISSION_GROUPS', () => {
     expect(usersGroup?.permissions).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
+          description: expect.stringContaining(
+            'not available in the current admin UI',
+          ),
           key: 'users:assignRoles',
-          label: 'Assign user roles',
+          label: 'Assign user roles (future)',
         }),
       ]),
     );
