@@ -736,7 +736,7 @@ the current working direction until a product decision overrides them.
 
 - Stripe webhook replay specs cover idempotent completed sessions, paid-registration counter transitions, expired-session reservation release, processing-claim behavior, stale-claim reclaim, payment-intent fallback, and ignoring unpaid completed sessions.
 - Receipt flow specs cover receipt submission UI, receipt approval/refund path, and tenant "Other" receipt country visibility.
-- `tests/specs/finance/receipts-flows.spec.ts` contains early `return` paths when no pending receipt, no refundable receipt, no checkbox, or no enabled refund action exists. Those branches can make the approval/refund test pass without proving the behavior.
+- **Addressed in stabilization pass:** `tests/specs/finance/receipts-flows.spec.ts` now hard-fails when the seeded pending receipt, refundable receipt group, row checkbox, enabled reimbursement action, or tenant "Other" country option is missing.
 - Finance overview docs now describe the current navigation-style finance UI and current finance capability names.
 - Tax-rate docs and specs provide better active coverage for `admin:tax` and inclusive Stripe tax-rate import/selection.
 - Server finance unit tests are still thin, but now include transaction-list permission denial plus receipt-media upload preflight denial/success coverage. Receipt submit/review amount preconditions remain mostly untested at the handler level.
@@ -758,7 +758,7 @@ the current working direction until a product decision overrides them.
 - Validate receipt tax amount against total amount on submit and review.
 - Remove or deprecate `paymentStatus` in favor of registration status plus
   transaction rows after confirming no active behavior depends on it.
-- Replace early-return receipt flow tests with deterministic fixtures and hard assertions for approval and reimbursement.
+- Keep receipt flow specs deterministic: seeded approval/refund paths should fail loudly when expected rows, controls, or options are missing.
 - Keep finance overview docs aligned with current navigation UI and permission names as reimbursement wording changes.
 
 ## Scanning/Check-In
@@ -1138,6 +1138,7 @@ implement those decisions or explicitly revise them there before changing code.
 - Finance access pass: gated finance transaction reads with `finance:viewTransactions`, added finance route guards/link visibility for transaction, receipt approval, and receipt reimbursement pages, added permission-matrix coverage, and rewrote the finance overview doc copy to current permissions and UI behavior.
 - Finance webhook counter pass: moved paid checkout completion/expiry counter updates into the Stripe webhook transaction and extended webhook replay specs to assert registration status, transaction status, and option counters together.
 - Finance receipt-upload pass: added event-scoped receipt-media upload preflight so object storage writes require receipt-submit authorization before upload, while `finance.receipts.submit` keeps its own authorization check.
+- Finance receipt-spec cleanup pass: removed silent early returns from approval/refund and "Other country" receipt Playwright coverage so missing seeded UI state fails instead of passing.
 
 ## Review Next
 
