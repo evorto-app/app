@@ -50,6 +50,11 @@
                 >
                   {{ permission.label }}
                 </mat-checkbox>
+                @if (permission.description) {
+                  <p class="text-on-surface-variant ml-6 text-xs">
+                    {{ permission.description }}
+                  </p>
+                }
                 @if (getDependentPermissions(permission.key).length > 0) {
                   <div class="text-on-surface-variant ml-6 text-xs">
                     Includes:

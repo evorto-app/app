@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   ALL_PERMISSIONS,
   includesPermission,
+  PERMISSION_GROUPS,
   PermissionSchema,
 } from './permissions';
 
@@ -26,6 +27,30 @@ describe('PermissionSchema', () => {
         'globalAdmin:manageTenants',
       ]),
     ).toContain('events:viewPublic');
+  });
+});
+
+describe('PERMISSION_GROUPS', () => {
+  it('defines admin-facing labels and descriptions for every visible permission', () => {
+    for (const permission of PERMISSION_GROUPS.flatMap(
+      (group) => group.permissions,
+    )) {
+      expect(permission.label).not.toContain(':');
+      expect(permission.label.trim().length).toBeGreaterThan(0);
+      expect(permission.description?.trim().length).toBeGreaterThan(0);
+    }
+  });
+
+  it('keeps ambiguous permissions explicit', () => {
+    const usersGroup = PERMISSION_GROUPS.find((group) => group.key === 'users');
+    expect(usersGroup?.permissions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          key: 'users:assignRoles',
+          label: 'Assign user roles',
+        }),
+      ]),
+    );
   });
 });
 
