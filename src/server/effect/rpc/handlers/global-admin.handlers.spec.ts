@@ -22,9 +22,14 @@ describe('globalAdminHandlers', () => {
             findMany: () =>
               Effect.succeed([
                 {
+                  currency: 'EUR',
                   domain: 'tenant.example.com',
                   id: 'tenant-1',
+                  locale: 'en-GB',
                   name: 'Tenant',
+                  stripeAccountId: 'acct_123',
+                  theme: 'esn',
+                  timezone: 'Europe/Berlin',
                 },
               ]),
           },
@@ -39,9 +44,14 @@ describe('globalAdminHandlers', () => {
 
       expect(tenants).toEqual([
         {
+          currency: 'EUR',
           domain: 'tenant.example.com',
           id: 'tenant-1',
+          locale: 'en-GB',
           name: 'Tenant',
+          stripeConnected: true,
+          theme: 'esn',
+          timezone: 'Europe/Berlin',
         },
       ]);
     }),

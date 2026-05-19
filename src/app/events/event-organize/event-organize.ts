@@ -43,7 +43,7 @@ interface EventOrganizeStatsInput {
 }
 
 export const computeEventOrganizeStats = (
-  eventData: EventOrganizeStatsInput | null | undefined,
+  eventData?: EventOrganizeStatsInput | null,
 ) => {
   const registrationOptions = eventData?.registrationOptions ?? [];
   const totalCapacity = registrationOptions.reduce(

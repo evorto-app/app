@@ -10,9 +10,14 @@ export const GlobalAdminRpcError = ForbiddenOrUnauthorizedRpcError;
 export type GlobalAdminRpcError = ForbiddenOrUnauthorizedRpcError;
 
 export const GlobalAdminTenantRecord = Schema.Struct({
+  currency: Schema.NonEmptyString,
   domain: Schema.NonEmptyString,
   id: Schema.NonEmptyString,
+  locale: Schema.NonEmptyString,
   name: Schema.NonEmptyString,
+  stripeConnected: Schema.Boolean,
+  theme: Schema.NonEmptyString,
+  timezone: Schema.NonEmptyString,
 });
 
 export type GlobalAdminTenantRecord = Schema.Schema.Type<
