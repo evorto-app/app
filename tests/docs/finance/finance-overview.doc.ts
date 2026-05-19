@@ -4,7 +4,7 @@ import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 
 test.use({ storageState: organizerStateFile });
 
-test('Manage finances @finance @track(playwright-specs-track-linking_20260126) @doc(FINANCE-OVERVIEW-DOC-01)', async ({
+test('Manage finances @finance', async ({
   permissionOverride,
   page,
 }, testInfo) => {

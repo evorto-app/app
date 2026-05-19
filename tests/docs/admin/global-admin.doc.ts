@@ -4,7 +4,7 @@ import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 
 test.use({ storageState: gaStateFile });
 
-test('Review global tenant administration @admin @globalAdmin @track(playwright-specs-track-linking_20260126) @doc(ADMIN-GLOBAL-TENANTS-DOC-01)', async ({
+test('Review global tenant administration @admin @globalAdmin', async ({
   page,
 }, testInfo) => {
   await page.goto('/global-admin');
