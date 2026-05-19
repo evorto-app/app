@@ -1,5 +1,10 @@
 import type { GlobalAdminTenantRecord } from '@shared/rpc-contracts/app-rpcs/global-admin.rpcs';
 
+import { getErrorMessage } from '../../core/error-message';
+
+export const globalAdminTenantListErrorMessage = (error: unknown): string =>
+  getErrorMessage(error, 'Failed to load tenants');
+
 const searchableTenantFields = (tenant: GlobalAdminTenantRecord): string[] => [
   tenant.currency,
   tenant.domain,
