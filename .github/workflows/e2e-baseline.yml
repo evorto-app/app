@@ -179,7 +179,7 @@ jobs:
 
           DOCS_OUT_DIR=test-results/docs \
           DOCS_IMG_OUT_DIR=test-results/docs/images \
-          bunx playwright test --project=docs-baseline --grep "pr63-docs-baseline-disabled" --pass-with-no-tests \
+          bunx playwright test --project=docs-baseline \
             --reporter=github,dot,./tests/support/reporters/documentation-reporter.ts
 
       - name: Collect Docker logs
