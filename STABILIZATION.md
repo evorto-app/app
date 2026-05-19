@@ -964,6 +964,7 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** tenant general settings now expose tenant name, primary domain, and Stripe connection state as read-only operator context.
 - **Addressed in stabilization pass:** tenant general settings now include a visible deferred-settings summary for custom-domain verification, logo/favicon uploads beyond externally hosted URLs, hosted legal text pages beyond external links, email sender name, review/publishing settings, registration limits, editable locale/currency/timezone, and Stripe account management. These fields are still not editable unless explicitly called out below.
 - **Addressed in this stabilization pass:** supported tenant currency, locale, and timezone values are now editable from general settings, persisted through `admin.tenant.updateSettings`, and validated against the shared Tenant relaunch policy before the RPC responds.
+- **Addressed in this stabilization pass:** general settings reloads the app after saved currency, locale, or timezone changes so Angular's bootstrap-level currency and locale providers are refreshed instead of leaving the current session on stale formatting defaults.
 - **Addressed in stabilization pass:** tenant logo and favicon URLs are now part of the `Tenant` RPC schema, editable from general settings, validated by `admin.tenant.updateSettings`, persisted with empty values normalized to `null`, and the configured favicon updates the browser tab icon.
 - **Addressed in stabilization pass:** tenant SEO title and description are now part of the `Tenant` RPC schema, editable from general settings, persisted by `admin.tenant.updateSettings`, and used as the tenant-level document title/meta description when configured.
 - **Addressed in stabilization pass:** tenant imprint/legal notice, privacy policy, and terms URLs are now part of the `Tenant` RPC schema, editable from general settings, validated by `admin.tenant.updateSettings`, persisted with empty values normalized to `null`, and rendered in the public app footer when configured.
@@ -985,7 +986,7 @@ the current working direction until a product decision overrides them.
 - `tests/specs/auth/storage-state-refresh.test.ts` covers stale/wrong tenant cookies in saved Playwright storage state, not runtime tenant resolution.
 - `tests/specs/permissions/tenant-isolation-tax-rates.spec.ts` checks seeded tenant tax-rate isolation directly in the database, but does not exercise the RPC/UI tenant context switch.
 - `tests/specs/permissions/matrix.spec.ts` covers route denial for `/admin/settings`, `/admin/roles`, `/admin/users`, `/admin/tax-rates`, `/finance/transactions`, `/finance/receipts-approval`, `/finance/receipts-refunds`, and template write routes. `tests/specs/finance/tax-rates/admin-import-tax-rates.spec.ts` adds focused tax-rate route denial coverage. Route-manifest unit specs cover admin, finance, template, and global-admin guard declarations without requiring page-backed runtime. `tests/specs/permissions/global-admin-route-guard.spec.ts` covers direct `/global-admin` allow/deny behavior once page-backed runtime is available.
-- `tests/docs/admin/general-settings.doc.ts` documents the current tenant general-settings page, including the deferred-settings summary, read-only tenant identity summary, editable locale/money policy, editable brand asset URLs, editable tenant legal links, and public footer/favicon exposure, and records which branding/domain/hosted-legal-text settings are not editable yet.
+- `tests/docs/admin/general-settings.doc.ts` documents the current tenant general-settings page, including the deferred-settings summary, read-only tenant identity summary, editable locale/money policy plus reload behavior, editable brand asset URLs, editable tenant legal links, and public footer/favicon exposure, and records which branding/domain/hosted-legal-text settings are not editable yet.
 - `tests/docs/admin/global-admin.doc.ts` documents the current searchable global-admin tenant list and records that tenant create/edit/detail, custom-domain verification, and impersonation workflows are not implemented yet.
 - `tests/docs/finance/inclusive-tax-rates.doc.ts` documents tenant tax-rate management.
 - `src/shared/rpc-contracts/app-rpcs/admin.rpcs.spec.ts` covers the tenant settings update payload scope.
@@ -1287,6 +1288,9 @@ implement those decisions or explicitly revise them there before changing code.
   timezone out of the read-only/deferred tenant-settings bucket and through the
   general-settings form, admin RPC payload, persistence handler, generated docs,
   and focused payload/handler coverage.
+- Tenant locale/money reload pass: reloads the app after saved currency,
+  locale, or timezone changes so bootstrap-level formatting defaults are not
+  stale in the current session.
 - Legacy schema migration pass: added an idempotent migration step that drops
   physical `roles.showInHub`, `event_registrations.paymentStatus`, and the
   unused `payment_status` enum when present.

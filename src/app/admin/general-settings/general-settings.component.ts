@@ -1,3 +1,4 @@
+import { DOCUMENT } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -43,6 +44,7 @@ import {
 import {
   GeneralSettingsModel,
   generalSettingsPayloadFromModel,
+  requiresLocaleMoneyRuntimeReload,
 } from './general-settings.payload';
 
 @Component({
@@ -96,6 +98,7 @@ export class GeneralSettingsComponent {
     tenantIdentityRows(this.configService.tenant),
   );
   protected readonly timezoneOptions = supportedTenantTimezones;
+  private readonly document = inject(DOCUMENT);
   private readonly notifications = inject(NotificationService);
   private readonly queryClient = inject(QueryClient);
   private readonly rpc = AppRpc.injectClient();
@@ -140,6 +143,10 @@ export class GeneralSettingsComponent {
     event.preventDefault();
     await submit(this.settingsForm, async (formState) => {
       const settings = formState().value();
+      const reloadRequired = requiresLocaleMoneyRuntimeReload(
+        this.configService.tenant,
+        settings,
+      );
       try {
         await this.updateSettingsMutation.mutateAsync(
           generalSettingsPayloadFromModel(settings),
@@ -154,7 +161,14 @@ export class GeneralSettingsComponent {
             },
           },
         );
-        this.notifications.showSuccess('Tenant settings updated');
+        this.notifications.showSuccess(
+          reloadRequired
+            ? 'Tenant settings updated. Reloading to apply locale and money settings.'
+            : 'Tenant settings updated',
+        );
+        if (reloadRequired) {
+          this.document.defaultView?.location.reload();
+        }
       } catch (error) {
         this.notifications.showError(
           getErrorMessage(error, 'Failed to update tenant settings'),
