@@ -1013,7 +1013,7 @@ the current working direction until a product decision overrides them.
 - Local runtime config uses `.env.dev.local` for tracked shared defaults, `.env.dev` for generated worktree-specific values, and `.env` for untracked developer secrets.
 - `bun run env:runtime` writes `.env.dev` with worktree-specific `COMPOSE_PROJECT_NAME`, Neon Local port, MinIO ports, `BASE_URL`, and local `DATABASE_URL`.
 - Local `test:e2e`, `test:e2e:ui`, `test:e2e:docs`, `db:*`, and `docker:*` scripts now refresh `.env.dev` before running `dotenv -c dev`, reducing fresh-worktree and wrong-database risk.
-- Docker Compose uses Neon Local, MinIO, Stripe CLI, a one-shot `db-setup` service, and an `evorto` app container. `bun run docker:check` verifies required local secrets before any Docker start command tears down or starts containers.
+- Docker Compose uses Neon Local, MinIO, Stripe CLI, a one-shot `db-setup` service, and an `evorto` app container. `bun run docker:check` verifies required local secrets before any Docker start command tears down or starts containers, and now also reports Bun, Docker Compose, Compose config, Playwright CLI, `.env.dev`, and Playwright browser-cache readiness.
 - `bun run build:app`, `bun run test:unit -- --watch=false`, and `bun run test:unit:server` pass in the current checkout.
 - Playwright test discovery works through the package scripts, but full page-backed Playwright execution still requires installing the matching browser binaries.
 - The shell has another `dotenv` binary earlier on `PATH`; bare `dotenv -c dev` fails, while package scripts and `node_modules/.bin/dotenv -c dev` work.
@@ -1033,7 +1033,7 @@ the current working direction until a product decision overrides them.
 - **Should fix before relaunch:** docs generation defaults can still point to paths from `.env` outside this repository, so list-only Playwright commands can clear generated docs in a sibling checkout unless callers override `DOCS_OUT_DIR` / `DOCS_IMG_OUT_DIR`.
 - **Should fix before relaunch:** CI e2e docs intentionally skip `@finance` docs in the baseline docs run. That may be pragmatic while finance docs are unstable, but it should remain visible because finance documentation can drift from product behavior.
 - **Should fix before relaunch:** `docker:start` and Playwright `webServer` run the foreground Docker stack through a destructive `docker compose down` and `db-setup` reset. This is documented, but future agents should treat it as a database-resetting command, not a harmless server start.
-- **Addressed in this stabilization pass:** `bun run docker:check` reports missing Neon Local, Auth0, Stripe, session, and Font Awesome registry variables before Docker Compose mutates local containers. The current worktree is missing `NEON_API_KEY`, `CLIENT_SECRET`, `STRIPE_API_KEY`, and `STRIPE_WEBHOOK_SECRET`, so a fresh full Docker start is intentionally blocked until those secrets are provided.
+- **Addressed in this stabilization pass:** `bun run docker:check` reports missing Neon Local, Auth0, Stripe, session, and Font Awesome registry variables before Docker Compose mutates local containers. It also reports local tool readiness and warns when Playwright browsers are missing without blocking Docker start. The current worktree is missing `NEON_API_KEY`, `CLIENT_SECRET`, `STRIPE_API_KEY`, and `STRIPE_WEBHOOK_SECRET`, so a fresh full Docker start is intentionally blocked until those secrets are provided.
 - **Should fix before relaunch:** the direct shell `dotenv` command is ambiguous on this machine. Future instructions should consistently say `bun run ...` or `node_modules/.bin/dotenv`, not bare `dotenv`.
 - **Acceptable for now:** keeping core commands visible in `package.json` makes the workflow easier for agents than hiding orchestration in helper wrappers.
 - **Acceptable for now:** `.env.dev` is ignored and generated per worktree, while `.env.dev.local` remains tracked for shared defaults.
@@ -1058,7 +1058,6 @@ the current working direction until a product decision overrides them.
 - Make docs output side effects explicit by defaulting local generated docs to `test-results/docs` or adding a dedicated publish command for `evorto-pages`.
 - Consider splitting Docker commands into destructive reset/start and non-destructive restart flows if local developer data preservation becomes important.
 - Revisit the CI docs `@finance` exclusion after finance docs are rewritten to current behavior.
-- Extend `docker:check` into a broader runtime health check that also reports Bun, Docker Compose, Playwright browser installation, `.env.dev`, and Compose config status without starting/resetting the stack.
 - Keep `package.json` as the visible command surface and avoid moving core workflow commands into hidden helper CLIs.
 
 ## Prioritized Cleanup Backlog
@@ -1131,7 +1130,7 @@ implement those decisions or explicitly revise them there before changing code.
 - Tenant/global-admin pass: guarded global-admin routes with `globalAdmin:manageTenants`, decoupled global-admin permission resolution from current-tenant assignment, required tenant user context to have a current-tenant assignment, and fixed granted group wildcards such as `globalAdmin:*` to satisfy concrete permission checks.
 - Tenant-resolution pass: added focused `resolveTenantContext` coverage for non-local host precedence over cookies, localhost cookie fallback, stale localhost cookie fallback, and unknown non-local host failure.
 - Generated docs/Playwright pass: replaced stale Effect config-provider calls in Playwright config/support files so `test:e2e -- --list` and `test:e2e:docs -- --list` can discover tests again.
-- Local runtime/developer workflow pass: refreshed `.env.dev` automatically in local runtime scripts, added a visible Playwright browser-install script, split Angular/server unit-test discovery, aligned CI Bun with the repo runtime, added Docker required-secret preflight before mutating start commands, and updated workflow docs.
+- Local runtime/developer workflow pass: refreshed `.env.dev` automatically in local runtime scripts, added a visible Playwright browser-install script, split Angular/server unit-test discovery, aligned CI Bun with the repo runtime, added Docker required-secret preflight before mutating start commands, extended `docker:check` into a broader health report, and updated workflow docs.
 - Finance access pass: gated finance transaction reads with `finance:viewTransactions`, added finance route guards/link visibility for transaction, receipt approval, and receipt reimbursement pages, added permission-matrix coverage, and rewrote the finance overview doc copy to current permissions and UI behavior.
 - Finance webhook counter pass: moved paid checkout completion/expiry counter updates into the Stripe webhook transaction and extended webhook replay specs to assert registration status, transaction status, and option counters together.
 

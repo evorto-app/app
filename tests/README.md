@@ -53,7 +53,10 @@ bun run lint
 - `bun run docker:check` fails before Docker Compose mutates local containers
   when required local runtime variables are missing. The check covers Neon
   Local, Auth0, Stripe, the application session secret, and Font Awesome package
-  registry access for the premium icon packages.
+  registry access for the premium icon packages. It also reports Bun, Docker
+  Compose, Compose config, Playwright CLI, `.env.dev`, and Playwright browser
+  cache status. Missing Playwright browsers are warnings because they affect
+  Playwright runs, not Docker startup.
 - `bun run env:runtime` generates `.env.dev`, the untracked worktree-local override file.
 - `.env.dev.local` is the tracked shared default dev config file.
 - `.env` is the untracked developer-secrets file.
