@@ -3,6 +3,7 @@ import { Effect, Layer } from 'effect';
 
 import { Database } from '../../../../../db';
 import {
+  buildRegistrationOptionInsert,
   buildTemplateInsertValues,
   SimpleTemplateService,
 } from './simple-template.service';
@@ -24,6 +25,7 @@ const validTemplateInput = {
     roleIds: [],
     spots: 10,
     stripeTaxRateId: null,
+    title: 'Organizer registration',
   },
   participantRegistration: {
     closeRegistrationOffset: 24,
@@ -34,6 +36,7 @@ const validTemplateInput = {
     roleIds: [],
     spots: 10,
     stripeTaxRateId: null,
+    title: 'Participant registration',
   },
   title: 'Template',
 };
@@ -102,6 +105,44 @@ describe('SimpleTemplateService', () => {
       }),
     ).toMatchObject({
       planningTips: null,
+    });
+  });
+
+  it('keeps reusable registration option copy on template inserts', () => {
+    expect(
+      buildRegistrationOptionInsert({
+        input: {
+          ...validTemplateInput.participantRegistration,
+          description: '<p> Public participant instructions </p>',
+          registeredDescription: '<p> Bring your ticket QR code. </p>',
+          title: 'Early bird ticket',
+        },
+        organizingRegistration: false,
+        templateId: 'template-1',
+      }),
+    ).toMatchObject({
+      description: '<p> Public participant instructions </p>',
+      registeredDescription: '<p> Bring your ticket QR code. </p>',
+      title: 'Early bird ticket',
+    });
+  });
+
+  it('stores blank registration option rich text as null', () => {
+    expect(
+      buildRegistrationOptionInsert({
+        input: {
+          ...validTemplateInput.organizerRegistration,
+          description: '<p> </p>',
+          registeredDescription: '',
+          title: '  Organizer ticket  ',
+        },
+        organizingRegistration: true,
+        templateId: 'template-1',
+      }),
+    ).toMatchObject({
+      description: null,
+      registeredDescription: null,
+      title: 'Organizer ticket',
     });
   });
 

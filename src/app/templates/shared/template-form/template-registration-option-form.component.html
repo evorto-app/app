@@ -1,5 +1,8 @@
 @let form = registrationForm();
-<h3 class="font-medium">{{ form.title().value() }}</h3>
+<mat-form-field class="w-full">
+  <mat-label>Registration option name</mat-label>
+  <input matInput [formField]="form.title" />
+</mat-form-field>
 
 <section class="grid gap-3">
   <mat-slide-toggle [formField]="form.isPaid">Enable Payment</mat-slide-toggle>
@@ -31,6 +34,18 @@
       </mat-form-field>
     </div>
   }
+</section>
+
+<section class="flex flex-col gap-2">
+  <span class="text-on-surface-variant text-sm">Description</span>
+  <app-editor [control]="form.description" />
+</section>
+
+<section class="flex flex-col gap-2">
+  <span class="text-on-surface-variant text-sm">
+    Description for registered users
+  </span>
+  <app-editor [control]="form.registeredDescription" />
 </section>
 
 <section>

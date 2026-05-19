@@ -10,16 +10,40 @@ describe('toTemplateRegistrationSubmitData', () => {
     expect(
       toTemplateRegistrationSubmitData(
         createTemplateRegistrationFormModel({
+          description: '<p>Public copy</p>',
           isPaid: true,
           price: 2500,
+          registeredDescription: '<p>Private copy</p>',
           stripeTaxRateId: 'txr_vat_19',
+          title: 'Early bird',
         }),
       ),
     ).toEqual(
       expect.objectContaining({
+        description: '<p>Public copy</p>',
         isPaid: true,
         price: 2500,
+        registeredDescription: '<p>Private copy</p>',
         stripeTaxRateId: 'txr_vat_19',
+        title: 'Early bird',
+      }),
+    );
+  });
+
+  it('trims the option title and clears blank rich text copy before submit', () => {
+    expect(
+      toTemplateRegistrationSubmitData(
+        createTemplateRegistrationFormModel({
+          description: '   ',
+          registeredDescription: '',
+          title: '  Participant registration  ',
+        }),
+      ),
+    ).toEqual(
+      expect.objectContaining({
+        description: '',
+        registeredDescription: '',
+        title: 'Participant registration',
       }),
     );
   });

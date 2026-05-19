@@ -4,12 +4,30 @@ import {
   minLength,
   required,
   schema,
+  validate,
 } from '@angular/forms/signals';
+import { hasTemporaryRichTextImageSources } from '@shared/utils/rich-text-media';
 
 import { TemplateRegistrationFormModel } from './template-registration-option-form.utilities';
 
 export const templateRegistrationOptionFormSchema =
   schema<TemplateRegistrationFormModel>((form) => {
+    validate(form.description, ({ value }) => {
+      return hasTemporaryRichTextImageSources(value())
+        ? {
+            kind: 'richTextPendingUpload',
+            message: 'Wait for image uploads to finish before saving.',
+          }
+        : undefined;
+    });
+    validate(form.registeredDescription, ({ value }) => {
+      return hasTemporaryRichTextImageSources(value())
+        ? {
+            kind: 'richTextPendingUpload',
+            message: 'Wait for image uploads to finish before saving.',
+          }
+        : undefined;
+    });
     hidden(form.price, ({ valueOf }) => !valueOf(form.isPaid));
     hidden(form.stripeTaxRateId, ({ valueOf }) => !valueOf(form.isPaid));
     min(form.closeRegistrationOffset, 0);
@@ -26,4 +44,5 @@ export const templateRegistrationOptionFormSchema =
     required(form.stripeTaxRateId, {
       when: ({ valueOf }) => valueOf(form.isPaid),
     });
+    required(form.title);
   });
