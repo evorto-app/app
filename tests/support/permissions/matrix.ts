@@ -50,6 +50,57 @@ export const permissionMatrix: PermissionMatrixCase[] = [
   },
   {
     allowedDiff: {
+      add: ['admin:manageRoles'],
+      remove: [],
+      roleName: 'Admin',
+    },
+    allowedRoute: '/admin/roles',
+    capability: 'admin role management access',
+    deniedDiff: {
+      add: [],
+      remove: ['admin:manageRoles'],
+      roleName: 'Admin',
+    },
+    deniedRoute: '/admin/roles',
+    requiredPermissions: ['admin:manageRoles'],
+    storageState: adminStateFile,
+  },
+  {
+    allowedDiff: {
+      add: ['admin:changeSettings'],
+      remove: [],
+      roleName: 'Admin',
+    },
+    allowedRoute: '/admin/settings',
+    capability: 'admin general settings access',
+    deniedDiff: {
+      add: [],
+      remove: ['admin:changeSettings'],
+      roleName: 'Admin',
+    },
+    deniedRoute: '/admin/settings',
+    requiredPermissions: ['admin:changeSettings'],
+    storageState: adminStateFile,
+  },
+  {
+    allowedDiff: {
+      add: ['users:viewAll'],
+      remove: [],
+      roleName: 'Admin',
+    },
+    allowedRoute: '/admin/users',
+    capability: 'admin user list access',
+    deniedDiff: {
+      add: [],
+      remove: ['users:viewAll'],
+      roleName: 'Admin',
+    },
+    deniedRoute: '/admin/users',
+    requiredPermissions: ['users:viewAll'],
+    storageState: adminStateFile,
+  },
+  {
+    allowedDiff: {
       add: ['templates:editAll', 'templates:view'],
       remove: [],
       roleName: 'Section member',
