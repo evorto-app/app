@@ -1254,6 +1254,9 @@ implement those decisions or explicitly revise them there before changing code.
 - Receipt review docs pass: added a generated documentation journey for receipt approval and manual reimbursement recording, then removed receipt review/reimbursement from the generic missing-docs backlog.
 - Profile edit docs pass: extended the user-profile documentation journey to save a changed notification email, assert the refreshed profile summary, and restore the seeded user record after the doc run.
 - Create-account gate coverage pass: extracted the email-verification form gate into a typed helper and covered verified, unverified, null, and absent Auth0 email-verification states without requiring Auth0 Management credentials.
+- Playwright skip-inventory pass: added a local unit guard that allowlists every
+  current Playwright `test.skip` and `test.fixme`, keeping future fixture-state
+  gaps from becoming silent placeholders.
 
 ## Review Next
 
@@ -1263,7 +1266,8 @@ remaining relaunch gaps: Browser-backed profile action coverage, Browser-backed
 scanner aggregate review, the remaining tenant settings implementation scope,
 running the legacy-field migration path for production data, and replacing
 intentionally fixme-only price/tax specs with active Browser-backed coverage
-once the local runtime is available. Receipt notification remains a future
-product delivery path; the current relaunch scope records receipt review
-locally and keeps finance-facing copy explicit that submitter notification is
-manual.
+once the local runtime is available. New Playwright skips/fixmes should be
+added only as explicit credential gates or honest Browser-backed stabilization
+placeholders. Receipt notification remains a future product delivery path; the
+current relaunch scope records receipt review locally and keeps finance-facing
+copy explicit that submitter notification is manual.
