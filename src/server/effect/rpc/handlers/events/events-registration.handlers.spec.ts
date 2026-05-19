@@ -83,7 +83,7 @@ const scannedRegistration = {
   appliedDiscountType: null,
   checkInTime: null,
   event: {
-    start: new Date('2026-09-18T10:00:00.000Z'),
+    start: new Date(Date.now() + 30 * 60 * 1000),
     title: 'City tour',
   },
   eventId: 'event-1',
@@ -120,6 +120,40 @@ describe('event registration scan handlers', () => {
       );
 
       expect(error['_tag']).toBe('RpcForbiddenError');
+    }),
+  );
+
+  it.effect('disables scan check-in before the pre-start window opens', () =>
+    Effect.gen(function* () {
+      const database = {
+        query: {
+          eventRegistrations: {
+            findFirst: () =>
+              Effect.succeed({
+                ...scannedRegistration,
+                event: {
+                  ...scannedRegistration.event,
+                  start: new Date(Date.now() + 2 * 60 * 60 * 1000),
+                },
+              }),
+          },
+        },
+      };
+
+      const result = yield* eventRegistrationHandlers[
+        'events.registrationScanned'
+      ]({ registrationId: 'registration-1' }, { headers: {} } as never).pipe(
+        Effect.provide(
+          createContextLayer({
+            database,
+            user: createUser({ permissions: ['events:organizeAll'] }),
+          }),
+        ),
+      );
+
+      expect(result.allowCheckin).toBe(false);
+      expect(result.registrationStatusIssue).toBe(false);
+      expect(result.sameUserIssue).toBe(false);
     }),
   );
 
@@ -160,6 +194,9 @@ describe('event registration scan handlers', () => {
               findFirst: () =>
                 Effect.succeed({
                   checkInTime: null,
+                  event: {
+                    start: new Date(Date.now() + 30 * 60 * 1000),
+                  },
                   eventId: 'event-1',
                   id: 'registration-1',
                   registrationOptionId: 'option-1',
@@ -195,6 +232,46 @@ describe('event registration scan handlers', () => {
       }),
   );
 
+  it.effect('rejects check-in before the pre-start window opens', () =>
+    Effect.gen(function* () {
+      const database = {
+        query: {
+          eventRegistrations: {
+            findFirst: () =>
+              Effect.succeed({
+                checkInTime: null,
+                event: {
+                  start: new Date(Date.now() + 2 * 60 * 60 * 1000),
+                },
+                eventId: 'event-1',
+                id: 'registration-1',
+                registrationOptionId: 'option-1',
+                status: 'CONFIRMED',
+                userId: 'attendee-1',
+              }),
+          },
+        },
+        transaction: vi.fn(),
+      };
+
+      const error = yield* eventRegistrationHandlers[
+        'events.checkInRegistration'
+      ]({ registrationId: 'registration-1' }, { headers: {} } as never).pipe(
+        Effect.flip,
+        Effect.provide(
+          createContextLayer({
+            database,
+            user: createUser({ permissions: ['events:organizeAll'] }),
+          }),
+        ),
+      );
+
+      expect(error['_tag']).toBe('EventRegistrationConflictError');
+      expect(error.message).toBe('Check-in is not open for this event yet');
+      expect(database.transaction).not.toHaveBeenCalled();
+    }),
+  );
+
   it.effect('treats duplicate check-in as an idempotent success', () =>
     Effect.gen(function* () {
       const checkInTime = new Date('2026-09-18T09:45:00.000Z');
@@ -204,6 +281,9 @@ describe('event registration scan handlers', () => {
             findFirst: () =>
               Effect.succeed({
                 checkInTime,
+                event: {
+                  start: new Date(Date.now() + 2 * 60 * 60 * 1000),
+                },
                 eventId: 'event-1',
                 id: 'registration-1',
                 registrationOptionId: 'option-1',
@@ -246,6 +326,9 @@ describe('event registration scan handlers', () => {
             findFirst: () =>
               Effect.succeed({
                 checkInTime: null,
+                event: {
+                  start: new Date(Date.now() + 30 * 60 * 1000),
+                },
                 eventId: 'event-1',
                 id: 'registration-1',
                 registrationOptionId: 'option-1',
