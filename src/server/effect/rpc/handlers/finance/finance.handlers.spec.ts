@@ -87,6 +87,29 @@ const uploadInput = {
   mimeType: 'image/png',
 };
 
+const receiptFieldsInput = {
+  alcoholAmount: 0,
+  depositAmount: 0,
+  hasAlcohol: false,
+  hasDeposit: false,
+  purchaseCountry: 'NL',
+  receiptDate: '2026-05-19',
+  taxAmount: 20,
+  totalAmount: 100,
+};
+
+const receiptSubmitInput = {
+  attachment: {
+    fileName: 'receipt.png',
+    mimeType: 'image/png',
+    sizeBytes: 7,
+    storageKey: 'receipts/tenant-1/event-1/user-1/file.png',
+    storageUrl: 'local-unavailable://receipt',
+  },
+  eventId: 'event-1',
+  fields: receiptFieldsInput,
+};
+
 const databaseWithNoOrganizerReceiptAccess = () => {
   const emptyRegistrationQuery = {
     from: () => emptyRegistrationQuery,
@@ -107,6 +130,22 @@ const databaseWithTenantEvent = () => ({
       findFirst: () => Effect.succeed({ id: 'event-1' }),
     },
   },
+});
+
+const databaseWithSubmittedReceipt = () => ({
+  query: {
+    financeReceipts: {
+      findFirst: () =>
+        Effect.succeed({
+          id: 'receipt-1',
+          status: 'submitted' as const,
+        }),
+    },
+  },
+  update: () =>
+    Effect.die(
+      new Error('receipt update should not run after validation fails'),
+    ),
 });
 
 describe('financeHandlers composition', () => {
@@ -207,5 +246,58 @@ describe('finance transaction permissions', () => {
         expect(error['_tag']).toBe('RpcForbiddenError');
         expect(error.permission).toBe('finance:viewTransactions');
       }),
+  );
+});
+
+describe('finance receipt amount validation', () => {
+  it.effect('rejects receipt submissions when tax exceeds total', () =>
+    Effect.gen(function* () {
+      const error = yield* financeHandlers['finance.receipts.submit'](
+        {
+          ...receiptSubmitInput,
+          fields: {
+            ...receiptFieldsInput,
+            taxAmount: 101,
+            totalAmount: 100,
+          },
+        },
+        { headers: {} } as never,
+      ).pipe(
+        Effect.flip,
+        Effect.provide(
+          createContextLayer(['events:organizeAll'], {
+            database: databaseWithTenantEvent(),
+          }),
+        ),
+      );
+
+      expect(error['_tag']).toBe('RpcBadRequestError');
+      expect(error.reason).toBe('tax_amount_exceeds_total');
+    }),
+  );
+
+  it.effect('rejects receipt review updates when tax exceeds total', () =>
+    Effect.gen(function* () {
+      const error = yield* financeHandlers['finance.receipts.review'](
+        {
+          ...receiptFieldsInput,
+          id: 'receipt-1',
+          status: 'approved',
+          taxAmount: 101,
+          totalAmount: 100,
+        },
+        { headers: {} } as never,
+      ).pipe(
+        Effect.flip,
+        Effect.provide(
+          createContextLayer(['finance:approveReceipts'], {
+            database: databaseWithSubmittedReceipt(),
+          }),
+        ),
+      );
+
+      expect(error['_tag']).toBe('RpcBadRequestError');
+      expect(error.reason).toBe('taxAmountExceedsTotal');
+    }),
   );
 });
