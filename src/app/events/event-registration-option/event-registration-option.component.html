@@ -53,6 +53,22 @@
             <p class="body-large">This option is full.</p>
           }
         } @else {
+          @if (maxGuestCount() > 0) {
+            <mat-form-field appearance="outline">
+              <mat-label>Guests</mat-label>
+              <input
+                matInput
+                type="number"
+                min="0"
+                [max]="maxGuestCount()"
+                [value]="selectedGuestCount()"
+                (input)="updateGuestCount($event)"
+              />
+              <span matTextSuffix>
+                + you = {{ selectedSpotCount() }} spots
+              </span>
+            </mat-form-field>
+          }
           @if (registrationOption().isPaid) {
             <button
               (click)="register(registrationOption())"
@@ -61,10 +77,7 @@
               [disabled]="mutationPending()"
             >
               Pay
-              {{
-                (registrationOption().effectivePrice ??
-                  registrationOption().price) / 100 | currency
-              }}
+              {{ selectedTotalPrice() / 100 | currency }}
               and {{ audienceCopy().actionSuffix }}
             </button>
           } @else {

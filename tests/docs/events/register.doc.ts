@@ -79,6 +79,7 @@ test.describe('Register for events', () => {
   ### Successful registration
   You should now have a successful registration.
   You can see this by additional information being available and also your ticket QR code.
+  Participant registrations can include guests. Guest spots are attached to the logged-in buyer's registration and count against the same option capacity.
   This code is needed when attending the event. Keep this page available because QR email delivery is not part of the current relaunch flow.
   You can cancel a pending or confirmed registration from this event page before the event starts. Confirmed cancellation releases your spot, but paid-registration refunds are not automatic yet.`,
     });
@@ -166,7 +167,8 @@ test.describe('Register for events', () => {
     await testInfo.attach('markdown', {
       body: `
   By clicking the **Pay and register** button, you are starting the payment process.
-  Afterwards, you can either finish the registration by paying or cancel your payment and registration in case you changed your mind. Cancelling a pending payment registration releases the reserved spot and expires the pending checkout when possible.`,
+  Paid guest spots are included in the Stripe Checkout quantity and reserve the matching capacity while payment is pending.
+  Afterwards, you can either finish the registration by paying or cancel your payment and registration in case you changed your mind. Cancelling a pending payment registration releases the reserved spots and expires the pending checkout when possible.`,
     });
     await takeScreenshot(
       testInfo,

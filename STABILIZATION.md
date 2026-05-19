@@ -522,9 +522,9 @@ the current working direction until a product decision overrides them.
 - UI hides register actions from anonymous users and offers a login link back to the event.
 - UI disables registration before open time and after close time based on client time.
 - Free registration creates a confirmed registration and increments `confirmedSpots`.
-- Paid registration creates a pending registration, reserves a spot, creates a Stripe Checkout session, and shows a payment continuation link.
-- Registration writes enforce approved event status, tenant scope, open/close windows, role eligibility, one active registration per user/event, and capacity before creating a registration.
-- Capacity reservation/confirmation uses a database transaction with a conditional counter update.
+- Paid registration creates a pending registration, reserves the buyer plus guest spots, creates a Stripe Checkout session for the selected quantity, and shows a payment continuation link.
+- Registration writes enforce approved event status, tenant scope, open/close windows, role eligibility, one active registration per user/event, participant-only guest quantities, and capacity before creating a registration.
+- Capacity reservation/confirmation uses a database transaction with a conditional counter update for the buyer plus guest spots.
 - Full participant registration options expose a distinct waitlist action when registration is open; organizer/helper options only show the full state.
 - Successful paid registration is confirmed through Stripe/webhook-side effects; the active registration UI only shows QR code for confirmed registrations.
 - Users with confirmed organizer registrations, `events:organizeAll`, or `finance:manageReceipts` can open the organize view.
@@ -547,22 +547,22 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** registration capacity reservation/confirmation is inside a transaction with a conditional counter update.
 - **Addressed in stabilization pass:** existing-registration preflight and transactional duplicate checks include `tenantId`.
 - **Addressed in stabilization pass:** registration option lookup validates the related event tenant before proceeding.
-- **Should fix before relaunch:** no guest quantity is present in the event registration contract or UI, even though guest spots are an intended first-version behavior.
+- **Addressed in stabilization pass:** event registration supports guest quantities for participant options. The registration contract stores `guestCount`, the UI lets participants choose guests up to remaining capacity, free registration confirms all selected spots, and paid registration reserves/prices the selected quantity through Stripe checkout.
 - **Addressed in stabilization pass:** full participant options no longer present the normal registration action and instead expose a distinct waitlist action backed by a `WAITLIST` registration and `waitlistSpots` counter update.
 - **Addressed in stabilization pass:** registration submission now rejects stored `random` and `application` options server-side instead of silently handling them as first-come-first-served.
 - **Addressed in stabilization pass:** event registration option cards now label participant options separately from organizer/helper options and use distinct organizer/helper signup action copy while preserving the shared registration-option model.
 - **Addressed in stabilization pass:** role-ineligible direct event links keep the event visible but show an explicit registration-unavailable state instead of silently rendering an empty registration section.
 - **Addressed in stabilization pass:** participant self-cancellation now covers pending and confirmed registrations before event start, rolls back reserved/confirmed counters, blocks checked-in cancellations, and keeps refund copy honest for paid registrations.
 - **Addressed in stabilization pass:** organizer/admin cancellation is available from the organizer overview for confirmed participant registrations, requires event-organizer access or `events:organizeAll`, blocks checked-in cancellations, and rolls back confirmed counters without promising automatic refunds.
-- **Should fix before relaunch:** transfer/resale and automatic refund flows are not implemented in the reviewed event registration path.
+- **Should fix before relaunch:** transfer/resale, guest-quantity check-in, and automatic refund flows are not implemented in the reviewed event registration path.
 - **Addressed in stabilization pass:** active registration status now uses the shared persisted registration status literal union instead of raw `Schema.String`.
 - **Acceptable for now:** paid registration rollback is careful about cleaning up a failed checkout session creation path; deeper Stripe lifecycle review belongs in the finance pass.
 
 ### Test and Documentation Quality
 
 - `tests/specs/events/free-registration.test.ts` covers the free registration happy path using seeded scenario handles.
-- `src/app/events/event-registration-option/event-registration-option.component.spec.ts` covers registration-card state for full options, distinct waitlist availability, and too-early/too-late registration windows without requiring a page-backed browser.
-- `src/server/effect/rpc/handlers/events/event-registration.service.spec.ts` covers server-side rejection for duplicate active registration, unpublished events, closed registration windows, role-ineligible users, cross-tenant options, full options, unsupported registration modes, same-event second registrations across options, transactional duplicate races, transactional capacity races, and participant waitlist joining.
+- `src/app/events/event-registration-option/event-registration-option.component.spec.ts` covers registration-card state for full options, distinct waitlist availability, remaining-capacity guest selection helpers, and too-early/too-late registration windows without requiring a page-backed browser.
+- `src/server/effect/rpc/handlers/events/event-registration.service.spec.ts` covers server-side rejection for duplicate active registration, unpublished events, closed registration windows, role-ineligible users, cross-tenant options, full options, unsupported registration modes, same-event second registrations across options, transactional duplicate races, transactional capacity races, participant waitlist joining, and participant guest quantities.
 - `src/server/effect/rpc/handlers/events/events-registration.handlers.spec.ts` covers participant self-cancellation for pending and confirmed registrations plus checked-in and waitlist rejection paths.
 - `src/server/effect/rpc/handlers/events/events-registration.handlers.spec.ts` covers organizer/admin cancellation for confirmed registrations and denial without event-organizer access.
 - `src/server/effect/rpc/handlers/events/events-lifecycle.handlers.spec.ts` covers server-side rejection of end-before-start events and close-before-open registration windows for event create/update.
@@ -571,7 +571,7 @@ the current working direction until a product decision overrides them.
 - `src/server/effect/rpc/handlers/events/events-rpcs.schema.spec.ts` covers the active registration status literal union and rejects unknown statuses.
 - `tests/docs/events/event-management.doc.ts` now documents only the current event details, registration, review/listing, edit, organizer overview, participant grouping/cancellation, and receipt surfaces.
 - `tests/docs/events/unlisted-admin.doc.ts` covers the updated direct-link explanation in the listing dialog and on unlisted event details.
-- `tests/docs/events/register.doc.ts` covers free and paid registration as generated documentation and Stripe-backed evidence, including the participant versus organizer/helper option wording and participant self-cancellation copy.
+- `tests/docs/events/register.doc.ts` covers free and paid registration as generated documentation and Stripe-backed evidence, including guest quantity selection, the participant versus organizer/helper option wording, and participant self-cancellation copy.
 - `tests/docs/events/register.doc.ts` documents the role-ineligible direct-link state even though page-backed Browser coverage still depends on local runtime availability.
 - `src/app/events/event-registration-option/event-registration-option.component.spec.ts` covers the participant versus organizer/helper registration option copy.
 - `src/server/price/format-inclusive-tax-label.spec.ts` covers the shared inclusive-tax label formatter.
@@ -712,7 +712,7 @@ the current working direction until a product decision overrides them.
 ### Current Behavior
 
 - Paid event registration creates a pending registration, reserves a spot, creates a Stripe Checkout session, and stores a pending `registration` transaction with Stripe checkout ids.
-- Stripe `checkout.session.completed` marks the local transaction successful, confirms the registration, and moves one spot from reserved to confirmed when the session is complete and paid.
+- Stripe `checkout.session.completed` marks the local transaction successful, confirms the registration, and moves the buyer plus guest spots from reserved to confirmed when the session is complete and paid.
 - Stripe `checkout.session.expired` marks the local transaction cancelled, cancels the registration, and releases one reserved spot when the session is expired.
 - Finance navigation is hidden behind `finance:*`, and `/finance` requires at least one finance child capability.
 - The finance overview links to transactions, receipt approvals, and receipt reimbursements only when the user has the matching child permission.
@@ -733,7 +733,7 @@ the current working direction until a product decision overrides them.
 
 ### Issues and Risks
 
-- **Addressed in this stabilization pass:** Stripe checkout completion now moves a paid registration spot from `reservedSpots` to `confirmedSpots`, and checkout expiry releases the reserved spot. Both counter transitions are conditional on the registration actually leaving `PENDING`, preserving webhook replay safety.
+- **Addressed in this stabilization pass:** Stripe checkout completion now moves paid registration spots from `reservedSpots` to `confirmedSpots`, and checkout expiry releases the reserved spots. Both counter transitions are conditional on the registration actually leaving `PENDING`, preserving webhook replay safety.
 - **Addressed in this stabilization pass:** `finance.transactions.findMany` now requires `finance:viewTransactions`, so direct RPC calls cannot read transaction amounts, comments, methods, or fees with authentication alone.
 - **Addressed in this stabilization pass:** finance parent and child routes now have route-level permission guards. Transactions require `finance:viewTransactions`, receipt approvals require `finance:approveReceipts`, and receipt reimbursement requires `finance:refundReceipts`.
 - **Addressed in this stabilization pass:** receipt media upload now includes the target `eventId`, checks tenant event existence for authorized callers, and requires `canSubmitEventReceipts` before object storage is touched. A signed-in user without receipt-submit access can no longer create orphan receipt objects through the upload RPC.
@@ -1112,7 +1112,7 @@ the current working direction until a product decision overrides them.
 
 ### Should Fix Before Relaunch
 
-1. Implement guest quantities and transfer/resale; keep automatic refund handling visible until the finance flow is implemented.
+1. Implement transfer/resale and guest-quantity check-in; keep automatic refund handling visible until the finance flow is implemented.
 2. Add Playwright coverage for negative registration paths and role-ineligible direct links.
 3. Make organizer signup semantics visible and distinct if it remains modeled as a registration option.
 4. Keep simple-mode templates as the primary authoring UI, but expand reusable template support for discounts, add-ons, questions, and organizer notes/checklists where practical.

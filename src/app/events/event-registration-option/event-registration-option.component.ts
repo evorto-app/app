@@ -5,9 +5,12 @@ import {
   computed,
   inject,
   input,
+  signal,
 } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
 import {
   injectMutation,
   injectQuery,
@@ -83,6 +86,14 @@ export const registrationOptionCanJoinWaitlist = (
   option.registrationMode === 'fcfs' &&
   registrationOptionIsFull(option);
 
+export const registrationOptionAvailableSpots = (
+  option: Pick<
+    EventRegistrationOptionView,
+    'confirmedSpots' | 'reservedSpots' | 'spots'
+  >,
+): number =>
+  Math.max(0, option.spots - option.confirmedSpots - option.reservedSpots);
+
 export const registrationOptionAvailability = (
   option: Pick<
     EventRegistrationOptionView,
@@ -101,7 +112,13 @@ export const registrationOptionAvailability = (
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [MatButtonModule, CurrencyPipe, DatePipe],
+  imports: [
+    MatButtonModule,
+    MatFormFieldModule,
+    MatInputModule,
+    CurrencyPipe,
+    DatePipe,
+  ],
   selector: 'app-event-registration-option',
   styles: ``,
   templateUrl: './event-registration-option.component.html',
@@ -116,9 +133,18 @@ export class EventRegistrationOptionComponent {
   protected readonly authenticationQuery = injectQuery(() =>
     this.rpc.config.isAuthenticated.queryOptions(),
   );
+  protected readonly availableSpots = computed(() =>
+    registrationOptionAvailableSpots(this.registrationOption()),
+  );
   protected readonly full = computed(() => {
     return registrationOptionIsFull(this.registrationOption());
   });
+  protected readonly guestCount = signal(0);
+  protected readonly maxGuestCount = computed(() =>
+    this.registrationOption().organizingRegistration
+      ? 0
+      : Math.max(0, this.availableSpots() - 1),
+  );
   protected readonly registrationMutation = injectMutation(() =>
     this.rpc.events.registerForEvent.mutationOptions(),
   );
@@ -138,6 +164,17 @@ export class EventRegistrationOptionComponent {
       this.registrationOption(),
       this.currentTime(),
     );
+  });
+  protected readonly selectedGuestCount = computed(() =>
+    Math.min(this.guestCount(), this.maxGuestCount()),
+  );
+  protected readonly selectedSpotCount = computed(
+    () => this.selectedGuestCount() + 1,
+  );
+  protected readonly selectedTotalPrice = computed(() => {
+    const option = this.registrationOption();
+    const buyerPrice = option.effectivePrice ?? option.price;
+    return buyerPrice + option.price * this.selectedGuestCount();
   });
   protected readonly waitlistAvailable = computed(() => {
     return registrationOptionCanJoinWaitlist(this.registrationOption());
@@ -172,6 +209,7 @@ export class EventRegistrationOptionComponent {
     this.registrationMutation.mutate(
       {
         eventId: registrationOption.eventId,
+        guestCount: this.selectedGuestCount(),
         registrationOptionId: registrationOption.id,
       },
       {
@@ -183,6 +221,23 @@ export class EventRegistrationOptionComponent {
           });
         },
       },
+    );
+  }
+
+  updateGuestCount(event: Event) {
+    const input = event.target;
+    if (!(input instanceof HTMLInputElement)) {
+      return;
+    }
+    const nextGuestCount = Number.parseInt(input.value, 10);
+    this.guestCount.set(
+      Math.max(
+        0,
+        Math.min(
+          Number.isNaN(nextGuestCount) ? 0 : nextGuestCount,
+          this.maxGuestCount(),
+        ),
+      ),
     );
   }
 

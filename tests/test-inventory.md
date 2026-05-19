@@ -130,7 +130,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - Notification or email follow-up behavior once the product path exists.
 - Scanning/check-in:
   - Browser-backed organizer aggregate assertions after scan check-in.
-  - Guest-quantity behavior once registration guest support exists.
+  - Guest-quantity scan behavior now that registration guest support exists.
 - Tenant/global admin:
   - Authenticated Browser review for the global-admin tenant list.
 - Roles/user management:

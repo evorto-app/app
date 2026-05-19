@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   registrationOptionAudienceCopy,
   registrationOptionAvailability,
+  registrationOptionAvailableSpots,
   registrationOptionCanJoinWaitlist,
   registrationOptionIsFull,
 } from './event-registration-option.component';
@@ -88,6 +89,28 @@ describe('registrationOptionCanJoinWaitlist', () => {
         spots: 10,
       }),
     ).toBe(false);
+  });
+});
+
+describe('registrationOptionAvailableSpots', () => {
+  it('subtracts confirmed and reserved spots from total capacity', () => {
+    expect(
+      registrationOptionAvailableSpots({
+        confirmedSpots: 3,
+        reservedSpots: 2,
+        spots: 10,
+      }),
+    ).toBe(5);
+  });
+
+  it('never returns negative available capacity', () => {
+    expect(
+      registrationOptionAvailableSpots({
+        confirmedSpots: 10,
+        reservedSpots: 2,
+        spots: 10,
+      }),
+    ).toBe(0);
   });
 });
 
