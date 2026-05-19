@@ -234,15 +234,15 @@ the current working direction until a product decision overrides them.
   - Option C: blocked hard error.
   - Decision: Option A. It is safest for busy entrances while preserving
     audit visibility.
-- **QR generation authorization:** an unguessable registration id is enough to
-  render the QR image.
+- **QR generation authorization:** require a confirmed registration owner or
+  organizer/check-in authorization to render the QR image.
   - Option A: unguessable id is enough.
   - Option B: require owner or organizer/check-in authorization.
   - Option C: signed expiring QR URLs.
-  - Decision: Option A. QR links behave like common event paper tickets and must
-    be usable in email. Check-in should validate registration status and expose
-    attendee identity so the scanner can confirm the right person is presenting
-    the ticket.
+  - Decision: Option B. QR images are generated only for confirmed registrations
+    visible to the current authenticated tenant user. Ticket links can still
+    appear in email later, but image generation must not be an unauthenticated
+    registration-id oracle.
 - **Scanner URL validation:** accept the ticket URL as the routing source, then
   enforce authorization against the resolved registration/event.
   - Option A: current tenant domain only.
@@ -774,7 +774,7 @@ the current working direction until a product decision overrides them.
 
 - Confirmed user registrations show a "Your event ticket" card with a QR image at `/qr/registration/:registrationId`.
 - The QR HTTP route looks up the registration by id, finds the registration tenant, and encodes a scan target URL using the current request protocol plus the tenant domain.
-- `/scan` is an authenticated route that starts a camera-based QR scanner and navigates to `/scan/registration/:registrationId` when the QR URL path starts with `/scan/registration/`.
+- `/scan` is an authenticated route that starts a camera-based QR scanner and navigates to `/scan/registration/:registrationId` when the scanned absolute URL has the exact `/scan/registration/:registrationId` path. The scanner intentionally accepts any URL origin and lets the scan-read RPC enforce event/tenant authorization.
 - `/scan/registration/:registrationId` calls `events.registrationScanned`, shows attendee name, event title/start time, registration option title, ESNcard discount notice, same-user warning, future-event warning, registration-status warning, and already-checked-in warning.
 - The scan result enables "Confirm Check In" when the scanned registration is confirmed, does not belong to the scanner, and is inside the current fixed one-hour pre-start check-in window. The button calls `events.checkInRegistration`, then refetches scan state and shows a recorded-check-in state.
 - `events.registrationScanned` and `events.checkInRegistration` require event check-in access: either `events:organizeAll` or a confirmed organizer/helper registration for the same event.
@@ -796,7 +796,7 @@ the current working direction until a product decision overrides them.
 - **Addressed in this stabilization pass:** duplicate scans are idempotent; already-checked-in registrations show a warning and the write path does not increment counters again.
 - **Addressed in stabilization pass:** event timing is enforced in both scan-read state and the check-in mutation. Confirmed other-user registrations can only be checked in during the current fixed one-hour pre-start window or after event start.
 - **Addressed in stabilization pass:** QR generation now requires an authenticated current-tenant user. The endpoint returns ticket QR images only for confirmed registrations when the requester owns the registration, has `events:organizeAll`, or has a confirmed organizer/helper registration for the same event; unauthorized or non-confirmed registrations fail closed.
-- **Should fix before relaunch:** the scanner accepts any absolute URL whose path starts with `/scan/registration/`, ignoring origin. That keeps tenant-domain QR codes portable, but it should be an explicit product/security decision.
+- **Addressed in stabilization pass:** scanner URL parsing now explicitly accepts absolute URLs from any origin by product decision, but only when the path is exactly `/scan/registration/:registrationId`; malformed payloads and extra path segments are rejected before navigation.
 - **Addressed in stabilization pass:** scanner camera startup is awaited and maps denied permission, missing devices, and busy devices into visible retryable error messages. The scanner also shows a starting state and keeps a retry button available after camera startup failures.
 - **Acceptable for now:** QR code display is limited to confirmed registrations in the active registration UI, so pending paid registrations do not show the ticket card there.
 
@@ -805,6 +805,7 @@ the current working direction until a product decision overrides them.
 - `tests/specs/scanning/scanner.test.ts` now clicks "Confirm Check In" and asserts that `checkInTime` is set and `checkedInSpots` increments, then restores the seeded row.
 - Server unit coverage proves scan-read denial for unauthorized tenant users, check-in counter updates for organizer access, idempotent duplicate check-in behavior, and same-user check-in denial.
 - `src/server/http/qr-code.web-handler.spec.ts` covers unauthenticated QR denial, owner access, same-event organizer access, other-user denial, and pending-registration denial.
+- `src/app/scanning/scanner/scanner.component.spec.ts` covers scanner URL parsing for current-origin tickets, other-origin tenant tickets, malformed payloads, and non-exact scan paths.
 - Server unit coverage proves future-event timing disables scan check-in and rejects direct check-in writes before the pre-start window opens. Server unit coverage also proves pending, cancelled, and waitlisted registrations disable scan check-in and reject direct check-in writes.
 - `tests/docs/events/register.doc.ts` documents that the ticket QR code is available after registration/payment, but there is no generated documentation journey for organizers scanning attendees.
 - `QUALITY.md` lists participant and guest-quantity check-in as high-value Playwright flows, but guest quantities are not represented in the reviewed check-in contract/UI.
@@ -815,7 +816,7 @@ the current working direction until a product decision overrides them.
 - Should scanning be allowed before event start, within a configurable window, or only after a manual organizer override?
 - Should duplicate scans be idempotent success, warning-only, or blocked after the first check-in?
 - Should QR generation require the registration owner/organizer, or is an unguessable registration id considered enough for the image endpoint? Answered locally: require the confirmed registration owner, `events:organizeAll`, or a confirmed organizer/helper registration for the same event.
-- Should scanner URL validation require the current tenant domain, any known tenant domain, or any URL with the expected path?
+- Should scanner URL validation require the current tenant domain, any known tenant domain, or any URL with the expected path? Answered locally: accept any absolute URL origin because ticket URLs may be opened through tenant/custom domains, but require the exact scan-registration path and rely on server scan authorization for tenant/event access.
 - What is the minimum relaunch scope for guest quantity check-in?
 
 ### Recommended Cleanup Actions
