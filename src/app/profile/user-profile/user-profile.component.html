@@ -125,16 +125,12 @@
                           {{ registrationPaymentLabel(event.paymentState) }}
                         </dd>
                       </div>
-                      @if (
-                        event.paymentState === "pending" && event.checkoutUrl
-                      ) {
+                      @if (profileEventNextStepLabel(event); as nextStep) {
                         <div>
                           <dt class="text-on-surface-variant inline">
                             Next step:
                           </dt>
-                          <dd class="inline">
-                            Finish the checkout payment to confirm your spot.
-                          </dd>
+                          <dd class="inline">{{ nextStep }}</dd>
                         </div>
                       }
                       @if (event.status === "CONFIRMED" && !event.checkInTime) {

@@ -73,6 +73,17 @@ export const profileEventGuestLabel = (guestCount: number): null | string => {
     : `Includes ${guestCount} guests`;
 };
 
+export const profileEventNextStepLabel = (event: {
+  checkoutUrl: null | string;
+  paymentState: 'cancelled' | 'notRequired' | 'pending' | 'recorded';
+}): null | string => {
+  if (event.paymentState === 'pending' && event.checkoutUrl) {
+    return 'Finish the checkout payment to confirm your spot.';
+  }
+
+  return null;
+};
+
 export const profileEventActionNote = (event: {
   checkoutUrl: null | string;
   paymentState: 'cancelled' | 'notRequired' | 'pending' | 'recorded';
@@ -249,6 +260,7 @@ export class UserProfileComponent {
   protected readonly profileEventDetailActionLabel =
     profileEventDetailActionLabel;
   protected readonly profileEventGuestLabel = profileEventGuestLabel;
+  protected readonly profileEventNextStepLabel = profileEventNextStepLabel;
   protected readonly profileReceiptStatusLabel = profileReceiptStatusLabel;
   protected readonly refreshCardMutation = injectMutation(() =>
     this.rpc.discounts.refreshMyCard.mutationOptions(),

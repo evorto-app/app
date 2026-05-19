@@ -5,6 +5,7 @@ import {
   profileEventActionNote,
   profileEventDetailActionLabel,
   profileEventGuestLabel,
+  profileEventNextStepLabel,
   profileReceiptStatusLabel,
   profileSectionFromFragment,
   registrationPaymentLabel,
@@ -56,6 +57,27 @@ describe('profile event labels', () => {
     ).toBe(
       'Continue payment from this card, or open the event page for registration details. Cancellation after confirmation is handled on the event page.',
     );
+  });
+
+  it('shows the payment continuation next step only when a checkout link exists', () => {
+    expect(
+      profileEventNextStepLabel({
+        checkoutUrl: 'https://checkout.stripe.test/pay',
+        paymentState: 'pending',
+      }),
+    ).toBe('Finish the checkout payment to confirm your spot.');
+    expect(
+      profileEventNextStepLabel({
+        checkoutUrl: null,
+        paymentState: 'pending',
+      }),
+    ).toBeNull();
+    expect(
+      profileEventNextStepLabel({
+        checkoutUrl: 'https://checkout.stripe.test/pay',
+        paymentState: 'recorded',
+      }),
+    ).toBeNull();
   });
 
   it('labels guest quantities only when a registration includes guests', () => {

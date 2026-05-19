@@ -143,6 +143,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     email behavior.
   - Browser-backed profile event-card assertions for event links, registration
     status, guest quantity, payment state, and check-in state.
+    App coverage already proves event-detail action copy, guest/status/payment
+    labels, deferred-action notes, and the payment-continuation next-step copy.
   - Profile ESNcard save, refresh, and remove flows with readable error states.
     App and server coverage already prove readable mutation errors, global
     per-user card reads/upserts, refresh persistence, and scoped removal.
