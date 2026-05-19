@@ -38,7 +38,7 @@ Add your ESN card to receive discounted prices on eligible events. Your card is 
 
   await testInfo.attach('markdown', {
     body: `
-If you already added your ESN card, you will see its status and validity here. You can refresh its status or remove it. Use the form to add or update your ESN card number.
+If you already added your ESN card, you will see its status and validity here. You can refresh its status or remove it. Use the form to add or update your ESN card number. The profile page shows clear pending states while the card is checked and maps validation/provider errors into readable messages.
 `,
   });
 });
