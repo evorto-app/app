@@ -8,6 +8,7 @@ import {
 const settingsModel: GeneralSettingsModel = {
   allowOther: true,
   buyEsnCardUrl: ' https://esncard.org/ ',
+  currency: 'CZK',
   defaultLocation: {
     address: 'Amsterdam, Netherlands',
     coordinates: {
@@ -21,6 +22,7 @@ const settingsModel: GeneralSettingsModel = {
   esnCardEnabled: true,
   faviconUrl: ' https://cdn.example.org/favicon.ico ',
   legalNoticeUrl: ' https://section.example.org/imprint ',
+  locale: 'en-US',
   logoUrl: ' https://cdn.example.org/logo.svg ',
   privacyPolicyUrl: ' https://section.example.org/privacy ',
   receiptCountries: ['DE', 'NL'],
@@ -28,6 +30,7 @@ const settingsModel: GeneralSettingsModel = {
   seoTitle: ' Public tenant title ',
   termsUrl: ' https://section.example.org/terms ',
   theme: 'esn',
+  timezone: 'Europe/Prague',
 };
 
 describe('generalSettingsPayloadFromModel', () => {
@@ -35,10 +38,12 @@ describe('generalSettingsPayloadFromModel', () => {
     expect(generalSettingsPayloadFromModel(settingsModel)).toEqual({
       allowOther: true,
       buyEsnCardUrl: 'https://esncard.org/',
+      currency: 'CZK',
       defaultLocation: settingsModel.defaultLocation,
       esnCardEnabled: true,
       faviconUrl: 'https://cdn.example.org/favicon.ico',
       legalNoticeUrl: 'https://section.example.org/imprint',
+      locale: 'en-US',
       logoUrl: 'https://cdn.example.org/logo.svg',
       privacyPolicyUrl: 'https://section.example.org/privacy',
       receiptCountries: ['DE', 'NL'],
@@ -46,6 +51,7 @@ describe('generalSettingsPayloadFromModel', () => {
       seoTitle: 'Public tenant title',
       termsUrl: 'https://section.example.org/terms',
       theme: 'esn',
+      timezone: 'Europe/Prague',
     });
   });
 
@@ -66,10 +72,12 @@ describe('generalSettingsPayloadFromModel', () => {
     ).toEqual({
       allowOther: true,
       buyEsnCardUrl: undefined,
+      currency: 'CZK',
       defaultLocation: null,
       esnCardEnabled: true,
       faviconUrl: undefined,
       legalNoticeUrl: undefined,
+      locale: 'en-US',
       logoUrl: undefined,
       privacyPolicyUrl: undefined,
       receiptCountries: ['DE', 'NL'],
@@ -77,6 +85,7 @@ describe('generalSettingsPayloadFromModel', () => {
       seoTitle: undefined,
       termsUrl: undefined,
       theme: 'esn',
+      timezone: 'Europe/Prague',
     });
   });
 });

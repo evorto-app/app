@@ -206,10 +206,12 @@ export const AdminTenantListStripeTaxRates = asRpcQuery(
 export const AdminTenantUpdateSettingsInput = Schema.Struct({
   allowOther: Schema.Boolean,
   buyEsnCardUrl: Schema.optional(UrlString),
+  currency: Tenant.fields.currency,
   defaultLocation: Schema.NullOr(Schema.Any),
   esnCardEnabled: Schema.Boolean,
   faviconUrl: Schema.optional(UrlString),
   legalNoticeUrl: Schema.optional(UrlString),
+  locale: Tenant.fields.locale,
   logoUrl: Schema.optional(UrlString),
   privacyPolicyUrl: Schema.optional(UrlString),
   receiptCountries: Schema.Array(Schema.NonEmptyString),
@@ -217,6 +219,7 @@ export const AdminTenantUpdateSettingsInput = Schema.Struct({
   seoTitle: Schema.optional(Schema.String),
   termsUrl: Schema.optional(UrlString),
   theme: literalUnion('evorto', 'esn'),
+  timezone: Tenant.fields.timezone,
 });
 
 export type AdminTenantUpdateSettingsInput = Schema.Schema.Type<

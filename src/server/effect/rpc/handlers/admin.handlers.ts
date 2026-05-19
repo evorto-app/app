@@ -565,9 +565,11 @@ export const adminHandlers = {
       const nextTenant = {
         ...tenant,
         ...brandAssets,
+        currency: input.currency,
         defaultLocation: input.defaultLocation,
         discountProviders,
         ...legalLinks,
+        locale: input.locale,
         receiptSettings: resolveTenantReceiptSettings({
           allowOther: input.allowOther,
           receiptCountries: input.receiptCountries,
@@ -575,6 +577,7 @@ export const adminHandlers = {
         seoDescription: input.seoDescription?.trim() || null,
         seoTitle: input.seoTitle?.trim() || null,
         theme: input.theme,
+        timezone: input.timezone,
       };
 
       const validatedTenant = yield* Effect.try({
@@ -591,9 +594,11 @@ export const adminHandlers = {
           .update(tenants)
           .set({
             ...brandAssets,
+            currency: input.currency,
             defaultLocation: input.defaultLocation,
             discountProviders,
             ...legalLinks,
+            locale: input.locale,
             receiptSettings: resolveTenantReceiptSettings({
               allowOther: input.allowOther,
               receiptCountries: input.receiptCountries,
@@ -601,6 +606,7 @@ export const adminHandlers = {
             seoDescription: input.seoDescription?.trim() || null,
             seoTitle: input.seoTitle?.trim() || null,
             theme: input.theme,
+            timezone: input.timezone,
           })
           .where(eq(tenants.id, tenant.id))
           .returning({

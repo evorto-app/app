@@ -8,19 +8,22 @@ import { Effect, Schema, SchemaGetter } from 'effect';
 
 import { GoogleLocation } from '../location';
 
-const SupportedTenantCurrency = literalUnion('EUR', 'CZK', 'AUD');
-const SupportedTenantLocale = literalUnion('en-AU', 'en-GB', 'en-US');
-const SupportedTenantTimezone = literalUnion(
+export const supportedTenantCurrencies = ['EUR', 'CZK', 'AUD'] as const;
+export const supportedTenantLocales = ['en-AU', 'en-GB', 'en-US'] as const;
+export const supportedTenantTimezones = [
   'Europe/Prague',
   'Europe/Berlin',
   'Australia/Brisbane',
-);
+] as const;
 
-type SupportedTenantLocale = 'en-AU' | 'en-GB' | 'en-US';
-type SupportedTenantTimezone =
-  | 'Australia/Brisbane'
-  | 'Europe/Berlin'
-  | 'Europe/Prague';
+const SupportedTenantCurrency = literalUnion(...supportedTenantCurrencies);
+const SupportedTenantLocale = literalUnion(...supportedTenantLocales);
+const SupportedTenantTimezone = literalUnion(...supportedTenantTimezones);
+
+export type SupportedTenantCurrency =
+  (typeof supportedTenantCurrencies)[number];
+export type SupportedTenantLocale = (typeof supportedTenantLocales)[number];
+export type SupportedTenantTimezone = (typeof supportedTenantTimezones)[number];
 
 const normalizeTenantLocale = (value: string): SupportedTenantLocale =>
   value === 'en' ? 'en-GB' : (value as SupportedTenantLocale);

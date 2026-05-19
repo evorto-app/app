@@ -26,6 +26,11 @@ import {
   QueryClient,
 } from '@tanstack/angular-query-experimental';
 
+import {
+  supportedTenantCurrencies,
+  supportedTenantLocales,
+  supportedTenantTimezones,
+} from '../../../types/custom/tenant';
 import { ConfigService } from '../../core/config.service';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
@@ -59,14 +64,17 @@ import {
   templateUrl: './general-settings.component.html',
 })
 export class GeneralSettingsComponent {
+  protected readonly currencyOptions = supportedTenantCurrencies;
   protected readonly deferredTenantSettingsRows = deferredTenantSettingsRows;
   protected readonly settingsModel = signal<GeneralSettingsModel>({
     allowOther: false,
     buyEsnCardUrl: '',
+    currency: 'EUR',
     defaultLocation: null,
     esnCardEnabled: false,
     faviconUrl: '',
     legalNoticeUrl: '',
+    locale: 'en-GB',
     logoUrl: '',
     privacyPolicyUrl: '',
     receiptCountries: [...DEFAULT_RECEIPT_COUNTRIES],
@@ -74,17 +82,20 @@ export class GeneralSettingsComponent {
     seoTitle: '',
     termsUrl: '',
     theme: 'evorto',
+    timezone: 'Europe/Berlin',
   });
   protected readonly esnEnabled = computed(
     () => this.settingsModel().esnCardEnabled,
   );
   protected readonly faArrowLeft = faArrowLeft;
+  protected readonly localeOptions = supportedTenantLocales;
   protected readonly receiptCountryOptions = RECEIPT_COUNTRY_OPTIONS;
   protected readonly settingsForm = form(this.settingsModel);
   private readonly configService = inject(ConfigService);
   protected readonly tenantIdentityRows = computed(() =>
     tenantIdentityRows(this.configService.tenant),
   );
+  protected readonly timezoneOptions = supportedTenantTimezones;
   private readonly notifications = inject(NotificationService);
   private readonly queryClient = inject(QueryClient);
   private readonly rpc = AppRpc.injectClient();
@@ -105,11 +116,13 @@ export class GeneralSettingsComponent {
           buyEsnCardUrl:
             currentTenant.discountProviders?.esnCard?.config?.buyEsnCardUrl ??
             '',
+          currency: currentTenant.currency,
           defaultLocation: currentTenant.defaultLocation ?? null,
           esnCardEnabled:
             currentTenant.discountProviders?.esnCard?.status === 'enabled',
           faviconUrl: currentTenant.faviconUrl ?? '',
           legalNoticeUrl: currentTenant.legalNoticeUrl ?? '',
+          locale: currentTenant.locale,
           logoUrl: currentTenant.logoUrl ?? '',
           privacyPolicyUrl: currentTenant.privacyPolicyUrl ?? '',
           receiptCountries: [...receiptCountrySettings.receiptCountries],
@@ -117,6 +130,7 @@ export class GeneralSettingsComponent {
           seoTitle: currentTenant.seoTitle ?? '',
           termsUrl: currentTenant.termsUrl ?? '',
           theme: currentTenant.theme,
+          timezone: currentTenant.timezone,
         });
       }
     });
