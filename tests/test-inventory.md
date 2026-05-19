@@ -159,7 +159,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 - Scanning/check-in:
   - Browser-backed organizer aggregate assertions after scan check-in.
   - Browser-backed organizer aggregate assertions after guest-quantity scan
-    behavior.
+    behavior. Local app coverage already proves organizer overview stat
+    aggregation reads the same `checkedInSpots` counter updated by scanner
+    check-in mutations.
 - Tenant/global admin:
   - Authenticated Browser review for the global-admin tenant list.
 - Roles/user management:

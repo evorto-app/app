@@ -34,6 +34,39 @@ import {
   ReceiptSubmitDialogResult,
 } from './receipt-submit-dialog.component';
 
+interface EventOrganizeStatsInput {
+  registrationOptions?: readonly {
+    checkedInSpots: number;
+    confirmedSpots: number;
+    spots: number;
+  }[];
+}
+
+export const computeEventOrganizeStats = (
+  eventData: EventOrganizeStatsInput | null | undefined,
+) => {
+  const registrationOptions = eventData?.registrationOptions ?? [];
+  const totalCapacity = registrationOptions.reduce(
+    (sum, option) => sum + option.spots,
+    0,
+  );
+  const totalRegistered = registrationOptions.reduce(
+    (sum, option) => sum + option.confirmedSpots,
+    0,
+  );
+  const totalCheckedIn = registrationOptions.reduce(
+    (sum, option) => sum + option.checkedInSpots,
+    0,
+  );
+
+  return {
+    capacity: totalCapacity,
+    capacityPercentage: totalCapacity > 0 ? totalRegistered / totalCapacity : 0,
+    checkedIn: totalCheckedIn,
+    registered: totalRegistered,
+  };
+};
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -101,31 +134,9 @@ export class EventOrganize {
       : null;
   });
 
-  // Basic stats computation
-  protected readonly stats = computed(() => {
-    const eventData = this.event();
-    const registrationOptions = eventData?.registrationOptions || [];
-    const totalCapacity = registrationOptions.reduce(
-      (sum, option) => sum + option.spots,
-      0,
-    );
-    const totalRegistered = registrationOptions.reduce(
-      (sum, option) => sum + option.confirmedSpots,
-      0,
-    );
-    const totalCheckedIn = registrationOptions.reduce(
-      (sum, option) => sum + option.checkedInSpots,
-      0,
-    );
-
-    return {
-      capacity: totalCapacity,
-      capacityPercentage:
-        totalCapacity > 0 ? totalRegistered / totalCapacity : 0,
-      checkedIn: totalCheckedIn,
-      registered: totalRegistered,
-    };
-  });
+  protected readonly stats = computed(() =>
+    computeEventOrganizeStats(this.event()),
+  );
   protected readonly submitReceiptMutation = injectMutation(() =>
     this.rpc.finance.receipts.submit.mutationOptions(),
   );
