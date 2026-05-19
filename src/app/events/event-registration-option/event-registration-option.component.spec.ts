@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   registrationOptionAudienceCopy,
   registrationOptionAvailability,
+  registrationOptionCanJoinWaitlist,
   registrationOptionIsFull,
 } from './event-registration-option.component';
 
@@ -45,6 +46,44 @@ describe('registrationOptionIsFull', () => {
     expect(
       registrationOptionIsFull({
         confirmedSpots: 7,
+        reservedSpots: 2,
+        spots: 10,
+      }),
+    ).toBe(false);
+  });
+});
+
+describe('registrationOptionCanJoinWaitlist', () => {
+  it('allows waitlist joining for full participant first-come options', () => {
+    expect(
+      registrationOptionCanJoinWaitlist({
+        confirmedSpots: 8,
+        organizingRegistration: false,
+        registrationMode: 'fcfs',
+        reservedSpots: 2,
+        spots: 10,
+      }),
+    ).toBe(true);
+  });
+
+  it('does not offer waitlists for organizer/helper options', () => {
+    expect(
+      registrationOptionCanJoinWaitlist({
+        confirmedSpots: 8,
+        organizingRegistration: true,
+        registrationMode: 'fcfs',
+        reservedSpots: 2,
+        spots: 10,
+      }),
+    ).toBe(false);
+  });
+
+  it('keeps normal registration primary while spots remain', () => {
+    expect(
+      registrationOptionCanJoinWaitlist({
+        confirmedSpots: 7,
+        organizingRegistration: false,
+        registrationMode: 'fcfs',
         reservedSpots: 2,
         spots: 10,
       }),

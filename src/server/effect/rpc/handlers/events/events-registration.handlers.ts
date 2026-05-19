@@ -624,6 +624,24 @@ export const eventRegistrationHandlers = {
         registrations: registrationSummaries,
       };
     }),
+  'events.joinWaitlist': ({ eventId, registrationOptionId }, _options) =>
+    Effect.gen(function* () {
+      yield* RpcAccess.ensureAuthenticated();
+      const { tenant } = yield* RpcAccess.current();
+      const user = yield* RpcAccess.requireUser();
+
+      return yield* EventRegistrationService.joinWaitlist({
+        eventId,
+        registrationOptionId,
+        tenant: {
+          id: tenant.id,
+        },
+        user: {
+          id: user.id,
+          roleIds: user.roleIds,
+        },
+      });
+    }),
   'events.registerForEvent': ({ eventId, registrationOptionId }, options) =>
     Effect.gen(function* () {
       yield* RpcAccess.ensureAuthenticated();

@@ -605,4 +605,171 @@ describe('EventRegistrationService', () => {
         expect(insertRegistration).not.toHaveBeenCalled();
       }),
   );
+
+  it.effect('joins the waitlist for a full participant option', () =>
+    Effect.gen(function* () {
+      const insertWaitlistRegistration = vi.fn(() => ({
+        values: vi.fn((values) => ({
+          returning: vi.fn(() =>
+            Effect.succeed([
+              {
+                id: values.status === 'WAITLIST' ? 'waitlist-1' : undefined,
+              },
+            ]),
+          ),
+        })),
+      }));
+      const mockDatabase = {
+        query: {
+          eventRegistrationOptions: {
+            findFirst: () =>
+              Effect.succeed({
+                ...approvedRegistrationOption,
+                confirmedSpots: 10,
+                organizingRegistration: false,
+              }),
+          },
+          eventRegistrations: {
+            findFirst: () => Effect.succeed(null),
+          },
+        },
+        transaction: (
+          callback: (tx: {
+            insert: ReturnType<typeof vi.fn>;
+            query: {
+              eventRegistrations: {
+                findMany: () => Effect.Effect<[]>;
+              };
+            };
+            update: () => {
+              set: (values: unknown) => {
+                where: () => {
+                  returning: () => Effect.Effect<{ id: string }[]>;
+                };
+              };
+            };
+          }) => Effect.Effect<unknown>,
+        ) =>
+          callback({
+            insert: insertWaitlistRegistration,
+            query: {
+              eventRegistrations: {
+                findMany: () => Effect.succeed([]),
+              },
+            },
+            update: () => ({
+              set: () => ({
+                where: () => ({
+                  returning: () => Effect.succeed([{ id: 'option-1' }]),
+                }),
+              }),
+            }),
+          }),
+      };
+
+      const program = EventRegistrationService.joinWaitlist({
+        eventId: 'event-1',
+        registrationOptionId: 'option-1',
+        tenant: {
+          id: 'tenant-1',
+        },
+        user: {
+          id: 'user-1',
+          roleIds: ['role-1'],
+        },
+      }).pipe(
+        Effect.provide(EventRegistrationService.Default),
+        Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+        Effect.provide(configProviderLayer),
+      );
+
+      yield* program;
+      expect(insertWaitlistRegistration).toHaveBeenCalled();
+    }),
+  );
+
+  it.effect('rejects waitlist joining while capacity remains', () =>
+    Effect.gen(function* () {
+      const mockDatabase = {
+        query: {
+          eventRegistrationOptions: {
+            findFirst: () =>
+              Effect.succeed({
+                ...approvedRegistrationOption,
+                organizingRegistration: false,
+              }),
+          },
+          eventRegistrations: {
+            findFirst: () => Effect.succeed(null),
+          },
+        },
+      };
+
+      const program = EventRegistrationService.joinWaitlist({
+        eventId: 'event-1',
+        registrationOptionId: 'option-1',
+        tenant: {
+          id: 'tenant-1',
+        },
+        user: {
+          id: 'user-1',
+          roleIds: ['role-1'],
+        },
+      }).pipe(
+        Effect.flip,
+        Effect.provide(EventRegistrationService.Default),
+        Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+        Effect.provide(configProviderLayer),
+      );
+
+      const error = yield* program;
+      expect(error['_tag']).toBe('EventRegistrationConflictError');
+      expect(error.message).toBe(
+        'Registration option still has available spots',
+      );
+    }),
+  );
+
+  it.effect('rejects waitlist joining for organizer/helper options', () =>
+    Effect.gen(function* () {
+      const mockDatabase = {
+        query: {
+          eventRegistrationOptions: {
+            findFirst: () =>
+              Effect.succeed({
+                ...approvedRegistrationOption,
+                confirmedSpots: 10,
+                organizingRegistration: true,
+              }),
+          },
+          eventRegistrations: {
+            findFirst: () => Effect.succeed(null),
+          },
+        },
+      };
+
+      const program = EventRegistrationService.joinWaitlist({
+        eventId: 'event-1',
+        registrationOptionId: 'option-1',
+        tenant: {
+          id: 'tenant-1',
+        },
+        user: {
+          id: 'user-1',
+          roleIds: ['role-1'],
+        },
+      }).pipe(
+        Effect.flip,
+        Effect.provide(EventRegistrationService.Default),
+        Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+        Effect.provide(configProviderLayer),
+      );
+
+      const error = yield* program;
+      expect(error['_tag']).toBe('EventRegistrationConflictError');
+      expect(error.message).toBe(
+        'Waitlist is only available for participant options',
+      );
+    }),
+  );
 });

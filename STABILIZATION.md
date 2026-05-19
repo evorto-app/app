@@ -525,7 +525,7 @@ the current working direction until a product decision overrides them.
 - Paid registration creates a pending registration, reserves a spot, creates a Stripe Checkout session, and shows a payment continuation link.
 - Registration writes enforce approved event status, tenant scope, open/close windows, role eligibility, one active registration per user/event, and capacity before creating a registration.
 - Capacity reservation/confirmation uses a database transaction with a conditional counter update.
-- Full registration options are labeled as full in the event detail UI; waitlist joining remains unavailable.
+- Full participant registration options expose a distinct waitlist action when registration is open; organizer/helper options only show the full state.
 - Successful paid registration is confirmed through Stripe/webhook-side effects; the active registration UI only shows QR code for confirmed registrations.
 - Users with confirmed organizer registrations, `events:organizeAll`, or `finance:manageReceipts` can open the organize view.
 - Unsupported `random` and `application` registration options can still be read from stored data, but registration attempts against them fail closed until their fulfillment semantics exist.
@@ -548,7 +548,7 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** existing-registration preflight and transactional duplicate checks include `tenantId`.
 - **Addressed in stabilization pass:** registration option lookup validates the related event tenant before proceeding.
 - **Should fix before relaunch:** no guest quantity is present in the event registration contract or UI, even though guest spots are an intended first-version behavior.
-- **Addressed in stabilization pass:** full options no longer present an enabled registration action; the UI labels waitlist joining as unavailable until the separate waitlist flow exists.
+- **Addressed in stabilization pass:** full participant options no longer present the normal registration action and instead expose a distinct waitlist action backed by a `WAITLIST` registration and `waitlistSpots` counter update.
 - **Addressed in stabilization pass:** registration submission now rejects stored `random` and `application` options server-side instead of silently handling them as first-come-first-served.
 - **Addressed in stabilization pass:** event registration option cards now label participant options separately from organizer/helper options and use distinct organizer/helper signup action copy while preserving the shared registration-option model.
 - **Addressed in stabilization pass:** role-ineligible direct event links keep the event visible but show an explicit registration-unavailable state instead of silently rendering an empty registration section.
@@ -561,8 +561,8 @@ the current working direction until a product decision overrides them.
 ### Test and Documentation Quality
 
 - `tests/specs/events/free-registration.test.ts` covers the free registration happy path using seeded scenario handles.
-- `src/app/events/event-registration-option/event-registration-option.component.spec.ts` covers registration-card state for full options and too-early/too-late registration windows without requiring a page-backed browser.
-- `src/server/effect/rpc/handlers/events/event-registration.service.spec.ts` covers server-side rejection for duplicate active registration, unpublished events, closed registration windows, role-ineligible users, cross-tenant options, full options, unsupported registration modes, same-event second registrations across options, transactional duplicate races, and transactional capacity races.
+- `src/app/events/event-registration-option/event-registration-option.component.spec.ts` covers registration-card state for full options, distinct waitlist availability, and too-early/too-late registration windows without requiring a page-backed browser.
+- `src/server/effect/rpc/handlers/events/event-registration.service.spec.ts` covers server-side rejection for duplicate active registration, unpublished events, closed registration windows, role-ineligible users, cross-tenant options, full options, unsupported registration modes, same-event second registrations across options, transactional duplicate races, transactional capacity races, and participant waitlist joining.
 - `src/server/effect/rpc/handlers/events/events-registration.handlers.spec.ts` covers participant self-cancellation for pending and confirmed registrations plus checked-in and waitlist rejection paths.
 - `src/server/effect/rpc/handlers/events/events-registration.handlers.spec.ts` covers organizer/admin cancellation for confirmed registrations and denial without event-organizer access.
 - `src/server/effect/rpc/handlers/events/events-lifecycle.handlers.spec.ts` covers server-side rejection of end-before-start events and close-before-open registration windows for event create/update.
@@ -1112,7 +1112,7 @@ the current working direction until a product decision overrides them.
 
 ### Should Fix Before Relaunch
 
-1. Implement guest quantities, distinct waitlist joining, participant/admin cancellation, and transfer/resale.
+1. Implement guest quantities and transfer/resale; keep automatic refund handling visible until the finance flow is implemented.
 2. Add Playwright coverage for negative registration paths and role-ineligible direct links.
 3. Make organizer signup semantics visible and distinct if it remains modeled as a registration option.
 4. Keep simple-mode templates as the primary authoring UI, but expand reusable template support for discounts, add-ons, questions, and organizer notes/checklists where practical.

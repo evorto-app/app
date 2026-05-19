@@ -17,6 +17,7 @@ describe('eventHandlers composition', () => {
       'events.getOrganizeOverview',
       'events.getPendingReviews',
       'events.getRegistrationStatus',
+      'events.joinWaitlist',
       'events.registerForEvent',
       'events.registrationScanned',
       'events.reviewEvent',

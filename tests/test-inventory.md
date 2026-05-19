@@ -137,8 +137,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - Least-privilege organizer role lookup in event/template eligibility forms.
   - User-list/role-assignment coverage once the role-assignment path exists.
 - Registrations:
-  - Negative paths for closed windows, full options, ineligible roles, and
-    unsupported stored registration modes.
+  - Negative paths for closed windows, ineligible roles, unsupported stored
+    registration modes, and waitlist edge cases.
 
 ## Current Notes
 
