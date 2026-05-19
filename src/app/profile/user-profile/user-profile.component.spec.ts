@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  profileEventActionNote,
   profileEventDetailActionLabel,
   registrationPaymentLabel,
   registrationStatusLabel,
@@ -9,6 +10,18 @@ import {
 describe('profile event labels', () => {
   it('labels the event-details action without claiming profile ticket handling', () => {
     expect(profileEventDetailActionLabel()).toBe('Open event page');
+  });
+
+  it('keeps deferred profile event actions explicit', () => {
+    expect(profileEventActionNote('CONFIRMED')).toContain(
+      'Cancellation, refunds, and transfer/resale are not managed from profile yet.',
+    );
+    expect(profileEventActionNote('PENDING')).toBe(
+      'Pending-registration changes are handled from the event page when available.',
+    );
+    expect(profileEventActionNote('WAITLIST')).toBe(
+      'Waitlist movement is not managed from profile yet. Open the event page for current details.',
+    );
   });
 
   it('keeps registration payment states readable', () => {

@@ -857,6 +857,7 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** create-account stores `communicationEmail`, and profile now shows the Auth0 login email separately from the editable notification email. Profile edit updates `communicationEmail` alongside name and reimbursement fields.
 - **Addressed in stabilization pass:** profile event cards now link to event details and show registration status, selected option, payment state, and check-in time when available. Profile still leaves payment continuation, QR/ticket display, cancellation/refund action, and transfer/resale workflows to the event-detail flow or future work.
 - **Addressed in stabilization pass:** profile event cards now label their event-details action as "Open event page" instead of implying that the profile card itself renders the ticket; confirmed ticket access remains on the event detail surface.
+- **Addressed in stabilization pass:** profile event cards now explicitly say that waitlist movement, cancellation/refund, and transfer/resale actions are not managed from the profile page yet, while keeping pending checkout continuation as the implemented profile-level recovery action.
 - **Addressed in stabilization pass:** profile reimbursement fields are global user fields by product decision, and the profile copy now labels them as optional global reimbursement details used for manual receipt reimbursements across tenants.
 - **Addressed in stabilization pass:** ESNcard save, refresh, and remove actions now clear stale errors, show visible pending button states, and map mutation failures through `getErrorMessage(...)` instead of rendering raw error objects.
 - **Addressed in stabilization pass:** ESNcard validation now uses a bounded provider request and distinguishes provider unavailability from invalid/expired card results. Save/refresh mutations surface provider outages as retryable bad-request errors instead of collapsing them into card validation status.
@@ -866,7 +867,7 @@ the current working direction until a product decision overrides them.
 ### Test and Documentation Quality
 
 - `tests/docs/profile/user-profile.doc.ts` documents navigation, profile display, edit dialog validation, and the receipts tab.
-- `src/app/profile/user-profile/user-profile.component.spec.ts` covers profile event action, payment-state, and registration-status labels.
+- `src/app/profile/user-profile/user-profile.component.spec.ts` covers profile event action, deferred-action notes, payment-state, and registration-status labels.
 - **Addressed in stabilization pass:** the profile doc no longer uses a fixed stabilization wait before the profile screenshot and now opens the Events section to document event-card semantics. It still does not save a profile edit or prove persistence.
 - `tests/docs/profile/discounts.doc.ts` documents the discount-card section and current pending/error behavior, but does not add, refresh, remove, or assert any ESNcard validation outcome.
 - `tests/specs/discounts/esn-discounts.test.ts` verifies a seeded verified ESNcard affects paid event price labels and the register button copy.
