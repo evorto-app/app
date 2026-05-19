@@ -17,7 +17,10 @@ const hasManagementEnvironment = Effect.runSync(
 );
 
 if (!hasManagementEnvironment) {
-  test.skip(true, 'Auth0 creds missing');
+  test.skip(
+    true,
+    'AUTH0_MANAGEMENT_CLIENT_ID and AUTH0_MANAGEMENT_CLIENT_SECRET are required for this integration doc',
+  );
 }
 
 test('Create your account @needs-auth0-management @track(playwright-specs-track-linking_20260126) @doc(CREATE-ACCOUNT-DOC-01)', async ({

@@ -105,8 +105,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 - `specs/finance/stripe-webhook-replay.spec.ts` skips individual webhook cases
   when `STRIPE_WEBHOOK_SECRET` is absent. That skip is credential-gated, not a
   substitute for product coverage.
-- `specs/permissions/override.test.ts` skips when the optional permissions
-  override file is absent.
+- `specs/permissions/override.test.ts` is active desktop coverage for the
+  permission override fixture; no mobile project currently runs this spec.
 - Page-backed local execution requires the Playwright Chromium cache installed
   by `bun run test:e2e:install`.
 
