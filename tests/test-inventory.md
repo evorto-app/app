@@ -106,8 +106,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 - `specs/events/price-labels-inclusive.spec.ts` is intentionally fixme-only
   until inclusive price-label behavior has active Browser-backed coverage.
   Event registration cards now use the shared inclusive price label component,
-  so this remaining gap is page-level coverage rather than formatter/component
-  wiring.
+  and component coverage proves paid, free, zero-tax, and fallback label
+  rendering, so this remaining gap is page-level coverage rather than
+  formatter/component wiring.
 - `specs/templates/paid-option-requires-tax-rate.spec.ts` is intentionally
   fixme-only until simple-mode template tax-rate behavior has active UI
   coverage. Template detail paid-option summaries now share the inclusive price

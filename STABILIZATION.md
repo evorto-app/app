@@ -577,6 +577,7 @@ the current working direction until a product decision overrides them.
 - `src/app/events/event-registration-option/event-registration-option.component.spec.ts` covers the participant versus organizer/helper registration option copy.
 - `src/app/events/event-registration-option/event-registration-option.component.spec.ts` covers discounted buyer-price plus full-price guest totals for paid registration actions.
 - `src/server/price/format-inclusive-tax-label.spec.ts` covers the shared inclusive-tax label formatter.
+- `src/app/shared/components/inclusive-price-label/price-with-tax.component.spec.ts` covers paid, free, zero-tax, and fallback rendering for the shared price/tax label used by event registration cards and template detail summaries.
 - **Addressed in stabilization pass:** event registration option cards now render paid prices through the shared inclusive tax label component using tax-rate details from `events.findOne`; Browser-backed price-label assertions are still needed before removing the Playwright fixme file.
 - `tests/specs/events/price-labels-inclusive.spec.ts` is explicitly quarantined with `test.fixme` until it is replaced with real UI assertions.
 
@@ -1274,6 +1275,10 @@ implement those decisions or explicitly revise them there before changing code.
   tenant ESNcard provider data loads, so direct links and docs journeys do not
   fall back permanently to the overview before the Discounts section becomes
   available.
+- Shared price-label coverage pass: added focused Angular coverage for the
+  shared price/tax label component's paid, free, zero-tax, and fallback states,
+  narrowing the remaining inclusive-price fixme to page-level Browser
+  assertions.
 
 ## Review Next
 
