@@ -14,6 +14,30 @@ const createHeaders = (permissions: readonly string[]) => ({
 });
 
 describe('globalAdminHandlers', () => {
+  it.effect(
+    'allows tenant reads through the explicit management permission',
+    () =>
+      Effect.gen(function* () {
+        const database = {
+          query: {
+            tenants: {
+              findMany: () => Effect.succeed([]),
+            },
+          },
+        };
+
+        const tenants = yield* globalAdminHandlers[
+          'globalAdmin.tenants.findMany'
+        ](undefined, {
+          headers: createHeaders(['globalAdmin:manageTenants']),
+        } as never).pipe(
+          Effect.provide(Layer.succeed(Database, database as never)),
+        );
+
+        expect(tenants).toEqual([]);
+      }),
+  );
+
   it.effect('allows tenant reads through the global-admin wildcard', () =>
     Effect.gen(function* () {
       const database = {
@@ -54,6 +78,61 @@ describe('globalAdminHandlers', () => {
           timezone: 'Europe/Berlin',
         },
       ]);
+    }),
+  );
+
+  it.effect(
+    'rejects signed-in users without tenant-management permission',
+    () =>
+      Effect.gen(function* () {
+        const database = {
+          query: {
+            tenants: {
+              findMany: () => Effect.fail(new Error('database should not run')),
+            },
+          },
+        };
+
+        const error = yield* globalAdminHandlers[
+          'globalAdmin.tenants.findMany'
+        ](undefined, {
+          headers: createHeaders(['events:viewPublic']),
+        } as never).pipe(
+          Effect.provide(Layer.succeed(Database, database as never)),
+          Effect.flip,
+        );
+
+        expect(error['_tag']).toBe('RpcForbiddenError');
+        expect(error.permission).toBe('globalAdmin:manageTenants');
+      }),
+  );
+
+  it.effect('rejects anonymous tenant reads before querying tenants', () =>
+    Effect.gen(function* () {
+      const database = {
+        query: {
+          tenants: {
+            findMany: () => Effect.fail(new Error('database should not run')),
+          },
+        },
+      };
+
+      const error = yield* globalAdminHandlers['globalAdmin.tenants.findMany'](
+        undefined,
+        {
+          headers: {
+            [RPC_CONTEXT_HEADERS.AUTHENTICATED]: 'false',
+            [RPC_CONTEXT_HEADERS.PERMISSIONS]: encodeRpcContextHeaderJson([
+              'globalAdmin:manageTenants',
+            ]),
+          },
+        } as never,
+      ).pipe(
+        Effect.provide(Layer.succeed(Database, database as never)),
+        Effect.flip,
+      );
+
+      expect(error['_tag']).toBe('RpcUnauthorizedError');
     }),
   );
 });
