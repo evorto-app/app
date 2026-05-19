@@ -107,6 +107,7 @@ async function main() {
 
 main().catch((error) => {
   consola.error('Migration failed', error);
+  process.exitCode = 1;
 });
 
 async function runForTenant(

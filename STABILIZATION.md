@@ -1256,6 +1256,9 @@ implement those decisions or explicitly revise them there before changing code.
 - Legacy schema migration pass: added an idempotent migration step that drops
   physical `roles.showInHub`, `event_registrations.paymentStatus`, and the
   unused `payment_status` enum when present.
+- Migration failure signal pass: made the production migration command exit
+  non-zero when a top-level migration step fails, so the legacy cleanup path
+  cannot be logged as failed while still looking successful to automation.
 - Tenant admin route-guard audit: confirmed and documented route-level guards plus permission-matrix coverage for tenant admin settings, roles, users, and tax rates.
 - Global-admin authorization coverage pass: extended handler coverage for the
   tenant list so explicit `globalAdmin:manageTenants`, wildcard access, and
