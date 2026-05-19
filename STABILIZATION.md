@@ -553,7 +553,7 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** registration submission now rejects stored `random` and `application` options server-side instead of silently handling them as first-come-first-served.
 - **Addressed in stabilization pass:** event registration option cards now label participant options separately from organizer/helper options and use distinct organizer/helper signup action copy while preserving the shared registration-option model.
 - **Addressed in stabilization pass:** role-ineligible direct event links keep the event visible but show an explicit registration-unavailable state instead of silently rendering an empty registration section.
-- **Addressed in stabilization pass:** participant self-cancellation now covers pending and confirmed registrations before event start, rolls back reserved/confirmed counters, blocks checked-in cancellations, and keeps refund copy honest for paid registrations.
+- **Addressed in stabilization pass:** participant self-cancellation now covers pending and confirmed registrations before event start, rolls back reserved/confirmed counters including selected guest spots, blocks checked-in cancellations, and keeps refund copy honest for paid registrations.
 - **Addressed in stabilization pass:** organizer/admin cancellation is available from the organizer overview for confirmed participant registrations, requires event-organizer access or `events:organizeAll`, blocks checked-in cancellations, and rolls back confirmed counters without promising automatic refunds.
 - **Addressed in stabilization pass:** active registration cards now make transfer/resale unavailability explicit for pending, confirmed, and waitlisted registrations until the real transfer/resale flow exists.
 - **Should fix before relaunch:** transfer/resale and automatic refund flows are not implemented in the reviewed event registration path.
@@ -573,7 +573,7 @@ the current working direction until a product decision overrides them.
 - `src/server/effect/rpc/handlers/events/events-rpcs.schema.spec.ts` covers acceptance and rejection for the shared event location schema now used by Events RPC contracts.
 - `src/server/effect/rpc/handlers/events/events-rpcs.schema.spec.ts` covers the active registration status literal union and rejects unknown statuses.
 - `src/server/effect/rpc/handlers/events/events-rpcs.schema.spec.ts` covers the tax-rate label fields returned with event registration options for paid event cards.
-- `src/app/events/event-active-registration/event-active-registration.component.spec.ts` covers participant cancellation copy and the visible transfer/resale-unavailable notes for pending, confirmed, and waitlisted active registrations.
+- `src/app/events/event-active-registration/event-active-registration.component.spec.ts` covers participant cancellation copy for single-spot and guest registrations plus the visible transfer/resale-unavailable notes for pending, confirmed, and waitlisted active registrations.
 - `tests/docs/events/event-management.doc.ts` now documents only the current event details, registration, review/listing, edit, organizer overview, participant grouping/cancellation, and receipt surfaces.
 - `tests/docs/events/unlisted-admin.doc.ts` covers the updated direct-link explanation in the listing dialog and on unlisted event details.
 - `tests/docs/events/register.doc.ts` covers free and paid registration as generated documentation and Stripe-backed evidence, including guest quantity selection, the participant versus organizer/helper option wording, and participant self-cancellation copy.
@@ -1354,6 +1354,9 @@ implement those decisions or explicitly revise them there before changing code.
   `random` and `application` participant options do not expose the lightweight
   waitlist action when full, keeping the card aligned with the server-side
   fail-closed registration-mode policy.
+- Registration cancellation guest-copy pass: aligned active-registration
+  cancellation helper text and generated registration docs with buyer-plus-guest
+  spot release behavior.
 - Profile payment next-step coverage pass: extracted the profile event-card
   pending-checkout next-step copy into a helper and covered that it only appears
   when a pending registration has an actual checkout URL.
