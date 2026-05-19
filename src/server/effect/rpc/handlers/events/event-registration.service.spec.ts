@@ -43,44 +43,52 @@ const approvedRegistrationOption = {
 } as const;
 
 describe('EventRegistrationService', () => {
-  it.effect('fails with conflict when user already has a registration', () =>
-    Effect.gen(function* () {
-      const mockDatabase = {
-        query: {
-          eventRegistrations: {
-            findFirst: () =>
-              Effect.succeed({
-                id: 'existing-registration',
-              }),
+  it.effect(
+    'rejects a second registration for the same event before looking up another option',
+    () =>
+      Effect.gen(function* () {
+        const findRegistrationOption = vi.fn(() => Effect.succeed(null));
+        const mockDatabase = {
+          query: {
+            eventRegistrationOptions: {
+              findFirst: findRegistrationOption,
+            },
+            eventRegistrations: {
+              findFirst: () =>
+                Effect.succeed({
+                  id: 'existing-registration',
+                }),
+            },
           },
-        },
-      };
+        };
 
-      const program = EventRegistrationService.registerForEvent({
-        eventId: 'event-1',
-        headers: Headers.empty,
-        registrationOptionId: 'option-1',
-        tenant: {
-          currency: 'EUR',
-          id: 'tenant-1',
-          stripeAccountId: undefined,
-        },
-        user: {
-          email: 'alice@example.com',
-          id: 'user-1',
-          roleIds: ['role-1'],
-        },
-      }).pipe(
-        Effect.flip,
-        Effect.provide(EventRegistrationService.Default),
-        Effect.provide(Layer.succeed(Database, mockDatabase as never)),
-        Effect.provideService(StripeClient, stripeClient),
-        Effect.provide(configProviderLayer),
-      );
+        const program = EventRegistrationService.registerForEvent({
+          eventId: 'event-1',
+          headers: Headers.empty,
+          registrationOptionId: 'organizer-option-1',
+          tenant: {
+            currency: 'EUR',
+            id: 'tenant-1',
+            stripeAccountId: undefined,
+          },
+          user: {
+            email: 'alice@example.com',
+            id: 'user-1',
+            roleIds: ['role-1'],
+          },
+        }).pipe(
+          Effect.flip,
+          Effect.provide(EventRegistrationService.Default),
+          Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+          Effect.provideService(StripeClient, stripeClient),
+          Effect.provide(configProviderLayer),
+        );
 
-      const error = yield* program;
-      expect(error['_tag']).toBe('EventRegistrationConflictError');
-    }),
+        const error = yield* program;
+        expect(error['_tag']).toBe('EventRegistrationConflictError');
+        expect(error.message).toBe('User is already registered for this event');
+        expect(findRegistrationOption).not.toHaveBeenCalled();
+      }),
   );
 
   it.effect(
@@ -373,5 +381,153 @@ describe('EventRegistrationService', () => {
       expect(error['_tag']).toBe('EventRegistrationConflictError');
       expect(error.message).toBe('Registration option has no available spots');
     }),
+  );
+
+  it.effect(
+    'rejects when a concurrent registration appears inside the reservation transaction',
+    () =>
+      Effect.gen(function* () {
+        const updateOptionCounters = vi.fn();
+        const mockDatabase = {
+          query: {
+            eventRegistrationOptions: {
+              findFirst: () => Effect.succeed(approvedRegistrationOption),
+            },
+            eventRegistrations: {
+              findFirst: () => Effect.succeed(null),
+            },
+          },
+          transaction: (
+            callback: (tx: {
+              query: {
+                eventRegistrations: {
+                  findMany: () => Effect.Effect<{ id: string }[]>;
+                };
+              };
+              update: ReturnType<typeof vi.fn>;
+            }) => Effect.Effect<unknown>,
+          ) =>
+            callback({
+              query: {
+                eventRegistrations: {
+                  findMany: () =>
+                    Effect.succeed([{ id: 'concurrent-registration' }]),
+                },
+              },
+              update: updateOptionCounters,
+            }),
+        };
+
+        const program = EventRegistrationService.registerForEvent({
+          eventId: 'event-1',
+          headers: Headers.empty,
+          registrationOptionId: 'option-1',
+          tenant: {
+            currency: 'EUR',
+            id: 'tenant-1',
+            stripeAccountId: undefined,
+          },
+          user: {
+            email: 'alice@example.com',
+            id: 'user-1',
+            roleIds: ['role-1'],
+          },
+        }).pipe(
+          Effect.flip,
+          Effect.provide(EventRegistrationService.Default),
+          Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+          Effect.provideService(StripeClient, stripeClient),
+          Effect.provide(configProviderLayer),
+        );
+
+        const error = yield* program;
+        expect(error['_tag']).toBe('EventRegistrationConflictError');
+        expect(error.message).toBe('User is already registered for this event');
+        expect(updateOptionCounters).not.toHaveBeenCalled();
+      }),
+  );
+
+  it.effect(
+    'rejects when the transactional capacity counter update loses the race',
+    () =>
+      Effect.gen(function* () {
+        const insertRegistration = vi.fn();
+        const mockDatabase = {
+          query: {
+            eventRegistrationOptions: {
+              findFirst: () =>
+                Effect.succeed({
+                  ...approvedRegistrationOption,
+                  confirmedSpots: 9,
+                  reservedSpots: 0,
+                }),
+            },
+            eventRegistrations: {
+              findFirst: () => Effect.succeed(null),
+            },
+          },
+          transaction: (
+            callback: (tx: {
+              insert: ReturnType<typeof vi.fn>;
+              query: {
+                eventRegistrations: {
+                  findMany: () => Effect.Effect<[]>;
+                };
+              };
+              update: () => {
+                set: () => {
+                  where: () => {
+                    returning: () => Effect.Effect<[]>;
+                  };
+                };
+              };
+            }) => Effect.Effect<unknown>,
+          ) =>
+            callback({
+              insert: insertRegistration,
+              query: {
+                eventRegistrations: {
+                  findMany: () => Effect.succeed([]),
+                },
+              },
+              update: () => ({
+                set: () => ({
+                  where: () => ({
+                    returning: () => Effect.succeed([]),
+                  }),
+                }),
+              }),
+            }),
+        };
+
+        const program = EventRegistrationService.registerForEvent({
+          eventId: 'event-1',
+          headers: Headers.empty,
+          registrationOptionId: 'option-1',
+          tenant: {
+            currency: 'EUR',
+            id: 'tenant-1',
+            stripeAccountId: undefined,
+          },
+          user: {
+            email: 'alice@example.com',
+            id: 'user-1',
+            roleIds: ['role-1'],
+          },
+        }).pipe(
+          Effect.flip,
+          Effect.provide(EventRegistrationService.Default),
+          Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+          Effect.provideService(StripeClient, stripeClient),
+          Effect.provide(configProviderLayer),
+        );
+
+        const error = yield* program;
+        expect(error['_tag']).toBe('EventRegistrationConflictError');
+        expect(error.message).toBe(
+          'Registration option has no available spots',
+        );
+        expect(insertRegistration).not.toHaveBeenCalled();
+      }),
   );
 });

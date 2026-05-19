@@ -555,7 +555,7 @@ the current working direction until a product decision overrides them.
 ### Test and Documentation Quality
 
 - `tests/specs/events/free-registration.test.ts` covers the free registration happy path using seeded scenario handles.
-- `src/server/effect/rpc/handlers/events/event-registration.service.spec.ts` covers server-side rejection for duplicate active registration, unpublished events, closed registration windows, role-ineligible users, cross-tenant options, and full options.
+- `src/server/effect/rpc/handlers/events/event-registration.service.spec.ts` covers server-side rejection for duplicate active registration, unpublished events, closed registration windows, role-ineligible users, cross-tenant options, full options, same-event second registrations across options, transactional duplicate races, and transactional capacity races.
 - `src/server/effect/rpc/handlers/events/events-lifecycle.handlers.spec.ts` covers server-side rejection of end-before-start events and close-before-open registration windows for event create/update.
 - `src/server/effect/rpc/handlers/events/events-lifecycle.handlers.spec.ts` covers template discount copying by stable source option id when template options share the same title.
 - `src/server/effect/rpc/handlers/events/events-rpcs.schema.spec.ts` covers acceptance and rejection for the shared event location schema now used by Events RPC contracts.
@@ -563,7 +563,6 @@ the current working direction until a product decision overrides them.
 - `tests/docs/events/event-management.doc.ts` now documents only the current event details, registration, review/listing, edit, organizer overview, participant grouping, and receipt surfaces.
 - `tests/docs/events/unlisted-admin.doc.ts` covers the updated direct-link explanation in the listing dialog and on unlisted event details.
 - `tests/docs/events/register.doc.ts` covers free and paid registration as generated documentation and Stripe-backed evidence.
-- No reviewed test covers same user registering for organizer plus participant options or a real concurrent capacity race.
 - `src/server/price/format-inclusive-tax-label.spec.ts` covers the shared inclusive-tax label formatter.
 - `tests/specs/events/price-labels-inclusive.spec.ts` is explicitly quarantined with `test.fixme` until it is replaced with real UI assertions.
 
@@ -1066,17 +1065,13 @@ the current working direction until a product decision overrides them.
 
 ### Must Fix Before Agent Scaling
 
-1. Server-side registration preconditions: event must be approved, option must belong to the current tenant/event, registration window must be open, and user roles must be eligible.
-2. Registration capacity updates must be concurrency-safe and transactional.
-3. Event create/update date validation must reject invalid ordering and invalid registration windows.
-4. Replace or validate `Schema.Any` event location at the RPC boundary.
-5. Add server-side template permission checks for view/create/edit and direct route guards for template write flows.
-6. Validate template category/role ids and template offset ordering at the server boundary.
-7. Add route guards and direct-route denial coverage for admin role/user/settings and other permission-sensitive routes.
-8. Split role lookup APIs so organizers can select event/template eligibility roles without receiving admin role-management data.
-9. Tie receipt media upload to receipt-submit authorization or an upload preflight to avoid orphan authenticated uploads.
-10. Remove misleading placeholder tests/docs from the event registration, event management, template tax-rate, role-assignment, finance overview, scanner, and profile/account surfaces.
-11. Replace green placeholder specs and silent no-op Playwright tests with real assertions, hard fixture setup, or explicit `test.fixme` states.
+1. Add server-side template permission checks for view/create/edit and direct route guards for template write flows.
+2. Validate template category/role ids and template offset ordering at the server boundary.
+3. Add route guards and direct-route denial coverage for admin role/user/settings and other permission-sensitive routes.
+4. Split role lookup APIs so organizers can select event/template eligibility roles without receiving admin role-management data.
+5. Tie receipt media upload to receipt-submit authorization or an upload preflight to avoid orphan authenticated uploads.
+6. Remove misleading placeholder tests/docs from the event registration, event management, template tax-rate, role-assignment, finance overview, scanner, and profile/account surfaces.
+7. Replace green placeholder specs and silent no-op Playwright tests with real assertions, hard fixture setup, or explicit `test.fixme` states.
 
 ### Should Fix Before Relaunch
 
@@ -1126,6 +1121,7 @@ implement those decisions or explicitly revise them there before changing code.
 ## Fixes Applied In This Pass
 
 - None. The obvious issues found in Events and Registrations affect server-side behavior and need focused tests, so they should be handled as small follow-up cleanup commits rather than opportunistic edits inside the audit document commit.
+- Registration race-coverage pass: added focused `EventRegistrationService` tests for same-event second registrations across options, transactional duplicate races, and transactional capacity races.
 - None in the Templates pass. The highest-value issues are permission and contract validation gaps that need targeted tests with the fixes.
 - Permission evaluator pass: routed legacy server permission checks through the shared `includesPermission` helper so client and server agree on dependencies, wildcards, and legacy aliases, and added direct unit coverage for the shared evaluator plus tax-rate dependency behavior.
 - None in the Finance/receipts pass. The highest-value issues touch payment-derived state, transaction visibility, and upload authorization, so they need targeted regression tests with the fixes.
