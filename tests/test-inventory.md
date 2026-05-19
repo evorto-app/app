@@ -35,6 +35,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - docs/finance/receipt-review-reimbursement.doc.ts [finance]
   - docs/profile/discounts.doc.ts [finance]
   - docs/profile/user-profile.doc.ts
+  - docs/roles/about-permissions.doc.ts
   - docs/roles/roles.doc.ts
   - docs/template-categories/categories.doc.ts
   - docs/templates/templates.doc.ts
@@ -75,6 +76,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - `specs/templates/**`
   - `specs/template-categories/**`
 - Roles and permissions:
+  - `docs/roles/about-permissions.doc.ts`
   - `docs/roles/roles.doc.ts`
   - `specs/permissions/**`
   - route-manifest specs in `src/app/admin`, `src/app/finance`,
