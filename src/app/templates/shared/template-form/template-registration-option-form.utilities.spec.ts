@@ -24,6 +24,24 @@ describe('toTemplateRegistrationSubmitData', () => {
     );
   });
 
+  it('keeps paid registrations without a selected tax rate as a validation failure for the server', () => {
+    expect(
+      toTemplateRegistrationSubmitData(
+        createTemplateRegistrationFormModel({
+          isPaid: true,
+          price: 2500,
+          stripeTaxRateId: null,
+        }),
+      ),
+    ).toEqual(
+      expect.objectContaining({
+        isPaid: true,
+        price: 2500,
+        stripeTaxRateId: null,
+      }),
+    );
+  });
+
   it('clears hidden payment fields for free template registrations', () => {
     expect(
       toTemplateRegistrationSubmitData(
