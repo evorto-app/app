@@ -82,6 +82,11 @@ The review page shows the receipt file, normalized receipt data, tax/deposit/alc
       .getByRole('heading', { name: 'Receipt reimbursements' }),
   ).toBeVisible();
   await expect(
+    page.getByText(
+      'Recording a reimbursement creates the Evorto finance transaction only. Transfer the money manually through the selected payout method.',
+    ),
+  ).toBeVisible();
+  await expect(
     page.getByText('No approved receipts are waiting for reimbursement.'),
   ).not.toBeVisible();
 

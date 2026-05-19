@@ -154,6 +154,11 @@ test.skip('approve and record receipt reimbursements in finance', async ({
 
   await page.goto('/finance/receipts-refunds');
   await expect(
+    page.getByText(
+      'Recording a reimbursement creates the Evorto finance transaction only. Transfer the money manually through the selected payout method.',
+    ),
+  ).toBeVisible();
+  await expect(
     page.getByText('No approved receipts are waiting for reimbursement.'),
   ).not.toBeVisible();
 
