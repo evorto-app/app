@@ -55,7 +55,7 @@ Tax rates are managed on the separate **Tax Rates** page.
     body: `
 ## Relaunch scope notes
 
-One-domain-per-tenant remains the current relaunch scope in the application schema. The page now exposes the active primary domain for operator review, allows tenant admins to maintain supported currency, locale, and timezone values, and keeps an in-app deferred-settings summary for custom domain verification, tenant logo/favicon uploads beyond externally hosted URLs, hosted legal text pages, email sender name, review/publishing policy, registration limits, and Stripe account management.
+One-domain-per-tenant remains the current relaunch scope in the application schema. The page now exposes the active primary domain for operator review, allows tenant admins to maintain supported currency, locale, and timezone values, and keeps an in-app deferred-settings summary for custom domain verification, tenant logo/favicon uploads beyond externally hosted URLs, hosted legal text pages, email sender name, review/publishing policy, registration limits, and Stripe account management. When currency, locale, or timezone changes, Evorto reloads the app after saving so bootstrap-level formatting defaults use the new tenant settings.
 `,
   });
 });

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   GeneralSettingsModel,
   generalSettingsPayloadFromModel,
+  requiresLocaleMoneyRuntimeReload,
 } from './general-settings.payload';
 
 const settingsModel: GeneralSettingsModel = {
@@ -87,5 +88,47 @@ describe('generalSettingsPayloadFromModel', () => {
       theme: 'esn',
       timezone: 'Europe/Prague',
     });
+  });
+});
+
+describe('requiresLocaleMoneyRuntimeReload', () => {
+  const currentTenant = {
+    currency: 'EUR' as const,
+    locale: 'en-GB' as const,
+    timezone: 'Europe/Berlin' as const,
+  };
+
+  it('does not require a reload when locale and money settings stay the same', () => {
+    expect(
+      requiresLocaleMoneyRuntimeReload(currentTenant, {
+        currency: 'EUR',
+        locale: 'en-GB',
+        timezone: 'Europe/Berlin',
+      }),
+    ).toBe(false);
+  });
+
+  it('requires a reload when currency, locale, or timezone changes', () => {
+    expect(
+      requiresLocaleMoneyRuntimeReload(currentTenant, {
+        currency: 'CZK',
+        locale: 'en-GB',
+        timezone: 'Europe/Berlin',
+      }),
+    ).toBe(true);
+    expect(
+      requiresLocaleMoneyRuntimeReload(currentTenant, {
+        currency: 'EUR',
+        locale: 'en-US',
+        timezone: 'Europe/Berlin',
+      }),
+    ).toBe(true);
+    expect(
+      requiresLocaleMoneyRuntimeReload(currentTenant, {
+        currency: 'EUR',
+        locale: 'en-GB',
+        timezone: 'Europe/Prague',
+      }),
+    ).toBe(true);
   });
 });

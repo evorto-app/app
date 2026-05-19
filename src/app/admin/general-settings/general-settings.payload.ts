@@ -4,6 +4,7 @@ import type {
   SupportedTenantCurrency,
   SupportedTenantLocale,
   SupportedTenantTimezone,
+  Tenant,
 } from '../../../types/custom/tenant';
 import type { GoogleLocationType } from '../../../types/location';
 
@@ -49,3 +50,11 @@ export const generalSettingsPayloadFromModel = (
   theme: settings.theme,
   timezone: settings.timezone,
 });
+
+export const requiresLocaleMoneyRuntimeReload = (
+  currentTenant: Pick<Tenant, 'currency' | 'locale' | 'timezone'>,
+  settings: Pick<GeneralSettingsModel, 'currency' | 'locale' | 'timezone'>,
+): boolean =>
+  currentTenant.currency !== settings.currency ||
+  currentTenant.locale !== settings.locale ||
+  currentTenant.timezone !== settings.timezone;
