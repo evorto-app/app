@@ -17,6 +17,19 @@ export type TemplateRegistrationSubmitData = Omit<
   'title'
 >;
 
+export const toTemplateRegistrationSubmitData = (
+  registration: TemplateRegistrationFormModel,
+): TemplateRegistrationSubmitData => ({
+  closeRegistrationOffset: registration.closeRegistrationOffset,
+  isPaid: registration.isPaid,
+  openRegistrationOffset: registration.openRegistrationOffset,
+  price: registration.isPaid ? registration.price : 0,
+  registrationMode: registration.registrationMode,
+  roleIds: registration.roleIds,
+  spots: registration.spots,
+  stripeTaxRateId: registration.isPaid ? registration.stripeTaxRateId : null,
+});
+
 export const createTemplateRegistrationFormModel = (
   overrides: Partial<TemplateRegistrationFormModel> = {},
 ): TemplateRegistrationFormModel => ({
