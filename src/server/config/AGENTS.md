@@ -6,7 +6,9 @@
 - `.env.dev` is the generated local worktree override artifact written by `bun run env:runtime`. It may be absent; in that case, local runs should use `.env.dev.local`, `.env`, and real environment variables only.
 - `.env.dev.local` is the tracked shared default dev config file.
 - `.env` is the untracked developer-secrets file.
-- For shell/package scripts that use `dotenv-cli`, this repo standardizes on `dotenv -c dev`. Because `dotenv-cli` is first-wins, the effective dotenv precedence is `.env.dev.local`, `.env.local` if present, `.env.dev`, then `.env`.
+- Package scripts that use `dotenv-cli` standardize on `dotenv -c dev`; npm-style scripts resolve that binary from `node_modules/.bin`.
+- Outside package scripts, use `node_modules/.bin/dotenv -c dev -- ...` instead of a bare shell `dotenv` command. Local shells may resolve another executable first.
+- Because `dotenv-cli` is first-wins, the effective dotenv precedence is `.env.dev.local`, `.env.dev`, then `.env` when only supported local env files exist.
 - `.env.local`, `.env.runtime`, and `.env.ci` are unsupported in this repo and should not be created or referenced.
 - In CI and other cloud environments, do not rely on tracked or generated dotenv artifacts. Use explicit environment variables provided by GitHub Actions `env`, `vars`, and `secrets`.
 
