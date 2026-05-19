@@ -11,7 +11,7 @@ import {
   encodeRpcContextHeaderJson,
   RPC_CONTEXT_HEADERS,
 } from '../rpc-context-headers';
-import { userHandlers } from './users.handlers';
+import { normalizeUsersFindManySearch, userHandlers } from './users.handlers';
 
 const createTenant = () => ({
   currency: 'EUR' as const,
@@ -64,6 +64,14 @@ const createCreateAccountHeaders = (
 });
 
 describe('userHandlers', () => {
+  it('normalizes user-list search input for the server query', () => {
+    expect(normalizeUsersFindManySearch()).toBeUndefined();
+    expect(normalizeUsersFindManySearch('   ')).toBeUndefined();
+    expect(normalizeUsersFindManySearch(' alice@example.com ')).toBe(
+      '%alice@example.com%',
+    );
+  });
+
   it.effect(
     'createAccount creates the user, tenant assignment, and default roles transactionally',
     () =>
@@ -462,7 +470,9 @@ describe('userHandlers', () => {
           .fn()
           .mockImplementationOnce(() => ({
             from: () => ({
-              where: () => Effect.succeed([{ count: 2 }]),
+              innerJoin: () => ({
+                where: () => Effect.succeed([{ count: 2 }]),
+              }),
             }),
           }))
           .mockImplementationOnce(() => ({
@@ -523,6 +533,7 @@ describe('userHandlers', () => {
           {
             limit: 25,
             offset: 0,
+            search: 'Alice',
           },
           { headers } as never,
         ).pipe(Effect.provide(Layer.succeed(Database, mockDatabase as never)));

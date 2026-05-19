@@ -1,6 +1,8 @@
 import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatChipsModule } from '@angular/material/chips';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
 import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatTableModule } from '@angular/material/table';
 import { RouterLink } from '@angular/router';
@@ -16,9 +18,11 @@ import { AppRpc } from '../../core/effect-rpc-angular-client';
   imports: [
     FontAwesomeModule,
     MatButtonModule,
-    MatTableModule,
-    MatPaginatorModule,
     MatChipsModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatPaginatorModule,
+    MatTableModule,
     RouterLink,
   ],
   selector: 'app-user-list',
@@ -50,5 +54,13 @@ export class UserListComponent {
       offset: event.pageIndex * event.pageSize,
     }));
     consola.info('Page event', event);
+  }
+
+  protected handleSearchChange(value: string) {
+    const search = value.trim();
+    this.filterInput.update((old) => {
+      const { search: _search, ...rest } = old;
+      return search ? { ...rest, offset: 0, search } : { ...rest, offset: 0 };
+    });
   }
 }
