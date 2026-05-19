@@ -176,7 +176,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - Keep finance route-denial cases and route-manifest specs aligned as
     transaction, receipt approval, and reimbursement routes change.
   - Keep receipt review and reimbursement docs aligned with the manual
-    notification and manual money-movement scope.
+    notification and manual money-movement scope. Local component coverage,
+    finance docs, and receipt flow specs now pin that the reimbursement queue
+    records an Evorto transaction only and that money movement remains manual
+    through the selected payout method.
   - Keep paid-registration webhook counter coverage aligned with buyer-plus-guest
     spot counts. Local shared coverage pins the capacity count helper used by
     webhook completion/expiry updates; Stripe replay specs remain

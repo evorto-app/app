@@ -1,6 +1,11 @@
 <div class="mb-4 flex items-center justify-between gap-2">
   <h1 class="title-large">Receipt reimbursements</h1>
 </div>
+<p
+  class="bg-secondary-container text-on-secondary-container mb-4 rounded-xl p-3 text-sm"
+>
+  {{ receiptReimbursementManualNotice }}
+</p>
 
 @if (refundableReceiptsQuery.isPending()) {
   <div class="bg-surface text-on-surface rounded-2xl p-4">
