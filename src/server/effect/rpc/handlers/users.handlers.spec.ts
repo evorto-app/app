@@ -447,7 +447,7 @@ describe('userHandlers', () => {
   );
 
   it.effect(
-    'users.findMany uses distinct tenant users count with role-join rows',
+    'users.findMany paginates tenant users before loading role join rows',
     () =>
       Effect.gen(function* () {
         const tenant = createTenant();
@@ -467,38 +467,52 @@ describe('userHandlers', () => {
           }))
           .mockImplementationOnce(() => ({
             from: () => ({
-              orderBy: () => ({
-                offset: () => ({
-                  limit: () => ({
-                    innerJoin: () => ({
-                      leftJoin: () => ({
-                        leftJoin: () =>
-                          Effect.succeed([
-                            {
-                              email: 'a@example.com',
-                              firstName: 'Alice',
-                              id: 'user-1',
-                              lastName: 'One',
-                              role: 'Admin',
-                            },
-                            {
-                              email: 'a@example.com',
-                              firstName: 'Alice',
-                              id: 'user-1',
-                              lastName: 'One',
-                              role: 'Editor',
-                            },
-                            {
-                              email: 'b@example.com',
-                              firstName: 'Bob',
-                              id: 'user-2',
-                              lastName: 'Two',
-                              role: null,
-                            },
-                          ]),
-                      }),
+              innerJoin: () => ({
+                where: () => ({
+                  orderBy: () => ({
+                    offset: () => ({
+                      limit: () =>
+                        Effect.succeed([
+                          {
+                            email: 'a@example.com',
+                            firstName: 'Alice',
+                            id: 'user-1',
+                            lastName: 'One',
+                            userTenantId: 'user-tenant-1',
+                          },
+                          {
+                            email: 'b@example.com',
+                            firstName: 'Bob',
+                            id: 'user-2',
+                            lastName: 'Two',
+                            userTenantId: 'user-tenant-2',
+                          },
+                        ]),
                     }),
                   }),
+                }),
+              }),
+            }),
+          }))
+          .mockImplementationOnce(() => ({
+            from: () => ({
+              leftJoin: () => ({
+                leftJoin: () => ({
+                  where: () =>
+                    Effect.succeed([
+                      {
+                        role: 'Admin',
+                        userTenantId: 'user-tenant-1',
+                      },
+                      {
+                        role: 'Editor',
+                        userTenantId: 'user-tenant-1',
+                      },
+                      {
+                        role: null,
+                        userTenantId: 'user-tenant-2',
+                      },
+                    ]),
                 }),
               }),
             }),
@@ -530,6 +544,7 @@ describe('userHandlers', () => {
             roles: [],
           },
         ]);
+        expect(select).toHaveBeenCalledTimes(3);
         expect(result.users).not.toEqual(
           expect.arrayContaining([
             expect.objectContaining({

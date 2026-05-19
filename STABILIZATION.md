@@ -1260,6 +1260,9 @@ implement those decisions or explicitly revise them there before changing code.
 - Global-admin tenant-list pass: expanded the tenant list contract and UI with
   non-sensitive operational state for support review, including theme,
   locale/currency/timezone, and Stripe connection status.
+- User-list pagination pass: fixed the read-only tenant user list to paginate
+  tenant-user assignments before loading role rows, so users with multiple
+  roles no longer consume multiple page slots.
 
 ## Review Next
 

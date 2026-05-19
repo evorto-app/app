@@ -175,6 +175,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     lookup-only role results; template autocomplete coverage now fails loudly
     when seeded roles are missing.
   - User-list/role-assignment coverage once the role-assignment path exists.
+    Server coverage already proves the current read-only user list pages tenant
+    users before joining role rows, so multi-role users do not collapse page
+    size.
 - Registrations:
   - Browser-backed negative registration states for closed windows,
     role-ineligible direct links, and waitlist affordances. Server/app unit

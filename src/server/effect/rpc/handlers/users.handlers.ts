@@ -5,7 +5,7 @@ import {
   RpcUnauthorizedError,
 } from '@shared/errors/rpc-errors';
 import { UserConflictError } from '@shared/rpc-contracts/app-rpcs/users.errors';
-import { and, count, eq } from 'drizzle-orm';
+import { count, eq, inArray } from 'drizzle-orm';
 import { Effect, Schema } from 'effect';
 
 import type { AppRpcHandlers } from './shared/handler-types';
@@ -365,31 +365,41 @@ export const userHandlers = {
       );
       const usersCount = usersCountResult[0]?.count ?? 0;
 
-      const selectedUsers = yield* databaseEffect((database) =>
+      const tenantUserPage = yield* databaseEffect((database) =>
         database
           .select({
             email: users.email,
             firstName: users.firstName,
             id: users.id,
             lastName: users.lastName,
-            role: roles.name,
+            userTenantId: usersToTenants.id,
           })
-          .from(users)
+          .from(usersToTenants)
+          .innerJoin(users, eq(usersToTenants.userId, users.id))
+          .where(eq(usersToTenants.tenantId, tenant.id))
           .orderBy(users.lastName, users.firstName)
           .offset(input.offset ?? 0)
-          .limit(input.limit ?? 100)
-          .innerJoin(
-            usersToTenants,
-            and(
-              eq(usersToTenants.userId, users.id),
-              eq(usersToTenants.tenantId, tenant.id),
-            ),
-          )
+          .limit(input.limit ?? 100),
+      );
+
+      if (tenantUserPage.length === 0) {
+        return { users: [], usersCount };
+      }
+
+      const tenantUserIds = tenantUserPage.map((user) => user.userTenantId);
+      const selectedRoles = yield* databaseEffect((database) =>
+        database
+          .select({
+            role: roles.name,
+            userTenantId: usersToTenants.id,
+          })
+          .from(usersToTenants)
           .leftJoin(
             rolesToTenantUsers,
             eq(usersToTenants.id, rolesToTenantUsers.userTenantId),
           )
-          .leftJoin(roles, eq(rolesToTenantUsers.roleId, roles.id)),
+          .leftJoin(roles, eq(rolesToTenantUsers.roleId, roles.id))
+          .where(inArray(usersToTenants.id, tenantUserIds)),
       );
 
       const userMap: Record<
@@ -402,20 +412,23 @@ export const userHandlers = {
           roles: string[];
         }
       > = {};
-      for (const user of selectedUsers) {
-        if (userMap[user.id]) {
-          if (user.role) {
-            userMap[user.id].roles.push(user.role);
-          }
-          continue;
-        }
+      for (const user of tenantUserPage) {
         userMap[user.id] = {
           email: user.email,
           firstName: user.firstName,
           id: user.id,
           lastName: user.lastName,
-          roles: user.role ? [user.role] : [],
+          roles: [],
         };
+      }
+      const userIdByTenantUserId = new Map(
+        tenantUserPage.map((user) => [user.userTenantId, user.id]),
+      );
+      for (const selectedRole of selectedRoles) {
+        const userId = userIdByTenantUserId.get(selectedRole.userTenantId);
+        if (userId && selectedRole.role) {
+          userMap[userId].roles.push(selectedRole.role);
+        }
       }
 
       return { users: Object.values(userMap), usersCount };
