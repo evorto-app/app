@@ -1,3 +1,5 @@
+import type { EventsRegistrationStatus } from '@shared/rpc-contracts/app-rpcs/events.rpcs';
+
 import { CurrencyPipe, NgOptimizedImage } from '@angular/common';
 import {
   ChangeDetectionStrategy,
@@ -32,7 +34,7 @@ export class EventActiveRegistrationComponent {
       paymentPending: boolean;
       registeredDescription?: null | string | undefined;
       registrationOptionTitle: string;
-      status: string;
+      status: EventsRegistrationStatus;
     }[]
   >();
   private readonly rpc = AppRpc.injectClient();

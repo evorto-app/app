@@ -1,6 +1,10 @@
 import { Schema } from 'effect';
 import { describe, expect, it } from 'vitest';
 
+import {
+  EventsRegistrationStatus,
+  EventsRegistrationStatusRecord,
+} from '../../../../../shared/rpc-contracts/app-rpcs/events.rpcs';
 import { EventLocation } from '../../../../../types/location';
 
 describe('events RPC location schema', () => {
@@ -25,6 +29,28 @@ describe('events RPC location schema', () => {
         name: 'Broken Place',
         placeId: 'place-1',
         type: 'google',
+      }),
+    ).toThrow();
+  });
+});
+
+describe('events RPC registration status schema', () => {
+  it('accepts every persisted registration status', () => {
+    for (const status of ['CANCELLED', 'CONFIRMED', 'PENDING', 'WAITLIST']) {
+      expect(() =>
+        Schema.decodeUnknownSync(EventsRegistrationStatus)(status),
+      ).not.toThrow();
+    }
+  });
+
+  it('rejects unknown active registration statuses', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(EventsRegistrationStatusRecord)({
+        id: 'registration-1',
+        paymentPending: false,
+        registrationOptionId: 'option-1',
+        registrationOptionTitle: 'Participant',
+        status: 'UNKNOWN',
       }),
     ).toThrow();
   });
