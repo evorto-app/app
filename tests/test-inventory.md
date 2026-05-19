@@ -149,7 +149,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 - Tenant/global admin:
   - Authenticated Browser review for the global-admin tenant list.
 - Roles/user management:
-  - Least-privilege organizer role lookup in event/template eligibility forms.
+  - Browser-backed least-privilege organizer review for event/template role
+    selectors. Server coverage already proves lookup permissions and
+    lookup-only role results; template autocomplete coverage now fails loudly
+    when seeded roles are missing.
   - User-list/role-assignment coverage once the role-assignment path exists.
 - Registrations:
   - Negative paths for closed windows, ineligible roles, unsupported stored
