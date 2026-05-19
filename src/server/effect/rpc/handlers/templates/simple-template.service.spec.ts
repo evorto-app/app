@@ -40,6 +40,34 @@ const testLayer = Layer.mergeAll(
   Layer.succeed(Database, {} as never),
 );
 
+const createValidationDatabase = ({
+  categoryFound,
+  roleIds,
+}: {
+  categoryFound: boolean;
+  roleIds: readonly string[];
+}) =>
+  ({
+    query: {
+      eventTemplateCategories: {
+        findFirst: () =>
+          Effect.succeed(categoryFound ? { id: 'category-1' } : undefined),
+      },
+      roles: {
+        findMany: () => Effect.succeed(roleIds.map((id) => ({ id }))),
+      },
+      tenantStripeTaxRates: {
+        findMany: () => Effect.succeed([]),
+      },
+    },
+  }) as never;
+
+const createValidationLayer = (database: never) =>
+  Layer.mergeAll(
+    SimpleTemplateService.Default,
+    Layer.succeed(Database, database),
+  );
+
 describe('SimpleTemplateService', () => {
   it.effect(
     'fails with bad request for non-meaningful rich text description',
@@ -99,6 +127,70 @@ describe('SimpleTemplateService', () => {
       expect(error['_tag']).toBe('TemplateSimpleBadRequestError');
       expect(error.message).toBe(
         'participant registration must open before it closes',
+      );
+    }),
+  );
+
+  it.effect('fails when the selected category is not tenant-owned', () =>
+    Effect.gen(function* () {
+      const program = SimpleTemplateService.createSimpleTemplate({
+        input: {
+          ...validTemplateInput,
+          organizerRegistration: {
+            ...validTemplateInput.organizerRegistration,
+            roleIds: ['role-1'],
+          },
+        },
+        tenantId: 'tenant-1',
+      }).pipe(
+        Effect.flip,
+        Effect.provide(
+          createValidationLayer(
+            createValidationDatabase({ categoryFound: false, roleIds: [] }),
+          ),
+        ),
+      );
+
+      const error = yield* program;
+      expect(error['_tag']).toBe('TemplateSimpleBadRequestError');
+      expect(error.message).toBe(
+        'Template category does not exist for this tenant',
+      );
+    }),
+  );
+
+  it.effect('fails when a selected role is not tenant-owned', () =>
+    Effect.gen(function* () {
+      const program = SimpleTemplateService.updateSimpleTemplate({
+        input: {
+          id: 'template-1',
+          ...validTemplateInput,
+          organizerRegistration: {
+            ...validTemplateInput.organizerRegistration,
+            roleIds: ['role-1'],
+          },
+          participantRegistration: {
+            ...validTemplateInput.participantRegistration,
+            roleIds: ['role-2'],
+          },
+        },
+        tenantId: 'tenant-1',
+      }).pipe(
+        Effect.flip,
+        Effect.provide(
+          createValidationLayer(
+            createValidationDatabase({
+              categoryFound: true,
+              roleIds: ['role-1'],
+            }),
+          ),
+        ),
+      );
+
+      const error = yield* program;
+      expect(error['_tag']).toBe('TemplateSimpleBadRequestError');
+      expect(error.message).toBe(
+        'Registration role does not exist for this tenant',
       );
     }),
   );
