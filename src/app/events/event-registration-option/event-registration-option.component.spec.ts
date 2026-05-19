@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { registrationOptionAudienceCopy } from './event-registration-option.component';
+import {
+  registrationOptionAudienceCopy,
+  registrationOptionAvailability,
+  registrationOptionIsFull,
+} from './event-registration-option.component';
 
 describe('registrationOptionAudienceCopy', () => {
   it('keeps participant options on registration copy', () => {
@@ -23,5 +27,67 @@ describe('registrationOptionAudienceCopy', () => {
       label: 'Organizer/helper option',
       primaryAction: 'Sign up as organizer/helper',
     });
+  });
+});
+
+describe('registrationOptionIsFull', () => {
+  it('treats confirmed plus reserved spots as unavailable capacity', () => {
+    expect(
+      registrationOptionIsFull({
+        confirmedSpots: 8,
+        reservedSpots: 2,
+        spots: 10,
+      }),
+    ).toBe(true);
+  });
+
+  it('keeps registration available when any spot remains', () => {
+    expect(
+      registrationOptionIsFull({
+        confirmedSpots: 7,
+        reservedSpots: 2,
+        spots: 10,
+      }),
+    ).toBe(false);
+  });
+});
+
+describe('registrationOptionAvailability', () => {
+  const currentTime = new Date('2026-09-15T12:00:00.000Z');
+
+  it('blocks direct registration before the option opens', () => {
+    expect(
+      registrationOptionAvailability(
+        {
+          closeRegistrationTime: '2026-09-20T12:00:00.000Z',
+          openRegistrationTime: '2026-09-16T12:00:00.000Z',
+        },
+        currentTime,
+      ),
+    ).toBe('tooEarly');
+  });
+
+  it('blocks direct registration after the option closes', () => {
+    expect(
+      registrationOptionAvailability(
+        {
+          closeRegistrationTime: '2026-09-14T12:00:00.000Z',
+          openRegistrationTime: '2026-09-10T12:00:00.000Z',
+        },
+        currentTime,
+      ),
+    ).toBe('tooLate');
+  });
+
+  it('keeps direct registration open inside the registration window', () => {
+    expect(
+      registrationOptionAvailability(
+        {
+          closeRegistrationTime: '2026-09-20T12:00:00.000Z',
+          openRegistrationTime: '2026-09-10T12:00:00.000Z',
+        },
+        currentTime,
+      ),
+    ).toBe('open');
   });
 });

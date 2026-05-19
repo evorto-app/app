@@ -37,6 +37,8 @@ export interface EventRegistrationOptionView {
   title: string;
 }
 
+export type RegistrationAvailability = 'open' | 'tooEarly' | 'tooLate';
+
 export const registrationOptionAudienceCopy = (
   option: Pick<EventRegistrationOptionView, 'organizingRegistration'>,
 ): {
@@ -59,6 +61,29 @@ export const registrationOptionAudienceCopy = (
         primaryAction: 'Register',
       };
 
+export const registrationOptionIsFull = (
+  option: Pick<
+    EventRegistrationOptionView,
+    'confirmedSpots' | 'reservedSpots' | 'spots'
+  >,
+): boolean => option.confirmedSpots + option.reservedSpots >= option.spots;
+
+export const registrationOptionAvailability = (
+  option: Pick<
+    EventRegistrationOptionView,
+    'closeRegistrationTime' | 'openRegistrationTime'
+  >,
+  currentTime: Date,
+): RegistrationAvailability => {
+  if (new Date(option.openRegistrationTime) > currentTime) {
+    return 'tooEarly';
+  }
+  if (new Date(option.closeRegistrationTime) < currentTime) {
+    return 'tooLate';
+  }
+  return 'open';
+};
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [MatButtonModule, CurrencyPipe, DatePipe],
@@ -77,11 +102,7 @@ export class EventRegistrationOptionComponent {
     this.rpc.config.isAuthenticated.queryOptions(),
   );
   protected readonly full = computed(() => {
-    const registrationOption = this.registrationOption();
-    return (
-      registrationOption.confirmedSpots + registrationOption.reservedSpots >=
-      registrationOption.spots
-    );
+    return registrationOptionIsFull(this.registrationOption());
   });
   protected readonly registrationMutation = injectMutation(() =>
     this.rpc.events.registerForEvent.mutationOptions(),
@@ -90,15 +111,10 @@ export class EventRegistrationOptionComponent {
     initialValue: new Date(),
   });
   protected registrationOpen = computed(() => {
-    const currentTime = this.currentTime();
-    const registrationOption = this.registrationOption();
-    if (new Date(registrationOption.openRegistrationTime) > currentTime) {
-      return 'tooEarly';
-    }
-    if (new Date(registrationOption.closeRegistrationTime) < currentTime) {
-      return 'tooLate';
-    }
-    return 'open';
+    return registrationOptionAvailability(
+      this.registrationOption(),
+      this.currentTime(),
+    );
   });
 
   private queryClient = inject(QueryClient);
