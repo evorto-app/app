@@ -84,6 +84,14 @@
               </span>
             }
           </div>
+          @if (eventQuery.data().unlisted) {
+            <div
+              class="bg-secondary-container text-on-secondary-container rounded px-3 py-2 body-small"
+            >
+              Unlisted: hidden from event lists, but eligible people with the
+              direct link can still open it.
+            </div>
+          }
 
           <div class="flex flex-col gap-2 lg:flex-row lg:items-center lg:gap-4">
             @if (canReview() && eventQuery.data().status === "PENDING_REVIEW") {

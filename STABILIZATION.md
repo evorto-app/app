@@ -485,6 +485,7 @@ the current working direction until a product decision overrides them.
 - Draft/rejected events are editable by creator or `events:editAll`; pending/approved events are locked by server-side `findOneForEdit` and `events.update` checks.
 - Submit/review lifecycle supports `DRAFT`, `PENDING_REVIEW`, `APPROVED`, and `REJECTED`.
 - Listing visibility is separate from status through the `unlisted` flag; admins with the right permission can see/toggle it.
+- Unlisted event controls explain that direct links keep working for eligible people.
 - Event list filtering defaults to all statuses only for users with `events:seeDrafts`; other users only request approved events.
 - Event create/update handlers reject invalid start/end dates, event end times that are not after start times, and registration windows that close before they open.
 - Event find/update RPC contracts use the shared `EventLocation` schema instead of accepting arbitrary location payloads.
@@ -504,7 +505,7 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** event find/update RPC location fields now validate against the shared `EventLocation` schema.
 - **Addressed in stabilization pass:** event creation now copies template option discounts by source option identity, so duplicate option titles do not miscopy discounts.
 - **Addressed in stabilization pass:** `event-management.doc.ts` no longer describes attendee export, attendee messaging, manual check-in controls, event settings tabs, event tags, featured images, notification settings, integrations, or event deletion as existing event-management UI.
-- **Should fix before relaunch:** direct event detail access for unlisted events is covered and seems intended, but the UI should make sharing semantics clearer for organizers/admins.
+- **Addressed in stabilization pass:** unlisted-event dialog and event detail status copy now explain that unlisted events are hidden from lists while eligible direct links still work.
 - **Acceptable for now:** event edit locks are duplicated in guard, details `canEdit`, `findOneForEdit`, and `events.update`. Duplication is not ideal, but server-side checks are the source of truth.
 
 ### Product Questions Answered Above
@@ -512,10 +513,6 @@ the current working direction until a product decision overrides them.
 - Should rejected events be resubmitted without requiring any edit, or should the app require creators to acknowledge/change something first?
 - Should admins with `events:review` be able to edit pending events, or only approve/reject them?
 - Should event creation require at least one participant registration option, or can organizer-only/private operational events exist?
-
-### Recommended Cleanup Actions
-
-- Clarify direct unlisted-event sharing semantics in the organizer/admin UI.
 
 ## Registrations
 
@@ -559,6 +556,7 @@ the current working direction until a product decision overrides them.
 - `src/server/effect/rpc/handlers/events/events-lifecycle.handlers.spec.ts` covers template discount copying by stable source option id when template options share the same title.
 - `src/server/effect/rpc/handlers/events/events-rpcs.schema.spec.ts` covers acceptance and rejection for the shared event location schema now used by Events RPC contracts.
 - `tests/docs/events/event-management.doc.ts` now documents only the current event details, registration, review/listing, edit, organizer overview, participant grouping, and receipt surfaces.
+- `tests/docs/events/unlisted-admin.doc.ts` covers the updated direct-link explanation in the listing dialog and on unlisted event details.
 - `tests/docs/events/register.doc.ts` covers free and paid registration as generated documentation and Stripe-backed evidence.
 - No reviewed test covers registration rejection for unpublished events, closed windows, ineligible roles, same user registering for organizer plus participant options, or concurrent capacity.
 - `tests/specs/events/price-labels-inclusive.spec.ts` is mostly placeholder assertions with TODOs. It should not be treated as real price-label regression coverage.
