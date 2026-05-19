@@ -76,6 +76,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 - Roles and permissions:
   - `docs/roles/roles.doc.ts`
   - `specs/permissions/**`
+  - route-manifest specs in `src/app/admin`, `src/app/finance`,
+    `src/app/global-admin`, and `src/app/templates`
 - Tenant/global admin:
   - `docs/admin/global-admin.doc.ts`
   - `docs/admin/general-settings.doc.ts`
