@@ -39,6 +39,20 @@ export interface EditProfileDialogResult {
   paypalEmail: null | string;
 }
 
+export const editProfileDialogResultFromFormValue = (formValue: {
+  communicationEmail: string;
+  firstName: string;
+  iban: string;
+  lastName: string;
+  paypalEmail: string;
+}): EditProfileDialogResult => ({
+  communicationEmail: formValue.communicationEmail.trim(),
+  firstName: formValue.firstName.trim(),
+  iban: formValue.iban.trim() || null,
+  lastName: formValue.lastName.trim(),
+  paypalEmail: formValue.paypalEmail.trim() || null,
+});
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -75,14 +89,9 @@ export class EditProfileDialogComponent {
   async onSubmit(event: Event): Promise<void> {
     event.preventDefault();
     await submit(this.profileForm, async (formState) => {
-      const formValue = formState().value();
-      this.dialogRef.close({
-        communicationEmail: formValue.communicationEmail.trim(),
-        firstName: formValue.firstName.trim(),
-        iban: formValue.iban.trim() || null,
-        lastName: formValue.lastName.trim(),
-        paypalEmail: formValue.paypalEmail.trim() || null,
-      });
+      this.dialogRef.close(
+        editProfileDialogResultFromFormValue(formState().value()),
+      );
     });
   }
 }
