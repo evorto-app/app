@@ -142,6 +142,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     joins, duplicate-assignment conflicts, and visible create-account error
     message mapping. App helper coverage proves Auth0-data prefill,
     email-verification gating, payload normalization, and error-message mapping.
+    Root route-manifest coverage keeps `/create-account` reachable to
+    authenticated users without a tenant assignment while protected feature
+    routes keep assigned-account and auth guards.
 - Finance/receipts:
   - Keep finance route-denial cases and route-manifest specs aligned as
     transaction, receipt approval, and reimbursement routes change.
