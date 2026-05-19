@@ -1065,12 +1065,12 @@ the current working direction until a product decision overrides them.
 
 ### Must Fix Before Agent Scaling
 
-1. Add server-side template permission checks for view/create/edit and direct route guards for template write flows.
-2. Validate template category/role ids and template offset ordering at the server boundary.
-3. Add route guards and direct-route denial coverage for admin role/user/settings and other permission-sensitive routes.
-4. Split role lookup APIs so organizers can select event/template eligibility roles without receiving admin role-management data.
-5. Remove misleading placeholder tests/docs from the event registration, event management, finance overview, scanner, and profile/account surfaces.
-6. Replace green placeholder specs and silent no-op Playwright tests with real assertions, hard fixture setup, or explicit `test.fixme` states.
+1. Continue pruning misleading placeholder tests/docs from profile/account and remaining thin documentation surfaces before agents treat generated docs as product truth.
+2. Continue auditing remaining `test.skip` usage so credential/integration skips stay explicit and fixture-state gaps become hard failures or honest `test.fixme` states.
+3. Keep server-side template permission, validation, and route-guard coverage in place as template behavior expands beyond simple mode.
+4. Keep role lookup APIs lookup-only for event/template eligibility flows; do not re-expose admin role-management data to organizers.
+5. Keep admin, finance, global-admin, and template direct-route denial coverage current as route trees change.
+6. Keep `tests/test-inventory.md` aligned whenever placeholder specs/docs are removed or reclassified.
 
 ### Should Fix Before Relaunch
 
@@ -1147,4 +1147,4 @@ implement those decisions or explicitly revise them there before changing code.
 
 ## Review Next
 
-All ten first-pass review areas are now represented in this document. The next stabilization work should start with small cleanup commits from the top of the backlog, especially server-side registration preconditions, permission evaluation consistency, and misleading green Playwright specs/docs.
+All ten first-pass review areas are now represented in this document. The next stabilization work should continue with small cleanup commits around the remaining relaunch gaps: profile/account clarity, receipt reimbursement wording and validation, scanner timing/camera-error behavior, tenant settings scope, role hub-field semantics, and replacing intentionally fixme-only price/tax specs with active Browser-backed coverage once the local runtime is available.
