@@ -1,4 +1,6 @@
 import { describe, expect, it } from '@effect/vitest';
+import fs from 'node:fs';
+import path from 'node:path';
 
 import {
   evaluateRuntimePreflight,
@@ -66,6 +68,25 @@ FFmpeg
 };
 
 describe('evaluateRuntimePreflight', () => {
+  it('keeps Docker and local Font Awesome registry scopes aligned', () => {
+    const dockerfile = fs.readFileSync(
+      path.join(process.cwd(), 'Dockerfile'),
+      'utf8',
+    );
+    const npmrc = fs.readFileSync(path.join(process.cwd(), '.npmrc'), 'utf8');
+
+    for (const registryScope of [
+      '@fortawesome:registry=https://npm.fontawesome.com/',
+      '@awesome.me:registry=https://npm.fontawesome.com/',
+    ]) {
+      expect(dockerfile).toContain(registryScope);
+      expect(npmrc).toContain(registryScope);
+    }
+
+    expect(dockerfile).toContain('//npm.fontawesome.com/:_authToken=%s');
+    expect(npmrc).toContain('//npm.fontawesome.com/:_authToken=');
+  });
+
   it('reports all docker startup blockers before mutating containers', () => {
     const result = evaluateRuntimePreflight('docker', {
       cwd: '/repo',
