@@ -1116,7 +1116,9 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** `helpers/testing/runtime-preflight.spec.ts` now pins that destructive Docker start scripts call `docker:check` first, required runtime variables are wired into Compose services, and Font Awesome registry access remains available to Docker through the same secret path for premium and brand icon packages.
 - **Addressed in stabilization pass:** `.env.example` is now a checked-in
   no-secret checklist for Docker-required local secrets, and runtime preflight
-  tests keep it aligned with the variables that `docker:check` validates.
+  tests keep it aligned with the variables that `docker:check` validates. The
+  failing preflight message points developers at the checklist before asking
+  them to add missing values to `.env` or the shell environment.
 - **Addressed in stabilization pass:** local workflow guidance now consistently routes developers through `bun run ...` package scripts or `node_modules/.bin/dotenv -c dev -- ...` for direct external-tool calls. The server config guidance no longer treats unsupported `.env.local` as part of the normal local dotenv contract.
 - **Acceptable for now:** keeping core commands visible in `package.json` makes the workflow easier for agents than hiding orchestration in helper wrappers.
 - **Acceptable for now:** `.env.dev` is ignored and generated per worktree, while `.env.dev.local` remains tracked for shared defaults.
