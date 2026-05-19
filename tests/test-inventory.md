@@ -155,8 +155,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     when seeded roles are missing.
   - User-list/role-assignment coverage once the role-assignment path exists.
 - Registrations:
-  - Negative paths for closed windows, ineligible roles, unsupported stored
-    registration modes, and waitlist edge cases.
+  - Browser-backed negative registration states for closed windows,
+    role-ineligible direct links, and waitlist affordances. Server/app unit
+    coverage already proves closed-window rejection, role eligibility,
+    unsupported stored registration-mode rejection, and waitlist edge cases.
 
 ## Current Notes
 
