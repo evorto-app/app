@@ -4,6 +4,7 @@ import { Effect, Schema } from 'effect';
 import * as Rpc from 'effect/unstable/rpc/Rpc';
 import * as RpcGroup from 'effect/unstable/rpc/RpcGroup';
 
+import { EventLocation } from '../../../types/location';
 import { iconSchema } from '../../types/icon';
 import {
   EventsCancelPendingRegistrationError,
@@ -172,7 +173,7 @@ export const EventsFindOneForEdit = asRpcQuery(
       end: Schema.NonEmptyString,
       icon: iconSchema,
       id: Schema.NonEmptyString,
-      location: Schema.NullOr(Schema.Any),
+      location: Schema.NullOr(EventLocation),
       registrationOptions: Schema.Array(EventsFindOneForEditRegistrationOption),
       start: Schema.NonEmptyString,
       title: Schema.NonEmptyString,
@@ -215,7 +216,7 @@ export const EventsFindOne = asRpcQuery(
       end: Schema.NonEmptyString,
       icon: iconSchema,
       id: Schema.NonEmptyString,
-      location: Schema.NullOr(Schema.Any),
+      location: Schema.NullOr(EventLocation),
       registrationOptions: Schema.Array(EventsFindOneRegistrationOption),
       reviewer: Schema.NullOr(
         Schema.Struct({
@@ -407,7 +408,7 @@ export const EventsUpdate = asRpcMutation(
       end: Schema.NonEmptyString,
       eventId: Schema.NonEmptyString,
       icon: iconSchema,
-      location: Schema.NullOr(Schema.Any),
+      location: Schema.NullOr(EventLocation),
       registrationOptions: Schema.Array(EventsUpdateRegistrationOptionInput),
       start: Schema.NonEmptyString,
       title: Schema.NonEmptyString,
