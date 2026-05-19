@@ -28,7 +28,7 @@ Generated: 2026-03-09
   - specs/events/events.test.ts
   - specs/events/free-registration.test.ts
   - specs/events/unlisted-visibility.test.ts
-  - specs/events/price-labels-inclusive.spec.ts [finance]
+  - specs/events/price-labels-inclusive.spec.ts [finance, fixme]
   - specs/finance/receipts-flows.spec.ts [finance]
   - specs/finance/stripe-webhook-replay.spec.ts [finance, stripe]
   - specs/finance/tax-rates/admin-import-tax-rates.spec.ts [finance]
