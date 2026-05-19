@@ -1,6 +1,13 @@
 import { describe, expect, it } from '@effect/vitest';
 import { Effect, Layer } from 'effect';
+import { vi } from 'vitest';
 
+import { Database } from '../../../../../db';
+import {
+  eventInstances,
+  eventRegistrationOptionDiscounts,
+  eventRegistrationOptions,
+} from '../../../../../db/schema';
 import {
   RpcRequestContext,
   type RpcRequestContextShape,
@@ -171,6 +178,122 @@ describe('eventLifecycleHandlers', () => {
 
         expect(error['_tag']).toBe('RpcBadRequestError');
         expect(error.reason).toBe('invalidRegistrationOptionTimes');
+      }),
+  );
+
+  it.effect(
+    'events.create copies template discounts by source option id when option titles match',
+    () =>
+      Effect.gen(function* () {
+        const insertedDiscountValues = vi.fn(() => Effect.succeed());
+        const database = {
+          insert: vi.fn((table) => {
+            if (table === eventInstances) {
+              return {
+                values: vi.fn(() => ({
+                  returning: vi.fn(() =>
+                    Effect.succeed([
+                      {
+                        id: 'event-1',
+                      },
+                    ]),
+                  ),
+                })),
+              };
+            }
+
+            if (table === eventRegistrationOptions) {
+              return {
+                values: vi.fn(() => ({
+                  returning: vi.fn(() =>
+                    Effect.succeed([
+                      {
+                        id: 'event-option-1',
+                      },
+                      {
+                        id: 'event-option-2',
+                      },
+                    ]),
+                  ),
+                })),
+              };
+            }
+
+            if (table === eventRegistrationOptionDiscounts) {
+              return {
+                values: insertedDiscountValues,
+              };
+            }
+
+            throw new Error('Unexpected insert table');
+          }),
+          query: {
+            eventTemplates: {
+              findFirst: vi.fn(() =>
+                Effect.succeed({
+                  unlisted: false,
+                }),
+              ),
+            },
+            templateRegistrationOptions: {
+              findMany: vi.fn(() =>
+                Effect.succeed([
+                  {
+                    id: 'template-option-1',
+                  },
+                  {
+                    id: 'template-option-2',
+                  },
+                ]),
+              ),
+            },
+          },
+          select: vi.fn(() => ({
+            from: vi.fn(() => ({
+              where: vi.fn(() =>
+                Effect.succeed([
+                  {
+                    discountedPrice: 500,
+                    discountType: 'esnCard' as const,
+                    registrationOptionId: 'template-option-2',
+                  },
+                ]),
+              ),
+            })),
+          })),
+        };
+        const layer = Layer.mergeAll(
+          requestContextLayer,
+          Layer.succeed(Database, database as never),
+        );
+
+        const result = yield* eventLifecycleHandlers['events.create'](
+          {
+            ...createInput,
+            registrationOptions: [
+              {
+                ...createInput.registrationOptions[0],
+                sourceTemplateRegistrationOptionId: 'template-option-1',
+                title: 'Duplicate',
+              },
+              {
+                ...createInput.registrationOptions[0],
+                sourceTemplateRegistrationOptionId: 'template-option-2',
+                title: 'Duplicate',
+              },
+            ],
+          },
+          { headers: {} } as never,
+        ).pipe(Effect.provide(layer));
+
+        expect(result).toEqual({ id: 'event-1' });
+        expect(insertedDiscountValues).toHaveBeenCalledWith([
+          {
+            discountedPrice: 500,
+            discountType: 'esnCard',
+            registrationOptionId: 'event-option-2',
+          },
+        ]);
       }),
   );
 });

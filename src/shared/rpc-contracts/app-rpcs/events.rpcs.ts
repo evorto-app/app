@@ -61,6 +61,7 @@ export const EventsCreateRegistrationOptionInput = Schema.Struct({
   registeredDescription: Schema.NullOr(Schema.NonEmptyString),
   registrationMode: literalUnion('application', 'fcfs', 'random'),
   roleIds: Schema.Array(Schema.NonEmptyString),
+  sourceTemplateRegistrationOptionId: Schema.optional(Schema.NonEmptyString),
   spots: nonNegativeNumber,
   stripeTaxRateId: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
   title: Schema.NonEmptyString,
