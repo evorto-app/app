@@ -965,7 +965,7 @@ the current working direction until a product decision overrides them.
 ### Issues and Risks
 
 - **Addressed in stabilization pass:** `tests/specs/events/price-labels-inclusive.spec.ts` is now fixme-only. The old TODO-heavy placeholder bodies and page-load assertions are gone, so it no longer appears to provide active inclusive-price UI coverage.
-- **Must fix before agent scaling:** some specs silently return or skip when required product state is missing. Remaining examples include scanner preconditions. Receipt approval/refund rows, receipt dialog options, unlisted-event seed state, and event-creation setup now fail loudly when expected seeded state is missing.
+- **Must fix before agent scaling:** some specs still intentionally skip for integration credentials or explicit deferred coverage, but the known misleading fixture-state examples from this pass now fail loudly when expected seeded state is missing: receipt approval/refund rows, receipt dialog options, unlisted-event seed state, event-creation setup, and scanner preconditions.
 - **Must fix before agent scaling:** `tests/docs/events/event-management.doc.ts` documents attendee management, event categories/tags, featured images, settings tabs, notification settings, custom confirmations, integrations, deletion, and messaging that do not match the current reviewed UI.
 - **Must fix before agent scaling:** `tests/docs/finance/finance-overview.doc.ts` claims finance permissions and dashboard behavior that do not match the current permission names or the reviewed finance implementation.
 - **Addressed in stabilization pass:** Playwright discovery was broken by stale Effect config APIs and by import-time Auth0 Management config reads in baseline fixtures. Both are fixed locally, but they show the e2e/docs surface was not being exercised recently enough.
@@ -1000,7 +1000,7 @@ the current working direction until a product decision overrides them.
 
 - Replace fixme-only price-label specs with focused assertions once the seeded/browser UI path can prove the behavior.
 - Rewrite or remove stale event-management and finance-overview docs before agents use generated docs as product guidance.
-- Convert remaining silent no-op passes in scanner specs into explicit fixture setup, hard failures, or honest `test.fixme` states.
+- Continue auditing remaining `test.skip` usage so credential/integration skips stay honest and fixture-state gaps become hard failures or explicit `test.fixme` states.
 - Make docs/list commands avoid reporter output cleanup and make the local browser installation expectation explicit.
 - Update `tests/test-inventory.md` after stale/placeholder docs are pruned.
 - Add missing docs/specs for scanning mutation, tenant/global-admin settings, account/profile persistence, role/user management, and negative registration paths as those flows are stabilized.
@@ -1124,6 +1124,7 @@ implement those decisions or explicitly revise them there before changing code.
 - Price-label spec cleanup pass: converted the inclusive price-label Playwright spec to fixme-only declarations and removed placeholder page-load assertions.
 - Unlisted-event spec cleanup pass: changed unlisted-event visibility tests to require an approved unlisted seeded event instead of skipping when the seed state is missing.
 - Event-creation spec cleanup pass: changed the template-create-event Playwright spec to require the deterministic seeded hike template, registration options, tax-rate completeness, and enabled submit button instead of skipping fixture/setup failures.
+- Scanner spec cleanup pass: changed the scanner Playwright spec to require an unchecked confirmed registration and matching registration option instead of skipping fixture/setup failures.
 - None in the Templates pass. The highest-value issues are permission and contract validation gaps that need targeted tests with the fixes.
 - Template docs/spec cleanup pass: removed the generic template doc discovery placeholder, converted the deferred template tax-rate spec to honest fixme-only declarations, and updated the Playwright inventory.
 - Permission evaluator pass: routed legacy server permission checks through the shared `includesPermission` helper so client and server agree on dependencies, wildcards, and legacy aliases, and added direct unit coverage for the shared evaluator plus tax-rate dependency behavior.
