@@ -6,18 +6,18 @@ and useful for small cleanup batches.
 
 ## Review Status
 
-| Area                                            | Status              | Confidence | Notes                                                                                                                                 |
-| ----------------------------------------------- | ------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| Events                                          | First pass complete | partial    | Code, tests, docs, and an unauthenticated Browser walkthrough reviewed.                                                               |
-| Registrations                                   | First pass complete | partial    | Free/paid registration paths reviewed; several server-side precondition gaps need follow-up.                                          |
-| Templates                                       | First pass complete | partial    | Simple-mode template flow reviewed; permission and model-depth gaps need follow-up.                                                   |
-| Roles and permissions                           | First pass complete | partial    | Core permission model reviewed; route/RPC semantics and role management gaps need follow-up.                                          |
-| Finance/receipts                                | First pass complete | partial    | Payments, transactions, receipt review/refund, and docs reviewed; high-risk gaps remain.                                              |
-| Scanning/check-in                               | First pass complete | partial    | QR display and persisted check-in mutation exist; timing, camera, and guest-quantity follow-ups remain.                               |
-| Profile/account flows                           | Fixes applied       | partial    | Profile, account creation, discount cards, receipts, and auth guards reviewed; account creation guards and transactionality improved. |
-| Tenant/global admin                             | First pass complete | partial    | Tenant resolution, tenant settings, and global-admin list surface reviewed.                                                           |
-| Generated documentation and Playwright coverage | First pass complete | partial    | Docs/spec inventory is discoverable again, but several docs/specs are stale or misleading.                                            |
-| Local runtime/developer workflow                | First pass complete | partial    | Scripts, env loading, Docker/Playwright setup, and unit-test ownership reviewed.                                                      |
+| Area                                            | Status              | Confidence | Notes                                                                                                                                                 |
+| ----------------------------------------------- | ------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Events                                          | First pass complete | partial    | Code, tests, docs, and an unauthenticated Browser walkthrough reviewed.                                                                               |
+| Registrations                                   | First pass complete | partial    | Free/paid registration paths reviewed; several server-side precondition gaps need follow-up.                                                          |
+| Templates                                       | First pass complete | partial    | Simple-mode template flow reviewed; permission and model-depth gaps need follow-up.                                                                   |
+| Roles and permissions                           | First pass complete | partial    | Core permission model reviewed; route/RPC semantics and role management gaps need follow-up.                                                          |
+| Finance/receipts                                | First pass complete | partial    | Payments, transactions, receipt review/refund, and docs reviewed; high-risk gaps remain.                                                              |
+| Scanning/check-in                               | First pass complete | partial    | QR display and persisted check-in mutation exist; timing, camera, and guest-quantity follow-ups remain.                                               |
+| Profile/account flows                           | Fixes applied       | partial    | Profile, account creation, discount cards, receipts, and auth guards reviewed; account creation guards, transactionality, and ESNcard scope improved. |
+| Tenant/global admin                             | First pass complete | partial    | Tenant resolution, tenant settings, and global-admin list surface reviewed.                                                                           |
+| Generated documentation and Playwright coverage | First pass complete | partial    | Docs/spec inventory is discoverable again, but several docs/specs are stale or misleading.                                                            |
+| Local runtime/developer workflow                | First pass complete | partial    | Scripts, env loading, Docker/Playwright setup, and unit-test ownership reviewed.                                                                      |
 
 ## Product Decision Draft
 
@@ -828,7 +828,7 @@ the current working direction until a product decision overrides them.
 - If a user with the same Auth0 id already exists globally, `users.createAccount` attaches that user to the current tenant unless the tenant assignment already exists.
 - Profile overview shows name/email, logout, an edit dialog for first name, last name, IBAN, and PayPal email, a simple event list, discount-card management when ESNcard is enabled, and submitted receipts.
 - Profile edit updates global user name and payout fields; it does not expose or update the `communicationEmail` collected during account creation.
-- ESNcard profile management stores one card per user/tenant/type, validates through `esncard.org`, and shows current card status/validity.
+- ESNcard profile management stores one card per user/type globally, validates through `esncard.org`, and shows current card status/validity when the current tenant has ESNcard support enabled.
 - Submitted receipts on profile are fetched through `finance.receipts.my`, scoped by current tenant and current user.
 
 ### Intended Behavior From Product Context
@@ -842,7 +842,6 @@ the current working direction until a product decision overrides them.
 
 ### Issues and Risks
 
-- **Must fix before agent scaling:** discount card uniqueness is global by `(type, identifier)`, while the app stores cards as tenant/user records. The handler allows the same user to reuse an identifier, but a second-tenant insert for the same user/card can still hit the database unique constraint.
 - **Should fix before relaunch:** create-account collects `communicationEmail`, but profile displays Auth0 `email` and profile edit cannot view or update `communicationEmail`. Notification/contact email semantics are unclear.
 - **Should fix before relaunch:** profile event cards show only event title and start date. They do not link to event details, show registration status, option, payment state, waitlist state, QR/ticket availability, or cancellation/refund state.
 - **Should fix before relaunch:** profile payout fields are global user fields. That may be fine for a global user model, but reimbursement workflows may need tenant-specific payout preferences or at least clear copy.
@@ -859,6 +858,7 @@ the current working direction until a product decision overrides them.
 - `tests/specs/discounts/esn-discounts.test.ts` verifies a seeded verified ESNcard affects paid event price labels and the register button copy.
 - No reviewed Playwright spec proves profile discount-card management itself, browser-level account creation fallback behavior without Auth0 Management credentials, profile event links/statuses, or submitted receipt visibility after receipt submission.
 - `tests/docs/users/create-account.doc.ts` is integration-tagged and skips without Auth0 Management credentials, so baseline docs do not prove the account-creation path.
+- `src/server/effect/rpc/handlers/discounts.handlers.spec.ts` covers global-per-user ESNcard reads and updating an existing global user card from another tenant context.
 - `src/server/effect/rpc/handlers/users.handlers.spec.ts` covers `users.events` sorting, `users.findMany` role aggregation, account creation transactionality, existing-global-user tenant joining, and duplicate tenant-assignment conflict behavior, but not profile update validation or `userAssigned` behavior.
 
 ### Product Questions Answered Above
@@ -867,12 +867,11 @@ the current working direction until a product decision overrides them.
 - What is the intended home-tenant model, and should profile expose or warn about current tenant vs home tenant?
 - Is `communicationEmail` a user-managed notification email, and should it differ from Auth0 login email?
 - Are payout details global per person or tenant-specific per reimbursement context?
-- Are ESNcard records intended to be global per user, tenant-specific, or shared globally by card identifier?
+- Are ESNcard records intended to be global per user, tenant-specific, or shared globally by card identifier? Current implementation follows the global-per-user direction while still requiring the current tenant to have ESNcard support enabled before managing or applying the card.
 - Which profile event states should users be able to act on from the profile page: payment continuation, ticket QR, cancellation, waitlist, transfer/resale?
 
 ### Recommended Cleanup Actions
 
-- Decide and encode the uniqueness model for ESNcard identifiers; make the database constraint match tenant/global product semantics.
 - Expose and validate `communicationEmail` consistently in profile edit, or remove it from account creation until it is used.
 - Add profile event cards that link to events and display registration/payment/waitlist/ticket state from durable contract fields.
 - Replace raw ESNcard mutation errors with `getErrorMessage(...)` and explicit retry/invalid-card copy.
@@ -1082,11 +1081,10 @@ the current working direction until a product decision overrides them.
 7. Add route guards and direct-route denial coverage for admin role/user/settings and other permission-sensitive routes.
 8. Split role lookup APIs so organizers can select event/template eligibility roles without receiving admin role-management data.
 9. Tie receipt media upload to receipt-submit authorization or an upload preflight to avoid orphan authenticated uploads.
-10. Align ESNcard uniqueness/storage with the tenant/global user model.
-11. Add route-level global-admin protection and decouple global-admin authorization from current tenant membership.
-12. Add focused tenant-resolution tests for host/cookie precedence and unknown-host failure.
-13. Remove misleading placeholder tests/docs from the event registration, event management, template tax-rate, role-assignment, finance overview, scanner, and profile/account surfaces.
-14. Replace green placeholder specs and silent no-op Playwright tests with real assertions, hard fixture setup, or explicit `test.fixme` states.
+10. Add route-level global-admin protection and decouple global-admin authorization from current tenant membership.
+11. Add focused tenant-resolution tests for host/cookie precedence and unknown-host failure.
+12. Remove misleading placeholder tests/docs from the event registration, event management, template tax-rate, role-assignment, finance overview, scanner, and profile/account surfaces.
+13. Replace green placeholder specs and silent no-op Playwright tests with real assertions, hard fixture setup, or explicit `test.fixme` states.
 
 ### Should Fix Before Relaunch
 
@@ -1140,7 +1138,7 @@ implement those decisions or explicitly revise them there before changing code.
 - Permission evaluator pass: routed legacy server permission checks through the shared `includesPermission` helper so client and server agree on dependencies, wildcards, and legacy aliases, and added direct unit coverage for the shared evaluator plus tax-rate dependency behavior.
 - None in the Finance/receipts pass. The highest-value issues touch payment-derived state, transaction visibility, and upload authorization, so they need targeted regression tests with the fixes.
 - Scanning/check-in pass: added `events.checkInRegistration`, gated scan reads and check-in writes to event organizers or `events:organizeAll`, made duplicate check-ins idempotent, wired the scanner button to persist and refetch state, and extended scanner tests to assert persisted check-in state.
-- Profile/account pass: guarded `/create-account` with authentication and reworked `users.createAccount` into a transactional tenant-account creation flow that can attach an existing global user to the current tenant while assigning default roles.
+- Profile/account pass: guarded `/create-account` with authentication, reworked `users.createAccount` into a transactional tenant-account creation flow that can attach an existing global user to the current tenant while assigning default roles, and aligned ESNcard records with the global-per-user decision.
 - None in the Tenant/global admin pass. The obvious fixes affect authorization semantics and tenant-resolution tests, so they should be done as focused code/test commits rather than mixed into the audit document commit.
 - Generated docs/Playwright pass: replaced stale Effect config-provider calls in Playwright config/support files so `test:e2e -- --list` and `test:e2e:docs -- --list` can discover tests again.
 - Local runtime/developer workflow pass: refreshed `.env.dev` automatically in local runtime scripts, added a visible Playwright browser-install script, split Angular/server unit-test discovery, aligned CI Bun with the repo runtime, added Docker required-secret preflight before mutating start commands, and updated workflow docs.

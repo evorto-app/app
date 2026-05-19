@@ -145,7 +145,6 @@ export const test = base.extend<BaseFixtures & { seeded: SeedTenantResult }>({
         await database.insert(schema.userDiscountCards).values({
           identifier: uniqueIdentifier,
           status: 'verified',
-          tenantId: tenant.id,
           type: 'esnCard',
           userId: regularUser.id,
           validFrom: seedDate,
