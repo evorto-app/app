@@ -119,6 +119,40 @@ const invalidRegistrationOptionSpotsError = () =>
     reason: 'negativeSpots',
   });
 
+const validateCopiedTemplateDiscount = ({
+  discount,
+  esnCardEnabledForTenant,
+  option,
+}: {
+  discount: {
+    discountedPrice: number;
+    discountType: string;
+  };
+  esnCardEnabledForTenant: boolean;
+  option: {
+    isPaid: boolean;
+    price: number;
+  };
+}): null | RpcBadRequestError => {
+  if (discount.discountType !== 'esnCard') {
+    return null;
+  }
+
+  if (!option.isPaid) {
+    return null;
+  }
+
+  if (!esnCardEnabledForTenant) {
+    return unavailableEsnCardDiscountError();
+  }
+
+  if (discount.discountedPrice > option.price) {
+    return invalidEsnCardDiscountPriceError();
+  }
+
+  return null;
+};
+
 export const eventLifecycleHandlers = {
   'events.create': (input, _options) =>
     Effect.gen(function* () {
@@ -209,6 +243,52 @@ export const eventLifecycleHandlers = {
         }
       }
 
+      const templateDiscounts =
+        sourceTemplateOptionIds.length > 0
+          ? yield* databaseEffect((database) =>
+              database
+                .select({
+                  discountedPrice:
+                    templateRegistrationOptionDiscounts.discountedPrice,
+                  discountType:
+                    templateRegistrationOptionDiscounts.discountType,
+                  registrationOptionId:
+                    templateRegistrationOptionDiscounts.registrationOptionId,
+                })
+                .from(templateRegistrationOptionDiscounts)
+                .where(
+                  inArray(
+                    templateRegistrationOptionDiscounts.registrationOptionId,
+                    sourceTemplateOptionIds,
+                  ),
+                ),
+            )
+          : [];
+      const esnCardEnabledForTenant = isEsnCardEnabled(
+        tenant.discountProviders ?? null,
+      );
+      for (const option of sanitizedRegistrationOptions) {
+        if (!option.sourceTemplateRegistrationOptionId) {
+          continue;
+        }
+
+        const copiedDiscounts = templateDiscounts.filter(
+          (discount) =>
+            discount.registrationOptionId ===
+            option.sourceTemplateRegistrationOptionId,
+        );
+        for (const discount of copiedDiscounts) {
+          const validationError = validateCopiedTemplateDiscount({
+            discount,
+            esnCardEnabledForTenant,
+            option,
+          });
+          if (validationError) {
+            return yield* Effect.fail(validationError);
+          }
+        }
+      }
+
       const events = yield* databaseEffect((database) =>
         database
           .insert(eventInstances)
@@ -259,59 +339,45 @@ export const eventLifecycleHandlers = {
           }),
       );
 
-      if (sourceTemplateOptionIds.length > 0) {
-        const templateDiscounts = yield* databaseEffect((database) =>
-          database
-            .select({
-              discountedPrice:
-                templateRegistrationOptionDiscounts.discountedPrice,
-              discountType: templateRegistrationOptionDiscounts.discountType,
-              registrationOptionId:
-                templateRegistrationOptionDiscounts.registrationOptionId,
-            })
-            .from(templateRegistrationOptionDiscounts)
-            .where(
-              inArray(
-                templateRegistrationOptionDiscounts.registrationOptionId,
-                sourceTemplateOptionIds,
-              ),
-            ),
+      if (templateDiscounts.length > 0) {
+        const createdOptionSources = createdOptions.map(
+          (createdOption, index) => ({
+            createdOptionId: createdOption.id,
+            isPaid: sanitizedRegistrationOptions[index]?.isPaid ?? false,
+            sourceTemplateOptionId:
+              sanitizedRegistrationOptions[index]
+                ?.sourceTemplateRegistrationOptionId,
+          }),
         );
-        if (templateDiscounts.length > 0) {
-          const createdOptionSources = createdOptions.map(
-            (createdOption, index) => ({
-              createdOptionId: createdOption.id,
-              sourceTemplateOptionId:
-                sanitizedRegistrationOptions[index]
-                  ?.sourceTemplateRegistrationOptionId,
-            }),
-          );
-          const discountInserts: EventRegistrationOptionDiscountInsert[] = [];
-          for (const createdOptionSource of createdOptionSources) {
-            if (!createdOptionSource.sourceTemplateOptionId) {
+        const discountInserts: EventRegistrationOptionDiscountInsert[] = [];
+        for (const createdOptionSource of createdOptionSources) {
+          if (
+            !createdOptionSource.sourceTemplateOptionId ||
+            !createdOptionSource.isPaid
+          ) {
+            continue;
+          }
+
+          for (const discount of templateDiscounts) {
+            if (
+              discount.registrationOptionId !==
+              createdOptionSource.sourceTemplateOptionId
+            ) {
               continue;
             }
-            for (const discount of templateDiscounts) {
-              if (
-                discount.registrationOptionId !==
-                createdOptionSource.sourceTemplateOptionId
-              ) {
-                continue;
-              }
-              discountInserts.push({
-                discountedPrice: discount.discountedPrice,
-                discountType: discount.discountType,
-                registrationOptionId: createdOptionSource.createdOptionId,
-              });
-            }
+            discountInserts.push({
+              discountedPrice: discount.discountedPrice,
+              discountType: discount.discountType,
+              registrationOptionId: createdOptionSource.createdOptionId,
+            });
           }
-          if (discountInserts.length > 0) {
-            yield* databaseEffect((database) =>
-              database
-                .insert(eventRegistrationOptionDiscounts)
-                .values(discountInserts),
-            );
-          }
+        }
+        if (discountInserts.length > 0) {
+          yield* databaseEffect((database) =>
+            database
+              .insert(eventRegistrationOptionDiscounts)
+              .values(discountInserts),
+          );
         }
       }
 
