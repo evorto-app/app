@@ -37,6 +37,12 @@ const isTransactionRollbackError = (
 ): error is TransactionRollbackError =>
   error instanceof TransactionRollbackError;
 
+export const financeReceiptSubmitterEmail = (submitter: {
+  submittedByCommunicationEmail: null | string;
+  submittedByEmail: string;
+}): string =>
+  submitter.submittedByCommunicationEmail?.trim() || submitter.submittedByEmail;
+
 export const financeReceiptsHandlers = {
   'finance.receipts.byEvent': ({ eventId }, _options) =>
     Effect.gen(function* () {
@@ -57,6 +63,7 @@ export const financeReceiptsHandlers = {
         database
           .select({
             ...financeReceiptView,
+            submittedByCommunicationEmail: users.communicationEmail,
             submittedByEmail: users.email,
             submittedByFirstName: users.firstName,
             submittedByLastName: users.lastName,
@@ -75,7 +82,7 @@ export const financeReceiptsHandlers = {
 
       return signedReceipts.map((receipt) => ({
         ...normalizeFinanceReceiptBaseRecord(receipt),
-        submittedByEmail: receipt.submittedByEmail,
+        submittedByEmail: financeReceiptSubmitterEmail(receipt),
         submittedByFirstName: receipt.submittedByFirstName,
         submittedByLastName: receipt.submittedByLastName,
       }));
@@ -288,6 +295,7 @@ export const financeReceiptsHandlers = {
             ...financeReceiptView,
             eventStart: eventInstances.start,
             eventTitle: eventInstances.title,
+            submittedByCommunicationEmail: users.communicationEmail,
             submittedByEmail: users.email,
             submittedByFirstName: users.firstName,
             submittedByLastName: users.lastName,
@@ -322,7 +330,7 @@ export const financeReceiptsHandlers = {
         ...normalizeFinanceReceiptBaseRecord(signedReceipt),
         eventStart: signedReceipt.eventStart.toISOString(),
         eventTitle: signedReceipt.eventTitle,
-        submittedByEmail: signedReceipt.submittedByEmail,
+        submittedByEmail: financeReceiptSubmitterEmail(signedReceipt),
         submittedByFirstName: signedReceipt.submittedByFirstName,
         submittedByLastName: signedReceipt.submittedByLastName,
       };
@@ -369,6 +377,7 @@ export const financeReceiptsHandlers = {
             ...financeReceiptView,
             eventStart: eventInstances.start,
             eventTitle: eventInstances.title,
+            submittedByCommunicationEmail: users.communicationEmail,
             submittedByEmail: users.email,
             submittedByFirstName: users.firstName,
             submittedByLastName: users.lastName,
@@ -406,7 +415,7 @@ export const financeReceiptsHandlers = {
         const existing = groupedByEvent.get(receipt.eventId);
         const normalizedReceipt = {
           ...normalizeFinanceReceiptBaseRecord(receipt),
-          submittedByEmail: receipt.submittedByEmail,
+          submittedByEmail: financeReceiptSubmitterEmail(receipt),
           submittedByFirstName: receipt.submittedByFirstName,
           submittedByLastName: receipt.submittedByLastName,
         };
@@ -438,6 +447,7 @@ export const financeReceiptsHandlers = {
             eventTitle: eventInstances.title,
             recipientIban: users.iban,
             recipientPaypalEmail: users.paypalEmail,
+            submittedByCommunicationEmail: users.communicationEmail,
             submittedByEmail: users.email,
             submittedByFirstName: users.firstName,
             submittedByLastName: users.lastName,
@@ -516,7 +526,7 @@ export const financeReceiptsHandlers = {
           eventTitle: receipt.eventTitle,
           recipientIban: receipt.recipientIban ?? null,
           recipientPaypalEmail: receipt.recipientPaypalEmail ?? null,
-          submittedByEmail: receipt.submittedByEmail,
+          submittedByEmail: financeReceiptSubmitterEmail(receipt),
           submittedByFirstName: receipt.submittedByFirstName,
           submittedByLastName: receipt.submittedByLastName,
         };
@@ -534,7 +544,7 @@ export const financeReceiptsHandlers = {
             paypalEmail: receipt.recipientPaypalEmail ?? null,
           },
           receipts: [normalizedReceipt],
-          submittedByEmail: receipt.submittedByEmail,
+          submittedByEmail: financeReceiptSubmitterEmail(receipt),
           submittedByFirstName: receipt.submittedByFirstName,
           submittedByLastName: receipt.submittedByLastName,
           submittedByUserId: receipt.submittedByUserId,

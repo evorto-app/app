@@ -94,7 +94,7 @@ The review page shows the receipt file, normalized receipt data, tax/deposit/alc
     body: `
 ## Reimbursement Queue
 
-Approved receipts are grouped by recipient. Finance users select the receipts to include, choose one of the submitter's saved payout details, and record the manual reimbursement transaction for that batch.
+Approved receipts are grouped by recipient. The contact email shown for each recipient is the submitter's notification email when configured, falling back to login email. Finance users select the receipts to include, choose one of the submitter's saved payout details, and record the manual reimbursement transaction for that batch.
 `,
   });
 

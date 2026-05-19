@@ -745,6 +745,7 @@ the current working direction until a product decision overrides them.
 - Event organizers or users with receipt-management capabilities can submit receipts from the event organize page.
 - Receipt upload is a separate RPC that requires the target event id, preflights the caller through the same receipt-submit authorization used by `finance.receipts.submit`, then stores image/PDF originals in object storage or a local-unavailable placeholder when storage config is absent.
 - Finance reviewers can approve/reject submitted receipts; reimbursement users can group approved receipts by submitter and record manual reimbursement transactions.
+- Finance receipt approval and reimbursement read models display the submitter's notification email when configured, with Auth0 login email as fallback.
 - Profile shows the current user's submitted receipts.
 
 ### Intended Behavior From Product Context
@@ -767,6 +768,7 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** receipt submission now requires the target event to have ended before the server inserts a submitted receipt. The receipt Playwright flow uses the deterministic past event fixture for submission/review setup.
 - **Addressed in stabilization pass:** profile and user-event summaries no longer read `event_registrations.paymentStatus`; payment display is derived from registration transaction rows. Seed and webhook-replay setup stopped writing `paymentStatus` for new fixture registrations, and the legacy payment-status column/enum have been removed from the application schema.
 - **Addressed in stabilization pass:** receipt review records status locally, and the review detail page, success feedback, and finance docs explicitly tell finance reviewers that submitter notification is manual until a real delivery path exists.
+- **Addressed in this stabilization pass:** finance receipt approval and reimbursement lists now prefer the user's editable notification email over the Auth0 login email when rendering submitter contact details.
 - **Acceptable for now:** receipt review/reimbursement queries are tenant-scoped, and receipt reimbursement creation uses a transaction plus status preconditions to avoid reimbursing the wrong submitter or already-reimbursed receipts.
 
 ### Test and Documentation Quality
@@ -778,7 +780,7 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** `tests/docs/finance/receipt-review-reimbursement.doc.ts` now walks the receipt approval queue, approval detail page, manual submitter-notification caveat, reimbursement queue, payout-detail selection, and manual reimbursement recording.
 - `src/app/finance/receipt-refund-list/receipt-refund-list.component.spec.ts` pins the reimbursement queue's manual money-movement notice, and the receipt reimbursement doc/spec assert that notice on the page.
 - Tax-rate docs and specs provide better active coverage for `admin:tax` and inclusive Stripe tax-rate import/selection.
-- Server finance unit tests are still thin, but now include transaction-list permission denial, receipt-media upload preflight denial/success coverage, profile `finance.receipts.my` output normalization, and tax-amount consistency rejection on receipt submit/review.
+- Server finance unit tests are still thin, but now include transaction-list permission denial, receipt-media upload preflight denial/success coverage, profile `finance.receipts.my` output normalization, submitter notification-email fallback, and tax-amount consistency rejection on receipt submit/review.
 
 ### Product Questions Answered Above
 
@@ -1313,6 +1315,9 @@ implement those decisions or explicitly revise them there before changing code.
   paid/free registration option tax-rate rules, including tenant-missing,
   inactive, and exclusive tax rates.
 - Receipt review docs pass: added a generated documentation journey for receipt approval and manual reimbursement recording, then removed receipt review/reimbursement from the generic missing-docs backlog.
+- Finance receipt contact pass: receipt approval/reimbursement read models now
+  render the submitter's notification email when present, falling back to the
+  Auth0 login email only when no notification email is configured.
 - Profile edit docs pass: extended the user-profile documentation journey to save a changed notification email, assert the refreshed profile summary, and restore the seeded user record after the doc run.
 - Create-account gate coverage pass: extracted the email-verification form gate into a typed helper and covered verified, unverified, null, and absent Auth0 email-verification states without requiring Auth0 Management credentials.
 - Playwright skip-inventory pass: added a local unit guard that allowlists every

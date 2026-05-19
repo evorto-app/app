@@ -8,6 +8,7 @@ import {
   type RpcRequestContextShape,
 } from '../../../../../shared/rpc-contracts/app-rpcs';
 import { RpcAccess } from '../shared/rpc-access.service';
+import { financeReceiptSubmitterEmail } from './finance-receipts.handlers';
 import { financeHandlers } from './finance.handlers';
 import { ReceiptMediaService } from './receipt-media.service';
 
@@ -211,6 +212,27 @@ describe('financeHandlers composition', () => {
 });
 
 describe('finance profile receipt reads', () => {
+  it('uses notification email for finance receipt submitter displays', () => {
+    expect(
+      financeReceiptSubmitterEmail({
+        submittedByCommunicationEmail: 'notify@example.com',
+        submittedByEmail: 'login@example.com',
+      }),
+    ).toBe('notify@example.com');
+    expect(
+      financeReceiptSubmitterEmail({
+        submittedByCommunicationEmail: null,
+        submittedByEmail: 'login@example.com',
+      }),
+    ).toBe('login@example.com');
+    expect(
+      financeReceiptSubmitterEmail({
+        submittedByCommunicationEmail: '   ',
+        submittedByEmail: 'login@example.com',
+      }),
+    ).toBe('login@example.com');
+  });
+
   it.effect(
     'returns normalized current-user receipt rows for profile display',
     () =>
