@@ -1,3 +1,4 @@
+import { DEFAULT_CURRENCY_CODE } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { beforeEach, describe, expect, it } from 'vitest';
 
@@ -32,6 +33,7 @@ describe('PriceWithTaxComponent', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [PriceWithTaxComponent],
+      providers: [{ provide: DEFAULT_CURRENCY_CODE, useValue: 'CZK' }],
     }).compileComponents();
   });
 
@@ -44,8 +46,21 @@ describe('PriceWithTaxComponent', () => {
       },
     });
 
-    expect(fixture.nativeElement.textContent).toContain('€25.00');
+    expect(fixture.nativeElement.textContent).toContain('CZK25.00');
     expect(fixture.nativeElement.textContent).toContain('Incl. 19% VAT');
+  });
+
+  it('allows explicit currency overrides', async () => {
+    const fixture = await renderPriceWithTax({
+      amount: 2500,
+      currency: 'EUR',
+      taxRate: {
+        displayName: 'VAT',
+        percentage: '19',
+      },
+    });
+
+    expect(fixture.nativeElement.textContent).toContain('€25.00');
   });
 
   it('does not render tax labels for free options', async () => {
@@ -72,7 +87,7 @@ describe('PriceWithTaxComponent', () => {
       },
     });
 
-    expect(fixture.nativeElement.textContent).toContain('€12.00');
+    expect(fixture.nativeElement.textContent).toContain('CZK12.00');
     expect(fixture.nativeElement.textContent).toContain('Tax free');
   });
 
@@ -84,7 +99,7 @@ describe('PriceWithTaxComponent', () => {
       },
     });
 
-    expect(fixture.nativeElement.textContent).toContain('€12.00');
+    expect(fixture.nativeElement.textContent).toContain('CZK12.00');
     expect(fixture.nativeElement.textContent).toContain('Incl. Tax');
   });
 });

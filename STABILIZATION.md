@@ -1308,6 +1308,10 @@ implement those decisions or explicitly revise them there before changing code.
   shared price/tax label component's paid, free, zero-tax, and fallback states,
   narrowing the remaining inclusive-price fixme to page-level Browser
   assertions.
+- Shared price-label currency pass: changed the shared price/tax label to
+  inherit Angular's tenant-level `DEFAULT_CURRENCY_CODE` and locale by default,
+  while keeping explicit currency overrides available for future cross-currency
+  surfaces.
 - Registration-card unsupported-mode coverage pass: pinned that stored
   `random` and `application` participant options do not expose the lightweight
   waitlist action when full, keeping the card aligned with the server-side
