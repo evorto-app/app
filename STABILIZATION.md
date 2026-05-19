@@ -1128,12 +1128,12 @@ the current working direction until a product decision overrides them.
 
 1. Implement transfer/resale; keep automatic refund handling visible until the finance flow is implemented.
 2. Add Playwright coverage for negative registration paths and role-ineligible direct links.
-3. Make organizer signup semantics visible and distinct if it remains modeled as a registration option.
-4. Keep simple-mode templates as the primary authoring UI, but expand reusable template support for discounts, add-ons, questions, and organizer notes/checklists where practical.
+3. Keep organizer/helper signup copy distinct from participant registration as event/template registration-option surfaces evolve.
+4. Keep simple-mode templates as the primary authoring UI, but expand reusable template support for discounts, add-ons, and questions where practical. Organizer planning tips are now exposed as the first private organizer-notes field.
 5. Run the covered legacy-field migration path in production so any existing physical `showInHub`, `paymentStatus`, and `payment_status` artifacts are dropped now that active schema/API code no longer uses them.
 6. Add Browser-backed scanner/organizer aggregate review once local runtime is available.
 7. Add Browser-backed profile coverage for payment-continuation, ticket/cancellation routing, waitlist messaging, and ESNcard provider failure semantics once local runtime is available.
-8. Fill the tenant settings gap for one-domain relaunch support, branding, legal links/text, locale/currency/timezone, SEO fields, and global tenant-admin workflows.
+8. Fill the remaining tenant settings implementation gap for editable branding assets, legal links/text, onboarding/domain workflows, locale/currency/timezone policy, and global tenant-admin workflows. The current general-settings page exposes SEO fields, read-only runtime identity, and a visible deferred-settings summary.
 9. Make Playwright list/discovery side-effect-free and document or automate the local browser installation expectation.
 10. Update or regenerate `tests/test-inventory.md` after placeholder docs/specs are pruned.
 11. Move local generated docs defaults away from the sibling documentation checkout, or introduce an explicit docs-publish flow that cannot run accidentally during list/discovery.
@@ -1224,10 +1224,11 @@ implement those decisions or explicitly revise them there before changing code.
 
 All ten first-pass review areas are now represented in this document. The next
 stabilization work should continue with small cleanup commits around the
-remaining relaunch gaps: Browser-backed profile action coverage, tenant
-settings scope, running the legacy-field migration path for production data,
-and replacing intentionally fixme-only price/tax specs with active
-Browser-backed coverage once the local runtime is available. Receipt
-notification remains a future product delivery path; the current relaunch scope
-records receipt review locally and keeps finance-facing copy explicit that
-submitter notification is manual.
+remaining relaunch gaps: Browser-backed profile action coverage, Browser-backed
+scanner aggregate review, the remaining tenant settings implementation scope,
+running the legacy-field migration path for production data, and replacing
+intentionally fixme-only price/tax specs with active Browser-backed coverage
+once the local runtime is available. Receipt notification remains a future
+product delivery path; the current relaunch scope records receipt review
+locally and keeps finance-facing copy explicit that submitter notification is
+manual.
