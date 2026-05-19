@@ -38,6 +38,10 @@ test.describe('Inclusive Price Labels', () => {
     page,
     seeded,
   }) => {
+    test.fixme(
+      true,
+      'This spec still contains placeholder assertions; replace with real UI assertions before treating it as price-label coverage.',
+    );
     const paidEvent = requireScenarioEvent(
       events,
       seeded.scenario.events.paidOpen.eventId,
@@ -77,6 +81,10 @@ test.describe('Inclusive Price Labels', () => {
     page,
     seeded,
   }) => {
+    test.fixme(
+      true,
+      'This spec still contains placeholder assertions; replace with real UI assertions before treating it as price-label coverage.',
+    );
     const eventWithFreeOptions = requireScenarioEvent(
       events,
       seeded.scenario.events.freeOpen.eventId,
@@ -109,6 +117,10 @@ test.describe('Inclusive Price Labels', () => {
     page,
     events,
   }) => {
+    test.fixme(
+      true,
+      'This spec still contains placeholder assertions; replace with seeded zero-percent tax-rate UI coverage.',
+    );
     // This test validates FR-022: zero-percent inclusive tax rates
     // Should show "Tax free" instead of "Incl. 0% VAT"
 
@@ -128,6 +140,10 @@ test.describe('Inclusive Price Labels', () => {
     page,
     seeded,
   }) => {
+    test.fixme(
+      true,
+      'This spec still contains placeholder assertions; replace with a scenario where tax rate details are unavailable.',
+    );
     // This test validates FR-017: fallback "Incl. Tax" when rate details unavailable
 
     const paidEvent = requireScenarioEvent(
@@ -155,6 +171,10 @@ test.describe('Inclusive Price Labels', () => {
     page,
     seeded,
   }) => {
+    test.fixme(
+      true,
+      'This spec still contains placeholder assertions; replace with actual list/detail/checkout label assertions.',
+    );
     // This test validates FR-011: consistent labeling across listings, detail pages, carts, checkout
 
     const paidEvent = requireScenarioEvent(
@@ -188,6 +208,10 @@ test.describe('Inclusive Price Labels', () => {
     page,
     seeded,
   }) => {
+    test.fixme(
+      true,
+      'This spec still contains placeholder assertions; replace with real discounted-price UI coverage.',
+    );
     // This test validates FR-014: discounts reduce final price while retaining original tax label
 
     const paidEvent = requireScenarioEvent(
@@ -216,6 +240,10 @@ test.describe('Inclusive Price Labels', () => {
     page,
     templates,
   }) => {
+    test.fixme(
+      true,
+      'This spec still contains placeholder assertions; replace with real template detail label assertions.',
+    );
     // Test that template details also show inclusive tax labels for paid options
 
     await page.goto('/templates');

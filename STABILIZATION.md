@@ -563,7 +563,8 @@ the current working direction until a product decision overrides them.
 - `tests/docs/events/unlisted-admin.doc.ts` covers the updated direct-link explanation in the listing dialog and on unlisted event details.
 - `tests/docs/events/register.doc.ts` covers free and paid registration as generated documentation and Stripe-backed evidence.
 - No reviewed test covers same user registering for organizer plus participant options or a real concurrent capacity race.
-- `tests/specs/events/price-labels-inclusive.spec.ts` is mostly placeholder assertions with TODOs. It should not be treated as real price-label regression coverage.
+- `src/server/price/format-inclusive-tax-label.spec.ts` covers the shared inclusive-tax label formatter.
+- `tests/specs/events/price-labels-inclusive.spec.ts` is explicitly quarantined with `test.fixme` until it is replaced with real UI assertions.
 
 ### Product Questions Answered Above
 
@@ -575,7 +576,6 @@ the current working direction until a product decision overrides them.
 ### Recommended Cleanup Actions
 
 - Either implement waitlist behavior or remove/label waitlist UI/data paths as seeded/demo-only until implemented.
-- Replace placeholder price-label specs with assertions that match current behavior, or quarantine them as known pending coverage.
 
 ## Templates
 
