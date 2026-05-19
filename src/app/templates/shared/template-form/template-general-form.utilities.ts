@@ -7,6 +7,7 @@ export interface TemplateGeneralFormModel {
   description: string;
   icon: IconValue | null;
   location: EventLocationType | null;
+  planningTips: string;
   title: string;
 }
 
@@ -19,6 +20,7 @@ export const createTemplateGeneralFormModel = (
   description: '',
   icon: null,
   location: null,
+  planningTips: '',
   title: '',
   ...overrides,
 });
@@ -34,6 +36,7 @@ export const mergeTemplateGeneralFormOverrides = (
     icon: overrides.icon === undefined ? base.icon : overrides.icon,
     location:
       overrides.location === undefined ? base.location : overrides.location,
+    planningTips: overrides.planningTips ?? base.planningTips,
     title: overrides.title ?? base.title,
   });
 };

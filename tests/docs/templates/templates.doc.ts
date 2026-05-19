@@ -40,6 +40,7 @@ There are a few general settings that are required for templates:
 - **Template name**: The name of the template.
 - **Template category**: The category this template should belong to. Learn how to [manage categories](/docs/manage-template-categories) to group your templates.
 - **Template description**: Lastly, the description of the template. To open the full editor, click the field for the description.
+- **Organizer planning tips**: Optional private organizer notes, setup checklists, or recurring reminders that stay on the template detail page and are not shown on the public event page.
 `,
   });
   await takeScreenshot(

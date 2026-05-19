@@ -52,7 +52,7 @@ type UpdateSimpleTemplateInput = Parameters<
   AppRpcHandlers['templates.updateSimpleTemplate']
 >[0];
 
-const buildTemplateInsertValues = ({
+export const buildTemplateInsertValues = ({
   input,
   sanitizedDescription,
   tenantId,
@@ -66,6 +66,7 @@ const buildTemplateInsertValues = ({
     description: sanitizedDescription,
     icon: input.icon,
     location: input.location,
+    planningTips: input.planningTips?.trim() || null,
     simpleModeEnabled: true,
     tenantId,
     title: input.title,
@@ -332,6 +333,7 @@ export class SimpleTemplateService extends Context.Service<SimpleTemplateService
               description: sanitizedDescription,
               icon: input.icon,
               location: input.location,
+              planningTips: input.planningTips?.trim() || null,
               title: input.title,
             })
             .where(

@@ -46,6 +46,7 @@ const validTemplateFindOneRecord = {
   },
   id: 'template-1',
   location: null,
+  planningTips: 'Bring printed waiver forms.',
   registrationOptions: [],
   title: 'Template',
 };
@@ -62,6 +63,21 @@ const validGoogleLocation = {
 };
 
 describe('templates RPC location schema', () => {
+  it('accepts organizer planning tips in template input and find-one responses', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(TemplateSimpleInput)({
+        ...validSimpleTemplateInput,
+        planningTips: 'Bring printed waiver forms.',
+      }),
+    ).not.toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(TemplateFindOneRecord)({
+        ...validTemplateFindOneRecord,
+        planningTips: 'Bring printed waiver forms.',
+      }),
+    ).not.toThrow();
+  });
+
   it('accepts structured template input locations', () => {
     expect(() =>
       Schema.decodeUnknownSync(TemplateSimpleInput)({

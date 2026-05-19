@@ -2,7 +2,10 @@ import { describe, expect, it } from '@effect/vitest';
 import { Effect, Layer } from 'effect';
 
 import { Database } from '../../../../../db';
-import { SimpleTemplateService } from './simple-template.service';
+import {
+  buildTemplateInsertValues,
+  SimpleTemplateService,
+} from './simple-template.service';
 
 const validTemplateInput = {
   categoryId: 'category-1',
@@ -72,6 +75,36 @@ const createValidationLayer = (database: never) =>
   );
 
 describe('SimpleTemplateService', () => {
+  it('trims organizer planning tips before template insert', () => {
+    expect(
+      buildTemplateInsertValues({
+        input: {
+          ...validTemplateInput,
+          planningTips: '  Bring printed waiver forms.\nCheck room access.  ',
+        },
+        sanitizedDescription: '<p>Clean description</p>',
+        tenantId: 'tenant-1',
+      }),
+    ).toMatchObject({
+      planningTips: 'Bring printed waiver forms.\nCheck room access.',
+    });
+  });
+
+  it('stores blank organizer planning tips as null', () => {
+    expect(
+      buildTemplateInsertValues({
+        input: {
+          ...validTemplateInput,
+          planningTips: '   ',
+        },
+        sanitizedDescription: '<p>Clean description</p>',
+        tenantId: 'tenant-1',
+      }),
+    ).toMatchObject({
+      planningTips: null,
+    });
+  });
+
   it.effect(
     'fails with bad request for non-meaningful rich text description',
     () =>
