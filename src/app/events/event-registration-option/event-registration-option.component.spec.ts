@@ -6,6 +6,7 @@ import {
   registrationOptionAvailableSpots,
   registrationOptionCanJoinWaitlist,
   registrationOptionIsFull,
+  registrationOptionSelectedTotalPrice,
 } from './event-registration-option.component';
 
 describe('registrationOptionAudienceCopy', () => {
@@ -151,5 +152,42 @@ describe('registrationOptionAvailability', () => {
         currentTime,
       ),
     ).toBe('open');
+  });
+});
+
+describe('registrationOptionSelectedTotalPrice', () => {
+  it('uses discounted buyer price for the signed-in user and full price for guests', () => {
+    expect(
+      registrationOptionSelectedTotalPrice(
+        {
+          effectivePrice: 1500,
+          price: 2000,
+        },
+        2,
+      ),
+    ).toBe(5500);
+  });
+
+  it('falls back to the option price when no discount is active', () => {
+    expect(
+      registrationOptionSelectedTotalPrice(
+        {
+          price: 2000,
+        },
+        2,
+      ),
+    ).toBe(6000);
+  });
+
+  it('does not let negative guest counts reduce the total', () => {
+    expect(
+      registrationOptionSelectedTotalPrice(
+        {
+          effectivePrice: 1500,
+          price: 2000,
+        },
+        -1,
+      ),
+    ).toBe(1500);
   });
 });

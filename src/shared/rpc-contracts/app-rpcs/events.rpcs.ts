@@ -250,6 +250,8 @@ export const EventsFindOneRegistrationOption = Schema.Struct({
   roleIds: Schema.Array(Schema.NonEmptyString),
   spots: Schema.Number,
   stripeTaxRateId: Schema.NullOr(Schema.String),
+  taxRateDisplayName: Schema.NullOr(Schema.String),
+  taxRatePercentage: Schema.NullOr(Schema.String),
   title: Schema.NonEmptyString,
 });
 
