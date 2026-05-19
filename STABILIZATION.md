@@ -1121,14 +1121,13 @@ the current working direction until a product decision overrides them.
    those modes remain in the relaunch UI; otherwise hide them until their
    runtime behavior exists.
 6. Run the legacy-field migration path in production so any existing physical `showInHub` role column is dropped now that active schema/API code uses `displayInHub`.
-7. Decide whether pre-event receipt spending/submission remains allowed or needs event-policy gating.
-8. Add Browser-backed scanner/organizer aggregate review once local runtime is available.
-9. Clarify profile payment-continuation/ticket/cancellation actions and ESNcard provider failure semantics before relaunch.
-10. Fill the tenant settings gap for one-domain relaunch support, branding, legal links/text, locale/currency/timezone, SEO fields, and global tenant-admin workflows.
-11. Make Playwright list/discovery side-effect-free and document or automate the local browser installation expectation.
-12. Update or regenerate `tests/test-inventory.md` after placeholder docs/specs are pruned.
-13. Move local generated docs defaults away from the sibling documentation checkout, or introduce an explicit docs-publish flow that cannot run accidentally during list/discovery.
-14. Keep `docker:start` reset behavior intentional and ensure seeded data is sufficient to get going from zero.
+7. Add Browser-backed scanner/organizer aggregate review once local runtime is available.
+8. Clarify profile payment-continuation/ticket/cancellation actions and ESNcard provider failure semantics before relaunch.
+9. Fill the tenant settings gap for one-domain relaunch support, branding, legal links/text, locale/currency/timezone, SEO fields, and global tenant-admin workflows.
+10. Make Playwright list/discovery side-effect-free and document or automate the local browser installation expectation.
+11. Update or regenerate `tests/test-inventory.md` after placeholder docs/specs are pruned.
+12. Move local generated docs defaults away from the sibling documentation checkout, or introduce an explicit docs-publish flow that cannot run accidentally during list/discovery.
+13. Keep `docker:start` reset behavior intentional and ensure seeded data is sufficient to get going from zero.
 
 ### Acceptable For Now
 
@@ -1196,6 +1195,7 @@ implement those decisions or explicitly revise them there before changing code.
 - Receipt amount validation pass: rejected receipt submit/review payloads where tax exceeds the total amount and added focused server coverage for both write paths.
 - Payment-status deprecation pass: stopped active profile/user-event reads and fixture setup from relying on `event_registrations.paymentStatus`; user-facing payment state now derives from registration transaction rows, and the legacy field/enum have been removed from the application schema.
 - Receipt timing pass: restricted receipt submission to events whose end time has passed and pointed receipt Playwright setup at the deterministic past event fixture.
+- Receipt timing backlog cleanup: removed the stale relaunch checklist item that still treated pre-event receipt submission policy as undecided after the server rule, Playwright setup, and finance notes had already settled on post-event submission.
 - Scanner status-coverage pass: added focused scan-read and direct-check-in coverage for pending, cancelled, and waitlisted registrations.
 - Tenant settings feedback pass: added explicit success and readable error notifications for general settings saves.
 - Tenant SEO settings pass: exposed stored tenant SEO title/description through the Tenant RPC schema, general settings UI, admin settings persistence, and tenant-level document metadata.
