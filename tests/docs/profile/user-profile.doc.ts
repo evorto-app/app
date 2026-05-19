@@ -43,7 +43,7 @@ The profile page displays your personal information, including:
 
 - Name
 - Login email address and notification email address
-- Payout details (IBAN / PayPal) for finance reimbursements
+- Global reimbursement details (IBAN / PayPal) used when finance teams record manual receipt reimbursements
 
 From here you can open the edit dialog to update your profile details.
 `,
@@ -65,7 +65,7 @@ From here you can open the edit dialog to update your profile details.
 ## Editing Your Profile
 
 Click **Edit profile** to open the profile dialog.
-The form uses inline validation, and the save button is only enabled when both names and the notification email are filled in.
+The form uses inline validation, and the save button is only enabled when both names and the notification email are filled in. IBAN and PayPal details are optional global reimbursement details, not tenant-specific payout instructions.
 `,
   });
 
