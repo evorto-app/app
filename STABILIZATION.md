@@ -1103,6 +1103,7 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** CI e2e docs no longer skip `@finance` docs in the baseline docs run, so rewritten finance docs participate in the normal documentation artifact.
 - **Should fix before relaunch:** `docker:start` and Playwright `webServer` run the foreground Docker stack through a destructive `docker compose down` and `db-setup` reset. This is documented, but future agents should treat it as a database-resetting command, not a harmless server start.
 - **Addressed in this stabilization pass:** `bun run docker:check` reports missing Neon Local, Auth0, Stripe, session, and Font Awesome registry variables before Docker Compose mutates local containers. Docker now writes the same Font Awesome registry scopes as the checked-in `.npmrc`, so premium and brand icon packages can use the same build-secret token path. It also reports local tool readiness and warns when Playwright browsers are missing without blocking Docker start. The Compose-managed Stripe CLI listener writes its generated webhook signing secret into a shared volume and the app reads it through `STRIPE_WEBHOOK_SECRET_FILE`, so a static `STRIPE_WEBHOOK_SECRET` is no longer a Docker-start blocker. The current worktree is missing `NEON_API_KEY`, `CLIENT_SECRET`, and `STRIPE_API_KEY`, so a fresh full Docker start is intentionally blocked until those secrets are provided.
+- **Addressed in stabilization pass:** `helpers/testing/runtime-preflight.spec.ts` now pins that destructive Docker start scripts call `docker:check` first, required runtime variables are wired into Compose services, and Font Awesome registry access remains available to Docker through the same secret path for premium and brand icon packages.
 - **Addressed in stabilization pass:** local workflow guidance now consistently routes developers through `bun run ...` package scripts or `node_modules/.bin/dotenv -c dev -- ...` for direct external-tool calls. The server config guidance no longer treats unsupported `.env.local` as part of the normal local dotenv contract.
 - **Acceptable for now:** keeping core commands visible in `package.json` makes the workflow easier for agents than hiding orchestration in helper wrappers.
 - **Acceptable for now:** `.env.dev` is ignored and generated per worktree, while `.env.dev.local` remains tracked for shared defaults.
@@ -1272,6 +1273,10 @@ implement those decisions or explicitly revise them there before changing code.
   variables that are already available without printing secret values, so
   Font Awesome premium/brand icon registry access can be confirmed even when
   missing runtime secrets still block Docker startup.
+- Docker preflight contract pass: added regression coverage that Docker start
+  scripts remain gated by `docker:check`, Compose consumes the required runtime
+  variables, and the Font Awesome build secret path continues to support both
+  premium and brand icon packages.
 - Profile discount-fragment pass: kept `/profile#discounts` stable while
   tenant ESNcard provider data loads, so direct links and docs journeys do not
   fall back permanently to the overview before the Discounts section becomes
