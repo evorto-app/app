@@ -1,5 +1,5 @@
 import Stripe from 'stripe';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 
 import { getId } from '../../../helpers/get-id';
 import { userStateFile, usersToAuthenticate } from '../../../helpers/user-data';
@@ -32,10 +32,31 @@ test('replaying the same Stripe webhook is idempotent @finance @stripe @track(pl
   const checkoutSessionId = `cs_test_${getId()}`;
   const paymentIntentId = `pi_test_${getId()}`;
   const stripeEventId = `evt_test_${getId()}`;
+  const originalOption =
+    await database.query.eventRegistrationOptions.findFirst({
+      columns: {
+        confirmedSpots: true,
+        reservedSpots: true,
+      },
+      where: { id: seeded.scenario.events.paidOpen.optionId },
+    });
+  expect(originalOption).toBeTruthy();
 
   await database
     .delete(schema.stripeWebhookEvents)
     .where(eq(schema.stripeWebhookEvents.stripeEventId, stripeEventId));
+
+  await database
+    .update(schema.eventRegistrationOptions)
+    .set({
+      reservedSpots: sql`${schema.eventRegistrationOptions.reservedSpots} + 1`,
+    })
+    .where(
+      eq(
+        schema.eventRegistrationOptions.id,
+        seeded.scenario.events.paidOpen.optionId,
+      ),
+    );
 
   await database.insert(schema.eventRegistrations).values({
     eventId: seeded.scenario.events.paidOpen.eventId,
@@ -152,11 +173,180 @@ test('replaying the same Stripe webhook is idempotent @finance @stripe @track(pl
       status: 'successful',
     });
 
+  await expect
+    .poll(async () => {
+      const updatedOption =
+        await database.query.eventRegistrationOptions.findFirst({
+          columns: {
+            confirmedSpots: true,
+            reservedSpots: true,
+          },
+          where: { id: seeded.scenario.events.paidOpen.optionId },
+        });
+
+      return {
+        confirmedSpots: updatedOption?.confirmedSpots,
+        reservedSpots: updatedOption?.reservedSpots,
+      };
+    })
+    .toEqual({
+      confirmedSpots: (originalOption?.confirmedSpots ?? 0) + 1,
+      reservedSpots: originalOption?.reservedSpots,
+    });
+
   const dedupeRecords = await database.query.stripeWebhookEvents.findMany({
     where: { stripeEventId },
   });
   expect(dedupeRecords).toHaveLength(1);
   expect(dedupeRecords[0]?.status).toBe('processed');
+});
+
+test('expired checkout webhook releases reserved capacity @finance @stripe @track(playwright-specs-track-linking_20260126) @req(STRIPE-WEBHOOK-REPLAY-SPEC-01D)', async ({
+  database,
+  request,
+  seeded,
+  tenant,
+}) => {
+  const webhookSecret = process.env['STRIPE_WEBHOOK_SECRET'];
+  if (!webhookSecret) {
+    test.skip(
+      true,
+      'STRIPE_WEBHOOK_SECRET is required for webhook replay test',
+    );
+    return;
+  }
+
+  const registrationId = getId();
+  const transactionId = getId();
+  const checkoutSessionId = `cs_test_${getId()}`;
+  const stripeEventId = `evt_test_${getId()}`;
+  const originalOption =
+    await database.query.eventRegistrationOptions.findFirst({
+      columns: {
+        confirmedSpots: true,
+        reservedSpots: true,
+      },
+      where: { id: seeded.scenario.events.paidOpen.optionId },
+    });
+  expect(originalOption).toBeTruthy();
+
+  await database
+    .update(schema.eventRegistrationOptions)
+    .set({
+      reservedSpots: sql`${schema.eventRegistrationOptions.reservedSpots} + 1`,
+    })
+    .where(
+      eq(
+        schema.eventRegistrationOptions.id,
+        seeded.scenario.events.paidOpen.optionId,
+      ),
+    );
+
+  await database.insert(schema.eventRegistrations).values({
+    eventId: seeded.scenario.events.paidOpen.eventId,
+    id: registrationId,
+    paymentStatus: 'PENDING',
+    registrationOptionId: seeded.scenario.events.paidOpen.optionId,
+    status: 'PENDING',
+    tenantId: tenant.id,
+    userId: regularUserId,
+  });
+
+  await database.insert(schema.transactions).values({
+    amount: 2500,
+    comment: 'Webhook expired checkout capacity test',
+    currency: 'EUR',
+    eventId: seeded.scenario.events.paidOpen.eventId,
+    eventRegistrationId: registrationId,
+    executiveUserId: regularUserId,
+    id: transactionId,
+    method: 'stripe',
+    status: 'pending',
+    stripeCheckoutSessionId: checkoutSessionId,
+    stripeCheckoutUrl: `https://checkout.stripe.com/c/pay/${checkoutSessionId}`,
+    targetUserId: regularUserId,
+    tenantId: tenant.id,
+    type: 'registration',
+  });
+
+  const payload = JSON.stringify({
+    api_version: '2024-11-20.acacia',
+    created: 1_706_784_000,
+    data: {
+      object: {
+        id: checkoutSessionId,
+        metadata: {
+          registrationId,
+          tenantId: tenant.id,
+          transactionId,
+        },
+        object: 'checkout.session',
+        payment_status: 'unpaid',
+        status: 'expired',
+      },
+    },
+    id: stripeEventId,
+    livemode: false,
+    object: 'event',
+    pending_webhooks: 1,
+    request: {
+      id: null,
+      idempotency_key: null,
+    },
+    type: 'checkout.session.expired',
+  });
+
+  const signature = Stripe.webhooks.generateTestHeaderString({
+    payload,
+    secret: webhookSecret,
+  });
+
+  const delivery = await request.fetch('/webhooks/stripe', {
+    data: Buffer.from(payload, 'utf8'),
+    failOnStatusCode: false,
+    headers: {
+      'content-type': 'application/json',
+      'stripe-signature': signature,
+    },
+    method: 'POST',
+  });
+  const body = await delivery.text();
+  expect(
+    delivery.status(),
+    `Expected webhook delivery to return 200, received ${delivery.status()} with body "${body}"`,
+  ).toBe(200);
+
+  await expect
+    .poll(async () => {
+      const updatedRegistration =
+        await database.query.eventRegistrations.findFirst({
+          where: { id: registrationId, tenantId: tenant.id },
+        });
+      const updatedTransaction = await database.query.transactions.findFirst({
+        where: { id: transactionId, tenantId: tenant.id },
+      });
+      const updatedOption =
+        await database.query.eventRegistrationOptions.findFirst({
+          columns: {
+            confirmedSpots: true,
+            reservedSpots: true,
+          },
+          where: { id: seeded.scenario.events.paidOpen.optionId },
+        });
+
+      return {
+        confirmedSpots: updatedOption?.confirmedSpots,
+        registrationStatus: updatedRegistration?.status,
+        reservedSpots: updatedOption?.reservedSpots,
+        transactionStatus: updatedTransaction?.status,
+      };
+    })
+    .toEqual({
+      confirmedSpots: originalOption?.confirmedSpots,
+      registrationStatus: 'CANCELLED',
+      reservedSpots: originalOption?.reservedSpots,
+      transactionStatus: 'cancelled',
+    });
 });
 
 test('duplicate webhook delivery is retryable while the original event claim is still processing @finance @stripe @track(playwright-specs-track-linking_20260126) @req(STRIPE-WEBHOOK-REPLAY-SPEC-01B)', async ({
