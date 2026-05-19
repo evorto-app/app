@@ -503,7 +503,7 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** event creation/update now reject end-before-start and close-before-open registration windows server-side.
 - **Addressed in stabilization pass:** event find/update RPC location fields now validate against the shared `EventLocation` schema.
 - **Addressed in stabilization pass:** event creation now copies template option discounts by source option identity, so duplicate option titles do not miscopy discounts.
-- **Should fix before relaunch:** `event-management.doc.ts` describes attendees, settings tabs, event categories/tags, featured images, and notification settings that do not appear to exist in the current event UI. This is misleading documentation, not just incomplete coverage.
+- **Addressed in stabilization pass:** `event-management.doc.ts` no longer describes attendee export, attendee messaging, manual check-in controls, event settings tabs, event tags, featured images, notification settings, integrations, or event deletion as existing event-management UI.
 - **Should fix before relaunch:** direct event detail access for unlisted events is covered and seems intended, but the UI should make sharing semantics clearer for organizers/admins.
 - **Acceptable for now:** event edit locks are duplicated in guard, details `canEdit`, `findOneForEdit`, and `events.update`. Duplication is not ideal, but server-side checks are the source of truth.
 
@@ -515,7 +515,7 @@ the current working direction until a product decision overrides them.
 
 ### Recommended Cleanup Actions
 
-- Rewrite stale sections of `tests/docs/events/event-management.doc.ts` to describe only current UI behavior.
+- Clarify direct unlisted-event sharing semantics in the organizer/admin UI.
 
 ## Registrations
 
@@ -558,6 +558,7 @@ the current working direction until a product decision overrides them.
 - `src/server/effect/rpc/handlers/events/events-lifecycle.handlers.spec.ts` covers server-side rejection of end-before-start events and close-before-open registration windows for event create/update.
 - `src/server/effect/rpc/handlers/events/events-lifecycle.handlers.spec.ts` covers template discount copying by stable source option id when template options share the same title.
 - `src/server/effect/rpc/handlers/events/events-rpcs.schema.spec.ts` covers acceptance and rejection for the shared event location schema now used by Events RPC contracts.
+- `tests/docs/events/event-management.doc.ts` now documents only the current event details, registration, review/listing, edit, organizer overview, participant grouping, and receipt surfaces.
 - `tests/docs/events/register.doc.ts` covers free and paid registration as generated documentation and Stripe-backed evidence.
 - No reviewed test covers registration rejection for unpublished events, closed windows, ineligible roles, same user registering for organizer plus participant options, or concurrent capacity.
 - `tests/specs/events/price-labels-inclusive.spec.ts` is mostly placeholder assertions with TODOs. It should not be treated as real price-label regression coverage.

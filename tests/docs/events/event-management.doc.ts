@@ -20,6 +20,7 @@ For this guide, we assume you have an account with the required permissions. The
 # Event Management
 
 The event management feature allows you to create, edit, and manage events in the application. This includes setting up registration options, managing attendees, and controlling event visibility.
+The current management surface is intentionally focused: event details, registration options, review/listing actions, organizer participant overview, and event receipts.
 
 ## Event List
 
@@ -45,7 +46,6 @@ The event list shows all events with their basic information:
 - Location
 - Status (draft, pending review, approved, rejected)
 - Listing state (listed or unlisted)
-- Number of registrations
 `,
   });
 
@@ -77,7 +77,6 @@ Once you've selected a template, you'll be able to customize it with your event 
 - Date and time
 - Location
 - Registration options
-- And more
 
 After selecting a template and customizing your event, you can create it and proceed to the event details page.
 `,
@@ -108,7 +107,7 @@ After selecting a template and customizing your event, you can create it and pro
     body: `
 ## Event Details
 
-After creating an event, you'll be taken to the event details page where you can configure additional settings.
+After creating an event, you'll be taken to the event details page. This page shows the event title, description, registration section, review status, and organizer actions that are available to your account.
 `,
   });
 
@@ -125,9 +124,9 @@ After creating an event, you'll be taken to the event details page where you can
 The event details page has several sections:
 
 - **Basic Information**: Title, description, date, location
-- **Registration Options**: Configure how people can register for the event
-- **Attendees**: View and manage people registered for the event
-- **Settings**: Additional event settings and options
+- **Registration**: Available registration options or your active registration
+- **Review and listing actions**: Status, submit/review actions, edit link, and listing controls when your permissions allow them
+- **Organize this event**: A link to the organizer surface when you are allowed to organize the event
 
 Let's look at each section in detail.
 `,
@@ -137,18 +136,18 @@ Let's look at each section in detail.
     body: `
 ## Registration Options
 
-Registration options determine how people can sign up for your event. You can have multiple registration options with different settings.
+Registration options determine how people can sign up for your event. Templates can create one or more registration options that are then shown on the event details page.
 
-When adding a registration option, you can configure:
+When editing a draft or rejected event, registration options can include:
 
-- Option title (e.g., "Early Bird", "Regular", "VIP")
+- Option title
 - Price (free or paid)
 - Registration period (when registration opens and closes)
 - Maximum number of registrations
 - Required roles (if the option is restricted to certain user roles)
-- Custom fields (additional information to collect from registrants)
+- Organizer/helper distinction
 
-Configure the options according to your event's needs and click **Save**.
+Configure the options according to your event's needs and click **Save Changes**.
 
 Note: The event created from the template already has registration options configured.
 `,
@@ -200,35 +199,32 @@ _Note: Event status is not displayed in this view in the current build._
 
   await testInfo.attach('markdown', {
     body: `
-## Managing Attendees
+## Organizer View
 
-Once people start registering for your event, you can manage the attendees from the event details page.
+Once people start registering for your event, organizers can open the **Organize this event** view from the event details page.
 
-In the attendees section, you can:
+The organizer view currently includes:
 
-- View a list of all registered attendees
-- See registration details (registration time, option selected, payment status)
-- Export the attendee list
-- Send messages to attendees
-- Check in attendees manually
-- Cancel registrations if needed
+- Event capacity overview
+- Checked-in count
+- Participants grouped by registration option
+- ESNcard discount markers where applicable
+- Event receipt submission and receipt list
 
-This gives you complete control over your event's attendance.
+It does not currently include attendee export, attendee messaging, manual check-in controls, or registration cancellation controls.
+Those flows should be documented separately when they exist in the product.
 
-## Event Settings
+## Event Editing
 
-Additional event settings can be configured in the settings tab.
+Draft and rejected events can be edited from the event details page when your permissions allow it.
+The edit form covers the same event details and registration options used during event creation.
+Pending-review and approved events are locked from normal editing.
 
-The settings tab includes options for:
+## Current Scope
 
-- Event categories and tags
-- Featured image or banner
-- Custom confirmation messages
-- Notification settings
-- Integration with other systems
-- Event deletion
-
-These settings help you customize the event experience and manage the event lifecycle.
+There is no general event settings tab in the current event UI.
+Template categories are managed from the templates area, not from individual events.
+Featured images, event tags, custom confirmation messages, notification settings, external integrations, and event deletion are not part of the current event management surface.
 `,
   });
 });
