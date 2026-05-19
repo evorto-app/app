@@ -769,7 +769,7 @@ the current working direction until a product decision overrides them.
 - The QR HTTP route looks up the registration by id, finds the registration tenant, and encodes a scan target URL using the current request protocol plus the tenant domain.
 - `/scan` is an authenticated route that starts a camera-based QR scanner and navigates to `/scan/registration/:registrationId` when the QR URL path starts with `/scan/registration/`.
 - `/scan/registration/:registrationId` calls `events.registrationScanned`, shows attendee name, event title/start time, registration option title, ESNcard discount notice, same-user warning, future-event warning, registration-status warning, and already-checked-in warning.
-- The scan result enables "Confirm Check In" when the scanned registration is confirmed and does not belong to the scanner. The button calls `events.checkInRegistration`, then refetches scan state and shows a recorded-check-in state.
+- The scan result enables "Confirm Check In" when the scanned registration is confirmed, does not belong to the scanner, and is inside the current fixed one-hour pre-start check-in window. The button calls `events.checkInRegistration`, then refetches scan state and shows a recorded-check-in state.
 - `events.registrationScanned` and `events.checkInRegistration` require event check-in access: either `events:organizeAll` or a confirmed organizer/helper registration for the same event.
 - `events.checkInRegistration` sets `event_registrations.checkInTime` and increments `event_registration_options.checkedInSpots` in one transaction. Duplicate scans return idempotent success without incrementing the option counter again.
 - Event organize pages show aggregate checked-in counts from option counters and participant lists from registration rows; the old table-based check-in status UI is commented out.
@@ -787,7 +787,7 @@ the current working direction until a product decision overrides them.
 - **Addressed in this stabilization pass:** "Confirm Check In" now persists check-in state through `events.checkInRegistration` and updates both `checkInTime` and `checkedInSpots` transactionally.
 - **Addressed in this stabilization pass:** scan reads and check-in writes are gated to `events:organizeAll` or a confirmed organizer/helper registration for the same event, so a normal authenticated tenant user cannot read attendee scan details by registration id.
 - **Addressed in this stabilization pass:** duplicate scans are idempotent; already-checked-in registrations show a warning and the write path does not increment counters again.
-- **Should fix before relaunch:** event timing is only a UI warning. `allowCheckin` is true for any confirmed other-user registration, even if the event starts more than one hour in the future.
+- **Addressed in stabilization pass:** event timing is enforced in both scan-read state and the check-in mutation. Confirmed other-user registrations can only be checked in during the current fixed one-hour pre-start window or after event start.
 - **Should fix before relaunch:** QR generation is unauthenticated. Registration ids are not discoverable in normal UI except by the holder, but the endpoint will generate a ticket QR for any known registration id without proving the requester is the attendee or an organizer.
 - **Should fix before relaunch:** the scanner accepts any absolute URL whose path starts with `/scan/registration/`, ignoring origin. That keeps tenant-domain QR codes portable, but it should be an explicit product/security decision.
 - **Should fix before relaunch:** camera startup errors are not mapped to a visible typed state. `qrScanner.start()` is fired without awaited error handling, so denied camera permission or unsupported devices can fail outside the component's error display.
@@ -797,7 +797,7 @@ the current working direction until a product decision overrides them.
 
 - `tests/specs/scanning/scanner.test.ts` now clicks "Confirm Check In" and asserts that `checkInTime` is set and `checkedInSpots` increments, then restores the seeded row.
 - Server unit coverage proves scan-read denial for unauthorized tenant users, check-in counter updates for organizer access, idempotent duplicate check-in behavior, and same-user check-in denial.
-- No server unit/integration test covers pending/cancelled/waitlisted scan denial or future-event timing enforcement.
+- Server unit coverage proves future-event timing disables scan check-in and rejects direct check-in writes before the pre-start window opens. No server unit/integration test covers pending/cancelled/waitlisted scan denial.
 - `tests/docs/events/register.doc.ts` documents that the ticket QR code is available after registration/payment, but there is no generated documentation journey for organizers scanning attendees.
 - `QUALITY.md` lists participant and guest-quantity check-in as high-value Playwright flows, but guest quantities are not represented in the reviewed check-in contract/UI.
 
@@ -813,7 +813,7 @@ the current working direction until a product decision overrides them.
 ### Recommended Cleanup Actions
 
 - Keep server tests for same-user scans, unauthorized tenant users, duplicate scans, and counter updates.
-- Add server tests for pending/cancelled/waitlisted registrations and event timing when the timing behavior is enforced.
+- Add server tests for pending/cancelled/waitlisted registrations.
 - Extend the Playwright scanner spec to assert the organizer overview/check-in aggregate once runtime Browser review is available.
 - Add generated organizer documentation for scanning an attendee once the mutation exists.
 - Add visible scanner camera-error handling for permission denial and unsupported devices.
@@ -1083,7 +1083,7 @@ the current working direction until a product decision overrides them.
    runtime behavior exists.
 6. Remove or backfill the legacy `showInHub` role column now that active role writes use `displayInHub`.
 7. Decide whether pre-event receipt spending/submission remains allowed or needs event-policy gating.
-8. Add check-in timing, duplicate-scan, camera-error, and guest-quantity behavior before treating scanner UI as relaunch-ready.
+8. Add scanner camera-error and guest-quantity behavior before treating scanner UI as relaunch-ready.
 9. Clarify profile event cards, notification/login email behavior, global payout preference visibility, and global-per-user ESNcard validation UX before relaunch.
 10. Fill the tenant settings gap for one-domain relaunch support, branding, legal links/text, locale/currency/timezone, SEO fields, and global tenant-admin workflows.
 11. Make Playwright list/discovery side-effect-free and document or automate the local browser installation expectation.
@@ -1133,6 +1133,7 @@ implement those decisions or explicitly revise them there before changing code.
 - Role hub-field pass: migrated active role create/update form and RPC writes to `displayInHub`, persisted `collapseMembersInHup`, and updated role docs while leaving legacy `showInHub` readable until a later migration.
 - None in the Finance/receipts pass. The highest-value issues touch payment-derived state, transaction visibility, and upload authorization, so they need targeted regression tests with the fixes.
 - Scanning/check-in pass: added `events.checkInRegistration`, gated scan reads and check-in writes to event organizers or `events:organizeAll`, made duplicate check-ins idempotent, wired the scanner button to persist and refetch state, and extended scanner tests to assert persisted check-in state.
+- Scanner timing pass: enforced the current fixed one-hour pre-start check-in window in scan-read state and direct check-in writes, with focused server coverage for the disabled scan state and rejected mutation.
 - Profile/account pass: guarded `/create-account` with authentication, reworked `users.createAccount` into a transactional tenant-account creation flow that can attach an existing global user to the current tenant while assigning default roles, and aligned ESNcard records with the global-per-user decision.
 - Tenant/global-admin pass: guarded global-admin routes with `globalAdmin:manageTenants`, decoupled global-admin permission resolution from current-tenant assignment, required tenant user context to have a current-tenant assignment, and fixed granted group wildcards such as `globalAdmin:*` to satisfy concrete permission checks.
 - Tenant-resolution pass: added focused `resolveTenantContext` coverage for non-local host precedence over cookies, localhost cookie fallback, stale localhost cookie fallback, and unknown non-local host failure.
@@ -1149,4 +1150,4 @@ implement those decisions or explicitly revise them there before changing code.
 
 ## Review Next
 
-All ten first-pass review areas are now represented in this document. The next stabilization work should continue with small cleanup commits around the remaining relaunch gaps: profile/account clarity, receipt timing/notification/payment-status follow-ups, scanner timing/camera-error behavior, tenant settings scope, role hub-field legacy migration, and replacing intentionally fixme-only price/tax specs with active Browser-backed coverage once the local runtime is available.
+All ten first-pass review areas are now represented in this document. The next stabilization work should continue with small cleanup commits around the remaining relaunch gaps: profile/account clarity, receipt timing/notification/payment-status follow-ups, scanner camera-error/guest-quantity behavior, tenant settings scope, role hub-field legacy migration, and replacing intentionally fixme-only price/tax specs with active Browser-backed coverage once the local runtime is available.

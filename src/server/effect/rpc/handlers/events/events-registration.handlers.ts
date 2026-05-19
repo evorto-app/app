@@ -51,6 +51,11 @@ const mapRegistrationScanInternalError = (error: unknown) =>
         }),
       );
 
+const CHECK_IN_PRE_START_WINDOW_MS = 60 * 60 * 1000;
+
+const isWithinCheckInWindow = (eventStart: Date, now = new Date()): boolean =>
+  eventStart.getTime() - now.getTime() <= CHECK_IN_PRE_START_WINDOW_MS;
+
 const ensureCanScanEventRegistration = ({
   eventId,
   tenantId,
@@ -306,6 +311,13 @@ export const eventRegistrationHandlers = {
             id: registrationId,
             tenantId: tenant.id,
           },
+          with: {
+            event: {
+              columns: {
+                start: true,
+              },
+            },
+          },
         }),
       );
 
@@ -344,6 +356,16 @@ export const eventRegistrationHandlers = {
           alreadyCheckedIn: true,
           checkInTime: registration.checkInTime.toISOString(),
         };
+      }
+      if (
+        !registration.event ||
+        !isWithinCheckInWindow(registration.event.start)
+      ) {
+        return yield* Effect.fail(
+          new EventRegistrationConflictError({
+            message: 'Check-in is not open for this event yet',
+          }),
+        );
       }
 
       const checkInTime = new Date();
@@ -616,7 +638,9 @@ export const eventRegistrationHandlers = {
       const sameUserIssue = registration.userId === user.id;
       const registrationStatusIssue = registration.status !== 'CONFIRMED';
       const alreadyCheckedInIssue = registration.checkInTime !== null;
-      const allowCheckin = !registrationStatusIssue && !sameUserIssue;
+      const timingIssue = !isWithinCheckInWindow(registration.event.start);
+      const allowCheckin =
+        !registrationStatusIssue && !sameUserIssue && !timingIssue;
       const discountedTransaction = registration.transactions.find(
         (transaction) =>
           transaction.amount < registration.registrationOption.price,
