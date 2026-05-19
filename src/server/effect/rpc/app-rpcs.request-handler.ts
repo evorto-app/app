@@ -40,7 +40,7 @@ const withRpcContextHeaders = (
   );
   headers.set(
     RPC_CONTEXT_HEADERS.PERMISSIONS,
-    encodeRpcContextHeaderJson(user?.permissions ?? []),
+    encodeRpcContextHeaderJson(context.permissions),
   );
   headers.set(
     RPC_CONTEXT_HEADERS.USER,

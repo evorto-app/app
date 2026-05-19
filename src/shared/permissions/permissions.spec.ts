@@ -46,6 +46,12 @@ describe('includesPermission', () => {
     expect(includesPermission('templates:*', ['templates:view'])).toBe(true);
   });
 
+  it('allows concrete permission checks against granted group wildcards', () => {
+    expect(
+      includesPermission('globalAdmin:manageTenants', ['globalAdmin:*']),
+    ).toBe(true);
+  });
+
   it('rejects unrelated permissions', () => {
     expect(includesPermission('templates:create', ['templates:view'])).toBe(
       false,
