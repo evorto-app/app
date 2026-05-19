@@ -190,19 +190,25 @@ export const AdminTenantListStripeTaxRates = asRpcQuery(
   }),
 );
 
+export const AdminTenantUpdateSettingsInput = Schema.Struct({
+  allowOther: Schema.Boolean,
+  buyEsnCardUrl: Schema.optional(Schema.String),
+  defaultLocation: Schema.NullOr(Schema.Any),
+  esnCardEnabled: Schema.Boolean,
+  receiptCountries: Schema.Array(Schema.NonEmptyString),
+  seoDescription: Schema.optional(Schema.String),
+  seoTitle: Schema.optional(Schema.String),
+  theme: literalUnion('evorto', 'esn'),
+});
+
+export type AdminTenantUpdateSettingsInput = Schema.Schema.Type<
+  typeof AdminTenantUpdateSettingsInput
+>;
+
 export const AdminTenantUpdateSettings = asRpcMutation(
   Rpc.make('admin.tenant.updateSettings', {
     error: AdminTenantRpcError,
-    payload: Schema.Struct({
-      allowOther: Schema.Boolean,
-      buyEsnCardUrl: Schema.optional(Schema.String),
-      defaultLocation: Schema.NullOr(Schema.Any),
-      esnCardEnabled: Schema.Boolean,
-      receiptCountries: Schema.Array(Schema.NonEmptyString),
-      seoDescription: Schema.optional(Schema.String),
-      seoTitle: Schema.optional(Schema.String),
-      theme: literalUnion('evorto', 'esn'),
-    }),
+    payload: AdminTenantUpdateSettingsInput,
     success: Tenant,
   }),
 );
