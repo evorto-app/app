@@ -29,6 +29,9 @@ for (const [index, matrixCase] of permissionMatrix.entries()) {
         await expect(
           page.getByRole('link', { name: 'Create template' }).first(),
         ).toBeVisible();
+        await page.goto(matrixCase.allowedRoute);
+        await expect(page).toHaveURL(new RegExp(matrixCase.allowedRoute));
+        await expect(page).not.toHaveURL(/\/403/);
         return;
       }
 
@@ -54,6 +57,8 @@ for (const [index, matrixCase] of permissionMatrix.entries()) {
         await expect(
           page.getByRole('link', { name: 'Create template' }).first(),
         ).toHaveCount(0);
+        await page.goto(matrixCase.deniedRoute);
+        await expect(page).toHaveURL(/\/403/);
         return;
       }
 
