@@ -554,6 +554,7 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** role-ineligible direct event links keep the event visible but show an explicit registration-unavailable state instead of silently rendering an empty registration section.
 - **Addressed in stabilization pass:** participant self-cancellation now covers pending and confirmed registrations before event start, rolls back reserved/confirmed counters, blocks checked-in cancellations, and keeps refund copy honest for paid registrations.
 - **Addressed in stabilization pass:** organizer/admin cancellation is available from the organizer overview for confirmed participant registrations, requires event-organizer access or `events:organizeAll`, blocks checked-in cancellations, and rolls back confirmed counters without promising automatic refunds.
+- **Addressed in stabilization pass:** active registration cards now make transfer/resale unavailability explicit for pending, confirmed, and waitlisted registrations until the real transfer/resale flow exists.
 - **Should fix before relaunch:** transfer/resale and automatic refund flows are not implemented in the reviewed event registration path.
 - **Addressed in stabilization pass:** active registration status now uses the shared persisted registration status literal union instead of raw `Schema.String`.
 - **Acceptable for now:** paid registration rollback is careful about cleaning up a failed checkout session creation path; deeper Stripe lifecycle review belongs in the finance pass.
@@ -571,6 +572,7 @@ the current working direction until a product decision overrides them.
 - `src/server/effect/rpc/handlers/events/events-rpcs.schema.spec.ts` covers acceptance and rejection for the shared event location schema now used by Events RPC contracts.
 - `src/server/effect/rpc/handlers/events/events-rpcs.schema.spec.ts` covers the active registration status literal union and rejects unknown statuses.
 - `src/server/effect/rpc/handlers/events/events-rpcs.schema.spec.ts` covers the tax-rate label fields returned with event registration options for paid event cards.
+- `src/app/events/event-active-registration/event-active-registration.component.spec.ts` covers participant cancellation copy and the visible transfer/resale-unavailable notes for pending, confirmed, and waitlisted active registrations.
 - `tests/docs/events/event-management.doc.ts` now documents only the current event details, registration, review/listing, edit, organizer overview, participant grouping/cancellation, and receipt surfaces.
 - `tests/docs/events/unlisted-admin.doc.ts` covers the updated direct-link explanation in the listing dialog and on unlisted event details.
 - `tests/docs/events/register.doc.ts` covers free and paid registration as generated documentation and Stripe-backed evidence, including guest quantity selection, the participant versus organizer/helper option wording, and participant self-cancellation copy.
@@ -1258,6 +1260,9 @@ implement those decisions or explicitly revise them there before changing code.
 - Route-guard backlog cleanup: replaced the stale "extend route-guard coverage" follow-up after admin, finance, template, and global-admin route-manifest specs plus permission-matrix denial coverage were in place.
 - Role autocomplete backlog cleanup: replaced the stale skip-based autocomplete follow-up with the remaining Browser-backed least-privilege organizer review, after confirming role lookup unit coverage and the active template autocomplete spec already fail loudly on missing seeded roles.
 - Registration negative-path backlog cleanup: clarified the Playwright inventory so closed-window, role-ineligible, unsupported-mode, and waitlist items point to the remaining Browser-backed page states rather than implying server/app negative-path coverage is absent.
+- Active-registration deferred-action pass: kept transfer/resale visibly
+  unavailable on event active-registration cards for pending, confirmed, and
+  waitlisted registrations until the real transfer/resale flow exists.
 - Receipt review docs pass: added a generated documentation journey for receipt approval and manual reimbursement recording, then removed receipt review/reimbursement from the generic missing-docs backlog.
 - Profile edit docs pass: extended the user-profile documentation journey to save a changed notification email, assert the refreshed profile summary, and restore the seeded user record after the doc run.
 - Create-account gate coverage pass: extracted the email-verification form gate into a typed helper and covered verified, unverified, null, and absent Auth0 email-verification states without requiring Auth0 Management credentials.

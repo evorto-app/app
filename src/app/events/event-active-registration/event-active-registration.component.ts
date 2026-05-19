@@ -51,6 +51,24 @@ export const registrationCancellationCopy = (registration: {
   return null;
 };
 
+export const registrationDeferredActionCopy = (registration: {
+  status: EventsRegistrationStatus;
+}): null | string => {
+  if (registration.status === 'CONFIRMED') {
+    return 'Transfer/resale is not implemented yet. Contact the organizers if someone else should take your spot.';
+  }
+
+  if (registration.status === 'PENDING') {
+    return 'Transfer/resale is not available for pending registrations.';
+  }
+
+  if (registration.status === 'WAITLIST') {
+    return 'Transfer/resale is not available for waitlist registrations.';
+  }
+
+  return null;
+};
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CurrencyPipe, MatButtonModule, NgOptimizedImage],
@@ -79,6 +97,7 @@ export class EventActiveRegistrationComponent {
   protected readonly cancelRegistrationMutation = injectMutation(() =>
     this.rpc.events.cancelRegistration.mutationOptions(),
   );
+  protected readonly deferredActionCopy = registrationDeferredActionCopy;
 
   private readonly queryClient = inject(QueryClient);
 
