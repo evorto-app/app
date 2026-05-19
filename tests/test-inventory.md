@@ -185,7 +185,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - Browser-backed negative registration states for closed windows,
     role-ineligible direct links, and waitlist affordances. Server/app unit
     coverage already proves closed-window rejection, role eligibility,
-    unsupported stored registration-mode rejection, and waitlist edge cases.
+    unsupported stored registration-mode rejection, unsupported-mode no-waitlist
+    card behavior, and waitlist edge cases.
 
 ## Current Notes
 
