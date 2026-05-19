@@ -797,7 +797,7 @@ the current working direction until a product decision overrides them.
 
 - `tests/specs/scanning/scanner.test.ts` now clicks "Confirm Check In" and asserts that `checkInTime` is set and `checkedInSpots` increments, then restores the seeded row.
 - Server unit coverage proves scan-read denial for unauthorized tenant users, check-in counter updates for organizer access, idempotent duplicate check-in behavior, and same-user check-in denial.
-- Server unit coverage proves future-event timing disables scan check-in and rejects direct check-in writes before the pre-start window opens. No server unit/integration test covers pending/cancelled/waitlisted scan denial.
+- Server unit coverage proves future-event timing disables scan check-in and rejects direct check-in writes before the pre-start window opens. Server unit coverage also proves pending, cancelled, and waitlisted registrations disable scan check-in and reject direct check-in writes.
 - `tests/docs/events/register.doc.ts` documents that the ticket QR code is available after registration/payment, but there is no generated documentation journey for organizers scanning attendees.
 - `QUALITY.md` lists participant and guest-quantity check-in as high-value Playwright flows, but guest quantities are not represented in the reviewed check-in contract/UI.
 
@@ -813,7 +813,7 @@ the current working direction until a product decision overrides them.
 ### Recommended Cleanup Actions
 
 - Keep server tests for same-user scans, unauthorized tenant users, duplicate scans, and counter updates.
-- Add server tests for pending/cancelled/waitlisted registrations.
+- Keep server tests for pending/cancelled/waitlisted registrations.
 - Extend the Playwright scanner spec to assert the organizer overview/check-in aggregate once runtime Browser review is available.
 - Add generated organizer documentation for scanning an attendee once the mutation exists.
 - Keep scanner camera-error mapping covered by unit tests as browser/device behavior changes.
@@ -1154,6 +1154,7 @@ implement those decisions or explicitly revise them there before changing code.
 - Receipt amount validation pass: rejected receipt submit/review payloads where tax exceeds the total amount and added focused server coverage for both write paths.
 - Payment-status deprecation pass: stopped active profile/user-event reads and fixture setup from relying on `event_registrations.paymentStatus`; user-facing payment state now derives from registration transaction rows while the nullable legacy column awaits a later schema migration.
 - Receipt timing pass: restricted receipt submission to events whose end time has passed and pointed receipt Playwright setup at the deterministic past event fixture.
+- Scanner status-coverage pass: added focused scan-read and direct-check-in coverage for pending, cancelled, and waitlisted registrations.
 
 ## Review Next
 

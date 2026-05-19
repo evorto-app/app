@@ -100,6 +100,12 @@ const scannedRegistration = {
   userId: 'attendee-1',
 };
 
+const nonConfirmedRegistrationStatuses = [
+  'CANCELLED',
+  'PENDING',
+  'WAITLIST',
+] as const;
+
 describe('event registration scan handlers', () => {
   it.effect('rejects scan reads for users who cannot check in this event', () =>
     Effect.gen(function* () {
@@ -156,6 +162,39 @@ describe('event registration scan handlers', () => {
       expect(result.sameUserIssue).toBe(false);
     }),
   );
+
+  for (const status of nonConfirmedRegistrationStatuses) {
+    it.effect(`disables scan check-in for ${status} registrations`, () =>
+      Effect.gen(function* () {
+        const database = {
+          query: {
+            eventRegistrations: {
+              findFirst: () =>
+                Effect.succeed({
+                  ...scannedRegistration,
+                  status,
+                }),
+            },
+          },
+        };
+
+        const result = yield* eventRegistrationHandlers[
+          'events.registrationScanned'
+        ]({ registrationId: 'registration-1' }, { headers: {} } as never).pipe(
+          Effect.provide(
+            createContextLayer({
+              database,
+              user: createUser({ permissions: ['events:organizeAll'] }),
+            }),
+          ),
+        );
+
+        expect(result.allowCheckin).toBe(false);
+        expect(result.registrationStatusIssue).toBe(true);
+        expect(result.sameUserIssue).toBe(false);
+      }),
+    );
+  }
 
   it.effect(
     'records check-in and increments the option counter for an organizer',
@@ -361,4 +400,48 @@ describe('event registration scan handlers', () => {
       );
     }),
   );
+
+  for (const status of nonConfirmedRegistrationStatuses) {
+    it.effect(`rejects direct check-in for ${status} registrations`, () =>
+      Effect.gen(function* () {
+        const database = {
+          query: {
+            eventRegistrations: {
+              findFirst: () =>
+                Effect.succeed({
+                  checkInTime: null,
+                  event: {
+                    start: new Date(Date.now() + 30 * 60 * 1000),
+                  },
+                  eventId: 'event-1',
+                  id: 'registration-1',
+                  registrationOptionId: 'option-1',
+                  status,
+                  userId: 'attendee-1',
+                }),
+            },
+          },
+          transaction: vi.fn(),
+        };
+
+        const error = yield* eventRegistrationHandlers[
+          'events.checkInRegistration'
+        ]({ registrationId: 'registration-1' }, { headers: {} } as never).pipe(
+          Effect.flip,
+          Effect.provide(
+            createContextLayer({
+              database,
+              user: createUser({ permissions: ['events:organizeAll'] }),
+            }),
+          ),
+        );
+
+        expect(error['_tag']).toBe('EventRegistrationConflictError');
+        expect(error.message).toBe(
+          'Only confirmed registrations can be checked in',
+        );
+        expect(database.transaction).not.toHaveBeenCalled();
+      }),
+    );
+  }
 });
