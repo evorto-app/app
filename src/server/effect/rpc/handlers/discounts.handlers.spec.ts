@@ -1,9 +1,13 @@
 import { describe, expect, it, vi } from '@effect/vitest';
+import { RpcBadRequestError } from '@shared/errors/rpc-errors';
 import { Effect, Layer } from 'effect';
 
 import { Database } from '../../../../db';
 import { userDiscountCards } from '../../../../db/schema';
-import { Adapters } from '../../../discounts/providers';
+import {
+  Adapters,
+  ProviderValidationUnavailableError,
+} from '../../../discounts/providers';
 import {
   encodeRpcContextHeaderJson,
   RPC_CONTEXT_HEADERS,
@@ -218,4 +222,99 @@ describe('discountHandlers', () => {
       ),
     );
   });
+
+  it.effect(
+    'upsertMyCard reports provider outages as retryable validation errors',
+    () => {
+      const originalAdapter = Adapters.esnCard;
+      const validate = vi.fn(async () => {
+        throw new ProviderValidationUnavailableError(
+          'ESNcard validation provider is unavailable',
+          'unavailable',
+        );
+      });
+      Adapters.esnCard = { validate };
+
+      return Effect.gen(function* () {
+        const findFirst = vi
+          .fn()
+          .mockReturnValueOnce(Effect.succeed({ userId: 'user-1' }))
+          .mockReturnValueOnce(
+            Effect.succeed({
+              id: 'card-1',
+              identifier: 'OLD-ESN',
+              status: 'verified' as const,
+              type: 'esnCard' as const,
+              validTo: null,
+            }),
+          );
+        const updateReturning = vi.fn().mockReturnValueOnce(
+          Effect.succeed([
+            {
+              id: 'card-1',
+              identifier: 'ESN-123',
+              status: 'verified' as const,
+              type: 'esnCard' as const,
+              validTo: null,
+            },
+          ]),
+        );
+        const database = {
+          query: {
+            tenants: {
+              findFirst: () =>
+                Effect.succeed({
+                  discountProviders: {
+                    esnCard: {
+                      config: {},
+                      status: 'enabled',
+                    },
+                  },
+                }),
+            },
+            userDiscountCards: {
+              findFirst,
+            },
+          },
+          update: vi.fn((table: unknown) => {
+            expect(table).toBe(userDiscountCards);
+            return {
+              set: () => ({
+                where: () => ({
+                  returning: updateReturning,
+                }),
+              }),
+            };
+          }),
+        };
+
+        const error = yield* Effect.flip(
+          discountHandlers['discounts.upsertMyCard'](
+            {
+              identifier: 'ESN-123',
+              type: 'esnCard',
+            },
+            { headers: createHeaders(createTenant('tenant-2')) } as never,
+          ).pipe(Effect.provide(Layer.succeed(Database, database as never))),
+        );
+
+        expect(error).toBeInstanceOf(RpcBadRequestError);
+        expect(error).toMatchObject({
+          message: 'Could not validate ESN card right now. Try again later.',
+          reason: 'provider-unavailable',
+        });
+        expect(validate).toHaveBeenCalledWith({
+          config: {},
+          identifier: 'ESN-123',
+        });
+        expect(updateReturning).toHaveBeenCalledTimes(1);
+      }).pipe(
+        Effect.ensuring(
+          Effect.sync(() => {
+            Adapters.esnCard = originalAdapter;
+          }),
+        ),
+      );
+    },
+  );
 });
