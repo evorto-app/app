@@ -29,7 +29,9 @@ Start by navigating to the **Events** section from the main menu to see a list o
   });
 
   await page.getByRole('link', { name: 'Events' }).click();
-  await page.waitForTimeout(1000);
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'Events' }).first(),
+  ).toBeVisible();
   await takeScreenshot(
     testInfo,
     page.getByRole('heading', { level: 1, name: 'Events' }).first(),
@@ -58,7 +60,9 @@ To create a new event, click the **Create Event** link on the event list page. T
   });
 
   await page.getByRole('link', { name: 'Create Event' }).click();
-  await page.waitForTimeout(1000);
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'Event templates' }).first(),
+  ).toBeVisible();
   await takeScreenshot(
     testInfo,
     page.getByRole('heading', { level: 1, name: 'Event templates' }).first(),
@@ -98,10 +102,7 @@ After selecting a template and customizing your event, you can create it and pro
   await page.getByRole('button', { name: 'Create Event' }).click();
 
   // Wait for the event details page to load
-  await page.waitForSelector(`h1:has-text("${templateName}")`);
-
-  // Wait for the page to stabilize
-  await page.waitForTimeout(1000);
+  await expect(page.getByRole('heading', { name: templateName })).toBeVisible();
 
   await testInfo.attach('markdown', {
     body: `
@@ -154,7 +155,9 @@ Note: The event created from the template already has registration options confi
   });
 
   // Take a screenshot of the existing registration options section
-  await page.waitForTimeout(1000);
+  await expect(
+    page.getByRole('heading', { level: 2, name: 'Registration' }).first(),
+  ).toBeVisible();
   await takeScreenshot(
     testInfo,
     page.getByRole('heading', { level: 2, name: 'Registration' }).first(),
@@ -182,7 +185,6 @@ For a full walkthrough of the review and approval lifecycle, see the dedicated E
   });
 
   // Take a screenshot of the event status section
-  await page.waitForTimeout(1000);
   const statusChip = page
     .getByText(/Draft|Pending Review|Approved|Rejected/i)
     .first();
