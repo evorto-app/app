@@ -306,6 +306,26 @@ export const eventQueryHandlers = {
         );
       }
 
+      const hasAnyRegistrationOption =
+        event.registrationOptions.length > 0
+          ? true
+          : Boolean(
+              yield* databaseEffect((database) =>
+                database.query.eventRegistrationOptions.findFirst({
+                  columns: {
+                    id: true,
+                  },
+                  where: {
+                    eventId: event.id,
+                  },
+                }),
+              ),
+            );
+      const registrationOptionsHiddenByEligibility =
+        Boolean(user) &&
+        event.registrationOptions.length === 0 &&
+        hasAnyRegistrationOption;
+
       const registrationOptionIds = event.registrationOptions.map(
         (registrationOption) => registrationOption.id,
       );
@@ -417,6 +437,7 @@ export const eventQueryHandlers = {
             };
           },
         ),
+        registrationOptionsHiddenByEligibility,
         reviewer: event.reviewer,
         start: event.start.toISOString(),
         status: event.status,
