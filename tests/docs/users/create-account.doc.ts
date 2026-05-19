@@ -23,7 +23,7 @@ if (!hasManagementEnvironment) {
   );
 }
 
-test('Create your account @needs-auth0-management @track(playwright-specs-track-linking_20260126) @doc(CREATE-ACCOUNT-DOC-01)', async ({
+test('Create your account @needs-auth0-management', async ({
   newUser,
   page,
   roles,

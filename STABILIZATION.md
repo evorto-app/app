@@ -1309,6 +1309,10 @@ implement those decisions or explicitly revise them there before changing code.
   `bun run test:e2e:docs:publish` script for writing generated docs and
   screenshots into the sibling `evorto-pages` checkout, while keeping normal
   `test:e2e:docs` output in ignored local `test-results/docs` paths.
+- Profile/account docs metadata pass: removed placeholder `@track`/`@doc`
+  title metadata from the profile, ESN discount-card, and create-account docs
+  while keeping meaningful gating tags such as `@finance` and
+  `@needs-auth0-management`.
 
 ## Review Next
 
