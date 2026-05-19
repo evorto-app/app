@@ -192,6 +192,7 @@ export class TemplateCreateEventComponent {
               : null,
             registrationMode: option.registrationMode,
             roleIds: option.roleIds,
+            sourceTemplateRegistrationOptionId: option.id || undefined,
             spots: option.spots,
             stripeTaxRateId: option.stripeTaxRateId?.trim()
               ? option.stripeTaxRateId

@@ -488,6 +488,7 @@ the current working direction until a product decision overrides them.
 - Event list filtering defaults to all statuses only for users with `events:seeDrafts`; other users only request approved events.
 - Event create/update handlers reject invalid start/end dates, event end times that are not after start times, and registration windows that close before they open.
 - Event find/update RPC contracts use the shared `EventLocation` schema instead of accepting arbitrary location payloads.
+- Event creation copies template option discounts by submitted source template option id instead of matching option titles.
 
 ### Intended Behavior From Product Context
 
@@ -501,7 +502,7 @@ the current working direction until a product decision overrides them.
 
 - **Addressed in stabilization pass:** event creation/update now reject end-before-start and close-before-open registration windows server-side.
 - **Addressed in stabilization pass:** event find/update RPC location fields now validate against the shared `EventLocation` schema.
-- **Should fix before relaunch:** event creation copies template option discounts by matching title plus organizer flag. Duplicate option titles can copy discounts to the wrong option.
+- **Addressed in stabilization pass:** event creation now copies template option discounts by source option identity, so duplicate option titles do not miscopy discounts.
 - **Should fix before relaunch:** `event-management.doc.ts` describes attendees, settings tabs, event categories/tags, featured images, and notification settings that do not appear to exist in the current event UI. This is misleading documentation, not just incomplete coverage.
 - **Should fix before relaunch:** direct event detail access for unlisted events is covered and seems intended, but the UI should make sharing semantics clearer for organizers/admins.
 - **Acceptable for now:** event edit locks are duplicated in guard, details `canEdit`, `findOneForEdit`, and `events.update`. Duplication is not ideal, but server-side checks are the source of truth.
@@ -514,7 +515,6 @@ the current working direction until a product decision overrides them.
 
 ### Recommended Cleanup Actions
 
-- Fix template-to-event discount copying to use stable source option identity instead of title matching.
 - Rewrite stale sections of `tests/docs/events/event-management.doc.ts` to describe only current UI behavior.
 
 ## Registrations
@@ -556,6 +556,7 @@ the current working direction until a product decision overrides them.
 
 - `tests/specs/events/free-registration.test.ts` covers the free registration happy path using seeded scenario handles.
 - `src/server/effect/rpc/handlers/events/events-lifecycle.handlers.spec.ts` covers server-side rejection of end-before-start events and close-before-open registration windows for event create/update.
+- `src/server/effect/rpc/handlers/events/events-lifecycle.handlers.spec.ts` covers template discount copying by stable source option id when template options share the same title.
 - `src/server/effect/rpc/handlers/events/events-rpcs.schema.spec.ts` covers acceptance and rejection for the shared event location schema now used by Events RPC contracts.
 - `tests/docs/events/register.doc.ts` covers free and paid registration as generated documentation and Stripe-backed evidence.
 - No reviewed test covers registration rejection for unpublished events, closed windows, ineligible roles, same user registering for organizer plus participant options, or concurrent capacity.
@@ -1107,24 +1108,23 @@ the current working direction until a product decision overrides them.
 ### Should Fix Before Relaunch
 
 1. Implement guest quantities, distinct waitlist joining, participant/admin cancellation, and transfer/resale.
-2. Fix template discount copying to use stable identities instead of title matching.
-3. Add Playwright coverage for negative registration paths and role-ineligible direct links.
-4. Make organizer signup semantics visible and distinct if it remains modeled as a registration option.
-5. Keep simple-mode templates as the primary authoring UI, but expand reusable template support for discounts, add-ons, questions, and organizer notes/checklists where practical.
-6. Implement `random` and `application` registration fulfillment semantics if
+2. Add Playwright coverage for negative registration paths and role-ineligible direct links.
+3. Make organizer signup semantics visible and distinct if it remains modeled as a registration option.
+4. Keep simple-mode templates as the primary authoring UI, but expand reusable template support for discounts, add-ons, questions, and organizer notes/checklists where practical.
+5. Implement `random` and `application` registration fulfillment semantics if
    those modes remain in the relaunch UI; otherwise hide them until their
    runtime behavior exists.
-7. Fix role hub display persistence or remove the currently misleading hub flags from the role form.
-8. Align role-assignment UI/docs with the migration-owned relaunch scope: migrated users start with correct roles, and product role-assignment UI is not the relaunch blocker.
-9. Clarify receipt reimbursement as a manual ledger action and rename UI away from "refund" unless money is actually moved.
-10. Validate receipt tax amount consistency and support pre-event receipt spending/submission.
-11. Add check-in timing, duplicate-scan, camera-error, and guest-quantity behavior before treating scanner UI as relaunch-ready.
-12. Clarify profile event cards, notification/login email behavior, global payout preference visibility, and global-per-user ESNcard validation UX before relaunch.
-13. Fill the tenant settings gap for one-domain relaunch support, branding, legal links/text, locale/currency/timezone, SEO fields, and global tenant-admin workflows.
-14. Make Playwright list/discovery side-effect-free and document or automate the local browser installation expectation.
-15. Update or regenerate `tests/test-inventory.md` after placeholder docs/specs are pruned.
-16. Move local generated docs defaults away from the sibling documentation checkout, or introduce an explicit docs-publish flow that cannot run accidentally during list/discovery.
-17. Keep `docker:start` reset behavior intentional and ensure seeded data is sufficient to get going from zero.
+6. Fix role hub display persistence or remove the currently misleading hub flags from the role form.
+7. Align role-assignment UI/docs with the migration-owned relaunch scope: migrated users start with correct roles, and product role-assignment UI is not the relaunch blocker.
+8. Clarify receipt reimbursement as a manual ledger action and rename UI away from "refund" unless money is actually moved.
+9. Validate receipt tax amount consistency and support pre-event receipt spending/submission.
+10. Add check-in timing, duplicate-scan, camera-error, and guest-quantity behavior before treating scanner UI as relaunch-ready.
+11. Clarify profile event cards, notification/login email behavior, global payout preference visibility, and global-per-user ESNcard validation UX before relaunch.
+12. Fill the tenant settings gap for one-domain relaunch support, branding, legal links/text, locale/currency/timezone, SEO fields, and global tenant-admin workflows.
+13. Make Playwright list/discovery side-effect-free and document or automate the local browser installation expectation.
+14. Update or regenerate `tests/test-inventory.md` after placeholder docs/specs are pruned.
+15. Move local generated docs defaults away from the sibling documentation checkout, or introduce an explicit docs-publish flow that cannot run accidentally during list/discovery.
+16. Keep `docker:start` reset behavior intentional and ensure seeded data is sufficient to get going from zero.
 
 ### Acceptable For Now
 
