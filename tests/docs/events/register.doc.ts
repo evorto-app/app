@@ -78,7 +78,8 @@ test.describe('Register for events', () => {
   ### Successful registration
   You should now have a successful registration.
   You can see this by additional information being available and also your ticket QR code.
-  This code is needed when attending the event. Keep this page available because QR email delivery is not part of the current relaunch flow.`,
+  This code is needed when attending the event. Keep this page available because QR email delivery is not part of the current relaunch flow.
+  You can cancel a pending or confirmed registration from this event page before the event starts. Confirmed cancellation releases your spot, but paid-registration refunds are not automatic yet.`,
     });
 
     await takeScreenshot(
@@ -164,7 +165,7 @@ test.describe('Register for events', () => {
     await testInfo.attach('markdown', {
       body: `
   By clicking the **Pay and register** button, you are starting the payment process.
-  Afterwards, you can either finish the registration by paying or cancel your payment and registration in case you changed your mind.`,
+  Afterwards, you can either finish the registration by paying or cancel your payment and registration in case you changed your mind. Cancelling a pending payment registration releases the reserved spot and expires the pending checkout when possible.`,
     });
     await takeScreenshot(
       testInfo,

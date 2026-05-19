@@ -14,6 +14,34 @@ import {
 } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
+import { getErrorMessage } from '../../core/error-message';
+
+export const registrationCancellationCopy = (registration: {
+  paymentPending: boolean;
+  status: EventsRegistrationStatus;
+}): null | {
+  buttonLabel: string;
+  helperText: string;
+} => {
+  if (registration.status === 'PENDING') {
+    return {
+      buttonLabel: 'Cancel registration',
+      helperText: registration.paymentPending
+        ? 'This cancels the pending registration and releases the reserved spot. It does not complete a payment.'
+        : 'This cancels the pending registration and releases the reserved spot.',
+    };
+  }
+
+  if (registration.status === 'CONFIRMED') {
+    return {
+      buttonLabel: 'Cancel registration',
+      helperText:
+        'This cancels your confirmed registration and releases your spot. Paid-registration refunds are not automatic yet.',
+    };
+  }
+
+  return null;
+};
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -37,14 +65,16 @@ export class EventActiveRegistrationComponent {
       status: EventsRegistrationStatus;
     }[]
   >();
+  protected readonly cancellationCopy = registrationCancellationCopy;
   private readonly rpc = AppRpc.injectClient();
-  private readonly cancelPendingRegistrationMutation = injectMutation(() =>
-    this.rpc.events.cancelPendingRegistration.mutationOptions(),
+  protected readonly cancelRegistrationMutation = injectMutation(() =>
+    this.rpc.events.cancelRegistration.mutationOptions(),
   );
+
   private readonly queryClient = inject(QueryClient);
 
-  cancelPendingRegistration(registration: { id: string }) {
-    this.cancelPendingRegistrationMutation.mutate(
+  cancelRegistration(registration: { id: string }) {
+    this.cancelRegistrationMutation.mutate(
       {
         registrationId: registration.id,
       },
@@ -53,8 +83,15 @@ export class EventActiveRegistrationComponent {
           await this.queryClient.invalidateQueries(
             this.rpc.queryFilter(['events', 'getRegistrationStatus']),
           );
+          await this.queryClient.invalidateQueries(
+            this.rpc.queryFilter(['events', 'findOne']),
+          );
         },
       },
     );
+  }
+
+  protected errorMessage(error: unknown): string {
+    return getErrorMessage(error, 'Cancellation failed');
   }
 }
