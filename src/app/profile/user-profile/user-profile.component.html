@@ -76,17 +76,62 @@
           @if (userEventsQuery.isSuccess()) {
             @if (userEventsQuery.data().length) {
               <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                @for (event of userEventsQuery.data(); track event.id) {
-                  <div
+                @for (
+                  event of userEventsQuery.data();
+                  track event.registrationId
+                ) {
+                  <article
                     class="bg-surface-container-high grid gap-1 rounded-xl p-4"
                   >
-                    <h3 class="text-primary text-lg font-semibold">
-                      {{ event.title }}
-                    </h3>
-                    <p class="text-on-surface-variant text-sm">
-                      {{ event.start | date: "medium" }}
-                    </p>
-                  </div>
+                    <div
+                      class="flex flex-wrap items-start justify-between gap-3"
+                    >
+                      <div>
+                        <h3 class="text-primary text-lg font-semibold">
+                          {{ event.title }}
+                        </h3>
+                        <p class="text-on-surface-variant text-sm">
+                          {{ event.start | date: "medium" }}
+                        </p>
+                      </div>
+                      <span
+                        class="rounded bg-surface px-2 py-1 text-xs uppercase"
+                      >
+                        {{ registrationStatusLabel(event.status) }}
+                      </span>
+                    </div>
+                    <dl class="grid gap-1 text-sm">
+                      <div>
+                        <dt class="text-on-surface-variant inline">Option:</dt>
+                        <dd class="inline">
+                          {{ event.registrationOptionTitle }}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt class="text-on-surface-variant inline">Payment:</dt>
+                        <dd class="inline">
+                          {{ registrationPaymentLabel(event.paymentStatus) }}
+                        </dd>
+                      </div>
+                      @if (event.checkInTime) {
+                        <div>
+                          <dt class="text-on-surface-variant inline">
+                            Checked in:
+                          </dt>
+                          <dd class="inline">
+                            {{ event.checkInTime | date: "medium" }}
+                          </dd>
+                        </div>
+                      }
+                    </dl>
+                    <a
+                      mat-stroked-button
+                      [routerLink]="['/events', event.eventId]"
+                      class="mt-2 justify-self-start"
+                    >
+                      View event
+                    </a>
+                  </article>
                 }
               </div>
             } @else {

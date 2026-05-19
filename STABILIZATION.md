@@ -844,7 +844,7 @@ the current working direction until a product decision overrides them.
 ### Issues and Risks
 
 - **Addressed in stabilization pass:** create-account stores `communicationEmail`, and profile now shows the Auth0 login email separately from the editable notification email. Profile edit updates `communicationEmail` alongside name and reimbursement fields.
-- **Should fix before relaunch:** profile event cards show only event title and start date. They do not link to event details, show registration status, option, payment state, waitlist state, QR/ticket availability, or cancellation/refund state.
+- **Addressed in stabilization pass:** profile event cards now link to event details and show registration status, selected option, payment state, and check-in time when available. Profile still leaves payment continuation, QR/ticket display, cancellation/refund action, and transfer/resale workflows to the event-detail flow or future work.
 - **Should fix before relaunch:** profile payout fields are global user fields. That may be fine for a global user model, but reimbursement workflows may need tenant-specific payout preferences or at least clear copy.
 - **Addressed in stabilization pass:** ESNcard save, refresh, and remove actions now clear stale errors, show visible pending button states, and map mutation failures through `getErrorMessage(...)` instead of rendering raw error objects.
 - **Should fix before relaunch:** ESNcard validation calls the external provider without an explicit timeout or typed provider-error distinction. Provider downtime currently maps through adapter status, but the UX cannot explain retry vs invalid card clearly.
@@ -874,7 +874,7 @@ the current working direction until a product decision overrides them.
 ### Recommended Cleanup Actions
 
 - Add Browser-backed profile edit persistence coverage for notification email once runtime review is available.
-- Add profile event cards that link to events and display registration/payment/waitlist/ticket state from durable contract fields.
+- Add Browser-backed profile event-card coverage for event links and registration/payment/check-in state once runtime review is available.
 - Add profile discount-card tests for add/refresh/remove and provider validation outcomes once runtime/browser review is available.
 - Add profile/account tests for account creation retry/tenant-join behavior, profile edit persistence, ESNcard add/refresh/remove, and submitted receipt visibility.
 
@@ -1084,7 +1084,7 @@ the current working direction until a product decision overrides them.
 6. Remove or backfill the legacy `showInHub` role column now that active role writes use `displayInHub`.
 7. Decide whether pre-event receipt spending/submission remains allowed or needs event-policy gating.
 8. Add scanner camera-error and guest-quantity behavior before treating scanner UI as relaunch-ready.
-9. Clarify profile event cards, global payout preference visibility, and ESNcard provider failure semantics before relaunch.
+9. Clarify profile payment-continuation/ticket/cancellation actions, global payout preference visibility, and ESNcard provider failure semantics before relaunch.
 10. Fill the tenant settings gap for one-domain relaunch support, branding, legal links/text, locale/currency/timezone, SEO fields, and global tenant-admin workflows.
 11. Make Playwright list/discovery side-effect-free and document or automate the local browser installation expectation.
 12. Update or regenerate `tests/test-inventory.md` after placeholder docs/specs are pruned.
@@ -1137,6 +1137,7 @@ implement those decisions or explicitly revise them there before changing code.
 - Profile/account pass: guarded `/create-account` with authentication, reworked `users.createAccount` into a transactional tenant-account creation flow that can attach an existing global user to the current tenant while assigning default roles, and aligned ESNcard records with the global-per-user decision.
 - Profile ESNcard UX pass: mapped discount-card save/refresh/remove failures through readable error messages, added visible pending button states, and documented the current profile discount-card behavior.
 - Profile notification-email pass: exposed login email and notification email separately in the profile UI, made notification email editable through the profile dialog, and persisted it through `users.updateProfile`.
+- Profile event-card pass: extended `users.events` to return active registration summaries with option, status, payment, and check-in fields, and rendered profile event cards with event-detail links and readable registration state.
 - Tenant/global-admin pass: guarded global-admin routes with `globalAdmin:manageTenants`, decoupled global-admin permission resolution from current-tenant assignment, required tenant user context to have a current-tenant assignment, and fixed granted group wildcards such as `globalAdmin:*` to satisfy concrete permission checks.
 - Tenant-resolution pass: added focused `resolveTenantContext` coverage for non-local host precedence over cookies, localhost cookie fallback, stale localhost cookie fallback, and unknown non-local host failure.
 - Generated docs/Playwright pass: replaced stale Effect config-provider calls in Playwright config/support files so `test:e2e -- --list` and `test:e2e:docs -- --list` can discover tests again.
@@ -1152,4 +1153,4 @@ implement those decisions or explicitly revise them there before changing code.
 
 ## Review Next
 
-All ten first-pass review areas are now represented in this document. The next stabilization work should continue with small cleanup commits around the remaining relaunch gaps: profile event-card and payout clarity, receipt timing/notification/payment-status follow-ups, scanner camera-error/guest-quantity behavior, tenant settings scope, role hub-field legacy migration, and replacing intentionally fixme-only price/tax specs with active Browser-backed coverage once the local runtime is available.
+All ten first-pass review areas are now represented in this document. The next stabilization work should continue with small cleanup commits around the remaining relaunch gaps: profile payment/ticket/action and payout clarity, receipt timing/notification/payment-status follow-ups, scanner camera-error/guest-quantity behavior, tenant settings scope, role hub-field legacy migration, and replacing intentionally fixme-only price/tax specs with active Browser-backed coverage once the local runtime is available.

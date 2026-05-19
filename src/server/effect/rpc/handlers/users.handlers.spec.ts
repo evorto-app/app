@@ -256,6 +256,7 @@ describe('userHandlers', () => {
             findMany: () =>
               Effect.succeed([
                 {
+                  checkInTime: null,
                   event: {
                     description: 'later',
                     end: new Date('2026-03-01T11:00:00.000Z'),
@@ -264,8 +265,15 @@ describe('userHandlers', () => {
                     title: 'Later Event',
                   },
                   eventId: 'event-2',
+                  id: 'registration-2',
+                  paymentStatus: 'PENDING',
+                  registrationOption: {
+                    title: 'Standard',
+                  },
+                  status: 'PENDING',
                 },
                 {
+                  checkInTime: new Date('2026-02-01T10:30:00.000Z'),
                   event: {
                     description: 'earlier',
                     end: new Date('2026-02-01T11:00:00.000Z'),
@@ -274,10 +282,23 @@ describe('userHandlers', () => {
                     title: 'Earlier Event',
                   },
                   eventId: 'event-1',
+                  id: 'registration-1',
+                  paymentStatus: null,
+                  registrationOption: {
+                    title: 'Participant',
+                  },
+                  status: 'CONFIRMED',
                 },
                 {
+                  checkInTime: null,
                   event: null,
                   eventId: 'event-missing',
+                  id: 'registration-missing',
+                  paymentStatus: null,
+                  registrationOption: {
+                    title: 'Missing',
+                  },
+                  status: 'CONFIRMED',
                 },
               ]),
           },
@@ -291,7 +312,32 @@ describe('userHandlers', () => {
         } as never,
       ).pipe(Effect.provide(Layer.succeed(Database, mockDatabase as never)));
 
-      expect(result.map((event) => event.id)).toEqual(['event-1', 'event-2']);
+      expect(result).toEqual([
+        {
+          checkInTime: '2026-02-01T10:30:00.000Z',
+          description: 'earlier',
+          end: '2026-02-01T11:00:00.000Z',
+          eventId: 'event-1',
+          paymentStatus: null,
+          registrationId: 'registration-1',
+          registrationOptionTitle: 'Participant',
+          start: '2026-02-01T10:00:00.000Z',
+          status: 'CONFIRMED',
+          title: 'Earlier Event',
+        },
+        {
+          checkInTime: null,
+          description: 'later',
+          end: '2026-03-01T11:00:00.000Z',
+          eventId: 'event-2',
+          paymentStatus: 'PENDING',
+          registrationId: 'registration-2',
+          registrationOptionTitle: 'Standard',
+          start: '2026-03-01T10:00:00.000Z',
+          status: 'PENDING',
+          title: 'Later Event',
+        },
+      ]);
     }),
   );
 
