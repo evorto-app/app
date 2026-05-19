@@ -161,11 +161,7 @@
                         mat-stroked-button
                         [routerLink]="['/events', event.eventId]"
                       >
-                        @if (event.status === "CONFIRMED") {
-                          View ticket
-                        } @else {
-                          View event
-                        }
+                        {{ profileEventDetailActionLabel() }}
                       </a>
                     </div>
                   </article>
