@@ -1145,7 +1145,8 @@ the current working direction until a product decision overrides them.
 ### Must Fix Before Agent Scaling
 
 1. Continue pruning misleading placeholder tests/docs from profile/account and remaining thin documentation surfaces before agents treat generated docs as product truth.
-2. Continue auditing remaining `test.skip` usage so credential/integration skips stay explicit and fixture-state gaps become hard failures or honest `test.fixme` states.
+2. Keep the Playwright skip/fixme inventory guard current whenever an
+   intentional credential gate or Browser-backed placeholder changes.
 3. Keep server-side template permission, validation, and route-guard coverage in place as template behavior expands beyond simple mode.
 4. Keep role lookup APIs lookup-only for event/template eligibility flows; do not re-expose admin role-management data to organizers.
 5. Keep admin, finance, global-admin, and template direct-route denial coverage current as route trees change.
@@ -1155,13 +1156,12 @@ the current working direction until a product decision overrides them.
 
 1. Implement transfer/resale; keep automatic refund handling visible until the finance flow is implemented.
 2. Add Playwright coverage for negative registration paths and role-ineligible direct links.
-3. Keep organizer/helper signup copy distinct from participant registration as event/template registration-option surfaces evolve.
-4. Keep simple-mode templates as the primary authoring UI, but expand reusable template support for discounts, add-ons, and questions where practical. Organizer planning tips are now exposed as the first private organizer-notes field.
-5. Run the covered legacy-field migration path in production so any existing physical `showInHub`, `paymentStatus`, and `payment_status` artifacts are dropped now that active schema/API code no longer uses them.
-6. Add Browser-backed scanner/organizer aggregate review once local runtime is available.
-7. Add Browser-backed profile coverage for payment-continuation, ticket/cancellation routing, waitlist messaging, and ESNcard provider failure semantics once local runtime is available.
-8. Fill the remaining tenant settings implementation gap for branding uploads, legal text pages, onboarding/domain workflows, locale/currency/timezone policy, and global tenant-admin workflows. The current general-settings page exposes SEO fields, externally hosted logo/favicon URLs, tenant legal links, read-only runtime identity, and a visible deferred-settings summary.
-9. Keep `docker:start` reset behavior intentional and ensure seeded data is sufficient to get going from zero.
+3. Keep simple-mode templates as the primary authoring UI, but expand reusable template support for discounts, add-ons, and questions where practical. Organizer planning tips are now exposed as the first private organizer-notes field.
+4. Run the covered legacy-field migration path in production so any existing physical `showInHub`, `paymentStatus`, and `payment_status` artifacts are dropped now that active schema/API code no longer uses them.
+5. Add Browser-backed scanner/organizer aggregate review once local runtime is available.
+6. Add Browser-backed profile coverage for payment-continuation, ticket/cancellation routing, waitlist messaging, and ESNcard provider failure semantics once local runtime is available.
+7. Fill the remaining tenant settings implementation gap for branding uploads, legal text pages, onboarding/domain workflows, locale/currency/timezone policy, and global tenant-admin workflows. The current general-settings page exposes SEO fields, externally hosted logo/favicon URLs, tenant legal links, read-only runtime identity, and a visible deferred-settings summary.
+8. Keep `docker:start` reset behavior intentional and ensure seeded data is sufficient to get going from zero.
 
 ### Acceptable For Now
 
@@ -1180,6 +1180,7 @@ the current working direction until a product decision overrides them.
 13. Local runtime scripts now refresh `.env.dev` before running Playwright, database, or Docker commands.
 14. Angular and server unit-test commands now have separate test discovery ownership.
 15. Docker start commands now run a non-mutating required-secret preflight before tearing down or starting containers.
+16. Organizer/helper signup copy is covered separately from participant registration copy, and full participant options expose the waitlist action instead of a normal registration action.
 
 ### Product Decisions Recorded
 
@@ -1343,6 +1344,10 @@ implement those decisions or explicitly revise them there before changing code.
   `STRIPE_API_KEY` are provided, while Font Awesome premium/brand registry
   access and Docker Compose config still validate. Playwright browser cache is
   still missing and needs `bun run test:e2e:install` before page-backed runs.
+- Backlog evidence refresh: reran the skip/fixme inventory guard, the legacy
+  stabilization field guard, and the focused registration copy/deferred-action
+  component specs before pruning completed organizer/helper signup and skip
+  audit action wording from the prioritized backlog.
 
 ## Review Next
 
