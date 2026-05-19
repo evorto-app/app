@@ -1294,6 +1294,9 @@ implement those decisions or explicitly revise them there before changing code.
   scripts remain gated by `docker:check`, Compose consumes the required runtime
   variables, and the Font Awesome build secret path continues to support both
   premium and brand icon packages.
+- Font Awesome registry contract pass: pinned that both the premium duotone icon
+  package and the brand icon package stay installed through the shared Font
+  Awesome registry path used by local installs and Docker builds.
 - Profile discount-fragment pass: kept `/profile#discounts` stable while
   tenant ESNcard provider data loads, so direct links and docs journeys do not
   fall back permanently to the overview before the Discounts section becomes

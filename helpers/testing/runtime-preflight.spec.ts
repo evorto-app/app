@@ -100,6 +100,32 @@ describe('evaluateRuntimePreflight', () => {
     expect(npmrc).toContain('//npm.fontawesome.com/:_authToken=');
   });
 
+  it('keeps premium and brand icon packages on the Font Awesome registry path', () => {
+    const packageJson = JSON.parse(
+      fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8'),
+    ) as { dependencies: Record<string, string> };
+    const lockfile = fs.readFileSync(
+      path.join(process.cwd(), 'bun.lock'),
+      'utf8',
+    );
+
+    expect(packageJson.dependencies).toEqual(
+      expect.objectContaining({
+        '@fortawesome/duotone-regular-svg-icons': expect.any(String),
+        '@fortawesome/free-brands-svg-icons': expect.any(String),
+      }),
+    );
+
+    for (const packageName of [
+      '@fortawesome/duotone-regular-svg-icons',
+      '@fortawesome/free-brands-svg-icons',
+    ]) {
+      expect(lockfile).toContain(
+        `https://npm.fontawesome.com/${packageName}/-/`,
+      );
+    }
+  });
+
   it('keeps Docker startup scripts behind the non-mutating preflight', () => {
     const packageJson = JSON.parse(
       fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8'),
