@@ -95,6 +95,26 @@ const buildRegistrationOptionInsert = ({
   };
 };
 
+const validateRegistrationOffsetOrdering = ({
+  kind,
+  registration,
+}: {
+  kind: 'organizer' | 'participant';
+  registration: SimpleTemplateRegistrationInput;
+}) => {
+  if (
+    registration.openRegistrationOffset < registration.closeRegistrationOffset
+  ) {
+    return Effect.fail(
+      new TemplateSimpleBadRequestError({
+        message: `${kind} registration must open before it closes`,
+      }),
+    );
+  }
+
+  return Effect.void;
+};
+
 export class SimpleTemplateService extends Context.Service<SimpleTemplateService>()(
   '@server/effect/rpc/handlers/templates/SimpleTemplateService',
   {
@@ -150,6 +170,15 @@ export class SimpleTemplateService extends Context.Service<SimpleTemplateService
             }),
           );
         }
+
+        yield* validateRegistrationOffsetOrdering({
+          kind: 'organizer',
+          registration: input.organizerRegistration,
+        });
+        yield* validateRegistrationOffsetOrdering({
+          kind: 'participant',
+          registration: input.participantRegistration,
+        });
 
         yield* validateRegistrationTaxRate({
           kind: 'organizer',
