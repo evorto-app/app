@@ -42,6 +42,18 @@ export const scannerCameraErrorMessage = (error: unknown): string => {
   }
 };
 
+export const registrationIdFromScannedTicketUrl = (
+  scannedLink: string,
+): string | undefined => {
+  try {
+    const url = new URL(scannedLink);
+    const match = /^\/scan\/registration\/([^/]+)$/.exec(url.pathname);
+    return match?.[1];
+  } catch {
+    return;
+  }
+};
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [MatButtonModule],
@@ -74,22 +86,14 @@ export class ScannerComponent implements OnDestroy {
 
   private handleScanResult(result: QrScanner.ScanResult) {
     const scannedLink = result.data as string;
-    try {
-      const url = new URL(scannedLink);
-      if (url.pathname.startsWith('/scan/registration/')) {
-        const registrationId = url.pathname.split('/').pop();
-        if (registrationId) {
-          this.router.navigate(['/scan/registration', registrationId]);
-          return;
-        }
-      } else {
-        this.errorMessage.set(`Unknown link structure: ${scannedLink}`);
-        void this.startScanner();
-      }
-    } catch {
+    const registrationId = registrationIdFromScannedTicketUrl(scannedLink);
+    if (!registrationId) {
       this.errorMessage.set('Invalid QR code');
       void this.startScanner();
+      return;
     }
+
+    this.router.navigate(['/scan/registration', registrationId]);
   }
 
   private async setupScanner(): Promise<void> {
