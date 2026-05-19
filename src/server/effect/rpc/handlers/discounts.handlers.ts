@@ -85,10 +85,6 @@ export const discountHandlers = {
   'discounts.deleteMyCard': (input, options) =>
     Effect.gen(function* () {
       yield* ensureAuthenticated(options.headers);
-      const tenant = decodeHeaderJson(
-        options.headers[RPC_CONTEXT_HEADERS.TENANT],
-        Tenant,
-      );
       const user = yield* requireUserHeader(options.headers);
 
       yield* databaseEffect((database) =>
@@ -96,7 +92,6 @@ export const discountHandlers = {
           .delete(userDiscountCards)
           .where(
             and(
-              eq(userDiscountCards.tenantId, tenant.id),
               eq(userDiscountCards.userId, user.id),
               eq(userDiscountCards.type, input.type),
             ),
@@ -106,10 +101,6 @@ export const discountHandlers = {
   'discounts.getMyCards': (_payload, options) =>
     Effect.gen(function* () {
       yield* ensureAuthenticated(options.headers);
-      const tenant = decodeHeaderJson(
-        options.headers[RPC_CONTEXT_HEADERS.TENANT],
-        Tenant,
-      );
       const user = yield* requireUserHeader(options.headers);
       const cards = yield* databaseEffect((database) =>
         database.query.userDiscountCards.findMany({
@@ -121,7 +112,6 @@ export const discountHandlers = {
             validTo: true,
           },
           where: {
-            tenantId: tenant.id,
             userId: user.id,
           },
         }),
@@ -193,7 +183,6 @@ export const discountHandlers = {
             validTo: true,
           },
           where: {
-            tenantId: tenant.id,
             type: input.type,
             userId: user.id,
           },
@@ -304,7 +293,6 @@ export const discountHandlers = {
             validTo: true,
           },
           where: {
-            tenantId: tenant.id,
             type: input.type,
             userId: user.id,
           },
@@ -332,7 +320,6 @@ export const discountHandlers = {
               .insert(userDiscountCards)
               .values({
                 identifier: input.identifier,
-                tenantId: tenant.id,
                 type: input.type,
                 userId: user.id,
               })
