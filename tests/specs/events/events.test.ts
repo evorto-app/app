@@ -1,5 +1,4 @@
 import { organizerStateFile } from '../../../helpers/user-data';
-import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
 
 test.setTimeout(120_000);
@@ -11,31 +10,27 @@ test('create event form template @track(playwright-specs-track-linking_20260126)
   page,
   templates,
 }) => {
-  const freeTemplate = await (async () => {
-    for (const template of templates) {
-      const options = await database.query.templateRegistrationOptions.findMany(
-        {
-          where: { templateId: template.id },
-        },
-      );
-      if (
-        options.every(
-          (option) => !option.isPaid || option.stripeTaxRateId !== null,
-        )
-      ) {
-        return template;
-      }
-    }
-    return null;
-  })();
+  const template = templates.find((candidate) => candidate.seedKey === 'hike');
+  if (!template) {
+    throw new Error('Expected seeded hike template for event creation');
+  }
 
-  if (!freeTemplate) {
-    test.skip(
-      true,
-      'No template with valid tax rates (or all-free options) available for event creation.',
+  const options = await database.query.templateRegistrationOptions.findMany({
+    where: { templateId: template.id },
+  });
+  if (options.length === 0) {
+    throw new Error(
+      `Expected seeded template "${template.title}" to have registration options`,
     );
   }
-  const template = freeTemplate!;
+  if (
+    options.some((option) => option.isPaid && option.stripeTaxRateId === null)
+  ) {
+    throw new Error(
+      `Expected seeded template "${template.title}" paid options to have tax rates`,
+    );
+  }
+
   await page.goto('.');
   await page.getByRole('link', { name: 'Templates' }).click();
   await expect(page).toHaveURL(/\/templates/);
@@ -54,12 +49,7 @@ test('create event form template @track(playwright-specs-track-linking_20260126)
   }
   const createButton = page.getByRole('button', { name: 'Create event' });
   await expect(createButton).toBeVisible();
-  if (await createButton.isDisabled()) {
-    test.skip(
-      true,
-      'Create event is disabled (likely missing tax rates for paid options).',
-    );
-  }
+  await expect(createButton).toBeEnabled();
   await createButton.click();
   await page.waitForURL(/\/events\//, { timeout: 20000 });
   await expect(page).toHaveURL(/\/events\/[a-z0-9]+/);
