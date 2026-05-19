@@ -493,4 +493,35 @@ describe('userHandlers', () => {
       });
     }),
   );
+
+  it('userAssigned reflects the current tenant assignment header', () => {
+    expect(
+      Effect.runSync(
+        userHandlers['users.userAssigned'](undefined, {
+          headers: {
+            [RPC_CONTEXT_HEADERS.USER_ASSIGNED]: 'true',
+          },
+        } as never),
+      ),
+    ).toBe(true);
+    expect(
+      Effect.runSync(
+        userHandlers['users.userAssigned'](undefined, {
+          headers: {
+            [RPC_CONTEXT_HEADERS.USER_ASSIGNED]: 'false',
+          },
+        } as never),
+      ),
+    ).toBe(false);
+  });
+
+  it('userAssigned fails closed when the assignment header is absent', () => {
+    expect(
+      Effect.runSync(
+        userHandlers['users.userAssigned'](undefined, {
+          headers: {},
+        } as never),
+      ),
+    ).toBe(false);
+  });
 });
