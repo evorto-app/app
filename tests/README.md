@@ -64,7 +64,7 @@ bun run lint
 - Starting the Docker stack is destructive for local database state by design because `db-setup` pushes schema and resets/seeds the Docker database on every start.
 - `bun run test:e2e:ui` opens unrestricted Playwright UI mode so you can choose projects and tests interactively.
 - Local Docker scripts preload the environment with `dotenv -c dev` before invoking Compose.
-- Use `bun run ...` package scripts, not a bare shell `dotenv` command. Local shells may resolve a different `dotenv` executable than `node_modules/.bin/dotenv`.
+- Use `bun run ...` package scripts, not a bare shell `dotenv` command. Local shells may resolve a different `dotenv` executable than `node_modules/.bin/dotenv`; when a direct external-tool command is unavoidable, spell it as `node_modules/.bin/dotenv -c dev -- ...`.
 - Playwright list/discovery commands do not clean or write generated docs
   output and may run without local Auth0/Stripe secrets. In list-only mode the
   Playwright config uses inert placeholder values for runtime-only secrets so
