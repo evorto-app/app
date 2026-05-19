@@ -89,7 +89,7 @@ const seedPendingReceiptForApproval = async ({
   });
 };
 
-test.skip('submit receipt from event organize page @track(finance-receipts_20260205) @req(FIN-RECEIPTS-01)', async ({
+test.skip('submit receipt from event organize page', async ({
   database,
   page,
   seeded,
@@ -127,7 +127,7 @@ test.skip('submit receipt from event organize page @track(finance-receipts_20260
   }
 });
 
-test.skip('approve and record receipt reimbursements in finance @track(finance-receipts_20260205) @req(FIN-RECEIPTS-02)', async ({
+test.skip('approve and record receipt reimbursements in finance', async ({
   database,
   page,
   seedDate,
@@ -178,7 +178,7 @@ test.skip('approve and record receipt reimbursements in finance @track(finance-r
   await expect(page.getByText('Selected total: 0.00 €').first()).toBeVisible();
 });
 
-test.skip('receipt dialog shows Other option when tenant allows it @track(finance-receipts_20260205) @req(FIN-RECEIPTS-03)', async ({
+test.skip('receipt dialog shows Other option when tenant allows it', async ({
   database,
   page,
   seeded,

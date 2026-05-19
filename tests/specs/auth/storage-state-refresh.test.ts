@@ -7,7 +7,7 @@ import {
   readStorageState,
 } from '../../support/utils/storage-state';
 
-test('storage state freshness - age and tenant cookie checks @track(playwright-specs-track-linking_20260126) @req(STORAGE-STATE-REFRESH-TEST-01)', async ({}, testInfo) => {
+test('storage state freshness - age and tenant cookie checks', async ({}, testInfo) => {
   const statePath = testInfo.outputPath('state.json');
   // Write a minimal valid storage state
   fs.writeFileSync(
