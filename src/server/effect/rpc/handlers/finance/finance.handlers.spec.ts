@@ -152,6 +152,47 @@ const databaseWithSubmittedReceipt = () => ({
     ),
 });
 
+const submittedReceiptRow = {
+  alcoholAmount: 0,
+  attachmentFileName: 'receipt.png',
+  attachmentMimeType: 'image/png',
+  attachmentStorageKey: 'local-unavailable/receipt.png',
+  createdAt: new Date('2026-05-19T10:00:00.000Z'),
+  depositAmount: 0,
+  eventId: 'event-1',
+  eventStart: new Date('2026-05-18T18:00:00.000Z'),
+  eventTitle: 'City Walk',
+  hasAlcohol: false,
+  hasDeposit: false,
+  id: 'receipt-1',
+  previewImageUrl: 'local-unavailable://receipt.png',
+  purchaseCountry: 'NL',
+  receiptDate: new Date('2026-05-18T00:00:00.000Z'),
+  refundedAt: null,
+  refundTransactionId: null,
+  rejectionReason: null,
+  reviewedAt: null,
+  status: 'submitted' as const,
+  submittedByUserId: 'user-1',
+  taxAmount: 20,
+  totalAmount: 100,
+  updatedAt: new Date('2026-05-19T10:00:00.000Z'),
+};
+
+const databaseWithMyReceipts = () => {
+  const query = {
+    from: () => query,
+    innerJoin: () => query,
+    orderBy: () => Effect.succeed([submittedReceiptRow]),
+    select: () => query,
+    where: () => query,
+  };
+
+  return {
+    select: () => query,
+  };
+};
+
 describe('financeHandlers composition', () => {
   it('contains the full finance rpc handler set', () => {
     expect(Object.keys(financeHandlers).toSorted()).toEqual([
@@ -167,6 +208,54 @@ describe('financeHandlers composition', () => {
       'finance.transactions.findMany',
     ]);
   });
+});
+
+describe('finance profile receipt reads', () => {
+  it.effect(
+    'returns normalized current-user receipt rows for profile display',
+    () =>
+      Effect.gen(function* () {
+        const result = yield* financeHandlers['finance.receipts.my'](
+          undefined,
+          { headers: {} } as never,
+        ).pipe(
+          Effect.provide(
+            createContextLayer([], {
+              database: databaseWithMyReceipts(),
+            }),
+          ),
+        );
+
+        expect(result).toEqual([
+          {
+            alcoholAmount: 0,
+            attachmentFileName: 'receipt.png',
+            attachmentMimeType: 'image/png',
+            attachmentStorageKey: 'local-unavailable/receipt.png',
+            createdAt: '2026-05-19T10:00:00.000Z',
+            depositAmount: 0,
+            eventId: 'event-1',
+            eventStart: '2026-05-18T18:00:00.000Z',
+            eventTitle: 'City Walk',
+            hasAlcohol: false,
+            hasDeposit: false,
+            id: 'receipt-1',
+            previewImageUrl: 'local-unavailable://receipt.png',
+            purchaseCountry: 'NL',
+            receiptDate: '2026-05-18T00:00:00.000Z',
+            refundedAt: null,
+            refundTransactionId: null,
+            rejectionReason: null,
+            reviewedAt: null,
+            status: 'submitted',
+            submittedByUserId: 'user-1',
+            taxAmount: 20,
+            totalAmount: 100,
+            updatedAt: '2026-05-19T10:00:00.000Z',
+          },
+        ]);
+      }),
+  );
 });
 
 describe('finance receipt media permissions', () => {
