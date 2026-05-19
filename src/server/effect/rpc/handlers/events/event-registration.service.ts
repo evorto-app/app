@@ -202,6 +202,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
               isPaid: true,
               openRegistrationTime: true,
               price: true,
+              registrationMode: true,
               reservedSpots: true,
               roleIds: true,
               spots: true,
@@ -266,6 +267,13 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           return yield* Effect.fail(
             new EventRegistrationConflictError({
               message: 'User is not eligible for this registration option',
+            }),
+          );
+        }
+        if (registrationOption.registrationMode !== 'fcfs') {
+          return yield* Effect.fail(
+            new EventRegistrationConflictError({
+              message: 'Registration option mode is not available yet',
             }),
           );
         }

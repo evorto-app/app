@@ -36,6 +36,7 @@ const approvedRegistrationOption = {
   isPaid: false,
   openRegistrationTime: new Date('2026-09-10T10:00:00.000Z'),
   price: 0,
+  registrationMode: 'fcfs',
   reservedSpots: 0,
   roleIds: ['role-1'],
   spots: 10,
@@ -141,6 +142,7 @@ describe('EventRegistrationService', () => {
               isPaid: true,
               openRegistrationTime: true,
               price: true,
+              registrationMode: true,
               reservedSpots: true,
               roleIds: true,
               spots: true,
@@ -380,6 +382,56 @@ describe('EventRegistrationService', () => {
       const error = yield* program;
       expect(error['_tag']).toBe('EventRegistrationConflictError');
       expect(error.message).toBe('Registration option has no available spots');
+    }),
+  );
+
+  it.effect('rejects registration for unsupported registration modes', () =>
+    Effect.gen(function* () {
+      const updateOptionCounters = vi.fn();
+      const mockDatabase = {
+        query: {
+          eventRegistrationOptions: {
+            findFirst: () =>
+              Effect.succeed({
+                ...approvedRegistrationOption,
+                registrationMode: 'random',
+              }),
+          },
+          eventRegistrations: {
+            findFirst: () => Effect.succeed(null),
+          },
+        },
+        update: updateOptionCounters,
+      };
+
+      const program = EventRegistrationService.registerForEvent({
+        eventId: 'event-1',
+        headers: Headers.empty,
+        registrationOptionId: 'option-1',
+        tenant: {
+          currency: 'EUR',
+          id: 'tenant-1',
+          stripeAccountId: undefined,
+        },
+        user: {
+          email: 'alice@example.com',
+          id: 'user-1',
+          roleIds: ['role-1'],
+        },
+      }).pipe(
+        Effect.flip,
+        Effect.provide(EventRegistrationService.Default),
+        Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+        Effect.provideService(StripeClient, stripeClient),
+        Effect.provide(configProviderLayer),
+      );
+
+      const error = yield* program;
+      expect(error['_tag']).toBe('EventRegistrationConflictError');
+      expect(error.message).toBe(
+        'Registration option mode is not available yet',
+      );
+      expect(updateOptionCounters).not.toHaveBeenCalled();
     }),
   );
 

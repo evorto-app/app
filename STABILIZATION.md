@@ -528,6 +528,7 @@ the current working direction until a product decision overrides them.
 - Full registration options are labeled as full in the event detail UI; waitlist joining remains unavailable.
 - Successful paid registration is confirmed through Stripe/webhook-side effects; the active registration UI only shows QR code for confirmed registrations.
 - Users with confirmed organizer registrations, `events:organizeAll`, or `finance:manageReceipts` can open the organize view.
+- Unsupported `random` and `application` registration options can still be read from stored data, but registration attempts against them fail closed until their fulfillment semantics exist.
 
 ### Intended Behavior From Product Context
 
@@ -548,6 +549,7 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** registration option lookup validates the related event tenant before proceeding.
 - **Should fix before relaunch:** no guest quantity is present in the event registration contract or UI, even though guest spots are an intended first-version behavior.
 - **Addressed in stabilization pass:** full options no longer present an enabled registration action; the UI labels waitlist joining as unavailable until the separate waitlist flow exists.
+- **Addressed in stabilization pass:** registration submission now rejects stored `random` and `application` options server-side instead of silently handling them as first-come-first-served.
 - **Should fix before relaunch:** cancellation exists only for pending user registrations; participant cancellation, admin cancellation, transfer/resale, and refund flows are not implemented in the reviewed event registration path.
 - **Addressed in stabilization pass:** active registration status now uses the shared persisted registration status literal union instead of raw `Schema.String`.
 - **Acceptable for now:** paid registration rollback is careful about cleaning up a failed checkout session creation path; deeper Stripe lifecycle review belongs in the finance pass.
@@ -555,7 +557,7 @@ the current working direction until a product decision overrides them.
 ### Test and Documentation Quality
 
 - `tests/specs/events/free-registration.test.ts` covers the free registration happy path using seeded scenario handles.
-- `src/server/effect/rpc/handlers/events/event-registration.service.spec.ts` covers server-side rejection for duplicate active registration, unpublished events, closed registration windows, role-ineligible users, cross-tenant options, full options, same-event second registrations across options, transactional duplicate races, and transactional capacity races.
+- `src/server/effect/rpc/handlers/events/event-registration.service.spec.ts` covers server-side rejection for duplicate active registration, unpublished events, closed registration windows, role-ineligible users, cross-tenant options, full options, unsupported registration modes, same-event second registrations across options, transactional duplicate races, and transactional capacity races.
 - `src/server/effect/rpc/handlers/events/events-lifecycle.handlers.spec.ts` covers server-side rejection of end-before-start events and close-before-open registration windows for event create/update.
 - `src/server/effect/rpc/handlers/events/events-lifecycle.handlers.spec.ts` covers template discount copying by stable source option id when template options share the same title.
 - `src/server/effect/rpc/handlers/events/events-rpcs.schema.spec.ts` covers acceptance and rejection for the shared event location schema now used by Events RPC contracts.
@@ -1118,6 +1120,7 @@ implement those decisions or explicitly revise them there before changing code.
 
 - None. The obvious issues found in Events and Registrations affect server-side behavior and need focused tests, so they should be handled as small follow-up cleanup commits rather than opportunistic edits inside the audit document commit.
 - Registration race-coverage pass: added focused `EventRegistrationService` tests for same-event second registrations across options, transactional duplicate races, and transactional capacity races.
+- Registration mode pass: blocked direct registration attempts for stored `random` and `application` registration options until their fulfillment semantics are implemented.
 - None in the Templates pass. The highest-value issues are permission and contract validation gaps that need targeted tests with the fixes.
 - Template docs/spec cleanup pass: removed the generic template doc discovery placeholder, converted the deferred template tax-rate spec to honest fixme-only declarations, and updated the Playwright inventory.
 - Permission evaluator pass: routed legacy server permission checks through the shared `includesPermission` helper so client and server agree on dependencies, wildcards, and legacy aliases, and added direct unit coverage for the shared evaluator plus tax-rate dependency behavior.
