@@ -11,6 +11,7 @@ import { injectQuery } from '@tanstack/angular-query-experimental';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import {
   filterGlobalAdminTenants,
+  globalAdminTenantListErrorMessage,
   globalAdminTenantRows,
 } from './tenant-list.rows';
 
@@ -33,6 +34,7 @@ export class TenantListComponent {
       this.tenantSearch(),
     ),
   );
+  protected readonly tenantListErrorMessage = globalAdminTenantListErrorMessage;
   protected readonly tenantRows = globalAdminTenantRows;
 
   protected updateTenantSearch(event: Event): void {

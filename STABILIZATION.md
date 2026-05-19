@@ -1306,6 +1306,9 @@ implement those decisions or explicitly revise them there before changing code.
 - Global-admin tenant-search pass: added client-side search across tenant
   operational fields and removed the dead placeholder tenant-list action while
   keeping the current surface read-only.
+- Global-admin tenant-list error pass: mapped tenant-list query failures
+  through shared readable error-message handling instead of rendering raw error
+  objects in the current global-admin surface.
 - User-list pagination pass: fixed the read-only tenant user list to paginate
   tenant-user assignments before loading role rows, so users with multiple
   roles no longer consume multiple page slots.

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   filterGlobalAdminTenants,
+  globalAdminTenantListErrorMessage,
   globalAdminTenantRows,
 } from './tenant-list.rows';
 
@@ -75,5 +76,23 @@ describe('filterGlobalAdminTenants', () => {
     expect(
       filterGlobalAdminTenants([tenant, secondTenant], 'not connected'),
     ).toEqual([secondTenant]);
+  });
+});
+
+describe('globalAdminTenantListErrorMessage', () => {
+  it('keeps tenant-list load failures readable', () => {
+    expect(globalAdminTenantListErrorMessage(null)).toBe(
+      'Failed to load tenants',
+    );
+    expect(
+      globalAdminTenantListErrorMessage({
+        _tag: 'RpcForbiddenError',
+      }),
+    ).toBe('Forbidden');
+    expect(
+      globalAdminTenantListErrorMessage({
+        message: 'Global admin permission is required',
+      }),
+    ).toBe('Global admin permission is required');
   });
 });
