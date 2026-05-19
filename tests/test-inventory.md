@@ -164,6 +164,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     Shared RPC schema coverage proves account-creation and profile-update
     notification email format validation, matching the create-account/profile
     edit form validators.
+    The integration-tagged create-account doc also asserts the editable email
+    field is labeled "Notification email" when Auth0 Management credentials are
+    available.
     Root route-manifest coverage keeps `/create-account` reachable to
     authenticated users without a tenant assignment while protected feature
     routes keep assigned-account and auth guards.
