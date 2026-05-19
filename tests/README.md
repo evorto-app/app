@@ -49,6 +49,8 @@ bun run lint
 - Check whether required local Docker secrets are available:
   `bun run docker:check`
 - Start the local runtime stack: `bun run docker:start`
+- Resume an existing local runtime stack without recreating containers:
+  `bun run docker:resume`
 - Start the local runtime stack in foreground for Playwright `webServer`: `bun run docker:start:foreground`
 - Start the local runtime stack in watch mode: `bun run docker:start:watch`
 - Stop the local runtime stack: `bun run docker:stop`
@@ -68,7 +70,12 @@ bun run lint
 - `.env.example` is the tracked no-secret checklist for Docker-required
   developer secrets.
 - `.env.local`, `.env.runtime`, and `.env.ci` are unsupported in this repo.
-- Starting the Docker stack is destructive for local database state by design because `db-setup` pushes schema and resets/seeds the Docker database on every start.
+- Starting the Docker stack with `docker:start`, `docker:start:foreground`, or
+  `docker:start:watch` is destructive for local database state by design because
+  those scripts run `docker compose down` and then `db-setup` pushes schema and
+  resets/seeds the Docker database. Use `docker:resume` only for an already
+  initialized stack when you want to bring containers back without recreating
+  them.
 - `bun run test:e2e:ui` opens unrestricted Playwright UI mode so you can choose projects and tests interactively.
 - Local Docker scripts preload the environment with `dotenv -c dev` before invoking Compose.
 - Use `bun run ...` package scripts, not a bare shell `dotenv` command. Local shells may resolve a different `dotenv` executable than `node_modules/.bin/dotenv`; when a direct external-tool command is unavoidable, spell it as `node_modules/.bin/dotenv -c dev -- ...`.
