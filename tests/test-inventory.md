@@ -182,7 +182,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 - Tenant/global admin:
   - Authenticated Browser review for the global-admin tenant list.
     Local server/app coverage already proves the list returns and renders
-    non-sensitive operational tenant state for support review.
+    non-sensitive operational tenant state for support review, and local app
+    coverage proves the read-only tenant list can be filtered by operational
+    fields.
 - Roles/user management:
   - Browser-backed least-privilege organizer review for event/template role
     selectors. Server coverage already proves lookup permissions and

@@ -26,8 +26,9 @@ Global admins can review tenants from the **Global admin** area. This is a platf
   ).toBeVisible();
   await page.getByRole('link', { name: 'Tenants' }).click();
   await expect(page.getByRole('heading', { name: 'Tenants' })).toBeVisible();
-  await expect(page.getByText('Domain:').first()).toBeVisible();
-  await expect(page.getByText('Tenant ID:').first()).toBeVisible();
+  await expect(page.getByLabel('Search tenants')).toBeVisible();
+  await expect(page.getByText('Primary domain').first()).toBeVisible();
+  await expect(page.getByText('Tenant ID').first()).toBeVisible();
   await takeScreenshot(
     testInfo,
     page.locator('app-tenant-list'),
@@ -39,7 +40,7 @@ Global admins can review tenants from the **Global admin** area. This is a platf
     body: `
 ## Current relaunch surface
 
-The current global-admin page is a tenant list. Each entry shows the tenant name, domain, tenant id, theme, locale, currency, timezone, and Stripe connection state for support and operational review.
+The current global-admin page is a searchable tenant list. Each entry shows the tenant name, domain, tenant id, theme, locale, currency, timezone, and Stripe connection state for support and operational review.
 
 Tenant creation, tenant editing, custom-domain verification, impersonation, and tenant-detail workflows are not implemented in this surface yet.
 `,
