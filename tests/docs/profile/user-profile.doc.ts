@@ -7,11 +7,7 @@ import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 
 test.use({ storageState: userStateFile });
 
-test('Manage user profile @track(playwright-specs-track-linking_20260126) @doc(USER-PROFILE-DOC-01)', async ({
-  database,
-  page,
-  seedDate,
-}, testInfo) => {
+test('Manage user profile', async ({ database, page, seedDate }, testInfo) => {
   const regularUser = usersToAuthenticate.find(
     (user) => user.stateFile === userStateFile,
   );
