@@ -43,7 +43,7 @@ The profile page displays your personal information, including:
 
 - Name
 - Email address
-- Payout details (IBAN / PayPal) for finance refunds
+- Payout details (IBAN / PayPal) for finance reimbursements
 
 From here you can open the edit dialog to update your profile details.
 `,

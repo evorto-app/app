@@ -140,7 +140,7 @@ export const permissionMatrix: PermissionMatrixCase[] = [
       roleName: 'Admin',
     },
     allowedRoute: '/finance/receipts-refunds',
-    capability: 'finance receipt refund access',
+    capability: 'finance receipt reimbursement access',
     deniedDiff: {
       add: [],
       remove: ['finance:refundReceipts'],

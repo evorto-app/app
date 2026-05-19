@@ -82,7 +82,7 @@ test('submit receipt from event organize page @track(finance-receipts_20260205) 
   await submitReceiptFromFirstEvent(page, eventId, receiptFile);
 });
 
-test('approve and refund receipts in finance @track(finance-receipts_20260205) @req(FIN-RECEIPTS-02)', async ({
+test('approve and record receipt reimbursements in finance @track(finance-receipts_20260205) @req(FIN-RECEIPTS-02)', async ({
   database,
   page,
   seedDate,
@@ -109,11 +109,11 @@ test('approve and refund receipts in finance @track(finance-receipts_20260205) @
 
   await page.goto('/finance/receipts-refunds');
   await expect(
-    page.getByText('No approved receipts are waiting for refund.'),
+    page.getByText('No approved receipts are waiting for reimbursement.'),
   ).not.toBeVisible();
 
   const refundSections = page.locator('section', {
-    has: page.getByRole('button', { name: 'Issue refund' }),
+    has: page.getByRole('button', { name: 'Record reimbursement' }),
   });
   const refundSection = refundSections.first();
   await expect(refundSection).toBeVisible();
@@ -125,7 +125,7 @@ test('approve and refund receipts in finance @track(finance-receipts_20260205) @
     .check();
 
   const issueRefundButton = refundSection.getByRole('button', {
-    name: 'Issue refund',
+    name: 'Record reimbursement',
   });
   await expect(issueRefundButton).toBeEnabled();
   await issueRefundButton.click();
