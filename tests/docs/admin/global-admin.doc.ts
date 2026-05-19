@@ -39,7 +39,7 @@ Global admins can review tenants from the **Global admin** area. This is a platf
     body: `
 ## Current relaunch surface
 
-The current global-admin page is a tenant list. Each entry shows the tenant name, domain, and tenant id for support and operational review.
+The current global-admin page is a tenant list. Each entry shows the tenant name, domain, tenant id, theme, locale, currency, timezone, and Stripe connection state for support and operational review.
 
 Tenant creation, tenant editing, custom-domain verification, impersonation, and tenant-detail workflows are not implemented in this surface yet.
 `,

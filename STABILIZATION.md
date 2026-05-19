@@ -1257,6 +1257,9 @@ implement those decisions or explicitly revise them there before changing code.
 - Playwright skip-inventory pass: added a local unit guard that allowlists every
   current Playwright `test.skip` and `test.fixme`, keeping future fixture-state
   gaps from becoming silent placeholders.
+- Global-admin tenant-list pass: expanded the tenant list contract and UI with
+  non-sensitive operational state for support review, including theme,
+  locale/currency/timezone, and Stripe connection status.
 
 ## Review Next
 

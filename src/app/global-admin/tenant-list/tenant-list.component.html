@@ -23,15 +23,21 @@
   @for (tenant of tenantQuery.data(); track tenant.id) {
     <div class="bg-surface text-on-surface mb-3 rounded-2xl p-4">
       <h2 class="title-medium">{{ tenant.name }}</h2>
-      <dl class="mt-2 grid gap-1 text-sm">
-        <div>
-          <dt class="text-on-surface-variant inline">Domain:</dt>
-          <dd class="inline">{{ tenant.domain }}</dd>
-        </div>
-        <div>
-          <dt class="text-on-surface-variant inline">Tenant ID:</dt>
-          <dd class="inline font-mono text-xs">{{ tenant.id }}</dd>
-        </div>
+      <dl class="mt-2 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+        @for (row of tenantRows(tenant); track row.label) {
+          <div>
+            <dt class="text-on-surface-variant text-xs uppercase">
+              {{ row.label }}
+            </dt>
+            <dd
+              class="break-words"
+              [class.font-mono]="row.monospace"
+              [class.text-xs]="row.monospace"
+            >
+              {{ row.value }}
+            </dd>
+          </div>
+        }
       </dl>
     </div>
   } @empty {

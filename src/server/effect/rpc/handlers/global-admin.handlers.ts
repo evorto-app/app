@@ -63,14 +63,22 @@ export const globalAdminHandlers = {
       const allTenants = yield* databaseEffect((database) =>
         database.query.tenants.findMany({
           columns: {
+            currency: true,
             domain: true,
             id: true,
+            locale: true,
             name: true,
+            stripeAccountId: true,
+            theme: true,
+            timezone: true,
           },
           orderBy: (table, { asc }) => [asc(table.name)],
         }),
       );
 
-      return allTenants;
+      return allTenants.map(({ stripeAccountId, ...tenant }) => ({
+        ...tenant,
+        stripeConnected: !!stripeAccountId,
+      }));
     }),
 } satisfies Partial<AppRpcHandlers>;
