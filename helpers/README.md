@@ -83,8 +83,11 @@ containers, including Neon Local, Auth0, Stripe, the app session secret, and
 Font Awesome package registry access for premium and brand icons. It also reports local
 tooling readiness such as Bun, Docker Compose, Compose config validation,
 Playwright CLI availability, and whether the matching Playwright browser cache
-is installed. Missing Playwright browsers are reported as a warning because
-they block local Playwright runs, not Docker startup.
+is installed. Required variables that are already available are listed without
+printing their values, so token paths such as Font Awesome registry access can
+be confirmed even when another required secret still blocks startup. Missing
+Playwright browsers are reported as a warning because they block local
+Playwright runs, not Docker startup.
 
 Docker Compose passes `STRIPE_TEST_ACCOUNT_ID` into both the `db-setup` service
 and the app container so the seeded local tenants can exercise paid registration

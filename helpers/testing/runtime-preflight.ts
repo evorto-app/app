@@ -227,13 +227,29 @@ export const evaluateRuntimePreflight = (
   const missingVariables = requiredByTarget[target].filter(
     ({ name }) => !isPresent(env, name),
   );
+  const presentVariables = requiredByTarget[target].filter(({ name }) =>
+    isPresent(env, name),
+  );
   const checks: RuntimeCheck[] = [
     {
-      details: missingVariables.map(
-        ({ description, name }) => `${name}: ${description}`,
-      ),
+      details:
+        missingVariables.length > 0
+          ? missingVariables.map(
+              ({ description, name }) => `${name}: ${description}`,
+            )
+          : ['All required variables are present.'],
       label: `Required ${target} runtime variables`,
       severity: missingVariables.length > 0 ? 'failure' : 'ok',
+    },
+    {
+      details:
+        presentVariables.length > 0
+          ? presentVariables.map(
+              ({ description, name }) => `${name}: ${description}`,
+            )
+          : ['No required variables are currently available.'],
+      label: `Available ${target} runtime variables`,
+      severity: 'ok',
     },
     {
       details: [path.join(cwd, '.env.dev')],

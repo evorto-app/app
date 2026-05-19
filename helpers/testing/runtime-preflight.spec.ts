@@ -115,6 +115,16 @@ describe('evaluateRuntimePreflight', () => {
           severity: 'failure',
         }),
         expect.objectContaining({
+          details: expect.arrayContaining([
+            'CLIENT_ID: Auth0 application id',
+            'ISSUER_BASE_URL: Auth0 issuer URL',
+            'NEON_PROJECT_ID: Neon Local project selection',
+            'SECRET: Application session secret',
+          ]),
+          label: 'Available docker runtime variables',
+          severity: 'ok',
+        }),
+        expect.objectContaining({
           details: ['/repo/.env.dev'],
           label: 'Generated worktree runtime env file',
           severity: 'failure',
@@ -135,6 +145,11 @@ describe('evaluateRuntimePreflight', () => {
     expect(result.warned).toBe(true);
     expect(result.checks).toEqual(
       expect.arrayContaining([
+        expect.objectContaining({
+          details: ['All required variables are present.'],
+          label: 'Required docker runtime variables',
+          severity: 'ok',
+        }),
         expect.objectContaining({
           details: expect.arrayContaining([
             'Missing /playwright/chromium',
