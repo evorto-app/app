@@ -21,5 +21,13 @@ export const createAccountModelFromAuthData = (
   lastName: trimmedOrUndefined(authData.family_name) ?? current.lastName,
 });
 
+export const createAccountPayloadFromModel = (
+  model: CreateAccountModel,
+): CreateAccountModel => ({
+  communicationEmail: model.communicationEmail.trim(),
+  firstName: model.firstName.trim(),
+  lastName: model.lastName.trim(),
+});
+
 export const createAccountErrorMessage = (error: unknown): string =>
   getErrorMessage(error, 'Failed to create account');

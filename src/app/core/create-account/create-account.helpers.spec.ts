@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   createAccountErrorMessage,
   createAccountModelFromAuthData,
+  createAccountPayloadFromModel,
 } from './create-account.helpers';
 
 describe('createAccountModelFromAuthData', () => {
@@ -46,6 +47,22 @@ describe('createAccountModelFromAuthData', () => {
       communicationEmail: 'notify@example.com',
       firstName: 'Manual',
       lastName: 'Name',
+    });
+  });
+});
+
+describe('createAccountPayloadFromModel', () => {
+  it('trims account creation fields before submitting them', () => {
+    expect(
+      createAccountPayloadFromModel({
+        communicationEmail: ' notify@example.com ',
+        firstName: ' Alice ',
+        lastName: ' Doe ',
+      }),
+    ).toEqual({
+      communicationEmail: 'notify@example.com',
+      firstName: 'Alice',
+      lastName: 'Doe',
     });
   });
 });

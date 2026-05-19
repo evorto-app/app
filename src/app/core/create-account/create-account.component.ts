@@ -19,6 +19,7 @@ import { AppRpc } from '../../core/effect-rpc-angular-client';
 import {
   createAccountErrorMessage,
   createAccountModelFromAuthData,
+  createAccountPayloadFromModel,
 } from './create-account.helpers';
 
 @Component({
@@ -64,7 +65,7 @@ export class CreateAccountComponent {
   async onSubmit(event: Event) {
     event.preventDefault();
     await submit(this.accountForm, async () => {
-      const payload = this.accountModel();
+      const payload = createAccountPayloadFromModel(this.accountModel());
       this.accountError.set('');
       try {
         await this.createAccountMutation.mutateAsync(payload);
