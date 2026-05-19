@@ -111,11 +111,12 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 - `docs/users/create-account.doc.ts` is integration-tagged with
   `@needs-auth0-management`; baseline list/discovery must not require those
   credentials.
-- `specs/finance/stripe-webhook-replay.spec.ts` skips individual webhook cases
-  when `STRIPE_WEBHOOK_SECRET` is absent. That skip is credential-gated, not a
-  substitute for product coverage. This is separate from the Docker stack's
-  Compose-managed Stripe listener, which shares its generated signing secret
-  with the app through `STRIPE_WEBHOOK_SECRET_FILE`.
+- `specs/finance/stripe-webhook-replay.spec.ts` is file-level skipped when
+  `STRIPE_WEBHOOK_SECRET` is absent, before page/database fixtures are
+  requested. That skip is credential-gated, not a substitute for product
+  coverage. This is separate from the Docker stack's Compose-managed Stripe
+  listener, which shares its generated signing secret with the app through
+  `STRIPE_WEBHOOK_SECRET_FILE`.
 - `specs/permissions/override.test.ts` is active desktop coverage for the
   permission override fixture; no mobile project currently runs this spec.
 - `specs/permissions/global-admin-route-guard.spec.ts` covers direct
