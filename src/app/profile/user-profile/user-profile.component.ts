@@ -18,7 +18,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import {
   faCalendarDays,
@@ -56,6 +56,7 @@ type ProfileSection = 'discounts' | 'events' | 'overview' | 'receipts';
     MatButtonModule,
     MatFormFieldModule,
     MatInputModule,
+    RouterLink,
   ],
   selector: 'app-user-profile',
   styles: ``,
@@ -261,6 +262,41 @@ export class UserProfileComponent {
         },
       },
     );
+  }
+
+  protected registrationPaymentLabel(
+    paymentStatus: 'PAID' | 'PENDING' | 'REFUNDED' | null,
+  ): string {
+    switch (paymentStatus) {
+      case 'PAID': {
+        return 'Payment recorded';
+      }
+      case 'PENDING': {
+        return 'Payment pending';
+      }
+      case 'REFUNDED': {
+        return 'Payment refunded';
+      }
+      default: {
+        return 'No payment required';
+      }
+    }
+  }
+
+  protected registrationStatusLabel(
+    status: 'CONFIRMED' | 'PENDING' | 'WAITLIST',
+  ): string {
+    switch (status) {
+      case 'CONFIRMED': {
+        return 'Confirmed';
+      }
+      case 'PENDING': {
+        return 'Pending';
+      }
+      case 'WAITLIST': {
+        return 'Waitlist';
+      }
+    }
   }
 
   protected async saveEsnCard(event: Event): Promise<void> {

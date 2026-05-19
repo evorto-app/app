@@ -215,7 +215,11 @@ export const userHandlers = {
       const registrations = yield* databaseEffect((database) =>
         database.query.eventRegistrations.findMany({
           columns: {
+            checkInTime: true,
             eventId: true,
+            id: true,
+            paymentStatus: true,
+            status: true,
           },
           where: {
             status: {
@@ -234,6 +238,11 @@ export const userHandlers = {
                 title: true,
               },
             },
+            registrationOption: {
+              columns: {
+                title: true,
+              },
+            },
           },
         }),
       );
@@ -244,17 +253,38 @@ export const userHandlers = {
 
       return registrations
         .flatMap((registration) =>
-          registration.event ? [registration.event] : [],
+          registration.event &&
+          registration.registrationOption &&
+          registration.status !== 'CANCELLED'
+            ? [
+                {
+                  checkInTime: registration.checkInTime,
+                  event: registration.event,
+                  paymentStatus: registration.paymentStatus,
+                  registrationId: registration.id,
+                  registrationOptionTitle:
+                    registration.registrationOption.title,
+                  status: registration.status,
+                },
+              ]
+            : [],
         )
         .toSorted(
-          (eventA, eventB) => eventA.start.getTime() - eventB.start.getTime(),
+          (registrationA, registrationB) =>
+            registrationA.event.start.getTime() -
+            registrationB.event.start.getTime(),
         )
-        .map((event) => ({
-          description: event.description ?? null,
-          end: event.end.toISOString(),
-          id: event.id,
-          start: event.start.toISOString(),
-          title: event.title,
+        .map((registration) => ({
+          checkInTime: registration.checkInTime?.toISOString() ?? null,
+          description: registration.event.description ?? null,
+          end: registration.event.end.toISOString(),
+          eventId: registration.event.id,
+          paymentStatus: registration.paymentStatus ?? null,
+          registrationId: registration.registrationId,
+          registrationOptionTitle: registration.registrationOptionTitle,
+          start: registration.event.start.toISOString(),
+          status: registration.status,
+          title: registration.event.title,
         }));
     }),
   'users.findMany': (input, options) =>

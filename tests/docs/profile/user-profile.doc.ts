@@ -93,7 +93,8 @@ The user profile now uses a two-column layout:
 
 - Left side: section navigation cards
 - Right side: selected section content
-- Sections include **Overview**, **Events**, **Discounts**, and **Receipts**
+- The **Events** section links each registration back to event details and shows registration status, selected option, payment state, and check-in time when available
+- Other sections include **Overview**, **Discounts**, and **Receipts**
 `,
   });
 
