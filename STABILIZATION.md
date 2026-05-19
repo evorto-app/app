@@ -963,8 +963,10 @@ the current working direction until a product decision overrides them.
 
 - Playwright has separate baseline spec and docs projects. Baseline specs exclude `tests/docs/**`; docs baseline runs `tests/docs/**/*.doc.ts`; integration-only docs are selected with `@needs-*` tags.
 - Local docs/spec discovery is runnable again after replacing stale Effect config APIs in `playwright.config.ts` and Playwright support files, and Auth0 Management credentials are no longer required just to import baseline fixtures.
-- `bun run test:e2e -- --list` discovers 78 baseline tests across 22 files, including setup projects, when the normal local runtime secrets are provided or stubbed for discovery.
-- `bun run test:e2e:docs -- --list` discovers 21 baseline docs tests across 14 files, including setup projects, when the normal local runtime secrets are provided or stubbed for discovery.
+- `bun run test:e2e -- --list` discovers 78 baseline tests across 22 files,
+  including setup projects, without requiring local Auth0/Stripe secrets.
+- `bun run test:e2e:docs -- --list` discovers 22 baseline docs/setup tests
+  across 15 files without requiring local Auth0/Stripe secrets.
 - The custom documentation reporter writes grouped Markdown pages and image assets to paths from `DOCS_OUT_DIR` / `DOCS_IMG_OUT_DIR`, defaulting to ignored repository-local `test-results/docs` paths.
 - The reporter initializes and clears docs/image output roots on `onBegin` only for real test execution. During Playwright `--list` discovery it no-ops and does not clean or write docs output.
 - Reporter-path tests pass with `bun run test:e2e -- tests/specs/reporting/reporter-paths.test.ts --no-deps`.
@@ -985,6 +987,7 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** `tests/docs/finance/finance-overview.doc.ts` now documents the current finance permission split and transaction/receipt navigation behavior.
 - **Addressed in stabilization pass:** Playwright discovery was broken by stale Effect config APIs and by import-time Auth0 Management config reads in baseline fixtures. Both are fixed locally, but they show the e2e/docs surface was not being exercised recently enough.
 - **Addressed in stabilization pass:** list-only Playwright commands no longer initialize docs output, clear generated docs/image directories, or require Auth0 Management credentials for baseline fixture imports.
+- **Addressed in stabilization pass:** list-only Playwright config now uses inert placeholder values for runtime-only Auth0/Stripe secrets, so docs/spec discovery can enumerate tests without local secret stubs, starting Docker, or contacting external services.
 - **Should fix before relaunch:** page-backed Playwright specs still fail in this checkout because the configured Chromium binary is missing. `tests/specs/screenshot/doc-screenshot.test.ts` seeds data and then fails at browser launch.
 - **Addressed in stabilization pass:** `tests/test-inventory.md` now maps current Playwright specs/docs by suite ownership, records intentional fixme and credential-gated paths, and lists the Browser-backed coverage still needed from the remaining stabilization gaps.
 - **Should fix before relaunch:** docs coverage is missing or thin for scanning/check-in mutation behavior, tenant/global-admin settings, account creation outside Auth0-management integration, profile discount add/refresh/remove flows, finance route gates, receipt review/refund behavior, role assignment/user management, and registration negative paths.
@@ -1016,7 +1019,7 @@ the current working direction until a product decision overrides them.
 - Replace fixme-only price-label specs with focused assertions once the seeded/browser UI path can prove the behavior.
 - Keep event-management and finance-overview docs aligned as the live UI changes; both were rewritten during this stabilization pass and should not be treated as stale product truth.
 - Continue auditing remaining `test.skip` usage so credential/integration skips stay honest and fixture-state gaps become hard failures or explicit `test.fixme` states.
-- Make docs/list commands avoid reporter output cleanup and make the local browser installation expectation explicit.
+- Keep docs/list commands free of reporter output cleanup, runtime secret requirements, and local browser startup.
 - Update `tests/test-inventory.md` after stale/placeholder docs are pruned.
 - Add missing docs/specs for scanning mutation, tenant/global-admin settings, account/profile persistence, role/user management, and negative registration paths as those flows are stabilized.
 
@@ -1031,7 +1034,10 @@ the current working direction until a product decision overrides them.
 - Local `test:e2e`, `test:e2e:ui`, `test:e2e:docs`, `db:*`, and `docker:*` scripts now refresh `.env.dev` before running `dotenv -c dev`, reducing fresh-worktree and wrong-database risk.
 - Docker Compose uses Neon Local, MinIO, Stripe CLI, a one-shot `db-setup` service, and an `evorto` app container. `bun run docker:check` verifies required local secrets before any Docker start command tears down or starts containers, and now also reports Bun, Docker Compose, Compose config, Playwright CLI, `.env.dev`, and Playwright browser-cache readiness.
 - `bun run build:app`, `bun run test:unit -- --watch=false`, and `bun run test:unit:server` pass in the current checkout.
-- Playwright test discovery works through the package scripts, but full page-backed Playwright execution still requires installing the matching browser binaries.
+- Playwright test discovery works through the package scripts without local
+  Auth0/Stripe secrets, but full page-backed Playwright execution still
+  requires installing the matching browser binaries and providing runtime
+  secrets.
 - The shell has another `dotenv` binary earlier on `PATH`; bare `dotenv -c dev` fails, while package scripts and `node_modules/.bin/dotenv -c dev` work.
 
 ### Intended Behavior From Product Context

@@ -3,6 +3,7 @@ import { ConfigProvider, Effect } from 'effect';
 
 import { formatConfigError } from './config-error';
 import {
+  isPlaywrightListOnly,
   makePlaywrightEnvironmentConfig,
   requiresIntegrationOnlyPlaywrightEnvironment,
 } from './test-runtime-config';
@@ -47,6 +48,15 @@ describe('test-runtime-config', () => {
     ).toBe(false);
   });
 
+  it('detects list-only Playwright discovery mode', () => {
+    expect(isPlaywrightListOnly(['node', 'playwright', 'test', '--list'])).toBe(
+      true,
+    );
+    expect(isPlaywrightListOnly(['node', 'playwright', 'test', '--ui'])).toBe(
+      false,
+    );
+  });
+
   it('treats explicitly selected baseline projects as baseline-only', () => {
     expect(
       requiresIntegrationOnlyPlaywrightEnvironment([
@@ -88,6 +98,47 @@ describe('test-runtime-config', () => {
       const error = yield* Effect.flip(readPlaywrightEnvironment(provider));
       expect(error.message).toMatch(/BASE_URL/);
     }),
+  );
+
+  it.effect('allows list-only discovery without runtime secrets', () =>
+    Effect.gen(function* () {
+      const provider = providerFromEntries([
+        ['DATABASE_URL', 'postgresql://db.example/app'],
+      ]);
+      const environment = yield* readPlaywrightEnvironment(provider, [
+        'node',
+        'playwright',
+        'test',
+        '--project=docs-baseline',
+        '--list',
+      ]);
+
+      expect(environment.BASE_URL).toBe('http://localhost:4200');
+      expect(environment.CLIENT_SECRET).toBe('playwright-list-client-secret');
+      expect(environment.STRIPE_API_KEY).toBe('sk_test_playwright_list');
+      expect(environment.STRIPE_WEBHOOK_SECRET).toBe('whsec_playwright_list');
+    }),
+  );
+
+  it.effect(
+    'allows list-only discovery in CI without artifact credentials',
+    () =>
+      Effect.gen(function* () {
+        const provider = providerFromEntries([
+          ['CI', 'true'],
+          ['DATABASE_URL', 'postgresql://db.example/app'],
+        ]);
+        const environment = yield* readPlaywrightEnvironment(provider, [
+          'node',
+          'playwright',
+          'test',
+          '--project=docs-baseline',
+          '--list',
+        ]);
+
+        expect(environment.CI).toBe(true);
+        expect(environment.STRIPE_TEST_ACCOUNT_ID).toBe('acct_playwright_list');
+      }),
   );
 
   it.effect('accepts BASE_URL as the canonical Playwright app URL', () =>

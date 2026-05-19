@@ -66,8 +66,11 @@ bun run lint
 - Local Docker scripts preload the environment with `dotenv -c dev` before invoking Compose.
 - Use `bun run ...` package scripts, not a bare shell `dotenv` command. Local shells may resolve a different `dotenv` executable than `node_modules/.bin/dotenv`.
 - Playwright list/discovery commands do not clean or write generated docs
-  output. Run the docs projects without `--list` when you intentionally want to
-  regenerate documentation artifacts.
+  output and may run without local Auth0/Stripe secrets. In list-only mode the
+  Playwright config uses inert placeholder values for runtime-only secrets so
+  test titles can be enumerated without starting Docker or contacting external
+  services. Run the docs projects without `--list` when you intentionally want
+  to regenerate documentation artifacts.
 
 ## Playwright Browsers
 
