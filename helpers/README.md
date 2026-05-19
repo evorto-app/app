@@ -89,6 +89,10 @@ be confirmed even when another required secret still blocks startup. Missing
 Playwright browsers are reported as a warning because they block local
 Playwright runs, not Docker startup.
 
+Use the tracked `.env.example` file as the no-secret checklist for values that
+belong in your untracked `.env` or exported shell environment. Do not add real
+secret values to `.env.example`, `.env.dev.local`, or `.env.dev`.
+
 Docker Compose passes `STRIPE_TEST_ACCOUNT_ID` into both the `db-setup` service
 and the app container so the seeded local tenants can exercise paid registration
 flows against the intended connected test account.
