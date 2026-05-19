@@ -22,6 +22,7 @@ import {
 } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import { notificationEmailPattern } from '@shared/notification-email';
 
 export interface EditProfileDialogData {
   communicationEmail: string;
@@ -80,7 +81,7 @@ export class EditProfileDialogComponent {
   });
   protected readonly profileForm = form(this.profileModel, (schemaPath) => {
     required(schemaPath.communicationEmail);
-    pattern(schemaPath.communicationEmail, /^[^\s@]+@[^\s@]+\.[^\s@]+$/);
+    pattern(schemaPath.communicationEmail, notificationEmailPattern);
     required(schemaPath.firstName);
     required(schemaPath.lastName);
   });

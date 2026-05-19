@@ -1,4 +1,5 @@
 import { asRpcMutation, asRpcQuery } from '@heddendorp/effect-angular-query';
+import { notificationEmailPattern } from '@shared/notification-email';
 import { literalUnion } from '@shared/schema-utilities';
 import { Schema } from 'effect';
 import * as Rpc from 'effect/unstable/rpc/Rpc';
@@ -10,6 +11,10 @@ import {
   UsersCreateAccountError,
   UsersFindManyError,
 } from './users.errors';
+
+const NotificationEmail = Schema.NonEmptyString.check(
+  Schema.isPattern(notificationEmailPattern),
+);
 
 export const UsersAuthData = Schema.Struct({
   email: Schema.optional(Schema.NullOr(Schema.String)),
@@ -29,7 +34,7 @@ export const UsersAuthDataFind = asRpcQuery(
 );
 
 export const UsersCreateAccountInput = Schema.Struct({
-  communicationEmail: Schema.NonEmptyString,
+  communicationEmail: NotificationEmail,
   firstName: Schema.NonEmptyString,
   lastName: Schema.NonEmptyString,
 });
@@ -99,7 +104,7 @@ export const UsersSelf = asRpcQuery(
 );
 
 export const UsersUpdateProfileInput = Schema.Struct({
-  communicationEmail: Schema.NonEmptyString,
+  communicationEmail: NotificationEmail,
   firstName: Schema.NonEmptyString,
   iban: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
   lastName: Schema.NonEmptyString,
