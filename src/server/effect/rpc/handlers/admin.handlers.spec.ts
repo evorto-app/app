@@ -18,8 +18,10 @@ const createTenant = (id = 'tenant-1') => ({
     },
   },
   domain: `${id}.example.com`,
+  faviconUrl: null,
   id,
   locale: 'en',
+  logoUrl: null,
   name: id,
   receiptSettings: {
     allowOther: false,
@@ -125,7 +127,9 @@ describe('adminHandlers tenant settings', () => {
             allowOther: true,
             defaultLocation: null,
             esnCardEnabled: false,
+            faviconUrl: ' https://cdn.example.org/favicon.ico ',
             legalNoticeUrl: ' https://section.example.org/imprint ',
+            logoUrl: 'https://cdn.example.org/logo.svg',
             privacyPolicyUrl: 'https://section.example.org/privacy',
             receiptCountries: ['NL'],
             seoDescription: '  Public description  ',
@@ -137,14 +141,18 @@ describe('adminHandlers tenant settings', () => {
         ).pipe(Effect.provide(Layer.succeed(Database, database as never)));
 
         expect(capturedUpdate).toMatchObject({
+          faviconUrl: 'https://cdn.example.org/favicon.ico',
           legalNoticeUrl: 'https://section.example.org/imprint',
+          logoUrl: 'https://cdn.example.org/logo.svg',
           privacyPolicyUrl: 'https://section.example.org/privacy',
           seoDescription: 'Public description',
           seoTitle: 'Public title',
           termsUrl: 'https://section.example.org/terms',
         });
         expect(result).toMatchObject({
+          faviconUrl: 'https://cdn.example.org/favicon.ico',
           legalNoticeUrl: 'https://section.example.org/imprint',
+          logoUrl: 'https://cdn.example.org/logo.svg',
           privacyPolicyUrl: 'https://section.example.org/privacy',
           seoDescription: 'Public description',
           seoTitle: 'Public title',
@@ -178,6 +186,34 @@ describe('adminHandlers tenant settings', () => {
 
       expect(error['_tag']).toBe('RpcBadRequestError');
       expect(error.message).toBe('Invalid tenant legal links');
+    }),
+  );
+
+  it.effect('rejects invalid tenant brand asset URLs', () =>
+    Effect.gen(function* () {
+      const database = {
+        update: () => {
+          throw new Error('database should not be touched');
+        },
+      };
+
+      const error = yield* adminHandlers['admin.tenant.updateSettings'](
+        {
+          allowOther: true,
+          defaultLocation: null,
+          esnCardEnabled: false,
+          logoUrl: 'file:///tmp/logo.svg',
+          receiptCountries: ['NL'],
+          theme: 'evorto',
+        },
+        { headers: createSettingsAdminHeaders() } as never,
+      ).pipe(
+        Effect.provide(Layer.succeed(Database, database as never)),
+        Effect.flip,
+      );
+
+      expect(error['_tag']).toBe('RpcBadRequestError');
+      expect(error.message).toBe('Invalid tenant brand assets');
     }),
   );
 });

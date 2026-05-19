@@ -72,6 +72,28 @@
         </mat-select>
       </mat-form-field>
 
+      <h3 class="title-small mb-2 mt-6">Brand assets</h3>
+      <p class="text-on-surface-variant mb-3 text-sm">
+        Configure externally hosted tenant assets. The favicon updates the
+        browser tab icon.
+      </p>
+      <mat-form-field>
+        <mat-label>Logo URL</mat-label>
+        <input
+          matInput
+          [formField]="settingsForm.logoUrl"
+          placeholder="https://section.example.org/logo.svg"
+        />
+      </mat-form-field>
+      <mat-form-field>
+        <mat-label>Favicon URL</mat-label>
+        <input
+          matInput
+          [formField]="settingsForm.faviconUrl"
+          placeholder="https://section.example.org/favicon.ico"
+        />
+      </mat-form-field>
+
       <h3 class="title-small mb-2 mt-6">Search preview</h3>
       <p class="text-on-surface-variant mb-3 text-sm">
         Set the default title and description used for tenant-level pages.

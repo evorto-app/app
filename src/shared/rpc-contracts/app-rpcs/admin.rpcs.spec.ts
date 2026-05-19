@@ -8,7 +8,9 @@ const currentTenantSettingsInput = {
   buyEsnCardUrl: 'https://esncard.org/',
   defaultLocation: null,
   esnCardEnabled: true,
+  faviconUrl: 'https://cdn.example.org/favicon.ico',
   legalNoticeUrl: 'https://section.example.org/imprint',
+  logoUrl: 'https://cdn.example.org/logo.svg',
   privacyPolicyUrl: 'https://section.example.org/privacy',
   receiptCountries: ['DE', 'NL'],
   seoDescription: 'Public tenant description',
@@ -35,12 +37,11 @@ describe('AdminTenantUpdateSettingsInput', () => {
     ).toThrow();
   });
 
-  it('keeps deferred branding and domain fields outside the current update payload', () => {
+  it('keeps deferred domain and upload fields outside the current update payload', () => {
     const decoded = Schema.decodeUnknownSync(AdminTenantUpdateSettingsInput)({
       ...currentTenantSettingsInput,
       customDomain: 'section.example.org',
-      faviconUrl: 'https://cdn.example.org/favicon.ico',
-      logoUrl: 'https://cdn.example.org/logo.svg',
+      logoUpload: 'logo.svg',
       senderName: 'Example Section',
     });
 

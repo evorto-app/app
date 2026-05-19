@@ -113,10 +113,23 @@ export class ConfigService {
   private applyTenantConfig(tenant: Tenant): void {
     this._tenant = tenant;
     this.title.setTitle(tenant.seoTitle ?? tenant.name);
+    this.updateFavicon(tenant.faviconUrl ?? 'favicon.ico');
     if (tenant.seoDescription) {
       this.updateDescription(tenant.seoDescription);
     } else {
       this.meta.removeTag('name="description"');
+    }
+  }
+
+  private updateFavicon(href: string): void {
+    const existingIcon =
+      this.document.querySelector<HTMLLinkElement>('link[rel="icon"]');
+    const icon = existingIcon ?? this.renderer.createElement('link');
+
+    this.renderer.setAttribute(icon, 'rel', 'icon');
+    this.renderer.setAttribute(icon, 'href', href);
+    if (!existingIcon) {
+      this.renderer.appendChild(this.document.head, icon);
     }
   }
 }

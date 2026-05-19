@@ -27,7 +27,8 @@ export const deferredTenantSettingsRows = [
   },
   {
     label: 'Brand assets',
-    value: 'Logo and favicon uploads are not implemented yet.',
+    value:
+      'Logo and favicon URLs are editable below; file uploads are not implemented yet.',
   },
   {
     label: 'Legal pages',

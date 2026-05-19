@@ -62,7 +62,9 @@ export class GeneralSettingsComponent {
     buyEsnCardUrl: string;
     defaultLocation: GoogleLocationType | null;
     esnCardEnabled: boolean;
+    faviconUrl: string;
     legalNoticeUrl: string;
+    logoUrl: string;
     privacyPolicyUrl: string;
     receiptCountries: string[];
     seoDescription: string;
@@ -74,7 +76,9 @@ export class GeneralSettingsComponent {
     buyEsnCardUrl: '',
     defaultLocation: null,
     esnCardEnabled: false,
+    faviconUrl: '',
     legalNoticeUrl: '',
+    logoUrl: '',
     privacyPolicyUrl: '',
     receiptCountries: [...DEFAULT_RECEIPT_COUNTRIES],
     seoDescription: '',
@@ -115,7 +119,9 @@ export class GeneralSettingsComponent {
           defaultLocation: currentTenant.defaultLocation ?? null,
           esnCardEnabled:
             currentTenant.discountProviders?.esnCard?.status === 'enabled',
+          faviconUrl: currentTenant.faviconUrl ?? '',
           legalNoticeUrl: currentTenant.legalNoticeUrl ?? '',
+          logoUrl: currentTenant.logoUrl ?? '',
           privacyPolicyUrl: currentTenant.privacyPolicyUrl ?? '',
           receiptCountries: [...receiptCountrySettings.receiptCountries],
           seoDescription: currentTenant.seoDescription ?? '',
@@ -138,7 +144,9 @@ export class GeneralSettingsComponent {
             buyEsnCardUrl: settings.buyEsnCardUrl.trim() || undefined,
             defaultLocation: settings.defaultLocation,
             esnCardEnabled: settings.esnCardEnabled,
+            faviconUrl: settings.faviconUrl.trim() || undefined,
             legalNoticeUrl: settings.legalNoticeUrl.trim() || undefined,
+            logoUrl: settings.logoUrl.trim() || undefined,
             privacyPolicyUrl: settings.privacyPolicyUrl.trim() || undefined,
             receiptCountries: settings.receiptCountries,
             seoDescription: settings.seoDescription.trim() || undefined,
