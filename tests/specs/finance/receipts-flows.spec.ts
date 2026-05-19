@@ -102,59 +102,33 @@ test('approve and refund receipts in finance @track(finance-receipts_20260205) @
   const firstPendingReceipt = page
     .locator('a[href*="/finance/receipts-approval/"]')
     .first();
-  if ((await firstPendingReceipt.count()) === 0) {
-    return;
-  }
   await expect(firstPendingReceipt).toBeVisible();
   await firstPendingReceipt.click();
   await page.getByRole('button', { name: 'Approve' }).click();
   await expect(page).toHaveURL(/\/finance\/receipts-approval$/);
 
   await page.goto('/finance/receipts-refunds');
-  if (
-    await page
-      .getByText('No approved receipts are waiting for refund.')
-      .isVisible()
-  ) {
-    return;
-  }
+  await expect(
+    page.getByText('No approved receipts are waiting for refund.'),
+  ).not.toBeVisible();
 
   const refundSections = page.locator('section', {
     has: page.getByRole('button', { name: 'Issue refund' }),
   });
-  const sectionCount = await refundSections.count();
-  let refundTriggered = false;
+  const refundSection = refundSections.first();
+  await expect(refundSection).toBeVisible();
 
-  for (let index = 0; index < sectionCount; index += 1) {
-    const section = refundSections.nth(index);
-    const table = section.locator('table[mat-table]');
-    if ((await table.count()) === 0) {
-      continue;
-    }
-    await expect(table.first()).toBeVisible();
+  await expect(refundSection.locator('table[mat-table]').first()).toBeVisible();
+  await refundSection
+    .locator('tr.mat-mdc-row input[type="checkbox"]')
+    .first()
+    .check();
 
-    const rowCheckboxes = section.locator(
-      'tr.mat-mdc-row input[type="checkbox"]',
-    );
-    if ((await rowCheckboxes.count()) === 0) {
-      continue;
-    }
-
-    await rowCheckboxes.first().check();
-
-    const issueRefundButton = section.getByRole('button', {
-      name: 'Issue refund',
-    });
-    if (await issueRefundButton.isEnabled()) {
-      await issueRefundButton.click();
-      refundTriggered = true;
-      break;
-    }
-  }
-
-  if (!refundTriggered) {
-    return;
-  }
+  const issueRefundButton = refundSection.getByRole('button', {
+    name: 'Issue refund',
+  });
+  await expect(issueRefundButton).toBeEnabled();
+  await issueRefundButton.click();
 
   await expect(page.getByText('Selected total: 0.00 €').first()).toBeVisible();
 });
@@ -187,7 +161,5 @@ test('receipt dialog shows Other option when tenant allows it @track(finance-rec
   const otherCountryOption = page.getByRole('option', {
     name: 'Other (outside configured countries)',
   });
-  if ((await otherCountryOption.count()) > 0) {
-    await expect(otherCountryOption).toBeVisible();
-  }
+  await expect(otherCountryOption).toBeVisible();
 });
