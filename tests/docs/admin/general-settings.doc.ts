@@ -41,7 +41,7 @@ The current general settings page supports:
 - **Default Location** for event location search bias.
 - **Site theme** for the tenant theme.
 - **SEO title** and **SEO description** for tenant-level page metadata.
-- **Legal links** for tenant imprint/legal notice, privacy policy, and terms pages.
+- **Legal links** for tenant imprint/legal notice, privacy policy, and terms pages. Configured links appear in the public app footer.
 - **Allowed receipt countries** and **Allow other** for receipt submission.
 - **ESN Card discounts** and optional **Buy ESNcard URL** when the tenant uses ESNcard validation.
 
@@ -53,7 +53,7 @@ Tax rates are managed on the separate **Tax Rates** page.
     body: `
 ## Relaunch scope notes
 
-One-domain-per-tenant remains the current relaunch scope in the application schema. The page now exposes the active primary domain and runtime tenant settings for operator review, and it has an in-app deferred-settings summary for custom domain verification, tenant logo/favicon uploads, legal text pages, email sender name, review/publishing policy, registration limits, editable locale/currency/timezone, and Stripe account management. Those settings are not editable from this general settings page yet.
+One-domain-per-tenant remains the current relaunch scope in the application schema. The page now exposes the active primary domain and runtime tenant settings for operator review, and it has an in-app deferred-settings summary for custom domain verification, tenant logo/favicon uploads, hosted legal text pages, email sender name, review/publishing policy, registration limits, editable locale/currency/timezone, and Stripe account management. Those settings are not editable from this general settings page yet.
 `,
   });
 });
