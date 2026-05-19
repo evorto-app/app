@@ -1,4 +1,4 @@
-import { CommonModule, CurrencyPipe, TitleCasePipe } from '@angular/common';
+import { CommonModule, TitleCasePipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -22,6 +22,7 @@ import { injectQuery } from '@tanstack/angular-query-experimental';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
 import { IconComponent } from '../../shared/components/icon/icon.component';
+import { PriceWithTaxComponent } from '../../shared/components/inclusive-price-label/price-with-tax.component';
 import { RegistrationStartOffsetPipe } from '../../shared/pipes/registration-start-offset.pipe';
 
 @Component({
@@ -34,10 +35,10 @@ import { RegistrationStartOffsetPipe } from '../../shared/pipes/registration-sta
     FontAwesomeModule,
     MatMenuModule,
     IconComponent,
-    CurrencyPipe,
     TitleCasePipe,
     MatChipsModule,
     RegistrationStartOffsetPipe,
+    PriceWithTaxComponent,
   ],
   selector: 'app-template-details',
   styles: ``,
