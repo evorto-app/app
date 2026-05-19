@@ -867,7 +867,7 @@ the current working direction until a product decision overrides them.
 
 - `tests/docs/profile/user-profile.doc.ts` documents navigation, profile display, edit dialog validation, and the receipts tab.
 - `src/app/profile/user-profile/user-profile.component.spec.ts` covers profile event action, payment-state, and registration-status labels.
-- The profile doc uses a fixed `waitForTimeout(1000)` and does not save a profile edit, prove persistence, or cover event-card semantics.
+- **Addressed in stabilization pass:** the profile doc no longer uses a fixed stabilization wait before the profile screenshot and now opens the Events section to document event-card semantics. It still does not save a profile edit or prove persistence.
 - `tests/docs/profile/discounts.doc.ts` documents the discount-card section and current pending/error behavior, but does not add, refresh, remove, or assert any ESNcard validation outcome.
 - `tests/specs/discounts/esn-discounts.test.ts` verifies a seeded verified ESNcard affects paid event price labels and the register button copy.
 - No reviewed Playwright spec proves profile discount-card management itself, browser-level account creation fallback behavior without Auth0 Management credentials, profile event action rendering, or submitted receipt visibility after receipt submission.
