@@ -250,6 +250,7 @@ export class EventOrganize {
     storageUrl: string;
   }> {
     return this.receiptOriginalUploadMutation.mutateAsync({
+      eventId: this.eventId(),
       fileBase64: await this.readFileAsBase64(file),
       fileName: file.name,
       fileSizeBytes: file.size,

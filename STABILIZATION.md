@@ -704,7 +704,7 @@ the current working direction until a product decision overrides them.
 - The finance overview links to transactions, receipt approvals, and receipt refunds only when the user has the matching child permission.
 - `finance.transactions.findMany` returns non-cancelled tenant transactions only to users with `finance:viewTransactions`.
 - Event organizers or users with receipt-management capabilities can submit receipts from the event organize page.
-- Receipt upload is a separate authenticated RPC that stores image/PDF originals in object storage, or a local-unavailable placeholder when storage config is absent.
+- Receipt upload is a separate RPC that requires the target event id, preflights the caller through the same receipt-submit authorization used by `finance.receipts.submit`, then stores image/PDF originals in object storage or a local-unavailable placeholder when storage config is absent.
 - Finance reviewers can approve/reject submitted receipts; refund users can group approved receipts by submitter and create manual refund/reimbursement transactions.
 - Profile shows the current user's submitted receipts.
 
@@ -722,7 +722,7 @@ the current working direction until a product decision overrides them.
 - **Addressed in this stabilization pass:** Stripe checkout completion now moves a paid registration spot from `reservedSpots` to `confirmedSpots`, and checkout expiry releases the reserved spot. Both counter transitions are conditional on the registration actually leaving `PENDING`, preserving webhook replay safety.
 - **Addressed in this stabilization pass:** `finance.transactions.findMany` now requires `finance:viewTransactions`, so direct RPC calls cannot read transaction amounts, comments, methods, or fees with authentication alone.
 - **Addressed in this stabilization pass:** finance parent and child routes now have route-level permission guards. Transactions require `finance:viewTransactions`, receipt approvals require `finance:approveReceipts`, and receipt reimbursement requires `finance:refundReceipts`.
-- **Must fix before agent scaling:** receipt media upload is authenticated-only and not tied to an event, pending receipt, or receipt-submit permission check. A signed-in user can create orphan receipt objects even if `finance.receipts.submit` later rejects the event.
+- **Addressed in this stabilization pass:** receipt media upload now includes the target `eventId`, checks tenant event existence for authorized callers, and requires `canSubmitEventReceipts` before object storage is touched. A signed-in user without receipt-submit access can no longer create orphan receipt objects through the upload RPC.
 - **Should fix before relaunch:** manual receipt reimbursement is labeled as "Issue refund" / "Refund transaction created", but it only records a successful local transfer/PayPal transaction. The UI should avoid implying that money was actually sent through a payout provider.
 - **Should fix before relaunch:** receipt submission and review validate deposit/alcohol against total, but do not reject tax amounts greater than the total amount.
 - **Should fix before relaunch:** receipts are intended as post-event submissions, but the reviewed server path allows receipt submission for any event where the user is allowed to organize/manage receipts.
@@ -737,7 +737,7 @@ the current working direction until a product decision overrides them.
 - `tests/specs/finance/receipts-flows.spec.ts` contains early `return` paths when no pending receipt, no refundable receipt, no checkbox, or no enabled refund action exists. Those branches can make the approval/refund test pass without proving the behavior.
 - Finance overview docs now describe the current navigation-style finance UI and current finance capability names.
 - Tax-rate docs and specs provide better active coverage for `admin:tax` and inclusive Stripe tax-rate import/selection.
-- Server finance unit tests are still thin, but now include transaction-list permission denial. Receipt preconditions remain mostly untested at the handler level.
+- Server finance unit tests are still thin, but now include transaction-list permission denial plus receipt-media upload preflight denial/success coverage. Receipt submit/review amount preconditions remain mostly untested at the handler level.
 
 ### Product Questions Answered Above
 
@@ -752,7 +752,6 @@ the current working direction until a product decision overrides them.
 
 - Keep webhook-side regression tests asserting registration status, transaction status, and option counters together for paid checkout completion and expiry.
 - Keep direct-route Playwright denial coverage for finance transaction, receipt approval, and receipt reimbursement routes.
-- Tie receipt media upload to authorized receipt submission or add a submit preflight/upload-token flow to prevent orphan object creation.
 - Rename receipt reimbursement UI copy from "refund" to "record reimbursement" unless an actual payout integration is added.
 - Validate receipt tax amount against total amount on submit and review.
 - Remove or deprecate `paymentStatus` in favor of registration status plus
@@ -1068,9 +1067,8 @@ the current working direction until a product decision overrides them.
 2. Validate template category/role ids and template offset ordering at the server boundary.
 3. Add route guards and direct-route denial coverage for admin role/user/settings and other permission-sensitive routes.
 4. Split role lookup APIs so organizers can select event/template eligibility roles without receiving admin role-management data.
-5. Tie receipt media upload to receipt-submit authorization or an upload preflight to avoid orphan authenticated uploads.
-6. Remove misleading placeholder tests/docs from the event registration, event management, finance overview, scanner, and profile/account surfaces.
-7. Replace green placeholder specs and silent no-op Playwright tests with real assertions, hard fixture setup, or explicit `test.fixme` states.
+5. Remove misleading placeholder tests/docs from the event registration, event management, finance overview, scanner, and profile/account surfaces.
+6. Replace green placeholder specs and silent no-op Playwright tests with real assertions, hard fixture setup, or explicit `test.fixme` states.
 
 ### Should Fix Before Relaunch
 
@@ -1135,6 +1133,7 @@ implement those decisions or explicitly revise them there before changing code.
 - Playwright discovery pass: deferred Auth0 Management config reads to the `newUser` fixture so baseline list/discovery does not require integration-only credentials.
 - Finance access pass: gated finance transaction reads with `finance:viewTransactions`, added finance route guards/link visibility for transaction, receipt approval, and receipt reimbursement pages, added permission-matrix coverage, and rewrote the finance overview doc copy to current permissions and UI behavior.
 - Finance webhook counter pass: moved paid checkout completion/expiry counter updates into the Stripe webhook transaction and extended webhook replay specs to assert registration status, transaction status, and option counters together.
+- Finance receipt-upload pass: added event-scoped receipt-media upload preflight so object storage writes require receipt-submit authorization before upload, while `finance.receipts.submit` keeps its own authorization check.
 
 ## Review Next
 
