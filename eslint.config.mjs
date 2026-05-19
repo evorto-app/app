@@ -7,7 +7,6 @@ import { defineConfig } from "eslint/config";
 import * as tseslint from "typescript-eslint";
 import * as angular from "angular-eslint";
 import { effectBoundaryPlugin } from "./tools/eslint-rules/effect-boundaries.mjs";
-import { playwrightTagPlugin } from "./tools/eslint-rules/playwright-tags.mjs";
 // import * as pluginQuery from "@tanstack/eslint-plugin-query";
 
 const baseConfig = [
@@ -265,17 +264,5 @@ export default defineConfig(
       ...angular.configs.templateAccessibility,
     ],
     rules: {},
-  },
-  {
-    files: ["tests/**/*.ts"],
-    languageOptions: {
-      parser: tseslint.parser,
-    },
-    plugins: {
-      "playwright-tags": playwrightTagPlugin,
-    },
-    rules: {
-      "playwright-tags/require-test-tags": "error",
-    },
   },
 );
