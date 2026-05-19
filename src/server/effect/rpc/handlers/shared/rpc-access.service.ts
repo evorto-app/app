@@ -2,7 +2,10 @@ import {
   RpcForbiddenError,
   RpcUnauthorizedError,
 } from '@shared/errors/rpc-errors';
-import { type Permission } from '@shared/permissions/permissions';
+import {
+  includesPermission,
+  type Permission,
+} from '@shared/permissions/permissions';
 import {
   RpcRequestContext,
   type RpcRequestContextShape,
@@ -56,7 +59,7 @@ const rpcAccessEffect = Effect.sync(() => {
             }),
           );
         }
-        if (!context.permissions.includes(permission)) {
+        if (!includesPermission(permission, context.permissions)) {
           return yield* Effect.fail(
             new RpcForbiddenError({
               message: 'Missing required permission',
