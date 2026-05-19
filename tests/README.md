@@ -32,6 +32,7 @@ matrix-style coverage when the listed output remains readable.
 bun run test:e2e
 bun run test:e2e:ui
 bun run test:e2e:docs
+bun run test:e2e:docs:publish
 bun run test:e2e:install
 bun run test:e2e -- --project=setup
 bun run test:e2e -- --headed --workers 1
@@ -73,6 +74,11 @@ bun run lint
   test titles can be enumerated without starting Docker or contacting external
   services. Run the docs projects without `--list` when you intentionally want
   to regenerate documentation artifacts.
+- `bun run test:e2e:docs` writes generated docs to ignored local
+  `test-results/docs` paths by default. Use
+  `bun run test:e2e:docs:publish` only when you intentionally want to update
+  `/Users/hedde/code/evorto-pages/apps/documentation/src/app/docs` and
+  `/Users/hedde/code/evorto-pages/apps/documentation/public/docs`.
 
 ## Playwright Browsers
 
