@@ -376,17 +376,29 @@ export const eventRegistrationHandlers = {
     cancelRegistration({ registrationId }),
   'events.cancelRegistration': ({ registrationId }, _options) =>
     cancelRegistration({ registrationId }),
-  'events.checkInRegistration': ({ registrationId }, _options) =>
+  'events.checkInRegistration': (
+    { guestCheckInCount, registrationId },
+    _options,
+  ) =>
     Effect.gen(function* () {
       yield* RpcAccess.ensureAuthenticated();
       const { tenant } = yield* RpcAccess.current();
       const user = yield* RpcAccess.requireUser();
+      if (!Number.isInteger(guestCheckInCount) || guestCheckInCount < 0) {
+        return yield* Effect.fail(
+          new EventRegistrationConflictError({
+            message: 'Guest check-in count must be a non-negative integer',
+          }),
+        );
+      }
 
       const registration = yield* databaseEffect((database) =>
         database.query.eventRegistrations.findFirst({
           columns: {
+            checkedInGuestCount: true,
             checkInTime: true,
             eventId: true,
+            guestCount: true,
             id: true,
             registrationOptionId: true,
             status: true,
@@ -436,7 +448,25 @@ export const eventRegistrationHandlers = {
         );
       }
 
-      if (registration.checkInTime) {
+      const remainingGuestCount = Math.max(
+        0,
+        registration.guestCount - registration.checkedInGuestCount,
+      );
+      if (guestCheckInCount > remainingGuestCount) {
+        return yield* Effect.fail(
+          new EventRegistrationConflictError({
+            message: 'Guest check-in count exceeds remaining guests',
+          }),
+        );
+      }
+
+      if (registration.checkInTime && remainingGuestCount === 0) {
+        return {
+          alreadyCheckedIn: true,
+          checkInTime: registration.checkInTime.toISOString(),
+        };
+      }
+      if (registration.checkInTime && guestCheckInCount === 0) {
         return {
           alreadyCheckedIn: true,
           checkInTime: registration.checkInTime.toISOString(),
@@ -454,23 +484,29 @@ export const eventRegistrationHandlers = {
       }
 
       const checkInTime = new Date();
+      const checkedInSpotCount =
+        (registration.checkInTime ? 0 : 1) + guestCheckInCount;
       const checkedInRegistration = yield* Database.use((database) =>
         database.transaction((tx) =>
           Effect.gen(function* () {
             const updatedRegistrations = yield* tx
               .update(eventRegistrations)
               .set({
-                checkInTime,
+                ...(registration.checkInTime ? {} : { checkInTime }),
+                checkedInGuestCount: sql`${eventRegistrations.checkedInGuestCount} + ${guestCheckInCount}`,
               })
               .where(
                 and(
                   eq(eventRegistrations.id, registration.id),
                   eq(eventRegistrations.tenantId, tenant.id),
                   eq(eventRegistrations.status, 'CONFIRMED'),
-                  isNull(eventRegistrations.checkInTime),
+                  registration.checkInTime
+                    ? sql`${eventRegistrations.checkedInGuestCount} + ${guestCheckInCount} <= ${eventRegistrations.guestCount}`
+                    : isNull(eventRegistrations.checkInTime),
                 ),
               )
               .returning({
+                checkedInGuestCount: eventRegistrations.checkedInGuestCount,
                 checkInTime: eventRegistrations.checkInTime,
                 id: eventRegistrations.id,
               });
@@ -485,7 +521,7 @@ export const eventRegistrationHandlers = {
             const updatedOptions = yield* tx
               .update(eventRegistrationOptions)
               .set({
-                checkedInSpots: sql`${eventRegistrationOptions.checkedInSpots} + 1`,
+                checkedInSpots: sql`${eventRegistrationOptions.checkedInSpots} + ${checkedInSpotCount}`,
               })
               .where(
                 and(
@@ -689,8 +725,10 @@ export const eventRegistrationHandlers = {
           columns: {
             appliedDiscountedPrice: true,
             appliedDiscountType: true,
+            checkedInGuestCount: true,
             checkInTime: true,
             eventId: true,
+            guestCount: true,
             status: true,
             userId: true,
           },
@@ -746,7 +784,12 @@ export const eventRegistrationHandlers = {
 
       const sameUserIssue = registration.userId === user.id;
       const registrationStatusIssue = registration.status !== 'CONFIRMED';
-      const alreadyCheckedInIssue = registration.checkInTime !== null;
+      const remainingGuestCount = Math.max(
+        0,
+        registration.guestCount - registration.checkedInGuestCount,
+      );
+      const alreadyCheckedInIssue =
+        registration.checkInTime !== null && remainingGuestCount === 0;
       const timingIssue = !isWithinCheckInWindow(registration.event.start);
       const allowCheckin =
         !registrationStatusIssue &&
@@ -769,14 +812,18 @@ export const eventRegistrationHandlers = {
         allowCheckin,
         alreadyCheckedInIssue,
         appliedDiscountType,
+        attendeeCheckedIn: registration.checkInTime !== null,
+        checkedInGuestCount: registration.checkedInGuestCount,
         event: {
           start: registration.event.start.toISOString(),
           title: registration.event.title,
         },
+        guestCount: registration.guestCount,
         registrationOption: {
           title: registration.registrationOption.title,
         },
         registrationStatusIssue,
+        remainingGuestCount,
         sameUserIssue,
         user: {
           firstName: registration.user.firstName,

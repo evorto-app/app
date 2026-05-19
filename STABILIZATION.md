@@ -13,7 +13,7 @@ and useful for small cleanup batches.
 | Templates                                       | First pass complete | partial    | Simple-mode template flow reviewed; permission and model-depth gaps need follow-up.                                                                   |
 | Roles and permissions                           | First pass complete | partial    | Core permission model reviewed; route/RPC semantics and role management gaps need follow-up.                                                          |
 | Finance/receipts                                | Fixes applied       | partial    | Payments, transactions, receipt review/reimbursement, and docs reviewed; high-risk gaps remain.                                                       |
-| Scanning/check-in                               | First pass complete | partial    | QR display and persisted check-in mutation exist; timing, camera, and guest-quantity follow-ups remain.                                               |
+| Scanning/check-in                               | First pass complete | partial    | QR display and persisted check-in mutation exist; timing, camera, and Browser-backed aggregate follow-ups remain.                                     |
 | Profile/account flows                           | Fixes applied       | partial    | Profile, account creation, discount cards, receipts, and auth guards reviewed; account creation guards, transactionality, and ESNcard scope improved. |
 | Tenant/global admin                             | Fixes applied       | partial    | Tenant resolution, tenant settings, and global-admin list surface reviewed; global-admin route and permission context fixes applied.                  |
 | Generated documentation and Playwright coverage | First pass complete | partial    | Docs/spec inventory is discoverable again, but several docs/specs are stale or misleading.                                                            |
@@ -554,7 +554,7 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** role-ineligible direct event links keep the event visible but show an explicit registration-unavailable state instead of silently rendering an empty registration section.
 - **Addressed in stabilization pass:** participant self-cancellation now covers pending and confirmed registrations before event start, rolls back reserved/confirmed counters, blocks checked-in cancellations, and keeps refund copy honest for paid registrations.
 - **Addressed in stabilization pass:** organizer/admin cancellation is available from the organizer overview for confirmed participant registrations, requires event-organizer access or `events:organizeAll`, blocks checked-in cancellations, and rolls back confirmed counters without promising automatic refunds.
-- **Should fix before relaunch:** transfer/resale, guest-quantity check-in, and automatic refund flows are not implemented in the reviewed event registration path.
+- **Should fix before relaunch:** transfer/resale and automatic refund flows are not implemented in the reviewed event registration path.
 - **Addressed in stabilization pass:** active registration status now uses the shared persisted registration status literal union instead of raw `Schema.String`.
 - **Acceptable for now:** paid registration rollback is careful about cleaning up a failed checkout session creation path; deeper Stripe lifecycle review belongs in the finance pass.
 
@@ -782,10 +782,10 @@ the current working direction until a product decision overrides them.
 - Confirmed user registrations show a "Your event ticket" card with a QR image at `/qr/registration/:registrationId`.
 - The QR HTTP route looks up the registration by id, finds the registration tenant, and encodes a scan target URL using the current request protocol plus the tenant domain.
 - `/scan` is an authenticated route that starts a camera-based QR scanner and navigates to `/scan/registration/:registrationId` when the scanned absolute URL has the exact `/scan/registration/:registrationId` path. The scanner intentionally accepts any URL origin and lets the scan-read RPC enforce event/tenant authorization.
-- `/scan/registration/:registrationId` calls `events.registrationScanned`, shows attendee name, event title/start time, registration option title, ESNcard discount notice, same-user warning, future-event warning, registration-status warning, and already-checked-in warning.
-- The scan result enables "Confirm Check In" when the scanned registration is confirmed, does not belong to the scanner, and is inside the current fixed one-hour pre-start check-in window. The button calls `events.checkInRegistration`, then refetches scan state and shows a recorded-check-in state.
+- `/scan/registration/:registrationId` calls `events.registrationScanned`, shows attendee name, event title/start time, registration option title, ESNcard discount notice, guest check-in progress, same-user warning, future-event warning, registration-status warning, and already-checked-in warning.
+- The scan result enables "Confirm Check In" when the scanned registration is confirmed, does not belong to the scanner, is inside the current fixed one-hour pre-start check-in window, and either the buyer or remaining guests can still be checked in. The button calls `events.checkInRegistration` with the selected guest count, then refetches scan state and shows a recorded-check-in state.
 - `events.registrationScanned` and `events.checkInRegistration` require event check-in access: either `events:organizeAll` or a confirmed organizer/helper registration for the same event.
-- `events.checkInRegistration` sets `event_registrations.checkInTime` and increments `event_registration_options.checkedInSpots` in one transaction. Duplicate scans return idempotent success without incrementing the option counter again.
+- `events.checkInRegistration` sets `event_registrations.checkInTime`, tracks `checkedInGuestCount`, and increments `event_registration_options.checkedInSpots` by the buyer plus selected guest spots in one transaction. Duplicate scans return idempotent success without incrementing the option counter again, while later guest arrivals can still check in remaining guest spots.
 - Event organize pages show aggregate checked-in counts from option counters and participant lists from registration rows; the old table-based check-in status UI is commented out.
 - Seed data simulates check-ins for past events by writing `checkInTime` and `checkedInSpots`, so local/demo data can look more complete than the runtime behavior.
 
@@ -798,25 +798,26 @@ the current working direction until a product decision overrides them.
 
 ### Issues and Risks
 
-- **Addressed in this stabilization pass:** "Confirm Check In" now persists check-in state through `events.checkInRegistration` and updates both `checkInTime` and `checkedInSpots` transactionally.
+- **Addressed in this stabilization pass:** "Confirm Check In" now persists check-in state through `events.checkInRegistration` and updates `checkInTime`, `checkedInGuestCount`, and `checkedInSpots` transactionally.
 - **Addressed in this stabilization pass:** scan reads and check-in writes are gated to `events:organizeAll` or a confirmed organizer/helper registration for the same event, so a normal authenticated tenant user cannot read attendee scan details by registration id.
 - **Addressed in this stabilization pass:** duplicate scans are idempotent; already-checked-in registrations show a warning and the write path does not increment counters again.
 - **Addressed in stabilization pass:** event timing is enforced in both scan-read state and the check-in mutation. Confirmed other-user registrations can only be checked in during the current fixed one-hour pre-start window or after event start.
 - **Addressed in stabilization pass:** QR generation now requires an authenticated current-tenant user. The endpoint returns ticket QR images only for confirmed registrations when the requester owns the registration, has `events:organizeAll`, or has a confirmed organizer/helper registration for the same event; unauthorized or non-confirmed registrations fail closed.
 - **Addressed in stabilization pass:** scanner URL parsing now explicitly accepts absolute URLs from any origin by product decision, but only when the path is exactly `/scan/registration/:registrationId`; malformed payloads and extra path segments are rejected before navigation.
 - **Addressed in stabilization pass:** scanner camera startup is awaited and maps denied permission, missing devices, and busy devices into visible retryable error messages. The scanner also shows a starting state and keeps a retry button available after camera startup failures.
+- **Addressed in stabilization pass:** scanner guest-quantity behavior is explicit. Organizers can choose how many remaining guests to check in with the buyer, and later scans can record additional guest arrivals without re-counting the buyer.
 - **Acceptable for now:** QR code display is limited to confirmed registrations in the active registration UI, so pending paid registrations do not show the ticket card there.
 
 ### Test and Documentation Quality
 
-- `tests/specs/scanning/scanner.test.ts` now clicks "Confirm Check In" and asserts that `checkInTime` is set and `checkedInSpots` increments, then restores the seeded row.
-- Server unit coverage proves scan-read denial for unauthorized tenant users, check-in counter updates for organizer access, idempotent duplicate check-in behavior, and same-user check-in denial.
+- `tests/specs/scanning/scanner.test.ts` now clicks "Confirm Check In" with selected guests and asserts that `checkInTime`, `checkedInGuestCount`, and `checkedInSpots` update, then restores the seeded row.
+- Server unit coverage proves scan-read denial for unauthorized tenant users, check-in counter updates for organizer access, selected guest check-in behavior, remaining-guest scan behavior after buyer check-in, idempotent duplicate check-in behavior, and same-user check-in denial.
 - `src/server/http/qr-code.web-handler.spec.ts` covers unauthenticated QR denial, owner access, same-event organizer access, other-user denial, and pending-registration denial.
 - `src/app/scanning/scanner/scanner.component.spec.ts` covers scanner URL parsing for current-origin tickets, other-origin tenant tickets, malformed payloads, and non-exact scan paths.
 - Server unit coverage proves future-event timing disables scan check-in and rejects direct check-in writes before the pre-start window opens. Server unit coverage also proves pending, cancelled, and waitlisted registrations disable scan check-in and reject direct check-in writes.
 - `tests/docs/events/register.doc.ts` documents that the ticket QR code is available after registration/payment and no longer claims QR email delivery exists in the current relaunch flow.
-- `tests/docs/events/event-management.doc.ts` documents the organizer-facing QR scan/check-in flow, including scan warnings, check-in authorization, checked-in count updates, and the fact that guest-quantity check-in is not implemented yet.
-- `QUALITY.md` lists participant and guest-quantity check-in as high-value Playwright flows, but guest quantities are not represented in the reviewed check-in contract/UI.
+- `tests/docs/events/event-management.doc.ts` documents the organizer-facing QR scan/check-in flow, including scan warnings, check-in authorization, checked-in count updates, and selected guest-quantity check-in.
+- `QUALITY.md` lists participant and guest-quantity check-in as high-value Playwright flows; the scanner spec now covers selected guest check-in, while Browser-backed organizer aggregate review still depends on local runtime availability.
 
 ### Product Questions Answered Above
 
@@ -825,7 +826,7 @@ the current working direction until a product decision overrides them.
 - Should duplicate scans be idempotent success, warning-only, or blocked after the first check-in?
 - Should QR generation require the registration owner/organizer, or is an unguessable registration id considered enough for the image endpoint? Answered locally: require the confirmed registration owner, `events:organizeAll`, or a confirmed organizer/helper registration for the same event.
 - Should scanner URL validation require the current tenant domain, any known tenant domain, or any URL with the expected path? Answered locally: accept any absolute URL origin because ticket URLs may be opened through tenant/custom domains, but require the exact scan-registration path and rely on server scan authorization for tenant/event access.
-- What is the minimum relaunch scope for guest quantity check-in?
+- What is the minimum relaunch scope for guest quantity check-in? Answered locally: the scanner lets organizers choose how many remaining guests to check in, so partial guest arrival is supported while buyer check-in remains idempotent.
 
 ### Recommended Cleanup Actions
 
@@ -1112,7 +1113,7 @@ the current working direction until a product decision overrides them.
 
 ### Should Fix Before Relaunch
 
-1. Implement transfer/resale and guest-quantity check-in; keep automatic refund handling visible until the finance flow is implemented.
+1. Implement transfer/resale; keep automatic refund handling visible until the finance flow is implemented.
 2. Add Playwright coverage for negative registration paths and role-ineligible direct links.
 3. Make organizer signup semantics visible and distinct if it remains modeled as a registration option.
 4. Keep simple-mode templates as the primary authoring UI, but expand reusable template support for discounts, add-ons, questions, and organizer notes/checklists where practical.
@@ -1121,7 +1122,7 @@ the current working direction until a product decision overrides them.
    runtime behavior exists.
 6. Run the legacy-field migration path in production so any existing physical `showInHub` role column is dropped now that active schema/API code uses `displayInHub`.
 7. Decide whether pre-event receipt spending/submission remains allowed or needs event-policy gating.
-8. Add scanner guest-quantity behavior before treating scanner UI as relaunch-ready.
+8. Add Browser-backed scanner/organizer aggregate review once local runtime is available.
 9. Clarify profile payment-continuation/ticket/cancellation actions and ESNcard provider failure semantics before relaunch.
 10. Fill the tenant settings gap for one-domain relaunch support, branding, legal links/text, locale/currency/timezone, SEO fields, and global tenant-admin workflows.
 11. Make Playwright list/discovery side-effect-free and document or automate the local browser installation expectation.
@@ -1206,4 +1207,4 @@ implement those decisions or explicitly revise them there before changing code.
 
 ## Review Next
 
-All ten first-pass review areas are now represented in this document. The next stabilization work should continue with small cleanup commits around the remaining relaunch gaps: profile cancellation/waitlist/transfer action clarity, receipt notification follow-ups, scanner guest-quantity behavior, tenant settings scope, running the legacy-field migration path for production data, and replacing intentionally fixme-only price/tax specs with active Browser-backed coverage once the local runtime is available.
+All ten first-pass review areas are now represented in this document. The next stabilization work should continue with small cleanup commits around the remaining relaunch gaps: profile cancellation/waitlist/transfer action clarity, receipt notification follow-ups, tenant settings scope, running the legacy-field migration path for production data, and replacing intentionally fixme-only price/tax specs with active Browser-backed coverage once the local runtime is available.

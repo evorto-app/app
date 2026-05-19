@@ -19,6 +19,8 @@ test.skip('scan confirmed registration records check-in @track(playwright-specs-
   let registrationBefore:
     | {
         checkInTime: Date | null;
+        checkedInGuestCount: number;
+        guestCount: number;
         registrationOptionId: string;
       }
     | undefined;
@@ -34,6 +36,8 @@ test.skip('scan confirmed registration records check-in @track(playwright-specs-
     const candidate = await database.query.eventRegistrations.findFirst({
       columns: {
         checkInTime: true,
+        checkedInGuestCount: true,
+        guestCount: true,
         registrationOptionId: true,
       },
       where: { id: registration.id },
@@ -65,11 +69,20 @@ test.skip('scan confirmed registration records check-in @track(playwright-specs-
   }
 
   try {
+    await database
+      .update(eventRegistrations)
+      .set({
+        checkedInGuestCount: 0,
+        guestCount: 2,
+      })
+      .where(eq(eventRegistrations.id, confirmedRegistration.id));
+
     await page.goto(`/scan/registration/${confirmedRegistration.id}`);
     await expect(
       page.getByRole('heading', { name: 'Registration scanned' }),
     ).toBeVisible();
-    await page.getByRole('button', { name: 'Confirm Check In' }).click();
+    await page.getByLabel('Guests to check in now').fill('2');
+    await page.getByRole('button', { name: 'Confirm 3 Check Ins' }).click();
     await expect(page.getByText('Check-in recorded')).toBeVisible();
 
     await expect
@@ -77,6 +90,7 @@ test.skip('scan confirmed registration records check-in @track(playwright-specs-
         const registration = await database.query.eventRegistrations.findFirst({
           columns: {
             checkInTime: true,
+            checkedInGuestCount: true,
           },
           where: { id: confirmedRegistration.id },
         });
@@ -89,17 +103,23 @@ test.skip('scan confirmed registration records check-in @track(playwright-specs-
 
         return {
           checkedIn: registration?.checkInTime !== null,
+          checkedInGuestCount: registration?.checkedInGuestCount,
           checkedInSpots: option?.checkedInSpots,
         };
       })
       .toEqual({
         checkedIn: true,
-        checkedInSpots: optionBefore.checkedInSpots + 1,
+        checkedInGuestCount: 2,
+        checkedInSpots: optionBefore.checkedInSpots + 3,
       });
   } finally {
     await database
       .update(eventRegistrations)
-      .set({ checkInTime: null })
+      .set({
+        checkInTime: null,
+        checkedInGuestCount: registrationBefore.checkedInGuestCount,
+        guestCount: registrationBefore.guestCount,
+      })
       .where(eq(eventRegistrations.id, confirmedRegistration.id));
     await database
       .update(eventRegistrationOptions)

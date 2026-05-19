@@ -19,6 +19,7 @@ import { backfillAndSeedTaxRates } from './steps/002_backfill_and_seed_tax_rates
 import { addAdminTaxPermission } from './steps/003_add_admin_manage_taxes_permission';
 import { dropLegacyStabilizationFields } from './steps/004_drop_legacy_stabilization_fields';
 import { addEventRegistrationGuestCount } from './steps/005_add_event_registration_guest_count';
+import { addEventRegistrationCheckedInGuestCount } from './steps/006_add_event_registration_checked_in_guest_count';
 
 type Features =
   | 'users'
@@ -79,6 +80,7 @@ async function main() {
   await addUniqueIndexTenantStripeTaxRates();
   await dropLegacyStabilizationFields();
   await addEventRegistrationGuestCount();
+  await addEventRegistrationCheckedInGuestCount();
   consola.success('Global migration steps complete');
 
   consola.start('Begin migration');

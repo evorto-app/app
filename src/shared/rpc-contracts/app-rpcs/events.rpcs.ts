@@ -88,6 +88,7 @@ export const EventsCheckInRegistration = asRpcMutation(
   Rpc.make('events.checkInRegistration', {
     error: EventsCheckInRegistrationError,
     payload: Schema.Struct({
+      guestCheckInCount: nonNegativeNumber,
       registrationId: Schema.NonEmptyString,
     }),
     success: Schema.Struct({
@@ -409,14 +410,18 @@ export const EventsRegistrationScanned = asRpcQuery(
       allowCheckin: Schema.Boolean,
       alreadyCheckedInIssue: Schema.Boolean,
       appliedDiscountType: Schema.NullOr(Schema.Literal('esnCard')),
+      attendeeCheckedIn: Schema.Boolean,
+      checkedInGuestCount: Schema.Number,
       event: Schema.Struct({
         start: Schema.NonEmptyString,
         title: Schema.NonEmptyString,
       }),
+      guestCount: Schema.Number,
       registrationOption: Schema.Struct({
         title: Schema.NonEmptyString,
       }),
       registrationStatusIssue: Schema.Boolean,
+      remainingGuestCount: Schema.Number,
       sameUserIssue: Schema.Boolean,
       user: Schema.Struct({
         firstName: Schema.NonEmptyString,

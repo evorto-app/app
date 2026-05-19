@@ -18,6 +18,7 @@ export const eventRegistrations = pgTable('event_registrations', {
   appliedDiscountType: discountTypes('applied_discount_type'),
   basePriceAtRegistration: integer('base_price_at_registration'),
   ...modelOfTenant,
+  checkedInGuestCount: integer('checked_in_guest_count').notNull().default(0),
   checkInTime: timestamp(),
   discountAmount: integer('discount_amount'),
   eventId: varchar({ length: 20 })
