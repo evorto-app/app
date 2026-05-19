@@ -46,6 +46,43 @@ import {
 
 type ProfileSection = 'discounts' | 'events' | 'overview' | 'receipts';
 
+export const profileEventDetailActionLabel = (): string => 'Open event page';
+
+export const registrationPaymentLabel = (
+  paymentState: 'cancelled' | 'notRequired' | 'pending' | 'recorded',
+): string => {
+  switch (paymentState) {
+    case 'cancelled': {
+      return 'Payment cancelled';
+    }
+    case 'notRequired': {
+      return 'No payment required';
+    }
+    case 'pending': {
+      return 'Payment pending';
+    }
+    case 'recorded': {
+      return 'Payment recorded';
+    }
+  }
+};
+
+export const registrationStatusLabel = (
+  status: 'CONFIRMED' | 'PENDING' | 'WAITLIST',
+): string => {
+  switch (status) {
+    case 'CONFIRMED': {
+      return 'Confirmed';
+    }
+    case 'PENDING': {
+      return 'Pending';
+    }
+    case 'WAITLIST': {
+      return 'Waitlist';
+    }
+  }
+};
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -123,15 +160,19 @@ export class UserProfileComponent {
     this.rpc.finance.receipts.my.queryOptions(),
   );
 
+  protected readonly profileEventDetailActionLabel =
+    profileEventDetailActionLabel;
   protected readonly refreshCardMutation = injectMutation(() =>
     this.rpc.discounts.refreshMyCard.mutationOptions(),
   );
+
+  protected readonly registrationPaymentLabel = registrationPaymentLabel;
+  protected readonly registrationStatusLabel = registrationStatusLabel;
   protected readonly sectionEntries = computed(() =>
     this.allSectionEntries.filter(
       (section) => section.key !== 'discounts' || this.esnEnabled(),
     ),
   );
-
   protected readonly selectedSection = signal<ProfileSection>('overview');
   protected readonly updateProfileMutation = injectMutation(() =>
     this.rpc.users.updateProfile.mutationOptions(),
@@ -142,13 +183,16 @@ export class UserProfileComponent {
   protected readonly userEventsQuery = injectQuery(() =>
     this.rpc.users.events.queryOptions(),
   );
+
   protected readonly userQuery = injectQuery(() =>
     this.rpc.users.self.queryOptions(),
   );
   private readonly dialog = inject(MatDialog);
+
   private readonly notifications = inject(NotificationService);
 
   private readonly queryClient = inject(QueryClient);
+
   private readonly route = inject(ActivatedRoute);
 
   constructor() {
@@ -198,7 +242,6 @@ export class UserProfileComponent {
       },
     );
   }
-
   protected async openEditProfileDialog(): Promise<void> {
     const user = this.userQuery.data();
     if (!user) return;
@@ -242,7 +285,6 @@ export class UserProfileComponent {
       },
     });
   }
-
   protected refreshEsnCard(): void {
     this.esnCardErrorMessage.set(null);
     this.refreshCardMutation.mutate(
@@ -262,41 +304,6 @@ export class UserProfileComponent {
         },
       },
     );
-  }
-
-  protected registrationPaymentLabel(
-    paymentState: 'cancelled' | 'notRequired' | 'pending' | 'recorded',
-  ): string {
-    switch (paymentState) {
-      case 'cancelled': {
-        return 'Payment cancelled';
-      }
-      case 'notRequired': {
-        return 'No payment required';
-      }
-      case 'pending': {
-        return 'Payment pending';
-      }
-      case 'recorded': {
-        return 'Payment recorded';
-      }
-    }
-  }
-
-  protected registrationStatusLabel(
-    status: 'CONFIRMED' | 'PENDING' | 'WAITLIST',
-  ): string {
-    switch (status) {
-      case 'CONFIRMED': {
-        return 'Confirmed';
-      }
-      case 'PENDING': {
-        return 'Pending';
-      }
-      case 'WAITLIST': {
-        return 'Waitlist';
-      }
-    }
   }
 
   protected async saveEsnCard(event: Event): Promise<void> {
