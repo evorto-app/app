@@ -20,6 +20,7 @@ import {
   createAccountErrorMessage,
   createAccountModelFromAuthData,
   createAccountPayloadFromModel,
+  isAuthEmailVerifiedForAccountCreation,
 } from './create-account.helpers';
 
 @Component({
@@ -45,6 +46,8 @@ export class CreateAccountComponent {
   protected readonly authDataQuery = injectQuery(() =>
     this.rpc.users.authData.queryOptions(),
   );
+  protected readonly isAuthEmailVerifiedForAccountCreation =
+    isAuthEmailVerifiedForAccountCreation;
   private readonly createAccountMutation = injectMutation(() =>
     this.rpc.users.createAccount.mutationOptions(),
   );
