@@ -13,11 +13,6 @@ test('register for a free event as regular user @track(playwright-specs-track-li
   seeded,
   tenant,
 }) => {
-  if (!tenant) {
-    test.skip(true, 'No tenant found');
-    return;
-  }
-
   const user = usersToAuthenticate.find((u) => u.roles === 'user')!;
   const targetEventId = seeded.scenario.events.freeOpen.eventId;
   const targetOptionId = seeded.scenario.events.freeOpen.optionId;
