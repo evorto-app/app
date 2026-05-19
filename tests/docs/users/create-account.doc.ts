@@ -87,7 +87,7 @@ If your Auth0 email address is not verified yet, Evorto asks you to verify it be
 
   await testInfo.attach('markdown', {
     body: `
-Review the prefilled first name, last name, and notification email address, then click **Create Account**. Evorto stores the notification email as your editable communication address for event and finance messages, and the form only submits when that address has an email shape.
+Review the prefilled first name, last name, and **Notification email** address, then click **Create Account**. Evorto stores the notification email as your editable communication address for event and finance messages, and the form only submits when that address has an email shape.
 
 If the same global login already exists for another tenant, this step joins the current tenant instead of creating a duplicate global user. If account creation fails, the form shows the server error and lets you retry after resolving the issue.`,
   });
@@ -96,6 +96,9 @@ If the same global login already exists for another tenant, this step joins the 
     .filter({ has: createAccountButton })
     .first();
   await createAccountForm.waitFor({ state: 'visible' });
+  await expect(
+    createAccountForm.getByRole('textbox', { name: 'Notification email' }),
+  ).toBeVisible();
   await takeScreenshot(testInfo, createAccountForm, page);
   await createAccountButton.click();
   await expect(
