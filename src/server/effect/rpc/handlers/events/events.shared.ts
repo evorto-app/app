@@ -2,6 +2,10 @@ import { Effect } from 'effect';
 
 import { Database, type DatabaseClient } from '../../../../../db';
 import { eventRegistrationOptionDiscounts } from '../../../../../db/schema';
+import {
+  includesPermission,
+  type Permission,
+} from '../../../../../shared/permissions/permissions';
 
 export const databaseEffect = <A>(
   operation: (database: DatabaseClient) => Effect.Effect<A, unknown, never>,
@@ -52,9 +56,9 @@ export const canEditEvent = ({
   userId,
 }: {
   creatorId: string;
-  permissions: readonly string[];
+  permissions: readonly Permission[];
   userId: string;
-}) => creatorId === userId || permissions.includes('events:editAll');
+}) => creatorId === userId || includesPermission('events:editAll', permissions);
 
 export const EDITABLE_EVENT_STATUSES = ['DRAFT', 'REJECTED'] as const;
 

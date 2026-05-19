@@ -1,7 +1,11 @@
 import { Schema } from 'effect';
 import { describe, expect, it } from 'vitest';
 
-import { ALL_PERMISSIONS, PermissionSchema } from './permissions';
+import {
+  ALL_PERMISSIONS,
+  includesPermission,
+  PermissionSchema,
+} from './permissions';
 
 describe('PermissionSchema', () => {
   it('encodes permissions as their string literal values', () => {
@@ -22,5 +26,29 @@ describe('PermissionSchema', () => {
         'globalAdmin:manageTenants',
       ]),
     ).toContain('events:viewPublic');
+  });
+});
+
+describe('includesPermission', () => {
+  it('allows direct permissions', () => {
+    expect(includesPermission('templates:view', ['templates:view'])).toBe(true);
+  });
+
+  it('allows configured permission dependencies', () => {
+    expect(includesPermission('templates:view', ['events:create'])).toBe(true);
+  });
+
+  it('allows legacy admin tax aliases', () => {
+    expect(includesPermission('admin:tax', ['admin:manageTaxes'])).toBe(true);
+  });
+
+  it('allows group wildcard checks against concrete permissions', () => {
+    expect(includesPermission('templates:*', ['templates:view'])).toBe(true);
+  });
+
+  it('rejects unrelated permissions', () => {
+    expect(includesPermission('templates:create', ['templates:view'])).toBe(
+      false,
+    );
   });
 });
