@@ -151,7 +151,8 @@ Required for full Playwright flows:
 - `SECRET`
 - `STRIPE_API_KEY`
 - `STRIPE_TEST_ACCOUNT_ID`
-- `STRIPE_WEBHOOK_SECRET`
+- `STRIPE_WEBHOOK_SECRET` or the Docker-provided
+  `STRIPE_WEBHOOK_SECRET_FILE` path for app webhook verification
 
 The Docker stack can use `STRIPE_WEBHOOK_SECRET_FILE` for the app container
 instead of a static `STRIPE_WEBHOOK_SECRET`; the Compose-managed Stripe CLI
