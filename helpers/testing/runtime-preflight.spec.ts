@@ -71,7 +71,6 @@ describe('evaluateRuntimePreflight', () => {
       cwd: '/repo',
       env: {
         CLIENT_ID: 'client-id',
-        FONT_AWESOME_TOKEN: 'font-awesome-token',
         ISSUER_BASE_URL: 'issuer',
         NEON_PROJECT_ID: 'project-id',
         SECRET: 'secret',
@@ -87,6 +86,7 @@ describe('evaluateRuntimePreflight', () => {
           details: expect.arrayContaining([
             'NEON_API_KEY: Neon Local branch creation',
             'CLIENT_SECRET: Auth0 application secret',
+            'FONT_AWESOME_TOKEN: Font Awesome package registry access for premium and brand icons',
             'STRIPE_API_KEY: Stripe API access for paid registration flows',
             'STRIPE_WEBHOOK_SECRET: Stripe webhook signature verification',
           ]),
