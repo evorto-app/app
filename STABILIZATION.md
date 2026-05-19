@@ -900,7 +900,7 @@ the current working direction until a product decision overrides them.
 - If tenant resolution fails, SSR and RPC requests fail closed with a 404. A local probe with `Host: no-such-tenant.invalid` returned 404.
 - Tenant records currently store one unique `domain`, name, currency, locale, timezone, theme, default location, Stripe account id, receipt settings, discount provider settings, and SEO title/description.
 - Client config loads the current tenant and permission list through RPC and applies `theme-${tenant.theme}` to the document root.
-- Tenant admin "General settings" lets tenant admins change default location, site theme, SEO title/description, receipt countries/allow-other, and ESNcard provider enablement plus buy URL.
+- Tenant admin "General settings" shows a read-only identity summary with tenant name, primary domain, currency, locale, timezone, and Stripe connection state. It lets tenant admins change default location, site theme, SEO title/description, receipt countries/allow-other, and ESNcard provider enablement plus buy URL.
 - Tenant settings writes are tenant-scoped and require `admin:changeSettings`; tax-rate admin reads/writes require `admin:tax`.
 - `/global-admin` is guarded by authentication at the app route and by `globalAdmin:manageTenants` in the global-admin route config. The navigation link is hidden behind `globalAdmin:*`, and the tenant list RPC requires `globalAdmin:manageTenants`.
 - Global admin currently exposes only a tenant list with id/name/domain. There is no tenant create/edit/detail flow.
@@ -918,7 +918,8 @@ the current working direction until a product decision overrides them.
 ### Issues and Risks
 
 - **Should fix before relaunch:** the tenant schema supports one `domain`, not multiple domains or domain verification states. Product context allows Evorto subdomains plus custom domains.
-- **Should fix before relaunch:** tenant settings UI does not expose tenant name, domain/custom domain, logo, favicon, legal/privacy/terms/imprint configuration, email sender name, review/publishing settings, registration limits, locale, currency, timezone, or Stripe account state.
+- **Addressed in stabilization pass:** tenant general settings now expose tenant name, primary domain, currency, locale, timezone, and Stripe connection state as read-only operator context without expanding the settings update payload.
+- **Should fix before relaunch:** tenant settings UI does not expose custom-domain verification, logo, favicon, legal/privacy/terms/imprint configuration, email sender name, review/publishing settings, registration limits, editable locale/currency/timezone, or Stripe account management.
 - **Addressed in stabilization pass:** tenant SEO title and description are now part of the `Tenant` RPC schema, editable from general settings, persisted by `admin.tenant.updateSettings`, and used as the tenant-level document title/meta description when configured.
 - **Addressed in stabilization pass:** tenant-admin child routes now have route-level guards. Settings require `admin:changeSettings`, roles require `admin:manageRoles`, users require `users:viewAll`, tax rates require `admin:tax`, and event reviews require `events:review`.
 - **Addressed in stabilization pass:** tenant settings saves now show a success notification and map failed updates through the shared readable error-message helper instead of relying only on mutation state.
@@ -937,7 +938,7 @@ the current working direction until a product decision overrides them.
 - `tests/specs/auth/storage-state-refresh.test.ts` covers stale/wrong tenant cookies in saved Playwright storage state, not runtime tenant resolution.
 - `tests/specs/permissions/tenant-isolation-tax-rates.spec.ts` checks seeded tenant tax-rate isolation directly in the database, but does not exercise the RPC/UI tenant context switch.
 - `tests/specs/permissions/matrix.spec.ts` covers route denial for `/admin/settings`, `/admin/roles`, `/admin/users`, and `/admin/tax-rates`. `tests/specs/finance/tax-rates/admin-import-tax-rates.spec.ts` adds focused tax-rate route denial coverage. `tests/specs/permissions/global-admin-route-guard.spec.ts` covers direct `/global-admin` allow/deny behavior once page-backed runtime is available.
-- `tests/docs/admin/general-settings.doc.ts` documents the current tenant general-settings page and records which branding/legal/domain settings are not implemented yet.
+- `tests/docs/admin/general-settings.doc.ts` documents the current tenant general-settings page, including the read-only tenant identity summary, and records which branding/legal/domain settings are not implemented yet.
 - `tests/docs/admin/global-admin.doc.ts` documents the current global-admin tenant list and records that tenant create/edit/detail, custom-domain verification, and impersonation workflows are not implemented yet.
 - `tests/docs/finance/inclusive-tax-rates.doc.ts` documents tenant tax-rate management.
 - `src/shared/rpc-contracts/app-rpcs/admin.rpcs.spec.ts` covers the tenant settings update payload scope.

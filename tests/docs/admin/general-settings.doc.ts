@@ -36,6 +36,7 @@ Tenant admins can manage the settings that are currently implemented for the act
 
 The current general settings page supports:
 
+- A read-only **Tenant identity** summary with tenant name, primary domain, currency, locale, timezone, and Stripe connection state.
 - **Default Location** for event location search bias.
 - **Site theme** for the tenant theme.
 - **SEO title** and **SEO description** for tenant-level page metadata.
@@ -50,7 +51,7 @@ Tax rates are managed on the separate **Tax Rates** page.
     body: `
 ## Relaunch scope notes
 
-One-domain-per-tenant remains the current relaunch scope in the application schema. Custom domain verification, tenant logo/favicon uploads, legal/imprint/privacy/terms configuration, email sender name, review/publishing policy, registration limits, editable locale/currency/timezone, and Stripe account state are not part of this general settings page yet.
+One-domain-per-tenant remains the current relaunch scope in the application schema. The page now exposes the active primary domain and runtime tenant settings for operator review, but custom domain verification, tenant logo/favicon uploads, legal/imprint/privacy/terms configuration, email sender name, review/publishing policy, registration limits, editable locale/currency/timezone, and Stripe account management are not part of this general settings page yet.
 `,
   });
 });
