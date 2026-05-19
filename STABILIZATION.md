@@ -486,6 +486,7 @@ the current working direction until a product decision overrides them.
 - Submit/review lifecycle supports `DRAFT`, `PENDING_REVIEW`, `APPROVED`, and `REJECTED`.
 - Listing visibility is separate from status through the `unlisted` flag; admins with the right permission can see/toggle it.
 - Event list filtering defaults to all statuses only for users with `events:seeDrafts`; other users only request approved events.
+- Event create/update handlers reject invalid start/end dates, event end times that are not after start times, and registration windows that close before they open.
 
 ### Intended Behavior From Product Context
 
@@ -497,7 +498,7 @@ the current working direction until a product decision overrides them.
 
 ### Issues and Risks
 
-- **Must fix before agent scaling:** event creation/update validate date parseability, but not event ordering or registration-window ordering beyond "both dates parse." `events.create` and `events.update` should reject end-before-start and close-before-open before future agents build on the model.
+- **Addressed in stabilization pass:** event creation/update now reject end-before-start and close-before-open registration windows server-side.
 - **Must fix before agent scaling:** event update accepts any `location` shaped as `Schema.Any`; app forms pass structured location data, but the RPC boundary does not validate it.
 - **Should fix before relaunch:** event creation copies template option discounts by matching title plus organizer flag. Duplicate option titles can copy discounts to the wrong option.
 - **Should fix before relaunch:** `event-management.doc.ts` describes attendees, settings tabs, event categories/tags, featured images, and notification settings that do not appear to exist in the current event UI. This is misleading documentation, not just incomplete coverage.
@@ -512,7 +513,6 @@ the current working direction until a product decision overrides them.
 
 ### Recommended Cleanup Actions
 
-- Add focused server tests for date ordering and registration-window ordering in `events.create` / `events.update`.
 - Replace `Schema.Any` for event location with a real shared schema or explicitly document why location remains unchecked.
 - Fix template-to-event discount copying to use stable source option identity instead of title matching.
 - Rewrite stale sections of `tests/docs/events/event-management.doc.ts` to describe only current UI behavior.
@@ -555,6 +555,7 @@ the current working direction until a product decision overrides them.
 ### Test and Documentation Quality
 
 - `tests/specs/events/free-registration.test.ts` covers the free registration happy path using seeded scenario handles.
+- `src/server/effect/rpc/handlers/events/events-lifecycle.handlers.spec.ts` covers server-side rejection of end-before-start events and close-before-open registration windows for event create/update.
 - `tests/docs/events/register.doc.ts` covers free and paid registration as generated documentation and Stripe-backed evidence.
 - No reviewed test covers registration rejection for unpublished events, closed windows, ineligible roles, same user registering for organizer plus participant options, or concurrent capacity.
 - `tests/specs/events/price-labels-inclusive.spec.ts` is mostly placeholder assertions with TODOs. It should not be treated as real price-label regression coverage.
