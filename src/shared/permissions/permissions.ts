@@ -269,3 +269,27 @@ export const PERMISSION_DEPENDENCIES: Record<Permission, Permission[]> =
       }),
     ),
   ) as Record<Permission, Permission[]>;
+
+export const includesPermission = (
+  permission: Permission,
+  permissions: readonly Permission[],
+): boolean => {
+  if (permission === 'admin:tax' && permissions.includes('admin:manageTaxes')) {
+    return true;
+  }
+
+  if (permission.includes(':*')) {
+    const [group] = permission.split(':');
+    if (permissions.some((granted) => granted.includes(`${group}:`))) {
+      return true;
+    }
+  } else if (permissions.includes(permission)) {
+    return true;
+  }
+
+  return Object.entries(PERMISSION_DEPENDENCIES).some(
+    ([parentPermission, childPermissions]) =>
+      permissions.includes(parentPermission as Permission) &&
+      childPermissions.includes(permission),
+  );
+};
