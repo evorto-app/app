@@ -726,7 +726,7 @@ the current working direction until a product decision overrides them.
 - **Addressed in this stabilization pass:** finance parent and child routes now have route-level permission guards. Transactions require `finance:viewTransactions`, receipt approvals require `finance:approveReceipts`, and receipt reimbursement requires `finance:refundReceipts`.
 - **Addressed in this stabilization pass:** receipt media upload now includes the target `eventId`, checks tenant event existence for authorized callers, and requires `canSubmitEventReceipts` before object storage is touched. A signed-in user without receipt-submit access can no longer create orphan receipt objects through the upload RPC.
 - **Addressed in stabilization pass:** manual receipt reimbursement is now labeled as recording a reimbursement in the finance overview, reimbursement list, receipt submit hint, profile payout fields, visible server messages, docs, and Playwright coverage. Reimbursement transaction comments no longer copy the full payout reference into free text. The legacy route path, permission name, RPC name, receipt status, and transaction type still use "refund" internally until a broader data/API migration is worthwhile.
-- **Should fix before relaunch:** receipt submission and review validate deposit/alcohol against total, but do not reject tax amounts greater than the total amount.
+- **Addressed in stabilization pass:** receipt submission and review now reject tax amounts greater than the total amount, matching the existing deposit/alcohol amount consistency guard.
 - **Should fix before relaunch:** receipts are intended as post-event submissions, but the reviewed server path allows receipt submission for any event where the user is allowed to organize/manage receipts.
 - **Should fix before relaunch:** `event_registrations.paymentStatus` exists and tests seed it as `PENDING`, but the reviewed registration/payment paths do not maintain it. It is stale unless the product intentionally uses registration `status` as the only payment lifecycle state.
 - **Should fix before relaunch:** receipt review records status locally but no reviewed-email or notification delivery path was found.
@@ -739,7 +739,7 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** `tests/specs/finance/receipts-flows.spec.ts` now hard-fails when the seeded pending receipt, refundable receipt group, row checkbox, enabled reimbursement action, or tenant "Other" country option is missing.
 - Finance overview docs now describe the current navigation-style finance UI and current finance capability names.
 - Tax-rate docs and specs provide better active coverage for `admin:tax` and inclusive Stripe tax-rate import/selection.
-- Server finance unit tests are still thin, but now include transaction-list permission denial plus receipt-media upload preflight denial/success coverage. Receipt submit/review amount preconditions remain mostly untested at the handler level.
+- Server finance unit tests are still thin, but now include transaction-list permission denial, receipt-media upload preflight denial/success coverage, and tax-amount consistency rejection on receipt submit/review.
 
 ### Product Questions Answered Above
 
@@ -755,7 +755,7 @@ the current working direction until a product decision overrides them.
 - Keep webhook-side regression tests asserting registration status, transaction status, and option counters together for paid checkout completion and expiry.
 - Keep direct-route Playwright denial coverage for finance transaction, receipt approval, and receipt reimbursement routes.
 - Keep receipt reimbursement UI copy honest about recording a manual reimbursement unless an actual payout integration is added.
-- Validate receipt tax amount against total amount on submit and review.
+- Keep receipt amount consistency checks aligned between submit and review.
 - Remove or deprecate `paymentStatus` in favor of registration status plus
   transaction rows after confirming no active behavior depends on it.
 - Keep receipt flow specs deterministic: seeded approval/reimbursement paths should fail loudly when expected rows, controls, or options are missing.
@@ -1082,7 +1082,7 @@ the current working direction until a product decision overrides them.
    those modes remain in the relaunch UI; otherwise hide them until their
    runtime behavior exists.
 6. Remove or backfill the legacy `showInHub` role column now that active role writes use `displayInHub`.
-7. Validate receipt tax amount consistency and support pre-event receipt spending/submission.
+7. Decide whether pre-event receipt spending/submission remains allowed or needs event-policy gating.
 8. Add check-in timing, duplicate-scan, camera-error, and guest-quantity behavior before treating scanner UI as relaunch-ready.
 9. Clarify profile event cards, notification/login email behavior, global payout preference visibility, and global-per-user ESNcard validation UX before relaunch.
 10. Fill the tenant settings gap for one-domain relaunch support, branding, legal links/text, locale/currency/timezone, SEO fields, and global tenant-admin workflows.
@@ -1145,7 +1145,8 @@ implement those decisions or explicitly revise them there before changing code.
 - Finance receipt-upload pass: added event-scoped receipt-media upload preflight so object storage writes require receipt-submit authorization before upload, while `finance.receipts.submit` keeps its own authorization check.
 - Finance receipt-spec cleanup pass: removed silent early returns from approval/refund and "Other country" receipt Playwright coverage so missing seeded UI state fails instead of passing.
 - Receipt reimbursement wording pass: renamed finance-facing receipt reimbursement copy away from "refund" for manual ledger actions while leaving legacy internal route/API/database names for a later migration.
+- Receipt amount validation pass: rejected receipt submit/review payloads where tax exceeds the total amount and added focused server coverage for both write paths.
 
 ## Review Next
 
-All ten first-pass review areas are now represented in this document. The next stabilization work should continue with small cleanup commits around the remaining relaunch gaps: profile/account clarity, receipt validation, scanner timing/camera-error behavior, tenant settings scope, role hub-field legacy migration, and replacing intentionally fixme-only price/tax specs with active Browser-backed coverage once the local runtime is available.
+All ten first-pass review areas are now represented in this document. The next stabilization work should continue with small cleanup commits around the remaining relaunch gaps: profile/account clarity, receipt timing/notification/payment-status follow-ups, scanner timing/camera-error behavior, tenant settings scope, role hub-field legacy migration, and replacing intentionally fixme-only price/tax specs with active Browser-backed coverage once the local runtime is available.

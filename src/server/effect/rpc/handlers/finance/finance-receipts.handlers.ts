@@ -601,6 +601,14 @@ export const financeReceiptsHandlers = {
           }),
         );
       }
+      if (input.taxAmount > input.totalAmount) {
+        return yield* Effect.fail(
+          new RpcBadRequestError({
+            message: 'Tax amount exceeds the total amount',
+            reason: 'taxAmountExceedsTotal',
+          }),
+        );
+      }
       if (input.status === 'rejected' && !input.rejectionReason) {
         return yield* Effect.fail(
           new RpcBadRequestError({
@@ -739,6 +747,14 @@ export const financeReceiptsHandlers = {
           new RpcBadRequestError({
             message: 'Deposit and alcohol amounts exceed the total amount',
             reason: 'amount_mismatch',
+          }),
+        );
+      }
+      if (input.fields.taxAmount > input.fields.totalAmount) {
+        return yield* Effect.fail(
+          new RpcBadRequestError({
+            message: 'Tax amount exceeds the total amount',
+            reason: 'tax_amount_exceeds_total',
           }),
         );
       }
