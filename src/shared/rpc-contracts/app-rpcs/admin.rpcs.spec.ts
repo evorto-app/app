@@ -8,9 +8,12 @@ const currentTenantSettingsInput = {
   buyEsnCardUrl: 'https://esncard.org/',
   defaultLocation: null,
   esnCardEnabled: true,
+  legalNoticeUrl: 'https://section.example.org/imprint',
+  privacyPolicyUrl: 'https://section.example.org/privacy',
   receiptCountries: ['DE', 'NL'],
   seoDescription: 'Public tenant description',
   seoTitle: 'Public tenant title',
+  termsUrl: 'https://section.example.org/terms',
   theme: 'esn' as const,
 };
 
@@ -32,16 +35,13 @@ describe('AdminTenantUpdateSettingsInput', () => {
     ).toThrow();
   });
 
-  it('keeps deferred branding, legal, and domain fields outside the current update payload', () => {
+  it('keeps deferred branding and domain fields outside the current update payload', () => {
     const decoded = Schema.decodeUnknownSync(AdminTenantUpdateSettingsInput)({
       ...currentTenantSettingsInput,
       customDomain: 'section.example.org',
       faviconUrl: 'https://cdn.example.org/favicon.ico',
-      legalNoticeUrl: 'https://section.example.org/imprint',
       logoUrl: 'https://cdn.example.org/logo.svg',
-      privacyPolicyUrl: 'https://section.example.org/privacy',
       senderName: 'Example Section',
-      termsUrl: 'https://section.example.org/terms',
     });
 
     expect(decoded).toEqual(currentTenantSettingsInput);

@@ -62,18 +62,24 @@ export class GeneralSettingsComponent {
     buyEsnCardUrl: string;
     defaultLocation: GoogleLocationType | null;
     esnCardEnabled: boolean;
+    legalNoticeUrl: string;
+    privacyPolicyUrl: string;
     receiptCountries: string[];
     seoDescription: string;
     seoTitle: string;
+    termsUrl: string;
     theme: 'esn' | 'evorto';
   }>({
     allowOther: false,
     buyEsnCardUrl: '',
     defaultLocation: null,
     esnCardEnabled: false,
+    legalNoticeUrl: '',
+    privacyPolicyUrl: '',
     receiptCountries: [...DEFAULT_RECEIPT_COUNTRIES],
     seoDescription: '',
     seoTitle: '',
+    termsUrl: '',
     theme: 'evorto',
   });
   protected readonly esnEnabled = computed(
@@ -109,9 +115,12 @@ export class GeneralSettingsComponent {
           defaultLocation: currentTenant.defaultLocation ?? null,
           esnCardEnabled:
             currentTenant.discountProviders?.esnCard?.status === 'enabled',
+          legalNoticeUrl: currentTenant.legalNoticeUrl ?? '',
+          privacyPolicyUrl: currentTenant.privacyPolicyUrl ?? '',
           receiptCountries: [...receiptCountrySettings.receiptCountries],
           seoDescription: currentTenant.seoDescription ?? '',
           seoTitle: currentTenant.seoTitle ?? '',
+          termsUrl: currentTenant.termsUrl ?? '',
           theme: currentTenant.theme,
         });
       }
@@ -129,9 +138,12 @@ export class GeneralSettingsComponent {
             buyEsnCardUrl: settings.buyEsnCardUrl.trim() || undefined,
             defaultLocation: settings.defaultLocation,
             esnCardEnabled: settings.esnCardEnabled,
+            legalNoticeUrl: settings.legalNoticeUrl.trim() || undefined,
+            privacyPolicyUrl: settings.privacyPolicyUrl.trim() || undefined,
             receiptCountries: settings.receiptCountries,
             seoDescription: settings.seoDescription.trim() || undefined,
             seoTitle: settings.seoTitle.trim() || undefined,
+            termsUrl: settings.termsUrl.trim() || undefined,
             theme: settings.theme,
           },
           {
