@@ -74,6 +74,12 @@ export class RoleEditComponent {
           await this.queryClient.invalidateQueries(
             this.rpc.queryFilter(['admin', 'roles.search']),
           );
+          await this.queryClient.invalidateQueries(
+            this.rpc.queryFilter(['roles', 'findMany']),
+          );
+          await this.queryClient.invalidateQueries(
+            this.rpc.queryFilter(['roles', 'findOne']),
+          );
           const id = this.roleId();
           this.router.navigate(['admin', 'roles', id]);
         },

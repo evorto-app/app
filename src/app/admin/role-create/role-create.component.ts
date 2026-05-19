@@ -56,6 +56,9 @@ export class RoleCreateComponent {
           await this.queryClient.invalidateQueries(
             this.rpc.queryFilter(['admin', 'roles.search']),
           );
+          await this.queryClient.invalidateQueries(
+            this.rpc.queryFilter(['roles', 'findMany']),
+          );
           this.router.navigate(['admin', 'roles', data.id]);
         },
       },

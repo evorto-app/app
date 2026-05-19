@@ -195,7 +195,7 @@ export const adminHandlers = {
     }),
   'admin.roles.findMany': (input, options) =>
     Effect.gen(function* () {
-      yield* ensureAuthenticated(options.headers);
+      yield* ensurePermission(options.headers, 'admin:manageRoles');
       const tenant = decodeHeaderJson(
         options.headers[RPC_CONTEXT_HEADERS.TENANT],
         Tenant,

@@ -6,6 +6,7 @@ import { EventsRpcs } from './events.rpcs';
 import { FinanceRpcs } from './finance.rpcs';
 import { GlobalAdminRpcs } from './global-admin.rpcs';
 import { IconsRpcs } from './icons.rpcs';
+import { RolesRpcs } from './roles.rpcs';
 import { TaxRatesRpcs } from './tax-rates.rpcs';
 import { TemplateCategoriesRpcs } from './template-categories.rpcs';
 import { TemplatesRpcs } from './templates.rpcs';
@@ -19,6 +20,7 @@ const AppRpcsBase = ConfigRpcs.merge(
   FinanceRpcs,
   GlobalAdminRpcs,
   IconsRpcs,
+  RolesRpcs,
   TaxRatesRpcs,
   TemplateCategoriesRpcs,
   TemplatesRpcs,
