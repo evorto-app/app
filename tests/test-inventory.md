@@ -106,7 +106,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 - `specs/templates/paid-option-requires-tax-rate.spec.ts` is intentionally
   fixme-only until simple-mode template tax-rate behavior has active UI
   coverage. Template detail paid-option summaries now share the inclusive price
-  label component with event registration cards.
+  label component with event registration cards, and create/edit submit helpers
+  now clear hidden free-registration payment fields before server submission.
 - `docs/users/create-account.doc.ts` is integration-tagged with
   `@needs-auth0-management`; baseline list/discovery must not require those
   credentials.

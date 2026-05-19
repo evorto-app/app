@@ -43,9 +43,11 @@ const testLayer = Layer.mergeAll(
 const createValidationDatabase = ({
   categoryFound,
   roleIds,
+  taxRate,
 }: {
   categoryFound: boolean;
   roleIds: readonly string[];
+  taxRate?: { active: boolean; inclusive: boolean };
 }) =>
   ({
     query: {
@@ -57,6 +59,7 @@ const createValidationDatabase = ({
         findMany: () => Effect.succeed(roleIds.map((id) => ({ id }))),
       },
       tenantStripeTaxRates: {
+        findFirst: () => Effect.succeed(taxRate),
         findMany: () => Effect.succeed([]),
       },
     },
@@ -191,6 +194,67 @@ describe('SimpleTemplateService', () => {
       expect(error['_tag']).toBe('TemplateSimpleBadRequestError');
       expect(error.message).toBe(
         'Registration role does not exist for this tenant',
+      );
+    }),
+  );
+
+  it.effect('fails when a paid registration omits a tax rate', () =>
+    Effect.gen(function* () {
+      const program = SimpleTemplateService.createSimpleTemplate({
+        input: {
+          ...validTemplateInput,
+          participantRegistration: {
+            ...validTemplateInput.participantRegistration,
+            isPaid: true,
+            price: 2500,
+            stripeTaxRateId: null,
+          },
+        },
+        tenantId: 'tenant-1',
+      }).pipe(
+        Effect.flip,
+        Effect.provide(
+          createValidationLayer(
+            createValidationDatabase({ categoryFound: true, roleIds: [] }),
+          ),
+        ),
+      );
+
+      const error = yield* program;
+      expect(error['_tag']).toBe('TemplateSimpleBadRequestError');
+      expect(error.message).toBe(
+        'participant registration tax rate validation failed',
+      );
+    }),
+  );
+
+  it.effect('fails when a free registration keeps a stale tax rate', () =>
+    Effect.gen(function* () {
+      const program = SimpleTemplateService.updateSimpleTemplate({
+        input: {
+          id: 'template-1',
+          ...validTemplateInput,
+          organizerRegistration: {
+            ...validTemplateInput.organizerRegistration,
+            isPaid: false,
+            price: 0,
+            stripeTaxRateId: 'txr_stale',
+          },
+        },
+        tenantId: 'tenant-1',
+      }).pipe(
+        Effect.flip,
+        Effect.provide(
+          createValidationLayer(
+            createValidationDatabase({ categoryFound: true, roleIds: [] }),
+          ),
+        ),
+      );
+
+      const error = yield* program;
+      expect(error['_tag']).toBe('TemplateSimpleBadRequestError');
+      expect(error.message).toBe(
+        'organizer registration tax rate validation failed',
       );
     }),
   );

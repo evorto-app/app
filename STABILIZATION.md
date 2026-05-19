@@ -618,6 +618,7 @@ the current working direction until a product decision overrides them.
 - **Addressed in this stabilization pass:** registration mode now only offers first-come-first-served in event/template authoring controls. The contracts still accept existing stored `random`/`application` values, but new/edit UI no longer presents unsupported fulfillment modes.
 - **Addressed in this stabilization pass:** template create/edit components use scoped `consola/browser` loggers instead of direct `console.*` calls.
 - **Addressed in stabilization pass:** template detail paid-option summaries now use the shared inclusive tax label component, matching the event registration card display and preserving the same fallback label when tax-rate details are unavailable.
+- **Addressed in stabilization pass:** template create/edit submit normalization clears hidden payment fields for free registrations, so toggling a paid option back to free no longer submits a stale `stripeTaxRateId` that the server correctly rejects.
 - **Acceptable for now:** the template detail page is a useful read-only summary and the "Create event" action is discoverable from the detail surface.
 
 ### Test and Documentation Quality
@@ -625,6 +626,8 @@ the current working direction until a product decision overrides them.
 - `tests/specs/templates/templates.test.ts` covers create, view, empty-category add flow, and role autocomplete duplicate hiding.
 - `tests/docs/templates/templates.doc.ts` documents simple-mode template creation, role defaults, payment field visibility, and role-picker behavior.
 - `tests/specs/templates/paid-option-requires-tax-rate.spec.ts` is intentionally fixme-only until template tax-rate behavior has active simple-mode UI coverage.
+- `src/app/templates/shared/template-form/template-registration-option-form.utilities.spec.ts` covers paid template tax-rate preservation and free-registration payment-field cleanup before create/edit submission.
+- `src/server/effect/rpc/handlers/templates/simple-template.service.spec.ts` covers paid template registrations without tax rates and free template registrations with stale tax-rate ids failing through the server-side validation path.
 - The generic `tests/docs/template.doc.ts` discovery placeholder was removed; product template documentation lives in `tests/docs/templates/templates.doc.ts`.
 - Permission matrix coverage checks template create link visibility plus direct route denial for template create/edit/create-event routes. Server unit coverage proves template RPC denial, template offset ordering, tenant-owned template category/role validation, and template location schema rejection.
 

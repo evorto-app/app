@@ -29,7 +29,10 @@ import { TemplateGeneralFormComponent } from '../shared/template-form/template-g
 import { templateGeneralFormSchema } from '../shared/template-form/template-general-form.schema';
 import { TemplateRegistrationOptionFormComponent } from '../shared/template-form/template-registration-option-form.component';
 import { templateRegistrationOptionFormSchema } from '../shared/template-form/template-registration-option-form.schema';
-import { RegistrationMode } from '../shared/template-form/template-registration-option-form.utilities';
+import {
+  RegistrationMode,
+  toTemplateRegistrationSubmitData,
+} from '../shared/template-form/template-registration-option-form.utilities';
 
 const templateFormSchema = schema<TemplateFormData>((formPath) => {
   apply(formPath, templateGeneralFormSchema);
@@ -115,30 +118,12 @@ export class TemplateEditComponent {
       const payload: TemplateFormSubmitData = {
         ...formValue,
         icon: formValue.icon,
-        organizerRegistration: {
-          closeRegistrationOffset:
-            formValue.organizerRegistration.closeRegistrationOffset,
-          isPaid: formValue.organizerRegistration.isPaid,
-          openRegistrationOffset:
-            formValue.organizerRegistration.openRegistrationOffset,
-          price: formValue.organizerRegistration.price,
-          registrationMode: formValue.organizerRegistration.registrationMode,
-          roleIds: formValue.organizerRegistration.roleIds,
-          spots: formValue.organizerRegistration.spots,
-          stripeTaxRateId: formValue.organizerRegistration.stripeTaxRateId,
-        },
-        participantRegistration: {
-          closeRegistrationOffset:
-            formValue.participantRegistration.closeRegistrationOffset,
-          isPaid: formValue.participantRegistration.isPaid,
-          openRegistrationOffset:
-            formValue.participantRegistration.openRegistrationOffset,
-          price: formValue.participantRegistration.price,
-          registrationMode: formValue.participantRegistration.registrationMode,
-          roleIds: formValue.participantRegistration.roleIds,
-          spots: formValue.participantRegistration.spots,
-          stripeTaxRateId: formValue.participantRegistration.stripeTaxRateId,
-        },
+        organizerRegistration: toTemplateRegistrationSubmitData(
+          formValue.organizerRegistration,
+        ),
+        participantRegistration: toTemplateRegistrationSubmitData(
+          formValue.participantRegistration,
+        ),
       };
       await this.updateTemplateMutation.mutateAsync(
         { id, ...payload },
