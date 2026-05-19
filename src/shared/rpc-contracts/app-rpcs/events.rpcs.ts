@@ -210,6 +210,7 @@ export const EventsFindOneRegistrationOption = Schema.Struct({
   price: Schema.Number,
   registeredDescription: Schema.NullOr(Schema.String),
   registrationMode: EventsFindOneForEditRegistrationMode,
+  reservedSpots: Schema.Number,
   roleIds: Schema.Array(Schema.NonEmptyString),
   spots: Schema.Number,
   stripeTaxRateId: Schema.NullOr(Schema.String),
