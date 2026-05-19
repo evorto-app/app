@@ -28,4 +28,16 @@ describe('event registration schema', () => {
     );
     expect(eventRegistrationsSource).toContain('.notNull().default(0)');
   });
+
+  it('stores partial guest check-in progress on the registration row', () => {
+    const eventRegistrationsSource = readFileSync(
+      new URL('event-registrations.ts', import.meta.url),
+      'utf8',
+    );
+
+    expect(eventRegistrationsSource).toContain(
+      "checkedInGuestCount: integer('checked_in_guest_count')",
+    );
+    expect(eventRegistrationsSource).toContain('.notNull().default(0)');
+  });
 });
