@@ -103,7 +103,7 @@ Approving or rejecting records the review status in Evorto. Submitter email noti
     body: `
 ## Receipt Reimbursements
 
-The **Receipt reimbursements** tab groups approved receipts by recipient and renders each group in a selectable table. Finance users can select one or more rows, verify payout details (IBAN/PayPal), and record the manual reimbursement transaction for the selected batch.
+The **Receipt reimbursements** tab groups approved receipts by recipient and renders each group in a selectable table. Recipient contact details use the submitter's notification email when configured, with login email as fallback. Finance users can select one or more rows, verify payout details (IBAN/PayPal), and record the manual reimbursement transaction for the selected batch.
 `,
   });
   await page.goto('/finance/receipts-refunds');
