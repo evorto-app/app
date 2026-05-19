@@ -91,6 +91,7 @@ export const withSignedReceiptPreviewUrls = <
   });
 
 interface UploadOriginalInput {
+  eventId: string;
   fileBase64: string;
   fileName: string;
   fileSizeBytes: number;
@@ -105,6 +106,7 @@ export class ReceiptMediaService extends Context.Service<ReceiptMediaService>()(
     make: Effect.sync(() => {
       const uploadOriginal = Effect.fn('ReceiptMediaService.uploadOriginal')(
         function* ({
+          eventId,
           fileBase64,
           fileName,
           fileSizeBytes,
@@ -141,6 +143,7 @@ export class ReceiptMediaService extends Context.Service<ReceiptMediaService>()(
           const storageKey = [
             'receipts',
             tenantId,
+            eventId,
             userId,
             datePrefix,
             `${Date.now()}-${safeFileName}`,
