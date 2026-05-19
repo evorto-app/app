@@ -1219,4 +1219,12 @@ implement those decisions or explicitly revise them there before changing code.
 
 ## Review Next
 
-All ten first-pass review areas are now represented in this document. The next stabilization work should continue with small cleanup commits around the remaining relaunch gaps: profile cancellation/waitlist/transfer action clarity, receipt notification follow-ups, tenant settings scope, running the legacy-field migration path for production data, and replacing intentionally fixme-only price/tax specs with active Browser-backed coverage once the local runtime is available.
+All ten first-pass review areas are now represented in this document. The next
+stabilization work should continue with small cleanup commits around the
+remaining relaunch gaps: profile cancellation/waitlist/transfer action clarity,
+tenant settings scope, running the legacy-field migration path for production
+data, and replacing intentionally fixme-only price/tax specs with active
+Browser-backed coverage once the local runtime is available. Receipt
+notification remains a future product delivery path; the current relaunch scope
+records receipt review locally and keeps finance-facing copy explicit that
+submitter notification is manual.
