@@ -53,6 +53,11 @@ In simple mode (currently the only mode), the registration settings are split in
 There are the settings for participants, and separately, those for organizers.
 Both have the same structure, but you can see that different roles are preselected.
 The registration consists of the following settings:
+- **Registration option name**: The reusable label copied into events created
+  from this template.
+- **Description** and **description for registered users**: Optional reusable
+  public and attendee-only copy that is copied into the event registration
+  option.
 - **Payment required**: Is a payment required for this registration?
 - **Registration fee**: The registration fee for this registration. This field is only visible if the payment is required.
 - **Selected roles**: The roles that are selected for this registration. Users can only see and use the registration if they have one of the selected roles.

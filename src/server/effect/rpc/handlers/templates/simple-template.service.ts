@@ -73,7 +73,18 @@ export const buildTemplateInsertValues = ({
   };
 };
 
-const buildRegistrationOptionInsert = ({
+const optionalRichTextOrNull = (
+  value: null | string | undefined,
+): null | string => {
+  if (!value) {
+    return null;
+  }
+
+  const sanitized = sanitizeRichTextHtml(value);
+  return isMeaningfulRichTextHtml(sanitized) ? sanitized : null;
+};
+
+export const buildRegistrationOptionInsert = ({
   input,
   organizingRegistration,
   templateId,
@@ -84,18 +95,18 @@ const buildRegistrationOptionInsert = ({
 }): TemplateRegistrationOptionInsert => {
   return {
     closeRegistrationOffset: input.closeRegistrationOffset,
+    description: optionalRichTextOrNull(input.description),
     isPaid: input.isPaid,
     openRegistrationOffset: input.openRegistrationOffset,
     organizingRegistration,
     price: input.price,
+    registeredDescription: optionalRichTextOrNull(input.registeredDescription),
     registrationMode: input.registrationMode,
     roleIds: [...input.roleIds],
     spots: input.spots,
     stripeTaxRateId: input.stripeTaxRateId ?? null,
     templateId,
-    title: organizingRegistration
-      ? 'Organizer registration'
-      : 'Participant registration',
+    title: input.title.trim(),
   };
 };
 
@@ -361,15 +372,22 @@ export class SimpleTemplateService extends Context.Service<SimpleTemplateService
             .set({
               closeRegistrationOffset:
                 input.organizerRegistration.closeRegistrationOffset,
+              description: optionalRichTextOrNull(
+                input.organizerRegistration.description,
+              ),
               isPaid: input.organizerRegistration.isPaid,
               openRegistrationOffset:
                 input.organizerRegistration.openRegistrationOffset,
               price: input.organizerRegistration.price,
+              registeredDescription: optionalRichTextOrNull(
+                input.organizerRegistration.registeredDescription,
+              ),
               registrationMode: input.organizerRegistration.registrationMode,
               roleIds: input.organizerRegistration.roleIds,
               spots: input.organizerRegistration.spots,
               stripeTaxRateId:
                 input.organizerRegistration.stripeTaxRateId ?? null,
+              title: input.organizerRegistration.title.trim(),
             })
             .where(
               and(
@@ -385,15 +403,22 @@ export class SimpleTemplateService extends Context.Service<SimpleTemplateService
             .set({
               closeRegistrationOffset:
                 input.participantRegistration.closeRegistrationOffset,
+              description: optionalRichTextOrNull(
+                input.participantRegistration.description,
+              ),
               isPaid: input.participantRegistration.isPaid,
               openRegistrationOffset:
                 input.participantRegistration.openRegistrationOffset,
               price: input.participantRegistration.price,
+              registeredDescription: optionalRichTextOrNull(
+                input.participantRegistration.registeredDescription,
+              ),
               registrationMode: input.participantRegistration.registrationMode,
               roleIds: input.participantRegistration.roleIds,
               spots: input.participantRegistration.spots,
               stripeTaxRateId:
                 input.participantRegistration.stripeTaxRateId ?? null,
+              title: input.participantRegistration.title.trim(),
             })
             .where(
               and(

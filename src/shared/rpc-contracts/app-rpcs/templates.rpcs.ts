@@ -24,13 +24,16 @@ export const TemplateRegistrationMode = literalUnion(
 
 export const TemplateSimpleRegistrationInput = Schema.Struct({
   closeRegistrationOffset: nonNegativeNumber,
+  description: Schema.optional(Schema.NullOr(Schema.String)),
   isPaid: Schema.Boolean,
   openRegistrationOffset: nonNegativeNumber,
   price: nonNegativeNumber,
+  registeredDescription: Schema.optional(Schema.NullOr(Schema.String)),
   registrationMode: TemplateRegistrationMode,
   roleIds: Schema.mutable(Schema.Array(Schema.NonEmptyString)),
   spots: positiveNumber,
   stripeTaxRateId: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
+  title: Schema.NonEmptyString,
 });
 
 export const TemplateSimpleInput = Schema.Struct({

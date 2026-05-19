@@ -8,6 +8,7 @@ import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../../core/effect-rpc-angular-client';
 import { DurationSelectorComponent } from '../../../shared/components/controls/duration-selector/duration-selector.component';
+import { EditorComponent } from '../../../shared/components/controls/editor/editor.component';
 import { RoleSelectComponent } from '../../../shared/components/controls/role-select/role-select.component';
 import {
   RegistrationMode,
@@ -18,6 +19,7 @@ import {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     DurationSelectorComponent,
+    EditorComponent,
     FormField,
     MatFormFieldModule,
     MatInputModule,
