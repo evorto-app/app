@@ -9,6 +9,7 @@ import { Schema } from 'effect';
 import * as Rpc from 'effect/unstable/rpc/Rpc';
 import * as RpcGroup from 'effect/unstable/rpc/RpcGroup';
 
+import { EventLocation } from '../../../types/location';
 import { iconSchema } from '../../types/icon';
 import {
   TemplatesGroupedByCategoryError,
@@ -36,7 +37,7 @@ export const TemplateSimpleInput = Schema.Struct({
   categoryId: Schema.NonEmptyString,
   description: Schema.NonEmptyString,
   icon: iconSchema,
-  location: Schema.NullOr(Schema.Any),
+  location: Schema.NullOr(EventLocation),
   organizerRegistration: TemplateSimpleRegistrationInput,
   participantRegistration: TemplateSimpleRegistrationInput,
   title: Schema.NonEmptyString,
@@ -69,7 +70,7 @@ export const TemplateFindOneRecord = Schema.Struct({
   description: Schema.NonEmptyString,
   icon: iconSchema,
   id: Schema.NonEmptyString,
-  location: Schema.NullOr(Schema.Any),
+  location: Schema.NullOr(EventLocation),
   registrationOptions: Schema.Array(TemplateRegistrationOptionRecord),
   title: Schema.NonEmptyString,
 });
