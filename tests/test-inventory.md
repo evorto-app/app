@@ -50,6 +50,8 @@ Updated: 2026-05-19
 - Scenario handles from `seeded.scenario.events.*` are the preferred way to address seeded entities.
 - Finance-tagged specs remain the main candidates for selective CI filtering when needed.
 - `specs/templates/paid-option-requires-tax-rate.spec.ts` is intentionally fixme-only until simple-mode template tax-rate behavior has active UI coverage.
+- `specs/events/price-labels-inclusive.spec.ts` is intentionally fixme-only until inclusive price-label behavior has active UI coverage.
+- Event, registration, finance receipt, scanner, and unlisted-event specs should fail loudly when deterministic fixture state is missing instead of silently passing through skips.
 - `docs/users/create-account.doc.ts` is the only current integration-tagged Playwright path; there is no non-doc integration-only spec yet.
 - Playwright `--list` discovery does not clean or write generated docs output,
   and baseline fixture imports do not require Auth0 Management credentials.
