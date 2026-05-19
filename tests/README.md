@@ -41,6 +41,8 @@ bun run lint
 ## Docker Runtime
 
 - Generate or refresh worktree-local runtime overrides: `bun run env:runtime`
+- Check whether required local Docker secrets are available:
+  `bun run docker:check`
 - Start the local runtime stack: `bun run docker:start`
 - Start the local runtime stack in foreground for Playwright `webServer`: `bun run docker:start:foreground`
 - Start the local runtime stack in watch mode: `bun run docker:start:watch`
@@ -48,8 +50,10 @@ bun run lint
 - Local Docker runs use Neon Local instead of a plain Postgres container.
 - Docker Compose includes a one-shot `db-setup` service that runs the equivalent of `db:reset` before `evorto` starts.
 - Local `dev:start`, `test:e2e`, `test:e2e:ui`, `test:e2e:docs`, `db:*`, and `docker:*` package scripts refresh `.env.dev` before invoking `dotenv -c dev`, so new worktrees get isolated local app/service ports and database URLs by default.
-- The Neon Local `db` container requires `NEON_API_KEY` and `NEON_PROJECT_ID` to be non-empty when Compose renders the stack; without them the database cannot create or attach a local branch.
-- The `evorto` container now requires `CLIENT_ID`, `CLIENT_SECRET`, `ISSUER_BASE_URL`, and `SECRET` to be non-empty when Compose renders the stack, so blank higher-precedence values fail fast instead of starting a broken app container.
+- `bun run docker:check` fails before Docker Compose mutates local containers
+  when required local runtime variables are missing. The check covers Neon
+  Local, Auth0, Stripe, the application session secret, and Font Awesome package
+  registry access for the premium icon packages.
 - `bun run env:runtime` generates `.env.dev`, the untracked worktree-local override file.
 - `.env.dev.local` is the tracked shared default dev config file.
 - `.env` is the untracked developer-secrets file.
