@@ -22,6 +22,7 @@
     "db:reset": "bun run env:runtime && dotenv -c dev -- drizzle-kit push --force && dotenv -c dev -- bun helpers/database.ts",
     "docker:check": "bun run env:runtime && dotenv -c dev -- bun helpers/testing/runtime-preflight.ts docker",
     "docker:stop": "bun run env:runtime && dotenv -c dev -- docker compose down",
+    "docker:resume": "bun run docker:check && dotenv -c dev -- docker compose up --no-recreate -d",
     "docker:start": "bun run docker:check && dotenv -c dev -- docker compose down && dotenv -c dev -- docker compose up --build -d",
     "docker:start:watch": "bun run docker:check && dotenv -c dev -- docker compose down && dotenv -c dev -- docker compose up --build -w",
     "docker:start:foreground": "bun run docker:check && dotenv -c dev -- docker compose down && dotenv -c dev -- docker compose up --build",

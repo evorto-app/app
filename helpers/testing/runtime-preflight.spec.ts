@@ -144,6 +144,10 @@ describe('evaluateRuntimePreflight', () => {
         /^bun run docker:check && dotenv -c dev -- docker compose down && /,
       );
     }
+
+    expect(packageJson.scripts['docker:resume']).toBe(
+      'bun run docker:check && dotenv -c dev -- docker compose up --no-recreate -d',
+    );
   });
 
   it('keeps required Docker variables wired into Compose services', () => {

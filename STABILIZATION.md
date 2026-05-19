@@ -1091,7 +1091,7 @@ the current working direction until a product decision overrides them.
 ### Current Behavior
 
 - The repo is Bun-first. `packageManager`, the Docker base image, local Bun, and CI setup now agree on Bun `1.3.11`.
-- Important entrypoints remain visible in `package.json`: app build/dev, unit tests, Playwright e2e/docs, Docker stack, database commands, dependency updates, Stripe/Sentry ops, theme generation, and receipt-image cleanup.
+- Important entrypoints remain visible in `package.json`: app build/dev, unit tests, Playwright e2e/docs, Docker stack start/resume/stop, database commands, dependency updates, Stripe/Sentry ops, theme generation, and receipt-image cleanup.
 - Local runtime config uses `.env.dev.local` for tracked shared defaults, `.env.dev` for generated worktree-specific values, and `.env` for untracked developer secrets.
 - `bun run env:runtime` writes `.env.dev` with worktree-specific `COMPOSE_PROJECT_NAME`, Neon Local port, MinIO ports, `BASE_URL`, and local `DATABASE_URL`.
 - Local `test:e2e`, `test:e2e:ui`, `test:e2e:docs`, `db:*`, and `docker:*` scripts now refresh `.env.dev` before running `dotenv -c dev`, reducing fresh-worktree and wrong-database risk.
@@ -1117,7 +1117,8 @@ the current working direction until a product decision overrides them.
 - **Must fix before agent scaling:** fixed in this pass: local docs did not expose a package script for installing Playwright browser binaries even though page-backed Playwright specs fail without them.
 - **Addressed in this stabilization pass:** docs generation defaults resolve to ignored repository-local `test-results/docs` paths unless explicitly overridden, and the documentation reporter now skips output cleanup/writes during Playwright `--list` discovery.
 - **Addressed in stabilization pass:** CI e2e docs no longer skip `@finance` docs in the baseline docs run, so rewritten finance docs participate in the normal documentation artifact.
-- **Should fix before relaunch:** `docker:start` and Playwright `webServer` run the foreground Docker stack through a destructive `docker compose down` and `db-setup` reset. This is documented, but future agents should treat it as a database-resetting command, not a harmless server start.
+- **Should fix before relaunch:** Playwright `webServer` still runs the foreground Docker stack through a destructive `docker compose down` and `db-setup` reset. This is documented, but future agents should treat it as a database-resetting command, not a harmless server start.
+- **Addressed in stabilization pass:** `bun run docker:resume` now provides a non-recreating resume path for an already initialized Docker stack, while `docker:start`, `docker:start:foreground`, and `docker:start:watch` keep the explicit reset-from-zero behavior.
 - **Addressed in this stabilization pass:** `bun run docker:check` reports missing Neon Local, Auth0, Stripe, session, and Font Awesome registry variables before Docker Compose mutates local containers. Docker now writes the same Font Awesome registry scopes as the checked-in `.npmrc`, so premium and brand icon packages can use the same build-secret token path. It also reports local tool readiness and warns when Playwright browsers are missing without blocking Docker start. The Compose-managed Stripe CLI listener writes its generated webhook signing secret into a shared volume and the app reads it through `STRIPE_WEBHOOK_SECRET_FILE`, so a static `STRIPE_WEBHOOK_SECRET` is no longer a Docker-start blocker. The current worktree is missing `NEON_API_KEY`, `CLIENT_SECRET`, and `STRIPE_API_KEY`, so a fresh full Docker start is intentionally blocked until those secrets are provided.
 - **Addressed in stabilization pass:** `helpers/testing/runtime-preflight.spec.ts` now pins that destructive Docker start scripts call `docker:check` first, required runtime variables are wired into Compose services, and Font Awesome registry access remains available to Docker through the same secret path for premium and brand icon packages.
 - **Addressed in stabilization pass:** `.env.example` is now a checked-in
@@ -1147,7 +1148,7 @@ the current working direction until a product decision overrides them.
 ### Recommended Cleanup Actions
 
 - Keep docs publishing explicit if `evorto-pages` output is needed; normal local docs output stays in ignored `test-results/docs`.
-- Consider splitting Docker commands into destructive reset/start and non-destructive restart flows if local developer data preservation becomes important.
+- Keep `docker:resume` scoped to already initialized stacks; use the destructive `docker:start*` scripts when seeded-from-zero behavior matters.
 - Keep rewritten finance docs in the CI docs baseline unless a future integration-only dependency is introduced and explicitly tagged.
 - Keep `package.json` as the visible command surface and avoid moving core workflow commands into hidden helper CLIs.
 
@@ -1172,7 +1173,7 @@ the current working direction until a product decision overrides them.
 5. Add Browser-backed scanner/organizer aggregate review once local runtime is available.
 6. Add Browser-backed profile coverage for payment-continuation, ticket/cancellation routing, waitlist messaging, and ESNcard provider failure semantics once local runtime is available.
 7. Fill the remaining tenant settings implementation gap for branding uploads, legal text pages, onboarding/domain workflows, locale/currency/timezone policy, and global tenant-admin workflows. The current general-settings page exposes SEO fields, externally hosted logo/favicon URLs, tenant legal links, read-only runtime identity, and a visible deferred-settings summary.
-8. Keep `docker:start` reset behavior intentional and ensure seeded data is sufficient to get going from zero.
+8. Keep `docker:start` reset behavior intentional, use `docker:resume` only for existing local stacks, and ensure seeded data is sufficient to get going from zero.
 
 ### Acceptable For Now
 
@@ -1310,6 +1311,9 @@ implement those decisions or explicitly revise them there before changing code.
   scripts remain gated by `docker:check`, Compose consumes the required runtime
   variables, and the Font Awesome build secret path continues to support both
   premium and brand icon packages.
+- Docker resume command pass: added `bun run docker:resume` as a non-recreating
+  path for already initialized Docker stacks and documented the difference from
+  reset-from-zero `docker:start*` commands.
 - Font Awesome registry contract pass: pinned that both the premium duotone icon
   package and the brand icon package stay installed through the shared Font
   Awesome registry path used by local installs and Docker builds.
