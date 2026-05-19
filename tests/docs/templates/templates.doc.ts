@@ -84,6 +84,7 @@ When **Enable Payment** is on, the price and tax-rate fields appear for that reg
   });
   await page.getByRole('switch', { name: 'Enable Payment' }).first().click();
   await expect(page.getByLabel('Price (in cents)').first()).toBeVisible();
+  await expect(page.getByLabel('Tax rate').first()).toBeVisible();
   await takeScreenshot(
     testInfo,
     page
