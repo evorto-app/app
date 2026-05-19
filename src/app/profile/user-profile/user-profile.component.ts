@@ -58,18 +58,24 @@ export const profileEventGuestLabel = (guestCount: number): null | string => {
     : `Includes ${guestCount} guests`;
 };
 
-export const profileEventActionNote = (
-  status: 'CONFIRMED' | 'PENDING' | 'WAITLIST',
-): string => {
-  switch (status) {
+export const profileEventActionNote = (event: {
+  checkoutUrl: null | string;
+  paymentState: 'cancelled' | 'notRequired' | 'pending' | 'recorded';
+  status: 'CONFIRMED' | 'PENDING' | 'WAITLIST';
+}): string => {
+  if (event.paymentState === 'pending' && event.checkoutUrl) {
+    return 'Continue payment from this card, or open the event page for registration details. Cancellation after confirmation is handled on the event page.';
+  }
+
+  switch (event.status) {
     case 'CONFIRMED': {
-      return 'Ticket access is on the event page. Cancellation, refunds, and transfer/resale are not managed from profile yet.';
+      return 'Open the event page for ticket access and participant cancellation when the event still allows it. Automatic refunds and transfer/resale are not implemented yet.';
     }
     case 'PENDING': {
-      return 'Pending-registration changes are handled from the event page when available.';
+      return 'Open the event page for pending-registration details and available cancellation actions. Transfer/resale is not implemented yet.';
     }
     case 'WAITLIST': {
-      return 'Waitlist movement is not managed from profile yet. Open the event page for current details.';
+      return 'Waitlist movement is not managed from profile yet. Open the event page for current details; transfer/resale is not available for waitlist registrations.';
     }
   }
 };

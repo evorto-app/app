@@ -873,7 +873,7 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** create-account stores `communicationEmail`, and profile now shows the Auth0 login email separately from the editable notification email. Profile edit updates `communicationEmail` alongside name and reimbursement fields.
 - **Addressed in stabilization pass:** profile event cards now link to event details and show registration status, selected option, guest quantity when applicable, payment state, and check-in time when available. Profile still leaves QR/ticket display, cancellation/refund action, and transfer/resale workflows to the event-detail flow or future work while exposing pending checkout continuation directly.
 - **Addressed in stabilization pass:** profile event cards now label their event-details action as "Open event page" instead of implying that the profile card itself renders the ticket; confirmed ticket access remains on the event detail surface.
-- **Addressed in stabilization pass:** profile event cards now explicitly say that waitlist movement, cancellation/refund, and transfer/resale actions are not managed from the profile page yet, while keeping pending checkout continuation as the implemented profile-level recovery action.
+- **Addressed in stabilization pass:** profile event cards now point pending checkout registrations at the implemented profile-level recovery action, route ticket and cancellation details back to the event page, and keep waitlist movement, automatic refunds, and transfer/resale visibly out of the current implemented profile scope.
 - **Addressed in stabilization pass:** profile reimbursement fields are global user fields by product decision, and the profile copy now labels them as optional global reimbursement details used for manual receipt reimbursements across tenants.
 - **Addressed in stabilization pass:** ESNcard save, refresh, and remove actions now clear stale errors, show visible pending button states, and map mutation failures through `getErrorMessage(...)` instead of rendering raw error objects.
 - **Addressed in stabilization pass:** ESNcard validation now uses a bounded provider request and distinguishes provider unavailability from invalid/expired card results. Save/refresh mutations surface provider outages as retryable bad-request errors instead of collapsing them into card validation status.
@@ -1129,7 +1129,7 @@ the current working direction until a product decision overrides them.
 4. Keep simple-mode templates as the primary authoring UI, but expand reusable template support for discounts, add-ons, questions, and organizer notes/checklists where practical.
 5. Run the covered legacy-field migration path in production so any existing physical `showInHub`, `paymentStatus`, and `payment_status` artifacts are dropped now that active schema/API code no longer uses them.
 6. Add Browser-backed scanner/organizer aggregate review once local runtime is available.
-7. Clarify profile payment-continuation/ticket/cancellation actions and ESNcard provider failure semantics before relaunch.
+7. Add Browser-backed profile coverage for payment-continuation, ticket/cancellation routing, waitlist messaging, and ESNcard provider failure semantics once local runtime is available.
 8. Fill the tenant settings gap for one-domain relaunch support, branding, legal links/text, locale/currency/timezone, SEO fields, and global tenant-admin workflows.
 9. Make Playwright list/discovery side-effect-free and document or automate the local browser installation expectation.
 10. Update or regenerate `tests/test-inventory.md` after placeholder docs/specs are pruned.
@@ -1221,9 +1221,9 @@ implement those decisions or explicitly revise them there before changing code.
 
 All ten first-pass review areas are now represented in this document. The next
 stabilization work should continue with small cleanup commits around the
-remaining relaunch gaps: profile cancellation/waitlist/transfer action clarity,
-tenant settings scope, running the legacy-field migration path for production
-data, and replacing intentionally fixme-only price/tax specs with active
+remaining relaunch gaps: Browser-backed profile action coverage, tenant
+settings scope, running the legacy-field migration path for production data,
+and replacing intentionally fixme-only price/tax specs with active
 Browser-backed coverage once the local runtime is available. Receipt
 notification remains a future product delivery path; the current relaunch scope
 records receipt review locally and keeps finance-facing copy explicit that

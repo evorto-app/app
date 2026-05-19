@@ -14,14 +14,44 @@ describe('profile event labels', () => {
   });
 
   it('keeps deferred profile event actions explicit', () => {
-    expect(profileEventActionNote('CONFIRMED')).toContain(
-      'Cancellation, refunds, and transfer/resale are not managed from profile yet.',
+    expect(
+      profileEventActionNote({
+        checkoutUrl: null,
+        paymentState: 'recorded',
+        status: 'CONFIRMED',
+      }),
+    ).toBe(
+      'Open the event page for ticket access and participant cancellation when the event still allows it. Automatic refunds and transfer/resale are not implemented yet.',
     );
-    expect(profileEventActionNote('PENDING')).toBe(
-      'Pending-registration changes are handled from the event page when available.',
+    expect(
+      profileEventActionNote({
+        checkoutUrl: null,
+        paymentState: 'notRequired',
+        status: 'PENDING',
+      }),
+    ).toBe(
+      'Open the event page for pending-registration details and available cancellation actions. Transfer/resale is not implemented yet.',
     );
-    expect(profileEventActionNote('WAITLIST')).toBe(
-      'Waitlist movement is not managed from profile yet. Open the event page for current details.',
+    expect(
+      profileEventActionNote({
+        checkoutUrl: null,
+        paymentState: 'notRequired',
+        status: 'WAITLIST',
+      }),
+    ).toBe(
+      'Waitlist movement is not managed from profile yet. Open the event page for current details; transfer/resale is not available for waitlist registrations.',
+    );
+  });
+
+  it('points pending checkout registrations at the implemented profile action', () => {
+    expect(
+      profileEventActionNote({
+        checkoutUrl: 'https://checkout.stripe.test/pay',
+        paymentState: 'pending',
+        status: 'PENDING',
+      }),
+    ).toBe(
+      'Continue payment from this card, or open the event page for registration details. Cancellation after confirmation is handled on the event page.',
     );
   });
 
