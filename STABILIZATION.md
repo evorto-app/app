@@ -790,7 +790,7 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** event timing is enforced in both scan-read state and the check-in mutation. Confirmed other-user registrations can only be checked in during the current fixed one-hour pre-start window or after event start.
 - **Should fix before relaunch:** QR generation is unauthenticated. Registration ids are not discoverable in normal UI except by the holder, but the endpoint will generate a ticket QR for any known registration id without proving the requester is the attendee or an organizer.
 - **Should fix before relaunch:** the scanner accepts any absolute URL whose path starts with `/scan/registration/`, ignoring origin. That keeps tenant-domain QR codes portable, but it should be an explicit product/security decision.
-- **Should fix before relaunch:** camera startup errors are not mapped to a visible typed state. `qrScanner.start()` is fired without awaited error handling, so denied camera permission or unsupported devices can fail outside the component's error display.
+- **Addressed in stabilization pass:** scanner camera startup is awaited and maps denied permission, missing devices, and busy devices into visible retryable error messages. The scanner also shows a starting state and keeps a retry button available after camera startup failures.
 - **Acceptable for now:** QR code display is limited to confirmed registrations in the active registration UI, so pending paid registrations do not show the ticket card there.
 
 ### Test and Documentation Quality
@@ -816,7 +816,7 @@ the current working direction until a product decision overrides them.
 - Add server tests for pending/cancelled/waitlisted registrations.
 - Extend the Playwright scanner spec to assert the organizer overview/check-in aggregate once runtime Browser review is available.
 - Add generated organizer documentation for scanning an attendee once the mutation exists.
-- Add visible scanner camera-error handling for permission denial and unsupported devices.
+- Keep scanner camera-error mapping covered by unit tests as browser/device behavior changes.
 
 ## Profile/Account Flows
 
@@ -1083,7 +1083,7 @@ the current working direction until a product decision overrides them.
    runtime behavior exists.
 6. Remove or backfill the legacy `showInHub` role column now that active role writes use `displayInHub`.
 7. Decide whether pre-event receipt spending/submission remains allowed or needs event-policy gating.
-8. Add scanner camera-error and guest-quantity behavior before treating scanner UI as relaunch-ready.
+8. Add scanner guest-quantity behavior before treating scanner UI as relaunch-ready.
 9. Clarify profile payment-continuation/ticket/cancellation actions and ESNcard provider failure semantics before relaunch.
 10. Fill the tenant settings gap for one-domain relaunch support, branding, legal links/text, locale/currency/timezone, SEO fields, and global tenant-admin workflows.
 11. Make Playwright list/discovery side-effect-free and document or automate the local browser installation expectation.
@@ -1134,6 +1134,7 @@ implement those decisions or explicitly revise them there before changing code.
 - None in the Finance/receipts pass. The highest-value issues touch payment-derived state, transaction visibility, and upload authorization, so they need targeted regression tests with the fixes.
 - Scanning/check-in pass: added `events.checkInRegistration`, gated scan reads and check-in writes to event organizers or `events:organizeAll`, made duplicate check-ins idempotent, wired the scanner button to persist and refetch state, and extended scanner tests to assert persisted check-in state.
 - Scanner timing pass: enforced the current fixed one-hour pre-start check-in window in scan-read state and direct check-in writes, with focused server coverage for the disabled scan state and rejected mutation.
+- Scanner camera-error pass: awaited scanner camera startup, added visible retryable messages for denied permissions, missing cameras, and busy devices, and covered the error mapping in app unit tests.
 - Profile/account pass: guarded `/create-account` with authentication, reworked `users.createAccount` into a transactional tenant-account creation flow that can attach an existing global user to the current tenant while assigning default roles, and aligned ESNcard records with the global-per-user decision.
 - Profile ESNcard UX pass: mapped discount-card save/refresh/remove failures through readable error messages, added visible pending button states, and documented the current profile discount-card behavior.
 - Profile notification-email pass: exposed login email and notification email separately in the profile UI, made notification email editable through the profile dialog, and persisted it through `users.updateProfile`.
@@ -1154,4 +1155,4 @@ implement those decisions or explicitly revise them there before changing code.
 
 ## Review Next
 
-All ten first-pass review areas are now represented in this document. The next stabilization work should continue with small cleanup commits around the remaining relaunch gaps: profile payment/ticket/action clarity, receipt timing/notification/payment-status follow-ups, scanner camera-error/guest-quantity behavior, tenant settings scope, role hub-field legacy migration, and replacing intentionally fixme-only price/tax specs with active Browser-backed coverage once the local runtime is available.
+All ten first-pass review areas are now represented in this document. The next stabilization work should continue with small cleanup commits around the remaining relaunch gaps: profile payment/ticket/action clarity, receipt timing/notification/payment-status follow-ups, scanner guest-quantity behavior, tenant settings scope, role hub-field legacy migration, and replacing intentionally fixme-only price/tax specs with active Browser-backed coverage once the local runtime is available.

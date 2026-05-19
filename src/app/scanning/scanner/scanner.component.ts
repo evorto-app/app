@@ -8,19 +8,49 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
+import { MatButtonModule } from '@angular/material/button';
 import { Router } from '@angular/router';
 import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
 import consola from 'consola/browser';
 import QrScanner from 'qr-scanner';
 
+export const scannerCameraErrorMessage = (error: unknown): string => {
+  const errorName =
+    error instanceof DOMException
+      ? error.name
+      : typeof error === 'object' && error !== null && 'name' in error
+        ? String(error.name)
+        : '';
+
+  switch (errorName) {
+    case 'DevicesNotFoundError':
+    case 'NotFoundError': {
+      return 'No camera was found on this device. Use another device or scan the ticket with a phone camera.';
+    }
+    case 'NotAllowedError':
+    case 'PermissionDeniedError':
+    case 'SecurityError': {
+      return 'Camera access was blocked. Allow camera access in your browser settings, then try again.';
+    }
+    case 'NotReadableError':
+    case 'TrackStartError': {
+      return 'The camera is already in use or could not be started. Close other camera apps, then try again.';
+    }
+    default: {
+      return 'The camera could not be started. Check camera permissions or scan the ticket with a phone camera.';
+    }
+  }
+};
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [],
+  imports: [MatButtonModule],
   selector: 'app-scanner',
   styles: ``,
   templateUrl: './scanner.component.html',
 })
 export class ScannerComponent implements OnDestroy {
+  protected readonly cameraStarting = signal(false);
   protected readonly errorMessage = signal('');
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly videoRef =
@@ -30,31 +60,16 @@ export class ScannerComponent implements OnDestroy {
 
   constructor() {
     afterNextRender(() => {
-      const videoElement = this.videoRef();
-      if (!videoElement) {
-        consola.error('videoElement not found');
-        return;
-      }
-      const qrScanner = new QrScanner(
-        videoElement.nativeElement,
-        (result) => {
-          qrScanner.stop();
-          this.handleScanResult(result);
-        },
-        {
-          highlightCodeOutline: true,
-          highlightScanRegion: true,
-          maxScansPerSecond: 3,
-          returnDetailedScanResult: true,
-        },
-      );
-      this.scanner.set(qrScanner);
-      qrScanner.start();
+      void this.setupScanner();
     });
   }
 
   ngOnDestroy() {
     this.scanner()?.destroy();
+  }
+
+  protected retryCamera(): void {
+    void this.startScanner({ clearErrorOnSuccess: true });
   }
 
   private handleScanResult(result: QrScanner.ScanResult) {
@@ -69,11 +84,57 @@ export class ScannerComponent implements OnDestroy {
         }
       } else {
         this.errorMessage.set(`Unknown link structure: ${scannedLink}`);
-        this.scanner()?.start();
+        void this.startScanner();
       }
     } catch {
       this.errorMessage.set('Invalid QR code');
-      this.scanner()?.start();
+      void this.startScanner();
+    }
+  }
+
+  private async setupScanner(): Promise<void> {
+    const videoElement = this.videoRef();
+    if (!videoElement) {
+      consola.error('videoElement not found');
+      this.errorMessage.set('The scanner view could not be initialized.');
+      return;
+    }
+    const qrScanner = new QrScanner(
+      videoElement.nativeElement,
+      (result) => {
+        qrScanner.stop();
+        this.handleScanResult(result);
+      },
+      {
+        highlightCodeOutline: true,
+        highlightScanRegion: true,
+        maxScansPerSecond: 3,
+        returnDetailedScanResult: true,
+      },
+    );
+    this.scanner.set(qrScanner);
+    await this.startScanner({ clearErrorOnSuccess: true });
+  }
+
+  private async startScanner(
+    options: { clearErrorOnSuccess?: boolean } = {},
+  ): Promise<void> {
+    const scanner = this.scanner();
+    if (!scanner || this.cameraStarting()) {
+      return;
+    }
+
+    this.cameraStarting.set(true);
+    try {
+      await scanner.start();
+      if (options.clearErrorOnSuccess) {
+        this.errorMessage.set('');
+      }
+    } catch (error) {
+      consola.warn('Failed to start QR scanner camera', error);
+      this.errorMessage.set(scannerCameraErrorMessage(error));
+    } finally {
+      this.cameraStarting.set(false);
     }
   }
 }
