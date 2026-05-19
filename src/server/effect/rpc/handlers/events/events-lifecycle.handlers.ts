@@ -56,6 +56,33 @@ const invalidRegistrationOptionTimesError = () =>
     reason: 'invalidRegistrationOptionTimes',
   });
 
+const validateEventDateRange = (start: Date, end: Date) => {
+  if (
+    Number.isNaN(start.getTime()) ||
+    Number.isNaN(end.getTime()) ||
+    end <= start
+  ) {
+    return invalidEventDatesError();
+  }
+
+  return null;
+};
+
+const validateRegistrationOptionDateRange = (option: {
+  closeRegistrationTime: Date;
+  openRegistrationTime: Date;
+}) => {
+  if (
+    Number.isNaN(option.closeRegistrationTime.getTime()) ||
+    Number.isNaN(option.openRegistrationTime.getTime()) ||
+    option.closeRegistrationTime < option.openRegistrationTime
+  ) {
+    return invalidRegistrationOptionTimesError();
+  }
+
+  return null;
+};
+
 const invalidRegistrationOptionTaxRateError = () =>
   new RpcBadRequestError({
     message: 'Registration option has an invalid tax rate',
@@ -89,8 +116,9 @@ export const eventLifecycleHandlers = {
 
       const start = new Date(input.start);
       const end = new Date(input.end);
-      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-        return yield* Effect.fail(invalidEventDatesError());
+      const eventDateRangeError = validateEventDateRange(start, end);
+      if (eventDateRangeError) {
+        return yield* Effect.fail(eventDateRangeError);
       }
 
       const sanitizedDescription = sanitizeRichTextHtml(input.description);
@@ -115,11 +143,10 @@ export const eventLifecycleHandlers = {
           return yield* Effect.fail(invalidRegistrationOptionSpotsError());
         }
 
-        if (
-          Number.isNaN(option.closeRegistrationTime.getTime()) ||
-          Number.isNaN(option.openRegistrationTime.getTime())
-        ) {
-          return yield* Effect.fail(invalidRegistrationOptionTimesError());
+        const registrationOptionDateRangeError =
+          validateRegistrationOptionDateRange(option);
+        if (registrationOptionDateRangeError) {
+          return yield* Effect.fail(registrationOptionDateRangeError);
         }
 
         const validation = yield* databaseEffect((database) =>
@@ -278,8 +305,9 @@ export const eventLifecycleHandlers = {
 
       const start = new Date(input.start);
       const end = new Date(input.end);
-      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-        return yield* Effect.fail(invalidEventDatesError());
+      const eventDateRangeError = validateEventDateRange(start, end);
+      if (eventDateRangeError) {
+        return yield* Effect.fail(eventDateRangeError);
       }
 
       const sanitizedDescription = sanitizeRichTextHtml(input.description);
@@ -301,6 +329,18 @@ export const eventLifecycleHandlers = {
           ),
         }),
       );
+
+      for (const option of sanitizedRegistrationOptions) {
+        if (!Number.isInteger(option.spots) || option.spots < 0) {
+          return yield* Effect.fail(invalidRegistrationOptionSpotsError());
+        }
+
+        const registrationOptionDateRangeError =
+          validateRegistrationOptionDateRange(option);
+        if (registrationOptionDateRangeError) {
+          return yield* Effect.fail(registrationOptionDateRangeError);
+        }
+      }
 
       const event = yield* databaseEffect((database) =>
         database.query.eventInstances.findFirst({
@@ -350,17 +390,6 @@ export const eventLifecycleHandlers = {
       );
 
       for (const option of sanitizedRegistrationOptions) {
-        if (!Number.isInteger(option.spots) || option.spots < 0) {
-          return yield* Effect.fail(invalidRegistrationOptionSpotsError());
-        }
-
-        if (
-          Number.isNaN(option.closeRegistrationTime.getTime()) ||
-          Number.isNaN(option.openRegistrationTime.getTime())
-        ) {
-          return yield* Effect.fail(invalidRegistrationOptionTimesError());
-        }
-
         const validation = yield* databaseEffect((database) =>
           validateTaxRate(database, {
             isPaid: option.isPaid,
