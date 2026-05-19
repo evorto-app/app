@@ -23,6 +23,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 ## Active Files
 
 - Documentation journeys (`*.doc.ts`):
+  - docs/admin/global-admin.doc.ts [admin, globalAdmin]
   - docs/admin/general-settings.doc.ts [admin]
   - docs/events/event-approval.doc.ts
   - docs/events/event-management.doc.ts
@@ -76,6 +77,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - `docs/roles/roles.doc.ts`
   - `specs/permissions/**`
 - Tenant/global admin:
+  - `docs/admin/global-admin.doc.ts`
   - `docs/admin/general-settings.doc.ts`
 - Finance, receipts, tax, and Stripe:
   - `docs/finance/**`
@@ -130,7 +132,6 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - Browser-backed organizer aggregate assertions after scan check-in.
   - Guest-quantity behavior once registration guest support exists.
 - Tenant/global admin:
-  - Explicit docs for global-admin tenant-management behavior.
   - Authenticated Browser review for the global-admin tenant list.
 - Roles/user management:
   - Least-privilege organizer role lookup in event/template eligibility forms.
