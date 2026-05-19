@@ -562,6 +562,7 @@ the current working direction until a product decision overrides them.
 
 - `tests/specs/events/free-registration.test.ts` covers the free registration happy path using seeded scenario handles.
 - `src/app/events/event-registration-option/event-registration-option.component.spec.ts` covers registration-card state for full options, distinct waitlist availability, remaining-capacity guest selection helpers, and too-early/too-late registration windows without requiring a page-backed browser.
+- `src/app/events/event-registration-option/event-registration-option.component.spec.ts` covers that stored `random` and `application` participant options do not expose a waitlist affordance even when full.
 - `src/server/effect/rpc/handlers/events/event-registration.service.spec.ts` covers server-side rejection for duplicate active registration, unpublished events, closed registration windows, role-ineligible users, cross-tenant options, full options, unsupported registration modes, same-event second registrations across options, transactional duplicate races, transactional capacity races, participant waitlist joining, and participant guest quantities.
 - `src/server/effect/rpc/handlers/events/events-registration.handlers.spec.ts` covers participant self-cancellation for pending and confirmed registrations plus checked-in and waitlist rejection paths.
 - `src/server/effect/rpc/handlers/events/events-registration.handlers.spec.ts` covers organizer/admin cancellation for confirmed registrations and denial without event-organizer access.
@@ -1279,6 +1280,10 @@ implement those decisions or explicitly revise them there before changing code.
   shared price/tax label component's paid, free, zero-tax, and fallback states,
   narrowing the remaining inclusive-price fixme to page-level Browser
   assertions.
+- Registration-card unsupported-mode coverage pass: pinned that stored
+  `random` and `application` participant options do not expose the lightweight
+  waitlist action when full, keeping the card aligned with the server-side
+  fail-closed registration-mode policy.
 
 ## Review Next
 
