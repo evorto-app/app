@@ -85,6 +85,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - `docs/profile/**`
   - `docs/users/create-account.doc.ts`
 - Scanning/check-in:
+  - `docs/events/event-management.doc.ts`
   - `specs/scanning/scanner.test.ts`
 - Runtime, reporting, screenshots, and seed health:
   - `specs/auth/storage-state-refresh.test.ts`
@@ -126,7 +127,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - Receipt review and reimbursement behavior in generated docs.
   - Notification or email follow-up behavior once the product path exists.
 - Scanning/check-in:
-  - Scanner mutation documentation and organizer aggregate assertions.
+  - Browser-backed organizer aggregate assertions after scan check-in.
   - Guest-quantity behavior once registration guest support exists.
 - Tenant/global admin:
   - Explicit docs for global-admin tenant-management behavior.

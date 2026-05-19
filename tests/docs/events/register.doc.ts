@@ -77,7 +77,7 @@ test.describe('Register for events', () => {
   ### Successful registration
   You should now have a successful registration.
   You can see this by additional information being available and also your ticket QR code.
-  This code is needed when attending the event, you will also receive it via email.`,
+  This code is needed when attending the event. Keep this page available because QR email delivery is not part of the current relaunch flow.`,
     });
 
     await takeScreenshot(

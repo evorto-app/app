@@ -211,7 +211,11 @@ The organizer view currently includes:
 - ESNcard discount markers where applicable
 - Event receipt submission and receipt list
 
-It does not currently include attendee export, attendee messaging, manual check-in controls, or registration cancellation controls.
+Organizers check in attendees from the dedicated QR scanner. Attendees open their ticket QR code from the event registration page after a confirmed registration, and organizers scan it from **Scan**. The scanned-registration page shows the attendee, event, registration option, ESNcard discount marker when applicable, and warnings for self-scan, future events, non-confirmed registrations, and already checked-in tickets.
+
+Check-in is available to event organizers and users with event-wide organize access during the current check-in window. Confirming check-in records the registration check-in time and updates the checked-in count shown on the organizer overview.
+
+It does not currently include attendee export, attendee messaging, manual check-in controls outside QR scanning, guest-quantity check-in, or registration cancellation controls.
 Those flows should be documented separately when they exist in the product.
 
 ## Event Editing

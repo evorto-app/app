@@ -808,7 +808,8 @@ the current working direction until a product decision overrides them.
 - `src/server/http/qr-code.web-handler.spec.ts` covers unauthenticated QR denial, owner access, same-event organizer access, other-user denial, and pending-registration denial.
 - `src/app/scanning/scanner/scanner.component.spec.ts` covers scanner URL parsing for current-origin tickets, other-origin tenant tickets, malformed payloads, and non-exact scan paths.
 - Server unit coverage proves future-event timing disables scan check-in and rejects direct check-in writes before the pre-start window opens. Server unit coverage also proves pending, cancelled, and waitlisted registrations disable scan check-in and reject direct check-in writes.
-- `tests/docs/events/register.doc.ts` documents that the ticket QR code is available after registration/payment, but there is no generated documentation journey for organizers scanning attendees.
+- `tests/docs/events/register.doc.ts` documents that the ticket QR code is available after registration/payment and no longer claims QR email delivery exists in the current relaunch flow.
+- `tests/docs/events/event-management.doc.ts` documents the organizer-facing QR scan/check-in flow, including scan warnings, check-in authorization, checked-in count updates, and the fact that guest-quantity check-in is not implemented yet.
 - `QUALITY.md` lists participant and guest-quantity check-in as high-value Playwright flows, but guest quantities are not represented in the reviewed check-in contract/UI.
 
 ### Product Questions Answered Above
@@ -825,7 +826,7 @@ the current working direction until a product decision overrides them.
 - Keep server tests for same-user scans, unauthorized tenant users, duplicate scans, and counter updates.
 - Keep server tests for pending/cancelled/waitlisted registrations.
 - Extend the Playwright scanner spec to assert the organizer overview/check-in aggregate once runtime Browser review is available.
-- Add generated organizer documentation for scanning an attendee once the mutation exists.
+- Keep organizer check-in documentation aligned with the dedicated scanner flow as check-in UI and guest-quantity behavior evolve.
 - Keep scanner camera-error mapping covered by unit tests as browser/device behavior changes.
 
 ## Profile/Account Flows
