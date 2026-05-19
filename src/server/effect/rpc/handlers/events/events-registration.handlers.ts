@@ -327,6 +327,7 @@ export const eventRegistrationHandlers = {
         user: {
           email: user.email,
           id: user.id,
+          roleIds: user.roleIds,
         },
       });
     }),
