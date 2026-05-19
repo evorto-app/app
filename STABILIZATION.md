@@ -596,7 +596,7 @@ the current working direction until a product decision overrides them.
 ### Issues and Risks
 
 - **Addressed in this stabilization pass:** `templates.createSimpleTemplate`, `templates.updateSimpleTemplate`, `templates.findOne`, and `templates.groupedByCategory` enforce `templates:create`, `templates:editAll`, or `templates:view` through the shared permission evaluator. Direct RPC calls no longer rely on UI link hiding.
-- **Must fix before agent scaling:** template write routes still need route-level guards for direct `/templates/create`, `/templates/:id/edit`, and `/templates/:id/create-event` access.
+- **Addressed in this stabilization pass:** template write routes now have route-level permission guards for direct `/templates/create`, `/templates/:id/edit`, and `/templates/:id/create-event` access.
 - **Must fix before agent scaling:** template create/update accept `categoryId` and registration `roleIds` without checking that those ids belong to the current tenant. The database may reject some invalid category ids, but the error is not an explicit domain error and role ids are stored as arrays without FK constraints.
 - **Addressed in this stabilization pass:** template registration offsets now fail with a typed bad request when a registration would open after it closes. Because offsets are "hours before event", `openRegistrationOffset` must be greater than or equal to `closeRegistrationOffset` for a normal window.
 - **Must fix before agent scaling:** template location is `Schema.Any`, matching the event boundary issue. It should use a real shared location schema or an explicit documented escape hatch.
@@ -612,7 +612,7 @@ the current working direction until a product decision overrides them.
 - `tests/docs/templates/templates.doc.ts` documents simple-mode template creation, role defaults, payment field visibility, and role-picker behavior.
 - `tests/specs/templates/paid-option-requires-tax-rate.spec.ts` is fully `test.fixme(...)` and contains placeholder assertions. It should not be treated as active tax-rate validation coverage.
 - `tests/docs/template.doc.ts` is only a discovery/tagging placeholder, not product documentation.
-- Permission matrix tests check template create link visibility, but they do not prove direct route denial. Server unit coverage now proves template RPC denial.
+- Permission matrix coverage checks template create link visibility plus direct route denial for template create/edit/create-event routes. Server unit coverage proves template RPC denial.
 
 ### Product Questions Answered Above
 
@@ -623,7 +623,7 @@ the current working direction until a product decision overrides them.
 
 ### Recommended Cleanup Actions
 
-- Add route-level guards for direct `/templates/create`, `/templates/:id/edit`, and `/templates/:id/create-event` access.
+- Keep permission-matrix coverage for direct template write-route denial.
 - Validate template category and role ids against the current tenant before persisting.
 - Keep focused `SimpleTemplateService` coverage for template offset ordering.
 - Replace `Schema.Any` location fields with a shared schema or document why the boundary remains intentionally loose.

@@ -48,4 +48,38 @@ export const permissionMatrix: PermissionMatrixCase[] = [
     requiredPermissions: ['templates:create', 'templates:view'],
     storageState: organizerStateFile,
   },
+  {
+    allowedDiff: {
+      add: ['templates:editAll', 'templates:view'],
+      remove: [],
+      roleName: 'Section member',
+    },
+    allowedRoute: '/templates/route-guard-placeholder/edit',
+    capability: 'template edit route access',
+    deniedDiff: {
+      add: ['templates:view'],
+      remove: ['templates:editAll'],
+      roleName: 'Section member',
+    },
+    deniedRoute: '/templates/route-guard-placeholder/edit',
+    requiredPermissions: ['templates:editAll', 'templates:view'],
+    storageState: organizerStateFile,
+  },
+  {
+    allowedDiff: {
+      add: ['events:create'],
+      remove: [],
+      roleName: 'Section member',
+    },
+    allowedRoute: '/templates/route-guard-placeholder/create-event',
+    capability: 'template create-event route access',
+    deniedDiff: {
+      add: ['templates:view'],
+      remove: ['events:create'],
+      roleName: 'Section member',
+    },
+    deniedRoute: '/templates/route-guard-placeholder/create-event',
+    requiredPermissions: ['events:create'],
+    storageState: organizerStateFile,
+  },
 ];
