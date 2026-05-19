@@ -23,8 +23,11 @@ import { User } from '../../../../types/custom/user';
 import { normalizeEsnCardConfig } from '../../../discounts/discount-provider-config';
 import {
   Adapters,
+  type ProviderAdapter,
   PROVIDERS,
   type ProviderType,
+  ProviderValidationUnavailableError,
+  type ValidationResult,
 } from '../../../discounts/providers';
 import {
   decodeRpcContextHeaderJson,
@@ -79,6 +82,39 @@ const requireUserHeader = (
       );
     }
     return user;
+  });
+
+const validateDiscountCard = ({
+  adapter,
+  config,
+  identifier,
+}: {
+  adapter: ProviderAdapter<unknown>;
+  config: unknown;
+  identifier: string;
+}): Effect.Effect<
+  ValidationResult,
+  RpcBadRequestError | RpcInternalServerError
+> =>
+  Effect.tryPromise({
+    catch: (cause) => {
+      if (cause instanceof ProviderValidationUnavailableError) {
+        return new RpcBadRequestError({
+          message: 'Could not validate ESN card right now. Try again later.',
+          reason: `provider-${cause.reason}`,
+        });
+      }
+
+      return new RpcInternalServerError({
+        cause,
+        message: 'Discount card validation failed unexpectedly',
+      });
+    },
+    try: () =>
+      adapter.validate({
+        config,
+        identifier,
+      }),
   });
 
 export const discountHandlers = {
@@ -199,12 +235,11 @@ export const discountHandlers = {
         return normalizeUserDiscountCardRecord(card);
       }
 
-      const result = yield* Effect.promise(() =>
-        adapter.validate({
-          config: provider.config,
-          identifier: card.identifier,
-        }),
-      );
+      const result = yield* validateDiscountCard({
+        adapter,
+        config: provider.config,
+        identifier: card.identifier,
+      });
       const updatedCards = yield* databaseEffect((database) =>
         database
           .update(userDiscountCards)
@@ -351,12 +386,12 @@ export const discountHandlers = {
         return normalizeUserDiscountCardRecord(upsertedCard);
       }
 
-      const result = yield* Effect.promise(() =>
-        adapter.validate({
-          config: provider.config,
-          identifier: input.identifier,
-        }),
-      );
+      const result = yield* validateDiscountCard({
+        adapter,
+        config: provider.config,
+        identifier: input.identifier,
+      });
+
       const updatedCards = yield* databaseEffect((database) =>
         database
           .update(userDiscountCards)
