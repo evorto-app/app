@@ -317,4 +317,139 @@ describe('discountHandlers', () => {
       );
     },
   );
+
+  it.effect(
+    'refreshMyCard revalidates and updates the current user card',
+    () => {
+      const originalAdapter = Adapters.esnCard;
+      const validTo = new Date('2026-12-31T00:00:00.000Z');
+      const validate = vi.fn(async () => ({
+        metadata: { provider: 'esncard' },
+        status: 'verified' as const,
+        validTo,
+      }));
+      Adapters.esnCard = { validate };
+
+      return Effect.gen(function* () {
+        const card = {
+          id: 'card-1',
+          identifier: 'ESN-123',
+          status: 'unverified' as const,
+          type: 'esnCard' as const,
+          validTo: null,
+        };
+        const updateSet = vi.fn(() => ({
+          where: () => ({
+            returning: () =>
+              Effect.succeed([
+                {
+                  ...card,
+                  status: 'verified' as const,
+                  validTo,
+                },
+              ]),
+          }),
+        }));
+        const findFirst = vi.fn(() => Effect.succeed(card));
+        const database = {
+          query: {
+            tenants: {
+              findFirst: () =>
+                Effect.succeed({
+                  discountProviders: {
+                    esnCard: {
+                      config: {},
+                      status: 'enabled',
+                    },
+                  },
+                }),
+            },
+            userDiscountCards: {
+              findFirst,
+            },
+          },
+          update: vi.fn((table: unknown) => {
+            expect(table).toBe(userDiscountCards);
+            return {
+              set: updateSet,
+            };
+          }),
+        };
+
+        const refreshed = yield* discountHandlers['discounts.refreshMyCard'](
+          { type: 'esnCard' },
+          { headers: createHeaders(createTenant('tenant-2')) } as never,
+        ).pipe(Effect.provide(Layer.succeed(Database, database as never)));
+
+        expect(refreshed).toEqual({
+          id: 'card-1',
+          identifier: 'ESN-123',
+          status: 'verified',
+          type: 'esnCard',
+          validTo: '2026-12-31T00:00:00.000Z',
+        });
+        expect(findFirst).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: {
+              type: 'esnCard',
+              userId: 'user-1',
+            },
+          }),
+        );
+        expect(validate).toHaveBeenCalledWith({
+          config: {},
+          identifier: 'ESN-123',
+        });
+        expect(updateSet).toHaveBeenCalledWith(
+          expect.objectContaining({
+            metadata: { provider: 'esncard' },
+            status: 'verified',
+            validTo,
+          }),
+        );
+      }).pipe(
+        Effect.ensuring(
+          Effect.sync(() => {
+            Adapters.esnCard = originalAdapter;
+          }),
+        ),
+      );
+    },
+  );
+
+  it.effect('deleteMyCard removes only the current user card type', () =>
+    Effect.gen(function* () {
+      const where = vi.fn(() => Effect.void);
+      const database = {
+        delete: vi.fn((table: unknown) => {
+          expect(table).toBe(userDiscountCards);
+          return { where };
+        }),
+      };
+
+      yield* discountHandlers['discounts.deleteMyCard']({ type: 'esnCard' }, {
+        headers: createHeaders(createTenant('tenant-2')),
+      } as never).pipe(
+        Effect.provide(Layer.succeed(Database, database as never)),
+      );
+
+      const condition = where.mock.calls[0]?.[0];
+      const collectValues = (value: unknown, seen = new WeakSet<object>()) => {
+        if (value === null || value === undefined) return [];
+        if (typeof value !== 'object') return [value];
+        if (seen.has(value)) return [];
+        seen.add(value);
+        if (Array.isArray(value)) {
+          return value.flatMap((item) => collectValues(item, seen));
+        }
+        return Object.values(value).flatMap((item) =>
+          collectValues(item, seen),
+        );
+      };
+      const conditionValues = collectValues(condition);
+
+      expect(conditionValues).toContain('user-1');
+      expect(conditionValues).toContain('esnCard');
+    }),
+  );
 });
