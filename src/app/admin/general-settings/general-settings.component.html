@@ -32,6 +32,28 @@
         </mat-select>
       </mat-form-field>
 
+      <h3 class="title-small mb-2 mt-6">Search preview</h3>
+      <p class="text-on-surface-variant mb-3 text-sm">
+        Set the default title and description used for tenant-level pages.
+      </p>
+      <mat-form-field>
+        <mat-label>SEO title</mat-label>
+        <input
+          matInput
+          [formField]="settingsForm.seoTitle"
+          placeholder="Tenant name or public site title"
+        />
+      </mat-form-field>
+      <mat-form-field>
+        <mat-label>SEO description</mat-label>
+        <textarea
+          matInput
+          rows="3"
+          [formField]="settingsForm.seoDescription"
+          placeholder="Short description for search results and previews"
+        ></textarea>
+      </mat-form-field>
+
       <h3 class="title-small mb-2 mt-6">Finance settings</h3>
       <p class="text-on-surface-variant mb-3 text-sm">
         Configure which countries can be selected when users submit receipts.

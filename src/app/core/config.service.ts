@@ -75,7 +75,7 @@ export class ConfigService {
             `theme-${this.tenant.theme}`,
           );
         }
-        this._tenant = currentTenant;
+        this.applyTenantConfig(currentTenant);
         this.renderer.addClass(
           this.document.documentElement,
           `theme-${this.tenant.theme}`,
@@ -96,9 +96,7 @@ export class ConfigService {
       this.rpc.config.public.call(),
     ]);
 
-    this.title.setTitle(tenant.name);
-
-    this._tenant = tenant;
+    this.applyTenantConfig(tenant);
     this._permissions = [...permissions];
 
     this._publicConfig = pub;
@@ -110,5 +108,15 @@ export class ConfigService {
 
   public updateTitle(title: string): void {
     this.title.setTitle(`${title} | ${this.tenant.name}`);
+  }
+
+  private applyTenantConfig(tenant: Tenant): void {
+    this._tenant = tenant;
+    this.title.setTitle(tenant.seoTitle ?? tenant.name);
+    if (tenant.seoDescription) {
+      this.updateDescription(tenant.seoDescription);
+    } else {
+      this.meta.removeTag('name="description"');
+    }
   }
 }

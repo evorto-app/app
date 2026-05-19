@@ -58,6 +58,8 @@ export class GeneralSettingsComponent {
     defaultLocation: GoogleLocationType | null;
     esnCardEnabled: boolean;
     receiptCountries: string[];
+    seoDescription: string;
+    seoTitle: string;
     theme: 'esn' | 'evorto';
   }>({
     allowOther: false,
@@ -65,6 +67,8 @@ export class GeneralSettingsComponent {
     defaultLocation: null,
     esnCardEnabled: false,
     receiptCountries: [...DEFAULT_RECEIPT_COUNTRIES],
+    seoDescription: '',
+    seoTitle: '',
     theme: 'evorto',
   });
   protected readonly esnEnabled = computed(
@@ -98,6 +102,8 @@ export class GeneralSettingsComponent {
           esnCardEnabled:
             currentTenant.discountProviders?.esnCard?.status === 'enabled',
           receiptCountries: [...receiptCountrySettings.receiptCountries],
+          seoDescription: currentTenant.seoDescription ?? '',
+          seoTitle: currentTenant.seoTitle ?? '',
           theme: currentTenant.theme,
         });
       }
@@ -116,6 +122,8 @@ export class GeneralSettingsComponent {
             defaultLocation: settings.defaultLocation,
             esnCardEnabled: settings.esnCardEnabled,
             receiptCountries: settings.receiptCountries,
+            seoDescription: settings.seoDescription.trim() || undefined,
+            seoTitle: settings.seoTitle.trim() || undefined,
             theme: settings.theme,
           },
           {

@@ -199,6 +199,8 @@ export const AdminTenantUpdateSettings = asRpcMutation(
       defaultLocation: Schema.NullOr(Schema.Any),
       esnCardEnabled: Schema.Boolean,
       receiptCountries: Schema.Array(Schema.NonEmptyString),
+      seoDescription: Schema.optional(Schema.String),
+      seoTitle: Schema.optional(Schema.String),
       theme: literalUnion('evorto', 'esn'),
     }),
     success: Tenant,

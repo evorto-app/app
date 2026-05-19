@@ -38,6 +38,14 @@ const createAdminHeaders = () => ({
   [RPC_CONTEXT_HEADERS.TENANT]: encodeRpcContextHeaderJson(createTenant()),
 });
 
+const createSettingsAdminHeaders = () => ({
+  [RPC_CONTEXT_HEADERS.AUTHENTICATED]: 'true',
+  [RPC_CONTEXT_HEADERS.PERMISSIONS]: encodeRpcContextHeaderJson([
+    'admin:changeSettings',
+  ]),
+  [RPC_CONTEXT_HEADERS.TENANT]: encodeRpcContextHeaderJson(createTenant()),
+});
+
 describe('adminHandlers role permissions', () => {
   it.effect('findMany requires role management permission', () =>
     Effect.gen(function* () {
@@ -86,5 +94,53 @@ describe('adminHandlers role permissions', () => {
       });
       expect(role).not.toHaveProperty('showInHub');
     }),
+  );
+});
+
+describe('adminHandlers tenant settings', () => {
+  it.effect(
+    'updates tenant SEO settings through the validated tenant shape',
+    () =>
+      Effect.gen(function* () {
+        let capturedUpdate: Record<string, unknown> | undefined;
+        const updateQuery = {
+          returning: () =>
+            Effect.succeed([
+              {
+                id: 'tenant-1',
+              },
+            ]),
+          set: (value: Record<string, unknown>) => {
+            capturedUpdate = value;
+            return updateQuery;
+          },
+          where: () => updateQuery,
+        };
+        const database = {
+          update: () => updateQuery,
+        };
+
+        const result = yield* adminHandlers['admin.tenant.updateSettings'](
+          {
+            allowOther: true,
+            defaultLocation: null,
+            esnCardEnabled: false,
+            receiptCountries: ['NL'],
+            seoDescription: '  Public description  ',
+            seoTitle: '  Public title  ',
+            theme: 'evorto',
+          },
+          { headers: createSettingsAdminHeaders() } as never,
+        ).pipe(Effect.provide(Layer.succeed(Database, database as never)));
+
+        expect(capturedUpdate).toMatchObject({
+          seoDescription: 'Public description',
+          seoTitle: 'Public title',
+        });
+        expect(result).toMatchObject({
+          seoDescription: 'Public description',
+          seoTitle: 'Public title',
+        });
+      }),
   );
 });

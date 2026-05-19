@@ -507,6 +507,8 @@ export const adminHandlers = {
           allowOther: input.allowOther,
           receiptCountries: input.receiptCountries,
         }),
+        seoDescription: input.seoDescription?.trim() || null,
+        seoTitle: input.seoTitle?.trim() || null,
         theme: input.theme,
       };
 
@@ -529,6 +531,8 @@ export const adminHandlers = {
               allowOther: input.allowOther,
               receiptCountries: input.receiptCountries,
             }),
+            seoDescription: input.seoDescription?.trim() || null,
+            seoTitle: input.seoTitle?.trim() || null,
             theme: input.theme,
           })
           .where(eq(tenants.id, tenant.id))
