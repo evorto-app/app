@@ -4,7 +4,23 @@ Scope: Current Playwright tests and documentation journeys.
 
 Updated: 2026-05-19
 
-## Summary
+## How to Use This Inventory
+
+Use this file as a quick orientation map before adding or trusting Playwright
+coverage. `tests/README.md` remains the workflow reference for commands,
+runtime variables, Docker behavior, and browser installation.
+
+The current suite has two durable purposes:
+
+- `tests/specs/**` proves product behavior and regression paths.
+- `tests/docs/**` generates product-facing walkthrough documentation from real
+  browser flows.
+
+Browser/manual exploration is still the right discovery tool for flows that are
+being stabilized. Once a flow decision is confirmed, persist the learning here
+by adding or tightening a spec/doc journey instead of leaving only manual notes.
+
+## Active Files
 
 - Documentation journeys (`*.doc.ts`):
   - docs/events/event-approval.doc.ts
@@ -43,14 +59,85 @@ Updated: 2026-05-19
   - specs/templates/paid-option-requires-tax-rate.spec.ts [finance, fixme]
   - specs/templates/templates.test.ts
 
+## Suite Ownership
+
+- Events and registrations:
+  - `docs/events/**`
+  - `specs/events/**`
+  - `specs/discounts/esn-discounts.test.ts`
+- Templates and categories:
+  - `docs/templates/templates.doc.ts`
+  - `docs/template-categories/categories.doc.ts`
+  - `specs/templates/**`
+  - `specs/template-categories/**`
+- Roles and permissions:
+  - `docs/roles/roles.doc.ts`
+  - `specs/permissions/**`
+- Finance, receipts, tax, and Stripe:
+  - `docs/finance/**`
+  - `specs/finance/**`
+  - `specs/permissions/tenant-isolation-tax-rates.spec.ts`
+- Profile and account:
+  - `docs/profile/**`
+  - `docs/users/create-account.doc.ts`
+- Scanning/check-in:
+  - `specs/scanning/scanner.test.ts`
+- Runtime, reporting, screenshots, and seed health:
+  - `specs/auth/storage-state-refresh.test.ts`
+  - `specs/reporting/reporter-paths.test.ts`
+  - `specs/screenshot/doc-screenshot.test.ts`
+  - `specs/seed/seed-baseline.test.ts`
+  - `specs/smoke/load-application.test.ts`
+
+## Intentional Gaps and Gates
+
+- `specs/events/price-labels-inclusive.spec.ts` is intentionally fixme-only
+  until inclusive price-label behavior has active Browser-backed coverage.
+- `specs/templates/paid-option-requires-tax-rate.spec.ts` is intentionally
+  fixme-only until simple-mode template tax-rate behavior has active UI
+  coverage.
+- `docs/users/create-account.doc.ts` is integration-tagged with
+  `@needs-auth0-management`; baseline list/discovery must not require those
+  credentials.
+- `specs/finance/stripe-webhook-replay.spec.ts` skips individual webhook cases
+  when `STRIPE_WEBHOOK_SECRET` is absent. That skip is credential-gated, not a
+  substitute for product coverage.
+- `specs/permissions/override.test.ts` skips when the optional permissions
+  override file is absent.
+- Page-backed local execution requires the Playwright Chromium cache installed
+  by `bun run test:e2e:install`.
+
+## Stabilization Coverage Still Needed
+
+- Profile/account:
+  - Browser-backed profile edit persistence for notification email.
+  - Profile event-card coverage for event links, registration status, payment
+    state, and check-in state.
+  - Profile ESNcard save, refresh, and remove flows with readable error states.
+- Finance/receipts:
+  - Finance route gates for transactions, receipt approvals, and reimbursement
+    pages.
+  - Receipt review and reimbursement behavior in generated docs.
+  - Notification or email follow-up behavior once the product path exists.
+- Scanning/check-in:
+  - Scanner mutation documentation and organizer aggregate assertions.
+  - Guest-quantity behavior once registration guest support exists.
+- Tenant/global admin:
+  - Current tenant settings docs/specs for the implemented settings surface.
+  - Explicit docs for global-admin tenant-management behavior.
+- Roles/user management:
+  - Least-privilege organizer role lookup in event/template eligibility forms.
+  - User-list/role-assignment coverage once the role-assignment path exists.
+- Registrations:
+  - Negative paths for closed windows, full options, ineligible roles, and
+    unsupported stored registration modes.
+
 ## Current Notes
 
 - `tests/support/fixtures/parallel-test.ts` seeds isolated `test` profile tenants per test.
 - `tests/setup/database.setup.ts` seeds a shared `docs` profile tenant and persists `.e2e-runtime.json`.
 - Scenario handles from `seeded.scenario.events.*` are the preferred way to address seeded entities.
 - Finance-tagged specs remain the main candidates for selective CI filtering when needed.
-- `specs/templates/paid-option-requires-tax-rate.spec.ts` is intentionally fixme-only until simple-mode template tax-rate behavior has active UI coverage.
-- `specs/events/price-labels-inclusive.spec.ts` is intentionally fixme-only until inclusive price-label behavior has active UI coverage.
 - Event, registration, template, finance receipt, scanner, and unlisted-event specs should fail loudly when deterministic fixture state is missing instead of silently passing through skips.
 - `docs/users/create-account.doc.ts` is the only current integration-tagged Playwright path; there is no non-doc integration-only spec yet.
 - Playwright `--list` discovery does not clean or write generated docs output,
