@@ -99,16 +99,16 @@ The **Receipt approvals** tab shows all receipts waiting for finance review, gro
 
   await testInfo.attach('markdown', {
     body: `
-## Receipt Refunds
+## Receipt Reimbursements
 
-The **Receipt refunds** tab groups approved receipts by recipient and renders each group in a selectable table. Finance users can select one or more rows, verify payout details (IBAN/PayPal), and record the reimbursement transaction for the selected batch.
+The **Receipt reimbursements** tab groups approved receipts by recipient and renders each group in a selectable table. Finance users can select one or more rows, verify payout details (IBAN/PayPal), and record the manual reimbursement transaction for the selected batch.
 `,
   });
-  await page.getByRole('link', { name: 'Receipt refunds' }).click();
+  await page.getByRole('link', { name: 'Receipt reimbursements' }).click();
   await takeScreenshot(
     testInfo,
     page.locator('app-receipt-refund-list'),
     page,
-    'Receipt refunds list',
+    'Receipt reimbursements list',
   );
 });

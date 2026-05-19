@@ -1,5 +1,5 @@
 <div class="mb-4 flex items-center justify-between gap-2">
-  <h1 class="title-large">Receipt refunds</h1>
+  <h1 class="title-large">Receipt reimbursements</h1>
 </div>
 
 @if (refundableReceiptsQuery.isPending()) {
@@ -12,7 +12,7 @@
   </div>
 } @else if ((refundableReceiptsQuery.data()?.length ?? 0) === 0) {
   <div class="bg-surface text-on-surface rounded-2xl p-4">
-    No approved receipts are waiting for refund.
+    No approved receipts are waiting for reimbursement.
   </div>
 } @else {
   <div class="grid gap-4">
@@ -168,7 +168,7 @@
             "
             (click)="refundRecipient(group)"
           >
-            Issue refund
+            Record reimbursement
           </button>
         </div>
       </section>
