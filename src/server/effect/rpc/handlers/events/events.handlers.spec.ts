@@ -7,6 +7,7 @@ describe('eventHandlers composition', () => {
     expect(Object.keys(eventHandlers).toSorted()).toEqual([
       'events.canOrganize',
       'events.cancelPendingRegistration',
+      'events.checkInRegistration',
       'events.create',
       'events.eventList',
       'events.findOne',
