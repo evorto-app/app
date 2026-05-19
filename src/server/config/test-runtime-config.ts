@@ -6,6 +6,16 @@ import { nonEmptyTrimmedString, optionalTrimmedString } from './config-string';
 const DEFAULT_TEST_CLOCK_ISO = '2026-02-01T12:00:00.000Z';
 const DEFAULT_TEST_SEED_KEY = 'evorto-e2e-default-v1';
 const INTEGRATION_PROJECT_NAMES = ['docs-integration'] as const;
+const LIST_ONLY_ENVIRONMENT_DEFAULTS = {
+  BASE_URL: 'http://localhost:4200',
+  CLIENT_ID: 'playwright-list-client-id',
+  CLIENT_SECRET: 'playwright-list-client-secret',
+  ISSUER_BASE_URL: 'https://playwright-list.invalid',
+  SECRET: 'playwright-list-secret',
+  STRIPE_API_KEY: 'sk_test_playwright_list',
+  STRIPE_TEST_ACCOUNT_ID: 'acct_playwright_list',
+  STRIPE_WEBHOOK_SECRET: 'whsec_playwright_list',
+} as const;
 
 export const testRuntimeConfigState = Config.all({
   AUTH0_MANAGEMENT_CLIENT_ID: optionalTrimmedString(
@@ -202,11 +212,17 @@ export const requiresIntegrationOnlyPlaywrightEnvironment = (
   );
 };
 
+export const isPlaywrightListOnly = (argv: readonly string[] = process.argv) =>
+  argv.includes('--list');
+
 const validateCiEnvironment = (
   state: TestRuntimeConfigState,
   argv: readonly string[] = process.argv,
 ) => {
   if (!state.CI) {
+    return Effect.void;
+  }
+  if (isPlaywrightListOnly(argv)) {
     return Effect.void;
   }
 
@@ -257,26 +273,31 @@ export const makePlaywrightEnvironmentConfig = (
   Effect.gen(function* () {
     const state = yield* testRuntimeConfigState;
     yield* validateCiEnvironment(state, argv);
+    const listOnly = isPlaywrightListOnly(argv);
 
     const errors = [
-      Option.isSome(state.BASE_URL) ? undefined : missingFieldError('BASE_URL'),
-      Option.isSome(state.CLIENT_ID)
+      Option.isSome(state.BASE_URL) || listOnly
+        ? undefined
+        : missingFieldError('BASE_URL'),
+      Option.isSome(state.CLIENT_ID) || listOnly
         ? undefined
         : missingFieldError('CLIENT_ID'),
-      Option.isSome(state.CLIENT_SECRET)
+      Option.isSome(state.CLIENT_SECRET) || listOnly
         ? undefined
         : missingFieldError('CLIENT_SECRET'),
-      Option.isSome(state.ISSUER_BASE_URL)
+      Option.isSome(state.ISSUER_BASE_URL) || listOnly
         ? undefined
         : missingFieldError('ISSUER_BASE_URL'),
-      Option.isSome(state.SECRET) ? undefined : missingFieldError('SECRET'),
-      Option.isSome(state.STRIPE_API_KEY)
+      Option.isSome(state.SECRET) || listOnly
+        ? undefined
+        : missingFieldError('SECRET'),
+      Option.isSome(state.STRIPE_API_KEY) || listOnly
         ? undefined
         : missingFieldError('STRIPE_API_KEY'),
-      Option.isSome(state.STRIPE_TEST_ACCOUNT_ID)
+      Option.isSome(state.STRIPE_TEST_ACCOUNT_ID) || listOnly
         ? undefined
         : missingFieldError('STRIPE_TEST_ACCOUNT_ID'),
-      Option.isSome(state.STRIPE_WEBHOOK_SECRET)
+      Option.isSome(state.STRIPE_WEBHOOK_SECRET) || listOnly
         ? undefined
         : missingFieldError('STRIPE_WEBHOOK_SECRET'),
     ].filter((value): value is Error => value !== undefined);
@@ -285,18 +306,34 @@ export const makePlaywrightEnvironmentConfig = (
       return yield* Effect.fail(combineMissingDataErrors(errors));
     }
 
-    const baseUrl = Option.getOrUndefined(state.BASE_URL);
-    const clientId = Option.getOrUndefined(state.CLIENT_ID);
-    const clientSecret = Option.getOrUndefined(state.CLIENT_SECRET);
-    const issuerBaseUrl = Option.getOrUndefined(state.ISSUER_BASE_URL);
-    const secret = Option.getOrUndefined(state.SECRET);
-    const stripeApiKey = Option.getOrUndefined(state.STRIPE_API_KEY);
-    const stripeTestAccountId = Option.getOrUndefined(
-      state.STRIPE_TEST_ACCOUNT_ID,
-    );
-    const stripeWebhookSecret = Option.getOrUndefined(
-      state.STRIPE_WEBHOOK_SECRET,
-    );
+    const baseUrl =
+      Option.getOrUndefined(state.BASE_URL) ??
+      (listOnly ? LIST_ONLY_ENVIRONMENT_DEFAULTS.BASE_URL : undefined);
+    const clientId =
+      Option.getOrUndefined(state.CLIENT_ID) ??
+      (listOnly ? LIST_ONLY_ENVIRONMENT_DEFAULTS.CLIENT_ID : undefined);
+    const clientSecret =
+      Option.getOrUndefined(state.CLIENT_SECRET) ??
+      (listOnly ? LIST_ONLY_ENVIRONMENT_DEFAULTS.CLIENT_SECRET : undefined);
+    const issuerBaseUrl =
+      Option.getOrUndefined(state.ISSUER_BASE_URL) ??
+      (listOnly ? LIST_ONLY_ENVIRONMENT_DEFAULTS.ISSUER_BASE_URL : undefined);
+    const secret =
+      Option.getOrUndefined(state.SECRET) ??
+      (listOnly ? LIST_ONLY_ENVIRONMENT_DEFAULTS.SECRET : undefined);
+    const stripeApiKey =
+      Option.getOrUndefined(state.STRIPE_API_KEY) ??
+      (listOnly ? LIST_ONLY_ENVIRONMENT_DEFAULTS.STRIPE_API_KEY : undefined);
+    const stripeTestAccountId =
+      Option.getOrUndefined(state.STRIPE_TEST_ACCOUNT_ID) ??
+      (listOnly
+        ? LIST_ONLY_ENVIRONMENT_DEFAULTS.STRIPE_TEST_ACCOUNT_ID
+        : undefined);
+    const stripeWebhookSecret =
+      Option.getOrUndefined(state.STRIPE_WEBHOOK_SECRET) ??
+      (listOnly
+        ? LIST_ONLY_ENVIRONMENT_DEFAULTS.STRIPE_WEBHOOK_SECRET
+        : undefined);
 
     if (
       !baseUrl ||
