@@ -46,10 +46,12 @@ test('scan confirmed registration records check-in @track(playwright-specs-track
     }
   }
 
-  if (!confirmedRegistration) {
-    test.skip(true, 'No unchecked confirmed registration available');
-    return;
+  if (!confirmedRegistration || !registrationBefore) {
+    throw new Error(
+      'Expected an unchecked confirmed registration in the seeded scanner fixtures',
+    );
   }
+
   const optionBefore = await database.query.eventRegistrationOptions.findFirst({
     columns: {
       checkedInSpots: true,
@@ -57,8 +59,9 @@ test('scan confirmed registration records check-in @track(playwright-specs-track
     where: { id: registrationBefore.registrationOptionId },
   });
   if (!optionBefore) {
-    test.skip(true, 'No registration option available');
-    return;
+    throw new Error(
+      `Expected registration option "${registrationBefore.registrationOptionId}" for seeded scanner registration`,
+    );
   }
 
   try {
