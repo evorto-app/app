@@ -1305,6 +1305,10 @@ implement those decisions or explicitly revise them there before changing code.
 - Profile payment next-step coverage pass: extracted the profile event-card
   pending-checkout next-step copy into a helper and covered that it only appears
   when a pending registration has an actual checkout URL.
+- Docs publish command pass: added an explicit
+  `bun run test:e2e:docs:publish` script for writing generated docs and
+  screenshots into the sibling `evorto-pages` checkout, while keeping normal
+  `test:e2e:docs` output in ignored local `test-results/docs` paths.
 
 ## Review Next
 
@@ -1314,8 +1318,10 @@ remaining relaunch gaps: Browser-backed profile action coverage, Browser-backed
 scanner aggregate review, the remaining tenant settings implementation scope,
 running the legacy-field migration path for production data, and replacing
 intentionally fixme-only price/tax specs with active Browser-backed coverage
-once the local runtime is available. New Playwright skips/fixmes should be
-added only as explicit credential gates or honest Browser-backed stabilization
-placeholders. Receipt notification remains a future product delivery path; the
-current relaunch scope records receipt review locally and keeps finance-facing
-copy explicit that submitter notification is manual.
+once the local runtime is available. Normal generated docs output now stays
+local unless `test:e2e:docs:publish` is run intentionally. New Playwright
+skips/fixmes should be added only as explicit credential gates or honest
+Browser-backed stabilization placeholders. Receipt notification remains a
+future product delivery path; the current relaunch scope records receipt review
+locally and keeps finance-facing copy explicit that submitter notification is
+manual.
