@@ -31,6 +31,17 @@ export const EventReviewStatus = literalUnion(
 
 export type EventReviewStatus = Schema.Schema.Type<typeof EventReviewStatus>;
 
+export const EventsRegistrationStatus = literalUnion(
+  'CANCELLED',
+  'CONFIRMED',
+  'PENDING',
+  'WAITLIST',
+);
+
+export type EventsRegistrationStatus = Schema.Schema.Type<
+  typeof EventsRegistrationStatus
+>;
+
 export const EventsCanOrganize = asRpcQuery(
   Rpc.make('events.canOrganize', {
     error: EventsRpcError,
@@ -277,7 +288,7 @@ export const EventsRegistrationStatusRecord = Schema.Struct({
   registeredDescription: Schema.optional(Schema.NullOr(Schema.String)),
   registrationOptionId: Schema.NonEmptyString,
   registrationOptionTitle: Schema.NonEmptyString,
-  status: Schema.String,
+  status: EventsRegistrationStatus,
 });
 
 export type EventsRegistrationStatusRecord = Schema.Schema.Type<
