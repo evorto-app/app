@@ -20,6 +20,33 @@ const expandPermissionAliases = (permission: Permission): Permission[] => {
   return [permission];
 };
 
+const normalizePermissions = (permissions: readonly Permission[]) =>
+  uniq(
+    permissions.flatMap((permission) => expandPermissionAliases(permission)),
+  );
+
+const resolveGlobalAdminPermissions = (oidcUser: unknown): Permission[] => {
+  const user = asRecord(oidcUser);
+  const appMetadata = asRecord(user?.['evorto.app/app_metadata']);
+
+  return appMetadata?.['globalAdmin'] === true
+    ? [...ALL_PERMISSIONS, 'globalAdmin:manageTenants']
+    : [];
+};
+
+export const resolveRequestPermissions = (input: {
+  oidcUser: unknown;
+  user:
+    | undefined
+    | {
+        permissions: readonly Permission[];
+      };
+}) =>
+  normalizePermissions([
+    ...resolveGlobalAdminPermissions(input.oidcUser),
+    ...(input.user?.permissions ?? []),
+  ]);
+
 const asString = (value: unknown): string | undefined =>
   typeof value === 'string' ? value : undefined;
 
@@ -146,15 +173,13 @@ export const resolveUserContext = (input: {
       return;
     }
 
-    const appMetadata = asRecord(oidcUser?.['evorto.app/app_metadata']);
-    const permissions: Permission[] =
-      appMetadata?.['globalAdmin'] === true
-        ? // Global admins bypass tenant role scoping but still include role-based
-          // permissions for parity with existing permission checks.
-          [...ALL_PERMISSIONS, 'globalAdmin:manageTenants']
-        : user.tenantAssignments
-            .flatMap((assignment) => assignment.roles)
-            .flatMap((role) => role.permissions);
+    if (user.tenantAssignments.length === 0) {
+      return;
+    }
+
+    const permissions = user.tenantAssignments
+      .flatMap((assignment) => assignment.roles)
+      .flatMap((role) => role.permissions);
 
     const roleIds = user.tenantAssignments
       .flatMap((assignment) => assignment.roles)
@@ -181,11 +206,7 @@ export const resolveUserContext = (input: {
     return {
       ...user,
       attributes,
-      permissions: uniq(
-        permissions.flatMap((permission) =>
-          expandPermissionAliases(permission),
-        ),
-      ),
+      permissions: normalizePermissions(permissions),
       roleIds,
     };
   });

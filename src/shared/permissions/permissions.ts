@@ -287,6 +287,11 @@ export const includesPermission = (
     return true;
   }
 
+  const [group] = permission.split(':');
+  if (permissions.includes(`${group}:*` as Permission)) {
+    return true;
+  }
+
   return Object.entries(PERMISSION_DEPENDENCIES).some(
     ([parentPermission, childPermissions]) =>
       permissions.includes(parentPermission as Permission) &&

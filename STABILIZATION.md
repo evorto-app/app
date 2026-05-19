@@ -15,7 +15,7 @@ and useful for small cleanup batches.
 | Finance/receipts                                | First pass complete | partial    | Payments, transactions, receipt review/refund, and docs reviewed; high-risk gaps remain.                                                              |
 | Scanning/check-in                               | First pass complete | partial    | QR display and persisted check-in mutation exist; timing, camera, and guest-quantity follow-ups remain.                                               |
 | Profile/account flows                           | Fixes applied       | partial    | Profile, account creation, discount cards, receipts, and auth guards reviewed; account creation guards, transactionality, and ESNcard scope improved. |
-| Tenant/global admin                             | First pass complete | partial    | Tenant resolution, tenant settings, and global-admin list surface reviewed.                                                                           |
+| Tenant/global admin                             | Fixes applied       | partial    | Tenant resolution, tenant settings, and global-admin list surface reviewed; global-admin route and permission context fixes applied.                  |
 | Generated documentation and Playwright coverage | First pass complete | partial    | Docs/spec inventory is discoverable again, but several docs/specs are stale or misleading.                                                            |
 | Local runtime/developer workflow                | First pass complete | partial    | Scripts, env loading, Docker/Playwright setup, and unit-test ownership reviewed.                                                                      |
 
@@ -887,9 +887,9 @@ the current working direction until a product decision overrides them.
 - Client config loads the current tenant and permission list through RPC and applies `theme-${tenant.theme}` to the document root.
 - Tenant admin "General settings" lets tenant admins change default location, site theme, receipt countries/allow-other, and ESNcard provider enablement plus buy URL.
 - Tenant settings writes are tenant-scoped and require `admin:changeSettings`; tax-rate admin reads/writes require `admin:tax`.
-- `/global-admin` is guarded by authentication only at the route level. The navigation link is hidden behind `globalAdmin:*`, and the tenant list RPC requires `globalAdmin:manageTenants`.
+- `/global-admin` is guarded by authentication at the app route and by `globalAdmin:manageTenants` in the global-admin route config. The navigation link is hidden behind `globalAdmin:*`, and the tenant list RPC requires `globalAdmin:manageTenants`.
 - Global admin currently exposes only a tenant list with id/name/domain. There is no tenant create/edit/detail flow.
-- Global-admin permissions are derived from Auth0 app metadata `evorto.app/app_metadata.globalAdmin === true`, but only after a global user row and current-tenant assignment are found.
+- Global-admin permissions are derived from Auth0 app metadata `evorto.app/app_metadata.globalAdmin === true` independently from current-tenant membership. Tenant user context still requires a current-tenant assignment.
 - Anonymous direct `/global-admin` redirects to Auth0. Stored auth states were stale, so authenticated global-admin UI was not reverified through Playwright in this pass.
 
 ### Intended Behavior From Product Context
@@ -902,9 +902,6 @@ the current working direction until a product decision overrides them.
 
 ### Issues and Risks
 
-- **Must fix before agent scaling:** global-admin app routes are only protected by `authGuard`. Direct `/global-admin` access by a non-global authenticated tenant user can reach the global-admin shell and rely on the RPC to fail. Route-level permission denial should match the RPC and navigation rules.
-- **Must fix before agent scaling:** global-admin status depends on Auth0 app metadata but is only evaluated after finding a tenant-scoped user assignment. That makes the global-admin model coupled to the current tenant and conflicts with the need to administer tenants even when tenant membership is missing, broken, or being repaired.
-- **Must fix before agent scaling:** server permission checks compare exact permission strings and do not share the client wildcard/dependency logic. A user with `globalAdmin:*` can see the client navigation but fail `globalAdmin:manageTenants` RPC authorization.
 - **Must fix before agent scaling:** tenant resolution has no focused unit tests for host-first precedence, local cookie fallback, unknown-host failure, or stale/wrong tenant cookies. Current coverage checks storage-state freshness and tenant schema headers, but not the resolver contract itself.
 - **Should fix before relaunch:** the tenant schema supports one `domain`, not multiple domains or domain verification states. Product context allows Evorto subdomains plus custom domains.
 - **Should fix before relaunch:** tenant settings UI does not expose tenant name, domain/custom domain, logo, favicon, legal/privacy/terms/imprint configuration, email sender name, review/publishing settings, registration limits, locale, currency, timezone, or Stripe account state.
@@ -924,12 +921,15 @@ the current working direction until a product decision overrides them.
 - `tests/specs/permissions/tenant-isolation-tax-rates.spec.ts` checks seeded tenant tax-rate isolation directly in the database, but does not exercise the RPC/UI tenant context switch.
 - `tests/specs/finance/tax-rates/admin-import-tax-rates.spec.ts` covers route denial for `/admin/tax-rates`, but there is no matching coverage for `/admin/settings` or `/global-admin`.
 - `tests/docs/finance/inclusive-tax-rates.doc.ts` documents tenant tax-rate management, but there is no generated documentation for tenant general settings, tenant branding/legal settings, or global tenant administration.
+- `src/app/global-admin/global-admin.routes.spec.ts` covers route-level global-admin permission requirements.
+- `src/server/effect/rpc/handlers/global-admin.handlers.spec.ts` covers `globalAdmin:*` satisfying `globalAdmin:manageTenants` RPC authorization.
+- `src/server/context/request-context-resolver.spec.ts` covers global-admin permissions resolving without a tenant user assignment and tenant-user context failing closed when the Auth0 user has no current-tenant assignment.
 - Playwright browser probing was limited because the bundled Playwright browser was not installed and stored auth states were stale; system Chrome confirmed anonymous/global-admin redirects to Auth0.
 
 ### Product Questions Answered Above
 
 - Should global admins be independent platform principals, tenant users with special metadata, or tenant users plus a separate platform-role table?
-- Can a global admin administer tenants before being assigned to the current tenant?
+- Can a global admin administer tenants before being assigned to the current tenant? Current implementation allows global-admin permissions from Auth0 app metadata without requiring a tenant assignment.
 - Should tenants support multiple domains, and how should custom domain verification/ownership be modeled?
 - What is the minimum relaunch scope for tenant branding/legal settings versus later tenant onboarding work?
 - Should tenant currency/locale/timezone be editable after payment/event data exists?
@@ -937,10 +937,6 @@ the current working direction until a product decision overrides them.
 
 ### Recommended Cleanup Actions
 
-- Add route-level `globalAdmin:manageTenants` protection and Playwright denial coverage for `/global-admin` and `/global-admin/tenants`.
-- Decouple global-admin authorization from current tenant membership while still
-  resolving tenant context when a global admin opens a tenant domain.
-- Centralize server permission evaluation so wildcard permissions, aliases, and dependencies match the client.
 - Add unit tests for `resolveTenantContext` covering host-first resolution, local cookie fallback, unknown-host 404 behavior, and stale tenant-cookie behavior.
 - Document one-domain-per-tenant as the relaunch scope; leave automated
   multi-domain/custom-domain management for later work.
@@ -1081,10 +1077,9 @@ the current working direction until a product decision overrides them.
 7. Add route guards and direct-route denial coverage for admin role/user/settings and other permission-sensitive routes.
 8. Split role lookup APIs so organizers can select event/template eligibility roles without receiving admin role-management data.
 9. Tie receipt media upload to receipt-submit authorization or an upload preflight to avoid orphan authenticated uploads.
-10. Add route-level global-admin protection and decouple global-admin authorization from current tenant membership.
-11. Add focused tenant-resolution tests for host/cookie precedence and unknown-host failure.
-12. Remove misleading placeholder tests/docs from the event registration, event management, template tax-rate, role-assignment, finance overview, scanner, and profile/account surfaces.
-13. Replace green placeholder specs and silent no-op Playwright tests with real assertions, hard fixture setup, or explicit `test.fixme` states.
+10. Add focused tenant-resolution tests for host/cookie precedence and unknown-host failure.
+11. Remove misleading placeholder tests/docs from the event registration, event management, template tax-rate, role-assignment, finance overview, scanner, and profile/account surfaces.
+12. Replace green placeholder specs and silent no-op Playwright tests with real assertions, hard fixture setup, or explicit `test.fixme` states.
 
 ### Should Fix Before Relaunch
 
@@ -1139,7 +1134,7 @@ implement those decisions or explicitly revise them there before changing code.
 - None in the Finance/receipts pass. The highest-value issues touch payment-derived state, transaction visibility, and upload authorization, so they need targeted regression tests with the fixes.
 - Scanning/check-in pass: added `events.checkInRegistration`, gated scan reads and check-in writes to event organizers or `events:organizeAll`, made duplicate check-ins idempotent, wired the scanner button to persist and refetch state, and extended scanner tests to assert persisted check-in state.
 - Profile/account pass: guarded `/create-account` with authentication, reworked `users.createAccount` into a transactional tenant-account creation flow that can attach an existing global user to the current tenant while assigning default roles, and aligned ESNcard records with the global-per-user decision.
-- None in the Tenant/global admin pass. The obvious fixes affect authorization semantics and tenant-resolution tests, so they should be done as focused code/test commits rather than mixed into the audit document commit.
+- Tenant/global-admin pass: guarded global-admin routes with `globalAdmin:manageTenants`, decoupled global-admin permission resolution from current-tenant assignment, required tenant user context to have a current-tenant assignment, and fixed granted group wildcards such as `globalAdmin:*` to satisfy concrete permission checks.
 - Generated docs/Playwright pass: replaced stale Effect config-provider calls in Playwright config/support files so `test:e2e -- --list` and `test:e2e:docs -- --list` can discover tests again.
 - Local runtime/developer workflow pass: refreshed `.env.dev` automatically in local runtime scripts, added a visible Playwright browser-install script, split Angular/server unit-test discovery, aligned CI Bun with the repo runtime, added Docker required-secret preflight before mutating start commands, and updated workflow docs.
 - Finance access pass: gated finance transaction reads with `finance:viewTransactions`, added finance route guards/link visibility for transaction, receipt approval, and receipt reimbursement pages, added permission-matrix coverage, and rewrote the finance overview doc copy to current permissions and UI behavior.
