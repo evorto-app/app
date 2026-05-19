@@ -258,44 +258,38 @@ const cancelRegistration = ({
               );
             }
 
-            const optionSpotUpdate =
-              registration.status === 'CONFIRMED'
-                ? {
-                    confirmedSpots: sql`${eventRegistrationOptions.confirmedSpots} - ${registeredSpotCount}`,
-                  }
-                : registration.status === 'PENDING'
+            const updatedOptions = yield* tx
+              .update(eventRegistrationOptions)
+              .set(
+                registration.status === 'PENDING'
                   ? {
                       reservedSpots: sql`${eventRegistrationOptions.reservedSpots} - ${registeredSpotCount}`,
                     }
-                  : {
-                      waitlistSpots: sql`${eventRegistrationOptions.waitlistSpots} - ${registeredSpotCount}`,
-                    };
-            const optionSpotAvailable =
-              registration.status === 'CONFIRMED'
-                ? gte(
-                    eventRegistrationOptions.confirmedSpots,
-                    registeredSpotCount,
-                  )
-                : registration.status === 'PENDING'
-                  ? gte(
-                      eventRegistrationOptions.reservedSpots,
-                      registeredSpotCount,
-                    )
-                  : gte(
-                      eventRegistrationOptions.waitlistSpots,
-                      registeredSpotCount,
-                    );
-
-            const updatedOptions = yield* tx
-              .update(eventRegistrationOptions)
-              .set(optionSpotUpdate)
+                  : registration.status === 'CONFIRMED'
+                    ? {
+                        confirmedSpots: sql`${eventRegistrationOptions.confirmedSpots} - ${registeredSpotCount}`,
+                      }
+                    : {
+                        waitlistSpots: sql`${eventRegistrationOptions.waitlistSpots} - 1`,
+                      },
+              )
               .where(
                 and(
                   eq(
                     eventRegistrationOptions.id,
                     registration.registrationOptionId,
                   ),
-                  optionSpotAvailable,
+                  registration.status === 'PENDING'
+                    ? gte(
+                        eventRegistrationOptions.reservedSpots,
+                        registeredSpotCount,
+                      )
+                    : registration.status === 'CONFIRMED'
+                      ? gte(
+                          eventRegistrationOptions.confirmedSpots,
+                          registeredSpotCount,
+                        )
+                      : gte(eventRegistrationOptions.waitlistSpots, 1),
                 ),
               )
               .returning({

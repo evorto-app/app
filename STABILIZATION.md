@@ -549,7 +549,7 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** existing-registration preflight and transactional duplicate checks include `tenantId`.
 - **Addressed in stabilization pass:** registration option lookup validates the related event tenant before proceeding.
 - **Addressed in stabilization pass:** event registration supports guest quantities for participant options. The registration contract stores `guestCount`, the UI lets participants choose guests up to remaining capacity, free registration confirms all selected spots, and paid registration reserves/prices the selected quantity through Stripe checkout.
-- **Addressed in stabilization pass:** full participant options no longer present the normal registration action and instead expose a distinct waitlist action backed by a `WAITLIST` registration and `waitlistSpots` counter update.
+- **Addressed in stabilization pass:** full participant options no longer present the normal registration action and instead expose a distinct waitlist action backed by a `WAITLIST` registration and `waitlistSpots` counter update. Waitlisted participants can leave the waitlist before the event starts, which decrements `waitlistSpots` transactionally.
 - **Addressed in stabilization pass:** registration submission now rejects stored `random` and `application` options server-side instead of silently handling them as first-come-first-served.
 - **Addressed in stabilization pass:** event registration option cards now label participant options separately from organizer/helper options and use distinct organizer/helper signup action copy while preserving the shared registration-option model.
 - **Addressed in stabilization pass:** role-ineligible direct event links keep the event visible but show an explicit registration-unavailable state instead of silently rendering an empty registration section.
@@ -566,14 +566,14 @@ the current working direction until a product decision overrides them.
 - `src/app/events/event-registration-option/event-registration-option.component.spec.ts` covers registration-card state for full options, distinct waitlist availability, remaining-capacity guest selection helpers, and too-early/too-late registration windows without requiring a page-backed browser.
 - `src/app/events/event-registration-option/event-registration-option.component.spec.ts` covers that stored `random` and `application` participant options do not expose a waitlist affordance even when full.
 - `src/server/effect/rpc/handlers/events/event-registration.service.spec.ts` covers server-side rejection for duplicate active registration, unpublished events, closed registration windows, role-ineligible users, cross-tenant options, full options, unsupported registration modes, same-event second registrations across options, transactional duplicate races, transactional capacity races, participant waitlist joining, and participant guest quantities.
-- `src/server/effect/rpc/handlers/events/events-registration.handlers.spec.ts` covers participant self-cancellation for pending and confirmed registrations plus checked-in and waitlist rejection paths.
+- `src/server/effect/rpc/handlers/events/events-registration.handlers.spec.ts` covers participant self-cancellation for pending, confirmed, and waitlisted registrations plus checked-in rejection paths.
 - `src/server/effect/rpc/handlers/events/events-registration.handlers.spec.ts` covers organizer/admin cancellation for confirmed registrations and denial without event-organizer access.
 - `src/server/effect/rpc/handlers/events/events-lifecycle.handlers.spec.ts` covers server-side rejection of end-before-start events and close-before-open registration windows for event create/update.
 - `src/server/effect/rpc/handlers/events/events-lifecycle.handlers.spec.ts` covers template discount copying by stable source option id when template options share the same title, plus pre-insert rejection when copied ESNcard discounts are disabled or exceed the target event option price.
 - `src/server/effect/rpc/handlers/events/events-rpcs.schema.spec.ts` covers acceptance and rejection for the shared event location schema now used by Events RPC contracts.
 - `src/server/effect/rpc/handlers/events/events-rpcs.schema.spec.ts` covers the active registration status literal union and rejects unknown statuses.
 - `src/server/effect/rpc/handlers/events/events-rpcs.schema.spec.ts` covers the tax-rate label fields returned with event registration options for paid event cards.
-- `src/app/events/event-active-registration/event-active-registration.component.spec.ts` covers participant cancellation copy for single-spot and guest registrations plus the visible transfer/resale-unavailable notes for pending, confirmed, and waitlisted active registrations.
+- `src/app/events/event-active-registration/event-active-registration.component.spec.ts` covers participant cancellation copy for single-spot, guest, and waitlisted registrations plus the visible transfer/resale-unavailable notes for pending, confirmed, and waitlisted active registrations.
 - `tests/docs/events/event-management.doc.ts` now documents only the current event details, registration, review/listing, edit, organizer overview, participant grouping/cancellation, and receipt surfaces.
 - `tests/docs/events/unlisted-admin.doc.ts` covers the updated direct-link explanation in the listing dialog and on unlisted event details.
 - `tests/docs/events/register.doc.ts` covers free and paid registration as generated documentation and Stripe-backed evidence, including guest quantity selection, the participant versus organizer/helper option wording, and participant self-cancellation copy.
@@ -892,7 +892,7 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** create-account stores `communicationEmail`, and profile now shows the Auth0 login email separately from the editable notification email. Profile edit updates `communicationEmail` alongside name and reimbursement fields.
 - **Addressed in stabilization pass:** profile event cards now link to event details and show registration status, selected option, guest quantity when applicable, payment state, and check-in time when available. Profile still leaves QR/ticket display, cancellation/refund action, and transfer/resale workflows to the event-detail flow or future work while exposing pending checkout continuation directly.
 - **Addressed in stabilization pass:** profile event cards now label their event-details action as "Open event page" instead of implying that the profile card itself renders the ticket; confirmed ticket access remains on the event detail surface.
-- **Addressed in stabilization pass:** profile event cards now point pending checkout registrations at the implemented profile-level recovery action, route ticket and cancellation details back to the event page, and keep waitlist movement, automatic refunds, and transfer/resale visibly out of the current implemented profile scope.
+- **Addressed in stabilization pass:** profile event cards now point pending checkout registrations at the implemented profile-level recovery action, route ticket, cancellation, and waitlist details back to the event page, and keep automatic refunds plus transfer/resale visibly out of the current implemented profile scope.
 - **Addressed in stabilization pass:** profile reimbursement fields are global user fields by product decision, and the profile copy now labels them as optional global reimbursement details used for manual receipt reimbursements across tenants.
 - **Addressed in stabilization pass:** ESNcard save, refresh, and remove actions now clear stale errors, show visible pending button states, and map mutation failures through `getErrorMessage(...)` instead of rendering raw error objects.
 - **Addressed in stabilization pass:** ESNcard validation now uses a bounded provider request and distinguishes provider unavailability from invalid/expired card results. Save/refresh mutations surface provider outages as retryable bad-request errors instead of collapsing them into card validation status.
@@ -1357,6 +1357,10 @@ implement those decisions or explicitly revise them there before changing code.
 - Registration cancellation guest-copy pass: aligned active-registration
   cancellation helper text and generated registration docs with buyer-plus-guest
   spot release behavior.
+- Waitlist leave-action pass: allowed waitlisted participants to cancel their
+  waitlist registration before event start, decrementing `waitlistSpots`
+  transactionally and exposing **Leave waitlist** copy on the active
+  registration card.
 - Profile payment next-step coverage pass: extracted the profile event-card
   pending-checkout next-step copy into a helper and covered that it only appears
   when a pending registration has an actual checkout URL.

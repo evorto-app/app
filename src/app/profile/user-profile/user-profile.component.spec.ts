@@ -44,7 +44,7 @@ describe('profile event labels', () => {
         status: 'WAITLIST',
       }),
     ).toBe(
-      'Waitlist movement is not managed from profile yet. Open the event page for current details; transfer/resale is not available for waitlist registrations.',
+      'Open the event page for waitlist details and the leave-waitlist action. Transfer/resale is not available for waitlist registrations.',
     );
   });
 

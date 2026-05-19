@@ -62,7 +62,7 @@ describe('registrationCancellationCopy', () => {
     });
   });
 
-  it('describes waitlist cancellation as leaving the waitlist', () => {
+  it('exposes a leave-waitlist action for waitlisted registrations', () => {
     expect(
       registrationCancellationCopy({
         guestCount: 0,
@@ -72,7 +72,7 @@ describe('registrationCancellationCopy', () => {
     ).toEqual({
       buttonLabel: 'Leave waitlist',
       helperText:
-        'This removes you from the waitlist and releases your waitlist spot.',
+        'This removes your waitlist registration and releases your waitlist position.',
     });
   });
 

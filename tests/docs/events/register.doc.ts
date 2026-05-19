@@ -52,7 +52,7 @@ test.describe('Register for events', () => {
   ### Free events
   Here we will make a distinction for free events and paid events (covered further down).
   Participant options are labeled separately from organizer/helper options, which use **Sign up as organizer/helper** copy when you are helping run the event.
-  When a participant option is full, registration changes to a distinct **Join waitlist** action instead of pretending a normal spot is still available.
+  When a participant option is full, registration changes to a distinct **Join waitlist** action instead of pretending a normal spot is still available. Waitlisted participants can return to the event page and use **Leave waitlist** before the event starts.
   If you open a direct event link but your account does not match the roles required by any available option, the event remains visible and the registration area explains that registration is unavailable for your account.`,
     });
     await takeScreenshot(
