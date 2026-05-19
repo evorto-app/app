@@ -48,6 +48,22 @@ type ProfileSection = 'discounts' | 'events' | 'overview' | 'receipts';
 
 export const profileEventDetailActionLabel = (): string => 'Open event page';
 
+export const profileEventActionNote = (
+  status: 'CONFIRMED' | 'PENDING' | 'WAITLIST',
+): string => {
+  switch (status) {
+    case 'CONFIRMED': {
+      return 'Ticket access is on the event page. Cancellation, refunds, and transfer/resale are not managed from profile yet.';
+    }
+    case 'PENDING': {
+      return 'Pending-registration changes are handled from the event page when available.';
+    }
+    case 'WAITLIST': {
+      return 'Waitlist movement is not managed from profile yet. Open the event page for current details.';
+    }
+  }
+};
+
 export const registrationPaymentLabel = (
   paymentState: 'cancelled' | 'notRequired' | 'pending' | 'recorded',
 ): string => {
@@ -160,6 +176,7 @@ export class UserProfileComponent {
     this.rpc.finance.receipts.my.queryOptions(),
   );
 
+  protected readonly profileEventActionNote = profileEventActionNote;
   protected readonly profileEventDetailActionLabel =
     profileEventDetailActionLabel;
   protected readonly refreshCardMutation = injectMutation(() =>
