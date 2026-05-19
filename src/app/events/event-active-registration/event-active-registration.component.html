@@ -83,6 +83,11 @@
           </button>
         </div>
       }
+      @if (deferredActionCopy(registration); as deferredAction) {
+        <p class="body-small text-on-surface-variant lg:col-span-2">
+          {{ deferredAction }}
+        </p>
+      }
     </div>
   }
 </div>

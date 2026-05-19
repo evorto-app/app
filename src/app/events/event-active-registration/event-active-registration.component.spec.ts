@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { registrationCancellationCopy } from './event-active-registration.component';
+import {
+  registrationCancellationCopy,
+  registrationDeferredActionCopy,
+} from './event-active-registration.component';
 
 describe('registrationCancellationCopy', () => {
   it('describes pending payment cancellation as releasing the reserved spot', () => {
@@ -49,5 +52,26 @@ describe('registrationCancellationCopy', () => {
         status: 'CANCELLED',
       }),
     ).toBeNull();
+  });
+});
+
+describe('registrationDeferredActionCopy', () => {
+  it('keeps transfer and resale visibly unavailable for confirmed registrations', () => {
+    expect(registrationDeferredActionCopy({ status: 'CONFIRMED' })).toBe(
+      'Transfer/resale is not implemented yet. Contact the organizers if someone else should take your spot.',
+    );
+  });
+
+  it('keeps transfer and resale unavailable for pending or waitlist registrations', () => {
+    expect(registrationDeferredActionCopy({ status: 'PENDING' })).toBe(
+      'Transfer/resale is not available for pending registrations.',
+    );
+    expect(registrationDeferredActionCopy({ status: 'WAITLIST' })).toBe(
+      'Transfer/resale is not available for waitlist registrations.',
+    );
+  });
+
+  it('does not show deferred transfer copy after cancellation', () => {
+    expect(registrationDeferredActionCopy({ status: 'CANCELLED' })).toBeNull();
   });
 });
