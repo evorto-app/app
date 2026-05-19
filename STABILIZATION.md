@@ -887,10 +887,10 @@ the current working direction until a product decision overrides them.
 
 ### Test and Documentation Quality
 
-- `tests/docs/profile/user-profile.doc.ts` documents navigation, profile display, edit dialog validation, and the receipts tab.
+- `tests/docs/profile/user-profile.doc.ts` documents navigation, profile display, edit dialog validation, notification email persistence, event cards, and the receipts tab.
 - `src/app/profile/user-profile/edit-profile-dialog.component.spec.ts` covers profile edit payload normalization for notification email and optional global reimbursement details before the update mutation receives the dialog result.
 - `src/app/profile/user-profile/user-profile.component.spec.ts` covers profile event action, guest-quantity, deferred-action notes, payment-state, registration-status labels, submitted-receipt status labels, and readable ESNcard mutation error fallback/provider messages.
-- **Addressed in stabilization pass:** the profile doc no longer uses a fixed stabilization wait before the profile screenshot and now opens the Events section to document event-card semantics. It still does not save a profile edit or prove persistence.
+- **Addressed in stabilization pass:** the profile doc no longer uses a fixed stabilization wait before the profile screenshot, now saves and verifies notification email persistence, and opens the Events section to document event-card semantics.
 - `tests/docs/profile/discounts.doc.ts` documents the discount-card section and current pending/error behavior, but does not add, refresh, remove, or assert any ESNcard validation outcome.
 - `tests/specs/discounts/esn-discounts.test.ts` verifies a seeded verified ESNcard affects paid event price labels and the register button copy.
 - No reviewed Playwright spec proves profile discount-card management itself, browser-level account creation fallback behavior without Auth0 Management credentials, profile event action rendering, or submitted receipt visibility after receipt submission.
@@ -911,7 +911,7 @@ the current working direction until a product decision overrides them.
 
 ### Recommended Cleanup Actions
 
-- Add Browser-backed profile edit persistence coverage for notification email once runtime review is available.
+- Keep Browser-backed profile edit persistence coverage aligned with notification email behavior.
 - Add Browser-backed profile event-card coverage for event links and registration/guest/payment/check-in state once runtime review is available.
 - Add profile discount-card tests for add/refresh/remove and provider validation outcomes once runtime/browser review is available.
 - Add profile/account tests for account creation retry/tenant-join behavior, profile edit persistence, ESNcard add/refresh/remove, profile event action rendering, and submitted receipt visibility.
@@ -1243,6 +1243,7 @@ implement those decisions or explicitly revise them there before changing code.
 - Role autocomplete backlog cleanup: replaced the stale skip-based autocomplete follow-up with the remaining Browser-backed least-privilege organizer review, after confirming role lookup unit coverage and the active template autocomplete spec already fail loudly on missing seeded roles.
 - Registration negative-path backlog cleanup: clarified the Playwright inventory so closed-window, role-ineligible, unsupported-mode, and waitlist items point to the remaining Browser-backed page states rather than implying server/app negative-path coverage is absent.
 - Receipt review docs pass: added a generated documentation journey for receipt approval and manual reimbursement recording, then removed receipt review/reimbursement from the generic missing-docs backlog.
+- Profile edit docs pass: extended the user-profile documentation journey to save a changed notification email, assert the refreshed profile summary, and restore the seeded user record after the doc run.
 
 ## Review Next
 

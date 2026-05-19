@@ -130,7 +130,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 ## Stabilization Coverage Still Needed
 
 - Profile/account:
-  - Browser-backed profile edit persistence for notification email.
+  - Keep profile edit persistence documentation aligned with the notification
+    email behavior.
   - Browser-backed profile event-card assertions for event links, registration
     status, guest quantity, payment state, and check-in state.
   - Profile ESNcard save, refresh, and remove flows with readable error states.
