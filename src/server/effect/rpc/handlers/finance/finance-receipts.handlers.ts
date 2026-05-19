@@ -706,6 +706,7 @@ export const financeReceiptsHandlers = {
       const event = yield* databaseEffect((database) =>
         database.query.eventInstances.findFirst({
           columns: {
+            end: true,
             id: true,
           },
           where: {
@@ -720,6 +721,14 @@ export const financeReceiptsHandlers = {
             id: input.eventId,
             message: 'Event not found for receipt submission',
             resource: 'event',
+          }),
+        );
+      }
+      if (event.end > new Date()) {
+        return yield* Effect.fail(
+          new RpcBadRequestError({
+            message: 'Receipts can only be submitted after the event ends',
+            reason: 'event_not_finished',
           }),
         );
       }

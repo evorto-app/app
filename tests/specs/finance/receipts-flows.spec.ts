@@ -77,7 +77,7 @@ test('submit receipt from event organize page @track(finance-receipts_20260205) 
   page,
   seeded,
 }) => {
-  const eventId = seeded.scenario.events.freeOpen.eventId;
+  const eventId = seeded.scenario.events.past.eventId;
   const receiptFile = path.resolve('tests/fixtures/sample-receipt.pdf');
   await submitReceiptFromFirstEvent(page, eventId, receiptFile);
 });
@@ -89,7 +89,7 @@ test('approve and record receipt reimbursements in finance @track(finance-receip
   seeded,
   tenant,
 }) => {
-  const seededEventId = seeded.scenario.events.freeOpen.eventId;
+  const seededEventId = seeded.scenario.events.past.eventId;
   await seedPendingReceiptForApproval({
     database,
     eventId: seededEventId,
@@ -154,7 +154,7 @@ test('receipt dialog shows Other option when tenant allows it @track(finance-rec
     })
     .where(eq(schema.tenants.id, tenant.id));
 
-  const eventId = seeded.scenario.events.freeOpen.eventId;
+  const eventId = seeded.scenario.events.past.eventId;
   await openEventOrganizePage(page, eventId);
   await page.getByRole('button', { name: 'Add receipt' }).click();
   await page.getByLabel('Purchase country').click();

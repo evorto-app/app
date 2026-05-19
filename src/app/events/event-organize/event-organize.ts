@@ -87,6 +87,16 @@ export class EventOrganize {
       eventId: this.eventId(),
     }),
   );
+  protected readonly receiptSubmissionClosedMessage = computed(() => {
+    const event = this.event();
+    if (!event) {
+      return 'Receipts can be added after the event has loaded.';
+    }
+
+    return new Date(event.end) > new Date()
+      ? 'Receipts can be added after the event ends.'
+      : null;
+  });
 
   // Basic stats computation
   protected readonly stats = computed(() => {

@@ -124,10 +124,14 @@ const databaseWithNoOrganizerReceiptAccess = () => {
   };
 };
 
-const databaseWithTenantEvent = () => ({
+const databaseWithTenantEvent = (event: { end?: Date; id?: string } = {}) => ({
   query: {
     eventInstances: {
-      findFirst: () => Effect.succeed({ id: 'event-1' }),
+      findFirst: () =>
+        Effect.succeed({
+          end: event.end ?? new Date('2026-05-18T12:00:00.000Z'),
+          id: event.id ?? 'event-1',
+        }),
     },
   },
 });
@@ -250,6 +254,35 @@ describe('finance transaction permissions', () => {
 });
 
 describe('finance receipt amount validation', () => {
+  it.effect('rejects receipt submissions before the event has ended', () =>
+    Effect.gen(function* () {
+      const error = yield* financeHandlers['finance.receipts.submit'](
+        receiptSubmitInput,
+        { headers: {} } as never,
+      ).pipe(
+        Effect.flip,
+        Effect.provide(
+          createContextLayer(['events:organizeAll'], {
+            database: {
+              ...databaseWithTenantEvent({
+                end: new Date(Date.now() + 60 * 60 * 1000),
+              }),
+              insert: () =>
+                Effect.die(
+                  new Error(
+                    'receipt insert should not run before event end validation',
+                  ),
+                ),
+            },
+          }),
+        ),
+      );
+
+      expect(error['_tag']).toBe('RpcBadRequestError');
+      expect(error.reason).toBe('event_not_finished');
+    }),
+  );
+
   it.effect('rejects receipt submissions when tax exceeds total', () =>
     Effect.gen(function* () {
       const error = yield* financeHandlers['finance.receipts.submit'](
