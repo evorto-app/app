@@ -265,20 +265,20 @@ export class UserProfileComponent {
   }
 
   protected registrationPaymentLabel(
-    paymentStatus: 'PAID' | 'PENDING' | 'REFUNDED' | null,
+    paymentState: 'cancelled' | 'notRequired' | 'pending' | 'recorded',
   ): string {
-    switch (paymentStatus) {
-      case 'PAID': {
-        return 'Payment recorded';
+    switch (paymentState) {
+      case 'cancelled': {
+        return 'Payment cancelled';
       }
-      case 'PENDING': {
+      case 'notRequired': {
+        return 'No payment required';
+      }
+      case 'pending': {
         return 'Payment pending';
       }
-      case 'REFUNDED': {
-        return 'Payment refunded';
-      }
-      default: {
-        return 'No payment required';
+      case 'recorded': {
+        return 'Payment recorded';
       }
     }
   }

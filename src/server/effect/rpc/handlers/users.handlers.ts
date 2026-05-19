@@ -91,6 +91,37 @@ const requireUserHeader = (
 const mapCreateAccountUnexpectedError = (error: unknown) =>
   error instanceof UserConflictError ? Effect.fail(error) : Effect.die(error);
 
+const resolveRegistrationPaymentState = (
+  transactions: readonly { status: string; type: string }[],
+): 'cancelled' | 'notRequired' | 'pending' | 'recorded' => {
+  const registrationTransactions = transactions.filter(
+    (transaction) => transaction.type === 'registration',
+  );
+  if (
+    registrationTransactions.some(
+      (transaction) => transaction.status === 'pending',
+    )
+  ) {
+    return 'pending';
+  }
+  if (
+    registrationTransactions.some(
+      (transaction) => transaction.status === 'successful',
+    )
+  ) {
+    return 'recorded';
+  }
+  if (
+    registrationTransactions.some(
+      (transaction) => transaction.status === 'cancelled',
+    )
+  ) {
+    return 'cancelled';
+  }
+
+  return 'notRequired';
+};
+
 export const userHandlers = {
   'users.authData': (_payload, options) =>
     Effect.sync(() => decodeAuthDataHeader(options.headers)),
@@ -218,7 +249,6 @@ export const userHandlers = {
             checkInTime: true,
             eventId: true,
             id: true,
-            paymentStatus: true,
             status: true,
           },
           where: {
@@ -243,6 +273,12 @@ export const userHandlers = {
                 title: true,
               },
             },
+            transactions: {
+              columns: {
+                status: true,
+                type: true,
+              },
+            },
           },
         }),
       );
@@ -260,7 +296,9 @@ export const userHandlers = {
                 {
                   checkInTime: registration.checkInTime,
                   event: registration.event,
-                  paymentStatus: registration.paymentStatus,
+                  paymentState: resolveRegistrationPaymentState(
+                    registration.transactions,
+                  ),
                   registrationId: registration.id,
                   registrationOptionTitle:
                     registration.registrationOption.title,
@@ -279,7 +317,7 @@ export const userHandlers = {
           description: registration.event.description ?? null,
           end: registration.event.end.toISOString(),
           eventId: registration.event.id,
-          paymentStatus: registration.paymentStatus ?? null,
+          paymentState: registration.paymentState,
           registrationId: registration.registrationId,
           registrationOptionTitle: registration.registrationOptionTitle,
           start: registration.event.start.toISOString(),

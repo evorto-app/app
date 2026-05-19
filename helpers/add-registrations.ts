@@ -279,7 +279,7 @@ export async function addRegistrations(
 
         // Determine registration status based on various factors
         let status: 'CANCELLED' | 'CONFIRMED' | 'PENDING' | 'WAITLIST';
-        let paymentStatus: 'PAID' | 'PENDING' | 'REFUNDED' | null = null;
+        let paymentState: 'cancelled' | 'pending' | 'successful' | null = null;
         let checkInTime: Date | null = null;
 
         // First determine if this should be waitlisted
@@ -293,14 +293,14 @@ export async function addRegistrations(
             const paymentScenario = randFloat({ fraction: 4, max: 1, min: 0 });
             if (paymentScenario < 0.85) {
               status = 'CONFIRMED';
-              paymentStatus = 'PAID';
+              paymentState = 'successful';
               confirmedCount++;
             } else if (paymentScenario < 0.95) {
               status = 'PENDING';
-              paymentStatus = 'PENDING';
+              paymentState = 'pending';
             } else {
               status = 'CANCELLED';
-              paymentStatus = 'REFUNDED';
+              paymentState = 'cancelled';
             }
           } else {
             // Free events are typically confirmed immediately
@@ -335,7 +335,6 @@ export async function addRegistrations(
           checkInTime,
           eventId: event.id,
           id: registrationId,
-          paymentStatus,
           registrationOptionId: option.id,
           status,
           tenantId,
@@ -346,14 +345,7 @@ export async function addRegistrations(
         seededCountByUser.set(user.id, previousCount + 1);
 
         // For paid registrations, create a transaction record
-        if (option.isPaid && paymentStatus) {
-          const transactionStatus =
-            paymentStatus === 'PAID'
-              ? 'successful'
-              : paymentStatus === 'REFUNDED'
-                ? 'cancelled'
-                : 'pending';
-
+        if (option.isPaid && paymentState) {
           transactions.push({
             amount: option.price,
             comment: `Registration for event ${event.title || 'Untitled'}`,
@@ -363,8 +355,8 @@ export async function addRegistrations(
             executiveUserId: user.id,
             id: getId(),
             method: 'stripe',
-            status: transactionStatus as 'cancelled' | 'pending' | 'successful',
-            stripeChargeId: transactionStatus === 'successful' ? getId() : null,
+            status: paymentState,
+            stripeChargeId: paymentState === 'successful' ? getId() : null,
             stripePaymentIntentId: getId(),
             targetUserId: user.id,
             tenantId,

@@ -61,7 +61,6 @@ test('replaying the same Stripe webhook is idempotent @finance @stripe @track(pl
   await database.insert(schema.eventRegistrations).values({
     eventId: seeded.scenario.events.paidOpen.eventId,
     id: registrationId,
-    paymentStatus: 'PENDING',
     registrationOptionId: seeded.scenario.events.paidOpen.optionId,
     status: 'PENDING',
     tenantId: tenant.id,
@@ -245,7 +244,6 @@ test('expired checkout webhook releases reserved capacity @finance @stripe @trac
   await database.insert(schema.eventRegistrations).values({
     eventId: seeded.scenario.events.paidOpen.eventId,
     id: registrationId,
-    paymentStatus: 'PENDING',
     registrationOptionId: seeded.scenario.events.paidOpen.optionId,
     status: 'PENDING',
     tenantId: tenant.id,
@@ -451,7 +449,6 @@ test('stale webhook claims are reclaimed so Stripe retries can finish processing
   await database.insert(schema.eventRegistrations).values({
     eventId: seeded.scenario.events.paidOpen.eventId,
     id: registrationId,
-    paymentStatus: 'PENDING',
     registrationOptionId: seeded.scenario.events.paidOpen.optionId,
     status: 'PENDING',
     tenantId: tenant.id,
@@ -563,7 +560,6 @@ test('checkout webhook resolves registration by payment intent when metadata is 
   await database.insert(schema.eventRegistrations).values({
     eventId: seeded.scenario.events.paidOpen.eventId,
     id: registrationId,
-    paymentStatus: 'PENDING',
     registrationOptionId: seeded.scenario.events.paidOpen.optionId,
     status: 'PENDING',
     tenantId: tenant.id,
@@ -687,7 +683,6 @@ test('checkout webhook does not confirm unpaid completed sessions @finance @stri
   await database.insert(schema.eventRegistrations).values({
     eventId: seeded.scenario.events.paidOpen.eventId,
     id: registrationId,
-    paymentStatus: 'PENDING',
     registrationOptionId: seeded.scenario.events.paidOpen.optionId,
     status: 'PENDING',
     tenantId: tenant.id,
