@@ -601,7 +601,7 @@ the current working direction until a product decision overrides them.
 - **Must fix before agent scaling:** template location is `Schema.Any`, matching the event boundary issue. It should use a real shared location schema or an explicit documented escape hatch.
 - **Should fix before relaunch:** simple-mode create/update always writes exactly two registration options. That matches the current UI but is thinner than the product model for reusable event knowledge.
 - **Should fix before relaunch:** template discounts and add-ons exist in schema, but simple-mode template create/update does not expose or persist discounts/add-ons. Event creation has separate discount-copying logic, but the simple template editing path cannot maintain those richer fields.
-- **Should fix before relaunch:** registration mode allows `random` and `application`, while docs mark random as not available and registration behavior currently acts like first-come-first-served. The UI should either restrict unsupported modes or document that they are stored-only.
+- **Addressed in this stabilization pass:** registration mode now only offers first-come-first-served in event/template authoring controls. The contracts still accept existing stored `random`/`application` values, but new/edit UI no longer presents unsupported fulfillment modes.
 - **Should fix before relaunch:** template create/edit components still use `console.*` instead of the app guidance to use `consola/browser`.
 - **Acceptable for now:** the template detail page is a useful read-only summary and the "Create event" action is discoverable from the detail surface.
 
@@ -627,9 +627,8 @@ the current working direction until a product decision overrides them.
 - Add server-side offset ordering validation and focused unit tests in `SimpleTemplateService`.
 - Replace `Schema.Any` location fields with a shared schema or document why the boundary remains intentionally loose.
 - Quarantine or replace placeholder/fixme template tax-rate specs with active coverage for the current simple-mode UI.
-- Implement `random` and `application` registration fulfillment semantics if
-  those modes remain visible for relaunch; otherwise hide them until their
-  behavior exists.
+- Keep `random` and `application` hidden until their fulfillment semantics are
+  implemented end to end.
 
 ## Roles and Permissions
 

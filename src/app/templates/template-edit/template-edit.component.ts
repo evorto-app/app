@@ -51,11 +51,7 @@ const templateFormSchema = schema<TemplateFormData>((formPath) => {
 })
 export class TemplateEditComponent {
   protected readonly faArrowLeft = faArrowLeft;
-  protected readonly registrationModes: RegistrationMode[] = [
-    'fcfs',
-    'random',
-    'application',
-  ];
+  protected readonly registrationModes: readonly RegistrationMode[] = ['fcfs'];
 
   protected readonly templateId = input.required<string>();
   private readonly rpc = AppRpc.injectClient();

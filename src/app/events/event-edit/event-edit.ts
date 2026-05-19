@@ -76,11 +76,7 @@ export class EventEdit {
   );
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faEllipsisVertical = faEllipsisVertical;
-  protected readonly registrationModes = [
-    'fcfs',
-    'random',
-    'application',
-  ] as const;
+  protected readonly registrationModes = ['fcfs'] as const;
   protected readonly updateEventMutation = injectMutation(() =>
     this.rpc.events.update.mutationOptions(),
   );

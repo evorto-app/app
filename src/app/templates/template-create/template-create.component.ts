@@ -75,11 +75,7 @@ export class TemplateCreateComponent {
     },
   }));
 
-  protected readonly registrationModes: RegistrationMode[] = [
-    'fcfs',
-    'random',
-    'application',
-  ];
+  protected readonly registrationModes: readonly RegistrationMode[] = ['fcfs'];
 
   private readonly templateModel = linkedSignal<
     TemplateFormOverrides,
