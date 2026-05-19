@@ -78,6 +78,8 @@ export class Tenant extends Schema.Class<Tenant>('Tenant')({
   locale: Schema.NonEmptyString,
   name: Schema.NonEmptyString,
   receiptSettings: OptionalTenantReceiptSettings,
+  seoDescription: optionalNullable(Schema.NonEmptyString),
+  seoTitle: optionalNullable(Schema.NonEmptyString),
   stripeAccountId: optionalNullable(Schema.NonEmptyString),
   theme: literalUnion('evorto', 'esn'),
   timezone: Schema.NonEmptyString,

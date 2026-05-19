@@ -44,4 +44,17 @@ describe('Tenant schema', () => {
       defaultLocation: null,
     });
   });
+
+  it('accepts tenant SEO defaults when present', () => {
+    const tenant = Schema.decodeUnknownSync(Tenant)({
+      ...tenantInput,
+      seoDescription: 'Public tenant description',
+      seoTitle: 'Public tenant title',
+    });
+
+    expect(Schema.encodeSync(Tenant)(tenant)).toMatchObject({
+      seoDescription: 'Public tenant description',
+      seoTitle: 'Public tenant title',
+    });
+  });
 });

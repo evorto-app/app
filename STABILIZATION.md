@@ -892,7 +892,7 @@ the current working direction until a product decision overrides them.
 - If tenant resolution fails, SSR and RPC requests fail closed with a 404. A local probe with `Host: no-such-tenant.invalid` returned 404.
 - Tenant records currently store one unique `domain`, name, currency, locale, timezone, theme, default location, Stripe account id, receipt settings, discount provider settings, and SEO title/description.
 - Client config loads the current tenant and permission list through RPC and applies `theme-${tenant.theme}` to the document root.
-- Tenant admin "General settings" lets tenant admins change default location, site theme, receipt countries/allow-other, and ESNcard provider enablement plus buy URL.
+- Tenant admin "General settings" lets tenant admins change default location, site theme, SEO title/description, receipt countries/allow-other, and ESNcard provider enablement plus buy URL.
 - Tenant settings writes are tenant-scoped and require `admin:changeSettings`; tax-rate admin reads/writes require `admin:tax`.
 - `/global-admin` is guarded by authentication at the app route and by `globalAdmin:manageTenants` in the global-admin route config. The navigation link is hidden behind `globalAdmin:*`, and the tenant list RPC requires `globalAdmin:manageTenants`.
 - Global admin currently exposes only a tenant list with id/name/domain. There is no tenant create/edit/detail flow.
@@ -911,7 +911,7 @@ the current working direction until a product decision overrides them.
 
 - **Should fix before relaunch:** the tenant schema supports one `domain`, not multiple domains or domain verification states. Product context allows Evorto subdomains plus custom domains.
 - **Should fix before relaunch:** tenant settings UI does not expose tenant name, domain/custom domain, logo, favicon, legal/privacy/terms/imprint configuration, email sender name, review/publishing settings, registration limits, locale, currency, timezone, or Stripe account state.
-- **Should fix before relaunch:** tenant schema has `seoTitle` and `seoDescription`, but the `Tenant` RPC schema and settings UI do not expose or use them.
+- **Addressed in stabilization pass:** tenant SEO title and description are now part of the `Tenant` RPC schema, editable from general settings, persisted by `admin.tenant.updateSettings`, and used as the tenant-level document title/meta description when configured.
 - **Addressed in stabilization pass:** tenant-admin child routes now have route-level guards. Settings require `admin:changeSettings`, roles require `admin:manageRoles`, users require `users:viewAll`, tax rates require `admin:tax`, and event reviews require `events:review`.
 - **Addressed in stabilization pass:** tenant settings saves now show a success notification and map failed updates through the shared readable error-message helper instead of relying only on mutation state.
 - **Acceptable for now:** tenant settings writes are scoped to the current tenant id and validate the returned tenant shape before responding.
@@ -947,7 +947,7 @@ the current working direction until a product decision overrides them.
   multi-domain/custom-domain management for later work.
 - Add tenant settings docs/specs for current settings and clearly mark missing branding/legal/domain settings as not implemented.
 - Keep tenant settings save feedback aligned with the shared notification/error-message pattern.
-- Decide whether `seoTitle` / `seoDescription` are product fields, then expose them through tenant config or remove/defer them.
+- Keep tenant SEO title/description aligned between the Tenant RPC schema, general settings, and document metadata behavior.
 
 ## Generated Documentation and Playwright Coverage
 
@@ -1166,6 +1166,7 @@ implement those decisions or explicitly revise them there before changing code.
 - Receipt timing pass: restricted receipt submission to events whose end time has passed and pointed receipt Playwright setup at the deterministic past event fixture.
 - Scanner status-coverage pass: added focused scan-read and direct-check-in coverage for pending, cancelled, and waitlisted registrations.
 - Tenant settings feedback pass: added explicit success and readable error notifications for general settings saves.
+- Tenant SEO settings pass: exposed stored tenant SEO title/description through the Tenant RPC schema, general settings UI, admin settings persistence, and tenant-level document metadata.
 - Legacy schema migration pass: added an idempotent migration step that drops
   physical `roles.showInHub`, `event_registrations.paymentStatus`, and the
   unused `payment_status` enum when present.
