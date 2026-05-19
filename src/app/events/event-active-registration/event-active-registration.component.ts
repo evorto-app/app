@@ -17,26 +17,31 @@ import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
 
 export const registrationCancellationCopy = (registration: {
+  guestCount: number;
   paymentPending: boolean;
   status: EventsRegistrationStatus;
 }): null | {
   buttonLabel: string;
   helperText: string;
 } => {
+  const pendingSpotNoun =
+    registration.guestCount > 0 ? 'all selected spots' : 'the reserved spot';
+  const confirmedSpotNoun =
+    registration.guestCount > 0 ? 'all selected spots' : 'your spot';
+
   if (registration.status === 'PENDING') {
     return {
       buttonLabel: 'Cancel registration',
       helperText: registration.paymentPending
-        ? 'This cancels the pending registration and releases the reserved spot. It does not complete a payment.'
-        : 'This cancels the pending registration and releases the reserved spot.',
+        ? `This cancels the pending registration and releases ${pendingSpotNoun}. It does not complete a payment.`
+        : `This cancels the pending registration and releases ${pendingSpotNoun}.`,
     };
   }
 
   if (registration.status === 'CONFIRMED') {
     return {
       buttonLabel: 'Cancel registration',
-      helperText:
-        'This cancels your confirmed registration and releases your spot. Paid-registration refunds are not automatic yet.',
+      helperText: `This cancels your confirmed registration and releases ${confirmedSpotNoun}. Paid-registration refunds are not automatic yet.`,
     };
   }
 

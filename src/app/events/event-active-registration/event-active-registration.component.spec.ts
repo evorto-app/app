@@ -9,6 +9,7 @@ describe('registrationCancellationCopy', () => {
   it('describes pending payment cancellation as releasing the reserved spot', () => {
     expect(
       registrationCancellationCopy({
+        guestCount: 0,
         paymentPending: true,
         status: 'PENDING',
       }),
@@ -19,9 +20,24 @@ describe('registrationCancellationCopy', () => {
     });
   });
 
+  it('describes guest cancellation as releasing every selected spot', () => {
+    expect(
+      registrationCancellationCopy({
+        guestCount: 2,
+        paymentPending: true,
+        status: 'PENDING',
+      }),
+    ).toEqual({
+      buttonLabel: 'Cancel registration',
+      helperText:
+        'This cancels the pending registration and releases all selected spots. It does not complete a payment.',
+    });
+  });
+
   it('describes confirmed cancellation without promising automatic refunds', () => {
     expect(
       registrationCancellationCopy({
+        guestCount: 0,
         paymentPending: false,
         status: 'CONFIRMED',
       }),
@@ -32,9 +48,24 @@ describe('registrationCancellationCopy', () => {
     });
   });
 
+  it('describes confirmed guest cancellation as releasing every selected spot', () => {
+    expect(
+      registrationCancellationCopy({
+        guestCount: 1,
+        paymentPending: false,
+        status: 'CONFIRMED',
+      }),
+    ).toEqual({
+      buttonLabel: 'Cancel registration',
+      helperText:
+        'This cancels your confirmed registration and releases all selected spots. Paid-registration refunds are not automatic yet.',
+    });
+  });
+
   it('describes waitlist cancellation as leaving the waitlist', () => {
     expect(
       registrationCancellationCopy({
+        guestCount: 0,
         paymentPending: false,
         status: 'WAITLIST',
       }),
@@ -48,6 +79,7 @@ describe('registrationCancellationCopy', () => {
   it('does not expose cancellation copy for already-cancelled registrations', () => {
     expect(
       registrationCancellationCopy({
+        guestCount: 0,
         paymentPending: false,
         status: 'CANCELLED',
       }),
