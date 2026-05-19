@@ -4,8 +4,13 @@ import { permissionGuard } from '../core/guards/permission.guard';
 
 export const ADMIN_ROUTES: Routes = [
   {
+    canActivate: [permissionGuard],
     children: [
       {
+        canActivate: [permissionGuard],
+        data: {
+          permissions: ['admin:manageRoles'],
+        },
         loadComponent: () =>
           import('./role-list/role-list.component').then(
             (m) => m.RoleListComponent,
@@ -13,6 +18,10 @@ export const ADMIN_ROUTES: Routes = [
         path: 'roles',
       },
       {
+        canActivate: [permissionGuard],
+        data: {
+          permissions: ['admin:manageRoles'],
+        },
         loadComponent: () =>
           import('./role-create/role-create.component').then(
             (m) => m.RoleCreateComponent,
@@ -20,6 +29,10 @@ export const ADMIN_ROUTES: Routes = [
         path: 'roles/create',
       },
       {
+        canActivate: [permissionGuard],
+        data: {
+          permissions: ['admin:manageRoles'],
+        },
         loadComponent: () =>
           import('./role-details/role-details.component').then(
             (m) => m.RoleDetailsComponent,
@@ -27,6 +40,10 @@ export const ADMIN_ROUTES: Routes = [
         path: 'roles/:roleId',
       },
       {
+        canActivate: [permissionGuard],
+        data: {
+          permissions: ['admin:manageRoles'],
+        },
         loadComponent: () =>
           import('./role-edit/role-edit.component').then(
             (m) => m.RoleEditComponent,
@@ -34,6 +51,10 @@ export const ADMIN_ROUTES: Routes = [
         path: 'roles/:roleId/edit',
       },
       {
+        canActivate: [permissionGuard],
+        data: {
+          permissions: ['admin:changeSettings'],
+        },
         loadComponent: () =>
           import('./general-settings/general-settings.component').then(
             (m) => m.GeneralSettingsComponent,
@@ -52,6 +73,10 @@ export const ADMIN_ROUTES: Routes = [
         path: 'tax-rates',
       },
       {
+        canActivate: [permissionGuard],
+        data: {
+          permissions: ['users:viewAll'],
+        },
         loadComponent: () =>
           import('./user-list/user-list.component').then(
             (m) => m.UserListComponent,
@@ -70,6 +95,15 @@ export const ADMIN_ROUTES: Routes = [
         path: 'event-reviews',
       },
     ],
+    data: {
+      anyPermissions: [
+        'admin:manageRoles',
+        'admin:changeSettings',
+        'admin:tax',
+        'users:viewAll',
+        'events:review',
+      ],
+    },
     loadComponent: () =>
       import('./admin-overview/admin-overview.component').then(
         (m) => m.AdminOverviewComponent,
