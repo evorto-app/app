@@ -903,7 +903,7 @@ the current working direction until a product decision overrides them.
 
 - `tests/docs/profile/user-profile.doc.ts` documents navigation, profile display, edit dialog validation, notification email persistence, event cards, and the receipts tab.
 - `src/app/profile/user-profile/edit-profile-dialog.component.spec.ts` covers profile edit payload normalization for notification email and optional global reimbursement details before the update mutation receives the dialog result.
-- `src/app/profile/user-profile/user-profile.component.spec.ts` covers profile event action, guest-quantity, deferred-action notes, payment-continuation next-step copy, payment-state, registration-status labels, submitted-receipt status labels, and readable ESNcard mutation error fallback/provider messages.
+- `src/app/profile/user-profile/user-profile.component.spec.ts` covers profile event action, guest-quantity, deferred-action notes, payment-continuation next-step copy, payment-state, registration-status labels, submitted-receipt status labels, ESNcard upsert payload normalization, and readable ESNcard mutation error fallback/provider messages.
 - **Addressed in stabilization pass:** the profile doc no longer uses a fixed stabilization wait before the profile screenshot, now saves and verifies notification email persistence, and opens the Events section to document event-card semantics.
 - `tests/docs/profile/discounts.doc.ts` documents the discount-card section and current pending/error behavior, but does not add, refresh, remove, or assert any ESNcard validation outcome.
 - `tests/specs/discounts/esn-discounts.test.ts` verifies a seeded verified ESNcard affects paid event price labels and the register button copy.
@@ -928,7 +928,7 @@ the current working direction until a product decision overrides them.
 
 - Keep Browser-backed profile edit persistence coverage aligned with notification email behavior.
 - Add Browser-backed profile event-card coverage for event links and registration/guest/payment/check-in state once runtime review is available.
-- Add profile discount-card tests for add/refresh/remove and provider validation outcomes once runtime/browser review is available.
+- Add Browser-backed profile discount-card tests for add/refresh/remove and provider validation outcomes once runtime review is available. Local app/server coverage already proves upsert payload normalization, readable mutation errors, global card reads/upserts, refresh persistence, and scoped removal.
 - Add profile/account tests for account creation retry/tenant-join behavior, profile edit persistence, ESNcard add/refresh/remove, profile event action rendering, and submitted receipt visibility.
 
 ## Tenant/Global Admin
@@ -1232,6 +1232,8 @@ implement those decisions or explicitly revise them there before changing code.
 - Profile account-assignment coverage pass: added focused server coverage for `users.userAssigned` so account-creation routing keeps failing closed when the current-tenant assignment header is absent.
 - Profile ESNcard message coverage pass: covered readable save/refresh/remove fallback messages and provider/RPC message preference in app unit tests.
 - Profile ESNcard mutation coverage pass: added focused handler coverage for refresh revalidation persistence and current-user/type-scoped card removal without requiring browser runtime or the external provider.
+- Profile ESNcard upsert payload pass: extracted and covered ESNcard identifier
+  trimming before the profile upsert mutation receives the form payload.
 - Profile/account route-contract pass: added root route-manifest coverage so `/create-account` remains reachable to authenticated users without a tenant assignment while protected feature routes keep assigned-account and auth guards.
 - Permission reference docs pass: added a generated about-permissions documentation source backed by shared permission metadata so the role-creation docs no longer link to a missing checked-in source.
 - Template tax-rate coverage pass: covered the compatible active/inclusive current-tenant tax-rate query and paid missing-tax-rate submit normalization so the remaining fixme is narrowed to page-level simple-mode UI assertions.

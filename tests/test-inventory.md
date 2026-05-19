@@ -151,8 +151,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     App coverage already proves event-detail action copy, guest/status/payment
     labels, deferred-action notes, and the payment-continuation next-step copy.
   - Profile ESNcard save, refresh, and remove flows with readable error states.
-    App and server coverage already prove readable mutation errors, global
-    per-user card reads/upserts, refresh persistence, and scoped removal.
+    App and server coverage already prove upsert payload normalization,
+    readable mutation errors, global per-user card reads/upserts, refresh
+    persistence, and scoped removal.
     App coverage also proves the `#discounts` profile fragment waits for
     tenant ESNcard provider availability before selecting the section.
   - Browser-backed account-creation retry and tenant-join behavior. Server

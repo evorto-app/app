@@ -179,6 +179,13 @@ export const profileSectionFromFragment = (
   return 'overview';
 };
 
+export const esnCardSubmitPayloadFromIdentifier = (
+  identifier: string,
+): { identifier: string; type: 'esnCard' } => ({
+  identifier: identifier.trim(),
+  type: 'esnCard',
+});
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -402,10 +409,7 @@ export class UserProfileComponent {
     this.esnCardErrorMessage.set(null);
     await submit(this.esnCardForm, async (formState) => {
       this.upsertCardMutation.mutate(
-        {
-          identifier: formState().value().identifier.trim(),
-          type: 'esnCard',
-        },
+        esnCardSubmitPayloadFromIdentifier(formState().value().identifier),
         {
           onError: (error) => {
             this.esnCardErrorMessage.set(
