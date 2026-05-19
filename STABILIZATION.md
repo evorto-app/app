@@ -489,7 +489,7 @@ the current working direction until a product decision overrides them.
 - Event list filtering defaults to all statuses only for users with `events:seeDrafts`; other users only request approved events.
 - Event create/update handlers reject invalid start/end dates, event end times that are not after start times, and registration windows that close before they open.
 - Event find/update RPC contracts use the shared `EventLocation` schema instead of accepting arbitrary location payloads.
-- Event creation copies template option discounts by submitted source template option id instead of matching option titles.
+- Event creation copies template option discounts by submitted source template option id instead of matching option titles, but only after validating copied ESNcard discounts against the target event option price and current tenant ESNcard provider state.
 
 ### Intended Behavior From Product Context
 
@@ -504,6 +504,7 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** event creation/update now reject end-before-start and close-before-open registration windows server-side.
 - **Addressed in stabilization pass:** event find/update RPC location fields now validate against the shared `EventLocation` schema.
 - **Addressed in stabilization pass:** event creation now copies template option discounts by source option identity, so duplicate option titles do not miscopy discounts.
+- **Addressed in stabilization pass:** event creation now revalidates copied template ESNcard discounts before inserting the event. Copied discounts do not persist for event options changed to free, fail when ESNcard discounts are no longer enabled for the tenant, and fail when the template discount exceeds the event option price.
 - **Addressed in stabilization pass:** `event-management.doc.ts` no longer describes attendee export, attendee messaging, manual check-in controls, event settings tabs, event tags, featured images, notification settings, integrations, or event deletion as existing event-management UI.
 - **Addressed in stabilization pass:** unlisted-event dialog and event detail status copy now explain that unlisted events are hidden from lists while eligible direct links still work.
 - **Acceptable for now:** event edit locks are duplicated in guard, details `canEdit`, `findOneForEdit`, and `events.update`. Duplication is not ideal, but server-side checks are the source of truth.
@@ -568,7 +569,7 @@ the current working direction until a product decision overrides them.
 - `src/server/effect/rpc/handlers/events/events-registration.handlers.spec.ts` covers participant self-cancellation for pending and confirmed registrations plus checked-in and waitlist rejection paths.
 - `src/server/effect/rpc/handlers/events/events-registration.handlers.spec.ts` covers organizer/admin cancellation for confirmed registrations and denial without event-organizer access.
 - `src/server/effect/rpc/handlers/events/events-lifecycle.handlers.spec.ts` covers server-side rejection of end-before-start events and close-before-open registration windows for event create/update.
-- `src/server/effect/rpc/handlers/events/events-lifecycle.handlers.spec.ts` covers template discount copying by stable source option id when template options share the same title.
+- `src/server/effect/rpc/handlers/events/events-lifecycle.handlers.spec.ts` covers template discount copying by stable source option id when template options share the same title, plus pre-insert rejection when copied ESNcard discounts are disabled or exceed the target event option price.
 - `src/server/effect/rpc/handlers/events/events-rpcs.schema.spec.ts` covers acceptance and rejection for the shared event location schema now used by Events RPC contracts.
 - `src/server/effect/rpc/handlers/events/events-rpcs.schema.spec.ts` covers the active registration status literal union and rejects unknown statuses.
 - `src/server/effect/rpc/handlers/events/events-rpcs.schema.spec.ts` covers the tax-rate label fields returned with event registration options for paid event cards.
@@ -1207,6 +1208,7 @@ implement those decisions or explicitly revise them there before changing code.
 - Price-label spec cleanup pass: converted the inclusive price-label Playwright spec to fixme-only declarations and removed placeholder page-load assertions.
 - Unlisted-event spec cleanup pass: changed unlisted-event visibility tests to require an approved unlisted seeded event instead of skipping when the seed state is missing.
 - Event-creation spec cleanup pass: changed the template-create-event Playwright spec to require the deterministic seeded hike template, registration options, tax-rate completeness, and enabled submit button instead of skipping fixture/setup failures.
+- Event-creation template-discount pass: revalidated copied ESNcard template discounts during event creation so changed event prices, free toggles, or later-disabled ESNcard providers cannot create invalid event discount rows.
 - Scanner spec cleanup pass: changed the scanner Playwright spec to require an unchecked confirmed registration and matching registration option instead of skipping fixture/setup failures.
 - Free-registration spec cleanup pass: removed the impossible missing-tenant skip so the regular-user registration flow relies on the required tenant fixture and fails if fixture setup breaks.
 - Template spec cleanup pass: changed template category and role autocomplete coverage to require seeded icons, seeded roles, and concrete role option text instead of skipping fixture/setup failures.

@@ -64,6 +64,22 @@ const requestContextLayer = Layer.mergeAll(
   Layer.succeed(RpcRequestContext, requestContext),
 );
 
+const esnEnabledRequestContextLayer = Layer.mergeAll(
+  RpcAccess.Default,
+  Layer.succeed(RpcRequestContext, {
+    ...requestContext,
+    tenant: {
+      ...tenant,
+      discountProviders: {
+        esnCard: {
+          config: {},
+          status: 'enabled' as const,
+        },
+      },
+    },
+  }),
+);
+
 const createInput = {
   description: '<p>Useful event description</p>',
   end: '2026-09-20T12:00:00.000Z',
@@ -247,6 +263,14 @@ describe('eventLifecycleHandlers', () => {
                 ]),
               ),
             },
+            tenantStripeTaxRates: {
+              findFirst: vi.fn(() =>
+                Effect.succeed({
+                  active: true,
+                  inclusive: true,
+                }),
+              ),
+            },
           },
           select: vi.fn(() => ({
             from: vi.fn(() => ({
@@ -263,7 +287,7 @@ describe('eventLifecycleHandlers', () => {
           })),
         };
         const layer = Layer.mergeAll(
-          requestContextLayer,
+          esnEnabledRequestContextLayer,
           Layer.succeed(Database, database as never),
         );
 
@@ -273,12 +297,18 @@ describe('eventLifecycleHandlers', () => {
             registrationOptions: [
               {
                 ...createInput.registrationOptions[0],
+                isPaid: true,
+                price: 1000,
                 sourceTemplateRegistrationOptionId: 'template-option-1',
+                stripeTaxRateId: 'txr_vat_19',
                 title: 'Duplicate',
               },
               {
                 ...createInput.registrationOptions[0],
+                isPaid: true,
+                price: 1000,
                 sourceTemplateRegistrationOptionId: 'template-option-2',
+                stripeTaxRateId: 'txr_vat_19',
                 title: 'Duplicate',
               },
             ],
@@ -294,6 +324,154 @@ describe('eventLifecycleHandlers', () => {
             registrationOptionId: 'event-option-2',
           },
         ]);
+      }),
+  );
+
+  it.effect(
+    'events.create rejects copied ESNcard discounts when the tenant provider is disabled',
+    () =>
+      Effect.gen(function* () {
+        const insert = vi.fn();
+        const database = {
+          insert,
+          query: {
+            eventTemplates: {
+              findFirst: vi.fn(() =>
+                Effect.succeed({
+                  unlisted: false,
+                }),
+              ),
+            },
+            templateRegistrationOptions: {
+              findMany: vi.fn(() =>
+                Effect.succeed([
+                  {
+                    id: 'template-option-1',
+                  },
+                ]),
+              ),
+            },
+            tenantStripeTaxRates: {
+              findFirst: vi.fn(() =>
+                Effect.succeed({
+                  active: true,
+                  inclusive: true,
+                }),
+              ),
+            },
+          },
+          select: vi.fn(() => ({
+            from: vi.fn(() => ({
+              where: vi.fn(() =>
+                Effect.succeed([
+                  {
+                    discountedPrice: 500,
+                    discountType: 'esnCard' as const,
+                    registrationOptionId: 'template-option-1',
+                  },
+                ]),
+              ),
+            })),
+          })),
+        };
+        const layer = Layer.mergeAll(
+          requestContextLayer,
+          Layer.succeed(Database, database as never),
+        );
+
+        const error = yield* eventLifecycleHandlers['events.create'](
+          {
+            ...createInput,
+            registrationOptions: [
+              {
+                ...createInput.registrationOptions[0],
+                isPaid: true,
+                price: 1000,
+                sourceTemplateRegistrationOptionId: 'template-option-1',
+                stripeTaxRateId: 'txr_vat_19',
+              },
+            ],
+          },
+          { headers: {} } as never,
+        ).pipe(Effect.flip, Effect.provide(layer));
+
+        expect(error['_tag']).toBe('RpcBadRequestError');
+        expect(error.reason).toBe('esnDiscountUnavailable');
+        expect(insert).not.toHaveBeenCalled();
+      }),
+  );
+
+  it.effect(
+    'events.create rejects copied template discounts that exceed the event option price',
+    () =>
+      Effect.gen(function* () {
+        const insert = vi.fn();
+        const database = {
+          insert,
+          query: {
+            eventTemplates: {
+              findFirst: vi.fn(() =>
+                Effect.succeed({
+                  unlisted: false,
+                }),
+              ),
+            },
+            templateRegistrationOptions: {
+              findMany: vi.fn(() =>
+                Effect.succeed([
+                  {
+                    id: 'template-option-1',
+                  },
+                ]),
+              ),
+            },
+            tenantStripeTaxRates: {
+              findFirst: vi.fn(() =>
+                Effect.succeed({
+                  active: true,
+                  inclusive: true,
+                }),
+              ),
+            },
+          },
+          select: vi.fn(() => ({
+            from: vi.fn(() => ({
+              where: vi.fn(() =>
+                Effect.succeed([
+                  {
+                    discountedPrice: 1500,
+                    discountType: 'esnCard' as const,
+                    registrationOptionId: 'template-option-1',
+                  },
+                ]),
+              ),
+            })),
+          })),
+        };
+        const layer = Layer.mergeAll(
+          esnEnabledRequestContextLayer,
+          Layer.succeed(Database, database as never),
+        );
+
+        const error = yield* eventLifecycleHandlers['events.create'](
+          {
+            ...createInput,
+            registrationOptions: [
+              {
+                ...createInput.registrationOptions[0],
+                isPaid: true,
+                price: 1000,
+                sourceTemplateRegistrationOptionId: 'template-option-1',
+                stripeTaxRateId: 'txr_vat_19',
+              },
+            ],
+          },
+          { headers: {} } as never,
+        ).pipe(Effect.flip, Effect.provide(layer));
+
+        expect(error['_tag']).toBe('RpcBadRequestError');
+        expect(error.reason).toBe('esnDiscountExceedsPrice');
+        expect(insert).not.toHaveBeenCalled();
       }),
   );
 });
