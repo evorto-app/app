@@ -72,4 +72,17 @@ describe('Tenant schema', () => {
       termsUrl: 'https://tenant.example.com/terms',
     });
   });
+
+  it('accepts tenant brand asset URLs when present', () => {
+    const tenant = Schema.decodeUnknownSync(Tenant)({
+      ...tenantInput,
+      faviconUrl: 'https://tenant.example.com/favicon.ico',
+      logoUrl: 'https://tenant.example.com/logo.svg',
+    });
+
+    expect(Schema.encodeSync(Tenant)(tenant)).toMatchObject({
+      faviconUrl: 'https://tenant.example.com/favicon.ico',
+      logoUrl: 'https://tenant.example.com/logo.svg',
+    });
+  });
 });

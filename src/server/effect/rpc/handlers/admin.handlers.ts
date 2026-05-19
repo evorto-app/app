@@ -83,6 +83,14 @@ const normalizeTenantLegalLinks = (input: {
   termsUrl: normalizeOptionalUrl(input.termsUrl, 'termsUrl'),
 });
 
+const normalizeTenantBrandAssets = (input: {
+  faviconUrl?: string | undefined;
+  logoUrl?: string | undefined;
+}) => ({
+  faviconUrl: normalizeOptionalUrl(input.faviconUrl, 'faviconUrl'),
+  logoUrl: normalizeOptionalUrl(input.logoUrl, 'logoUrl'),
+});
+
 const normalizeHubRoleRecord = (role: {
   description: null | string;
   id: string;
@@ -545,9 +553,18 @@ export const adminHandlers = {
           }),
         try: () => normalizeTenantLegalLinks(input),
       });
+      const brandAssets = yield* Effect.try({
+        catch: (error) =>
+          new RpcBadRequestError({
+            message: 'Invalid tenant brand assets',
+            reason: error instanceof Error ? error.message : String(error),
+          }),
+        try: () => normalizeTenantBrandAssets(input),
+      });
 
       const nextTenant = {
         ...tenant,
+        ...brandAssets,
         defaultLocation: input.defaultLocation,
         discountProviders,
         ...legalLinks,
@@ -573,6 +590,7 @@ export const adminHandlers = {
         database
           .update(tenants)
           .set({
+            ...brandAssets,
             defaultLocation: input.defaultLocation,
             discountProviders,
             ...legalLinks,
