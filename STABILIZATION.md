@@ -663,7 +663,7 @@ the current working direction until a product decision overrides them.
 - **Addressed in this stabilization pass:** admin role, user, settings, tax-rate, and event-review child routes now have route-level permission guards, and the admin shell requires at least one admin-child capability.
 - **Addressed in this stabilization pass:** `admin.roles.findMany` now requires `admin:manageRoles`; permission-bearing role records are no longer exposed to every authenticated tenant user.
 - **Addressed in this stabilization pass:** shared role selection and template default-role queries now use lookup-only `roles.findMany` / `roles.findOne` RPCs. The lookup API returns only id, name, and default-role flags and is available to event/template authoring permissions plus role admins.
-- **Addressed in stabilization pass:** role create/update now writes `displayInHub` and `collapseMembersInHup`, and the role form uses the same `displayInHub` field that `findHubRoles` reads. The legacy `showInHub` column remains readable on role records until a later migration removes or backfills it.
+- **Addressed in stabilization pass:** role create/update now writes `displayInHub` and `collapseMembersInHup`, and the role form uses the same `displayInHub` field that `findHubRoles` reads. The legacy `showInHub` role field has been removed from the Drizzle schema and admin role RPC records, leaving `displayInHub` as the canonical hub-visibility field.
 - **Should fix before relaunch:** `users:assignRoles` exists and depends on `users:viewAll`, but there is no reviewed role-assignment RPC or working UI.
 - **Addressed in stabilization pass:** the user list no longer shows placeholder selection or "Edit template" actions for user-role assignment.
 - **Addressed in stabilization pass:** permission metadata now has explicit admin-facing labels and descriptions in the shared permission source, the role form renders those descriptions, and shared tests require every visible permission to keep non-empty metadata.
@@ -685,14 +685,14 @@ the current working direction until a product decision overrides them.
 - Should `events:create` imply `templates:view` only in the client, or should resolved permissions always include dependencies before reaching server handlers?
 - Should admin overview be visible to users with any `admin:*` capability, or should each admin child be discoverable only by its own permission?
 - What is the intended relaunch scope for assigning users to roles?
-- Should the legacy `showInHub` field be removed in a migration or backfilled before removal?
+- Should the legacy `showInHub` field be removed in a migration or backfilled before removal? Answered locally: remove it from the application schema/API surface because active writes and reads use `displayInHub`.
 
 ### Recommended Cleanup Actions
 
 - Keep permission checks routed through `includesPermission` or `RpcAccess.ensurePermission`; avoid reintroducing direct `.includes(...)` authorization checks.
 - Extend route-guard coverage to the remaining permission-sensitive surfaces, including finance routes and global-admin routes.
 - Add UI/E2E coverage that least-privilege organizers can search/select tenant roles in event/template eligibility forms once Browser/runtime review is available.
-- Add a migration/backfill for the legacy `showInHub` column once production data shape is known.
+- Confirm the production migration path for dropping any existing physical `showInHub` column before applying schema changes to live data.
 - Implement or explicitly defer user-role assignment before exposing assignment controls.
 - Replace skip-based role autocomplete coverage with an assertion that proves least-privilege organizers can see selectable roles when editing event/template eligibility.
 
@@ -1084,7 +1084,7 @@ the current working direction until a product decision overrides them.
 5. Implement `random` and `application` registration fulfillment semantics if
    those modes remain in the relaunch UI; otherwise hide them until their
    runtime behavior exists.
-6. Remove or backfill the legacy `showInHub` role column now that active role writes use `displayInHub`.
+6. Confirm the production database migration path for dropping any existing physical `showInHub` role column now that active schema/API code uses `displayInHub`.
 7. Decide whether pre-event receipt spending/submission remains allowed or needs event-policy gating.
 8. Add scanner guest-quantity behavior before treating scanner UI as relaunch-ready.
 9. Clarify profile payment-continuation/ticket/cancellation actions and ESNcard provider failure semantics before relaunch.
@@ -1133,7 +1133,7 @@ implement those decisions or explicitly revise them there before changing code.
 - Template docs/spec cleanup pass: removed the generic template doc discovery placeholder, converted the deferred template tax-rate spec to honest fixme-only declarations, and updated the Playwright inventory.
 - Permission evaluator pass: routed legacy server permission checks through the shared `includesPermission` helper so client and server agree on dependencies, wildcards, and legacy aliases, and added direct unit coverage for the shared evaluator plus tax-rate dependency behavior.
 - Role/user cleanup pass: removed placeholder user-list selection/edit affordances, aligned the roles doc with the current no-role-assignment UI, and fixed `users.findMany` to return only the RPC contract shape.
-- Role hub-field pass: migrated active role create/update form and RPC writes to `displayInHub`, persisted `collapseMembersInHup`, and updated role docs while leaving legacy `showInHub` readable until a later migration.
+- Role hub-field pass: migrated active role create/update form and RPC writes to `displayInHub`, persisted `collapseMembersInHup`, updated role docs, and removed legacy `showInHub` from the application schema/API surface.
 - None in the Finance/receipts pass. The highest-value issues touch payment-derived state, transaction visibility, and upload authorization, so they need targeted regression tests with the fixes.
 - Scanning/check-in pass: added `events.checkInRegistration`, gated scan reads and check-in writes to event organizers or `events:organizeAll`, made duplicate check-ins idempotent, wired the scanner button to persist and refetch state, and extended scanner tests to assert persisted check-in state.
 - Scanner timing pass: enforced the current fixed one-hour pre-start check-in window in scan-read state and direct check-in writes, with focused server coverage for the disabled scan state and rejected mutation.

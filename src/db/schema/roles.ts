@@ -21,7 +21,6 @@ export const roles = pgTable(
     displayInHub: boolean().notNull().default(false),
     name: text().notNull(),
     permissions: jsonb().$type<Permission[]>().notNull().default([]),
-    showInHub: boolean().notNull().default(false),
     sortOrder: integer().notNull().default(2_147_483_647),
   },
   (t) => [unique().on(t.tenantId, t.name)],
