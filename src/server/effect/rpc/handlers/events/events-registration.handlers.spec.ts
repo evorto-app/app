@@ -116,6 +116,114 @@ const nonConfirmedRegistrationStatuses = [
 
 describe('event registration cancellation handlers', () => {
   it.effect(
+    'allows event organizers to cancel another confirmed registration',
+    () =>
+      Effect.gen(function* () {
+        const updateSets: unknown[] = [];
+        const tx = {
+          update: (table: unknown) => ({
+            set: (values: unknown) => {
+              updateSets.push(values);
+              return {
+                where: () => ({
+                  returning: () => {
+                    if (
+                      table === eventRegistrations ||
+                      table === eventRegistrationOptions
+                    ) {
+                      return Effect.succeed([{ id: 'updated' }]);
+                    }
+                    return Effect.succeed([]);
+                  },
+                }),
+              };
+            },
+          }),
+        };
+        const database = {
+          query: {
+            eventRegistrations: {
+              findFirst: () =>
+                Effect.succeed({
+                  checkInTime: null,
+                  event: {
+                    start: new Date(Date.now() + 24 * 60 * 60 * 1000),
+                  },
+                  eventId: 'event-1',
+                  id: 'registration-1',
+                  registrationOptionId: 'option-1',
+                  status: 'CONFIRMED',
+                  transactions: [],
+                }),
+              findMany: () =>
+                Effect.succeed([
+                  {
+                    id: 'organizer-registration-1',
+                    registrationOption: {
+                      organizingRegistration: true,
+                    },
+                  },
+                ]),
+            },
+          },
+          transaction: vi.fn((callback: (tx: typeof tx) => unknown) =>
+            callback(tx),
+          ),
+        };
+
+        yield* eventRegistrationHandlers['events.cancelEventRegistration'](
+          { eventId: 'event-1', registrationId: 'registration-1' },
+          { headers: {} } as never,
+        ).pipe(Effect.provide(createContextLayer({ database })));
+
+        expect(updateSets).toEqual([
+          { status: 'CANCELLED' },
+          expect.objectContaining({ confirmedSpots: expect.anything() }),
+        ]);
+        expect(database.transaction).toHaveBeenCalledOnce();
+      }),
+  );
+
+  it.effect(
+    'rejects event registration cancellation without organizer access',
+    () =>
+      Effect.gen(function* () {
+        const database = {
+          query: {
+            eventRegistrations: {
+              findFirst: () =>
+                Effect.succeed({
+                  checkInTime: null,
+                  event: {
+                    start: new Date(Date.now() + 24 * 60 * 60 * 1000),
+                  },
+                  eventId: 'event-1',
+                  id: 'registration-1',
+                  registrationOptionId: 'option-1',
+                  status: 'CONFIRMED',
+                  transactions: [],
+                }),
+              findMany: () => Effect.succeed([]),
+            },
+          },
+          transaction: vi.fn(),
+        };
+
+        const error = yield* eventRegistrationHandlers[
+          'events.cancelEventRegistration'
+        ]({ eventId: 'event-1', registrationId: 'registration-1' }, {
+          headers: {},
+        } as never).pipe(
+          Effect.flip,
+          Effect.provide(createContextLayer({ database })),
+        );
+
+        expect(error['_tag']).toBe('RpcForbiddenError');
+        expect(database.transaction).not.toHaveBeenCalled();
+      }),
+  );
+
+  it.effect(
     'cancels confirmed registrations and releases a confirmed spot',
     () =>
       Effect.gen(function* () {

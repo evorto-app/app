@@ -583,6 +583,7 @@ export const eventQueryHandlers = {
             basePriceAtRegistration: true,
             checkInTime: true,
             discountAmount: true,
+            id: true,
             registrationOptionId: true,
           },
           where: {
@@ -700,6 +701,7 @@ export const eventQueryHandlers = {
               email: registration.user.email,
               firstName: registration.user.firstName,
               lastName: registration.user.lastName,
+              registrationId: registration.id,
               userId: registration.user.id,
             };
           });

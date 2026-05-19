@@ -6,6 +6,7 @@ describe('eventHandlers composition', () => {
   it('contains the full events rpc handler set', () => {
     expect(Object.keys(eventHandlers).toSorted()).toEqual([
       'events.canOrganize',
+      'events.cancelEventRegistration',
       'events.cancelPendingRegistration',
       'events.cancelRegistration',
       'events.checkInRegistration',
