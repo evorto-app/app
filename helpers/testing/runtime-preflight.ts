@@ -310,7 +310,7 @@ const printResult = (
 
   if (result.failed) {
     console.log(
-      'Fix failed checks before starting Docker. Add secret values to .env or export them in the shell when variables are missing.',
+      'Fix failed checks before starting Docker. Use .env.example as the checklist, then add secret values to .env or export them in the shell when variables are missing.',
     );
   }
 
