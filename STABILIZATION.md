@@ -1005,10 +1005,10 @@ the current working direction until a product decision overrides them.
 
 - Playwright has separate baseline spec and docs projects. Baseline specs exclude `tests/docs/**`; docs baseline runs `tests/docs/**/*.doc.ts`; integration-only docs are selected with `@needs-*` tags.
 - Local docs/spec discovery is runnable again after replacing stale Effect config APIs in `playwright.config.ts` and Playwright support files, and Auth0 Management credentials are no longer required just to import baseline fixtures.
-- `bun run test:e2e -- --list` discovers 78 baseline tests across 22 files,
+- `bun run test:e2e -- --list` discovers 81 baseline tests across 23 files,
   including setup projects, without requiring local Auth0/Stripe secrets.
-- `bun run test:e2e:docs -- --list` discovers 24 baseline docs/setup tests
-  across 17 files without requiring local Auth0/Stripe secrets.
+- `bun run test:e2e:docs -- --list` discovers 25 baseline docs/setup tests
+  across 18 files without requiring local Auth0/Stripe secrets.
 - The custom documentation reporter writes grouped Markdown pages and image assets to paths from `DOCS_OUT_DIR` / `DOCS_IMG_OUT_DIR`, defaulting to ignored repository-local `test-results/docs` paths.
 - The reporter initializes and clears docs/image output roots on `onBegin` only for real test execution. During Playwright `--list` discovery it no-ops and does not clean or write docs output.
 - Reporter-path tests pass with `bun run test:e2e -- tests/specs/reporting/reporter-paths.test.ts --no-deps`.
@@ -1045,6 +1045,11 @@ the current working direction until a product decision overrides them.
   title metadata was removed from the custom Playwright lint rule and the rule
   was dropped. Test guidance now prefers clear behavior-oriented titles without
   forcing placeholder metadata.
+- **Addressed in stabilization pass:** real Playwright spec/doc titles no
+  longer carry placeholder `@track`, `@req`, or `@doc` metadata. Semantic tags
+  such as `@finance`, `@admin`, `@permissions`, and `@stripe` remain for
+  filtering and inventory, and reporter fixture strings still exercise legacy
+  tag stripping.
 - **Acceptable for now:** the documentation reporter has focused tests for output paths, cleanup, grouping, and permissions callouts.
 - **Acceptable for now:** deterministic seed helpers and scenario handles exist; the issue is where specs turn missing seeded state into skips or no-op passes.
 
@@ -1322,6 +1327,8 @@ implement those decisions or explicitly revise them there before changing code.
   as `@finance`, `@stripe`, `@permissions`, `@taxRates`, and `@isolation`.
   Reporter fixture strings still exercise tag stripping without putting
   placeholder metadata in real test titles.
+- Playwright inventory metadata pass: refreshed `tests/test-inventory.md` and
+  the generated-docs/current-behavior counts after title metadata cleanup.
 
 ## Review Next
 

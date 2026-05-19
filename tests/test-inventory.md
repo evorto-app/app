@@ -2,7 +2,7 @@
 
 Scope: Current Playwright tests and documentation journeys.
 
-Updated: 2026-05-19
+Updated: 2026-05-20
 
 ## How to Use This Inventory
 
@@ -15,6 +15,11 @@ The current suite has two durable purposes:
 - `tests/specs/**` proves product behavior and regression paths.
 - `tests/docs/**` generates product-facing walkthrough documentation from real
   browser flows.
+
+Real test titles should stay readable and should not carry placeholder
+`@track(...)`, `@req(...)`, or `@doc(...)` metadata. Keep semantic tags such as
+`@finance`, `@admin`, `@permissions`, and `@stripe` when they affect filtering
+or inventory.
 
 Browser/manual exploration is still the right discovery tool for flows that are
 being stabilized. Once a flow decision is confirmed, persist the learning here
@@ -200,6 +205,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 - Playwright skip/fixme usage is locally audited; add new entries only when
   the gap is intentionally credential-gated or an honest Browser-backed
   stabilization placeholder.
+- Playwright list/discovery output is intentionally readable: real spec/doc
+  titles no longer include placeholder `@track`, `@req`, or `@doc` metadata.
 - `docs/users/create-account.doc.ts` is the only current integration-tagged Playwright path; there is no non-doc integration-only spec yet.
 - Playwright `--list` discovery does not clean or write generated docs output,
   and baseline fixture imports do not require Auth0 Management credentials.
