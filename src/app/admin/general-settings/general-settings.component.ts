@@ -32,7 +32,10 @@ import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
 import { LocationSelectorField } from '../../shared/components/controls/location-selector/location-selector-field/location-selector-field';
-import { tenantIdentityRows } from './general-settings.identity';
+import {
+  deferredTenantSettingsRows,
+  tenantIdentityRows,
+} from './general-settings.identity';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -53,6 +56,7 @@ import { tenantIdentityRows } from './general-settings.identity';
   templateUrl: './general-settings.component.html',
 })
 export class GeneralSettingsComponent {
+  protected readonly deferredTenantSettingsRows = deferredTenantSettingsRows;
   protected readonly settingsModel = signal<{
     allowOther: boolean;
     buyEsnCardUrl: string;

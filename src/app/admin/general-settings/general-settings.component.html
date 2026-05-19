@@ -13,6 +13,26 @@
         <a class="underline" routerLink="/admin/tax-rates">Tax Rates</a> page.
       </p>
 
+      <section
+        class="border-outline-variant bg-surface-container-low mb-6 rounded-xl border p-4"
+      >
+        <h2 class="title-small mb-2">Deferred settings</h2>
+        <p class="text-on-surface-variant mb-3 text-sm">
+          These tenant settings are part of the broader relaunch/onboarding
+          scope, but they are not editable from this page yet.
+        </p>
+        <dl class="grid grid-cols-1 gap-x-6 gap-y-3 md:grid-cols-2">
+          @for (row of deferredTenantSettingsRows; track row.label) {
+            <div>
+              <dt class="text-on-surface-variant text-xs uppercase">
+                {{ row.label }}
+              </dt>
+              <dd class="text-sm">{{ row.value }}</dd>
+            </div>
+          }
+        </dl>
+      </section>
+
       <section class="mb-6">
         <h2 class="title-small mb-2">Tenant identity</h2>
         <p class="text-on-surface-variant mb-3 text-sm">
