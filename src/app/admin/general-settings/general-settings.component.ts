@@ -32,6 +32,7 @@ import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
 import { LocationSelectorField } from '../../shared/components/controls/location-selector/location-selector-field/location-selector-field';
+import { tenantIdentityRows } from './general-settings.identity';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -78,6 +79,9 @@ export class GeneralSettingsComponent {
   protected readonly receiptCountryOptions = RECEIPT_COUNTRY_OPTIONS;
   protected readonly settingsForm = form(this.settingsModel);
   private readonly configService = inject(ConfigService);
+  protected readonly tenantIdentityRows = computed(() =>
+    tenantIdentityRows(this.configService.tenant),
+  );
   private readonly notifications = inject(NotificationService);
   private readonly queryClient = inject(QueryClient);
   private readonly rpc = AppRpc.injectClient();
