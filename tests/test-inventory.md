@@ -192,6 +192,11 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     non-sensitive operational tenant state for support review, and local app
     coverage proves the read-only tenant list can be filtered by operational
     fields with readable load-failure messages.
+  - Keep tenant settings docs and payload tests aligned when new editable
+    tenant settings move out of the deferred-settings summary. Current local
+    coverage proves the general-settings form trims optional editable
+    URLs/SEO/ESNcard fields and normalizes blank optional values before the RPC
+    call.
 - Roles/user management:
   - Browser-backed least-privilege organizer review for event/template role
     selectors. Server coverage already proves lookup permissions and

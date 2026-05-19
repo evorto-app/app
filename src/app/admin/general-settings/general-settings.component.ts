@@ -26,7 +26,6 @@ import {
   QueryClient,
 } from '@tanstack/angular-query-experimental';
 
-import { GoogleLocationType } from '../../../types/location';
 import { ConfigService } from '../../core/config.service';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
@@ -36,6 +35,10 @@ import {
   deferredTenantSettingsRows,
   tenantIdentityRows,
 } from './general-settings.identity';
+import {
+  GeneralSettingsModel,
+  generalSettingsPayloadFromModel,
+} from './general-settings.payload';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -57,21 +60,7 @@ import {
 })
 export class GeneralSettingsComponent {
   protected readonly deferredTenantSettingsRows = deferredTenantSettingsRows;
-  protected readonly settingsModel = signal<{
-    allowOther: boolean;
-    buyEsnCardUrl: string;
-    defaultLocation: GoogleLocationType | null;
-    esnCardEnabled: boolean;
-    faviconUrl: string;
-    legalNoticeUrl: string;
-    logoUrl: string;
-    privacyPolicyUrl: string;
-    receiptCountries: string[];
-    seoDescription: string;
-    seoTitle: string;
-    termsUrl: string;
-    theme: 'esn' | 'evorto';
-  }>({
+  protected readonly settingsModel = signal<GeneralSettingsModel>({
     allowOther: false,
     buyEsnCardUrl: '',
     defaultLocation: null,
@@ -139,21 +128,7 @@ export class GeneralSettingsComponent {
       const settings = formState().value();
       try {
         await this.updateSettingsMutation.mutateAsync(
-          {
-            allowOther: settings.allowOther,
-            buyEsnCardUrl: settings.buyEsnCardUrl.trim() || undefined,
-            defaultLocation: settings.defaultLocation,
-            esnCardEnabled: settings.esnCardEnabled,
-            faviconUrl: settings.faviconUrl.trim() || undefined,
-            legalNoticeUrl: settings.legalNoticeUrl.trim() || undefined,
-            logoUrl: settings.logoUrl.trim() || undefined,
-            privacyPolicyUrl: settings.privacyPolicyUrl.trim() || undefined,
-            receiptCountries: settings.receiptCountries,
-            seoDescription: settings.seoDescription.trim() || undefined,
-            seoTitle: settings.seoTitle.trim() || undefined,
-            termsUrl: settings.termsUrl.trim() || undefined,
-            theme: settings.theme,
-          },
+          generalSettingsPayloadFromModel(settings),
           {
             onSuccess: async () => {
               await this.queryClient.invalidateQueries({
