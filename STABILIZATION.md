@@ -862,7 +862,7 @@ the current working direction until a product decision overrides them.
 - The profile doc uses a fixed `waitForTimeout(1000)` and does not save a profile edit, prove persistence, or cover event-card semantics.
 - `tests/docs/profile/discounts.doc.ts` documents the discount-card section and current pending/error behavior, but does not add, refresh, remove, or assert any ESNcard validation outcome.
 - `tests/specs/discounts/esn-discounts.test.ts` verifies a seeded verified ESNcard affects paid event price labels and the register button copy.
-- No reviewed Playwright spec proves profile discount-card management itself, browser-level account creation fallback behavior without Auth0 Management credentials, profile event links/statuses, or submitted receipt visibility after receipt submission.
+- No reviewed Playwright spec proves profile discount-card management itself, browser-level account creation fallback behavior without Auth0 Management credentials, profile event action rendering, or submitted receipt visibility after receipt submission.
 - `tests/docs/users/create-account.doc.ts` is integration-tagged and skips without Auth0 Management credentials, so baseline docs do not prove the account-creation path.
 - `src/server/discounts/providers/index.spec.ts` covers ESNcard provider validation parsing and provider-unavailable distinction without hitting the external provider.
 - `src/server/effect/rpc/handlers/discounts.handlers.spec.ts` covers global-per-user ESNcard reads and updating an existing global user card from another tenant context.
@@ -882,7 +882,7 @@ the current working direction until a product decision overrides them.
 - Add Browser-backed profile edit persistence coverage for notification email once runtime review is available.
 - Add Browser-backed profile event-card coverage for event links and registration/payment/check-in state once runtime review is available.
 - Add profile discount-card tests for add/refresh/remove and provider validation outcomes once runtime/browser review is available.
-- Add profile/account tests for account creation retry/tenant-join behavior, profile edit persistence, ESNcard add/refresh/remove, and submitted receipt visibility.
+- Add profile/account tests for account creation retry/tenant-join behavior, profile edit persistence, ESNcard add/refresh/remove, profile event action rendering, and submitted receipt visibility.
 
 ## Tenant/Global Admin
 
@@ -1147,6 +1147,7 @@ implement those decisions or explicitly revise them there before changing code.
 - Profile ESNcard provider pass: added bounded ESNcard provider requests and mapped provider outages to retryable validation errors instead of invalid-card state.
 - Profile notification-email pass: exposed login email and notification email separately in the profile UI, made notification email editable through the profile dialog, and persisted it through `users.updateProfile`.
 - Profile event-card pass: extended `users.events` to return active registration summaries with option, status, payment, and check-in fields, and rendered profile event cards with event-detail links and readable registration state.
+- Profile event-action pass: extended `users.events` to return pending checkout URLs and rendered profile event cards with an implemented "Continue payment" action for pending Stripe registrations plus clearer confirmed-ticket routing.
 - Profile reimbursement-details pass: clarified that profile IBAN and PayPal fields are optional global reimbursement details used across tenants when finance users record manual receipt reimbursements.
 - Tenant/global-admin pass: guarded global-admin routes with `globalAdmin:manageTenants`, decoupled global-admin permission resolution from current-tenant assignment, required tenant user context to have a current-tenant assignment, and fixed granted group wildcards such as `globalAdmin:*` to satisfy concrete permission checks.
 - Tenant-resolution pass: added focused `resolveTenantContext` coverage for non-local host precedence over cookies, localhost cookie fallback, stale localhost cookie fallback, and unknown non-local host failure.
@@ -1173,4 +1174,4 @@ implement those decisions or explicitly revise them there before changing code.
 
 ## Review Next
 
-All ten first-pass review areas are now represented in this document. The next stabilization work should continue with small cleanup commits around the remaining relaunch gaps: profile payment/ticket/action clarity, receipt notification follow-ups, scanner guest-quantity behavior, tenant settings scope, running the legacy-field migration path for production data, and replacing intentionally fixme-only price/tax specs with active Browser-backed coverage once the local runtime is available.
+All ten first-pass review areas are now represented in this document. The next stabilization work should continue with small cleanup commits around the remaining relaunch gaps: profile cancellation/waitlist/transfer action clarity, receipt notification follow-ups, scanner guest-quantity behavior, tenant settings scope, running the legacy-field migration path for production data, and replacing intentionally fixme-only price/tax specs with active Browser-backed coverage once the local runtime is available.

@@ -114,6 +114,26 @@
                           {{ registrationPaymentLabel(event.paymentState) }}
                         </dd>
                       </div>
+                      @if (
+                        event.paymentState === "pending" && event.checkoutUrl
+                      ) {
+                        <div>
+                          <dt class="text-on-surface-variant inline">
+                            Next step:
+                          </dt>
+                          <dd class="inline">
+                            Finish the checkout payment to confirm your spot.
+                          </dd>
+                        </div>
+                      }
+                      @if (event.status === "CONFIRMED" && !event.checkInTime) {
+                        <div>
+                          <dt class="text-on-surface-variant inline">
+                            Ticket:
+                          </dt>
+                          <dd class="inline">Available on the event page.</dd>
+                        </div>
+                      }
                       @if (event.checkInTime) {
                         <div>
                           <dt class="text-on-surface-variant inline">
@@ -125,13 +145,29 @@
                         </div>
                       }
                     </dl>
-                    <a
-                      mat-stroked-button
-                      [routerLink]="['/events', event.eventId]"
-                      class="mt-2 justify-self-start"
-                    >
-                      View event
-                    </a>
+                    <div class="mt-2 flex flex-wrap gap-2">
+                      @if (
+                        event.paymentState === "pending" && event.checkoutUrl
+                      ) {
+                        <a
+                          mat-flat-button
+                          [href]="event.checkoutUrl"
+                          rel="noopener noreferrer"
+                        >
+                          Continue payment
+                        </a>
+                      }
+                      <a
+                        mat-stroked-button
+                        [routerLink]="['/events', event.eventId]"
+                      >
+                        @if (event.status === "CONFIRMED") {
+                          View ticket
+                        } @else {
+                          View event
+                        }
+                      </a>
+                    </div>
                   </article>
                 }
               </div>
