@@ -370,62 +370,107 @@ describe('userHandlers', () => {
         [RPC_CONTEXT_HEADERS.TENANT]: encodeRpcContextHeaderJson(tenant),
         [RPC_CONTEXT_HEADERS.USER]: encodeRpcContextHeaderJson(user),
       };
+      const findRegistrations = vi.fn(() =>
+        Effect.succeed([
+          {
+            checkInTime: null,
+            event: {
+              description: 'waitlist',
+              end: new Date('2026-01-01T11:00:00.000Z'),
+              id: 'event-waitlist',
+              start: new Date('2026-01-01T10:00:00.000Z'),
+              title: 'Waitlist Event',
+            },
+            eventId: 'event-waitlist',
+            guestCount: 0,
+            id: 'registration-waitlist',
+            registrationOption: {
+              title: 'Waitlist option',
+            },
+            status: 'WAITLIST',
+            transactions: [],
+          },
+          {
+            checkInTime: null,
+            event: {
+              description: 'cancelled payment',
+              end: new Date('2026-01-15T11:00:00.000Z'),
+              id: 'event-cancelled-payment',
+              start: new Date('2026-01-15T10:00:00.000Z'),
+              title: 'Cancelled Payment Event',
+            },
+            eventId: 'event-cancelled-payment',
+            guestCount: 0,
+            id: 'registration-cancelled-payment',
+            registrationOption: {
+              title: 'Participant',
+            },
+            status: 'PENDING',
+            transactions: [
+              {
+                method: 'stripe',
+                status: 'cancelled',
+                stripeCheckoutUrl: null,
+                type: 'registration',
+              },
+            ],
+          },
+          {
+            checkInTime: null,
+            event: {
+              description: 'later',
+              end: new Date('2026-03-01T11:00:00.000Z'),
+              id: 'event-2',
+              start: new Date('2026-03-01T10:00:00.000Z'),
+              title: 'Later Event',
+            },
+            eventId: 'event-2',
+            guestCount: 2,
+            id: 'registration-2',
+            registrationOption: {
+              title: 'Standard',
+            },
+            status: 'PENDING',
+            transactions: [
+              {
+                method: 'stripe',
+                status: 'pending',
+                stripeCheckoutUrl: 'https://checkout.stripe.test/pay',
+                type: 'registration',
+              },
+            ],
+          },
+          {
+            checkInTime: new Date('2026-02-01T10:30:00.000Z'),
+            event: {
+              description: 'earlier',
+              end: new Date('2026-02-01T11:00:00.000Z'),
+              id: 'event-1',
+              start: new Date('2026-02-01T10:00:00.000Z'),
+              title: 'Earlier Event',
+            },
+            eventId: 'event-1',
+            guestCount: 0,
+            id: 'registration-1',
+            registrationOption: {
+              title: 'Participant',
+            },
+            status: 'CONFIRMED',
+            transactions: [
+              {
+                method: 'stripe',
+                status: 'successful',
+                stripeCheckoutUrl: null,
+                type: 'registration',
+              },
+            ],
+          },
+        ]),
+      );
       const mockDatabase = {
         query: {
           eventRegistrations: {
-            findMany: () =>
-              Effect.succeed([
-                {
-                  checkInTime: null,
-                  event: {
-                    description: 'later',
-                    end: new Date('2026-03-01T11:00:00.000Z'),
-                    id: 'event-2',
-                    start: new Date('2026-03-01T10:00:00.000Z'),
-                    title: 'Later Event',
-                  },
-                  eventId: 'event-2',
-                  guestCount: 2,
-                  id: 'registration-2',
-                  registrationOption: {
-                    title: 'Standard',
-                  },
-                  status: 'PENDING',
-                  transactions: [
-                    {
-                      method: 'stripe',
-                      status: 'pending',
-                      stripeCheckoutUrl: 'https://checkout.stripe.test/pay',
-                      type: 'registration',
-                    },
-                  ],
-                },
-                {
-                  checkInTime: new Date('2026-02-01T10:30:00.000Z'),
-                  event: {
-                    description: 'earlier',
-                    end: new Date('2026-02-01T11:00:00.000Z'),
-                    id: 'event-1',
-                    start: new Date('2026-02-01T10:00:00.000Z'),
-                    title: 'Earlier Event',
-                  },
-                  eventId: 'event-1',
-                  guestCount: 0,
-                  id: 'registration-1',
-                  registrationOption: {
-                    title: 'Participant',
-                  },
-                  status: 'CONFIRMED',
-                  transactions: [
-                    {
-                      method: 'stripe',
-                      status: 'successful',
-                      stripeCheckoutUrl: null,
-                      type: 'registration',
-                    },
-                  ],
-                },
-              ]),
+            findMany: findRegistrations,
           },
         },
       };
@@ -437,7 +482,46 @@ describe('userHandlers', () => {
         } as never,
       ).pipe(Effect.provide(Layer.succeed(Database, mockDatabase as never)));
 
+      expect(findRegistrations).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            status: {
+              NOT: 'CANCELLED',
+            },
+            tenantId: tenant.id,
+            userId: user.id,
+          },
+        }),
+      );
       expect(result).toEqual([
+        {
+          checkInTime: null,
+          checkoutUrl: null,
+          description: 'waitlist',
+          end: '2026-01-01T11:00:00.000Z',
+          eventId: 'event-waitlist',
+          guestCount: 0,
+          paymentState: 'notRequired',
+          registrationId: 'registration-waitlist',
+          registrationOptionTitle: 'Waitlist option',
+          start: '2026-01-01T10:00:00.000Z',
+          status: 'WAITLIST',
+          title: 'Waitlist Event',
+        },
+        {
+          checkInTime: null,
+          checkoutUrl: null,
+          description: 'cancelled payment',
+          end: '2026-01-15T11:00:00.000Z',
+          eventId: 'event-cancelled-payment',
+          guestCount: 0,
+          paymentState: 'cancelled',
+          registrationId: 'registration-cancelled-payment',
+          registrationOptionTitle: 'Participant',
+          start: '2026-01-15T10:00:00.000Z',
+          status: 'PENDING',
+          title: 'Cancelled Payment Event',
+        },
         {
           checkInTime: '2026-02-01T10:30:00.000Z',
           checkoutUrl: null,
