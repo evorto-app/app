@@ -50,7 +50,8 @@ test.describe('Register for events', () => {
   _Note:_ If you are not logged it, please follow the instructions to do so.
 
   ### Free events
-  Here we will make a distinction for free events and paid events (covered further down)`,
+  Here we will make a distinction for free events and paid events (covered further down).
+  Participant options are labeled separately from organizer/helper options, which use **Sign up as organizer/helper** copy when you are helping run the event.`,
     });
     await takeScreenshot(
       testInfo,

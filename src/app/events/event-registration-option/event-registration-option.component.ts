@@ -18,6 +18,47 @@ import { interval, map } from 'rxjs';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
 
+export interface EventRegistrationOptionView {
+  appliedDiscountType?: 'esnCard' | null;
+  closeRegistrationTime: string;
+  confirmedSpots: number;
+  description: null | string;
+  discountApplied?: boolean;
+  effectivePrice?: number;
+  esnCardDiscountedPrice?: null | number;
+  eventId: string;
+  id: string;
+  isPaid: boolean;
+  openRegistrationTime: string;
+  organizingRegistration: boolean;
+  price: number;
+  reservedSpots: number;
+  spots: number;
+  title: string;
+}
+
+export const registrationOptionAudienceCopy = (
+  option: Pick<EventRegistrationOptionView, 'organizingRegistration'>,
+): {
+  actionSuffix: string;
+  helperText: string;
+  label: string;
+  primaryAction: string;
+} =>
+  option.organizingRegistration
+    ? {
+        actionSuffix: 'sign up as organizer/helper',
+        helperText: 'Use this option when you are helping run the event.',
+        label: 'Organizer/helper option',
+        primaryAction: 'Sign up as organizer/helper',
+      }
+    : {
+        actionSuffix: 'register',
+        helperText: 'Use this option when you are attending the event.',
+        label: 'Participant option',
+        primaryAction: 'Register',
+      };
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [MatButtonModule, CurrencyPipe, DatePipe],
@@ -26,23 +67,11 @@ import { getErrorMessage } from '../../core/error-message';
   templateUrl: './event-registration-option.component.html',
 })
 export class EventRegistrationOptionComponent {
-  public readonly registrationOption = input.required<{
-    appliedDiscountType?: 'esnCard' | null;
-    closeRegistrationTime: string;
-    confirmedSpots: number;
-    description: null | string;
-    discountApplied?: boolean;
-    effectivePrice?: number;
-    esnCardDiscountedPrice?: null | number;
-    eventId: string;
-    id: string;
-    isPaid: boolean;
-    openRegistrationTime: string;
-    price: number;
-    reservedSpots: number;
-    spots: number;
-    title: string;
-  }>();
+  public readonly registrationOption =
+    input.required<EventRegistrationOptionView>();
+  protected readonly audienceCopy = computed(() =>
+    registrationOptionAudienceCopy(this.registrationOption()),
+  );
   private readonly rpc = AppRpc.injectClient();
   protected readonly authenticationQuery = injectQuery(() =>
     this.rpc.config.isAuthenticated.queryOptions(),
