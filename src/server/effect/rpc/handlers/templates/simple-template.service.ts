@@ -36,7 +36,10 @@ type SimpleTemplateRegistrationInput =
   CreateSimpleTemplateInput['organizerRegistration'];
 type SimpleTemplateValidationInput = Pick<
   CreateSimpleTemplateInput,
-  'description' | 'organizerRegistration' | 'participantRegistration'
+  | 'categoryId'
+  | 'description'
+  | 'organizerRegistration'
+  | 'participantRegistration'
 >;
 type TemplateRegistrationOptionInsert =
   typeof templateRegistrationOptions.$inferInsert;
@@ -115,6 +118,15 @@ const validateRegistrationOffsetOrdering = ({
   return Effect.void;
 };
 
+const collectRegistrationRoleIds = (
+  input: SimpleTemplateValidationInput,
+): string[] => [
+  ...new Set([
+    ...input.organizerRegistration.roleIds,
+    ...input.participantRegistration.roleIds,
+  ]),
+];
+
 export class SimpleTemplateService extends Context.Service<SimpleTemplateService>()(
   '@server/effect/rpc/handlers/templates/SimpleTemplateService',
   {
@@ -162,6 +174,61 @@ export class SimpleTemplateService extends Context.Service<SimpleTemplateService
           );
         });
 
+        const validateTemplateCategory = Effect.fn(
+          'SimpleTemplateService.validateSimpleTemplateInput.validateTemplateCategory',
+        )(function* () {
+          const category = yield* databaseEffect((database) =>
+            database.query.eventTemplateCategories.findFirst({
+              columns: {
+                id: true,
+              },
+              where: {
+                id: input.categoryId,
+                tenantId,
+              },
+            }),
+          );
+
+          if (!category) {
+            return yield* Effect.fail(
+              new TemplateSimpleBadRequestError({
+                message: 'Template category does not exist for this tenant',
+              }),
+            );
+          }
+        });
+
+        const validateRegistrationRoles = Effect.fn(
+          'SimpleTemplateService.validateSimpleTemplateInput.validateRegistrationRoles',
+        )(function* () {
+          const roleIds = collectRegistrationRoleIds(input);
+          if (roleIds.length === 0) {
+            return;
+          }
+
+          const tenantRoles = yield* databaseEffect((database) =>
+            database.query.roles.findMany({
+              columns: {
+                id: true,
+              },
+              where: {
+                id: {
+                  in: roleIds,
+                },
+                tenantId,
+              },
+            }),
+          );
+
+          if (tenantRoles.length !== roleIds.length) {
+            return yield* Effect.fail(
+              new TemplateSimpleBadRequestError({
+                message: 'Registration role does not exist for this tenant',
+              }),
+            );
+          }
+        });
+
         const sanitizedDescription = sanitizeRichTextHtml(input.description);
         if (!isMeaningfulRichTextHtml(sanitizedDescription)) {
           return yield* Effect.fail(
@@ -179,6 +246,9 @@ export class SimpleTemplateService extends Context.Service<SimpleTemplateService
           kind: 'participant',
           registration: input.participantRegistration,
         });
+
+        yield* validateTemplateCategory();
+        yield* validateRegistrationRoles();
 
         yield* validateRegistrationTaxRate({
           kind: 'organizer',
