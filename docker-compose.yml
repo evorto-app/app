@@ -153,12 +153,15 @@ services:
       STRIPE_API_KEY:
       STRIPE_TEST_ACCOUNT_ID:
       STRIPE_WEBHOOK_SECRET:
+      STRIPE_WEBHOOK_SECRET_FILE: /run/stripe-webhook/signing-secret
     command:
       - /bin/sh
       - -lc
       - mkdir -p /app/logs && bun --preload ./instrument.mjs dist/evorto/server/server.mjs 2>&1 | tee -a /app/logs/server.log
     ports:
       - "${APP_HOST_PORT:-4200}:4200"
+    volumes:
+      - stripe-webhook:/run/stripe-webhook:ro
 
   stripe:
     image: stripe/stripe-cli:v1.25.0
@@ -166,8 +169,15 @@ services:
     environment:
       STRIPE_API_KEY:
       STRIPE_DEVICE_NAME: integration-tests
-    command: "listen --forward-to http://evorto:4200/webhooks/stripe"
+    entrypoint: /bin/sh
+    command: /usr/local/bin/stripe-listen-docker
+    volumes:
+      - ./helpers/testing/stripe-listen-docker.sh:/usr/local/bin/stripe-listen-docker:ro
+      - stripe-webhook:/run/stripe-webhook
 
 secrets:
   FONT_AWESOME_TOKEN:
     environment: FONT_AWESOME_TOKEN
+
+volumes:
+  stripe-webhook:
