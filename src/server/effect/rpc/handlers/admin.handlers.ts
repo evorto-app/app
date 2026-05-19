@@ -44,6 +44,45 @@ const decodeHeaderJson = <A>(
   schema: Schema.Decoder<A>,
 ): A => Schema.decodeUnknownSync(schema)(decodeRpcContextHeaderJson(value));
 
+const normalizeOptionalUrl = (
+  value: string | undefined,
+  fieldName: string,
+): null | string => {
+  const trimmedValue = value?.trim();
+  if (!trimmedValue) {
+    return null;
+  }
+
+  try {
+    const url = new URL(trimmedValue);
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+      throw new Error('URL must use http or https');
+    }
+
+    return url.toString();
+  } catch (error) {
+    throw new Error(
+      `${fieldName} must be a valid http or https URL${
+        error instanceof Error ? `: ${error.message}` : ''
+      }`,
+      { cause: error },
+    );
+  }
+};
+
+const normalizeTenantLegalLinks = (input: {
+  legalNoticeUrl?: string | undefined;
+  privacyPolicyUrl?: string | undefined;
+  termsUrl?: string | undefined;
+}) => ({
+  legalNoticeUrl: normalizeOptionalUrl(input.legalNoticeUrl, 'legalNoticeUrl'),
+  privacyPolicyUrl: normalizeOptionalUrl(
+    input.privacyPolicyUrl,
+    'privacyPolicyUrl',
+  ),
+  termsUrl: normalizeOptionalUrl(input.termsUrl, 'termsUrl'),
+});
+
 const normalizeHubRoleRecord = (role: {
   description: null | string;
   id: string;
@@ -498,11 +537,20 @@ export const adminHandlers = {
           status: input.esnCardEnabled ? 'enabled' : 'disabled',
         },
       };
+      const legalLinks = yield* Effect.try({
+        catch: (error) =>
+          new RpcBadRequestError({
+            message: 'Invalid tenant legal links',
+            reason: error instanceof Error ? error.message : String(error),
+          }),
+        try: () => normalizeTenantLegalLinks(input),
+      });
 
       const nextTenant = {
         ...tenant,
         defaultLocation: input.defaultLocation,
         discountProviders,
+        ...legalLinks,
         receiptSettings: resolveTenantReceiptSettings({
           allowOther: input.allowOther,
           receiptCountries: input.receiptCountries,
@@ -527,6 +575,7 @@ export const adminHandlers = {
           .set({
             defaultLocation: input.defaultLocation,
             discountProviders,
+            ...legalLinks,
             receiptSettings: resolveTenantReceiptSettings({
               allowOther: input.allowOther,
               receiptCountries: input.receiptCountries,

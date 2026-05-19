@@ -94,6 +94,36 @@
         ></textarea>
       </mat-form-field>
 
+      <h3 class="title-small mb-2 mt-6">Legal links</h3>
+      <p class="text-on-surface-variant mb-3 text-sm">
+        Configure tenant-specific public legal pages. Leave a field empty when
+        that page is still handled outside Evorto.
+      </p>
+      <mat-form-field>
+        <mat-label>Imprint / legal notice URL</mat-label>
+        <input
+          matInput
+          [formField]="settingsForm.legalNoticeUrl"
+          placeholder="https://section.example.org/imprint"
+        />
+      </mat-form-field>
+      <mat-form-field>
+        <mat-label>Privacy policy URL</mat-label>
+        <input
+          matInput
+          [formField]="settingsForm.privacyPolicyUrl"
+          placeholder="https://section.example.org/privacy"
+        />
+      </mat-form-field>
+      <mat-form-field>
+        <mat-label>Terms URL</mat-label>
+        <input
+          matInput
+          [formField]="settingsForm.termsUrl"
+          placeholder="https://section.example.org/terms"
+        />
+      </mat-form-field>
+
       <h3 class="title-small mb-2 mt-6">Finance settings</h3>
       <p class="text-on-surface-variant mb-3 text-sm">
         Configure which countries can be selected when users submit receipts.

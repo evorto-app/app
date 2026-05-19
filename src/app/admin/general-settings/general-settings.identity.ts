@@ -31,7 +31,8 @@ export const deferredTenantSettingsRows = [
   },
   {
     label: 'Legal pages',
-    value: 'Imprint, privacy, and terms links or text are not implemented yet.',
+    value:
+      'Imprint, privacy, and terms links are editable below; legal text pages are not implemented yet.',
   },
   {
     label: 'Locale and money',

@@ -195,9 +195,12 @@ export const AdminTenantUpdateSettingsInput = Schema.Struct({
   buyEsnCardUrl: Schema.optional(Schema.String),
   defaultLocation: Schema.NullOr(Schema.Any),
   esnCardEnabled: Schema.Boolean,
+  legalNoticeUrl: Schema.optional(Schema.String),
+  privacyPolicyUrl: Schema.optional(Schema.String),
   receiptCountries: Schema.Array(Schema.NonEmptyString),
   seoDescription: Schema.optional(Schema.String),
   seoTitle: Schema.optional(Schema.String),
+  termsUrl: Schema.optional(Schema.String),
   theme: literalUnion('evorto', 'esn'),
 });
 

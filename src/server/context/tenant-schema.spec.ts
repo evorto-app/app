@@ -57,4 +57,19 @@ describe('Tenant schema', () => {
       seoTitle: 'Public tenant title',
     });
   });
+
+  it('accepts tenant legal links when present', () => {
+    const tenant = Schema.decodeUnknownSync(Tenant)({
+      ...tenantInput,
+      legalNoticeUrl: 'https://tenant.example.com/imprint',
+      privacyPolicyUrl: 'https://tenant.example.com/privacy',
+      termsUrl: 'https://tenant.example.com/terms',
+    });
+
+    expect(Schema.encodeSync(Tenant)(tenant)).toMatchObject({
+      legalNoticeUrl: 'https://tenant.example.com/imprint',
+      privacyPolicyUrl: 'https://tenant.example.com/privacy',
+      termsUrl: 'https://tenant.example.com/terms',
+    });
+  });
 });

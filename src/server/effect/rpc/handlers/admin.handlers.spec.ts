@@ -125,22 +125,59 @@ describe('adminHandlers tenant settings', () => {
             allowOther: true,
             defaultLocation: null,
             esnCardEnabled: false,
+            legalNoticeUrl: ' https://section.example.org/imprint ',
+            privacyPolicyUrl: 'https://section.example.org/privacy',
             receiptCountries: ['NL'],
             seoDescription: '  Public description  ',
             seoTitle: '  Public title  ',
+            termsUrl: 'https://section.example.org/terms',
             theme: 'evorto',
           },
           { headers: createSettingsAdminHeaders() } as never,
         ).pipe(Effect.provide(Layer.succeed(Database, database as never)));
 
         expect(capturedUpdate).toMatchObject({
+          legalNoticeUrl: 'https://section.example.org/imprint',
+          privacyPolicyUrl: 'https://section.example.org/privacy',
           seoDescription: 'Public description',
           seoTitle: 'Public title',
+          termsUrl: 'https://section.example.org/terms',
         });
         expect(result).toMatchObject({
+          legalNoticeUrl: 'https://section.example.org/imprint',
+          privacyPolicyUrl: 'https://section.example.org/privacy',
           seoDescription: 'Public description',
           seoTitle: 'Public title',
+          termsUrl: 'https://section.example.org/terms',
         });
       }),
+  );
+
+  it.effect('rejects invalid tenant legal-link URLs', () =>
+    Effect.gen(function* () {
+      const database = {
+        update: () => {
+          throw new Error('database should not be touched');
+        },
+      };
+
+      const error = yield* adminHandlers['admin.tenant.updateSettings'](
+        {
+          allowOther: true,
+          defaultLocation: null,
+          esnCardEnabled: false,
+          legalNoticeUrl: 'not a url',
+          receiptCountries: ['NL'],
+          theme: 'evorto',
+        },
+        { headers: createSettingsAdminHeaders() } as never,
+      ).pipe(
+        Effect.provide(Layer.succeed(Database, database as never)),
+        Effect.flip,
+      );
+
+      expect(error['_tag']).toBe('RpcBadRequestError');
+      expect(error.message).toBe('Invalid tenant legal links');
+    }),
   );
 });
