@@ -368,7 +368,6 @@ describe('userHandlers', () => {
             firstName: 'Alice',
             id: 'user-1',
             lastName: 'One',
-            role: 'Admin',
             roles: ['Admin', 'Editor'],
           },
           {
@@ -376,10 +375,16 @@ describe('userHandlers', () => {
             firstName: 'Bob',
             id: 'user-2',
             lastName: 'Two',
-            role: null,
             roles: [],
           },
         ]);
+        expect(result.users).not.toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              role: expect.anything(),
+            }),
+          ]),
+        );
       }),
   );
 });

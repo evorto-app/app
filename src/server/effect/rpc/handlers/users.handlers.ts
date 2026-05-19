@@ -318,7 +318,10 @@ export const userHandlers = {
           continue;
         }
         userMap[user.id] = {
-          ...user,
+          email: user.email,
+          firstName: user.firstName,
+          id: user.id,
+          lastName: user.lastName,
           roles: user.role ? [user.role] : [],
         };
       }

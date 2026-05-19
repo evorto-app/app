@@ -1,18 +1,11 @@
-import { SelectionModel } from '@angular/cdk/collections';
 import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
-import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatChipsModule } from '@angular/material/chips';
-import { MatMenuModule } from '@angular/material/menu';
 import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatTableModule } from '@angular/material/table';
 import { RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
-import {
-  faArrowLeft,
-  faEdit,
-  faEllipsisVertical,
-} from '@fortawesome/duotone-regular-svg-icons';
+import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 import consola from 'consola/browser';
 
@@ -22,11 +15,9 @@ import { AppRpc } from '../../core/effect-rpc-angular-client';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     FontAwesomeModule,
-    MatMenuModule,
     MatButtonModule,
     MatTableModule,
     MatPaginatorModule,
-    MatCheckboxModule,
     MatChipsModule,
     RouterLink,
   ],
@@ -36,22 +27,11 @@ import { AppRpc } from '../../core/effect-rpc-angular-client';
 })
 export class UserListComponent {
   protected readonly columnsToDisplay = signal<string[]>([
-    'select',
     'name',
     'email',
     'role',
-    'actions',
   ]);
   protected readonly faArrowLeft = faArrowLeft;
-  protected readonly faEdit = faEdit;
-  protected readonly faEllipsisVertical = faEllipsisVertical;
-  protected readonly selection = new SelectionModel<{
-    email: string;
-    firstName: string;
-    id: string;
-    lastName: string;
-    roles: readonly string[];
-  }>(true);
   private readonly filterInput = signal<{
     limit?: number;
     offset?: number;
@@ -70,24 +50,5 @@ export class UserListComponent {
       offset: event.pageIndex * event.pageSize,
     }));
     consola.info('Page event', event);
-  }
-
-  /** Whether the number of selected elements matches the total number of rows. */
-  isAllSelected() {
-    const numberSelected = this.selection.selected.length;
-    const numberRows = this.usersQuery.data()?.users?.length ?? 0;
-    return numberSelected == numberRows;
-  }
-
-  /** Selects all rows if they are not all selected; otherwise clear selection. */
-  toggleAllRows() {
-    if (this.isAllSelected()) {
-      this.selection.clear();
-      return;
-    }
-    const users = this.usersQuery.data()?.users ?? [];
-    for (const row of users) {
-      this.selection.select(row);
-    }
   }
 }

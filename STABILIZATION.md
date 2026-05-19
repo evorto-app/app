@@ -662,7 +662,8 @@ the current working direction until a product decision overrides them.
 - **Addressed in this stabilization pass:** `admin.roles.findMany` now requires `admin:manageRoles`; permission-bearing role records are no longer exposed to every authenticated tenant user.
 - **Addressed in this stabilization pass:** shared role selection and template default-role queries now use lookup-only `roles.findMany` / `roles.findOne` RPCs. The lookup API returns only id, name, and default-role flags and is available to event/template authoring permissions plus role admins.
 - **Should fix before relaunch:** role form fields for hub display are misleading. The form exposes "Show this role in the hub" and "Collapse the members of this role by default", but create/update contracts and handlers ignore those fields, and `findHubRoles` filters `displayInHub` while the form edits `showInHub`.
-- **Should fix before relaunch:** `users:assignRoles` exists and depends on `users:viewAll`, but there is no reviewed role-assignment RPC or working UI. The user list shows role chips and placeholder "Edit template" actions.
+- **Should fix before relaunch:** `users:assignRoles` exists and depends on `users:viewAll`, but there is no reviewed role-assignment RPC or working UI.
+- **Addressed in stabilization pass:** the user list no longer shows placeholder selection or "Edit template" actions for user-role assignment.
 - **Should fix before relaunch:** permission metadata is mostly generated from camelCase keys and lacks durable admin-facing descriptions, even though product context says capabilities should have admin-facing names and descriptions.
 - **Acceptable for now:** roles are tenant-scoped in schema and role-management write queries include tenant boundaries.
 
@@ -670,10 +671,10 @@ the current working direction until a product decision overrides them.
 
 - `src/shared/permissions/permissions.spec.ts` covers direct permissions, dependency expansion, legacy tax aliases, wildcard checks, and rejection of unrelated permissions. `RpcAccess` and tax-rate handler unit tests prove server use of the shared evaluator.
 - Permission matrix coverage checks admin tax-rate, role-management, user-list, settings, and template write route denial. Role lookup UI behavior still needs Browser/E2E coverage once runtime review is available.
-- `tests/docs/roles/roles.doc.ts` documents role creation and dependent permissions, but says users can be assigned to roles even though the reviewed UI/API does not implement role assignment.
+- `tests/docs/roles/roles.doc.ts` documents role creation and dependent permissions without claiming that current role-management UI can assign roles to existing users.
 - `tests/docs/roles/roles.doc.ts` links to `/docs/about-permissions`; no matching checked-in documentation source was found in this pass.
 - Server unit coverage proves role lookup permissions, lookup-only result shaping, role lookup not-found errors, and admin role list denial without `admin:manageRoles`.
-- `src/server/effect/rpc/handlers/users.handlers.spec.ts` expects `users.findMany` to return an extra `role` property not present in the RPC contract. That test encodes an implementation leak rather than the contract shape.
+- `src/server/effect/rpc/handlers/users.handlers.spec.ts` verifies `users.findMany` aggregates role names into the RPC contract shape without leaking the joined `role` column.
 
 ### Product Questions Answered Above
 
@@ -689,7 +690,7 @@ the current working direction until a product decision overrides them.
 - Extend route-guard coverage to the remaining permission-sensitive surfaces, including finance routes and global-admin routes.
 - Add UI/E2E coverage that least-privilege organizers can search/select tenant roles in event/template eligibility forms once Browser/runtime review is available.
 - Fix or remove hub role form fields until `showInHub` / `displayInHub` semantics are explicit and persisted.
-- Implement or explicitly defer user-role assignment; remove placeholder "Edit template" actions from the user list if assignment is out of scope.
+- Implement or explicitly defer user-role assignment before exposing assignment controls.
 - Replace skip-based role autocomplete coverage with an assertion that proves least-privilege organizers can see selectable roles when editing event/template eligibility.
 
 ## Finance/Receipts
@@ -1069,7 +1070,7 @@ the current working direction until a product decision overrides them.
 3. Add route guards and direct-route denial coverage for admin role/user/settings and other permission-sensitive routes.
 4. Split role lookup APIs so organizers can select event/template eligibility roles without receiving admin role-management data.
 5. Tie receipt media upload to receipt-submit authorization or an upload preflight to avoid orphan authenticated uploads.
-6. Remove misleading placeholder tests/docs from the event registration, event management, role-assignment, finance overview, scanner, and profile/account surfaces.
+6. Remove misleading placeholder tests/docs from the event registration, event management, finance overview, scanner, and profile/account surfaces.
 7. Replace green placeholder specs and silent no-op Playwright tests with real assertions, hard fixture setup, or explicit `test.fixme` states.
 
 ### Should Fix Before Relaunch
@@ -1082,16 +1083,15 @@ the current working direction until a product decision overrides them.
    those modes remain in the relaunch UI; otherwise hide them until their
    runtime behavior exists.
 6. Fix role hub display persistence or remove the currently misleading hub flags from the role form.
-7. Align role-assignment UI/docs with the migration-owned relaunch scope: migrated users start with correct roles, and product role-assignment UI is not the relaunch blocker.
-8. Clarify receipt reimbursement as a manual ledger action and rename UI away from "refund" unless money is actually moved.
-9. Validate receipt tax amount consistency and support pre-event receipt spending/submission.
-10. Add check-in timing, duplicate-scan, camera-error, and guest-quantity behavior before treating scanner UI as relaunch-ready.
-11. Clarify profile event cards, notification/login email behavior, global payout preference visibility, and global-per-user ESNcard validation UX before relaunch.
-12. Fill the tenant settings gap for one-domain relaunch support, branding, legal links/text, locale/currency/timezone, SEO fields, and global tenant-admin workflows.
-13. Make Playwright list/discovery side-effect-free and document or automate the local browser installation expectation.
-14. Update or regenerate `tests/test-inventory.md` after placeholder docs/specs are pruned.
-15. Move local generated docs defaults away from the sibling documentation checkout, or introduce an explicit docs-publish flow that cannot run accidentally during list/discovery.
-16. Keep `docker:start` reset behavior intentional and ensure seeded data is sufficient to get going from zero.
+7. Clarify receipt reimbursement as a manual ledger action and rename UI away from "refund" unless money is actually moved.
+8. Validate receipt tax amount consistency and support pre-event receipt spending/submission.
+9. Add check-in timing, duplicate-scan, camera-error, and guest-quantity behavior before treating scanner UI as relaunch-ready.
+10. Clarify profile event cards, notification/login email behavior, global payout preference visibility, and global-per-user ESNcard validation UX before relaunch.
+11. Fill the tenant settings gap for one-domain relaunch support, branding, legal links/text, locale/currency/timezone, SEO fields, and global tenant-admin workflows.
+12. Make Playwright list/discovery side-effect-free and document or automate the local browser installation expectation.
+13. Update or regenerate `tests/test-inventory.md` after placeholder docs/specs are pruned.
+14. Move local generated docs defaults away from the sibling documentation checkout, or introduce an explicit docs-publish flow that cannot run accidentally during list/discovery.
+15. Keep `docker:start` reset behavior intentional and ensure seeded data is sufficient to get going from zero.
 
 ### Acceptable For Now
 
@@ -1124,6 +1124,7 @@ implement those decisions or explicitly revise them there before changing code.
 - None in the Templates pass. The highest-value issues are permission and contract validation gaps that need targeted tests with the fixes.
 - Template docs/spec cleanup pass: removed the generic template doc discovery placeholder, converted the deferred template tax-rate spec to honest fixme-only declarations, and updated the Playwright inventory.
 - Permission evaluator pass: routed legacy server permission checks through the shared `includesPermission` helper so client and server agree on dependencies, wildcards, and legacy aliases, and added direct unit coverage for the shared evaluator plus tax-rate dependency behavior.
+- Role/user cleanup pass: removed placeholder user-list selection/edit affordances, aligned the roles doc with the current no-role-assignment UI, and fixed `users.findMany` to return only the RPC contract shape.
 - None in the Finance/receipts pass. The highest-value issues touch payment-derived state, transaction visibility, and upload authorization, so they need targeted regression tests with the fixes.
 - Scanning/check-in pass: added `events.checkInRegistration`, gated scan reads and check-in writes to event organizers or `events:organizeAll`, made duplicate check-ins idempotent, wired the scanner button to persist and refetch state, and extended scanner tests to assert persisted check-in state.
 - Profile/account pass: guarded `/create-account` with authentication, reworked `users.createAccount` into a transactional tenant-account creation flow that can attach an existing global user to the current tenant while assigning default roles, and aligned ESNcard records with the global-per-user decision.
