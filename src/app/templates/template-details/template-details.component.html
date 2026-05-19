@@ -127,6 +127,12 @@
                     <span>Free</span>
                   }
                 </div>
+                @if (option.esnCardDiscountedPrice !== null) {
+                  <p class="text-primary text-xs">
+                    ESNcard discounted price:
+                    {{ option.esnCardDiscountedPrice / 100 | currency }}
+                  </p>
+                }
               </div>
 
               <div class="grid gap-3">

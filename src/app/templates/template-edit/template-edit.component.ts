@@ -55,11 +55,22 @@ const logger = consola.withTag('app/templates/edit');
   templateUrl: './template-edit.component.html',
 })
 export class TemplateEditComponent {
+  private readonly rpc = AppRpc.injectClient();
+  protected readonly discountProvidersQuery = injectQuery(() =>
+    this.rpc.discounts.getTenantProviders.queryOptions(),
+  );
+
+  protected readonly esnEnabled = computed(() => {
+    const providers = this.discountProvidersQuery.data();
+    if (!providers) return false;
+    return (
+      providers.find((provider) => provider.type === 'esnCard')?.status ===
+      'enabled'
+    );
+  });
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly registrationModes: readonly RegistrationMode[] = ['fcfs'];
-
   protected readonly templateId = input.required<string>();
-  private readonly rpc = AppRpc.injectClient();
 
   protected readonly templateQuery = injectQuery(() =>
     this.rpc.templates.findOne.queryOptions({ id: this.templateId() }),
@@ -120,9 +131,11 @@ export class TemplateEditComponent {
         icon: formValue.icon,
         organizerRegistration: toTemplateRegistrationSubmitData(
           formValue.organizerRegistration,
+          { esnEnabled: this.esnEnabled() },
         ),
         participantRegistration: toTemplateRegistrationSubmitData(
           formValue.participantRegistration,
+          { esnEnabled: this.esnEnabled() },
         ),
       };
       await this.updateTemplateMutation.mutateAsync(

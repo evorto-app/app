@@ -1,10 +1,14 @@
 import { TemplateSimpleNotFoundError } from '@shared/rpc-contracts/app-rpcs/templates.errors';
+import { inArray } from 'drizzle-orm';
 import { Effect } from 'effect';
 
 import type { AppRpcHandlers } from './shared/handler-types';
 
 import { Database, type DatabaseClient } from '../../../../db';
-import { eventTemplates } from '../../../../db/schema';
+import {
+  eventTemplates,
+  templateRegistrationOptionDiscounts,
+} from '../../../../db/schema';
 import { RpcAccess } from './shared/rpc-access.service';
 import { SimpleTemplateService } from './templates/simple-template.service';
 
@@ -39,6 +43,7 @@ const normalizeTemplateFindOneRecord = (
     title: string;
   },
   rolesById: ReadonlyMap<string, { id: string; name: string }>,
+  esnDiscountByOptionId: ReadonlyMap<string, number>,
 ): {
   categoryId: string;
   description: string;
@@ -49,6 +54,7 @@ const normalizeTemplateFindOneRecord = (
   registrationOptions: {
     closeRegistrationOffset: number;
     description: null | string;
+    esnCardDiscountedPrice: null | number;
     id: string;
     isPaid: boolean;
     openRegistrationOffset: number;
@@ -73,6 +79,7 @@ const normalizeTemplateFindOneRecord = (
   registrationOptions: template.registrationOptions.map((option) => ({
     closeRegistrationOffset: option.closeRegistrationOffset,
     description: option.description ?? null,
+    esnCardDiscountedPrice: esnDiscountByOptionId.get(option.id) ?? null,
     id: option.id,
     isPaid: option.isPaid,
     openRegistrationOffset: option.openRegistrationOffset,
@@ -99,6 +106,7 @@ export const templateHandlers = {
       const { tenant } = yield* RpcAccess.current();
 
       return yield* SimpleTemplateService.createSimpleTemplate({
+        esnCardEnabled: tenant.discountProviders?.esnCard?.status === 'enabled',
         input,
         tenantId: tenant.id,
       });
@@ -174,8 +182,40 @@ export const templateHandlers = {
           { id: role.id, name: role.name },
         ]),
       );
+      const templateRegistrationOptionIds = template.registrationOptions.map(
+        (option) => option.id,
+      );
+      const optionDiscounts =
+        templateRegistrationOptionIds.length > 0
+          ? yield* databaseEffect((database) =>
+              database
+                .select({
+                  discountedPrice:
+                    templateRegistrationOptionDiscounts.discountedPrice,
+                  registrationOptionId:
+                    templateRegistrationOptionDiscounts.registrationOptionId,
+                })
+                .from(templateRegistrationOptionDiscounts)
+                .where(
+                  inArray(
+                    templateRegistrationOptionDiscounts.registrationOptionId,
+                    templateRegistrationOptionIds,
+                  ),
+                ),
+            )
+          : [];
+      const esnDiscountByOptionId = new Map(
+        optionDiscounts.map((discount) => [
+          discount.registrationOptionId,
+          discount.discountedPrice,
+        ]),
+      );
 
-      return normalizeTemplateFindOneRecord(template, rolesById);
+      return normalizeTemplateFindOneRecord(
+        template,
+        rolesById,
+        esnDiscountByOptionId,
+      );
     }),
   'templates.groupedByCategory': (_payload, _options) =>
     Effect.gen(function* () {
@@ -220,6 +260,7 @@ export const templateHandlers = {
       const { tenant } = yield* RpcAccess.current();
 
       return yield* SimpleTemplateService.updateSimpleTemplate({
+        esnCardEnabled: tenant.discountProviders?.esnCard?.status === 'enabled',
         input,
         tenantId: tenant.id,
       });

@@ -31,6 +31,7 @@ import {
   templateUrl: './template-registration-option-form.component.html',
 })
 export class TemplateRegistrationOptionFormComponent {
+  public readonly esnEnabled = input.required<boolean>();
   public readonly registrationForm =
     input.required<FieldTree<TemplateRegistrationFormModel>>();
   public readonly registrationModes =

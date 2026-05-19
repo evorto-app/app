@@ -11,6 +11,7 @@ describe('toTemplateRegistrationSubmitData', () => {
       toTemplateRegistrationSubmitData(
         createTemplateRegistrationFormModel({
           description: '<p>Public copy</p>',
+          esnCardDiscountedPrice: 1900,
           isPaid: true,
           price: 2500,
           registeredDescription: '<p>Private copy</p>',
@@ -21,6 +22,7 @@ describe('toTemplateRegistrationSubmitData', () => {
     ).toEqual(
       expect.objectContaining({
         description: '<p>Public copy</p>',
+        esnCardDiscountedPrice: 1900,
         isPaid: true,
         price: 2500,
         registeredDescription: '<p>Private copy</p>',
@@ -70,6 +72,7 @@ describe('toTemplateRegistrationSubmitData', () => {
     expect(
       toTemplateRegistrationSubmitData(
         createTemplateRegistrationFormModel({
+          esnCardDiscountedPrice: 1900,
           isPaid: false,
           price: 2500,
           stripeTaxRateId: 'txr_stale',
@@ -77,9 +80,47 @@ describe('toTemplateRegistrationSubmitData', () => {
       ),
     ).toEqual(
       expect.objectContaining({
+        esnCardDiscountedPrice: null,
         isPaid: false,
         price: 0,
         stripeTaxRateId: null,
+      }),
+    );
+  });
+
+  it('normalizes a blank ESNcard discounted price to null', () => {
+    expect(
+      toTemplateRegistrationSubmitData(
+        createTemplateRegistrationFormModel({
+          esnCardDiscountedPrice: '',
+          isPaid: true,
+          price: 2500,
+          stripeTaxRateId: 'txr_vat_19',
+        }),
+      ),
+    ).toEqual(
+      expect.objectContaining({
+        esnCardDiscountedPrice: null,
+        isPaid: true,
+      }),
+    );
+  });
+
+  it('clears ESNcard discounts when the provider is disabled', () => {
+    expect(
+      toTemplateRegistrationSubmitData(
+        createTemplateRegistrationFormModel({
+          esnCardDiscountedPrice: 1900,
+          isPaid: true,
+          price: 2500,
+          stripeTaxRateId: 'txr_vat_19',
+        }),
+        { esnEnabled: false },
+      ),
+    ).toEqual(
+      expect.objectContaining({
+        esnCardDiscountedPrice: null,
+        isPaid: true,
       }),
     );
   });

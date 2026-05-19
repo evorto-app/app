@@ -60,6 +60,7 @@ The registration consists of the following settings:
   option.
 - **Payment required**: Is a payment required for this registration?
 - **Registration fee**: The registration fee for this registration. This field is only visible if the payment is required.
+- **ESNcard discounted price**: Optional discounted pricing for tenants with the ESNcard discount provider enabled. Leave it empty when this template registration should use the standard price only.
 - **Selected roles**: The roles that are selected for this registration. Users can only see and use the registration if they have one of the selected roles.
 - **Registration mode**: First come first serve is the only selectable mode for now. The first user to register will get the registration.
 - **Registration start**: The offset in hours for when the registration should start. For example 168 hours means that the registration will start 7 days before the event starts.
@@ -78,7 +79,7 @@ The registration consists of the following settings:
   await testInfo.attach('markdown', {
     body: `
 In the migrated form, payment-specific fields are conditionally shown.
-When **Enable Payment** is on, the price and tax-rate fields appear for that registration block.
+When **Enable Payment** is on, the price and tax-rate fields appear for that registration block. Tenants with ESNcard discounts enabled also see the optional ESNcard discounted price field.
 `,
   });
   await page.getByRole('switch', { name: 'Enable Payment' }).first().click();

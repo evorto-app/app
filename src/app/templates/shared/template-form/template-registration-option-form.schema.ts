@@ -29,6 +29,7 @@ export const templateRegistrationOptionFormSchema =
         : undefined;
     });
     hidden(form.price, ({ valueOf }) => !valueOf(form.isPaid));
+    hidden(form.esnCardDiscountedPrice, ({ valueOf }) => !valueOf(form.isPaid));
     hidden(form.stripeTaxRateId, ({ valueOf }) => !valueOf(form.isPaid));
     min(form.closeRegistrationOffset, 0);
     min(form.openRegistrationOffset, 0);
@@ -45,4 +46,23 @@ export const templateRegistrationOptionFormSchema =
       when: ({ valueOf }) => valueOf(form.isPaid),
     });
     required(form.title);
+    validate(form.esnCardDiscountedPrice, ({ value, valueOf }) => {
+      const discountedPrice = value();
+      if (discountedPrice === '') {
+        return;
+      }
+      if (discountedPrice < 0) {
+        return {
+          kind: 'min',
+          message: 'Discounted price must be non-negative.',
+        };
+      }
+      if (discountedPrice > valueOf(form.price)) {
+        return {
+          kind: 'max',
+          message: 'Discounted price cannot exceed the base price.',
+        };
+      }
+      return;
+    });
   });

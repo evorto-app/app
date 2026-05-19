@@ -598,7 +598,7 @@ the current working direction until a product decision overrides them.
 - Template routes are under authenticated `/templates`; anonymous Browser access redirects to Auth0.
 - Authenticated organizers can browse template categories, open a template detail page, and start event creation from a template.
 - The visible template model is simple mode: one organizer registration block and one participant registration block.
-- Template detail pages show description, optional location, organizer planning tips, registration option role chips, price/tax label when paid, capacity, mode, and registration open/close offsets.
+- Template detail pages show description, optional location, organizer planning tips, registration option role chips, price/tax label when paid, ESNcard discounted price when configured, capacity, mode, and registration open/close offsets.
 - Template creation preselects default organizer roles and default user roles, then saves a template plus two template registration options.
 - Creating an event from a template copies template details into the event form and converts registration offsets into concrete open/close timestamps relative to the event start.
 - Category create/update handlers enforce `templates:manageCategories`.
@@ -618,7 +618,8 @@ the current working direction until a product decision overrides them.
 - **Addressed in this stabilization pass:** template registration offsets now fail with a typed bad request when a registration would open after it closes. Because offsets are "hours before event", `openRegistrationOffset` must be greater than or equal to `closeRegistrationOffset` for a normal window.
 - **Addressed in this stabilization pass:** template create/update and find-one RPC location fields now use the shared `EventLocation` schema instead of `Schema.Any`, matching the event boundary behavior.
 - **Should fix before relaunch:** simple-mode create/update always writes exactly two registration options. That matches the current UI but is thinner than the product model for reusable event knowledge.
-- **Should fix before relaunch:** template discounts and add-ons exist in schema, but simple-mode template create/update does not expose or persist discounts/add-ons. Event creation has separate discount-copying logic, but the simple template editing path cannot maintain those richer fields.
+- **Should fix before relaunch:** template add-ons and registration questions exist in schema or product context, but simple-mode template create/update does not expose or persist them. Event creation has separate add-on copying logic, but the simple template editing path cannot maintain those richer fields yet.
+- **Addressed in stabilization pass:** simple-mode template create/edit now exposes optional ESNcard discounted prices when the tenant ESNcard provider is enabled, persists them in `templateRegistrationOptionDiscounts`, returns them through `templates.findOne`, and shows them on template detail.
 - **Addressed in stabilization pass:** simple-mode template registration
   options now preserve editable option names plus public and registered-user
   rich-text descriptions. Those fields are shown on template detail and already
@@ -633,18 +634,18 @@ the current working direction until a product decision overrides them.
 ### Test and Documentation Quality
 
 - `tests/specs/templates/templates.test.ts` covers create, view, empty-category add flow, and role autocomplete duplicate hiding.
-- `tests/docs/templates/templates.doc.ts` documents simple-mode template creation, organizer planning tips, role defaults, payment field visibility, and role-picker behavior.
+- `tests/docs/templates/templates.doc.ts` documents simple-mode template creation, organizer planning tips, role defaults, payment field visibility, optional ESNcard discounted price fields, and role-picker behavior.
 - `tests/specs/templates/paid-option-requires-tax-rate.spec.ts` is intentionally fixme-only until template tax-rate behavior has active simple-mode UI coverage.
-- `src/app/templates/shared/template-form/template-registration-option-form.utilities.spec.ts` covers paid template tax-rate preservation, paid missing-tax-rate pass-through for server validation, and free-registration payment-field cleanup before create/edit submission.
+- `src/app/templates/shared/template-form/template-registration-option-form.utilities.spec.ts` covers paid template tax-rate and ESNcard discount preservation, paid missing-tax-rate pass-through for server validation, and free-registration payment-field cleanup before create/edit submission.
 - `src/server/effect/rpc/handlers/tax-rates.handlers.spec.ts` covers `taxRates.listActive` permission behavior and the current-tenant active/inclusive filter used to populate compatible template tax-rate selects.
 - `src/server/utils/validate-tax-rate.spec.ts` covers the shared server rule that paid options require a tenant-owned active inclusive tax rate and free options cannot carry stale tax-rate ids.
-- `src/server/effect/rpc/handlers/templates/simple-template.service.spec.ts` covers paid template registrations without tax rates and free template registrations with stale tax-rate ids failing through the server-side validation path.
+- `src/server/effect/rpc/handlers/templates/simple-template.service.spec.ts` covers paid template registrations without tax rates, free template registrations with stale tax-rate ids, and invalid ESNcard discounted prices failing through the server-side validation path.
 - The generic `tests/docs/template.doc.ts` discovery placeholder was removed; product template documentation lives in `tests/docs/templates/templates.doc.ts`.
 - Permission matrix coverage checks template create link visibility plus direct route denial for template create/edit/create-event routes. `src/app/templates/templates.routes.spec.ts` keeps the guarded template write-route manifest explicit. Server unit coverage proves template RPC denial, template offset ordering, tenant-owned template category/role validation, and template location schema rejection.
 
 ### Product Questions Answered Above
 
-- Is simple mode the intended relaunch template scope, or should richer registration options/add-ons/questions/organizer notes be available before relaunch? Answered locally: keep simple mode primary and expose organizer planning tips now; discounts, add-ons, and questions remain separate follow-up work.
+- Is simple mode the intended relaunch template scope, or should richer registration options/add-ons/questions/organizer notes be available before relaunch? Answered locally: keep simple mode primary and expose organizer planning tips plus ESNcard discounted prices now; add-ons and questions remain separate follow-up work.
 - Should `random` and `application` registration modes be selectable now if registration fulfillment does not implement those semantics?
 - Should template view require `templates:view`, or should organizers with `events:create` inherit template view through permission dependencies only?
 - Should template category management remain a separate capability from template creation/editing?
