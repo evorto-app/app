@@ -25,6 +25,7 @@ export const TemplateRegistrationMode = literalUnion(
 export const TemplateSimpleRegistrationInput = Schema.Struct({
   closeRegistrationOffset: nonNegativeNumber,
   description: Schema.optional(Schema.NullOr(Schema.String)),
+  esnCardDiscountedPrice: Schema.optional(Schema.NullOr(nonNegativeNumber)),
   isPaid: Schema.Boolean,
   openRegistrationOffset: nonNegativeNumber,
   price: nonNegativeNumber,
@@ -55,6 +56,7 @@ export const TemplateRoleRecord = Schema.Struct({
 export const TemplateRegistrationOptionRecord = Schema.Struct({
   closeRegistrationOffset: Schema.Number,
   description: Schema.NullOr(Schema.String),
+  esnCardDiscountedPrice: Schema.NullOr(Schema.Number),
   id: Schema.NonEmptyString,
   isPaid: Schema.Boolean,
   openRegistrationOffset: Schema.Number,

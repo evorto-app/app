@@ -22,11 +22,13 @@
       >
         <app-template-registration-option-form
           class="bg-surface-container-lowest rounded-xl p-4 grid gap-4 lg:row-span-5 lg:grid-rows-subgrid"
+          [esnEnabled]="esnEnabled()"
           [registrationForm]="templateForm.organizerRegistration"
           [registrationModes]="registrationModes"
         />
         <app-template-registration-option-form
           class="bg-surface-container-lowest rounded-xl p-4 grid gap-4 lg:row-span-5 lg:grid-rows-subgrid"
+          [esnEnabled]="esnEnabled()"
           [registrationForm]="templateForm.participantRegistration"
           [registrationModes]="registrationModes"
         />

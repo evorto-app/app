@@ -3,6 +3,7 @@ export type RegistrationMode = 'application' | 'fcfs' | 'random';
 export interface TemplateRegistrationFormModel {
   closeRegistrationOffset: number;
   description: string;
+  esnCardDiscountedPrice: '' | number;
   isPaid: boolean;
   openRegistrationOffset: number;
   price: number;
@@ -14,13 +15,25 @@ export interface TemplateRegistrationFormModel {
   title: string;
 }
 
-export type TemplateRegistrationSubmitData = TemplateRegistrationFormModel;
+export type TemplateRegistrationSubmitData = Omit<
+  TemplateRegistrationFormModel,
+  'esnCardDiscountedPrice'
+> & {
+  esnCardDiscountedPrice: null | number;
+};
 
 export const toTemplateRegistrationSubmitData = (
   registration: TemplateRegistrationFormModel,
+  options?: { esnEnabled: boolean },
 ): TemplateRegistrationSubmitData => ({
   closeRegistrationOffset: registration.closeRegistrationOffset,
   description: registration.description?.trim() ? registration.description : '',
+  esnCardDiscountedPrice:
+    (options?.esnEnabled ?? true) &&
+    registration.isPaid &&
+    registration.esnCardDiscountedPrice !== ''
+      ? registration.esnCardDiscountedPrice
+      : null,
   isPaid: registration.isPaid,
   openRegistrationOffset: registration.openRegistrationOffset,
   price: registration.isPaid ? registration.price : 0,
@@ -39,6 +52,7 @@ export const createTemplateRegistrationFormModel = (
 ): TemplateRegistrationFormModel => ({
   closeRegistrationOffset: 1,
   description: '',
+  esnCardDiscountedPrice: '',
   isPaid: false,
   openRegistrationOffset: 168,
   price: 0,
@@ -60,6 +74,8 @@ export const mergeTemplateRegistrationFormOverrides = (
     closeRegistrationOffset:
       overrides.closeRegistrationOffset ?? base.closeRegistrationOffset,
     description: overrides.description ?? base.description,
+    esnCardDiscountedPrice:
+      overrides.esnCardDiscountedPrice ?? base.esnCardDiscountedPrice,
     isPaid: overrides.isPaid ?? base.isPaid,
     openRegistrationOffset:
       overrides.openRegistrationOffset ?? base.openRegistrationOffset,

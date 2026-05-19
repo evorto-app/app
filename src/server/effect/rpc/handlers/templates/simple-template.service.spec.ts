@@ -5,6 +5,7 @@ import { Database } from '../../../../../db';
 import {
   buildRegistrationOptionInsert,
   buildTemplateInsertValues,
+  buildTemplateOptionDiscountInsert,
   SimpleTemplateService,
 } from './simple-template.service';
 
@@ -146,11 +147,57 @@ describe('SimpleTemplateService', () => {
     });
   });
 
+  it('builds ESNcard discount inserts for paid registration options', () => {
+    expect(
+      buildTemplateOptionDiscountInsert({
+        input: {
+          ...validTemplateInput.participantRegistration,
+          esnCardDiscountedPrice: 1900,
+          isPaid: true,
+          price: 2500,
+          stripeTaxRateId: 'txr_vat_19',
+        },
+        registrationOptionId: 'option-1',
+      }),
+    ).toEqual({
+      discountedPrice: 1900,
+      discountType: 'esnCard',
+      registrationOptionId: 'option-1',
+    });
+  });
+
+  it('skips ESNcard discount inserts for free or empty discounts', () => {
+    expect(
+      buildTemplateOptionDiscountInsert({
+        input: {
+          ...validTemplateInput.participantRegistration,
+          esnCardDiscountedPrice: 1900,
+          isPaid: false,
+          price: 0,
+        },
+        registrationOptionId: 'option-1',
+      }),
+    ).toBeNull();
+    expect(
+      buildTemplateOptionDiscountInsert({
+        input: {
+          ...validTemplateInput.participantRegistration,
+          esnCardDiscountedPrice: null,
+          isPaid: true,
+          price: 2500,
+          stripeTaxRateId: 'txr_vat_19',
+        },
+        registrationOptionId: 'option-1',
+      }),
+    ).toBeNull();
+  });
+
   it.effect(
     'fails with bad request for non-meaningful rich text description',
     () =>
       Effect.gen(function* () {
         const program = SimpleTemplateService.createSimpleTemplate({
+          esnCardEnabled: false,
           input: {
             ...validTemplateInput,
             description: '<p>    </p>',
@@ -166,6 +213,7 @@ describe('SimpleTemplateService', () => {
   it.effect('fails when organizer registration opens after it closes', () =>
     Effect.gen(function* () {
       const program = SimpleTemplateService.createSimpleTemplate({
+        esnCardEnabled: false,
         input: {
           ...validTemplateInput,
           organizerRegistration: {
@@ -188,6 +236,7 @@ describe('SimpleTemplateService', () => {
   it.effect('fails when participant registration opens after it closes', () =>
     Effect.gen(function* () {
       const program = SimpleTemplateService.updateSimpleTemplate({
+        esnCardEnabled: false,
         input: {
           id: 'template-1',
           ...validTemplateInput,
@@ -211,6 +260,7 @@ describe('SimpleTemplateService', () => {
   it.effect('fails when the selected category is not tenant-owned', () =>
     Effect.gen(function* () {
       const program = SimpleTemplateService.createSimpleTemplate({
+        esnCardEnabled: false,
         input: {
           ...validTemplateInput,
           organizerRegistration: {
@@ -239,6 +289,7 @@ describe('SimpleTemplateService', () => {
   it.effect('fails when a selected role is not tenant-owned', () =>
     Effect.gen(function* () {
       const program = SimpleTemplateService.updateSimpleTemplate({
+        esnCardEnabled: false,
         input: {
           id: 'template-1',
           ...validTemplateInput,
@@ -275,6 +326,7 @@ describe('SimpleTemplateService', () => {
   it.effect('fails when a paid registration omits a tax rate', () =>
     Effect.gen(function* () {
       const program = SimpleTemplateService.createSimpleTemplate({
+        esnCardEnabled: false,
         input: {
           ...validTemplateInput,
           participantRegistration: {
@@ -305,6 +357,7 @@ describe('SimpleTemplateService', () => {
   it.effect('fails when a free registration keeps a stale tax rate', () =>
     Effect.gen(function* () {
       const program = SimpleTemplateService.updateSimpleTemplate({
+        esnCardEnabled: false,
         input: {
           id: 'template-1',
           ...validTemplateInput,
@@ -329,6 +382,79 @@ describe('SimpleTemplateService', () => {
       expect(error['_tag']).toBe('TemplateSimpleBadRequestError');
       expect(error.message).toBe(
         'organizer registration tax rate validation failed',
+      );
+    }),
+  );
+
+  it.effect('fails when ESNcard discounts are not enabled for the tenant', () =>
+    Effect.gen(function* () {
+      const program = SimpleTemplateService.createSimpleTemplate({
+        esnCardEnabled: false,
+        input: {
+          ...validTemplateInput,
+          participantRegistration: {
+            ...validTemplateInput.participantRegistration,
+            esnCardDiscountedPrice: 1900,
+            isPaid: true,
+            price: 2500,
+            stripeTaxRateId: 'txr_vat_19',
+          },
+        },
+        tenantId: 'tenant-1',
+      }).pipe(
+        Effect.flip,
+        Effect.provide(
+          createValidationLayer(
+            createValidationDatabase({
+              categoryFound: true,
+              roleIds: [],
+              taxRate: { active: true, inclusive: true },
+            }),
+          ),
+        ),
+      );
+
+      const error = yield* program;
+      expect(error['_tag']).toBe('TemplateSimpleBadRequestError');
+      expect(error.message).toBe(
+        'participant registration ESNcard discounts are not enabled',
+      );
+    }),
+  );
+
+  it.effect('fails when ESNcard discounts exceed the base price', () =>
+    Effect.gen(function* () {
+      const program = SimpleTemplateService.updateSimpleTemplate({
+        esnCardEnabled: true,
+        input: {
+          id: 'template-1',
+          ...validTemplateInput,
+          organizerRegistration: {
+            ...validTemplateInput.organizerRegistration,
+            esnCardDiscountedPrice: 2600,
+            isPaid: true,
+            price: 2500,
+            stripeTaxRateId: 'txr_vat_19',
+          },
+        },
+        tenantId: 'tenant-1',
+      }).pipe(
+        Effect.flip,
+        Effect.provide(
+          createValidationLayer(
+            createValidationDatabase({
+              categoryFound: true,
+              roleIds: [],
+              taxRate: { active: true, inclusive: true },
+            }),
+          ),
+        ),
+      );
+
+      const error = yield* program;
+      expect(error['_tag']).toBe('TemplateSimpleBadRequestError');
+      expect(error.message).toBe(
+        'organizer registration ESNcard discount cannot exceed price',
       );
     }),
   );

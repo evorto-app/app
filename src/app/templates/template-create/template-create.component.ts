@@ -60,6 +60,17 @@ export class TemplateCreateComponent {
   protected readonly createTemplateMutation = injectMutation(() =>
     this.rpc.templates.createSimpleTemplate.mutationOptions(),
   );
+  protected readonly discountProvidersQuery = injectQuery(() =>
+    this.rpc.discounts.getTenantProviders.queryOptions(),
+  );
+  protected readonly esnEnabled = computed(() => {
+    const providers = this.discountProvidersQuery.data();
+    if (!providers) return false;
+    return (
+      providers.find((provider) => provider.type === 'esnCard')?.status ===
+      'enabled'
+    );
+  });
   protected readonly faArrowLeft = faArrowLeft;
   private defaultOrganizerRolesQuery = injectQuery(() =>
     this.rpc.roles.findMany.queryOptions({
@@ -115,9 +126,11 @@ export class TemplateCreateComponent {
         icon: formValue.icon,
         organizerRegistration: toTemplateRegistrationSubmitData(
           formValue.organizerRegistration,
+          { esnEnabled: this.esnEnabled() },
         ),
         participantRegistration: toTemplateRegistrationSubmitData(
           formValue.participantRegistration,
+          { esnEnabled: this.esnEnabled() },
         ),
       };
       await this.createTemplateMutation.mutateAsync(payload, {
