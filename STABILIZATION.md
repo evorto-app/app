@@ -525,6 +525,7 @@ the current working direction until a product decision overrides them.
 - Paid registration creates a pending registration, reserves a spot, creates a Stripe Checkout session, and shows a payment continuation link.
 - Registration writes enforce approved event status, tenant scope, open/close windows, role eligibility, one active registration per user/event, and capacity before creating a registration.
 - Capacity reservation/confirmation uses a database transaction with a conditional counter update.
+- Full registration options are labeled as full in the event detail UI; waitlist joining remains unavailable.
 - Successful paid registration is confirmed through Stripe/webhook-side effects; the active registration UI only shows QR code for confirmed registrations.
 - Users with confirmed organizer registrations, `events:organizeAll`, or `finance:manageReceipts` can open the organize view.
 
@@ -546,7 +547,7 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** existing-registration preflight and transactional duplicate checks include `tenantId`.
 - **Addressed in stabilization pass:** registration option lookup validates the related event tenant before proceeding.
 - **Should fix before relaunch:** no guest quantity is present in the event registration contract or UI, even though guest spots are an intended first-version behavior.
-- **Should fix before relaunch:** waitlist state exists in schema and seeded data, but registration write behavior fails when full instead of joining a waitlist.
+- **Addressed in stabilization pass:** full options no longer present an enabled registration action; the UI labels waitlist joining as unavailable until the separate waitlist flow exists.
 - **Should fix before relaunch:** cancellation exists only for pending user registrations; participant cancellation, admin cancellation, transfer/resale, and refund flows are not implemented in the reviewed event registration path.
 - **Addressed in stabilization pass:** active registration status now uses the shared persisted registration status literal union instead of raw `Schema.String`.
 - **Acceptable for now:** paid registration rollback is careful about cleaning up a failed checkout session creation path; deeper Stripe lifecycle review belongs in the finance pass.
@@ -572,10 +573,6 @@ the current working direction until a product decision overrides them.
 - Are organizer registrations meant to use the same user-facing register button, or should organizer signup have a separate affordance/copy?
 - What is the minimum relaunch scope for guest quantities, transfer/resale, and participant/admin cancellation?
 - Should role-ineligible direct links hide the event entirely, show the event with no options, or show an explicit ineligible state?
-
-### Recommended Cleanup Actions
-
-- Either implement waitlist behavior or remove/label waitlist UI/data paths as seeded/demo-only until implemented.
 
 ## Templates
 

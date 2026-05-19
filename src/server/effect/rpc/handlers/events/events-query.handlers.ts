@@ -257,6 +257,7 @@ export const eventQueryHandlers = {
                 price: true,
                 registeredDescription: true,
                 registrationMode: true,
+                reservedSpots: true,
                 roleIds: true,
                 spots: true,
                 stripeTaxRateId: true,
@@ -406,6 +407,7 @@ export const eventQueryHandlers = {
               registeredDescription:
                 registrationOption.registeredDescription ?? null,
               registrationMode: registrationOption.registrationMode,
+              reservedSpots: registrationOption.reservedSpots,
               roleIds: [...registrationOption.roleIds],
               spots: registrationOption.spots,
               stripeTaxRateId: registrationOption.stripeTaxRateId ?? null,
