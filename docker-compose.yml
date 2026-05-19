@@ -4,9 +4,9 @@ services:
     environment:
       BRANCH_ID:
       DELETE_BRANCH: "${DELETE_BRANCH:-true}"
-      NEON_API_KEY: "${NEON_API_KEY:?NEON_API_KEY is required for Neon Local}"
+      NEON_API_KEY:
       NEON_DATABASE_NAME: "${NEON_DATABASE_NAME:-appdb}"
-      NEON_PROJECT_ID: "${NEON_PROJECT_ID:?NEON_PROJECT_ID is required for Neon Local}"
+      NEON_PROJECT_ID:
       PARENT_BRANCH_ID:
     volumes:
       - "${NEON_LOCAL_METADATA_DIR:-./.neon_local}:/tmp/.neon_local"
@@ -122,11 +122,11 @@ services:
           path: package.json
     environment:
       BASE_URL: http://localhost:${APP_HOST_PORT:-4200}
-      CLIENT_ID: "${CLIENT_ID:?CLIENT_ID is required}"
-      CLIENT_SECRET: "${CLIENT_SECRET:?CLIENT_SECRET is required}"
+      CLIENT_ID:
+      CLIENT_SECRET:
       CLOUDFLARE_IMAGES_API_TOKEN:
       DATABASE_URL: postgresql://neon:npg@db:5432/${NEON_DATABASE_NAME:-appdb}?sslmode=require
-      ISSUER_BASE_URL: "${ISSUER_BASE_URL:?ISSUER_BASE_URL is required}"
+      ISSUER_BASE_URL:
       NEON_LOCAL_PROXY: "true"
       PORT: "4200"
       S3_ACCESS_KEY_ID: "${S3_ACCESS_KEY_ID:-minioadmin}"
@@ -134,7 +134,7 @@ services:
       S3_ENDPOINT: "${S3_ENDPOINT:-http://minio:9000}"
       S3_REGION: "${S3_REGION:-us-east-1}"
       S3_SECRET_ACCESS_KEY: "${S3_SECRET_ACCESS_KEY:-minioadmin}"
-      SECRET: "${SECRET:?SECRET is required}"
+      SECRET:
       STRIPE_API_KEY:
       STRIPE_WEBHOOK_SECRET:
     command:

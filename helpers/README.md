@@ -77,6 +77,11 @@ The Neon Local container does not emit every proxied query in its default loggin
 
 Docker Compose now also runs one-shot `db-expiration` and `db-setup` containers before `evorto` starts. Neon Local still receives `DELETE_BRANCH=true` so normal `docker compose down` deletes the branch, and `db-expiration` immediately sets a short Neon branch expiration as a fallback for interrupted local or CI shutdowns. `db-setup` then runs the equivalent of `bun run db:reset` against that Docker database on every stack start. The package scripts preload the needed environment with `dotenv -c dev` before invoking Docker.
 
+Run `bun run docker:check` before investigating Docker startup failures. The
+check validates required local secrets before Compose tears down or starts
+containers, including Neon Local, Auth0, Stripe, the app session secret, and
+Font Awesome package registry access for premium icons.
+
 Testing/runtime context that depends on these seed flows lives in [tests/README.md](../tests/README.md).
 
 ## Modifying the Seeding Process
