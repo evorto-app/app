@@ -31,9 +31,23 @@
 
         <mat-form-field>
           <mat-label>Email</mat-label>
-          <input matInput [formField]="accountForm.communicationEmail" />
+          <input
+            matInput
+            type="email"
+            autocomplete="email"
+            [formField]="accountForm.communicationEmail"
+          />
           <mat-hint>Address where you receive notifications</mat-hint>
         </mat-form-field>
+        @if (
+          accountForm.communicationEmail().touched() &&
+          accountForm.communicationEmail().invalid()
+        ) {
+          <p class="text-error text-sm">
+            Enter the email address where event and finance notifications should
+            be sent.
+          </p>
+        }
 
         @if (accountError()) {
           <p class="text-error text-sm" role="alert">{{ accountError() }}</p>
