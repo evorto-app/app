@@ -225,8 +225,8 @@ const PERMISSION_METADATA = {
   },
   'users:assignRoles': {
     description:
-      'Assign tenant roles to existing users once role-assignment workflows are enabled.',
-    label: 'Assign user roles',
+      'Reserved for production migration and future role-assignment workflows. Existing-user role assignment is not available in the current admin UI.',
+    label: 'Assign user roles (future)',
   },
   'users:viewAll': {
     description:
