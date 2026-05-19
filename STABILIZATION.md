@@ -666,7 +666,7 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** role create/update now writes `displayInHub` and `collapseMembersInHup`, and the role form uses the same `displayInHub` field that `findHubRoles` reads. The legacy `showInHub` column remains readable on role records until a later migration removes or backfills it.
 - **Should fix before relaunch:** `users:assignRoles` exists and depends on `users:viewAll`, but there is no reviewed role-assignment RPC or working UI.
 - **Addressed in stabilization pass:** the user list no longer shows placeholder selection or "Edit template" actions for user-role assignment.
-- **Should fix before relaunch:** permission metadata is mostly generated from camelCase keys and lacks durable admin-facing descriptions, even though product context says capabilities should have admin-facing names and descriptions.
+- **Addressed in stabilization pass:** permission metadata now has explicit admin-facing labels and descriptions in the shared permission source, the role form renders those descriptions, and shared tests require every visible permission to keep non-empty metadata.
 - **Acceptable for now:** roles are tenant-scoped in schema and role-management write queries include tenant boundaries.
 
 ### Test and Documentation Quality
@@ -677,6 +677,7 @@ the current working direction until a product decision overrides them.
 - `tests/docs/roles/roles.doc.ts` links to `/docs/about-permissions`; no matching checked-in documentation source was found in this pass.
 - Server unit coverage proves role lookup permissions, lookup-only result shaping, role lookup not-found errors, and admin role list denial without `admin:manageRoles`.
 - `src/server/effect/rpc/handlers/users.handlers.spec.ts` verifies `users.findMany` aggregates role names into the RPC contract shape without leaking the joined `role` column.
+- `src/shared/permissions/permissions.spec.ts` requires explicit labels and descriptions for every permission shown in role management.
 
 ### Product Questions Answered Above
 
@@ -1158,6 +1159,7 @@ implement those decisions or explicitly revise them there before changing code.
 - Scanner status-coverage pass: added focused scan-read and direct-check-in coverage for pending, cancelled, and waitlisted registrations.
 - Tenant settings feedback pass: added explicit success and readable error notifications for general settings saves.
 - Tenant admin route-guard audit: confirmed and documented route-level guards plus permission-matrix coverage for tenant admin settings, roles, users, and tax rates.
+- Permission metadata pass: replaced generated camelCase permission labels with explicit admin-facing labels/descriptions and rendered descriptions in the role form.
 
 ## Review Next
 
