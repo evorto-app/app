@@ -112,7 +112,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   fixme-only until simple-mode template tax-rate behavior has active UI
   coverage. Template detail paid-option summaries now share the inclusive price
   label component with event registration cards, and create/edit submit helpers
-  now clear hidden free-registration payment fields before server submission.
+  now keep missing paid tax-rate selection visible to server validation while
+  clearing hidden free-registration payment fields before submission. Server
+  coverage proves the tax-rate select source is scoped to current-tenant active
+  inclusive rates.
 - `docs/users/create-account.doc.ts` is integration-tagged with
   `@needs-auth0-management`; baseline list/discovery must not require those
   credentials.
