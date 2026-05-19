@@ -49,8 +49,9 @@ From here you can open the edit dialog to update your profile details.
 `,
   });
 
-  // Wait for the page to stabilize
-  await page.waitForTimeout(1000);
+  await expect(
+    page.getByRole('button', { name: 'Edit profile' }),
+  ).toBeVisible();
 
   // Take a screenshot of the entire profile component
   await takeScreenshot(
@@ -97,6 +98,17 @@ The user profile now uses a two-column layout:
 - Other sections include **Overview**, **Discounts**, and **Receipts**
 `,
   });
+
+  await page.getByRole('button', { name: 'Events' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Your Event Registrations' }),
+  ).toBeVisible();
+  await takeScreenshot(
+    testInfo,
+    page.locator('app-user-profile'),
+    page,
+    'Profile events tab',
+  );
 
   await page.getByRole('button', { name: 'Receipts' }).click();
   await takeScreenshot(
