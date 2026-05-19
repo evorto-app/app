@@ -16,6 +16,10 @@ import {
 } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
+import {
+  createAccountErrorMessage,
+  createAccountModelFromAuthData,
+} from './create-account.helpers';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -25,6 +29,7 @@ import { AppRpc } from '../../core/effect-rpc-angular-client';
   templateUrl: './create-account.component.html',
 })
 export class CreateAccountComponent {
+  protected readonly accountError = signal('');
   private readonly accountModel = signal({
     communicationEmail: '',
     firstName: '',
@@ -50,14 +55,9 @@ export class CreateAccountComponent {
       const authData = this.authDataQuery.data();
       if (!authData) return;
       if (this.accountForm().touched()) return;
-      const getString = (value: null | string | undefined) =>
-        value?.trim() || undefined;
-      this.accountModel.update((current) => ({
-        communicationEmail:
-          getString(authData.email) ?? current.communicationEmail,
-        firstName: getString(authData.given_name) ?? current.firstName,
-        lastName: getString(authData.family_name) ?? current.lastName,
-      }));
+      this.accountModel.update((current) =>
+        createAccountModelFromAuthData(current, authData),
+      );
     });
   }
 
@@ -65,17 +65,19 @@ export class CreateAccountComponent {
     event.preventDefault();
     await submit(this.accountForm, async () => {
       const payload = this.accountModel();
-      this.createAccountMutation.mutate(payload, {
-        onSuccess: async () => {
-          await this.queryClient.invalidateQueries(
-            this.rpc.queryFilter(['users', 'self']),
-          );
-          await this.queryClient.invalidateQueries(
-            this.rpc.queryFilter(['users', 'maybeSelf']),
-          );
-          this.router.navigate(['/profile']);
-        },
-      });
+      this.accountError.set('');
+      try {
+        await this.createAccountMutation.mutateAsync(payload);
+        await this.queryClient.invalidateQueries(
+          this.rpc.queryFilter(['users', 'self']),
+        );
+        await this.queryClient.invalidateQueries(
+          this.rpc.queryFilter(['users', 'maybeSelf']),
+        );
+        this.router.navigate(['/profile']);
+      } catch (error) {
+        this.accountError.set(createAccountErrorMessage(error));
+      }
     });
   }
 }

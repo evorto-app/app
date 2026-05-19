@@ -131,6 +131,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - Browser-backed profile event-card assertions for event links, registration
     status, guest quantity, payment state, and check-in state.
   - Profile ESNcard save, refresh, and remove flows with readable error states.
+  - Browser-backed account-creation retry and tenant-join behavior. Server
+    coverage already proves transactional creation, existing-global-user tenant
+    joins, duplicate-assignment conflicts, and visible create-account error
+    message mapping.
 - Finance/receipts:
   - Finance route gates for transactions, receipt approvals, and reimbursement
     pages.
