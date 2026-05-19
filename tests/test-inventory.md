@@ -204,7 +204,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     tenant settings move out of the deferred-settings summary. Current local
     coverage proves the general-settings form trims optional editable
     URLs/SEO/ESNcard fields and normalizes blank optional values before the RPC
-    call.
+    call. Tenant schema coverage pins the supported relaunch currency, locale,
+    and timezone values while normalizing legacy context payloads.
 - Roles/user management:
   - Browser-backed least-privilege organizer review for event/template role
     selectors. Server coverage already proves lookup permissions and

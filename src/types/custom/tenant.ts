@@ -8,6 +8,42 @@ import { Effect, Schema, SchemaGetter } from 'effect';
 
 import { GoogleLocation } from '../location';
 
+const SupportedTenantCurrency = literalUnion('EUR', 'CZK', 'AUD');
+const SupportedTenantLocale = literalUnion('en-AU', 'en-GB', 'en-US');
+const SupportedTenantTimezone = literalUnion(
+  'Europe/Prague',
+  'Europe/Berlin',
+  'Australia/Brisbane',
+);
+
+type SupportedTenantLocale = 'en-AU' | 'en-GB' | 'en-US';
+type SupportedTenantTimezone =
+  | 'Australia/Brisbane'
+  | 'Europe/Berlin'
+  | 'Europe/Prague';
+
+const normalizeTenantLocale = (value: string): SupportedTenantLocale =>
+  value === 'en' ? 'en-GB' : (value as SupportedTenantLocale);
+
+const normalizeTenantTimezone = (value: string): SupportedTenantTimezone =>
+  value === 'Europe/Amsterdam'
+    ? 'Europe/Berlin'
+    : (value as SupportedTenantTimezone);
+
+const TenantLocale = Schema.String.pipe(
+  Schema.decodeTo(SupportedTenantLocale, {
+    decode: SchemaGetter.transform(normalizeTenantLocale),
+    encode: SchemaGetter.transform((value) => value),
+  }),
+);
+
+const TenantTimezone = Schema.String.pipe(
+  Schema.decodeTo(SupportedTenantTimezone, {
+    decode: SchemaGetter.transform(normalizeTenantTimezone),
+    encode: SchemaGetter.transform((value) => value),
+  }),
+);
+
 const OptionalGoogleLocation = Schema.NullishOr(GoogleLocation).pipe(
   Schema.decodeTo(Schema.UndefinedOr(GoogleLocation), {
     decode: SchemaGetter.transform((value) => value ?? undefined),
@@ -49,7 +85,7 @@ const OptionalTenantReceiptSettings = Schema.NullishOr(
 );
 
 export class Tenant extends Schema.Class<Tenant>('Tenant')({
-  currency: literalUnion('EUR', 'CZK', 'AUD'),
+  currency: SupportedTenantCurrency,
   defaultLocation: OptionalGoogleLocation,
   discountProviders: Schema.optional(
     Schema.NullOr(
@@ -77,7 +113,7 @@ export class Tenant extends Schema.Class<Tenant>('Tenant')({
   faviconUrl: optionalNullable(Schema.NonEmptyString),
   id: Schema.NonEmptyString,
   legalNoticeUrl: optionalNullable(Schema.NonEmptyString),
-  locale: Schema.NonEmptyString,
+  locale: TenantLocale,
   logoUrl: optionalNullable(Schema.NonEmptyString),
   name: Schema.NonEmptyString,
   privacyPolicyUrl: optionalNullable(Schema.NonEmptyString),
@@ -87,5 +123,5 @@ export class Tenant extends Schema.Class<Tenant>('Tenant')({
   stripeAccountId: optionalNullable(Schema.NonEmptyString),
   termsUrl: optionalNullable(Schema.NonEmptyString),
   theme: literalUnion('evorto', 'esn'),
-  timezone: Schema.NonEmptyString,
+  timezone: TenantTimezone,
 }) {}

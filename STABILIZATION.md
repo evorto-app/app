@@ -1278,6 +1278,10 @@ implement those decisions or explicitly revise them there before changing code.
 - Tenant settings feedback pass: added explicit success and readable error notifications for general settings saves.
 - Tenant SEO settings pass: exposed stored tenant SEO title/description through the Tenant RPC schema, general settings UI, admin settings persistence, and tenant-level document metadata.
 - Tenant domain-scope docs pass: aligned root product/architecture docs with the current one-active-domain relaunch model and left automated multi-domain/custom-domain verification as later tenant-onboarding work.
+- Tenant locale/timezone contract pass: narrowed the shared Tenant contract to
+  the database-supported relaunch currency, locale, and timezone values while
+  normalizing legacy `en` / `Europe/Amsterdam` context payloads to supported
+  defaults.
 - Legacy schema migration pass: added an idempotent migration step that drops
   physical `roles.showInHub`, `event_registrations.paymentStatus`, and the
   unused `payment_status` enum when present.

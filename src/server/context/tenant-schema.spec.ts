@@ -85,4 +85,43 @@ describe('Tenant schema', () => {
       logoUrl: 'https://tenant.example.com/logo.svg',
     });
   });
+
+  it('normalizes legacy context locale and timezone values to supported tenant settings', () => {
+    const tenant = Schema.decodeUnknownSync(Tenant)({
+      ...tenantInput,
+      locale: 'en',
+      timezone: 'Europe/Amsterdam',
+    });
+
+    expect(tenant.locale).toBe('en-GB');
+    expect(tenant.timezone).toBe('Europe/Berlin');
+    expect(Schema.encodeSync(Tenant)(tenant)).toMatchObject({
+      locale: 'en-GB',
+      timezone: 'Europe/Berlin',
+    });
+  });
+
+  it('rejects locale and timezone values outside the relaunch tenant policy', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(Tenant)({
+        ...tenantInput,
+        locale: 'de-DE',
+      }),
+    ).toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(Tenant)({
+        ...tenantInput,
+        timezone: 'America/New_York',
+      }),
+    ).toThrow();
+  });
+
+  it('rejects currencies outside the relaunch tenant policy', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(Tenant)({
+        ...tenantInput,
+        currency: 'USD',
+      }),
+    ).toThrow();
+  });
 });
