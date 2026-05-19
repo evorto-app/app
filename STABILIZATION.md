@@ -738,7 +738,7 @@ the current working direction until a product decision overrides them.
 
 - Paid event registration creates a pending registration, reserves a spot, creates a Stripe Checkout session, and stores a pending `registration` transaction with Stripe checkout ids.
 - Stripe `checkout.session.completed` marks the local transaction successful, confirms the registration, and moves the buyer plus guest spots from reserved to confirmed when the session is complete and paid.
-- Stripe `checkout.session.expired` marks the local transaction cancelled, cancels the registration, and releases one reserved spot when the session is expired.
+- Stripe `checkout.session.expired` marks the local transaction cancelled, cancels the registration, and releases the buyer plus guest reserved spots when the session is expired.
 - Finance navigation is hidden behind `finance:*`, and `/finance` requires at least one finance child capability.
 - The finance overview links to transactions, receipt approvals, and receipt reimbursements only when the user has the matching child permission.
 - `finance.transactions.findMany` returns non-cancelled tenant transactions only to users with `finance:viewTransactions`.
@@ -771,7 +771,7 @@ the current working direction until a product decision overrides them.
 
 ### Test and Documentation Quality
 
-- Stripe webhook replay specs cover idempotent completed sessions, paid-registration counter transitions, expired-session reservation release, processing-claim behavior, stale-claim reclaim, payment-intent fallback, and ignoring unpaid completed sessions.
+- Stripe webhook replay specs cover idempotent completed sessions, paid-registration counter transitions, expired-session reservation release, processing-claim behavior, stale-claim reclaim, payment-intent fallback, and ignoring unpaid completed sessions. `src/shared/registration-spots.spec.ts` pins the buyer-plus-guests spot count used by webhook counter updates.
 - Receipt flow specs cover receipt submission UI, receipt approval/reimbursement path, and tenant "Other" receipt country visibility.
 - **Addressed in stabilization pass:** `tests/specs/finance/receipts-flows.spec.ts` now hard-fails when the seeded pending receipt, refundable receipt group, row checkbox, enabled reimbursement action, or tenant "Other" country option is missing.
 - Finance overview docs now describe the current navigation-style finance UI, current finance capability names, and the manual submitter-notification caveat before and after receipt review.
@@ -1341,6 +1341,10 @@ implement those decisions or explicitly revise them there before changing code.
   inherit Angular's tenant-level `DEFAULT_CURRENCY_CODE` and locale by default,
   while keeping explicit currency overrides available for future cross-currency
   surfaces.
+- Registration spot-count pass: extracted and covered the buyer-plus-guests
+  spot-count helper used by Stripe webhook completion/expiry counter updates,
+  then corrected the finance notes that still described expiry as releasing one
+  spot.
 - Registration-card unsupported-mode coverage pass: pinned that stored
   `random` and `application` participant options do not expose the lightweight
   waitlist action when full, keeping the card aligned with the server-side

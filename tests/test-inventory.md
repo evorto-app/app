@@ -172,6 +172,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     transaction, receipt approval, and reimbursement routes change.
   - Keep receipt review and reimbursement docs aligned with the manual
     notification and manual money-movement scope.
+  - Keep paid-registration webhook counter coverage aligned with buyer-plus-guest
+    spot counts. Local shared coverage pins the capacity count helper used by
+    webhook completion/expiry updates; Stripe replay specs remain
+    credential-gated.
   - Notification or email follow-up behavior once the product path exists.
 - Scanning/check-in:
   - Browser-backed organizer aggregate assertions after scan check-in.
