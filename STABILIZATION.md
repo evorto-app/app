@@ -1317,6 +1317,11 @@ implement those decisions or explicitly revise them there before changing code.
   `@track`/`@doc` title metadata from product-facing generated docs while
   keeping meaningful suite tags such as `@admin`, `@globalAdmin`, and
   `@finance` visible in list/discovery output.
+- Playwright spec metadata pass: removed placeholder `@track`/`@req` title
+  metadata from active Playwright specs while keeping meaningful suite tags such
+  as `@finance`, `@stripe`, `@permissions`, `@taxRates`, and `@isolation`.
+  Reporter fixture strings still exercise tag stripping without putting
+  placeholder metadata in real test titles.
 
 ## Review Next
 

@@ -8,7 +8,7 @@ for (const [index, matrixCase] of permissionMatrix.entries()) {
   test.describe.skip(matrixCase.capability, () => {
     test.use({ storageState: matrixCase.storageState });
 
-    test(`allows capability when required permissions are present @permissions @track(playwright-specs-track-linking_20260126) @req(${reqIdBase}-ALLOW)`, async ({
+    test(`allows capability when required permissions are present @permissions`, async ({
       isMobile,
       page,
       permissionOverride,
@@ -40,7 +40,7 @@ for (const [index, matrixCase] of permissionMatrix.entries()) {
       await expect(page).not.toHaveURL(/\/403/);
     });
 
-    test(`denies capability when required permissions are removed @permissions @track(playwright-specs-track-linking_20260126) @req(${reqIdBase}-DENY)`, async ({
+    test(`denies capability when required permissions are removed @permissions`, async ({
       isMobile,
       page,
       permissionOverride,

@@ -5,7 +5,7 @@ import { expect, test } from '../../support/fixtures/parallel-test';
 test.setTimeout(120_000);
 
 test.describe('baseline seed invariants', () => {
-  test('tenant, categories, and events are seeded with paid and free options @track(playwright-specs-track-linking_20260126) @req(SEED-BASELINE-TEST-01)', async ({
+  test('tenant, categories, and events are seeded with paid and free options', async ({
     tenant,
     templateCategories,
     events,

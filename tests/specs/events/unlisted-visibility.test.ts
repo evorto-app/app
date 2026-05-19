@@ -13,7 +13,7 @@ const findUnlistedEvent = (
 test.describe('Unlisted events visibility', () => {
   test.use({ storageState: userStateFile });
 
-  test('regular user does not see unlisted in list @track(playwright-specs-track-linking_20260126) @req(UNLISTED-VISIBILITY-TEST-01)', async ({
+  test('regular user does not see unlisted in list', async ({
     events,
     page,
   }) => {
@@ -33,7 +33,7 @@ test.describe('Unlisted events visibility', () => {
     ).toHaveCount(0);
   });
 
-  test('regular user can open unlisted via direct link @track(playwright-specs-track-linking_20260126) @req(UNLISTED-VISIBILITY-TEST-02)', async ({
+  test('regular user can open unlisted via direct link', async ({
     events,
     page,
   }) => {
@@ -53,7 +53,7 @@ test.describe('Unlisted events visibility', () => {
 test.describe('Admin can see unlisted', () => {
   test.use({ storageState: adminStateFile });
 
-  test('admin sees unlisted in list with indicator @track(playwright-specs-track-linking_20260126) @req(UNLISTED-VISIBILITY-TEST-03)', async ({
+  test('admin sees unlisted in list with indicator', async ({
     events,
     page,
   }) => {

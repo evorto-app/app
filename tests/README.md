@@ -21,10 +21,12 @@ This directory contains the active Playwright suite.
 Prefer clear behavior-oriented test titles because Playwright `--list`,
 generated docs, and inventory reviews depend on readable names.
 
-Legacy `@track(...)`, `@req(...)`, and `@doc(...)` tags may still appear in
-existing titles, but they are not mandatory for new or updated tests. Prefer a
-plain title over placeholder metadata. Dynamic titles are acceptable for compact
-matrix-style coverage when the listed output remains readable.
+Do not add placeholder `@track(...)`, `@req(...)`, or `@doc(...)` title
+metadata to real tests. Keep semantic tags such as `@finance`, `@admin`, or
+`@permissions` when they affect filtering or inventory. Reporter unit fixtures
+may still include legacy tag strings when they are exercising title
+normalization. Dynamic titles are acceptable for compact matrix-style coverage
+when the listed output remains readable.
 
 ## Commands
 

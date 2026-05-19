@@ -9,7 +9,7 @@ import { expect, test } from '../../support/fixtures/parallel-test';
 
 test.use({ storageState: adminStateFile });
 
-test.skip('scan confirmed registration records check-in @track(playwright-specs-track-linking_20260126) @req(SCANNER-TEST-01)', async ({
+test.skip('scan confirmed registration records check-in', async ({
   database,
   page,
   registrations,
