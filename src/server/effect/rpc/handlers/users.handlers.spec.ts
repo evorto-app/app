@@ -3,6 +3,11 @@ import { Effect, Layer } from 'effect';
 
 import { Database } from '../../../../db';
 import {
+  rolesToTenantUsers,
+  users,
+  usersToTenants,
+} from '../../../../db/schema';
+import {
   encodeRpcContextHeaderJson,
   RPC_CONTEXT_HEADERS,
 } from '../rpc-context-headers';
@@ -43,7 +48,198 @@ const createUser = () => ({
   roleIds: [],
 });
 
+const createCreateAccountHeaders = (
+  tenant = createTenant(),
+  authData?: { email?: string; sub?: string },
+) => ({
+  [RPC_CONTEXT_HEADERS.AUTH_DATA]: encodeRpcContextHeaderJson(
+    authData ?? {
+      email: 'alice@example.com',
+      sub: 'auth0|alice',
+    },
+  ),
+  [RPC_CONTEXT_HEADERS.AUTHENTICATED]: 'true',
+  [RPC_CONTEXT_HEADERS.TENANT]: encodeRpcContextHeaderJson(tenant),
+});
+
 describe('userHandlers', () => {
+  it.effect(
+    'createAccount creates the user, tenant assignment, and default roles transactionally',
+    () =>
+      Effect.gen(function* () {
+        const inserts: unknown[] = [];
+        const tx = {
+          insert: (table: unknown) => ({
+            values: (value: unknown) => {
+              inserts.push({ table, value });
+              if (table === rolesToTenantUsers) {
+                return Effect.void;
+              }
+              return {
+                returning: () => {
+                  if (table === users) {
+                    return Effect.succeed([{ id: 'created-user-1' }]);
+                  }
+                  if (table === usersToTenants) {
+                    return Effect.succeed([{ id: 'membership-1' }]);
+                  }
+                  return Effect.succeed([]);
+                },
+              };
+            },
+          }),
+          query: {
+            roles: {
+              findMany: () =>
+                Effect.succeed([{ id: 'role-1' }, { id: 'role-2' }]),
+            },
+            users: {
+              findFirst: () => Effect.succeed(null),
+            },
+            usersToTenants: {
+              findFirst: () => Effect.succeed(null),
+            },
+          },
+        };
+        const database = {
+          transaction: (callback: (tx: typeof tx) => unknown) => callback(tx),
+        };
+
+        yield* userHandlers['users.createAccount'](
+          {
+            communicationEmail: 'notify@example.com',
+            firstName: 'Alice',
+            lastName: 'Doe',
+          },
+          { headers: createCreateAccountHeaders() } as never,
+        ).pipe(Effect.provide(Layer.succeed(Database, database as never)));
+
+        expect(inserts).toEqual([
+          {
+            table: users,
+            value: {
+              auth0Id: 'auth0|alice',
+              communicationEmail: 'notify@example.com',
+              email: 'alice@example.com',
+              firstName: 'Alice',
+              lastName: 'Doe',
+            },
+          },
+          {
+            table: usersToTenants,
+            value: {
+              tenantId: 'tenant-1',
+              userId: 'created-user-1',
+            },
+          },
+          {
+            table: rolesToTenantUsers,
+            value: [
+              {
+                roleId: 'role-1',
+                userTenantId: 'membership-1',
+              },
+              {
+                roleId: 'role-2',
+                userTenantId: 'membership-1',
+              },
+            ],
+          },
+        ]);
+      }),
+  );
+
+  it.effect(
+    'createAccount attaches an existing global user to this tenant',
+    () =>
+      Effect.gen(function* () {
+        const inserts: unknown[] = [];
+        const tx = {
+          insert: (table: unknown) => ({
+            values: (value: unknown) => {
+              inserts.push({ table, value });
+              return {
+                returning: () => {
+                  if (table === usersToTenants) {
+                    return Effect.succeed([{ id: 'membership-1' }]);
+                  }
+                  return Effect.succeed([]);
+                },
+              };
+            },
+          }),
+          query: {
+            roles: {
+              findMany: () => Effect.succeed([]),
+            },
+            users: {
+              findFirst: () => Effect.succeed({ id: 'existing-user-1' }),
+            },
+            usersToTenants: {
+              findFirst: () => Effect.succeed(null),
+            },
+          },
+        };
+        const database = {
+          transaction: (callback: (tx: typeof tx) => unknown) => callback(tx),
+        };
+
+        yield* userHandlers['users.createAccount'](
+          {
+            communicationEmail: 'notify@example.com',
+            firstName: 'Alice',
+            lastName: 'Doe',
+          },
+          { headers: createCreateAccountHeaders() } as never,
+        ).pipe(Effect.provide(Layer.succeed(Database, database as never)));
+
+        expect(inserts).toEqual([
+          {
+            table: usersToTenants,
+            value: {
+              tenantId: 'tenant-1',
+              userId: 'existing-user-1',
+            },
+          },
+        ]);
+      }),
+  );
+
+  it.effect(
+    'createAccount rejects an existing user already in this tenant',
+    () =>
+      Effect.gen(function* () {
+        const tx = {
+          query: {
+            users: {
+              findFirst: () => Effect.succeed({ id: 'existing-user-1' }),
+            },
+            usersToTenants: {
+              findFirst: () => Effect.succeed({ id: 'membership-1' }),
+            },
+          },
+        };
+        const database = {
+          transaction: (callback: (tx: typeof tx) => unknown) => callback(tx),
+        };
+
+        const error = yield* userHandlers['users.createAccount'](
+          {
+            communicationEmail: 'notify@example.com',
+            firstName: 'Alice',
+            lastName: 'Doe',
+          },
+          { headers: createCreateAccountHeaders() } as never,
+        ).pipe(
+          Effect.flip,
+          Effect.provide(Layer.succeed(Database, database as never)),
+        );
+
+        expect(error['_tag']).toBe('UserConflictError');
+        expect(error.message).toBe('User account already exists');
+      }),
+  );
+
   it.effect('users.events returns only events from user registrations', () =>
     Effect.gen(function* () {
       const tenant = createTenant();
