@@ -187,7 +187,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - Browser-backed organizer aggregate assertions after guest-quantity scan
     behavior. Local app coverage already proves organizer overview stat
     aggregation reads the same `checkedInSpots` counter updated by scanner
-    check-in mutations.
+    check-in mutations. Event-management docs now call out that guest-quantity
+    check-in increments the organizer checked-in count by the attendee plus
+    selected guests.
 - Tenant/global admin:
   - Authenticated Browser review for the global-admin tenant list.
     Local server/app coverage already proves the list returns and renders
