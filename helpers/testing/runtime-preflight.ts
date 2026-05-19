@@ -68,6 +68,10 @@ export const requiredByTarget = {
       name: 'STRIPE_API_KEY',
     },
     {
+      description: 'Stripe connected account id for seeded paid flows',
+      name: 'STRIPE_TEST_ACCOUNT_ID',
+    },
+    {
       description: 'Stripe webhook signature verification',
       name: 'STRIPE_WEBHOOK_SECRET',
     },

@@ -88,6 +88,7 @@ describe('evaluateRuntimePreflight', () => {
             'CLIENT_SECRET: Auth0 application secret',
             'FONT_AWESOME_TOKEN: Font Awesome package registry access for premium and brand icons',
             'STRIPE_API_KEY: Stripe API access for paid registration flows',
+            'STRIPE_TEST_ACCOUNT_ID: Stripe connected account id for seeded paid flows',
             'STRIPE_WEBHOOK_SECRET: Stripe webhook signature verification',
           ]),
           label: 'Required docker runtime variables',

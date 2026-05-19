@@ -86,6 +86,10 @@ Playwright CLI availability, and whether the matching Playwright browser cache
 is installed. Missing Playwright browsers are reported as a warning because
 they block local Playwright runs, not Docker startup.
 
+Docker Compose passes `STRIPE_TEST_ACCOUNT_ID` into both the `db-setup` service
+and the app container so the seeded local tenants can exercise paid registration
+flows against the intended connected test account.
+
 Testing/runtime context that depends on these seed flows lives in [tests/README.md](../tests/README.md).
 
 ## Modifying the Seeding Process
