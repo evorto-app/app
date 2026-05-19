@@ -36,6 +36,9 @@ export const receiptReviewSuccessMessage = (
     ? 'Receipt approved. Notify the submitter manually.'
     : 'Receipt rejected. Notify the submitter manually.';
 
+export const receiptReviewNotificationNotice =
+  'Approving or rejecting this receipt records the review status only. Notify the submitter manually after saving.';
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -84,6 +87,8 @@ export class ReceiptApprovalDetailComponent {
     return receipt.attachmentMimeType === 'application/pdf';
   });
 
+  protected readonly receiptReviewNotificationNotice =
+    receiptReviewNotificationNotice;
   protected readonly rejectionReason = signal('');
   protected readonly reviewMutation = injectMutation(() =>
     this.rpc.finance.receipts.review.mutationOptions(),
