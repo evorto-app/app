@@ -52,6 +52,9 @@ export class EventOrganize {
   eventId = input.required<string>();
 
   private readonly rpc = AppRpc.injectClient();
+  protected readonly cancelRegistrationMutation = injectMutation(() =>
+    this.rpc.events.cancelEventRegistration.mutationOptions(),
+  );
   protected readonly eventQuery = injectQuery(() =>
     this.rpc.events.findOne.queryOptions({ id: this.eventId() }),
   );
@@ -143,6 +146,35 @@ export class EventOrganize {
         this.config.updateTitle(`Organize ${event.title}`);
       }
     });
+  }
+
+  protected cancelRegistration(registration: { registrationId: string }) {
+    this.cancelRegistrationMutation.mutate(
+      {
+        eventId: this.eventId(),
+        registrationId: registration.registrationId,
+      },
+      {
+        onError: (error) => {
+          this.notifications.showError(
+            getErrorMessage(error, 'Failed to cancel registration'),
+          );
+        },
+        onSuccess: async () => {
+          await this.queryClient.invalidateQueries({
+            queryKey: this.rpc.events.getOrganizeOverview.queryKey({
+              eventId: this.eventId(),
+            }),
+          });
+          await this.queryClient.invalidateQueries({
+            queryKey: this.rpc.events.findOne.queryKey({
+              id: this.eventId(),
+            }),
+          });
+          this.notifications.showSuccess('Registration cancelled');
+        },
+      },
+    );
   }
 
   protected async openReceiptDialog(): Promise<void> {

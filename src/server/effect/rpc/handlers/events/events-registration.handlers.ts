@@ -111,7 +111,15 @@ const ensureCanScanEventRegistration = ({
     );
   });
 
-const cancelRegistration = ({ registrationId }: { registrationId: string }) =>
+const cancelRegistration = ({
+  eventId,
+  registrationId,
+  requireOrganizerAccess = false,
+}: {
+  eventId?: string;
+  registrationId: string;
+  requireOrganizerAccess?: boolean;
+}) =>
   Effect.gen(function* () {
     yield* RpcAccess.ensureAuthenticated();
     const stripe = yield* StripeClient;
@@ -123,15 +131,17 @@ const cancelRegistration = ({ registrationId }: { registrationId: string }) =>
       database.query.eventRegistrations.findFirst({
         columns: {
           checkInTime: true,
+          eventId: true,
           id: true,
           registrationOptionId: true,
           status: true,
         },
         where: {
+          ...(eventId ? { eventId } : {}),
           id: registrationId,
           status: { NOT: 'CANCELLED' },
           tenantId: tenant.id,
-          userId: user.id,
+          ...(requireOrganizerAccess ? {} : { userId: user.id }),
         },
         with: {
           event: {
@@ -157,6 +167,14 @@ const cancelRegistration = ({ registrationId }: { registrationId: string }) =>
           message: 'Registration not found',
         }),
       );
+    }
+
+    if (requireOrganizerAccess) {
+      yield* ensureCanScanEventRegistration({
+        eventId: registration.eventId,
+        tenantId: tenant.id,
+        user,
+      });
     }
 
     if (
@@ -340,6 +358,12 @@ const cancelRegistration = ({ registrationId }: { registrationId: string }) =>
   });
 
 export const eventRegistrationHandlers = {
+  'events.cancelEventRegistration': ({ eventId, registrationId }, _options) =>
+    cancelRegistration({
+      eventId,
+      registrationId,
+      requireOrganizerAccess: true,
+    }),
   'events.cancelPendingRegistration': ({ registrationId }, _options) =>
     cancelRegistration({ registrationId }),
   'events.cancelRegistration': ({ registrationId }, _options) =>
