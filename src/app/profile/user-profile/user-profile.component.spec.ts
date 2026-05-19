@@ -5,6 +5,7 @@ import {
   profileEventActionNote,
   profileEventDetailActionLabel,
   profileEventGuestLabel,
+  profileReceiptStatusLabel,
   registrationPaymentLabel,
   registrationStatusLabel,
 } from './user-profile.component';
@@ -100,5 +101,14 @@ describe('profile ESN card messages', () => {
         _tag: 'RpcBadRequestError',
       }),
     ).toBe('Bad Request');
+  });
+});
+
+describe('profile receipt labels', () => {
+  it('keeps submitted receipt statuses readable on profile cards', () => {
+    expect(profileReceiptStatusLabel('approved')).toBe('Approved');
+    expect(profileReceiptStatusLabel('refunded')).toBe('Reimbursed');
+    expect(profileReceiptStatusLabel('rejected')).toBe('Rejected');
+    expect(profileReceiptStatusLabel('submitted')).toBe('Submitted');
   });
 });

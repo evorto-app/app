@@ -1,3 +1,5 @@
+import type { FinanceReceiptStatus } from '@shared/rpc-contracts/app-rpcs/finance.rpcs';
+
 import { DatePipe, DecimalPipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
@@ -128,6 +130,25 @@ export const registrationStatusLabel = (
   }
 };
 
+export const profileReceiptStatusLabel = (
+  status: FinanceReceiptStatus,
+): string => {
+  switch (status) {
+    case 'approved': {
+      return 'Approved';
+    }
+    case 'refunded': {
+      return 'Reimbursed';
+    }
+    case 'rejected': {
+      return 'Rejected';
+    }
+    case 'submitted': {
+      return 'Submitted';
+    }
+  }
+};
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -209,6 +230,7 @@ export class UserProfileComponent {
   protected readonly profileEventDetailActionLabel =
     profileEventDetailActionLabel;
   protected readonly profileEventGuestLabel = profileEventGuestLabel;
+  protected readonly profileReceiptStatusLabel = profileReceiptStatusLabel;
   protected readonly refreshCardMutation = injectMutation(() =>
     this.rpc.discounts.refreshMyCard.mutationOptions(),
   );
