@@ -633,6 +633,7 @@ the current working direction until a product decision overrides them.
 - `tests/specs/templates/paid-option-requires-tax-rate.spec.ts` is intentionally fixme-only until template tax-rate behavior has active simple-mode UI coverage.
 - `src/app/templates/shared/template-form/template-registration-option-form.utilities.spec.ts` covers paid template tax-rate preservation, paid missing-tax-rate pass-through for server validation, and free-registration payment-field cleanup before create/edit submission.
 - `src/server/effect/rpc/handlers/tax-rates.handlers.spec.ts` covers `taxRates.listActive` permission behavior and the current-tenant active/inclusive filter used to populate compatible template tax-rate selects.
+- `src/server/utils/validate-tax-rate.spec.ts` covers the shared server rule that paid options require a tenant-owned active inclusive tax rate and free options cannot carry stale tax-rate ids.
 - `src/server/effect/rpc/handlers/templates/simple-template.service.spec.ts` covers paid template registrations without tax rates and free template registrations with stale tax-rate ids failing through the server-side validation path.
 - The generic `tests/docs/template.doc.ts` discovery placeholder was removed; product template documentation lives in `tests/docs/templates/templates.doc.ts`.
 - Permission matrix coverage checks template create link visibility plus direct route denial for template create/edit/create-event routes. `src/app/templates/templates.routes.spec.ts` keeps the guarded template write-route manifest explicit. Server unit coverage proves template RPC denial, template offset ordering, tenant-owned template category/role validation, and template location schema rejection.
@@ -1263,6 +1264,9 @@ implement those decisions or explicitly revise them there before changing code.
 - Active-registration deferred-action pass: kept transfer/resale visibly
   unavailable on event active-registration cards for pending, confirmed, and
   waitlisted registrations until the real transfer/resale flow exists.
+- Tax-rate validation coverage pass: covered the shared server validator for
+  paid/free registration option tax-rate rules, including tenant-missing,
+  inactive, and exclusive tax rates.
 - Receipt review docs pass: added a generated documentation journey for receipt approval and manual reimbursement recording, then removed receipt review/reimbursement from the generic missing-docs backlog.
 - Profile edit docs pass: extended the user-profile documentation journey to save a changed notification email, assert the refreshed profile summary, and restore the seeded user record after the doc run.
 - Create-account gate coverage pass: extracted the email-verification form gate into a typed helper and covered verified, unverified, null, and absent Auth0 email-verification states without requiring Auth0 Management credentials.
