@@ -32,6 +32,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - docs/events/unlisted-user.doc.ts
   - docs/finance/finance-overview.doc.ts [finance]
   - docs/finance/inclusive-tax-rates.doc.ts [finance]
+  - docs/finance/receipt-review-reimbursement.doc.ts [finance]
   - docs/profile/discounts.doc.ts [finance]
   - docs/profile/user-profile.doc.ts
   - docs/roles/roles.doc.ts
@@ -140,7 +141,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 - Finance/receipts:
   - Keep finance route-denial cases and route-manifest specs aligned as
     transaction, receipt approval, and reimbursement routes change.
-  - Receipt review and reimbursement behavior in generated docs.
+  - Keep receipt review and reimbursement docs aligned with the manual
+    notification and manual money-movement scope.
   - Notification or email follow-up behavior once the product path exists.
 - Scanning/check-in:
   - Browser-backed organizer aggregate assertions after scan check-in.
