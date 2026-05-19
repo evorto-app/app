@@ -38,6 +38,7 @@ const createTenant = () => ({
 const createUser = () => ({
   attributes: [],
   auth0Id: 'auth0|user-1',
+  communicationEmail: 'notify@example.com',
   email: 'alice@example.com',
   firstName: 'Alice',
   iban: null,
@@ -386,5 +387,43 @@ describe('userHandlers', () => {
           ]),
         );
       }),
+  );
+
+  it.effect('updateProfile updates notification and payout fields', () =>
+    Effect.gen(function* () {
+      const user = createUser();
+      const headers = {
+        [RPC_CONTEXT_HEADERS.AUTHENTICATED]: 'true',
+        [RPC_CONTEXT_HEADERS.USER]: encodeRpcContextHeaderJson(user),
+      };
+      const updateSet = vi.fn((_value: unknown) => ({
+        where: vi.fn(() => Effect.void),
+      }));
+      const mockDatabase = {
+        update: vi.fn(() => ({
+          set: updateSet,
+        })),
+      };
+
+      yield* userHandlers['users.updateProfile'](
+        {
+          communicationEmail: 'events@example.com',
+          firstName: 'Alice',
+          iban: 'NL91ABNA0417164300',
+          lastName: 'Updated',
+          paypalEmail: 'paypal@example.com',
+        },
+        { headers } as never,
+      ).pipe(Effect.provide(Layer.succeed(Database, mockDatabase as never)));
+
+      expect(mockDatabase.update).toHaveBeenCalledWith(users);
+      expect(updateSet).toHaveBeenCalledWith({
+        communicationEmail: 'events@example.com',
+        firstName: 'Alice',
+        iban: 'NL91ABNA0417164300',
+        lastName: 'Updated',
+        paypalEmail: 'paypal@example.com',
+      });
+    }),
   );
 });

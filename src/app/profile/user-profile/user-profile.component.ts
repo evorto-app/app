@@ -207,6 +207,7 @@ export class UserProfileComponent {
       EditProfileDialogResult
     >(EditProfileDialogComponent, {
       data: {
+        communicationEmail: user.communicationEmail ?? user.email,
         firstName: user.firstName,
         iban: user.iban ?? null,
         lastName: user.lastName,

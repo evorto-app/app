@@ -10,7 +10,11 @@
             {{ userQuery.data().firstName }} {{ userQuery.data().lastName }}
           </h1>
           <p class="text-on-surface-variant text-sm">
-            {{ userQuery.data().email }}
+            Login: {{ userQuery.data().email }}
+          </p>
+          <p class="text-on-surface-variant text-sm">
+            Notifications:
+            {{ userQuery.data().communicationEmail ?? userQuery.data().email }}
           </p>
           <button
             mat-stroked-button

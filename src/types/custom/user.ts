@@ -17,6 +17,7 @@ const OptionalString = Schema.NullishOr(Schema.NonEmptyString).pipe(
 export class User extends Schema.Class<User>('User')({
   attributes: Schema.Array(Schema.Literal('events:organizesSome')),
   auth0Id: Schema.NonEmptyString,
+  communicationEmail: OptionalString,
   email: Schema.NonEmptyString,
   firstName: Schema.NonEmptyString,
   iban: OptionalString,
