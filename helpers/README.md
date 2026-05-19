@@ -90,6 +90,11 @@ Docker Compose passes `STRIPE_TEST_ACCOUNT_ID` into both the `db-setup` service
 and the app container so the seeded local tenants can exercise paid registration
 flows against the intended connected test account.
 
+The Docker Stripe CLI listener writes its generated webhook signing secret into
+a shared Docker volume. The app container reads that file through
+`STRIPE_WEBHOOK_SECRET_FILE`, so local paid checkout webhooks use the same
+runtime secret that Stripe CLI generated for the listener session.
+
 Testing/runtime context that depends on these seed flows lives in [tests/README.md](../tests/README.md).
 
 ## Modifying the Seeding Process

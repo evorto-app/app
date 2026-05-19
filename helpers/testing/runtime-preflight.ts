@@ -71,10 +71,6 @@ export const requiredByTarget = {
       description: 'Stripe connected account id for seeded paid flows',
       name: 'STRIPE_TEST_ACCOUNT_ID',
     },
-    {
-      description: 'Stripe webhook signature verification',
-      name: 'STRIPE_WEBHOOK_SECRET',
-    },
   ],
 } satisfies Record<RuntimeTarget, RequiredVariable[]>;
 
@@ -200,6 +196,26 @@ const playwrightBrowserCheck = (
   };
 };
 
+const stripeWebhookSecretSourceCheck = (
+  env: NodeJS.ProcessEnv,
+): RuntimeCheck => {
+  if (isPresent(env, 'STRIPE_WEBHOOK_SECRET')) {
+    return {
+      details: ['Using STRIPE_WEBHOOK_SECRET from the local environment.'],
+      label: 'Stripe webhook signing secret source',
+      severity: 'ok',
+    };
+  }
+
+  return {
+    details: [
+      'Docker Stripe CLI writes its generated signing secret to STRIPE_WEBHOOK_SECRET_FILE for the app container.',
+    ],
+    label: 'Stripe webhook signing secret source',
+    severity: 'ok',
+  };
+};
+
 export const evaluateRuntimePreflight = (
   target: RuntimeTarget,
   options: RuntimePreflightOptions = {},
@@ -246,6 +262,7 @@ export const evaluateRuntimePreflight = (
       'warning',
       runCommand,
     ),
+    stripeWebhookSecretSourceCheck(env),
     playwrightBrowserCheck(fileExists, runCommand),
   ];
 

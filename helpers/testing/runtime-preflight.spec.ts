@@ -89,7 +89,6 @@ describe('evaluateRuntimePreflight', () => {
             'FONT_AWESOME_TOKEN: Font Awesome package registry access for premium and brand icons',
             'STRIPE_API_KEY: Stripe API access for paid registration flows',
             'STRIPE_TEST_ACCOUNT_ID: Stripe connected account id for seeded paid flows',
-            'STRIPE_WEBHOOK_SECRET: Stripe webhook signature verification',
           ]),
           label: 'Required docker runtime variables',
           severity: 'failure',
@@ -124,6 +123,27 @@ describe('evaluateRuntimePreflight', () => {
           ]),
           label: 'Playwright Chromium browser installation',
           severity: 'warning',
+        }),
+      ]),
+    );
+  });
+
+  it('allows Docker to use the generated Stripe listener webhook secret file', () => {
+    const result = evaluateRuntimePreflight('docker', {
+      cwd: '/repo',
+      env: requiredDockerEnvironment,
+      fileExists: (filePath) => filePath === '/repo/.env.dev',
+      runCommand: successfulCommand,
+    });
+
+    expect(result.checks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          details: [
+            'Docker Stripe CLI writes its generated signing secret to STRIPE_WEBHOOK_SECRET_FILE for the app container.',
+          ],
+          label: 'Stripe webhook signing secret source',
+          severity: 'ok',
         }),
       ]),
     );
