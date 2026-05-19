@@ -40,7 +40,7 @@ Tenant-scoped data includes:
 
 Users are global and may belong to multiple tenants. A user should ideally have a home tenant so the app can warn when they are browsing a tenant that is not where they usually belong.
 
-Tenants are resolved by domain. A tenant may use an Evorto-provided subdomain or bring its own domain. If a domain does not match a tenant, fail closed or show a tenant-not-found state; do not guess a tenant.
+Tenants are resolved by domain. For relaunch, each tenant has one active primary domain. That domain may be an Evorto-provided subdomain or a manually configured custom domain, but automated custom-domain verification and multiple active domains per tenant are later tenant-onboarding work. If a domain does not match a tenant, fail closed or show a tenant-not-found state; do not guess a tenant.
 
 ## Personas
 

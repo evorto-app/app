@@ -925,7 +925,7 @@ the current working direction until a product decision overrides them.
 
 ### Issues and Risks
 
-- **Should fix before relaunch:** the tenant schema supports one `domain`, not multiple domains or domain verification states. Product context allows Evorto subdomains plus custom domains.
+- **Addressed in stabilization pass:** root product and architecture docs now state the relaunch domain scope honestly: one active primary domain per tenant, with automated multi-domain/custom-domain verification deferred to later tenant-onboarding work.
 - **Addressed in stabilization pass:** tenant general settings now expose tenant name, primary domain, currency, locale, timezone, and Stripe connection state as read-only operator context without expanding the settings update payload.
 - **Should fix before relaunch:** tenant settings UI does not expose custom-domain verification, logo, favicon, legal/privacy/terms/imprint configuration, email sender name, review/publishing settings, registration limits, editable locale/currency/timezone, or Stripe account management.
 - **Addressed in stabilization pass:** tenant SEO title and description are now part of the `Tenant` RPC schema, editable from general settings, persisted by `admin.tenant.updateSettings`, and used as the tenant-level document title/meta description when configured.
@@ -959,14 +959,14 @@ the current working direction until a product decision overrides them.
 
 - Should global admins be independent platform principals, tenant users with special metadata, or tenant users plus a separate platform-role table?
 - Can a global admin administer tenants before being assigned to the current tenant? Current implementation allows global-admin permissions from Auth0 app metadata without requiring a tenant assignment.
-- Should tenants support multiple domains, and how should custom domain verification/ownership be modeled?
+- Should tenants support multiple domains, and how should custom domain verification/ownership be modeled? Answered locally for relaunch: no automated multi-domain management yet; each tenant has one active primary domain.
 - What is the minimum relaunch scope for tenant branding/legal settings versus later tenant onboarding work?
 - Should tenant currency/locale/timezone be editable after payment/event data exists?
 - Should global admin be able to create tenants, edit domains/settings, impersonate tenant admin views, or only list tenants for support?
 
 ### Recommended Cleanup Actions
 
-- Document one-domain-per-tenant as the relaunch scope; leave automated
+- Keep one-domain-per-tenant documented as the relaunch scope; leave automated
   multi-domain/custom-domain management for later work.
 - Keep generated global-admin tenant-management documentation aligned if the surface expands beyond the current tenant list.
 - Keep tenant settings save feedback aligned with the shared notification/error-message pattern.
@@ -1199,6 +1199,7 @@ implement those decisions or explicitly revise them there before changing code.
 - Scanner status-coverage pass: added focused scan-read and direct-check-in coverage for pending, cancelled, and waitlisted registrations.
 - Tenant settings feedback pass: added explicit success and readable error notifications for general settings saves.
 - Tenant SEO settings pass: exposed stored tenant SEO title/description through the Tenant RPC schema, general settings UI, admin settings persistence, and tenant-level document metadata.
+- Tenant domain-scope docs pass: aligned root product/architecture docs with the current one-active-domain relaunch model and left automated multi-domain/custom-domain verification as later tenant-onboarding work.
 - Legacy schema migration pass: added an idempotent migration step that drops
   physical `roles.showInHub`, `event_registrations.paymentStatus`, and the
   unused `payment_status` enum when present.
