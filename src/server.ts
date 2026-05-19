@@ -220,6 +220,21 @@ const qrCodeRouteLayer = HttpLayerRouter.add(
   '/qr/registration/:registrationId',
   (request) =>
     Effect.gen(function* () {
+      const authSession = yield* loadAuthSession(request);
+      const requestContextOption = yield* resolveHttpRequestContext(
+        request,
+        authSession,
+      ).pipe(
+        Effect.map((context) => Option.fromNullishOr(context)),
+        Effect.catchTag('HttpRequestTenantNotFoundError', () =>
+          Effect.succeed(Option.none()),
+        ),
+      );
+      if (Option.isNone(requestContextOption)) {
+        return notFoundServerResponse;
+      }
+      const requestContext = requestContextOption.value;
+
       const registrationId = extractRegistrationId(request);
       if (!registrationId) {
         return HttpServerResponse.text('Registration id missing', {
@@ -231,6 +246,7 @@ const qrCodeRouteLayer = HttpLayerRouter.add(
       const webResponse = yield* handleQrRegistrationCodeWebRequest(
         webRequest,
         registrationId,
+        requestContext,
       );
 
       return HttpServerResponse.fromWeb(webResponse);
