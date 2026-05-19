@@ -1,4 +1,4 @@
-import { database } from '../../src/db';
+import { database } from '../database';
 import * as schema from '../../src/db/schema';
 import { computeIconSourceColor } from '../../src/server/utils/icon-color';
 

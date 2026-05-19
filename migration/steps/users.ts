@@ -2,7 +2,7 @@ import consola from 'consola';
 import { count, InferSelectModel } from 'drizzle-orm';
 
 import * as oldSchema from '../../old/drizzle';
-import { database } from '../../src/db';
+import { database } from '../database';
 import * as schema from '../../src/db/schema';
 import { transformAuthId } from '../config';
 import { oldDatabase } from '../migrator-database';

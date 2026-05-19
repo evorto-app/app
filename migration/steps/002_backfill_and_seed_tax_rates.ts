@@ -1,9 +1,9 @@
 import consola from 'consola';
 import { and, eq, isNull } from 'drizzle-orm';
 
-import { database } from '../../src/db';
+import { database } from '../database';
 import * as schema from '../../src/db/schema';
-import { stripe } from '../../src/server/stripe-client';
+import { createMigrationStripeClient } from '../stripe';
 
 export const backfillAndSeedTaxRates = async (
   tenantId: string,
@@ -35,6 +35,7 @@ export const backfillAndSeedTaxRates = async (
     // If tenant has a stripeReducedTaxRate, try to import it
     if (tenant.stripeReducedTaxRate && stripeAccountId) {
       try {
+        const stripe = createMigrationStripeClient();
         const taxRate = await stripe.taxRates.retrieve(
           tenant.stripeReducedTaxRate,
           undefined,
