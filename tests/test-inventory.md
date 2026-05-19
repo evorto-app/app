@@ -48,6 +48,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - specs/finance/receipts-flows.spec.ts [finance]
   - specs/finance/stripe-webhook-replay.spec.ts [finance, stripe]
   - specs/finance/tax-rates/admin-import-tax-rates.spec.ts [finance]
+  - specs/permissions/global-admin-route-guard.spec.ts [permissions]
   - specs/permissions/matrix.spec.ts [permissions]
   - specs/permissions/override.test.ts [permissions]
   - specs/permissions/tenant-isolation-tax-rates.spec.ts [permissions, finance]
@@ -107,6 +108,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   substitute for product coverage.
 - `specs/permissions/override.test.ts` is active desktop coverage for the
   permission override fixture; no mobile project currently runs this spec.
+- `specs/permissions/global-admin-route-guard.spec.ts` covers direct
+  `/global-admin` allow/deny behavior once page-backed runtime is available.
 - Page-backed local execution requires the Playwright Chromium cache installed
   by `bun run test:e2e:install`.
 
@@ -127,6 +130,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - Guest-quantity behavior once registration guest support exists.
 - Tenant/global admin:
   - Explicit docs for global-admin tenant-management behavior.
+  - Authenticated Browser review for the global-admin tenant list.
 - Roles/user management:
   - Least-privilege organizer role lookup in event/template eligibility forms.
   - User-list/role-assignment coverage once the role-assignment path exists.
