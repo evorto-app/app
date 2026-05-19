@@ -691,6 +691,7 @@ the current working direction until a product decision overrides them.
 - Server unit coverage proves role lookup permissions, lookup-only result shaping, tenant-scoped lookup filters, role lookup not-found errors, and admin role list denial without `admin:manageRoles`.
 - `src/server/effect/rpc/handlers/users.handlers.spec.ts` verifies `users.findMany` aggregates role names into the RPC contract shape without leaking the joined `role` column.
 - `src/shared/permissions/permissions.spec.ts` requires explicit labels and descriptions for every permission shown in role management.
+- `src/db/schema/legacy-stabilization-fields.spec.ts` proves the active role schema exposes `displayInHub` instead of `showInHub`, and guards the global migration step that drops physical `roles.showInHub`, `event_registrations.paymentStatus`, and the unused `payment_status` enum before tenant-scoped migration work.
 
 ### Product Questions Answered Above
 
@@ -706,8 +707,9 @@ the current working direction until a product decision overrides them.
 - Extend route-guard coverage to the remaining permission-sensitive surfaces, including finance routes and global-admin routes.
 - Add UI/E2E coverage that least-privilege organizers can search/select tenant roles in event/template eligibility forms once Browser/runtime review is available.
 - Keep `migration/steps/004_drop_legacy_stabilization_fields.ts` in the
-  production migration path so any existing physical `showInHub` column is
-  dropped when the schema/API surface is applied.
+  production migration path so any existing physical `showInHub`,
+  `paymentStatus`, and `payment_status` artifacts are dropped when the
+  schema/API surface is applied.
 - Keep user-role assignment explicitly deferred until a real role-assignment RPC and UI are implemented.
 - Replace skip-based role autocomplete coverage with an assertion that proves least-privilege organizers can see selectable roles when editing event/template eligibility.
 
@@ -1122,7 +1124,7 @@ the current working direction until a product decision overrides them.
 2. Add Playwright coverage for negative registration paths and role-ineligible direct links.
 3. Make organizer signup semantics visible and distinct if it remains modeled as a registration option.
 4. Keep simple-mode templates as the primary authoring UI, but expand reusable template support for discounts, add-ons, questions, and organizer notes/checklists where practical.
-5. Run the legacy-field migration path in production so any existing physical `showInHub` role column is dropped now that active schema/API code uses `displayInHub`.
+5. Run the covered legacy-field migration path in production so any existing physical `showInHub`, `paymentStatus`, and `payment_status` artifacts are dropped now that active schema/API code no longer uses them.
 6. Add Browser-backed scanner/organizer aggregate review once local runtime is available.
 7. Clarify profile payment-continuation/ticket/cancellation actions and ESNcard provider failure semantics before relaunch.
 8. Fill the tenant settings gap for one-domain relaunch support, branding, legal links/text, locale/currency/timezone, SEO fields, and global tenant-admin workflows.
