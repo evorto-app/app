@@ -18,3 +18,29 @@ export const tenantIdentityRows = (tenant: TenantIdentity) => [
     value: tenant.stripeAccountId ? 'Connected' : 'Not connected',
   },
 ];
+
+export const deferredTenantSettingsRows = [
+  {
+    label: 'Domain onboarding',
+    value:
+      'Custom-domain verification and multiple domains are not managed here yet.',
+  },
+  {
+    label: 'Brand assets',
+    value: 'Logo and favicon uploads are not implemented yet.',
+  },
+  {
+    label: 'Legal pages',
+    value: 'Imprint, privacy, and terms links or text are not implemented yet.',
+  },
+  {
+    label: 'Locale and money',
+    value:
+      'Currency, locale, and timezone are read-only after tenant creation for now.',
+  },
+  {
+    label: 'Operations policy',
+    value:
+      'Email sender, review policy, registration limits, and Stripe account management are not implemented here yet.',
+  },
+] as const;

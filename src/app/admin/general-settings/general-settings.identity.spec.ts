@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { tenantIdentityRows } from './general-settings.identity';
+import {
+  deferredTenantSettingsRows,
+  tenantIdentityRows,
+} from './general-settings.identity';
 
 describe('tenantIdentityRows', () => {
   it('summarizes read-only tenant identity and runtime settings', () => {
@@ -53,5 +56,36 @@ describe('tenantIdentityRows', () => {
       label: 'Stripe account',
       value: 'Not connected',
     });
+  });
+});
+
+describe('deferredTenantSettingsRows', () => {
+  it('keeps the tenant-settings relaunch gap visible to operators', () => {
+    expect(deferredTenantSettingsRows).toEqual([
+      {
+        label: 'Domain onboarding',
+        value:
+          'Custom-domain verification and multiple domains are not managed here yet.',
+      },
+      {
+        label: 'Brand assets',
+        value: 'Logo and favicon uploads are not implemented yet.',
+      },
+      {
+        label: 'Legal pages',
+        value:
+          'Imprint, privacy, and terms links or text are not implemented yet.',
+      },
+      {
+        label: 'Locale and money',
+        value:
+          'Currency, locale, and timezone are read-only after tenant creation for now.',
+      },
+      {
+        label: 'Operations policy',
+        value:
+          'Email sender, review policy, registration limits, and Stripe account management are not implemented here yet.',
+      },
+    ]);
   });
 });

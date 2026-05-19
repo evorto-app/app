@@ -936,7 +936,7 @@ the current working direction until a product decision overrides them.
 
 - **Addressed in stabilization pass:** root product and architecture docs now state the relaunch domain scope honestly: one active primary domain per tenant, with automated multi-domain/custom-domain verification deferred to later tenant-onboarding work.
 - **Addressed in stabilization pass:** tenant general settings now expose tenant name, primary domain, currency, locale, timezone, and Stripe connection state as read-only operator context without expanding the settings update payload.
-- **Should fix before relaunch:** tenant settings UI does not expose custom-domain verification, logo, favicon, legal/privacy/terms/imprint configuration, email sender name, review/publishing settings, registration limits, editable locale/currency/timezone, or Stripe account management.
+- **Addressed in stabilization pass:** tenant general settings now include a visible deferred-settings summary for custom-domain verification, logo/favicon, legal/privacy/terms/imprint configuration, email sender name, review/publishing settings, registration limits, editable locale/currency/timezone, and Stripe account management. These fields are still not editable because the current tenant schema/update payload does not store them.
 - **Addressed in stabilization pass:** tenant SEO title and description are now part of the `Tenant` RPC schema, editable from general settings, persisted by `admin.tenant.updateSettings`, and used as the tenant-level document title/meta description when configured.
 - **Addressed in stabilization pass:** tenant-admin child routes now have route-level guards. Settings require `admin:changeSettings`, roles require `admin:manageRoles`, users require `users:viewAll`, tax rates require `admin:tax`, and event reviews require `events:review`.
 - **Addressed in stabilization pass:** tenant settings saves now show a success notification and map failed updates through the shared readable error-message helper instead of relying only on mutation state.
@@ -955,7 +955,7 @@ the current working direction until a product decision overrides them.
 - `tests/specs/auth/storage-state-refresh.test.ts` covers stale/wrong tenant cookies in saved Playwright storage state, not runtime tenant resolution.
 - `tests/specs/permissions/tenant-isolation-tax-rates.spec.ts` checks seeded tenant tax-rate isolation directly in the database, but does not exercise the RPC/UI tenant context switch.
 - `tests/specs/permissions/matrix.spec.ts` covers route denial for `/admin/settings`, `/admin/roles`, `/admin/users`, and `/admin/tax-rates`. `tests/specs/finance/tax-rates/admin-import-tax-rates.spec.ts` adds focused tax-rate route denial coverage. `tests/specs/permissions/global-admin-route-guard.spec.ts` covers direct `/global-admin` allow/deny behavior once page-backed runtime is available.
-- `tests/docs/admin/general-settings.doc.ts` documents the current tenant general-settings page, including the read-only tenant identity summary, and records which branding/legal/domain settings are not implemented yet.
+- `tests/docs/admin/general-settings.doc.ts` documents the current tenant general-settings page, including the deferred-settings summary and read-only tenant identity summary, and records which branding/legal/domain settings are not editable yet.
 - `tests/docs/admin/global-admin.doc.ts` documents the current global-admin tenant list and records that tenant create/edit/detail, custom-domain verification, and impersonation workflows are not implemented yet.
 - `tests/docs/finance/inclusive-tax-rates.doc.ts` documents tenant tax-rate management.
 - `src/shared/rpc-contracts/app-rpcs/admin.rpcs.spec.ts` covers the tenant settings update payload scope.
@@ -975,8 +975,8 @@ the current working direction until a product decision overrides them.
 
 ### Recommended Cleanup Actions
 
-- Keep one-domain-per-tenant documented as the relaunch scope; leave automated
-  multi-domain/custom-domain management for later work.
+- Keep one-domain-per-tenant documented and visible as the relaunch scope; leave
+  automated multi-domain/custom-domain management for later work.
 - Keep generated global-admin tenant-management documentation aligned if the surface expands beyond the current tenant list.
 - Keep tenant settings save feedback aligned with the shared notification/error-message pattern.
 - Keep tenant SEO title/description aligned between the Tenant RPC schema, general settings, and document metadata behavior.
