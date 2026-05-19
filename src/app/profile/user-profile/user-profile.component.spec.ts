@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   esnCardMutationErrorMessage,
+  esnCardSubmitPayloadFromIdentifier,
   profileEventActionNote,
   profileEventDetailActionLabel,
   profileEventGuestLabel,
@@ -101,6 +102,13 @@ describe('profile event labels', () => {
 });
 
 describe('profile ESN card messages', () => {
+  it('trims the ESN card identifier before submitting the upsert mutation', () => {
+    expect(esnCardSubmitPayloadFromIdentifier('  ABCD1234  ')).toEqual({
+      identifier: 'ABCD1234',
+      type: 'esnCard',
+    });
+  });
+
   it('uses readable fallback messages for save, refresh, and remove failures', () => {
     expect(esnCardMutationErrorMessage('save', null)).toBe(
       'Could not validate ESN card',
