@@ -114,6 +114,48 @@ describe('roleHandlers lookup permissions', () => {
       }),
   );
 
+  it.effect('findMany scopes lookup filters to the current tenant', () =>
+    Effect.gen(function* () {
+      let queryInput: unknown;
+      const database = {
+        query: {
+          roles: {
+            findMany: (query: unknown) => {
+              queryInput = query;
+              return Effect.succeed([]);
+            },
+          },
+        },
+      };
+
+      yield* roleHandlers['roles.findMany'](
+        {
+          defaultOrganizerRole: true,
+          defaultUserRole: false,
+          search: 'mentor',
+        },
+        { headers: {} } as never,
+      ).pipe(Effect.provide(createContextLayer(['events:create'], database)));
+
+      expect(queryInput).toEqual({
+        columns: {
+          defaultOrganizerRole: true,
+          defaultUserRole: true,
+          id: true,
+          name: true,
+        },
+        limit: 15,
+        orderBy: { name: 'asc' },
+        where: {
+          defaultOrganizerRole: true,
+          defaultUserRole: false,
+          name: { ilike: '%mentor%' },
+          tenantId: tenant.id,
+        },
+      });
+    }),
+  );
+
   it.effect('findOne allows event creators', () =>
     Effect.gen(function* () {
       const database = {
