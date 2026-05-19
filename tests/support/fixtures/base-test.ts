@@ -33,17 +33,21 @@ const environment = Effect.runSync(
     ),
   ),
 );
-const auth0Environment = Effect.runSync(
-  auth0ManagementEnvironment.pipe(
-    Effect.provideService(ConfigProvider.ConfigProvider, runtimeConfigProvider),
-    Effect.mapError(
-      (error) =>
-        new Error(
-          `Invalid e2e auth configuration:\n${formatConfigError(error)}`,
-        ),
+const readAuth0ManagementEnvironment = () =>
+  Effect.runSync(
+    auth0ManagementEnvironment.pipe(
+      Effect.provideService(
+        ConfigProvider.ConfigProvider,
+        runtimeConfigProvider,
+      ),
+      Effect.mapError(
+        (error) =>
+          new Error(
+            `Invalid e2e auth configuration:\n${formatConfigError(error)}`,
+          ),
+      ),
     ),
-  ),
-);
+  );
 process.env['E2E_NOW_ISO'] ??= environment.E2E_NOW_ISO;
 process.env['E2E_SEED_KEY'] ??= environment.E2E_SEED_KEY;
 const databaseUrl = environment.DATABASE_URL;
@@ -94,6 +98,7 @@ export const test = base.extend<BaseFixtures>({
     { auto: true },
   ],
   newUser: async ({}, use) => {
+    const auth0Environment = readAuth0ManagementEnvironment();
     const auth0 = new ManagementClient({
       clientId: auth0Environment.AUTH0_MANAGEMENT_CLIENT_ID,
       clientSecret: auth0Environment.AUTH0_MANAGEMENT_CLIENT_SECRET,

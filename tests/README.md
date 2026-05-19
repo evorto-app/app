@@ -65,6 +65,9 @@ bun run lint
 - `bun run test:e2e:ui` opens unrestricted Playwright UI mode so you can choose projects and tests interactively.
 - Local Docker scripts preload the environment with `dotenv -c dev` before invoking Compose.
 - Use `bun run ...` package scripts, not a bare shell `dotenv` command. Local shells may resolve a different `dotenv` executable than `node_modules/.bin/dotenv`.
+- Playwright list/discovery commands do not clean or write generated docs
+  output. Run the docs projects without `--list` when you intentionally want to
+  regenerate documentation artifacts.
 
 ## Playwright Browsers
 

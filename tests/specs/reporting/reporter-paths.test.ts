@@ -76,6 +76,34 @@ test('documentation reporter clears docs/image roots on begin @track(playwright-
   expect(fs.existsSync(imgsRoot)).toBe(true);
 });
 
+test('documentation reporter leaves docs/image roots untouched in list-only mode @track(playwright-specs-track-linking_20260126) @req(REPORTER-PATHS-TEST-06)', async ({}, testInfo) => {
+  const docsRoot = testInfo.outputPath('docs-out6');
+  const imgsRoot = testInfo.outputPath('docs-img6');
+  process.env.DOCS_OUT_DIR = docsRoot;
+  process.env.DOCS_IMG_OUT_DIR = imgsRoot;
+
+  const staleDocPath = path.join(docsRoot, 'stale', 'page.md');
+  const staleImagePath = path.join(imgsRoot, 'stale', 'image.png');
+  fs.mkdirSync(path.dirname(staleDocPath), { recursive: true });
+  fs.mkdirSync(path.dirname(staleImagePath), { recursive: true });
+  fs.writeFileSync(staleDocPath, 'stale doc');
+  fs.writeFileSync(staleImagePath, 'stale image');
+
+  process.argv.push('--list');
+  try {
+    const reporter = new DocumentationReporter();
+    // @ts-expect-error stubs
+    reporter.onBegin({}, {});
+    // @ts-expect-error minimal stubs for types
+    reporter.onEnd({});
+  } finally {
+    process.argv.pop();
+  }
+
+  expect(fs.readFileSync(staleDocPath, 'utf-8')).toBe('stale doc');
+  expect(fs.readFileSync(staleImagePath, 'utf-8')).toBe('stale image');
+});
+
 test('front matter normalization with permissions callout @track(playwright-specs-track-linking_20260126) @req(REPORTER-PATHS-TEST-02)', async ({}, testInfo) => {
   const docsRoot = testInfo.outputPath('docs-out2');
   const imgsRoot = testInfo.outputPath('docs-img2');
