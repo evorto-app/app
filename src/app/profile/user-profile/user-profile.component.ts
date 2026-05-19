@@ -90,6 +90,7 @@ export class UserProfileComponent {
   protected readonly deleteCardMutation = injectMutation(() =>
     this.rpc.discounts.deleteMyCard.mutationOptions(),
   );
+  protected readonly esnCardErrorMessage = signal<null | string>(null);
   private readonly esnCardModel = signal({ identifier: '' });
   protected readonly esnCardForm = form(this.esnCardModel, (schemaPath) => {
     required(schemaPath.identifier);
@@ -109,6 +110,7 @@ export class UserProfileComponent {
   protected readonly myCardsQuery = injectQuery(() =>
     this.rpc.discounts.getMyCards.queryOptions(),
   );
+
   protected readonly hasVerifiedEsnCard = computed(() => {
     const cards = this.myCardsQuery.data();
     if (!cards) return false;
@@ -116,21 +118,20 @@ export class UserProfileComponent {
       (card) => card.type === 'esnCard' && card.status === 'verified',
     );
   });
-
   protected readonly myReceiptsQuery = injectQuery(() =>
     this.rpc.finance.receipts.my.queryOptions(),
   );
+
   protected readonly refreshCardMutation = injectMutation(() =>
     this.rpc.discounts.refreshMyCard.mutationOptions(),
   );
-
   protected readonly sectionEntries = computed(() =>
     this.allSectionEntries.filter(
       (section) => section.key !== 'discounts' || this.esnEnabled(),
     ),
   );
-  protected readonly selectedSection = signal<ProfileSection>('overview');
 
+  protected readonly selectedSection = signal<ProfileSection>('overview');
   protected readonly updateProfileMutation = injectMutation(() =>
     this.rpc.users.updateProfile.mutationOptions(),
   );
@@ -177,13 +178,20 @@ export class UserProfileComponent {
   }
 
   protected deleteEsnCard(): void {
+    this.esnCardErrorMessage.set(null);
     this.deleteCardMutation.mutate(
       { type: 'esnCard' },
       {
+        onError: (error) => {
+          this.esnCardErrorMessage.set(
+            getErrorMessage(error, 'Could not remove ESN card'),
+          );
+        },
         onSuccess: async () => {
           await this.queryClient.invalidateQueries(
             this.rpc.queryFilter(['discounts', 'getMyCards']),
           );
+          this.esnCardErrorMessage.set(null);
           this.notifications.showSuccess('ESN card removed');
         },
       },
@@ -234,13 +242,20 @@ export class UserProfileComponent {
   }
 
   protected refreshEsnCard(): void {
+    this.esnCardErrorMessage.set(null);
     this.refreshCardMutation.mutate(
       { type: 'esnCard' },
       {
+        onError: (error) => {
+          this.esnCardErrorMessage.set(
+            getErrorMessage(error, 'Could not refresh ESN card'),
+          );
+        },
         onSuccess: async () => {
           await this.queryClient.invalidateQueries(
             this.rpc.queryFilter(['discounts', 'getMyCards']),
           );
+          this.esnCardErrorMessage.set(null);
           this.notifications.showSuccess('ESN card refreshed');
         },
       },
@@ -249,6 +264,7 @@ export class UserProfileComponent {
 
   protected async saveEsnCard(event: Event): Promise<void> {
     event.preventDefault();
+    this.esnCardErrorMessage.set(null);
     await submit(this.esnCardForm, async (formState) => {
       this.upsertCardMutation.mutate(
         {
@@ -256,11 +272,17 @@ export class UserProfileComponent {
           type: 'esnCard',
         },
         {
+          onError: (error) => {
+            this.esnCardErrorMessage.set(
+              getErrorMessage(error, 'Could not validate ESN card'),
+            );
+          },
           onSuccess: async () => {
             await this.queryClient.invalidateQueries(
               this.rpc.queryFilter(['discounts', 'getMyCards']),
             );
             this.esnCardModel.set({ identifier: '' });
+            this.esnCardErrorMessage.set(null);
             this.notifications.showSuccess('ESN card saved');
           },
         },

@@ -131,7 +131,11 @@
                             (click)="refreshEsnCard()"
                             [disabled]="refreshCardMutation.isPending()"
                           >
-                            Refresh
+                            @if (refreshCardMutation.isPending()) {
+                              Refreshing...
+                            } @else {
+                              Refresh
+                            }
                           </button>
                           <button
                             mat-stroked-button
@@ -139,7 +143,11 @@
                             (click)="deleteEsnCard()"
                             [disabled]="deleteCardMutation.isPending()"
                           >
-                            Remove
+                            @if (deleteCardMutation.isPending()) {
+                              Removing...
+                            } @else {
+                              Remove
+                            }
                           </button>
                         </div>
                       </div>
@@ -185,7 +193,11 @@
                       upsertCardMutation.isPending()
                     "
                   >
-                    Save ESN card
+                    @if (upsertCardMutation.isPending()) {
+                      Checking ESN card...
+                    } @else {
+                      Save ESN card
+                    }
                   </button>
                   @if (
                     !hasVerifiedEsnCard() && buyEsnCardUrl();
@@ -200,9 +212,9 @@
                     >
                   }
                 </div>
-                @if (upsertCardMutation.isError()) {
+                @if (esnCardErrorMessage(); as esnCardError) {
                   <p class="text-error text-sm">
-                    {{ upsertCardMutation.error() }}
+                    {{ esnCardError }}
                   </p>
                 }
               </form>
