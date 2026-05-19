@@ -8,6 +8,16 @@
   Existing-user role assignment is deferred for relaunch. This page is read-only
   and shows the roles currently assigned to each user.
 </p>
+<mat-form-field class="mb-4 w-full max-w-xl">
+  <mat-label>Search users</mat-label>
+  <input
+    #searchInput
+    matInput
+    type="search"
+    placeholder="Name or email"
+    (input)="handleSearchChange(searchInput.value)"
+  />
+</mat-form-field>
 @if (usersQuery.status() === "pending") {
   <div
     class="bg-surface text-on-surface flex animate-pulse cursor-progress flex-col gap-2 rounded-2xl p-4"

@@ -5,7 +5,7 @@ import {
   RpcUnauthorizedError,
 } from '@shared/errors/rpc-errors';
 import { UserConflictError } from '@shared/rpc-contracts/app-rpcs/users.errors';
-import { count, eq, inArray } from 'drizzle-orm';
+import { and, count, eq, ilike, inArray } from 'drizzle-orm';
 import { Effect, Schema } from 'effect';
 
 import type { AppRpcHandlers } from './shared/handler-types';
@@ -87,6 +87,13 @@ const requireUserHeader = (
     }
     return user;
   });
+
+export const normalizeUsersFindManySearch = (
+  search: string | undefined,
+): string | undefined => {
+  const trimmed = search?.trim();
+  return trimmed ? `%${trimmed}%` : undefined;
+};
 
 const mapCreateAccountUnexpectedError = (error: unknown) =>
   error instanceof UserConflictError ? Effect.fail(error) : Effect.die(error);
@@ -411,12 +418,20 @@ export const userHandlers = {
         options.headers[RPC_CONTEXT_HEADERS.TENANT],
         Tenant,
       );
+      const search = normalizeUsersFindManySearch(input.search);
+      const usersFilter = search
+        ? and(
+            eq(usersToTenants.tenantId, tenant.id),
+            ilike(users.searchableInfo, search),
+          )
+        : eq(usersToTenants.tenantId, tenant.id);
 
       const usersCountResult = yield* databaseEffect((database) =>
         database
           .select({ count: count() })
           .from(usersToTenants)
-          .where(eq(usersToTenants.tenantId, tenant.id)),
+          .innerJoin(users, eq(usersToTenants.userId, users.id))
+          .where(usersFilter),
       );
       const usersCount = usersCountResult[0]?.count ?? 0;
 
@@ -431,7 +446,7 @@ export const userHandlers = {
           })
           .from(usersToTenants)
           .innerJoin(users, eq(usersToTenants.userId, users.id))
-          .where(eq(usersToTenants.tenantId, tenant.id))
+          .where(usersFilter)
           .orderBy(users.lastName, users.firstName)
           .offset(input.offset ?? 0)
           .limit(input.limit ?? 100),

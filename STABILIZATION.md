@@ -1263,6 +1263,9 @@ implement those decisions or explicitly revise them there before changing code.
 - User-list pagination pass: fixed the read-only tenant user list to paginate
   tenant-user assignments before loading role rows, so users with multiple
   roles no longer consume multiple page slots.
+- User-list search pass: wired the existing `users.findMany.search` contract
+  into the server query and the read-only user list UI so larger tenants can
+  filter by name or email before pagination.
 
 ## Review Next
 
