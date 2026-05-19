@@ -1313,6 +1313,10 @@ implement those decisions or explicitly revise them there before changing code.
   title metadata from the profile, ESN discount-card, and create-account docs
   while keeping meaningful gating tags such as `@finance` and
   `@needs-auth0-management`.
+- Generated docs metadata pass: removed the remaining placeholder
+  `@track`/`@doc` title metadata from product-facing generated docs while
+  keeping meaningful suite tags such as `@admin`, `@globalAdmin`, and
+  `@finance` visible in list/discovery output.
 
 ## Review Next
 

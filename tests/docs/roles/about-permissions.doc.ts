@@ -25,7 +25,7 @@ const permissionLines = () =>
     }),
   ]);
 
-test('About permissions @doc(ABOUT-PERMISSIONS-DOC-01)', async ({}, testInfo) => {
+test('About permissions', async ({}, testInfo) => {
   expect(PERMISSION_GROUPS.length).toBeGreaterThan(0);
 
   await testInfo.attach('markdown', {

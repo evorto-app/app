@@ -4,7 +4,7 @@ import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 
 test.use({ storageState: adminStateFile });
 
-test('Create and manage events @track(playwright-specs-track-linking_20260126) @doc(EVENT-MANAGEMENT-DOC-01)', async ({
+test('Create and manage events', async ({
   events,
   page,
   seeded,

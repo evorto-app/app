@@ -5,9 +5,7 @@ import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 test.describe('Inclusive tax rates documentation (admin)', () => {
   test.use({ storageState: adminStateFile });
 
-  test('Import tenant tax rates @track(playwright-specs-track-linking_20260126) @doc(INCLUSIVE-TAX-RATES-DOC-01)', async ({
-    page,
-  }, testInfo) => {
+  test('Import tenant tax rates', async ({ page }, testInfo) => {
     await page.goto('.');
 
     await testInfo.attach('markdown', {
@@ -91,7 +89,7 @@ Select the rates you need and choose **Import selected** to refresh the compatib
 test.describe('Inclusive tax rates documentation (creators)', () => {
   test.use({ storageState: adminStateFile });
 
-  test('Assign compatible tax rates to paid registrations @track(playwright-specs-track-linking_20260126) @doc(INCLUSIVE-TAX-RATES-DOC-02)', async ({
+  test('Assign compatible tax rates to paid registrations', async ({
     page,
     seedDate,
     seeded,

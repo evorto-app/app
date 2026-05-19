@@ -11,7 +11,7 @@ test.use({ storageState: userStateFile, trace: 'on-first-retry' });
 test.describe('Register for events', () => {
   test.describe.configure({ retries: 1 });
 
-  test('Register for a free event @track(playwright-specs-track-linking_20260126) @doc(REGISTER-DOC-01)', async ({
+  test('Register for a free event', async ({
     events,
     page,
     seeded,
@@ -92,7 +92,7 @@ test.describe('Register for events', () => {
     );
   });
 
-  test('Register for a paid event @track(playwright-specs-track-linking_20260126) @doc(REGISTER-DOC-02)', async ({
+  test('Register for a paid event', async ({
     database,
     events,
     page,
