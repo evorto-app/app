@@ -1,7 +1,7 @@
 import type { Headers } from 'effect/unstable/http';
 import type Stripe from 'stripe';
 
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { ConfigProvider, Context, Effect, Layer, Option } from 'effect';
 
 import { Database, type DatabaseClient } from '../../../../../db';
@@ -19,6 +19,7 @@ import {
 } from '../../../../../shared/tenant-config';
 import { type Tenant } from '../../../../../types/custom/tenant';
 import { type User } from '../../../../../types/custom/user';
+import { getServerNow } from '../../../../clock';
 import { formatConfigError } from '../../../../config/config-error';
 import { serverConfig } from '../../../../config/server-config';
 import {
@@ -137,7 +138,7 @@ interface RegisterForEventArguments {
   headers: Headers.Headers;
   registrationOptionId: string;
   tenant: Pick<Tenant, 'currency' | 'id' | 'stripeAccountId'>;
-  user: Pick<User, 'email' | 'id'>;
+  user: Pick<User, 'email' | 'id' | 'roleIds'>;
 }
 
 export class EventRegistrationService extends Context.Service<EventRegistrationService>()(
@@ -167,6 +168,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
         const pinnedNowIso = Option.getOrUndefined(
           serverEnvironment.E2E_NOW_ISO,
         );
+        const now = getServerNow(pinnedNowIso).toJSDate();
 
         // Phase 1: ensure this user can register (no active registration + valid option + capacity).
         const existingRegistration = yield* databaseEffect((database) =>
@@ -177,6 +179,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
             where: {
               eventId,
               status: { NOT: 'CANCELLED' },
+              tenantId: tenant.id,
               userId: user.id,
             },
           }),
@@ -192,12 +195,15 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
         const registrationOption = yield* databaseEffect((database) =>
           database.query.eventRegistrationOptions.findFirst({
             columns: {
+              closeRegistrationTime: true,
               confirmedSpots: true,
               eventId: true,
               id: true,
               isPaid: true,
+              openRegistrationTime: true,
               price: true,
               reservedSpots: true,
+              roleIds: true,
               spots: true,
               stripeTaxRateId: true,
             },
@@ -206,6 +212,8 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
               event: {
                 columns: {
                   start: true,
+                  status: true,
+                  tenantId: true,
                   title: true,
                 },
               },
@@ -223,6 +231,41 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           return yield* Effect.fail(
             new EventRegistrationInternalError({
               message: 'Registration option event relation missing',
+            }),
+          );
+        }
+        if (registrationOption.event.tenantId !== tenant.id) {
+          return yield* Effect.fail(
+            new EventRegistrationNotFoundError({
+              message: 'Registration option not found',
+            }),
+          );
+        }
+        if (registrationOption.event.status !== 'APPROVED') {
+          return yield* Effect.fail(
+            new EventRegistrationConflictError({
+              message: 'Event is not open for registration',
+            }),
+          );
+        }
+        if (
+          now < registrationOption.openRegistrationTime ||
+          now > registrationOption.closeRegistrationTime
+        ) {
+          return yield* Effect.fail(
+            new EventRegistrationConflictError({
+              message: 'Registration is not open',
+            }),
+          );
+        }
+        if (
+          !registrationOption.roleIds.some((roleId) =>
+            user.roleIds.includes(roleId),
+          )
+        ) {
+          return yield* Effect.fail(
+            new EventRegistrationConflictError({
+              message: 'User is not eligible for this registration option',
             }),
           );
         }
@@ -257,99 +300,123 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
             )
           : undefined;
 
-        const createdRegistrations = yield* databaseEffect((database) =>
-          database
-            .insert(eventRegistrations)
-            .values({
-              eventId,
-              registrationOptionId: registrationOption.id,
-              status: registrationOption.isPaid ? 'PENDING' : 'CONFIRMED',
-              ...(selectedTaxRateId
-                ? {
-                    stripeTaxRateId: selectedTaxRateId,
-                    taxRateDisplayName: selectedTaxRate?.displayName,
-                    taxRateInclusive: selectedTaxRate?.inclusive,
-                    taxRatePercentage: selectedTaxRate?.percentage,
-                  }
-                : {}),
-              tenantId: tenant.id,
-              userId: user.id,
-            })
-            .returning({
-              id: eventRegistrations.id,
+        const reservationResult = yield* databaseEffect((database) =>
+          database.transaction((tx) =>
+            Effect.gen(function* () {
+              const activeRegistrations =
+                yield* tx.query.eventRegistrations.findMany({
+                  columns: {
+                    id: true,
+                  },
+                  where: {
+                    eventId,
+                    status: { NOT: 'CANCELLED' },
+                    tenantId: tenant.id,
+                    userId: user.id,
+                  },
+                });
+              if (activeRegistrations.length > 0) {
+                return { _tag: 'AlreadyRegistered' } as const;
+              }
+
+              const updatedOptions = yield* tx
+                .update(eventRegistrationOptions)
+                .set(
+                  registrationOption.isPaid
+                    ? {
+                        reservedSpots: sql`${eventRegistrationOptions.reservedSpots} + 1`,
+                      }
+                    : {
+                        confirmedSpots: sql`${eventRegistrationOptions.confirmedSpots} + 1`,
+                      },
+                )
+                .where(
+                  and(
+                    eq(eventRegistrationOptions.id, registrationOption.id),
+                    eq(eventRegistrationOptions.eventId, eventId),
+                    sql`${eventRegistrationOptions.confirmedSpots} + ${eventRegistrationOptions.reservedSpots} < ${eventRegistrationOptions.spots}`,
+                  ),
+                )
+                .returning({
+                  id: eventRegistrationOptions.id,
+                });
+              if (updatedOptions.length === 0) {
+                return { _tag: 'CapacityFull' } as const;
+              }
+
+              const createdRegistrations = yield* tx
+                .insert(eventRegistrations)
+                .values({
+                  eventId,
+                  registrationOptionId: registrationOption.id,
+                  status: registrationOption.isPaid ? 'PENDING' : 'CONFIRMED',
+                  ...(selectedTaxRateId
+                    ? {
+                        stripeTaxRateId: selectedTaxRateId,
+                        taxRateDisplayName: selectedTaxRate?.displayName,
+                        taxRateInclusive: selectedTaxRate?.inclusive,
+                        taxRatePercentage: selectedTaxRate?.percentage,
+                      }
+                    : {}),
+                  tenantId: tenant.id,
+                  userId: user.id,
+                })
+                .returning({
+                  id: eventRegistrations.id,
+                });
+              const userRegistration = createdRegistrations[0];
+              if (!userRegistration) {
+                return { _tag: 'CapacityFull' } as const;
+              }
+
+              return {
+                _tag: 'Reserved',
+                registrationId: userRegistration.id,
+              } as const;
             }),
+          ),
         );
-        const userRegistration = createdRegistrations[0];
-        if (!userRegistration) {
+        if (reservationResult._tag === 'AlreadyRegistered') {
           return yield* Effect.fail(
-            new EventRegistrationInternalError({
-              message: 'Failed to create registration',
+            new EventRegistrationConflictError({
+              message: 'User is already registered for this event',
+            }),
+          );
+        }
+        if (reservationResult._tag === 'CapacityFull') {
+          return yield* Effect.fail(
+            new EventRegistrationConflictError({
+              message: 'Registration option has no available spots',
             }),
           );
         }
 
-        yield* databaseEffect((database) =>
-          database
-            .update(eventRegistrationOptions)
-            .set(
-              registrationOption.isPaid
-                ? { reservedSpots: registrationOption.reservedSpots + 1 }
-                : {
-                    confirmedSpots: registrationOption.confirmedSpots + 1,
-                  },
-            )
-            .where(
-              and(
-                eq(eventRegistrationOptions.id, registrationOption.id),
-                eq(eventRegistrationOptions.eventId, eventId),
-              ),
-            ),
-        );
-
         if (!registrationOption.isPaid) {
           return;
         }
+        const userRegistration = {
+          id: reservationResult.registrationId,
+        };
 
         const rollbackOnFailure = Effect.fn(
           'EventRegistrationService.registerForEvent.rollbackOnFailure',
         )(() =>
           Effect.gen(function* () {
             // Undo any DB writes if payment initialization fails after reservation.
-            const rollbackRegistrationOption = yield* databaseEffect(
-              (database) =>
-                database.query.eventRegistrationOptions.findFirst({
-                  columns: {
-                    id: true,
-                    reservedSpots: true,
-                  },
-                  where: {
-                    eventId,
-                    id: registrationOptionId,
-                  },
-                }),
-            );
-
-            if (rollbackRegistrationOption) {
-              yield* databaseEffect((database) =>
-                database
-                  .update(eventRegistrationOptions)
-                  .set({
-                    reservedSpots: Math.max(
-                      0,
-                      rollbackRegistrationOption.reservedSpots - 1,
-                    ),
-                  })
-                  .where(
-                    and(
-                      eq(
-                        eventRegistrationOptions.id,
-                        rollbackRegistrationOption.id,
-                      ),
-                      eq(eventRegistrationOptions.eventId, eventId),
-                    ),
+            yield* databaseEffect((database) =>
+              database
+                .update(eventRegistrationOptions)
+                .set({
+                  reservedSpots: sql`${eventRegistrationOptions.reservedSpots} - 1`,
+                })
+                .where(
+                  and(
+                    eq(eventRegistrationOptions.id, registrationOption.id),
+                    eq(eventRegistrationOptions.eventId, eventId),
+                    sql`${eventRegistrationOptions.reservedSpots} > 0`,
                   ),
-              );
-            }
+                ),
+            );
 
             yield* databaseEffect((database) =>
               database
@@ -451,13 +518,16 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
               database
                 .update(eventRegistrationOptions)
                 .set({
-                  confirmedSpots: registrationOption.confirmedSpots + 1,
-                  reservedSpots: Math.max(
-                    0,
-                    registrationOption.reservedSpots - 1,
-                  ),
+                  confirmedSpots: sql`${eventRegistrationOptions.confirmedSpots} + 1`,
+                  reservedSpots: sql`${eventRegistrationOptions.reservedSpots} - 1`,
                 })
-                .where(eq(eventRegistrationOptions.id, registrationOption.id)),
+                .where(
+                  and(
+                    eq(eventRegistrationOptions.id, registrationOption.id),
+                    eq(eventRegistrationOptions.eventId, eventId),
+                    sql`${eventRegistrationOptions.reservedSpots} > 0`,
+                  ),
+                ),
             );
             return;
           }

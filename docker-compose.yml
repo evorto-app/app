@@ -49,8 +49,6 @@ services:
     build:
       context: .
       target: build
-      args:
-        FONT_AWESOME_TOKEN: "${FONT_AWESOME_TOKEN:-}"
       secrets:
         - FONT_AWESOME_TOKEN
     depends_on:
@@ -103,8 +101,6 @@ services:
   evorto:
     build:
       context: .
-      args:
-        FONT_AWESOME_TOKEN: "${FONT_AWESOME_TOKEN:-}"
       secrets:
         - FONT_AWESOME_TOKEN
     depends_on:
