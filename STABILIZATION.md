@@ -902,7 +902,6 @@ the current working direction until a product decision overrides them.
 
 ### Issues and Risks
 
-- **Must fix before agent scaling:** tenant resolution has no focused unit tests for host-first precedence, local cookie fallback, unknown-host failure, or stale/wrong tenant cookies. Current coverage checks storage-state freshness and tenant schema headers, but not the resolver contract itself.
 - **Should fix before relaunch:** the tenant schema supports one `domain`, not multiple domains or domain verification states. Product context allows Evorto subdomains plus custom domains.
 - **Should fix before relaunch:** tenant settings UI does not expose tenant name, domain/custom domain, logo, favicon, legal/privacy/terms/imprint configuration, email sender name, review/publishing settings, registration limits, locale, currency, timezone, or Stripe account state.
 - **Should fix before relaunch:** tenant schema has `seoTitle` and `seoDescription`, but the `Tenant` RPC schema and settings UI do not expose or use them.
@@ -923,7 +922,7 @@ the current working direction until a product decision overrides them.
 - `tests/docs/finance/inclusive-tax-rates.doc.ts` documents tenant tax-rate management, but there is no generated documentation for tenant general settings, tenant branding/legal settings, or global tenant administration.
 - `src/app/global-admin/global-admin.routes.spec.ts` covers route-level global-admin permission requirements.
 - `src/server/effect/rpc/handlers/global-admin.handlers.spec.ts` covers `globalAdmin:*` satisfying `globalAdmin:manageTenants` RPC authorization.
-- `src/server/context/request-context-resolver.spec.ts` covers global-admin permissions resolving without a tenant user assignment and tenant-user context failing closed when the Auth0 user has no current-tenant assignment.
+- `src/server/context/request-context-resolver.spec.ts` covers host-first tenant resolution, localhost tenant-cookie fallback, stale localhost tenant-cookie fallback, unknown-host failure, global-admin permissions resolving without a tenant user assignment, and tenant-user context failing closed when the Auth0 user has no current-tenant assignment.
 - Playwright browser probing was limited because the bundled Playwright browser was not installed and stored auth states were stale; system Chrome confirmed anonymous/global-admin redirects to Auth0.
 
 ### Product Questions Answered Above
@@ -937,7 +936,6 @@ the current working direction until a product decision overrides them.
 
 ### Recommended Cleanup Actions
 
-- Add unit tests for `resolveTenantContext` covering host-first resolution, local cookie fallback, unknown-host 404 behavior, and stale tenant-cookie behavior.
 - Document one-domain-per-tenant as the relaunch scope; leave automated
   multi-domain/custom-domain management for later work.
 - Add tenant settings docs/specs for current settings and clearly mark missing branding/legal/domain settings as not implemented.
@@ -1077,9 +1075,8 @@ the current working direction until a product decision overrides them.
 7. Add route guards and direct-route denial coverage for admin role/user/settings and other permission-sensitive routes.
 8. Split role lookup APIs so organizers can select event/template eligibility roles without receiving admin role-management data.
 9. Tie receipt media upload to receipt-submit authorization or an upload preflight to avoid orphan authenticated uploads.
-10. Add focused tenant-resolution tests for host/cookie precedence and unknown-host failure.
-11. Remove misleading placeholder tests/docs from the event registration, event management, template tax-rate, role-assignment, finance overview, scanner, and profile/account surfaces.
-12. Replace green placeholder specs and silent no-op Playwright tests with real assertions, hard fixture setup, or explicit `test.fixme` states.
+10. Remove misleading placeholder tests/docs from the event registration, event management, template tax-rate, role-assignment, finance overview, scanner, and profile/account surfaces.
+11. Replace green placeholder specs and silent no-op Playwright tests with real assertions, hard fixture setup, or explicit `test.fixme` states.
 
 ### Should Fix Before Relaunch
 
@@ -1135,6 +1132,7 @@ implement those decisions or explicitly revise them there before changing code.
 - Scanning/check-in pass: added `events.checkInRegistration`, gated scan reads and check-in writes to event organizers or `events:organizeAll`, made duplicate check-ins idempotent, wired the scanner button to persist and refetch state, and extended scanner tests to assert persisted check-in state.
 - Profile/account pass: guarded `/create-account` with authentication, reworked `users.createAccount` into a transactional tenant-account creation flow that can attach an existing global user to the current tenant while assigning default roles, and aligned ESNcard records with the global-per-user decision.
 - Tenant/global-admin pass: guarded global-admin routes with `globalAdmin:manageTenants`, decoupled global-admin permission resolution from current-tenant assignment, required tenant user context to have a current-tenant assignment, and fixed granted group wildcards such as `globalAdmin:*` to satisfy concrete permission checks.
+- Tenant-resolution pass: added focused `resolveTenantContext` coverage for non-local host precedence over cookies, localhost cookie fallback, stale localhost cookie fallback, and unknown non-local host failure.
 - Generated docs/Playwright pass: replaced stale Effect config-provider calls in Playwright config/support files so `test:e2e -- --list` and `test:e2e:docs -- --list` can discover tests again.
 - Local runtime/developer workflow pass: refreshed `.env.dev` automatically in local runtime scripts, added a visible Playwright browser-install script, split Angular/server unit-test discovery, aligned CI Bun with the repo runtime, added Docker required-secret preflight before mutating start commands, and updated workflow docs.
 - Finance access pass: gated finance transaction reads with `finance:viewTransactions`, added finance route guards/link visibility for transaction, receipt approval, and receipt reimbursement pages, added permission-matrix coverage, and rewrote the finance overview doc copy to current permissions and UI behavior.
