@@ -17,7 +17,6 @@ export const AdminRoleRecord = Schema.Struct({
   id: Schema.NonEmptyString,
   name: Schema.NonEmptyString,
   permissions: Schema.mutable(Schema.Array(PermissionSchema)),
-  showInHub: Schema.Boolean,
   sortOrder: Schema.Number,
 });
 
