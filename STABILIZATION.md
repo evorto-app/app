@@ -727,7 +727,7 @@ the current working direction until a product decision overrides them.
 - **Addressed in this stabilization pass:** receipt media upload now includes the target `eventId`, checks tenant event existence for authorized callers, and requires `canSubmitEventReceipts` before object storage is touched. A signed-in user without receipt-submit access can no longer create orphan receipt objects through the upload RPC.
 - **Addressed in stabilization pass:** manual receipt reimbursement is now labeled as recording a reimbursement in the finance overview, reimbursement list, receipt submit hint, profile payout fields, visible server messages, docs, and Playwright coverage. Reimbursement transaction comments no longer copy the full payout reference into free text. The legacy route path, permission name, RPC name, receipt status, and transaction type still use "refund" internally until a broader data/API migration is worthwhile.
 - **Addressed in stabilization pass:** receipt submission and review now reject tax amounts greater than the total amount, matching the existing deposit/alcohol amount consistency guard.
-- **Should fix before relaunch:** receipts are intended as post-event submissions, but the reviewed server path allows receipt submission for any event where the user is allowed to organize/manage receipts.
+- **Addressed in stabilization pass:** receipt submission now requires the target event to have ended before the server inserts a submitted receipt. The receipt Playwright flow uses the deterministic past event fixture for submission/review setup.
 - **Addressed in stabilization pass:** profile and user-event summaries no longer read `event_registrations.paymentStatus`; payment display is derived from registration transaction rows. Seed and webhook-replay setup stopped writing `paymentStatus` for new fixture registrations. The nullable legacy column and enum still exist until a schema migration removes them.
 - **Should fix before relaunch:** receipt review records status locally but no reviewed-email or notification delivery path was found.
 - **Acceptable for now:** receipt review/reimbursement queries are tenant-scoped, and receipt reimbursement creation uses a transaction plus status preconditions to avoid reimbursing the wrong submitter or already-reimbursed receipts.
@@ -748,7 +748,7 @@ the current working direction until a product decision overrides them.
 - Which finance capability should gate the transaction list: `finance:viewTransactions`, `finance:manageReceipts`, or a broader finance overview permission?
 - Should receipt uploads be created only after submit authorization succeeds, or should upload sessions be issued from a receipt-submit preflight?
 - Should receipt reimbursement remain a manual ledger action, or will it eventually integrate with a payout provider?
-- Should receipts be restricted to event end dates, or is pre-event spending intentionally allowed?
+- Should receipts be restricted to event end dates, or is pre-event spending intentionally allowed? Current behavior restricts submitted receipts to events whose end time has passed.
 
 ### Recommended Cleanup Actions
 
@@ -1153,7 +1153,8 @@ implement those decisions or explicitly revise them there before changing code.
 - Receipt reimbursement wording pass: renamed finance-facing receipt reimbursement copy away from "refund" for manual ledger actions while leaving legacy internal route/API/database names for a later migration.
 - Receipt amount validation pass: rejected receipt submit/review payloads where tax exceeds the total amount and added focused server coverage for both write paths.
 - Payment-status deprecation pass: stopped active profile/user-event reads and fixture setup from relying on `event_registrations.paymentStatus`; user-facing payment state now derives from registration transaction rows while the nullable legacy column awaits a later schema migration.
+- Receipt timing pass: restricted receipt submission to events whose end time has passed and pointed receipt Playwright setup at the deterministic past event fixture.
 
 ## Review Next
 
-All ten first-pass review areas are now represented in this document. The next stabilization work should continue with small cleanup commits around the remaining relaunch gaps: profile payment/ticket/action clarity, receipt timing/notification follow-ups, scanner guest-quantity behavior, tenant settings scope, role hub-field legacy migration, payment-status schema removal, and replacing intentionally fixme-only price/tax specs with active Browser-backed coverage once the local runtime is available.
+All ten first-pass review areas are now represented in this document. The next stabilization work should continue with small cleanup commits around the remaining relaunch gaps: profile payment/ticket/action clarity, receipt notification follow-ups, scanner guest-quantity behavior, tenant settings scope, role hub-field legacy migration, payment-status schema removal, and replacing intentionally fixme-only price/tax specs with active Browser-backed coverage once the local runtime is available.
