@@ -1117,17 +1117,14 @@ the current working direction until a product decision overrides them.
 2. Add Playwright coverage for negative registration paths and role-ineligible direct links.
 3. Make organizer signup semantics visible and distinct if it remains modeled as a registration option.
 4. Keep simple-mode templates as the primary authoring UI, but expand reusable template support for discounts, add-ons, questions, and organizer notes/checklists where practical.
-5. Implement `random` and `application` registration fulfillment semantics if
-   those modes remain in the relaunch UI; otherwise hide them until their
-   runtime behavior exists.
-6. Run the legacy-field migration path in production so any existing physical `showInHub` role column is dropped now that active schema/API code uses `displayInHub`.
-7. Add Browser-backed scanner/organizer aggregate review once local runtime is available.
-8. Clarify profile payment-continuation/ticket/cancellation actions and ESNcard provider failure semantics before relaunch.
-9. Fill the tenant settings gap for one-domain relaunch support, branding, legal links/text, locale/currency/timezone, SEO fields, and global tenant-admin workflows.
-10. Make Playwright list/discovery side-effect-free and document or automate the local browser installation expectation.
-11. Update or regenerate `tests/test-inventory.md` after placeholder docs/specs are pruned.
-12. Move local generated docs defaults away from the sibling documentation checkout, or introduce an explicit docs-publish flow that cannot run accidentally during list/discovery.
-13. Keep `docker:start` reset behavior intentional and ensure seeded data is sufficient to get going from zero.
+5. Run the legacy-field migration path in production so any existing physical `showInHub` role column is dropped now that active schema/API code uses `displayInHub`.
+6. Add Browser-backed scanner/organizer aggregate review once local runtime is available.
+7. Clarify profile payment-continuation/ticket/cancellation actions and ESNcard provider failure semantics before relaunch.
+8. Fill the tenant settings gap for one-domain relaunch support, branding, legal links/text, locale/currency/timezone, SEO fields, and global tenant-admin workflows.
+9. Make Playwright list/discovery side-effect-free and document or automate the local browser installation expectation.
+10. Update or regenerate `tests/test-inventory.md` after placeholder docs/specs are pruned.
+11. Move local generated docs defaults away from the sibling documentation checkout, or introduce an explicit docs-publish flow that cannot run accidentally during list/discovery.
+12. Keep `docker:start` reset behavior intentional and ensure seeded data is sufficient to get going from zero.
 
 ### Acceptable For Now
 
@@ -1158,6 +1155,7 @@ implement those decisions or explicitly revise them there before changing code.
 - None. The obvious issues found in Events and Registrations affect server-side behavior and need focused tests, so they should be handled as small follow-up cleanup commits rather than opportunistic edits inside the audit document commit.
 - Registration race-coverage pass: added focused `EventRegistrationService` tests for same-event second registrations across options, transactional duplicate races, and transactional capacity races.
 - Registration mode pass: blocked direct registration attempts for stored `random` and `application` registration options until their fulfillment semantics are implemented.
+- Registration mode backlog cleanup: removed the stale relaunch checklist item for `random`/`application` UI exposure after confirming event/template authoring controls only pass `fcfs`, template docs document that scope, and stored unsupported modes remain rejected server-side.
 - Price-label spec cleanup pass: converted the inclusive price-label Playwright spec to fixme-only declarations and removed placeholder page-load assertions.
 - Unlisted-event spec cleanup pass: changed unlisted-event visibility tests to require an approved unlisted seeded event instead of skipping when the seed state is missing.
 - Event-creation spec cleanup pass: changed the template-create-event Playwright spec to require the deterministic seeded hike template, registration options, tax-rate completeness, and enabled submit button instead of skipping fixture/setup failures.
