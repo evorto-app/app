@@ -80,7 +80,7 @@ Docker Compose now also runs one-shot `db-expiration` and `db-setup` containers 
 Run `bun run docker:check` before investigating Docker startup failures. The
 check validates required local secrets before Compose tears down or starts
 containers, including Neon Local, Auth0, Stripe, the app session secret, and
-Font Awesome package registry access for premium icons. It also reports local
+Font Awesome package registry access for premium and brand icons. It also reports local
 tooling readiness such as Bun, Docker Compose, Compose config validation,
 Playwright CLI availability, and whether the matching Playwright browser cache
 is installed. Missing Playwright browsers are reported as a warning because
