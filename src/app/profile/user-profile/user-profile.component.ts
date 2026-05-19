@@ -44,7 +44,20 @@ import {
   EditProfileDialogResult,
 } from './edit-profile-dialog.component';
 
+type EsnCardMutationAction = 'refresh' | 'remove' | 'save';
+
 type ProfileSection = 'discounts' | 'events' | 'overview' | 'receipts';
+
+const esnCardFallbackMessages = {
+  refresh: 'Could not refresh ESN card',
+  remove: 'Could not remove ESN card',
+  save: 'Could not validate ESN card',
+} as const satisfies Record<EsnCardMutationAction, string>;
+
+export const esnCardMutationErrorMessage = (
+  action: EsnCardMutationAction,
+  error: unknown,
+): string => getErrorMessage(error, esnCardFallbackMessages[action]);
 
 export const profileEventDetailActionLabel = (): string => 'Open event page';
 
@@ -263,7 +276,7 @@ export class UserProfileComponent {
       {
         onError: (error) => {
           this.esnCardErrorMessage.set(
-            getErrorMessage(error, 'Could not remove ESN card'),
+            esnCardMutationErrorMessage('remove', error),
           );
         },
         onSuccess: async () => {
@@ -326,7 +339,7 @@ export class UserProfileComponent {
       {
         onError: (error) => {
           this.esnCardErrorMessage.set(
-            getErrorMessage(error, 'Could not refresh ESN card'),
+            esnCardMutationErrorMessage('refresh', error),
           );
         },
         onSuccess: async () => {
@@ -352,7 +365,7 @@ export class UserProfileComponent {
         {
           onError: (error) => {
             this.esnCardErrorMessage.set(
-              getErrorMessage(error, 'Could not validate ESN card'),
+              esnCardMutationErrorMessage('save', error),
             );
           },
           onSuccess: async () => {

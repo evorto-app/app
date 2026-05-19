@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  esnCardMutationErrorMessage,
   profileEventActionNote,
   profileEventDetailActionLabel,
   profileEventGuestLabel,
@@ -72,5 +73,32 @@ describe('profile event labels', () => {
     expect(registrationStatusLabel('CONFIRMED')).toBe('Confirmed');
     expect(registrationStatusLabel('PENDING')).toBe('Pending');
     expect(registrationStatusLabel('WAITLIST')).toBe('Waitlist');
+  });
+});
+
+describe('profile ESN card messages', () => {
+  it('uses readable fallback messages for save, refresh, and remove failures', () => {
+    expect(esnCardMutationErrorMessage('save', null)).toBe(
+      'Could not validate ESN card',
+    );
+    expect(esnCardMutationErrorMessage('refresh', null)).toBe(
+      'Could not refresh ESN card',
+    );
+    expect(esnCardMutationErrorMessage('remove', null)).toBe(
+      'Could not remove ESN card',
+    );
+  });
+
+  it('prefers provider and RPC messages over generic fallback text', () => {
+    expect(
+      esnCardMutationErrorMessage('save', {
+        message: 'ESNcard validation provider is unavailable',
+      }),
+    ).toBe('ESNcard validation provider is unavailable');
+    expect(
+      esnCardMutationErrorMessage('refresh', {
+        _tag: 'RpcBadRequestError',
+      }),
+    ).toBe('Bad Request');
   });
 });
