@@ -21,6 +21,10 @@ export const createAccountModelFromAuthData = (
   lastName: trimmedOrUndefined(authData.family_name) ?? current.lastName,
 });
 
+export const isAuthEmailVerifiedForAccountCreation = (
+  authData: UsersAuthData,
+): boolean => authData.email_verified === true;
+
 export const createAccountPayloadFromModel = (
   model: CreateAccountModel,
 ): CreateAccountModel => ({

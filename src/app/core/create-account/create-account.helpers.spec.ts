@@ -4,6 +4,7 @@ import {
   createAccountErrorMessage,
   createAccountModelFromAuthData,
   createAccountPayloadFromModel,
+  isAuthEmailVerifiedForAccountCreation,
 } from './create-account.helpers';
 
 describe('createAccountModelFromAuthData', () => {
@@ -64,6 +65,21 @@ describe('createAccountPayloadFromModel', () => {
       firstName: 'Alice',
       lastName: 'Doe',
     });
+  });
+});
+
+describe('isAuthEmailVerifiedForAccountCreation', () => {
+  it('shows the account form only for explicitly verified Auth0 emails', () => {
+    expect(
+      isAuthEmailVerifiedForAccountCreation({ email_verified: true }),
+    ).toBe(true);
+    expect(
+      isAuthEmailVerifiedForAccountCreation({ email_verified: false }),
+    ).toBe(false);
+    expect(
+      isAuthEmailVerifiedForAccountCreation({ email_verified: null }),
+    ).toBe(false);
+    expect(isAuthEmailVerifiedForAccountCreation({})).toBe(false);
   });
 });
 

@@ -138,7 +138,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - Browser-backed account-creation retry and tenant-join behavior. Server
     coverage already proves transactional creation, existing-global-user tenant
     joins, duplicate-assignment conflicts, and visible create-account error
-    message mapping.
+    message mapping. App helper coverage proves Auth0-data prefill,
+    email-verification gating, payload normalization, and error-message mapping.
 - Finance/receipts:
   - Keep finance route-denial cases and route-manifest specs aligned as
     transaction, receipt approval, and reimbursement routes change.
