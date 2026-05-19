@@ -699,9 +699,9 @@ the current working direction until a product decision overrides them.
 - Paid event registration creates a pending registration, reserves a spot, creates a Stripe Checkout session, and stores a pending `registration` transaction with Stripe checkout ids.
 - Stripe `checkout.session.completed` marks the local transaction successful and the registration confirmed when the session is complete and paid.
 - Stripe `checkout.session.expired` marks the local transaction cancelled and the registration cancelled.
-- Finance navigation is hidden behind `finance:*`, but `/finance` and its child routes are only guarded by authentication/user-account guards.
-- The finance overview links to transactions, receipt approvals, and receipt refunds.
-- `finance.transactions.findMany` returns non-cancelled tenant transactions to any authenticated user.
+- Finance navigation is hidden behind `finance:*`, and `/finance` requires at least one finance child capability.
+- The finance overview links to transactions, receipt approvals, and receipt refunds only when the user has the matching child permission.
+- `finance.transactions.findMany` returns non-cancelled tenant transactions only to users with `finance:viewTransactions`.
 - Event organizers or users with receipt-management capabilities can submit receipts from the event organize page.
 - Receipt upload is a separate authenticated RPC that stores image/PDF originals in object storage, or a local-unavailable placeholder when storage config is absent.
 - Finance reviewers can approve/reject submitted receipts; refund users can group approved receipts by submitter and create manual refund/reimbursement transactions.
@@ -719,8 +719,8 @@ the current working direction until a product decision overrides them.
 ### Issues and Risks
 
 - **Must fix before agent scaling:** Stripe checkout completion confirms the registration but does not move the registration option counters from `reservedSpots` to `confirmedSpots`. Checkout expiry also cancels the registration but does not decrement `reservedSpots`. This makes paid registration capacity/state drift after webhook processing.
-- **Must fix before agent scaling:** `finance.transactions.findMany` only checks authentication, while navigation and docs imply finance capability gating. Any authenticated tenant user can call the RPC directly and read transaction amounts, comments, methods, and fees.
-- **Must fix before agent scaling:** finance routes have no capability guards. Some child RPCs will fail, but direct routes do not consistently produce a clear `403`, and the transaction route currently has a permissive RPC behind it.
+- **Addressed in this stabilization pass:** `finance.transactions.findMany` now requires `finance:viewTransactions`, so direct RPC calls cannot read transaction amounts, comments, methods, or fees with authentication alone.
+- **Addressed in this stabilization pass:** finance parent and child routes now have route-level permission guards. Transactions require `finance:viewTransactions`, receipt approvals require `finance:approveReceipts`, and receipt reimbursement requires `finance:refundReceipts`.
 - **Must fix before agent scaling:** receipt media upload is authenticated-only and not tied to an event, pending receipt, or receipt-submit permission check. A signed-in user can create orphan receipt objects even if `finance.receipts.submit` later rejects the event.
 - **Should fix before relaunch:** manual receipt reimbursement is labeled as "Issue refund" / "Refund transaction created", but it only records a successful local transfer/PayPal transaction. The UI should avoid implying that money was actually sent through a payout provider.
 - **Should fix before relaunch:** receipt submission and review validate deposit/alcohol against total, but do not reject tax amounts greater than the total amount.
@@ -735,10 +735,9 @@ the current working direction until a product decision overrides them.
 - Existing Stripe webhook specs assert registration/transaction status but not paid-registration capacity counters or `paymentStatus`, so they miss the counter drift.
 - Receipt flow specs cover receipt submission UI, receipt approval/refund path, and tenant "Other" receipt country visibility.
 - `tests/specs/finance/receipts-flows.spec.ts` contains early `return` paths when no pending receipt, no refundable receipt, no checkbox, or no enabled refund action exists. Those branches can make the approval/refund test pass without proving the behavior.
-- Finance overview docs describe totals, recent transactions, filtering, and sorting that are not visible in the current finance UI.
-- Finance overview docs use stale permission names (`finance:view`, `finance:manage`) instead of current capabilities.
+- Finance overview docs now describe the current navigation-style finance UI and current finance capability names.
 - Tax-rate docs and specs provide better active coverage for `admin:tax` and inclusive Stripe tax-rate import/selection.
-- Server finance unit tests are thin: handler composition and one receipt media MIME-type rejection. Receipt preconditions and transaction visibility are mostly untested at the handler level.
+- Server finance unit tests are still thin, but now include transaction-list permission denial. Receipt preconditions remain mostly untested at the handler level.
 
 ### Product Questions Answered Above
 
@@ -752,14 +751,14 @@ the current working direction until a product decision overrides them.
 ### Recommended Cleanup Actions
 
 - Add webhook-side counter updates for paid checkout completion/expiry and regression tests that assert registration status, transaction status, and option counters together.
-- Gate finance routes and `finance.transactions.findMany` with explicit finance permissions and direct-route Playwright denial coverage.
+- Keep direct-route Playwright denial coverage for finance transaction, receipt approval, and receipt reimbursement routes.
 - Tie receipt media upload to authorized receipt submission or add a submit preflight/upload-token flow to prevent orphan object creation.
 - Rename receipt reimbursement UI copy from "refund" to "record reimbursement" unless an actual payout integration is added.
 - Validate receipt tax amount against total amount on submit and review.
 - Remove or deprecate `paymentStatus` in favor of registration status plus
   transaction rows after confirming no active behavior depends on it.
 - Replace early-return receipt flow tests with deterministic fixtures and hard assertions for approval and reimbursement.
-- Rewrite finance overview docs so they describe the current tabbed UI and current permission names only.
+- Keep finance overview docs aligned with current navigation UI and permission names as reimbursement wording changes.
 
 ## Scanning/Check-In
 
@@ -1090,17 +1089,16 @@ the current working direction until a product decision overrides them.
 8. Add route guards and direct-route denial coverage for admin role/user/settings and other permission-sensitive routes.
 9. Split role lookup APIs so organizers can select event/template eligibility roles without receiving admin role-management data.
 10. Fix paid-registration webhook counter updates so Stripe completion/expiry keeps `reservedSpots` and `confirmedSpots` consistent.
-11. Gate finance transaction listing and finance routes with explicit finance permissions.
-12. Tie receipt media upload to receipt-submit authorization or an upload preflight to avoid orphan authenticated uploads.
-13. Implement real check-in mutation behavior and make the visible scan UI persist `checkInTime` / `checkedInSpots`.
-14. Gate scan result and check-in behavior to organizers or a dedicated check-in capability.
-15. Make account creation transactional and compatible with global users joining multiple tenants.
-16. Fix anonymous `/create-account` behavior so it requires authentication or starts the login flow.
-17. Align ESNcard uniqueness/storage with the tenant/global user model.
-18. Add route-level global-admin protection and decouple global-admin authorization from current tenant membership.
-19. Add focused tenant-resolution tests for host/cookie precedence and unknown-host failure.
-20. Remove misleading placeholder tests/docs from the event registration, event management, template tax-rate, role-assignment, finance overview, scanner, and profile/account surfaces.
-21. Replace green placeholder specs and silent no-op Playwright tests with real assertions, hard fixture setup, or explicit `test.fixme` states.
+11. Tie receipt media upload to receipt-submit authorization or an upload preflight to avoid orphan authenticated uploads.
+12. Implement real check-in mutation behavior and make the visible scan UI persist `checkInTime` / `checkedInSpots`.
+13. Gate scan result and check-in behavior to organizers or a dedicated check-in capability.
+14. Make account creation transactional and compatible with global users joining multiple tenants.
+15. Fix anonymous `/create-account` behavior so it requires authentication or starts the login flow.
+16. Align ESNcard uniqueness/storage with the tenant/global user model.
+17. Add route-level global-admin protection and decouple global-admin authorization from current tenant membership.
+18. Add focused tenant-resolution tests for host/cookie precedence and unknown-host failure.
+19. Remove misleading placeholder tests/docs from the event registration, event management, template tax-rate, role-assignment, finance overview, scanner, and profile/account surfaces.
+20. Replace green placeholder specs and silent no-op Playwright tests with real assertions, hard fixture setup, or explicit `test.fixme` states.
 
 ### Should Fix Before Relaunch
 
@@ -1158,6 +1156,7 @@ implement those decisions or explicitly revise them there before changing code.
 - None in the Tenant/global admin pass. The obvious fixes affect authorization semantics and tenant-resolution tests, so they should be done as focused code/test commits rather than mixed into the audit document commit.
 - Generated docs/Playwright pass: replaced stale Effect config-provider calls in Playwright config/support files so `test:e2e -- --list` and `test:e2e:docs -- --list` can discover tests again.
 - Local runtime/developer workflow pass: refreshed `.env.dev` automatically in local runtime scripts, added a visible Playwright browser-install script, split Angular/server unit-test discovery, aligned CI Bun with the repo runtime, added Docker required-secret preflight before mutating start commands, and updated workflow docs.
+- Finance access pass: gated finance transaction reads with `finance:viewTransactions`, added finance route guards/link visibility for transaction, receipt approval, and receipt reimbursement pages, added permission-matrix coverage, and rewrote the finance overview doc copy to current permissions and UI behavior.
 
 ## Review Next
 
