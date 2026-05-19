@@ -16,6 +16,7 @@ import {
   eventRegistrationOptionDiscounts,
   eventRegistrationOptions,
   eventRegistrations,
+  tenantStripeTaxRates,
 } from '../../../../../db/schema';
 import { RpcAccess } from '../shared/rpc-access.service';
 import {
@@ -329,6 +330,13 @@ export const eventQueryHandlers = {
       const registrationOptionIds = event.registrationOptions.map(
         (registrationOption) => registrationOption.id,
       );
+      const registrationOptionTaxRateIds = [
+        ...new Set(
+          event.registrationOptions
+            .map((registrationOption) => registrationOption.stripeTaxRateId)
+            .filter((id): id is string => typeof id === 'string'),
+        ),
+      ];
       const optionDiscounts =
         registrationOptionIds.length === 0
           ? []
@@ -355,6 +363,30 @@ export const eventQueryHandlers = {
                   ),
                 ),
             );
+      const taxRates =
+        registrationOptionTaxRateIds.length === 0
+          ? []
+          : yield* databaseEffect((database) =>
+              database
+                .select({
+                  displayName: tenantStripeTaxRates.displayName,
+                  percentage: tenantStripeTaxRates.percentage,
+                  stripeTaxRateId: tenantStripeTaxRates.stripeTaxRateId,
+                })
+                .from(tenantStripeTaxRates)
+                .where(
+                  and(
+                    eq(tenantStripeTaxRates.tenantId, tenant.id),
+                    inArray(
+                      tenantStripeTaxRates.stripeTaxRateId,
+                      registrationOptionTaxRateIds,
+                    ),
+                  ),
+                ),
+            );
+      const taxRateByStripeId = new Map(
+        taxRates.map((taxRate) => [taxRate.stripeTaxRateId, taxRate]),
+      );
       const esnCardDiscountedPriceByOptionId =
         getEsnCardDiscountedPriceByOptionId(optionDiscounts);
 
@@ -404,6 +436,9 @@ export const eventQueryHandlers = {
             const discountApplied =
               userIsEligibleForEsnCardDiscount &&
               effectivePrice < registrationOption.price;
+            const taxRate = registrationOption.stripeTaxRateId
+              ? taxRateByStripeId.get(registrationOption.stripeTaxRateId)
+              : undefined;
 
             return {
               appliedDiscountType: discountApplied
@@ -433,6 +468,8 @@ export const eventQueryHandlers = {
               roleIds: [...registrationOption.roleIds],
               spots: registrationOption.spots,
               stripeTaxRateId: registrationOption.stripeTaxRateId ?? null,
+              taxRateDisplayName: taxRate?.displayName ?? null,
+              taxRatePercentage: taxRate?.percentage ?? null,
               title: registrationOption.title,
             };
           },

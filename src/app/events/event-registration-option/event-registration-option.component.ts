@@ -20,6 +20,7 @@ import { interval, map } from 'rxjs';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
+import { PriceWithTaxComponent } from '../../shared/components/inclusive-price-label/price-with-tax.component';
 
 export interface EventRegistrationOptionView {
   appliedDiscountType?: 'esnCard' | null;
@@ -38,6 +39,9 @@ export interface EventRegistrationOptionView {
   registrationMode: 'application' | 'fcfs' | 'random';
   reservedSpots: number;
   spots: number;
+  stripeTaxRateId?: null | string;
+  taxRateDisplayName?: null | string;
+  taxRatePercentage?: null | string;
   title: string;
 }
 
@@ -94,6 +98,14 @@ export const registrationOptionAvailableSpots = (
 ): number =>
   Math.max(0, option.spots - option.confirmedSpots - option.reservedSpots);
 
+export const registrationOptionSelectedTotalPrice = (
+  option: Pick<EventRegistrationOptionView, 'effectivePrice' | 'price'>,
+  guestCount: number,
+): number => {
+  const buyerPrice = option.effectivePrice ?? option.price;
+  return buyerPrice + option.price * Math.max(0, guestCount);
+};
+
 export const registrationOptionAvailability = (
   option: Pick<
     EventRegistrationOptionView,
@@ -118,6 +130,7 @@ export const registrationOptionAvailability = (
     MatInputModule,
     CurrencyPipe,
     DatePipe,
+    PriceWithTaxComponent,
   ],
   selector: 'app-event-registration-option',
   styles: ``,
@@ -172,9 +185,18 @@ export class EventRegistrationOptionComponent {
     () => this.selectedGuestCount() + 1,
   );
   protected readonly selectedTotalPrice = computed(() => {
+    return registrationOptionSelectedTotalPrice(
+      this.registrationOption(),
+      this.selectedGuestCount(),
+    );
+  });
+  protected readonly taxRateInfo = computed(() => {
     const option = this.registrationOption();
-    const buyerPrice = option.effectivePrice ?? option.price;
-    return buyerPrice + option.price * this.selectedGuestCount();
+    return {
+      displayName: option.taxRateDisplayName ?? null,
+      percentage: option.taxRatePercentage ?? null,
+      stripeTaxRateId: option.stripeTaxRateId ?? null,
+    };
   });
   protected readonly waitlistAvailable = computed(() => {
     return registrationOptionCanJoinWaitlist(this.registrationOption());
