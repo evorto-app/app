@@ -11,6 +11,12 @@ test.use({ storageState: userStateFile });
 const regularUserId =
   usersToAuthenticate.find((user) => user.roles === 'user')?.id ??
   usersToAuthenticate[0].id;
+const webhookSecret = process.env['STRIPE_WEBHOOK_SECRET'] ?? '';
+
+test.skip(
+  webhookSecret.length === 0,
+  'STRIPE_WEBHOOK_SECRET is required for webhook replay tests',
+);
 
 test('replaying the same Stripe webhook is idempotent @finance @stripe @track(playwright-specs-track-linking_20260126) @req(STRIPE-WEBHOOK-REPLAY-SPEC-01)', async ({
   database,
@@ -18,15 +24,6 @@ test('replaying the same Stripe webhook is idempotent @finance @stripe @track(pl
   seeded,
   tenant,
 }) => {
-  const webhookSecret = process.env['STRIPE_WEBHOOK_SECRET'];
-  if (!webhookSecret) {
-    test.skip(
-      true,
-      'STRIPE_WEBHOOK_SECRET is required for webhook replay test',
-    );
-    return;
-  }
-
   const registrationId = getId();
   const transactionId = getId();
   const checkoutSessionId = `cs_test_${getId()}`;
@@ -206,15 +203,6 @@ test('expired checkout webhook releases reserved capacity @finance @stripe @trac
   seeded,
   tenant,
 }) => {
-  const webhookSecret = process.env['STRIPE_WEBHOOK_SECRET'];
-  if (!webhookSecret) {
-    test.skip(
-      true,
-      'STRIPE_WEBHOOK_SECRET is required for webhook replay test',
-    );
-    return;
-  }
-
   const registrationId = getId();
   const transactionId = getId();
   const checkoutSessionId = `cs_test_${getId()}`;
@@ -352,15 +340,6 @@ test('duplicate webhook delivery is retryable while the original event claim is 
   request,
   tenant,
 }) => {
-  const webhookSecret = process.env['STRIPE_WEBHOOK_SECRET'];
-  if (!webhookSecret) {
-    test.skip(
-      true,
-      'STRIPE_WEBHOOK_SECRET is required for webhook replay test',
-    );
-    return;
-  }
-
   const registrationId = getId();
   const transactionId = getId();
   const checkoutSessionId = `cs_test_${getId()}`;
@@ -431,15 +410,6 @@ test('stale webhook claims are reclaimed so Stripe retries can finish processing
   seeded,
   tenant,
 }) => {
-  const webhookSecret = process.env['STRIPE_WEBHOOK_SECRET'];
-  if (!webhookSecret) {
-    test.skip(
-      true,
-      'STRIPE_WEBHOOK_SECRET is required for webhook replay test',
-    );
-    return;
-  }
-
   const registrationId = getId();
   const transactionId = getId();
   const checkoutSessionId = `cs_test_${getId()}`;
@@ -541,15 +511,6 @@ test('checkout webhook resolves registration by payment intent when metadata is 
   seeded,
   tenant,
 }) => {
-  const webhookSecret = process.env['STRIPE_WEBHOOK_SECRET'];
-  if (!webhookSecret) {
-    test.skip(
-      true,
-      'STRIPE_WEBHOOK_SECRET is required for webhook replay test',
-    );
-    return;
-  }
-
   const registrationId = getId();
   const transactionId = getId();
   const checkoutSessionId = `cs_test_${getId()}`;
@@ -665,15 +626,6 @@ test('checkout webhook does not confirm unpaid completed sessions @finance @stri
   seeded,
   tenant,
 }) => {
-  const webhookSecret = process.env['STRIPE_WEBHOOK_SECRET'];
-  if (!webhookSecret) {
-    test.skip(
-      true,
-      'STRIPE_WEBHOOK_SECRET is required for webhook replay test',
-    );
-    return;
-  }
-
   const registrationId = getId();
   const transactionId = getId();
   const checkoutSessionId = `cs_test_${getId()}`;
