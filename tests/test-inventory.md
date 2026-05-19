@@ -121,7 +121,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   now keep missing paid tax-rate selection visible to server validation while
   clearing hidden free-registration payment fields before submission. Server
   coverage proves the tax-rate select source is scoped to current-tenant active
-  inclusive rates.
+  inclusive rates. Generated template docs assert that enabling payment reveals
+  both price and tax-rate controls before capturing the simple-mode payment
+  fields.
 - `docs/users/create-account.doc.ts` is integration-tagged with
   `@needs-auth0-management`; baseline list/discovery must not require those
   credentials.
