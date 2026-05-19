@@ -1266,6 +1266,10 @@ implement those decisions or explicitly revise them there before changing code.
 - User-list search pass: wired the existing `users.findMany.search` contract
   into the server query and the read-only user list UI so larger tenants can
   filter by name or email before pagination.
+- Docker preflight visibility pass: `bun run docker:check` now lists required
+  variables that are already available without printing secret values, so
+  Font Awesome premium/brand icon registry access can be confirmed even when
+  missing runtime secrets still block Docker startup.
 
 ## Review Next
 
