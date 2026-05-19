@@ -48,6 +48,14 @@
       @if (templateQuery.data().location) {
         <div>Location: {{ templateQuery.data().location?.name }}</div>
       }
+      @if (templateQuery.data().planningTips) {
+        <div class="mt-4">
+          <h3 class="title-small">Organizer planning tips</h3>
+          <p class="whitespace-pre-line text-sm">
+            {{ templateQuery.data().planningTips }}
+          </p>
+        </div>
+      }
     </section>
 
     <section

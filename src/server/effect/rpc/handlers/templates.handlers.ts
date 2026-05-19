@@ -20,6 +20,7 @@ const normalizeTemplateFindOneRecord = (
     icon: typeof eventTemplates.$inferSelect.icon;
     id: string;
     location: typeof eventTemplates.$inferSelect.location;
+    planningTips: null | string;
     registrationOptions: readonly {
       closeRegistrationOffset: number;
       description: null | string;
@@ -44,6 +45,7 @@ const normalizeTemplateFindOneRecord = (
   icon: typeof eventTemplates.$inferSelect.icon;
   id: string;
   location: null | typeof eventTemplates.$inferSelect.location;
+  planningTips: null | string;
   registrationOptions: {
     closeRegistrationOffset: number;
     description: null | string;
@@ -67,6 +69,7 @@ const normalizeTemplateFindOneRecord = (
   icon: template.icon,
   id: template.id,
   location: template.location ?? null,
+  planningTips: template.planningTips?.trim() || null,
   registrationOptions: template.registrationOptions.map((option) => ({
     closeRegistrationOffset: option.closeRegistrationOffset,
     description: option.description ?? null,
@@ -112,6 +115,7 @@ export const templateHandlers = {
             icon: true,
             id: true,
             location: true,
+            planningTips: true,
             title: true,
           },
           where: {
