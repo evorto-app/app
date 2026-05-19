@@ -981,7 +981,7 @@ the current working direction until a product decision overrides them.
 - `tests/specs/permissions/tenant-isolation-tax-rates.spec.ts` checks seeded tenant tax-rate isolation directly in the database, but does not exercise the RPC/UI tenant context switch.
 - `tests/specs/permissions/matrix.spec.ts` covers route denial for `/admin/settings`, `/admin/roles`, `/admin/users`, `/admin/tax-rates`, `/finance/transactions`, `/finance/receipts-approval`, `/finance/receipts-refunds`, and template write routes. `tests/specs/finance/tax-rates/admin-import-tax-rates.spec.ts` adds focused tax-rate route denial coverage. Route-manifest unit specs cover admin, finance, template, and global-admin guard declarations without requiring page-backed runtime. `tests/specs/permissions/global-admin-route-guard.spec.ts` covers direct `/global-admin` allow/deny behavior once page-backed runtime is available.
 - `tests/docs/admin/general-settings.doc.ts` documents the current tenant general-settings page, including the deferred-settings summary, read-only tenant identity summary, editable brand asset URLs, editable tenant legal links, and public footer/favicon exposure, and records which branding/domain/hosted-legal-text settings are not editable yet.
-- `tests/docs/admin/global-admin.doc.ts` documents the current global-admin tenant list and records that tenant create/edit/detail, custom-domain verification, and impersonation workflows are not implemented yet.
+- `tests/docs/admin/global-admin.doc.ts` documents the current searchable global-admin tenant list and records that tenant create/edit/detail, custom-domain verification, and impersonation workflows are not implemented yet.
 - `tests/docs/finance/inclusive-tax-rates.doc.ts` documents tenant tax-rate management.
 - `src/shared/rpc-contracts/app-rpcs/admin.rpcs.spec.ts` covers the tenant settings update payload scope.
 - `src/app/global-admin/global-admin.routes.spec.ts` covers route-level global-admin permission requirements.
@@ -1303,6 +1303,9 @@ implement those decisions or explicitly revise them there before changing code.
 - Global-admin tenant-list pass: expanded the tenant list contract and UI with
   non-sensitive operational state for support review, including theme,
   locale/currency/timezone, and Stripe connection status.
+- Global-admin tenant-search pass: added client-side search across tenant
+  operational fields and removed the dead placeholder tenant-list action while
+  keeping the current surface read-only.
 - User-list pagination pass: fixed the read-only tenant user list to paginate
   tenant-user assignments before loading role rows, so users with multiple
   roles no longer consume multiple page slots.
