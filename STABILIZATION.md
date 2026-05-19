@@ -602,7 +602,7 @@ the current working direction until a product decision overrides them.
 - **Should fix before relaunch:** simple-mode create/update always writes exactly two registration options. That matches the current UI but is thinner than the product model for reusable event knowledge.
 - **Should fix before relaunch:** template discounts and add-ons exist in schema, but simple-mode template create/update does not expose or persist discounts/add-ons. Event creation has separate discount-copying logic, but the simple template editing path cannot maintain those richer fields.
 - **Addressed in this stabilization pass:** registration mode now only offers first-come-first-served in event/template authoring controls. The contracts still accept existing stored `random`/`application` values, but new/edit UI no longer presents unsupported fulfillment modes.
-- **Should fix before relaunch:** template create/edit components still use `console.*` instead of the app guidance to use `consola/browser`.
+- **Addressed in this stabilization pass:** template create/edit components use scoped `consola/browser` loggers instead of direct `console.*` calls.
 - **Acceptable for now:** the template detail page is a useful read-only summary and the "Create event" action is discoverable from the detail surface.
 
 ### Test and Documentation Quality

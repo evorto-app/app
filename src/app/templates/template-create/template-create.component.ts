@@ -16,6 +16,7 @@ import {
   injectQuery,
   QueryClient,
 } from '@tanstack/angular-query-experimental';
+import consola from 'consola/browser';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import {
@@ -35,6 +36,7 @@ const templateFormSchema = schema<TemplateFormData>((formPath) => {
   apply(formPath.organizerRegistration, templateRegistrationOptionFormSchema);
   apply(formPath.participantRegistration, templateRegistrationOptionFormSchema);
 });
+const logger = consola.withTag('app/templates/create');
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -99,12 +101,12 @@ export class TemplateCreateComponent {
     await submit(this.templateForm, async (formState) => {
       const formValue = formState().value();
       if (!formValue.icon) {
-        console.warn('[template-create] submit blocked: missing icon', {
+        logger.warn('Submit blocked: missing icon', {
           value: formValue,
         });
         return;
       }
-      console.info('[template-create] submit', formValue);
+      logger.info('Submit template create form', formValue);
       const payload: TemplateFormSubmitData = {
         ...formValue,
         icon: formValue.icon,
@@ -135,10 +137,10 @@ export class TemplateCreateComponent {
       };
       await this.createTemplateMutation.mutateAsync(payload, {
         onError: (error) => {
-          console.error('[template-create] submit error', error);
+          logger.error('Template create failed', error);
         },
         onSuccess: async (template) => {
-          console.info('[template-create] submit success');
+          logger.info('Template create succeeded');
           await this.queryClient.invalidateQueries(
             this.rpc.queryFilter(['templates', 'groupedByCategory']),
           );

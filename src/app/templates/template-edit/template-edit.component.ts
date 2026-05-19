@@ -16,6 +16,7 @@ import {
   injectQuery,
   QueryClient,
 } from '@tanstack/angular-query-experimental';
+import consola from 'consola/browser';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import {
@@ -35,6 +36,7 @@ const templateFormSchema = schema<TemplateFormData>((formPath) => {
   apply(formPath.organizerRegistration, templateRegistrationOptionFormSchema);
   apply(formPath.participantRegistration, templateRegistrationOptionFormSchema);
 });
+const logger = consola.withTag('app/templates/edit');
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -104,7 +106,7 @@ export class TemplateEditComponent {
     await submit(this.templateForm, async (formState) => {
       const formValue = formState().value();
       if (!formValue.icon) {
-        console.warn('[template-edit] submit blocked: missing icon', {
+        logger.warn('Submit blocked: missing icon', {
           value: formValue,
         });
         return;
