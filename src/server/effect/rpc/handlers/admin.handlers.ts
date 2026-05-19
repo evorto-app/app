@@ -20,7 +20,10 @@ import type { AppRpcHandlers } from './shared/handler-types';
 
 import { Database, type DatabaseClient } from '../../../../db';
 import { roles, tenants, tenantStripeTaxRates } from '../../../../db/schema';
-import { type Permission } from '../../../../shared/permissions/permissions';
+import {
+  includesPermission,
+  type Permission,
+} from '../../../../shared/permissions/permissions';
 import { type AdminHubRoleRecord } from '../../../../shared/rpc-contracts/app-rpcs/admin.rpcs';
 import { ConfigPermissions } from '../../../../shared/rpc-contracts/app-rpcs/config.rpcs';
 import { Tenant } from '../../../../types/custom/tenant';
@@ -86,7 +89,7 @@ const ensurePermission = (
       ConfigPermissions,
     );
 
-    if (!currentPermissions.includes(permission)) {
+    if (!includesPermission(permission, currentPermissions)) {
       return yield* Effect.fail(
         new RpcForbiddenError({ message: 'Forbidden', permission }),
       );

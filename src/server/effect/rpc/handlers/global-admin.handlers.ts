@@ -9,7 +9,10 @@ import { Effect, Schema } from 'effect';
 import type { AppRpcHandlers } from './shared/handler-types';
 
 import { Database, type DatabaseClient } from '../../../../db';
-import { type Permission } from '../../../../shared/permissions/permissions';
+import {
+  includesPermission,
+  type Permission,
+} from '../../../../shared/permissions/permissions';
 import { ConfigPermissions } from '../../../../shared/rpc-contracts/app-rpcs/config.rpcs';
 import {
   decodeRpcContextHeaderJson,
@@ -46,9 +49,9 @@ const ensurePermission = (
       ConfigPermissions,
     );
 
-    if (!currentPermissions.includes(permission)) {
+    if (!includesPermission(permission, currentPermissions)) {
       return yield* Effect.fail(
-        new RpcForbiddenError({ message: 'Forbidden' }),
+        new RpcForbiddenError({ message: 'Forbidden', permission }),
       );
     }
   });

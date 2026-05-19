@@ -640,6 +640,7 @@ the current working direction until a product decision overrides them.
 - New accounts receive tenant roles marked as default user roles.
 - Event/template registration eligibility is modeled through role ids stored on registration options.
 - The client `PermissionsService` supports direct permissions, group wildcard checks, the legacy `admin:manageTaxes` alias, and configured permission dependencies.
+- Server authorization paths use the same shared `includesPermission` evaluator through `RpcAccess.ensurePermission` or handler-local checks that still read legacy context headers.
 - The role form automatically selects dependent permissions and marks them read-only when a parent permission is selected.
 - Admin role create, update, delete, find-one, find-many, and search RPCs require `admin:manageRoles`; `users.findMany` requires `users:viewAll`.
 - `admin.roles.findHubRoles` requires only authentication.
@@ -657,7 +658,7 @@ the current working direction until a product decision overrides them.
 
 ### Issues and Risks
 
-- **Must fix before agent scaling:** client and server permission semantics are not centralized. The client expands dependencies and wildcard checks, while most server handlers check raw header permissions with `includes(...)`; `RpcAccess.ensurePermission` also checks only direct permissions. Future fixes can easily pass a UI guard while failing or bypassing server behavior.
+- **Addressed in this stabilization pass:** client and server permission checks now share `includesPermission`, including dependency expansion, wildcard checks, and the legacy `admin:manageTaxes` -> `admin:tax` alias. Legacy header-based handlers, `RpcAccess.ensurePermission`, tax-rate visibility, event visibility/edit checks, and finance receipt helpers all route through the shared evaluator.
 - **Addressed in this stabilization pass:** admin role, user, settings, tax-rate, and event-review child routes now have route-level permission guards, and the admin shell requires at least one admin-child capability.
 - **Addressed in this stabilization pass:** `admin.roles.findMany` now requires `admin:manageRoles`; permission-bearing role records are no longer exposed to every authenticated tenant user.
 - **Addressed in this stabilization pass:** shared role selection and template default-role queries now use lookup-only `roles.findMany` / `roles.findOne` RPCs. The lookup API returns only id, name, and default-role flags and is available to event/template authoring permissions plus role admins.
@@ -668,7 +669,7 @@ the current working direction until a product decision overrides them.
 
 ### Test and Documentation Quality
 
-- `src/shared/permissions/permissions.spec.ts` only checks schema literal round-tripping; it does not cover dependency expansion or client/server parity.
+- `src/shared/permissions/permissions.spec.ts` covers direct permissions, dependency expansion, legacy tax aliases, wildcard checks, and rejection of unrelated permissions. `RpcAccess` and tax-rate handler unit tests prove server use of the shared evaluator.
 - Permission matrix coverage checks admin tax-rate, role-management, user-list, settings, and template write route denial. Role lookup UI behavior still needs Browser/E2E coverage once runtime review is available.
 - `tests/docs/roles/roles.doc.ts` documents role creation and dependent permissions, but says users can be assigned to roles even though the reviewed UI/API does not implement role assignment.
 - `tests/docs/roles/roles.doc.ts` links to `/docs/about-permissions`; no matching checked-in documentation source was found in this pass.
@@ -685,7 +686,7 @@ the current working direction until a product decision overrides them.
 
 ### Recommended Cleanup Actions
 
-- Add a shared permission evaluation helper that handles dependencies, legacy aliases, and group checks consistently for client and server authorization.
+- Keep permission checks routed through `includesPermission` or `RpcAccess.ensurePermission`; avoid reintroducing direct `.includes(...)` authorization checks.
 - Extend route-guard coverage to the remaining permission-sensitive surfaces, including finance routes and global-admin routes.
 - Add UI/E2E coverage that least-privilege organizers can search/select tenant roles in event/template eligibility forms once Browser/runtime review is available.
 - Fix or remove hub role form fields until `showInHub` / `displayInHub` semantics are explicit and persisted.
@@ -1083,17 +1084,16 @@ the current working direction until a product decision overrides them.
 4. Replace or validate `Schema.Any` event location at the RPC boundary.
 5. Add server-side template permission checks for view/create/edit and direct route guards for template write flows.
 6. Validate template category/role ids and template offset ordering at the server boundary.
-7. Centralize permission evaluation so client and server agree on dependencies, legacy aliases, and direct permission checks.
-8. Add route guards and direct-route denial coverage for admin role/user/settings and other permission-sensitive routes.
-9. Split role lookup APIs so organizers can select event/template eligibility roles without receiving admin role-management data.
-10. Tie receipt media upload to receipt-submit authorization or an upload preflight to avoid orphan authenticated uploads.
-11. Make account creation transactional and compatible with global users joining multiple tenants.
-12. Fix anonymous `/create-account` behavior so it requires authentication or starts the login flow.
-13. Align ESNcard uniqueness/storage with the tenant/global user model.
-14. Add route-level global-admin protection and decouple global-admin authorization from current tenant membership.
-15. Add focused tenant-resolution tests for host/cookie precedence and unknown-host failure.
-16. Remove misleading placeholder tests/docs from the event registration, event management, template tax-rate, role-assignment, finance overview, scanner, and profile/account surfaces.
-17. Replace green placeholder specs and silent no-op Playwright tests with real assertions, hard fixture setup, or explicit `test.fixme` states.
+7. Add route guards and direct-route denial coverage for admin role/user/settings and other permission-sensitive routes.
+8. Split role lookup APIs so organizers can select event/template eligibility roles without receiving admin role-management data.
+9. Tie receipt media upload to receipt-submit authorization or an upload preflight to avoid orphan authenticated uploads.
+10. Make account creation transactional and compatible with global users joining multiple tenants.
+11. Fix anonymous `/create-account` behavior so it requires authentication or starts the login flow.
+12. Align ESNcard uniqueness/storage with the tenant/global user model.
+13. Add route-level global-admin protection and decouple global-admin authorization from current tenant membership.
+14. Add focused tenant-resolution tests for host/cookie precedence and unknown-host failure.
+15. Remove misleading placeholder tests/docs from the event registration, event management, template tax-rate, role-assignment, finance overview, scanner, and profile/account surfaces.
+16. Replace green placeholder specs and silent no-op Playwright tests with real assertions, hard fixture setup, or explicit `test.fixme` states.
 
 ### Should Fix Before Relaunch
 
@@ -1144,7 +1144,7 @@ implement those decisions or explicitly revise them there before changing code.
 
 - None. The obvious issues found in Events and Registrations affect server-side behavior and need focused tests, so they should be handled as small follow-up cleanup commits rather than opportunistic edits inside the audit document commit.
 - None in the Templates pass. The highest-value issues are permission and contract validation gaps that need targeted tests with the fixes.
-- None in the Roles and permissions pass. The obvious fixes touch authorization behavior and should be done with route/RPC denial tests instead of as opportunistic audit edits.
+- Permission evaluator pass: routed legacy server permission checks through the shared `includesPermission` helper so client and server agree on dependencies, wildcards, and legacy aliases, and added direct unit coverage for the shared evaluator plus tax-rate dependency behavior.
 - None in the Finance/receipts pass. The highest-value issues touch payment-derived state, transaction visibility, and upload authorization, so they need targeted regression tests with the fixes.
 - Scanning/check-in pass: added `events.checkInRegistration`, gated scan reads and check-in writes to event organizers or `events:organizeAll`, made duplicate check-ins idempotent, wired the scanner button to persist and refetch state, and extended scanner tests to assert persisted check-in state.
 - None in the Profile/account pass. The high-value issues affect account transactionality, multi-tenant user semantics, and profile data modeling, so they need focused contract/schema tests with the fixes.

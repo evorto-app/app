@@ -1,4 +1,5 @@
 import { RpcForbiddenError } from '@shared/errors/rpc-errors';
+import { includesPermission } from '@shared/permissions/permissions';
 import {
   EventConflictError,
   EventNotFoundError,
@@ -32,8 +33,8 @@ export const eventQueryHandlers = {
       const user = yield* RpcAccess.requireUser();
 
       if (
-        user.permissions.includes('events:organizeAll') ||
-        user.permissions.includes('finance:manageReceipts')
+        includesPermission('events:organizeAll', user.permissions) ||
+        includesPermission('finance:manageReceipts', user.permissions)
       ) {
         return true;
       }
@@ -86,7 +87,7 @@ export const eventQueryHandlers = {
         input.status.length === 1 && input.status[0] === 'APPROVED';
       if (
         !onlyApprovedStatus &&
-        !userPermissions.includes('events:seeDrafts')
+        !includesPermission('events:seeDrafts', userPermissions)
       ) {
         return yield* Effect.fail(
           new RpcForbiddenError({
@@ -98,7 +99,7 @@ export const eventQueryHandlers = {
 
       if (
         input.includeUnlisted &&
-        !userPermissions.includes('events:seeUnlisted')
+        !includesPermission('events:seeUnlisted', userPermissions)
       ) {
         return yield* Effect.fail(
           new RpcForbiddenError({
@@ -283,8 +284,10 @@ export const eventQueryHandlers = {
         );
       }
 
-      const canSeeDrafts = user?.permissions.includes('events:seeDrafts');
-      const canReviewEvents = user?.permissions.includes('events:review');
+      const canSeeDrafts =
+        user && includesPermission('events:seeDrafts', user.permissions);
+      const canReviewEvents =
+        user && includesPermission('events:review', user.permissions);
       const canEditEvent_ = user
         ? canEditEvent({
             creatorId: event.creatorId,
@@ -473,7 +476,7 @@ export const eventQueryHandlers = {
 
       const canEdit =
         event.creatorId === user.id ||
-        user.permissions.includes('events:editAll');
+        includesPermission('events:editAll', user.permissions);
       if (!canEdit) {
         return yield* Effect.fail(
           new RpcForbiddenError({ message: 'Forbidden' }),
