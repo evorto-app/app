@@ -14,7 +14,7 @@ import consola from 'consola';
  * 6. Uses batch operations for efficient database seeding
  * 7. Creates different event popularity patterns: very popular, popular, moderate, less popular, new/unpopular
  * 8. For paid registrations, creates associated transactions as if Stripe webhooks fired
- * 9. Handles various registration and payment statuses for comprehensive testing scenarios
+ * 9. Handles various registration statuses and payment transaction outcomes for comprehensive testing scenarios
  */
 import { InferInsertModel, eq } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
@@ -50,7 +50,7 @@ export interface EventRegistrationInput {
  * - Some events are fully booked with waitlists
  * - Others have varying levels of popularity and availability
  * - Past events include realistic check-in patterns
- * - Payment statuses reflect real scenarios (successful, pending, failed)
+ * - Payment transaction outcomes reflect real scenarios (successful, pending, failed)
  * - Uses batch inserts for improved performance during database setup
  *
  * @param database - The database connection

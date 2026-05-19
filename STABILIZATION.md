@@ -729,7 +729,7 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** manual receipt reimbursement is now labeled as recording a reimbursement in the finance overview, reimbursement list, receipt submit hint, profile payout fields, visible server messages, docs, and Playwright coverage. Reimbursement transaction comments no longer copy the full payout reference into free text. The legacy route path, permission name, RPC name, receipt status, and transaction type still use "refund" internally until a broader data/API migration is worthwhile.
 - **Addressed in stabilization pass:** receipt submission and review now reject tax amounts greater than the total amount, matching the existing deposit/alcohol amount consistency guard.
 - **Addressed in stabilization pass:** receipt submission now requires the target event to have ended before the server inserts a submitted receipt. The receipt Playwright flow uses the deterministic past event fixture for submission/review setup.
-- **Addressed in stabilization pass:** profile and user-event summaries no longer read `event_registrations.paymentStatus`; payment display is derived from registration transaction rows. Seed and webhook-replay setup stopped writing `paymentStatus` for new fixture registrations. The nullable legacy column and enum still exist until a schema migration removes them.
+- **Addressed in stabilization pass:** profile and user-event summaries no longer read `event_registrations.paymentStatus`; payment display is derived from registration transaction rows. Seed and webhook-replay setup stopped writing `paymentStatus` for new fixture registrations, and the legacy payment-status column/enum have been removed from the application schema.
 - **Should fix before relaunch:** receipt review records status locally but no reviewed-email or notification delivery path was found.
 - **Acceptable for now:** receipt review/reimbursement queries are tenant-scoped, and receipt reimbursement creation uses a transaction plus status preconditions to avoid reimbursing the wrong submitter or already-reimbursed receipts.
 
@@ -745,7 +745,7 @@ the current working direction until a product decision overrides them.
 ### Product Questions Answered Above
 
 - Should paid registration webhook handling update `confirmedSpots`/`reservedSpots`, or should counters be derived from registration rows instead of stored?
-- Is `paymentStatus` still part of the model, or should it be removed/migrated in favor of registration status plus transactions? Current active reads now use registration status plus transaction rows; the remaining database column is legacy schema debt.
+- Is `paymentStatus` still part of the model, or should it be removed/migrated in favor of registration status plus transactions? Answered locally: remove it from the application schema; current active reads use registration status plus transaction rows.
 - Which finance capability should gate the transaction list: `finance:viewTransactions`, `finance:manageReceipts`, or a broader finance overview permission?
 - Should receipt uploads be created only after submit authorization succeeds, or should upload sessions be issued from a receipt-submit preflight?
 - Should receipt reimbursement remain a manual ledger action, or will it eventually integrate with a payout provider?
@@ -757,8 +757,7 @@ the current working direction until a product decision overrides them.
 - Keep direct-route Playwright denial coverage for finance transaction, receipt approval, and receipt reimbursement routes.
 - Keep receipt reimbursement UI copy honest about recording a manual reimbursement unless an actual payout integration is added.
 - Keep receipt amount consistency checks aligned between submit and review.
-- Remove the legacy `paymentStatus` column and enum in a schema migration once
-  production data/backward-compatibility risk is understood.
+- Confirm the production database migration path for dropping any existing physical `paymentStatus` column and `payment_status` enum once production data/backward-compatibility risk is understood.
 - Keep receipt flow specs deterministic: seeded approval/reimbursement paths should fail loudly when expected rows, controls, or options are missing.
 - Keep finance overview docs aligned with current navigation UI and permission names as reimbursement wording changes.
 
@@ -1157,7 +1156,7 @@ implement those decisions or explicitly revise them there before changing code.
 - Finance receipt-spec cleanup pass: removed silent early returns from approval/refund and "Other country" receipt Playwright coverage so missing seeded UI state fails instead of passing.
 - Receipt reimbursement wording pass: renamed finance-facing receipt reimbursement copy away from "refund" for manual ledger actions while leaving legacy internal route/API/database names for a later migration.
 - Receipt amount validation pass: rejected receipt submit/review payloads where tax exceeds the total amount and added focused server coverage for both write paths.
-- Payment-status deprecation pass: stopped active profile/user-event reads and fixture setup from relying on `event_registrations.paymentStatus`; user-facing payment state now derives from registration transaction rows while the nullable legacy column awaits a later schema migration.
+- Payment-status deprecation pass: stopped active profile/user-event reads and fixture setup from relying on `event_registrations.paymentStatus`; user-facing payment state now derives from registration transaction rows, and the legacy field/enum have been removed from the application schema.
 - Receipt timing pass: restricted receipt submission to events whose end time has passed and pointed receipt Playwright setup at the deterministic past event fixture.
 - Scanner status-coverage pass: added focused scan-read and direct-check-in coverage for pending, cancelled, and waitlisted registrations.
 - Tenant settings feedback pass: added explicit success and readable error notifications for general settings saves.
@@ -1166,4 +1165,4 @@ implement those decisions or explicitly revise them there before changing code.
 
 ## Review Next
 
-All ten first-pass review areas are now represented in this document. The next stabilization work should continue with small cleanup commits around the remaining relaunch gaps: profile payment/ticket/action clarity, receipt notification follow-ups, scanner guest-quantity behavior, tenant settings scope, role hub-field legacy migration, payment-status schema removal, and replacing intentionally fixme-only price/tax specs with active Browser-backed coverage once the local runtime is available.
+All ten first-pass review areas are now represented in this document. The next stabilization work should continue with small cleanup commits around the remaining relaunch gaps: profile payment/ticket/action clarity, receipt notification follow-ups, scanner guest-quantity behavior, tenant settings scope, production database drop planning for removed legacy fields, and replacing intentionally fixme-only price/tax specs with active Browser-backed coverage once the local runtime is available.

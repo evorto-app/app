@@ -9,11 +9,7 @@ import {
 
 import { eventInstances } from './event-instances';
 import { eventRegistrationOptions } from './event-registration-options';
-import {
-  discountTypes,
-  paymentStatus,
-  registrationStatus,
-} from './global-enums';
+import { discountTypes, registrationStatus } from './global-enums';
 import { modelOfTenant } from './model';
 import { users } from './users';
 
@@ -28,7 +24,6 @@ export const eventRegistrations = pgTable('event_registrations', {
     .notNull()
     .references(() => eventInstances.id),
   paymentId: varchar({ length: 255 }),
-  paymentStatus: paymentStatus(),
   registrationOptionId: varchar({ length: 20 })
     .notNull()
     .references(() => eventRegistrationOptions.id),

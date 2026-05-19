@@ -6,12 +6,6 @@ export const registrationModes = pgEnum('registration_mode', [
   'application',
 ]);
 
-export const paymentStatus = pgEnum('payment_status', [
-  'PENDING',
-  'PAID',
-  'REFUNDED',
-]);
-
 export const registrationStatus = pgEnum('registration_status', [
   'PENDING',
   'CONFIRMED',
