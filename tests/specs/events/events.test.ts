@@ -1,4 +1,5 @@
 import { organizerStateFile } from '../../../helpers/user-data';
+import { DateTime } from 'luxon';
 import { expect, test } from '../../support/fixtures/parallel-test';
 
 test.setTimeout(120_000);
@@ -38,6 +39,17 @@ test.skip('create event form template', async ({
   await page.getByRole('link', { name: 'Create event' }).click();
   await expect(page).toHaveURL(`/templates/${template.id}/create-event`);
   await expect(page.getByLabel('Event title')).toHaveValue(template.title);
+
+  const eventForm = page.locator('app-event-general-form');
+  const futureStart = DateTime.now().plus({ months: 2 });
+  await eventForm
+    .getByRole('textbox', { name: 'Start date' })
+    .fill(futureStart.toFormat('M/d/yyyy'));
+  await eventForm.getByRole('combobox', { name: 'Start time' }).fill('1:00 PM');
+  await eventForm
+    .getByRole('textbox', { name: 'End date' })
+    .fill(futureStart.toFormat('M/d/yyyy'));
+  await eventForm.getByRole('combobox', { name: 'End time' }).fill('5:00 PM');
 
   const taxRateSelects = page.getByLabel('Tax rate');
   const taxRateCount = await taxRateSelects.count();

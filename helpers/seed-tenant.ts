@@ -108,6 +108,13 @@ export interface SeedTenantResult {
     description: string;
     icon: string;
     id: string;
+    questions: {
+      id: string;
+      registrationOptionKind: 'organizer' | 'participant';
+      registrationOptionId: string;
+      required: boolean;
+      title: string;
+    }[];
     seedKey: SeedTemplateKey;
     tenantId: string;
     title: string;
@@ -248,6 +255,12 @@ export async function seedTenant(
     eventIds: seededEvents.events.map((event) => event.id),
     tenantId: tenant.id,
   });
+  const refreshedEvents = await database.query.eventInstances.findMany({
+    where: { tenantId: tenant.id },
+    with: {
+      registrationOptions: true,
+    },
+  });
 
   if (logSeedMap) {
     const map = {
@@ -264,7 +277,7 @@ export async function seedTenant(
   }
 
   return {
-    events: seededEvents.events.map((event) => ({
+    events: refreshedEvents.map((event) => ({
       id: event.id,
       registrationOptions: event.registrationOptions.map((option) => ({
         checkedInSpots: option.checkedInSpots,
@@ -296,6 +309,7 @@ export async function seedTenant(
       description: t.description,
       icon: t.icon.iconName,
       id: t.id,
+      questions: t.questions,
       seedKey: t.seedKey,
       tenantId: t.tenantId,
       title: t.title,

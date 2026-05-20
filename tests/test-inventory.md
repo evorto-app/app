@@ -413,13 +413,15 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     double-submit, and that brand-asset uploads stay disabled while any upload
     is active or mutation-pending.
 - Roles/user management:
-  - Browser-backed least-privilege organizer review for event/template role
-    selectors. Server coverage already proves lookup permissions and
-    lookup-only role results; template and event-edit autocomplete coverage now
-    fail loudly when seeded roles are missing. Generated template and
-    event-management docs also fail loudly when role autocomplete options or
-    selected/unselected event roles are missing before documenting the
-    duplicate-hiding behavior.
+  - Docker-backed system-Chrome least-privilege organizer coverage exercises
+    event/template role selectors through the organizer fixture. Server
+    coverage proves lookup permissions and lookup-only role results;
+    template/event autocomplete specs fail loudly when seeded roles are
+    missing, and generated template/event-management docs document duplicate
+    hiding from real browser flows.
+    `specs/seed/seed-baseline.test.ts` also pins default organizer roles to
+    `templates:create`, `templates:view`, and `events:create`, matching the
+    organizer fixture's template/event authoring contract.
   - Keep app action icons on the Font Awesome component path. Local source
     coverage now fails if app templates or components reintroduce direct
     Material icon elements or `MatIconModule`, preserving the shared

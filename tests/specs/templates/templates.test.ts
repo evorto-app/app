@@ -211,13 +211,10 @@ test('template create form hides selected roles in autocomplete', async ({
   await expect(page).toHaveURL('/templates/create');
 
   const organizerRoleInput = page.getByPlaceholder('Add Role...').first();
-  await organizerRoleInput.click();
+  await organizerRoleInput.fill('a');
 
   const roleOptions = page.locator('mat-option');
-  const optionsCount = await roleOptions.count();
-  if (optionsCount === 0) {
-    throw new Error('Expected seeded roles for template autocomplete');
-  }
+  await expect(roleOptions.first()).toBeVisible();
 
   const firstOption = roleOptions.first();
   const firstRoleText = await firstOption.textContent();
@@ -228,7 +225,7 @@ test('template create form hides selected roles in autocomplete', async ({
 
   await firstOption.click();
 
-  await organizerRoleInput.click();
+  await organizerRoleInput.fill(selectedRoleName);
   await expect(
     page.getByRole('option', {
       exact: true,

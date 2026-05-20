@@ -852,13 +852,21 @@ the current working direction until a product decision overrides them.
 - Keep route-manifest specs and permission-matrix route-denial cases aligned as admin, finance, template, and global-admin route trees change.
 - Keep role create/edit submit guards aligned with the actual mutation
   lifecycle, not only the signal-form submit callback.
-- Keep UI/E2E coverage aligned so least-privilege organizers can search/select tenant roles in event/template eligibility forms; current Playwright coverage and generated template/event-management docs exercise duplicate-hiding behavior in template creation and event editing, while manual Browser review remains pending until local runtime is available.
+- Keep UI/E2E coverage aligned so least-privilege organizers can search/select
+  tenant roles in event/template eligibility forms; Docker-backed system-Chrome
+  Playwright coverage and generated template/event-management docs exercise
+  duplicate-hiding behavior in template creation and event editing with the
+  least-privilege organizer fixture.
 - Keep `migration/steps/004_drop_legacy_stabilization_fields.ts` in the
   production migration path so any existing physical `showInHub`,
   `paymentStatus`, and `payment_status` artifacts are dropped when the
   schema/API surface is applied.
 - Keep user-role assignment explicitly deferred until a real role-assignment RPC and UI are implemented.
 - Add Browser-backed least-privilege organizer review for event/template role selectors once the local runtime is available; current server coverage proves lookup permissions and lookup-only result shaping, and the template/event Playwright plus generated-doc autocomplete checks fail loudly when seeded role state is missing.
+- Keep the default organizer seed contract aligned with authoring flows:
+  organizer fixtures are expected to create templates and events, so default
+  organizer roles must retain `templates:create`, `templates:view`, and
+  `events:create`.
 
 ## Finance/Receipts
 
@@ -2059,6 +2067,14 @@ implement those decisions or explicitly revise them there before changing code.
   fixture, and tightening ambiguous profile status assertions in the matching
   spec and generated guide. The edited profile docs slice passed 3/3 against the
   same Docker app.
+- Docker organizer-authoring runtime pass: rebuilt the Docker app image on
+  `APP_HOST_PORT=4200`, verified Compose health, aligned default organizer
+  seed roles with the organizer fixture's template/event authoring contract,
+  and ran the template tax-rate plus event/template role-selector slice against
+  system Chrome with `NO_WEBSERVER=true --no-deps`. The slice now covers
+  least-privilege organizer template creation, event creation from a template,
+  seeded inclusive tax-rate selection, reusable add-on/question persistence,
+  and duplicate-hiding role autocomplete behavior.
 
 ## Review Next
 
