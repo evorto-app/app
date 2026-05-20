@@ -42,6 +42,18 @@ test.describe('baseline seed invariants', () => {
     expect.soft(templateCategories.length).toBeGreaterThanOrEqual(2);
     expect.soft(roles.some((role) => role.defaultUserRole)).toBeTruthy();
     expect.soft(roles.some((role) => role.defaultOrganizerRole)).toBeTruthy();
+    expect
+      .soft(
+        roles
+          .filter((role) => role.defaultOrganizerRole)
+          .every(
+            (role) =>
+              role.permissions.includes('events:create') &&
+              role.permissions.includes('templates:create') &&
+              role.permissions.includes('templates:view'),
+          ),
+      )
+      .toBeTruthy();
 
     expect
       .soft(new Set(templates.map((template) => template.seedKey)))
@@ -69,7 +81,7 @@ test.describe('baseline seed invariants', () => {
       .soft(
         templates.every(
           (template) =>
-            template.questions === undefined ||
+            Array.isArray(template.questions) &&
             template.questions.every(Boolean),
         ),
       )

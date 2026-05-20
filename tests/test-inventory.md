@@ -507,13 +507,15 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     fails explicitly if the tenant row is missing after save before checking the
     persisted editable values.
 - Roles/user management:
-  - Browser-backed least-privilege organizer review for event/template role
-    selectors. Server coverage already proves lookup permissions and
-    lookup-only role results; template and event-edit autocomplete coverage now
-    fail loudly when seeded roles are missing. Generated template and
-    event-management docs also fail loudly when role autocomplete options or
-    selected/unselected event roles are missing before documenting the
-    duplicate-hiding behavior.
+  - Docker-backed system-Chrome least-privilege organizer coverage exercises
+    event/template role selectors through the organizer fixture. Server
+    coverage proves lookup permissions and lookup-only role results;
+    template/event autocomplete specs fail loudly when seeded roles are
+    missing, and generated template/event-management docs document duplicate
+    hiding from real browser flows.
+    `specs/seed/seed-baseline.test.ts` also pins default organizer roles to
+    `templates:create`, `templates:view`, and `events:create`, matching the
+    organizer fixture's template/event authoring contract.
     The page-backed roles-management spec now fails explicitly if role create or
     edit database readbacks are missing before checking permissions and edited
     metadata.
