@@ -2195,6 +2195,11 @@ implement those decisions or explicitly revise them there before changing code.
   Playwright spec so full stored unsupported modes still render as full without
   exposing normal registration or waitlist actions, matching the fail-closed
   server policy and local component helper coverage.
+- Free registration fixture-hardening pass: made the free registration and
+  registration add-on Playwright specs assert the seeded `freeOpen` event option
+  exists for the current tenant before they reset counters or attach add-ons, so
+  fixture drift fails at the seed contract instead of later UI or FK side
+  effects.
 - Scanner page-backed action-guard pass: extended scanner Playwright coverage
   so buyer-plus-guest check-in and later guest-arrival check-in both assert the
   visible check-in action remains disabled after local success while the scan

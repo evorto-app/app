@@ -22,6 +22,18 @@ test('registers with a free registration add-on and shows it after registration'
   const targetEventId = seeded.scenario.events.freeOpen.eventId;
   const targetOptionId = seeded.scenario.events.freeOpen.optionId;
   const addOnId = `addon-${tenant.id.slice(0, 14)}`;
+  const targetOption = await database.query.eventRegistrationOptions.findFirst({
+    where: {
+      eventId: targetEventId,
+      id: targetOptionId,
+      tenantId: tenant.id,
+    },
+  });
+  if (!targetOption) {
+    throw new Error(
+      'Expected seeded freeOpen event registration option for add-on registration flow',
+    );
+  }
 
   await database
     .delete(schema.eventRegistrations)
