@@ -120,4 +120,34 @@ describe('generated docs source current behavior', () => {
     expect(combinedSource).not.toContain('automatically transfer');
     expect(combinedSource).not.toContain('automatic money movement');
   });
+
+  it('keeps template docs aligned with the simple-mode relaunch surface', () => {
+    const source = readSource('tests/docs/templates/templates.doc.ts');
+
+    expect(source).toContain(
+      'Simple mode intentionally keeps exactly one organizer registration block and one participant registration block.',
+    );
+    expect(source).toContain(
+      'Use reusable add-ons, registration questions, option descriptions, role eligibility, and organizer planning tips to capture repeatable event knowledge',
+    );
+    expect(source).toContain(
+      'Organizer planning tips**: Optional private organizer notes',
+    );
+    expect(source).toContain(
+      'Add-ons can be free or paid, attached to either the participant or organizer registration option',
+    );
+    expect(source).toContain(
+      'standalone before-event and during-event add-on sales are handled separately from this template setup flow',
+    );
+    expect(source).toContain(
+      'Questions can include help text and can be marked as required.',
+    );
+    expect(source).toContain(
+      'Event-side answer collection is handled separately from this template setup flow.',
+    );
+    expect(source).not.toContain('bulk registration options');
+    expect(source).not.toContain('multiple participant registration blocks');
+    expect(source).not.toContain('public event planning tips');
+    expect(source).not.toContain('standalone add-on sales are configured here');
+  });
 });

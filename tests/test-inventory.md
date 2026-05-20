@@ -419,9 +419,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     into event-scoped read-model records.
   - Keep simple-mode template docs honest that the relaunch form has exactly
     one organizer registration block and one participant registration block.
-    Local form coverage pins that fixed shape while docs and specs cover the
-    current extension points: reusable add-ons, registration questions, option
-    descriptions, role eligibility, discounts, and organizer planning tips.
+    Local form coverage and generated-doc source coverage pin that fixed shape
+    while docs and specs cover the current extension points: reusable add-ons,
+    registration questions, option descriptions, role eligibility, discounts,
+    and organizer planning tips.
     `specs/templates/templates.test.ts` now functionally creates a template
     with planning tips, a reusable add-on, and a registration question, then
     reads the persisted template, add-on attachment/quantity, and required
