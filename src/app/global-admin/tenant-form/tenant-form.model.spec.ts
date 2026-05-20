@@ -4,6 +4,7 @@ import {
   createGlobalAdminTenantFormModel,
   globalAdminTenantFormModelFromRecord,
   globalAdminTenantPayloadFromForm,
+  normalizeGlobalAdminTenantDomain,
 } from './tenant-form.model';
 
 describe('global admin tenant form model', () => {
@@ -63,5 +64,28 @@ describe('global admin tenant form model', () => {
       theme: 'evorto',
       timezone: 'Europe/Prague',
     });
+  });
+
+  it('normalizes the one-primary-domain relaunch input shape', () => {
+    expect(
+      normalizeGlobalAdminTenantDomain(' https://Section.Example.Org:443 '),
+    ).toBe('section.example.org');
+    expect(normalizeGlobalAdminTenantDomain(' LOCALHOST:4200 ')).toBe(
+      'localhost',
+    );
+  });
+
+  it('rejects domain paths before submitting tenant create/edit payloads', () => {
+    expect(() =>
+      globalAdminTenantPayloadFromForm({
+        currency: 'EUR',
+        domain: 'section.example.org/path',
+        locale: 'en-GB',
+        name: 'Section',
+        stripeAccountId: '',
+        theme: 'evorto',
+        timezone: 'Europe/Berlin',
+      }),
+    ).toThrow('Domain must be a single host name');
   });
 });
