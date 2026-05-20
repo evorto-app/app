@@ -2551,14 +2551,18 @@ implement those decisions or explicitly revise them there before changing code.
   fixture, and tightening ambiguous profile status assertions in the matching
   spec and generated guide. The edited profile docs slice passed 3/3 against the
   same Docker app.
-- Docker organizer-authoring runtime pass: rebuilt the Docker app image on
-  `APP_HOST_PORT=4200`, verified Compose health, aligned default organizer
-  seed roles with the organizer fixture's template/event authoring contract,
-  and ran the template tax-rate plus event/template role-selector slice against
-  system Chrome with `NO_WEBSERVER=true --no-deps`. The slice now covers
-  least-privilege organizer template creation, event creation from a template,
-  seeded inclusive tax-rate selection, reusable add-on/question persistence,
-  and duplicate-hiding role autocomplete behavior.
+- Docker organizer-authoring runtime pass: rebuilt the Docker app image and
+  revalidated the running stack on local port 4577, verified Compose health,
+  aligned default organizer seed roles with the organizer fixture's
+  template/event authoring contract, and ran the template tax-rate,
+  template/category authoring, event/template role-selector, inclusive-price
+  label, and generated template/category docs slices against system Chrome with
+  `NO_WEBSERVER=true --no-deps`. The slice now covers least-privilege organizer
+  template creation, event creation from a template, seeded inclusive tax-rate
+  selection, reusable add-on/question persistence, duplicate-hiding role
+  autocomplete behavior, category create/edit docs, and template docs. The
+  in-app Browser retry against `/templates` still timed out before returning a
+  usable page.
 - Docker finance-doc runtime pass: rebuilt/reset the Docker app image on
   `APP_HOST_PORT=4200`, kept the Font Awesome premium/brand token path in the
   Docker preflight, and reran the finance receipt flow plus generated finance
