@@ -150,4 +150,34 @@ describe('generated docs source current behavior', () => {
     expect(source).not.toContain('public event planning tips');
     expect(source).not.toContain('standalone add-on sales are configured here');
   });
+
+  it('keeps registration docs aligned with unavailable states and transfer scope', () => {
+    const source = readSource('tests/docs/events/register.doc.ts');
+
+    expect(source).toContain(
+      'When a participant option is full, registration changes to a distinct **Join waitlist** action',
+    );
+    expect(source).toContain(
+      'Waitlisted participants can return to the event page and use **Leave waitlist** before the event starts.',
+    );
+    expect(source).toContain(
+      'When the registration window is closed, participants can still read the event details, but the registration action is removed.',
+    );
+    expect(source).toContain(
+      'This event is visible from the direct link, but your account is not eligible for the available registration options.',
+    );
+    expect(source).toContain(
+      'Confirmed unpaid registrations can be transferred from the event page before check-in and before the event starts.',
+    );
+    expect(source).toContain(
+      'Paid registration transfer and resale are not automatic yet.',
+    );
+    expect(source).toContain(
+      'QR email delivery is not part of the current relaunch flow.',
+    );
+    expect(source).not.toContain('Register button stays available');
+    expect(source).not.toContain('paid transfers are automatic');
+    expect(source).not.toContain('resale is automatic');
+    expect(source).not.toContain('ticket QR code by email');
+  });
 });
