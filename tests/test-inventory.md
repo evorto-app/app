@@ -53,7 +53,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - specs/events/free-registration.test.ts
   - specs/events/negative-registration-states.spec.ts
   - specs/events/unlisted-visibility.test.ts
-  - specs/events/price-labels-inclusive.spec.ts [finance, fixme]
+  - specs/events/price-labels-inclusive.spec.ts [finance]
   - specs/finance/receipts-flows.spec.ts [finance]
   - specs/finance/stripe-webhook-replay.spec.ts [finance, stripe]
   - specs/finance/tax-rates/admin-import-tax-rates.spec.ts [finance]
@@ -112,12 +112,11 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 
 ## Intentional Gaps and Gates
 
-- `specs/events/price-labels-inclusive.spec.ts` is intentionally fixme-only
-  until inclusive price-label behavior has active Browser-backed coverage.
-  Event registration cards now use the shared inclusive price label component,
-  and component coverage proves paid, free, zero-tax, and fallback label
-  rendering, so this remaining gap is page-level coverage rather than
-  formatter/component wiring.
+- `specs/events/price-labels-inclusive.spec.ts` has active page-level coverage
+  for paid inclusive tax labels, free options without tax labels, zero percent
+  "Tax free" display, fallback tax labels when rate details are missing,
+  discounted ESNcard prices retaining tax labels, and paid template detail
+  summaries sharing the same inclusive price component.
 - `specs/templates/paid-option-requires-tax-rate.spec.ts` has active
   simple-mode UI coverage for the paid-registration tax-rate requirement and a
   seeded inclusive tax-rate save path. Remaining fixme entries are limited to
