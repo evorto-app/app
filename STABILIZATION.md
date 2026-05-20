@@ -570,6 +570,10 @@ the current working direction until a product decision overrides them.
   organizer-assisted transfer buttons and handlers, so checked-in rows and
   duplicate in-flight writes cannot be triggered from the page.
 - **Addressed in stabilization pass:** `events.transferMyRegistration` lets participants transfer their own confirmed unpaid registration to an existing eligible tenant user by email without exposing a tenant-member search surface.
+- **Addressed in stabilization pass:** active registration cancellation and
+  self-service transfer now share tested action guards between the buttons and
+  handlers, so cancellation and transfer writes cannot overlap or double-submit
+  locally on slow networks.
 - **Should fix before relaunch:** participant-facing paid transfer/resale money movement, resale-specific workflows, and automatic refund flows are not implemented in the reviewed event registration path.
 - **Addressed in stabilization pass:** active registration status now uses the shared persisted registration status literal union instead of raw `Schema.String`.
 - **Acceptable for now:** paid registration rollback is careful about cleaning up a failed checkout session creation path; deeper Stripe lifecycle review belongs in the finance pass.
@@ -597,7 +601,7 @@ the current working direction until a product decision overrides them.
   networks and duplicate local triggers.
 - `src/app/events/event-edit/event-edit.spec.ts` covers event edit submit
   guards for invalid, submitting, and mutation-pending states.
-- `src/app/events/event-active-registration/event-active-registration.component.spec.ts` covers participant cancellation copy for single-spot, guest, and waitlisted registrations; unpaid self-service transfer copy; target-email normalization; and transfer/resale-unavailable notes for pending, waitlisted, and blocked confirmed active registrations.
+- `src/app/events/event-active-registration/event-active-registration.component.spec.ts` covers participant cancellation copy for single-spot, guest, and waitlisted registrations; unpaid self-service transfer copy; cancellation/transfer action disabling; target-email normalization; and transfer/resale-unavailable notes for pending, waitlisted, and blocked confirmed active registrations.
 - `tests/docs/events/event-management.doc.ts` now documents only the current event details, registration, review/listing, edit, organizer overview, participant grouping/cancellation, and receipt surfaces.
 - `tests/docs/events/unlisted-admin.doc.ts` covers the updated direct-link explanation in the listing dialog and on unlisted event details.
 - `tests/docs/events/register.doc.ts` covers free and paid registration as generated documentation and Stripe-backed evidence, including guest quantity selection, the participant versus organizer/helper option wording, and participant self-cancellation copy.
@@ -1721,6 +1725,10 @@ implement those decisions or explicitly revise them there before changing code.
 - Template add-on seed pass: added free and paid reusable add-ons to the
   reset-from-zero template seed data and pinned their registration-option
   attachments in the seed baseline.
+- Active-registration action-guard pass: shared tested cancellation and
+  transfer disabled-state helpers between active-registration buttons and
+  handlers so participant cancellation and unpaid transfer writes cannot
+  overlap locally.
 
 ## Review Next
 

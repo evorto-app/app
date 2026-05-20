@@ -102,6 +102,20 @@ export const registrationTransferActionCopy = (registration: {
   };
 };
 
+export const registrationCancellationActionDisabled = (input: {
+  cancellationPending: boolean;
+  transferPending: boolean;
+}): boolean => input.cancellationPending || input.transferPending;
+
+export const registrationTransferActionDisabled = (input: {
+  cancellationPending: boolean;
+  transferAvailable: boolean;
+  transferPending: boolean;
+}): boolean =>
+  !input.transferAvailable ||
+  input.cancellationPending ||
+  input.transferPending;
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CurrencyPipe, MatButtonModule, NgOptimizedImage],
@@ -132,6 +146,10 @@ export class EventActiveRegistrationComponent {
     this.rpc.events.cancelRegistration.mutationOptions(),
   );
   protected readonly deferredActionCopy = registrationDeferredActionCopy;
+  protected readonly registrationCancellationActionDisabled =
+    registrationCancellationActionDisabled;
+  protected readonly registrationTransferActionDisabled =
+    registrationTransferActionDisabled;
   protected readonly transferActionCopy = registrationTransferActionCopy;
   protected readonly transferRegistrationMutation = injectMutation(() =>
     this.rpc.events.transferMyRegistration.mutationOptions(),
@@ -141,6 +159,15 @@ export class EventActiveRegistrationComponent {
   private readonly queryClient = inject(QueryClient);
 
   cancelRegistration(registration: { id: string }) {
+    if (
+      registrationCancellationActionDisabled({
+        cancellationPending: this.cancelRegistrationMutation.isPending(),
+        transferPending: this.transferRegistrationMutation.isPending(),
+      })
+    ) {
+      return;
+    }
+
     this.cancelRegistrationMutation.mutate(
       {
         registrationId: registration.id,
@@ -158,7 +185,20 @@ export class EventActiveRegistrationComponent {
     );
   }
 
-  async transferRegistration(registration: { id: string }): Promise<void> {
+  async transferRegistration(registration: {
+    id: string;
+    transferAvailable: boolean;
+  }): Promise<void> {
+    if (
+      registrationTransferActionDisabled({
+        cancellationPending: this.cancelRegistrationMutation.isPending(),
+        transferAvailable: registration.transferAvailable,
+        transferPending: this.transferRegistrationMutation.isPending(),
+      })
+    ) {
+      return;
+    }
+
     const dialogReference = this.dialog.open<
       EventRegistrationTransferDialogComponent,
       undefined,

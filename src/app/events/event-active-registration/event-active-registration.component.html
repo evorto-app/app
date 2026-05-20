@@ -77,7 +77,12 @@
             type="button"
             mat-stroked-button
             (click)="cancelRegistration(registration)"
-            [disabled]="cancelRegistrationMutation.isPending()"
+            [disabled]="
+              registrationCancellationActionDisabled({
+                cancellationPending: cancelRegistrationMutation.isPending(),
+                transferPending: transferRegistrationMutation.isPending(),
+              })
+            "
           >
             {{ cancellation.buttonLabel }}
           </button>
@@ -92,8 +97,11 @@
             mat-stroked-button
             (click)="transferRegistration(registration)"
             [disabled]="
-              !registration.transferAvailable ||
-              transferRegistrationMutation.isPending()
+              registrationTransferActionDisabled({
+                cancellationPending: cancelRegistrationMutation.isPending(),
+                transferAvailable: registration.transferAvailable,
+                transferPending: transferRegistrationMutation.isPending(),
+              })
             "
           >
             {{ transferAction.buttonLabel }}

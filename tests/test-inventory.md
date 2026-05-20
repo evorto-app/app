@@ -135,6 +135,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   handlers share the same lifecycle write boundaries.
 - Event registration option component coverage pins participant registration and
   waitlist action disabling while a register or waitlist mutation is pending.
+- Active-registration component coverage pins participant cancellation and
+  self-service transfer action disabling while either write is pending or the
+  transfer is unavailable.
 - `specs/templates/paid-option-requires-tax-rate.spec.ts` has active
   simple-mode UI coverage for the paid-registration tax-rate requirement and a
   seeded inclusive tax-rate save path. Remaining fixme entries are limited to
