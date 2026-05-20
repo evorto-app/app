@@ -585,6 +585,10 @@ the current working direction until a product decision overrides them.
   participant self-service unpaid transfer flow by opening the event page,
   submitting the transfer dialog with an eligible target member email, and
   explicitly reading back the transferred registration row.
+- `tests/specs/events/registration-transfer.test.ts` also seeds a paid
+  confirmed registration with a successful registration transaction and proves
+  the event page keeps self-service transfer disabled with the paid
+  transfer/resale deferral copy while preserving the original registration row.
 - `tests/specs/events/negative-registration-states.spec.ts` covers the
   participant-facing waitlist affordance for a full first-come-first-served
   option and explicitly reads back the created waitlist registration.
@@ -2048,6 +2052,10 @@ implement those decisions or explicitly revise them there before changing code.
 - Participant unpaid transfer functional pass: added page-backed coverage for
   the regular-user transfer dialog and database readback to prove the current
   relaunch transfer workflow outside server/app helper tests.
+- Participant paid-transfer blocked pass: extended the registration-transfer
+  Playwright spec with a paid confirmed registration and successful transaction
+  so the event page must render disabled transfer-unavailable copy instead of
+  exposing the unpaid transfer dialog.
 - Registration transfer documentation pass: added a generated registration-doc
   journey for the unpaid transfer dialog, eligible target email entry, and
   explicit paid-transfer/resale deferral.
