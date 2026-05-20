@@ -479,8 +479,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     waitlist joining, and leave-waitlist cancellation.
   - `docs/events/register.doc.ts` now includes generated documentation
     journeys for closed registration windows, full participant options with a
-    waitlist action, and role-ineligible direct links, in addition to free and
-    paid registration walkthroughs.
+    waitlist action, role-ineligible direct links, and unpaid registration
+    transfer scope, in addition to free and paid registration walkthroughs.
+    Generated-doc source coverage keeps that unavailable-state and transfer
+    scope documentation aligned with the relaunch behavior.
   - Browser-backed execution of those assertions still depends on local runtime
     availability and either the matching Playwright Chromium cache or
     `E2E_BROWSER_CHANNEL=chrome` on a host with system Chrome installed.

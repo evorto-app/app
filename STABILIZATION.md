@@ -2152,6 +2152,10 @@ implement those decisions or explicitly revise them there before changing code.
   block, reusable add-ons, registration questions, and private organizer
   planning tips instead of implying bulk registration options or standalone
   add-on sales are configured there.
+- Registration docs source-guard pass: pinned generated registration docs to
+  the current unavailable-state and transfer scope, including closed windows,
+  full-option waitlists, role-ineligible direct links, unpaid transfer, paid
+  transfer/resale deferral, and no QR email delivery.
 
 ## Review Next
 
