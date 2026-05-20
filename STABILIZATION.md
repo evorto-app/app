@@ -1052,7 +1052,7 @@ the current working direction until a product decision overrides them.
 
 ### Test and Documentation Quality
 
-- `tests/specs/scanning/scanner.test.ts` now clicks "Confirm Check In" with selected guests, asserts that `checkInTime`, `checkedInGuestCount`, and `checkedInSpots` update, and then opens the organizer overview to assert the checked-in aggregate shown there before restoring the seeded row.
+- `tests/specs/scanning/scanner.test.ts` now clicks "Confirm Check In" with selected guests, asserts that `checkInTime`, `checkedInGuestCount`, and `checkedInSpots` update, covers later remaining-guest arrival after the buyer was already checked in, and opens the organizer overview to assert the checked-in aggregate shown there before restoring the seeded row.
 - `src/app/events/event-organize/event-organize.spec.ts` covers organizer overview stat aggregation from registration-option counters, including scanner-updated `checkedInSpots` totals.
 - Server unit coverage proves scan-read denial for unauthorized tenant users, check-in counter updates for organizer access, selected guest check-in behavior, invalid guest-count rejection, remaining-guest scan behavior after buyer check-in, idempotent duplicate check-in behavior, and same-user check-in denial.
 - `src/server/http/qr-code.web-handler.spec.ts` covers unauthenticated QR denial, owner access, same-event organizer access, other-user denial, and pending-registration denial.
@@ -1383,7 +1383,11 @@ the current working direction until a product decision overrides them.
   functional Playwright spec that saves notification email plus global
   reimbursement fields, verifies the refreshed profile summary, reads the
   persisted user row, and restores the original fixture data.
-- **Addressed in stabilization pass:** scanning/check-in docs now describe the dedicated QR scanner, scan warnings, authorization, checked-in count updates, and selected guest-quantity check-in. The remaining scanner follow-up is Browser-backed organizer aggregate assertion, not missing product documentation.
+- **Addressed in stabilization pass:** scanning/check-in docs now describe the dedicated QR scanner, scan warnings, authorization, checked-in count updates, and selected guest-quantity check-in. The remaining scanner follow-up is manual Browser-backed runtime review, not missing automated aggregate coverage or product documentation.
+- **Addressed in stabilization pass:** scanner Playwright coverage now includes
+  the partial guest-arrival case where the buyer and one guest were already
+  checked in, then a later scan records the remaining guest without re-counting
+  the buyer.
 - **Remaining runtime review:** live provider-backed profile discount add/refresh/remove outcomes still need Browser review once local runtime and provider credentials are available. Local docs/spec coverage now pins seeded verified-card display, direct `#discounts` routing, refresh/remove action visibility, invalid-input blocking, readable statuses, pending labels, shared write guards, and provider-unavailable retry copy without calling the external provider.
 - **Addressed in stabilization pass:** the generic `tests/docs/template.doc.ts` discovery placeholder was removed; current template documentation lives in `tests/docs/templates/templates.doc.ts`.
 - **Addressed in stabilization pass:** the focused `docScreenshot` helper now
