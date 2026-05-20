@@ -719,7 +719,10 @@ the current working direction until a product decision overrides them.
 
 ### Test and Documentation Quality
 
-- `tests/specs/templates/templates.test.ts` covers create, view, empty-category add flow, and role autocomplete duplicate hiding.
+- `tests/specs/templates/templates.test.ts` covers create, view,
+  empty-category add flow, role autocomplete duplicate hiding, and a reusable
+  add-on/question create path with database readback for persisted planning
+  tips, add-on attachment/quantity, and required registration question state.
 - `tests/docs/templates/templates.doc.ts` documents simple-mode template creation, organizer planning tips, role defaults, payment field visibility, optional ESNcard discounted price fields, reusable add-on editing, reusable registration-question editing, and role-picker behavior. It asserts that enabling payment reveals both the price and tax-rate controls before taking the payment-field screenshot, then asserts that adding a reusable add-on reveals the add-on name, attachment, and purchase-timing controls, and that adding a registration question reveals the question, target, and required-answer controls.
 - `tests/specs/templates/paid-option-requires-tax-rate.spec.ts` now has active simple-mode UI coverage for the paid tax-rate requirement and a seeded inclusive tax-rate save path. The previous future bulk/no-compatible-rate fixme declarations were removed; current no-compatible-rate select feedback is pinned in local component coverage until a broader page flow exists.
 - `tests/specs/seed/seed-baseline.test.ts` now treats seeded reusable template
@@ -1337,7 +1340,7 @@ the current working direction until a product decision overrides them.
   `tests/docs/**/*.doc.ts`; integration-only specs/docs are selected with
   `@needs-*` tags.
 - Local docs/spec discovery is runnable again after replacing stale Effect config APIs in `playwright.config.ts` and Playwright support files, and Auth0 Management credentials are no longer required just to import baseline fixtures.
-- `bun run test:e2e -- --list` discovers 97 baseline tests across 31 files,
+- `bun run test:e2e -- --list` discovers 98 baseline tests across 31 files,
   including setup projects, without requiring local Auth0/Stripe secrets.
 - `bun run test:e2e:docs -- --list` discovers 29 baseline docs/setup tests
   across 19 files without requiring local Auth0/Stripe secrets.
