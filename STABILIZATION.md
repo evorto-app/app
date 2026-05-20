@@ -2193,6 +2193,10 @@ implement those decisions or explicitly revise them there before changing code.
   Playwright spec so full stored unsupported modes still render as full without
   exposing normal registration or waitlist actions, matching the fail-closed
   server policy and local component helper coverage.
+- Scanner page-backed action-guard pass: extended scanner Playwright coverage
+  so buyer-plus-guest check-in and later guest-arrival check-in both assert the
+  visible check-in action remains disabled after local success while the scan
+  state refetch catches up.
 
 ## Review Next
 

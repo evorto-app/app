@@ -372,7 +372,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     or the local success state is already recorded. It also pins guest-count
     input clamping before the check-in mutation payload is built, and server
     handler coverage rejects negative guest counts and counts above the
-    remaining guest quantity before writes can run.
+    remaining guest quantity before writes can run. The page-backed scanner spec
+    also asserts that the visible check-in action stays disabled after the local
+    success state is recorded for both buyer-plus-guest and later-guest-arrival
+    flows.
 - Tenant/global admin:
   - Authenticated Browser review for the global-admin tenant list and
     tenant-create/edit flows. The global-admin tenant Playwright spec now
