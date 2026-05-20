@@ -80,7 +80,7 @@ test('Manage ESN discount card @finance', async ({
     body: `
 # ESN Discount Card
 
-Add your ESN card to receive discounted prices on eligible events. Your card is validated against esncard.org and discounts apply only while the card is valid.
+Open your profile's **Discounts** section directly when you want to review or update discount cards. Add your ESN card to receive discounted prices on eligible events. Your card is validated against esncard.org and discounts apply only while the card is valid.
 `,
   });
 
@@ -126,4 +126,20 @@ If you already added your ESN card, you will see a readable verification status 
   await expect(
     page.getByRole('button', { name: 'Save ESN card' }),
   ).toBeDisabled();
+  const unchangedSeededEsnCard =
+    await database.query.userDiscountCards.findFirst({
+      where: {
+        identifier: seededEsnCardIdentifier,
+        type: 'esnCard',
+        userId: regularUser.id,
+      },
+    });
+  expect(unchangedSeededEsnCard).toEqual(
+    expect.objectContaining({
+      identifier: seededEsnCardIdentifier,
+      status: 'verified',
+      type: 'esnCard',
+      userId: regularUser.id,
+    }),
+  );
 });

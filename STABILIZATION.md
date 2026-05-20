@@ -1095,9 +1095,10 @@ the current working direction until a product decision overrides them.
   readable ESNcard statuses, save/refresh/remove pending labels, shared
   in-flight write guards, identifier trimming, and provider-unavailable error
   copy without calling the external provider. Its page-backed journey asserts
-  the seeded verified ESNcard identifier/status, visible refresh/remove actions,
-  and the invalid-card-number save guard. It still does not call the external
-  ESNcard provider for live add/refresh/remove outcomes.
+  direct `#discounts` routing, the seeded verified ESNcard identifier/status,
+  visible refresh/remove actions, the invalid-card-number save guard, and that
+  invalid input leaves the seeded card row unchanged. It still does not call the
+  external ESNcard provider for live add/refresh/remove outcomes.
 - `tests/specs/profile/user-profile-discounts.spec.ts` functionally covers the
   same seeded profile discount-card state from a direct `#discounts` link,
   including verified-card display, refresh/remove action visibility, seeded
@@ -1886,6 +1887,9 @@ implement those decisions or explicitly revise them there before changing code.
   remove pending labels plus save-disabled state into tested helpers, keeping
   add/refresh/remove Browser coverage as a runtime follow-up while preserving
   local coverage for the visible action states.
+- Profile ESNcard direct-link docs pass: changed the generated discounts guide
+  to enter through `/profile#discounts` and read back that invalid input leaves
+  the seeded verified card row unchanged.
 - Profile ESNcard readback pass: made the generated discounts doc and matching
   direct-link profile discounts spec read back the seeded verified ESNcard row
   behind the visible profile card.
@@ -1931,6 +1935,10 @@ implement those decisions or explicitly revise them there before changing code.
   guard to also reject placeholder `@track`, `@req`, and `@doc` metadata in real
   Playwright spec/doc titles, while keeping the reporter stripping fixture
   isolated to its own reporter contract test.
+- ESN discount docs source-guard pass: pinned generated discounts docs to the
+  local ESNcard helper functions, trimmed submit payloads, shared write guards,
+  readable statuses/actions, direct discounts routing, invalid-input
+  non-mutation, and retryable provider-outage semantics.
 - Profile event-card readback pass: made the generated profile guide and
   matching functional spec read back the persisted confirmed registration,
   add-on purchase, pending checkout transaction, waitlist registration, and

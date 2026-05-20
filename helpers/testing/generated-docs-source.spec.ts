@@ -536,6 +536,14 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain(
       'Evorto leaves the stored ESN card unchanged so the user can retry later.',
     );
+    expect(source).toContain("page.goto('/profile#discounts')");
+    expect(source).toContain(
+      "page.getByRole('heading', { level: 2, name: 'Discount Cards' })",
+    );
+    expect(source).toContain('unchangedSeededEsnCard');
+    expect(source).toContain(
+      "page.getByRole('button', { name: 'Save ESN card' })",
+    );
     expect(source).toContain('ESNcard validation provider is unavailable');
     expect(source).not.toContain('provider outages mark the card invalid');
     expect(source).not.toContain('overlap ESNcard writes');
