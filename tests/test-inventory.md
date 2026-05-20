@@ -95,6 +95,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - `docs/roles/about-permissions.doc.ts`
   - `docs/roles/roles.doc.ts`
   - `specs/permissions/**`
+  - shared permission-guard denial coverage in `src/app/core/guards`
   - route-manifest and event-review queue action coverage in `src/app/admin`
   - route-manifest specs in `src/app/finance`, `src/app/global-admin`, and
     `src/app/templates`

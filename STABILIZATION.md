@@ -774,6 +774,7 @@ the current working direction until a product decision overrides them.
 
 - **Addressed in this stabilization pass:** client and server permission checks now share `includesPermission`, including dependency expansion, wildcard checks, and the legacy `admin:manageTaxes` -> `admin:tax` alias. Legacy header-based handlers, `RpcAccess.ensurePermission`, tax-rate visibility, event visibility/edit checks, and finance receipt helpers all route through the shared evaluator.
 - **Addressed in this stabilization pass:** admin role, user, settings, tax-rate, and event-review child routes now have route-level permission guards, and the admin shell requires at least one admin-child capability.
+- **Addressed in this stabilization pass:** denied permission guards now route to the root `/403` page instead of a child-relative `403` path, so direct admin/finance/template denials render a clear not-allowed page instead of an empty feature shell.
 - **Addressed in this stabilization pass:** `admin.roles.findMany` now requires `admin:manageRoles`; permission-bearing role records are no longer exposed to every authenticated tenant user.
 - **Addressed in this stabilization pass:** shared role selection and template default-role queries now use lookup-only `roles.findMany` / `roles.findOne` RPCs. The lookup API returns only id, name, and default-role flags and is available to event/template authoring permissions plus role admins.
 - **Addressed in stabilization pass:** role create/update now writes `displayInHub` and `collapseMembersInHup`, and the role form uses the same `displayInHub` field that `findHubRoles` reads. The legacy `showInHub` role field has been removed from the Drizzle schema and admin role RPC records, leaving `displayInHub` as the canonical hub-visibility field.
@@ -792,6 +793,7 @@ the current working direction until a product decision overrides them.
 
 - `src/shared/permissions/permissions.spec.ts` covers direct permissions, dependency expansion, legacy tax aliases, wildcard checks, and rejection of unrelated permissions. `RpcAccess` and tax-rate handler unit tests prove server use of the shared evaluator.
 - `src/shared/permissions/permissions.spec.ts` covers shared permission labels used by role-form dependency copy and falls back to raw keys only for technical permissions not shown in normal role management.
+- `src/app/core/guards/permission.guard.spec.ts` covers denied route redirects to the root not-allowed page and positive permission allow behavior, preventing child-route denials such as `/admin/roles` from resolving to an empty feature shell.
 - `src/app/admin/components/role-form/role-form.component.spec.ts` covers role
   submit disabling for invalid, submitting, and mutation-pending states.
 - `src/app/admin/event-reviews/event-reviews.component.spec.ts` covers the
