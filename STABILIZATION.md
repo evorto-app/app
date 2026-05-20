@@ -1359,7 +1359,8 @@ the current working direction until a product decision overrides them.
   global-admin tenant list, tenant create/edit workflow, visible relaunch
   tenant-scope notice, and tenant detail review, pins the list/create/detail/edit
   navigation targets plus the external tenant-domain link, reads the documented
-  tenant row from the database before asserting operational fields, and records
+  tenant row from the database before asserting operational fields, saves a
+  tenant-name edit with database readback and fixture restoration, and records
   that custom-domain verification, multi-domain automation, and impersonation
   workflows are not implemented yet.
 - `helpers/testing/generated-docs-source.spec.ts` keeps the global-admin guide
@@ -2325,6 +2326,10 @@ implement those decisions or explicitly revise them there before changing code.
 - Global-admin docs readback pass: tied the generated guide's tenant list,
   detail, search, and edit-form assertions to the seeded localhost tenant row
   instead of only matching generic visible values.
+- Global-admin edit persistence pass: made the page-backed global-admin tenant
+  spec and generated guide save a deterministic tenant-name edit, read the saved
+  row back from the database, and restore the shared tenant fixture after the
+  flow.
 - Tenant general-settings docs source-guard pass: pinned generated settings docs
   to the implemented tenant identity, locale/money, SEO, legal, receipt-country,
   ESNcard, and separate tax-rate surfaces while keeping deferred domain/email/

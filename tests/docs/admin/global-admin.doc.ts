@@ -87,10 +87,11 @@ test('Review global tenant administration @admin @globalAdmin', async ({
     throw new Error('Expected generated global-admin docs tenant');
   }
 
-  await page.goto('/global-admin');
+  try {
+    await page.goto('/global-admin');
 
-  await testInfo.attach('markdown', {
-    body: `
+    await testInfo.attach('markdown', {
+      body: `
 {% callout type="note" title="User permissions" %}
 For this guide, we assume you have the **globalAdmin:manageTenants** permission from platform metadata.
 {% /callout %}
@@ -99,99 +100,140 @@ For this guide, we assume you have the **globalAdmin:manageTenants** permission 
 
 Global admins can review, create, and edit tenants from the **Global admin** area. This is a platform-level workflow: the permission is independent from normal tenant roles, but opening a tenant domain still requires valid tenant user context for tenant-scoped app pages.
 `,
-  });
+    });
 
-  await expect(
-    page.getByRole('heading', { name: 'Global admin' }),
-  ).toBeVisible();
-  await page.getByRole('link', { name: 'Tenants' }).click();
-  await expect(page.getByRole('heading', { name: 'Tenants' })).toBeVisible();
-  await expect(
-    page.getByRole('link', { name: 'Create tenant' }),
-  ).toHaveAttribute('href', '/global-admin/tenants/create');
-  await expect(page.getByLabel(tenantSearchLabel)).toBeVisible();
-  await expectGlobalAdminTenantRows(page, documentedTenant);
-  await page.getByLabel(tenantSearchLabel).fill('no-such-tenant');
-  await expect(
-    page.getByRole('heading', { name: 'No tenants match this search' }),
-  ).toBeVisible();
-  await page.getByLabel(tenantSearchLabel).fill(documentedTenant.domain);
-  await expect(page.getByText(documentedTenant.domain).first()).toBeVisible();
-  if (documentedTenant.stripeAccountId) {
-    await page
-      .getByLabel(tenantSearchLabel)
-      .fill(documentedTenant.stripeAccountId);
     await expect(
-      page.getByText(`Connected (${documentedTenant.stripeAccountId})`).first(),
+      page.getByRole('heading', { name: 'Global admin' }),
     ).toBeVisible();
-  }
-  await takeScreenshot(
-    testInfo,
-    page.locator('app-tenant-list'),
-    page,
-    'Global admin tenant list',
-  );
-  await page.getByRole('link', { name: 'Create tenant' }).click();
-  await expect(
-    page.getByRole('heading', { name: 'Create tenant' }),
-  ).toBeVisible();
-  await expectGlobalAdminTenantFormSurface(page);
-  await expect(
-    page.getByRole('button', { name: 'Create tenant' }),
-  ).toBeDisabled();
-  await page.getByRole('link', { name: 'Cancel' }).click();
-  await expect(page.getByRole('heading', { name: 'Tenants' })).toBeVisible();
-  await expect(page).toHaveURL(/\/global-admin\/tenants$/);
-  const reviewTenantLink = page.getByRole('link', { name: 'Review tenant' });
-  const reviewTenantHref = await reviewTenantLink.first().getAttribute('href');
-  expect(reviewTenantHref).toMatch(/^\/global-admin\/tenants\/[^/]+$/);
-  await reviewTenantLink.first().click();
-  await expect(page).toHaveURL(/\/global-admin\/tenants\/[^/]+$/);
-  await expect(
-    page.getByText('Read-only operational tenant review'),
-  ).toBeVisible();
-  await expectGlobalAdminTenantRows(page, documentedTenant);
-  await expect(
-    page.getByRole('link', { name: 'Open tenant domain' }),
-  ).toHaveAttribute('href', `https://${documentedTenant.domain}`);
-  await expect(page.getByRole('link', { name: 'Edit tenant' })).toHaveAttribute(
-    'href',
-    `${reviewTenantHref}/edit`,
-  );
-  await takeScreenshot(
-    testInfo,
-    page.locator('app-tenant-detail'),
-    page,
-    'Global admin tenant detail',
-  );
-  await page.getByRole('link', { name: 'Edit tenant' }).click();
-  await expect(page).toHaveURL(/\/global-admin\/tenants\/[^/]+\/edit$/);
-  await expect(
-    page.getByRole('heading', { name: 'Edit tenant' }),
-  ).toBeVisible();
-  await expectGlobalAdminTenantFormSurface(page);
-  await expect(page.getByLabel('Tenant name')).toHaveValue(
-    documentedTenant.name,
-  );
-  await expect(page.getByLabel('Primary domain')).toHaveValue(
-    documentedTenant.domain,
-  );
-  await expect(page.getByLabel('Stripe account ID')).toHaveValue(
-    documentedTenant.stripeAccountId ?? '',
-  );
-  await expect(page.getByRole('button', { name: 'Save tenant' })).toBeEnabled();
-  await expect(page.getByRole('link', { name: 'Cancel' })).toHaveAttribute(
-    'href',
-    reviewTenantHref,
-  );
+    await page.getByRole('link', { name: 'Tenants' }).click();
+    await expect(page.getByRole('heading', { name: 'Tenants' })).toBeVisible();
+    await expect(
+      page.getByRole('link', { name: 'Create tenant' }),
+    ).toHaveAttribute('href', '/global-admin/tenants/create');
+    await expect(page.getByLabel(tenantSearchLabel)).toBeVisible();
+    await expectGlobalAdminTenantRows(page, documentedTenant);
+    await page.getByLabel(tenantSearchLabel).fill('no-such-tenant');
+    await expect(
+      page.getByRole('heading', { name: 'No tenants match this search' }),
+    ).toBeVisible();
+    await page.getByLabel(tenantSearchLabel).fill(documentedTenant.domain);
+    await expect(page.getByText(documentedTenant.domain).first()).toBeVisible();
+    if (documentedTenant.stripeAccountId) {
+      await page
+        .getByLabel(tenantSearchLabel)
+        .fill(documentedTenant.stripeAccountId);
+      await expect(
+        page
+          .getByText(`Connected (${documentedTenant.stripeAccountId})`)
+          .first(),
+      ).toBeVisible();
+    }
+    await takeScreenshot(
+      testInfo,
+      page.locator('app-tenant-list'),
+      page,
+      'Global admin tenant list',
+    );
+    await page.getByRole('link', { name: 'Create tenant' }).click();
+    await expect(
+      page.getByRole('heading', { name: 'Create tenant' }),
+    ).toBeVisible();
+    await expectGlobalAdminTenantFormSurface(page);
+    await expect(
+      page.getByRole('button', { name: 'Create tenant' }),
+    ).toBeDisabled();
+    await page.getByRole('link', { name: 'Cancel' }).click();
+    await expect(page.getByRole('heading', { name: 'Tenants' })).toBeVisible();
+    await expect(page).toHaveURL(/\/global-admin\/tenants$/);
+    const reviewTenantLink = page.getByRole('link', { name: 'Review tenant' });
+    const reviewTenantHref = await reviewTenantLink
+      .first()
+      .getAttribute('href');
+    if (!reviewTenantHref) {
+      throw new Error('Expected documented tenant review link href');
+    }
+    expect(reviewTenantHref).toMatch(/^\/global-admin\/tenants\/[^/]+$/);
+    await reviewTenantLink.first().click();
+    await expect(page).toHaveURL(/\/global-admin\/tenants\/[^/]+$/);
+    await expect(
+      page.getByText('Read-only operational tenant review'),
+    ).toBeVisible();
+    await expectGlobalAdminTenantRows(page, documentedTenant);
+    await expect(
+      page.getByRole('link', { name: 'Open tenant domain' }),
+    ).toHaveAttribute('href', `https://${documentedTenant.domain}`);
+    await expect(
+      page.getByRole('link', { name: 'Edit tenant' }),
+    ).toHaveAttribute('href', `${reviewTenantHref}/edit`);
+    await takeScreenshot(
+      testInfo,
+      page.locator('app-tenant-detail'),
+      page,
+      'Global admin tenant detail',
+    );
+    await page.getByRole('link', { name: 'Edit tenant' }).click();
+    await expect(page).toHaveURL(/\/global-admin\/tenants\/[^/]+\/edit$/);
+    await expect(
+      page.getByRole('heading', { name: 'Edit tenant' }),
+    ).toBeVisible();
+    await expectGlobalAdminTenantFormSurface(page);
+    await expect(page.getByLabel('Tenant name')).toHaveValue(
+      documentedTenant.name,
+    );
+    await expect(page.getByLabel('Primary domain')).toHaveValue(
+      documentedTenant.domain,
+    );
+    await expect(page.getByLabel('Stripe account ID')).toHaveValue(
+      documentedTenant.stripeAccountId ?? '',
+    );
+    await expect(
+      page.getByRole('button', { name: 'Save tenant' }),
+    ).toBeEnabled();
+    await expect(page.getByRole('link', { name: 'Cancel' })).toHaveAttribute(
+      'href',
+      reviewTenantHref,
+    );
 
-  await testInfo.attach('markdown', {
-    body: `
+    const updatedTenantName = `${documentedTenant.name} documentation review`;
+    await page.getByLabel('Tenant name').fill(updatedTenantName);
+    await page.getByRole('button', { name: 'Save tenant' }).click();
+    await expect(page).toHaveURL(reviewTenantHref);
+    await expect(
+      page.getByRole('heading', { name: updatedTenantName }),
+    ).toBeVisible();
+
+    const updatedTenant = await database.query.tenants.findFirst({
+      where: eq(schema.tenants.id, documentedTenant.id),
+    });
+    expect(updatedTenant).toEqual(
+      expect.objectContaining({
+        domain: documentedTenant.domain,
+        id: documentedTenant.id,
+        name: updatedTenantName,
+      }),
+    );
+
+    await testInfo.attach('markdown', {
+      body: `
 ## Current relaunch surface
 
 The current global-admin page is a searchable tenant list with tenant creation, tenant editing, and a tenant detail review. Each entry shows the tenant name, domain, tenant id, theme, locale, currency, timezone, and Stripe connection state plus connected account id for support and operational review. The tenant detail page repeats the operational fields, links to the edit form, and provides an external link to open the tenant's primary domain.
 
-Tenant create/edit manages the one active primary domain, name, theme, locale, currency, timezone, and connected Stripe account id. The server normalizes primary domains to a single-host value and rejects duplicates before saving, so each tenant keeps one unique primary domain. The create/edit forms show the relaunch tenant scope directly: one active primary domain is managed here, custom-domain verification and multi-domain automation are deferred, and tenant-admin impersonation is not available in the current relaunch surface.
+Tenant create/edit manages the one active primary domain, name, theme, locale, currency, timezone, and connected Stripe account id. The server normalizes primary domains to a single-host value and rejects duplicates before saving, so each tenant keeps one unique primary domain. The generated journey saves a tenant-name edit, returns to the tenant detail page, reads the saved tenant row back from the database, and restores the fixture tenant after the doc run. The create/edit forms show the relaunch tenant scope directly: one active primary domain is managed here, custom-domain verification and multi-domain automation are deferred, and tenant-admin impersonation is not available in the current relaunch surface.
 `,
-  });
+    });
+  } finally {
+    await database
+      .update(schema.tenants)
+      .set({
+        currency: documentedTenant.currency,
+        domain: documentedTenant.domain,
+        locale: documentedTenant.locale,
+        name: documentedTenant.name,
+        stripeAccountId: documentedTenant.stripeAccountId,
+        theme: documentedTenant.theme,
+        timezone: documentedTenant.timezone,
+      })
+      .where(eq(schema.tenants.id, documentedTenant.id));
+  }
 });
