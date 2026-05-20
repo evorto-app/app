@@ -1287,8 +1287,8 @@ the current working direction until a product decision overrides them.
 - Local docs/spec discovery is runnable again after replacing stale Effect config APIs in `playwright.config.ts` and Playwright support files, and Auth0 Management credentials are no longer required just to import baseline fixtures.
 - `bun run test:e2e -- --list` discovers 85 baseline tests across 25 files,
   including setup projects, without requiring local Auth0/Stripe secrets.
-- `bun run test:e2e:docs -- --list` discovers 25 baseline docs/setup tests
-  across 18 files without requiring local Auth0/Stripe secrets.
+- `bun run test:e2e:docs -- --list` discovers 29 baseline docs/setup tests
+  across 19 files without requiring local Auth0/Stripe secrets.
 - The custom documentation reporter writes grouped Markdown pages and image assets to paths from `DOCS_OUT_DIR` / `DOCS_IMG_OUT_DIR`, defaulting to ignored repository-local `test-results/docs` paths.
 - The reporter initializes and clears docs/image output roots on `onBegin` only for real test execution. During Playwright `--list` discovery it no-ops and does not clean or write docs output.
 - Reporter-path tests pass with `bun run test:e2e -- tests/specs/reporting/reporter-paths.test.ts --no-deps`.
@@ -1327,7 +1327,9 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** scanning/check-in docs now describe the dedicated QR scanner, scan warnings, authorization, checked-in count updates, and selected guest-quantity check-in. The remaining scanner follow-up is Browser-backed organizer aggregate assertion, not missing product documentation.
 - **Should fix before relaunch:** page-backed docs coverage is still missing or thin for profile discount add/refresh/remove flows. Local unit/server coverage exists for several of those surfaces, but it does not replace Browser-backed docs for the full user journeys.
 - **Addressed in stabilization pass:** the generic `tests/docs/template.doc.ts` discovery placeholder was removed; current template documentation lives in `tests/docs/templates/templates.doc.ts`.
-- **Addressed in stabilization pass:** the focused `docScreenshot` helper now resolves `DOCS_IMG_OUT_DIR` at call time instead of import time, so tests and docs jobs can set output paths per run. Some docs journeys still contain fixed waits and should be tightened as those flows are revisited.
+- **Addressed in stabilization pass:** the focused `docScreenshot` helper now
+  resolves `DOCS_IMG_OUT_DIR` at call time instead of import time, so tests and
+  docs jobs can set output paths per run.
 - **Addressed in stabilization pass:** `tests/docs/events/event-management.doc.ts` now waits on concrete headings instead of fixed one-second delays before its major screenshots.
 - **Addressed in stabilization pass:** Playwright inventory coverage now rejects
   fixed `.waitForTimeout(...)` waits in specs and generated docs, so future
@@ -1684,6 +1686,10 @@ implement those decisions or explicitly revise them there before changing code.
 - Playwright skip-inventory pass: added a local unit guard that allowlists every
   current Playwright `test.skip` and `test.fixme`, keeping future fixture-state
   gaps from becoming silent placeholders.
+- Playwright fixed-wait cleanup pass: replaced remaining shared
+  `.waitForTimeout(...)` waits in docs screenshot and Stripe checkout helpers
+  with UI/render-state waits, and extended the Playwright inventory guard so
+  future specs/docs cannot reintroduce fixed sleeps silently.
 - Global-admin tenant-list pass: expanded the tenant list contract and UI with
   non-sensitive operational state for support review, including theme,
   locale/currency/timezone, and Stripe connection status.
