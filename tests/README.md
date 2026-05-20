@@ -56,6 +56,8 @@ bun run lint
 - Stop the local runtime stack: `bun run docker:stop`
 - Local Docker runs use Neon Local instead of a plain Postgres container.
 - Docker Compose includes a one-shot `db-setup` service that runs the equivalent of `db:reset` before `evorto` starts.
+- Docker Compose forces app media/uploads to the in-network MinIO endpoint even
+  when normal local dotenv values point to an external S3-compatible endpoint.
 - Local `dev:start`, `test:e2e`, `test:e2e:ui`, `test:e2e:docs`, `db:*`, and `docker:*` package scripts refresh `.env.dev` before invoking `dotenv -c dev`, so new worktrees get isolated local app/service ports and database URLs by default.
 - `bun run docker:check` fails before Docker Compose mutates local containers
   when required local runtime variables are missing. The check covers Neon

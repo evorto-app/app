@@ -183,6 +183,10 @@ describe('evaluateRuntimePreflight', () => {
     expect(evortoService).toContain(
       'STRIPE_WEBHOOK_SECRET_FILE: /run/stripe-webhook/signing-secret',
     );
+    expect(evortoService).toContain('S3_ENDPOINT: http://minio:9000');
+    expect(evortoService).not.toContain(
+      'S3_ENDPOINT: "${S3_ENDPOINT:-http://minio:9000}"',
+    );
 
     expect(stripeService).toContain('STRIPE_API_KEY:');
     expect(stripeService).toContain(
