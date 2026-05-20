@@ -197,6 +197,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 - `helpers/testing/permission-matrix-source.spec.ts` keeps finance
   route-denial cases aligned with the guarded finance route manifest, including
   transaction list, receipt approval list/detail, and reimbursement routes.
+- `helpers/testing/user-list-source.spec.ts` keeps the tenant user list aligned
+  with the read-only relaunch surface by guarding review-only columns, the
+  visible role-assignment deferral copy, and generated roles documentation.
 
 ## Stabilization Coverage Still Needed
 
@@ -399,9 +402,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     app coverage now pins that invalid, submitting, and mutation-pending role
     forms stay disabled, and the component submit path shares the same guard.
   - User-list/role-assignment coverage once the role-assignment path exists.
-    Server coverage already proves the current read-only user list pages tenant
-    users before joining role rows and applies search before pagination, so
-    multi-role users do not collapse page size.
+    Source coverage now pins the current read-only UI shape and generated roles
+    docs while server coverage proves the current read-only user list pages
+    tenant users before joining role rows and applies search before pagination,
+    so multi-role users do not collapse page size.
 - Registrations:
   - `specs/events/negative-registration-states.spec.ts` adds active
     page-backed coverage for closed registration windows, role-ineligible direct
