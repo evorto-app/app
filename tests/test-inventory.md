@@ -315,7 +315,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - Keep event-organizer receipt submission action coverage aligned with the
     two-step upload-plus-submit flow. Local app coverage now pins that Add
     receipt remains disabled while the event has not loaded yet, while the
-    original upload is pending, and while the submit mutation is pending.
+    original upload is pending, and while the submit mutation is pending. The
+    receipt submit dialog now has focused local coverage for required and
+    supported files, tenant-allowed countries, invalid amount/date inputs,
+    attachment-name fallback, and cents normalization before submit.
   - Keep paid-registration webhook counter coverage aligned with buyer-plus-guest
     spot counts. Local shared coverage pins the capacity count helper used by
     webhook completion/expiry updates; Stripe replay specs remain

@@ -896,6 +896,11 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** receipt review records status locally, and the review detail page, success feedback, and finance docs explicitly tell finance reviewers that submitter notification is manual until a real delivery path exists.
 - **Addressed in this stabilization pass:** finance receipt approval and reimbursement lists now prefer the user's editable notification email over the Auth0 login email when rendering submitter contact details.
 - **Addressed in this stabilization pass:** the event organizer receipt action now stays disabled while the original receipt upload is pending, not only while the final submit mutation is pending, and the click handler shares the same guard.
+- **Addressed in this stabilization pass:** the event organizer receipt dialog
+  now has focused local coverage for required receipt files, supported file
+  types, tenant receipt-country settings, invalid amount breakdowns, invalid
+  dates, attachment-name fallback, and cents normalization before the submit
+  mutation payload is built.
 - **Addressed in stabilization pass:** receipt reimbursement recording now
   shares one disabled guard between the queue button and handler so missing
   selections, missing payout details, and mutation-pending writes cannot record
@@ -917,7 +922,9 @@ the current working direction until a product decision overrides them.
 - Server finance unit tests are still thin, but now include transaction-list permission denial, receipt-media upload preflight denial/success coverage, profile `finance.receipts.my` output normalization, submitter notification-email fallback, and tax-amount consistency rejection on receipt submit/review.
 - Event organize app coverage pins the receipt submission disabled state while
   the event has not loaded yet and across upload-pending and submit-pending
-  phases.
+  phases. Receipt submit dialog coverage pins required/supported files,
+  tenant-allowed countries, amount/date validation, attachment-name fallback,
+  and cents normalization before submit.
 
 ### Product Questions Answered Above
 

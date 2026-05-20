@@ -20,6 +20,16 @@ import { MatInputModule } from '@angular/material/input';
 import { ReceiptFormFieldsComponent } from '../../finance/shared/receipt-form/receipt-form-fields.component';
 import { createReceiptForm } from '../../finance/shared/receipt-form/receipt-form.model';
 
+export type ReceiptSubmitDialogPayloadResult =
+  | {
+      errorMessage: null;
+      result: ReceiptSubmitDialogResult;
+    }
+  | {
+      errorMessage: string;
+      result: null;
+    };
+
 export interface ReceiptSubmitDialogResult {
   attachmentName: string;
   fields: {
@@ -34,6 +44,104 @@ export interface ReceiptSubmitDialogResult {
   };
   file: File;
 }
+
+export interface ReceiptSubmitFormValue {
+  alcoholAmount: number;
+  depositAmount: number;
+  hasAlcohol: boolean;
+  hasDeposit: boolean;
+  purchaseCountry: string;
+  receiptDate: Date;
+  taxAmount: number;
+  totalAmount: number;
+}
+
+const supportedReceiptFile = (file: File): boolean =>
+  file.type.startsWith('image/') || file.type === 'application/pdf';
+
+export const receiptSubmitDialogResultFromFormValue = ({
+  attachmentName,
+  file,
+  formInvalid,
+  formValue,
+  selectableCountries,
+}: {
+  attachmentName: string;
+  file: File | null;
+  formInvalid: boolean;
+  formValue: ReceiptSubmitFormValue;
+  selectableCountries: readonly string[];
+}): ReceiptSubmitDialogPayloadResult => {
+  if (!file) {
+    return {
+      errorMessage: 'Choose an image or PDF receipt file.',
+      result: null,
+    };
+  }
+
+  if (!supportedReceiptFile(file)) {
+    return {
+      errorMessage: 'Only image and PDF files are supported.',
+      result: null,
+    };
+  }
+
+  if (formInvalid) {
+    return {
+      errorMessage: 'Complete all required fields.',
+      result: null,
+    };
+  }
+
+  if (!selectableCountries.includes(formValue.purchaseCountry)) {
+    return {
+      errorMessage: 'Selected country is not allowed.',
+      result: null,
+    };
+  }
+
+  const totalAmount = Math.round(formValue.totalAmount * 100);
+  const taxAmount = Math.round(formValue.taxAmount * 100);
+  const depositAmount = formValue.hasDeposit
+    ? Math.round(formValue.depositAmount * 100)
+    : 0;
+  const alcoholAmount = formValue.hasAlcohol
+    ? Math.round(formValue.alcoholAmount * 100)
+    : 0;
+
+  if (depositAmount + alcoholAmount > totalAmount) {
+    return {
+      errorMessage: 'Deposit and alcohol cannot exceed the total amount.',
+      result: null,
+    };
+  }
+
+  const receiptDate = new Date(formValue.receiptDate);
+  if (Number.isNaN(receiptDate.getTime())) {
+    return {
+      errorMessage: 'Invalid receipt date.',
+      result: null,
+    };
+  }
+
+  return {
+    errorMessage: null,
+    result: {
+      attachmentName: attachmentName.trim() || file.name,
+      fields: {
+        alcoholAmount,
+        depositAmount,
+        hasAlcohol: formValue.hasAlcohol,
+        hasDeposit: formValue.hasDeposit,
+        purchaseCountry: formValue.purchaseCountry,
+        receiptDate,
+        taxAmount,
+        totalAmount,
+      },
+      file,
+    },
+  };
+};
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -104,70 +212,22 @@ export class ReceiptSubmitDialogComponent {
     event.preventDefault();
     this.errorMessage.set('');
 
-    const selectedFile = this.file();
-    if (!selectedFile) {
-      this.errorMessage.set('Choose an image or PDF receipt file.');
-      return;
-    }
-
-    if (
-      !selectedFile.type.startsWith('image/') &&
-      selectedFile.type !== 'application/pdf'
-    ) {
-      this.errorMessage.set('Only image and PDF files are supported.');
-      return;
-    }
-
-    if (this.form.invalid) {
-      this.errorMessage.set('Complete all required fields.');
-      this.form.markAllAsTouched();
-      return;
-    }
-
-    const value = this.form.getRawValue();
-    if (!this.selectableCountries.includes(value.purchaseCountry)) {
-      this.errorMessage.set('Selected country is not allowed.');
-      return;
-    }
-
-    const totalAmount = Math.round(value.totalAmount * 100);
-    const taxAmount = Math.round(value.taxAmount * 100);
-    const depositAmount = value.hasDeposit
-      ? Math.round(value.depositAmount * 100)
-      : 0;
-    const alcoholAmount = value.hasAlcohol
-      ? Math.round(value.alcoholAmount * 100)
-      : 0;
-
-    if (depositAmount + alcoholAmount > totalAmount) {
-      this.errorMessage.set(
-        'Deposit and alcohol cannot exceed the total amount.',
-      );
-      return;
-    }
-
-    const receiptDate = new Date(value.receiptDate);
-    if (Number.isNaN(receiptDate.getTime())) {
-      this.errorMessage.set('Invalid receipt date.');
-      return;
-    }
-
-    const attachmentName = this.attachmentName().trim() || selectedFile.name;
-
-    this.dialogRef.close({
-      attachmentName,
-      fields: {
-        alcoholAmount,
-        depositAmount,
-        hasAlcohol: value.hasAlcohol,
-        hasDeposit: value.hasDeposit,
-        purchaseCountry: value.purchaseCountry,
-        receiptDate,
-        taxAmount,
-        totalAmount,
-      },
-      file: selectedFile,
+    const payload = receiptSubmitDialogResultFromFormValue({
+      attachmentName: this.attachmentName(),
+      file: this.file(),
+      formInvalid: this.form.invalid,
+      formValue: this.form.getRawValue(),
+      selectableCountries: this.selectableCountries,
     });
+    if (payload.errorMessage) {
+      this.errorMessage.set(payload.errorMessage);
+      if (this.form.invalid) {
+        this.form.markAllAsTouched();
+      }
+      return;
+    }
+
+    this.dialogRef.close(payload.result);
   }
 
   protected updateAttachmentName(value: string): void {
