@@ -595,6 +595,10 @@ the current working direction until a product decision overrides them.
   transfer/resale deferral copy while using an explicit seeded transaction
   currency and restoring fixture registration state after the generated row
   assertions.
+- `tests/specs/events/registration-transfer.test.ts` also cancels a paid
+  confirmed registration through the event page and reads back the generated
+  pending manual refund transaction, keeping the current ledger behavior covered
+  while automatic Stripe refunds remain deferred.
 - `tests/specs/events/negative-registration-states.spec.ts` covers the
   participant-facing waitlist affordance for a full first-come-first-served
   option, explicitly reads back the created waitlist registration, and restores
