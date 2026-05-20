@@ -428,10 +428,11 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - Keep tenant settings docs and payload tests aligned when new editable
     tenant settings move out of the deferred-settings summary. Current local
     coverage proves the general-settings page can persist editable
-    URLs/SEO/legal-text/ESNcard fields with database readback, the form trims
-    optional editable values before sending the RPC payload, includes supported
-    currency/locale/timezone selections in the update payload, and normalizes
-    blank optional values before the RPC call. Tenant schema, admin-handler, and
+    URLs/SEO/legal-text/receipt-country/ESNcard fields with database readback,
+    the form trims optional editable values before sending the RPC payload,
+    includes supported currency/locale/timezone selections in the update
+    payload, and normalizes blank optional values before the RPC call. Tenant
+    schema, admin-handler, and
     route coverage pin supported relaunch currency/locale/timezone values,
     hosted legal text fields, public legal page routes, and tenant logo/favicon
     upload storage paths while normalizing legacy context payloads.

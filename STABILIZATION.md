@@ -1331,8 +1331,8 @@ the current working direction until a product decision overrides them.
 - `tests/docs/admin/general-settings.doc.ts` documents the current tenant general-settings page, including the deferred-settings summary, read-only tenant identity summary with Stripe account support lookup detail, editable locale/money policy plus reload behavior, uploaded or externally hosted brand asset URLs, editable tenant legal links or hosted text, and public footer/favicon exposure, and records which domain/operations settings are not editable yet.
 - `tests/specs/admin/general-settings.spec.ts` functionally covers tenant
   general-settings persistence for editable brand asset URLs, SEO copy, hosted
-  legal text, external legal URLs, and ESNcard provider buy-link settings with
-  explicit database readback.
+  legal text, external legal URLs, receipt-country settings, and ESNcard
+  provider buy-link settings with explicit database readback.
 - `tests/docs/admin/global-admin.doc.ts` documents the current searchable
   global-admin tenant list, tenant create/edit workflow, visible relaunch
   tenant-scope notice, and tenant detail review, pins the list/create/detail/edit
