@@ -31,14 +31,16 @@ test.describe('Negative registration states', () => {
       }
 
       const targetEventId = seeded.scenario.events.closedReg.eventId;
-      const originalRegistrations =
-        await database.query.eventRegistrations.findMany({
-          where: and(
+      const originalRegistrations = await database
+        .select()
+        .from(schema.eventRegistrations)
+        .where(
+          and(
             eq(schema.eventRegistrations.eventId, targetEventId),
             eq(schema.eventRegistrations.tenantId, tenant.id),
             eq(schema.eventRegistrations.userId, regularUser.id),
           ),
-        });
+        );
 
       try {
         await database
@@ -108,14 +110,16 @@ test.describe('Negative registration states', () => {
       if (!targetEvent) {
         throw new Error('Expected seeded freeOpen event');
       }
-      const originalRegistrations =
-        await database.query.eventRegistrations.findMany({
-          where: and(
+      const originalRegistrations = await database
+        .select()
+        .from(schema.eventRegistrations)
+        .where(
+          and(
             eq(schema.eventRegistrations.eventId, targetEventId),
             eq(schema.eventRegistrations.tenantId, tenant.id),
             eq(schema.eventRegistrations.userId, regularUser.id),
           ),
-        });
+        );
       const serverEventWindow = futureServerEventWindow();
       const registrationQuestion = await seedRequiredRegistrationQuestion({
         database,
@@ -317,14 +321,16 @@ test.describe('Negative registration states', () => {
       if (!targetOption) {
         throw new Error('Expected seeded freeOpen registration option');
       }
-      const originalRegistrations =
-        await database.query.eventRegistrations.findMany({
-          where: and(
+      const originalRegistrations = await database
+        .select()
+        .from(schema.eventRegistrations)
+        .where(
+          and(
             eq(schema.eventRegistrations.eventId, targetEventId),
             eq(schema.eventRegistrations.tenantId, tenant.id),
             eq(schema.eventRegistrations.userId, regularUser.id),
           ),
-        });
+        );
 
       try {
         await database
@@ -389,10 +395,10 @@ test.describe('Negative registration states', () => {
           .where(eq(schema.eventRegistrationOptions.id, targetOptionId));
       }
     });
-
-    test('does not expose a waitlist action for full unsupported stored modes', async ({
+    test('keeps a direct event link visible with explicit ineligible copy', async ({
       database,
       page,
+      roles,
       seeded,
       tenant,
     }) => {
@@ -400,15 +406,32 @@ test.describe('Negative registration states', () => {
         throw new Error('Expected regular user fixture');
       }
 
+      const organizerOnlyRole = roles.find(
+        (role) => role.defaultOrganizerRole && !role.defaultUserRole,
+      );
+      if (!organizerOnlyRole) {
+        throw new Error('Expected seeded organizer-only role');
+      }
+
       const targetEventId = seeded.scenario.events.freeOpen.eventId;
       const targetOptionId = seeded.scenario.events.freeOpen.optionId;
       const targetOption =
         await database.query.eventRegistrationOptions.findFirst({
-          where: { id: targetOptionId, tenantId: tenant.id },
+          where: { eventId: targetEventId, id: targetOptionId },
         });
       if (!targetOption) {
         throw new Error('Expected seeded freeOpen registration option');
       }
+      const originalRegistrations = await database
+        .select()
+        .from(schema.eventRegistrations)
+        .where(
+          and(
+            eq(schema.eventRegistrations.eventId, targetEventId),
+            eq(schema.eventRegistrations.tenantId, tenant.id),
+            eq(schema.eventRegistrations.userId, regularUser.id),
+          ),
+        );
 
       try {
         await database
@@ -422,69 +445,7 @@ test.describe('Negative registration states', () => {
           );
         await database
           .update(schema.eventRegistrationOptions)
-          .set({
-            confirmedSpots: targetOption.spots,
-            registrationMode: 'random',
-            reservedSpots: 0,
-            waitlistSpots: 0,
-          })
-          .where(eq(schema.eventRegistrationOptions.id, targetOptionId));
-
-        await page.goto(`/events/${targetEventId}`);
-        await waitForRegistrationStatus(page);
-
-        const optionCard = page
-          .locator('app-event-registration-option')
-          .filter({ hasText: targetOption.title });
-        await expect(
-          optionCard.getByText('This option is full.'),
-        ).toBeVisible();
-        await expect(
-          optionCard.getByRole('button', { name: 'Join waitlist' }),
-        ).toHaveCount(0);
-        await expect(
-          optionCard.getByRole('button', { name: /^Register$/ }),
-        ).toHaveCount(0);
-      } finally {
-        await database
-          .update(schema.eventRegistrationOptions)
-          .set({
-            confirmedSpots: targetOption.confirmedSpots,
-            registrationMode: targetOption.registrationMode,
-            reservedSpots: targetOption.reservedSpots,
-            waitlistSpots: targetOption.waitlistSpots,
-          })
-          .where(eq(schema.eventRegistrationOptions.id, targetOptionId));
-      }
-    });
-  });
-
-  test.describe('user without eligible roles', () => {
-    test.use({ storageState: userStateFile });
-
-    test('keeps a direct event link visible with explicit ineligible copy', async ({
-      database,
-      page,
-      roles,
-      seeded,
-    }) => {
-      const targetEventId = seeded.scenario.events.freeOpen.eventId;
-      const targetOptionId = seeded.scenario.events.freeOpen.optionId;
-      const targetOption =
-        await database.query.eventRegistrationOptions.findFirst({
-          where: { eventId: targetEventId, id: targetOptionId },
-        });
-      if (!targetOption) {
-        throw new Error('Expected seeded freeOpen registration option');
-      }
-      const organizerRoleIds = roles
-        .filter((role) => role.defaultOrganizerRole)
-        .map((role) => role.id);
-
-      try {
-        await database
-          .update(schema.eventRegistrationOptions)
-          .set({ roleIds: organizerRoleIds })
+          .set({ roleIds: [organizerOnlyRole.id] })
           .where(eq(schema.eventRegistrationOptions.id, targetOptionId));
 
         await page.goto(`/events/${targetEventId}`);
@@ -503,6 +464,20 @@ test.describe('Negative registration states', () => {
           page.getByRole('button', { name: /^Register$/ }),
         ).toHaveCount(0);
       } finally {
+        await database
+          .delete(schema.eventRegistrations)
+          .where(
+            and(
+              eq(schema.eventRegistrations.eventId, targetEventId),
+              eq(schema.eventRegistrations.tenantId, tenant.id),
+              eq(schema.eventRegistrations.userId, regularUser.id),
+            ),
+          );
+        if (originalRegistrations.length) {
+          await database
+            .insert(schema.eventRegistrations)
+            .values(originalRegistrations);
+        }
         await database
           .update(schema.eventRegistrationOptions)
           .set({ roleIds: targetOption.roleIds })

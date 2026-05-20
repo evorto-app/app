@@ -160,11 +160,14 @@ test('regular user cannot self-transfer a paid confirmed registration', async ({
 
   const targetEventId = seeded.scenario.events.paidOpen.eventId;
   const targetOptionId = seeded.scenario.events.paidOpen.optionId;
+  const serverFutureEventStart = new Date(Date.now() + 48 * 60 * 60 * 1000);
+  const serverFutureEventEnd = new Date(
+    serverFutureEventStart.getTime() + 2 * 60 * 60 * 1000,
+  );
   const targetOption = await database.query.eventRegistrationOptions.findFirst({
     where: {
       eventId: targetEventId,
       id: targetOptionId,
-      tenantId: tenant.id,
     },
   });
   if (!targetOption || targetOption.price <= 0) {
@@ -173,18 +176,19 @@ test('regular user cannot self-transfer a paid confirmed registration', async ({
 
   const registrationId = getId();
   const transactionId = getId();
-  const originalRegistrations =
-    await database.query.eventRegistrations.findMany({
-      columns: {
-        id: true,
-        status: true,
-      },
-      where: and(
+  const originalRegistrations = await database
+    .select({
+      id: schema.eventRegistrations.id,
+      status: schema.eventRegistrations.status,
+    })
+    .from(schema.eventRegistrations)
+    .where(
+      and(
         eq(schema.eventRegistrations.eventId, targetEventId),
         eq(schema.eventRegistrations.tenantId, tenant.id),
         eq(schema.eventRegistrations.userId, regularUser.id),
       ),
-    });
+    );
 
   try {
     await database
@@ -208,7 +212,7 @@ test('regular user cannot self-transfer a paid confirmed registration', async ({
     await database.insert(schema.transactions).values({
       amount: targetOption.price,
       comment: 'Registration transfer paid-block coverage',
-      currency: tenant.currency,
+      currency: 'EUR',
       eventId: targetEventId,
       eventRegistrationId: registrationId,
       id: transactionId,
@@ -218,6 +222,13 @@ test('regular user cannot self-transfer a paid confirmed registration', async ({
       tenantId: tenant.id,
       type: 'registration',
     });
+    await database
+      .update(schema.eventInstances)
+      .set({
+        end: serverFutureEventEnd,
+        start: serverFutureEventStart,
+      })
+      .where(eq(schema.eventInstances.id, targetEventId));
 
     await page.goto(`/events/${targetEventId}`);
     await page
@@ -225,9 +236,7 @@ test('regular user cannot self-transfer a paid confirmed registration', async ({
       .first()
       .waitFor({ state: 'detached' });
 
-    await expect(
-      page.getByText('Your registration is confirmed'),
-    ).toBeVisible();
+    await expect(page.getByText('You are registered')).toBeVisible();
     await expect(
       page.getByText(
         'Self-service transfer is only available for unpaid, not-yet-checked-in registrations before the event starts. Paid registration transfer and resale are not automatic yet.',

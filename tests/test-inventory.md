@@ -179,14 +179,17 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   registration rows and counters.
 - `specs/events/registration-transfer.test.ts` adds page-backed coverage for
   the regular user's self-service unpaid transfer dialog and database readback
-  to the target tenant member, failing explicitly if the transferred row is
-  missing, then deleting the generated registration and restoring touched
-  fixture registration statuses.
+  to the target tenant member, polling for the transferred row after the dialog
+  closes, then deleting the generated registration and restoring touched fixture
+  registration statuses. The spec seeds the event into a server-future window so
+  active-registration actions remain available under Docker server time.
 - `specs/events/registration-transfer.test.ts` also seeds a paid confirmed
   registration with a successful registration transaction and proves the event
   page keeps self-service transfer disabled with the paid transfer/resale
   deferral instead of exposing the unpaid transfer dialog, then deletes the
   generated registration/transaction rows and restores touched fixture status.
+  The paid fixture uses an explicit `EUR` currency because the shared tenant
+  fixture does not expose the persisted tenant currency field.
 - `specs/events/negative-registration-states.spec.ts` adds page-backed waitlist
   coverage for full first-come-first-served options with explicit required
   answer gating, persisted waitlist registration readback, and persisted
@@ -598,9 +601,11 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     transfer scope, in addition to free and paid registration walkthroughs.
     Generated-doc source coverage keeps that unavailable-state and transfer
     scope documentation aligned with the relaunch behavior.
-  - Browser-backed execution of those assertions still depends on local runtime
-    availability and either the matching Playwright Chromium cache or
-    `E2E_BROWSER_CHANNEL=chrome` on a host with system Chrome installed.
+  - Docker-backed system-Chrome execution now passes for
+    `specs/events/negative-registration-states.spec.ts`,
+    `specs/events/registration-transfer.test.ts`, and
+    `docs/events/register.doc.ts` when run after
+    `APP_HOST_PORT=4200 bun run docker:start`.
 
 ## Current Notes
 
