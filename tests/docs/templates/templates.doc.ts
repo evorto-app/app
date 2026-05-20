@@ -131,6 +131,25 @@ Role selection also avoids duplicate entries by hiding already selected roles fr
       'Role autocomplete hides selected entries',
     );
   }
+
+  await testInfo.attach('markdown', {
+    body: `
+#### Reusable add-ons
+Templates can also store optional add-ons such as meals, equipment, or other extras.
+Add-ons can be free or paid, attached to either the participant or organizer registration option, and can limit the included quantity, total availability, maximum quantity per user, and purchase timing.
+`,
+  });
+  await page.getByRole('button', { name: 'Add add-on' }).click();
+  await expect(page.getByLabel('Add-on name')).toBeVisible();
+  await expect(page.getByLabel('Attach to')).toBeVisible();
+  await expect(page.getByText('Purchase timing')).toBeVisible();
+  await takeScreenshot(
+    testInfo,
+    page.locator('app-template-addon-form'),
+    page,
+    'Reusable add-on form',
+  );
+
   await testInfo.attach('markdown', {
     body: `
 Once you are happy with your template, click _Save template_ to save your changes.
