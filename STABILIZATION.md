@@ -2177,6 +2177,10 @@ implement those decisions or explicitly revise them there before changing code.
   searchable tenant list, no-match state, operational row fields, read-only
   tenant detail review, external tenant-domain link, and create/edit form
   relaunch-scope surface while authenticated Browser review is still blocked.
+- Tenant general-settings docs source-guard pass: pinned generated settings docs
+  to the implemented tenant identity, locale/money, SEO, legal, receipt-country,
+  ESNcard, and separate tax-rate surfaces while keeping deferred domain/email/
+  policy/limit/Stripe-account settings explicit.
 
 ## Review Next
 

@@ -16,10 +16,35 @@ describe('generated docs source current behavior', () => {
       'domain onboarding, brand asset upload, legal text page',
     );
     expect(source).toContain(
+      'A read-only **Tenant identity** summary with tenant name, primary domain, and Stripe connection state.',
+    );
+    expect(source).toContain(
+      '**Currency**, **Locale**, and **Timezone** selection within the supported relaunch policy.',
+    );
+    expect(source).toContain(
+      '**SEO title** and **SEO description** for tenant-level page metadata.',
+    );
+    expect(source).toContain(
       'custom-domain automation, email sender, review policy, registration limit, and Stripe account management gaps',
     );
     expect(source).toContain(
       'hosted text appears at \\`/legal/imprint\\`, \\`/legal/privacy\\`, and \\`/legal/terms\\`',
+    );
+    expect(source).toContain(
+      '**Allowed receipt countries** and **Allow other** for receipt submission.',
+    );
+    expect(source).toContain(
+      '**ESN Card discounts** and optional **Buy ESNcard URL** when the tenant uses ESNcard validation.',
+    );
+    expect(source).toContain(
+      'Tax rates are managed on the separate **Tax Rates** page.',
+    );
+    expect(source).toContain(
+      'When currency, locale, or timezone changes, Evorto reloads the app after saving',
+    );
+    expect(source).not.toContain('Tax rates are configured here');
+    expect(source).not.toContain(
+      'Stripe account management is configured here',
     );
   });
 
