@@ -246,6 +246,10 @@ const permissionMeta = (key: Permission): PermissionMeta => ({
   ...PERMISSION_METADATA[key as keyof typeof PERMISSION_METADATA],
 });
 
+export const permissionLabel = (permission: Permission): string =>
+  PERMISSION_METADATA[permission as keyof typeof PERMISSION_METADATA]?.label ??
+  permission;
+
 export const PERMISSION_GROUPS: PermissionGroup[] = [
   {
     icon: faGear,

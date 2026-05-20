@@ -45,7 +45,7 @@ There are some flags you can set:
 
 You can also add permissions to the role. The permissions are grouped by category. Learn more at [about permissions](/docs/about-permissions).
 
-Permissions that are required by another permission are automatically included and shown as non-editable dependent permissions.
+Permissions that are required by another permission are automatically included and shown as non-editable dependent permissions with the same admin-facing labels used in the permission reference.
 `,
   });
   await page.getByRole('textbox', { name: 'Name' }).fill('Test role');

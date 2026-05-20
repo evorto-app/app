@@ -230,6 +230,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     selectors. Server coverage already proves lookup permissions and
     lookup-only role results; template autocomplete coverage now fails loudly
     when seeded roles are missing.
+  - Local shared coverage pins admin-facing permission labels and descriptions,
+    including the labels used for role-form dependency copy and the generated
+    permission reference.
   - User-list/role-assignment coverage once the role-assignment path exists.
     Server coverage already proves the current read-only user list pages tenant
     users before joining role rows and applies search before pagination, so
