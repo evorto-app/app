@@ -218,7 +218,13 @@
                           <button
                             mat-stroked-button
                             (click)="refreshEsnCard()"
-                            [disabled]="refreshCardMutation.isPending()"
+                            [disabled]="
+                              esnCardActionDisabled({
+                                deletePending: deleteCardMutation.isPending(),
+                                refreshPending: refreshCardMutation.isPending(),
+                                upsertPending: upsertCardMutation.isPending(),
+                              })
+                            "
                           >
                             {{
                               esnCardActionLabel(
@@ -231,7 +237,13 @@
                             mat-stroked-button
                             color="warn"
                             (click)="deleteEsnCard()"
-                            [disabled]="deleteCardMutation.isPending()"
+                            [disabled]="
+                              esnCardActionDisabled({
+                                deletePending: deleteCardMutation.isPending(),
+                                refreshPending: refreshCardMutation.isPending(),
+                                upsertPending: upsertCardMutation.isPending(),
+                              })
+                            "
                           >
                             {{
                               esnCardActionLabel(
@@ -282,7 +294,11 @@
                       esnCardSaveDisabled({
                         formInvalid: esnCardForm().invalid(),
                         formSubmitting: esnCardForm().submitting(),
-                        mutationPending: upsertCardMutation.isPending(),
+                        mutationPending: esnCardActionDisabled({
+                          deletePending: deleteCardMutation.isPending(),
+                          refreshPending: refreshCardMutation.isPending(),
+                          upsertPending: upsertCardMutation.isPending(),
+                        }),
                       })
                     "
                   >

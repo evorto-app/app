@@ -110,6 +110,16 @@ export const esnCardSaveDisabled = ({
   mutationPending: boolean;
 }): boolean => formInvalid || formSubmitting || mutationPending;
 
+export const esnCardActionDisabled = ({
+  deletePending,
+  refreshPending,
+  upsertPending,
+}: {
+  deletePending: boolean;
+  refreshPending: boolean;
+  upsertPending: boolean;
+}): boolean => deletePending || refreshPending || upsertPending;
+
 export const profileEventDetailActionLabel = (): string => 'Open event page';
 
 export const profileEventGuestLabel = (guestCount: number): null | string => {
@@ -298,6 +308,7 @@ export class UserProfileComponent {
   protected readonly deleteCardMutation = injectMutation(() =>
     this.rpc.discounts.deleteMyCard.mutationOptions(),
   );
+  protected readonly esnCardActionDisabled = esnCardActionDisabled;
   protected readonly esnCardActionLabel = esnCardActionLabel;
   protected readonly esnCardErrorMessage = signal<null | string>(null);
   private readonly esnCardModel = signal({ identifier: '' });
@@ -397,6 +408,10 @@ export class UserProfileComponent {
   }
 
   protected deleteEsnCard(): void {
+    if (this.esnCardMutationPending()) {
+      return;
+    }
+
     this.esnCardErrorMessage.set(null);
     this.deleteCardMutation.mutate(
       { type: 'esnCard' },
@@ -464,6 +479,10 @@ export class UserProfileComponent {
     });
   }
   protected refreshEsnCard(): void {
+    if (this.esnCardMutationPending()) {
+      return;
+    }
+
     this.esnCardErrorMessage.set(null);
     this.refreshCardMutation.mutate(
       { type: 'esnCard' },
@@ -486,6 +505,10 @@ export class UserProfileComponent {
 
   protected async saveEsnCard(event: Event): Promise<void> {
     event.preventDefault();
+    if (this.esnCardMutationPending()) {
+      return;
+    }
+
     this.esnCardErrorMessage.set(null);
     await submit(this.esnCardForm, async (formState) => {
       this.upsertCardMutation.mutate(
@@ -518,5 +541,13 @@ export class UserProfileComponent {
 
   protected setSelectedSection(section: ProfileSection): void {
     this.selectedSection.set(section);
+  }
+
+  private esnCardMutationPending(): boolean {
+    return esnCardActionDisabled({
+      deletePending: this.deleteCardMutation.isPending(),
+      refreshPending: this.refreshCardMutation.isPending(),
+      upsertPending: this.upsertCardMutation.isPending(),
+    });
   }
 }

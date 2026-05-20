@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  esnCardActionDisabled,
   esnCardActionLabel,
   esnCardMutationErrorMessage,
   esnCardSaveDisabled,
@@ -180,6 +181,37 @@ describe('profile ESN card messages', () => {
         formInvalid: false,
         formSubmitting: false,
         mutationPending: false,
+      }),
+    ).toBe(false);
+  });
+
+  it('blocks ESN card actions while any card write is pending', () => {
+    expect(
+      esnCardActionDisabled({
+        deletePending: true,
+        refreshPending: false,
+        upsertPending: false,
+      }),
+    ).toBe(true);
+    expect(
+      esnCardActionDisabled({
+        deletePending: false,
+        refreshPending: true,
+        upsertPending: false,
+      }),
+    ).toBe(true);
+    expect(
+      esnCardActionDisabled({
+        deletePending: false,
+        refreshPending: false,
+        upsertPending: true,
+      }),
+    ).toBe(true);
+    expect(
+      esnCardActionDisabled({
+        deletePending: false,
+        refreshPending: false,
+        upsertPending: false,
       }),
     ).toBe(false);
   });
