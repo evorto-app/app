@@ -64,6 +64,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - specs/permissions/override.test.ts [permissions]
   - specs/permissions/tenant-isolation-tax-rates.spec.ts [permissions, finance]
   - specs/profile/user-profile-discounts.spec.ts [finance]
+  - specs/profile/user-profile-edit.spec.ts
   - specs/profile/user-profile-events.spec.ts
   - specs/reporting/reporter-paths.test.ts
   - specs/scanning/scanner.test.ts
@@ -115,6 +116,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - `docs/profile/**`
   - `docs/users/create-account.doc.ts`
   - `specs/profile/user-profile-discounts.spec.ts`
+  - `specs/profile/user-profile-edit.spec.ts`
   - `specs/profile/user-profile-events.spec.ts`
   - app profile edit, event-card, receipt-card, and ESNcard action coverage in
     `src/app/profile`
@@ -212,7 +214,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 - Profile/account:
   - Browser-backed profile edit persistence after saving notification email and
     optional global reimbursement details. Generated docs already exercise the
-    notification-email edit/restore path, and app helper coverage proves payload
+    notification-email edit/restore path, `specs/profile/user-profile-edit.spec.ts`
+    now functionally covers notification email plus IBAN/PayPal persistence with
+    database readback and cleanup, and app helper coverage proves payload
     trimming and blank-value normalization before persistence.
   - Manual Browser-backed profile event-card review once local runtime is
     available. Generated profile docs now seed confirmed, pending-checkout,
