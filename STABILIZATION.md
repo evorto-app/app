@@ -1152,10 +1152,10 @@ the current working direction until a product decision overrides them.
 
 ### Recommended Cleanup Actions
 
-- Keep Browser-backed profile edit persistence coverage aligned with notification email behavior.
-- Add Browser-backed profile event-card coverage for event links and registration/guest/payment/check-in state once runtime review is available.
-- Add Browser-backed profile discount-card tests for add/refresh/remove and provider validation outcomes once runtime review is available. Local app/server coverage already proves upsert payload normalization, readable mutation errors, global card reads/upserts, refresh persistence, and scoped removal.
-- Add Browser-backed profile/account coverage for account creation retry/tenant-join behavior, profile edit persistence, ESNcard add/refresh/remove, profile event action rendering, and submitted receipt visibility once local runtime review is available. Local helper/server coverage already covers account creation retry/tenant join, profile edit payload persistence, ESNcard action labels/errors/payloads, profile event labels/actions, and submitted receipt status/amount/server rows.
+- Keep Browser-backed profile edit persistence coverage aligned with notification email and global reimbursement-detail behavior. Generated profile docs and the functional profile edit spec now both save and read back notification email plus IBAN/PayPal details.
+- Keep Browser-backed profile event-card coverage aligned with route/status/guest/add-on/payment/ticket/check-in labels and rerun it during manual runtime review.
+- Add Browser-backed profile discount-card tests for live add/refresh/remove provider validation outcomes once runtime review is available. Local app/server coverage already proves upsert payload normalization, readable mutation errors, global card reads/upserts, refresh persistence, scoped removal, and generated docs assert seeded card display plus invalid-input blocking.
+- Add Browser-backed profile/account coverage for account creation retry/tenant-join behavior, profile edit persistence, ESNcard add/refresh/remove, and profile event action rendering once local runtime review is available. Local helper/server coverage already covers account creation retry/tenant join, profile edit payload persistence, ESNcard action labels/errors/payloads, profile event labels/actions, and submitted receipt status/amount/server rows; generated profile docs now assert notification email plus reimbursement-detail persistence and submitted receipt visibility.
 
 ## Tenant/Global Admin
 
@@ -1310,6 +1310,10 @@ the current working direction until a product decision overrides them.
   detail review, create/edit form relaunch-scope copy, disabled empty create
   submit, a temporary tenant create with database readback and cleanup, and
   enabled seeded edit submit.
+- **Addressed in stabilization pass:** generated user-profile docs now save
+  notification email plus IBAN/PayPal reimbursement details, assert the
+  refreshed profile summary, read the persisted user row, and restore the
+  original fixture data after the doc run.
 - **Addressed in stabilization pass:** scanning/check-in docs now describe the dedicated QR scanner, scan warnings, authorization, checked-in count updates, and selected guest-quantity check-in. Generated docs now assert the organizer checked-in aggregate after the scanner mutation. The remaining scanner follow-up is manual Browser-backed runtime review, not missing automated aggregate coverage or product documentation.
 - **Should fix before relaunch:** page-backed docs coverage is still missing or thin for tenant/global-admin settings beyond the current list/settings pages, account creation outside Auth0-management integration, profile discount add/refresh/remove flows, role assignment/user management, and registration negative paths. Local unit/server coverage exists for several of those surfaces, but it does not replace Browser-backed docs for the full user journeys.
 - **Addressed in stabilization pass:** the generic `tests/docs/template.doc.ts` discovery placeholder was removed; current template documentation lives in `tests/docs/templates/templates.doc.ts`.
@@ -1624,7 +1628,10 @@ implement those decisions or explicitly revise them there before changing code.
 - Finance receipt contact pass: receipt approval/reimbursement read models now
   render the submitter's notification email when present, falling back to the
   Auth0 login email only when no notification email is configured.
-- Profile edit docs pass: extended the user-profile documentation journey to save a changed notification email, assert the refreshed profile summary, and restore the seeded user record after the doc run.
+- Profile edit docs pass: extended the user-profile documentation journey to
+  save changed notification email plus IBAN/PayPal reimbursement details,
+  assert the refreshed profile summary, read back the persisted user row, and
+  restore the seeded user record after the doc run.
 - Profile event-card docs pass: extended the user-profile documentation journey with deterministic confirmed and checked-in registrations plus free add-ons and asserted the profile event-card title, event-detail link, status, guest, add-on, payment, ticket-routing, and checked-in action labels.
 - Profile pending/waitlist docs pass: extended the user-profile documentation
   journey with deterministic pending-checkout and waitlisted event cards so the

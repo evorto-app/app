@@ -31,6 +31,8 @@ test('Manage user profile', async ({
     throw new Error('Expected regular profile user to exist');
   }
   const documentedNotificationEmail = `profile-docs-${seedDate.getTime()}@evorto.app`;
+  const documentedIban = 'DE89370400440532013000';
+  const documentedPaypalEmail = `profile-docs-paypal-${seedDate.getTime()}@evorto.app`;
   const profileReceiptId = getId();
   const profileReceiptFileName = `profile-docs-receipt-${seedDate.getTime()}.pdf`;
   const profileEventId = seeded.scenario.events.freeOpen.eventId;
@@ -147,7 +149,7 @@ The form uses inline validation, and the save button is only enabled when both n
       body: `
 ## Notification Email Persistence
 
-The notification email is user-managed and may differ from the Auth0 login email. After saving, the profile summary displays the updated notification email while the login email remains unchanged.
+The notification email is user-managed and may differ from the Auth0 login email. Optional IBAN and PayPal fields store global reimbursement details for finance teams. After saving, the profile summary displays the updated notification email while the login email remains unchanged.
 `,
     });
 
@@ -156,6 +158,10 @@ The notification email is user-managed and may differ from the Auth0 login email
     await page
       .getByRole('textbox', { name: 'Notification email' })
       .fill(documentedNotificationEmail);
+    await page.getByRole('textbox', { name: 'IBAN' }).fill(documentedIban);
+    await page
+      .getByRole('textbox', { name: 'PayPal email' })
+      .fill(documentedPaypalEmail);
     await page.getByRole('button', { name: 'Save' }).click();
     await expect(editDialog).toHaveCount(0);
     await expect(
@@ -171,6 +177,8 @@ The notification email is user-managed and may differ from the Auth0 login email
     expect(updatedProfileUser.communicationEmail).toBe(
       documentedNotificationEmail,
     );
+    expect(updatedProfileUser.iban).toBe(documentedIban);
+    expect(updatedProfileUser.paypalEmail).toBe(documentedPaypalEmail);
     await takeScreenshot(
       testInfo,
       page.locator('app-user-profile'),

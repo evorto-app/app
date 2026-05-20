@@ -99,6 +99,17 @@ describe('generated docs source current behavior', () => {
       'The notification email is user-managed and may differ from the Auth0 login email.',
     );
     expect(source).toContain(
+      'Optional IBAN and PayPal fields store global reimbursement details for finance teams.',
+    );
+    expect(source).toContain('documentedIban');
+    expect(source).toContain('documentedPaypalEmail');
+    expect(source).toContain("getByRole('textbox', { name: 'IBAN' })");
+    expect(source).toContain("getByRole('textbox', { name: 'PayPal email' })");
+    expect(source).toContain('updatedProfileUser.iban).toBe(documentedIban)');
+    expect(source).toContain(
+      'updatedProfileUser.paypalEmail).toBe(documentedPaypalEmail)',
+    );
+    expect(source).toContain(
       'Profile event cards point pending checkout registrations at the implemented profile action, route ticket/cancellation/unpaid-transfer details back to the event page, expose waitlist routing back to the event page, and stop advertising cancellation or transfer once a registration is checked in',
     );
     expect(source).toContain(
