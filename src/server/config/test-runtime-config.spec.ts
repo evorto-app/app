@@ -33,6 +33,11 @@ const requiredPlaywrightEntries = [
   ['STRIPE_WEBHOOK_SECRET', 'whsec_123'],
 ] as const;
 
+const localPlaywrightEntriesWithoutStaticWebhookSecret =
+  requiredPlaywrightEntries.filter(
+    ([name]) => name !== 'STRIPE_WEBHOOK_SECRET',
+  );
+
 const providerFromEntries = (entries: readonly (readonly [string, string])[]) =>
   ConfigProvider.fromEnv({ env: Object.fromEntries(entries) });
 
@@ -155,6 +160,25 @@ describe('test-runtime-config', () => {
   );
 
   it.effect(
+    'allows local non-CI runs without a static Stripe webhook secret',
+    () =>
+      Effect.gen(function* () {
+        const provider = providerFromEntries([
+          ...localPlaywrightEntriesWithoutStaticWebhookSecret,
+          ['BASE_URL', 'http://localhost:4200'],
+        ]);
+        const environment = yield* readPlaywrightEnvironment(provider, [
+          'node',
+          'playwright',
+          'test',
+          '--project=local-chrome-baseline',
+        ]);
+
+        expect(environment.STRIPE_WEBHOOK_SECRET).toBe('');
+      }),
+  );
+
+  it.effect(
     'still resolves BASE_URL when NO_WEBSERVER disables only auto-startup',
     () =>
       Effect.gen(function* () {
@@ -193,6 +217,31 @@ describe('test-runtime-config', () => {
 
         expect(environment.CI).toBe(true);
       }),
+  );
+
+  it.effect('requires a static Stripe webhook secret in CI', () =>
+    Effect.gen(function* () {
+      const provider = providerFromEntries([
+        ...localPlaywrightEntriesWithoutStaticWebhookSecret,
+        ['BASE_URL', 'http://localhost:4200'],
+        ['CI', 'true'],
+        ['S3_ACCESS_KEY_ID', 'access-key'],
+        ['S3_BUCKET', 'bucket'],
+        ['S3_ENDPOINT', 'http://minio:9000'],
+        ['S3_REGION', 'us-east-1'],
+        ['S3_SECRET_ACCESS_KEY', 'secret-key'],
+      ]);
+
+      const error = yield* Effect.flip(
+        readPlaywrightEnvironment(provider, [
+          'node',
+          'playwright',
+          'test',
+          '--project=local-chrome-baseline',
+        ]),
+      );
+      expect(error.message).toMatch(/STRIPE_WEBHOOK_SECRET/);
+    }),
   );
 
   it.effect(

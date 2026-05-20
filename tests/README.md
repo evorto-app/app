@@ -172,14 +172,16 @@ Required for full Playwright flows:
 - `SECRET`
 - `STRIPE_API_KEY`
 - `STRIPE_TEST_ACCOUNT_ID`
-- `STRIPE_WEBHOOK_SECRET` or the Docker-provided
-  `STRIPE_WEBHOOK_SECRET_FILE` path for app webhook verification
+- `STRIPE_WEBHOOK_SECRET` for CI webhook replay coverage, or the
+  Docker-provided `STRIPE_WEBHOOK_SECRET_FILE` path for app webhook verification
 
 The Docker stack can use `STRIPE_WEBHOOK_SECRET_FILE` for the app container
 instead of a static `STRIPE_WEBHOOK_SECRET`; the Compose-managed Stripe CLI
 listener writes the generated signing secret there. The replay specs that
 generate signed webhook payloads directly still need `STRIPE_WEBHOOK_SECRET`
-when those specs are run outside the Docker listener path.
+when those specs are run outside the Docker listener path. Local non-CI
+Playwright runs may omit the static secret; the replay spec file then skips
+itself before page/database fixtures are requested.
 
 Required in CI baseline docs/functional jobs:
 

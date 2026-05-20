@@ -1432,6 +1432,11 @@ implement those decisions or explicitly revise them there before changing code.
 - Docker media isolation pass: forced the app container to use the Compose
   MinIO endpoint for media/uploads even when developer dotenv values point
   normal local runs at an external S3-compatible endpoint.
+- Playwright webhook-secret gate pass: local non-CI Playwright runs can now
+  reach the Stripe webhook replay spec's file-level skip when
+  `STRIPE_WEBHOOK_SECRET` is absent, while CI still requires the static secret
+  for replay coverage. Docker app verification can continue to use the
+  Compose-managed `STRIPE_WEBHOOK_SECRET_FILE`.
 - Backlog evidence refresh: reran the skip/fixme inventory guard, the legacy
   stabilization field guard, and the focused registration copy/deferred-action
   component specs before pruning completed organizer/helper signup and skip
