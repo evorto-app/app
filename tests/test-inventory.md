@@ -325,9 +325,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 - Scanning/check-in:
   - Manual Browser-backed organizer aggregate review once local runtime is
     available. The page-backed scanner spec now confirms buyer-plus-guest
-    check-in, persists the scanner counters, and asserts the organizer overview
-    checked-in aggregate. Local app coverage also proves organizer overview
-    stat aggregation reads the same `checkedInSpots` counter updated by scanner
+    check-in, later remaining-guest arrival after the buyer was already checked
+    in, persisted scanner counters, and the organizer overview checked-in
+    aggregate. Local app coverage also proves organizer overview stat
+    aggregation reads the same `checkedInSpots` counter updated by scanner
     check-in mutations, and scanned-registration component coverage pins
     check-in button labels plus selected spot-count copy. Event-management docs
     now call out that guest-quantity check-in increments the organizer
