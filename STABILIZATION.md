@@ -647,6 +647,10 @@ the current working direction until a product decision overrides them.
 - **Addressed in this stabilization pass:** template create/edit components use scoped `consola/browser` loggers instead of direct `console.*` calls.
 - **Addressed in stabilization pass:** template detail paid-option summaries now use the shared inclusive tax label component, matching the event registration card display and preserving the same fallback label when tax-rate details are unavailable.
 - **Addressed in stabilization pass:** template create/edit submit normalization clears hidden payment fields for free registrations, so toggling a paid option back to free no longer submits a stale `stripeTaxRateId` that the server correctly rejects.
+- **Addressed in stabilization pass:** creating an event from a template now
+  shares one tested submit-disabled guard between the template button and submit
+  handler, so invalid, submitting, and mutation-pending states cannot trigger
+  duplicate event creation on slow networks.
 - **Acceptable for now:** the template detail page is a useful read-only summary and the "Create event" action is discoverable from the detail surface.
 
 ### Test and Documentation Quality
@@ -660,6 +664,9 @@ the current working direction until a product decision overrides them.
   option source ids for server-side template discount copying, relative
   registration-window offsets, and the boundary that organizer planning tips
   stay private to the template surface.
+- `src/app/templates/template-create-event/template-create-event.component.spec.ts`
+  pins the create-event-from-template submit guard for invalid, submitting, and
+  mutation-pending states.
 - `src/shared/registration-modes.spec.ts` covers the readable labels used by
   event/template authoring controls and template detail summaries for every
   persisted registration-mode literal.
@@ -1514,6 +1521,9 @@ implement those decisions or explicitly revise them there before changing code.
   rollback through the shared buyer-plus-guest spot-count helper and covered
   pending and confirmed guest cancellations so reserved/confirmed spot
   decrement behavior stays pinned without Browser/runtime setup.
+- Template create-event submit-guard pass: shared the create-event-from-template
+  submit disabled state and handler early return so invalid, submitting, and
+  mutation-pending writes cannot duplicate event creation.
 - Organizer-assisted transfer primitive pass: added
   `events.findTransferTargets` and `events.transferEventRegistration` RPCs for
   confirmed, not checked-in, unpaid registrations, gated them to event
