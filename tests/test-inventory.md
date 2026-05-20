@@ -88,8 +88,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - `docs/roles/about-permissions.doc.ts`
   - `docs/roles/roles.doc.ts`
   - `specs/permissions/**`
-  - route-manifest specs in `src/app/admin`, `src/app/finance`,
-    `src/app/global-admin`, and `src/app/templates`
+  - route-manifest and event-review queue action coverage in `src/app/admin`
+  - route-manifest specs in `src/app/finance`, `src/app/global-admin`, and
+    `src/app/templates`
 - Tenant/global admin:
   - `docs/admin/global-admin.doc.ts`
   - `docs/admin/general-settings.doc.ts`

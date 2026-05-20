@@ -735,6 +735,10 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** permission metadata now has explicit admin-facing labels and descriptions in the shared permission source, the role form renders those descriptions, and shared tests require every visible permission to keep non-empty metadata.
 - **Addressed in stabilization pass:** role-form dependent-permission copy now uses shared admin-facing permission labels instead of raw permission keys, and the generated permission reference keeps both the label and key visible.
 - **Addressed in this stabilization pass:** role create/edit submits now share a tested disabled guard across the role form template and submit handler, and parent create/update handlers ignore duplicate submit events while the role write is pending.
+- **Addressed in stabilization pass:** the tenant event-review queue now shares
+  one tested action guard between Approve/Reject buttons and the handler, so a
+  pending review mutation cannot open another rejection dialog or submit a
+  second review write.
 - **Acceptable for now:** roles are tenant-scoped in schema and role-management write queries include tenant boundaries.
 
 ### Test and Documentation Quality
@@ -743,6 +747,9 @@ the current working direction until a product decision overrides them.
 - `src/shared/permissions/permissions.spec.ts` covers shared permission labels used by role-form dependency copy and falls back to raw keys only for technical permissions not shown in normal role management.
 - `src/app/admin/components/role-form/role-form.component.spec.ts` covers role
   submit disabling for invalid, submitting, and mutation-pending states.
+- `src/app/admin/event-reviews/event-reviews.component.spec.ts` covers the
+  tenant event-review queue guard that disables Approve/Reject while a review
+  mutation is pending.
 - Permission matrix coverage checks admin tax-rate, role-management, user-list, settings, and template write route denial. `src/app/admin/admin.routes.spec.ts` keeps the guarded admin route manifest explicit. Role lookup UI behavior still needs Browser/E2E coverage once runtime review is available.
 - `tests/docs/roles/roles.doc.ts` documents role creation, dependent permissions, and the explicit deferral of existing-user role assignment for relaunch.
 - `tests/docs/roles/about-permissions.doc.ts` generates the `/docs/about-permissions` source from shared permission metadata, including group labels, permission keys/descriptions, dependent permissions, and the tenant-role/global-admin distinction.
@@ -1524,6 +1531,9 @@ implement those decisions or explicitly revise them there before changing code.
 - Template create-event submit-guard pass: shared the create-event-from-template
   submit disabled state and handler early return so invalid, submitting, and
   mutation-pending writes cannot duplicate event creation.
+- Tenant event-review queue guard pass: shared the Approve/Reject disabled
+  state and handler early return so mutation-pending reviews cannot open a
+  second rejection dialog or submit another lifecycle write.
 - Organizer-assisted transfer primitive pass: added
   `events.findTransferTargets` and `events.transferEventRegistration` RPCs for
   confirmed, not checked-in, unpaid registrations, gated them to event
