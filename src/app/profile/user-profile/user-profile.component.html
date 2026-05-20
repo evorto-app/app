@@ -220,11 +220,12 @@
                             (click)="refreshEsnCard()"
                             [disabled]="refreshCardMutation.isPending()"
                           >
-                            @if (refreshCardMutation.isPending()) {
-                              Refreshing...
-                            } @else {
-                              Refresh
-                            }
+                            {{
+                              esnCardActionLabel(
+                                "refresh",
+                                refreshCardMutation.isPending()
+                              )
+                            }}
                           </button>
                           <button
                             mat-stroked-button
@@ -232,11 +233,12 @@
                             (click)="deleteEsnCard()"
                             [disabled]="deleteCardMutation.isPending()"
                           >
-                            @if (deleteCardMutation.isPending()) {
-                              Removing...
-                            } @else {
-                              Remove
-                            }
+                            {{
+                              esnCardActionLabel(
+                                "remove",
+                                deleteCardMutation.isPending()
+                              )
+                            }}
                           </button>
                         </div>
                       </div>
@@ -277,16 +279,16 @@
                     color="primary"
                     type="submit"
                     [disabled]="
-                      esnCardForm().invalid() ||
-                      esnCardForm().submitting() ||
-                      upsertCardMutation.isPending()
+                      esnCardSaveDisabled({
+                        formInvalid: esnCardForm().invalid(),
+                        formSubmitting: esnCardForm().submitting(),
+                        mutationPending: upsertCardMutation.isPending(),
+                      })
                     "
                   >
-                    @if (upsertCardMutation.isPending()) {
-                      Checking ESN card...
-                    } @else {
-                      Save ESN card
-                    }
+                    {{
+                      esnCardActionLabel("save", upsertCardMutation.isPending())
+                    }}
                   </button>
                   @if (
                     !hasVerifiedEsnCard() && buyEsnCardUrl();

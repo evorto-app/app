@@ -83,6 +83,33 @@ export const profileUserAfterEdit = <
   paypalEmail: result.paypalEmail ?? null,
 });
 
+export const esnCardActionLabel = (
+  action: EsnCardMutationAction,
+  pending: boolean,
+): string => {
+  switch (action) {
+    case 'refresh': {
+      return pending ? 'Refreshing...' : 'Refresh';
+    }
+    case 'remove': {
+      return pending ? 'Removing...' : 'Remove';
+    }
+    case 'save': {
+      return pending ? 'Checking ESN card...' : 'Save ESN card';
+    }
+  }
+};
+
+export const esnCardSaveDisabled = ({
+  formInvalid,
+  formSubmitting,
+  mutationPending,
+}: {
+  formInvalid: boolean;
+  formSubmitting: boolean;
+  mutationPending: boolean;
+}): boolean => formInvalid || formSubmitting || mutationPending;
+
 export const profileEventDetailActionLabel = (): string => 'Open event page';
 
 export const profileEventGuestLabel = (guestCount: number): null | string => {
@@ -266,12 +293,14 @@ export class UserProfileComponent {
   protected readonly deleteCardMutation = injectMutation(() =>
     this.rpc.discounts.deleteMyCard.mutationOptions(),
   );
+  protected readonly esnCardActionLabel = esnCardActionLabel;
   protected readonly esnCardErrorMessage = signal<null | string>(null);
   private readonly esnCardModel = signal({ identifier: '' });
   protected readonly esnCardForm = form(this.esnCardModel, (schemaPath) => {
     required(schemaPath.identifier);
     pattern(schemaPath.identifier, /^[A-Za-z0-9]{8,16}$/);
   });
+  protected readonly esnCardSaveDisabled = esnCardSaveDisabled;
   protected readonly esnEnabled = computed(() => {
     const providers = this.discountProvidersQuery.data();
     if (!providers) return false;
