@@ -19,6 +19,7 @@ test('Create and manage events', async ({
   database,
   events,
   page,
+  roles,
   seeded,
 }, testInfo) => {
   const target = events.find(
@@ -182,6 +183,70 @@ Note: The event created from the template already has registration options confi
     page.getByRole('heading', { level: 2, name: 'Registration' }).first(),
     page,
     'Registration options section',
+  );
+
+  const draftEvent = events.find(
+    (event) => event.status === 'DRAFT' && event.registrationOptions.length > 0,
+  );
+  if (!draftEvent) {
+    throw new Error(
+      'Expected seeded draft event for event-management role autocomplete docs',
+    );
+  }
+  const registrationOption = draftEvent.registrationOptions[0];
+  const selectedRole = roles.find((role) =>
+    registrationOption.roleIds.includes(role.id),
+  );
+  if (!selectedRole) {
+    throw new Error(
+      `Expected seeded event-management docs draft event "${draftEvent.title}" to have selected registration roles`,
+    );
+  }
+  const unselectedRole = roles.find(
+    (role) => !registrationOption.roleIds.includes(role.id),
+  );
+  if (!unselectedRole) {
+    throw new Error(
+      `Expected seeded event-management docs draft event "${draftEvent.title}" to have an unselected role for autocomplete`,
+    );
+  }
+
+  await page.goto(`/events/${draftEvent.id}/edit`);
+  await expect(page).toHaveURL(`/events/${draftEvent.id}/edit`);
+  await expect(
+    page.getByRole('heading', { name: draftEvent.title }),
+  ).toBeVisible();
+  await expect(page.getByText(selectedRole.name).first()).toBeVisible();
+  const roleInput = page.getByPlaceholder('Add Role...').first();
+  await roleInput.click();
+  await expect(
+    page.getByRole('option', {
+      exact: true,
+      name: selectedRole.name,
+    }),
+  ).toHaveCount(0);
+  await page
+    .getByRole('option', { exact: true, name: unselectedRole.name })
+    .click();
+  await roleInput.click();
+  await expect(
+    page.getByRole('option', {
+      exact: true,
+      name: unselectedRole.name,
+    }),
+  ).toHaveCount(0);
+  await page.keyboard.press('Escape');
+
+  await testInfo.attach('markdown', {
+    body: `
+Role picker behavior: already selected roles are hidden from suggestions to avoid duplicate eligibility entries. The event edit form uses lookup-only role labels for this authoring flow rather than exposing role-management permission details.
+`,
+  });
+  await takeScreenshot(
+    testInfo,
+    page.getByRole('heading', { name: draftEvent.title }).first(),
+    page,
+    'Event edit role picker duplicate prevention',
   );
 
   await testInfo.attach('markdown', {

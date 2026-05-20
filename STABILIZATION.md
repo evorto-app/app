@@ -899,7 +899,7 @@ the current working direction until a product decision overrides them.
 - `src/app/admin/event-reviews/event-reviews.component.spec.ts` covers the
   tenant event-review queue guard that disables Approve/Reject while a review
   mutation is pending.
-- Permission matrix coverage checks admin tax-rate, role-management, user-list, settings, and template write route denial. `src/app/admin/admin.routes.spec.ts` keeps the guarded admin route manifest explicit. Role lookup UI behavior still needs manual Browser review once runtime review is available; current Playwright specs cover duplicate-hiding behavior in both template creation and event editing.
+- Permission matrix coverage checks admin tax-rate, role-management, user-list, settings, and template write route denial. `src/app/admin/admin.routes.spec.ts` keeps the guarded admin route manifest explicit. Role lookup UI behavior still needs manual Browser review once runtime review is available; current Playwright specs cover duplicate-hiding behavior in both template creation and event editing, and generated template/event-management docs pin the same behavior with fixture hard-failure guards.
 - `tests/docs/roles/roles.doc.ts` documents role creation, dependent permissions, and the explicit deferral of existing-user role assignment for relaunch.
 - `tests/docs/roles/roles.doc.ts` now creates a deterministic unique role,
   asserts dependent permission selection, reads the persisted role permissions
@@ -938,7 +938,7 @@ the current working direction until a product decision overrides them.
 - Keep route-manifest specs and permission-matrix route-denial cases aligned as admin, finance, template, and global-admin route trees change.
 - Keep role create/edit submit guards aligned with the actual mutation
   lifecycle, not only the signal-form submit callback.
-- Keep UI/E2E coverage aligned so least-privilege organizers can search/select tenant roles in event/template eligibility forms; current Playwright coverage exercises duplicate-hiding behavior in both template creation and event editing, while manual Browser review remains pending until local runtime is available.
+- Keep UI/E2E coverage aligned so least-privilege organizers can search/select tenant roles in event/template eligibility forms; current Playwright coverage and generated template/event-management docs exercise duplicate-hiding behavior in template creation and event editing, while manual Browser review remains pending until local runtime is available.
 - Keep `migration/steps/004_drop_legacy_stabilization_fields.ts` in the
   production migration path so any existing physical `showInHub`,
   `paymentStatus`, and `payment_status` artifacts are dropped when the
@@ -946,7 +946,7 @@ the current working direction until a product decision overrides them.
 - Keep user-role assignment explicitly deferred until a real role-assignment RPC and UI are implemented.
 - Keep the current read-only user-list role-name read tenant-scoped while role
   assignment remains migration/future-work only.
-- Add Browser-backed least-privilege organizer review for event/template role selectors once the local runtime is available; current server coverage proves lookup permissions and lookup-only result shaping, and the template/event Playwright autocomplete specs fail loudly when seeded role state is missing.
+- Add Browser-backed least-privilege organizer review for event/template role selectors once the local runtime is available; current server coverage proves lookup permissions and lookup-only result shaping, and the template/event Playwright plus generated-doc autocomplete checks fail loudly when seeded role state is missing.
 
 ## Finance/Receipts
 
@@ -2190,6 +2190,10 @@ implement those decisions or explicitly revise them there before changing code.
 - Template role-picker docs hardening pass: made generated template docs fail
   explicitly if the role autocomplete has no seeded role options or nameless
   options before asserting selected roles are hidden from suggestions.
+- Event-management role-picker docs hardening pass: made generated
+  event-management docs open a seeded draft event edit form, fail explicitly if
+  selected or unselected role fixtures are missing, and assert selected roles
+  are hidden from role autocomplete suggestions.
 - Create-account retry guard pass: made the create-account submit button stay
   disabled while the account mutation is pending and pinned that invalid,
   submitting, and mutation-pending states all block duplicate submissions
