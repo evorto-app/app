@@ -1127,6 +1127,10 @@ the current working direction until a product decision overrides them.
   pending-checkout, waitlisted, confirmed, and checked-in states direct
   functional Playwright coverage in addition to product documentation.
 - `src/app/profile/user-profile/edit-profile-dialog.component.spec.ts` covers profile edit payload normalization for notification email and optional global reimbursement details before the update mutation receives the dialog result.
+- `tests/specs/profile/user-profile-edit.spec.ts` functionally covers profile
+  edit persistence for notification email, IBAN, and PayPal reimbursement
+  details, including profile summary refresh, database readback, and fixture
+  cleanup.
 - `src/app/profile/user-profile/user-profile.component.spec.ts` covers profile event action routing, payment-continuation visibility, guest-quantity, checked-in action copy, implemented-action notes, payment-continuation next-step copy, payment-state, registration-status labels, submitted-receipt status and amount labels, ESNcard action/status labels, ESNcard save disabled state, ESNcard upsert payload normalization, and readable ESNcard mutation error fallback/provider messages. `src/server/effect/rpc/handlers/users.handlers.spec.ts` and the users RPC schema spec now pin purchased add-ons on profile event summaries.
 - Profile app coverage also pins that payment continuation links only render for
   pending Stripe Checkout HTTPS URLs, so malformed or unexpected checkout URL
@@ -1186,7 +1190,7 @@ the current working direction until a product decision overrides them.
 
 ### Recommended Cleanup Actions
 
-- Keep Browser-backed profile edit persistence coverage aligned with notification email behavior.
+- Keep Browser-backed profile edit persistence coverage aligned with notification email and global reimbursement-detail behavior.
 - Keep Browser-backed profile event-card coverage aligned with route/status/guest/add-on/payment/ticket/check-in labels and rerun it during manual runtime review.
 - Add Browser-backed profile discount-card tests for live add/refresh/remove provider validation outcomes once runtime review is available. Local app/server coverage already proves upsert payload normalization, readable mutation errors, global card reads/upserts, refresh persistence, scoped removal, and generated docs assert seeded card display plus invalid-input blocking.
 - Add Browser-backed profile/account coverage for account creation retry/tenant-join behavior, profile edit persistence, ESNcard add/refresh/remove, and profile event action rendering once local runtime review is available. Local helper/server coverage already covers account creation retry/tenant join, profile edit payload persistence, ESNcard action labels/errors/payloads, profile event labels/actions, and submitted receipt status/amount/server rows; generated profile docs now assert submitted receipt visibility.
@@ -1358,6 +1362,10 @@ the current working direction until a product decision overrides them.
   has a functional Playwright spec for tenant list filtering, no-match state,
   operational row fields, tenant detail review, create/edit form relaunch-scope
   copy, disabled empty create submit, and enabled seeded edit submit.
+- **Addressed in stabilization pass:** profile edit persistence now has a
+  functional Playwright spec that saves notification email plus global
+  reimbursement fields, verifies the refreshed profile summary, reads the
+  persisted user row, and restores the original fixture data.
 - **Addressed in stabilization pass:** scanning/check-in docs now describe the dedicated QR scanner, scan warnings, authorization, checked-in count updates, and selected guest-quantity check-in. The remaining scanner follow-up is Browser-backed organizer aggregate assertion, not missing product documentation.
 - **Remaining runtime review:** live provider-backed profile discount add/refresh/remove outcomes still need Browser review once local runtime and provider credentials are available. Local docs/spec coverage now pins seeded verified-card display, direct `#discounts` routing, refresh/remove action visibility, invalid-input blocking, readable statuses, pending labels, shared write guards, and provider-unavailable retry copy without calling the external provider.
 - **Addressed in stabilization pass:** the generic `tests/docs/template.doc.ts` discovery placeholder was removed; current template documentation lives in `tests/docs/templates/templates.doc.ts`.
