@@ -1324,7 +1324,8 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** tenant general settings now expose tenant name, primary domain, and Stripe connection state as read-only operator context.
 - **Addressed in this stabilization pass:** tenant general-settings identity rows now include the connected Stripe account id when present, matching the support lookup detail already exposed in global-admin tenant review.
 - **Addressed in stabilization pass:** tenant general settings now include a visible deferred-settings summary for custom-domain verification, email sender name, review/publishing settings, registration limits, and Stripe account management. These fields are still not editable unless explicitly called out below.
-- **Addressed in this stabilization pass:** supported tenant currency, locale, and timezone values are now editable from general settings, persisted through `admin.tenant.updateSettings`, and validated against the shared Tenant relaunch policy before the RPC responds.
+- **Addressed in this stabilization pass:** supported tenant currency, locale, and timezone values are now editable from general settings before dependent event/payment data exists, persisted through `admin.tenant.updateSettings`, and validated against the shared Tenant relaunch policy before the RPC responds.
+- **Addressed in this stabilization pass:** `admin.tenant.updateSettings` now rejects currency, locale, or timezone changes once the tenant has event instances or transaction rows, matching the relaunch decision that later changes require a deliberate migration plan instead of an ordinary settings save.
 - **Addressed in this stabilization pass:** general settings reloads the app after saved currency, locale, or timezone changes so Angular's bootstrap-level currency and locale providers are refreshed instead of leaving the current session on stale formatting defaults.
 - **Addressed in stabilization pass:** tenant logo and favicon URLs are now part of the `Tenant` RPC schema, editable from general settings, validated by `admin.tenant.updateSettings`, persisted with empty values normalized to `null`, and the configured favicon updates the browser tab icon.
 - **Addressed in stabilization pass:** tenant logo and favicon uploads now use the app's object-storage path and return stable app-origin `/tenant-assets/*` URLs that can be saved through the existing tenant settings form. Logo uploads accept PNG, JPEG, WebP, or GIF files; favicon uploads also accept ICO files. SVG uploads stay unsupported for this path.
@@ -1368,7 +1369,7 @@ the current working direction until a product decision overrides them.
 - `helpers/testing/permission-matrix-source.spec.ts` keeps finance
   route-denial cases aligned with the guarded finance route manifest, including
   the transaction list, receipt approval list/detail, and reimbursement routes.
-- `tests/docs/admin/general-settings.doc.ts` documents the current tenant general-settings page, including the deferred-settings summary, read-only tenant identity summary with Stripe account support lookup detail, editable locale/money policy plus reload behavior, uploaded or externally hosted brand asset URLs, editable tenant legal links or hosted text, and public footer/favicon exposure, and records which domain/operations settings are not editable yet.
+- `tests/docs/admin/general-settings.doc.ts` documents the current tenant general-settings page, including the deferred-settings summary, read-only tenant identity summary with Stripe account support lookup detail, pre-data locale/money editability, dependent-data locking, reload behavior for accepted locale/money changes, uploaded or externally hosted brand asset URLs, editable tenant legal links or hosted text, and public footer/favicon exposure, and records which domain/operations settings are not editable yet.
 - `tests/specs/admin/general-settings.spec.ts` functionally covers tenant
   general-settings persistence for editable brand asset URLs, SEO copy, hosted
   legal text, external legal URLs, receipt-country settings, and ESNcard
@@ -1390,6 +1391,7 @@ the current working direction until a product decision overrides them.
   tenant joins.
 - `tests/docs/finance/inclusive-tax-rates.doc.ts` documents tenant tax-rate management.
 - `src/app/admin/components/import-tax-rates-dialog/import-tax-rates-dialog.component.spec.ts` covers the local Stripe tax-rate import guard so empty selections and pending imports cannot submit duplicate tax-rate writes.
+- `src/server/effect/rpc/handlers/admin.handlers.spec.ts` covers tenant settings normalization plus the server-side currency/locale/timezone lock once event or payment data exists.
 - `src/shared/rpc-contracts/app-rpcs/admin.rpcs.spec.ts` covers the tenant settings update payload scope.
 - `src/app/admin/general-settings/general-settings.payload.spec.ts` covers the client-side tenant-settings payload sent by the form, including trimmed optional editable fields and blank-to-undefined normalization.
 - `src/app/admin/general-settings/general-settings.component.spec.ts` covers

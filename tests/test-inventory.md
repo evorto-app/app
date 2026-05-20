@@ -486,8 +486,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     URLs/SEO/legal-text/receipt-country/ESNcard fields with database readback,
     the form trims optional editable values before sending the RPC payload,
     includes supported currency/locale/timezone selections in the update
-    payload, and normalizes blank optional values before the RPC call. Tenant
-    schema, admin-handler, and
+    payload, and normalizes blank optional values before the RPC call. Server
+    admin-handler coverage also pins that currency/locale/timezone changes are
+    rejected once tenant event or transaction data exists. Tenant schema,
+    admin-handler, and
     route coverage pin supported relaunch currency/locale/timezone values,
     hosted legal text fields, public legal page routes, and tenant logo/favicon
     upload storage paths while normalizing legacy context payloads.

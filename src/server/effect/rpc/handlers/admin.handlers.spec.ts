@@ -48,6 +48,17 @@ const createSettingsAdminHeaders = () => ({
   [RPC_CONTEXT_HEADERS.TENANT]: encodeRpcContextHeaderJson(createTenant()),
 });
 
+const createSettingsInput = () => ({
+  allowOther: true,
+  currency: 'EUR' as const,
+  defaultLocation: null,
+  esnCardEnabled: false,
+  locale: 'en-GB' as const,
+  receiptCountries: ['NL'],
+  theme: 'evorto' as const,
+  timezone: 'Europe/Berlin' as const,
+});
+
 describe('adminHandlers role permissions', () => {
   it.effect('findMany requires role management permission', () =>
     Effect.gen(function* () {
@@ -119,6 +130,14 @@ describe('adminHandlers tenant settings', () => {
           where: () => updateQuery,
         };
         const database = {
+          query: {
+            eventInstances: {
+              findFirst: () => Effect.succeed(null),
+            },
+            transactions: {
+              findFirst: () => Effect.succeed(null),
+            },
+          },
           update: () => updateQuery,
         };
 
@@ -286,5 +305,79 @@ describe('adminHandlers tenant settings', () => {
       expect(error['_tag']).toBe('RpcBadRequestError');
       expect(error.message).toBe('Invalid tenant brand assets');
     }),
+  );
+
+  it.effect(
+    'rejects locale and money setting changes when tenant events exist',
+    () =>
+      Effect.gen(function* () {
+        const database = {
+          query: {
+            eventInstances: {
+              findFirst: () => Effect.succeed({ id: 'event-1' }),
+            },
+            transactions: {
+              findFirst: () => {
+                throw new Error('transaction query should not be touched');
+              },
+            },
+          },
+          update: () => {
+            throw new Error('database update should not be touched');
+          },
+        };
+
+        const error = yield* adminHandlers['admin.tenant.updateSettings'](
+          {
+            ...createSettingsInput(),
+            currency: 'CZK',
+          },
+          { headers: createSettingsAdminHeaders() } as never,
+        ).pipe(
+          Effect.provide(Layer.succeed(Database, database as never)),
+          Effect.flip,
+        );
+
+        expect(error['_tag']).toBe('RpcBadRequestError');
+        expect(error.message).toBe(
+          'Tenant locale and money settings are locked',
+        );
+      }),
+  );
+
+  it.effect(
+    'rejects locale and money setting changes when tenant transactions exist',
+    () =>
+      Effect.gen(function* () {
+        const database = {
+          query: {
+            eventInstances: {
+              findFirst: () => Effect.succeed(null),
+            },
+            transactions: {
+              findFirst: () => Effect.succeed({ id: 'transaction-1' }),
+            },
+          },
+          update: () => {
+            throw new Error('database update should not be touched');
+          },
+        };
+
+        const error = yield* adminHandlers['admin.tenant.updateSettings'](
+          {
+            ...createSettingsInput(),
+            timezone: 'Europe/Prague',
+          },
+          { headers: createSettingsAdminHeaders() } as never,
+        ).pipe(
+          Effect.provide(Layer.succeed(Database, database as never)),
+          Effect.flip,
+        );
+
+        expect(error['_tag']).toBe('RpcBadRequestError');
+        expect(error.message).toBe(
+          'Tenant locale and money settings are locked',
+        );
+      }),
   );
 });
