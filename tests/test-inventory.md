@@ -509,6 +509,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 - Scenario handles from `seeded.scenario.events.*` are the preferred way to address seeded entities.
 - Finance-tagged specs remain the main candidates for selective CI filtering when needed.
 - Event, registration, template, finance receipt, scanner, and unlisted-event specs should fail loudly when deterministic fixture state is missing instead of silently passing through skips.
+  Free registration and registration add-on specs now assert the seeded
+  `freeOpen` event option exists in the current tenant before mutating counters
+  or add-on records.
 - Playwright skip/fixme usage is locally audited; add new entries only when
   the gap is intentionally credential-gated or an honest Browser-backed
   stabilization placeholder, and record the reason in
