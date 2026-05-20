@@ -931,6 +931,9 @@ the current working direction until a product decision overrides them.
 - **Addressed in this stabilization pass:** Stripe checkout completion now moves paid registration spots from `reservedSpots` to `confirmedSpots`, and checkout expiry releases the reserved spots. Both counter transitions are conditional on the registration actually leaving `PENDING`, preserving webhook replay safety.
 - **Addressed in this stabilization pass:** `finance.transactions.findMany` now requires `finance:viewTransactions`, so direct RPC calls cannot read transaction amounts, comments, methods, or fees with authentication alone.
 - **Addressed in this stabilization pass:** finance parent and child routes now have route-level permission guards. Transactions require `finance:viewTransactions`, receipt approvals require `finance:approveReceipts`, and receipt reimbursement requires `finance:refundReceipts`.
+- **Addressed in stabilization pass:** the transaction list no longer shows a
+  dead manual "Create transaction" action while no matching route/workflow
+  exists.
 - **Addressed in this stabilization pass:** receipt media upload now includes the target `eventId`, checks tenant event existence for authorized callers, and requires `canSubmitEventReceipts` before object storage is touched. A signed-in user without receipt-submit access can no longer create orphan receipt objects through the upload RPC.
 - **Addressed in stabilization pass:** manual receipt reimbursement is now labeled as recording a reimbursement in the finance overview, reimbursement list, receipt submit hint, profile payout fields, visible server messages, docs, and Playwright coverage. The reimbursement queue now explicitly says Evorto only records the finance transaction and money must be transferred manually through the selected payout method. Reimbursement transaction comments no longer copy the full payout reference into free text. The legacy route path, permission name, RPC name, receipt status, and transaction type still use "refund" internally until a broader data/API migration is worthwhile.
 - **Addressed in stabilization pass:** receipt submission and review now reject tax amounts greater than the total amount, matching the existing deposit/alcohol amount consistency guard.
@@ -993,6 +996,9 @@ the current working direction until a product decision overrides them.
   applied.
 - Keep receipt flow specs deterministic: seeded approval/reimbursement paths should fail loudly when expected rows, controls, or options are missing.
 - Keep finance overview docs aligned with current navigation UI and permission names as reimbursement wording changes.
+- Keep transaction list actions aligned with implemented finance routes; manual
+  transaction creation should be added back only with a real guarded route and
+  workflow.
 
 ## Scanning/Check-In
 
@@ -1701,6 +1707,9 @@ implement those decisions or explicitly revise them there before changing code.
 - Receipt review precondition pass: added server coverage proving refunded
   receipts, missing rejection reasons, and invalid receipt dates reject before
   receipt review updates are written.
+- Finance transaction-list action cleanup: removed the dead manual
+  create-transaction link from the transaction list and added a regression
+  guard so it stays hidden until an implemented route/workflow exists.
 - Global-admin tenant-list pass: expanded the tenant list contract and UI with
   non-sensitive operational state for support review, including theme,
   locale/currency/timezone, and Stripe connection status.

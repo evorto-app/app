@@ -259,6 +259,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 - Finance/receipts:
   - Keep finance route-denial cases and route-manifest specs aligned as
     transaction, receipt approval, and reimbursement routes change.
+    Transaction-list component coverage now pins that manual transaction
+    creation is not advertised without an implemented guarded route/workflow.
   - Keep receipt review and reimbursement docs aligned with the manual
     notification and manual money-movement scope. Local component coverage,
     finance docs, and receipt flow specs now pin that the reimbursement queue
