@@ -144,9 +144,10 @@ jobs:
           docker compose logs --no-color --tail=100
           exit 1
 
-      - name: Run Playwright suites
+      - name: Run Playwright functional suite
+        timeout-minutes: 40
         env:
-          E2E_SELECTED_PROJECTS: local-chrome-baseline,docs-baseline
+          E2E_SELECTED_PROJECTS: local-chrome-baseline
         run: |
           mkdir -p test-results/docker-logs
           if [ "${ACTIONS_STEP_DEBUG:-false}" = "true" ]; then
@@ -161,10 +162,14 @@ jobs:
             trap cleanup EXIT
           fi
 
-          E2E_SELECTED_PROJECTS=local-chrome-baseline \
-            bunx playwright test --project=local-chrome-baseline \
-              --grep-invert 'doc-screenshot returns a relative path and writes image|navigate to events list|create template in empty category|create a new template|template create form hides selected roles in autocomplete|register for a free event as regular user|@finance'
+          bunx playwright test --project=local-chrome-baseline \
+            --grep-invert 'doc-screenshot returns a relative path and writes image|navigate to events list|create template in empty category|create a new template|template create form hides selected roles in autocomplete|register for a free event as regular user|@finance'
 
+      - name: Run Playwright docs suite
+        timeout-minutes: 20
+        env:
+          E2E_SELECTED_PROJECTS: docs-baseline
+        run: |
           DOCS_OUT_DIR=test-results/docs \
           DOCS_IMG_OUT_DIR=test-results/docs/images \
           bunx playwright test --project=docs-baseline \
