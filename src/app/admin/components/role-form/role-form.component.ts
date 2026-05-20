@@ -121,6 +121,7 @@ export class RoleFormComponent {
     const form = this.roleForm();
     for (const permission of group.permissions) {
       const field = form.permissions[permission.key]();
+      if (field.readonly()) continue;
       field.value.set(checked);
       field.markAsDirty();
     }
