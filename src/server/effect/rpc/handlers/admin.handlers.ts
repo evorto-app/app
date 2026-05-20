@@ -19,7 +19,11 @@ import { Effect, Schema } from 'effect';
 import type { AppRpcHandlers } from './shared/handler-types';
 
 import { Database, type DatabaseClient } from '../../../../db';
-import { roles, tenants, tenantStripeTaxRates } from '../../../../db/schema';
+import {
+  roles,
+  tenants,
+  tenantStripeTaxRates,
+} from '../../../../db/schema';
 import {
   includesPermission,
   type Permission,
@@ -113,6 +117,44 @@ const normalizeTenantBrandAssets = (input: {
   faviconUrl: normalizeOptionalBrandAssetUrl(input.faviconUrl, 'faviconUrl'),
   logoUrl: normalizeOptionalBrandAssetUrl(input.logoUrl, 'logoUrl'),
 });
+
+const localeMoneySettingsChanged = (
+  tenant: Pick<Tenant, 'currency' | 'locale' | 'timezone'>,
+  input: Pick<Tenant, 'currency' | 'locale' | 'timezone'>,
+): boolean =>
+  tenant.currency !== input.currency ||
+  tenant.locale !== input.locale ||
+  tenant.timezone !== input.timezone;
+
+const tenantHasLocaleMoneyDependentData = (
+  tenantId: string,
+): Effect.Effect<boolean, never, Database> =>
+  databaseEffect((database) =>
+    Effect.gen(function* () {
+      const existingEvent = yield* database.query.eventInstances.findFirst({
+        columns: {
+          id: true,
+        },
+        where: {
+          tenantId,
+        },
+      });
+      if (existingEvent) {
+        return true;
+      }
+
+      const existingTransaction = yield* database.query.transactions.findFirst({
+        columns: {
+          id: true,
+        },
+        where: {
+          tenantId,
+        },
+      });
+
+      return !!existingTransaction;
+    }),
+  );
 
 const normalizeHubRoleRecord = (role: {
   description: null | string;
@@ -584,6 +626,20 @@ export const adminHandlers = {
           }),
         try: () => normalizeTenantBrandAssets(input),
       });
+      if (localeMoneySettingsChanged(tenant, input)) {
+        const hasDependentData = yield* tenantHasLocaleMoneyDependentData(
+          tenant.id,
+        );
+        if (hasDependentData) {
+          return yield* Effect.fail(
+            new RpcBadRequestError({
+              message: 'Tenant locale and money settings are locked',
+              reason:
+                'Currency, locale, and timezone cannot be changed after event or payment data exists.',
+            }),
+          );
+        }
+      }
 
       const nextTenant = {
         ...tenant,

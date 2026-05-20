@@ -40,7 +40,10 @@ describe('generated docs source current behavior', () => {
       'Tax rates are managed on the separate **Tax Rates** page.',
     );
     expect(source).toContain(
-      'When currency, locale, or timezone changes, Evorto reloads the app after saving',
+      'Currency, locale, and timezone changes are only accepted before event or payment data exists for the tenant.',
+    );
+    expect(source).toContain(
+      'When one of those accepted changes is saved, Evorto reloads the app',
     );
     expect(source).not.toContain('Tax rates are configured here');
     expect(source).not.toContain(
