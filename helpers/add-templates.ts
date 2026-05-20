@@ -13,11 +13,19 @@ import { getSportsTemplates } from './templates/sports-templates';
 import { getWeekendTripTemplates } from './templates/weekend-trip-templates';
 
 export interface SeedTemplate {
+  addOns: SeedTemplateAddon[];
   description: string;
   icon: { iconColor: number; iconName: string };
   id: string;
   seedKey: SeedTemplateKey;
   tenantId: string;
+  title: string;
+}
+
+export interface SeedTemplateAddon {
+  id: string;
+  isPaid: boolean;
+  registrationOptionIds: string[];
   title: string;
 }
 
@@ -269,8 +277,111 @@ export const addTemplates = async (
     `Inserted ${paidOptionValues.length} paid template registration options`,
   );
 
+  const registrationOptionByTemplateId = new Map(
+    [...registrationOptionsToAdd, ...paidOptionValues]
+      .filter((option) => !option.organizingRegistration)
+      .map((option) => [option.templateId, option]),
+  );
+  const addonTemplateCandidates = [
+    {
+      description: 'Reusable reminder for a simple packed lunch add-on.',
+      isPaid: false,
+      price: 0,
+      seedKey: 'hike' as const,
+      stripeTaxRateId: null,
+      title: 'Packed lunch',
+      totalAvailableQuantity: 30,
+    },
+    {
+      description: 'Reusable paid equipment rental add-on for sports events.',
+      isPaid: true,
+      price: 100 * 5,
+      seedKey: 'sports' as const,
+      stripeTaxRateId: defaultRate?.stripeTaxRateId ?? null,
+      title: 'Equipment rental',
+      totalAvailableQuantity: 15,
+    },
+  ];
+  const addonValues = addonTemplateCandidates.flatMap((candidate) => {
+    const template = [...createdFreeTemplates, ...createdPaidTemplates].find(
+      (createdTemplate) => createdTemplate.seedKey === candidate.seedKey,
+    );
+    if (!template) {
+      return [];
+    }
+
+    const registrationOption = registrationOptionByTemplateId.get(template.id);
+    if (!registrationOption) {
+      return [];
+    }
+
+    return [
+      {
+        allowMultiple: false,
+        allowPurchaseBeforeEvent: true,
+        allowPurchaseDuringEvent: false,
+        allowPurchaseDuringRegistration: true,
+        description: candidate.description,
+        id: getId(),
+        isPaid: candidate.isPaid,
+        maxQuantityPerUser: 1,
+        price: candidate.price,
+        stripeTaxRateId: candidate.stripeTaxRateId,
+        templateId: template.id,
+        title: candidate.title,
+        totalAvailableQuantity: candidate.totalAvailableQuantity,
+      } satisfies InferInsertModel<typeof schema.templateEventAddons>,
+    ];
+  });
+  const addonRegistrationOptionValues = addonValues.flatMap((addon) => {
+    const registrationOption = registrationOptionByTemplateId.get(
+      addon.templateId,
+    );
+    const registrationOptionId = registrationOption?.id;
+    if (!registrationOptionId) {
+      return [];
+    }
+
+    return [
+      {
+        addonId: addon.id,
+        quantity: 1,
+        registrationOptionId,
+      } satisfies InferInsertModel<
+        typeof schema.addonToTemplateRegistrationOptions
+      >,
+    ];
+  });
+  if (addonValues.length > 0) {
+    await database.insert(schema.templateEventAddons).values(addonValues);
+    await database
+      .insert(schema.addonToTemplateRegistrationOptions)
+      .values(addonRegistrationOptionValues);
+  }
+  consola.success(`Inserted ${addonValues.length} template add-ons`);
+
+  const addonByTemplateId = new Map<string, SeedTemplateAddon[]>();
+  for (const addon of addonValues) {
+    const attachedOptionIds = addonRegistrationOptionValues
+      .filter((attachment) => attachment.addonId === addon.id)
+      .flatMap((attachment) =>
+        attachment.registrationOptionId
+          ? [attachment.registrationOptionId]
+          : [],
+      );
+    const existing = addonByTemplateId.get(addon.templateId) ?? [];
+    existing.push({
+      id: addon.id,
+      isPaid: addon.isPaid,
+      registrationOptionIds: attachedOptionIds,
+      title: addon.title,
+    });
+    addonByTemplateId.set(addon.templateId, existing);
+  }
+
   return [...createdFreeTemplates, ...createdPaidTemplates].map((template) => {
     const seededTemplate = {
+      addOns: addonByTemplateId.get(template.id) ?? [],
       description: template.description,
       icon: template.icon,
       id: template.id,
