@@ -147,7 +147,19 @@ test.describe('Negative registration states', () => {
             ),
           )
           .limit(1);
-        expect(waitlistRegistration).toBeTruthy();
+        if (!waitlistRegistration) {
+          throw new Error(
+            'Expected waitlist registration after joining waitlist',
+          );
+        }
+        expect(waitlistRegistration).toEqual(
+          expect.objectContaining({
+            registrationOptionId: targetOptionId,
+            status: 'WAITLIST',
+            tenantId: tenant.id,
+            userId: regularUser.id,
+          }),
+        );
       } finally {
         await database
           .delete(schema.eventRegistrations)
