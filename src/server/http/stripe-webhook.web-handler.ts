@@ -616,6 +616,27 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
                       ),
                     ),
                   );
+
+                const addOnPurchases = yield* tx
+                  .select({
+                    addonId: schema.eventRegistrationAddonPurchases.addonId,
+                    quantity: schema.eventRegistrationAddonPurchases.quantity,
+                  })
+                  .from(schema.eventRegistrationAddonPurchases)
+                  .where(
+                    eq(
+                      schema.eventRegistrationAddonPurchases.registrationId,
+                      registrationId,
+                    ),
+                  );
+                for (const addOnPurchase of addOnPurchases) {
+                  yield* tx
+                    .update(schema.eventAddons)
+                    .set({
+                      totalAvailableQuantity: sql`${schema.eventAddons.totalAvailableQuantity} + ${addOnPurchase.quantity}`,
+                    })
+                    .where(eq(schema.eventAddons.id, addOnPurchase.addonId));
+                }
               }),
             ),
           );

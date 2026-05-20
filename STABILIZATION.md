@@ -651,7 +651,9 @@ the current working direction until a product decision overrides them.
   existing reusable template add-ons from the current schema, including pricing,
   purchase timing, quantity limits, and registration-option attachments.
   Template add-ons now copy into event-scoped read-model records when a template
-  creates an event; add-on checkout/sales fulfillment remains future work.
+  creates an event. Registration-time add-on purchase is wired into the event
+  registration checkout path; standalone before-event and during-event add-on
+  sales remain future work.
 - **Addressed in this stabilization pass:** the template RPC/service boundary
   now accepts optional reusable add-on input for simple template writes, validates
   add-on tax rates and quantity/window invariants, and replaces stored template
@@ -664,9 +666,9 @@ the current working direction until a product decision overrides them.
   registration options.
 - **Addressed in this stabilization pass:** create-event-from-template now
   shows an explicit add-on boundary notice when the source template has
-  reusable add-ons. Event detail now shows copied add-ons read-only so
-  organizers can verify the template data that moved with the event; add-on
-  checkout/sales fulfillment is still out of scope.
+  reusable add-ons. Event detail shows copied add-ons so organizers can verify
+  the template data that moved with the event; registration cards now offer
+  registration-time add-on purchase for matching copied add-ons.
 - **Addressed in stabilization pass:** reset-from-zero seed data now includes
   both free and paid reusable template add-ons attached to participant template
   registration options, so Browser review can inspect the add-on detail surface
@@ -729,7 +731,8 @@ the current working direction until a product decision overrides them.
 - `src/app/templates/template-create-event/template-create-event.component.spec.ts`
   pins the create-event-from-template submit guard for invalid, submitting, and
   mutation-pending states, plus the visible notice that reusable add-ons are
-  copied to event detail without checkout/sales fulfillment yet.
+  copied to registration-time event purchase surfaces while standalone
+  before-event and during-event sales remain out of scope.
 - `src/app/templates/shared/template-form/template-form.utilities.spec.ts` pins
   the shared template create/edit write guard for invalid, submitting, and
   mutation-pending states.
@@ -888,7 +891,7 @@ the current working direction until a product decision overrides them.
 
 - Paid event registration creates a pending registration, reserves a spot, creates a Stripe Checkout session, and stores a pending `registration` transaction with Stripe checkout ids.
 - Stripe `checkout.session.completed` marks the local transaction successful, confirms the registration, and moves the buyer plus guest spots from reserved to confirmed when the session is complete and paid.
-- Stripe `checkout.session.expired` marks the local transaction cancelled, cancels the registration, and releases the buyer plus guest reserved spots when the session is expired.
+- Stripe `checkout.session.expired` marks the local transaction cancelled, cancels the registration, releases the buyer plus guest reserved spots, and restores reserved registration-time add-on quantities when the session is expired.
 - Finance navigation is hidden behind `finance:*`, and `/finance` requires at least one finance child capability.
 - The finance overview links to transactions, receipt approvals, and receipt reimbursements only when the user has the matching child permission.
 - `finance.transactions.findMany` returns non-cancelled tenant transactions only to users with `finance:viewTransactions`.
@@ -1431,8 +1434,9 @@ the current working direction until a product decision overrides them.
    template create/edit can now persist reusable registration questions, show
    them on template detail, and copy them into event-scoped read-model records.
    Event registration and waitlist writes now collect/persist submitted
-   question answers. Add-on checkout/sales fulfillment remains a separate
-   fuller product/runtime slice.
+   question answers. Registration-time add-on purchase is now part of
+   registration checkout, while standalone before-event and during-event add-on
+   sales remain separate fuller product/runtime slices.
 4. Add Browser-backed scanner/organizer aggregate review once local runtime is available.
 5. Add Browser-backed profile coverage for payment-continuation, ticket/cancellation routing, waitlist messaging, and ESNcard provider failure semantics once local runtime is available.
 6. Fill the remaining tenant settings implementation gap for automated onboarding/domain workflows. The current general-settings page exposes SEO fields, uploaded or externally hosted logo/favicon URLs, tenant legal links or hosted legal text, editable supported locale/currency/timezone values, read-only runtime identity, and a visible deferred-settings summary. The current global-admin surface supports a searchable tenant list, tenant create/edit, and tenant detail review, while custom-domain verification, multi-domain automation, and impersonation remain out of scope.
@@ -1846,19 +1850,23 @@ implement those decisions or explicitly revise them there before changing code.
 - Template add-on read-model pass: returned existing reusable template add-ons
   from `templates.findOne`, displayed them on template detail with pricing,
   timing, quantity, and attached registration-option labels, and kept
-  event-side add-on fulfillment plus registration questions as explicit future
-  product/runtime slices.
+  registration-time event add-on fulfillment plus registration questions as
+  explicit later slices.
 - Template add-on seed pass: added free and paid reusable add-ons to the
   reset-from-zero template seed data and pinned their registration-option
   attachments in the seed baseline.
 - Template create-event add-on boundary pass: showed a create-event notice when
   a source template has reusable add-ons and pinned that current event form data
   keeps add-ons out of client submit payloads while server-side event creation
-  copies them by source registration option.
+  copies them by source registration option for event-level purchase handling.
 - Event add-on copy pass: added event-scoped add-on tables, copied reusable
   template add-ons by source registration option during event creation, and
-  surfaced copied add-ons read-only on event detail while checkout/sales
-  fulfillment remains future work.
+  surfaced copied add-ons on event detail.
+- Registration add-on checkout pass: added registration add-on purchase storage,
+  registration-card add-on quantity controls, server-side add-on validation and
+  stock reservation, paid add-on Stripe checkout line items, and add-on stock
+  restoration on cancellation or checkout expiry. Standalone before-event and
+  during-event add-on sales remain future work.
 - Template question source pass: added template-scoped registration-question
   storage, simple template create/edit controls, `templates.findOne` read-model
   support, and template detail display.

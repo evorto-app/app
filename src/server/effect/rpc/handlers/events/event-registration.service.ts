@@ -1,16 +1,20 @@
 import type { Headers } from 'effect/unstable/http';
 import type Stripe from 'stripe';
 
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { ConfigProvider, Context, Effect, Layer, Option } from 'effect';
 
 import { Database, type DatabaseClient } from '../../../../../db';
 import { createId } from '../../../../../db/create-id';
 import {
+  addonToEventRegistrationOptions,
+  eventAddons,
+  eventRegistrationAddonPurchases,
   eventRegistrationOptionDiscounts,
   eventRegistrationOptions,
   eventRegistrationQuestionAnswers,
   eventRegistrations,
+  tenantStripeTaxRates,
   transactions,
   userDiscountCards,
 } from '../../../../../db/schema';
@@ -153,6 +157,7 @@ interface JoinWaitlistArguments {
 }
 
 interface RegisterForEventArguments {
+  addOns?: readonly RegistrationAddonInput[] | undefined;
   answers?: readonly RegistrationQuestionAnswerInput[] | undefined;
   eventId: string;
   guestCount: number;
@@ -160,6 +165,25 @@ interface RegisterForEventArguments {
   registrationOptionId: string;
   tenant: Pick<Tenant, 'currency' | 'id' | 'stripeAccountId'>;
   user: Pick<User, 'email' | 'id' | 'roleIds'>;
+}
+
+interface RegistrationAddonInput {
+  addOnId: string;
+  quantity: number;
+}
+
+interface RegistrationAddonRecord {
+  addOnId: string;
+  allowMultiple: boolean;
+  maxQuantityPerUser: number;
+  price: number;
+  quantity: number;
+  stripeTaxRateId: null | string;
+  taxRateDisplayName: null | string;
+  taxRateInclusive: boolean | null;
+  taxRatePercentage: null | string;
+  title: string;
+  totalAvailableQuantity: number;
 }
 
 interface RegistrationQuestionAnswerInput {
@@ -209,6 +233,63 @@ export const validateRegistrationQuestionAnswers = ({
     }));
 };
 
+export const validateRegistrationAddons = ({
+  addOns,
+  availableAddOns,
+}: {
+  addOns: readonly RegistrationAddonInput[] | undefined;
+  availableAddOns: readonly RegistrationAddonRecord[];
+}): readonly (RegistrationAddonRecord & { selectedQuantity: number })[] => {
+  const availableAddOnById = new Map(
+    availableAddOns.map((addOn) => [addOn.addOnId, addOn]),
+  );
+  const selectedAddOns = new Map<string, number>();
+
+  for (const addOn of addOns ?? []) {
+    if (!Number.isInteger(addOn.quantity) || addOn.quantity < 0) {
+      throw new EventRegistrationConflictError({
+        message: 'Add-on quantity must be a non-negative integer',
+      });
+    }
+    if (addOn.quantity === 0) {
+      continue;
+    }
+    selectedAddOns.set(
+      addOn.addOnId,
+      (selectedAddOns.get(addOn.addOnId) ?? 0) + addOn.quantity,
+    );
+  }
+
+  return [...selectedAddOns.entries()].map(([addOnId, selectedQuantity]) => {
+    const availableAddOn = availableAddOnById.get(addOnId);
+    if (!availableAddOn) {
+      throw new EventRegistrationConflictError({
+        message: 'Add-on is not available during registration',
+      });
+    }
+    if (!availableAddOn.allowMultiple && selectedQuantity > 1) {
+      throw new EventRegistrationConflictError({
+        message: 'Add-on can only be selected once',
+      });
+    }
+    if (selectedQuantity > availableAddOn.maxQuantityPerUser) {
+      throw new EventRegistrationConflictError({
+        message: 'Add-on quantity exceeds the per-user limit',
+      });
+    }
+    if (selectedQuantity > availableAddOn.totalAvailableQuantity) {
+      throw new EventRegistrationConflictError({
+        message: 'Add-on quantity is no longer available',
+      });
+    }
+
+    return {
+      ...availableAddOn,
+      selectedQuantity,
+    };
+  });
+};
+
 export class EventRegistrationService extends Context.Service<EventRegistrationService>()(
   '@server/effect/rpc/handlers/events/EventRegistrationService',
   {
@@ -216,6 +297,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
       const registerForEvent = Effect.fn(
         'EventRegistrationService.registerForEvent',
       )(function* ({
+        addOns,
         answers,
         eventId,
         guestCount,
@@ -391,6 +473,72 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
               questions: registrationOption.questions ?? [],
             }),
         });
+        const requestedAddOnIds = [
+          ...new Set(
+            (addOns ?? [])
+              .filter((addOn) => addOn.quantity > 0)
+              .map((addOn) => addOn.addOnId),
+          ),
+        ];
+        const availableAddOns =
+          requestedAddOnIds.length === 0
+            ? []
+            : yield* databaseEffect((database) =>
+                database
+                  .select({
+                    addOnId: eventAddons.id,
+                    allowMultiple: eventAddons.allowMultiple,
+                    maxQuantityPerUser: eventAddons.maxQuantityPerUser,
+                    price: eventAddons.price,
+                    quantity: addonToEventRegistrationOptions.quantity,
+                    stripeTaxRateId: eventAddons.stripeTaxRateId,
+                    taxRateDisplayName: tenantStripeTaxRates.displayName,
+                    taxRateInclusive: tenantStripeTaxRates.inclusive,
+                    taxRatePercentage: tenantStripeTaxRates.percentage,
+                    title: eventAddons.title,
+                    totalAvailableQuantity: eventAddons.totalAvailableQuantity,
+                  })
+                  .from(eventAddons)
+                  .innerJoin(
+                    addonToEventRegistrationOptions,
+                    eq(addonToEventRegistrationOptions.addonId, eventAddons.id),
+                  )
+                  .leftJoin(
+                    tenantStripeTaxRates,
+                    and(
+                      eq(
+                        tenantStripeTaxRates.stripeTaxRateId,
+                        eventAddons.stripeTaxRateId,
+                      ),
+                      eq(tenantStripeTaxRates.tenantId, tenant.id),
+                    ),
+                  )
+                  .where(
+                    and(
+                      eq(eventAddons.eventId, eventId),
+                      eq(eventAddons.allowPurchaseDuringRegistration, true),
+                      eq(
+                        addonToEventRegistrationOptions.registrationOptionId,
+                        registrationOption.id,
+                      ),
+                      inArray(eventAddons.id, requestedAddOnIds),
+                    ),
+                  ),
+              );
+        const selectedAddOns = yield* Effect.try({
+          catch: (error) => error as EventRegistrationConflictError,
+          try: () =>
+            validateRegistrationAddons({
+              addOns,
+              availableAddOns,
+            }),
+        });
+        const selectedAddonTotalPrice = selectedAddOns.reduce(
+          (total, addOn) => total + addOn.price * addOn.selectedQuantity,
+          0,
+        );
+        const requiresCheckout =
+          registrationOption.isPaid || selectedAddonTotalPrice > 0;
 
         // Phase 2: create registration row and reserve/confirm a spot immediately.
         const selectedTaxRateId =
@@ -433,7 +581,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
               const updatedOptions = yield* tx
                 .update(eventRegistrationOptions)
                 .set(
-                  registrationOption.isPaid
+                  requiresCheckout
                     ? {
                         reservedSpots: sql`${eventRegistrationOptions.reservedSpots} + ${requestedSpotCount}`,
                       }
@@ -461,7 +609,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                   eventId,
                   guestCount,
                   registrationOptionId: registrationOption.id,
-                  status: registrationOption.isPaid ? 'PENDING' : 'CONFIRMED',
+                  status: requiresCheckout ? 'PENDING' : 'CONFIRMED',
                   ...(selectedTaxRateId
                     ? {
                         stripeTaxRateId: selectedTaxRateId,
@@ -491,6 +639,37 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                 );
               }
 
+              for (const addOn of selectedAddOns) {
+                const updatedAddOns = yield* tx
+                  .update(eventAddons)
+                  .set({
+                    totalAvailableQuantity: sql`${eventAddons.totalAvailableQuantity} - ${addOn.selectedQuantity}`,
+                  })
+                  .where(
+                    and(
+                      eq(eventAddons.id, addOn.addOnId),
+                      eq(eventAddons.eventId, eventId),
+                      sql`${eventAddons.totalAvailableQuantity} >= ${addOn.selectedQuantity}`,
+                    ),
+                  )
+                  .returning({
+                    id: eventAddons.id,
+                  });
+                if (updatedAddOns.length === 0) {
+                  return { _tag: 'AddonUnavailable' } as const;
+                }
+
+                yield* tx.insert(eventRegistrationAddonPurchases).values({
+                  addonId: addOn.addOnId,
+                  quantity: addOn.selectedQuantity,
+                  registrationId: userRegistration.id,
+                  taxRateDisplayName: addOn.taxRateDisplayName,
+                  taxRateInclusive: addOn.taxRateInclusive,
+                  taxRatePercentage: addOn.taxRatePercentage,
+                  unitPrice: addOn.price,
+                });
+              }
+
               return {
                 _tag: 'Reserved',
                 registrationId: userRegistration.id,
@@ -512,8 +691,15 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
             }),
           );
         }
+        if (reservationResult._tag === 'AddonUnavailable') {
+          return yield* Effect.fail(
+            new EventRegistrationConflictError({
+              message: 'Add-on quantity is no longer available',
+            }),
+          );
+        }
 
-        if (!registrationOption.isPaid) {
+        if (!requiresCheckout) {
           return;
         }
         const userRegistration = {
@@ -539,6 +725,22 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                   ),
                 ),
             );
+
+            for (const addOn of selectedAddOns) {
+              yield* databaseEffect((database) =>
+                database
+                  .update(eventAddons)
+                  .set({
+                    totalAvailableQuantity: sql`${eventAddons.totalAvailableQuantity} + ${addOn.selectedQuantity}`,
+                  })
+                  .where(
+                    and(
+                      eq(eventAddons.id, addOn.addOnId),
+                      eq(eventAddons.eventId, eventId),
+                    ),
+                  ),
+              );
+            }
 
             yield* databaseEffect((database) =>
               database
@@ -612,7 +814,9 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
             effectivePrice,
           } = discountResolution;
           const effectiveTotalPrice =
-            effectivePrice + registrationOption.price * guestCount;
+            effectivePrice +
+            registrationOption.price * guestCount +
+            selectedAddonTotalPrice;
 
           yield* databaseEffect((database) =>
             database
@@ -705,6 +909,24 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                 quantity: guestCount,
               });
             }
+          }
+          for (const addOn of selectedAddOns) {
+            if (addOn.price <= 0) {
+              continue;
+            }
+            checkoutLineItems.push({
+              price_data: {
+                currency: tenant.currency,
+                product_data: {
+                  name: `${addOn.title} add-on for ${registrationOption.event.title}`,
+                },
+                unit_amount: addOn.price,
+              },
+              ...(addOn.stripeTaxRateId
+                ? { tax_rates: [addOn.stripeTaxRateId] }
+                : {}),
+              quantity: addOn.selectedQuantity,
+            });
           }
 
           const session = yield* createHostedCheckoutSession(

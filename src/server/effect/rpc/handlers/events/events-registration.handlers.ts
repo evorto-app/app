@@ -30,6 +30,7 @@ import type { AppRpcHandlers } from '../shared/handler-types';
 
 import { Database } from '../../../../../db';
 import {
+  eventAddons,
   eventRegistrationOptions,
   eventRegistrations,
   rolesToTenantUsers,
@@ -177,6 +178,12 @@ const cancelRegistration = ({
           ...(requireOrganizerAccess ? {} : { userId: user.id }),
         },
         with: {
+          addonPurchases: {
+            columns: {
+              addonId: true,
+              quantity: true,
+            },
+          },
           event: {
             columns: {
               start: true,
@@ -336,6 +343,15 @@ const cancelRegistration = ({
                   message: 'Registration option missing',
                 }),
               );
+            }
+
+            for (const addOnPurchase of registration.addonPurchases ?? []) {
+              yield* tx
+                .update(eventAddons)
+                .set({
+                  totalAvailableQuantity: sql`${eventAddons.totalAvailableQuantity} + ${addOnPurchase.quantity}`,
+                })
+                .where(eq(eventAddons.id, addOnPurchase.addonId));
             }
 
             if (!pendingStripeTransaction) {
@@ -1213,7 +1229,7 @@ export const eventRegistrationHandlers = {
       });
     }),
   'events.registerForEvent': (
-    { answers, eventId, guestCount, registrationOptionId },
+    { addOns, answers, eventId, guestCount, registrationOptionId },
     options,
   ) =>
     Effect.gen(function* () {
@@ -1222,6 +1238,7 @@ export const eventRegistrationHandlers = {
       const user = yield* RpcAccess.requireUser();
 
       return yield* EventRegistrationService.registerForEvent({
+        addOns,
         answers,
         eventId,
         guestCount,

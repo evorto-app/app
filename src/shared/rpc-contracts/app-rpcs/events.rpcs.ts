@@ -465,7 +465,13 @@ export const EventsRegistrationQuestionAnswerInput = Schema.Struct({
   questionId: Schema.NonEmptyString,
 });
 
+export const EventsRegistrationAddonInput = Schema.Struct({
+  addOnId: Schema.NonEmptyString,
+  quantity: nonNegativeNumber,
+});
+
 export const EventsRegisterForEventPayload = Schema.Struct({
+  addOns: Schema.optional(Schema.Array(EventsRegistrationAddonInput)),
   answers: Schema.optional(Schema.Array(EventsRegistrationQuestionAnswerInput)),
   eventId: Schema.NonEmptyString,
   guestCount: nonNegativeNumber,

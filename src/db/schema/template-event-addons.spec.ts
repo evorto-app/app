@@ -6,6 +6,9 @@ const readSource = (path: string) =>
 
 describe('template event add-on schema', () => {
   it('exposes template add-ons and copied event add-on storage', () => {
+    const addonPurchaseSource = readSource(
+      'event-registration-addon-purchases.ts',
+    );
     const schemaIndexSource = readSource('index.ts');
     const eventAddonSource = readSource('event-addons.ts');
     const templateAddonSource = readSource('template-event-addons.ts');
@@ -14,9 +17,15 @@ describe('template event add-on schema', () => {
       "export * from './template-event-addons'",
     );
     expect(schemaIndexSource).toContain("export * from './event-addons'");
+    expect(schemaIndexSource).toContain(
+      "export * from './event-registration-addon-purchases'",
+    );
     expect(templateAddonSource).toContain("pgTable('template_event_addons'");
     expect(eventAddonSource).toContain("pgTable('event_addons'");
     expect(eventAddonSource).toContain("'addon_to_event_registration_options'");
+    expect(addonPurchaseSource).toContain(
+      "'event_registration_addon_purchases'",
+    );
   });
 
   it('exposes template and event registration-question storage', () => {

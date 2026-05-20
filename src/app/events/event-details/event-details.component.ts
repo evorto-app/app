@@ -103,6 +103,25 @@ export const eventRegistrationOptionTitle = (
   event.registrationOptions.find((option) => option.id === registrationOptionId)
     ?.title ?? 'Unknown registration option';
 
+export const eventAddonsForRegistrationOption = <
+  TAddOn extends {
+    allowPurchaseDuringRegistration: boolean;
+    registrationOptions: readonly { registrationOptionId: string }[];
+  },
+>(
+  event: {
+    addOns: readonly TAddOn[];
+  },
+  registrationOptionId: string,
+) =>
+  event.addOns.filter(
+    (addOn) =>
+      addOn.allowPurchaseDuringRegistration &&
+      addOn.registrationOptions.some(
+        (option) => option.registrationOptionId === registrationOptionId,
+      ),
+  );
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -199,6 +218,8 @@ export class EventDetailsComponent {
     return latestValidTo <= new Date(event.start);
   });
   protected readonly eventAddonPurchaseTiming = eventAddonPurchaseTiming;
+  protected readonly eventAddonsForRegistrationOption =
+    eventAddonsForRegistrationOption;
 
   protected readonly eventIconColor = computed(() => {
     const event = this.eventQuery.data();
