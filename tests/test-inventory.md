@@ -235,10 +235,12 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     Root route-manifest coverage keeps `/create-account` reachable to
     authenticated users without a tenant assignment while protected feature
     routes keep assigned-account and auth guards.
-  - Browser-backed submitted-receipt visibility after a receipt submission.
-    Local app/server coverage already proves readable submitted-receipt status
-    labels, amount formatting, and `finance.receipts.my` profile-card row
-    normalization.
+  - Manual Browser-backed submitted-receipt visibility review after a real
+    receipt submission once local runtime is available. Generated profile docs
+    now seed a deterministic submitted receipt and assert the profile
+    receipt-card filename, submitted status, event title, and amount. Local
+    app/server coverage already proves readable submitted-receipt status labels,
+    amount formatting, and `finance.receipts.my` profile-card row normalization.
 - Finance/receipts:
   - Keep finance route-denial cases and route-manifest specs aligned as
     transaction, receipt approval, and reimbursement routes change.

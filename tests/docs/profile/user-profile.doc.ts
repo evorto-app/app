@@ -36,6 +36,8 @@ test('Manage user profile', async ({
   const checkedInAddonId = getId();
   const checkedInAddonPurchaseId = getId();
   const checkedInAddonTitle = `Profile docs checked snack ${seedDate.getTime()}`;
+  const profileReceiptId = getId();
+  const profileReceiptFileName = `profile-docs-receipt-${seedDate.getTime()}.pdf`;
   const profileEventId = seeded.scenario.events.freeOpen.eventId;
   const profileEventOptionId = seeded.scenario.events.freeOpen.optionId;
   const checkedInEventId = seeded.scenario.events.closedReg.eventId;
@@ -99,6 +101,20 @@ test('Manage user profile', async ({
       quantity: 1,
       registrationId: checkedInRegistrationId,
       unitPrice: 0,
+    });
+    await database.insert(schema.financeReceipts).values({
+      attachmentFileName: profileReceiptFileName,
+      attachmentMimeType: 'application/pdf',
+      attachmentSizeBytes: 2048,
+      eventId: profileEventId,
+      id: profileReceiptId,
+      purchaseCountry: 'DE',
+      receiptDate: seedDate,
+      status: 'submitted',
+      submittedByUserId: regularUser.id,
+      taxAmount: 300,
+      tenantId: seeded.tenant.id,
+      totalAmount: 1875,
     });
 
     await page.goto('.');
@@ -278,6 +294,18 @@ The user profile now uses a two-column layout:
     );
 
     await page.getByRole('button', { name: 'Receipts' }).click();
+    await expect(
+      page.getByRole('heading', { name: 'Submitted receipts' }),
+    ).toBeVisible();
+    const profileReceiptCard = page
+      .locator('article')
+      .filter({ hasText: profileReceiptFileName });
+    await expect(profileReceiptCard).toBeVisible();
+    await expect(profileReceiptCard.getByText('Submitted')).toBeVisible();
+    await expect(
+      profileReceiptCard.getByText(profileEvent.title),
+    ).toBeVisible();
+    await expect(profileReceiptCard.getByText('18.75 €')).toBeVisible();
     await takeScreenshot(
       testInfo,
       page.locator('app-user-profile'),
@@ -295,6 +323,9 @@ The user profile now uses a two-column layout:
         paypalEmail: originalUser.paypalEmail,
       })
       .where(eq(schema.users.id, regularUser.id));
+    await database
+      .delete(schema.financeReceipts)
+      .where(eq(schema.financeReceipts.id, profileReceiptId));
     await database
       .delete(schema.eventRegistrationAddonPurchases)
       .where(
