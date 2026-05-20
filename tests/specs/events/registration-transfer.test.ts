@@ -388,7 +388,7 @@ test('regular user cancellation records a pending manual refund for a paid confi
     await expect(page.getByText('You are registered')).toBeVisible();
     await expect(
       page.getByText(
-        'If this was paid, Evorto creates a pending manual refund record for organizers; Stripe refunds are not automatic yet.',
+        'If this was paid, Evorto submits a Stripe refund when the original payment reference is available; otherwise it creates a pending manual refund record for organizers.',
       ),
     ).toBeVisible();
     await page.getByRole('button', { name: 'Cancel registration' }).click();

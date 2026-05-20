@@ -62,16 +62,29 @@ const createUser = ({
 
 const createContextLayer = ({
   database,
+  stripe = {
+    checkout: {
+      sessions: {
+        expire: vi.fn(),
+      },
+    },
+    refunds: {
+      create: vi.fn(),
+    },
+  },
+  tenant: currentTenant = tenant,
   user = createUser(),
 }: {
   database: unknown;
+  stripe?: unknown;
+  tenant?: typeof tenant;
   user?: ReturnType<typeof createUser>;
 }) => {
   const requestContext = {
     authData: {},
     authenticated: true,
     permissions: user.permissions,
-    tenant,
+    tenant: currentTenant,
     user,
     userAssigned: true,
   } satisfies RpcRequestContextShape;
@@ -80,13 +93,7 @@ const createContextLayer = ({
     RpcAccess.Default,
     Layer.succeed(RpcRequestContext, requestContext),
     Layer.succeed(Database, database as never),
-    Layer.succeed(StripeClient, {
-      checkout: {
-        sessions: {
-          expire: vi.fn(),
-        },
-      },
-    } as never),
+    Layer.succeed(StripeClient, stripe as never),
   );
 };
 
@@ -758,6 +765,136 @@ describe('event registration cancellation handlers', () => {
         expect(insertedTransaction?.['comment']).toContain(
           'Pending registration refund record',
         );
+        expect(database.transaction).toHaveBeenCalledOnce();
+      }),
+  );
+
+  it.effect(
+    'creates a Stripe refund for paid confirmed cancellation with a stored Stripe reference',
+    () =>
+      Effect.gen(function* () {
+        let insertedTransaction: Record<string, unknown> | undefined;
+        const updateSets: unknown[] = [];
+        const tx = {
+          insert: vi.fn(),
+          update: (table: unknown) => ({
+            set: (values: unknown) => {
+              updateSets.push(values);
+              return {
+                where: () => ({
+                  returning: () => {
+                    if (
+                      table === eventRegistrations ||
+                      table === eventRegistrationOptions
+                    ) {
+                      return Effect.succeed([{ id: 'updated' }]);
+                    }
+                    return Effect.succeed([]);
+                  },
+                }),
+              };
+            },
+          }),
+        };
+        const database = {
+          insert: (table: unknown) => ({
+            values: (values: Record<string, unknown>) => {
+              if (table === transactions) {
+                insertedTransaction = values;
+              }
+              return Effect.succeed([]);
+            },
+          }),
+          query: {
+            eventRegistrations: {
+              findFirst: () =>
+                Effect.succeed({
+                  addonPurchases: [],
+                  checkedInGuestCount: 0,
+                  checkInTime: null,
+                  event: {
+                    start: new Date(Date.now() + 24 * 60 * 60 * 1000),
+                  },
+                  eventId: 'event-1',
+                  guestCount: 1,
+                  id: 'registration-1',
+                  registrationOptionId: 'option-1',
+                  status: 'CONFIRMED',
+                  transactions: [
+                    {
+                      amount: 2500,
+                      id: 'transaction-1',
+                      method: 'stripe',
+                      status: 'successful',
+                      stripeChargeId: 'ch_123',
+                      stripeCheckoutSessionId: 'checkout-1',
+                      stripePaymentIntentId: 'pi_123',
+                      type: 'registration',
+                    },
+                  ],
+                  userId: 'attendee-1',
+                }),
+            },
+          },
+          transaction: vi.fn((callback: (tx: typeof tx) => unknown) =>
+            callback(tx),
+          ),
+        };
+        const stripe = {
+          checkout: {
+            sessions: {
+              expire: vi.fn(),
+            },
+          },
+          refunds: {
+            create: vi.fn(() =>
+              Promise.resolve({ id: 're_123', status: 'succeeded' }),
+            ),
+          },
+        };
+
+        yield* eventRegistrationHandlers['events.cancelRegistration'](
+          { registrationId: 'registration-1' },
+          { headers: {} } as never,
+        ).pipe(
+          Effect.provide(
+            createContextLayer({
+              database,
+              stripe,
+              tenant: {
+                ...tenant,
+                stripeAccountId: 'acct_123',
+              },
+            }),
+          ),
+        );
+
+        expectCounterDecrement(updateSets[1], 'confirmedSpots', 2);
+        expect(tx.insert).not.toHaveBeenCalled();
+        expect(stripe.refunds.create).toHaveBeenCalledWith(
+          {
+            amount: 2500,
+            charge: 'ch_123',
+          },
+          {
+            stripeAccount: 'acct_123',
+          },
+        );
+        expect(insertedTransaction).toEqual(
+          expect.objectContaining({
+            amount: -2500,
+            currency: 'EUR',
+            eventId: 'event-1',
+            eventRegistrationId: 'registration-1',
+            manuallyCreated: false,
+            method: 'stripe',
+            status: 'successful',
+            targetUserId: 'attendee-1',
+            tenantId: 'tenant-1',
+            type: 'refund',
+          }),
+        );
+        expect(insertedTransaction?.['comment']).toContain('re_123');
         expect(database.transaction).toHaveBeenCalledOnce();
       }),
   );

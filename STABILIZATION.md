@@ -561,8 +561,8 @@ the current working direction until a product decision overrides them.
   so slow registration or waitlist writes cannot be triggered twice from the
   registration option card.
 - **Addressed in stabilization pass:** role-ineligible direct event links keep the event visible but show an explicit registration-unavailable state instead of silently rendering an empty registration section.
-- **Addressed in stabilization pass:** participant self-cancellation now covers pending and confirmed registrations before event start, rolls back reserved/confirmed counters including selected guest spots, blocks checked-in cancellations, and records a pending manual refund transaction for paid confirmed cancellations while keeping automatic Stripe refund copy honest.
-- **Addressed in stabilization pass:** organizer/admin cancellation is available from the organizer overview for confirmed participant registrations, requires event-organizer access or `events:organizeAll`, blocks checked-in cancellations, and rolls back confirmed counters without promising automatic refunds.
+- **Addressed in stabilization pass:** participant self-cancellation now covers pending and confirmed registrations before event start, rolls back reserved/confirmed counters including selected guest spots, blocks checked-in cancellations, submits a Stripe refund when the original paid transaction has a stored Stripe payment reference, and records a pending manual refund transaction when automatic refunding cannot be attempted.
+- **Addressed in stabilization pass:** organizer/admin cancellation is available from the organizer overview for confirmed participant registrations, requires event-organizer access or `events:organizeAll`, blocks checked-in cancellations, rolls back confirmed counters, and uses the same Stripe-refund/manual-fallback behavior as participant cancellation.
 - **Addressed in stabilization pass:** active registration cards now expose unpaid self-service transfer for confirmed, not checked-in registrations before event start, and keep transfer/resale unavailability explicit for pending and waitlisted registrations.
 - **Addressed in stabilization pass:** `events.findTransferTargets` and `events.transferEventRegistration` provide a conservative organizer-assisted transfer flow for confirmed, not checked-in, unpaid registrations between existing tenant users. The organizer overview opens an eligible-member lookup, and the target lookup and mutation require event-organizer access, fail closed when the target user is outside the tenant, role-ineligible for the registration option, or already has an active registration, and reject paid registrations until refund/resale money movement is implemented.
 - **Addressed in stabilization pass:** organizer overview participant actions now
@@ -574,7 +574,7 @@ the current working direction until a product decision overrides them.
   self-service transfer now share tested action guards between the buttons and
   handlers, so cancellation and transfer writes cannot overlap or double-submit
   locally on slow networks.
-- **Should fix before relaunch:** participant-facing paid transfer/resale money movement, resale-specific workflows, and automatic Stripe refund flows are not implemented in the reviewed event registration path. Paid confirmed cancellation currently records a pending manual refund transaction for organizer follow-up.
+- **Should fix before relaunch:** participant-facing paid transfer/resale money movement and resale-specific workflows are not implemented in the reviewed event registration path. Paid confirmed cancellation now attempts automatic Stripe refunds for transactions with stored Stripe payment references and keeps a pending manual refund fallback for older/manual records.
 - **Addressed in stabilization pass:** active registration status now uses the shared persisted registration status literal union instead of raw `Schema.String`.
 - **Acceptable for now:** paid registration rollback is careful about cleaning up a failed checkout session creation path; deeper Stripe lifecycle review belongs in the finance pass.
 
@@ -597,8 +597,9 @@ the current working direction until a product decision overrides them.
   assertions.
 - `tests/specs/events/registration-transfer.test.ts` also cancels a paid
   confirmed registration through the event page and reads back the generated
-  pending manual refund transaction, keeping the current ledger behavior covered
-  while automatic Stripe refunds remain deferred.
+  pending manual refund transaction for a manually seeded payment record, while
+  server unit coverage proves Stripe-backed cancellations call the Stripe refund
+  API and record the refund transaction.
 - `tests/specs/events/negative-registration-states.spec.ts` covers the
   participant-facing waitlist affordance for a full first-come-first-served
   option, explicitly reads back the created waitlist registration, and restores
@@ -630,7 +631,7 @@ the current working direction until a product decision overrides them.
   event rows after the documentation journey.
 - `tests/docs/events/event-management.doc.ts` now documents only the current event details, registration, review/listing, edit, organizer overview, participant grouping/cancellation, and receipt surfaces.
 - `tests/docs/events/unlisted-admin.doc.ts` covers the updated direct-link explanation in the listing dialog and on unlisted event details.
-- `tests/docs/events/register.doc.ts` covers free and paid registration as generated documentation and Stripe-backed evidence, including guest quantity selection, the participant versus organizer/helper option wording, participant self-cancellation copy, the unpaid self-service transfer dialog, the paid registration transfer-unavailable boundary, and the pending manual refund transaction created by paid confirmed cancellation.
+- `tests/docs/events/register.doc.ts` covers free and paid registration as generated documentation and Stripe-backed evidence, including guest quantity selection, the participant versus organizer/helper option wording, participant self-cancellation copy, the unpaid self-service transfer dialog, the paid registration transfer-unavailable boundary, and the pending manual refund fallback created for a manually seeded paid cancellation.
 - `tests/docs/events/register.doc.ts` now documents registration-time add-on
   selection, required registration-question answers, active-registration
   readback, and persisted answer storage during the free registration
@@ -1545,7 +1546,7 @@ the current working direction until a product decision overrides them.
 
 ### Should Fix Before Relaunch
 
-1. Implement paid transfer/resale money movement, resale-specific workflows, and automatic refund handling. Participant and organizer-assisted unpaid transfer now exist for confirmed, not checked-in registrations.
+1. Implement paid transfer/resale money movement and resale-specific workflows. Participant and organizer-assisted unpaid transfer now exist for confirmed, not checked-in registrations, and paid cancellation now attempts automatic Stripe refunds when the original transaction has a stored Stripe payment reference.
 2. Keep the Docker-backed registration unavailable-state coverage current.
    `specs/events/negative-registration-states.spec.ts` and
    `docs/events/register.doc.ts` now pass against the rebuilt Docker stack with
