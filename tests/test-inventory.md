@@ -509,6 +509,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 - Scenario handles from `seeded.scenario.events.*` are the preferred way to address seeded entities.
 - `specs/seed/seed-baseline.test.ts` fails explicitly when the core scenario
   handles point at missing event or registration-option rows.
+- `docs/events/register.doc.ts` fails explicitly when the regular-user fixture
+  or seeded paid registration option required by the walkthrough is missing.
 - Finance-tagged specs remain the main candidates for selective CI filtering when needed.
 - Event, registration, template, finance receipt, scanner, and unlisted-event specs should fail loudly when deterministic fixture state is missing instead of silently passing through skips.
   Free registration and registration add-on specs now assert the seeded

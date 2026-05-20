@@ -22,6 +22,18 @@ const waitForRegistrationStatus = async (page: Page) => {
     .waitFor({ state: 'detached' });
 };
 
+const requireUserFixture = (
+  predicate: (user: (typeof usersToAuthenticate)[number]) => boolean,
+  description: string,
+) => {
+  const user = usersToAuthenticate.find(predicate);
+  if (!user) {
+    throw new Error(`Expected ${description} user fixture`);
+  }
+
+  return user;
+};
+
 test.describe('Register for events', () => {
   test.describe.configure({ mode: 'serial', retries: 1 });
 
@@ -41,9 +53,10 @@ test.describe('Register for events', () => {
         `Seeded freeOpen scenario event "${freeEventId}" was not found`,
       );
     }
-    const regularUser =
-      usersToAuthenticate.find((user) => user.roles === 'user') ??
-      usersToAuthenticate[0];
+    const regularUser = requireUserFixture(
+      (user) => user.roles === 'user',
+      'regular',
+    );
     const addOnId = `addon-${tenant.id.slice(0, 14)}`;
 
     await database
@@ -146,9 +159,10 @@ test.describe('Register for events', () => {
     seeded,
     tenant,
   }, testInfo) => {
-    const regularUser =
-      usersToAuthenticate.find((user) => user.roles === 'user') ??
-      usersToAuthenticate[0];
+    const regularUser = requireUserFixture(
+      (user) => user.roles === 'user',
+      'regular',
+    );
     const closedEventId = seeded.scenario.events.closedReg.eventId;
     const fullEventId = seeded.scenario.events.freeOpen.eventId;
     const fullOptionId = seeded.scenario.events.freeOpen.optionId;
@@ -382,12 +396,20 @@ test.describe('Register for events', () => {
         `Seeded paidOpen scenario event "${paidEventId}" was not found`,
       );
     }
-    const regularUserId =
-      usersToAuthenticate.find((user) => user.roles === 'user')?.id ??
-      usersToAuthenticate[0].id;
-    if (!regularUserId) {
+    const regularUserId = requireUserFixture(
+      (user) => user.roles === 'user',
+      'regular',
+    ).id;
+    const paidOption = await database.query.eventRegistrationOptions.findFirst({
+      where: {
+        eventId: paidEventId,
+        id: paidOptionId,
+        tenantId: tenant.id,
+      },
+    });
+    if (!paidOption?.isPaid) {
       throw new Error(
-        'Regular user configuration missing for paid registration',
+        'Expected seeded paidOpen registration option to exist and be paid',
       );
     }
 

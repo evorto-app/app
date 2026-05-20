@@ -2207,6 +2207,10 @@ implement those decisions or explicitly revise them there before changing code.
   explicitly when `freeOpen`, `paidOpen`, `closedReg`, `draft`, or `past`
   handles point at missing event or registration-option rows, before downstream
   page-backed specs depend on those handles.
+- Registration docs fixture-hardening pass: made the event registration
+  documentation journey fail explicitly when the regular-user fixture is missing
+  or the seeded `paidOpen` registration option does not exist as a paid option,
+  instead of falling back to the first configured user.
 - Scanner page-backed action-guard pass: extended scanner Playwright coverage
   so buyer-plus-guest check-in and later guest-arrival check-in both assert the
   visible check-in action remains disabled after local success while the scan
