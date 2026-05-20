@@ -209,6 +209,12 @@ test('regular user cannot self-transfer a paid confirmed registration', async ({
       tenantId: tenant.id,
       userId: regularUser.id,
     });
+    await database
+      .update(schema.eventRegistrationOptions)
+      .set({
+        confirmedSpots: targetOption.confirmedSpots + 1,
+      })
+      .where(eq(schema.eventRegistrationOptions.id, targetOptionId));
     await database.insert(schema.transactions).values({
       amount: targetOption.price,
       comment: 'Registration transfer paid-block coverage',
@@ -267,6 +273,181 @@ test('regular user cannot self-transfer a paid confirmed registration', async ({
     await database
       .delete(schema.eventRegistrations)
       .where(eq(schema.eventRegistrations.id, registrationId));
+    await database
+      .update(schema.eventRegistrationOptions)
+      .set({
+        confirmedSpots: targetOption.confirmedSpots,
+      })
+      .where(eq(schema.eventRegistrationOptions.id, targetOptionId));
+    for (const registration of originalRegistrations) {
+      await database
+        .update(schema.eventRegistrations)
+        .set({ status: registration.status })
+        .where(eq(schema.eventRegistrations.id, registration.id));
+    }
+  }
+});
+
+test('regular user cancellation records a pending manual refund for a paid confirmed registration', async ({
+  database,
+  page,
+  seeded,
+  tenant,
+}) => {
+  const regularUser = usersToAuthenticate.find(
+    (user) => user.stateFile === userStateFile,
+  );
+  if (!regularUser) {
+    throw new Error('Expected regular user fixture');
+  }
+
+  const targetEventId = seeded.scenario.events.paidOpen.eventId;
+  const targetOptionId = seeded.scenario.events.paidOpen.optionId;
+  const serverFutureEventStart = new Date(Date.now() + 48 * 60 * 60 * 1000);
+  const serverFutureEventEnd = new Date(
+    serverFutureEventStart.getTime() + 2 * 60 * 60 * 1000,
+  );
+  const targetOption = await database.query.eventRegistrationOptions.findFirst({
+    where: {
+      eventId: targetEventId,
+      id: targetOptionId,
+    },
+  });
+  if (!targetOption || targetOption.price <= 0) {
+    throw new Error('Expected seeded paid registration option');
+  }
+
+  const registrationId = getId();
+  const transactionId = getId();
+  const originalRegistrations = await database
+    .select({
+      id: schema.eventRegistrations.id,
+      status: schema.eventRegistrations.status,
+    })
+    .from(schema.eventRegistrations)
+    .where(
+      and(
+        eq(schema.eventRegistrations.eventId, targetEventId),
+        eq(schema.eventRegistrations.tenantId, tenant.id),
+        eq(schema.eventRegistrations.userId, regularUser.id),
+      ),
+    );
+
+  try {
+    await database
+      .update(schema.eventRegistrations)
+      .set({ status: 'CANCELLED' })
+      .where(
+        and(
+          eq(schema.eventRegistrations.eventId, targetEventId),
+          eq(schema.eventRegistrations.tenantId, tenant.id),
+          eq(schema.eventRegistrations.userId, regularUser.id),
+        ),
+      );
+    await database.insert(schema.eventRegistrations).values({
+      eventId: targetEventId,
+      id: registrationId,
+      registrationOptionId: targetOptionId,
+      status: 'CONFIRMED',
+      tenantId: tenant.id,
+      userId: regularUser.id,
+    });
+    await database
+      .update(schema.eventRegistrationOptions)
+      .set({
+        confirmedSpots: targetOption.confirmedSpots + 1,
+      })
+      .where(eq(schema.eventRegistrationOptions.id, targetOptionId));
+    await database.insert(schema.transactions).values({
+      amount: targetOption.price,
+      comment: 'Registration paid-cancellation refund coverage',
+      currency: 'EUR',
+      eventId: targetEventId,
+      eventRegistrationId: registrationId,
+      id: transactionId,
+      method: 'stripe',
+      status: 'successful',
+      targetUserId: regularUser.id,
+      tenantId: tenant.id,
+      type: 'registration',
+    });
+    await database
+      .update(schema.eventInstances)
+      .set({
+        end: serverFutureEventEnd,
+        start: serverFutureEventStart,
+      })
+      .where(eq(schema.eventInstances.id, targetEventId));
+
+    await page.goto(`/events/${targetEventId}`);
+    await page
+      .getByText('Loading registration status')
+      .first()
+      .waitFor({ state: 'detached' });
+
+    await expect(page.getByText('You are registered')).toBeVisible();
+    await expect(
+      page.getByText(
+        'If this was paid, Evorto creates a pending manual refund record for organizers; Stripe refunds are not automatic yet.',
+      ),
+    ).toBeVisible();
+    await page.getByRole('button', { name: 'Cancel registration' }).click();
+
+    await expect
+      .poll(async () => {
+        const cancelledRegistration =
+          await database.query.eventRegistrations.findFirst({
+            where: {
+              id: registrationId,
+              tenantId: tenant.id,
+            },
+          });
+        return cancelledRegistration?.status;
+      })
+      .toBe('CANCELLED');
+
+    const refundTransaction = await database.query.transactions.findFirst({
+      where: {
+        eventRegistrationId: registrationId,
+        tenantId: tenant.id,
+        type: 'refund',
+      },
+    });
+    expect(refundTransaction).toEqual(
+      expect.objectContaining({
+        amount: -Math.abs(targetOption.price),
+        currency: 'EUR',
+        eventId: targetEventId,
+        eventRegistrationId: registrationId,
+        manuallyCreated: true,
+        method: 'stripe',
+        status: 'pending',
+        targetUserId: regularUser.id,
+        tenantId: tenant.id,
+        type: 'refund',
+      }),
+    );
+    expect(refundTransaction?.comment).toContain(
+      'Pending registration refund record',
+    );
+  } finally {
+    await database
+      .delete(schema.transactions)
+      .where(
+        and(
+          eq(schema.transactions.eventRegistrationId, registrationId),
+          eq(schema.transactions.tenantId, tenant.id),
+        ),
+      );
+    await database
+      .delete(schema.eventRegistrations)
+      .where(eq(schema.eventRegistrations.id, registrationId));
+    await database
+      .update(schema.eventRegistrationOptions)
+      .set({
+        confirmedSpots: targetOption.confirmedSpots,
+      })
+      .where(eq(schema.eventRegistrationOptions.id, targetOptionId));
     for (const registration of originalRegistrations) {
       await database
         .update(schema.eventRegistrations)

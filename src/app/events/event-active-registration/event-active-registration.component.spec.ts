@@ -48,7 +48,7 @@ describe('registrationCancellationCopy', () => {
     ).toEqual({
       buttonLabel: 'Cancel registration',
       helperText:
-        'This cancels your confirmed registration and releases your spot. Paid-registration refunds are not automatic yet.',
+        'This cancels your confirmed registration and releases your spot. If this was paid, Evorto creates a pending manual refund record for organizers; Stripe refunds are not automatic yet.',
     });
   });
 
@@ -62,7 +62,7 @@ describe('registrationCancellationCopy', () => {
     ).toEqual({
       buttonLabel: 'Cancel registration',
       helperText:
-        'This cancels your confirmed registration and releases all selected spots. Paid-registration refunds are not automatic yet.',
+        'This cancels your confirmed registration and releases all selected spots. If this was paid, Evorto creates a pending manual refund record for organizers; Stripe refunds are not automatic yet.',
     });
   });
 

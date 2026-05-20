@@ -191,7 +191,7 @@ test.describe('Register for events', () => {
   You can see this by additional information being available and also your ticket QR code.
   Participant registrations can include guests, registration-time add-ons, and registration-question answers. Guest spots are attached to the logged-in buyer's registration and count against the same option capacity. Add-ons are shown with the confirmed registration and can be reviewed by organizers.
   This code is needed when attending the event. Keep this page available because QR email delivery is not part of the current relaunch flow.
-  You can cancel a pending or confirmed registration from this event page before the event starts. Confirmed cancellation releases your selected spots, including guests when attached, but paid-registration refunds are not automatic yet.`,
+  You can cancel a pending or confirmed registration from this event page before the event starts. Confirmed cancellation releases your selected spots, including guests when attached. If the registration was paid, Evorto creates a pending manual refund record for organizers; Stripe refunds are not automatic yet.`,
     });
 
     await takeScreenshot(
@@ -553,6 +553,12 @@ test.describe('Register for events', () => {
         tenantId: tenant.id,
         userId: regularUser.id,
       });
+      await database
+        .update(schema.eventRegistrationOptions)
+        .set({
+          confirmedSpots: paidOption.confirmedSpots + 1,
+        })
+        .where(eq(schema.eventRegistrationOptions.id, paidOptionId));
       await database.insert(schema.transactions).values({
         amount: paidOption.price,
         comment: 'Registration docs paid-transfer blocked state',
@@ -583,6 +589,11 @@ test.describe('Register for events', () => {
         ),
       ).toBeVisible();
       await expect(
+        page.getByText(
+          'If this was paid, Evorto creates a pending manual refund record for organizers; Stripe refunds are not automatic yet.',
+        ),
+      ).toBeVisible();
+      await expect(
         page.getByRole('button', { name: 'Transfer unavailable' }),
       ).toBeDisabled();
       await expect(
@@ -608,7 +619,9 @@ test.describe('Register for events', () => {
         body: `
   ## Paid transfer and resale boundary
 
-  Paid registrations keep transfer unavailable until the refund or resale money movement exists. The event page shows a disabled transfer action and explains that paid registration transfer and resale are not automatic yet.`,
+  Paid registrations keep transfer unavailable until the refund or resale money movement exists. The event page shows a disabled transfer action and explains that paid registration transfer and resale are not automatic yet.
+
+  Paid confirmed cancellations are still allowed before the event starts. Cancelling one releases the selected spots and creates a pending manual refund record for organizers, but Stripe refunds are not automatic yet.`,
       });
       await takeScreenshot(
         testInfo,
@@ -616,13 +629,63 @@ test.describe('Register for events', () => {
         page,
         'Paid transfer unavailable',
       );
+
+      await page.getByRole('button', { name: 'Cancel registration' }).click();
+      await expect
+        .poll(async () => {
+          const cancelledRegistration =
+            await database.query.eventRegistrations.findFirst({
+              where: {
+                id: registrationId,
+                tenantId: tenant.id,
+              },
+            });
+          return cancelledRegistration?.status;
+        })
+        .toBe('CANCELLED');
+
+      const refundTransaction = await database.query.transactions.findFirst({
+        where: {
+          eventRegistrationId: registrationId,
+          tenantId: tenant.id,
+          type: 'refund',
+        },
+      });
+      expect(refundTransaction).toEqual(
+        expect.objectContaining({
+          amount: -Math.abs(paidOption.price),
+          currency: 'EUR',
+          eventId: paidEventId,
+          eventRegistrationId: registrationId,
+          manuallyCreated: true,
+          method: 'stripe',
+          status: 'pending',
+          targetUserId: regularUser.id,
+          tenantId: tenant.id,
+          type: 'refund',
+        }),
+      );
+      expect(refundTransaction?.comment).toContain(
+        'Pending registration refund record',
+      );
     } finally {
       await database
         .delete(schema.transactions)
-        .where(eq(schema.transactions.id, transactionId));
+        .where(
+          and(
+            eq(schema.transactions.eventRegistrationId, registrationId),
+            eq(schema.transactions.tenantId, tenant.id),
+          ),
+        );
       await database
         .delete(schema.eventRegistrations)
         .where(eq(schema.eventRegistrations.id, registrationId));
+      await database
+        .update(schema.eventRegistrationOptions)
+        .set({
+          confirmedSpots: paidOption.confirmedSpots,
+        })
+        .where(eq(schema.eventRegistrationOptions.id, paidOptionId));
     }
   });
 
