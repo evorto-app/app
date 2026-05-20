@@ -1,5 +1,26 @@
 import { expect, test } from '../../support/fixtures/parallel-test';
 
+const requireSeededEvent = <T>(event: T | undefined, handleName: string): T => {
+  if (!event) {
+    throw new Error(`Expected seeded scenario event "${handleName}" to exist`);
+  }
+
+  return event;
+};
+
+const requireSeededOption = <T>(
+  option: T | undefined,
+  handleName: string,
+): T => {
+  if (!option) {
+    throw new Error(
+      `Expected seeded scenario registration option "${handleName}" to exist`,
+    );
+  }
+
+  return option;
+};
+
 // This particular test validates seeded invariants and can take longer
 // due to initial database seeding. Keep the override local to this file.
 test.setTimeout(120_000);
@@ -97,20 +118,35 @@ test.describe('baseline seed invariants', () => {
       ),
     );
     const scenario = seeded.scenario.events;
-    const freeOpenOption = optionById.get(scenario.freeOpen.optionId);
-    const paidOpenOption = optionById.get(scenario.paidOpen.optionId);
-    const closedOption = optionById.get(scenario.closedReg.optionId);
-    const draftEvent = eventById.get(scenario.draft.eventId);
-    const pastEvent = eventById.get(scenario.past.eventId);
+    const freeOpenOption = requireSeededOption(
+      optionById.get(scenario.freeOpen.optionId),
+      'freeOpen',
+    );
+    const paidOpenOption = requireSeededOption(
+      optionById.get(scenario.paidOpen.optionId),
+      'paidOpen',
+    );
+    const closedOption = requireSeededOption(
+      optionById.get(scenario.closedReg.optionId),
+      'closedReg',
+    );
+    const draftEvent = requireSeededEvent(
+      eventById.get(scenario.draft.eventId),
+      'draft',
+    );
+    const pastEvent = requireSeededEvent(
+      eventById.get(scenario.past.eventId),
+      'past',
+    );
 
-    expect.soft(freeOpenOption?.isPaid).toBe(false);
-    expect.soft(paidOpenOption?.isPaid).toBe(true);
-    expect.soft(paidOpenOption?.stripeTaxRateId).toBeTruthy();
+    expect.soft(freeOpenOption.isPaid).toBe(false);
+    expect.soft(paidOpenOption.isPaid).toBe(true);
+    expect.soft(paidOpenOption.stripeTaxRateId).toBeTruthy();
     expect
-      .soft(closedOption?.closeRegistrationTime.getTime())
+      .soft(closedOption.closeRegistrationTime.getTime())
       .toBeLessThan(seedDate.getTime());
-    expect.soft(draftEvent?.status).toBe('DRAFT');
-    expect.soft(pastEvent?.start.getTime()).toBeLessThan(seedDate.getTime());
+    expect.soft(draftEvent.status).toBe('DRAFT');
+    expect.soft(pastEvent.start.getTime()).toBeLessThan(seedDate.getTime());
 
     expect
       .soft(

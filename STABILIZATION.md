@@ -2199,7 +2199,12 @@ implement those decisions or explicitly revise them there before changing code.
   registration add-on Playwright specs assert the seeded `freeOpen` event option
   exists for the current tenant before they reset counters or attach add-ons, so
   fixture drift fails at the seed contract instead of later UI or FK side
-  effects.
+  effects. Those specs now also fail explicitly when expected registration or
+  add-on readback rows are missing after the page flow.
+- Seed baseline scenario-handle pass: made the seed-baseline contract fail
+  explicitly when `freeOpen`, `paidOpen`, `closedReg`, `draft`, or `past`
+  handles point at missing event or registration-option rows, before downstream
+  page-backed specs depend on those handles.
 - Scanner page-backed action-guard pass: extended scanner Playwright coverage
   so buyer-plus-guest check-in and later guest-arrival check-in both assert the
   visible check-in action remains disabled after local success while the scan
