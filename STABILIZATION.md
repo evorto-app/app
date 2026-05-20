@@ -2145,6 +2145,11 @@ implement those decisions or explicitly revise them there before changing code.
 - Finance docs source-guard pass: pinned generated finance receipt docs to the
   current manual submitter-notification and manual reimbursement money-movement
   scope so relaunch docs do not imply automatic email or payout behavior.
+- Template docs source-guard pass: pinned generated template docs to the
+  current simple-mode relaunch surface with one organizer block, one participant
+  block, reusable add-ons, registration questions, and private organizer
+  planning tips instead of implying bulk registration options or standalone
+  add-on sales are configured there.
 
 ## Review Next
 
