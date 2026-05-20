@@ -30,6 +30,16 @@ import {
 import { RegistrationOptionForm } from '../../shared/components/forms/registration-option-form/registration-option-form';
 import { createEventFormModelFromTemplate } from './template-create-event.mapper';
 
+export const templateCreateEventSubmitDisabled = ({
+  formInvalid,
+  formSubmitting,
+  mutationPending,
+}: {
+  formInvalid: boolean;
+  formSubmitting: boolean;
+  mutationPending: boolean;
+}): boolean => formInvalid || formSubmitting || mutationPending;
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -66,6 +76,8 @@ export class TemplateCreateEventComponent {
   });
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly registrationModes = ['fcfs'] as const;
+  protected readonly templateCreateEventSubmitDisabled =
+    templateCreateEventSubmitDisabled;
   protected readonly templateId = input.required<string>();
   protected readonly templateQuery = injectQuery(() =>
     this.rpc.templates.findOne.queryOptions({ id: this.templateId() }),
@@ -133,6 +145,16 @@ export class TemplateCreateEventComponent {
 
   async onSubmit(event: Event) {
     event.preventDefault();
+    if (
+      templateCreateEventSubmitDisabled({
+        formInvalid: this.createEventForm().invalid(),
+        formSubmitting: this.createEventForm().submitting(),
+        mutationPending: this.createEventMutation.isPending(),
+      })
+    ) {
+      return;
+    }
+
     await submit(this.createEventForm, async (formState) => {
       const formValue = formState().value();
       if (!formValue.icon) {
