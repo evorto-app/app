@@ -136,7 +136,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 - `specs/permissions/override.test.ts` is active desktop coverage for the
   permission override fixture; no mobile project currently runs this spec.
 - `specs/permissions/global-admin-route-guard.spec.ts` covers direct
-  `/global-admin` allow/deny behavior once page-backed runtime is available.
+  `/global-admin` and `/global-admin/tenants/:tenantId` allow/deny behavior
+  once page-backed runtime is available.
 - Page-backed local execution requires the Playwright Chromium cache installed
   by `bun run test:e2e:install`.
 - `helpers/testing/playwright-skip-inventory.spec.ts` keeps all Playwright
