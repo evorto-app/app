@@ -1265,6 +1265,12 @@ the current working direction until a product decision overrides them.
   actions now stay disabled while the create/update mutation is pending and
   the submit handlers ignore duplicate submit events during the in-flight
   mutation.
+- **Addressed in this stabilization pass:** global-admin tenant edit now renders
+  the form only from `tenantQuery.isSuccess()` with explicit `data()` access,
+  preserving TanStack Query success-state narrowing. Tenant update also writes
+  the returned tenant into the global-admin detail/list caches before navigating
+  back to the detail page, so the saved tenant name is visible immediately while
+  the queries still invalidate for background freshness.
 - **Acceptable for now:** tenant settings writes are scoped to the current tenant id and validate the returned tenant shape before responding.
 - **Acceptable for now:** unknown host requests fail closed with 404 instead of guessing a tenant.
 - **Acceptable for now:** RPC request-context headers are overwritten server-side before handler execution, so client-supplied `x-evorto-*` headers are not trusted as the source of tenant/user context.
@@ -1299,6 +1305,9 @@ the current working direction until a product decision overrides them.
 - `src/app/global-admin/global-admin.routes.spec.ts` covers route-level global-admin permission requirements for list, create, detail, and edit routes.
 - `src/app/global-admin/tenant-form/tenant-form.model.spec.ts` covers create/edit payload shaping, including primary-domain normalization and path rejection before the RPC call, plus disabled submit state for invalid, submitting, and mutation-pending tenant writes.
 - `src/app/global-admin/tenant-list/tenant-list.rows.spec.ts` covers global-admin tenant operational rows, readable Stripe account labels, and search across support fields including connected Stripe account ids.
+- `src/app/global-admin/tenant-edit/tenant-edit.component.html` follows the
+  relaunch TanStack Query template convention by branching on
+  `tenantQuery.isSuccess()` before reading `tenantQuery.data()`.
 - `src/server/effect/rpc/handlers/global-admin.handlers.spec.ts` covers explicit `globalAdmin:manageTenants` authorization, `globalAdmin:*` dependency authorization, tenant create/update normalization, and fail-closed forbidden/unauthorized tenant-list reads before querying tenants.
 - `src/server/context/request-context-resolver.spec.ts` covers host-first tenant resolution, localhost tenant-cookie fallback, stale localhost tenant-cookie fallback, unknown-host failure, global-admin permissions resolving without a tenant user assignment, and tenant-user context failing closed when the Auth0 user has no current-tenant assignment.
 - The in-app Browser connection still times out during manual global-admin navigation, but Docker-backed system-Chrome Playwright runs now verify authenticated tenant administration and route-guard behavior against the running app.

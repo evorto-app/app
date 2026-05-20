@@ -128,7 +128,19 @@ export class TenantEditComponent {
               getErrorMessage(error, 'Failed to update tenant'),
             );
           },
-          onSuccess: async () => {
+          onSuccess: async (updatedTenant) => {
+            this.queryClient.setQueriesData<GlobalAdminTenantRecord | null>(
+              this.rpc.queryFilter(['globalAdmin', 'tenants.findOne']),
+              (tenant) =>
+                tenant?.id === updatedTenant.id ? updatedTenant : tenant,
+            );
+            this.queryClient.setQueriesData<GlobalAdminTenantRecord[]>(
+              this.rpc.queryFilter(['globalAdmin', 'tenants.findMany']),
+              (tenants) =>
+                tenants?.map((tenant) =>
+                  tenant.id === updatedTenant.id ? updatedTenant : tenant,
+                ) ?? tenants,
+            );
             await this.queryClient.invalidateQueries(
               this.rpc.queryFilter(['globalAdmin', 'tenants.findMany']),
             );
