@@ -1109,9 +1109,9 @@ the current working direction until a product decision overrides them.
 - Profile app coverage also pins that ESNcard save, refresh, and remove actions
   all stay disabled while any ESNcard write is pending.
 - **Addressed in stabilization pass:** the profile doc no longer uses a fixed stabilization wait before the profile screenshot, now saves and verifies notification email persistence, and opens the Events section to assert and document event-card semantics.
-- `tests/docs/profile/discounts.doc.ts` documents the discount-card section and current pending/error behavior, but does not add, refresh, remove, or assert any ESNcard validation outcome.
+- `tests/docs/profile/discounts.doc.ts` documents the discount-card section and current pending/error behavior. It asserts the seeded verified ESNcard identifier/status, visible refresh/remove actions, and the invalid-card-number save guard. It still does not call the external ESNcard provider for add/refresh/remove outcomes.
 - `tests/specs/discounts/esn-discounts.test.ts` verifies a seeded verified ESNcard affects paid event price labels and the register button copy.
-- No reviewed Playwright spec proves profile discount-card management itself or browser-level account creation fallback behavior without Auth0 Management credentials. Local helper/server coverage now pins the visible profile/account copy and action states that can be verified without page-backed runtime, and the profile docs journey asserts confirmed and checked-in profile event-card route/status/guest/add-on/payment/ticket/action labels plus submitted-receipt visibility.
+- No reviewed Playwright spec proves live profile discount-card add/refresh/remove provider outcomes or browser-level account creation fallback behavior without Auth0 Management credentials. Local helper/server coverage now pins the visible profile/account copy and action states that can be verified without page-backed runtime, the discounts docs assert seeded ESNcard status/action/invalid-input behavior, and the profile docs journey asserts confirmed and checked-in profile event-card route/status/guest/add-on/payment/ticket/action labels plus submitted-receipt visibility.
 - `tests/docs/users/create-account.doc.ts` is integration-tagged and skips without Auth0 Management credentials, so baseline docs do not prove the account-creation path.
 - `tests/docs/users/create-account.doc.ts` asserts the account form exposes the editable address as "Notification email" when the integration path can run.
 - `src/app/app.routes.spec.ts` pins the relaunch route contract that public event browsing uses only account-assignment checks, feature areas require assigned authenticated accounts, `/create-account` stays auth-only for tenantless authenticated users, and `/global-admin` remains auth-only before tenant assignment checks.
@@ -1134,7 +1134,7 @@ the current working direction until a product decision overrides them.
 
 - Keep Browser-backed profile edit persistence coverage aligned with notification email behavior.
 - Keep Browser-backed profile event-card coverage aligned with route/status/guest/add-on/payment/ticket/check-in labels and rerun it during manual runtime review.
-- Add Browser-backed profile discount-card tests for add/refresh/remove and provider validation outcomes once runtime review is available. Local app/server coverage already proves upsert payload normalization, readable mutation errors, global card reads/upserts, refresh persistence, and scoped removal.
+- Add Browser-backed profile discount-card tests for live add/refresh/remove provider validation outcomes once runtime review is available. Local app/server coverage already proves upsert payload normalization, readable mutation errors, global card reads/upserts, refresh persistence, scoped removal, and generated docs assert seeded card display plus invalid-input blocking.
 - Add Browser-backed profile/account coverage for account creation retry/tenant-join behavior, profile edit persistence, ESNcard add/refresh/remove, and profile event action rendering once local runtime review is available. Local helper/server coverage already covers account creation retry/tenant join, profile edit payload persistence, ESNcard action labels/errors/payloads, profile event labels/actions, and submitted receipt status/amount/server rows; generated profile docs now assert submitted receipt visibility.
 
 ## Tenant/Global Admin
@@ -1839,6 +1839,9 @@ implement those decisions or explicitly revise them there before changing code.
   remove pending labels plus save-disabled state into tested helpers, keeping
   add/refresh/remove Browser coverage as a runtime follow-up while preserving
   local coverage for the visible action states.
+- Profile ESNcard docs pass: extended the discounts documentation journey to
+  assert the seeded verified ESNcard identifier/status, refresh/remove action
+  visibility, and invalid-card-number save guard.
 - Profile ESNcard write-guard pass: shared one in-flight guard across save,
   refresh, and remove so profile discount-card writes cannot overlap on slow
   networks, and pinned that guard in local app tests.
