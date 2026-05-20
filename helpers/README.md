@@ -82,10 +82,12 @@ containers before `evorto` starts. `bun run docker:start`,
 against the Docker database during stack startup. Neon Local still receives
 `DELETE_BRANCH=true` so normal `docker compose down` deletes the branch, and
 `db-expiration` immediately sets a short Neon branch expiration as a fallback
-for interrupted local or CI shutdowns. Use `bun run docker:resume` only for an
-already initialized stack when you want to bring stopped containers back without
-recreating them. The package scripts preload the needed environment with
-`dotenv -c dev` before invoking Docker.
+for interrupted local or CI shutdowns. Playwright `webServer` uses
+`bun run docker:webserver`, which starts the foreground Compose stack without
+forcing `docker compose down` first. Use
+`bun run docker:resume` only for an already initialized stack when you want to
+bring stopped containers back without recreating them. The package scripts
+preload the needed environment with `dotenv -c dev` before invoking Docker.
 
 Run `bun run docker:check` before investigating Docker startup failures. The
 check validates required local secrets before Compose tears down or starts
