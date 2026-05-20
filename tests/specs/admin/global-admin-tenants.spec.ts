@@ -103,6 +103,19 @@ test('global tenant admin reviews tenant list, detail, and forms @admin @globalA
       page.getByRole('button', { name: 'Create tenant' }),
     ).toBeDisabled();
     await page.getByLabel('Tenant name').fill(createdTenantName);
+    await page.getByLabel('Primary domain').fill('section.example.org/path');
+    await expect(
+      page.getByRole('button', { name: 'Create tenant' }),
+    ).toBeEnabled();
+    await page.getByRole('button', { name: 'Create tenant' }).click();
+    await expect(
+      page.getByText('Domain must be a single host name'),
+    ).toBeVisible();
+    await expect(page).toHaveURL(/\/global-admin\/tenants\/create$/);
+    await page.getByLabel('Primary domain').fill(originalTenant.domain);
+    await page.getByRole('button', { name: 'Create tenant' }).click();
+    await expect(page.getByText('Tenant domain already exists')).toBeVisible();
+    await expect(page).toHaveURL(/\/global-admin\/tenants\/create$/);
     await page.getByLabel('Primary domain').fill(createdTenantDomain);
     await expect(
       page.getByRole('button', { name: 'Create tenant' }),
