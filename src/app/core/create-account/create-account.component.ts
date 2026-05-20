@@ -77,6 +77,16 @@ export class CreateAccountComponent {
 
   async onSubmit(event: Event) {
     event.preventDefault();
+    if (
+      createAccountSubmitDisabled({
+        formInvalid: this.accountForm().invalid(),
+        formSubmitting: this.accountForm().submitting(),
+        mutationPending: this.createAccountMutation.isPending(),
+      })
+    ) {
+      return;
+    }
+
     await submit(this.accountForm, async () => {
       const payload = createAccountPayloadFromModel(this.accountModel());
       this.accountError.set('');
