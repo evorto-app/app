@@ -1162,6 +1162,18 @@ the current working direction until a product decision overrides them.
 - `src/server/discounts/providers/index.spec.ts` covers ESNcard provider validation parsing and provider-unavailable distinction without hitting the external provider.
 - `src/server/effect/rpc/handlers/discounts.handlers.spec.ts` covers global-per-user ESNcard reads, updating an existing global user card from another tenant context, refresh revalidation persistence, and current-user/type-scoped card removal.
 - `src/server/effect/rpc/handlers/users.handlers.spec.ts` covers `users.events` tenant/user scoping, cancelled-registration exclusion, sorting, checkout URLs, check-in timestamps, guest counts, and payment-state mapping, plus `users.findMany` role aggregation, account creation transactionality, existing-global-user tenant joining, duplicate tenant-assignment conflict behavior, profile update persistence, and `users.userAssigned` behavior.
+- **Docker profile/account runtime pass:** with the Docker stack healthy on local
+  port 4200, the system-Chrome Playwright pass for
+  `tests/specs/profile/user-profile-edit.spec.ts`,
+  `tests/specs/profile/user-profile-events.spec.ts`,
+  `tests/specs/profile/user-profile-receipts.spec.ts`,
+  `tests/specs/profile/user-profile-discounts.spec.ts`,
+  `tests/docs/profile/user-profile.doc.ts`,
+  `tests/docs/profile/discounts.doc.ts`, and
+  `tests/docs/users/create-account.doc.ts` passed. The in-app Browser attempt to
+  open `/profile` still timed out before returning usable page state, so manual
+  Browser review remains a tooling/runtime follow-up rather than an uncovered
+  Playwright behavior gap.
 
 ### Product Questions Answered Above
 
@@ -1174,8 +1186,8 @@ the current working direction until a product decision overrides them.
 
 ### Recommended Cleanup Actions
 
-- Keep Browser-backed profile edit persistence coverage aligned with notification email and global reimbursement-detail behavior. Generated profile docs and the functional profile edit spec now both save and read back notification email plus IBAN/PayPal details.
-- Keep Browser-backed profile event-card coverage aligned with route/status/guest/add-on/payment/ticket/check-in labels and rerun it during manual runtime review.
+- Keep profile edit persistence coverage aligned with notification email and global reimbursement-detail behavior. Generated profile docs and the functional profile edit spec now both save and read back notification email plus IBAN/PayPal details against the Docker runtime.
+- Keep profile event-card coverage aligned with route/status/guest/add-on/payment/ticket/check-in labels and rerun it during manual runtime review.
 - Add Browser-backed profile discount-card tests for live add/refresh/remove provider validation outcomes once runtime review is available. Local app/server coverage already proves upsert payload normalization, readable mutation errors, global card reads/upserts, refresh persistence, scoped removal, and generated docs assert seeded card display plus invalid-input blocking.
 - Add Browser-backed profile/account coverage for account creation retry/tenant-join behavior, profile edit persistence, ESNcard add/refresh/remove, and profile event action rendering once local runtime review is available. Local helper/server coverage already covers account creation retry/tenant join, profile edit payload persistence, ESNcard action labels/errors/payloads, profile event labels/actions, and submitted receipt status/amount/server rows; generated profile docs now assert notification email plus reimbursement-detail persistence and submitted receipt visibility.
 

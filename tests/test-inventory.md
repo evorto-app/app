@@ -292,16 +292,18 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     Root route-manifest coverage keeps `/create-account` reachable to
     authenticated users without a tenant assignment while protected feature
     routes keep assigned-account and auth guards.
+    A Docker-backed docs pass also keeps the create-account baseline note and
+    credential-gated integration path executable under the local runtime; the
+    live Auth0 path still requires Auth0 Management credentials to avoid
+    skipping.
   - Manual Browser-backed submitted-receipt visibility review after a real
-    receipt submission once local runtime is available. Generated profile docs
-    now seed a deterministic submitted receipt and assert the profile
-    receipt-card filename, submitted status, event title, amount, and persisted
-    database row. Local app/server coverage already proves readable
+    receipt submission remains useful once the in-app Browser connection is
+    reliable. The Docker-backed Playwright profile pass now verifies the
+    deterministic profile receipt flow through both generated docs and the
+    functional spec: filename, submitted status, event title, amount, persisted
+    database row, and cleanup. Local app/server coverage already proves readable
     submitted-receipt status labels, amount formatting, and
     `finance.receipts.my` profile-card row normalization.
-    `specs/profile/user-profile-receipts.spec.ts` adds functional coverage for
-    the same profile receipt-card state with explicit database readback and
-    cleanup.
 - Finance/receipts:
   - Keep finance route-denial cases and route-manifest specs aligned as
     transaction, receipt approval, and reimbursement routes change.
