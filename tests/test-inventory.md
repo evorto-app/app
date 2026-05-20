@@ -329,8 +329,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     template-scoped question storage/read models, and RPC schema shape while
     event-side answer collection remains out of scope.
   - Seed baseline coverage pins free and paid reusable template add-ons attached
-    to participant template options so the template detail add-on surface has
-    deterministic data once Browser/runtime review is available.
+    to participant template options and reusable template questions attached to
+    participant/organizer template options, so those template-detail surfaces
+    have deterministic data once Browser/runtime review is available.
   - Keep shared registration-mode labels aligned whenever stored modes are
     implemented or retired. Local shared coverage now keeps event/template
     authoring controls and template detail summaries away from raw storage ids.

@@ -71,6 +71,13 @@ interface BaseFixtures {
     description: string;
     icon: string;
     id: string;
+    questions: {
+      id: string;
+      registrationOptionKind: 'organizer' | 'participant';
+      registrationOptionId: string;
+      required: boolean;
+      title: string;
+    }[];
     seedKey:
       | 'city-tour'
       | 'city-trip'

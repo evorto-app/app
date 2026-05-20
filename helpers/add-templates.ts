@@ -17,6 +17,7 @@ export interface SeedTemplate {
   description: string;
   icon: { iconColor: number; iconName: string };
   id: string;
+  questions: SeedTemplateQuestion[];
   seedKey: SeedTemplateKey;
   tenantId: string;
   title: string;
@@ -26,6 +27,14 @@ export interface SeedTemplateAddon {
   id: string;
   isPaid: boolean;
   registrationOptionIds: string[];
+  title: string;
+}
+
+export interface SeedTemplateQuestion {
+  id: string;
+  registrationOptionKind: 'organizer' | 'participant';
+  registrationOptionId: string;
+  required: boolean;
   title: string;
 }
 
@@ -282,6 +291,11 @@ export const addTemplates = async (
       .filter((option) => !option.organizingRegistration)
       .map((option) => [option.templateId, option]),
   );
+  const organizerRegistrationOptionByTemplateId = new Map(
+    [...registrationOptionsToAdd, ...paidOptionValues]
+      .filter((option) => option.organizingRegistration)
+      .map((option) => [option.templateId, option]),
+  );
   const addonTemplateCandidates = [
     {
       description: 'Reusable reminder for a simple packed lunch add-on.',
@@ -360,6 +374,58 @@ export const addTemplates = async (
   }
   consola.success(`Inserted ${addonValues.length} template add-ons`);
 
+  const questionTemplateCandidates = [
+    {
+      description: 'Helps organizers prepare the right pace and route notes.',
+      registrationOptionKind: 'participant' as const,
+      required: true,
+      seedKey: 'hike' as const,
+      title: 'Do you have any hiking experience we should know about?',
+    },
+    {
+      description: 'Collects organizer logistics input before the event.',
+      registrationOptionKind: 'organizer' as const,
+      required: false,
+      seedKey: 'weekend-trip' as const,
+      title: 'Which organizer task would you prefer to help with?',
+    },
+  ];
+  const questionValues = questionTemplateCandidates.flatMap((candidate) => {
+    const template = [...createdFreeTemplates, ...createdPaidTemplates].find(
+      (createdTemplate) => createdTemplate.seedKey === candidate.seedKey,
+    );
+    if (!template) {
+      return [];
+    }
+
+    const registrationOption =
+      candidate.registrationOptionKind === 'organizer'
+        ? organizerRegistrationOptionByTemplateId.get(template.id)
+        : registrationOptionByTemplateId.get(template.id);
+    const registrationOptionId = registrationOption?.id;
+    if (!registrationOptionId) {
+      return [];
+    }
+
+    return [
+      {
+        description: candidate.description,
+        id: getId(),
+        registrationOptionId,
+        required: candidate.required,
+        sortOrder: 0,
+        templateId: template.id,
+        title: candidate.title,
+      } satisfies InferInsertModel<typeof schema.templateRegistrationQuestions>,
+    ];
+  });
+  if (questionValues.length > 0) {
+    await database
+      .insert(schema.templateRegistrationQuestions)
+      .values(questionValues);
+  }
+  consola.success(`Inserted ${questionValues.length} template questions`);
+
   const addonByTemplateId = new Map<string, SeedTemplateAddon[]>();
   for (const addon of addonValues) {
     const attachedOptionIds = addonRegistrationOptionValues
@@ -379,12 +445,31 @@ export const addTemplates = async (
     addonByTemplateId.set(addon.templateId, existing);
   }
 
+  const questionByTemplateId = new Map<string, SeedTemplateQuestion[]>();
+  for (const question of questionValues) {
+    const existing = questionByTemplateId.get(question.templateId) ?? [];
+    const organizerRegistrationOption =
+      organizerRegistrationOptionByTemplateId.get(question.templateId);
+    existing.push({
+      id: question.id,
+      registrationOptionKind:
+        organizerRegistrationOption?.id === question.registrationOptionId
+          ? 'organizer'
+          : 'participant',
+      registrationOptionId: question.registrationOptionId,
+      required: question.required,
+      title: question.title,
+    });
+    questionByTemplateId.set(question.templateId, existing);
+  }
+
   return [...createdFreeTemplates, ...createdPaidTemplates].map((template) => {
     const seededTemplate = {
       addOns: addonByTemplateId.get(template.id) ?? [],
       description: template.description,
       icon: template.icon,
       id: template.id,
+      questions: questionByTemplateId.get(template.id) ?? [],
       seedKey: template.seedKey,
       tenantId: template.tenantId,
       title: template.title,
