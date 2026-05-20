@@ -335,6 +335,26 @@ describe('generated docs source current behavior', () => {
     expect(source).not.toContain('ticket QR code by email');
   });
 
+  it('keeps event approval docs backed by deterministic lifecycle persistence checks', () => {
+    const source = readSource('tests/docs/events/event-approval.doc.ts');
+
+    expect(source).toContain('Approval Flow ${seedDate.getTime()}');
+    expect(source).toContain('Expected generated approval docs event to exist');
+    expect(source).toContain(
+      "expect((await readGeneratedEvent()).status).toBe('PENDING_REVIEW')",
+    );
+    expect(source).toContain("expect(rejectedEvent.status).toBe('REJECTED')");
+    expect(source).toContain(
+      'expect(rejectedEvent.statusComment).toBe(rejectionComment)',
+    );
+    expect(source).toContain("expect(approvedEvent.status).toBe('APPROVED')");
+    expect(source).toContain('.delete(schema.eventRegistrationOptions)');
+    expect(source).toContain('.delete(schema.eventInstances)');
+    expect(source).not.toContain(
+      'Approval Flow ${seedDate.toISOString().slice(0, 10)}',
+    );
+  });
+
   it('keeps event-management docs aligned with scanner and organizer scope', () => {
     const source = readSource('tests/docs/events/event-management.doc.ts');
 
