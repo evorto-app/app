@@ -271,6 +271,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     route coverage pin supported relaunch currency/locale/timezone values,
     hosted legal text fields, public legal page routes, and tenant logo/favicon
     upload storage paths while normalizing legacy context payloads.
+    General-settings identity coverage also pins read-only tenant name, primary
+    domain, and Stripe account support lookup labels.
     General-settings component coverage also pins that invalid, submitting, and
     mutation-pending saves stay disabled so slow settings writes cannot
     double-submit, and that brand-asset uploads stay disabled while any upload

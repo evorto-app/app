@@ -22,7 +22,7 @@ describe('tenantIdentityRows', () => {
       { label: 'Currency', value: 'EUR' },
       { label: 'Locale', value: 'de-DE' },
       { label: 'Timezone', value: 'Europe/Berlin' },
-      { label: 'Stripe account', value: 'Connected' },
+      { label: 'Stripe account', value: 'Connected (acct_123)' },
     ]);
   });
 
