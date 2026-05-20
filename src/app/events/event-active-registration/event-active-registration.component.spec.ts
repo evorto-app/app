@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  registrationCancellationActionDisabled,
   registrationCancellationCopy,
   registrationDeferredActionCopy,
   registrationTransferActionCopy,
+  registrationTransferActionDisabled,
 } from './event-active-registration.component';
 import { normalizeRegistrationTransferTargetEmail } from './event-registration-transfer-dialog.component';
 
@@ -148,6 +150,66 @@ describe('registrationTransferActionCopy', () => {
         transferAvailable: false,
       }),
     ).toBeNull();
+  });
+});
+
+describe('active registration action guards', () => {
+  it('disables cancellation while cancellation or transfer writes are pending', () => {
+    expect(
+      registrationCancellationActionDisabled({
+        cancellationPending: true,
+        transferPending: false,
+      }),
+    ).toBe(true);
+    expect(
+      registrationCancellationActionDisabled({
+        cancellationPending: false,
+        transferPending: true,
+      }),
+    ).toBe(true);
+  });
+
+  it('allows cancellation only when no active registration action write is pending', () => {
+    expect(
+      registrationCancellationActionDisabled({
+        cancellationPending: false,
+        transferPending: false,
+      }),
+    ).toBe(false);
+  });
+
+  it('disables transfer when unavailable or when cancellation or transfer writes are pending', () => {
+    expect(
+      registrationTransferActionDisabled({
+        cancellationPending: false,
+        transferAvailable: false,
+        transferPending: false,
+      }),
+    ).toBe(true);
+    expect(
+      registrationTransferActionDisabled({
+        cancellationPending: true,
+        transferAvailable: true,
+        transferPending: false,
+      }),
+    ).toBe(true);
+    expect(
+      registrationTransferActionDisabled({
+        cancellationPending: false,
+        transferAvailable: true,
+        transferPending: true,
+      }),
+    ).toBe(true);
+  });
+
+  it('allows transfer only when available and no active registration action write is pending', () => {
+    expect(
+      registrationTransferActionDisabled({
+        cancellationPending: false,
+        transferAvailable: true,
+        transferPending: false,
+      }),
+    ).toBe(false);
   });
 });
 
