@@ -1331,6 +1331,10 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** the generic `tests/docs/template.doc.ts` discovery placeholder was removed; current template documentation lives in `tests/docs/templates/templates.doc.ts`.
 - **Addressed in stabilization pass:** the focused `docScreenshot` helper now resolves `DOCS_IMG_OUT_DIR` at call time instead of import time, so tests and docs jobs can set output paths per run. Some docs journeys still contain fixed waits and should be tightened as those flows are revisited.
 - **Addressed in stabilization pass:** `tests/docs/events/event-management.doc.ts` now waits on concrete headings instead of fixed one-second delays before its major screenshots.
+- **Addressed in stabilization pass:** Playwright inventory coverage now rejects
+  fixed `.waitForTimeout(...)` waits in specs and generated docs, so future
+  docs/specs must wait on concrete UI state instead of reintroducing
+  time-based sleeps.
 - **Addressed in stabilization pass:** required `@track`, `@req`, and `@doc`
   title metadata was removed from the custom Playwright lint rule and the rule
   was dropped. Test guidance now prefers clear behavior-oriented titles without
@@ -1366,6 +1370,8 @@ the current working direction until a product decision overrides them.
 - Keep active price-label specs aligned with seeded event and template tax-rate data as price display behavior changes.
 - Keep event-management and finance-overview docs aligned as the live UI changes; both were rewritten during this stabilization pass and should not be treated as stale product truth.
 - Continue auditing remaining `test.skip` usage so credential/integration skips stay honest and fixture-state gaps become hard failures or explicit, reason-recorded `test.fixme` states.
+- Keep Playwright specs and generated docs waiting on concrete UI states rather
+  than fixed sleeps.
 - Keep docs/list commands free of reporter output cleanup, runtime secret requirements, and local browser startup.
 - Update `tests/test-inventory.md` after stale/placeholder docs are pruned.
 - Add missing docs/specs for tenant/global-admin settings, account/profile persistence, role/user management, and negative registration paths as those flows are stabilized.
