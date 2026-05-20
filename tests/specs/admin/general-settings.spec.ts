@@ -58,15 +58,17 @@ test('tenant admin updates relaunch general settings @admin', async ({
   const updatedTenant = await database.query.tenants.findFirst({
     where: { id: tenant.id },
   });
-  expect(updatedTenant).toBeTruthy();
-  expect(updatedTenant?.logoUrl).toBe(logoUrl);
-  expect(updatedTenant?.faviconUrl).toBe(faviconUrl);
-  expect(updatedTenant?.seoTitle).toBe(seoTitle);
-  expect(updatedTenant?.seoDescription).toBe(seoDescription);
-  expect(updatedTenant?.legalNoticeText).toBe(legalNoticeText);
-  expect(updatedTenant?.privacyPolicyUrl).toBe(privacyPolicyUrl);
-  expect(updatedTenant?.termsText).toBe(termsText);
-  expect(updatedTenant?.discountProviders.esnCard).toEqual({
+  if (!updatedTenant) {
+    throw new Error('Expected tenant row after general-settings update');
+  }
+  expect(updatedTenant.logoUrl).toBe(logoUrl);
+  expect(updatedTenant.faviconUrl).toBe(faviconUrl);
+  expect(updatedTenant.seoTitle).toBe(seoTitle);
+  expect(updatedTenant.seoDescription).toBe(seoDescription);
+  expect(updatedTenant.legalNoticeText).toBe(legalNoticeText);
+  expect(updatedTenant.privacyPolicyUrl).toBe(privacyPolicyUrl);
+  expect(updatedTenant.termsText).toBe(termsText);
+  expect(updatedTenant.discountProviders.esnCard).toEqual({
     config: { buyEsnCardUrl },
     status: 'enabled',
   });

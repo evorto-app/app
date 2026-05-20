@@ -1305,7 +1305,7 @@ the current working direction until a product decision overrides them.
 - `tests/specs/admin/general-settings.spec.ts` functionally covers tenant
   general-settings persistence for editable brand asset URLs, SEO copy, hosted
   legal text, external legal URLs, and ESNcard provider buy-link settings with
-  database readback.
+  explicit database readback.
 - `tests/docs/admin/global-admin.doc.ts` documents the current searchable global-admin tenant list, tenant create/edit workflow, visible relaunch tenant-scope notice, and tenant detail review, and records that custom-domain verification, multi-domain automation, and impersonation workflows are not implemented yet.
 - `helpers/testing/generated-docs-source.spec.ts` keeps the global-admin guide
   aligned with the one-domain/no-impersonation relaunch scope. It also keeps
@@ -1329,6 +1329,9 @@ the current working direction until a product decision overrides them.
   closed instead of becoming "Open tenant domain" links.
 - `src/server/effect/rpc/handlers/global-admin.handlers.spec.ts` covers explicit `globalAdmin:manageTenants` authorization, `globalAdmin:*` dependency authorization, tenant create/update normalization, and fail-closed forbidden/unauthorized tenant-list reads before querying tenants.
 - `src/server/context/request-context-resolver.spec.ts` covers host-first tenant resolution, localhost tenant-cookie fallback, stale localhost tenant-cookie fallback, unknown-host failure, global-admin permissions resolving without a tenant user assignment, and tenant-user context failing closed when the Auth0 user has no current-tenant assignment.
+- `tests/specs/admin/roles-management.spec.ts` functionally covers the current
+  admin user-list review surface and role create/edit flow, including
+  permission dependency display and explicit create/edit database readbacks.
 - Playwright browser probing was limited because the bundled Playwright browser was not installed and stored auth states were stale; system Chrome confirmed anonymous/global-admin redirects to Auth0.
 
 ### Product Questions Answered Above
@@ -2230,6 +2233,10 @@ implement those decisions or explicitly revise them there before changing code.
   receipt Playwright specs fail explicitly when the expected persisted user or
   receipt row is missing after the page flow, instead of relying on optional
   property assertions.
+- Tenant/admin readback fixture-hardening pass: made general-settings and
+  roles-management Playwright specs fail explicitly when expected tenant or role
+  readbacks are missing after save/create/edit flows, before checking persisted
+  values.
 - Scanner page-backed action-guard pass: extended scanner Playwright coverage
   so buyer-plus-guest check-in and later guest-arrival check-in both assert the
   visible check-in action remains disabled after local success while the scan
