@@ -8,6 +8,7 @@ import { StripeClient } from '../../../../stripe-client';
 import {
   EventRegistrationService,
   isUserEligibleForRegistrationOption,
+  validateRegistrationQuestionAnswers,
 } from './event-registration.service';
 
 const stripeClient = new Stripe('sk_test_123');
@@ -65,6 +66,73 @@ describe('EventRegistrationService', () => {
           userRoleIds: ['role-2'],
         }),
       ).toBe(false);
+    });
+  });
+
+  describe('validateRegistrationQuestionAnswers', () => {
+    it('trims submitted answers and ignores blank optional answers', () => {
+      expect(
+        validateRegistrationQuestionAnswers({
+          answers: [
+            {
+              answer: '  Alice  ',
+              questionId: 'question-1',
+            },
+            {
+              answer: '   ',
+              questionId: 'question-2',
+            },
+          ],
+          questions: [
+            {
+              id: 'question-1',
+              required: true,
+            },
+            {
+              id: 'question-2',
+              required: false,
+            },
+          ],
+        }),
+      ).toEqual([
+        {
+          answer: 'Alice',
+          questionId: 'question-1',
+        },
+      ]);
+    });
+
+    it('rejects missing required answers', () => {
+      expect(() =>
+        validateRegistrationQuestionAnswers({
+          answers: [],
+          questions: [
+            {
+              id: 'question-1',
+              required: true,
+            },
+          ],
+        }),
+      ).toThrow('Required registration question is missing');
+    });
+
+    it('rejects answers for questions outside the selected option', () => {
+      expect(() =>
+        validateRegistrationQuestionAnswers({
+          answers: [
+            {
+              answer: 'Alice',
+              questionId: 'other-question',
+            },
+          ],
+          questions: [
+            {
+              id: 'question-1',
+              required: false,
+            },
+          ],
+        }),
+      ).toThrow('Registration question does not belong to this option');
     });
   });
 

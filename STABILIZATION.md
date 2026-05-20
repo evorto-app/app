@@ -676,8 +676,8 @@ the current working direction until a product decision overrides them.
   exposes reusable registration questions attached to the participant or
   organizer registration option, persists them in template-scoped question
   storage, returns them through `templates.findOne`, and shows them on template
-  detail. Event-side registration answer collection remains a separate
-  fulfillment slice.
+  detail. Event registration and waitlist writes now collect and persist
+  submitted answers for copied event questions.
 - **Addressed in stabilization pass:** simple-mode template registration
   options now preserve editable option names plus public and registered-user
   rich-text descriptions. Those fields are shown on template detail and already
@@ -771,7 +771,7 @@ the current working direction until a product decision overrides them.
 
 ### Product Questions Answered Above
 
-- Is simple mode the intended relaunch template scope, or should richer registration options/add-ons/questions/organizer notes be available before relaunch? Answered locally: keep simple mode primary and expose organizer planning tips, ESNcard discounted prices, reusable add-ons, reusable registration questions, and event-side question visibility now; submitted question answer collection remains separate follow-up work.
+- Is simple mode the intended relaunch template scope, or should richer registration options/add-ons/questions/organizer notes be available before relaunch? Answered locally: keep simple mode primary and expose organizer planning tips, ESNcard discounted prices, reusable add-ons, reusable registration questions, event-side question visibility, and submitted answer collection for registration/waitlist writes now.
 - Should `random` and `application` registration modes be selectable now if registration fulfillment does not implement those semantics?
 - Should template view require `templates:view`, or should organizers with `events:create` inherit template view through permission dependencies only?
 - Should template category management remain a separate capability from template creation/editing?
@@ -1430,8 +1430,9 @@ the current working direction until a product decision overrides them.
    copies reusable add-ons into event-scoped read-model records. Simple
    template create/edit can now persist reusable registration questions, show
    them on template detail, and copy them into event-scoped read-model records.
-   Add-on checkout/sales fulfillment and submitted question answer collection
-   remain separate fuller product/runtime slices.
+   Event registration and waitlist writes now collect/persist submitted
+   question answers. Add-on checkout/sales fulfillment remains a separate
+   fuller product/runtime slice.
 4. Add Browser-backed scanner/organizer aggregate review once local runtime is available.
 5. Add Browser-backed profile coverage for payment-continuation, ticket/cancellation routing, waitlist messaging, and ESNcard provider failure semantics once local runtime is available.
 6. Fill the remaining tenant settings implementation gap for automated onboarding/domain workflows. The current general-settings page exposes SEO fields, uploaded or externally hosted logo/favicon URLs, tenant legal links or hosted legal text, editable supported locale/currency/timezone values, read-only runtime identity, and a visible deferred-settings summary. The current global-admin surface supports a searchable tenant list, tenant create/edit, and tenant detail review, while custom-domain verification, multi-domain automation, and impersonation remain out of scope.
@@ -1860,15 +1861,17 @@ implement those decisions or explicitly revise them there before changing code.
   fulfillment remains future work.
 - Template question source pass: added template-scoped registration-question
   storage, simple template create/edit controls, `templates.findOne` read-model
-  support, and template detail display while event-side answer collection
-  remains future work.
+  support, and template detail display.
 - Template question seed pass: added reusable participant and organizer
   questions to reset-from-zero template seed data and pinned their
   registration-option attachments in the seed baseline.
 - Event question copy pass: added event-scoped registration-question storage,
   copied reusable template questions by source registration option during event
-  creation, and surfaced copied questions read-only on event registration
-  option cards while submitted answer collection remains future work.
+  creation, and surfaced copied questions on event registration option cards.
+- Event question answer pass: added event-scoped registration-question answer
+  storage, submitted answer payloads for registration and waitlist writes,
+  server-side required-question validation, and local component coverage for
+  required-answer guards and payload normalization.
 - Active-registration action-guard pass: shared tested cancellation and
   transfer disabled-state helpers between active-registration buttons and
   handlers so participant cancellation and unpaid transfer writes cannot

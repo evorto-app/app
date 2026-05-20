@@ -460,25 +460,36 @@ export const EventsReviewEvent = asRpcMutation(
   }),
 );
 
+export const EventsRegistrationQuestionAnswerInput = Schema.Struct({
+  answer: Schema.String,
+  questionId: Schema.NonEmptyString,
+});
+
+export const EventsRegisterForEventPayload = Schema.Struct({
+  answers: Schema.optional(Schema.Array(EventsRegistrationQuestionAnswerInput)),
+  eventId: Schema.NonEmptyString,
+  guestCount: nonNegativeNumber,
+  registrationOptionId: Schema.NonEmptyString,
+});
+
 export const EventsRegisterForEvent = asRpcMutation(
   Rpc.make('events.registerForEvent', {
     error: EventsRegisterForEventError,
-    payload: Schema.Struct({
-      eventId: Schema.NonEmptyString,
-      guestCount: nonNegativeNumber,
-      registrationOptionId: Schema.NonEmptyString,
-    }),
+    payload: EventsRegisterForEventPayload,
     success: Schema.Void,
   }),
 );
 
+export const EventsJoinWaitlistPayload = Schema.Struct({
+  answers: Schema.optional(Schema.Array(EventsRegistrationQuestionAnswerInput)),
+  eventId: Schema.NonEmptyString,
+  registrationOptionId: Schema.NonEmptyString,
+});
+
 export const EventsJoinWaitlist = asRpcMutation(
   Rpc.make('events.joinWaitlist', {
     error: EventsRegisterForEventError,
-    payload: Schema.Struct({
-      eventId: Schema.NonEmptyString,
-      registrationOptionId: Schema.NonEmptyString,
-    }),
+    payload: EventsJoinWaitlistPayload,
     success: Schema.Void,
   }),
 );

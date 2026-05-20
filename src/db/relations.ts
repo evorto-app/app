@@ -60,7 +60,20 @@ export const relations = defineRelations(schema, (r) => ({
     eventRegistrations: r.many.eventRegistrations(),
     questions: r.many.eventRegistrationQuestions(),
   },
+  eventRegistrationQuestionAnswers: {
+    question: r.one.eventRegistrationQuestions({
+      from: r.eventRegistrationQuestionAnswers.questionId,
+      optional: false,
+      to: r.eventRegistrationQuestions.id,
+    }),
+    registration: r.one.eventRegistrations({
+      from: r.eventRegistrationQuestionAnswers.registrationId,
+      optional: false,
+      to: r.eventRegistrations.id,
+    }),
+  },
   eventRegistrationQuestions: {
+    answers: r.many.eventRegistrationQuestionAnswers(),
     event: r.one.eventInstances({
       from: r.eventRegistrationQuestions.eventId,
       optional: false,
@@ -82,6 +95,7 @@ export const relations = defineRelations(schema, (r) => ({
       optional: false,
       to: r.eventInstances.id,
     }),
+    questionAnswers: r.many.eventRegistrationQuestionAnswers(),
     registrationOption: r.one.eventRegistrationOptions({
       from: r.eventRegistrations.registrationOptionId,
       optional: false,
