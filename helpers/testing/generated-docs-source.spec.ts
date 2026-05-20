@@ -275,6 +275,17 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain(
       'QR email delivery is not part of the current relaunch flow.',
     );
+    expect(source).toContain('seedRequiredRegistrationQuestion');
+    expect(source).toContain(
+      'Free registration cards can also offer registration-time add-ons and required questions.',
+    );
+    expect(source).toContain(
+      'Question answers are stored with the registration for organizers.',
+    );
+    expect(source).toContain(
+      'participantRegistrationCard.getByLabel(registrationQuestion.title)',
+    );
+    expect(source).toContain('registration.questionAnswers');
     expect(source).not.toContain('Register button stays available');
     expect(source).not.toContain('paid transfers are automatic');
     expect(source).not.toContain('resale is automatic');

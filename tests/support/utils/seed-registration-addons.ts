@@ -1,4 +1,5 @@
 import * as schema from '../../../src/db/schema';
+import { getId } from '../../../helpers/get-id';
 
 export const seedFreeRegistrationAddon = async ({
   addonId,
@@ -41,4 +42,36 @@ export const seedFreeRegistrationAddon = async ({
     quantity: 1,
     registrationOptionId,
   });
+};
+
+export const seedRequiredRegistrationQuestion = async ({
+  database,
+  description = 'Tell organizers anything they need to know before the event.',
+  eventId,
+  registrationOptionId,
+  title = 'Anything organizers should know?',
+}: {
+  database: {
+    insert: (table: unknown) => {
+      values: (value: unknown) => Promise<unknown>;
+    };
+  };
+  description?: string;
+  eventId: string;
+  registrationOptionId: string;
+  title?: string;
+}) => {
+  const questionId = `q-${getId().slice(0, 18)}`;
+
+  await database.insert(schema.eventRegistrationQuestions).values({
+    description,
+    eventId,
+    id: questionId,
+    registrationOptionId,
+    required: true,
+    sortOrder: 0,
+    title,
+  });
+
+  return { questionId, title };
 };
