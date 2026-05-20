@@ -891,7 +891,7 @@ the current working direction until a product decision overrides them.
 - Receipt flow specs cover receipt submission UI, receipt approval/reimbursement path, and tenant "Other" receipt country visibility.
 - **Addressed in stabilization pass:** `tests/specs/finance/receipts-flows.spec.ts` now hard-fails when the seeded pending receipt, refundable receipt group, row checkbox, enabled reimbursement action, or tenant "Other" country option is missing.
 - Finance overview docs now describe the current navigation-style finance UI, current finance capability names, and the manual submitter-notification caveat before and after receipt review.
-- **Addressed in stabilization pass:** `tests/docs/finance/receipt-review-reimbursement.doc.ts` now walks the receipt approval queue, approval detail page, manual submitter-notification caveat, reimbursement queue, payout-detail selection, and manual reimbursement recording.
+- **Addressed in stabilization pass:** `tests/docs/finance/receipt-review-reimbursement.doc.ts` now walks the exact seeded receipt through the approval queue, approval detail page, manual submitter-notification caveat, reimbursement queue, payout-detail selection, and manual reimbursement recording, then reads back the final receipt state and restores the seeded row.
 - `src/app/finance/receipt-refund-list/receipt-refund-list.component.spec.ts` pins the reimbursement queue's manual money-movement notice, payout-detail gating, payout-detail labels, selected-total math, and reimbursement record disabled guard. The receipt reimbursement doc/spec assert the manual-money notice on the page.
 - `src/app/finance/receipt-approval-detail/receipt-approval-detail.component.spec.ts`
   pins the approval/rejection action guard for invalid forms, loading receipt
@@ -1542,6 +1542,10 @@ implement those decisions or explicitly revise them there before changing code.
   paid/free registration option tax-rate rules, including tenant-missing,
   inactive, and exclusive tax rates.
 - Receipt review docs pass: added a generated documentation journey for receipt approval and manual reimbursement recording, then removed receipt review/reimbursement from the generic missing-docs backlog.
+- Receipt review docs readback pass: made the generated receipt
+  approval/reimbursement journey follow the seeded receipt by filename/id, read
+  back approved/refunded states, and restore the seeded receipt plus generated
+  reimbursement transaction.
 - Finance receipt contact pass: receipt approval/reimbursement read models now
   render the submitter's notification email when present, falling back to the
   Auth0 login email only when no notification email is configured.

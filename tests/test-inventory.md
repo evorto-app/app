@@ -260,6 +260,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     pending, that reimbursement recording stays disabled while the refund
     mutation is pending, and that finance receipt contact details prefer the
     submitter's notification email with login email fallback.
+    `docs/finance/receipt-review-reimbursement.doc.ts` now follows the exact
+    seeded receipt through approval and reimbursement by id/file name, reads the
+    approved/refunded state back, and restores the seeded receipt plus generated
+    reimbursement transaction after the documentation journey.
   - Keep event-organizer receipt submission action coverage aligned with the
     two-step upload-plus-submit flow. Local app coverage now pins that Add
     receipt remains disabled while the event has not loaded yet, while the
