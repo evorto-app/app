@@ -691,7 +691,7 @@ the current working direction until a product decision overrides them.
 
 - `tests/specs/templates/templates.test.ts` covers create, view, empty-category add flow, and role autocomplete duplicate hiding.
 - `tests/docs/templates/templates.doc.ts` documents simple-mode template creation, organizer planning tips, role defaults, payment field visibility, optional ESNcard discounted price fields, and role-picker behavior. It asserts that enabling payment reveals both the price and tax-rate controls before taking the payment-field screenshot.
-- `tests/specs/templates/paid-option-requires-tax-rate.spec.ts` now has active simple-mode UI coverage for the paid tax-rate requirement and a seeded inclusive tax-rate save path. Remaining fixme entries are limited to future bulk/no-compatible-rate UI behavior.
+- `tests/specs/templates/paid-option-requires-tax-rate.spec.ts` now has active simple-mode UI coverage for the paid tax-rate requirement and a seeded inclusive tax-rate save path. The previous future bulk/no-compatible-rate fixme declarations were removed; current no-compatible-rate select feedback is pinned in local component coverage until a broader page flow exists.
 - `src/app/templates/shared/template-form/template-registration-option-form.utilities.spec.ts` covers paid template tax-rate and ESNcard discount preservation, paid missing-tax-rate pass-through for server validation, and free-registration payment-field cleanup before create/edit submission.
 - `src/app/templates/shared/template-form/template-registration-option-form.component.spec.ts`
   covers the paid tax-rate select feedback for loading, empty compatible-rate,
@@ -745,7 +745,7 @@ the current working direction until a product decision overrides them.
 - Keep template and event RPC location fields aligned on the shared `EventLocation` schema.
 - Keep organizer planning tips private to the template/organizer surface unless
   a later product decision makes them event-facing.
-- Keep the active template tax-rate UI coverage aligned with the current simple-mode payment fields and replace the remaining bulk/no-compatible-rate fixme declarations when those behaviors have UI surfaces.
+- Keep the active template tax-rate UI coverage aligned with the current simple-mode payment fields, and add broader page-backed no-compatible-rate or bulk-operation coverage only when those behaviors have real UI surfaces.
 - Keep `random` and `application` hidden until their fulfillment semantics are
   implemented end to end.
 
@@ -1408,7 +1408,11 @@ implement those decisions or explicitly revise them there before changing code.
 - Template spec cleanup pass: changed template category and role autocomplete coverage to require seeded icons, seeded roles, and concrete role option text instead of skipping fixture/setup failures.
 - None in the Templates pass. The highest-value issues are permission and contract validation gaps that need targeted tests with the fixes.
 - Template docs/spec cleanup pass: removed the generic template doc discovery placeholder, converted the deferred template tax-rate spec to honest fixme-only declarations, and updated the Playwright inventory.
-- Template tax-rate UI coverage pass: replaced the fixme-only template tax-rate file with active simple-mode Browser-backed assertions for the paid tax-rate requirement and seeded inclusive tax-rate save path, leaving only future bulk/no-compatible-rate behavior as fixme declarations.
+- Template tax-rate UI coverage pass: replaced the fixme-only template tax-rate file with active simple-mode Browser-backed assertions for the paid tax-rate requirement and seeded inclusive tax-rate save path.
+- Template tax-rate fixme cleanup pass: removed the future bulk/no-compatible-rate
+  fixme declarations from the paid-template Playwright spec after confirming
+  there is no bulk UI surface and local component coverage already pins the
+  no-compatible-rate select feedback.
 - Event price-label UI coverage pass: replaced the fixme-only inclusive-price file with active page-level assertions for paid event labels, free event options, zero-percent tax-free labels, fallback tax labels, ESNcard discounted prices retaining tax labels, and paid template detail summaries.
 - Permission evaluator pass: routed legacy server permission checks through the shared `includesPermission` helper so client and server agree on dependencies, wildcards, and legacy aliases, and added direct unit coverage for the shared evaluator plus tax-rate dependency behavior.
 - Role/user cleanup pass: removed placeholder user-list selection/edit affordances, aligned the roles doc with the current no-role-assignment UI, and fixed `users.findMany` to return only the RPC contract shape.
