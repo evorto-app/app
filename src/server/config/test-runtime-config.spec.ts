@@ -91,6 +91,14 @@ describe('test-runtime-config', () => {
         '--project=docs-integration',
       ]),
     ).toBe(true);
+    expect(
+      requiresIntegrationOnlyPlaywrightEnvironment([
+        'node',
+        'playwright',
+        'test',
+        '--project=local-chrome-integration',
+      ]),
+    ).toBe(true);
   });
 
   it.effect('requires BASE_URL and ignores PLAYWRIGHT_TEST_BASE_URL', () =>

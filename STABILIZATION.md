@@ -1179,6 +1179,11 @@ the current working direction until a product decision overrides them.
   and duplicate-submit guards without Auth0 Management credentials. Its live
   Auth0 login/create-account journey remains integration-tagged and skips
   without Auth0 Management credentials.
+- `tests/specs/profile/create-account.spec.ts` adds the matching functional
+  integration coverage for Auth0-backed tenant account creation: a generated
+  Auth0 user signs in, creates the current-tenant account, lands on profile,
+  persists notification email/name fields, receives a tenant assignment plus
+  default role assignments, and cleans up the created database rows.
 - `tests/docs/users/create-account.doc.ts` asserts the account form exposes the editable address as "Notification email" when the integration path can run.
 - `src/app/app.routes.spec.ts` pins the relaunch route contract that public event browsing uses only account-assignment checks, feature areas require assigned authenticated accounts, `/create-account` stays auth-only for tenantless authenticated users, and `/global-admin` remains auth-only before tenant assignment checks.
 - `src/app/core/create-account/create-account.helpers.spec.ts` covers Auth0-data prefill fallback, explicit email-verification gating, create-account submit payload normalization, retryable submit disabled state, and create-account error message mapping without needing Auth0 Management credentials.
@@ -1383,6 +1388,11 @@ the current working direction until a product decision overrides them.
   functional Playwright spec that saves notification email plus global
   reimbursement fields, verifies the refreshed profile summary, reads the
   persisted user row, and restores the original fixture data.
+- **Addressed in stabilization pass:** create-account now has a
+  credential-gated functional Playwright spec alongside the generated
+  documentation journey, covering a generated Auth0 user creating a tenant
+  account, landing on profile, persisted account fields, tenant/default-role
+  assignment, and cleanup.
 - **Addressed in stabilization pass:** scanning/check-in docs now describe the dedicated QR scanner, scan warnings, authorization, checked-in count updates, and selected guest-quantity check-in. The remaining scanner follow-up is manual Browser-backed runtime review, not missing automated aggregate coverage or product documentation.
 - **Addressed in stabilization pass:** scanner Playwright coverage now includes
   the partial guest-arrival case where the buyer and one guest were already

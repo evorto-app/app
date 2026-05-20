@@ -111,6 +111,11 @@ export default defineConfig({
       integrationOnly: false,
       testIgnore: /docs\/.*\.doc\.ts$/,
     }),
+    createModeProject('local-chrome-integration', {
+      dependencies: ['setup'],
+      integrationOnly: true,
+      testIgnore: /docs\/.*\.doc\.ts$/,
+    }),
     createModeProject('docs-integration', {
       dependencies: ['setup'],
       integrationOnly: true,
