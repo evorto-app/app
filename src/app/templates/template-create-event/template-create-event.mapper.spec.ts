@@ -26,6 +26,7 @@ describe('createEventFormModelFromTemplate', () => {
           type: 'online',
         },
         planningTips: 'Bring printed waiver forms.',
+        questions: [],
         registrationOptions: [
           {
             closeRegistrationOffset: 24,
@@ -101,6 +102,7 @@ describe('createEventFormModelFromTemplate', () => {
         id: 'template-1',
         location: null,
         planningTips: 'Bring printed waiver forms.',
+        questions: [],
         registrationOptions: [],
         title: 'Weekly meetup',
       },
@@ -145,6 +147,7 @@ describe('createEventFormModelFromTemplate', () => {
         id: 'template-1',
         location: null,
         planningTips: null,
+        questions: [],
         registrationOptions: [
           {
             closeRegistrationOffset: 24,

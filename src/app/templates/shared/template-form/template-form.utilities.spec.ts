@@ -86,3 +86,33 @@ describe('template form add-on model', () => {
     );
   });
 });
+
+describe('template form question model', () => {
+  it('starts new simple templates without registration questions', () => {
+    expect(createTemplateFormModel().questions).toEqual([]);
+  });
+
+  it('keeps existing questions when later overrides only refresh defaults', () => {
+    const previous = createTemplateFormModel({
+      questions: [
+        {
+          description: '',
+          registrationOptionKind: 'participant',
+          required: true,
+          title: 'Dietary requirements',
+        },
+      ],
+    });
+
+    expect(
+      mergeTemplateFormOverrides({ categoryId: 'category-2' }, previous),
+    ).toEqual(
+      expect.objectContaining({
+        categoryId: 'category-2',
+        questions: expect.arrayContaining([
+          expect.objectContaining({ title: 'Dietary requirements' }),
+        ]),
+      }),
+    );
+  });
+});

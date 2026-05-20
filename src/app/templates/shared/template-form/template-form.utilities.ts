@@ -12,6 +12,11 @@ import {
   TemplateGeneralFormOverrides,
 } from './template-general-form.utilities';
 import {
+  createTemplateQuestionFormModel,
+  TemplateQuestionFormModel,
+  TemplateQuestionSubmitData,
+} from './template-question-form.utilities';
+import {
   createTemplateRegistrationFormModel,
   mergeTemplateRegistrationFormOverrides,
   TemplateRegistrationFormModel,
@@ -23,22 +28,29 @@ export interface TemplateFormData extends TemplateGeneralFormModel {
   addOns: TemplateAddonFormModel[];
   organizerRegistration: TemplateRegistrationFormModel;
   participantRegistration: TemplateRegistrationFormModel;
+  questions: TemplateQuestionFormModel[];
 }
 
 export type TemplateFormOverrides = TemplateGeneralFormOverrides & {
   addOns?: TemplateAddonFormModel[];
   organizerRegistration?: TemplateRegistrationFormOverrides;
   participantRegistration?: TemplateRegistrationFormOverrides;
+  questions?: TemplateQuestionFormModel[];
 };
 
 export type TemplateFormSubmitData = Omit<
   TemplateFormData,
-  'addOns' | 'icon' | 'organizerRegistration' | 'participantRegistration'
+  | 'addOns'
+  | 'icon'
+  | 'organizerRegistration'
+  | 'participantRegistration'
+  | 'questions'
 > & {
   addOns: TemplateAddonSubmitData[];
   icon: IconValue;
   organizerRegistration: TemplateRegistrationSubmitData;
   participantRegistration: TemplateRegistrationSubmitData;
+  questions: TemplateQuestionSubmitData[];
 };
 
 export const createTemplateFormModel = (
@@ -55,6 +67,7 @@ export const createTemplateFormModel = (
       spots: 20,
       title: 'Participant Registration',
     }),
+    questions: [],
   };
 
   const organizerRegistration = mergeTemplateRegistrationFormOverrides(
@@ -93,6 +106,9 @@ export const createTemplateFormModel = (
     ),
     organizerRegistration,
     participantRegistration,
+    questions: (overrides.questions ?? base.questions).map((question) =>
+      createTemplateQuestionFormModel(question),
+    ),
   };
 };
 
@@ -117,6 +133,7 @@ export const mergeTemplateFormOverrides = (
       base.participantRegistration,
     ),
     planningTips: overrides.planningTips ?? base.planningTips,
+    questions: overrides.questions ?? base.questions,
     title: overrides.title ?? base.title,
   });
 };

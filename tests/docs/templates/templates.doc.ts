@@ -153,6 +153,24 @@ When a template creates an event, those reusable add-ons are copied into the eve
 
   await testInfo.attach('markdown', {
     body: `
+#### Registration questions
+Templates can store reusable registration questions for participant or organizer signup.
+Questions can include help text and can be marked as required. Event-side answer collection is handled separately from this template setup flow.
+`,
+  });
+  await page.getByRole('button', { name: 'Add question' }).click();
+  await expect(page.getByLabel('Question')).toBeVisible();
+  await expect(page.getByLabel('Ask during')).toBeVisible();
+  await expect(page.getByText('Require an answer')).toBeVisible();
+  await takeScreenshot(
+    testInfo,
+    page.locator('app-template-question-form'),
+    page,
+    'Reusable registration question form',
+  );
+
+  await testInfo.attach('markdown', {
+    body: `
 Once you are happy with your template, click _Save template_ to save your changes.
 You will be redirected to the detail page for that template.
 `,

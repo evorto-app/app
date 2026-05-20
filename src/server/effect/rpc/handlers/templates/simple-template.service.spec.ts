@@ -8,6 +8,7 @@ import {
   buildTemplateAddonRegistrationOptionInsert,
   buildTemplateInsertValues,
   buildTemplateOptionDiscountInsert,
+  buildTemplateQuestionInsert,
   requireSimpleTemplateRegistrationOptionIds,
   SimpleTemplateService,
 } from './simple-template.service';
@@ -59,6 +60,13 @@ const validTemplateAddonInput = {
   stripeTaxRateId: 'txr_vat_19',
   title: '  Dinner  ',
   totalAvailableQuantity: 40,
+};
+
+const validTemplateQuestionInput = {
+  description: '  Tell organizers about accessibility needs.  ',
+  registrationOptionKind: 'participant' as const,
+  required: false,
+  title: '  Accessibility needs  ',
 };
 
 const testLayer = Layer.mergeAll(
@@ -280,6 +288,43 @@ describe('SimpleTemplateService', () => {
     ).toEqual(
       expect.objectContaining({
         registrationOptionId: 'organizer-option-1',
+      }),
+    );
+  });
+
+  it('builds template registration-question inserts for the selected registration option kind', () => {
+    expect(
+      buildTemplateQuestionInsert({
+        organizerRegistrationOptionId: 'organizer-option-1',
+        participantRegistrationOptionId: 'participant-option-1',
+        question: validTemplateQuestionInput,
+        sortOrder: 0,
+        templateId: 'template-1',
+      }),
+    ).toEqual({
+      description: 'Tell organizers about accessibility needs.',
+      registrationOptionId: 'participant-option-1',
+      required: false,
+      sortOrder: 0,
+      templateId: 'template-1',
+      title: 'Accessibility needs',
+    });
+
+    expect(
+      buildTemplateQuestionInsert({
+        organizerRegistrationOptionId: 'organizer-option-1',
+        participantRegistrationOptionId: 'participant-option-1',
+        question: {
+          ...validTemplateQuestionInput,
+          registrationOptionKind: 'organizer',
+        },
+        sortOrder: 1,
+        templateId: 'template-1',
+      }),
+    ).toEqual(
+      expect.objectContaining({
+        registrationOptionId: 'organizer-option-1',
+        sortOrder: 1,
       }),
     );
   });
@@ -633,6 +678,38 @@ describe('SimpleTemplateService', () => {
       const error = yield* program;
       expect(error['_tag']).toBe('TemplateSimpleBadRequestError');
       expect(error.message).toBe('Template add-on tax rate validation failed');
+    }),
+  );
+
+  it.effect('fails when a registration question has a blank title', () =>
+    Effect.gen(function* () {
+      const program = SimpleTemplateService.createSimpleTemplate({
+        esnCardEnabled: true,
+        input: {
+          ...validTemplateInput,
+          questions: [
+            {
+              ...validTemplateQuestionInput,
+              title: '   ',
+            },
+          ],
+        },
+        tenantId: 'tenant-1',
+      }).pipe(
+        Effect.flip,
+        Effect.provide(
+          createValidationLayer(
+            createValidationDatabase({
+              categoryFound: true,
+              roleIds: [],
+            }),
+          ),
+        ),
+      );
+
+      const error = yield* program;
+      expect(error['_tag']).toBe('TemplateSimpleBadRequestError');
+      expect(error.message).toBe('Template question title is required');
     }),
   );
 });

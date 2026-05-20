@@ -96,6 +96,7 @@ export const relations = defineRelations(schema, (r) => ({
       to: r.eventTemplateCategories.id,
     }),
     eventInstances: r.many.eventInstances(),
+    questions: r.many.templateRegistrationQuestions(),
     registrationOptions: r.many.templateRegistrationOptions(),
     templateEventAddons: r.many.templateEventAddons(),
   },
@@ -183,7 +184,20 @@ export const relations = defineRelations(schema, (r) => ({
       optional: false,
       to: r.eventTemplates.id,
     }),
+    questions: r.many.templateRegistrationQuestions(),
     templateEventAddons: r.many.templateEventAddons(),
+  },
+  templateRegistrationQuestions: {
+    registrationOption: r.one.templateRegistrationOptions({
+      from: r.templateRegistrationQuestions.registrationOptionId,
+      optional: false,
+      to: r.templateRegistrationOptions.id,
+    }),
+    template: r.one.eventTemplates({
+      from: r.templateRegistrationQuestions.templateId,
+      optional: false,
+      to: r.eventTemplates.id,
+    }),
   },
   tenants: {
     eventRegistrations: r.many.eventRegistrations(),

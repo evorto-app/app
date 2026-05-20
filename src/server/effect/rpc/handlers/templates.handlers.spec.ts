@@ -199,6 +199,16 @@ describe('normalizeTemplateFindOneRecord', () => {
         id: 'template-1',
         location: null,
         planningTips: null,
+        questions: [
+          {
+            description: 'Tell organizers about accessibility needs.',
+            id: 'question-1',
+            registrationOptionId: 'template-option-1',
+            required: false,
+            sortOrder: 0,
+            title: 'Accessibility needs',
+          },
+        ],
         registrationOptions: [
           {
             closeRegistrationOffset: 24,
@@ -253,6 +263,16 @@ describe('normalizeTemplateFindOneRecord', () => {
         stripeTaxRateId: 'txr-1',
         title: 'Dinner',
         totalAvailableQuantity: 40,
+      },
+    ]);
+    expect(record.questions).toEqual([
+      {
+        description: 'Tell organizers about accessibility needs.',
+        id: 'question-1',
+        registrationOptionId: 'template-option-1',
+        required: false,
+        sortOrder: 0,
+        title: 'Accessibility needs',
       },
     ]);
   });

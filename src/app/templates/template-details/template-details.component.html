@@ -133,6 +133,39 @@
           </div>
         </div>
       }
+      @if (template.questions.length > 0) {
+        <div class="mt-6">
+          <h3 class="title-small">Registration questions</h3>
+          <div class="mt-3 grid gap-4">
+            @for (question of template.questions; track question.id) {
+              <article class="border-outline-variant border-t pt-3">
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h4 class="font-medium">{{ question.title }}</h4>
+                    @if (question.description) {
+                      <p class="text-on-surface-variant text-sm">
+                        {{ question.description }}
+                      </p>
+                    }
+                  </div>
+                  <span class="text-on-surface-variant text-sm">
+                    {{ question.required ? "Required" : "Optional" }}
+                  </span>
+                </div>
+                <p class="text-on-surface-variant mt-2 text-sm">
+                  Asked during
+                  {{
+                    registrationOptionTitle(
+                      template,
+                      question.registrationOptionId
+                    )
+                  }}
+                </p>
+              </article>
+            }
+          </div>
+        </div>
+      }
     </section>
 
     <section

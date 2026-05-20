@@ -672,6 +672,12 @@ the current working direction until a product decision overrides them.
   registration options, so Browser review can inspect the add-on detail surface
   once the local runtime is available.
 - **Addressed in stabilization pass:** simple-mode template create/edit now exposes optional ESNcard discounted prices when the tenant ESNcard provider is enabled, persists them in `templateRegistrationOptionDiscounts`, returns them through `templates.findOne`, and shows them on template detail.
+- **Addressed in stabilization pass:** simple-mode template create/edit now
+  exposes reusable registration questions attached to the participant or
+  organizer registration option, persists them in template-scoped question
+  storage, returns them through `templates.findOne`, and shows them on template
+  detail. Event-side registration answer collection remains a separate
+  fulfillment slice.
 - **Addressed in stabilization pass:** simple-mode template registration
   options now preserve editable option names plus public and registered-user
   rich-text descriptions. Those fields are shown on template detail and already
@@ -701,7 +707,7 @@ the current working direction until a product decision overrides them.
 ### Test and Documentation Quality
 
 - `tests/specs/templates/templates.test.ts` covers create, view, empty-category add flow, and role autocomplete duplicate hiding.
-- `tests/docs/templates/templates.doc.ts` documents simple-mode template creation, organizer planning tips, role defaults, payment field visibility, optional ESNcard discounted price fields, reusable add-on editing, and role-picker behavior. It asserts that enabling payment reveals both the price and tax-rate controls before taking the payment-field screenshot, then asserts that adding a reusable add-on reveals the add-on name, attachment, and purchase-timing controls.
+- `tests/docs/templates/templates.doc.ts` documents simple-mode template creation, organizer planning tips, role defaults, payment field visibility, optional ESNcard discounted price fields, reusable add-on editing, reusable registration-question editing, and role-picker behavior. It asserts that enabling payment reveals both the price and tax-rate controls before taking the payment-field screenshot, then asserts that adding a reusable add-on reveals the add-on name, attachment, and purchase-timing controls, and that adding a registration question reveals the question, target, and required-answer controls.
 - `tests/specs/templates/paid-option-requires-tax-rate.spec.ts` now has active simple-mode UI coverage for the paid tax-rate requirement and a seeded inclusive tax-rate save path. The previous future bulk/no-compatible-rate fixme declarations were removed; current no-compatible-rate select feedback is pinned in local component coverage until a broader page flow exists.
 - `src/app/templates/shared/template-form/template-registration-option-form.utilities.spec.ts` covers paid template tax-rate and ESNcard discount preservation, paid missing-tax-rate pass-through for server validation, and free-registration payment-field cleanup before create/edit submission.
 - `src/app/templates/shared/template-form/template-addon-form.utilities.spec.ts`
@@ -739,7 +745,14 @@ the current working direction until a product decision overrides them.
   paid add-on tax-rate validation.
 - `src/db/schema/template-event-addons.spec.ts` and the event lifecycle handler
   coverage pin reusable add-on source storage and template-to-event copying,
-  while registration-question schemas are not exposed yet.
+  while template registration-question schema coverage pins the new template
+  question source storage.
+- `src/server/effect/rpc/handlers/templates/simple-template.service.spec.ts`,
+  `src/server/effect/rpc/handlers/templates.handlers.spec.ts`,
+  `src/server/effect/rpc/handlers/templates/templates-rpcs.schema.spec.ts`, and
+  `src/app/templates/shared/template-form/template-form.utilities.spec.ts` cover
+  reusable registration-question write normalization, RPC shape, read model, and
+  form state preservation without Browser/runtime setup.
 - `src/server/effect/rpc/handlers/templates.handlers.spec.ts` and
   `src/app/templates/template-details/template-details.component.spec.ts` cover
   the current reusable add-on read model and detail-surface labels without
@@ -755,7 +768,7 @@ the current working direction until a product decision overrides them.
 
 ### Product Questions Answered Above
 
-- Is simple mode the intended relaunch template scope, or should richer registration options/add-ons/questions/organizer notes be available before relaunch? Answered locally: keep simple mode primary and expose organizer planning tips, ESNcard discounted prices, and reusable add-ons now; registration questions remain separate follow-up work.
+- Is simple mode the intended relaunch template scope, or should richer registration options/add-ons/questions/organizer notes be available before relaunch? Answered locally: keep simple mode primary and expose organizer planning tips, ESNcard discounted prices, reusable add-ons, and reusable registration questions now; event-side question answer collection remains separate follow-up work.
 - Should `random` and `application` registration modes be selectable now if registration fulfillment does not implement those semantics?
 - Should template view require `templates:view`, or should organizers with `events:create` inherit template view through permission dependencies only?
 - Should template category management remain a separate capability from template creation/editing?
@@ -1411,9 +1424,10 @@ the current working direction until a product decision overrides them.
    Organizer planning tips are now exposed as the first private organizer-notes
    field, existing reusable template add-ons are now visible on template detail,
    simple template create/edit can persist reusable add-ons, and event creation
-   copies reusable add-ons into event-scoped read-model records. Add-on
-   checkout/sales fulfillment and registration questions remain separate fuller
-   product/runtime slices.
+   copies reusable add-ons into event-scoped read-model records. Simple
+   template create/edit can now persist reusable registration questions and show
+   them on template detail. Add-on checkout/sales fulfillment and event-side
+   question answer collection remain separate fuller product/runtime slices.
 4. Add Browser-backed scanner/organizer aggregate review once local runtime is available.
 5. Add Browser-backed profile coverage for payment-continuation, ticket/cancellation routing, waitlist messaging, and ESNcard provider failure semantics once local runtime is available.
 6. Fill the remaining tenant settings implementation gap for automated onboarding/domain workflows. The current general-settings page exposes SEO fields, uploaded or externally hosted logo/favicon URLs, tenant legal links or hosted legal text, editable supported locale/currency/timezone values, read-only runtime identity, and a visible deferred-settings summary. The current global-admin surface supports a searchable tenant list, tenant create/edit, and tenant detail review, while custom-domain verification, multi-domain automation, and impersonation remain out of scope.
@@ -1840,6 +1854,10 @@ implement those decisions or explicitly revise them there before changing code.
   template add-ons by source registration option during event creation, and
   surfaced copied add-ons read-only on event detail while checkout/sales
   fulfillment remains future work.
+- Template question source pass: added template-scoped registration-question
+  storage, simple template create/edit controls, `templates.findOne` read-model
+  support, and template detail display while event-side answer collection
+  remains future work.
 - Active-registration action-guard pass: shared tested cancellation and
   transfer disabled-state helpers between active-registration buttons and
   handlers so participant cancellation and unpaid transfer writes cannot

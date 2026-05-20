@@ -64,6 +64,34 @@
         </div>
       </section>
 
+      <section class="bg-surface rounded-2xl p-4">
+        <div class="mb-4 flex items-center justify-between gap-4">
+          <h2 class="text-lg font-semibold">Registration questions</h2>
+          <button type="button" mat-button (click)="addTemplateQuestion()">
+            <fa-duotone-icon [icon]="faPlus" />
+            Add question
+          </button>
+        </div>
+
+        <div class="grid gap-4">
+          @for (
+            question of templateForm.questions;
+            track question;
+            let index = $index
+          ) {
+            <app-template-question-form
+              class="bg-surface-container-lowest rounded-xl p-4 grid gap-4"
+              [questionForm]="question"
+              (remove)="removeTemplateQuestion(index)"
+            />
+          } @empty {
+            <p class="text-on-surface-variant text-sm">
+              No registration questions configured.
+            </p>
+          }
+        </div>
+      </section>
+
       <button type="submit" mat-button [disabled]="!canSubmit()">
         Update template
       </button>
