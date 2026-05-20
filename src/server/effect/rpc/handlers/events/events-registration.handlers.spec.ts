@@ -116,6 +116,72 @@ const nonConfirmedRegistrationStatuses = [
   'WAITLIST',
 ] as const;
 
+const expectCounterDecrement = (
+  updateSet: unknown,
+  field: 'confirmedSpots' | 'reservedSpots' | 'waitlistSpots',
+  amount: number,
+) => {
+  const sqlUpdate = (
+    updateSet as Record<string, { queryChunks?: readonly unknown[] }>
+  )[field];
+
+  expect(sqlUpdate).toEqual(
+    expect.objectContaining({
+      queryChunks: expect.arrayContaining([amount]),
+    }),
+  );
+};
+
+const createGuestCancellationDatabase = ({
+  status,
+}: {
+  status: 'CONFIRMED' | 'PENDING';
+}) => {
+  const updateSets: unknown[] = [];
+  const tx = {
+    update: (table: unknown) => ({
+      set: (values: unknown) => {
+        updateSets.push(values);
+        return {
+          where: () => ({
+            returning: () => {
+              if (
+                table === eventRegistrations ||
+                table === eventRegistrationOptions
+              ) {
+                return Effect.succeed([{ id: 'updated' }]);
+              }
+              return Effect.succeed([]);
+            },
+          }),
+        };
+      },
+    }),
+  };
+  const database = {
+    query: {
+      eventRegistrations: {
+        findFirst: () =>
+          Effect.succeed({
+            checkedInGuestCount: 0,
+            checkInTime: null,
+            event: {
+              start: new Date(Date.now() + 24 * 60 * 60 * 1000),
+            },
+            guestCount: 2,
+            id: 'registration-1',
+            registrationOptionId: 'option-1',
+            status,
+            transactions: [],
+          }),
+      },
+    },
+    transaction: vi.fn((callback: (tx: typeof tx) => unknown) => callback(tx)),
+  };
+
+  return { database, updateSets };
+};
+
 describe('event registration cancellation handlers', () => {
   it.effect(
     'allows event organizers to cancel another confirmed registration',
@@ -290,6 +356,24 @@ describe('event registration cancellation handlers', () => {
       }),
   );
 
+  it.effect(
+    'cancels confirmed guest registrations and releases buyer plus guest spots',
+    () =>
+      Effect.gen(function* () {
+        const { database, updateSets } = createGuestCancellationDatabase({
+          status: 'CONFIRMED',
+        });
+
+        yield* eventRegistrationHandlers['events.cancelRegistration'](
+          { registrationId: 'registration-1' },
+          { headers: {} } as never,
+        ).pipe(Effect.provide(createContextLayer({ database })));
+
+        expectCounterDecrement(updateSets[1], 'confirmedSpots', 3);
+        expect(database.transaction).toHaveBeenCalledOnce();
+      }),
+  );
+
   it.effect('cancels pending registrations and releases a reserved spot', () =>
     Effect.gen(function* () {
       const updateSets: unknown[] = [];
@@ -347,6 +431,24 @@ describe('event registration cancellation handlers', () => {
       ]);
       expect(database.transaction).toHaveBeenCalledOnce();
     }),
+  );
+
+  it.effect(
+    'cancels pending guest registrations and releases buyer plus guest reserved spots',
+    () =>
+      Effect.gen(function* () {
+        const { database, updateSets } = createGuestCancellationDatabase({
+          status: 'PENDING',
+        });
+
+        yield* eventRegistrationHandlers['events.cancelRegistration'](
+          { registrationId: 'registration-1' },
+          { headers: {} } as never,
+        ).pipe(Effect.provide(createContextLayer({ database })));
+
+        expectCounterDecrement(updateSets[1], 'reservedSpots', 3);
+        expect(database.transaction).toHaveBeenCalledOnce();
+      }),
   );
 
   it.effect('rejects checked-in registration cancellation', () =>

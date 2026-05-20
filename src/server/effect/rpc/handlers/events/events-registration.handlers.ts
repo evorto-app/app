@@ -6,6 +6,7 @@ import {
   includesPermission,
   type Permission,
 } from '@shared/permissions/permissions';
+import { registrationSpotCount } from '@shared/registration-spots';
 import {
   EventRegistrationConflictError,
   EventRegistrationInternalError,
@@ -214,7 +215,7 @@ const cancelRegistration = ({
         }),
       );
     }
-    const registeredSpotCount = registration.guestCount + 1;
+    const registeredSpotCount = registrationSpotCount(registration.guestCount);
 
     const pendingStripeTransaction = registration.transactions.find(
       (currentTransaction) =>
