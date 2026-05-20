@@ -208,6 +208,12 @@ describe('generated docs source current behavior', () => {
       'Role selection also avoids duplicate entries by hiding already selected roles from the autocomplete list.',
     );
     expect(source).toContain(
+      "throw new Error('Expected seeded roles for template docs autocomplete')",
+    );
+    expect(source).toContain(
+      "throw new Error('Expected template docs autocomplete option to have text')",
+    );
+    expect(source).toContain(
       'Organizer planning tips**: Optional private organizer notes',
     );
     expect(source).toContain(
