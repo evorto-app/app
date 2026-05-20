@@ -553,6 +553,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 - Finance receipt flow specs fail explicitly when the tenant fixture is missing
   and verify the exact seeded approval/reimbursement receipt instead of the
   first visible finance queue row.
+- Finance overview docs seed visible and cancelled transaction rows before
+  documenting the transaction list, so the generated guide proves cancelled
+  transactions stay omitted from that surface.
 - Finance-tagged specs remain the main candidates for selective CI filtering when needed.
 - Event, registration, template, finance receipt, scanner, and unlisted-event specs should fail loudly when deterministic fixture state is missing instead of silently passing through skips.
   Free registration and registration add-on specs now assert the seeded
