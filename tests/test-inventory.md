@@ -131,6 +131,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 - Event detail component coverage pins review and submit-for-review action
   guards for permission, status, and mutation-pending states so the page and
   handlers share the same lifecycle write boundaries.
+- Event registration option component coverage pins participant registration and
+  waitlist action disabling while a register or waitlist mutation is pending.
 - `specs/templates/paid-option-requires-tax-rate.spec.ts` has active
   simple-mode UI coverage for the paid-registration tax-rate requirement and a
   seeded inclusive tax-rate save path. Remaining fixme entries are limited to

@@ -7,6 +7,7 @@ import {
   registrationOptionCanJoinWaitlist,
   registrationOptionIsFull,
   registrationOptionSelectedTotalPrice,
+  registrationOptionWriteActionDisabled,
 } from './event-registration-option.component';
 
 describe('registrationOptionAudienceCopy', () => {
@@ -203,5 +204,19 @@ describe('registrationOptionSelectedTotalPrice', () => {
         -1,
       ),
     ).toBe(1500);
+  });
+});
+
+describe('registrationOptionWriteActionDisabled', () => {
+  it('disables registration writes while register or waitlist mutations are pending', () => {
+    expect(
+      registrationOptionWriteActionDisabled({ mutationPending: true }),
+    ).toBe(true);
+  });
+
+  it('allows registration writes while no register or waitlist mutation is pending', () => {
+    expect(
+      registrationOptionWriteActionDisabled({ mutationPending: false }),
+    ).toBe(false);
   });
 });

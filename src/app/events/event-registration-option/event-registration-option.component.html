@@ -46,8 +46,16 @@
             <button
               (click)="joinWaitlist(registrationOption())"
               mat-flat-button
+<<<<<<< HEAD
               type="button"
               [disabled]="mutationPending()"
+=======
+              [disabled]="
+                registrationOptionWriteActionDisabled({
+                  mutationPending: mutationPending(),
+                })
+              "
+>>>>>>> 12bff3bb (Guard participant registration actions)
             >
               Join waitlist
             </button>
@@ -76,7 +84,11 @@
               (click)="register(registrationOption())"
               mat-flat-button
               type="button"
-              [disabled]="mutationPending()"
+              [disabled]="
+                registrationOptionWriteActionDisabled({
+                  mutationPending: mutationPending(),
+                })
+              "
             >
               Pay
               {{ selectedTotalPrice() / 100 | currency }}
@@ -87,7 +99,11 @@
               (click)="register(registrationOption())"
               mat-flat-button
               type="button"
-              [disabled]="mutationPending()"
+              [disabled]="
+                registrationOptionWriteActionDisabled({
+                  mutationPending: mutationPending(),
+                })
+              "
             >
               {{ audienceCopy().primaryAction }}
             </button>
