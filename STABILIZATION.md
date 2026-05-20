@@ -2179,6 +2179,10 @@ implement those decisions or explicitly revise them there before changing code.
   to the implemented tenant identity, locale/money, SEO, legal, receipt-country,
   ESNcard, and separate tax-rate surfaces while keeping deferred domain/email/
   policy/limit/Stripe-account settings explicit.
+- Template relaunch docs source-guard pass: pinned generated template docs to
+  option descriptions, ESNcard discounted pricing, selected-role eligibility,
+  duplicate-hiding role autocomplete, payment/tax-rate visibility, add-ons,
+  questions, and private organizer planning tips.
 
 ## Review Next
 
