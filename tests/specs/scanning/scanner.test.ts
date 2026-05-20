@@ -223,6 +223,11 @@ test('scan checked-in registration records remaining guest arrival', async ({
         checkedInGuestCount: 2,
         checkedInSpots: checkedInBaseline + 1,
       });
+
+    await page.goto(`/events/${scannerFixture.eventId}/organize`);
+    await expect(page.getByTestId('event-organize-checked-in-stat')).toHaveText(
+      new RegExp(`^${checkedInBaseline + 1}\\s*Checked In$`),
+    );
   } finally {
     await database
       .delete(eventRegistrations)
