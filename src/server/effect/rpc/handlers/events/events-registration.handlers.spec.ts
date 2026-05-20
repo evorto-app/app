@@ -208,6 +208,7 @@ const createTransferDatabase = ({
     id: 'target-tenant-user-1',
     roles: [{ id: 'participant-role-1' }],
   },
+  targetUser = { id: 'target-user-1' },
 }: {
   existingTargetRegistration?: null | { id: string };
   organizerRegistrations?: readonly {
@@ -231,6 +232,7 @@ const createTransferDatabase = ({
     userId: string;
   };
   targetTenantUser?: null | { id: string; roles: readonly { id: string }[] };
+  targetUser?: null | { id: string };
 } = {}) => {
   const updateSets: unknown[] = [];
   const database = {
@@ -247,6 +249,9 @@ const createTransferDatabase = ({
           .mockReturnValueOnce(Effect.succeed(registration))
           .mockReturnValueOnce(Effect.succeed(existingTargetRegistration)),
         findMany: () => Effect.succeed(organizerRegistrations),
+      },
+      users: {
+        findFirst: () => Effect.succeed(targetUser),
       },
       usersToTenants: {
         findFirst: () => Effect.succeed(targetTenantUser),
@@ -786,6 +791,97 @@ describe('event registration transfer handlers', () => {
         ).pipe(Effect.provide(createContextLayer({ database })));
 
         expect(updateSets).toEqual([{ userId: 'target-user-1' }]);
+      }),
+  );
+
+  it.effect(
+    'allows participants to transfer their own confirmed unpaid registration by target email',
+    () =>
+      Effect.gen(function* () {
+        const { database, updateSets } = createTransferDatabase({
+          organizerRegistrations: [],
+        });
+
+        yield* eventRegistrationHandlers['events.transferMyRegistration'](
+          {
+            registrationId: 'registration-1',
+            targetEmail: ' TARGET@EXAMPLE.COM ',
+          },
+          { headers: {} } as never,
+        ).pipe(
+          Effect.provide(
+            createContextLayer({
+              database,
+              user: createUser({ id: 'attendee-1' }),
+            }),
+          ),
+        );
+
+        expect(updateSets).toEqual([{ userId: 'target-user-1' }]);
+      }),
+  );
+
+  it.effect(
+    'rejects participant transfer when the target email is not an existing user',
+    () =>
+      Effect.gen(function* () {
+        const { database, updateSets } = createTransferDatabase({
+          targetUser: null,
+        });
+
+        const error = yield* eventRegistrationHandlers[
+          'events.transferMyRegistration'
+        ](
+          {
+            registrationId: 'registration-1',
+            targetEmail: 'missing@example.com',
+          },
+          { headers: {} } as never,
+        ).pipe(
+          Effect.flip,
+          Effect.provide(
+            createContextLayer({
+              database,
+              user: createUser({ id: 'attendee-1' }),
+            }),
+          ),
+        );
+
+        expect(error['_tag']).toBe('EventRegistrationNotFoundError');
+        expect(error.message).toBe('Target user not found');
+        expect(updateSets).toEqual([]);
+      }),
+  );
+
+  it.effect(
+    'does not reveal existing users outside the tenant during participant transfer',
+    () =>
+      Effect.gen(function* () {
+        const { database, updateSets } = createTransferDatabase({
+          targetTenantUser: null,
+        });
+
+        const error = yield* eventRegistrationHandlers[
+          'events.transferMyRegistration'
+        ](
+          {
+            registrationId: 'registration-1',
+            targetEmail: 'target@example.com',
+          },
+          { headers: {} } as never,
+        ).pipe(
+          Effect.flip,
+          Effect.provide(
+            createContextLayer({
+              database,
+              user: createUser({ id: 'attendee-1' }),
+            }),
+          ),
+        );
+
+        expect(error['_tag']).toBe('EventRegistrationNotFoundError');
+        expect(error.message).toBe('Target user not found');
+        expect(updateSets).toEqual([]);
       }),
   );
 

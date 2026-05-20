@@ -83,6 +83,23 @@
           </button>
         </div>
       }
+      @if (transferActionCopy(registration); as transferAction) {
+        <div class="flex flex-col items-start gap-2 lg:col-span-2">
+          <p class="body-small text-on-surface-variant">
+            {{ transferAction.helperText }}
+          </p>
+          <button
+            mat-stroked-button
+            (click)="transferRegistration(registration)"
+            [disabled]="
+              !registration.transferAvailable ||
+              transferRegistrationMutation.isPending()
+            "
+          >
+            {{ transferAction.buttonLabel }}
+          </button>
+        </div>
+      }
       @if (deferredActionCopy(registration); as deferredAction) {
         <p class="body-small text-on-surface-variant lg:col-span-2">
           {{ deferredAction }}
@@ -95,5 +112,11 @@
   <div class="bg-error text-on-error mt-4 flex flex-col gap-2 rounded-2xl p-4">
     <h3 class="title-medium">Registration cancellation failed</h3>
     <p>{{ errorMessage(cancelRegistrationMutation.error()) }}</p>
+  </div>
+}
+@if (transferRegistrationMutation.isError()) {
+  <div class="bg-error text-on-error mt-4 flex flex-col gap-2 rounded-2xl p-4">
+    <h3 class="title-medium">Registration transfer failed</h3>
+    <p>{{ transferErrorMessage(transferRegistrationMutation.error()) }}</p>
   </div>
 }
