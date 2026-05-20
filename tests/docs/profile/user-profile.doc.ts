@@ -211,7 +211,7 @@ The user profile now uses a two-column layout:
     ).toBeVisible();
     await expect(
       documentedEventCard.getByRole('link', { name: 'Open event page' }),
-    ).toBeVisible();
+    ).toHaveAttribute('href', `/events/${profileEventCards.confirmed.eventId}`);
     const pendingCheckoutCard = page
       .locator('article')
       .filter({ hasText: profileEventCards.pendingCheckout.title });
@@ -235,7 +235,10 @@ The user profile now uses a two-column layout:
     ).toHaveAttribute('href', profileEventCards.pendingCheckout.checkoutUrl);
     await expect(
       pendingCheckoutCard.getByRole('link', { name: 'Open event page' }),
-    ).toBeVisible();
+    ).toHaveAttribute(
+      'href',
+      `/events/${profileEventCards.pendingCheckout.eventId}`,
+    );
     const waitlistCard = page
       .locator('article')
       .filter({ hasText: profileEventCards.waitlist.title });
@@ -249,7 +252,7 @@ The user profile now uses a two-column layout:
     ).toBeVisible();
     await expect(
       waitlistCard.getByRole('link', { name: 'Open event page' }),
-    ).toBeVisible();
+    ).toHaveAttribute('href', `/events/${profileEventCards.waitlist.eventId}`);
     const checkedInEventCard = page
       .locator('article')
       .filter({ hasText: profileEventCards.checkedIn.addOnTitle });
@@ -274,7 +277,7 @@ The user profile now uses a two-column layout:
     ).toHaveCount(0);
     await expect(
       checkedInEventCard.getByRole('link', { name: 'Open event page' }),
-    ).toBeVisible();
+    ).toHaveAttribute('href', `/events/${profileEventCards.checkedIn.eventId}`);
     await takeScreenshot(
       testInfo,
       page.locator('app-user-profile'),

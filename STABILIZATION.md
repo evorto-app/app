@@ -1202,10 +1202,11 @@ the current working direction until a product decision overrides them.
   seeded direct-link discount-card journey, and the profile docs journey asserts
   confirmed, pending-checkout, waitlisted, and checked-in profile event-card
   route/status/guest/add-on/payment/checkout/waitlist/ticket/action labels plus
-  submitted-receipt visibility. The functional profile-event spec also pins
-  those seeded card states to their expected event-page links so ticket,
-  cancellation, unpaid-transfer, and waitlist recovery routing cannot silently
-  drift while Browser runtime review is unavailable.
+  submitted-receipt visibility. The generated docs and functional
+  profile-event spec both pin those seeded card states to their expected
+  event-page links so ticket, cancellation, unpaid-transfer, and waitlist
+  recovery routing cannot silently drift while Browser runtime review is
+  unavailable.
 - `tests/docs/users/create-account.doc.ts` includes a baseline helper-backed
   account-creation documentation note for verified-email gating, Auth0-data
   prefill, notification-email terminology, payload trimming, retryable errors,
@@ -1838,6 +1839,9 @@ implement those decisions or explicitly revise them there before changing code.
   to the exact seeded event-page links for confirmed, pending-checkout,
   waitlisted, and checked-in cards while authenticated Browser review remains
   runtime-gated.
+- Profile docs route pass: pinned the generated user-profile documentation
+  journey to the same seeded event-page links for confirmed, pending-checkout,
+  waitlisted, and checked-in profile event cards.
 - Profile receipt docs pass: extended the user-profile documentation journey with a deterministic submitted receipt and asserted the profile receipt-card filename, submitted status, event title, and amount.
 - Create-account gate coverage pass: extracted the email-verification form gate into a typed helper and covered verified, unverified, null, and absent Auth0 email-verification states without requiring Auth0 Management credentials.
 - Playwright skip-inventory pass: added a local unit guard that allowlists every

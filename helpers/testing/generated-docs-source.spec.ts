@@ -93,6 +93,16 @@ describe('generated docs source current behavior', () => {
       'Open the event page for waitlist details and the leave-waitlist action.',
     );
     expect(source).toContain(
+      '`/events/${profileEventCards.confirmed.eventId}`',
+    );
+    expect(source).toContain(
+      '`/events/${profileEventCards.pendingCheckout.eventId}`',
+    );
+    expect(source).toContain('`/events/${profileEventCards.waitlist.eventId}`');
+    expect(source).toContain(
+      '`/events/${profileEventCards.checkedIn.eventId}`',
+    );
+    expect(source).toContain(
       'You are checked in. Open the event page for ticket details. Cancellation and transfer are no longer available after check-in.',
     );
     expect(source).toContain('Submitted receipts');
