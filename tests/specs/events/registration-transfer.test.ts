@@ -173,67 +173,96 @@ test('regular user cannot self-transfer a paid confirmed registration', async ({
 
   const registrationId = getId();
   const transactionId = getId();
-
-  await database
-    .update(schema.eventRegistrations)
-    .set({ status: 'CANCELLED' })
-    .where(
-      and(
+  const originalRegistrations =
+    await database.query.eventRegistrations.findMany({
+      columns: {
+        id: true,
+        status: true,
+      },
+      where: and(
         eq(schema.eventRegistrations.eventId, targetEventId),
         eq(schema.eventRegistrations.tenantId, tenant.id),
         eq(schema.eventRegistrations.userId, regularUser.id),
       ),
-    );
-  await database.insert(schema.eventRegistrations).values({
-    eventId: targetEventId,
-    id: registrationId,
-    registrationOptionId: targetOptionId,
-    status: 'CONFIRMED',
-    tenantId: tenant.id,
-    userId: regularUser.id,
-  });
-  await database.insert(schema.transactions).values({
-    amount: targetOption.price,
-    comment: 'Registration transfer paid-block coverage',
-    currency: tenant.currency,
-    eventId: targetEventId,
-    eventRegistrationId: registrationId,
-    id: transactionId,
-    method: 'stripe',
-    status: 'successful',
-    targetUserId: regularUser.id,
-    tenantId: tenant.id,
-    type: 'registration',
-  });
+    });
 
-  await page.goto(`/events/${targetEventId}`);
-  await page
-    .getByText('Loading registration status')
-    .first()
-    .waitFor({ state: 'detached' });
-
-  await expect(page.getByText('Your registration is confirmed')).toBeVisible();
-  await expect(
-    page.getByText(
-      'Self-service transfer is only available for unpaid, not-yet-checked-in registrations before the event starts. Paid registration transfer and resale are not automatic yet.',
-    ),
-  ).toBeVisible();
-  await expect(
-    page.getByRole('button', { name: 'Transfer unavailable' }),
-  ).toBeDisabled();
-  await expect(
-    page.getByRole('button', { name: 'Transfer registration' }),
-  ).toHaveCount(0);
-
-  const paidRegistration = await database.query.eventRegistrations.findFirst({
-    where: {
+  try {
+    await database
+      .update(schema.eventRegistrations)
+      .set({ status: 'CANCELLED' })
+      .where(
+        and(
+          eq(schema.eventRegistrations.eventId, targetEventId),
+          eq(schema.eventRegistrations.tenantId, tenant.id),
+          eq(schema.eventRegistrations.userId, regularUser.id),
+        ),
+      );
+    await database.insert(schema.eventRegistrations).values({
+      eventId: targetEventId,
       id: registrationId,
+      registrationOptionId: targetOptionId,
+      status: 'CONFIRMED',
       tenantId: tenant.id,
-    },
-  });
-  if (!paidRegistration) {
-    throw new Error('Expected paid registration after transfer-blocked flow');
+      userId: regularUser.id,
+    });
+    await database.insert(schema.transactions).values({
+      amount: targetOption.price,
+      comment: 'Registration transfer paid-block coverage',
+      currency: tenant.currency,
+      eventId: targetEventId,
+      eventRegistrationId: registrationId,
+      id: transactionId,
+      method: 'stripe',
+      status: 'successful',
+      targetUserId: regularUser.id,
+      tenantId: tenant.id,
+      type: 'registration',
+    });
+
+    await page.goto(`/events/${targetEventId}`);
+    await page
+      .getByText('Loading registration status')
+      .first()
+      .waitFor({ state: 'detached' });
+
+    await expect(
+      page.getByText('Your registration is confirmed'),
+    ).toBeVisible();
+    await expect(
+      page.getByText(
+        'Self-service transfer is only available for unpaid, not-yet-checked-in registrations before the event starts. Paid registration transfer and resale are not automatic yet.',
+      ),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Transfer unavailable' }),
+    ).toBeDisabled();
+    await expect(
+      page.getByRole('button', { name: 'Transfer registration' }),
+    ).toHaveCount(0);
+
+    const paidRegistration = await database.query.eventRegistrations.findFirst({
+      where: {
+        id: registrationId,
+        tenantId: tenant.id,
+      },
+    });
+    if (!paidRegistration) {
+      throw new Error('Expected paid registration after transfer-blocked flow');
+    }
+    expect(paidRegistration.userId).toBe(regularUser.id);
+    expect(paidRegistration.status).toBe('CONFIRMED');
+  } finally {
+    await database
+      .delete(schema.transactions)
+      .where(eq(schema.transactions.id, transactionId));
+    await database
+      .delete(schema.eventRegistrations)
+      .where(eq(schema.eventRegistrations.id, registrationId));
+    for (const registration of originalRegistrations) {
+      await database
+        .update(schema.eventRegistrations)
+        .set({ status: registration.status })
+        .where(eq(schema.eventRegistrations.id, registration.id));
+    }
   }
-  expect(paidRegistration.userId).toBe(regularUser.id);
-  expect(paidRegistration.status).toBe('CONFIRMED');
 });

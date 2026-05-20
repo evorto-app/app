@@ -176,11 +176,13 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 - `specs/events/registration-transfer.test.ts` adds page-backed coverage for
   the regular user's self-service unpaid transfer dialog and database readback
   to the target tenant member, failing explicitly if the transferred row is
-  missing.
+  missing, then deleting the generated registration and restoring touched
+  fixture registration statuses.
 - `specs/events/registration-transfer.test.ts` also seeds a paid confirmed
   registration with a successful registration transaction and proves the event
   page keeps self-service transfer disabled with the paid transfer/resale
-  deferral instead of exposing the unpaid transfer dialog.
+  deferral instead of exposing the unpaid transfer dialog, then deletes the
+  generated registration/transaction rows and restores touched fixture status.
 - `specs/events/negative-registration-states.spec.ts` adds page-backed waitlist
   coverage for full first-come-first-served options with explicit required
   answer gating, persisted waitlist registration readback, and persisted

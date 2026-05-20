@@ -588,7 +588,8 @@ the current working direction until a product decision overrides them.
 - `tests/specs/events/registration-transfer.test.ts` also seeds a paid
   confirmed registration with a successful registration transaction and proves
   the event page keeps self-service transfer disabled with the paid
-  transfer/resale deferral copy while preserving the original registration row.
+  transfer/resale deferral copy while restoring fixture registration state after
+  the generated row assertions.
 - `tests/specs/events/negative-registration-states.spec.ts` covers the
   participant-facing waitlist affordance for a full first-come-first-served
   option and explicitly reads back the created waitlist registration.
@@ -2056,6 +2057,10 @@ implement those decisions or explicitly revise them there before changing code.
   Playwright spec with a paid confirmed registration and successful transaction
   so the event page must render disabled transfer-unavailable copy instead of
   exposing the unpaid transfer dialog.
+- Registration transfer fixture cleanup pass: made the unpaid and paid
+  registration-transfer specs delete generated registration/transaction rows
+  and restore touched fixture registration statuses after their page-backed
+  assertions.
 - Registration transfer documentation pass: added a generated registration-doc
   journey for the unpaid transfer dialog, eligible target email entry, and
   explicit paid-transfer/resale deferral.
