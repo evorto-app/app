@@ -30,6 +30,18 @@ describe('globalAdminTenantRows', () => {
     ]);
   });
 
+  it('reuses the operational rows for tenant detail review', () => {
+    expect(globalAdminTenantRows(tenant).map((row) => row.label)).toEqual([
+      'Primary domain',
+      'Tenant ID',
+      'Theme',
+      'Locale',
+      'Currency',
+      'Timezone',
+      'Stripe account',
+    ]);
+  });
+
   it('shows a readable Stripe state when the tenant is not connected', () => {
     const rows = globalAdminTenantRows({
       ...tenant,

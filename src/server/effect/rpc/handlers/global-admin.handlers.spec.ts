@@ -81,6 +81,71 @@ describe('globalAdminHandlers', () => {
     }),
   );
 
+  it.effect('returns one tenant for global-admin detail review', () =>
+    Effect.gen(function* () {
+      const database = {
+        query: {
+          tenants: {
+            findFirst: ({ where }: { where: { id: string } }) =>
+              Effect.succeed(
+                where.id === 'tenant-1'
+                  ? {
+                      currency: 'EUR',
+                      domain: 'tenant.example.com',
+                      id: 'tenant-1',
+                      locale: 'en-GB',
+                      name: 'Tenant',
+                      stripeAccountId: null,
+                      theme: 'evorto',
+                      timezone: 'Europe/Berlin',
+                    }
+                  : undefined,
+              ),
+          },
+        },
+      };
+
+      const tenant = yield* globalAdminHandlers['globalAdmin.tenants.findOne'](
+        { id: 'tenant-1' },
+        {
+          headers: createHeaders(['globalAdmin:manageTenants']),
+        } as never,
+      ).pipe(Effect.provide(Layer.succeed(Database, database as never)));
+
+      expect(tenant).toEqual({
+        currency: 'EUR',
+        domain: 'tenant.example.com',
+        id: 'tenant-1',
+        locale: 'en-GB',
+        name: 'Tenant',
+        stripeConnected: false,
+        theme: 'evorto',
+        timezone: 'Europe/Berlin',
+      });
+    }),
+  );
+
+  it.effect('returns null for missing global-admin tenant details', () =>
+    Effect.gen(function* () {
+      const database = {
+        query: {
+          tenants: {
+            findFirst: () => Effect.succeed(),
+          },
+        },
+      };
+
+      const tenant = yield* globalAdminHandlers['globalAdmin.tenants.findOne'](
+        { id: 'missing-tenant' },
+        {
+          headers: createHeaders(['globalAdmin:manageTenants']),
+        } as never,
+      ).pipe(Effect.provide(Layer.succeed(Database, database as never)));
+
+      expect(tenant).toBeNull();
+    }),
+  );
+
   it.effect(
     'rejects signed-in users without tenant-management permission',
     () =>
@@ -134,5 +199,33 @@ describe('globalAdminHandlers', () => {
 
       expect(error['_tag']).toBe('RpcUnauthorizedError');
     }),
+  );
+
+  it.effect(
+    'rejects tenant detail reads without tenant-management permission',
+    () =>
+      Effect.gen(function* () {
+        const database = {
+          query: {
+            tenants: {
+              findFirst: () =>
+                Effect.fail(new Error('database should not run')),
+            },
+          },
+        };
+
+        const error = yield* globalAdminHandlers['globalAdmin.tenants.findOne'](
+          { id: 'tenant-1' },
+          {
+            headers: createHeaders(['events:viewPublic']),
+          } as never,
+        ).pipe(
+          Effect.provide(Layer.succeed(Database, database as never)),
+          Effect.flip,
+        );
+
+        expect(error['_tag']).toBe('RpcForbiddenError');
+        expect(error.permission).toBe('globalAdmin:manageTenants');
+      }),
   );
 });

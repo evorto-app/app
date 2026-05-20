@@ -35,14 +35,27 @@ Global admins can review tenants from the **Global admin** area. This is a platf
     page,
     'Global admin tenant list',
   );
+  await page.getByRole('link', { name: 'Review tenant' }).first().click();
+  await expect(
+    page.getByText('Read-only operational tenant review'),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('link', { name: 'Open tenant domain' }),
+  ).toBeVisible();
+  await takeScreenshot(
+    testInfo,
+    page.locator('app-tenant-detail'),
+    page,
+    'Global admin tenant detail',
+  );
 
   await testInfo.attach('markdown', {
     body: `
 ## Current relaunch surface
 
-The current global-admin page is a searchable tenant list. Each entry shows the tenant name, domain, tenant id, theme, locale, currency, timezone, and Stripe connection state for support and operational review.
+The current global-admin page is a searchable tenant list with a read-only tenant detail review. Each entry shows the tenant name, domain, tenant id, theme, locale, currency, timezone, and Stripe connection state for support and operational review. The tenant detail page repeats the operational fields and provides an external link to open the tenant's primary domain.
 
-Tenant creation, tenant editing, custom-domain verification, impersonation, and tenant-detail workflows are not implemented in this surface yet.
+Tenant creation, tenant editing, custom-domain verification, and impersonation are not implemented in this surface yet.
 `,
   });
 });

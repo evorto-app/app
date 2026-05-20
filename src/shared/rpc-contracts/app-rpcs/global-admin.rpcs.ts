@@ -24,6 +24,10 @@ export type GlobalAdminTenantRecord = Schema.Schema.Type<
   typeof GlobalAdminTenantRecord
 >;
 
+export const GlobalAdminTenantIdInput = Schema.Struct({
+  id: Schema.NonEmptyString,
+});
+
 export const GlobalAdminTenantsFindMany = asRpcQuery(
   Rpc.make('globalAdmin.tenants.findMany', {
     error: GlobalAdminRpcError,
@@ -32,6 +36,15 @@ export const GlobalAdminTenantsFindMany = asRpcQuery(
   }),
 );
 
+export const GlobalAdminTenantsFindOne = asRpcQuery(
+  Rpc.make('globalAdmin.tenants.findOne', {
+    error: GlobalAdminRpcError,
+    payload: GlobalAdminTenantIdInput,
+    success: Schema.NullOr(GlobalAdminTenantRecord),
+  }),
+);
+
 export class GlobalAdminRpcs extends RpcGroup.make(
+  GlobalAdminTenantsFindOne,
   GlobalAdminTenantsFindMany,
 ) {}
