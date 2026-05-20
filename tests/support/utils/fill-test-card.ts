@@ -1,21 +1,45 @@
-import { Page } from '@playwright/test';
+import { expect, Locator, Page } from '@playwright/test';
 
 const waitForVisibleLocator = async (
   page: Page,
   selectors: readonly string[],
   timeoutMs: number,
 ) => {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    for (const frame of page.frames()) {
-      for (const selector of selectors) {
-        const locator = frame.locator(selector).first();
-        if (await locator.isVisible().catch(() => false)) {
-          return locator;
+  let visibleLocator: Locator | null = null;
+  await expect
+    .poll(
+      async () => {
+        visibleLocator = null;
+        for (const frame of page.frames()) {
+          for (const selector of selectors) {
+            const locator = frame.locator(selector).first();
+            if (await locator.isVisible().catch(() => false)) {
+              visibleLocator = locator;
+              return true;
+            }
+          }
         }
+        return false;
+      },
+      {
+        intervals: [100, 250, 500],
+        timeout: timeoutMs,
+      },
+    )
+    .toBe(true)
+    .catch(() => {});
+
+  if (visibleLocator) {
+    return visibleLocator;
+  }
+
+  for (const frame of page.frames()) {
+    for (const selector of selectors) {
+      const locator = frame.locator(selector).first();
+      if (await locator.isVisible().catch(() => false)) {
+        return locator;
       }
     }
-    await page.waitForTimeout(250);
   }
   return null;
 };

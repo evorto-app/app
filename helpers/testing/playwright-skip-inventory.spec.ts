@@ -24,6 +24,7 @@ const allowedEntries = new Set(
 
 const skipPattern = /\b(?:test|it|describe)\.(skip|fixme)\b/g;
 const placeholderMetadataPattern = /@(track|req|doc)\(/g;
+const fixedWaitPattern = /\.waitForTimeout\s*\(/g;
 
 const allowedPlaceholderMetadataFiles = new Set([
   'tests/specs/reporting/reporter-paths.test.ts',
@@ -71,6 +72,19 @@ const collectPlaceholderMetadataEntries = () =>
     );
   });
 
+const collectFixedWaitEntries = () =>
+  collectTypeScriptFiles(testsRoot).flatMap((path) => {
+    const source = readFileSync(path, 'utf8');
+    const lines = source.split('\n');
+    const relativePath = relative(repositoryRoot, path).replaceAll('\\', '/');
+
+    return lines.flatMap((line, index) =>
+      [...line.matchAll(fixedWaitPattern)].map(
+        (match) => `${relativePath}:${index + 1}:${match[0]}`,
+      ),
+    );
+  });
+
 describe('Playwright skip inventory', () => {
   it('keeps every skip and fixme explicitly classified', () => {
     const entries = collectPlaywrightSkipEntries().sort();
@@ -89,5 +103,9 @@ describe('Playwright skip inventory', () => {
 
   it('keeps real Playwright titles free of placeholder metadata', () => {
     expect(collectPlaceholderMetadataEntries()).toEqual([]);
+  });
+
+  it('keeps Playwright specs and docs free of fixed timeout waits', () => {
+    expect(collectFixedWaitEntries()).toEqual([]);
   });
 });
