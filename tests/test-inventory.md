@@ -238,11 +238,20 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     Browser runtime review is unavailable.
     Organizer overview app coverage also proves checked-in rows and in-flight
     writes disable participant cancellation and organizer-assisted transfer.
-  - Browser-backed ESNcard add, refresh, and remove flows with readable error
-    states.
-    App and server coverage already prove upsert payload normalization,
-    readable mutation errors, readable status labels, save/refresh/remove action states, global
-    per-user card reads/upserts, refresh persistence, and scoped removal.
+  - Browser-backed ESNcard live add, refresh, and remove provider outcomes with
+    readable error states.
+    Generated discounts docs now include a helper-backed baseline note for
+    readable ESNcard statuses, pending save/refresh/remove labels, shared
+    in-flight write guards, trimmed save payloads, and provider-unavailable
+    retry copy. The page-backed discounts doc asserts the seeded verified
+    ESNcard identifier/status, database readback, refresh/remove action
+    visibility, and invalid-card-number save guard. The profile discounts spec
+    functionally covers the same seeded direct-link discount-card journey with
+    database readback. App and server
+    coverage already prove upsert payload normalization, readable mutation
+    errors, readable status labels, save/refresh/remove action states, global
+    per-user card reads/upserts, refresh persistence, provider-outage upsert
+    rejection before inserting or updating the stored card, and scoped removal.
     Local app coverage also proves that save, refresh, and remove actions share
     an in-flight guard so profile discount-card writes do not overlap.
     App coverage also proves the `#discounts` profile fragment waits for
