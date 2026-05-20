@@ -1023,7 +1023,7 @@ the current working direction until a product decision overrides them.
 
 ### Test and Documentation Quality
 
-- `tests/specs/scanning/scanner.test.ts` now clicks "Confirm Check In" with selected guests and asserts that `checkInTime`, `checkedInGuestCount`, and `checkedInSpots` update, then restores the seeded row.
+- `tests/specs/scanning/scanner.test.ts` now clicks "Confirm Check In" with selected guests, asserts that `checkInTime`, `checkedInGuestCount`, and `checkedInSpots` update, and then opens the organizer overview to assert the checked-in aggregate shown there before restoring the seeded row.
 - `src/app/events/event-organize/event-organize.spec.ts` covers organizer overview stat aggregation from registration-option counters, including scanner-updated `checkedInSpots` totals.
 - Server unit coverage proves scan-read denial for unauthorized tenant users, check-in counter updates for organizer access, selected guest check-in behavior, remaining-guest scan behavior after buyer check-in, idempotent duplicate check-in behavior, and same-user check-in denial.
 - `src/server/http/qr-code.web-handler.spec.ts` covers unauthenticated QR denial, owner access, same-event organizer access, other-user denial, and pending-registration denial.
@@ -1033,7 +1033,7 @@ the current working direction until a product decision overrides them.
 - Server unit coverage proves future-event timing disables scan check-in and rejects direct check-in writes before the pre-start window opens. Server unit coverage also proves pending, cancelled, and waitlisted registrations disable scan check-in and reject direct check-in writes.
 - `tests/docs/events/register.doc.ts` documents that the ticket QR code is available after registration/payment and no longer claims QR email delivery exists in the current relaunch flow.
 - `tests/docs/events/event-management.doc.ts` documents the organizer-facing QR scan/check-in flow, including scan warnings, check-in authorization, buyer-plus-selected-guests checked-in count updates, and selected guest-quantity check-in.
-- `QUALITY.md` lists participant and guest-quantity check-in as high-value Playwright flows; the scanner spec now covers selected guest check-in, while Browser-backed organizer aggregate review still depends on local runtime availability.
+- `QUALITY.md` lists participant and guest-quantity check-in as high-value Playwright flows; the scanner spec now covers selected guest check-in and the organizer overview aggregate. Manual Browser review still depends on local runtime availability.
 
 ### Product Questions Answered Above
 
@@ -1048,7 +1048,7 @@ the current working direction until a product decision overrides them.
 
 - Keep server tests for same-user scans, unauthorized tenant users, duplicate scans, and counter updates.
 - Keep server tests for pending/cancelled/waitlisted registrations.
-- Extend the Playwright scanner spec to assert the organizer overview/check-in aggregate once runtime Browser review is available.
+- Keep the Playwright scanner spec aligned with the organizer overview/check-in aggregate and run the manual Browser review once local runtime is available.
 - Keep organizer check-in documentation aligned with the dedicated scanner flow as check-in UI and guest-quantity behavior evolve.
 - Keep scanner camera-error mapping covered by unit tests as browser/device behavior changes.
 
@@ -1445,7 +1445,7 @@ the current working direction until a product decision overrides them.
    question answers. Registration-time add-on purchase is now part of
    registration checkout, while standalone before-event and during-event add-on
    sales remain separate fuller product/runtime slices.
-4. Add Browser-backed scanner/organizer aggregate review once local runtime is available.
+4. Run manual Browser-backed scanner/organizer aggregate review once local runtime is available. The page-backed scanner spec now asserts that the checked-in aggregate changes after buyer-plus-guest check-in.
 5. Add Browser-backed profile coverage for payment-continuation, ticket/cancellation routing, waitlist messaging, and ESNcard provider failure semantics once local runtime is available.
 6. Fill the remaining tenant settings implementation gap for automated onboarding/domain workflows. The current general-settings page exposes SEO fields, uploaded or externally hosted logo/favicon URLs, tenant legal links or hosted legal text, editable supported locale/currency/timezone values, read-only runtime identity, and a visible deferred-settings summary. The current global-admin surface supports a searchable tenant list, tenant create/edit, and tenant detail review, while custom-domain verification, multi-domain automation, and impersonation remain out of scope.
 7. Keep `docker:start` reset behavior intentional, use `docker:resume` only for existing local stacks, and ensure seeded data is sufficient to get going from zero.
@@ -1525,6 +1525,7 @@ implement those decisions or explicitly revise them there before changing code.
   create/edit handlers against duplicate in-flight role writes.
 - Template tax-rate coverage pass: covered the compatible active/inclusive current-tenant tax-rate query and paid missing-tax-rate submit normalization so the remaining fixme is narrowed to page-level simple-mode UI assertions.
 - Scanner aggregate coverage pass: extracted organizer overview stat aggregation and covered the checked-in total against registration-option `checkedInSpots`, keeping local app logic aligned with scanner mutation counters while Browser aggregate review remains blocked.
+- Scanner aggregate Playwright pass: extended the scanner spec to open the organizer overview after buyer-plus-guest check-in and assert the checked-in aggregate shown there.
 - Profile edit-dialog coverage pass: covered profile edit payload normalization so notification email and optional global reimbursement details are trimmed/null-normalized before persistence.
 - Create-account payload coverage pass: normalized submitted account-creation names and notification email before the RPC mutation and covered that behavior in helper unit tests.
 - Profile receipt-label coverage pass: rendered submitted receipt statuses through readable profile labels and covered all persisted receipt states in app unit tests.

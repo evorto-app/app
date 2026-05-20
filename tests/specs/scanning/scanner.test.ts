@@ -112,6 +112,11 @@ test.skip('scan confirmed registration records check-in', async ({
         checkedInGuestCount: 2,
         checkedInSpots: optionBefore.checkedInSpots + 3,
       });
+
+    await page.goto(`/events/${confirmedRegistration.eventId}/organize`);
+    await expect(page.getByTestId('event-organize-checked-in-stat')).toHaveText(
+      new RegExp(`^${optionBefore.checkedInSpots + 3}\\s*Checked In$`),
+    );
   } finally {
     await database
       .update(eventRegistrations)
