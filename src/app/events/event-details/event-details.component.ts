@@ -34,6 +34,7 @@ import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
 import { PermissionsService } from '../../core/permissions.service';
 import { EventStatusComponent } from '../../shared/components/event-status/event-status.component';
+import { PriceWithTaxComponent } from '../../shared/components/inclusive-price-label/price-with-tax.component';
 import { IfAnyPermissionDirective } from '../../shared/directives/if-any-permission.directive';
 import { EventActiveRegistrationComponent } from '../event-active-registration/event-active-registration.component';
 import { EventRegistrationOptionComponent } from '../event-registration-option/event-registration-option.component';
@@ -79,6 +80,29 @@ export const eventSubmitForReviewActionDisabled = ({
 }): boolean =>
   !canEdit || (status !== 'DRAFT' && status !== 'REJECTED') || mutationPending;
 
+export const eventAddonPurchaseTiming = (addOn: {
+  allowPurchaseBeforeEvent: boolean;
+  allowPurchaseDuringEvent: boolean;
+  allowPurchaseDuringRegistration: boolean;
+}): string => {
+  const windows = [
+    addOn.allowPurchaseDuringRegistration ? 'During registration' : null,
+    addOn.allowPurchaseBeforeEvent ? 'Before event' : null,
+    addOn.allowPurchaseDuringEvent ? 'During event' : null,
+  ].filter((window): window is string => window !== null);
+
+  return windows.length > 0 ? windows.join(', ') : 'Unavailable';
+};
+
+export const eventRegistrationOptionTitle = (
+  event: {
+    registrationOptions: readonly { id: string; title: string }[];
+  },
+  registrationOptionId: string,
+): string =>
+  event.registrationOptions.find((option) => option.id === registrationOptionId)
+    ?.title ?? 'Unknown registration option';
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -93,6 +117,7 @@ export const eventSubmitForReviewActionDisabled = ({
     Shape,
     IconComponent,
     MaterialThemeDirective,
+    PriceWithTaxComponent,
   ],
   styles: `
     header {
@@ -173,6 +198,8 @@ export class EventDetailsComponent {
     if (!latestValidTo) return false;
     return latestValidTo <= new Date(event.start);
   });
+  protected readonly eventAddonPurchaseTiming = eventAddonPurchaseTiming;
+
   protected readonly eventIconColor = computed(() => {
     const event = this.eventQuery.data();
     if (!event) {
@@ -180,7 +207,6 @@ export class EventDetailsComponent {
     }
     return event.icon.iconColor;
   });
-
   protected readonly eventReviewActionDisabled = eventReviewActionDisabled;
   protected readonly eventSubmitForReviewActionDisabled =
     eventSubmitForReviewActionDisabled;
@@ -190,6 +216,7 @@ export class EventDetailsComponent {
     const event = this.eventQuery.data();
     return event ? registrationOptionsState(event) : 'none';
   });
+  protected readonly registrationOptionTitle = eventRegistrationOptionTitle;
   protected readonly registrationStatusQuery = injectQuery(() =>
     this.rpc.events.getRegistrationStatus.queryOptions({
       eventId: this.eventId(),
@@ -239,6 +266,18 @@ export class EventDetailsComponent {
         },
       );
     }
+  }
+
+  protected eventAddonTaxRate(addOn: {
+    taxRateDisplayName: null | string;
+    taxRatePercentage: null | string;
+  }) {
+    return addOn.taxRateDisplayName && addOn.taxRatePercentage
+      ? {
+          displayName: addOn.taxRateDisplayName,
+          percentage: addOn.taxRatePercentage,
+        }
+      : undefined;
   }
 
   protected async reviewEvent(approved: boolean): Promise<void> {

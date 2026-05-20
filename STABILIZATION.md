@@ -650,7 +650,8 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** template detail now returns and displays
   existing reusable template add-ons from the current schema, including pricing,
   purchase timing, quantity limits, and registration-option attachments.
-  Template add-ons remain template-scoped until event-side fulfillment exists.
+  Template add-ons now copy into event-scoped read-model records when a template
+  creates an event; add-on checkout/sales fulfillment remains future work.
 - **Addressed in this stabilization pass:** the template RPC/service boundary
   now accepts optional reusable add-on input for simple template writes, validates
   add-on tax rates and quantity/window invariants, and replaces stored template
@@ -658,12 +659,14 @@ the current working direction until a product decision overrides them.
 - **Addressed in this stabilization pass:** simple-mode template create/edit now
   exposes reusable add-on editing, including free/paid state, inclusive tax-rate
   selection, registration-option attachment, included/available quantities,
-  max-per-user quantity, and purchase timing. Event creation still does not copy
-  add-ons into event-side fulfillment.
+  max-per-user quantity, and purchase timing. Event creation copies reusable
+  add-ons into event-scoped add-ons attached to the matching copied
+  registration options.
 - **Addressed in this stabilization pass:** create-event-from-template now
   shows an explicit add-on boundary notice when the source template has
-  reusable add-ons. Event creation still copies registration options only until
-  event-side add-on fulfillment exists.
+  reusable add-ons. Event detail now shows copied add-ons read-only so
+  organizers can verify the template data that moved with the event; add-on
+  checkout/sales fulfillment is still out of scope.
 - **Addressed in stabilization pass:** reset-from-zero seed data now includes
   both free and paid reusable template add-ons attached to participant template
   registration options, so Browser review can inspect the add-on detail surface
@@ -712,11 +715,12 @@ the current working direction until a product decision overrides them.
   covers the template-to-event form mapping, including copied registration
   option source ids for server-side template discount copying, relative
   registration-window offsets, and the boundary that organizer planning tips
-  and reusable add-ons stay private to the template surface.
+  stay private to the template surface while source option ids allow the server
+  to copy reusable add-ons into event-scoped records.
 - `src/app/templates/template-create-event/template-create-event.component.spec.ts`
   pins the create-event-from-template submit guard for invalid, submitting, and
-  mutation-pending states, plus the visible notice for templates whose add-ons
-  are not copied into event-side fulfillment yet.
+  mutation-pending states, plus the visible notice that reusable add-ons are
+  copied into the event read model without checkout/sales fulfillment yet.
 - `src/app/templates/shared/template-form/template-form.utilities.spec.ts` pins
   the shared template create/edit write guard for invalid, submitting, and
   mutation-pending states.
@@ -733,13 +737,17 @@ the current working direction until a product decision overrides them.
   also covers simple reusable add-on insert shaping, registration-option
   attachment, hidden payment-field cleanup, purchase-window validation, and
   paid add-on tax-rate validation.
-- `src/db/schema/template-event-addons.spec.ts` pins the current implementation
-  boundary that add-ons are template-scoped only and registration-question
-  schemas are not exposed yet.
+- `src/db/schema/template-event-addons.spec.ts` and the event lifecycle handler
+  coverage pin reusable add-on source storage and template-to-event copying,
+  while registration-question schemas are not exposed yet.
 - `src/server/effect/rpc/handlers/templates.handlers.spec.ts` and
   `src/app/templates/template-details/template-details.component.spec.ts` cover
   the current reusable add-on read model and detail-surface labels without
   requiring Browser/runtime setup.
+- `src/server/effect/rpc/handlers/events/events-lifecycle.handlers.spec.ts`,
+  `src/server/effect/rpc/handlers/events/events-rpcs.schema.spec.ts`, and
+  `src/app/events/event-details/event-details.component.spec.ts` cover copied
+  event add-on storage, RPC shape, and read-only event-detail labels.
 - `tests/specs/seed/seed-baseline.test.ts` now treats seeded reusable template
   add-ons as part of the reset-from-zero contract for template detail review.
 - The generic `tests/docs/template.doc.ts` discovery placeholder was removed; product template documentation lives in `tests/docs/templates/templates.doc.ts`.
@@ -1402,8 +1410,9 @@ the current working direction until a product decision overrides them.
    template support for discounts, add-ons, and questions where practical.
    Organizer planning tips are now exposed as the first private organizer-notes
    field, existing reusable template add-ons are now visible on template detail,
-   and simple template create/edit can persist reusable add-ons. Event-side
-   add-on fulfillment and registration questions remain separate fuller
+   simple template create/edit can persist reusable add-ons, and event creation
+   copies reusable add-ons into event-scoped read-model records. Add-on
+   checkout/sales fulfillment and registration questions remain separate fuller
    product/runtime slices.
 4. Add Browser-backed scanner/organizer aggregate review once local runtime is available.
 5. Add Browser-backed profile coverage for payment-continuation, ticket/cancellation routing, waitlist messaging, and ESNcard provider failure semantics once local runtime is available.
@@ -1826,6 +1835,10 @@ implement those decisions or explicitly revise them there before changing code.
 - Template create-event add-on boundary pass: showed a create-event notice when
   a source template has reusable add-ons and pinned that current event form data
   still copies registration options only until event add-on fulfillment exists.
+- Event add-on copy pass: added event-scoped add-on tables, copied reusable
+  template add-ons by source registration option during event creation, and
+  surfaced copied add-ons read-only on event detail while checkout/sales
+  fulfillment remains future work.
 - Active-registration action-guard pass: shared tested cancellation and
   transfer disabled-state helpers between active-registration buttons and
   handlers so participant cancellation and unpaid transfer writes cannot

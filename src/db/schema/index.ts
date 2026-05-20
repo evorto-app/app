@@ -1,3 +1,4 @@
+export * from './event-addons';
 export * from './event-instances';
 export * from './event-registration-option-discounts';
 export * from './event-registration-options';

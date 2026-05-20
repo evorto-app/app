@@ -4,6 +4,8 @@ import { vi } from 'vitest';
 
 import { Database } from '../../../../../db';
 import {
+  addonToEventRegistrationOptions,
+  eventAddons,
   eventInstances,
   eventRegistrationOptionDiscounts,
   eventRegistrationOptions,
@@ -13,7 +15,10 @@ import {
   type RpcRequestContextShape,
 } from '../../../../../shared/rpc-contracts/app-rpcs';
 import { RpcAccess } from '../shared/rpc-access.service';
-import { eventLifecycleHandlers } from './events-lifecycle.handlers';
+import {
+  buildEventAddonInsert,
+  eventLifecycleHandlers,
+} from './events-lifecycle.handlers';
 
 const tenant = {
   currency: 'EUR' as const,
@@ -244,12 +249,18 @@ describe('eventLifecycleHandlers', () => {
             throw new Error('Unexpected insert table');
           }),
           query: {
+            addonToTemplateRegistrationOptions: {
+              findMany: vi.fn(() => Effect.succeed([])),
+            },
             eventTemplates: {
               findFirst: vi.fn(() =>
                 Effect.succeed({
                   unlisted: false,
                 }),
               ),
+            },
+            templateEventAddons: {
+              findMany: vi.fn(() => Effect.succeed([])),
             },
             templateRegistrationOptions: {
               findMany: vi.fn(() =>
@@ -371,12 +382,18 @@ describe('eventLifecycleHandlers', () => {
             throw new Error('Unexpected insert table');
           }),
           query: {
+            addonToTemplateRegistrationOptions: {
+              findMany: vi.fn(() => Effect.succeed([])),
+            },
             eventTemplates: {
               findFirst: vi.fn(() =>
                 Effect.succeed({
                   unlisted: false,
                 }),
               ),
+            },
+            templateEventAddons: {
+              findMany: vi.fn(() => Effect.succeed([])),
             },
             templateRegistrationOptions: {
               findMany: vi.fn(() =>
@@ -444,12 +461,18 @@ describe('eventLifecycleHandlers', () => {
         const database = {
           insert,
           query: {
+            addonToTemplateRegistrationOptions: {
+              findMany: vi.fn(() => Effect.succeed([])),
+            },
             eventTemplates: {
               findFirst: vi.fn(() =>
                 Effect.succeed({
                   unlisted: false,
                 }),
               ),
+            },
+            templateEventAddons: {
+              findMany: vi.fn(() => Effect.succeed([])),
             },
             templateRegistrationOptions: {
               findMany: vi.fn(() =>
@@ -507,6 +530,214 @@ describe('eventLifecycleHandlers', () => {
         expect(error['_tag']).toBe('RpcBadRequestError');
         expect(error.reason).toBe('esnDiscountExceedsPrice');
         expect(insert).not.toHaveBeenCalled();
+      }),
+  );
+
+  it('builds event add-on inserts from copied template add-ons', () => {
+    expect(
+      buildEventAddonInsert({
+        addOn: {
+          allowMultiple: true,
+          allowPurchaseBeforeEvent: true,
+          allowPurchaseDuringEvent: false,
+          allowPurchaseDuringRegistration: true,
+          createdAt: new Date('2026-01-01T00:00:00.000Z'),
+          description: 'Includes equipment rental.',
+          id: 'template-addon-1',
+          isPaid: true,
+          maxQuantityPerUser: 2,
+          price: 1500,
+          registrationOptions: [
+            {
+              quantity: 1,
+              registrationOptionId: 'template-option-1',
+            },
+          ],
+          stripeTaxRateId: 'txr_vat_19',
+          templateId: 'template-1',
+          title: 'Equipment rental',
+          totalAvailableQuantity: 20,
+          updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+        },
+        eventId: 'event-1',
+      }),
+    ).toEqual({
+      allowMultiple: true,
+      allowPurchaseBeforeEvent: true,
+      allowPurchaseDuringEvent: false,
+      allowPurchaseDuringRegistration: true,
+      description: 'Includes equipment rental.',
+      eventId: 'event-1',
+      isPaid: true,
+      maxQuantityPerUser: 2,
+      price: 1500,
+      stripeTaxRateId: 'txr_vat_19',
+      title: 'Equipment rental',
+      totalAvailableQuantity: 20,
+    });
+  });
+
+  it.effect(
+    'events.create copies template add-ons to matching event registration options',
+    () =>
+      Effect.gen(function* () {
+        const insertedEventAddonValues = vi.fn(() => ({
+          returning: vi.fn(() => Effect.succeed([{ id: 'event-addon-1' }])),
+        }));
+        const insertedEventAddonOptionValues = vi.fn(() => Effect.succeed());
+        const database = {
+          insert: vi.fn((table) => {
+            if (table === eventInstances) {
+              return {
+                values: vi.fn(() => ({
+                  returning: vi.fn(() =>
+                    Effect.succeed([
+                      {
+                        id: 'event-1',
+                      },
+                    ]),
+                  ),
+                })),
+              };
+            }
+
+            if (table === eventRegistrationOptions) {
+              return {
+                values: vi.fn(() => ({
+                  returning: vi.fn(() =>
+                    Effect.succeed([
+                      {
+                        id: 'event-option-1',
+                      },
+                    ]),
+                  ),
+                })),
+              };
+            }
+
+            if (table === eventAddons) {
+              return {
+                values: insertedEventAddonValues,
+              };
+            }
+
+            if (table === addonToEventRegistrationOptions) {
+              return {
+                values: insertedEventAddonOptionValues,
+              };
+            }
+
+            throw new Error('Unexpected insert table');
+          }),
+          query: {
+            addonToTemplateRegistrationOptions: {
+              findMany: vi.fn(() =>
+                Effect.succeed([
+                  {
+                    addonId: 'template-addon-1',
+                    quantity: 2,
+                    registrationOptionId: 'template-option-1',
+                  },
+                ]),
+              ),
+            },
+            eventTemplates: {
+              findFirst: vi.fn(() =>
+                Effect.succeed({
+                  unlisted: false,
+                }),
+              ),
+            },
+            templateEventAddons: {
+              findMany: vi.fn(() =>
+                Effect.succeed([
+                  {
+                    allowMultiple: true,
+                    allowPurchaseBeforeEvent: true,
+                    allowPurchaseDuringEvent: false,
+                    allowPurchaseDuringRegistration: true,
+                    createdAt: new Date('2026-01-01T00:00:00.000Z'),
+                    description: 'Includes equipment rental.',
+                    id: 'template-addon-1',
+                    isPaid: true,
+                    maxQuantityPerUser: 2,
+                    price: 1500,
+                    stripeTaxRateId: 'txr_vat_19',
+                    templateId: 'template-1',
+                    title: 'Equipment rental',
+                    totalAvailableQuantity: 20,
+                    updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+                  },
+                ]),
+              ),
+            },
+            templateRegistrationOptions: {
+              findMany: vi.fn(() =>
+                Effect.succeed([
+                  {
+                    id: 'template-option-1',
+                  },
+                ]),
+              ),
+            },
+            tenantStripeTaxRates: {
+              findFirst: vi.fn(() =>
+                Effect.succeed({
+                  active: true,
+                  inclusive: true,
+                }),
+              ),
+            },
+          },
+          select: vi.fn(() => ({
+            from: vi.fn(() => ({
+              where: vi.fn(() => Effect.succeed([])),
+            })),
+          })),
+        };
+        const layer = Layer.mergeAll(
+          requestContextLayer,
+          Layer.succeed(Database, database as never),
+        );
+
+        const result = yield* eventLifecycleHandlers['events.create'](
+          {
+            ...createInput,
+            registrationOptions: [
+              {
+                ...createInput.registrationOptions[0],
+                isPaid: true,
+                price: 1000,
+                sourceTemplateRegistrationOptionId: 'template-option-1',
+                stripeTaxRateId: 'txr_vat_19',
+              },
+            ],
+          },
+          { headers: {} } as never,
+        ).pipe(Effect.provide(layer));
+
+        expect(result).toEqual({ id: 'event-1' });
+        expect(insertedEventAddonValues).toHaveBeenCalledWith({
+          allowMultiple: true,
+          allowPurchaseBeforeEvent: true,
+          allowPurchaseDuringEvent: false,
+          allowPurchaseDuringRegistration: true,
+          description: 'Includes equipment rental.',
+          eventId: 'event-1',
+          isPaid: true,
+          maxQuantityPerUser: 2,
+          price: 1500,
+          stripeTaxRateId: 'txr_vat_19',
+          title: 'Equipment rental',
+          totalAvailableQuantity: 20,
+        });
+        expect(insertedEventAddonOptionValues).toHaveBeenCalledWith([
+          {
+            addonId: 'event-addon-1',
+            quantity: 2,
+            registrationOptionId: 'event-option-1',
+          },
+        ]);
       }),
   );
 });

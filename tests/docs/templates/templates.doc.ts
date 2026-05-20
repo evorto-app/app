@@ -137,6 +137,7 @@ Role selection also avoids duplicate entries by hiding already selected roles fr
 #### Reusable add-ons
 Templates can also store optional add-ons such as meals, equipment, or other extras.
 Add-ons can be free or paid, attached to either the participant or organizer registration option, and can limit the included quantity, total availability, maximum quantity per user, and purchase timing.
+When a template creates an event, those reusable add-ons are copied into the event and shown on the event detail page. Purchase and checkout handling for add-ons is handled separately from this template setup flow.
 `,
   });
   await page.getByRole('button', { name: 'Add add-on' }).click();

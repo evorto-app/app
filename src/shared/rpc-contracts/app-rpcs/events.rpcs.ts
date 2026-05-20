@@ -283,6 +283,29 @@ export const EventsFindOneRegistrationOption = Schema.Struct({
   title: Schema.NonEmptyString,
 });
 
+export const EventsFindOneAddonRegistrationOption = Schema.Struct({
+  quantity: Schema.Number,
+  registrationOptionId: Schema.NonEmptyString,
+});
+
+export const EventsFindOneAddon = Schema.Struct({
+  allowMultiple: Schema.Boolean,
+  allowPurchaseBeforeEvent: Schema.Boolean,
+  allowPurchaseDuringEvent: Schema.Boolean,
+  allowPurchaseDuringRegistration: Schema.Boolean,
+  description: Schema.NullOr(Schema.String),
+  id: Schema.NonEmptyString,
+  isPaid: Schema.Boolean,
+  maxQuantityPerUser: Schema.Number,
+  price: Schema.Number,
+  registrationOptions: Schema.Array(EventsFindOneAddonRegistrationOption),
+  stripeTaxRateId: Schema.NullOr(Schema.String),
+  taxRateDisplayName: Schema.NullOr(Schema.String),
+  taxRatePercentage: Schema.NullOr(Schema.String),
+  title: Schema.NonEmptyString,
+  totalAvailableQuantity: Schema.Number,
+});
+
 export const EventsFindOne = asRpcQuery(
   Rpc.make('events.findOne', {
     error: EventsFindOneRpcError,
@@ -290,6 +313,7 @@ export const EventsFindOne = asRpcQuery(
       id: Schema.NonEmptyString,
     }),
     success: Schema.Struct({
+      addOns: Schema.Array(EventsFindOneAddon),
       creatorId: Schema.NonEmptyString,
       description: Schema.NonEmptyString,
       end: Schema.NonEmptyString,
