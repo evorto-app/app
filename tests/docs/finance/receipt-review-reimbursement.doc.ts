@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 
 import { adminStateFile } from '../../../helpers/user-data';
 import * as schema from '../../../src/db/schema';
@@ -20,13 +20,22 @@ test('Review and reimburse receipts @finance', async ({
 }, testInfo) => {
   const receiptFileName = 'kitchen-supplies.pdf';
   const receipt = await database.query.financeReceipts.findFirst({
-    where: and(
-      eq(schema.financeReceipts.attachmentFileName, receiptFileName),
-      eq(schema.financeReceipts.tenantId, tenant.id),
-    ),
+    where: {
+      attachmentFileName: receiptFileName,
+      tenantId: tenant.id,
+    },
   });
   if (!receipt) {
     throw new Error('Expected generated receipt review docs receipt');
+  }
+  const receiptSubmitter = await database.query.users.findFirst({
+    columns: {
+      communicationEmail: true,
+    },
+    where: { id: receipt.submittedByUserId },
+  });
+  if (!receiptSubmitter) {
+    throw new Error('Expected generated receipt submitter');
   }
   let refundTransactionId: null | string = null;
 
@@ -54,7 +63,7 @@ Finance users review submitted receipts first. Approved receipts then appear in 
     await expect(
       page
         .locator('app-receipt-approval-list')
-        .getByRole('heading', { name: 'Receipt approvals' }),
+        .getByRole('heading', { level: 1, name: 'Receipt approvals' }),
     ).toBeVisible();
 
     await testInfo.attach('markdown', {
@@ -106,7 +115,7 @@ The review page shows the receipt file, normalized receipt data, tax/deposit/alc
           columns: {
             status: true,
           },
-          where: eq(schema.financeReceipts.id, receipt.id),
+          where: { id: receipt.id },
         });
 
         return approvedReceipt?.status;
@@ -117,7 +126,7 @@ The review page shows the receipt file, normalized receipt data, tax/deposit/alc
     await expect(
       page
         .locator('app-receipt-refund-list')
-        .getByRole('heading', { name: 'Receipt reimbursements' }),
+        .getByRole('heading', { level: 1, name: 'Receipt reimbursements' }),
     ).toBeVisible();
     await expect(
       page.getByText(
@@ -144,7 +153,7 @@ Approved receipts are grouped by recipient. The contact email shown for each rec
       .first();
     await expect(reimbursementGroup).toBeVisible();
     await expect(
-      reimbursementGroup.getByText('organizer@evorto.app'),
+      reimbursementGroup.getByText(receiptSubmitter.communicationEmail),
     ).toBeVisible();
     await takeScreenshot(
       testInfo,
@@ -168,10 +177,10 @@ Approved receipts are grouped by recipient. The contact email shown for each rec
       page.getByText('Selected total: 0.00 €').first(),
     ).toBeVisible();
     const refundedReceipt = await database.query.financeReceipts.findFirst({
-      where: and(
-        eq(schema.financeReceipts.id, receipt.id),
-        eq(schema.financeReceipts.tenantId, tenant.id),
-      ),
+      where: {
+        id: receipt.id,
+        tenantId: tenant.id,
+      },
     });
     if (!refundedReceipt) {
       throw new Error(
@@ -196,7 +205,7 @@ After recording the reimbursement, the selected receipt leaves the active reimbu
       columns: {
         refundTransactionId: true,
       },
-      where: eq(schema.financeReceipts.id, receipt.id),
+      where: { id: receipt.id },
     });
     refundTransactionId ??= currentReceipt?.refundTransactionId ?? null;
     await database

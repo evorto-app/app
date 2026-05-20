@@ -2508,6 +2508,13 @@ implement those decisions or explicitly revise them there before changing code.
   least-privilege organizer template creation, event creation from a template,
   seeded inclusive tax-rate selection, reusable add-on/question persistence,
   and duplicate-hiding role autocomplete behavior.
+- Docker finance-doc runtime pass: rebuilt/reset the Docker app image on
+  `APP_HOST_PORT=4200`, kept the Font Awesome premium/brand token path in the
+  Docker preflight, and reran the finance receipt flow plus generated finance
+  docs against system Chrome with `NO_WEBSERVER=true --no-deps`. The pass fixed
+  stale finance doc assumptions around scoped child headings, template-derived
+  event end times, Drizzle relational query filters, and submitter contact
+  email semantics so the docs assert notification email rather than login email.
 
 ## Review Next
 

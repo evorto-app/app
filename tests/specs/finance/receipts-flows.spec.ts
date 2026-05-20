@@ -12,6 +12,8 @@ import { expect, test } from '../../support/fixtures/parallel-test';
 
 test.use({ storageState: adminStateFile });
 
+const organizerUserId = 'ef7d925a3b3d9a50831a';
+
 const openEventOrganizePage = async (page: Page, eventId: string) => {
   await page.goto(`/events/${eventId}/organize`);
 };
@@ -61,6 +63,8 @@ const submitReceiptFromFirstEvent = async (
 const seedPendingReceiptForApproval = async ({
   database,
   eventId,
+  receiptFileName,
+  receiptId,
   seedDate,
   submittedByUserId,
   tenantId,
@@ -147,7 +151,7 @@ test.skip('approve and record receipt reimbursements in finance', async ({
     receiptFileName,
     receiptId,
     seedDate,
-    submittedByUserId: '334967d7626fbd6ad449',
+    submittedByUserId: organizerUserId,
     tenantId: tenant.id,
   });
 
