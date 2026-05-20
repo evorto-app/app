@@ -22,6 +22,7 @@ describe('eventHandlers composition', () => {
       'events.registrationScanned',
       'events.reviewEvent',
       'events.submitForReview',
+      'events.transferEventRegistration',
       'events.update',
       'events.updateListing',
     ]);

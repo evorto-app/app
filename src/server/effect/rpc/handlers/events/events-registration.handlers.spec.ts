@@ -182,6 +182,96 @@ const createGuestCancellationDatabase = ({
   return { database, updateSets };
 };
 
+const createTransferDatabase = ({
+  existingTargetRegistration = null,
+  organizerRegistrations = [
+    {
+      id: 'organizer-registration-1',
+      registrationOption: {
+        organizingRegistration: true,
+      },
+    },
+  ],
+  registration = {
+    checkInTime: null,
+    event: {
+      start: new Date(Date.now() + 24 * 60 * 60 * 1000),
+    },
+    eventId: 'event-1',
+    id: 'registration-1',
+    registrationOptionId: 'option-1',
+    status: 'CONFIRMED',
+    transactions: [],
+    userId: 'attendee-1',
+  },
+  targetTenantUser = {
+    id: 'target-tenant-user-1',
+    roles: [{ id: 'participant-role-1' }],
+  },
+}: {
+  existingTargetRegistration?: null | { id: string };
+  organizerRegistrations?: readonly {
+    id: string;
+    registrationOption: {
+      organizingRegistration: boolean;
+    };
+  }[];
+  registration?: null | {
+    checkInTime: Date | null;
+    event: null | { start: Date };
+    eventId: string;
+    id: string;
+    registrationOptionId: string;
+    status: 'CANCELLED' | 'CONFIRMED' | 'PENDING' | 'WAITLIST';
+    transactions: readonly {
+      amount: number;
+      status: 'cancelled' | 'pending' | 'successful';
+      type: 'other' | 'refund' | 'registration';
+    }[];
+    userId: string;
+  };
+  targetTenantUser?: null | { id: string; roles: readonly { id: string }[] };
+} = {}) => {
+  const updateSets: unknown[] = [];
+  const database = {
+    query: {
+      eventRegistrationOptions: {
+        findFirst: () =>
+          Effect.succeed({
+            roleIds: ['participant-role-1'],
+          }),
+      },
+      eventRegistrations: {
+        findFirst: vi
+          .fn()
+          .mockReturnValueOnce(Effect.succeed(registration))
+          .mockReturnValueOnce(Effect.succeed(existingTargetRegistration)),
+        findMany: () => Effect.succeed(organizerRegistrations),
+      },
+      usersToTenants: {
+        findFirst: () => Effect.succeed(targetTenantUser),
+      },
+    },
+    update: (table: unknown) => ({
+      set: (values: unknown) => {
+        updateSets.push(values);
+        return {
+          where: () => ({
+            returning: () => {
+              if (table === eventRegistrations) {
+                return Effect.succeed([{ id: 'registration-1' }]);
+              }
+              return Effect.succeed([]);
+            },
+          }),
+        };
+      },
+    }),
+  };
+
+  return { database, updateSets };
+};
+
 describe('event registration cancellation handlers', () => {
   it.effect(
     'allows event organizers to cancel another confirmed registration',
@@ -547,6 +637,173 @@ describe('event registration cancellation handlers', () => {
           expect.objectContaining({ waitlistSpots: expect.anything() }),
         ]);
         expect(database.transaction).toHaveBeenCalledOnce();
+      }),
+  );
+});
+
+describe('event registration transfer handlers', () => {
+  it.effect(
+    'allows event organizers to transfer a confirmed unpaid registration to another tenant user',
+    () =>
+      Effect.gen(function* () {
+        const { database, updateSets } = createTransferDatabase();
+
+        yield* eventRegistrationHandlers['events.transferEventRegistration'](
+          {
+            eventId: 'event-1',
+            registrationId: 'registration-1',
+            targetUserId: 'target-user-1',
+          },
+          { headers: {} } as never,
+        ).pipe(Effect.provide(createContextLayer({ database })));
+
+        expect(updateSets).toEqual([{ userId: 'target-user-1' }]);
+      }),
+  );
+
+  it.effect('rejects transfer without organizer access', () =>
+    Effect.gen(function* () {
+      const { database, updateSets } = createTransferDatabase({
+        organizerRegistrations: [],
+      });
+
+      const error = yield* eventRegistrationHandlers[
+        'events.transferEventRegistration'
+      ](
+        {
+          eventId: 'event-1',
+          registrationId: 'registration-1',
+          targetUserId: 'target-user-1',
+        },
+        { headers: {} } as never,
+      ).pipe(Effect.flip, Effect.provide(createContextLayer({ database })));
+
+      expect(error['_tag']).toBe('RpcForbiddenError');
+      expect(updateSets).toEqual([]);
+    }),
+  );
+
+  it.effect(
+    'rejects paid registration transfer until refund and resale handling exists',
+    () =>
+      Effect.gen(function* () {
+        const { database, updateSets } = createTransferDatabase({
+          registration: {
+            checkInTime: null,
+            event: {
+              start: new Date(Date.now() + 24 * 60 * 60 * 1000),
+            },
+            eventId: 'event-1',
+            id: 'registration-1',
+            registrationOptionId: 'option-1',
+            status: 'CONFIRMED',
+            transactions: [
+              {
+                amount: 1200,
+                status: 'successful',
+                type: 'registration',
+              },
+            ],
+            userId: 'attendee-1',
+          },
+        });
+
+        const error = yield* eventRegistrationHandlers[
+          'events.transferEventRegistration'
+        ](
+          {
+            eventId: 'event-1',
+            registrationId: 'registration-1',
+            targetUserId: 'target-user-1',
+          },
+          { headers: {} } as never,
+        ).pipe(Effect.flip, Effect.provide(createContextLayer({ database })));
+
+        expect(error['_tag']).toBe('EventRegistrationConflictError');
+        expect(error.message).toBe(
+          'Paid registration transfer is not available until the refund/resale flow is implemented',
+        );
+        expect(updateSets).toEqual([]);
+      }),
+  );
+
+  it.effect('rejects transfer when the target user is not role-eligible', () =>
+    Effect.gen(function* () {
+      const { database, updateSets } = createTransferDatabase({
+        targetTenantUser: {
+          id: 'target-tenant-user-1',
+          roles: [{ id: 'other-role-1' }],
+        },
+      });
+
+      const error = yield* eventRegistrationHandlers[
+        'events.transferEventRegistration'
+      ](
+        {
+          eventId: 'event-1',
+          registrationId: 'registration-1',
+          targetUserId: 'target-user-1',
+        },
+        { headers: {} } as never,
+      ).pipe(Effect.flip, Effect.provide(createContextLayer({ database })));
+
+      expect(error['_tag']).toBe('EventRegistrationConflictError');
+      expect(error.message).toBe(
+        'Target user is not eligible for this registration option',
+      );
+      expect(updateSets).toEqual([]);
+    }),
+  );
+
+  it.effect(
+    'rejects transfer when the target user is outside the current tenant',
+    () =>
+      Effect.gen(function* () {
+        const { database, updateSets } = createTransferDatabase({
+          targetTenantUser: null,
+        });
+
+        const error = yield* eventRegistrationHandlers[
+          'events.transferEventRegistration'
+        ](
+          {
+            eventId: 'event-1',
+            registrationId: 'registration-1',
+            targetUserId: 'target-user-1',
+          },
+          { headers: {} } as never,
+        ).pipe(Effect.flip, Effect.provide(createContextLayer({ database })));
+
+        expect(error['_tag']).toBe('EventRegistrationNotFoundError');
+        expect(error.message).toBe('Target tenant user not found');
+        expect(updateSets).toEqual([]);
+      }),
+  );
+
+  it.effect(
+    'rejects transfer when the target already has an active registration',
+    () =>
+      Effect.gen(function* () {
+        const { database, updateSets } = createTransferDatabase({
+          existingTargetRegistration: { id: 'target-registration-1' },
+        });
+
+        const error = yield* eventRegistrationHandlers[
+          'events.transferEventRegistration'
+        ](
+          {
+            eventId: 'event-1',
+            registrationId: 'registration-1',
+            targetUserId: 'target-user-1',
+          },
+          { headers: {} } as never,
+        ).pipe(Effect.flip, Effect.provide(createContextLayer({ database })));
+
+        expect(error['_tag']).toBe('EventRegistrationConflictError');
+        expect(error.message).toBe(
+          'Target user already has an active registration',
+        );
+        expect(updateSets).toEqual([]);
       }),
   );
 });

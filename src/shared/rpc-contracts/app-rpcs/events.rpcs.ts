@@ -84,6 +84,18 @@ export const EventsCancelEventRegistration = asRpcMutation(
   }),
 );
 
+export const EventsTransferEventRegistration = asRpcMutation(
+  Rpc.make('events.transferEventRegistration', {
+    error: EventsCheckInRegistrationError,
+    payload: Schema.Struct({
+      eventId: Schema.NonEmptyString,
+      registrationId: Schema.NonEmptyString,
+      targetUserId: Schema.NonEmptyString,
+    }),
+    success: Schema.Void,
+  }),
+);
+
 export const EventsCheckInRegistration = asRpcMutation(
   Rpc.make('events.checkInRegistration', {
     error: EventsCheckInRegistrationError,
@@ -494,6 +506,7 @@ export class EventsRpcs extends RpcGroup.make(
   EventsCancelPendingRegistration,
   EventsCancelRegistration,
   EventsCancelEventRegistration,
+  EventsTransferEventRegistration,
   EventsCanOrganize,
   EventsCheckInRegistration,
   EventsCreate,

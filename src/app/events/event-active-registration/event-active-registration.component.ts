@@ -60,7 +60,7 @@ export const registrationDeferredActionCopy = (registration: {
   status: EventsRegistrationStatus;
 }): null | string => {
   if (registration.status === 'CONFIRMED') {
-    return 'Transfer/resale is not implemented yet. Contact the organizers if someone else should take your spot.';
+    return 'Self-service transfer/resale is not available yet. Contact the organizers if someone else should take your spot.';
   }
 
   if (registration.status === 'PENDING') {
