@@ -39,6 +39,22 @@ const validSimpleTemplateInput = {
   title: 'Template',
 };
 
+const validSimpleTemplateAddonInput = {
+  allowMultiple: true,
+  allowPurchaseBeforeEvent: true,
+  allowPurchaseDuringEvent: false,
+  allowPurchaseDuringRegistration: true,
+  description: 'Optional dinner ticket',
+  isPaid: true,
+  maxQuantityPerUser: 2,
+  price: 1200,
+  quantity: 1,
+  registrationOptionKind: 'participant' as const,
+  stripeTaxRateId: 'txr-1',
+  title: 'Dinner',
+  totalAvailableQuantity: 40,
+};
+
 const validTemplateFindOneRecord = {
   addOns: [],
   categoryId: 'category-1',
@@ -118,6 +134,29 @@ describe('templates RPC location schema', () => {
         ],
       }),
     ).not.toThrow();
+  });
+
+  it('accepts optional reusable add-ons in simple template writes', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(TemplateSimpleInput)({
+        ...validSimpleTemplateInput,
+        addOns: [validSimpleTemplateAddonInput],
+      }),
+    ).not.toThrow();
+  });
+
+  it('rejects reusable add-ons without a simple registration option target', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(TemplateSimpleInput)({
+        ...validSimpleTemplateInput,
+        addOns: [
+          {
+            ...validSimpleTemplateAddonInput,
+            registrationOptionKind: 'vip',
+          },
+        ],
+      }),
+    ).toThrow();
   });
 
   it('rejects malformed template input locations', () => {
