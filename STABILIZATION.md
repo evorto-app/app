@@ -2011,6 +2011,13 @@ implement those decisions or explicitly revise them there before changing code.
   serializing Auth0 setup, tightening Auth0 field selectors, making the
   user-scoped ESNcard fixture opt-in and stable across parallel tenants, and
   aligning scanner/profile assertions with the current UI.
+- Docker profile/discount runtime pass: updated the Stripe CLI Docker sidecar
+  to `stripe/stripe-cli:v1.41.1`, rebuilt the Docker app image with the
+  Font Awesome token path exercised for premium and brand icons, verified
+  service health/logs and `/events`, and ran the ESN discounted registration
+  plus profile discount-card slice against system Chrome. The slice passed 9/9
+  after opting the ESN paid-registration spec into the seeded user ESNcard
+  fixture and targeting the current price component markup.
 
 ## Review Next
 
@@ -2020,9 +2027,12 @@ remaining relaunch gaps: Browser-backed profile action coverage, automated
 onboarding/domain workflows, and manual global tenant-admin Browser review.
 Scanner aggregate behavior now has Docker-backed system-Chrome coverage, but the
 in-app Browser connection itself still timed out during local navigation and
-should be retried when the Browser plugin/runtime is healthy. Richer reusable template add-ons and questions are
-now implemented in the simple template flow and should be kept aligned as those
-surfaces evolve. Normal generated docs output now stays local unless
+should be retried when the Browser plugin/runtime is healthy. The profile
+discount-card and ESN discounted-pricing slices also now have Docker-backed
+system-Chrome coverage, while live external ESNcard add/refresh provider
+outcomes remain intentionally outside deterministic local Browser coverage.
+Richer reusable template add-ons and questions are now implemented in the simple
+template flow and should be kept aligned as those surfaces evolve. Normal generated docs output now stays local unless
 `test:e2e:docs:publish` is run intentionally. New Playwright
 skips/fixmes should be added only as explicit credential gates or honest
 Browser-backed stabilization placeholders. Receipt notification remains a
