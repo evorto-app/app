@@ -67,7 +67,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - specs/seed/seed-baseline.test.ts
   - specs/smoke/load-application.test.ts
   - specs/template-categories/template-categories.test.ts
-  - specs/templates/paid-option-requires-tax-rate.spec.ts [finance, fixme]
+  - specs/templates/paid-option-requires-tax-rate.spec.ts [finance]
   - specs/templates/templates.test.ts
 
 ## Suite Ownership
@@ -118,16 +118,15 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   and component coverage proves paid, free, zero-tax, and fallback label
   rendering, so this remaining gap is page-level coverage rather than
   formatter/component wiring.
-- `specs/templates/paid-option-requires-tax-rate.spec.ts` is intentionally
-  fixme-only until simple-mode template tax-rate behavior has active UI
-  coverage. Template detail paid-option summaries now share the inclusive price
-  label component with event registration cards, and create/edit submit helpers
-  now keep missing paid tax-rate selection visible to server validation while
-  clearing hidden free-registration payment fields before submission. Server
-  coverage proves the tax-rate select source is scoped to current-tenant active
-  inclusive rates. Generated template docs assert that enabling payment reveals
-  both price and tax-rate controls before capturing the simple-mode payment
-  fields.
+- `specs/templates/paid-option-requires-tax-rate.spec.ts` has active
+  simple-mode UI coverage for the paid-registration tax-rate requirement and a
+  seeded inclusive tax-rate save path. Remaining fixme entries are limited to
+  future bulk/no-compatible-rate UI behavior. Template detail paid-option
+  summaries now share the inclusive price label component with event
+  registration cards, and create/edit submit helpers keep missing paid tax-rate
+  selection visible to server validation while clearing hidden free-registration
+  payment fields before submission. Server coverage proves the tax-rate select
+  source is scoped to current-tenant active inclusive rates.
 - `docs/users/create-account.doc.ts` is integration-tagged with
   `@needs-auth0-management`; baseline list/discovery must not require those
   credentials.
