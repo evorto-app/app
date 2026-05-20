@@ -40,6 +40,7 @@ const validSimpleTemplateInput = {
 };
 
 const validTemplateFindOneRecord = {
+  addOns: [],
   categoryId: 'category-1',
   description: '<p>Useful event template description</p>',
   icon: {
@@ -85,6 +86,36 @@ describe('templates RPC location schema', () => {
       Schema.decodeUnknownSync(TemplateSimpleInput)({
         ...validSimpleTemplateInput,
         location: validGoogleLocation,
+      }),
+    ).not.toThrow();
+  });
+
+  it('accepts reusable add-ons in template find-one responses', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(TemplateFindOneRecord)({
+        ...validTemplateFindOneRecord,
+        addOns: [
+          {
+            allowMultiple: true,
+            allowPurchaseBeforeEvent: true,
+            allowPurchaseDuringEvent: false,
+            allowPurchaseDuringRegistration: true,
+            description: 'Optional dinner ticket',
+            id: 'addon-1',
+            isPaid: true,
+            maxQuantityPerUser: 2,
+            price: 1200,
+            registrationOptions: [
+              {
+                quantity: 1,
+                registrationOptionId: 'template-option-1',
+              },
+            ],
+            stripeTaxRateId: 'txr-1',
+            title: 'Dinner',
+            totalAvailableQuantity: 40,
+          },
+        ],
       }),
     ).not.toThrow();
   });

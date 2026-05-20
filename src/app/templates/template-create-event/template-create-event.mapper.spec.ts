@@ -11,6 +11,7 @@ describe('createEventFormModelFromTemplate', () => {
 
     const model = createEventFormModelFromTemplate(
       {
+        addOns: [],
         categoryId: 'category-1',
         description: '<p>Template description</p>',
         icon: {
@@ -90,6 +91,7 @@ describe('createEventFormModelFromTemplate', () => {
   it('keeps organizer planning tips private to the template surface', () => {
     const model = createEventFormModelFromTemplate(
       {
+        addOns: [],
         categoryId: 'category-1',
         description: '<p>Template description</p>',
         icon: {

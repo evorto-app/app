@@ -643,7 +643,11 @@ the current working direction until a product decision overrides them.
 - **Addressed in this stabilization pass:** template registration offsets now fail with a typed bad request when a registration would open after it closes. Because offsets are "hours before event", `openRegistrationOffset` must be greater than or equal to `closeRegistrationOffset` for a normal window.
 - **Addressed in this stabilization pass:** template create/update and find-one RPC location fields now use the shared `EventLocation` schema instead of `Schema.Any`, matching the event boundary behavior.
 - **Should fix before relaunch:** simple-mode create/update always writes exactly two registration options. That matches the current UI but is thinner than the product model for reusable event knowledge.
-- **Should fix before relaunch:** template add-ons exist in schema and registration questions exist in product context, but simple-mode template create/update does not expose or persist them. There is no reviewed event-side add-on or registration-question schema/copy path yet, so richer template reuse needs a fuller product/runtime slice instead of another simple-mode field.
+- **Addressed in stabilization pass:** template detail now returns and displays
+  existing reusable template add-ons from the current schema, including pricing,
+  purchase timing, quantity limits, and registration-option attachments. Simple
+  create/update still does not author add-ons, and there is still no reviewed
+  event-side add-on fulfillment or registration-question schema/copy path.
 - **Addressed in stabilization pass:** simple-mode template create/edit now exposes optional ESNcard discounted prices when the tenant ESNcard provider is enabled, persists them in `templateRegistrationOptionDiscounts`, returns them through `templates.findOne`, and shows them on template detail.
 - **Addressed in stabilization pass:** simple-mode template registration
   options now preserve editable option names plus public and registered-user
@@ -700,6 +704,10 @@ the current working direction until a product decision overrides them.
 - `src/db/schema/template-event-addons.spec.ts` pins the current implementation
   boundary that add-ons are template-scoped only and registration-question
   schemas are not exposed yet.
+- `src/server/effect/rpc/handlers/templates.handlers.spec.ts` and
+  `src/app/templates/template-details/template-details.component.spec.ts` cover
+  the current reusable add-on read model and detail-surface labels without
+  requiring Browser/runtime setup.
 - The generic `tests/docs/template.doc.ts` discovery placeholder was removed; product template documentation lives in `tests/docs/templates/templates.doc.ts`.
 - Permission matrix coverage checks template create link visibility plus direct route denial for template create/edit/create-event routes. `src/app/templates/templates.routes.spec.ts` keeps the guarded template write-route manifest explicit. Server unit coverage proves template RPC denial, template offset ordering, tenant-owned template category/role validation, and template location schema rejection.
 
@@ -1305,7 +1313,12 @@ the current working direction until a product decision overrides them.
    is available; `specs/events/negative-registration-states.spec.ts` now covers
    closed registration windows, role-ineligible direct links, and waitlist
    affordances.
-3. Keep simple-mode templates as the primary authoring UI, but expand reusable template support for discounts, add-ons, and questions where practical. Organizer planning tips are now exposed as the first private organizer-notes field.
+3. Keep simple-mode templates as the primary authoring UI, but expand reusable
+   template support for discounts, add-ons, and questions where practical.
+   Organizer planning tips are now exposed as the first private organizer-notes
+   field, and existing reusable template add-ons are now visible on template
+   detail. Add-on authoring/copying and registration questions remain separate
+   fuller product/runtime slices.
 4. Add Browser-backed scanner/organizer aggregate review once local runtime is available.
 5. Add Browser-backed profile coverage for payment-continuation, ticket/cancellation routing, waitlist messaging, and ESNcard provider failure semantics once local runtime is available.
 6. Fill the remaining tenant settings implementation gap for automated onboarding/domain workflows. The current general-settings page exposes SEO fields, uploaded or externally hosted logo/favicon URLs, tenant legal links or hosted legal text, editable supported locale/currency/timezone values, read-only runtime identity, and a visible deferred-settings summary. The current global-admin surface supports a searchable tenant list, tenant create/edit, and tenant detail review, while custom-domain verification, multi-domain automation, and impersonation remain out of scope.
@@ -1694,6 +1707,11 @@ implement those decisions or explicitly revise them there before changing code.
 - Participant registration action-guard pass: shared a tested
   mutation-pending guard across registration and waitlist buttons plus handlers,
   so participant event registration writes cannot double-trigger locally.
+- Template add-on read-model pass: returned existing reusable template add-ons
+  from `templates.findOne`, displayed them on template detail with pricing,
+  timing, quantity, and attached registration-option labels, and kept
+  event-side add-on fulfillment plus registration questions as explicit future
+  product/runtime slices.
 
 ## Review Next
 
