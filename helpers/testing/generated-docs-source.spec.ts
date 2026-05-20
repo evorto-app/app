@@ -52,7 +52,13 @@ describe('generated docs source current behavior', () => {
       'The notification email is user-managed and may differ from the Auth0 login email.',
     );
     expect(source).toContain(
-      'Profile event cards point pending checkout registrations at the implemented profile action, route ticket/cancellation/unpaid-transfer details back to the event page, and stop advertising cancellation or transfer once a registration is checked in',
+      'Profile event cards point pending checkout registrations at the implemented profile action, route ticket/cancellation/unpaid-transfer details back to the event page, expose waitlist routing back to the event page, and stop advertising cancellation or transfer once a registration is checked in',
+    );
+    expect(source).toContain(
+      'Continue payment from this card, or open the event page for registration details.',
+    );
+    expect(source).toContain(
+      'Open the event page for waitlist details and the leave-waitlist action.',
     );
     expect(source).toContain(
       'You are checked in. Open the event page for ticket details. Cancellation and transfer are no longer available after check-in.',

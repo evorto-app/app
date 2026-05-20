@@ -209,9 +209,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     notification-email edit/restore path, and app helper coverage proves payload
     trimming and blank-value normalization before persistence.
   - Manual Browser-backed profile event-card review once local runtime is
-    available. Generated profile docs now seed confirmed and checked-in
-    registrations with free add-ons, then assert event link, registration
-    status, guest quantity, purchased add-on summary, payment state,
+    available. Generated profile docs now seed confirmed, pending-checkout,
+    waitlisted, and checked-in registrations with free add-ons where applicable,
+    then assert event link, registration status, guest quantity, purchased add-on
+    summary, payment state, checkout continuation, waitlist routing,
     ticket-routing copy, checked-in copy, and that checked-in cards do not show
     ticket availability copy. App/server coverage already proves event-detail
     action copy, guest/status/payment labels, profile event add-on summaries,
