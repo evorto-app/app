@@ -345,11 +345,13 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     functionally covers tenant list filtering, no-match state, operational row
     fields, connected Stripe-account support lookup, tenant detail review,
     create/edit form relaunch-scope copy, disabled empty create submit, and
-    seeded edit save with database readback and fixture restoration. Generated
+    a temporary tenant create with database readback and cleanup, plus seeded
+    edit save with database readback and fixture restoration. Generated
     global-admin docs now read the seeded localhost tenant row before asserting
-    list/detail/search/edit fields, then save a tenant-name edit, read it back
-    from the database, and restore the shared fixture, so the guide is tied to
-    persisted tenant state. It also pins list -> create -> list, list -> detail
+    list/detail/search/edit fields, create a temporary tenant with database
+    readback and cleanup, then save a tenant-name edit, read it back from the
+    database, and restore the shared fixture, so the guide is tied to persisted
+    tenant state. It also pins list -> create -> created detail, list -> detail
     -> edit, edit cancel, edit save, and external tenant-domain link targets so
     page navigation cannot silently drift while authenticated Browser runtime
     review is blocked. Local server/app coverage already proves the list,

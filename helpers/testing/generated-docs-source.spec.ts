@@ -59,6 +59,11 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain('Open tenant domain');
     expect(source).toContain('Stripe account ID');
     expect(source).toContain('Expected generated global-admin docs tenant');
+    expect(source).toContain(
+      'Expected global-admin docs create flow to persist tenant',
+    );
+    expect(source).toContain('createdTenantDomain');
+    expect(source).toContain('.delete(schema.tenants)');
     expect(source).toContain("where: eq(schema.tenants.domain, 'localhost')");
     expect(source).toContain('documentedTenant.stripeAccountId');
     expect(source).toContain(
@@ -67,6 +72,9 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain("page.getByLabel('Tenant name')).toHaveValue");
     expect(source).toContain(
       'Tenant create/edit manages the one active primary domain, name, theme, locale, currency, timezone, and connected Stripe account id.',
+    );
+    expect(source).toContain(
+      'The generated journey creates a temporary tenant, reads the created row back from the database, cleans it up after the doc run, then saves a tenant-name edit on the seeded fixture tenant',
     );
     expect(source).toContain(
       'custom-domain verification and multi-domain automation are deferred',

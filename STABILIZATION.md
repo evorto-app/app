@@ -1226,10 +1226,11 @@ the current working direction until a product decision overrides them.
   global-admin tenant list, tenant create/edit workflow, visible relaunch
   tenant-scope notice, and tenant detail review, pins the list/create/detail/edit
   navigation targets plus the external tenant-domain link, reads the documented
-  tenant row from the database before asserting operational fields, saves a
-  tenant-name edit with database readback and fixture restoration, and records
-  that custom-domain verification, multi-domain automation, and impersonation
-  workflows are not implemented yet.
+  tenant row from the database before asserting operational fields, creates a
+  temporary tenant with database readback and cleanup, saves a tenant-name edit
+  with database readback and fixture restoration, and records that custom-domain
+  verification, multi-domain automation, and impersonation workflows are not
+  implemented yet.
 - `tests/docs/finance/inclusive-tax-rates.doc.ts` documents tenant tax-rate management.
 - `src/app/admin/components/import-tax-rates-dialog/import-tax-rates-dialog.component.spec.ts` covers the local Stripe tax-rate import guard so empty selections and pending imports cannot submit duplicate tax-rate writes.
 - `src/shared/rpc-contracts/app-rpcs/admin.rpcs.spec.ts` covers the tenant settings update payload scope.
@@ -1301,6 +1302,12 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** `tests/test-inventory.md` now maps current Playwright specs/docs by suite ownership, records intentional fixme and credential-gated paths, and lists the Browser-backed coverage still needed from the remaining stabilization gaps.
 - **Addressed in stabilization pass:** the remaining `test.skip` audit removed the dead mobile skip from `tests/specs/permissions/override.test.ts`, corrected the inventory entry for that spec, made the Auth0 Management doc skip name the required credentials explicitly, moved Stripe webhook replay's credential gate to a file-level skip before page/database fixtures are requested, and keeps the skip/fixme allowlist tied to explicit local reasons.
 - **Addressed in stabilization pass:** global-admin route guard coverage now has a direct Playwright spec for the global-admin allow path and signed-in non-global-admin deny path.
+- **Addressed in stabilization pass:** global-admin tenant workflow coverage now
+  has a functional Playwright spec for tenant list filtering, no-match state,
+  operational row fields, connected Stripe-account support lookup, tenant
+  detail review, create/edit form relaunch-scope copy, disabled empty create
+  submit, a temporary tenant create with database readback and cleanup, and
+  enabled seeded edit submit.
 - **Addressed in stabilization pass:** scanning/check-in docs now describe the dedicated QR scanner, scan warnings, authorization, checked-in count updates, and selected guest-quantity check-in. Generated docs now assert the organizer checked-in aggregate after the scanner mutation. The remaining scanner follow-up is manual Browser-backed runtime review, not missing automated aggregate coverage or product documentation.
 - **Should fix before relaunch:** page-backed docs coverage is still missing or thin for tenant/global-admin settings beyond the current list/settings pages, account creation outside Auth0-management integration, profile discount add/refresh/remove flows, role assignment/user management, and registration negative paths. Local unit/server coverage exists for several of those surfaces, but it does not replace Browser-backed docs for the full user journeys.
 - **Addressed in stabilization pass:** the generic `tests/docs/template.doc.ts` discovery placeholder was removed; current template documentation lives in `tests/docs/templates/templates.doc.ts`.
@@ -1928,6 +1935,10 @@ implement those decisions or explicitly revise them there before changing code.
 - Scanner aggregate assertion pass: extended the later-guest-arrival scanner
   spec and event-management generated doc to assert the organizer overview
   checked-in aggregate after scanner writes, not only the database counter.
+- Global-admin tenant-create readback pass: extended the page-backed global-admin
+  tenant workflow spec and generated guide to create a temporary tenant, read
+  back the persisted one-domain/default settings row, and clean up the generated
+  tenant after the flow.
 
 ## Review Next
 
