@@ -1118,6 +1118,19 @@ the current working direction until a product decision overrides them.
   event-page links so ticket, cancellation, unpaid-transfer, and waitlist
   recovery routing cannot silently drift while Browser runtime review is
   unavailable.
+- `tests/docs/users/create-account.doc.ts` includes a baseline helper-backed
+  account-creation documentation note for verified-email gating, Auth0-data
+  prefill, notification-email terminology, payload trimming, retryable errors,
+  and duplicate-submit guards without Auth0 Management credentials. Its live
+  Auth0 login/create-account journey remains integration-tagged and skips
+  without Auth0 Management credentials; when it runs, it reads back the
+  persisted user, tenant assignment, default role assignment, and cleans up the
+  generated rows.
+- `tests/specs/profile/create-account.spec.ts` adds the matching functional
+  integration coverage for Auth0-backed tenant account creation: a generated
+  Auth0 user signs in, creates the current-tenant account, lands on profile,
+  persists notification email/name fields, receives a tenant assignment plus
+  default role assignments, and cleans up the created database rows.
 - `tests/docs/users/create-account.doc.ts` asserts the account form exposes the editable address as "Notification email" when the integration path can run.
 - `src/app/app.routes.spec.ts` pins the relaunch route contract that public event browsing uses only account-assignment checks, feature areas require assigned authenticated accounts, `/create-account` stays auth-only for tenantless authenticated users, and `/global-admin` remains auth-only before tenant assignment checks.
 - `src/app/core/create-account/create-account.helpers.spec.ts` covers Auth0-data prefill fallback, explicit email-verification gating, create-account submit payload normalization, retryable submit disabled state, and create-account error message mapping without needing Auth0 Management credentials.
@@ -1856,6 +1869,10 @@ implement those decisions or explicitly revise them there before changing code.
 - Profile ESNcard readback pass: made the generated discounts doc and matching
   direct-link profile discounts spec read back the seeded verified ESNcard row
   behind the visible profile card.
+- Create-account docs readback pass: made the integration-tagged generated
+  account-creation guide read back the persisted global user, tenant
+  assignment, and default role assignment, then clean up the generated database
+  rows after the docs journey.
 - Profile ESNcard write-guard pass: shared one in-flight guard across save,
   refresh, and remove so profile discount-card writes cannot overlap on slow
   networks, and pinned that guard in local app tests.
