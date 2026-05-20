@@ -138,8 +138,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 - `specs/permissions/override.test.ts` is active desktop coverage for the
   permission override fixture; no mobile project currently runs this spec.
 - `specs/permissions/global-admin-route-guard.spec.ts` covers direct
-  `/global-admin` and `/global-admin/tenants/:tenantId` allow/deny behavior
-  once page-backed runtime is available.
+  `/global-admin`, `/global-admin/tenants/create`,
+  `/global-admin/tenants/:tenantId`, and
+  `/global-admin/tenants/:tenantId/edit` allow/deny behavior once page-backed
+  runtime is available.
 - Page-backed local execution requires the Playwright Chromium cache installed
   by `bun run test:e2e:install`.
 - `helpers/testing/playwright-skip-inventory.spec.ts` keeps all Playwright
@@ -199,11 +201,12 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     check-in increments the organizer checked-in count by the attendee plus
     selected guests.
 - Tenant/global admin:
-  - Authenticated Browser review for the global-admin tenant list.
-    Local server/app coverage already proves the list and read-only tenant
-    detail return and render non-sensitive operational tenant state for support
-    review, and local app coverage proves the tenant list can be filtered by
-    operational fields with readable load-failure messages.
+  - Authenticated Browser review for the global-admin tenant list and
+    tenant-create/edit flows. Local server/app coverage already proves the list,
+    tenant detail, tenant create, and tenant edit surfaces return, render, and
+    persist operational tenant state for support review, and local app coverage
+    proves the tenant list can be filtered by operational fields with readable
+    load-failure messages.
   - Keep tenant settings docs and payload tests aligned when new editable
     tenant settings move out of the deferred-settings summary. Current local
     coverage proves the general-settings form trims optional editable

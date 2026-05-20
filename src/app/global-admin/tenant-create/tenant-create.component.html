@@ -1,0 +1,84 @@
+<div class="mb-4 flex flex-row items-center gap-2">
+  <a routerLink="/global-admin/tenants" mat-icon-button>
+    <fa-duotone-icon [icon]="faArrowLeft" />
+  </a>
+  <h1 class="title-large">Create tenant</h1>
+  <div class="grow"></div>
+</div>
+
+<section class="bg-surface text-on-surface rounded-2xl p-4">
+  <form class="grid grid-cols-1 gap-3" (submit)="createTenant($event)">
+    <mat-form-field>
+      <mat-label>Tenant name</mat-label>
+      <input matInput [formField]="tenantForm.name" />
+    </mat-form-field>
+
+    <mat-form-field>
+      <mat-label>Primary domain</mat-label>
+      <input
+        matInput
+        [formField]="tenantForm.domain"
+        placeholder="section.example.org"
+      />
+    </mat-form-field>
+
+    <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+      <mat-form-field>
+        <mat-label>Theme</mat-label>
+        <mat-select [formField]="tenantForm.theme">
+          <mat-option value="evorto">Default theme</mat-option>
+          <mat-option value="esn">ESN theme</mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field>
+        <mat-label>Stripe account ID</mat-label>
+        <input
+          matInput
+          [formField]="tenantForm.stripeAccountId"
+          placeholder="acct_..."
+        />
+      </mat-form-field>
+    </div>
+
+    <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
+      <mat-form-field>
+        <mat-label>Currency</mat-label>
+        <mat-select [formField]="tenantForm.currency">
+          @for (currency of currencyOptions; track currency) {
+            <mat-option [value]="currency">{{ currency }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field>
+        <mat-label>Locale</mat-label>
+        <mat-select [formField]="tenantForm.locale">
+          @for (locale of localeOptions; track locale) {
+            <mat-option [value]="locale">{{ locale }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field>
+        <mat-label>Timezone</mat-label>
+        <mat-select [formField]="tenantForm.timezone">
+          @for (timezone of timezoneOptions; track timezone) {
+            <mat-option [value]="timezone">{{ timezone }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+    </div>
+
+    <div class="mt-2 flex flex-wrap gap-2">
+      <button
+        mat-flat-button
+        type="submit"
+        [disabled]="tenantForm().invalid() || tenantForm().submitting()"
+      >
+        Create tenant
+      </button>
+      <a mat-button routerLink="/global-admin/tenants">Cancel</a>
+    </div>
+  </form>
+</section>

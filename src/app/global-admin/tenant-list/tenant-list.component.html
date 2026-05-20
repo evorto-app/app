@@ -1,6 +1,15 @@
 <div class="mb-4 flex flex-row items-center gap-2">
   <h1 class="title-large">Tenants</h1>
   <div class="grow"></div>
+  <a
+    mat-fab
+    extended
+    class="fab-fixed"
+    routerLink="/global-admin/tenants/create"
+  >
+    <fa-duotone-icon [icon]="faPlus" />
+    <span>Create tenant</span>
+  </a>
 </div>
 @if (tenantQuery.isPending()) {
   <div
