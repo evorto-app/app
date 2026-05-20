@@ -47,6 +47,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - docs/users/create-account.doc.ts [@needs-auth0-management]
 
 - Functional tests (`*.test.ts`):
+  - specs/admin/general-settings.spec.ts [admin]
   - specs/admin/global-admin-tenants.spec.ts [admin, globalAdmin]
   - specs/admin/roles-management.spec.ts [admin, permissions]
   - specs/auth/storage-state-refresh.test.ts
@@ -112,6 +113,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 - Tenant/global admin:
   - `docs/admin/global-admin.doc.ts`
   - `docs/admin/general-settings.doc.ts`
+  - `specs/admin/general-settings.spec.ts`
   - `specs/admin/global-admin-tenants.spec.ts`
 - Finance, receipts, tax, and Stripe:
   - `docs/finance/**`
@@ -374,8 +376,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     the external tenant-domain link only renders for single-host tenant domains.
   - Keep tenant settings docs and payload tests aligned when new editable
     tenant settings move out of the deferred-settings summary. Current local
-    coverage proves the general-settings form trims optional editable
-    URLs/SEO/legal-text/ESNcard fields, includes supported
+    coverage proves the general-settings page can persist editable
+    URLs/SEO/legal-text/ESNcard fields with database readback, the form trims
+    optional editable values before sending the RPC payload, includes supported
     currency/locale/timezone selections in the update payload, and normalizes
     blank optional values before the RPC call. Tenant schema, admin-handler, and
     route coverage pin supported relaunch currency/locale/timezone values,

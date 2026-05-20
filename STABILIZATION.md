@@ -1289,6 +1289,10 @@ the current working direction until a product decision overrides them.
   route-denial cases aligned with the guarded finance route manifest, including
   the transaction list, receipt approval list/detail, and reimbursement routes.
 - `tests/docs/admin/general-settings.doc.ts` documents the current tenant general-settings page, including the deferred-settings summary, read-only tenant identity summary with Stripe account support lookup detail, editable locale/money policy plus reload behavior, uploaded or externally hosted brand asset URLs, editable tenant legal links or hosted text, and public footer/favicon exposure, and records which domain/operations settings are not editable yet.
+- `tests/specs/admin/general-settings.spec.ts` functionally covers tenant
+  general-settings persistence for editable brand asset URLs, SEO copy, hosted
+  legal text, external legal URLs, and ESNcard provider buy-link settings with
+  database readback.
 - `tests/docs/admin/global-admin.doc.ts` documents the current searchable global-admin tenant list, tenant create/edit workflow, visible relaunch tenant-scope notice, and tenant detail review, and records that custom-domain verification, multi-domain automation, and impersonation workflows are not implemented yet.
 - `helpers/testing/generated-docs-source.spec.ts` keeps the global-admin guide
   aligned with the one-domain/no-impersonation relaunch scope. It also keeps
@@ -1343,7 +1347,7 @@ the current working direction until a product decision overrides them.
   `tests/docs/**/*.doc.ts`; integration-only specs/docs are selected with
   `@needs-*` tags.
 - Local docs/spec discovery is runnable again after replacing stale Effect config APIs in `playwright.config.ts` and Playwright support files, and Auth0 Management credentials are no longer required just to import baseline fixtures.
-- `bun run test:e2e -- --list` discovers 99 baseline tests across 32 files,
+- `bun run test:e2e -- --list` discovers 100 baseline tests across 33 files,
   including setup projects, without requiring local Auth0/Stripe secrets.
 - `bun run test:e2e:docs -- --list` discovers 29 baseline docs/setup tests
   across 19 files without requiring local Auth0/Stripe secrets.
@@ -2121,6 +2125,9 @@ implement those decisions or explicitly revise them there before changing code.
 - Global-admin tenant-domain link pass: constrained the tenant-detail "Open
   tenant domain" link to single-host tenant domain values so malformed legacy
   domain data fails closed on the support review surface.
+- Tenant general-settings functional pass: added page-backed tenant-admin
+  coverage for saving editable relaunch settings and reading back persisted
+  brand, SEO, legal, and ESNcard provider fields from the tenant row.
 
 ## Review Next
 
