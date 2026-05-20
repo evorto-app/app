@@ -110,4 +110,66 @@ describe('createEventFormModelFromTemplate', () => {
     expect('planningTips' in model).toBe(false);
     expect(model.description).toBe('<p>Template description</p>');
   });
+
+  it('keeps reusable add-ons out of event form data until event add-on fulfillment exists', () => {
+    const model = createEventFormModelFromTemplate(
+      {
+        addOns: [
+          {
+            allowMultiple: false,
+            allowPurchaseBeforeEvent: false,
+            allowPurchaseDuringEvent: false,
+            allowPurchaseDuringRegistration: true,
+            description: 'Packed lunch',
+            id: 'addon-1',
+            isPaid: false,
+            maxQuantityPerUser: 1,
+            price: 0,
+            registrationOptions: [
+              {
+                quantity: 1,
+                registrationOptionId: 'template-option-1',
+              },
+            ],
+            stripeTaxRateId: null,
+            title: 'Lunch',
+            totalAvailableQuantity: 40,
+          },
+        ],
+        categoryId: 'category-1',
+        description: '<p>Template description</p>',
+        icon: {
+          iconColor: 2,
+          iconName: 'calendar:fas',
+        },
+        id: 'template-1',
+        location: null,
+        planningTips: null,
+        registrationOptions: [
+          {
+            closeRegistrationOffset: 24,
+            description: null,
+            esnCardDiscountedPrice: null,
+            id: 'template-option-1',
+            isPaid: false,
+            openRegistrationOffset: 168,
+            organizingRegistration: false,
+            price: 0,
+            registeredDescription: null,
+            registrationMode: 'fcfs',
+            roleIds: [],
+            roles: [],
+            spots: 40,
+            stripeTaxRateId: null,
+            title: 'Participant',
+          },
+        ],
+        title: 'Weekly meetup',
+      },
+      DateTime.fromISO('2026-06-01T18:00:00.000Z', { zone: 'utc' }),
+    );
+
+    expect('addOns' in model).toBe(false);
+    expect(model.registrationOptions[0]?.id).toBe('template-option-1');
+  });
 });

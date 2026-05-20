@@ -652,6 +652,10 @@ the current working direction until a product decision overrides them.
   purchase timing, quantity limits, and registration-option attachments. Simple
   create/update still does not author add-ons, and there is still no reviewed
   event-side add-on fulfillment or registration-question schema/copy path.
+- **Addressed in this stabilization pass:** create-event-from-template now
+  shows an explicit add-on boundary notice when the source template has
+  reusable add-ons. Event creation still copies registration options only until
+  event-side add-on fulfillment exists.
 - **Addressed in stabilization pass:** reset-from-zero seed data now includes
   both free and paid reusable template add-ons attached to participant template
   registration options, so Browser review can inspect the add-on detail surface
@@ -693,10 +697,11 @@ the current working direction until a product decision overrides them.
   covers the template-to-event form mapping, including copied registration
   option source ids for server-side template discount copying, relative
   registration-window offsets, and the boundary that organizer planning tips
-  stay private to the template surface.
+  and reusable add-ons stay private to the template surface.
 - `src/app/templates/template-create-event/template-create-event.component.spec.ts`
   pins the create-event-from-template submit guard for invalid, submitting, and
-  mutation-pending states.
+  mutation-pending states, plus the visible notice for templates whose add-ons
+  are not copied into event-side fulfillment yet.
 - `src/app/templates/shared/template-form/template-form.utilities.spec.ts` pins
   the shared template create/edit write guard for invalid, submitting, and
   mutation-pending states.
@@ -1731,6 +1736,9 @@ implement those decisions or explicitly revise them there before changing code.
 - Template add-on seed pass: added free and paid reusable add-ons to the
   reset-from-zero template seed data and pinned their registration-option
   attachments in the seed baseline.
+- Template create-event add-on boundary pass: showed a create-event notice when
+  a source template has reusable add-ons and pinned that current event form data
+  still copies registration options only until event add-on fulfillment exists.
 - Active-registration action-guard pass: shared tested cancellation and
   transfer disabled-state helpers between active-registration buttons and
   handlers so participant cancellation and unpaid transfer writes cannot
