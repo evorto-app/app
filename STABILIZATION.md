@@ -2169,6 +2169,10 @@ implement those decisions or explicitly revise them there before changing code.
 - Finance overview docs source-guard pass: pinned generated finance overview
   docs to permission-scoped child navigation so receipt approval access does not
   imply transaction-list access.
+- Profile receipt docs source-guard pass: pinned generated profile docs to the
+  deterministic submitted-receipt seed, card assertions, submitted status,
+  event title, and formatted amount so the profile receipt walkthrough cannot
+  drift back to a placeholder section while Browser runtime review is blocked.
 
 ## Review Next
 
