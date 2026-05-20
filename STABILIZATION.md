@@ -994,6 +994,10 @@ the current working direction until a product decision overrides them.
   matching finance capability.
 - **Addressed in stabilization pass:** `tests/specs/finance/receipts-flows.spec.ts` now hard-fails when the seeded pending receipt, refundable receipt group, row checkbox, enabled reimbursement action, or tenant "Other" country option is missing.
 - Finance overview docs now describe the current navigation-style finance UI, current finance capability names, and the manual submitter-notification caveat before and after receipt review.
+- **Addressed in stabilization pass:** `tests/docs/finance/finance-overview.doc.ts`
+  now seeds visible and cancelled transaction rows, proves the transaction list
+  renders the non-cancelled row, and proves cancelled rows stay omitted before
+  generating the transaction-list screenshot.
 - **Addressed in stabilization pass:** `tests/docs/finance/receipt-review-reimbursement.doc.ts` now walks the receipt approval queue, approval detail page, manual submitter-notification caveat, reimbursement queue, payout-detail selection, and manual reimbursement recording.
 - `src/app/finance/receipt-refund-list/receipt-refund-list.component.spec.ts` pins the reimbursement queue's manual money-movement notice, payout-detail gating, payout-detail labels, selected-total math, and reimbursement record disabled guard. The receipt reimbursement doc/spec assert the manual-money notice on the page.
 - `src/app/finance/receipt-approval-detail/receipt-approval-detail.component.spec.ts`

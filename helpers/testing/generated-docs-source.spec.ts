@@ -189,6 +189,14 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain(
       '- **finance:refundReceipts**: record receipt reimbursement batches.',
     );
+    expect(source).toContain('visibleTransactionComment');
+    expect(source).toContain('cancelledTransactionComment');
+    expect(source).toContain(
+      'Cancelled transactions are omitted from this list.',
+    );
+    expect(source).toContain(
+      'page.getByText(cancelledTransactionComment)).toHaveCount(0)',
+    );
     expect(source).not.toContain('all finance users see all finance pages');
     expect(source).not.toContain(
       'receipt approval access includes transactions',
