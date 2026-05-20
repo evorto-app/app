@@ -15,13 +15,16 @@ export interface GeneralSettingsModel {
   defaultLocation: GoogleLocationType | null;
   esnCardEnabled: boolean;
   faviconUrl: string;
+  legalNoticeText: string;
   legalNoticeUrl: string;
   locale: SupportedTenantLocale;
   logoUrl: string;
+  privacyPolicyText: string;
   privacyPolicyUrl: string;
   receiptCountries: string[];
   seoDescription: string;
   seoTitle: string;
+  termsText: string;
   termsUrl: string;
   theme: 'esn' | 'evorto';
   timezone: SupportedTenantTimezone;
@@ -39,13 +42,16 @@ export const generalSettingsPayloadFromModel = (
   defaultLocation: settings.defaultLocation,
   esnCardEnabled: settings.esnCardEnabled,
   faviconUrl: optionalTrimmed(settings.faviconUrl),
+  legalNoticeText: optionalTrimmed(settings.legalNoticeText),
   legalNoticeUrl: optionalTrimmed(settings.legalNoticeUrl),
   locale: settings.locale,
   logoUrl: optionalTrimmed(settings.logoUrl),
+  privacyPolicyText: optionalTrimmed(settings.privacyPolicyText),
   privacyPolicyUrl: optionalTrimmed(settings.privacyPolicyUrl),
   receiptCountries: settings.receiptCountries,
   seoDescription: optionalTrimmed(settings.seoDescription),
   seoTitle: optionalTrimmed(settings.seoTitle),
+  termsText: optionalTrimmed(settings.termsText),
   termsUrl: optionalTrimmed(settings.termsUrl),
   theme: settings.theme,
   timezone: settings.timezone,

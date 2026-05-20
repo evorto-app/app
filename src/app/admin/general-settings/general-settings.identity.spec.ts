@@ -63,7 +63,7 @@ describe('deferredTenantSettingsRows', () => {
       {
         label: 'Legal pages',
         value:
-          'Imprint, privacy, and terms links are editable below; legal text pages are not implemented yet.',
+          'Imprint, privacy, and terms links or hosted text are editable below.',
       },
       {
         label: 'Operations policy',

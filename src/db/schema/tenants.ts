@@ -42,10 +42,12 @@ export const tenants = pgTable('tenants', {
   id: varchar({ length: 20 })
     .$defaultFn(() => createId())
     .primaryKey(),
+  legalNoticeText: text('legal_notice_text'),
   legalNoticeUrl: text('legal_notice_url'),
   locale: localeEnum().notNull().default('en-GB'),
   logoUrl: text('logo_url'),
   name: varchar().notNull(),
+  privacyPolicyText: text('privacy_policy_text'),
   privacyPolicyUrl: text('privacy_policy_url'),
   receiptSettings: jsonb('receipt_settings')
     .$type<TenantReceiptSettings>()
@@ -57,6 +59,7 @@ export const tenants = pgTable('tenants', {
   seoDescription: text(),
   seoTitle: text(),
   stripeAccountId: varchar(),
+  termsText: text('terms_text'),
   termsUrl: text('terms_url'),
   theme: applicationThemes().notNull().default('evorto'),
   timezone: timezoneEnum().notNull().default('Europe/Berlin'),

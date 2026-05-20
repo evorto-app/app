@@ -29,4 +29,11 @@ describe('app routes', () => {
   it('keeps global-admin available to authenticated global admins before tenant assignment checks', () => {
     expect(routeFor('global-admin')?.canActivate).toEqual([authGuard]);
   });
+
+  it.each(['legal/imprint', 'legal/privacy', 'legal/terms'])(
+    'keeps /%s publicly reachable for tenant-hosted legal pages',
+    (path) => {
+      expect(routeFor(path)?.canActivate).toBeUndefined();
+    },
+  );
 });

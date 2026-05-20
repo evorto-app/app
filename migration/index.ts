@@ -21,6 +21,7 @@ import { dropLegacyStabilizationFields } from './steps/004_drop_legacy_stabiliza
 import { addEventRegistrationGuestCount } from './steps/005_add_event_registration_guest_count';
 import { addEventRegistrationCheckedInGuestCount } from './steps/006_add_event_registration_checked_in_guest_count';
 import { addTenantPublicSettings } from './steps/007_add_tenant_public_settings';
+import { addTenantLegalTextFields } from './steps/008_add_tenant_legal_text_fields';
 
 type Features =
   | 'users'
@@ -83,6 +84,7 @@ async function main() {
   await addEventRegistrationGuestCount();
   await addEventRegistrationCheckedInGuestCount();
   await addTenantPublicSettings();
+  await addTenantLegalTextFields();
   consola.success('Global migration steps complete');
 
   consola.start('Begin migration');

@@ -71,15 +71,21 @@ const normalizeOptionalUrl = (
 };
 
 const normalizeTenantLegalLinks = (input: {
+  legalNoticeText?: string | undefined;
   legalNoticeUrl?: string | undefined;
+  privacyPolicyText?: string | undefined;
   privacyPolicyUrl?: string | undefined;
+  termsText?: string | undefined;
   termsUrl?: string | undefined;
 }) => ({
+  legalNoticeText: input.legalNoticeText?.trim() || null,
   legalNoticeUrl: normalizeOptionalUrl(input.legalNoticeUrl, 'legalNoticeUrl'),
+  privacyPolicyText: input.privacyPolicyText?.trim() || null,
   privacyPolicyUrl: normalizeOptionalUrl(
     input.privacyPolicyUrl,
     'privacyPolicyUrl',
   ),
+  termsText: input.termsText?.trim() || null,
   termsUrl: normalizeOptionalUrl(input.termsUrl, 'termsUrl'),
 });
 
