@@ -1137,6 +1137,11 @@ the current working direction until a product decision overrides them.
   profile event-card seed helper as the generated docs, giving the
   pending-checkout, waitlisted, confirmed, and checked-in states direct
   functional Playwright coverage in addition to product documentation.
+- `tests/specs/profile/user-profile-receipts.spec.ts` mirrors the generated
+  profile receipts documentation with functional coverage: it seeds a submitted
+  receipt, opens the profile receipts tab by fragment, asserts filename,
+  submitted status, event context, and amount, reads the persisted receipt row,
+  and cleans it up.
 - `src/app/profile/user-profile/edit-profile-dialog.component.spec.ts` covers profile edit payload normalization for notification email and optional global reimbursement details before the update mutation receives the dialog result.
 - `tests/specs/profile/user-profile-edit.spec.ts` functionally covers profile
   edit persistence for notification email, IBAN, and PayPal reimbursement
@@ -1338,7 +1343,7 @@ the current working direction until a product decision overrides them.
   `tests/docs/**/*.doc.ts`; integration-only specs/docs are selected with
   `@needs-*` tags.
 - Local docs/spec discovery is runnable again after replacing stale Effect config APIs in `playwright.config.ts` and Playwright support files, and Auth0 Management credentials are no longer required just to import baseline fixtures.
-- `bun run test:e2e -- --list` discovers 98 baseline tests across 31 files,
+- `bun run test:e2e -- --list` discovers 99 baseline tests across 32 files,
   including setup projects, without requiring local Auth0/Stripe secrets.
 - `bun run test:e2e:docs -- --list` discovers 29 baseline docs/setup tests
   across 19 files without requiring local Auth0/Stripe secrets.
