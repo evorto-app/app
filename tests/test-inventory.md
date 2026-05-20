@@ -190,7 +190,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - Browser-backed ESNcard add, refresh, and remove flows with readable error
     states.
     App and server coverage already prove upsert payload normalization,
-    readable mutation errors, save/refresh/remove action states, global
+    readable mutation errors, readable status labels, save/refresh/remove action states, global
     per-user card reads/upserts, refresh persistence, and scoped removal.
     Local app coverage also proves that save, refresh, and remove actions share
     an in-flight guard so profile discount-card writes do not overlap.

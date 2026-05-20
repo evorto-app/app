@@ -1019,6 +1019,7 @@ the current working direction until a product decision overrides them.
   profile update in flight cannot open another edit dialog on slow networks.
 - **Addressed in stabilization pass:** ESNcard save, refresh, and remove actions now clear stale errors, show visible pending button states, and map mutation failures through `getErrorMessage(...)` instead of rendering raw error objects.
 - **Addressed in this stabilization pass:** ESNcard save, refresh, and remove actions now share one in-flight guard so slow validation, refresh, or removal requests cannot overlap with another profile discount-card write.
+- **Addressed in this stabilization pass:** profile discount-card rows now render readable ESNcard status labels instead of raw persisted status values.
 - **Addressed in stabilization pass:** ESNcard validation now uses a bounded provider request and distinguishes provider unavailability from invalid/expired card results. Save/refresh mutations surface provider outages as retryable bad-request errors instead of collapsing them into card validation status.
 - **Addressed in stabilization pass:** create-account mutation failures now render a visible retryable error on the form instead of failing silently after the submit attempt.
 - **Addressed in stabilization pass:** the create-account form labels `communicationEmail` as "Notification email" so the UI, generated docs, and profile terminology agree that Auth0 login email and user-managed notification email are separate concepts.
@@ -1030,7 +1031,7 @@ the current working direction until a product decision overrides them.
 
 - `tests/docs/profile/user-profile.doc.ts` documents navigation, profile display, edit dialog validation, notification email persistence, event cards, and the receipts tab.
 - `src/app/profile/user-profile/edit-profile-dialog.component.spec.ts` covers profile edit payload normalization for notification email and optional global reimbursement details before the update mutation receives the dialog result.
-- `src/app/profile/user-profile/user-profile.component.spec.ts` covers profile event action routing, payment-continuation visibility, guest-quantity, checked-in action copy, deferred-action notes, payment-continuation next-step copy, payment-state, registration-status labels, submitted-receipt status and amount labels, ESNcard action labels, ESNcard save disabled state, ESNcard upsert payload normalization, and readable ESNcard mutation error fallback/provider messages.
+- `src/app/profile/user-profile/user-profile.component.spec.ts` covers profile event action routing, payment-continuation visibility, guest-quantity, checked-in action copy, deferred-action notes, payment-continuation next-step copy, payment-state, registration-status labels, submitted-receipt status and amount labels, ESNcard action/status labels, ESNcard save disabled state, ESNcard upsert payload normalization, and readable ESNcard mutation error fallback/provider messages.
 - Profile app coverage pins that profile edit is disabled while the profile
   update mutation is pending.
 - Profile app coverage also pins that ESNcard save, refresh, and remove actions
