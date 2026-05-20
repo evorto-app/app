@@ -4,6 +4,7 @@ import {
   esnCardMutationErrorMessage,
   esnCardSubmitPayloadFromIdentifier,
   profileEventActionNote,
+  profileEventContinuePaymentUrl,
   profileEventDetailActionLabel,
   profileEventGuestLabel,
   profileEventNextStepLabel,
@@ -75,6 +76,27 @@ describe('profile event labels', () => {
     ).toBeNull();
     expect(
       profileEventNextStepLabel({
+        checkoutUrl: 'https://checkout.stripe.test/pay',
+        paymentState: 'recorded',
+      }),
+    ).toBeNull();
+  });
+
+  it('renders the payment continuation action only for pending checkout registrations', () => {
+    expect(
+      profileEventContinuePaymentUrl({
+        checkoutUrl: 'https://checkout.stripe.test/pay',
+        paymentState: 'pending',
+      }),
+    ).toBe('https://checkout.stripe.test/pay');
+    expect(
+      profileEventContinuePaymentUrl({
+        checkoutUrl: null,
+        paymentState: 'pending',
+      }),
+    ).toBeNull();
+    expect(
+      profileEventContinuePaymentUrl({
         checkoutUrl: 'https://checkout.stripe.test/pay',
         paymentState: 'recorded',
       }),
