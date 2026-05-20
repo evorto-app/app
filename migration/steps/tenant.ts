@@ -2,7 +2,7 @@ import consola from 'consola';
 import { eq, InferSelectModel } from 'drizzle-orm';
 
 import * as oldSchema from '../../old/drizzle';
-import { database } from '../database';
+import { database } from '../../src/db';
 import * as schema from '../../src/db/schema';
 
 export const migrateTenant = async (

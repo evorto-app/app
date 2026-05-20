@@ -2,6 +2,8 @@ import { Pool } from 'pg';
 
 import { createNodePgPoolConfig } from '../src/db/pg-connection-config';
 
+// Docker startup uses this only for disposable dev/test databases so Drizzle
+// can push the current schema from a clean `public` schema without prompts.
 const databaseUrl = process.env['DATABASE_URL'];
 if (!databaseUrl) {
   throw new Error('DATABASE_URL must be configured for schema reset');

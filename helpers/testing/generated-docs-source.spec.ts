@@ -3,6 +3,8 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+// Source guard: generated documentation is product-facing, so these checks keep
+// the docs tied to implemented flows instead of stale aspirational copy.
 const repositoryRoot = new URL('../..', import.meta.url).pathname;
 
 const readSource = (path: string): string =>

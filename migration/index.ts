@@ -4,7 +4,7 @@ import { reset } from 'drizzle-seed';
 import { DateTime } from 'luxon';
 
 import * as oldSchema from '../old/drizzle';
-import { database } from './database';
+import { database } from '../src/db';
 import * as schema from '../src/db/schema';
 import { oldDatabase } from './migrator-database';
 import { migrateEvents } from './steps/events';
@@ -17,14 +17,6 @@ import { migrateUsers } from './steps/users';
 import { addUniqueIndexTenantStripeTaxRates } from './steps/001_add_unique_index_tenant_stripe_tax_rates';
 import { backfillAndSeedTaxRates } from './steps/002_backfill_and_seed_tax_rates';
 import { addAdminTaxPermission } from './steps/003_add_admin_manage_taxes_permission';
-import { dropLegacyStabilizationFields } from './steps/004_drop_legacy_stabilization_fields';
-import { addEventRegistrationGuestCount } from './steps/005_add_event_registration_guest_count';
-import { addEventRegistrationCheckedInGuestCount } from './steps/006_add_event_registration_checked_in_guest_count';
-import { addTenantPublicSettings } from './steps/007_add_tenant_public_settings';
-import { addTenantLegalTextFields } from './steps/008_add_tenant_legal_text_fields';
-import { addEventRegistrationQuestions } from './steps/009_add_event_registration_questions';
-import { addEventRegistrationQuestionAnswers } from './steps/010_add_event_registration_question_answers';
-import { addEventRegistrationAddonPurchases } from './steps/011_add_event_registration_addon_purchases';
 
 type Features =
   | 'users'
@@ -83,14 +75,6 @@ async function main() {
   // Run global migration steps first
   consola.start('Running global migration steps');
   await addUniqueIndexTenantStripeTaxRates();
-  await dropLegacyStabilizationFields();
-  await addEventRegistrationGuestCount();
-  await addEventRegistrationCheckedInGuestCount();
-  await addTenantPublicSettings();
-  await addTenantLegalTextFields();
-  await addEventRegistrationQuestions();
-  await addEventRegistrationQuestionAnswers();
-  await addEventRegistrationAddonPurchases();
   consola.success('Global migration steps complete');
 
   consola.start('Begin migration');
@@ -115,7 +99,6 @@ async function main() {
 
 main().catch((error) => {
   consola.error('Migration failed', error);
-  process.exitCode = 1;
 });
 
 async function runForTenant(

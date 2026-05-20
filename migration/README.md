@@ -20,19 +20,6 @@ Environment Variables
   - Comma‑separated subset of: `users,tenants,roles,assignments,templates,events`.
   - Example: `MIGRATE_FEATURES="users,tenants,assignments"`
 
-Global Steps
-
-- The migration runner executes global target-database cleanup before
-  tenant-scoped imports.
-- Global steps are intentionally idempotent and must fail the migration command
-  when they fail.
-- Current global steps cover shared constraints/backfills plus stabilization
-  cleanup for legacy physical fields that active schema/API code no longer
-  uses, including `roles.showInHub`, `event_registrations.paymentStatus`, and
-  the `payment_status` enum. They also add idempotent target-schema columns
-  needed by relaunch features that were introduced after earlier production
-  tenants existed, such as hosted tenant legal text fields.
-
 Defaults and Backfills
 
 - New columns must provide sensible defaults/backfills or adapt legacy values.
@@ -64,11 +51,6 @@ MIGRATION_CLEAR_DB=true MIGRATION_ALLOW_REUSE_TENANT=false \
 Notes
 
 - Tests document and verify the new platform features; no parity tests are required.
-- Most feature migration steps are data-oriented TypeScript ETL from the old
-  schema into `src/db/schema`, but global migration steps may include explicit
-  DDL when production cleanup cannot be expressed by the active Drizzle schema
-  alone.
-- Where a 1:1 mapping is not possible, document defaults/backfills in
-  `STABILIZATION.md` or the nearest feature documentation until a narrower
-  durable home exists.
+- Migration is data‑only (TypeScript ETL old → new). Schema DDL for the current app schema is applied via `bun run db:push`, not via files in `migration/steps/**`.
+- Where a 1:1 mapping is not possible, document defaults/backfills in `conductor/tracks/<track_id>/spec.md` (Migration Notes section).
 - Each feature should update seed data so the feature is testable without running the migration.

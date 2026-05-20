@@ -3,6 +3,8 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+// Source guard: unsupported registration modes may remain readable from data,
+// but authoring screens must not quietly advertise them before product support.
 const repositoryRoot = new URL('../..', import.meta.url).pathname;
 
 const readSource = (path: string): string =>

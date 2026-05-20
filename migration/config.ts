@@ -1,7 +1,7 @@
 import { and, eq } from 'drizzle-orm';
 
 import * as oldSchema from '../old/drizzle';
-import { database } from './database';
+import { database } from '../src/db';
 import * as newSchema from '../src/db/schema';
 import { oldDatabase } from './migrator-database';
 

@@ -1,6 +1,8 @@
 #!/bin/sh
 set -eu
 
+# Docker-only helper: capture the Stripe CLI webhook signing secret into a
+# shared file so the app container can verify local webhook replay requests.
 secret_file=/run/stripe-webhook/signing-secret
 
 rm -f "$secret_file"
