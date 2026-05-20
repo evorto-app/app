@@ -25,7 +25,7 @@ describe('profile event labels', () => {
     expect(profileEventDetailActionLabel()).toBe('Open event page');
   });
 
-  it('keeps deferred profile event actions explicit', () => {
+  it('keeps profile event actions focused on implemented paths', () => {
     expect(
       profileEventActionNote({
         checkInTime: null,
@@ -34,7 +34,7 @@ describe('profile event labels', () => {
         status: 'CONFIRMED',
       }),
     ).toBe(
-      'Open the event page for ticket access, participant cancellation, and unpaid self-service transfer when available. Automatic refunds, paid transfer, and resale are not automatic yet.',
+      'Open the event page for ticket access, participant cancellation, and unpaid self-service transfer when available.',
     );
     expect(
       profileEventActionNote({
@@ -44,7 +44,7 @@ describe('profile event labels', () => {
         status: 'PENDING',
       }),
     ).toBe(
-      'Open the event page for pending-registration details and available cancellation actions. Self-service transfer/resale is not available yet.',
+      'Open the event page for pending-registration details and available cancellation actions.',
     );
     expect(
       profileEventActionNote({
@@ -54,7 +54,7 @@ describe('profile event labels', () => {
         status: 'WAITLIST',
       }),
     ).toBe(
-      'Open the event page for waitlist details and the leave-waitlist action. Transfer/resale is not available for waitlist registrations.',
+      'Open the event page for waitlist details and the leave-waitlist action.',
     );
   });
 
@@ -67,7 +67,7 @@ describe('profile event labels', () => {
         status: 'CONFIRMED',
       }),
     ).toBe(
-      'You are checked in. Open the event page for ticket details. Cancellation and transfer are no longer available after check-in. Automatic refunds, paid transfer, and resale are not automatic yet.',
+      'You are checked in. Open the event page for ticket details. Cancellation and transfer are no longer available after check-in.',
     );
   });
 
@@ -80,7 +80,7 @@ describe('profile event labels', () => {
         status: 'PENDING',
       }),
     ).toBe(
-      'Continue payment from this card, or open the event page for registration details. Cancellation after confirmation is handled on the event page.',
+      'Continue payment from this card, or open the event page for registration details.',
     );
   });
 
