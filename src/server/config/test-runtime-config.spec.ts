@@ -101,6 +101,23 @@ describe('test-runtime-config', () => {
     ).toBe(true);
   });
 
+  it('uses selected project environment when worker argv omits project flags', () => {
+    const original = process.env['E2E_SELECTED_PROJECTS'];
+    process.env['E2E_SELECTED_PROJECTS'] =
+      'local-chrome-baseline,docs-baseline';
+    try {
+      expect(
+        requiresIntegrationOnlyPlaywrightEnvironment(['node', 'worker']),
+      ).toBe(false);
+    } finally {
+      if (original === undefined) {
+        delete process.env['E2E_SELECTED_PROJECTS'];
+      } else {
+        process.env['E2E_SELECTED_PROJECTS'] = original;
+      }
+    }
+  });
+
   it.effect('requires BASE_URL and ignores PLAYWRIGHT_TEST_BASE_URL', () =>
     Effect.gen(function* () {
       const provider = providerFromEntries([

@@ -1534,7 +1534,9 @@ the current working direction until a product decision overrides them.
    system-Chrome coverage now proves profile edit persistence, event-card
    payment continuation/ticket/waitlist routing, submitted receipts, and seeded
    ESNcard discount state. Live external ESNcard add/refresh/remove provider
-   outcomes remain intentionally outside deterministic local coverage.
+   outcomes are represented by the integration-tagged
+   `specs/profile/user-profile-live-esncard.spec.ts` path, which requires
+   `E2E_LIVE_ESN_CARD_IDENTIFIER` and stays out of deterministic baseline CI.
 6. Fill the remaining tenant settings implementation gap for automated onboarding/domain workflows. The current general-settings page exposes SEO fields, uploaded or externally hosted logo/favicon URLs, tenant legal links or hosted legal text, editable supported locale/currency/timezone values, read-only runtime identity, and a visible deferred-settings summary. The current global-admin surface supports a searchable tenant list, tenant create/edit, and tenant detail review, while custom-domain verification, multi-domain automation, and impersonation remain out of scope.
 7. Keep `docker:start` reset behavior intentional, use `docker:resume` only for existing local stacks, and ensure seeded data is sufficient to get going from zero.
 
