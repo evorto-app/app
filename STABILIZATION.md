@@ -1290,7 +1290,7 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** the remaining `test.skip` audit removed the dead mobile skip from `tests/specs/permissions/override.test.ts`, corrected the inventory entry for that spec, made the Auth0 Management doc skip name the required credentials explicitly, moved Stripe webhook replay's credential gate to a file-level skip before page/database fixtures are requested, and keeps the skip/fixme allowlist tied to explicit local reasons.
 - **Addressed in stabilization pass:** global-admin route guard coverage now has a direct Playwright spec for the global-admin allow path and signed-in non-global-admin deny path.
 - **Addressed in stabilization pass:** scanning/check-in docs now describe the dedicated QR scanner, scan warnings, authorization, checked-in count updates, and selected guest-quantity check-in. The remaining scanner follow-up is Browser-backed organizer aggregate assertion, not missing product documentation.
-- **Should fix before relaunch:** page-backed docs coverage is still missing or thin for tenant/global-admin settings beyond the current list/settings pages, account creation outside Auth0-management integration, profile discount add/refresh/remove flows, role assignment/user management, and registration negative paths. Local unit/server coverage exists for several of those surfaces, but it does not replace Browser-backed docs for the full user journeys.
+- **Should fix before relaunch:** page-backed docs coverage is still missing or thin for account creation outside Auth0-management integration and profile discount add/refresh/remove flows. Local unit/server coverage exists for several of those surfaces, but it does not replace Browser-backed docs for the full user journeys.
 - **Addressed in stabilization pass:** the generic `tests/docs/template.doc.ts` discovery placeholder was removed; current template documentation lives in `tests/docs/templates/templates.doc.ts`.
 - **Addressed in stabilization pass:** the focused `docScreenshot` helper now resolves `DOCS_IMG_OUT_DIR` at call time instead of import time, so tests and docs jobs can set output paths per run. Some docs journeys still contain fixed waits and should be tightened as those flows are revisited.
 - **Addressed in stabilization pass:** `tests/docs/events/event-management.doc.ts` now waits on concrete headings instead of fixed one-second delays before its major screenshots.
@@ -1614,6 +1614,10 @@ implement those decisions or explicitly revise them there before changing code.
   for closed registration windows, role-ineligible direct links, and full
   participant-option waitlist affordances. Execution still depends on local
   runtime secrets and the matching Playwright browser cache.
+- Registration unavailable-state docs pass: extended the registration generated
+  docs journey with page-backed closed-window, full-option waitlist, and
+  role-ineligible direct-link states, so negative registration behavior is
+  documented from the real event page instead of only server/app unit coverage.
 - Active-registration deferred-action pass: kept transfer/resale visibly
   unavailable on event active-registration cards for pending, confirmed, and
   waitlisted registrations until the real transfer/resale flow exists.
