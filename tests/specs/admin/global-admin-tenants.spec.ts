@@ -8,6 +8,8 @@ test.setTimeout(120_000);
 test.use({ storageState: gaStateFile });
 
 const tenantSearchLabel = 'Search tenants';
+const expectedStripeAccountId =
+  process.env['STRIPE_TEST_ACCOUNT_ID'] ?? 'acct_playwright_list';
 
 const expectTenantRows = async (page: Page) => {
   await expect(page.getByText('Primary domain').first()).toBeVisible();
@@ -66,6 +68,10 @@ test('global tenant admin reviews tenant list, detail, and forms @admin @globalA
   ).toBeVisible();
   await page.getByLabel(tenantSearchLabel).fill('localhost');
   await expect(page.getByText('localhost').first()).toBeVisible();
+  await page.getByLabel(tenantSearchLabel).fill(expectedStripeAccountId);
+  await expect(
+    page.getByText(`Connected (${expectedStripeAccountId})`).first(),
+  ).toBeVisible();
 
   await page.getByRole('link', { name: 'Create tenant' }).click();
   await expect(

@@ -1395,8 +1395,9 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** global-admin route guard coverage now has a direct Playwright spec for the global-admin allow path and signed-in non-global-admin deny path.
 - **Addressed in stabilization pass:** global-admin tenant workflow coverage now
   has a functional Playwright spec for tenant list filtering, no-match state,
-  operational row fields, tenant detail review, create/edit form relaunch-scope
-  copy, disabled empty create submit, and enabled seeded edit submit.
+  operational row fields, connected Stripe-account support lookup, tenant
+  detail review, create/edit form relaunch-scope copy, disabled empty create
+  submit, and enabled seeded edit submit.
 - **Addressed in stabilization pass:** tenant-admin role/user management now has
   a functional Playwright spec for read-only user review, role create/edit,
   dependent permission persistence, hub-display flags, role details, and DB
@@ -2175,6 +2176,9 @@ implement those decisions or explicitly revise them there before changing code.
   searchable tenant list, no-match state, operational row fields, read-only
   tenant detail review, external tenant-domain link, and create/edit form
   relaunch-scope surface while authenticated Browser review is still blocked.
+- Global-admin page-backed support-lookup pass: extended the global-admin
+  tenant Playwright spec so the searchable tenant list proves connected Stripe
+  account ids work as support lookup terms, not only tenant domains.
 - Tenant general-settings docs source-guard pass: pinned generated settings docs
   to the implemented tenant identity, locale/money, SEO, legal, receipt-country,
   ESNcard, and separate tax-rate surfaces while keeping deferred domain/email/
