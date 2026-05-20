@@ -36,7 +36,7 @@ Tenant admins can manage the settings that are currently implemented for the act
 
 The current general settings page supports:
 
-- A **Deferred settings** summary that makes domain onboarding, brand assets, legal text pages beyond external links, locale/money settings, and operational policy gaps visible in the app instead of hiding them in docs only.
+- A **Deferred settings** summary that makes domain onboarding, brand asset upload, legal text page, and operational policy gaps visible in the app instead of hiding them in docs only.
 - A read-only **Tenant identity** summary with tenant name, primary domain, and Stripe connection state.
 - **Default Location** for event location search bias.
 - **Site theme** for the tenant theme.
