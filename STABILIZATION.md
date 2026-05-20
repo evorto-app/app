@@ -1377,6 +1377,10 @@ the current working direction until a product decision overrides them.
   exploratory system-Chrome runs. `docker:check` reports the system Chrome path
   instead of warning about a missing bundled Chromium cache when that opt-in is
   active.
+- **Addressed in stabilization pass:** when bundled Playwright Chromium is
+  missing but system Chrome is installed, `docker:check` now points local
+  exploratory runs at `E2E_BROWSER_CHANNEL=chrome` instead of only recommending
+  the network-heavy browser install path.
 - **Addressed in stabilization pass:** `helpers/testing/runtime-preflight.spec.ts` now pins that destructive Docker start scripts call `docker:check` first, required runtime variables are wired into Compose services, and Font Awesome registry access remains available to Docker through the same secret path for premium and brand icon packages.
 - **Addressed in this stabilization pass:** remaining Angular Material icon usage for app action icons was removed from the role, event-review, template-list, and template-category surfaces. App source coverage now keeps Angular app icons on the Font Awesome component path, so premium and brand icon packages continue using the same package/token mechanic instead of a separate Material icon registry path.
 - **Addressed in stabilization pass:** `specs/seed/seed-baseline.test.ts` now treats the reset-from-zero seed as a runtime contract: default user/organizer roles, every template seed family, paid/free registration options, paid tax-rate wiring, open/closed/draft/past scenario handles, confirmed registrations, and scanner aggregate data must all exist after seeding.
@@ -1799,7 +1803,12 @@ implement those decisions or explicitly revise them there before changing code.
   intentionally blocked until `NEON_API_KEY`, `CLIENT_SECRET`, and
   `STRIPE_API_KEY` are provided, while Font Awesome premium/brand registry
   access and Docker Compose config still validate. Playwright browser cache is
-  still missing and needs `bun run test:e2e:install` before page-backed runs.
+  still missing; page-backed runs need either `bun run test:e2e:install` or
+  `E2E_BROWSER_CHANNEL=chrome` on a machine with system Chrome installed.
+- Playwright browser preflight pass: when bundled Chromium is missing and system
+  Chrome is installed, `docker:check` now reports
+  `E2E_BROWSER_CHANNEL=chrome` as the low-network local option for exploratory
+  page-backed runs.
 - Docker media isolation pass: forced the app container to use the Compose
   MinIO endpoint for media/uploads even when developer dotenv values point
   normal local runs at an external S3-compatible endpoint.

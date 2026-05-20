@@ -286,6 +286,31 @@ describe('evaluateRuntimePreflight', () => {
     );
   });
 
+  it('points local runs at system Chrome when bundled Chromium is missing and Chrome is available', () => {
+    const result = evaluateRuntimePreflight('docker', {
+      cwd: '/repo',
+      env: requiredDockerEnvironment,
+      fileExists: (filePath) =>
+        filePath === '/repo/.env.dev' ||
+        filePath === '/Applications/Google Chrome.app',
+      runCommand: successfulCommand,
+    });
+
+    expect(result.failed).toBe(false);
+    expect(result.warned).toBe(true);
+    expect(result.checks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          details: expect.arrayContaining([
+            'Or set E2E_BROWSER_CHANNEL=chrome to use /Applications/Google Chrome.app for local exploratory runs.',
+          ]),
+          label: 'Playwright Chromium browser installation',
+          severity: 'warning',
+        }),
+      ]),
+    );
+  });
+
   it('allows opt-in system Chrome to avoid the bundled Chromium cache warning', () => {
     const result = evaluateRuntimePreflight('docker', {
       cwd: '/repo',
