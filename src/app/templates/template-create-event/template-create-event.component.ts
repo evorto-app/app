@@ -12,7 +12,10 @@ import { FieldTree, form, submit } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import { Router, RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
-import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
+import {
+  faArrowLeft,
+  faCircleInfo,
+} from '@fortawesome/duotone-regular-svg-icons';
 import {
   injectMutation,
   injectQuery,
@@ -40,6 +43,11 @@ export const templateCreateEventSubmitDisabled = ({
   mutationPending: boolean;
 }): boolean => formInvalid || formSubmitting || mutationPending;
 
+export const templateAddOnCopyNotice = (addOnCount: number): null | string =>
+  addOnCount > 0
+    ? `This template has ${addOnCount} reusable add-on${addOnCount === 1 ? '' : 's'}. Event creation copies registration options now; event-specific add-on sales are not available yet.`
+    : null;
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -52,6 +60,14 @@ export const templateCreateEventSubmitDisabled = ({
   templateUrl: './template-create-event.component.html',
 })
 export class TemplateCreateEventComponent {
+  protected readonly templateId = input.required<string>();
+  private readonly rpc = AppRpc.injectClient();
+  protected readonly templateQuery = injectQuery(() =>
+    this.rpc.templates.findOne.queryOptions({ id: this.templateId() }),
+  );
+  protected readonly addOnCopyNotice = computed(() =>
+    templateAddOnCopyNotice(this.templateQuery.data()?.addOns.length ?? 0),
+  );
   protected readonly createEventModel = signal<EventGeneralFormModel>(
     createEventGeneralFormModel(),
   );
@@ -59,7 +75,6 @@ export class TemplateCreateEventComponent {
     this.createEventModel,
     eventGeneralFormSchema,
   );
-  private readonly rpc = AppRpc.injectClient();
   protected readonly createEventMutation = injectMutation(() =>
     this.rpc.events.create.mutationOptions(),
   );
@@ -75,13 +90,10 @@ export class TemplateCreateEventComponent {
     );
   });
   protected readonly faArrowLeft = faArrowLeft;
+  protected readonly faCircleInfo = faCircleInfo;
   protected readonly registrationModes = ['fcfs'] as const;
   protected readonly templateCreateEventSubmitDisabled =
     templateCreateEventSubmitDisabled;
-  protected readonly templateId = input.required<string>();
-  protected readonly templateQuery = injectQuery(() =>
-    this.rpc.templates.findOne.queryOptions({ id: this.templateId() }),
-  );
   private readonly initializedTemplateId = signal<null | string>(null);
   private readonly lastStart = signal<DateTime | null>(null);
 

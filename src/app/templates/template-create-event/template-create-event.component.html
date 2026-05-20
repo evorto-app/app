@@ -7,6 +7,17 @@
 
 <main class="flex flex-col gap-6">
   @if (templateQuery.isSuccess()) {
+    @if (addOnCopyNotice(); as notice) {
+      <aside
+        class="border-outline-variant bg-surface-container-low text-on-surface rounded-lg border p-4"
+      >
+        <div class="flex items-start gap-3">
+          <fa-duotone-icon class="text-primary mt-1" [icon]="faCircleInfo" />
+          <p class="body-medium">{{ notice }}</p>
+        </div>
+      </aside>
+    }
+
     <form (submit)="onSubmit($event)">
       <div class="grid gap-6">
         <section class="bg-surface text-on-surface rounded-2xl p-4">
