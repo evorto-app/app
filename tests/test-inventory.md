@@ -274,7 +274,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     an in-flight guard so profile discount-card writes do not overlap. App
     coverage also proves the
     `#discounts` profile fragment waits for tenant ESNcard provider availability
-    before selecting the section.
+    before selecting the section. Generated-doc source coverage keeps the
+    discounts guide tied to the local ESNcard helper functions and provider
+    outage retry semantics.
   - Browser-backed account-creation retry and tenant-join behavior. Server
     coverage already proves transactional creation, existing-global-user tenant
     joins, duplicate-assignment conflicts, and visible create-account error
