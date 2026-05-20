@@ -84,6 +84,9 @@ test.skip('scan confirmed registration records check-in', async ({
     await page.getByLabel('Guests to check in now').fill('2');
     await page.getByRole('button', { name: 'Confirm 3 check-ins' }).click();
     await expect(page.getByText('Check-in recorded')).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Confirm 3 check-ins' }),
+    ).toBeDisabled();
 
     await expect
       .poll(async () => {
@@ -218,6 +221,9 @@ test('scan checked-in registration records remaining guest arrival', async ({
     await page.getByLabel('Guests to check in now').fill('1');
     await page.getByRole('button', { name: 'Confirm check-in' }).click();
     await expect(page.getByText('Check-in recorded')).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Confirm check-in' }),
+    ).toBeDisabled();
 
     await expect
       .poll(async () => {
