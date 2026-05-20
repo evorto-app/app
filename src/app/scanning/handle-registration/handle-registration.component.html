@@ -46,8 +46,8 @@
         <div class="bg-error text-on-error mt-2 rounded p-2">
           <p class="title-small">Event starting in the future</p>
           <p>
-            The event starts on more than one hour, on
-            {{ scanResultQuery.data().event.start | date: "medium" }}
+            The event starts more than one hour from now, at
+            {{ scanResultQuery.data().event.start | date: "medium" }}.
           </p>
         </div>
       }
@@ -110,7 +110,9 @@
         [value]="selectedGuestCheckInCount()"
         (input)="updateGuestCheckInCount($event)"
       />
-      <span matTextSuffix> {{ selectedSpotCheckInCount() }} spots now </span>
+      <span matTextSuffix>
+        {{ scanSpotCountLabel(selectedSpotCheckInCount()) }}
+      </span>
     </mat-form-field>
   }
   @if (checkInMutation.isError()) {
@@ -136,12 +138,11 @@
     type="button"
     (click)="checkIn()"
   >
-    @if (checkInMutation.isPending()) {
-      Checking in ...
-    } @else if (selectedSpotCheckInCount() > 1) {
-      Confirm {{ selectedSpotCheckInCount() }} Check Ins
-    } @else {
-      Confirm Check In
-    }
+    {{
+      scanCheckInButtonLabel({
+        pending: checkInMutation.isPending(),
+        spotCount: selectedSpotCheckInCount(),
+      })
+    }}
   </button>
 }

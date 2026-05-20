@@ -23,6 +23,23 @@ import { DateTime } from 'luxon';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
 
+export const scanCheckInButtonLabel = ({
+  pending,
+  spotCount,
+}: {
+  pending: boolean;
+  spotCount: number;
+}): string => {
+  if (pending) {
+    return 'Checking in...';
+  }
+
+  return spotCount > 1 ? `Confirm ${spotCount} check-ins` : 'Confirm check-in';
+};
+
+export const scanSpotCountLabel = (spotCount: number): string =>
+  spotCount === 1 ? '1 spot now' : `${spotCount} spots now`;
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -46,11 +63,13 @@ export class HandleRegistrationComponent {
   );
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly guestCheckInCount = signal(0);
+  protected readonly scanCheckInButtonLabel = scanCheckInButtonLabel;
   protected readonly scanResultQuery = injectQuery(() =>
     this.rpc.events.registrationScanned.queryOptions({
       registrationId: this.registrationId(),
     }),
   );
+  protected readonly scanSpotCountLabel = scanSpotCountLabel;
   protected readonly selectedGuestCheckInCount = computed(() => {
     const scanResult = this.scanResultQuery.data();
     if (!scanResult) {
