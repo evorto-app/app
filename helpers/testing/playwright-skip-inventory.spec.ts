@@ -8,7 +8,7 @@ const testsRoot = join(repositoryRoot, 'tests');
 
 const allowedPlaywrightSkipEntries = [
   {
-    entry: 'tests/docs/users/create-account.doc.ts:20:test.skip',
+    entry: 'tests/docs/users/create-account.doc.ts:93:test.skip',
     reason:
       'Auth0 Management credentials are required for the integration doc.',
   },
