@@ -108,8 +108,8 @@
 
       <h3 class="title-small mb-2 mt-6">Brand assets</h3>
       <p class="text-on-surface-variant mb-3 text-sm">
-        Configure externally hosted tenant assets. The favicon updates the
-        browser tab icon.
+        Upload tenant assets or paste externally hosted URLs. The favicon
+        updates the browser tab icon.
       </p>
       <mat-form-field>
         <mat-label>Logo URL</mat-label>
@@ -119,6 +119,25 @@
           placeholder="https://section.example.org/logo.svg"
         />
       </mat-form-field>
+      <input
+        #logoAssetInput
+        type="file"
+        class="hidden"
+        accept="image/png,image/jpeg,image/webp,image/gif"
+        (change)="uploadBrandAsset('logo', $event)"
+      />
+      <button
+        mat-stroked-button
+        type="button"
+        class="mb-4 w-fit"
+        [disabled]="uploadingBrandAsset() !== null"
+        (click)="logoAssetInput.click()"
+      >
+        <fa-duotone-icon [icon]="faUpload" class="mr-2" />
+        {{
+          uploadingBrandAsset() === "logo" ? "Uploading logo" : "Upload logo"
+        }}
+      </button>
       <mat-form-field>
         <mat-label>Favicon URL</mat-label>
         <input
@@ -127,6 +146,27 @@
           placeholder="https://section.example.org/favicon.ico"
         />
       </mat-form-field>
+      <input
+        #faviconAssetInput
+        type="file"
+        class="hidden"
+        accept="image/png,image/jpeg,image/webp,image/gif,image/x-icon,image/vnd.microsoft.icon"
+        (change)="uploadBrandAsset('favicon', $event)"
+      />
+      <button
+        mat-stroked-button
+        type="button"
+        class="w-fit"
+        [disabled]="uploadingBrandAsset() !== null"
+        (click)="faviconAssetInput.click()"
+      >
+        <fa-duotone-icon [icon]="faUpload" class="mr-2" />
+        {{
+          uploadingBrandAsset() === "favicon"
+            ? "Uploading favicon"
+            : "Upload favicon"
+        }}
+      </button>
 
       <h3 class="title-small mb-2 mt-6">Search preview</h3>
       <p class="text-on-surface-variant mb-3 text-sm">

@@ -1,3 +1,5 @@
+import type { AdminTenantBrandAssetKind } from '@shared/rpc-contracts/app-rpcs/admin.rpcs';
+
 import { DOCUMENT } from '@angular/common';
 import {
   ChangeDetectionStrategy,
@@ -16,7 +18,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
-import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
+import { faArrowLeft, faUpload } from '@fortawesome/duotone-regular-svg-icons';
 import {
   DEFAULT_RECEIPT_COUNTRIES,
   RECEIPT_COUNTRY_OPTIONS,
@@ -93,6 +95,7 @@ export class GeneralSettingsComponent {
     () => this.settingsModel().esnCardEnabled,
   );
   protected readonly faArrowLeft = faArrowLeft;
+  protected readonly faUpload = faUpload;
   protected readonly localeOptions = supportedTenantLocales;
   protected readonly receiptCountryOptions = RECEIPT_COUNTRY_OPTIONS;
   protected readonly settingsForm = form(this.settingsModel);
@@ -101,6 +104,8 @@ export class GeneralSettingsComponent {
     tenantIdentityRows(this.configService.tenant),
   );
   protected readonly timezoneOptions = supportedTenantTimezones;
+  protected readonly uploadingBrandAsset =
+    signal<AdminTenantBrandAssetKind | null>(null);
   private readonly document = inject(DOCUMENT);
   private readonly notifications = inject(NotificationService);
   private readonly queryClient = inject(QueryClient);
@@ -108,6 +113,9 @@ export class GeneralSettingsComponent {
 
   private updateSettingsMutation = injectMutation(() =>
     this.rpc.admin.tenant.updateSettings.mutationOptions(),
+  );
+  private uploadBrandAssetMutation = injectMutation(() =>
+    this.rpc.admin.tenant.uploadBrandAsset.mutationOptions(),
   );
 
   constructor() {
@@ -188,5 +196,67 @@ export class GeneralSettingsComponent {
       ...current,
       esnCardEnabled: checked,
     }));
+  }
+
+  protected async uploadBrandAsset(
+    kind: AdminTenantBrandAssetKind,
+    event: Event,
+  ): Promise<void> {
+    const input = event.target as HTMLInputElement | undefined;
+    const file = input?.files?.[0] ?? null;
+    if (!file) {
+      return;
+    }
+
+    this.uploadingBrandAsset.set(kind);
+    try {
+      const uploaded = await this.uploadBrandAssetMutation.mutateAsync({
+        fileBase64: await this.readFileAsBase64(file),
+        fileName: file.name,
+        fileSizeBytes: file.size,
+        kind,
+        mimeType: file.type,
+      });
+      this.settingsModel.update((current) => ({
+        ...current,
+        [kind === 'logo' ? 'logoUrl' : 'faviconUrl']: uploaded.assetUrl,
+      }));
+      this.notifications.showSuccess(
+        kind === 'logo'
+          ? 'Logo uploaded. Save settings to publish it.'
+          : 'Favicon uploaded. Save settings to publish it.',
+      );
+    } catch (error) {
+      this.notifications.showError(
+        getErrorMessage(error, 'Failed to upload brand asset'),
+      );
+    } finally {
+      this.uploadingBrandAsset.set(null);
+      if (input) {
+        input.value = '';
+      }
+    }
+  }
+
+  private async readFileAsBase64(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.addEventListener('error', () => {
+        reject(new Error('Failed to read brand asset'));
+      });
+      reader.addEventListener('load', () => {
+        if (typeof reader.result !== 'string') {
+          reject(new Error('Invalid brand asset payload'));
+          return;
+        }
+        const commaIndex = reader.result.indexOf(',');
+        if (commaIndex === -1) {
+          reject(new Error('Invalid brand asset data URL'));
+          return;
+        }
+        resolve(reader.result.slice(commaIndex + 1));
+      });
+      reader.readAsDataURL(file);
+    });
   }
 }

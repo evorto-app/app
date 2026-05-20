@@ -214,8 +214,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     currency/locale/timezone selections in the update payload, and normalizes
     blank optional values before the RPC call. Tenant schema, admin-handler, and
     route coverage pin supported relaunch currency/locale/timezone values,
-    hosted legal text fields, and public legal page routes while normalizing
-    legacy context payloads.
+    hosted legal text fields, public legal page routes, and tenant logo/favicon
+    upload storage paths while normalizing legacy context payloads.
 - Roles/user management:
   - Browser-backed least-privilege organizer review for event/template role
     selectors. Server coverage already proves lookup permissions and

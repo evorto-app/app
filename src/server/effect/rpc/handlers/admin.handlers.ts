@@ -29,6 +29,7 @@ import { ConfigPermissions } from '../../../../shared/rpc-contracts/app-rpcs/con
 import { Tenant } from '../../../../types/custom/tenant';
 import { normalizeEsnCardConfig } from '../../../discounts/discount-provider-config';
 import { StripeClient } from '../../../stripe-client';
+import { uploadTenantBrandAsset } from '../../../tenant-brand-assets';
 import {
   decodeRpcContextHeaderJson,
   RPC_CONTEXT_HEADERS,
@@ -630,5 +631,22 @@ export const adminHandlers = {
       }
 
       return validatedTenant;
+    }),
+  'admin.tenant.uploadBrandAsset': (input, options) =>
+    Effect.gen(function* () {
+      yield* ensurePermission(options.headers, 'admin:changeSettings');
+      const tenant = decodeHeaderJson(
+        options.headers[RPC_CONTEXT_HEADERS.TENANT],
+        Tenant,
+      );
+
+      return yield* uploadTenantBrandAsset({
+        fileBase64: input.fileBase64,
+        fileName: input.fileName,
+        fileSizeBytes: input.fileSizeBytes,
+        kind: input.kind,
+        mimeType: input.mimeType,
+        tenantId: tenant.id,
+      });
     }),
 } satisfies Partial<AppRpcHandlers>;
