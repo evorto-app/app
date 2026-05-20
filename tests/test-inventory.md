@@ -193,8 +193,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     notification and manual money-movement scope. Local component coverage,
     finance docs, and receipt flow specs now pin that the reimbursement queue
     records an Evorto transaction only, that money movement remains manual
-    through the selected payout method, and that finance receipt contact details
-    prefer the submitter's notification email with login email fallback.
+    through the selected payout method, that reimbursement actions require a
+    selected receipt plus the chosen payout detail, that selected totals sum the
+    selected rows only, and that finance receipt contact details prefer the
+    submitter's notification email with login email fallback.
   - Keep paid-registration webhook counter coverage aligned with buyer-plus-guest
     spot counts. Local shared coverage pins the capacity count helper used by
     webhook completion/expiry updates; Stripe replay specs remain
