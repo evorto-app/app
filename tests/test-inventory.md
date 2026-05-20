@@ -146,7 +146,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 - `specs/events/registration-transfer.test.ts` also seeds a paid confirmed
   registration with a successful registration transaction and proves the event
   page keeps self-service transfer disabled with the paid transfer/resale
-  deferral instead of exposing the unpaid transfer dialog.
+  deferral instead of exposing the unpaid transfer dialog, then deletes the
+  generated registration/transaction rows and restores touched fixture status.
 - `docs/events/register.doc.ts` seeds a paid confirmed registration with a
   successful transaction, asserts disabled transfer-unavailable copy, and reads
   the generated registration row back before cleanup.

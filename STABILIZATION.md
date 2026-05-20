@@ -584,7 +584,8 @@ the current working direction until a product decision overrides them.
 - `tests/specs/events/registration-transfer.test.ts` also seeds a paid
   confirmed registration with a successful registration transaction and proves
   the event page keeps self-service transfer disabled with the paid
-  transfer/resale deferral copy while preserving the original registration row.
+  transfer/resale deferral copy while restoring fixture registration state after
+  the generated row assertions.
 - `src/app/events/event-registration-option/event-registration-option.component.spec.ts` covers registration-card state for full options, distinct waitlist availability, remaining-capacity guest selection helpers, participant registration/write action disabling, and too-early/too-late registration windows without requiring a page-backed browser.
 - `src/app/events/event-registration-option/event-registration-option.component.spec.ts` covers that stored `random` and `application` participant options do not expose a waitlist affordance even when full.
 - `src/server/effect/rpc/handlers/events/event-registration.service.spec.ts` covers server-side rejection for duplicate active registration, unpublished events, closed registration windows, role-ineligible users, cross-tenant options, full options, unsupported registration modes, same-event second registrations across options, transactional duplicate races, transactional capacity races, participant waitlist joining, and participant guest quantities.
@@ -1709,6 +1710,10 @@ implement those decisions or explicitly revise them there before changing code.
   Playwright spec with a paid confirmed registration and successful transaction
   so the event page must render disabled transfer-unavailable copy instead of
   exposing the unpaid transfer dialog.
+- Registration transfer fixture cleanup pass: made the unpaid and paid
+  registration-transfer specs delete generated registration/transaction rows
+  and restore touched fixture registration statuses after their page-backed
+  assertions.
 - Registration paid-transfer docs pass: extended generated registration docs so
   paid confirmed registrations must show disabled transfer-unavailable copy
   until refund or resale money movement exists.
