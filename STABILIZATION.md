@@ -1189,13 +1189,10 @@ the current working direction until a product decision overrides them.
    closed registration windows, role-ineligible direct links, and waitlist
    affordances.
 3. Keep simple-mode templates as the primary authoring UI, but expand reusable template support for discounts, add-ons, and questions where practical. Organizer planning tips are now exposed as the first private organizer-notes field.
-4. Execute the covered legacy-field migration path during production cut-over so
-   any existing physical `showInHub`, `paymentStatus`, and `payment_status`
-   artifacts are dropped now that active schema/API code no longer uses them.
-5. Add Browser-backed scanner/organizer aggregate review once local runtime is available.
-6. Add Browser-backed profile coverage for payment-continuation, ticket/cancellation routing, waitlist messaging, and ESNcard provider failure semantics once local runtime is available.
-7. Fill the remaining tenant settings implementation gap for automated onboarding/domain workflows. The current general-settings page exposes SEO fields, uploaded or externally hosted logo/favicon URLs, tenant legal links or hosted legal text, editable supported locale/currency/timezone values, read-only runtime identity, and a visible deferred-settings summary. The current global-admin surface supports a searchable tenant list, tenant create/edit, and tenant detail review, while custom-domain verification, multi-domain automation, and impersonation remain out of scope.
-8. Keep `docker:start` reset behavior intentional, use `docker:resume` only for existing local stacks, and ensure seeded data is sufficient to get going from zero.
+4. Add Browser-backed scanner/organizer aggregate review once local runtime is available.
+5. Add Browser-backed profile coverage for payment-continuation, ticket/cancellation routing, waitlist messaging, and ESNcard provider failure semantics once local runtime is available.
+6. Fill the remaining tenant settings implementation gap for automated onboarding/domain workflows. The current general-settings page exposes SEO fields, uploaded or externally hosted logo/favicon URLs, tenant legal links or hosted legal text, editable supported locale/currency/timezone values, read-only runtime identity, and a visible deferred-settings summary. The current global-admin surface supports a searchable tenant list, tenant create/edit, and tenant detail review, while custom-domain verification, multi-domain automation, and impersonation remain out of scope.
+7. Keep `docker:start` reset behavior intentional, use `docker:resume` only for existing local stacks, and ensure seeded data is sufficient to get going from zero.
 
 ### Acceptable For Now
 
@@ -1461,6 +1458,10 @@ implement those decisions or explicitly revise them there before changing code.
   object storage and app-origin `/tenant-assets/*` delivery URLs, keeping
   externally hosted asset URLs available and leaving automated domain onboarding
   as the remaining tenant-settings implementation gap.
+- Legacy migration backlog cleanup: removed the stale relaunch backlog item for
+  `showInHub`, `paymentStatus`, and `payment_status` cleanup after confirming
+  the idempotent global migration step and schema guard specs already cover the
+  cut-over path.
 
 ## Review Next
 
@@ -1468,8 +1469,8 @@ All ten first-pass review areas are now represented in this document. The next
 stabilization work should continue with small cleanup commits around the
 remaining relaunch gaps: Browser-backed profile action coverage, Browser-backed
 scanner aggregate review, automated onboarding/domain workflows, global
-tenant-admin Browser review, plus the legacy-field migration path for
-production data. Normal
+tenant-admin Browser review, and richer template support for reusable add-ons
+and questions. Normal
 generated docs output now stays
 local unless `test:e2e:docs:publish` is run intentionally. New Playwright
 skips/fixmes should be added only as explicit credential gates or honest
