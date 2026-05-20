@@ -47,6 +47,9 @@ test('profile event cards show implemented registration actions', async ({
     await expect(
       confirmedCard.getByText('Available on the event page.'),
     ).toBeVisible();
+    await expect(
+      confirmedCard.getByRole('link', { name: 'Open event page' }),
+    ).toHaveAttribute('href', `/events/${profileEventCards.confirmed.eventId}`);
 
     const pendingCheckoutCard = page
       .locator('article')
@@ -63,6 +66,12 @@ test('profile event cards show implemented registration actions', async ({
     await expect(
       pendingCheckoutCard.getByRole('link', { name: 'Continue payment' }),
     ).toHaveAttribute('href', profileEventCards.pendingCheckout.checkoutUrl);
+    await expect(
+      pendingCheckoutCard.getByRole('link', { name: 'Open event page' }),
+    ).toHaveAttribute(
+      'href',
+      `/events/${profileEventCards.pendingCheckout.eventId}`,
+    );
 
     const waitlistCard = page
       .locator('article')
@@ -73,6 +82,9 @@ test('profile event cards show implemented registration actions', async ({
         'Open the event page for waitlist details and the leave-waitlist action.',
       ),
     ).toBeVisible();
+    await expect(
+      waitlistCard.getByRole('link', { name: 'Open event page' }),
+    ).toHaveAttribute('href', `/events/${profileEventCards.waitlist.eventId}`);
 
     const checkedInCard = page
       .locator('article')
@@ -87,6 +99,9 @@ test('profile event cards show implemented registration actions', async ({
     await expect(
       checkedInCard.getByText('Available on the event page.'),
     ).toHaveCount(0);
+    await expect(
+      checkedInCard.getByRole('link', { name: 'Open event page' }),
+    ).toHaveAttribute('href', `/events/${profileEventCards.checkedIn.eventId}`);
   } finally {
     await profileEventCards?.cleanup();
   }

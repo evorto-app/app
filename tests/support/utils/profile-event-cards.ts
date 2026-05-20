@@ -13,6 +13,7 @@ export type SeededProfileEventCards = {
     addOnPurchaseId: string;
     addOnTitle: string;
     addonId: string;
+    eventId: string;
     eventTitle: string;
     registrationId: string;
   };
@@ -20,6 +21,7 @@ export type SeededProfileEventCards = {
     addOnPurchaseId: string;
     addOnTitle: string;
     addonId: string;
+    eventId: string;
     eventTitle: string;
     registrationId: string;
   };
@@ -260,6 +262,7 @@ export const seedProfileEventCards = async ({
       addOnPurchaseId: checkedInAddonPurchaseId,
       addOnTitle: checkedInAddonTitle,
       addonId: checkedInAddonId,
+      eventId: checkedInEventId,
       eventTitle: checkedInEvent.title,
       registrationId: checkedInRegistrationId,
     },
@@ -328,6 +331,7 @@ export const seedProfileEventCards = async ({
       addOnPurchaseId: confirmedAddonPurchaseId,
       addOnTitle: confirmedAddonTitle,
       addonId: confirmedAddonId,
+      eventId: profileEventId,
       eventTitle: profileEvent.title,
       registrationId: confirmedRegistrationId,
     },
