@@ -47,6 +47,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - docs/users/create-account.doc.ts [@needs-auth0-management]
 
 - Functional tests (`*.test.ts`):
+  - specs/admin/global-admin-tenants.spec.ts [admin, globalAdmin]
   - specs/auth/storage-state-refresh.test.ts
   - specs/discounts/esn-discounts.test.ts [finance]
   - specs/events/events.test.ts
@@ -105,6 +106,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 - Tenant/global admin:
   - `docs/admin/global-admin.doc.ts`
   - `docs/admin/general-settings.doc.ts`
+  - `specs/admin/global-admin-tenants.spec.ts`
 - Finance, receipts, tax, and Stripe:
   - `docs/finance/**`
   - `specs/finance/**`
@@ -328,18 +330,21 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     remaining guest quantity before writes can run.
 - Tenant/global admin:
   - Authenticated Browser review for the global-admin tenant list and
-    tenant-create/edit flows. Local server/app coverage already proves the list,
-    tenant detail, tenant create, and tenant edit surfaces return, render, and
-    persist operational tenant state for support review, and local app coverage
-    proves the tenant list can be filtered by operational fields, including
-    connected Stripe account ids, with readable load-failure messages and
-    account labels. Tenant form coverage also proves create/edit payload
-    shaping, mutation-pending submit disabling, and the visible relaunch
-    tenant-scope notice before page-backed runtime is available. Global-admin
-    handler coverage pins one-primary-domain normalization, duplicate-domain
-    rejection before tenant creation mutates data, and same-domain edit
-    allowance. Tenant detail coverage also pins that the external tenant-domain
-    link only renders for single-host tenant domains.
+    tenant-create/edit flows. The global-admin tenant Playwright spec now
+    functionally covers tenant list filtering, no-match state, operational row
+    fields, tenant detail review, create/edit form relaunch-scope copy, disabled
+    empty create submit, and enabled seeded edit submit. Local server/app
+    coverage already proves the list, tenant detail, tenant create, and tenant
+    edit surfaces return, render, and persist operational tenant state for
+    support review, and local app coverage proves the tenant list can be
+    filtered by operational fields, including connected Stripe account ids, with
+    readable load-failure messages and account labels. Tenant form coverage also
+    proves create/edit payload shaping, mutation-pending submit disabling, and
+    the visible relaunch tenant-scope notice before page-backed runtime is
+    available. Global-admin handler coverage pins one-primary-domain
+    normalization, duplicate-domain rejection before tenant creation mutates
+    data, and same-domain edit allowance. Tenant detail coverage also pins that
+    the external tenant-domain link only renders for single-host tenant domains.
   - Keep tenant settings docs and payload tests aligned when new editable
     tenant settings move out of the deferred-settings summary. Current local
     coverage proves the general-settings form trims optional editable
