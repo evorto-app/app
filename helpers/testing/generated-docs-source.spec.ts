@@ -180,6 +180,17 @@ describe('generated docs source current behavior', () => {
     expect(combinedSource).toContain(
       'it does not send an automatic submitter email yet',
     );
+    expect(receiptSource).toContain(
+      'Expected generated receipt review docs receipt',
+    );
+    expect(receiptSource).toContain(
+      "page.getByRole('link', { name: receiptFileName })",
+    );
+    expect(receiptSource).toContain('return approvedReceipt?.status');
+    expect(receiptSource).toContain('filter({ hasText: receiptFileName })');
+    expect(receiptSource).toContain('refundTransactionId: expect.any(String)');
+    expect(receiptSource).toContain("status: 'refunded'");
+    expect(receiptSource).toContain('.delete(schema.transactions)');
     expect(combinedSource).not.toContain('sends an automatic submitter email');
     expect(combinedSource).not.toContain('automatic email');
     expect(combinedSource).not.toContain('automatically transfer');

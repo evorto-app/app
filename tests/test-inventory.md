@@ -371,6 +371,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     submitters before a transaction can be recorded, rejects missing or changed
     payout details, and rejects the transaction when approved receipt
     preconditions change before the reimbursement update.
+    `docs/finance/receipt-review-reimbursement.doc.ts` now follows the exact
+    seeded receipt through approval and reimbursement by id/file name, reads the
+    approved/refunded state back, and restores the seeded receipt plus generated
+    reimbursement transaction after the documentation journey.
     `specs/finance/receipts-flows.spec.ts` now follows the exact seeded receipt
     through approval and reimbursement by id/file name and reads the final
     receipt row back so the UI path cannot pass against an unrelated queued
