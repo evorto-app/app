@@ -159,7 +159,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     status, guest quantity, payment state, and check-in state.
     App coverage already proves event-detail action copy, guest/status/payment
     labels, deferred-action notes, waitlist event-page routing, and the
-    payment-continuation next-step copy.
+    payment-continuation next-step copy. It also proves checked-in profile
+    event cards no longer advertise cancellation or transfer actions.
   - Browser-backed ESNcard add, refresh, and remove flows with readable error
     states.
     App and server coverage already prove upsert payload normalization,
