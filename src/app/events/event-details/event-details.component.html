@@ -104,14 +104,26 @@
               <button
                 matButton="outlined"
                 (click)="reviewEvent(false)"
-                [disabled]="reviewMutation.isPending()"
+                [disabled]="
+                  eventReviewActionDisabled({
+                    canReview: canReview(),
+                    mutationPending: reviewMutation.isPending(),
+                    status: eventQuery.data().status,
+                  })
+                "
               >
                 Reject
               </button>
               <button
                 matButton="filled"
                 (click)="reviewEvent(true)"
-                [disabled]="reviewMutation.isPending()"
+                [disabled]="
+                  eventReviewActionDisabled({
+                    canReview: canReview(),
+                    mutationPending: reviewMutation.isPending(),
+                    status: eventQuery.data().status,
+                  })
+                "
               >
                 Approve
               </button>
@@ -129,7 +141,13 @@
               <button
                 matButton="filled"
                 (click)="submitForReview()"
-                [disabled]="submitForReviewMutation.isPending()"
+                [disabled]="
+                  eventSubmitForReviewActionDisabled({
+                    canEdit: canEdit(),
+                    mutationPending: submitForReviewMutation.isPending(),
+                    status: eventQuery.data().status,
+                  })
+                "
               >
                 Submit for Review
               </button>

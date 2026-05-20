@@ -583,6 +583,10 @@ the current working direction until a product decision overrides them.
 - `src/server/effect/rpc/handlers/events/events-rpcs.schema.spec.ts` covers acceptance and rejection for the shared event location schema now used by Events RPC contracts.
 - `src/server/effect/rpc/handlers/events/events-rpcs.schema.spec.ts` covers the active registration status literal union and rejects unknown statuses.
 - `src/server/effect/rpc/handlers/events/events-rpcs.schema.spec.ts` covers the tax-rate label fields returned with event registration options for paid event cards.
+- `src/app/events/event-details/event-details.component.spec.ts` covers event
+  review and submit-for-review action guards for permission, status, and
+  mutation-pending states, keeping the event lifecycle actions safe on slow
+  networks and duplicate local triggers.
 - `src/app/events/event-active-registration/event-active-registration.component.spec.ts` covers participant cancellation copy for single-spot, guest, and waitlisted registrations; unpaid self-service transfer copy; target-email normalization; and transfer/resale-unavailable notes for pending, waitlisted, and blocked confirmed active registrations.
 - `tests/docs/events/event-management.doc.ts` now documents only the current event details, registration, review/listing, edit, organizer overview, participant grouping/cancellation, and receipt surfaces.
 - `tests/docs/events/unlisted-admin.doc.ts` covers the updated direct-link explanation in the listing dialog and on unlisted event details.
@@ -1521,6 +1525,10 @@ implement those decisions or explicitly revise them there before changing code.
   mutation-pending guard across cancellation and organizer-assisted transfer
   buttons plus handlers, keeping duplicate or already-checked-in participant
   mutations blocked locally.
+- Event review action guard pass: shared event detail review and
+  submit-for-review guards between template disabled state and handler early
+  returns, keeping pending review writes from double-triggering on slow
+  networks.
 - Participant unpaid transfer pass: added `events.transferMyRegistration` so a
   participant can transfer their own confirmed, not checked-in, unpaid
   registration to an existing eligible tenant user by email, exposed the action
