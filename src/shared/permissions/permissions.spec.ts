@@ -5,6 +5,7 @@ import {
   ALL_PERMISSIONS,
   includesPermission,
   PERMISSION_GROUPS,
+  permissionLabel,
   PermissionSchema,
 } from './permissions';
 
@@ -53,6 +54,19 @@ describe('PERMISSION_GROUPS', () => {
           label: 'Assign user roles (future)',
         }),
       ]),
+    );
+  });
+});
+
+describe('permissionLabel', () => {
+  it('returns admin-facing labels for dependency copy', () => {
+    expect(permissionLabel('templates:view')).toBe('View templates');
+    expect(permissionLabel('events:seeDrafts')).toBe('See draft events');
+  });
+
+  it('falls back to the key for technical permissions that are not role-form entries', () => {
+    expect(permissionLabel('globalAdmin:manageTenants')).toBe(
+      'globalAdmin:manageTenants',
     );
   });
 });

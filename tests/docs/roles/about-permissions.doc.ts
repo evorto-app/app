@@ -1,6 +1,7 @@
 import {
   PERMISSION_DEPENDENCIES,
   PERMISSION_GROUPS,
+  permissionLabel,
 } from '../../../src/shared/permissions/permissions';
 import { expect, test } from '../../support/fixtures/parallel-test';
 
@@ -17,7 +18,7 @@ const permissionLines = () =>
         `- What it allows: ${permission.description}`,
         ...(dependencies.length > 0
           ? [
-              `- Also includes: ${dependencies.map((key) => `\`${key}\``).join(', ')}`,
+              `- Also includes: ${dependencies.map((key) => `${permissionLabel(key)} (\`${key}\`)`).join(', ')}`,
             ]
           : []),
         '',

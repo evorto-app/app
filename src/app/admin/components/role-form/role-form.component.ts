@@ -18,6 +18,7 @@ import {
   Permission,
   PERMISSION_DEPENDENCIES,
   PERMISSION_GROUPS,
+  permissionLabel,
 } from '../../../../shared/permissions/permissions';
 import {
   DEPENDENT_PERMISSION_PARENTS,
@@ -103,6 +104,12 @@ export class RoleFormComponent {
     }
   }
 
+  protected getDependentPermissionLabels(permission: Permission): string {
+    return this.getDependentPermissions(permission)
+      .map((dependentPermission) => permissionLabel(dependentPermission))
+      .join(', ');
+  }
+
   protected getDependentPermissions(permission: Permission): Permission[] {
     return PERMISSION_DEPENDENCIES[permission] || [];
   }
@@ -116,8 +123,10 @@ export class RoleFormComponent {
     );
     if (activeParents.length === 0) return '';
     if (activeParents.length === 1) {
-      return `Automatically granted by ${activeParents[0]}`;
+      return `Automatically granted by ${permissionLabel(activeParents[0])}`;
     }
-    return `Automatically granted by ${activeParents.join(', ')}`;
+    return `Automatically granted by ${activeParents
+      .map((permission) => permissionLabel(permission))
+      .join(', ')}`;
   }
 }
