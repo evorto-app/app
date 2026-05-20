@@ -1048,6 +1048,15 @@ the current working direction until a product decision overrides them.
   phases. Receipt submit dialog coverage pins required/supported files,
   tenant-allowed countries, amount/date validation, attachment-name fallback,
   and cents normalization before submit.
+- **Docker finance runtime refresh:** with the Docker stack healthy on local
+  port 4577, the system-Chrome Playwright pass for
+  `tests/specs/finance/finance-overview-permissions.spec.ts`,
+  `tests/specs/finance/receipts-flows.spec.ts`,
+  `tests/specs/finance/stripe-webhook-replay.spec.ts`,
+  `tests/specs/finance/tax-rates/admin-import-tax-rates.spec.ts`,
+  `tests/docs/finance/finance-overview.doc.ts`,
+  `tests/docs/finance/receipt-review-reimbursement.doc.ts`, and
+  `tests/docs/finance/inclusive-tax-rates.doc.ts` passed.
 
 ### Product Questions Answered Above
 
