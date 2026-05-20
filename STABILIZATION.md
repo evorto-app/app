@@ -1248,6 +1248,9 @@ the current working direction until a product decision overrides them.
 - `tests/specs/auth/storage-state-refresh.test.ts` covers stale/wrong tenant cookies in saved Playwright storage state, not runtime tenant resolution.
 - `tests/specs/permissions/tenant-isolation-tax-rates.spec.ts` checks seeded tenant tax-rate isolation directly in the database, but does not exercise the RPC/UI tenant context switch.
 - `tests/specs/permissions/matrix.spec.ts` covers route denial for `/admin/settings`, `/admin/roles`, `/admin/users`, `/admin/tax-rates`, `/finance/transactions`, `/finance/receipts-approval`, `/finance/receipts-refunds`, and template write routes. `tests/specs/finance/tax-rates/admin-import-tax-rates.spec.ts` adds focused tax-rate route denial coverage. Route-manifest unit specs cover admin, finance, template, and global-admin guard declarations without requiring page-backed runtime. `tests/specs/permissions/global-admin-route-guard.spec.ts` covers direct `/global-admin`, `/global-admin/tenants/create`, `/global-admin/tenants/:tenantId`, and `/global-admin/tenants/:tenantId/edit` allow/deny behavior once page-backed runtime is available.
+- `helpers/testing/permission-matrix-source.spec.ts` keeps finance
+  route-denial cases aligned with the guarded finance route manifest, including
+  the transaction list, receipt approval list/detail, and reimbursement routes.
 - `tests/docs/admin/general-settings.doc.ts` documents the current tenant general-settings page, including the deferred-settings summary, read-only tenant identity summary with Stripe account support lookup detail, editable locale/money policy plus reload behavior, uploaded or externally hosted brand asset URLs, editable tenant legal links or hosted text, and public footer/favicon exposure, and records which domain/operations settings are not editable yet.
 - `tests/docs/admin/global-admin.doc.ts` documents the current searchable global-admin tenant list, tenant create/edit workflow, visible relaunch tenant-scope notice, and tenant detail review, and records that custom-domain verification, multi-domain automation, and impersonation workflows are not implemented yet.
 - `helpers/testing/generated-docs-source.spec.ts` keeps the global-admin guide
@@ -1717,6 +1720,9 @@ implement those decisions or explicitly revise them there before changing code.
 - Finance transaction-list action cleanup: removed the dead manual
   create-transaction link from the transaction list and added a regression
   guard so it stays hidden until an implemented route/workflow exists.
+- Finance permission-matrix source pass: added local coverage tying guarded
+  finance child routes to page-backed permission matrix cases and added the
+  missing receipt approval detail route-denial case.
 - Scanner guest-count server validation pass: added direct handler coverage for
   negative guest-count payloads and guest-count values above the remaining
   guest quantity before check-in writes can run.

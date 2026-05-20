@@ -135,6 +135,23 @@ export const permissionMatrix: PermissionMatrixCase[] = [
   },
   {
     allowedDiff: {
+      add: ['finance:approveReceipts'],
+      remove: [],
+      roleName: 'Admin',
+    },
+    allowedRoute: '/finance/receipts-approval/route-guard-placeholder',
+    capability: 'finance receipt approval detail access',
+    deniedDiff: {
+      add: [],
+      remove: ['finance:approveReceipts'],
+      roleName: 'Admin',
+    },
+    deniedRoute: '/finance/receipts-approval/route-guard-placeholder',
+    requiredPermissions: ['finance:approveReceipts'],
+    storageState: adminStateFile,
+  },
+  {
+    allowedDiff: {
       add: ['finance:refundReceipts'],
       remove: [],
       roleName: 'Admin',
