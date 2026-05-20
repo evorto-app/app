@@ -120,6 +120,12 @@ export const esnCardActionDisabled = ({
   upsertPending: boolean;
 }): boolean => deletePending || refreshPending || upsertPending;
 
+export const profileEditActionDisabled = ({
+  mutationPending,
+}: {
+  mutationPending: boolean;
+}): boolean => mutationPending;
+
 export const profileEventDetailActionLabel = (): string => 'Open event page';
 
 export const profileEventGuestLabel = (guestCount: number): null | string => {
@@ -343,6 +349,7 @@ export class UserProfileComponent {
     this.rpc.finance.receipts.my.queryOptions(),
   );
 
+  protected readonly profileEditActionDisabled = profileEditActionDisabled;
   protected readonly profileEventActionNote = profileEventActionNote;
   protected readonly profileEventContinuePaymentUrl =
     profileEventContinuePaymentUrl;
@@ -432,6 +439,14 @@ export class UserProfileComponent {
     );
   }
   protected async openEditProfileDialog(): Promise<void> {
+    if (
+      profileEditActionDisabled({
+        mutationPending: this.updateProfileMutation.isPending(),
+      })
+    ) {
+      return;
+    }
+
     const user = this.profileUser();
     if (!user) return;
     const dialogReference = this.dialog.open<

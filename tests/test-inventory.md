@@ -104,6 +104,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 - Profile and account:
   - `docs/profile/**`
   - `docs/users/create-account.doc.ts`
+  - app profile edit, event-card, receipt-card, and ESNcard action coverage in
+    `src/app/profile`
 - Scanning/check-in:
   - `docs/events/event-management.doc.ts`
   - `specs/scanning/scanner.test.ts`

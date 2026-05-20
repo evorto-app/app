@@ -15,7 +15,11 @@
           <button
             mat-stroked-button
             (click)="openEditProfileDialog()"
-            [disabled]="updateProfileMutation.isPending()"
+            [disabled]="
+              profileEditActionDisabled({
+                mutationPending: updateProfileMutation.isPending(),
+              })
+            "
             id="edit-profile-btn"
           >
             <fa-duotone-icon [icon]="faPencil" class="mr-2" />

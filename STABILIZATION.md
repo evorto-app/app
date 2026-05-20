@@ -976,6 +976,9 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** profile event cards now point pending checkout registrations at the implemented profile-level recovery action, route ticket, cancellation, unpaid transfer, and waitlist details back to the event page, and keep automatic refunds plus paid transfer/resale visibly out of the current implemented profile scope.
 - **Addressed in stabilization pass:** checked-in profile event cards no longer advertise cancellation or transfer as available detail-page actions.
 - **Addressed in stabilization pass:** profile reimbursement fields are global user fields by product decision, and the profile copy now labels them as optional global reimbursement details used for manual receipt reimbursements across tenants.
+- **Addressed in stabilization pass:** profile edit now shares one tested
+  update-pending guard between the Edit profile button and handler, so a
+  profile update in flight cannot open another edit dialog on slow networks.
 - **Addressed in stabilization pass:** ESNcard save, refresh, and remove actions now clear stale errors, show visible pending button states, and map mutation failures through `getErrorMessage(...)` instead of rendering raw error objects.
 - **Addressed in this stabilization pass:** ESNcard save, refresh, and remove actions now share one in-flight guard so slow validation, refresh, or removal requests cannot overlap with another profile discount-card write.
 - **Addressed in stabilization pass:** ESNcard validation now uses a bounded provider request and distinguishes provider unavailability from invalid/expired card results. Save/refresh mutations surface provider outages as retryable bad-request errors instead of collapsing them into card validation status.
@@ -989,6 +992,8 @@ the current working direction until a product decision overrides them.
 - `tests/docs/profile/user-profile.doc.ts` documents navigation, profile display, edit dialog validation, notification email persistence, event cards, and the receipts tab.
 - `src/app/profile/user-profile/edit-profile-dialog.component.spec.ts` covers profile edit payload normalization for notification email and optional global reimbursement details before the update mutation receives the dialog result.
 - `src/app/profile/user-profile/user-profile.component.spec.ts` covers profile event action routing, payment-continuation visibility, guest-quantity, checked-in action copy, deferred-action notes, payment-continuation next-step copy, payment-state, registration-status labels, submitted-receipt status and amount labels, ESNcard action labels, ESNcard save disabled state, ESNcard upsert payload normalization, and readable ESNcard mutation error fallback/provider messages.
+- Profile app coverage pins that profile edit is disabled while the profile
+  update mutation is pending.
 - Profile app coverage also pins that ESNcard save, refresh, and remove actions
   all stay disabled while any ESNcard write is pending.
 - **Addressed in stabilization pass:** the profile doc no longer uses a fixed stabilization wait before the profile screenshot, now saves and verifies notification email persistence, and opens the Events section to document event-card semantics.
@@ -1654,6 +1659,9 @@ implement those decisions or explicitly revise them there before changing code.
 - Profile ESNcard write-guard pass: shared one in-flight guard across save,
   refresh, and remove so profile discount-card writes cannot overlap on slow
   networks, and pinned that guard in local app tests.
+- Profile edit action-guard pass: shared the Edit profile disabled state and
+  handler early return so profile updates in flight cannot open overlapping
+  edit dialogs.
 - Profile/account backlog alignment pass: narrowed the remaining profile and
   account cleanup language to page-backed runtime coverage after confirming
   local helper/server tests already cover retry, tenant join, ESNcard action
