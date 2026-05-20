@@ -155,10 +155,10 @@ export const profileEventActionNote = (event: {
 
   switch (event.status) {
     case 'CONFIRMED': {
-      return 'Open the event page for ticket access and participant cancellation when the event still allows it. Automatic refunds and transfer/resale are not implemented yet.';
+      return 'Open the event page for ticket access and participant cancellation when the event still allows it. Automatic refunds and self-service transfer/resale are not available yet.';
     }
     case 'PENDING': {
-      return 'Open the event page for pending-registration details and available cancellation actions. Transfer/resale is not implemented yet.';
+      return 'Open the event page for pending-registration details and available cancellation actions. Self-service transfer/resale is not available yet.';
     }
     case 'WAITLIST': {
       return 'Open the event page for waitlist details and the leave-waitlist action. Transfer/resale is not available for waitlist registrations.';

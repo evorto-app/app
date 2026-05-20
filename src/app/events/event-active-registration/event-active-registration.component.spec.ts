@@ -90,7 +90,7 @@ describe('registrationCancellationCopy', () => {
 describe('registrationDeferredActionCopy', () => {
   it('keeps transfer and resale visibly unavailable for confirmed registrations', () => {
     expect(registrationDeferredActionCopy({ status: 'CONFIRMED' })).toBe(
-      'Transfer/resale is not implemented yet. Contact the organizers if someone else should take your spot.',
+      'Self-service transfer/resale is not available yet. Contact the organizers if someone else should take your spot.',
     );
   });
 

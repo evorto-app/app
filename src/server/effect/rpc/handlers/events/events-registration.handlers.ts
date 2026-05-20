@@ -12,7 +12,7 @@ import {
   EventRegistrationInternalError,
   EventRegistrationNotFoundError,
 } from '@shared/rpc-contracts/app-rpcs/events.errors';
-import { and, eq, gte, isNull, sql } from 'drizzle-orm';
+import { and, eq, gte, isNull, not, sql } from 'drizzle-orm';
 import { Effect } from 'effect';
 
 import type { AppRpcHandlers } from '../shared/handler-types';
@@ -375,6 +375,234 @@ const cancelRegistration = ({
       ),
       Effect.catch(() => Effect.void),
     );
+  });
+
+const transferEventRegistration = ({
+  eventId,
+  registrationId,
+  targetUserId,
+}: {
+  eventId: string;
+  registrationId: string;
+  targetUserId: string;
+}) =>
+  Effect.gen(function* () {
+    yield* RpcAccess.ensureAuthenticated();
+    const { tenant } = yield* RpcAccess.current();
+    const user = yield* RpcAccess.requireUser();
+    const now = new Date();
+
+    const registration = yield* databaseEffect((database) =>
+      database.query.eventRegistrations.findFirst({
+        columns: {
+          checkInTime: true,
+          eventId: true,
+          id: true,
+          registrationOptionId: true,
+          status: true,
+          userId: true,
+        },
+        where: {
+          eventId,
+          id: registrationId,
+          status: { NOT: 'CANCELLED' },
+          tenantId: tenant.id,
+        },
+        with: {
+          event: {
+            columns: {
+              start: true,
+            },
+          },
+          transactions: {
+            columns: {
+              amount: true,
+              status: true,
+              type: true,
+            },
+          },
+        },
+      }),
+    );
+
+    if (!registration) {
+      return yield* Effect.fail(
+        new EventRegistrationNotFoundError({
+          message: 'Registration not found',
+        }),
+      );
+    }
+
+    yield* ensureCanScanEventRegistration({
+      eventId: registration.eventId,
+      tenantId: tenant.id,
+      user,
+    });
+
+    if (registration.status !== 'CONFIRMED') {
+      return yield* Effect.fail(
+        new EventRegistrationConflictError({
+          message: 'Only confirmed registrations can be transferred',
+        }),
+      );
+    }
+
+    if (!registration.event) {
+      return yield* Effect.fail(
+        new EventRegistrationInternalError({
+          message: 'Registration event relation missing',
+        }),
+      );
+    }
+
+    if (registration.checkInTime) {
+      return yield* Effect.fail(
+        new EventRegistrationConflictError({
+          message: 'Checked-in registrations cannot be transferred',
+        }),
+      );
+    }
+
+    if (registration.event.start <= now) {
+      return yield* Effect.fail(
+        new EventRegistrationConflictError({
+          message: 'Registration can no longer be transferred',
+        }),
+      );
+    }
+
+    if (registration.userId === targetUserId) {
+      return yield* Effect.fail(
+        new EventRegistrationConflictError({
+          message: 'Registration is already assigned to this user',
+        }),
+      );
+    }
+
+    if (
+      registration.transactions.some(
+        (transaction) =>
+          transaction.type === 'registration' &&
+          transaction.status === 'successful' &&
+          transaction.amount > 0,
+      )
+    ) {
+      return yield* Effect.fail(
+        new EventRegistrationConflictError({
+          message:
+            'Paid registration transfer is not available until the refund/resale flow is implemented',
+        }),
+      );
+    }
+
+    const targetTenantUser = yield* databaseEffect((database) =>
+      database.query.usersToTenants.findFirst({
+        columns: {
+          id: true,
+        },
+        where: {
+          tenantId: tenant.id,
+          userId: targetUserId,
+        },
+        with: {
+          roles: {
+            columns: {
+              id: true,
+            },
+          },
+        },
+      }),
+    );
+
+    if (!targetTenantUser) {
+      return yield* Effect.fail(
+        new EventRegistrationNotFoundError({
+          message: 'Target tenant user not found',
+        }),
+      );
+    }
+
+    const targetRoleIds = new Set(
+      targetTenantUser.roles.map((role) => role.id),
+    );
+    const registrationOption = yield* databaseEffect((database) =>
+      database.query.eventRegistrationOptions.findFirst({
+        columns: {
+          roleIds: true,
+        },
+        where: {
+          eventId: registration.eventId,
+          id: registration.registrationOptionId,
+        },
+      }),
+    );
+    if (!registrationOption) {
+      return yield* Effect.fail(
+        new EventRegistrationInternalError({
+          message: 'Registration option missing',
+        }),
+      );
+    }
+
+    const targetEligible = registrationOption.roleIds.some((roleId) =>
+      targetRoleIds.has(roleId),
+    );
+    if (!targetEligible) {
+      return yield* Effect.fail(
+        new EventRegistrationConflictError({
+          message: 'Target user is not eligible for this registration option',
+        }),
+      );
+    }
+
+    const existingTargetRegistration = yield* databaseEffect((database) =>
+      database.query.eventRegistrations.findFirst({
+        columns: {
+          id: true,
+        },
+        where: {
+          eventId: registration.eventId,
+          status: { NOT: 'CANCELLED' },
+          tenantId: tenant.id,
+          userId: targetUserId,
+        },
+      }),
+    );
+
+    if (existingTargetRegistration) {
+      return yield* Effect.fail(
+        new EventRegistrationConflictError({
+          message: 'Target user already has an active registration',
+        }),
+      );
+    }
+
+    const transferredRegistrations = yield* databaseEffect((database) =>
+      database
+        .update(eventRegistrations)
+        .set({
+          userId: targetUserId,
+        })
+        .where(
+          and(
+            eq(eventRegistrations.id, registration.id),
+            eq(eventRegistrations.tenantId, tenant.id),
+            eq(eventRegistrations.status, 'CONFIRMED'),
+            not(eq(eventRegistrations.userId, targetUserId)),
+          ),
+        )
+        .returning({
+          id: eventRegistrations.id,
+        }),
+    );
+
+    if (transferredRegistrations.length === 0) {
+      return yield* Effect.fail(
+        new EventRegistrationNotFoundError({
+          message: 'Registration not found',
+        }),
+      );
+    }
   });
 
 export const eventRegistrationHandlers = {
@@ -843,4 +1071,13 @@ export const eventRegistrationHandlers = {
         },
       };
     }).pipe(Effect.catch(mapRegistrationScanInternalError)),
+  'events.transferEventRegistration': (
+    { eventId, registrationId, targetUserId },
+    _options,
+  ) =>
+    transferEventRegistration({
+      eventId,
+      registrationId,
+      targetUserId,
+    }),
 } satisfies Partial<AppRpcHandlers>;

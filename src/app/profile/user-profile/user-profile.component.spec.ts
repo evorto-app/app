@@ -30,7 +30,7 @@ describe('profile event labels', () => {
         status: 'CONFIRMED',
       }),
     ).toBe(
-      'Open the event page for ticket access and participant cancellation when the event still allows it. Automatic refunds and transfer/resale are not implemented yet.',
+      'Open the event page for ticket access and participant cancellation when the event still allows it. Automatic refunds and self-service transfer/resale are not available yet.',
     );
     expect(
       profileEventActionNote({
@@ -39,7 +39,7 @@ describe('profile event labels', () => {
         status: 'PENDING',
       }),
     ).toBe(
-      'Open the event page for pending-registration details and available cancellation actions. Transfer/resale is not implemented yet.',
+      'Open the event page for pending-registration details and available cancellation actions. Self-service transfer/resale is not available yet.',
     );
     expect(
       profileEventActionNote({
