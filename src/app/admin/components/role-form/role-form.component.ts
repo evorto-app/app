@@ -26,6 +26,16 @@ import {
   RoleFormModel,
 } from './role-form.schema';
 
+export const roleFormSubmitDisabled = ({
+  formInvalid,
+  formSubmitting,
+  mutationPending,
+}: {
+  formInvalid: boolean;
+  formSubmitting: boolean;
+  mutationPending: boolean;
+}): boolean => formInvalid || formSubmitting || mutationPending;
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -44,7 +54,6 @@ export class RoleFormComponent {
   public readonly roleForm = input.required<FieldTree<RoleFormModel>>();
   public readonly submitLabel = input('Save role');
   protected formSubmit = output<RoleFormData>();
-
   protected readonly permissionGroups = PERMISSION_GROUPS;
 
   protected readonly groupStates = computed(() => {
@@ -64,6 +73,8 @@ export class RoleFormComponent {
     });
   });
 
+  protected readonly roleFormSubmitDisabled = roleFormSubmitDisabled;
+
   private readonly syncDependentPermissions = effect(() => {
     const form = this.roleForm();
     for (const permission of ALL_PERMISSIONS) {
@@ -80,6 +91,17 @@ export class RoleFormComponent {
 
   async onSubmit(event: Event): Promise<void> {
     event.preventDefault();
+    const form = this.roleForm();
+    if (
+      roleFormSubmitDisabled({
+        formInvalid: form().invalid(),
+        formSubmitting: form().submitting(),
+        mutationPending: this.isSubmitting(),
+      })
+    ) {
+      return;
+    }
+
     await submit(this.roleForm(), async (formState) => {
       const formValue = formState().value();
       this.formSubmit.emit({

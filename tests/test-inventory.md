@@ -262,6 +262,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - Local shared coverage pins admin-facing permission labels and descriptions,
     including the labels used for role-form dependency copy and the generated
     permission reference.
+  - Keep role create/edit submit guards aligned with the write lifecycle. Local
+    app coverage now pins that invalid, submitting, and mutation-pending role
+    forms stay disabled, and the component submit path shares the same guard.
   - User-list/role-assignment coverage once the role-assignment path exists.
     Server coverage already proves the current read-only user list pages tenant
     users before joining role rows and applies search before pagination, so
