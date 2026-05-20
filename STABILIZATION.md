@@ -869,6 +869,9 @@ the current working direction until a product decision overrides them.
 - `tests/docs/roles/about-permissions.doc.ts` generates the `/docs/about-permissions` source from shared permission metadata, including group labels, permission keys/descriptions, dependent permissions, and the tenant-role/global-admin distinction.
 - `tests/docs/roles/roles.doc.ts` links to `/docs/about-permissions` for permission reference details.
 - Server unit coverage proves role lookup permissions, lookup-only result shaping, tenant-scoped lookup filters for both list and single-role lookup, role lookup not-found errors, and admin role list denial without `admin:manageRoles`.
+- `helpers/testing/user-list-source.spec.ts` keeps the tenant user list aligned
+  with the read-only relaunch surface by guarding review-only columns, the
+  visible role-assignment deferral copy, and generated roles documentation.
 - `helpers/testing/authorization-source.spec.ts` keeps server RPC/HTTP
   authorization on the shared permission evaluator path and keeps the public
   role lookup contract free of permission-bearing admin role fields.
@@ -1571,6 +1574,10 @@ implement those decisions or explicitly revise them there before changing code.
 - Event price-label UI coverage pass: replaced the fixme-only inclusive-price file with active page-level assertions for paid event labels, free event options, zero-percent tax-free labels, fallback tax labels, ESNcard discounted prices retaining tax labels, and paid template detail summaries.
 - Permission evaluator pass: routed legacy server permission checks through the shared `includesPermission` helper so client and server agree on dependencies, wildcards, and legacy aliases, and added direct unit coverage for the shared evaluator plus tax-rate dependency behavior.
 - Role/user cleanup pass: removed placeholder user-list selection/edit affordances, aligned the roles doc with the current no-role-assignment UI, and fixed `users.findMany` to return only the RPC contract shape.
+- User-list read-only source pass: added local source coverage so the tenant
+  user list keeps review-only name/email/role columns, visible
+  role-assignment deferral copy, and generated roles docs until a real
+  assignment workflow exists.
 - Role hub-field pass: migrated active role create/update form and RPC writes to `displayInHub`, persisted `collapseMembersInHup`, updated role docs, and removed legacy `showInHub` from the application schema/API surface.
 - None in the Finance/receipts pass. The highest-value issues touch payment-derived state, transaction visibility, and upload authorization, so they need targeted regression tests with the fixes.
 - Scanning/check-in pass: added `events.checkInRegistration`, gated scan reads and check-in writes to event organizers or `events:organizeAll`, made duplicate check-ins idempotent, wired the scanner button to persist and refetch state, and extended scanner tests to assert persisted check-in state.
