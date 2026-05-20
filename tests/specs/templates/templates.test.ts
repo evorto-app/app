@@ -60,6 +60,125 @@ test('create a new template', async ({ page, templateCategories }) => {
   await expect(page.getByRole('link', { name: templateTitle })).toBeVisible();
 });
 
+test('create template with reusable add-ons and registration questions', async ({
+  database,
+  page,
+  templateCategories,
+  tenant,
+}) => {
+  const category = templateCategories[0];
+  const templateTitle = `Reusable setup ${getId().slice(0, 6)}`;
+  const planningTips = 'Bring printed waiver forms.';
+  const addOnTitle = `Snack voucher ${getId().slice(0, 6)}`;
+  const addOnDescription = 'Reusable snack add-on for participant signup.';
+  const questionTitle = `Dietary restrictions ${getId().slice(0, 6)}`;
+  const questionDescription = 'Tell organizers about allergies or preferences.';
+
+  await page.goto('.');
+  await page.getByRole('link', { name: 'Templates' }).click();
+  await expect(page).toHaveURL(/\/templates/);
+  await page.getByRole('link', { name: 'Create template' }).click();
+  await expect(page).toHaveURL('/templates/create');
+
+  await fillTemplateBasics(page, {
+    categoryTitle: category.title,
+    title: templateTitle,
+  });
+  await page.getByLabel('Organizer planning tips').fill(planningTips);
+
+  await page.getByRole('button', { name: 'Add add-on' }).click();
+  const addOnForm = page.locator('app-template-addon-form').first();
+  await addOnForm.getByLabel('Add-on name').fill(addOnTitle);
+  await addOnForm.getByLabel('Description').fill(addOnDescription);
+  await addOnForm.getByLabel('Included quantity').fill('2');
+  await addOnForm.getByLabel('Available quantity').fill('12');
+  await addOnForm.getByLabel('Max per user').fill('3');
+
+  await page.getByRole('button', { name: 'Add question' }).click();
+  const questionForm = page.locator('app-template-question-form').first();
+  await questionForm.getByLabel('Question').fill(questionTitle);
+  await questionForm.getByLabel('Help text').fill(questionDescription);
+
+  await page.getByRole('button', { name: 'Save template' }).click();
+  await expect(page).toHaveURL(/\/templates\/[^/]+$/);
+  await expect(
+    page.getByRole('heading', { name: templateTitle }),
+  ).toBeVisible();
+  await expect(page.getByText(addOnTitle)).toBeVisible();
+  await expect(page.getByText(questionTitle)).toBeVisible();
+
+  const createdTemplate = await database.query.eventTemplates.findFirst({
+    where: {
+      tenantId: tenant.id,
+      title: templateTitle,
+    },
+  });
+  if (!createdTemplate) {
+    throw new Error('Expected reusable template write to persist the template');
+  }
+  expect(createdTemplate.planningTips).toBe(planningTips);
+
+  const registrationOptions =
+    await database.query.templateRegistrationOptions.findMany({
+      where: { templateId: createdTemplate.id },
+    });
+  const participantRegistrationOption = registrationOptions.find(
+    (option) => !option.organizingRegistration,
+  );
+  if (!participantRegistrationOption) {
+    throw new Error('Expected participant registration option to be persisted');
+  }
+
+  const addOn = await database.query.templateEventAddons.findFirst({
+    where: {
+      templateId: createdTemplate.id,
+      title: addOnTitle,
+    },
+  });
+  expect(addOn).toEqual(
+    expect.objectContaining({
+      allowPurchaseDuringRegistration: true,
+      description: addOnDescription,
+      isPaid: false,
+      maxQuantityPerUser: 3,
+      price: 0,
+      totalAvailableQuantity: 12,
+    }),
+  );
+  if (!addOn) {
+    throw new Error('Expected reusable add-on to be persisted');
+  }
+
+  const addOnAttachment =
+    await database.query.addonToTemplateRegistrationOptions.findFirst({
+      where: {
+        addonId: addOn.id,
+        registrationOptionId: participantRegistrationOption.id,
+      },
+    });
+  expect(addOnAttachment).toEqual(
+    expect.objectContaining({
+      quantity: 2,
+    }),
+  );
+
+  const question = await database.query.templateRegistrationQuestions.findFirst(
+    {
+      where: {
+        registrationOptionId: participantRegistrationOption.id,
+        templateId: createdTemplate.id,
+        title: questionTitle,
+      },
+    },
+  );
+  expect(question).toEqual(
+    expect.objectContaining({
+      description: questionDescription,
+      required: true,
+    }),
+  );
+});
+
 test('view a template', async ({ page, templates }) => {
   const template = templates[0];
   await page.goto('.');
