@@ -104,7 +104,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - `specs/auth/storage-state-refresh.test.ts`
   - `specs/reporting/reporter-paths.test.ts`
   - `specs/screenshot/doc-screenshot.test.ts`
-  - `specs/seed/seed-baseline.test.ts`
+  - `specs/seed/seed-baseline.test.ts` proves the seeded tenant has default
+    roles, all template families, paid/free registration options, paid tax-rate
+    wiring, scenario handles, confirmed registrations, and checked-in scanner
+    aggregates.
   - `specs/smoke/load-application.test.ts`
 
 ## Intentional Gaps and Gates

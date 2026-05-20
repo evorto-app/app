@@ -60,15 +60,21 @@ export interface SeedTenantResult {
   events: {
     id: string;
     registrationOptions: {
+      checkedInSpots: number;
       closeRegistrationTime: Date;
+      confirmedSpots: number;
       id: string;
       isPaid: boolean;
       openRegistrationTime: Date;
+      organizingRegistration: boolean;
       price: number;
       roleIds: string[];
       spots: number;
+      stripeTaxRateId: null | string;
       title: string;
+      waitlistSpots: number;
     }[];
+    start: Date;
     status: 'APPROVED' | 'DRAFT' | 'PENDING_REVIEW' | 'REJECTED';
     tenantId: string;
     title: string;
@@ -255,15 +261,21 @@ export async function seedTenant(
     events: seededEvents.events.map((event) => ({
       id: event.id,
       registrationOptions: event.registrationOptions.map((option) => ({
+        checkedInSpots: option.checkedInSpots,
         closeRegistrationTime: option.closeRegistrationTime,
+        confirmedSpots: option.confirmedSpots,
         id: option.id,
         isPaid: option.isPaid,
         openRegistrationTime: option.openRegistrationTime,
+        organizingRegistration: option.organizingRegistration,
         price: option.price,
         roleIds: option.roleIds ?? [],
         spots: option.spots,
+        stripeTaxRateId: option.stripeTaxRateId,
         title: option.title,
+        waitlistSpots: option.waitlistSpots,
       })),
+      start: event.start,
       status: event.status,
       tenantId: event.tenantId,
       title: event.title,
