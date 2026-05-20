@@ -1462,9 +1462,9 @@ the current working direction until a product decision overrides them.
   `tests/docs/**/*.doc.ts`; integration-only specs/docs are selected with
   `@needs-*` tags.
 - Local docs/spec discovery is runnable again after replacing stale Effect config APIs in `playwright.config.ts` and Playwright support files, and Auth0 Management credentials are no longer required just to import baseline fixtures.
-- `bun run test:e2e -- --list` discovers 101 baseline tests across 34 files,
+- `bun run test:e2e -- --list` discovers 103 baseline tests across 34 files,
   including setup projects, without requiring local Auth0/Stripe secrets.
-- `bun run test:e2e:docs -- --list` discovers 30 baseline docs/setup tests
+- `bun run test:e2e:docs -- --list` discovers 31 baseline docs/setup tests
   across 19 files without requiring local Auth0/Stripe secrets.
 - `bun run test:e2e:integration -- --list` discovers 9 setup/integration tests
   across 4 files: the Auth0 Management account-creation functional spec and

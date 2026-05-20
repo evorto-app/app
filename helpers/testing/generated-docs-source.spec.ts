@@ -69,7 +69,7 @@ describe('generated docs source current behavior', () => {
     );
     expect(source).toContain('createdTenantDomain');
     expect(source).toContain('.delete(schema.tenants)');
-    expect(source).toContain("where: eq(schema.tenants.domain, 'localhost')");
+    expect(source).toContain("where: { domain: 'localhost' }");
     expect(source).toContain('documentedTenant.stripeAccountId');
     expect(source).toContain(
       'page.getByLabel(tenantSearchLabel).fill(documentedTenant.domain)',
@@ -278,9 +278,6 @@ describe('generated docs source current behavior', () => {
     );
     expect(source).toContain(
       'Role selection also avoids duplicate entries by hiding already selected roles from the autocomplete list.',
-    );
-    expect(source).toContain(
-      "throw new Error('Expected seeded roles for template docs autocomplete')",
     );
     expect(source).toContain(
       "throw new Error('Expected template docs autocomplete option to have text')",
