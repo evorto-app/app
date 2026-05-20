@@ -1253,7 +1253,9 @@ the current working direction until a product decision overrides them.
   prefill, notification-email terminology, payload trimming, retryable errors,
   and duplicate-submit guards without Auth0 Management credentials. Its live
   Auth0 login/create-account journey remains integration-tagged and skips
-  without Auth0 Management credentials.
+  without Auth0 Management credentials; when it runs, it reads back the
+  persisted user, tenant assignment, default role assignment, and cleans up the
+  generated rows.
 - `tests/specs/profile/create-account.spec.ts` adds the matching functional
   integration coverage for Auth0-backed tenant account creation: a generated
   Auth0 user signs in, creates the current-tenant account, lands on profile,
@@ -2206,6 +2208,10 @@ implement those decisions or explicitly revise them there before changing code.
 - Profile ESNcard readback pass: made the generated discounts doc and matching
   direct-link profile discounts spec read back the seeded verified ESNcard row
   behind the visible profile card.
+- Create-account docs readback pass: made the integration-tagged generated
+  account-creation guide read back the persisted global user, tenant
+  assignment, and default role assignment, then clean up the generated database
+  rows after the docs journey.
 - Profile ESNcard write-guard pass: shared one in-flight guard across save,
   refresh, and remove so profile discount-card writes cannot overlap on slow
   networks, and pinned that guard in local app tests.

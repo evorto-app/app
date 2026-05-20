@@ -333,6 +333,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     coverage for a generated Auth0 user creating a current-tenant account,
     landing on profile, persisted notification email/name fields, tenant
     assignment, default role assignment, and DB cleanup.
+    The matching integration-tagged create-account doc now reads back the
+    persisted global user, tenant assignment, default role assignment, and
+    cleans up the generated database rows when Auth0 Management credentials are
+    available.
     Shared RPC schema coverage proves account-creation and profile-update
     notification email format validation, matching the create-account/profile
     edit form validators.
