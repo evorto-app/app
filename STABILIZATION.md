@@ -1755,6 +1755,10 @@ implement those decisions or explicitly revise them there before changing code.
   transfer disabled-state helpers between active-registration buttons and
   handlers so participant cancellation and unpaid transfer writes cannot
   overlap locally.
+- Playwright metadata inventory pass: extended the local skip/fixme inventory
+  guard to also reject placeholder `@track`, `@req`, and `@doc` metadata in real
+  Playwright spec/doc titles, while keeping the reporter stripping fixture
+  isolated to its own reporter contract test.
 
 ## Review Next
 

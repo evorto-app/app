@@ -34,6 +34,11 @@ const allowedEntries = new Set(
 );
 
 const skipPattern = /\b(?:test|it|describe)\.(skip|fixme)\b/g;
+const placeholderMetadataPattern = /@(track|req|doc)\(/g;
+
+const allowedPlaceholderMetadataFiles = new Set([
+  'tests/specs/reporting/reporter-paths.test.ts',
+]);
 
 const collectTypeScriptFiles = (directory: string): string[] =>
   readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -59,6 +64,24 @@ const collectPlaywrightSkipEntries = () =>
     );
   });
 
+const collectPlaceholderMetadataEntries = () =>
+  collectTypeScriptFiles(testsRoot).flatMap((path) => {
+    const relativePath = relative(repositoryRoot, path).replaceAll('\\', '/');
+
+    if (allowedPlaceholderMetadataFiles.has(relativePath)) {
+      return [];
+    }
+
+    const source = readFileSync(path, 'utf8');
+    const lines = source.split('\n');
+
+    return lines.flatMap((line, index) =>
+      [...line.matchAll(placeholderMetadataPattern)].map(
+        (match) => `${relativePath}:${index + 1}:${match[0]}`,
+      ),
+    );
+  });
+
 describe('Playwright skip inventory', () => {
   it('keeps every skip and fixme explicitly classified', () => {
     const entries = collectPlaywrightSkipEntries().sort();
@@ -75,5 +98,9 @@ describe('Playwright skip inventory', () => {
       'Bulk template operations do not have a current UI surface.',
       'No-compatible-tax-rate template behavior needs a page-backed UI path.',
     ]);
+  });
+
+  it('keeps real Playwright titles free of placeholder metadata', () => {
+    expect(collectPlaceholderMetadataEntries()).toEqual([]);
   });
 });
