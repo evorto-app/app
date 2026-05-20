@@ -64,6 +64,13 @@ describe('generated docs source current behavior', () => {
       'You are checked in. Open the event page for ticket details. Cancellation and transfer are no longer available after check-in.',
     );
     expect(source).toContain('Submitted receipts');
+    expect(source).toContain('profile-docs-receipt-');
+    expect(source).toContain('schema.financeReceipts');
+    expect(source).toContain('profileReceiptCard.getByText');
+    expect(source).toContain('profileReceiptFileName');
+    expect(source).toContain('Submitted');
+    expect(source).toContain('profileEvent.title');
+    expect(source).toContain('18.75 €');
     expect(source).not.toContain('automatic refund');
     expect(source).not.toContain('resale');
     expect(source).not.toContain('ticket email');
