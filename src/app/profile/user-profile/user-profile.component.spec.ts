@@ -8,6 +8,7 @@ import {
   profileEventDetailActionLabel,
   profileEventGuestLabel,
   profileEventNextStepLabel,
+  profileReceiptAmountLabel,
   profileReceiptStatusLabel,
   profileSectionFromFragment,
   registrationPaymentLabel,
@@ -163,6 +164,12 @@ describe('profile receipt labels', () => {
     expect(profileReceiptStatusLabel('refunded')).toBe('Reimbursed');
     expect(profileReceiptStatusLabel('rejected')).toBe('Rejected');
     expect(profileReceiptStatusLabel('submitted')).toBe('Submitted');
+  });
+
+  it('formats submitted receipt card amounts from cents', () => {
+    expect(profileReceiptAmountLabel(0)).toBe('0.00 €');
+    expect(profileReceiptAmountLabel(100)).toBe('1.00 €');
+    expect(profileReceiptAmountLabel(12_345)).toBe('123.45 €');
   });
 });
 

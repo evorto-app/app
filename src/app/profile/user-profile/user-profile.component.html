@@ -353,7 +353,7 @@
                     {{ receipt.receiptDate | date: "mediumDate" }}
                   </p>
                   <p class="text-sm">
-                    {{ receipt.totalAmount / 100 | number: "1.2-2" }} €
+                    {{ profileReceiptAmountLabel(receipt.totalAmount) }}
                   </p>
                 </article>
               }
