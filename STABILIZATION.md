@@ -783,7 +783,8 @@ the current working direction until a product decision overrides them.
 
 - Stripe is the payment source of truth; local state should mirror Stripe lifecycle and must not fake successful payment state.
 - Users should receive registration confirmation and QR code only after successful registration; for paid events, after successful payment.
-- Organizers may submit receipts after an event.
+- Organizers may submit receipts before, during, or after an event so pre-event
+  spending can be recorded without waiting for the event end time.
 - Receipts are reviewed and reimbursed; the first version does not need sophisticated budgeting or receipt categories.
 - Receipt review should support email notification when a receipt is reviewed.
 - Finance and payment flows are high-risk and should be permission-safe, tenant-safe, and payment-safe.
@@ -796,7 +797,10 @@ the current working direction until a product decision overrides them.
 - **Addressed in this stabilization pass:** receipt media upload now includes the target `eventId`, checks tenant event existence for authorized callers, and requires `canSubmitEventReceipts` before object storage is touched. A signed-in user without receipt-submit access can no longer create orphan receipt objects through the upload RPC.
 - **Addressed in stabilization pass:** manual receipt reimbursement is now labeled as recording a reimbursement in the finance overview, reimbursement list, receipt submit hint, profile payout fields, visible server messages, docs, and Playwright coverage. The reimbursement queue now explicitly says Evorto only records the finance transaction and money must be transferred manually through the selected payout method. Reimbursement transaction comments no longer copy the full payout reference into free text. The legacy route path, permission name, RPC name, receipt status, and transaction type still use "refund" internally until a broader data/API migration is worthwhile.
 - **Addressed in stabilization pass:** receipt submission and review now reject tax amounts greater than the total amount, matching the existing deposit/alcohol amount consistency guard.
-- **Addressed in stabilization pass:** receipt submission now requires the target event to have ended before the server inserts a submitted receipt. The receipt Playwright flow uses the deterministic past event fixture for submission/review setup.
+- **Addressed in stabilization pass:** receipt submission now follows the
+  pre-event spending decision. The server still verifies the target event exists
+  and the caller can submit receipts for it, but it no longer blocks submission
+  only because the event end time is in the future.
 - **Addressed in stabilization pass:** profile and user-event summaries no longer read `event_registrations.paymentStatus`; payment display is derived from registration transaction rows. Seed and webhook-replay setup stopped writing `paymentStatus` for new fixture registrations, and the legacy payment-status column/enum have been removed from the application schema.
 - **Addressed in stabilization pass:** receipt review records status locally, and the review detail page, success feedback, and finance docs explicitly tell finance reviewers that submitter notification is manual until a real delivery path exists.
 - **Addressed in this stabilization pass:** finance receipt approval and reimbursement lists now prefer the user's editable notification email over the Auth0 login email when rendering submitter contact details.
@@ -813,8 +817,9 @@ the current working direction until a product decision overrides them.
 - `src/app/finance/receipt-refund-list/receipt-refund-list.component.spec.ts` pins the reimbursement queue's manual money-movement notice, payout-detail gating, payout-detail labels, and selected-total math. The receipt reimbursement doc/spec assert the manual-money notice on the page.
 - Tax-rate docs and specs provide better active coverage for `admin:tax` and inclusive Stripe tax-rate import/selection.
 - Server finance unit tests are still thin, but now include transaction-list permission denial, receipt-media upload preflight denial/success coverage, profile `finance.receipts.my` output normalization, submitter notification-email fallback, and tax-amount consistency rejection on receipt submit/review.
-- Event organize app coverage pins the receipt submission disabled state across
-  closed events, upload-pending, and submit-pending phases.
+- Event organize app coverage pins the receipt submission disabled state while
+  the event has not loaded yet and across upload-pending and submit-pending
+  phases.
 
 ### Product Questions Answered Above
 
@@ -823,7 +828,9 @@ the current working direction until a product decision overrides them.
 - Which finance capability should gate the transaction list: `finance:viewTransactions`, `finance:manageReceipts`, or a broader finance overview permission?
 - Should receipt uploads be created only after submit authorization succeeds, or should upload sessions be issued from a receipt-submit preflight?
 - Should receipt reimbursement remain a manual ledger action, or will it eventually integrate with a payout provider?
-- Should receipts be restricted to event end dates, or is pre-event spending intentionally allowed? Current behavior restricts submitted receipts to events whose end time has passed.
+- Should receipts be restricted to event end dates, or is pre-event spending
+  intentionally allowed? Answered locally: pre-event spending and submission are
+  allowed once the event exists and the caller has receipt-submit access.
 
 ### Recommended Cleanup Actions
 
@@ -1345,8 +1352,11 @@ implement those decisions or explicitly revise them there before changing code.
 - Receipt reimbursement wording pass: renamed finance-facing receipt reimbursement copy away from "refund" for manual ledger actions while leaving legacy internal route/API/database names for a later migration.
 - Receipt amount validation pass: rejected receipt submit/review payloads where tax exceeds the total amount and added focused server coverage for both write paths.
 - Payment-status deprecation pass: stopped active profile/user-event reads and fixture setup from relying on `event_registrations.paymentStatus`; user-facing payment state now derives from registration transaction rows, and the legacy field/enum have been removed from the application schema.
-- Receipt timing pass: restricted receipt submission to events whose end time has passed and pointed receipt Playwright setup at the deterministic past event fixture.
-- Receipt timing backlog cleanup: removed the stale relaunch checklist item that still treated pre-event receipt submission policy as undecided after the server rule, Playwright setup, and finance notes had already settled on post-event submission.
+- Receipt timing pass: aligned receipt submission with the pre-event spending
+  decision by removing the event-end-time gate while keeping event existence,
+  tenant scoping, and receipt-submit authorization checks in place.
+- Receipt timing backlog cleanup: replaced the stale post-event submission note
+  with the current pre-event spending/submission decision and server coverage.
 - Receipt submission guard pass: kept the organizer Add receipt action disabled
   during both upload and submit mutations, with the template and handler sharing
   the same tested helper.
