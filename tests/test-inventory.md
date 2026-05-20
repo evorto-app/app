@@ -391,6 +391,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     Generated-doc source coverage keeps the event-management docs aligned with
     the dedicated scanner flow, scanner warning states, guest-quantity count
     updates, organizer cancellation scope, and paid-transfer/refund deferrals.
+    Generated event-management docs also seed a confirmed registration with
+    guests and capture the scanned-registration page, so docs assert guest
+    progress and the buyer-plus-guests check-in action instead of only
+    describing it in markdown.
   - Keep scanned-registration action guards aligned with the write/refetch
     lifecycle. Local app coverage now pins that the check-in action is disabled
     when scan state disallows it, no spots are selected, the write is pending,
