@@ -201,6 +201,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     selected receipt plus the chosen payout detail, that selected totals sum the
     selected rows only, and that finance receipt contact details prefer the
     submitter's notification email with login email fallback.
+  - Keep event-organizer receipt submission action coverage aligned with the
+    two-step upload-plus-submit flow. Local app coverage now pins that Add
+    receipt remains disabled while receipt submission is closed, while the
+    original upload is pending, and while the submit mutation is pending.
   - Keep paid-registration webhook counter coverage aligned with buyer-plus-guest
     spot counts. Local shared coverage pins the capacity count helper used by
     webhook completion/expiry updates; Stripe replay specs remain

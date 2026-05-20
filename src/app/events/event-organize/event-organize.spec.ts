@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   computeEventOrganizeStats,
   organizerRegistrationActionDisabled,
+  receiptSubmissionActionDisabled,
 } from './event-organize';
 import { transferParticipantLabel } from './registration-transfer-dialog.component';
 
@@ -71,6 +72,39 @@ describe('organizerRegistrationActionDisabled', () => {
       organizerRegistrationActionDisabled({
         checkedIn: false,
         mutationPending: false,
+      }),
+    ).toBe(false);
+  });
+});
+
+describe('receiptSubmissionActionDisabled', () => {
+  it('blocks receipt submission while closed, uploading, or submitting', () => {
+    expect(
+      receiptSubmissionActionDisabled({
+        receiptSubmissionClosed: true,
+        submitPending: false,
+        uploadPending: false,
+      }),
+    ).toBe(true);
+    expect(
+      receiptSubmissionActionDisabled({
+        receiptSubmissionClosed: false,
+        submitPending: false,
+        uploadPending: true,
+      }),
+    ).toBe(true);
+    expect(
+      receiptSubmissionActionDisabled({
+        receiptSubmissionClosed: false,
+        submitPending: true,
+        uploadPending: false,
+      }),
+    ).toBe(true);
+    expect(
+      receiptSubmissionActionDisabled({
+        receiptSubmissionClosed: false,
+        submitPending: false,
+        uploadPending: false,
       }),
     ).toBe(false);
   });

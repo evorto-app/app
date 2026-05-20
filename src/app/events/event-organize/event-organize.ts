@@ -88,6 +88,16 @@ export const organizerRegistrationActionDisabled = ({
   mutationPending: boolean;
 }): boolean => checkedIn || mutationPending;
 
+export const receiptSubmissionActionDisabled = ({
+  receiptSubmissionClosed,
+  submitPending,
+  uploadPending,
+}: {
+  receiptSubmissionClosed: boolean;
+  submitPending: boolean;
+  uploadPending: boolean;
+}): boolean => receiptSubmissionClosed || submitPending || uploadPending;
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -121,7 +131,6 @@ export class EventOrganize {
   );
   protected readonly organizerRegistrationActionDisabled =
     organizerRegistrationActionDisabled;
-
   protected readonly organizerTableColumns = signal([
     'name',
     'email',
@@ -141,11 +150,17 @@ export class EventOrganize {
         ...registrationOption.users,
       ]);
   });
+
+  protected readonly receiptOriginalUploadMutation = injectMutation(() =>
+    this.rpc.finance.receiptMedia.uploadOriginal.mutationOptions(),
+  );
   protected readonly receiptsByEventQuery = injectQuery(() =>
     this.rpc.finance.receipts.byEvent.queryOptions({
       eventId: this.eventId(),
     }),
   );
+  protected readonly receiptSubmissionActionDisabled =
+    receiptSubmissionActionDisabled;
   protected readonly receiptSubmissionClosedMessage = computed(() => {
     const event = this.event();
     if (!event) {
@@ -156,10 +171,10 @@ export class EventOrganize {
       ? 'Receipts can be added after the event ends.'
       : null;
   });
+
   protected readonly stats = computed(() =>
     computeEventOrganizeStats(this.event()),
   );
-
   protected readonly submitReceiptMutation = injectMutation(() =>
     this.rpc.finance.receipts.submit.mutationOptions(),
   );
@@ -167,14 +182,11 @@ export class EventOrganize {
     this.rpc.events.transferEventRegistration.mutationOptions(),
   );
   private readonly config = inject(ConfigService);
+
   private readonly dialog = inject(MatDialog);
 
   private readonly notifications = inject(NotificationService);
-
   private readonly queryClient = inject(QueryClient);
-  private readonly receiptOriginalUploadMutation = injectMutation(() =>
-    this.rpc.finance.receiptMedia.uploadOriginal.mutationOptions(),
-  );
 
   constructor() {
     effect(() => {
@@ -229,6 +241,16 @@ export class EventOrganize {
   }
 
   protected async openReceiptDialog(): Promise<void> {
+    if (
+      receiptSubmissionActionDisabled({
+        receiptSubmissionClosed: !!this.receiptSubmissionClosedMessage(),
+        submitPending: this.submitReceiptMutation.isPending(),
+        uploadPending: this.receiptOriginalUploadMutation.isPending(),
+      })
+    ) {
+      return;
+    }
+
     const receiptCountrySettings = resolveReceiptCountrySettings(
       this.config.tenant.receiptSettings,
     );
