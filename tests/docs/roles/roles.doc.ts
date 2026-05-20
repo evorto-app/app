@@ -57,7 +57,9 @@ Start by navigating to **Admin tools**. The current relaunch admin surface separ
     await expect(
       page.getByRole('columnheader', { name: 'Roles' }),
     ).toBeVisible();
-    await expect(page.getByText('admin@evorto.app')).toBeVisible();
+    await expect(
+      page.getByRole('cell', { exact: true, name: 'admin@evorto.app' }),
+    ).toBeVisible();
     await expect(page.getByText('Admin').first()).toBeVisible();
     await expect(page.getByText('Edit template')).toHaveCount(0);
     await takeScreenshot(
@@ -103,7 +105,7 @@ Permissions that are required by another permission are automatically included a
     await page
       .getByRole('textbox', { name: 'Description' })
       .fill(roleDescription);
-    await page.getByRole('checkbox', { name: 'Events' }).click();
+    await page.getByRole('checkbox', { exact: true, name: 'Events' }).click();
     await expect(
       page.getByRole('checkbox', { name: 'Create events' }),
     ).toBeChecked();
