@@ -146,6 +146,12 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 - `specs/events/free-registration.test.ts` covers the seeded free-registration
   happy path, confirms the persisted registration and confirmed counter, then
   restores the touched registration rows and registration-option counters.
+- `specs/events/registration-addons.test.ts` adds page-backed coverage for a
+  registration-time add-on and required question selected on a seeded free
+  event, including required answer gating, persisted add-on purchase, persisted
+  question answer, active-registration readback, and add-on availability
+  decrement, then cleans up generated add-on/question data and restores touched
+  registration rows and counters.
 - `specs/events/registration-transfer.test.ts` also seeds a paid confirmed
   registration with a successful registration transaction and proves the event
   page keeps self-service transfer disabled with the paid transfer/resale

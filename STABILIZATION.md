@@ -617,6 +617,11 @@ the current working direction until a product decision overrides them.
 - `tests/docs/events/event-management.doc.ts` now documents only the current event details, registration, review/listing, edit, organizer overview, participant grouping/cancellation, and receipt surfaces.
 - `tests/docs/events/unlisted-admin.doc.ts` covers the updated direct-link explanation in the listing dialog and on unlisted event details.
 - `tests/docs/events/register.doc.ts` covers free and paid registration as generated documentation and Stripe-backed evidence, including guest quantity selection, the participant versus organizer/helper option wording, participant self-cancellation copy, and the paid registration transfer-unavailable boundary.
+- `tests/specs/events/registration-addons.test.ts` covers the page-backed
+  free registration add-on and required-question flow, including quantity
+  selection, required answer gating, persisted add-on purchase, persisted
+  question answer, active-registration readback, availability decrement, and
+  cleanup of generated add-on/question rows plus touched registration state.
 - `tests/docs/events/register.doc.ts` documents the role-ineligible direct-link state even though page-backed Browser coverage still depends on local runtime availability.
 - `src/app/events/event-registration-option/event-registration-option.component.spec.ts` covers the participant versus organizer/helper registration option copy.
 - `src/app/events/event-registration-option/event-registration-option.component.spec.ts` covers discounted buyer-price plus full-price guest totals for paid registration actions.
@@ -1720,6 +1725,10 @@ implement those decisions or explicitly revise them there before changing code.
 - Free-registration fixture cleanup pass: made the free-registration Playwright
   spec restore deleted fixture registrations and registration-option counters
   after asserting the confirmed registration readback.
+- Registration add-on fixture cleanup pass: made the registration add-on
+  Playwright spec seed an isolated registration question, remove generated
+  add-on/question data, and restore touched registration rows and counters after
+  asserting add-on and question-answer persistence.
 - Registration paid-transfer docs pass: extended generated registration docs so
   paid confirmed registrations must show disabled transfer-unavailable copy
   until refund or resale money movement exists.
