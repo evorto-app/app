@@ -1600,6 +1600,9 @@ the current working direction until a product decision overrides them.
   before running `dotenv -c dev`, reducing fresh-worktree and wrong-database
   risk.
 - Docker Compose uses Neon Local, MinIO, Stripe CLI, a one-shot `db-setup` service, and an `evorto` app container. `db-setup` clears the Docker database `public` schema before Drizzle pushes schema so reset-from-zero startup stays non-interactive even when Neon Local reuses older branch state. `bun run docker:check` verifies required local secrets before any Docker start command tears down or starts containers, and now also reports Bun, Docker Compose, Compose config, Playwright CLI, `.env.dev`, and Playwright browser-cache readiness.
+- SSR app routes respond to lightweight `GET` and `HEAD` probes. This keeps
+  browser-facing app pages useful for health checks and local reachability
+  checks without requiring a full page body download.
 - `bun run build:app`, `bun run test:unit -- --watch=false`, and `bun run test:unit:server` pass in the current checkout.
 - Playwright test discovery works through the package scripts without local
   Auth0/Stripe secrets, but full page-backed Playwright execution still
@@ -2238,6 +2241,10 @@ implement those decisions or explicitly revise them there before changing code.
   Playwright coverage require seeded template categories/templates up front and
   fail explicitly when reusable add-on attachment or question readbacks are
   missing after the page flow.
+- SSR HEAD reachability pass: routed catch-all app `HEAD` requests through the
+  same SSR reachability path as `GET`, added a runtime preflight source guard,
+  and verified a built server returns 200 for both `HEAD /events` and
+  `GET /events` on a temporary local port.
 - Template role-picker docs hardening pass: made generated template docs fail
   explicitly if the role autocomplete has no seeded role options or nameless
   options before asserting selected roles are hidden from suggestions.

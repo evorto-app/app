@@ -203,6 +203,17 @@ describe('evaluateRuntimePreflight', () => {
     );
   });
 
+  it('keeps local app routes reachable to lightweight GET and HEAD probes', () => {
+    const serverSource = fs.readFileSync(
+      path.join(process.cwd(), 'src/server.ts'),
+      'utf8',
+    );
+
+    expect(serverSource).toContain("method === 'GET' || method === 'HEAD'");
+    expect(serverSource).toContain('if (isSsrMethod(request.method))');
+    expect(serverSource).not.toContain("if (request.method === 'GET') {");
+  });
+
   it('keeps Playwright package scripts on the generated runtime environment path', () => {
     const packageJson = JSON.parse(
       fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8'),
