@@ -336,7 +336,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   the gap is intentionally credential-gated or an honest Browser-backed
   stabilization placeholder, and record the reason in
   `helpers/testing/playwright-skip-inventory.spec.ts`.
-- Playwright list/discovery output is intentionally readable: real spec/doc
+- Playwright list/discovery output is intentionally readable:
+  `helpers/testing/playwright-skip-inventory.spec.ts` guards that real spec/doc
   titles no longer include placeholder `@track`, `@req`, or `@doc` metadata.
 - `docs/users/create-account.doc.ts` is the only current integration-tagged Playwright path; there is no non-doc integration-only spec yet.
 - Playwright `--list` discovery does not clean or write generated docs output,
