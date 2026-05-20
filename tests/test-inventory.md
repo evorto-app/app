@@ -341,6 +341,11 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     private organizer planning tips at the template-to-event boundary. Source
     registration option ids now also drive server-side reusable add-on copying
     into event-scoped read-model records.
+  - Keep simple-mode template docs honest that the relaunch form has exactly
+    one organizer registration block and one participant registration block.
+    Local form coverage pins that fixed shape while docs and specs cover the
+    current extension points: reusable add-ons, registration questions, option
+    descriptions, role eligibility, discounts, and organizer planning tips.
   - Template detail component coverage pins reusable add-on purchase timing and
     registration-option labels. Server handler coverage pins the current add-on
     read model, simple-template service coverage pins optional add-on write

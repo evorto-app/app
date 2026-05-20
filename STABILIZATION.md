@@ -652,7 +652,12 @@ the current working direction until a product decision overrides them.
 - **Addressed in this stabilization pass:** template create/update validates `categoryId` and registration `roleIds` against the current tenant before persisting. Invalid references now fail with typed bad-request errors instead of relying on database constraints or unconstrained role-id arrays.
 - **Addressed in this stabilization pass:** template registration offsets now fail with a typed bad request when a registration would open after it closes. Because offsets are "hours before event", `openRegistrationOffset` must be greater than or equal to `closeRegistrationOffset` for a normal window.
 - **Addressed in this stabilization pass:** template create/update and find-one RPC location fields now use the shared `EventLocation` schema instead of `Schema.Any`, matching the event boundary behavior.
-- **Should fix before relaunch:** simple-mode create/update always writes exactly two registration options. That matches the current UI but is thinner than the product model for reusable event knowledge.
+- **Accepted relaunch boundary:** simple-mode create/update writes exactly two
+  registration options: one organizer block and one participant block. Richer
+  reusable event knowledge is captured through editable option copy, role
+  eligibility, ESNcard discounts, reusable add-ons, reusable registration
+  questions, and organizer planning tips until a later full registration-option
+  builder exists.
 - **Addressed in stabilization pass:** template detail now returns and displays
   existing reusable template add-ons from the current schema, including pricing,
   purchase timing, quantity limits, and registration-option attachments.
@@ -742,6 +747,10 @@ the current working direction until a product decision overrides them.
 - `src/app/templates/shared/template-form/template-form.utilities.spec.ts` pins
   the shared template create/edit write guard for invalid, submitting, and
   mutation-pending states.
+- `src/app/templates/shared/template-form/template-form.utilities.spec.ts` pins
+  the simple-mode registration shape as exactly one organizer block and one
+  participant block, with repeatable reusable add-ons and questions as the
+  supported extension points.
 - `src/app/templates/categories/category-list/category-list.component.spec.ts`
   pins the category create/edit action guard while create or update writes are
   pending.
