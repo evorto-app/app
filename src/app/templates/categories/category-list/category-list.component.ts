@@ -9,13 +9,13 @@ import {
 } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
-import { MatIconModule } from '@angular/material/icon';
 import { MatTableModule } from '@angular/material/table';
 import { RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import {
   faArrowLeft,
   faEllipsisVertical,
+  faPlus,
 } from '@fortawesome/duotone-regular-svg-icons';
 import {
   injectMutation,
@@ -44,7 +44,6 @@ export const templateCategoryActionDisabled = ({
   imports: [
     MatButtonModule,
     FontAwesomeModule,
-    MatIconModule,
     MatTableModule,
     RouterLink,
     IconComponent,
@@ -61,6 +60,7 @@ export class CategoryListComponent {
   ]);
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faEllipsisVertical = faEllipsisVertical;
+  protected readonly faPlus = faPlus;
   protected readonly outletActive = signal(false);
   private readonly rpc = AppRpc.injectClient();
   protected templateCategoryGroupsQuery = injectQuery(() =>

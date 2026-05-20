@@ -280,6 +280,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     selectors. Server coverage already proves lookup permissions and
     lookup-only role results; template autocomplete coverage now fails loudly
     when seeded roles are missing.
+  - Keep app action icons on the Font Awesome component path. Local source
+    coverage now fails if app templates or components reintroduce direct
+    Material icon elements or `MatIconModule`, preserving the shared
+    premium/brand icon package path.
   - Keep template-to-event mapper coverage aligned with the event form as richer
     reusable template data is added. Local app coverage now proves event
     defaults, source registration option ids, registration-window offsets, and
