@@ -709,6 +709,9 @@ the current working direction until a product decision overrides them.
 - `tests/specs/templates/templates.test.ts` covers create, view, empty-category add flow, and role autocomplete duplicate hiding.
 - `tests/docs/templates/templates.doc.ts` documents simple-mode template creation, organizer planning tips, role defaults, payment field visibility, optional ESNcard discounted price fields, reusable add-on editing, reusable registration-question editing, and role-picker behavior. It asserts that enabling payment reveals both the price and tax-rate controls before taking the payment-field screenshot, then asserts that adding a reusable add-on reveals the add-on name, attachment, and purchase-timing controls, and that adding a registration question reveals the question, target, and required-answer controls.
 - `tests/specs/templates/paid-option-requires-tax-rate.spec.ts` now has active simple-mode UI coverage for the paid tax-rate requirement and a seeded inclusive tax-rate save path. The previous future bulk/no-compatible-rate fixme declarations were removed; current no-compatible-rate select feedback is pinned in local component coverage until a broader page flow exists.
+- `tests/specs/seed/seed-baseline.test.ts` now treats seeded reusable template
+  add-ons and registration questions as part of the reset-from-zero contract
+  for template detail review.
 - `src/app/templates/shared/template-form/template-registration-option-form.utilities.spec.ts` covers paid template tax-rate and ESNcard discount preservation, paid missing-tax-rate pass-through for server validation, and free-registration payment-field cleanup before create/edit submission.
 - `src/app/templates/shared/template-form/template-addon-form.utilities.spec.ts`
   covers add-on submit normalization for free/paid state, trimmed copy, and
@@ -1858,6 +1861,9 @@ implement those decisions or explicitly revise them there before changing code.
   storage, simple template create/edit controls, `templates.findOne` read-model
   support, and template detail display while event-side answer collection
   remains future work.
+- Template question seed pass: added reusable participant and organizer
+  questions to reset-from-zero template seed data and pinned their
+  registration-option attachments in the seed baseline.
 - Active-registration action-guard pass: shared tested cancellation and
   transfer disabled-state helpers between active-registration buttons and
   handlers so participant cancellation and unpaid transfer writes cannot
