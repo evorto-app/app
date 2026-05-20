@@ -602,6 +602,10 @@ the current working direction until a product decision overrides them.
 - `src/app/events/event-edit/event-edit.spec.ts` covers event edit submit
   guards for invalid, submitting, and mutation-pending states.
 - `src/app/events/event-active-registration/event-active-registration.component.spec.ts` covers participant cancellation copy for single-spot, guest, and waitlisted registrations; unpaid self-service transfer copy; cancellation/transfer action disabling; target-email normalization; and transfer/resale-unavailable notes for pending, waitlisted, and blocked confirmed active registrations.
+- `tests/docs/events/event-approval.doc.ts` now creates a deterministic
+  approval-flow event, reads back draft submission, rejection feedback,
+  resubmission, and approval states from the database, and cleans up generated
+  event rows after the documentation journey.
 - `tests/docs/events/event-management.doc.ts` now documents only the current event details, registration, review/listing, edit, organizer overview, participant grouping/cancellation, and receipt surfaces.
 - `tests/docs/events/unlisted-admin.doc.ts` covers the updated direct-link explanation in the listing dialog and on unlisted event details.
 - `tests/docs/events/register.doc.ts` covers free and paid registration as generated documentation and Stripe-backed evidence, including guest quantity selection, the participant versus organizer/helper option wording, and participant self-cancellation copy.
@@ -1641,6 +1645,10 @@ implement those decisions or explicitly revise them there before changing code.
   submit-for-review guards between template disabled state and handler early
   returns, keeping pending review writes from double-triggering on slow
   networks.
+- Event approval docs persistence pass: hardened the generated approval journey
+  with deterministic event data, database readbacks for pending/rejected/
+  approved status transitions, reviewer/comment assertions, and cleanup of the
+  generated event plus registration option.
 - Participant unpaid transfer pass: added `events.transferMyRegistration` so a
   participant can transfer their own confirmed, not checked-in, unpaid
   registration to an existing eligible tenant user by email, exposed the action
