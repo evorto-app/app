@@ -176,6 +176,7 @@ const cancelRegistration = ({
           id: true,
           registrationOptionId: true,
           status: true,
+          userId: true,
         },
         where: {
           ...(eventId ? { eventId } : {}),
@@ -198,10 +199,12 @@ const cancelRegistration = ({
           },
           transactions: {
             columns: {
+              amount: true,
               id: true,
               method: true,
               status: true,
               stripeCheckoutSessionId: true,
+              type: true,
             },
           },
         },
@@ -267,6 +270,13 @@ const cancelRegistration = ({
         currentTransaction.status === 'pending' &&
         currentTransaction.method === 'stripe',
     );
+    const successfulPaidRegistrationTransaction =
+      registration.transactions.find(
+        (currentTransaction) =>
+          currentTransaction.status === 'successful' &&
+          currentTransaction.type === 'registration' &&
+          currentTransaction.amount > 0,
+      );
     const stripeCheckoutSessionId =
       pendingStripeTransaction?.stripeCheckoutSessionId;
     const stripeAccount = tenant.stripeAccountId;
@@ -359,6 +369,26 @@ const cancelRegistration = ({
                   totalAvailableQuantity: sql`${eventAddons.totalAvailableQuantity} + ${addOnPurchase.quantity}`,
                 })
                 .where(eq(eventAddons.id, addOnPurchase.addonId));
+            }
+
+            if (
+              registration.status === 'CONFIRMED' &&
+              successfulPaidRegistrationTransaction
+            ) {
+              yield* tx.insert(transactions).values({
+                amount: -Math.abs(successfulPaidRegistrationTransaction.amount),
+                comment: `Pending registration refund record for cancelled registration ${registration.id}. Money movement must be handled outside Evorto.`,
+                currency: tenant.currency,
+                eventId: registration.eventId,
+                eventRegistrationId: registration.id,
+                executiveUserId: user.id,
+                manuallyCreated: true,
+                method: successfulPaidRegistrationTransaction.method,
+                status: 'pending',
+                targetUserId: registration.userId,
+                tenantId: tenant.id,
+                type: 'refund',
+              });
             }
 
             if (!pendingStripeTransaction) {
