@@ -1038,7 +1038,7 @@ the current working direction until a product decision overrides them.
 
 - Playwright has separate baseline spec and docs projects. Baseline specs exclude `tests/docs/**`; docs baseline runs `tests/docs/**/*.doc.ts`; integration-only docs are selected with `@needs-*` tags.
 - Local docs/spec discovery is runnable again after replacing stale Effect config APIs in `playwright.config.ts` and Playwright support files, and Auth0 Management credentials are no longer required just to import baseline fixtures.
-- `bun run test:e2e -- --list` discovers 81 baseline tests across 23 files,
+- `bun run test:e2e -- --list` discovers 86 baseline tests across 24 files,
   including setup projects, without requiring local Auth0/Stripe secrets.
 - `bun run test:e2e:docs -- --list` discovers 25 baseline docs/setup tests
   across 18 files without requiring local Auth0/Stripe secrets.
@@ -1066,7 +1066,7 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** participant-facing event registration cards now receive tax-rate label metadata from `events.findOne`, render paid option prices through the shared inclusive tax label component, and have page-level Playwright assertions for the seeded inclusive-price states.
 - **Should fix before relaunch:** page-backed Playwright specs still fail in this checkout because the configured Chromium binary is missing. `tests/specs/screenshot/doc-screenshot.test.ts` seeds data and then fails at browser launch.
 - **Addressed in stabilization pass:** `tests/test-inventory.md` now maps current Playwright specs/docs by suite ownership, records intentional fixme and credential-gated paths, and lists the Browser-backed coverage still needed from the remaining stabilization gaps.
-- **Addressed in stabilization pass:** the remaining `test.skip` audit removed the dead mobile skip from `tests/specs/permissions/override.test.ts`, corrected the inventory entry for that spec, made the Auth0 Management doc skip name the required credentials explicitly, and moved Stripe webhook replay's credential gate to a file-level skip before page/database fixtures are requested.
+- **Addressed in stabilization pass:** the remaining `test.skip` audit removed the dead mobile skip from `tests/specs/permissions/override.test.ts`, corrected the inventory entry for that spec, made the Auth0 Management doc skip name the required credentials explicitly, moved Stripe webhook replay's credential gate to a file-level skip before page/database fixtures are requested, and keeps the skip/fixme allowlist tied to explicit local reasons.
 - **Addressed in stabilization pass:** global-admin route guard coverage now has a direct Playwright spec for the global-admin allow path and signed-in non-global-admin deny path.
 - **Addressed in stabilization pass:** scanning/check-in docs now describe the dedicated QR scanner, scan warnings, authorization, checked-in count updates, and selected guest-quantity check-in. The remaining scanner follow-up is Browser-backed organizer aggregate assertion, not missing product documentation.
 - **Should fix before relaunch:** page-backed docs coverage is still missing or thin for tenant/global-admin settings beyond the current list/settings pages, account creation outside Auth0-management integration, profile discount add/refresh/remove flows, role assignment/user management, and registration negative paths. Local unit/server coverage exists for several of those surfaces, but it does not replace Browser-backed docs for the full user journeys.
@@ -1107,7 +1107,7 @@ the current working direction until a product decision overrides them.
 
 - Keep active price-label specs aligned with seeded event and template tax-rate data as price display behavior changes.
 - Keep event-management and finance-overview docs aligned as the live UI changes; both were rewritten during this stabilization pass and should not be treated as stale product truth.
-- Continue auditing remaining `test.skip` usage so credential/integration skips stay honest and fixture-state gaps become hard failures or explicit `test.fixme` states.
+- Continue auditing remaining `test.skip` usage so credential/integration skips stay honest and fixture-state gaps become hard failures or explicit, reason-recorded `test.fixme` states.
 - Keep docs/list commands free of reporter output cleanup, runtime secret requirements, and local browser startup.
 - Update `tests/test-inventory.md` after stale/placeholder docs are pruned.
 - Add missing docs/specs for tenant/global-admin settings, account/profile persistence, role/user management, and negative registration paths as those flows are stabilized.
