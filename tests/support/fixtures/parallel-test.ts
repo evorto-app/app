@@ -62,6 +62,12 @@ interface BaseFixtures {
     title: string;
   }[];
   templates: {
+    addOns: {
+      id: string;
+      isPaid: boolean;
+      registrationOptionIds: string[];
+      title: string;
+    }[];
     description: string;
     icon: string;
     id: string;

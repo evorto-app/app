@@ -648,6 +648,10 @@ the current working direction until a product decision overrides them.
   purchase timing, quantity limits, and registration-option attachments. Simple
   create/update still does not author add-ons, and there is still no reviewed
   event-side add-on fulfillment or registration-question schema/copy path.
+- **Addressed in stabilization pass:** reset-from-zero seed data now includes
+  both free and paid reusable template add-ons attached to participant template
+  registration options, so Browser review can inspect the add-on detail surface
+  once the local runtime is available.
 - **Addressed in stabilization pass:** simple-mode template create/edit now exposes optional ESNcard discounted prices when the tenant ESNcard provider is enabled, persists them in `templateRegistrationOptionDiscounts`, returns them through `templates.findOne`, and shows them on template detail.
 - **Addressed in stabilization pass:** simple-mode template registration
   options now preserve editable option names plus public and registered-user
@@ -708,6 +712,8 @@ the current working direction until a product decision overrides them.
   `src/app/templates/template-details/template-details.component.spec.ts` cover
   the current reusable add-on read model and detail-surface labels without
   requiring Browser/runtime setup.
+- `tests/specs/seed/seed-baseline.test.ts` now treats seeded reusable template
+  add-ons as part of the reset-from-zero contract for template detail review.
 - The generic `tests/docs/template.doc.ts` discovery placeholder was removed; product template documentation lives in `tests/docs/templates/templates.doc.ts`.
 - Permission matrix coverage checks template create link visibility plus direct route denial for template create/edit/create-event routes. `src/app/templates/templates.routes.spec.ts` keeps the guarded template write-route manifest explicit. Server unit coverage proves template RPC denial, template offset ordering, tenant-owned template category/role validation, and template location schema rejection.
 
@@ -1712,6 +1718,9 @@ implement those decisions or explicitly revise them there before changing code.
   timing, quantity, and attached registration-option labels, and kept
   event-side add-on fulfillment plus registration questions as explicit future
   product/runtime slices.
+- Template add-on seed pass: added free and paid reusable add-ons to the
+  reset-from-zero template seed data and pinned their registration-option
+  attachments in the seed baseline.
 
 ## Review Next
 

@@ -119,8 +119,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - `specs/screenshot/doc-screenshot.test.ts`
   - `specs/seed/seed-baseline.test.ts` proves the seeded tenant has default
     roles, all template families, paid/free registration options, paid tax-rate
-    wiring, scenario handles, confirmed registrations, and checked-in scanner
-    aggregates.
+    wiring, reusable template add-ons, scenario handles, confirmed
+    registrations, and checked-in scanner aggregates.
   - `specs/smoke/load-application.test.ts`
 
 ## Intentional Gaps and Gates
@@ -281,6 +281,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - Template detail component coverage pins reusable add-on purchase timing and
     registration-option labels. Server handler coverage pins the current
     add-on read model while event-side add-on fulfillment remains out of scope.
+  - Seed baseline coverage pins free and paid reusable template add-ons attached
+    to participant template options so the template detail add-on surface has
+    deterministic data once Browser/runtime review is available.
   - Keep shared registration-mode labels aligned whenever stored modes are
     implemented or retired. Local shared coverage now keeps event/template
     authoring controls and template detail summaries away from raw storage ids.
