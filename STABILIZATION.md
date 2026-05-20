@@ -864,7 +864,7 @@ the current working direction until a product decision overrides them.
 - `src/app/admin/event-reviews/event-reviews.component.spec.ts` covers the
   tenant event-review queue guard that disables Approve/Reject while a review
   mutation is pending.
-- Permission matrix coverage checks admin tax-rate, role-management, user-list, settings, and template write route denial. `src/app/admin/admin.routes.spec.ts` keeps the guarded admin route manifest explicit. Role lookup UI behavior still needs Browser/E2E coverage once runtime review is available.
+- Permission matrix coverage checks admin tax-rate, role-management, user-list, settings, and template write route denial. `src/app/admin/admin.routes.spec.ts` keeps the guarded admin route manifest explicit. Role lookup UI behavior still needs manual Browser review once runtime review is available; current Playwright specs cover duplicate-hiding behavior in both template creation and event editing.
 - `tests/docs/roles/roles.doc.ts` documents role creation, dependent permissions, and the explicit deferral of existing-user role assignment for relaunch.
 - `tests/docs/roles/about-permissions.doc.ts` generates the `/docs/about-permissions` source from shared permission metadata, including group labels, permission keys/descriptions, dependent permissions, and the tenant-role/global-admin distinction.
 - `tests/docs/roles/roles.doc.ts` links to `/docs/about-permissions` for permission reference details.
@@ -895,13 +895,13 @@ the current working direction until a product decision overrides them.
 - Keep route-manifest specs and permission-matrix route-denial cases aligned as admin, finance, template, and global-admin route trees change.
 - Keep role create/edit submit guards aligned with the actual mutation
   lifecycle, not only the signal-form submit callback.
-- Add UI/E2E coverage that least-privilege organizers can search/select tenant roles in event/template eligibility forms once Browser/runtime review is available.
+- Keep UI/E2E coverage aligned so least-privilege organizers can search/select tenant roles in event/template eligibility forms; current Playwright coverage exercises duplicate-hiding behavior in both template creation and event editing, while manual Browser review remains pending until local runtime is available.
 - Keep `migration/steps/004_drop_legacy_stabilization_fields.ts` in the
   production migration path so any existing physical `showInHub`,
   `paymentStatus`, and `payment_status` artifacts are dropped when the
   schema/API surface is applied.
 - Keep user-role assignment explicitly deferred until a real role-assignment RPC and UI are implemented.
-- Add Browser-backed least-privilege organizer review for event/template role selectors once the local runtime is available; current server coverage proves lookup permissions and lookup-only result shaping, and the template Playwright autocomplete spec fails loudly when seeded roles are missing.
+- Add Browser-backed least-privilege organizer review for event/template role selectors once the local runtime is available; current server coverage proves lookup permissions and lookup-only result shaping, and the template/event Playwright autocomplete specs fail loudly when seeded role state is missing.
 
 ## Finance/Receipts
 
@@ -1690,7 +1690,7 @@ implement those decisions or explicitly revise them there before changing code.
   global-admin review is available.
 - Permission metadata pass: replaced generated camelCase permission labels with explicit admin-facing labels/descriptions and rendered descriptions in the role form.
 - Route-guard backlog cleanup: replaced the stale "extend route-guard coverage" follow-up after admin, finance, template, and global-admin route-manifest specs plus permission-matrix denial coverage were in place.
-- Role autocomplete backlog cleanup: replaced the stale skip-based autocomplete follow-up with the remaining Browser-backed least-privilege organizer review, after confirming role lookup unit coverage and the active template autocomplete spec already fail loudly on missing seeded roles.
+- Role autocomplete backlog cleanup: replaced the stale skip-based autocomplete follow-up with the remaining Browser-backed least-privilege organizer review, after confirming role lookup unit coverage and the active template/event autocomplete specs already fail loudly on missing seeded roles.
 - Registration negative-path backlog cleanup: clarified the Playwright inventory so closed-window, role-ineligible, unsupported-mode, and waitlist items point to the remaining Browser-backed page states rather than implying server/app negative-path coverage is absent.
 - Registration negative-path Playwright pass: added active page-backed coverage
   for closed registration windows, role-ineligible direct links, and full
