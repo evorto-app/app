@@ -395,8 +395,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     counter updated by scanner check-in mutations, and scanned-registration
     component coverage pins
     check-in button labels plus selected spot-count copy. Event-management docs
-    now call out that guest-quantity check-in increments the organizer
-    checked-in count by the attendee plus selected guests.
+    now execute the generated guest-quantity check-in, assert the persisted
+    registration and counter updates, restore the seeded counter, and call out
+    that guest-quantity check-in increments the organizer checked-in count by
+    the attendee plus selected guests.
     Generated-doc source coverage keeps the event-management docs aligned with
     the dedicated scanner flow, scanner warning states, guest-quantity count
     updates, organizer cancellation scope, and paid-transfer/refund deferrals.

@@ -387,6 +387,11 @@ describe('generated docs source current behavior', () => {
       "page.getByRole('button', { name: 'Confirm 3 check-ins' })",
     );
     expect(source).toContain('Scanned registration with guest check-in');
+    expect(source).toContain("page.getByText('Check-in recorded')");
+    expect(source).toContain('checkedInGuestCount: true');
+    expect(source).toContain('checkedInSpots: initialCheckedInSpots + 3');
+    expect(source).toContain('.update(eventRegistrationOptions)');
+    expect(source).toContain('.set({ checkedInSpots: initialCheckedInSpots })');
     expect(source).toContain(
       "Organizers can also cancel a participant's confirmed registration from the organizer overview before check-in, which releases the confirmed spot without promising an automatic refund.",
     );

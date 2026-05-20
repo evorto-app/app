@@ -6,7 +6,10 @@ import {
   adminStateFile,
   usersToAuthenticate,
 } from '../../../helpers/user-data';
-import { eventRegistrations } from '../../../src/db/schema';
+import {
+  eventRegistrationOptions,
+  eventRegistrations,
+} from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 
@@ -255,6 +258,7 @@ Those flows should be documented separately when they exist in the product.
       'Expected seeded participant option for scanner documentation',
     );
   }
+  const initialCheckedInSpots = scannerRegistrationOption.checkedInSpots;
   const scannerUser = usersToAuthenticate.find((user) => user.roles === 'user');
   if (!scannerUser) {
     throw new Error('Expected regular user fixture for scanner documentation');
@@ -289,10 +293,43 @@ Those flows should be documented separately when they exist in the product.
       page,
       'Scanned registration with guest check-in',
     );
+    await page.getByRole('button', { name: 'Confirm 3 check-ins' }).click();
+    await expect(page.getByText('Check-in recorded')).toBeVisible();
+    await expect
+      .poll(async () => {
+        const registration = await database.query.eventRegistrations.findFirst({
+          columns: {
+            checkInTime: true,
+            checkedInGuestCount: true,
+          },
+          where: { id: scannerRegistrationId },
+        });
+        const option = await database.query.eventRegistrationOptions.findFirst({
+          columns: {
+            checkedInSpots: true,
+          },
+          where: { id: scannerRegistrationOption.id },
+        });
+
+        return {
+          checkedIn: registration?.checkInTime !== null,
+          checkedInGuestCount: registration?.checkedInGuestCount,
+          checkedInSpots: option?.checkedInSpots,
+        };
+      })
+      .toEqual({
+        checkedIn: true,
+        checkedInGuestCount: 2,
+        checkedInSpots: initialCheckedInSpots + 3,
+      });
   } finally {
     await database
       .delete(eventRegistrations)
       .where(eq(eventRegistrations.id, scannerRegistrationId));
+    await database
+      .update(eventRegistrationOptions)
+      .set({ checkedInSpots: initialCheckedInSpots })
+      .where(eq(eventRegistrationOptions.id, scannerRegistrationOption.id));
   }
 
   await testInfo.attach('markdown', {

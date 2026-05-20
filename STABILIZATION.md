@@ -1109,7 +1109,9 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** `tests/docs/events/event-management.doc.ts`
   now seeds a deterministic confirmed registration with guests, opens the
   scanned-registration page, asserts guest progress and the buyer-plus-guests
-  check-in action, and captures that page for generated documentation.
+  check-in action, captures that page for generated documentation, records the
+  check-in, reads back the persisted registration/counter state, and restores
+  the seeded checked-in counter during cleanup.
 - `QUALITY.md` lists participant and guest-quantity check-in as high-value Playwright flows; the scanner spec now covers selected guest check-in and the organizer overview aggregate. Manual Browser review still depends on local runtime availability.
 
 ### Product Questions Answered Above
@@ -2329,6 +2331,9 @@ implement those decisions or explicitly revise them there before changing code.
   so buyer-plus-guest check-in and later guest-arrival check-in both assert the
   visible check-in action remains disabled after local success while the scan
   state refetch catches up.
+- Scanner docs persistence pass: extended event-management docs to execute the
+  generated guest check-in, assert the persisted check-in time, selected guest
+  count, and checked-in counter, and restore the seeded event option counter.
 
 ## Review Next
 
