@@ -334,6 +334,20 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain(
       'Paid registration transfer and resale are not automatic yet.',
     );
+    expect(source).toContain('Review paid transfer unavailable state');
+    expect(source).toContain(
+      'Self-service transfer is only available for unpaid, not-yet-checked-in registrations before the event starts. Paid registration transfer and resale are not automatic yet.',
+    );
+    expect(source).toContain(
+      "page.getByRole('button', { name: 'Transfer unavailable' })",
+    );
+    expect(source).toContain(
+      "page.getByRole('button', { name: 'Transfer registration' })",
+    );
+    expect(source).toContain(
+      'Expected registration docs paid transfer state to persist the registration',
+    );
+    expect(source).toContain('Paid transfer unavailable');
     expect(source).toContain(
       'QR email delivery is not part of the current relaunch flow.',
     );

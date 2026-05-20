@@ -188,7 +188,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   cancelled registration plus released waitlist counter.
 - `docs/events/register.doc.ts` includes a generated unpaid transfer journey,
   including the transfer dialog, eligible target email entry, and the explicit
-  paid-transfer/resale deferral.
+  paid-transfer/resale deferral. It now also seeds a paid confirmed
+  registration with a successful transaction, asserts disabled
+  transfer-unavailable copy, and reads the generated registration row back
+  before cleanup.
 - Active-registration component coverage pins participant cancellation and
   self-service transfer action disabling while either write is pending or the
   transfer is unavailable.
