@@ -70,6 +70,8 @@ const sanitizeRedirectPath = (value: null | string) => {
 const isStaticMethod = (method: string) =>
   method === 'GET' || method === 'HEAD';
 
+const isSsrMethod = (method: string) => method === 'GET' || method === 'HEAD';
+
 const safeDecodePath = (pathname: string) => {
   try {
     return decodeURIComponent(pathname);
@@ -339,7 +341,7 @@ const staticAndAngularCatchAllLayer = HttpLayerRouter.add('*', '*', (request) =>
       return staticResponse;
     }
 
-    if (request.method === 'GET') {
+    if (isSsrMethod(request.method)) {
       return yield* renderSsr(request);
     }
 
