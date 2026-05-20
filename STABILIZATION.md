@@ -1329,7 +1329,7 @@ the current working direction until a product decision overrides them.
 - `/global-admin` is guarded by authentication at the app route and by `globalAdmin:manageTenants` in the global-admin route config. The navigation link is hidden behind `globalAdmin:*`, and the tenant list RPC requires `globalAdmin:manageTenants`.
 - Global admin currently exposes a searchable tenant list, tenant create/edit flows for the one active primary domain and operational tenant settings, and tenant detail review with non-sensitive operational tenant state. Custom-domain verification, multi-domain automation, and impersonation remain deferred.
 - Global-admin permissions are derived from Auth0 app metadata `evorto.app/app_metadata.globalAdmin === true` independently from current-tenant membership. Tenant user context still requires a current-tenant assignment.
-- Anonymous direct `/global-admin` redirects to Auth0. Stored auth states were stale, so authenticated global-admin UI was not reverified through Playwright in this pass.
+- Anonymous direct `/global-admin` redirects to Auth0. Docker-backed system-Chrome coverage now verifies authenticated global-admin list, detail, create, edit, and route-guard behavior; the in-app Browser connection still times out during manual navigation.
 
 ### Intended Behavior From Product Context
 
@@ -1431,7 +1431,7 @@ the current working direction until a product decision overrides them.
 - `tests/specs/admin/roles-management.spec.ts` functionally covers the current
   admin user-list review surface and role create/edit flow, including
   permission dependency display and explicit create/edit database readbacks.
-- Playwright browser probing was limited because the bundled Playwright browser was not installed and stored auth states were stale; system Chrome confirmed anonymous/global-admin redirects to Auth0.
+- The in-app Browser connection still times out during manual global-admin navigation, but Docker-backed system-Chrome Playwright runs now verify authenticated tenant administration and route-guard behavior against the running app.
 
 ### Product Questions Answered Above
 
