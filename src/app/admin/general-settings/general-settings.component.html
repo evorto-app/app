@@ -294,7 +294,13 @@
       <button
         mat-flat-button
         type="submit"
-        [disabled]="settingsForm().invalid() || settingsForm().submitting()"
+        [disabled]="
+          generalSettingsSaveDisabled({
+            formInvalid: settingsForm().invalid(),
+            formSubmitting: settingsForm().submitting(),
+            mutationPending: updateSettingsMutation.isPending(),
+          })
+        "
       >
         Save
       </button>

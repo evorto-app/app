@@ -1010,6 +1010,7 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** tenant imprint/legal notice, privacy policy, and terms URLs are now part of the `Tenant` RPC schema, editable from general settings, validated by `admin.tenant.updateSettings`, persisted with empty values normalized to `null`, and rendered in the public app footer when configured.
 - **Addressed in stabilization pass:** tenant-admin child routes now have route-level guards. Settings require `admin:changeSettings`, roles require `admin:manageRoles`, users require `users:viewAll`, tax rates require `admin:tax`, and event reviews require `events:review`.
 - **Addressed in stabilization pass:** tenant settings saves now show a success notification and map failed updates through the shared readable error-message helper instead of relying only on mutation state.
+- **Addressed in this stabilization pass:** tenant general-settings save actions now stay disabled while the update mutation is pending, and the submit handler ignores duplicate submit events during the in-flight settings write.
 - **Addressed in stabilization pass:** tenant general-settings documentation now covers the implemented relaunch surface and explicitly calls out deferred domain, branding upload, email sender, review policy, registration limit, and Stripe-account settings.
 - **Addressed in stabilization pass:** tenant-hosted legal text is now editable alongside external legal URLs. The public footer links to external URLs when configured, otherwise it links to hosted `/legal/imprint`, `/legal/privacy`, and `/legal/terms` pages when tenant text exists.
 - **Addressed in stabilization pass:** the tenant settings RPC payload schema is now exported and covered by a focused contract spec, including the current editable fields and the fact that deferred branding/domain fields are outside the update payload.
@@ -1038,6 +1039,9 @@ the current working direction until a product decision overrides them.
 - `tests/docs/finance/inclusive-tax-rates.doc.ts` documents tenant tax-rate management.
 - `src/shared/rpc-contracts/app-rpcs/admin.rpcs.spec.ts` covers the tenant settings update payload scope.
 - `src/app/admin/general-settings/general-settings.payload.spec.ts` covers the client-side tenant-settings payload sent by the form, including trimmed optional editable fields and blank-to-undefined normalization.
+- `src/app/admin/general-settings/general-settings.component.spec.ts` covers
+  tenant settings save disabling for invalid, submitting, and mutation-pending
+  states.
 - `src/app/global-admin/global-admin.routes.spec.ts` covers route-level global-admin permission requirements for list, create, detail, and edit routes.
 - `src/app/global-admin/tenant-form/tenant-form.model.spec.ts` covers create/edit payload shaping, including primary-domain normalization and path rejection before the RPC call, plus disabled submit state for invalid, submitting, and mutation-pending tenant writes.
 - `src/app/global-admin/tenant-list/tenant-list.rows.spec.ts` covers global-admin tenant operational rows, readable Stripe account labels, and search across support fields including connected Stripe account ids.
@@ -1060,6 +1064,8 @@ the current working direction until a product decision overrides them.
   automated multi-domain/custom-domain management for later work.
 - Keep generated global-admin tenant-management documentation aligned as tenant create/edit, custom-domain verification, multi-domain automation, or impersonation support changes.
 - Keep tenant settings save feedback aligned with the shared notification/error-message pattern.
+- Keep tenant settings save guards aligned with the actual mutation lifecycle,
+  not only the signal-form submit callback.
 - Keep tenant SEO title/description, legal links, and hosted legal text aligned between the Tenant RPC schema, general settings, public footer/pages, and generated documentation.
 
 ## Generated Documentation and Playwright Coverage
@@ -1341,6 +1347,9 @@ implement those decisions or explicitly revise them there before changing code.
   with the template and handler sharing the same tested helper.
 - Scanner status-coverage pass: added focused scan-read and direct-check-in coverage for pending, cancelled, and waitlisted registrations.
 - Tenant settings feedback pass: added explicit success and readable error notifications for general settings saves.
+- Tenant settings save-guard pass: shared a tested save-disabled helper between
+  the general-settings template and submit handler so invalid, submitting, and
+  mutation-pending settings writes cannot double-submit on slow networks.
 - Tenant SEO settings pass: exposed stored tenant SEO title/description through the Tenant RPC schema, general settings UI, admin settings persistence, and tenant-level document metadata.
 - Tenant domain-scope docs pass: aligned root product/architecture docs with the current one-active-domain relaunch model and left automated multi-domain/custom-domain verification as later tenant-onboarding work.
 - Tenant locale/timezone contract pass: narrowed the shared Tenant contract to
