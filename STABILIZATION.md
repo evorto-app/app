@@ -1119,9 +1119,9 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** tenant-admin child routes now have route-level guards. Settings require `admin:changeSettings`, roles require `admin:manageRoles`, users require `users:viewAll`, tax rates require `admin:tax`, and event reviews require `events:review`.
 - **Addressed in stabilization pass:** tenant settings saves now show a success notification and map failed updates through the shared readable error-message helper instead of relying only on mutation state.
 - **Addressed in this stabilization pass:** tenant general-settings save actions now stay disabled while the update mutation is pending, and the submit handler ignores duplicate submit events during the in-flight settings write.
-- **Addressed in stabilization pass:** tenant general-settings documentation now covers the implemented relaunch surface and explicitly calls out deferred domain, branding upload, email sender, review policy, registration limit, and Stripe-account settings.
+- **Addressed in stabilization pass:** tenant general-settings documentation now covers the implemented relaunch surface and explicitly calls out deferred custom-domain automation, email sender, review policy, registration limit, and Stripe-account settings.
 - **Addressed in stabilization pass:** tenant-hosted legal text is now editable alongside external legal URLs. The public footer links to external URLs when configured, otherwise it links to hosted `/legal/imprint`, `/legal/privacy`, and `/legal/terms` pages when tenant text exists.
-- **Addressed in stabilization pass:** the tenant settings RPC payload schema is now exported and covered by a focused contract spec, including the current editable fields and the fact that deferred branding/domain fields are outside the update payload.
+- **Addressed in stabilization pass:** the tenant settings RPC payload schema is now exported and covered by a focused contract spec, including the current editable fields and the fact that deferred custom-domain automation, email sender, review policy, registration limit, and Stripe account-management fields are outside the update payload.
 - **Addressed in stabilization pass:** tenant general-settings payload shaping is now extracted and covered locally, including trim/blank normalization for editable URLs/SEO/ESNcard fields before the RPC call.
 - **Addressed in stabilization pass:** the global-admin tenant list and read-only detail page render the tenant operational state returned by the RPC, including connected Stripe account ids for support lookup, and generated docs describe the current searchable list plus detail-review global tenant administration surface.
 - **Addressed in stabilization pass:** global-admin tenant create/edit now supports the relaunch one-domain tenant administration surface: name, primary domain, theme, locale, currency, timezone, and connected Stripe account id.
@@ -1681,6 +1681,10 @@ implement those decisions or explicitly revise them there before changing code.
   `@track`/`@doc` title metadata from product-facing generated docs while
   keeping meaningful suite tags such as `@admin`, `@globalAdmin`, and
   `@finance` visible in list/discovery output.
+- Generated docs wording guard pass: aligned the tenant general-settings docs
+  with implemented brand-asset uploads and hosted legal routes, and added a
+  source guard so those docs do not describe implemented settings as deferred
+  again.
 - Playwright spec metadata pass: removed placeholder `@track`/`@req` title
   metadata from active Playwright specs while keeping meaningful suite tags such
   as `@finance`, `@stripe`, `@permissions`, `@taxRates`, and `@isolation`.
