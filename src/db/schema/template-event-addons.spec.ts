@@ -19,13 +19,19 @@ describe('template event add-on schema', () => {
     expect(eventAddonSource).toContain("'addon_to_event_registration_options'");
   });
 
-  it('exposes template registration-question source storage', () => {
+  it('exposes template and event registration-question storage', () => {
     const schemaIndexSource = readSource('index.ts');
+    const eventQuestionSource = readSource('event-registration-questions.ts');
     const questionSource = readSource('template-registration-questions.ts');
 
     expect(schemaIndexSource).toContain(
       "export * from './template-registration-questions'",
     );
+    expect(schemaIndexSource).toContain(
+      "export * from './event-registration-questions'",
+    );
     expect(questionSource).toContain("'template_registration_questions'");
+    expect(eventQuestionSource).toContain("'event_registration_questions'");
+    expect(eventQuestionSource).toContain('sourceTemplateQuestionId');
   });
 });

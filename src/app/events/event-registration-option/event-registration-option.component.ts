@@ -36,6 +36,13 @@ export interface EventRegistrationOptionView {
   openRegistrationTime: string;
   organizingRegistration: boolean;
   price: number;
+  questions: readonly {
+    description: null | string;
+    id: string;
+    required: boolean;
+    sortOrder: number;
+    title: string;
+  }[];
   registrationMode: 'application' | 'fcfs' | 'random';
   reservedSpots: number;
   spots: number;

@@ -272,6 +272,15 @@ export const EventsFindOneRegistrationOption = Schema.Struct({
   openRegistrationTime: Schema.NonEmptyString,
   organizingRegistration: Schema.Boolean,
   price: Schema.Number,
+  questions: Schema.Array(
+    Schema.Struct({
+      description: Schema.NullOr(Schema.String),
+      id: Schema.NonEmptyString,
+      required: Schema.Boolean,
+      sortOrder: Schema.Number,
+      title: Schema.NonEmptyString,
+    }),
+  ),
   registeredDescription: Schema.NullOr(Schema.String),
   registrationMode: EventsFindOneForEditRegistrationMode,
   reservedSpots: Schema.Number,

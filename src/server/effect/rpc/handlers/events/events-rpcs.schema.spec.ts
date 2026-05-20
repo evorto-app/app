@@ -77,6 +77,15 @@ describe('events RPC registration option schema', () => {
         openRegistrationTime: '2026-09-10T12:00:00.000Z',
         organizingRegistration: false,
         price: 2500,
+        questions: [
+          {
+            description: 'Tell us about your experience.',
+            id: 'question-1',
+            required: true,
+            sortOrder: 0,
+            title: 'Experience',
+          },
+        ],
         registeredDescription: null,
         registrationMode: 'fcfs',
         reservedSpots: 0,

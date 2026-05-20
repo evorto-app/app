@@ -25,6 +25,7 @@ export const relations = defineRelations(schema, (r) => ({
       to: r.users.id,
     }),
     financeReceipts: r.many.financeReceipts(),
+    questions: r.many.eventRegistrationQuestions(),
     registrationOptions: r.many.eventRegistrationOptions(),
     registrations: r.many.eventRegistrations(),
     reviewer: r.one.users({
@@ -57,6 +58,23 @@ export const relations = defineRelations(schema, (r) => ({
       to: r.eventAddons.id.through(r.addonToEventRegistrationOptions.addonId),
     }),
     eventRegistrations: r.many.eventRegistrations(),
+    questions: r.many.eventRegistrationQuestions(),
+  },
+  eventRegistrationQuestions: {
+    event: r.one.eventInstances({
+      from: r.eventRegistrationQuestions.eventId,
+      optional: false,
+      to: r.eventInstances.id,
+    }),
+    registrationOption: r.one.eventRegistrationOptions({
+      from: r.eventRegistrationQuestions.registrationOptionId,
+      optional: false,
+      to: r.eventRegistrationOptions.id,
+    }),
+    sourceTemplateQuestion: r.one.templateRegistrationQuestions({
+      from: r.eventRegistrationQuestions.sourceTemplateQuestionId,
+      to: r.templateRegistrationQuestions.id,
+    }),
   },
   eventRegistrations: {
     event: r.one.eventInstances({

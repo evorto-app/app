@@ -22,6 +22,7 @@ import { addEventRegistrationGuestCount } from './steps/005_add_event_registrati
 import { addEventRegistrationCheckedInGuestCount } from './steps/006_add_event_registration_checked_in_guest_count';
 import { addTenantPublicSettings } from './steps/007_add_tenant_public_settings';
 import { addTenantLegalTextFields } from './steps/008_add_tenant_legal_text_fields';
+import { addEventRegistrationQuestions } from './steps/009_add_event_registration_questions';
 
 type Features =
   | 'users'
@@ -85,6 +86,7 @@ async function main() {
   await addEventRegistrationCheckedInGuestCount();
   await addTenantPublicSettings();
   await addTenantLegalTextFields();
+  await addEventRegistrationQuestions();
   consola.success('Global migration steps complete');
 
   consola.start('Begin migration');

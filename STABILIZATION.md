@@ -747,9 +747,9 @@ the current working direction until a product decision overrides them.
   attachment, hidden payment-field cleanup, purchase-window validation, and
   paid add-on tax-rate validation.
 - `src/db/schema/template-event-addons.spec.ts` and the event lifecycle handler
-  coverage pin reusable add-on source storage and template-to-event copying,
-  while template registration-question schema coverage pins the new template
-  question source storage.
+  coverage pin reusable add-on source storage, template-to-event add-on copying,
+  template registration-question source storage, and copied event registration
+  question storage.
 - `src/server/effect/rpc/handlers/templates/simple-template.service.spec.ts`,
   `src/server/effect/rpc/handlers/templates.handlers.spec.ts`,
   `src/server/effect/rpc/handlers/templates/templates-rpcs.schema.spec.ts`, and
@@ -771,7 +771,7 @@ the current working direction until a product decision overrides them.
 
 ### Product Questions Answered Above
 
-- Is simple mode the intended relaunch template scope, or should richer registration options/add-ons/questions/organizer notes be available before relaunch? Answered locally: keep simple mode primary and expose organizer planning tips, ESNcard discounted prices, reusable add-ons, and reusable registration questions now; event-side question answer collection remains separate follow-up work.
+- Is simple mode the intended relaunch template scope, or should richer registration options/add-ons/questions/organizer notes be available before relaunch? Answered locally: keep simple mode primary and expose organizer planning tips, ESNcard discounted prices, reusable add-ons, reusable registration questions, and event-side question visibility now; submitted question answer collection remains separate follow-up work.
 - Should `random` and `application` registration modes be selectable now if registration fulfillment does not implement those semantics?
 - Should template view require `templates:view`, or should organizers with `events:create` inherit template view through permission dependencies only?
 - Should template category management remain a separate capability from template creation/editing?
@@ -1428,9 +1428,10 @@ the current working direction until a product decision overrides them.
    field, existing reusable template add-ons are now visible on template detail,
    simple template create/edit can persist reusable add-ons, and event creation
    copies reusable add-ons into event-scoped read-model records. Simple
-   template create/edit can now persist reusable registration questions and show
-   them on template detail. Add-on checkout/sales fulfillment and event-side
-   question answer collection remain separate fuller product/runtime slices.
+   template create/edit can now persist reusable registration questions, show
+   them on template detail, and copy them into event-scoped read-model records.
+   Add-on checkout/sales fulfillment and submitted question answer collection
+   remain separate fuller product/runtime slices.
 4. Add Browser-backed scanner/organizer aggregate review once local runtime is available.
 5. Add Browser-backed profile coverage for payment-continuation, ticket/cancellation routing, waitlist messaging, and ESNcard provider failure semantics once local runtime is available.
 6. Fill the remaining tenant settings implementation gap for automated onboarding/domain workflows. The current general-settings page exposes SEO fields, uploaded or externally hosted logo/favicon URLs, tenant legal links or hosted legal text, editable supported locale/currency/timezone values, read-only runtime identity, and a visible deferred-settings summary. The current global-admin surface supports a searchable tenant list, tenant create/edit, and tenant detail review, while custom-domain verification, multi-domain automation, and impersonation remain out of scope.
@@ -1794,8 +1795,8 @@ implement those decisions or explicitly revise them there before changing code.
   cut-over path.
 - Template add-on boundary refresh: corrected the richer-template backlog notes
   to match the current schema surface and added a schema guard for the fact that
-  add-ons are template-scoped only while registration-question schemas are not
-  exposed yet.
+  add-ons were template-scoped only and registration-question schemas still
+  needed a template/event copy path.
 - Template-to-event mapping pass: extracted the create-event-from-template form
   mapper and pinned copied event defaults, registration source option ids,
   offset-derived registration windows, and the current boundary that organizer
@@ -1864,6 +1865,10 @@ implement those decisions or explicitly revise them there before changing code.
 - Template question seed pass: added reusable participant and organizer
   questions to reset-from-zero template seed data and pinned their
   registration-option attachments in the seed baseline.
+- Event question copy pass: added event-scoped registration-question storage,
+  copied reusable template questions by source registration option during event
+  creation, and surfaced copied questions read-only on event registration
+  option cards while submitted answer collection remains future work.
 - Active-registration action-guard pass: shared tested cancellation and
   transfer disabled-state helpers between active-registration buttons and
   handlers so participant cancellation and unpaid transfer writes cannot

@@ -2,6 +2,7 @@ export * from './event-addons';
 export * from './event-instances';
 export * from './event-registration-option-discounts';
 export * from './event-registration-options';
+export * from './event-registration-questions';
 export * from './event-registrations';
 export * from './event-template-categories';
 export * from './event-templates';
