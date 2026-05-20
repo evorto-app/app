@@ -5,6 +5,7 @@ import * as schema from '../../../src/db/schema';
 import { fillTestCard } from '../../support/utils/fill-test-card';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
+import { seedFreeRegistrationAddon } from '../../support/utils/seed-registration-addons';
 
 test.use({ storageState: userStateFile, trace: 'on-first-retry' });
 
@@ -17,18 +18,50 @@ test.describe('Register for events', () => {
   test.describe.configure({ retries: 1 });
 
   test('Register for a free event', async ({
+    database,
     events,
     page,
     seeded,
+    tenant,
   }, testInfo) => {
     test.slow();
     const freeEventId = seeded.scenario.events.freeOpen.eventId;
+    const freeOptionId = seeded.scenario.events.freeOpen.optionId;
     const freeEvent = events.find((event) => event.id === freeEventId);
     if (!freeEvent) {
       throw new Error(
         `Seeded freeOpen scenario event "${freeEventId}" was not found`,
       );
     }
+    const regularUser =
+      usersToAuthenticate.find((user) => user.roles === 'user') ??
+      usersToAuthenticate[0];
+    const addOnId = `addon-${tenant.id.slice(0, 14)}`;
+
+    await database
+      .delete(schema.eventRegistrations)
+      .where(
+        and(
+          eq(schema.eventRegistrations.eventId, freeEventId),
+          eq(schema.eventRegistrations.tenantId, tenant.id),
+          eq(schema.eventRegistrations.userId, regularUser.id),
+        ),
+      );
+    await database
+      .update(schema.eventRegistrationOptions)
+      .set({
+        confirmedSpots: 0,
+        reservedSpots: 0,
+        waitlistSpots: 0,
+      })
+      .where(eq(schema.eventRegistrationOptions.id, freeOptionId));
+    await seedFreeRegistrationAddon({
+      addonId: addOnId,
+      database,
+      eventId: freeEventId,
+      registrationOptionId: freeOptionId,
+      title: 'Snack voucher',
+    });
 
     const freeEventHref = `/events/${freeEvent.id}`;
     const freeEventLink = page.locator(`a[href="${freeEventHref}"]`).first();
@@ -67,24 +100,29 @@ test.describe('Register for events', () => {
     );
     await testInfo.attach('markdown', {
       body: `
-  After selecting a free event, all left to do is press the **Register** button for the option you chose. After that, you will see your confirmation, ticket QR code, cancellation action, and an unpaid transfer action when the registration is still eligible for self-service transfer.`,
+  Free registration cards can also offer registration-time add-ons. Choose the quantity you want before registering. After registration, selected add-ons are shown with the active registration so participants can review what they picked.`,
     });
     const participantRegistrationCard = page
       .locator('app-event-registration-option')
       .filter({ hasText: 'Participant registration' })
       .first();
     await expect(participantRegistrationCard).toBeVisible({ timeout: 20_000 });
+    await expect(
+      participantRegistrationCard.getByText('Snack voucher'),
+    ).toBeVisible();
+    await participantRegistrationCard.getByLabel('Quantity').fill('2');
     await participantRegistrationCard
       .getByRole('button', { name: 'Register' })
       .click();
     await expect(page.getByText('You are registered')).toBeVisible();
+    await expect(page.getByText('2 x Snack voucher')).toBeVisible();
 
     await testInfo.attach('markdown', {
       body: `
   ### Successful registration
   You should now have a successful registration.
   You can see this by additional information being available and also your ticket QR code.
-  Participant registrations can include guests. Guest spots are attached to the logged-in buyer's registration and count against the same option capacity.
+  Participant registrations can include guests and registration-time add-ons. Guest spots are attached to the logged-in buyer's registration and count against the same option capacity. Add-ons are shown with the confirmed registration and can be reviewed by organizers.
   This code is needed when attending the event. Keep this page available because QR email delivery is not part of the current relaunch flow.
   You can cancel a pending or confirmed registration from this event page before the event starts. Confirmed cancellation releases your selected spots, including guests when attached, but paid-registration refunds are not automatic yet.`,
     });

@@ -52,6 +52,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - specs/events/events.test.ts
   - specs/events/free-registration.test.ts
   - specs/events/negative-registration-states.spec.ts
+  - specs/events/registration-addons.test.ts
   - specs/events/unlisted-visibility.test.ts
   - specs/events/price-labels-inclusive.spec.ts [finance]
   - specs/finance/receipts-flows.spec.ts [finance]
@@ -136,6 +137,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   handlers share the same lifecycle write boundaries.
 - Event registration option component coverage pins participant registration and
   waitlist action disabling while a register or waitlist mutation is pending.
+- `specs/events/registration-addons.test.ts` adds page-backed coverage for a
+  registration-time add-on selected on a seeded free event, persisted as a
+  registration add-on purchase, shown after registration, and deducted from
+  add-on availability.
 - Active-registration component coverage pins participant cancellation and
   self-service transfer action disabling while either write is pending or the
   transfer is unavailable.
@@ -322,12 +327,13 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     payload shaping/validation, and template form utility coverage pins add-on
     submit normalization plus read-model-to-edit-form mapping. Event lifecycle,
     schema, registration-card, event-detail component, active-registration
-    readback, organizer-overview readback, and profile-event summary coverage
-    pins copied event add-on storage, registration-time purchase payloads,
-    event-card add-on selection, and fulfilled add-on visibility after
-    registration. Create-event component coverage pins the visible notice that
-    template add-ons copy to registration-time purchase surfaces while
-    standalone before-event and during-event sales remain out of scope.
+    readback, organizer-overview readback, profile-event summary coverage, and
+    the page-backed registration-addons spec pin copied event add-on storage,
+    registration-time purchase payloads, event-card add-on selection, fulfilled
+    add-on visibility after registration, and add-on availability deduction.
+    Create-event component coverage pins the visible notice that template
+    add-ons copy to registration-time purchase surfaces while standalone
+    before-event and during-event sales remain out of scope.
   - Template registration-option component coverage pins paid tax-rate select
     feedback for loading, empty compatible-rate, failed, and available states.
   - Template question coverage pins simple template form preservation,
