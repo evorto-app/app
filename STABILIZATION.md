@@ -15,7 +15,7 @@ and useful for small cleanup batches.
 | Finance/receipts                                | Fixes applied       | partial    | Payments, transactions, receipt review/reimbursement, and docs reviewed; high-risk gaps remain.                                                       |
 | Scanning/check-in                               | First pass complete | partial    | QR display and persisted check-in mutation exist; timing, camera, and Browser-backed aggregate follow-ups remain.                                     |
 | Profile/account flows                           | Fixes applied       | partial    | Profile, account creation, discount cards, receipts, and auth guards reviewed; account creation guards, transactionality, and ESNcard scope improved. |
-| Tenant/global admin                             | Fixes applied       | partial    | Tenant resolution, tenant settings, and global-admin list surface reviewed; global-admin route and permission context fixes applied.                  |
+| Tenant/global admin                             | Fixes applied       | partial    | Tenant resolution, tenant settings, and global-admin list/detail surface reviewed; global-admin route and permission context fixes applied.           |
 | Generated documentation and Playwright coverage | First pass complete | partial    | Docs/spec inventory is discoverable again, but several docs/specs are stale or misleading.                                                            |
 | Local runtime/developer workflow                | First pass complete | partial    | Scripts, env loading, Docker/Playwright setup, and unit-test ownership reviewed.                                                                      |
 
@@ -948,7 +948,7 @@ the current working direction until a product decision overrides them.
 - Tenant admin "General settings" shows a read-only identity summary with tenant name, primary domain, currency, locale, timezone, and Stripe connection state. It lets tenant admins change default location, site theme, externally hosted logo/favicon URLs, SEO title/description, legal links, receipt countries/allow-other, and ESNcard provider enablement plus buy URL. Configured legal links appear in the public app footer, and configured favicon URLs update the browser tab icon.
 - Tenant settings writes are tenant-scoped and require `admin:changeSettings`; tax-rate admin reads/writes require `admin:tax`.
 - `/global-admin` is guarded by authentication at the app route and by `globalAdmin:manageTenants` in the global-admin route config. The navigation link is hidden behind `globalAdmin:*`, and the tenant list RPC requires `globalAdmin:manageTenants`.
-- Global admin currently exposes only a tenant list with id/name/domain. There is no tenant create/edit/detail flow.
+- Global admin currently exposes a searchable tenant list and read-only tenant detail review with non-sensitive operational tenant state. There is no tenant create/edit/custom-domain/impersonation flow.
 - Global-admin permissions are derived from Auth0 app metadata `evorto.app/app_metadata.globalAdmin === true` independently from current-tenant membership. Tenant user context still requires a current-tenant assignment.
 - Anonymous direct `/global-admin` redirects to Auth0. Stored auth states were stale, so authenticated global-admin UI was not reverified through Playwright in this pass.
 
@@ -975,7 +975,7 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** tenant general-settings documentation now covers the implemented relaunch surface and explicitly calls out deferred domain, branding, hosted legal text pages, email sender, review policy, registration limit, locale/currency/timezone, and Stripe-account settings.
 - **Addressed in stabilization pass:** the tenant settings RPC payload schema is now exported and covered by a focused contract spec, including the current editable fields and the fact that deferred branding/domain fields are outside the update payload.
 - **Addressed in stabilization pass:** tenant general-settings payload shaping is now extracted and covered locally, including trim/blank normalization for editable URLs/SEO/ESNcard fields before the RPC call.
-- **Addressed in stabilization pass:** the global-admin tenant list now renders the tenant domain and id returned by the RPC, and generated docs describe the current list-only global tenant administration surface.
+- **Addressed in stabilization pass:** the global-admin tenant list and read-only detail page render the tenant operational state returned by the RPC, and generated docs describe the current searchable list plus detail-review global tenant administration surface.
 - **Acceptable for now:** tenant settings writes are scoped to the current tenant id and validate the returned tenant shape before responding.
 - **Acceptable for now:** unknown host requests fail closed with 404 instead of guessing a tenant.
 - **Acceptable for now:** RPC request-context headers are overwritten server-side before handler execution, so client-supplied `x-evorto-*` headers are not trusted as the source of tenant/user context.
@@ -989,7 +989,7 @@ the current working direction until a product decision overrides them.
 - `tests/specs/permissions/tenant-isolation-tax-rates.spec.ts` checks seeded tenant tax-rate isolation directly in the database, but does not exercise the RPC/UI tenant context switch.
 - `tests/specs/permissions/matrix.spec.ts` covers route denial for `/admin/settings`, `/admin/roles`, `/admin/users`, `/admin/tax-rates`, `/finance/transactions`, `/finance/receipts-approval`, `/finance/receipts-refunds`, and template write routes. `tests/specs/finance/tax-rates/admin-import-tax-rates.spec.ts` adds focused tax-rate route denial coverage. Route-manifest unit specs cover admin, finance, template, and global-admin guard declarations without requiring page-backed runtime. `tests/specs/permissions/global-admin-route-guard.spec.ts` covers direct `/global-admin` and `/global-admin/tenants/:tenantId` allow/deny behavior once page-backed runtime is available.
 - `tests/docs/admin/general-settings.doc.ts` documents the current tenant general-settings page, including the deferred-settings summary, read-only tenant identity summary, editable locale/money policy plus reload behavior, editable brand asset URLs, editable tenant legal links, and public footer/favicon exposure, and records which branding/domain/hosted-legal-text settings are not editable yet.
-- `tests/docs/admin/global-admin.doc.ts` documents the current searchable global-admin tenant list and records that tenant create/edit/detail, custom-domain verification, and impersonation workflows are not implemented yet.
+- `tests/docs/admin/global-admin.doc.ts` documents the current searchable global-admin tenant list and read-only tenant detail review, and records that tenant creation/editing, custom-domain verification, and impersonation workflows are not implemented yet.
 - `tests/docs/finance/inclusive-tax-rates.doc.ts` documents tenant tax-rate management.
 - `src/shared/rpc-contracts/app-rpcs/admin.rpcs.spec.ts` covers the tenant settings update payload scope.
 - `src/app/admin/general-settings/general-settings.payload.spec.ts` covers the client-side tenant-settings payload sent by the form, including trimmed optional editable fields and blank-to-undefined normalization.
@@ -1011,7 +1011,7 @@ the current working direction until a product decision overrides them.
 
 - Keep one-domain-per-tenant documented and visible as the relaunch scope; leave
   automated multi-domain/custom-domain management for later work.
-- Keep generated global-admin tenant-management documentation aligned if the surface expands beyond the current tenant list.
+- Keep generated global-admin tenant-management documentation aligned if the surface expands beyond the current read-only list/detail review.
 - Keep tenant settings save feedback aligned with the shared notification/error-message pattern.
 - Keep tenant SEO title/description and legal links aligned between the Tenant RPC schema, general settings, and generated documentation.
 
