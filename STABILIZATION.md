@@ -1122,6 +1122,10 @@ the current working direction until a product decision overrides them.
 ### Test and Documentation Quality
 
 - `tests/docs/profile/user-profile.doc.ts` documents navigation, profile display, edit dialog validation, notification email persistence, event cards, and the receipts tab. It now seeds deterministic confirmed, pending-checkout, waitlisted, and checked-in profile event cards with free add-ons where applicable, then asserts the event title, event-detail link, status, guest, add-on, payment, checkout continuation, waitlist routing, ticket-routing, and checked-in no-cancellation/no-transfer labels before taking the Events-section screenshot. It also seeds a deterministic submitted receipt and asserts its filename, submitted status, event title, and amount on the profile Receipts tab.
+- `tests/specs/profile/user-profile-events.spec.ts` reuses the same deterministic
+  profile event-card seed helper as the generated docs, giving the
+  pending-checkout, waitlisted, confirmed, and checked-in states direct
+  functional Playwright coverage in addition to product documentation.
 - `src/app/profile/user-profile/edit-profile-dialog.component.spec.ts` covers profile edit payload normalization for notification email and optional global reimbursement details before the update mutation receives the dialog result.
 - `src/app/profile/user-profile/user-profile.component.spec.ts` covers profile event action routing, payment-continuation visibility, guest-quantity, checked-in action copy, implemented-action notes, payment-continuation next-step copy, payment-state, registration-status labels, submitted-receipt status and amount labels, ESNcard action/status labels, ESNcard save disabled state, ESNcard upsert payload normalization, and readable ESNcard mutation error fallback/provider messages. `src/server/effect/rpc/handlers/users.handlers.spec.ts` and the users RPC schema spec now pin purchased add-ons on profile event summaries.
 - Profile app coverage also pins that payment continuation links only render for
@@ -1308,7 +1312,7 @@ the current working direction until a product decision overrides them.
 
 - Playwright has separate baseline spec and docs projects. Baseline specs exclude `tests/docs/**`; docs baseline runs `tests/docs/**/*.doc.ts`; integration-only docs are selected with `@needs-*` tags.
 - Local docs/spec discovery is runnable again after replacing stale Effect config APIs in `playwright.config.ts` and Playwright support files, and Auth0 Management credentials are no longer required just to import baseline fixtures.
-- `bun run test:e2e -- --list` discovers 85 baseline tests across 25 files,
+- `bun run test:e2e -- --list` discovers 88 baseline tests across 26 files,
   including setup projects, without requiring local Auth0/Stripe secrets.
 - `bun run test:e2e:docs -- --list` discovers 29 baseline docs/setup tests
   across 19 files without requiring local Auth0/Stripe secrets.
@@ -1713,6 +1717,10 @@ implement those decisions or explicitly revise them there before changing code.
   generated docs assert the Continue payment action, Stripe checkout link,
   payment-pending next step, waitlist status, and leave-waitlist event-page
   routing before runtime Browser review is unblocked.
+- Profile event-card spec pass: extracted deterministic profile event-card
+  seeding into a shared Playwright helper and added a functional spec that
+  asserts confirmed, pending-checkout, waitlisted, and checked-in event cards
+  outside the generated documentation suite.
 - Profile receipt docs pass: extended the user-profile documentation journey with a deterministic submitted receipt and asserted the profile receipt-card filename, submitted status, event title, and amount.
 - Create-account gate coverage pass: extracted the email-verification form gate into a typed helper and covered verified, unverified, null, and absent Auth0 email-verification states without requiring Auth0 Management credentials.
 - Playwright skip-inventory pass: added a local unit guard that allowlists every
