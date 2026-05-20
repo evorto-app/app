@@ -761,6 +761,9 @@ the current working direction until a product decision overrides them.
 - `src/app/templates/categories/category-list/category-list.component.spec.ts`
   pins the category create/edit action guard while create or update writes are
   pending.
+- `tests/specs/template-categories/template-categories.test.ts` functionally
+  covers template-category create/edit with explicit seeded-category
+  preconditions and database readbacks for the created/edited category rows.
 - `src/shared/registration-modes.spec.ts` covers the readable labels used by
   event/template authoring controls and template detail summaries for every
   persisted registration-mode literal.
@@ -2055,6 +2058,9 @@ implement those decisions or explicitly revise them there before changing code.
 - Template category action-guard pass: shared one create/update pending guard
   across category buttons and handlers so category dialogs and writes cannot
   overlap while a category mutation is in flight.
+- Template category fixture-hardening pass: made template-category Playwright
+  coverage require a seeded category before edit and read back the created and
+  edited category rows from the database after the page flows.
 - Create-account retry guard pass: made the create-account submit button stay
   disabled while the account mutation is pending and pinned that invalid,
   submitting, and mutation-pending states all block duplicate submissions
