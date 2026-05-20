@@ -1,3 +1,4 @@
+import type { DiscountCardRecord } from '@shared/rpc-contracts/app-rpcs/discounts.rpcs';
 import type { FinanceReceiptStatus } from '@shared/rpc-contracts/app-rpcs/finance.rpcs';
 
 import { DatePipe } from '@angular/common';
@@ -119,6 +120,25 @@ export const esnCardActionDisabled = ({
   refreshPending: boolean;
   upsertPending: boolean;
 }): boolean => deletePending || refreshPending || upsertPending;
+
+export const esnCardStatusLabel = (
+  status: DiscountCardRecord['status'],
+): string => {
+  switch (status) {
+    case 'expired': {
+      return 'Expired';
+    }
+    case 'invalid': {
+      return 'Invalid';
+    }
+    case 'unverified': {
+      return 'Needs verification';
+    }
+    case 'verified': {
+      return 'Verified';
+    }
+  }
+};
 
 export const profileEditActionDisabled = ({
   mutationPending,
@@ -323,6 +343,7 @@ export class UserProfileComponent {
     pattern(schemaPath.identifier, /^[A-Za-z0-9]{8,16}$/);
   });
   protected readonly esnCardSaveDisabled = esnCardSaveDisabled;
+  protected readonly esnCardStatusLabel = esnCardStatusLabel;
   protected readonly esnEnabled = computed(() => {
     const providers = this.discountProvidersQuery.data();
     if (!providers) return false;

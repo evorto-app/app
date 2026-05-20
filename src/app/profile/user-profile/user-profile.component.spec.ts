@@ -5,6 +5,7 @@ import {
   esnCardActionLabel,
   esnCardMutationErrorMessage,
   esnCardSaveDisabled,
+  esnCardStatusLabel,
   esnCardSubmitPayloadFromIdentifier,
   profileEditActionDisabled,
   profileEventActionNote,
@@ -215,6 +216,13 @@ describe('profile ESN card messages', () => {
         upsertPending: false,
       }),
     ).toBe(false);
+  });
+
+  it('keeps persisted ESN card statuses readable in profile cards', () => {
+    expect(esnCardStatusLabel('expired')).toBe('Expired');
+    expect(esnCardStatusLabel('invalid')).toBe('Invalid');
+    expect(esnCardStatusLabel('unverified')).toBe('Needs verification');
+    expect(esnCardStatusLabel('verified')).toBe('Verified');
   });
 
   it('trims the ESN card identifier before submitting the upsert mutation', () => {

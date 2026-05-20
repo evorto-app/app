@@ -212,7 +212,7 @@
                           }}</span>
                         </div>
                         <div class="text-sm">
-                          Status: {{ card.status }}
+                          Status: {{ esnCardStatusLabel(card.status) }}
                           @if (card.validTo) {
                             — valid until
                             {{ card.validTo | date: "mediumDate" }}
