@@ -241,6 +241,13 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain(
       'Event-side answer collection is handled separately from this template setup flow.',
     );
+    expect(source).toContain('fillTemplateBasics');
+    expect(source).toContain('createdTemplate.planningTips');
+    expect(source).toContain('addonToTemplateRegistrationOptions');
+    expect(source).toContain('templateRegistrationQuestions.findFirst');
+    expect(source).toContain(
+      'Expected template docs flow to persist the reusable add-on',
+    );
     expect(source).not.toContain('bulk registration options');
     expect(source).not.toContain('multiple participant registration blocks');
     expect(source).not.toContain('public event planning tips');

@@ -469,10 +469,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     while docs and specs cover the current extension points: reusable add-ons,
     registration questions, option descriptions, role eligibility, discounts,
     and organizer planning tips.
-    `specs/templates/templates.test.ts` now functionally creates a template
-    with planning tips, a reusable add-on, and a registration question, then
-    reads the persisted template, add-on attachment/quantity, and required
-    question state from the database.
+    `specs/templates/templates.test.ts` and `docs/templates/templates.doc.ts`
+    now functionally create a template with planning tips, a reusable add-on,
+    and a registration question, then read the persisted template, add-on
+    attachment/quantity, and required question state from the database.
   - Template detail component coverage pins reusable add-on purchase timing and
     registration-option labels. Server handler coverage pins the current add-on
     read model, simple-template service coverage pins optional add-on write
