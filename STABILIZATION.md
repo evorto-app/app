@@ -1252,7 +1252,11 @@ the current working direction until a product decision overrides them.
 - `tests/docs/admin/general-settings.doc.ts` documents the current tenant general-settings page, including the deferred-settings summary, read-only tenant identity summary with Stripe account support lookup detail, editable locale/money policy plus reload behavior, uploaded or externally hosted brand asset URLs, editable tenant legal links or hosted text, and public footer/favicon exposure, and records which domain/operations settings are not editable yet.
 - `tests/docs/admin/global-admin.doc.ts` documents the current searchable global-admin tenant list, tenant create/edit workflow, visible relaunch tenant-scope notice, and tenant detail review, and records that custom-domain verification, multi-domain automation, and impersonation workflows are not implemented yet.
 - `helpers/testing/generated-docs-source.spec.ts` keeps the global-admin guide
-  aligned with the one-domain/no-impersonation relaunch scope.
+  aligned with the one-domain/no-impersonation relaunch scope. It also keeps
+  profile/account docs aligned with implemented notification-email semantics,
+  global reimbursement details, event-card routing/check-in copy, submitted
+  receipt visibility, account-creation retry errors, and existing-global-user
+  tenant joins.
 - `tests/docs/finance/inclusive-tax-rates.doc.ts` documents tenant tax-rate management.
 - `src/app/admin/components/import-tax-rates-dialog/import-tax-rates-dialog.component.spec.ts` covers the local Stripe tax-rate import guard so empty selections and pending imports cannot submit duplicate tax-rate writes.
 - `src/shared/rpc-contracts/app-rpcs/admin.rpcs.spec.ts` covers the tenant settings update payload scope.
@@ -1858,6 +1862,10 @@ implement those decisions or explicitly revise them there before changing code.
   title metadata from the profile, ESN discount-card, and create-account docs
   while keeping meaningful gating tags such as `@finance` and
   `@needs-auth0-management`.
+- Profile/account docs source-guard pass: extended generated-docs source
+  coverage so user-profile and create-account docs stay aligned with current
+  notification-email, global reimbursement, event-card, submitted-receipt,
+  retry-error, and tenant-join behavior.
 - Generated docs metadata pass: removed the remaining placeholder
   `@track`/`@doc` title metadata from product-facing generated docs while
   keeping meaningful suite tags such as `@admin`, `@globalAdmin`, and
