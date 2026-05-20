@@ -1389,6 +1389,12 @@ the current working direction until a product decision overrides them.
   actions now stay disabled while the create/update mutation is pending and
   the submit handlers ignore duplicate submit events during the in-flight
   mutation.
+- **Addressed in this stabilization pass:** global-admin tenant edit now renders
+  the form only from `tenantQuery.isSuccess()` with explicit `data()` access,
+  preserving TanStack Query success-state narrowing. Tenant update also writes
+  the returned tenant into the global-admin detail/list caches before navigating
+  back to the detail page, so the saved tenant name is visible immediately while
+  the queries still invalidate for background freshness.
 - **Acceptable for now:** tenant settings writes are scoped to the current tenant id and validate the returned tenant shape before responding.
 - **Acceptable for now:** unknown host requests fail closed with 404 instead of guessing a tenant.
 - **Acceptable for now:** RPC request-context headers are overwritten server-side before handler execution, so client-supplied `x-evorto-*` headers are not trusted as the source of tenant/user context.
@@ -1440,6 +1446,9 @@ the current working direction until a product decision overrides them.
 - `src/app/global-admin/tenant-detail/tenant-detail.component.spec.ts` covers
   the tenant-domain external-link helper so malformed legacy tenant domains fail
   closed instead of becoming "Open tenant domain" links.
+- `src/app/global-admin/tenant-edit/tenant-edit.component.html` follows the
+  relaunch TanStack Query template convention by branching on
+  `tenantQuery.isSuccess()` before reading `tenantQuery.data()`.
 - `src/server/effect/rpc/handlers/global-admin.handlers.spec.ts` covers explicit `globalAdmin:manageTenants` authorization, `globalAdmin:*` dependency authorization, tenant create/update normalization, and fail-closed forbidden/unauthorized tenant-list reads before querying tenants.
 - `src/server/context/request-context-resolver.spec.ts` covers host-first tenant resolution, localhost tenant-cookie fallback, stale localhost tenant-cookie fallback, unknown-host failure, global-admin permissions resolving without a tenant user assignment, and tenant-user context failing closed when the Auth0 user has no current-tenant assignment.
 - `tests/specs/admin/roles-management.spec.ts` functionally covers the current
