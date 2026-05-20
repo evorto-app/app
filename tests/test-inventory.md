@@ -187,7 +187,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 - `helpers/testing/generated-docs-source.spec.ts` keeps tenant general-settings
   docs aligned with implemented brand-asset uploads and hosted legal routes,
   and keeps global-admin docs aligned with the one-domain/no-impersonation
-  relaunch scope.
+  relaunch scope. It also keeps profile/account docs aligned with implemented
+  notification-email semantics, global reimbursement details, event-card
+  routing/check-in copy, submitted receipt visibility, account-creation retry
+  errors, and existing-global-user tenant joins.
 - `helpers/testing/authorization-source.spec.ts` keeps server permission checks
   routed through the shared evaluator path and keeps role lookup contracts free
   of permission-bearing admin role fields.
