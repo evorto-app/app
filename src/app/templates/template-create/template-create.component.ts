@@ -34,6 +34,12 @@ import {
 } from '../shared/template-form/template-form.utilities';
 import { TemplateGeneralFormComponent } from '../shared/template-form/template-general-form.component';
 import { templateGeneralFormSchema } from '../shared/template-form/template-general-form.schema';
+import { TemplateQuestionFormComponent } from '../shared/template-form/template-question-form.component';
+import { templateQuestionFormSchema } from '../shared/template-form/template-question-form.schema';
+import {
+  createTemplateQuestionFormModel,
+  toTemplateQuestionSubmitData,
+} from '../shared/template-form/template-question-form.utilities';
 import { TemplateRegistrationOptionFormComponent } from '../shared/template-form/template-registration-option-form.component';
 import { templateRegistrationOptionFormSchema } from '../shared/template-form/template-registration-option-form.schema';
 import {
@@ -46,6 +52,7 @@ const templateFormSchema = schema<TemplateFormData>((formPath) => {
   applyEach(formPath.addOns, templateAddonFormSchema);
   apply(formPath.organizerRegistration, templateRegistrationOptionFormSchema);
   apply(formPath.participantRegistration, templateRegistrationOptionFormSchema);
+  applyEach(formPath.questions, templateQuestionFormSchema);
 });
 const logger = consola.withTag('app/templates/create');
 
@@ -57,6 +64,7 @@ const logger = consola.withTag('app/templates/create');
     RouterLink,
     TemplateAddonFormComponent,
     TemplateGeneralFormComponent,
+    TemplateQuestionFormComponent,
     TemplateRegistrationOptionFormComponent,
   ],
   selector: 'app-template-create',
@@ -169,6 +177,9 @@ export class TemplateCreateComponent {
           formValue.participantRegistration,
           { esnEnabled: this.esnEnabled() },
         ),
+        questions: formValue.questions.map((question) =>
+          toTemplateQuestionSubmitData(question),
+        ),
       };
       await this.createTemplateMutation.mutateAsync(payload, {
         onError: (error) => {
@@ -192,10 +203,26 @@ export class TemplateCreateComponent {
     }));
   }
 
+  protected addTemplateQuestion() {
+    this.templateModel.update((model) => ({
+      ...model,
+      questions: [...model.questions, createTemplateQuestionFormModel()],
+    }));
+  }
+
   protected removeTemplateAddOn(index: number) {
     this.templateModel.update((model) => ({
       ...model,
       addOns: model.addOns.filter((_, addOnIndex) => addOnIndex !== index),
+    }));
+  }
+
+  protected removeTemplateQuestion(index: number) {
+    this.templateModel.update((model) => ({
+      ...model,
+      questions: model.questions.filter(
+        (_, questionIndex) => questionIndex !== index,
+      ),
     }));
   }
 }

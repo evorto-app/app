@@ -18,6 +18,7 @@ const createTemplate = (): TemplateFindOneRecord => ({
   id: 'template-1',
   location: null,
   planningTips: null,
+  questions: [],
   registrationOptions: [
     {
       closeRegistrationOffset: 24,

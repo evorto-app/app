@@ -66,8 +66,16 @@ const validTemplateFindOneRecord = {
   id: 'template-1',
   location: null,
   planningTips: 'Bring printed waiver forms.',
+  questions: [],
   registrationOptions: [],
   title: 'Template',
+};
+
+const validSimpleTemplateQuestionInput = {
+  description: 'Tell organizers about accessibility needs.',
+  registrationOptionKind: 'participant' as const,
+  required: false,
+  title: 'Accessibility needs',
 };
 
 const validGoogleLocation = {
@@ -143,6 +151,44 @@ describe('templates RPC location schema', () => {
         addOns: [validSimpleTemplateAddonInput],
       }),
     ).not.toThrow();
+  });
+
+  it('accepts optional registration questions in simple template writes and find-one responses', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(TemplateSimpleInput)({
+        ...validSimpleTemplateInput,
+        questions: [validSimpleTemplateQuestionInput],
+      }),
+    ).not.toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(TemplateFindOneRecord)({
+        ...validTemplateFindOneRecord,
+        questions: [
+          {
+            description: 'Tell organizers about accessibility needs.',
+            id: 'question-1',
+            registrationOptionId: 'template-option-1',
+            required: false,
+            sortOrder: 0,
+            title: 'Accessibility needs',
+          },
+        ],
+      }),
+    ).not.toThrow();
+  });
+
+  it('rejects registration questions without a simple registration option target', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(TemplateSimpleInput)({
+        ...validSimpleTemplateInput,
+        questions: [
+          {
+            ...validSimpleTemplateQuestionInput,
+            registrationOptionKind: 'vip',
+          },
+        ],
+      }),
+    ).toThrow();
   });
 
   it('rejects reusable add-ons without a simple registration option target', () => {

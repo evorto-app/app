@@ -325,6 +325,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     remains out of scope.
   - Template registration-option component coverage pins paid tax-rate select
     feedback for loading, empty compatible-rate, failed, and available states.
+  - Template question coverage pins simple template form preservation,
+    template-scoped question storage/read models, and RPC schema shape while
+    event-side answer collection remains out of scope.
   - Seed baseline coverage pins free and paid reusable template add-ons attached
     to participant template options so the template detail add-on surface has
     deterministic data once Browser/runtime review is available.

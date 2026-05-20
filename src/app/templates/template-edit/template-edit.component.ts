@@ -35,6 +35,13 @@ import {
 } from '../shared/template-form/template-form.utilities';
 import { TemplateGeneralFormComponent } from '../shared/template-form/template-general-form.component';
 import { templateGeneralFormSchema } from '../shared/template-form/template-general-form.schema';
+import { TemplateQuestionFormComponent } from '../shared/template-form/template-question-form.component';
+import { templateQuestionFormSchema } from '../shared/template-form/template-question-form.schema';
+import {
+  createTemplateQuestionFormModel,
+  templateQuestionRecordToFormModel,
+  toTemplateQuestionSubmitData,
+} from '../shared/template-form/template-question-form.utilities';
 import { TemplateRegistrationOptionFormComponent } from '../shared/template-form/template-registration-option-form.component';
 import { templateRegistrationOptionFormSchema } from '../shared/template-form/template-registration-option-form.schema';
 import {
@@ -47,6 +54,7 @@ const templateFormSchema = schema<TemplateFormData>((formPath) => {
   applyEach(formPath.addOns, templateAddonFormSchema);
   apply(formPath.organizerRegistration, templateRegistrationOptionFormSchema);
   apply(formPath.participantRegistration, templateRegistrationOptionFormSchema);
+  applyEach(formPath.questions, templateQuestionFormSchema);
 });
 const logger = consola.withTag('app/templates/edit');
 
@@ -58,6 +66,7 @@ const logger = consola.withTag('app/templates/edit');
     RouterLink,
     TemplateAddonFormComponent,
     TemplateGeneralFormComponent,
+    TemplateQuestionFormComponent,
     TemplateRegistrationOptionFormComponent,
   ],
   selector: 'app-template-edit',
@@ -94,6 +103,13 @@ export class TemplateEditComponent {
       ),
       organizerRegistration: organizerRegistration ?? {},
       participantRegistration: participantRegistration ?? {},
+      questions: templateData.questions.map((question) =>
+        templateQuestionRecordToFormModel({
+          organizerRegistrationOptionId: organizerRegistration?.id,
+          participantRegistrationOptionId: participantRegistration?.id,
+          question,
+        }),
+      ),
     };
   });
   private readonly templateModel = linkedSignal<
@@ -177,6 +193,9 @@ export class TemplateEditComponent {
           formValue.participantRegistration,
           { esnEnabled: this.esnEnabled() },
         ),
+        questions: formValue.questions.map((question) =>
+          toTemplateQuestionSubmitData(question),
+        ),
       };
       await this.updateTemplateMutation.mutateAsync(
         { id, ...payload },
@@ -202,10 +221,26 @@ export class TemplateEditComponent {
     }));
   }
 
+  protected addTemplateQuestion() {
+    this.templateModel.update((model) => ({
+      ...model,
+      questions: [...model.questions, createTemplateQuestionFormModel()],
+    }));
+  }
+
   protected removeTemplateAddOn(index: number) {
     this.templateModel.update((model) => ({
       ...model,
       addOns: model.addOns.filter((_, addOnIndex) => addOnIndex !== index),
+    }));
+  }
+
+  protected removeTemplateQuestion(index: number) {
+    this.templateModel.update((model) => ({
+      ...model,
+      questions: model.questions.filter(
+        (_, questionIndex) => questionIndex !== index,
+      ),
     }));
   }
 }

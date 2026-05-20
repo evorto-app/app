@@ -10,6 +10,7 @@ import {
   templateEventAddons,
   templateRegistrationOptionDiscounts,
   templateRegistrationOptions,
+  templateRegistrationQuestions,
 } from '../../../../../db/schema';
 import {
   isMeaningfulRichTextHtml,
@@ -41,6 +42,9 @@ type EventTemplateInsert = typeof eventTemplates.$inferInsert;
 type SimpleTemplateAddonInput = NonNullable<
   CreateSimpleTemplateInput['addOns']
 >[number];
+type SimpleTemplateQuestionInput = NonNullable<
+  CreateSimpleTemplateInput['questions']
+>[number];
 type SimpleTemplateRegistrationInput =
   CreateSimpleTemplateInput['organizerRegistration'];
 type SimpleTemplateValidationInput = Pick<
@@ -50,12 +54,15 @@ type SimpleTemplateValidationInput = Pick<
   | 'description'
   | 'organizerRegistration'
   | 'participantRegistration'
+  | 'questions'
 >;
 type TemplateEventAddonInsert = typeof templateEventAddons.$inferInsert;
 type TemplateRegistrationOptionDiscountInsert =
   typeof templateRegistrationOptionDiscounts.$inferInsert;
 type TemplateRegistrationOptionInsert =
   typeof templateRegistrationOptions.$inferInsert;
+type TemplateRegistrationQuestionInsert =
+  typeof templateRegistrationQuestions.$inferInsert;
 
 interface UpdateSimpleTemplateArguments {
   esnCardEnabled: boolean;
@@ -186,6 +193,30 @@ export const buildTemplateAddonRegistrationOptionInsert = ({
       : participantRegistrationOptionId,
 });
 
+export const buildTemplateQuestionInsert = ({
+  organizerRegistrationOptionId,
+  participantRegistrationOptionId,
+  question,
+  sortOrder,
+  templateId,
+}: {
+  organizerRegistrationOptionId: string;
+  participantRegistrationOptionId: string;
+  question: SimpleTemplateQuestionInput;
+  sortOrder: number;
+  templateId: string;
+}): TemplateRegistrationQuestionInsert => ({
+  description: question.description?.trim() || null,
+  registrationOptionId:
+    question.registrationOptionKind === 'organizer'
+      ? organizerRegistrationOptionId
+      : participantRegistrationOptionId,
+  required: question.required,
+  sortOrder,
+  templateId,
+  title: question.title.trim(),
+});
+
 export const requireSimpleTemplateRegistrationOptionIds = ({
   organizerRegistrationOptionId,
   participantRegistrationOptionId,
@@ -314,6 +345,22 @@ const validateTemplateAddon = ({
     return Effect.fail(
       new TemplateSimpleBadRequestError({
         message: 'Template add-on user quantity exceeds total quantity',
+      }),
+    );
+  }
+
+  return Effect.void;
+};
+
+const validateTemplateQuestion = ({
+  question,
+}: {
+  question: SimpleTemplateQuestionInput;
+}) => {
+  if (!question.title.trim()) {
+    return Effect.fail(
+      new TemplateSimpleBadRequestError({
+        message: 'Template question title is required',
       }),
     );
   }
@@ -488,6 +535,9 @@ export class SimpleTemplateService extends Context.Service<SimpleTemplateService
             );
           }
         }
+        for (const question of input.questions ?? []) {
+          yield* validateTemplateQuestion({ question });
+        }
 
         return { sanitizedDescription };
       });
@@ -567,6 +617,44 @@ export class SimpleTemplateService extends Context.Service<SimpleTemplateService
             ),
           );
         }
+      });
+
+      const replaceTemplateQuestions = Effect.fn(
+        'SimpleTemplateService.replaceTemplateQuestions',
+      )(function* ({
+        organizerRegistrationOptionId,
+        participantRegistrationOptionId,
+        questions,
+        templateId,
+      }: {
+        organizerRegistrationOptionId: string;
+        participantRegistrationOptionId: string;
+        questions: readonly SimpleTemplateQuestionInput[];
+        templateId: string;
+      }) {
+        yield* databaseEffect((database) =>
+          database
+            .delete(templateRegistrationQuestions)
+            .where(eq(templateRegistrationQuestions.templateId, templateId)),
+        );
+
+        if (questions.length === 0) {
+          return;
+        }
+
+        yield* databaseEffect((database) =>
+          database.insert(templateRegistrationQuestions).values(
+            questions.map((question, index) =>
+              buildTemplateQuestionInsert({
+                organizerRegistrationOptionId,
+                participantRegistrationOptionId,
+                question,
+                sortOrder: index,
+                templateId,
+              }),
+            ),
+          ),
+        );
       });
 
       const createSimpleTemplate = Effect.fn(
@@ -666,6 +754,20 @@ export class SimpleTemplateService extends Context.Service<SimpleTemplateService
               optionIds.organizerRegistrationOptionId,
             participantRegistrationOptionId:
               optionIds.participantRegistrationOptionId,
+            templateId: template.id,
+          });
+        }
+        if (input.questions) {
+          const optionIds = yield* requireSimpleTemplateRegistrationOptionIds({
+            organizerRegistrationOptionId,
+            participantRegistrationOptionId,
+          });
+          yield* replaceTemplateQuestions({
+            organizerRegistrationOptionId:
+              optionIds.organizerRegistrationOptionId,
+            participantRegistrationOptionId:
+              optionIds.participantRegistrationOptionId,
+            questions: input.questions,
             templateId: template.id,
           });
         }
@@ -845,6 +947,20 @@ export class SimpleTemplateService extends Context.Service<SimpleTemplateService
               optionIds.organizerRegistrationOptionId,
             participantRegistrationOptionId:
               optionIds.participantRegistrationOptionId,
+            templateId: template.id,
+          });
+        }
+        if (input.questions) {
+          const optionIds = yield* requireSimpleTemplateRegistrationOptionIds({
+            organizerRegistrationOptionId,
+            participantRegistrationOptionId,
+          });
+          yield* replaceTemplateQuestions({
+            organizerRegistrationOptionId:
+              optionIds.organizerRegistrationOptionId,
+            participantRegistrationOptionId:
+              optionIds.participantRegistrationOptionId,
+            questions: input.questions,
             templateId: template.id,
           });
         }
