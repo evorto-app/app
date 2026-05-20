@@ -35,7 +35,9 @@ The admin overview links to all configuration areas. Select **Tax Rates** to man
 
     await page.getByRole('heading', { level: 2, name: 'Tax Rates' }).click();
     await expect(
-      page.getByRole('heading', { name: 'Tax Rates' }),
+      page
+        .locator('app-tax-rates-settings')
+        .getByRole('heading', { level: 1, name: 'Tax Rates' }),
     ).toBeVisible();
 
     await takeScreenshot(
