@@ -73,3 +73,13 @@ export const globalAdminTenantPayloadFromForm = (
   theme: model.theme,
   timezone: model.timezone,
 });
+
+export const globalAdminTenantSubmitDisabled = ({
+  formInvalid,
+  formSubmitting,
+  mutationPending,
+}: {
+  formInvalid: boolean;
+  formSubmitting: boolean;
+  mutationPending: boolean;
+}): boolean => formInvalid || formSubmitting || mutationPending;
