@@ -178,6 +178,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   entry, so new fixture-state gaps do not become silent placeholders.
 - `helpers/testing/generated-docs-source.spec.ts` keeps tenant general-settings
   docs aligned with implemented brand-asset uploads and hosted legal routes.
+- `helpers/testing/authorization-source.spec.ts` keeps server permission checks
+  routed through the shared evaluator path and keeps role lookup contracts free
+  of permission-bearing admin role fields.
 
 ## Stabilization Coverage Still Needed
 
@@ -299,6 +302,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     coverage now fails if app templates or components reintroduce direct
     Material icon elements or `MatIconModule`, preserving the shared
     premium/brand icon package path.
+  - Keep server authorization checks on `includesPermission` or
+    `RpcAccess.ensurePermission`; local source coverage now fails if RPC/HTTP
+    handlers reintroduce raw permission-array includes checks.
   - Keep template-to-event mapper coverage aligned with the event form as richer
     reusable template data is added. Local app coverage now proves event
     defaults, source registration option ids, registration-window offsets, and
