@@ -608,7 +608,7 @@ the current working direction until a product decision overrides them.
 - `src/app/events/event-active-registration/event-active-registration.component.spec.ts` covers participant cancellation copy for single-spot, guest, and waitlisted registrations; unpaid self-service transfer copy; cancellation/transfer action disabling; target-email normalization; and transfer/resale-unavailable notes for pending, waitlisted, and blocked confirmed active registrations.
 - `tests/docs/events/event-management.doc.ts` now documents only the current event details, registration, review/listing, edit, organizer overview, participant grouping/cancellation, and receipt surfaces.
 - `tests/docs/events/unlisted-admin.doc.ts` covers the updated direct-link explanation in the listing dialog and on unlisted event details.
-- `tests/docs/events/register.doc.ts` covers free and paid registration as generated documentation and Stripe-backed evidence, including guest quantity selection, the participant versus organizer/helper option wording, and participant self-cancellation copy.
+- `tests/docs/events/register.doc.ts` covers free and paid registration as generated documentation and Stripe-backed evidence, including guest quantity selection, the participant versus organizer/helper option wording, participant self-cancellation copy, and the unpaid self-service transfer dialog.
 - `tests/docs/events/register.doc.ts` now documents registration-time add-on
   selection and active-registration readback during the free registration
   walkthrough.
@@ -1353,7 +1353,7 @@ the current working direction until a product decision overrides them.
 - Local docs/spec discovery is runnable again after replacing stale Effect config APIs in `playwright.config.ts` and Playwright support files, and Auth0 Management credentials are no longer required just to import baseline fixtures.
 - `bun run test:e2e -- --list` discovers 101 baseline tests across 34 files,
   including setup projects, without requiring local Auth0/Stripe secrets.
-- `bun run test:e2e:docs -- --list` discovers 29 baseline docs/setup tests
+- `bun run test:e2e:docs -- --list` discovers 30 baseline docs/setup tests
   across 19 files without requiring local Auth0/Stripe secrets.
 - `bun run test:e2e:integration -- --list` discovers 9 setup/integration tests
   across 4 files: the Auth0 Management account-creation functional spec and
@@ -1954,6 +1954,9 @@ implement those decisions or explicitly revise them there before changing code.
 - Participant unpaid transfer functional pass: added page-backed coverage for
   the regular-user transfer dialog and database readback to prove the current
   relaunch transfer workflow outside server/app helper tests.
+- Registration transfer documentation pass: added a generated registration-doc
+  journey for the unpaid transfer dialog, eligible target email entry, and
+  explicit paid-transfer/resale deferral.
 - Profile payment next-step coverage pass: extracted the profile event-card
   pending-checkout next-step copy into a helper and covered that it only appears
   when a pending registration has an actual checkout URL.

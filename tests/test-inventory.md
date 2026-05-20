@@ -163,6 +163,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 - `specs/events/registration-transfer.test.ts` adds page-backed coverage for
   the regular user's self-service unpaid transfer dialog and database readback
   to the target tenant member.
+- `docs/events/register.doc.ts` includes a generated unpaid transfer journey,
+  including the transfer dialog, eligible target email entry, and the explicit
+  paid-transfer/resale deferral.
 - Active-registration component coverage pins participant cancellation and
   self-service transfer action disabling while either write is pending or the
   transfer is unavailable.

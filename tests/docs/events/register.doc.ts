@@ -1,6 +1,7 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import type { Page } from '@playwright/test';
 
+import { getId } from '../../../helpers/get-id';
 import {
   emptyStateFile,
   userStateFile,
@@ -233,6 +234,99 @@ test.describe('Register for events', () => {
       body: `
   Full participant options expose a distinct **Join waitlist** action. Waitlist registration is separate from a confirmed registration, and a normal **Register** button is not shown while the option is full.
 `,
+    });
+  });
+
+  test('Transfer an unpaid registration', async ({
+    database,
+    page,
+    seeded,
+    tenant,
+  }, testInfo) => {
+    const regularUser = usersToAuthenticate.find(
+      (user) => user.stateFile === userStateFile,
+    );
+    const targetUser = usersToAuthenticate.find(
+      (user) => user.email === 'organizer@evorto.app',
+    );
+    if (!regularUser || !targetUser) {
+      throw new Error('Expected regular and organizer user fixtures');
+    }
+
+    const freeEventId = seeded.scenario.events.freeOpen.eventId;
+    const freeOptionId = seeded.scenario.events.freeOpen.optionId;
+    const registrationId = getId();
+
+    await database
+      .update(schema.eventRegistrations)
+      .set({ status: 'CANCELLED' })
+      .where(
+        and(
+          eq(schema.eventRegistrations.eventId, freeEventId),
+          eq(schema.eventRegistrations.tenantId, tenant.id),
+          inArray(schema.eventRegistrations.userId, [
+            regularUser.id,
+            targetUser.id,
+          ]),
+        ),
+      );
+    await database.insert(schema.eventRegistrations).values({
+      eventId: freeEventId,
+      id: registrationId,
+      registrationOptionId: freeOptionId,
+      status: 'CONFIRMED',
+      tenantId: tenant.id,
+      userId: regularUser.id,
+    });
+
+    await page.goto(`/events/${freeEventId}`);
+    await waitForRegistrationStatus(page);
+    await expect(
+      page.getByText('Your registration is confirmed'),
+    ).toBeVisible();
+
+    await testInfo.attach('markdown', {
+      body: `
+  ## Transfer an unpaid registration
+
+  Confirmed unpaid registrations can be transferred from the event page before check-in and before the event starts. The target account must already exist in the tenant and be eligible for the same registration option.
+
+  Paid registration transfer and resale are not automatic yet. Those flows remain blocked until the money-movement path is implemented.`,
+    });
+    await takeScreenshot(
+      testInfo,
+      page.locator('section').filter({ hasText: 'Registration' }),
+      page,
+      'Transferable unpaid registration',
+    );
+
+    await page.getByRole('button', { name: 'Transfer registration' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Transfer registration' });
+    await expect(dialog).toBeVisible();
+    await dialog
+      .getByLabel('New participant email')
+      .fill(` ${targetUser.email} `);
+    await takeScreenshot(
+      testInfo,
+      dialog,
+      page,
+      'Transfer registration dialog',
+    );
+    await dialog.getByRole('button', { name: 'Transfer registration' }).click();
+    await expect(dialog).not.toBeVisible();
+
+    const transferredRegistration =
+      await database.query.eventRegistrations.findFirst({
+        where: {
+          id: registrationId,
+          tenantId: tenant.id,
+        },
+      });
+    expect(transferredRegistration?.userId).toBe(targetUser.id);
+
+    await testInfo.attach('markdown', {
+      body: `
+  After transfer, the registration belongs to the target tenant member. The original participant no longer sees it as their active registration.`,
     });
   });
 
