@@ -1,4 +1,5 @@
 import { describe, expect, it } from '@effect/vitest';
+import { TransactionRollbackError } from 'drizzle-orm';
 import { Effect, Layer } from 'effect';
 
 import { Database } from '../../../../../db';
@@ -196,6 +197,52 @@ const databaseWithRefundableReceipts = (
     select: () => receiptQuery,
     transaction: () =>
       Effect.die(new Error('reimbursement transaction should not run')),
+  };
+};
+
+const databaseWithRefundPreconditionRace = () => {
+  const receipts = [
+    {
+      eventId: 'event-1',
+      id: 'receipt-1',
+      submittedByUserId: 'user-1',
+      totalAmount: 100,
+    },
+  ];
+  const receiptQuery = {
+    from: () => receiptQuery,
+    select: () => receiptQuery,
+    where: () => Effect.succeed(receipts),
+  };
+  const insertQuery = {
+    returning: () => Effect.succeed([{ id: 'transaction-1' }]),
+    values: () => insertQuery,
+  };
+  const updateQuery = {
+    returning: () => Effect.succeed([]),
+    set: () => updateQuery,
+    where: () => updateQuery,
+  };
+  const tx = {
+    insert: () => insertQuery,
+    rollback: () => Effect.die(new TransactionRollbackError()),
+    update: () => updateQuery,
+  };
+
+  return {
+    query: {
+      users: {
+        findFirst: () =>
+          Effect.succeed({
+            iban: 'NL91ABNA0417164300',
+            id: 'user-1',
+            paypalEmail: null,
+          }),
+      },
+    },
+    select: () => receiptQuery,
+    transaction: (run: (transaction: typeof tx) => Effect.Effect<unknown>) =>
+      run(tx),
   };
 };
 
@@ -446,6 +493,31 @@ describe('finance receipt reimbursement', () => {
 
         expect(error['_tag']).toBe('RpcBadRequestError');
         expect(error.reason).toBe('mismatchedSubmitter');
+      }),
+  );
+
+  it.effect(
+    'rejects reimbursement records when receipt preconditions change before update',
+    () =>
+      Effect.gen(function* () {
+        const error = yield* financeHandlers['finance.receipts.createRefund'](
+          {
+            payoutReference: 'NL91ABNA0417164300',
+            payoutType: 'iban',
+            receiptIds: ['receipt-1'],
+          },
+          { headers: {} } as never,
+        ).pipe(
+          Effect.flip,
+          Effect.provide(
+            createContextLayer(['finance:refundReceipts'], {
+              database: databaseWithRefundPreconditionRace(),
+            }),
+          ),
+        );
+
+        expect(error['_tag']).toBe('RpcBadRequestError');
+        expect(error.reason).toBe('receiptRefundPreconditionFailed');
       }),
   );
 });

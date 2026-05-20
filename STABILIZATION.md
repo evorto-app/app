@@ -965,7 +965,7 @@ the current working direction until a product decision overrides them.
   pins the approval/rejection action guard for invalid forms, loading receipt
   details, and mutation-pending review writes.
 - Tax-rate docs and specs provide better active coverage for `admin:tax` and inclusive Stripe tax-rate import/selection.
-- Server finance unit tests are still thin, but now include transaction-list permission denial, receipt-media upload preflight denial/success coverage, profile `finance.receipts.my` output normalization, submitter notification-email fallback, mixed-submitter reimbursement rejection, and tax-amount consistency rejection on receipt submit/review.
+- Server finance unit tests are still thin, but now include transaction-list permission denial, receipt-media upload preflight denial/success coverage, profile `finance.receipts.my` output normalization, submitter notification-email fallback, mixed-submitter reimbursement rejection, reimbursement precondition-race rejection, and tax-amount consistency rejection on receipt submit/review.
 - Event organize app coverage pins the receipt submission disabled state while
   the event has not loaded yet and across upload-pending and submit-pending
   phases.
@@ -1692,6 +1692,9 @@ implement those decisions or explicitly revise them there before changing code.
   `.waitForTimeout(...)` waits in docs screenshot and Stripe checkout helpers
   with UI/render-state waits, and extended the Playwright inventory guard so
   future specs/docs cannot reintroduce fixed sleeps silently.
+- Finance reimbursement precondition pass: added server coverage for the case
+  where selected receipts are approved during lookup but no longer satisfy the
+  reimbursement update preconditions inside the transaction.
 - Global-admin tenant-list pass: expanded the tenant list contract and UI with
   non-sensitive operational state for support review, including theme,
   locale/currency/timezone, and Stripe connection status.
