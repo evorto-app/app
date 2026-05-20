@@ -238,8 +238,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     optional global reimbursement details. Generated docs already exercise the
     notification-email edit/restore path, `specs/profile/user-profile-edit.spec.ts`
     now functionally covers notification email plus IBAN/PayPal persistence with
-    database readback and cleanup, and app helper coverage proves payload
-    trimming and blank-value normalization before persistence.
+    explicit database readback and cleanup, and app helper coverage proves
+    payload trimming and blank-value normalization before persistence.
   - Manual Browser-backed profile event-card review once local runtime is
     available. Generated profile docs now seed confirmed, pending-checkout,
     waitlisted, and checked-in registrations with free add-ons where applicable,
@@ -309,7 +309,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     app/server coverage already proves readable submitted-receipt status labels,
     amount formatting, and `finance.receipts.my` profile-card row normalization.
     `specs/profile/user-profile-receipts.spec.ts` adds functional coverage for
-    the same profile receipt-card state with database readback and cleanup.
+    the same profile receipt-card state with explicit database readback and
+    cleanup.
 - Finance/receipts:
   - Keep finance route-denial cases and route-manifest specs aligned as
     transaction, receipt approval, and reimbursement routes change.

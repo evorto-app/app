@@ -1154,12 +1154,12 @@ the current working direction until a product decision overrides them.
   profile receipts documentation with functional coverage: it seeds a submitted
   receipt, opens the profile receipts tab by fragment, asserts filename,
   submitted status, event context, and amount, reads the persisted receipt row,
-  and cleans it up.
+  fails explicitly if that row is missing, and cleans it up.
 - `src/app/profile/user-profile/edit-profile-dialog.component.spec.ts` covers profile edit payload normalization for notification email and optional global reimbursement details before the update mutation receives the dialog result.
 - `tests/specs/profile/user-profile-edit.spec.ts` functionally covers profile
   edit persistence for notification email, IBAN, and PayPal reimbursement
-  details, including profile summary refresh, database readback, and fixture
-  cleanup.
+  details, including profile summary refresh, explicit database readback, and
+  fixture cleanup.
 - `src/app/profile/user-profile/user-profile.component.spec.ts` covers profile event action routing, payment-continuation visibility, guest-quantity, checked-in action copy, implemented-action notes, payment-continuation next-step copy, payment-state, registration-status labels, submitted-receipt status and amount labels, ESNcard action/status labels, ESNcard save disabled state, ESNcard upsert payload normalization, and readable ESNcard mutation error fallback/provider messages. `src/server/effect/rpc/handlers/users.handlers.spec.ts` and the users RPC schema spec now pin purchased add-ons on profile event summaries.
 - Profile app coverage also pins that payment continuation links only render for
   pending Stripe Checkout HTTPS URLs, so malformed or unexpected checkout URL
@@ -2228,6 +2228,10 @@ implement those decisions or explicitly revise them there before changing code.
   seeding helper fail explicitly when the seeded source registration options for
   confirmed or checked-in cards are missing, so both profile docs and functional
   profile-event specs catch fixture drift before inserting dependent rows.
+- Profile readback fixture-hardening pass: made profile edit and submitted
+  receipt Playwright specs fail explicitly when the expected persisted user or
+  receipt row is missing after the page flow, instead of relying on optional
+  property assertions.
 - Scanner page-backed action-guard pass: extended scanner Playwright coverage
   so buyer-plus-guest check-in and later guest-arrival check-in both assert the
   visible check-in action remains disabled after local success while the scan
