@@ -278,9 +278,11 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     connected Stripe account ids, with readable load-failure messages and
     account labels. Tenant form coverage also proves create/edit payload
     shaping, mutation-pending submit disabling, and the visible relaunch
-    tenant-scope notice before page-backed runtime is available. Tenant detail
-    coverage also pins that the external tenant-domain link only renders for
-    single-host tenant domains.
+    tenant-scope notice before page-backed runtime is available. Global-admin
+    handler coverage pins one-primary-domain normalization, duplicate-domain
+    rejection before tenant creation mutates data, and same-domain edit
+    allowance. Tenant detail coverage also pins that the external tenant-domain
+    link only renders for single-host tenant domains.
   - Keep tenant settings docs and payload tests aligned when new editable
     tenant settings move out of the deferred-settings summary. Current local
     coverage proves the general-settings form trims optional editable

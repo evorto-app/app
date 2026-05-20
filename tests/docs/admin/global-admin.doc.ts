@@ -74,7 +74,7 @@ Global admins can review, create, and edit tenants from the **Global admin** are
 
 The current global-admin page is a searchable tenant list with tenant creation, tenant editing, and a tenant detail review. Each entry shows the tenant name, domain, tenant id, theme, locale, currency, timezone, and Stripe connection state plus connected account id for support and operational review. The tenant detail page repeats the operational fields, links to the edit form, and provides an external link to open the tenant's primary domain.
 
-Tenant create/edit manages the one active primary domain, name, theme, locale, currency, timezone, and connected Stripe account id. The create/edit forms show the relaunch tenant scope directly: one active primary domain is managed here, custom-domain verification and multi-domain automation are deferred, and tenant-admin impersonation is not available in the current relaunch surface.
+Tenant create/edit manages the one active primary domain, name, theme, locale, currency, timezone, and connected Stripe account id. The server normalizes primary domains to a single-host value and rejects duplicates before saving, so each tenant keeps one unique primary domain. The create/edit forms show the relaunch tenant scope directly: one active primary domain is managed here, custom-domain verification and multi-domain automation are deferred, and tenant-admin impersonation is not available in the current relaunch surface.
 `,
   });
 });

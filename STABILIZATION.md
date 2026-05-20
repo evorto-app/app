@@ -1177,6 +1177,7 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** the global-admin tenant list and read-only detail page render the tenant operational state returned by the RPC, including connected Stripe account ids for support lookup, and generated docs describe the current searchable list plus detail-review global tenant administration surface.
 - **Addressed in stabilization pass:** global-admin tenant create/edit now supports the relaunch one-domain tenant administration surface: name, primary domain, theme, locale, currency, timezone, and connected Stripe account id.
 - **Addressed in stabilization pass:** global-admin tenant create/edit normalizes the primary-domain form value to the same single-host shape enforced by the server and keeps the one-domain/custom-domain-automation deferral visible in the form.
+- **Addressed in stabilization pass:** global-admin tenant create/edit now rejects duplicate primary domains with an explicit RPC bad-request error before relying on the database unique constraint, while allowing updates that keep the current tenant's own domain.
 - **Addressed in this stabilization pass:** global-admin tenant create/edit now
   shows the relaunch tenant scope as a visible form notice: one active primary
   domain, deferred custom-domain verification and multi-domain automation, and
@@ -1214,6 +1215,7 @@ the current working direction until a product decision overrides them.
   mutation-pending.
 - `src/app/global-admin/global-admin.routes.spec.ts` covers route-level global-admin permission requirements for list, create, detail, and edit routes.
 - `src/app/global-admin/tenant-form/tenant-form.model.spec.ts` covers create/edit payload shaping, including primary-domain normalization and path rejection before the RPC call, plus disabled submit state for invalid, submitting, and mutation-pending tenant writes.
+- `src/server/effect/rpc/handlers/global-admin.handlers.spec.ts` covers server-side primary-domain normalization, duplicate-domain rejection before create mutation, and same-domain edit allowance for the one-domain relaunch workflow.
 - `src/app/global-admin/tenant-list/tenant-list.rows.spec.ts` covers global-admin tenant operational rows, readable Stripe account labels, and search across support fields including connected Stripe account ids.
 - `src/app/global-admin/tenant-detail/tenant-detail.component.spec.ts` covers
   the tenant-domain external-link helper so malformed legacy tenant domains fail

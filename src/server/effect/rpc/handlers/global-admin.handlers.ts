@@ -132,6 +132,36 @@ const normalizeTenantWritePayload = (input: GlobalAdminTenantWriteInput) =>
     try: () => normalizeTenantWriteInput(input),
   });
 
+const ensureTenantDomainAvailable = ({
+  domain,
+  excludingTenantId,
+}: {
+  domain: string;
+  excludingTenantId?: string;
+}) =>
+  Effect.gen(function* () {
+    const existingTenant = yield* databaseEffect((database) =>
+      database.query.tenants.findFirst({
+        columns: {
+          id: true,
+        },
+        where: {
+          domain,
+          ...(excludingTenantId ? { id: { NOT: excludingTenantId } } : {}),
+        },
+      }),
+    );
+
+    if (existingTenant) {
+      return yield* Effect.fail(
+        new RpcBadRequestError({
+          message: 'Tenant domain already exists',
+          reason: 'A tenant already uses this primary domain',
+        }),
+      );
+    }
+  });
+
 const globalAdminTenantColumns = {
   currency: true,
   domain: true,
@@ -159,6 +189,7 @@ export const globalAdminHandlers = {
     Effect.gen(function* () {
       yield* ensurePermission(options.headers, 'globalAdmin:manageTenants');
       const tenantInput = yield* normalizeTenantWritePayload(input);
+      yield* ensureTenantDomainAvailable({ domain: tenantInput.domain });
       const createdTenants = yield* databaseEffect((database) =>
         database
           .insert(tenants)
@@ -206,6 +237,10 @@ export const globalAdminHandlers = {
       yield* ensurePermission(options.headers, 'globalAdmin:manageTenants');
       const { id, ...writeInput } = input;
       const tenantInput = yield* normalizeTenantWritePayload(writeInput);
+      yield* ensureTenantDomainAvailable({
+        domain: tenantInput.domain,
+        excludingTenantId: id,
+      });
       const updatedTenants = yield* databaseEffect((database) =>
         database
           .update(tenants)

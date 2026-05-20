@@ -255,6 +255,11 @@ describe('globalAdminHandlers', () => {
       };
       const database = {
         insert: () => insertQuery,
+        query: {
+          tenants: {
+            findFirst: () => Effect.succeed(null),
+          },
+        },
       };
 
       const tenant = yield* globalAdminHandlers['globalAdmin.tenants.create'](
@@ -312,6 +317,11 @@ describe('globalAdminHandlers', () => {
         where: () => updateQuery,
       };
       const database = {
+        query: {
+          tenants: {
+            findFirst: () => Effect.succeed(null),
+          },
+        },
         update: () => updateQuery,
       };
 
@@ -335,6 +345,92 @@ describe('globalAdminHandlers', () => {
         stripeAccountId: null,
       });
       expect(tenant.stripeConnected).toBe(false);
+    }),
+  );
+
+  it.effect('rejects duplicate tenant domains before creating tenants', () =>
+    Effect.gen(function* () {
+      const database = {
+        insert: () => {
+          throw new Error('tenant insert should not run');
+        },
+        query: {
+          tenants: {
+            findFirst: () => Effect.succeed({ id: 'existing-tenant' }),
+          },
+        },
+      };
+
+      const error = yield* globalAdminHandlers['globalAdmin.tenants.create'](
+        {
+          currency: 'EUR',
+          domain: 'section.example.org',
+          locale: 'en-GB',
+          name: 'Section',
+          theme: 'evorto',
+          timezone: 'Europe/Berlin',
+        },
+        { headers: createHeaders(['globalAdmin:manageTenants']) } as never,
+      ).pipe(
+        Effect.provide(Layer.succeed(Database, database as never)),
+        Effect.flip,
+      );
+
+      expect(error['_tag']).toBe('RpcBadRequestError');
+      expect(error.message).toBe('Tenant domain already exists');
+    }),
+  );
+
+  it.effect('allows tenant updates that keep the same primary domain', () =>
+    Effect.gen(function* () {
+      let capturedDomainFilter: unknown;
+      const updateQuery = {
+        returning: () =>
+          Effect.succeed([
+            {
+              currency: 'EUR',
+              domain: 'tenant.example.com',
+              id: 'tenant-1',
+              locale: 'en-GB',
+              name: 'Tenant',
+              stripeAccountId: null,
+              theme: 'evorto',
+              timezone: 'Europe/Berlin',
+            },
+          ]),
+        set: () => updateQuery,
+        where: () => updateQuery,
+      };
+      const database = {
+        query: {
+          tenants: {
+            findFirst: (input: { where: unknown }) => {
+              capturedDomainFilter = input.where;
+              return Effect.succeed(null);
+            },
+          },
+        },
+        update: () => updateQuery,
+      };
+
+      const tenant = yield* globalAdminHandlers['globalAdmin.tenants.update'](
+        {
+          currency: 'EUR',
+          domain: 'tenant.example.com',
+          id: 'tenant-1',
+          locale: 'en-GB',
+          name: 'Tenant',
+          theme: 'evorto',
+          timezone: 'Europe/Berlin',
+        },
+        { headers: createHeaders(['globalAdmin:manageTenants']) } as never,
+      ).pipe(Effect.provide(Layer.succeed(Database, database as never)));
+
+      expect(capturedDomainFilter).toEqual({
+        domain: 'tenant.example.com',
+        id: { NOT: 'tenant-1' },
+      });
+      expect(tenant.domain).toBe('tenant.example.com');
     }),
   );
 
