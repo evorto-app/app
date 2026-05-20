@@ -967,6 +967,10 @@ the current working direction until a product decision overrides them.
 
 - Stripe webhook replay specs cover idempotent completed sessions, paid-registration counter transitions, expired-session reservation release, processing-claim behavior, stale-claim reclaim, payment-intent fallback, and ignoring unpaid completed sessions. `src/shared/registration-spots.spec.ts` pins the buyer-plus-guests spot count used by webhook counter updates.
 - Receipt flow specs cover receipt submission UI, receipt approval/reimbursement path, and tenant "Other" receipt country visibility.
+- `tests/specs/finance/finance-overview-permissions.spec.ts` covers the
+  finance overview navigation contract, proving that transaction, receipt
+  approval, and receipt reimbursement links appear only for users with the
+  matching finance capability.
 - **Addressed in stabilization pass:** `tests/specs/finance/receipts-flows.spec.ts` now hard-fails when the seeded pending receipt, refundable receipt group, row checkbox, enabled reimbursement action, or tenant "Other" country option is missing.
 - Finance overview docs now describe the current navigation-style finance UI, current finance capability names, and the manual submitter-notification caveat before and after receipt review.
 - **Addressed in stabilization pass:** `tests/docs/finance/receipt-review-reimbursement.doc.ts` now walks the receipt approval queue, approval detail page, manual submitter-notification caveat, reimbursement queue, payout-detail selection, and manual reimbursement recording.
@@ -1370,6 +1374,9 @@ the current working direction until a product decision overrides them.
   a functional Playwright spec for read-only user review, role create/edit,
   dependent permission persistence, hub-display flags, role details, and DB
   readback.
+- **Addressed in stabilization pass:** finance overview navigation now has
+  functional Playwright coverage proving each finance child link is shown only
+  when the current user has the matching finance permission.
 - **Addressed in stabilization pass:** profile edit persistence now has a
   functional Playwright spec that saves notification email plus global
   reimbursement fields, verifies the refreshed profile summary, reads the

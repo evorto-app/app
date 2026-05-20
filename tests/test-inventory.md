@@ -56,6 +56,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - specs/events/negative-registration-states.spec.ts
   - specs/events/registration-addons.test.ts
   - specs/events/unlisted-visibility.test.ts
+  - specs/finance/finance-overview-permissions.spec.ts [finance, permissions]
   - specs/events/price-labels-inclusive.spec.ts [finance]
   - specs/finance/receipts-flows.spec.ts [finance]
   - specs/finance/stripe-webhook-replay.spec.ts [finance, stripe]
@@ -112,6 +113,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - `specs/admin/global-admin-tenants.spec.ts`
 - Finance, receipts, tax, and Stripe:
   - `docs/finance/**`
+  - `specs/finance/finance-overview-permissions.spec.ts`
   - `specs/finance/**`
   - `specs/permissions/tenant-isolation-tax-rates.spec.ts`
 - Profile and account:
@@ -290,6 +292,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     route.
     Transaction-list component coverage now pins that manual transaction
     creation is not advertised without an implemented guarded route/workflow.
+    `specs/finance/finance-overview-permissions.spec.ts` now functionally pins
+    that the finance overview navigation exposes only the child links matching
+    the current user's finance permissions.
   - Keep receipt review and reimbursement docs aligned with the manual
     notification and manual money-movement scope. Local component coverage,
     finance docs, and receipt flow specs now pin that the reimbursement queue
