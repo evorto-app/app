@@ -334,11 +334,30 @@ export const discountHandlers = {
         }),
       );
 
+      const adapter = Adapters[input.type];
+      const validationResult = adapter
+        ? yield* validateDiscountCard({
+            adapter,
+            config: provider.config,
+            identifier: input.identifier,
+          })
+        : null;
+      const validatedCardFields =
+        validationResult === null
+          ? {}
+          : {
+              lastCheckedAt: new Date(),
+              metadata: validationResult.metadata,
+              status: validationResult.status,
+              validFrom: validationResult.validFrom ?? undefined,
+              validTo: validationResult.validTo ?? undefined,
+            };
       const upsertedCards = existingCard
         ? yield* databaseEffect((database) =>
             database
               .update(userDiscountCards)
               .set({
+                ...validatedCardFields,
                 identifier: input.identifier,
               })
               .where(eq(userDiscountCards.id, existingCard.id))
@@ -354,6 +373,7 @@ export const discountHandlers = {
             database
               .insert(userDiscountCards)
               .values({
+                ...validatedCardFields,
                 identifier: input.identifier,
                 type: input.type,
                 userId: user.id,
@@ -381,63 +401,15 @@ export const discountHandlers = {
         );
       }
 
-      const adapter = Adapters[input.type];
-      if (!adapter) {
-        return normalizeUserDiscountCardRecord(upsertedCard);
-      }
-
-      const result = yield* validateDiscountCard({
-        adapter,
-        config: provider.config,
-        identifier: input.identifier,
-      });
-
-      const updatedCards = yield* databaseEffect((database) =>
-        database
-          .update(userDiscountCards)
-          .set({
-            lastCheckedAt: new Date(),
-            metadata: result.metadata,
-            status: result.status,
-            validFrom: result.validFrom ?? undefined,
-            validTo: result.validTo ?? undefined,
-          })
-          .where(eq(userDiscountCards.id, upsertedCard.id))
-          .returning({
-            id: userDiscountCards.id,
-            identifier: userDiscountCards.identifier,
-            status: userDiscountCards.status,
-            type: userDiscountCards.type,
-            validTo: userDiscountCards.validTo,
-          }),
-      );
-      const updatedCard = updatedCards[0];
-      if (!updatedCard) {
-        yield* Effect.logError(
-          'Discount card validation update returned no rows',
-        ).pipe(
-          Effect.annotateLogs({
-            cardId: upsertedCard.id,
-            discountType: input.type,
-            userId: user.id,
-          }),
-        );
-        return yield* Effect.fail(
-          new RpcInternalServerError({
-            message: 'Discount card validation update returned no rows',
-          }),
-        );
-      }
-
-      if (updatedCard.status !== 'verified') {
+      if (upsertedCard.status !== 'verified') {
         return yield* Effect.fail(
           new RpcBadRequestError({
-            message: `Discount card validation failed with status ${updatedCard.status}`,
-            reason: updatedCard.status,
+            message: `Discount card validation failed with status ${upsertedCard.status}`,
+            reason: upsertedCard.status,
           }),
         );
       }
 
-      return normalizeUserDiscountCardRecord(updatedCard);
+      return normalizeUserDiscountCardRecord(upsertedCard);
     }),
 } satisfies Partial<AppRpcHandlers>;
