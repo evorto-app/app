@@ -4,9 +4,9 @@ import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 
 test.use({ storageState: adminStateFile });
 
-test.skip(true, 'Role docs are completed by a later stacked docs slice.');
-
-test('Create a role', async ({ page }, testInfo) => {
+test('Manage tenant roles and review users @admin', async ({
+  page,
+}, testInfo) => {
   await page.goto('.');
   const connectionError = page.getByText('Connection terminated unexpectedly');
   if (await connectionError.isVisible()) {
@@ -17,17 +17,46 @@ test('Create a role', async ({ page }, testInfo) => {
 {% callout type="note" title="User permissions" %}
 For this guide, we assume you have an admin account with all required permissions. These are:
 - **admin:manageRoles**: This permission is required to create and manage roles.
+- **users:viewAll**: This permission is required to review the tenant user list.
 {% /callout %}
 Roles are the way to manage permissions in the app.
 You can create roles with different permissions.
 A user will have any permission that is assigned to at least one of their roles.
 You can also use roles to group users, for example to make some events only available to specific users.
 
-Start by navigating to the **User roles** page under **Admin tools**. Here you can see an overview of the existing roles.
-Click on _Create role_ to create a new role.`,
+Start by navigating to **Admin tools**. The current relaunch admin surface separates the read-only **All users** page from role creation and editing.
+`,
   });
   await page.getByRole('link', { name: 'Admin Tools' }).click();
+  await page.getByRole('link', { name: 'Users' }).click();
+  await expect(page.getByRole('heading', { name: 'All users' })).toBeVisible();
+  await expect(
+    page.getByText('Existing-user role assignment is deferred for relaunch.'),
+  ).toBeVisible();
+  await expect(page.getByLabel('Search users')).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: 'Name' })).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: 'Email' })).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: 'Roles' })).toBeVisible();
+  await expect(page.getByText('admin@evorto.app')).toBeVisible();
+  await expect(page.getByText('Admin').first()).toBeVisible();
+  await expect(page.getByText('Edit template')).toHaveCount(0);
+  await takeScreenshot(
+    testInfo,
+    page.locator('app-user-list'),
+    page,
+    'Read-only tenant user list',
+  );
+  await testInfo.attach('markdown', {
+    body: `
+## User review
+
+The **All users** page is read-only in the relaunch surface. It supports searching tenant users by name or email and shows the roles currently assigned to each user, but it does not expose existing-user role assignment actions. The **users:assignRoles** permission remains reserved for the production migration path and future role-assignment workflows.
+
+Navigate to the **User roles** page to create or edit tenant roles.
+`,
+  });
   await page.getByRole('link', { name: 'User roles' }).click();
+  await expect(page.getByRole('heading', { name: 'User roles' })).toBeVisible();
   await takeScreenshot(
     testInfo,
     page.getByRole('link', { name: 'Create role' }),
