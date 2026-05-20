@@ -154,8 +154,36 @@ describe('test-runtime-config', () => {
       ]);
       const environment = yield* readPlaywrightEnvironment(provider);
 
+      expect(environment.E2E_BROWSER_CHANNEL).toBe('chromium');
       expect(environment.NO_WEBSERVER).toBe(false);
       expect(environment.BASE_URL).toBe('http://localhost:4200');
+    }),
+  );
+
+  it.effect('allows opt-in system Chrome for local exploratory runs', () =>
+    Effect.gen(function* () {
+      const provider = providerFromEntries([
+        ...requiredPlaywrightEntries,
+        ['BASE_URL', 'http://localhost:4200'],
+        ['E2E_BROWSER_CHANNEL', 'chrome'],
+      ]);
+      const environment = yield* readPlaywrightEnvironment(provider);
+
+      expect(environment.E2E_BROWSER_CHANNEL).toBe('chrome');
+    }),
+  );
+
+  it.effect('rejects unsupported Playwright browser channels', () =>
+    Effect.gen(function* () {
+      const provider = providerFromEntries([
+        ...requiredPlaywrightEntries,
+        ['BASE_URL', 'http://localhost:4200'],
+        ['E2E_BROWSER_CHANNEL', 'firefox'],
+      ]);
+
+      const error = yield* Effect.flip(readPlaywrightEnvironment(provider));
+      expect(error.message).toMatch(/E2E_BROWSER_CHANNEL/);
+      expect(error.message).toMatch(/chromium, chrome/);
     }),
   );
 

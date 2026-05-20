@@ -169,8 +169,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   `/global-admin/tenants/:tenantId`, and
   `/global-admin/tenants/:tenantId/edit` allow/deny behavior once page-backed
   runtime is available.
-- Page-backed local execution requires the Playwright Chromium cache installed
-  by `bun run test:e2e:install`.
+- Page-backed local execution uses bundled Playwright Chromium by default, which
+  requires the cache installed by `bun run test:e2e:install`. Exploratory local
+  runs can opt into system Chrome with `E2E_BROWSER_CHANNEL=chrome`; server
+  config and runtime-preflight coverage pin that channel selection.
 - `helpers/testing/playwright-skip-inventory.spec.ts` keeps all Playwright
   `test.skip` and `test.fixme` usage allowlisted with a local reason for each
   entry, so new fixture-state gaps do not become silent placeholders.
@@ -334,7 +336,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     registration-mode rejection, unsupported-mode no-waitlist card behavior,
     waitlist joining, and leave-waitlist cancellation.
   - Browser-backed execution of those assertions still depends on local runtime
-    availability and the matching Playwright Chromium cache.
+    availability and either the matching Playwright Chromium cache or
+    `E2E_BROWSER_CHANNEL=chrome` on a host with system Chrome installed.
 
 ## Current Notes
 

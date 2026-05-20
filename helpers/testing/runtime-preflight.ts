@@ -152,10 +152,44 @@ const readPlaywrightInstallLocations = (output: string): readonly string[] => {
   return [...locations];
 };
 
+const systemChromeLocations = [
+  '/Applications/Google Chrome.app',
+  '/Applications/Google Chrome Canary.app',
+  '/usr/bin/google-chrome',
+  '/usr/bin/google-chrome-stable',
+  '/opt/google/chrome/chrome',
+] as const;
+
 const playwrightBrowserCheck = (
+  env: NodeJS.ProcessEnv,
   fileExists: (filePath: string) => boolean,
   runCommand: (command: string, args: readonly string[]) => CommandResult,
 ): RuntimeCheck => {
+  if (env['E2E_BROWSER_CHANNEL'] === 'chrome') {
+    const availableChromeLocation = systemChromeLocations.find((location) =>
+      fileExists(location),
+    );
+
+    if (availableChromeLocation) {
+      return {
+        details: [
+          `Using E2E_BROWSER_CHANNEL=chrome with ${availableChromeLocation}`,
+        ],
+        label: 'Playwright system Chrome browser channel',
+        severity: 'ok',
+      };
+    }
+
+    return {
+      details: [
+        'E2E_BROWSER_CHANNEL=chrome is set, but no system Chrome installation was found.',
+        'Unset E2E_BROWSER_CHANNEL and run bun run test:e2e:install, or install Google Chrome for local exploratory runs.',
+      ],
+      label: 'Playwright system Chrome browser channel',
+      severity: 'warning',
+    };
+  }
+
   const result = runCommand('bunx', [
     'playwright',
     'install',
@@ -279,7 +313,7 @@ export const evaluateRuntimePreflight = (
       runCommand,
     ),
     stripeWebhookSecretSourceCheck(env),
-    playwrightBrowserCheck(fileExists, runCommand),
+    playwrightBrowserCheck(env, fileExists, runCommand),
   ];
 
   return {

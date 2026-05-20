@@ -97,7 +97,9 @@ is installed. Required variables that are already available are listed without
 printing their values, so token paths such as Font Awesome registry access can
 be confirmed even when another required secret still blocks startup. Missing
 Playwright browsers are reported as a warning because they block local
-Playwright runs, not Docker startup.
+Playwright runs, not Docker startup. Local e2e runs use bundled Chromium by
+default; set `E2E_BROWSER_CHANNEL=chrome` for exploratory runs on a machine
+that already has Google Chrome installed.
 
 Use the tracked `.env.example` file as the no-secret checklist for values that
 belong in your untracked `.env` or exported shell environment. Do not add real

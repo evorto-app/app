@@ -1192,14 +1192,17 @@ the current working direction until a product decision overrides them.
 
 - Playwright has separate baseline spec and docs projects. Baseline specs exclude `tests/docs/**`; docs baseline runs `tests/docs/**/*.doc.ts`; integration-only docs are selected with `@needs-*` tags.
 - Local docs/spec discovery is runnable again after replacing stale Effect config APIs in `playwright.config.ts` and Playwright support files, and Auth0 Management credentials are no longer required just to import baseline fixtures.
-- `bun run test:e2e -- --list` discovers 86 baseline tests across 24 files,
+- `bun run test:e2e -- --list` discovers 84 baseline tests across 24 files,
   including setup projects, without requiring local Auth0/Stripe secrets.
 - `bun run test:e2e:docs -- --list` discovers 25 baseline docs/setup tests
   across 18 files without requiring local Auth0/Stripe secrets.
 - The custom documentation reporter writes grouped Markdown pages and image assets to paths from `DOCS_OUT_DIR` / `DOCS_IMG_OUT_DIR`, defaulting to ignored repository-local `test-results/docs` paths.
 - The reporter initializes and clears docs/image output roots on `onBegin` only for real test execution. During Playwright `--list` discovery it no-ops and does not clean or write docs output.
 - Reporter-path tests pass with `bun run test:e2e -- tests/specs/reporting/reporter-paths.test.ts --no-deps`.
-- The focused screenshot helper test cannot currently run here because the configured Playwright Chromium binary is missing.
+- The focused screenshot helper test cannot currently run here with the default
+  browser channel because the configured Playwright Chromium binary is missing;
+  exploratory local runs can opt into system Chrome with
+  `E2E_BROWSER_CHANNEL=chrome`.
 
 ### Intended Behavior From Product Context
 
@@ -1300,6 +1303,11 @@ the current working direction until a product decision overrides them.
 - **Should fix before relaunch:** Playwright `webServer` still runs the foreground Docker stack through a destructive `docker compose down` and `db-setup` reset. This is documented, but future agents should treat it as a database-resetting command, not a harmless server start.
 - **Addressed in stabilization pass:** `bun run docker:resume` now provides a non-recreating resume path for an already initialized Docker stack, while `docker:start`, `docker:start:foreground`, and `docker:start:watch` keep the explicit reset-from-zero behavior.
 - **Addressed in this stabilization pass:** `bun run docker:check` reports missing Neon Local, Auth0, Stripe, session, and Font Awesome registry variables before Docker Compose mutates local containers. Docker now writes the same Font Awesome registry scopes as the checked-in `.npmrc`, so premium and brand icon packages can use the same build-secret token path. It also reports local tool readiness and warns when Playwright browsers are missing without blocking Docker start. The Compose-managed Stripe CLI listener writes its generated webhook signing secret into a shared volume and the app reads it through `STRIPE_WEBHOOK_SECRET_FILE`, so a static `STRIPE_WEBHOOK_SECRET` is no longer a Docker-start blocker. The current worktree is missing `NEON_API_KEY`, `CLIENT_SECRET`, and `STRIPE_API_KEY`, so a fresh full Docker start is intentionally blocked until those secrets are provided.
+- **Addressed in stabilization pass:** Playwright local runs now default to the
+  bundled Chromium channel while allowing `E2E_BROWSER_CHANNEL=chrome` for
+  exploratory system-Chrome runs. `docker:check` reports the system Chrome path
+  instead of warning about a missing bundled Chromium cache when that opt-in is
+  active.
 - **Addressed in stabilization pass:** `helpers/testing/runtime-preflight.spec.ts` now pins that destructive Docker start scripts call `docker:check` first, required runtime variables are wired into Compose services, and Font Awesome registry access remains available to Docker through the same secret path for premium and brand icon packages.
 - **Addressed in this stabilization pass:** remaining Angular Material icon usage for app action icons was removed from the role, event-review, template-list, and template-category surfaces. App source coverage now keeps Angular app icons on the Font Awesome component path, so premium and brand icon packages continue using the same package/token mechanic instead of a separate Material icon registry path.
 - **Addressed in stabilization pass:** `specs/seed/seed-baseline.test.ts` now treats the reset-from-zero seed as a runtime contract: default user/organizer roles, every template seed family, paid/free registration options, paid tax-rate wiring, open/closed/draft/past scenario handles, confirmed registrations, and scanner aggregate data must all exist after seeding.
@@ -1318,7 +1326,11 @@ the current working direction until a product decision overrides them.
 - Root, test, helper, and config docs now agree that local runtime scripts refresh `.env.dev`, use `dotenv -c dev`, and provide a non-mutating Docker preflight.
 - The Angular unit-test target now has explicit app/shared discovery ownership; server/db/helper specs remain covered by Vitest through `test:unit:server`.
 - The generated-docs pass already records stale docs and placeholder Playwright coverage; the workflow pass removed the list-mode docs-output mutation risk.
-- CI and local setup both install or expose Playwright browser installation, but full local e2e still was not run because it would start/reset the Docker runtime; an earlier page-backed check showed the matching browser binary still needs `bun run test:e2e:install`.
+- CI and local setup both install or expose Playwright browser installation, and
+  local exploratory runs can opt into system Chrome with
+  `E2E_BROWSER_CHANNEL=chrome`. Full local e2e still was not run because it
+  would start/reset the Docker runtime; bundled Chromium runs still need
+  `bun run test:e2e:install` when the matching browser cache is absent.
 
 ### Product Questions Answered Above
 
@@ -1602,6 +1614,10 @@ implement those decisions or explicitly revise them there before changing code.
 - Font Awesome registry contract pass: pinned that both the premium duotone icon
   package and the brand icon package stay installed through the shared Font
   Awesome registry path used by local installs and Docker builds.
+- Playwright browser-channel pass: made bundled Chromium the default local/CI
+  browser channel while adding `E2E_BROWSER_CHANNEL=chrome` as an explicit
+  system-Chrome opt-in for exploratory local runs without a browser-cache
+  download.
 - Profile discount-fragment pass: kept `/profile#discounts` stable while
   tenant ESNcard provider data loads, so direct links and docs journeys do not
   fall back permanently to the overview before the Discounts section becomes

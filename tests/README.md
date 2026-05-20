@@ -103,6 +103,11 @@ bun run test:e2e:install
 
 CI runs `bunx playwright install --with-deps`, but local macOS/Linux development only needs the package script unless the host is missing OS-level browser dependencies.
 
+Local runs use Playwright's bundled Chromium by default. For exploratory runs
+on a machine that already has Google Chrome installed, set
+`E2E_BROWSER_CHANNEL=chrome` to use the system Chrome channel without
+installing the bundled browser cache.
+
 ## Runtime Environment Precedence
 
 Application runtime config resolves in this precedence order:

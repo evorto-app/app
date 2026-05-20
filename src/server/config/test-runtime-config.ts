@@ -6,6 +6,7 @@ import { nonEmptyTrimmedString, optionalTrimmedString } from './config-string';
 const DEFAULT_TEST_CLOCK_ISO = '2026-02-01T12:00:00.000Z';
 const DEFAULT_TEST_SEED_KEY = 'evorto-e2e-default-v1';
 const INTEGRATION_PROJECT_NAMES = ['docs-integration'] as const;
+const PLAYWRIGHT_BROWSER_CHANNELS = ['chromium', 'chrome'] as const;
 const LIST_ONLY_ENVIRONMENT_DEFAULTS = {
   BASE_URL: 'http://localhost:4200',
   CLIENT_ID: 'playwright-list-client-id',
@@ -52,6 +53,7 @@ export const testRuntimeConfigState = Config.all({
       }),
     ),
   ),
+  E2E_BROWSER_CHANNEL: optionalTrimmedString('E2E_BROWSER_CHANNEL'),
   E2E_NOW_ISO: optionalTrimmedString('E2E_NOW_ISO').pipe(
     Config.map((value) =>
       Option.match(value, {
@@ -95,6 +97,9 @@ export interface DocumentationOutputEnvironment {
   docsOutputDirectory: string;
 }
 
+export type PlaywrightBrowserChannel =
+  (typeof PLAYWRIGHT_BROWSER_CHANNELS)[number];
+
 export type PlaywrightEnvironment = Omit<
   TestRuntimeConfigState,
   | 'BASE_URL'
@@ -109,6 +114,7 @@ export type PlaywrightEnvironment = Omit<
   BASE_URL: string;
   CLIENT_ID: string;
   CLIENT_SECRET: string;
+  E2E_BROWSER_CHANNEL: PlaywrightBrowserChannel;
   ISSUER_BASE_URL: string;
   NO_WEBSERVER: boolean;
   SECRET: string;
@@ -145,6 +151,11 @@ const collectMissingFieldErrors = (
       configured ? undefined : missingFieldError(name),
     )
     .filter((value): value is Error => value !== undefined);
+
+const isPlaywrightBrowserChannel = (
+  value: string,
+): value is PlaywrightBrowserChannel =>
+  PLAYWRIGHT_BROWSER_CHANNELS.includes(value);
 
 const matchesProjectPattern = (pattern: string, projectName: string) => {
   const escapedPattern = pattern.replaceAll(
@@ -304,6 +315,16 @@ export const makePlaywrightEnvironmentConfig = (
       return yield* Effect.fail(combineMissingDataErrors(errors));
     }
 
+    const playwrightBrowserChannel =
+      Option.getOrUndefined(state.E2E_BROWSER_CHANNEL) ?? 'chromium';
+    if (!isPlaywrightBrowserChannel(playwrightBrowserChannel)) {
+      return yield* Effect.fail(
+        new Error(
+          `Expected E2E_BROWSER_CHANNEL to be one of ${PLAYWRIGHT_BROWSER_CHANNELS.join(', ')}`,
+        ),
+      );
+    }
+
     const baseUrl =
       Option.getOrUndefined(state.BASE_URL) ??
       (listOnly ? LIST_ONLY_ENVIRONMENT_DEFAULTS.BASE_URL : undefined);
@@ -348,6 +369,7 @@ export const makePlaywrightEnvironmentConfig = (
       BASE_URL: baseUrl,
       CLIENT_ID: clientId,
       CLIENT_SECRET: clientSecret,
+      E2E_BROWSER_CHANNEL: playwrightBrowserChannel,
       ISSUER_BASE_URL: issuerBaseUrl,
       NO_WEBSERVER: state.NO_WEBSERVER,
       SECRET: secret,
