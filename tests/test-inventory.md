@@ -197,10 +197,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     selected guests.
 - Tenant/global admin:
   - Authenticated Browser review for the global-admin tenant list.
-    Local server/app coverage already proves the list returns and renders
-    non-sensitive operational tenant state for support review, and local app
-    coverage proves the read-only tenant list can be filtered by operational
-    fields with readable load-failure messages.
+    Local server/app coverage already proves the list and read-only tenant
+    detail return and render non-sensitive operational tenant state for support
+    review, and local app coverage proves the tenant list can be filtered by
+    operational fields with readable load-failure messages.
   - Keep tenant settings docs and payload tests aligned when new editable
     tenant settings move out of the deferred-settings summary. Current local
     coverage proves the general-settings form trims optional editable

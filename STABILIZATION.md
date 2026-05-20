@@ -1182,7 +1182,7 @@ the current working direction until a product decision overrides them.
 4. Run the covered legacy-field migration path in production so any existing physical `showInHub`, `paymentStatus`, and `payment_status` artifacts are dropped now that active schema/API code no longer uses them.
 5. Add Browser-backed scanner/organizer aggregate review once local runtime is available.
 6. Add Browser-backed profile coverage for payment-continuation, ticket/cancellation routing, waitlist messaging, and ESNcard provider failure semantics once local runtime is available.
-7. Fill the remaining tenant settings implementation gap for branding uploads, legal text pages, onboarding/domain workflows, and global tenant-admin workflows. The current general-settings page exposes SEO fields, externally hosted logo/favicon URLs, tenant legal links, editable supported locale/currency/timezone values, read-only runtime identity, and a visible deferred-settings summary.
+7. Fill the remaining tenant settings implementation gap for branding uploads, legal text pages, and onboarding/domain workflows. The current general-settings page exposes SEO fields, externally hosted logo/favicon URLs, tenant legal links, editable supported locale/currency/timezone values, read-only runtime identity, and a visible deferred-settings summary. The current global-admin surface supports a searchable tenant list plus read-only tenant detail review, while tenant creation/editing, custom-domain verification, and impersonation remain out of scope.
 8. Keep `docker:start` reset behavior intentional, use `docker:resume` only for existing local stacks, and ensure seeded data is sufficient to get going from zero.
 
 ### Acceptable For Now
@@ -1332,6 +1332,10 @@ implement those decisions or explicitly revise them there before changing code.
 - Global-admin tenant-list error pass: mapped tenant-list query failures
   through shared readable error-message handling instead of rendering raw error
   objects in the current global-admin surface.
+- Global-admin tenant-detail pass: added a guarded read-only tenant detail RPC,
+  route, and UI so platform admins can review one tenant's operational state
+  from the searchable tenant list without introducing tenant editing or
+  impersonation semantics.
 - User-list pagination pass: fixed the read-only tenant user list to paginate
   tenant-user assignments before loading role rows, so users with multiple
   roles no longer consume multiple page slots.

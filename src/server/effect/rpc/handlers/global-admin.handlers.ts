@@ -6,6 +6,7 @@ import {
 } from '@shared/errors/rpc-errors';
 import { Effect, Schema } from 'effect';
 
+import type { GlobalAdminTenantRecord } from '../../../../shared/rpc-contracts/app-rpcs/global-admin.rpcs';
 import type { AppRpcHandlers } from './shared/handler-types';
 
 import { Database, type DatabaseClient } from '../../../../db';
@@ -56,29 +57,60 @@ const ensurePermission = (
     }
   });
 
+const toGlobalAdminTenantRecord = (tenant: {
+  currency: string;
+  domain: string;
+  id: string;
+  locale: string;
+  name: string;
+  stripeAccountId: null | string;
+  theme: string;
+  timezone: string;
+}): GlobalAdminTenantRecord => {
+  const { stripeAccountId, ...record } = tenant;
+
+  return {
+    ...record,
+    stripeConnected: !!stripeAccountId,
+  };
+};
+
+const globalAdminTenantColumns = {
+  currency: true,
+  domain: true,
+  id: true,
+  locale: true,
+  name: true,
+  stripeAccountId: true,
+  theme: true,
+  timezone: true,
+} as const;
+
 export const globalAdminHandlers = {
   'globalAdmin.tenants.findMany': (_payload, options) =>
     Effect.gen(function* () {
       yield* ensurePermission(options.headers, 'globalAdmin:manageTenants');
       const allTenants = yield* databaseEffect((database) =>
         database.query.tenants.findMany({
-          columns: {
-            currency: true,
-            domain: true,
-            id: true,
-            locale: true,
-            name: true,
-            stripeAccountId: true,
-            theme: true,
-            timezone: true,
-          },
+          columns: globalAdminTenantColumns,
           orderBy: (table, { asc }) => [asc(table.name)],
         }),
       );
 
-      return allTenants.map(({ stripeAccountId, ...tenant }) => ({
-        ...tenant,
-        stripeConnected: !!stripeAccountId,
-      }));
+      return allTenants.map((tenant) => toGlobalAdminTenantRecord(tenant));
+    }),
+  'globalAdmin.tenants.findOne': (input, options) =>
+    Effect.gen(function* () {
+      yield* ensurePermission(options.headers, 'globalAdmin:manageTenants');
+      const tenant = yield* databaseEffect((database) =>
+        database.query.tenants.findFirst({
+          columns: globalAdminTenantColumns,
+          where: {
+            id: input.id,
+          },
+        }),
+      );
+
+      return tenant ? toGlobalAdminTenantRecord(tenant) : null;
     }),
 } satisfies Partial<AppRpcHandlers>;
