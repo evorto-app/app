@@ -33,12 +33,12 @@ when the listed output remains readable.
 ```bash
 bun run test:e2e
 bun run test:e2e:ui
+AUTH0_MANAGEMENT_CLIENT_ID=... AUTH0_MANAGEMENT_CLIENT_SECRET=... bun run test:e2e:integration
 bun run test:e2e:docs
 bun run test:e2e:docs:publish
 bun run test:e2e:install
 bun run test:e2e -- --project=setup
 bun run test:e2e -- --headed --workers 1
-bun run test:e2e:docs -- --project=docs-integration
 bun run test:e2e:report
 bun run lint
 ```
@@ -61,7 +61,7 @@ bun run lint
 - Docker Compose includes a one-shot `db-setup` service that runs the equivalent of `db:reset` before `evorto` starts.
 - Docker Compose forces app media/uploads to the in-network MinIO endpoint even
   when normal local dotenv values point to an external S3-compatible endpoint.
-- Local `dev:start`, `test:e2e`, `test:e2e:ui`, `test:e2e:docs`, `db:*`, and `docker:*` package scripts refresh `.env.dev` before invoking `dotenv -c dev`, so new worktrees get isolated local app/service ports and database URLs by default.
+- Local `dev:start`, `test:e2e`, `test:e2e:ui`, `test:e2e:integration`, `test:e2e:docs`, `db:*`, and `docker:*` package scripts refresh `.env.dev` before invoking `dotenv -c dev`, so new worktrees get isolated local app/service ports and database URLs by default.
 - `bun run docker:check` fails before Docker Compose mutates local containers
   when required local runtime variables are missing. The check covers Neon
   Local, Auth0, Stripe, the application session secret, and Font Awesome package
@@ -84,6 +84,9 @@ bun run lint
   only for an already initialized stack when you want to bring containers back
   without recreating them.
 - `bun run test:e2e:ui` opens unrestricted Playwright UI mode so you can choose projects and tests interactively.
+- `bun run test:e2e:integration` runs all integration-only Playwright
+  projects. It is intended for credential-gated specs and docs such as Auth0
+  Management account creation.
 - Local Docker scripts preload the environment with `dotenv -c dev` before invoking Compose.
 - Use `bun run ...` package scripts, not a bare shell `dotenv` command. Local shells may resolve a different `dotenv` executable than `node_modules/.bin/dotenv`; when a direct external-tool command is unavoidable, spell it as `node_modules/.bin/dotenv -c dev -- ...`.
 - Playwright list/discovery commands do not clean or write generated docs

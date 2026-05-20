@@ -1457,7 +1457,10 @@ the current working direction until a product decision overrides them.
 - Important entrypoints remain visible in `package.json`: app build/dev, unit tests, Playwright e2e/docs, Docker stack start/resume/webServer/stop, database commands, dependency updates, Stripe/Sentry ops, theme generation, and receipt-image cleanup.
 - Local runtime config uses `.env.dev.local` for tracked shared defaults, `.env.dev` for generated worktree-specific values, and `.env` for untracked developer secrets.
 - `bun run env:runtime` writes `.env.dev` with worktree-specific `COMPOSE_PROJECT_NAME`, Neon Local port, MinIO ports, `BASE_URL`, and local `DATABASE_URL`.
-- Local `test:e2e`, `test:e2e:ui`, `test:e2e:docs`, `db:*`, and `docker:*` scripts now refresh `.env.dev` before running `dotenv -c dev`, reducing fresh-worktree and wrong-database risk.
+- Local `test:e2e`, `test:e2e:ui`, `test:e2e:integration`,
+  `test:e2e:docs`, `db:*`, and `docker:*` scripts now refresh `.env.dev`
+  before running `dotenv -c dev`, reducing fresh-worktree and wrong-database
+  risk.
 - Docker Compose uses Neon Local, MinIO, Stripe CLI, a one-shot `db-setup` service, and an `evorto` app container. `bun run docker:check` verifies required local secrets before any Docker start command tears down or starts containers, and now also reports Bun, Docker Compose, Compose config, Playwright CLI, `.env.dev`, and Playwright browser-cache readiness.
 - `bun run build:app`, `bun run test:unit -- --watch=false`, and `bun run test:unit:server` pass in the current checkout.
 - Playwright test discovery works through the package scripts without local
@@ -1490,6 +1493,11 @@ the current working direction until a product decision overrides them.
   exploratory system-Chrome runs. `docker:check` reports the system Chrome path
   instead of warning about a missing bundled Chromium cache when that opt-in is
   active.
+- **Addressed in stabilization pass:** `bun run test:e2e:integration` now
+  exposes the credential-gated `local-chrome-integration` and
+  `docs-integration` projects as a first-class package script, so generated
+  Auth0 Management account-creation docs and functional integration coverage
+  can be run without reconstructing project arguments.
 - **Addressed in stabilization pass:** when bundled Playwright Chromium is
   missing but system Chrome is installed, `docker:check` now points local
   exploratory runs at `E2E_BROWSER_CHANNEL=chrome` instead of only recommending
