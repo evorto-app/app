@@ -36,6 +36,16 @@ test('Manage user profile', async ({
   const checkedInAddonId = getId();
   const checkedInAddonPurchaseId = getId();
   const checkedInAddonTitle = `Profile docs checked snack ${seedDate.getTime()}`;
+  const pendingCheckoutEventId = getId();
+  const pendingCheckoutOptionId = getId();
+  const pendingCheckoutRegistrationId = getId();
+  const pendingCheckoutTransactionId = getId();
+  const pendingCheckoutSessionId = `cs_profile_docs_${seedDate.getTime()}`;
+  const pendingCheckoutTitle = `Profile docs pending checkout ${seedDate.getTime()}`;
+  const waitlistEventId = getId();
+  const waitlistOptionId = getId();
+  const waitlistRegistrationId = getId();
+  const waitlistTitle = `Profile docs waitlist ${seedDate.getTime()}`;
   const profileReceiptId = getId();
   const profileReceiptFileName = `profile-docs-receipt-${seedDate.getTime()}.pdf`;
   const profileEventId = seeded.scenario.events.freeOpen.eventId;
@@ -54,8 +64,71 @@ test('Manage user profile', async ({
   if (!checkedInEvent) {
     throw new Error('Expected seeded checked-in profile event');
   }
+  const sourceEvent = await database.query.eventInstances.findFirst({
+    where: { id: profileEventId, tenantId: seeded.tenant.id },
+  });
+  if (!sourceEvent) {
+    throw new Error('Expected seeded profile source event');
+  }
 
   try {
+    await database.insert(schema.eventInstances).values([
+      {
+        creatorId: regularUser.id,
+        description:
+          'Profile docs event for pending checkout continuation coverage.',
+        end: new Date(seedDate.getTime() + 3 * 60 * 60 * 1000),
+        icon: sourceEvent.icon,
+        id: pendingCheckoutEventId,
+        location: sourceEvent.location,
+        start: new Date(seedDate.getTime() + 2 * 60 * 60 * 1000),
+        status: 'APPROVED',
+        templateId: sourceEvent.templateId,
+        tenantId: seeded.tenant.id,
+        title: pendingCheckoutTitle,
+      },
+      {
+        creatorId: regularUser.id,
+        description: 'Profile docs event for waitlist card coverage.',
+        end: new Date(seedDate.getTime() + 5 * 60 * 60 * 1000),
+        icon: sourceEvent.icon,
+        id: waitlistEventId,
+        location: sourceEvent.location,
+        start: new Date(seedDate.getTime() + 4 * 60 * 60 * 1000),
+        status: 'APPROVED',
+        templateId: sourceEvent.templateId,
+        tenantId: seeded.tenant.id,
+        title: waitlistTitle,
+      },
+    ]);
+    await database.insert(schema.eventRegistrationOptions).values([
+      {
+        closeRegistrationTime: new Date(seedDate.getTime() + 60 * 60 * 1000),
+        eventId: pendingCheckoutEventId,
+        id: pendingCheckoutOptionId,
+        isPaid: true,
+        openRegistrationTime: new Date(seedDate.getTime() - 60 * 60 * 1000),
+        organizingRegistration: false,
+        price: 2500,
+        registrationMode: 'fcfs',
+        roleIds: [],
+        spots: 20,
+        title: 'Participant checkout',
+      },
+      {
+        closeRegistrationTime: new Date(seedDate.getTime() + 60 * 60 * 1000),
+        eventId: waitlistEventId,
+        id: waitlistOptionId,
+        isPaid: false,
+        openRegistrationTime: new Date(seedDate.getTime() - 60 * 60 * 1000),
+        organizingRegistration: false,
+        price: 0,
+        registrationMode: 'fcfs',
+        roleIds: [],
+        spots: 1,
+        title: 'Participant waitlist',
+      },
+    ]);
     await seedFreeRegistrationAddon({
       addonId: profileEventAddonId,
       database,
@@ -101,6 +174,40 @@ test('Manage user profile', async ({
       quantity: 1,
       registrationId: checkedInRegistrationId,
       unitPrice: 0,
+    });
+    await database.insert(schema.eventRegistrations).values([
+      {
+        eventId: pendingCheckoutEventId,
+        id: pendingCheckoutRegistrationId,
+        registrationOptionId: pendingCheckoutOptionId,
+        status: 'PENDING',
+        tenantId: seeded.tenant.id,
+        userId: regularUser.id,
+      },
+      {
+        eventId: waitlistEventId,
+        id: waitlistRegistrationId,
+        registrationOptionId: waitlistOptionId,
+        status: 'WAITLIST',
+        tenantId: seeded.tenant.id,
+        userId: regularUser.id,
+      },
+    ]);
+    await database.insert(schema.transactions).values({
+      amount: 2500,
+      comment: 'Profile docs pending checkout card',
+      currency: seeded.tenant.currency,
+      eventId: pendingCheckoutEventId,
+      eventRegistrationId: pendingCheckoutRegistrationId,
+      executiveUserId: regularUser.id,
+      id: pendingCheckoutTransactionId,
+      method: 'stripe',
+      status: 'pending',
+      stripeCheckoutSessionId: pendingCheckoutSessionId,
+      stripeCheckoutUrl: `https://checkout.stripe.com/c/pay/${pendingCheckoutSessionId}`,
+      targetUserId: regularUser.id,
+      tenantId: seeded.tenant.id,
+      type: 'registration',
     });
     await database.insert(schema.financeReceipts).values({
       attachmentFileName: profileReceiptFileName,
@@ -231,7 +338,7 @@ The user profile now uses a two-column layout:
 - Left side: section navigation cards
 - Right side: selected section content
 - The **Events** section links each registration back to event details, shows registration status, selected option, guest quantity and purchased add-ons when applicable, payment state, and check-in time when available, and exposes implemented recovery actions such as continuing a pending checkout payment or opening the event page where confirmed tickets are shown
-- Profile event cards point pending checkout registrations at the implemented profile action, route ticket/cancellation/unpaid-transfer details back to the event page, and stop advertising cancellation or transfer once a registration is checked in
+- Profile event cards point pending checkout registrations at the implemented profile action, route ticket/cancellation/unpaid-transfer details back to the event page, expose waitlist routing back to the event page, and stop advertising cancellation or transfer once a registration is checked in
 - Other sections include **Overview**, **Discounts**, and **Receipts**
 `,
     });
@@ -262,6 +369,47 @@ The user profile now uses a two-column layout:
     ).toBeVisible();
     await expect(
       documentedEventCard.getByRole('link', { name: 'Open event page' }),
+    ).toBeVisible();
+    const pendingCheckoutCard = page
+      .locator('article')
+      .filter({ hasText: pendingCheckoutTitle });
+    await expect(pendingCheckoutCard).toBeVisible();
+    await expect(pendingCheckoutCard.getByText('Pending')).toBeVisible();
+    await expect(
+      pendingCheckoutCard.getByText('Payment pending'),
+    ).toBeVisible();
+    await expect(
+      pendingCheckoutCard.getByText(
+        'Finish the checkout payment to confirm your spot.',
+      ),
+    ).toBeVisible();
+    await expect(
+      pendingCheckoutCard.getByText(
+        'Continue payment from this card, or open the event page for registration details.',
+      ),
+    ).toBeVisible();
+    await expect(
+      pendingCheckoutCard.getByRole('link', { name: 'Continue payment' }),
+    ).toHaveAttribute(
+      'href',
+      `https://checkout.stripe.com/c/pay/${pendingCheckoutSessionId}`,
+    );
+    await expect(
+      pendingCheckoutCard.getByRole('link', { name: 'Open event page' }),
+    ).toBeVisible();
+    const waitlistCard = page
+      .locator('article')
+      .filter({ hasText: waitlistTitle });
+    await expect(waitlistCard).toBeVisible();
+    await expect(waitlistCard.getByText('Waitlist')).toBeVisible();
+    await expect(waitlistCard.getByText('No payment required')).toBeVisible();
+    await expect(
+      waitlistCard.getByText(
+        'Open the event page for waitlist details and the leave-waitlist action.',
+      ),
+    ).toBeVisible();
+    await expect(
+      waitlistCard.getByRole('link', { name: 'Open event page' }),
     ).toBeVisible();
     const checkedInEventCard = page
       .locator('article')
@@ -324,6 +472,9 @@ The user profile now uses a two-column layout:
       })
       .where(eq(schema.users.id, regularUser.id));
     await database
+      .delete(schema.transactions)
+      .where(eq(schema.transactions.id, pendingCheckoutTransactionId));
+    await database
       .delete(schema.financeReceipts)
       .where(eq(schema.financeReceipts.id, profileReceiptId));
     await database
@@ -345,6 +496,24 @@ The user profile now uses a two-column layout:
     await database
       .delete(schema.eventRegistrations)
       .where(eq(schema.eventRegistrations.id, checkedInRegistrationId));
+    await database
+      .delete(schema.eventRegistrations)
+      .where(eq(schema.eventRegistrations.id, pendingCheckoutRegistrationId));
+    await database
+      .delete(schema.eventRegistrations)
+      .where(eq(schema.eventRegistrations.id, waitlistRegistrationId));
+    await database
+      .delete(schema.eventRegistrationOptions)
+      .where(eq(schema.eventRegistrationOptions.id, pendingCheckoutOptionId));
+    await database
+      .delete(schema.eventRegistrationOptions)
+      .where(eq(schema.eventRegistrationOptions.id, waitlistOptionId));
+    await database
+      .delete(schema.eventInstances)
+      .where(eq(schema.eventInstances.id, pendingCheckoutEventId));
+    await database
+      .delete(schema.eventInstances)
+      .where(eq(schema.eventInstances.id, waitlistEventId));
     await database
       .delete(schema.addonToEventRegistrationOptions)
       .where(

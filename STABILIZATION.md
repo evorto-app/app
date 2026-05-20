@@ -1121,7 +1121,7 @@ the current working direction until a product decision overrides them.
 
 ### Test and Documentation Quality
 
-- `tests/docs/profile/user-profile.doc.ts` documents navigation, profile display, edit dialog validation, notification email persistence, event cards, and the receipts tab. It now seeds deterministic confirmed and checked-in profile event cards with free add-ons, then asserts the event title, event-detail link, status, guest, add-on, payment, ticket-routing, and checked-in no-cancellation/no-transfer labels before taking the Events-section screenshot. It also seeds a deterministic submitted receipt and asserts its filename, submitted status, event title, and amount on the profile Receipts tab.
+- `tests/docs/profile/user-profile.doc.ts` documents navigation, profile display, edit dialog validation, notification email persistence, event cards, and the receipts tab. It now seeds deterministic confirmed, pending-checkout, waitlisted, and checked-in profile event cards with free add-ons where applicable, then asserts the event title, event-detail link, status, guest, add-on, payment, checkout continuation, waitlist routing, ticket-routing, and checked-in no-cancellation/no-transfer labels before taking the Events-section screenshot. It also seeds a deterministic submitted receipt and asserts its filename, submitted status, event title, and amount on the profile Receipts tab.
 - `src/app/profile/user-profile/edit-profile-dialog.component.spec.ts` covers profile edit payload normalization for notification email and optional global reimbursement details before the update mutation receives the dialog result.
 - `src/app/profile/user-profile/user-profile.component.spec.ts` covers profile event action routing, payment-continuation visibility, guest-quantity, checked-in action copy, implemented-action notes, payment-continuation next-step copy, payment-state, registration-status labels, submitted-receipt status and amount labels, ESNcard action/status labels, ESNcard save disabled state, ESNcard upsert payload normalization, and readable ESNcard mutation error fallback/provider messages. `src/server/effect/rpc/handlers/users.handlers.spec.ts` and the users RPC schema spec now pin purchased add-ons on profile event summaries.
 - Profile app coverage also pins that payment continuation links only render for
@@ -1149,8 +1149,8 @@ the current working direction until a product decision overrides them.
   baseline helper-backed account-creation note, the discounts docs assert
   helper-backed ESNcard status/pending/error semantics plus seeded
   status/action/invalid-input behavior, and the profile docs journey asserts
-  confirmed and checked-in profile event-card
-  route/status/guest/add-on/payment/ticket/action labels plus
+  confirmed, pending-checkout, waitlisted, and checked-in profile event-card
+  route/status/guest/add-on/payment/checkout/waitlist/ticket/action labels plus
   submitted-receipt visibility.
 - `tests/docs/users/create-account.doc.ts` includes a baseline helper-backed
   account-creation documentation note for verified-email gating, Auth0-data
@@ -1522,7 +1522,7 @@ the current working direction until a product decision overrides them.
    registration checkout, while standalone before-event and during-event add-on
    sales remain separate fuller product/runtime slices.
 4. Run manual Browser-backed scanner/organizer aggregate review once local runtime is available. The page-backed scanner spec now asserts that the checked-in aggregate changes after buyer-plus-guest check-in.
-5. Add Browser-backed profile coverage for payment-continuation, ticket/cancellation routing, waitlist messaging, and ESNcard provider failure semantics once local runtime is available.
+5. Run Browser-backed profile coverage for payment-continuation, ticket/cancellation routing, waitlist messaging, and ESNcard provider failure semantics once local runtime is available. The generated user-profile doc now seeds and asserts the pending-checkout, waitlisted, confirmed, and checked-in event-card states; live runtime execution remains blocked by missing local secrets.
 6. Fill the remaining tenant settings implementation gap for automated onboarding/domain workflows. The current general-settings page exposes SEO fields, uploaded or externally hosted logo/favicon URLs, tenant legal links or hosted legal text, editable supported locale/currency/timezone values, read-only runtime identity, and a visible deferred-settings summary. The current global-admin surface supports a searchable tenant list, tenant create/edit, and tenant detail review, while custom-domain verification, multi-domain automation, and impersonation remain out of scope.
 7. Keep `docker:start` reset behavior intentional, use `docker:resume` only for existing local stacks, and ensure seeded data is sufficient to get going from zero.
 
@@ -1708,6 +1708,11 @@ implement those decisions or explicitly revise them there before changing code.
   Auth0 login email only when no notification email is configured.
 - Profile edit docs pass: extended the user-profile documentation journey to save a changed notification email, assert the refreshed profile summary, and restore the seeded user record after the doc run.
 - Profile event-card docs pass: extended the user-profile documentation journey with deterministic confirmed and checked-in registrations plus free add-ons and asserted the profile event-card title, event-detail link, status, guest, add-on, payment, ticket-routing, and checked-in action labels.
+- Profile pending/waitlist docs pass: extended the user-profile documentation
+  journey with deterministic pending-checkout and waitlisted event cards so the
+  generated docs assert the Continue payment action, Stripe checkout link,
+  payment-pending next step, waitlist status, and leave-waitlist event-page
+  routing before runtime Browser review is unblocked.
 - Profile receipt docs pass: extended the user-profile documentation journey with a deterministic submitted receipt and asserted the profile receipt-card filename, submitted status, event title, and amount.
 - Create-account gate coverage pass: extracted the email-verification form gate into a typed helper and covered verified, unverified, null, and absent Auth0 email-verification states without requiring Auth0 Management credentials.
 - Playwright skip-inventory pass: added a local unit guard that allowlists every
