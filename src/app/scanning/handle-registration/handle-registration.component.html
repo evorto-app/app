@@ -129,9 +129,12 @@
   }
   <button
     [disabled]="
-      !scanResultQuery.data().allowCheckin ||
-      selectedSpotCheckInCount() < 1 ||
-      checkInMutation.isPending()
+      scanCheckInActionDisabled({
+        allowCheckin: scanResultQuery.data().allowCheckin,
+        checkInCompleted: checkInCompleted(),
+        mutationPending: checkInMutation.isPending(),
+        spotCount: selectedSpotCheckInCount(),
+      })
     "
     class="mt-4 w-full"
     mat-raised-button

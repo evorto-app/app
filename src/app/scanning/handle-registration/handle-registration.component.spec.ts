@@ -1,9 +1,55 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  scanCheckInActionDisabled,
   scanCheckInButtonLabel,
   scanSpotCountLabel,
 } from './handle-registration.component';
+
+describe('scanCheckInActionDisabled', () => {
+  it('blocks check-in when unavailable, already completed, pending, or empty', () => {
+    expect(
+      scanCheckInActionDisabled({
+        allowCheckin: false,
+        checkInCompleted: false,
+        mutationPending: false,
+        spotCount: 1,
+      }),
+    ).toBe(true);
+    expect(
+      scanCheckInActionDisabled({
+        allowCheckin: true,
+        checkInCompleted: true,
+        mutationPending: false,
+        spotCount: 1,
+      }),
+    ).toBe(true);
+    expect(
+      scanCheckInActionDisabled({
+        allowCheckin: true,
+        checkInCompleted: false,
+        mutationPending: true,
+        spotCount: 1,
+      }),
+    ).toBe(true);
+    expect(
+      scanCheckInActionDisabled({
+        allowCheckin: true,
+        checkInCompleted: false,
+        mutationPending: false,
+        spotCount: 0,
+      }),
+    ).toBe(true);
+    expect(
+      scanCheckInActionDisabled({
+        allowCheckin: true,
+        checkInCompleted: false,
+        mutationPending: false,
+        spotCount: 1,
+      }),
+    ).toBe(false);
+  });
+});
 
 describe('scan check-in copy', () => {
   it('keeps the primary check-in action readable for one or more spots', () => {

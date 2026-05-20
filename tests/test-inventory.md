@@ -219,6 +219,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     check-in button labels plus selected spot-count copy. Event-management docs
     now call out that guest-quantity check-in increments the organizer
     checked-in count by the attendee plus selected guests.
+  - Keep scanned-registration action guards aligned with the write/refetch
+    lifecycle. Local app coverage now pins that the check-in action is disabled
+    when scan state disallows it, no spots are selected, the write is pending,
+    or the local success state is already recorded.
 - Tenant/global admin:
   - Authenticated Browser review for the global-admin tenant list and
     tenant-create/edit flows. Local server/app coverage already proves the list,

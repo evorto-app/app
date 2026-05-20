@@ -865,6 +865,7 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** scanner camera startup is awaited and maps denied permission, missing devices, and busy devices into visible retryable error messages. The scanner also shows a starting state and keeps a retry button available after camera startup failures.
 - **Addressed in stabilization pass:** scanner guest-quantity behavior is explicit. Organizers can choose how many remaining guests to check in with the buyer, and later scans can record additional guest arrivals without re-counting the buyer.
 - **Addressed in stabilization pass:** scanned-registration check-in copy now uses readable singular/plural spot labels, a lower-noise pending label, and clearer future-event warning wording.
+- **Addressed in this stabilization pass:** the scanned-registration check-in action now stays disabled after a successful local check-in while the refreshed scan state catches up, so slow refetches do not briefly expose another write action.
 - **Acceptable for now:** QR code display is limited to confirmed registrations in the active registration UI, so pending paid registrations do not show the ticket card there.
 
 ### Test and Documentation Quality
@@ -875,6 +876,7 @@ the current working direction until a product decision overrides them.
 - `src/server/http/qr-code.web-handler.spec.ts` covers unauthenticated QR denial, owner access, same-event organizer access, other-user denial, and pending-registration denial.
 - `src/app/scanning/scanner/scanner.component.spec.ts` covers scanner URL parsing for current-origin tickets, other-origin tenant tickets, malformed payloads, and non-exact scan paths.
 - `src/app/scanning/handle-registration/handle-registration.component.spec.ts` covers scanned-registration check-in button and spot-count labels.
+- `src/app/scanning/handle-registration/handle-registration.component.spec.ts` also covers the local check-in action guard for unavailable, completed, pending, and empty spot-count states.
 - Server unit coverage proves future-event timing disables scan check-in and rejects direct check-in writes before the pre-start window opens. Server unit coverage also proves pending, cancelled, and waitlisted registrations disable scan check-in and reject direct check-in writes.
 - `tests/docs/events/register.doc.ts` documents that the ticket QR code is available after registration/payment and no longer claims QR email delivery exists in the current relaunch flow.
 - `tests/docs/events/event-management.doc.ts` documents the organizer-facing QR scan/check-in flow, including scan warnings, check-in authorization, buyer-plus-selected-guests checked-in count updates, and selected guest-quantity check-in.
@@ -1331,6 +1333,9 @@ implement those decisions or explicitly revise them there before changing code.
 - Receipt submission guard pass: kept the organizer Add receipt action disabled
   during both upload and submit mutations, with the template and handler sharing
   the same tested helper.
+- Scanner action guard pass: kept the scanned-registration check-in action
+  disabled after a successful local write while the scan-result query refetches,
+  with the template and handler sharing the same tested helper.
 - Scanner status-coverage pass: added focused scan-read and direct-check-in coverage for pending, cancelled, and waitlisted registrations.
 - Tenant settings feedback pass: added explicit success and readable error notifications for general settings saves.
 - Tenant SEO settings pass: exposed stored tenant SEO title/description through the Tenant RPC schema, general settings UI, admin settings persistence, and tenant-level document metadata.
