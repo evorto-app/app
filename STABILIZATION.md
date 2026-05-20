@@ -2164,6 +2164,9 @@ implement those decisions or explicitly revise them there before changing code.
 - ESN discount docs source-guard pass: pinned generated discounts docs to the
   local ESNcard helper functions, trimmed submit payloads, shared write guards,
   readable statuses/actions, and retryable provider-outage semantics.
+- Finance overview docs source-guard pass: pinned generated finance overview
+  docs to permission-scoped child navigation so receipt approval access does not
+  imply transaction-list access.
 
 ## Review Next
 
