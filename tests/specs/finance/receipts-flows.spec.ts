@@ -4,6 +4,7 @@ import type { Page } from '@playwright/test';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { eq } from 'drizzle-orm';
 
+import { getId } from '../../../helpers/get-id';
 import { adminStateFile } from '../../../helpers/user-data';
 import { relations } from '../../../src/db/relations';
 import * as schema from '../../../src/db/schema';
@@ -66,19 +67,22 @@ const seedPendingReceiptForApproval = async ({
 }: {
   database: NodePgDatabase<typeof relations>;
   eventId: string;
+  receiptFileName: string;
+  receiptId: string;
   seedDate: Date;
   submittedByUserId: string;
   tenantId: string;
 }) => {
   await database.insert(schema.financeReceipts).values({
     alcoholAmount: 150,
-    attachmentFileName: 'sample-receipt.pdf',
+    attachmentFileName: receiptFileName,
     attachmentMimeType: 'application/pdf',
     attachmentSizeBytes: 1024,
     depositAmount: 150,
     eventId,
     hasAlcohol: true,
     hasDeposit: true,
+    id: receiptId,
     purchaseCountry: 'DE',
     receiptDate: new Date(seedDate.getTime() - 1000 * 60 * 60 * 24 * 2),
     status: 'submitted',
@@ -135,20 +139,27 @@ test.skip('approve and record receipt reimbursements in finance', async ({
   tenant,
 }) => {
   const seededEventId = seeded.scenario.events.past.eventId;
+  const receiptId = getId();
+  const receiptFileName = `approval-reimbursement-${seedDate.getTime()}.pdf`;
   await seedPendingReceiptForApproval({
     database,
     eventId: seededEventId,
+    receiptFileName,
+    receiptId,
     seedDate,
     submittedByUserId: '334967d7626fbd6ad449',
     tenantId: tenant.id,
   });
 
   await page.goto('/finance/receipts-approval');
-  const firstPendingReceipt = page
-    .locator('a[href*="/finance/receipts-approval/"]')
-    .first();
-  await expect(firstPendingReceipt).toBeVisible();
-  await firstPendingReceipt.click();
+  const pendingReceipt = page.getByRole('link', {
+    name: new RegExp(receiptFileName),
+  });
+  await expect(pendingReceipt).toHaveAttribute(
+    'href',
+    `/finance/receipts-approval/${receiptId}`,
+  );
+  await pendingReceipt.click();
   await page.getByRole('button', { name: 'Approve' }).click();
   await expect(page).toHaveURL(/\/finance\/receipts-approval$/);
 
@@ -162,13 +173,12 @@ test.skip('approve and record receipt reimbursements in finance', async ({
     page.getByText('No approved receipts are waiting for reimbursement.'),
   ).not.toBeVisible();
 
-  const refundSections = page.locator('section', {
-    has: page.getByRole('button', { name: 'Record reimbursement' }),
+  const refundSection = page.locator('section', {
+    has: page.getByText(receiptFileName),
   });
-  const refundSection = refundSections.first();
   await expect(refundSection).toBeVisible();
 
-  await expect(refundSection.locator('table[mat-table]').first()).toBeVisible();
+  await expect(refundSection.locator('table[mat-table]')).toBeVisible();
   await refundSection
     .locator('tr.mat-mdc-row input[type="checkbox"]')
     .first()
@@ -181,6 +191,22 @@ test.skip('approve and record receipt reimbursements in finance', async ({
   await issueRefundButton.click();
 
   await expect(page.getByText('Selected total: 0.00 €').first()).toBeVisible();
+
+  const refundedReceipt = await database.query.financeReceipts.findFirst({
+    where: {
+      id: receiptId,
+      tenantId: tenant.id,
+    },
+  });
+  if (!refundedReceipt) {
+    throw new Error('Expected seeded receipt after reimbursement recording');
+  }
+  expect(refundedReceipt).toEqual(
+    expect.objectContaining({
+      refundTransactionId: expect.any(String),
+      status: 'refunded',
+    }),
+  );
 });
 
 test.skip('receipt dialog shows Other option when tenant allows it', async ({
@@ -192,11 +218,14 @@ test.skip('receipt dialog shows Other option when tenant allows it', async ({
   const existingTenant = await database.query.tenants.findFirst({
     where: { id: tenant.id },
   });
+  if (!existingTenant) {
+    throw new Error('Expected tenant fixture before receipt settings update');
+  }
 
   await database
     .update(schema.tenants)
     .set({
-      discountProviders: existingTenant?.discountProviders,
+      discountProviders: existingTenant.discountProviders,
       receiptSettings: {
         allowOther: true,
         receiptCountries: ['DE'],

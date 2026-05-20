@@ -1707,6 +1707,10 @@ implement those decisions or explicitly revise them there before changing code.
 - Finance webhook counter pass: moved paid checkout completion/expiry counter updates into the Stripe webhook transaction and extended webhook replay specs to assert registration status, transaction status, and option counters together.
 - Finance receipt-upload pass: added event-scoped receipt-media upload preflight so object storage writes require receipt-submit authorization before upload, while `finance.receipts.submit` keeps its own authorization check.
 - Finance receipt-spec cleanup pass: removed silent early returns from approval/refund and "Other country" receipt Playwright coverage so missing seeded UI state fails instead of passing.
+- Finance receipt exact-row pass: tightened the receipt approval/reimbursement
+  Playwright flow to follow the exact seeded receipt by id/file name, assert the
+  approval route target, read the reimbursed row back from the database, and
+  fail explicitly when the tenant fixture needed for receipt settings is absent.
 - Receipt reimbursement wording pass: renamed finance-facing receipt reimbursement copy away from "refund" for manual ledger actions while leaving legacy internal route/API/database names for a later migration.
 - Receipt amount validation pass: rejected receipt submit/review payloads where tax exceeds the total amount and added focused server coverage for both write paths.
 - Payment-status deprecation pass: stopped active profile/user-event reads and fixture setup from relying on `event_registrations.paymentStatus`; user-facing payment state now derives from registration transaction rows, and the legacy field/enum have been removed from the application schema.

@@ -343,6 +343,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     submitters before a transaction can be recorded, rejects missing or changed
     payout details, and rejects the transaction when approved receipt
     preconditions change before the reimbursement update.
+    `specs/finance/receipts-flows.spec.ts` now follows the exact seeded receipt
+    through approval and reimbursement by id/file name and reads the final
+    receipt row back so the UI path cannot pass against an unrelated queued
+    receipt.
   - Keep event-organizer receipt submission action coverage aligned with the
     two-step upload-plus-submit flow. Local app coverage now pins that Add
     receipt remains disabled while the event has not loaded yet, while the
@@ -513,6 +517,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   or seeded paid registration option required by the walkthrough is missing.
 - Profile event-card docs/spec seeding fails explicitly when the source
   scenario registration options for confirmed or checked-in cards are missing.
+- Finance receipt flow specs fail explicitly when the tenant fixture is missing
+  and verify the exact seeded approval/reimbursement receipt instead of the
+  first visible finance queue row.
 - Finance-tagged specs remain the main candidates for selective CI filtering when needed.
 - Event, registration, template, finance receipt, scanner, and unlisted-event specs should fail loudly when deterministic fixture state is missing instead of silently passing through skips.
   Free registration and registration add-on specs now assert the seeded
