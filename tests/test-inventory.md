@@ -83,6 +83,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - `docs/template-categories/categories.doc.ts`
   - `specs/templates/**`
   - `specs/template-categories/**`
+  - template-category create/edit page-backed coverage with explicit database
+    readbacks for created and edited rows
+  - template-category docs create and edit a deterministic category, read back
+    the persisted rows, and clean up the generated row
   - app category action guard coverage in `src/app/templates/categories`
   - app create/edit submit-guard coverage in
     `src/app/templates/shared/template-form`
