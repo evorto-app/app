@@ -143,6 +143,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   and clean up the generated event rows.
 - Event registration option component coverage pins participant registration and
   waitlist action disabling while a register or waitlist mutation is pending.
+- `specs/events/free-registration.test.ts` covers the seeded free-registration
+  happy path, confirms the persisted registration and confirmed counter, then
+  restores the touched registration rows and registration-option counters.
 - `specs/events/registration-transfer.test.ts` also seeds a paid confirmed
   registration with a successful registration transaction and proves the event
   page keeps self-service transfer disabled with the paid transfer/resale

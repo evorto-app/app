@@ -580,7 +580,10 @@ the current working direction until a product decision overrides them.
 
 ### Test and Documentation Quality
 
-- `tests/specs/events/free-registration.test.ts` covers the free registration happy path using seeded scenario handles.
+- `tests/specs/events/free-registration.test.ts` covers the free registration
+  happy path using seeded scenario handles, then restores the touched
+  registration rows and registration-option counters after the page-backed
+  assertions.
 - `tests/specs/events/registration-transfer.test.ts` also seeds a paid
   confirmed registration with a successful registration transaction and proves
   the event page keeps self-service transfer disabled with the paid
@@ -1714,6 +1717,9 @@ implement those decisions or explicitly revise them there before changing code.
   registration-transfer specs delete generated registration/transaction rows
   and restore touched fixture registration statuses after their page-backed
   assertions.
+- Free-registration fixture cleanup pass: made the free-registration Playwright
+  spec restore deleted fixture registrations and registration-option counters
+  after asserting the confirmed registration readback.
 - Registration paid-transfer docs pass: extended generated registration docs so
   paid confirmed registrations must show disabled transfer-unavailable copy
   until refund or resale money movement exists.
