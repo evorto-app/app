@@ -22,6 +22,12 @@ import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
 import { EventReviewDialogComponent } from '../../events/event-review-dialog/event-review-dialog.component';
 
+export const eventReviewQueueActionDisabled = ({
+  mutationPending,
+}: {
+  mutationPending: boolean;
+}): boolean => mutationPending;
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -84,14 +90,22 @@ import { EventReviewDialogComponent } from '../../events/event-review-dialog/eve
                   <button
                     mat-stroked-button
                     (click)="reviewEvent(event.id, event.title, false)"
-                    [disabled]="reviewEventMutation.isPending()"
+                    [disabled]="
+                      eventReviewQueueActionDisabled({
+                        mutationPending: reviewEventMutation.isPending(),
+                      })
+                    "
                   >
                     Reject
                   </button>
                   <button
                     mat-flat-button
                     (click)="reviewEvent(event.id, event.title, true)"
-                    [disabled]="reviewEventMutation.isPending()"
+                    [disabled]="
+                      eventReviewQueueActionDisabled({
+                        mutationPending: reviewEventMutation.isPending(),
+                      })
+                    "
                   >
                     Approve
                   </button>
@@ -123,6 +137,8 @@ import { EventReviewDialogComponent } from '../../events/event-review-dialog/eve
   `,
 })
 export class EventReviewsComponent {
+  protected readonly eventReviewQueueActionDisabled =
+    eventReviewQueueActionDisabled;
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faArrowUpRightFromSquare = faArrowUpRightFromSquare;
   private readonly rpc = AppRpc.injectClient();
@@ -150,6 +166,14 @@ export class EventReviewsComponent {
     eventTitle: string,
     approved: boolean,
   ): Promise<void> {
+    if (
+      eventReviewQueueActionDisabled({
+        mutationPending: this.reviewEventMutation.isPending(),
+      })
+    ) {
+      return;
+    }
+
     try {
       if (approved) {
         await this.reviewEventMutation.mutateAsync({ approved, eventId });
