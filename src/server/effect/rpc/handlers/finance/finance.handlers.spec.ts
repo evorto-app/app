@@ -200,6 +200,37 @@ const databaseWithRefundableReceipts = (
   };
 };
 
+const databaseWithRefundableReceiptForPayout = (payoutUser: {
+  iban: null | string;
+  id: string;
+  paypalEmail: null | string;
+}) => {
+  const receiptQuery = {
+    from: () => receiptQuery,
+    select: () => receiptQuery,
+    where: () =>
+      Effect.succeed([
+        {
+          eventId: 'event-1',
+          id: 'receipt-1',
+          submittedByUserId: payoutUser.id,
+          totalAmount: 100,
+        },
+      ]),
+  };
+
+  return {
+    query: {
+      users: {
+        findFirst: () => Effect.succeed(payoutUser),
+      },
+    },
+    select: () => receiptQuery,
+    transaction: () =>
+      Effect.die(new Error('reimbursement transaction should not run')),
+  };
+};
+
 const databaseWithRefundPreconditionRace = () => {
   const receipts = [
     {
@@ -493,6 +524,93 @@ describe('finance receipt reimbursement', () => {
 
         expect(error['_tag']).toBe('RpcBadRequestError');
         expect(error.reason).toBe('mismatchedSubmitter');
+      }),
+  );
+
+  it.effect(
+    'rejects iban reimbursement records when the submitter has no iban',
+    () =>
+      Effect.gen(function* () {
+        const error = yield* financeHandlers['finance.receipts.createRefund'](
+          {
+            payoutReference: 'NL91ABNA0417164300',
+            payoutType: 'iban',
+            receiptIds: ['receipt-1'],
+          },
+          { headers: {} } as never,
+        ).pipe(
+          Effect.flip,
+          Effect.provide(
+            createContextLayer(['finance:refundReceipts'], {
+              database: databaseWithRefundableReceiptForPayout({
+                iban: null,
+                id: 'user-1',
+                paypalEmail: 'alice@example.com',
+              }),
+            }),
+          ),
+        );
+
+        expect(error['_tag']).toBe('RpcBadRequestError');
+        expect(error.reason).toBe('missingIban');
+      }),
+  );
+
+  it.effect(
+    'rejects paypal reimbursement records when the submitter has no paypal email',
+    () =>
+      Effect.gen(function* () {
+        const error = yield* financeHandlers['finance.receipts.createRefund'](
+          {
+            payoutReference: 'alice@example.com',
+            payoutType: 'paypal',
+            receiptIds: ['receipt-1'],
+          },
+          { headers: {} } as never,
+        ).pipe(
+          Effect.flip,
+          Effect.provide(
+            createContextLayer(['finance:refundReceipts'], {
+              database: databaseWithRefundableReceiptForPayout({
+                iban: 'NL91ABNA0417164300',
+                id: 'user-1',
+                paypalEmail: null,
+              }),
+            }),
+          ),
+        );
+
+        expect(error['_tag']).toBe('RpcBadRequestError');
+        expect(error.reason).toBe('missingPaypal');
+      }),
+  );
+
+  it.effect(
+    'rejects reimbursement records when the payout reference no longer matches the submitter',
+    () =>
+      Effect.gen(function* () {
+        const error = yield* financeHandlers['finance.receipts.createRefund'](
+          {
+            payoutReference: 'other@example.com',
+            payoutType: 'paypal',
+            receiptIds: ['receipt-1'],
+          },
+          { headers: {} } as never,
+        ).pipe(
+          Effect.flip,
+          Effect.provide(
+            createContextLayer(['finance:refundReceipts'], {
+              database: databaseWithRefundableReceiptForPayout({
+                iban: 'NL91ABNA0417164300',
+                id: 'user-1',
+                paypalEmail: 'alice@example.com',
+              }),
+            }),
+          ),
+        );
+
+        expect(error['_tag']).toBe('RpcBadRequestError');
+        expect(error.reason).toBe('payoutReferenceMismatch');
       }),
   );
 
