@@ -54,6 +54,7 @@ There are a few general settings that are required for templates:
 In simple mode (currently the only mode), the registration settings are split in two.
 There are the settings for participants, and separately, those for organizers.
 Both have the same structure, but you can see that different roles are preselected.
+Simple mode intentionally keeps exactly one organizer registration block and one participant registration block. Use reusable add-ons, registration questions, option descriptions, role eligibility, and organizer planning tips to capture repeatable event knowledge that does not need a separate registration option.
 The registration consists of the following settings:
 - **Registration option name**: The reusable label copied into events created
   from this template.

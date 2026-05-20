@@ -49,6 +49,21 @@ describe('templateWriteSubmitDisabled', () => {
 });
 
 describe('template form add-on model', () => {
+  it('keeps simple mode to one organizer and one participant registration block', () => {
+    expect(createTemplateFormModel()).toEqual(
+      expect.objectContaining({
+        organizerRegistration: expect.objectContaining({
+          spots: 1,
+          title: 'Organizer Registration',
+        }),
+        participantRegistration: expect.objectContaining({
+          spots: 20,
+          title: 'Participant Registration',
+        }),
+      }),
+    );
+  });
+
   it('starts new simple templates without reusable add-ons', () => {
     expect(createTemplateFormModel().addOns).toEqual([]);
   });
