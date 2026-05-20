@@ -914,7 +914,7 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** the profile doc no longer uses a fixed stabilization wait before the profile screenshot, now saves and verifies notification email persistence, and opens the Events section to document event-card semantics.
 - `tests/docs/profile/discounts.doc.ts` documents the discount-card section and current pending/error behavior, but does not add, refresh, remove, or assert any ESNcard validation outcome.
 - `tests/specs/discounts/esn-discounts.test.ts` verifies a seeded verified ESNcard affects paid event price labels and the register button copy.
-- No reviewed Playwright spec proves profile discount-card management itself, browser-level account creation fallback behavior without Auth0 Management credentials, profile event action rendering, or submitted receipt visibility after receipt submission.
+- No reviewed Playwright spec proves profile discount-card management itself, browser-level account creation fallback behavior without Auth0 Management credentials, profile event action rendering, or submitted receipt visibility after receipt submission. Local helper/server coverage now pins the visible profile/account copy and action states that can be verified without page-backed runtime.
 - `tests/docs/users/create-account.doc.ts` is integration-tagged and skips without Auth0 Management credentials, so baseline docs do not prove the account-creation path.
 - `tests/docs/users/create-account.doc.ts` asserts the account form exposes the editable address as "Notification email" when the integration path can run.
 - `src/app/app.routes.spec.ts` pins the relaunch route contract that public event browsing uses only account-assignment checks, feature areas require assigned authenticated accounts, `/create-account` stays auth-only for tenantless authenticated users, and `/global-admin` remains auth-only before tenant assignment checks.
@@ -938,7 +938,7 @@ the current working direction until a product decision overrides them.
 - Keep Browser-backed profile edit persistence coverage aligned with notification email behavior.
 - Add Browser-backed profile event-card coverage for event links and registration/guest/payment/check-in state once runtime review is available.
 - Add Browser-backed profile discount-card tests for add/refresh/remove and provider validation outcomes once runtime review is available. Local app/server coverage already proves upsert payload normalization, readable mutation errors, global card reads/upserts, refresh persistence, and scoped removal.
-- Add profile/account tests for account creation retry/tenant-join behavior, profile edit persistence, ESNcard add/refresh/remove, profile event action rendering, and submitted receipt visibility.
+- Add Browser-backed profile/account coverage for account creation retry/tenant-join behavior, profile edit persistence, ESNcard add/refresh/remove, profile event action rendering, and submitted receipt visibility once local runtime review is available. Local helper/server coverage already covers account creation retry/tenant join, profile edit payload persistence, ESNcard action labels/errors/payloads, profile event labels/actions, and submitted receipt status/amount/server rows.
 
 ## Tenant/Global Admin
 
@@ -1058,7 +1058,7 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** the remaining `test.skip` audit removed the dead mobile skip from `tests/specs/permissions/override.test.ts`, corrected the inventory entry for that spec, made the Auth0 Management doc skip name the required credentials explicitly, and moved Stripe webhook replay's credential gate to a file-level skip before page/database fixtures are requested.
 - **Addressed in stabilization pass:** global-admin route guard coverage now has a direct Playwright spec for the global-admin allow path and signed-in non-global-admin deny path.
 - **Addressed in stabilization pass:** scanning/check-in docs now describe the dedicated QR scanner, scan warnings, authorization, checked-in count updates, and selected guest-quantity check-in. The remaining scanner follow-up is Browser-backed organizer aggregate assertion, not missing product documentation.
-- **Should fix before relaunch:** docs coverage is still missing or thin for tenant/global-admin settings beyond the current list/settings pages, account creation outside Auth0-management integration, profile discount add/refresh/remove flows, role assignment/user management, and registration negative paths.
+- **Should fix before relaunch:** page-backed docs coverage is still missing or thin for tenant/global-admin settings beyond the current list/settings pages, account creation outside Auth0-management integration, profile discount add/refresh/remove flows, role assignment/user management, and registration negative paths. Local unit/server coverage exists for several of those surfaces, but it does not replace Browser-backed docs for the full user journeys.
 - **Addressed in stabilization pass:** the generic `tests/docs/template.doc.ts` discovery placeholder was removed; current template documentation lives in `tests/docs/templates/templates.doc.ts`.
 - **Addressed in stabilization pass:** the focused `docScreenshot` helper now resolves `DOCS_IMG_OUT_DIR` at call time instead of import time, so tests and docs jobs can set output paths per run. Some docs journeys still contain fixed waits and should be tightened as those flows are revisited.
 - **Addressed in stabilization pass:** `tests/docs/events/event-management.doc.ts` now waits on concrete headings instead of fixed one-second delays before its major screenshots.
@@ -1486,6 +1486,10 @@ implement those decisions or explicitly revise them there before changing code.
   remove pending labels plus save-disabled state into tested helpers, keeping
   add/refresh/remove Browser coverage as a runtime follow-up while preserving
   local coverage for the visible action states.
+- Profile/account backlog alignment pass: narrowed the remaining profile and
+  account cleanup language to page-backed runtime coverage after confirming
+  local helper/server tests already cover retry, tenant join, ESNcard action
+  states, profile event labels, and submitted receipt card labels.
 
 ## Review Next
 
