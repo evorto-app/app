@@ -4,6 +4,8 @@ import { describe, expect, it } from 'vitest';
 import {
   EventsFindOneAddon,
   EventsFindOneRegistrationOption,
+  EventsJoinWaitlistPayload,
+  EventsRegisterForEventPayload,
   EventsRegistrationStatus,
   EventsRegistrationStatusRecord,
 } from '../../../../../shared/rpc-contracts/app-rpcs/events.rpcs';
@@ -124,6 +126,37 @@ describe('events RPC add-on schema', () => {
         taxRatePercentage: '19',
         title: 'Equipment rental',
         totalAvailableQuantity: 20,
+      }),
+    ).not.toThrow();
+  });
+});
+
+describe('events RPC registration question answer schema', () => {
+  it('accepts registration question answers during direct registration and waitlist writes', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(EventsRegisterForEventPayload)({
+        answers: [
+          {
+            answer: 'Alice Example',
+            questionId: 'question-1',
+          },
+        ],
+        eventId: 'event-1',
+        guestCount: 0,
+        registrationOptionId: 'option-1',
+      }),
+    ).not.toThrow();
+
+    expect(() =>
+      Schema.decodeUnknownSync(EventsJoinWaitlistPayload)({
+        answers: [
+          {
+            answer: 'Alice Example',
+            questionId: 'question-1',
+          },
+        ],
+        eventId: 'event-1',
+        registrationOptionId: 'option-1',
       }),
     ).not.toThrow();
   });

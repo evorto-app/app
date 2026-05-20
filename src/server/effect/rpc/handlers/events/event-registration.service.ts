@@ -9,6 +9,7 @@ import { createId } from '../../../../../db/create-id';
 import {
   eventRegistrationOptionDiscounts,
   eventRegistrationOptions,
+  eventRegistrationQuestionAnswers,
   eventRegistrations,
   transactions,
   userDiscountCards,
@@ -144,6 +145,7 @@ const resolveDiscount = ({
 };
 
 interface JoinWaitlistArguments {
+  answers?: readonly RegistrationQuestionAnswerInput[] | undefined;
   eventId: string;
   registrationOptionId: string;
   tenant: Pick<Tenant, 'id'>;
@@ -151,6 +153,7 @@ interface JoinWaitlistArguments {
 }
 
 interface RegisterForEventArguments {
+  answers?: readonly RegistrationQuestionAnswerInput[] | undefined;
   eventId: string;
   guestCount: number;
   headers: Headers.Headers;
@@ -159,6 +162,53 @@ interface RegisterForEventArguments {
   user: Pick<User, 'email' | 'id' | 'roleIds'>;
 }
 
+interface RegistrationQuestionAnswerInput {
+  answer: string;
+  questionId: string;
+}
+
+interface RegistrationQuestionRecord {
+  id: string;
+  required: boolean;
+}
+
+export const validateRegistrationQuestionAnswers = ({
+  answers,
+  questions,
+}: {
+  answers: readonly RegistrationQuestionAnswerInput[] | undefined;
+  questions: readonly RegistrationQuestionRecord[];
+}): readonly { answer: string; questionId: string }[] => {
+  const normalizedAnswers = new Map<string, string>();
+  for (const answer of answers ?? []) {
+    normalizedAnswers.set(answer.questionId, answer.answer.trim());
+  }
+
+  const questionIds = new Set(questions.map((question) => question.id));
+  for (const questionId of normalizedAnswers.keys()) {
+    if (!questionIds.has(questionId)) {
+      throw new EventRegistrationConflictError({
+        message: 'Registration question does not belong to this option',
+      });
+    }
+  }
+
+  for (const question of questions) {
+    if (question.required && !normalizedAnswers.get(question.id)) {
+      throw new EventRegistrationConflictError({
+        message: 'Required registration question is missing',
+      });
+    }
+  }
+
+  return [...normalizedAnswers.entries()]
+    .filter(([, answer]) => answer.length > 0)
+    .map(([questionId, answer]) => ({
+      answer,
+      questionId,
+    }));
+};
+
 export class EventRegistrationService extends Context.Service<EventRegistrationService>()(
   '@server/effect/rpc/handlers/events/EventRegistrationService',
   {
@@ -166,6 +216,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
       const registerForEvent = Effect.fn(
         'EventRegistrationService.registerForEvent',
       )(function* ({
+        answers,
         eventId,
         guestCount,
         headers,
@@ -244,6 +295,12 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                   status: true,
                   tenantId: true,
                   title: true,
+                },
+              },
+              questions: {
+                columns: {
+                  id: true,
+                  required: true,
                 },
               },
             },
@@ -325,6 +382,15 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
             }),
           );
         }
+
+        const answerInserts = yield* Effect.try({
+          catch: (error) => error as EventRegistrationConflictError,
+          try: () =>
+            validateRegistrationQuestionAnswers({
+              answers,
+              questions: registrationOption.questions ?? [],
+            }),
+        });
 
         // Phase 2: create registration row and reserve/confirm a spot immediately.
         const selectedTaxRateId =
@@ -413,6 +479,16 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
               const userRegistration = createdRegistrations[0];
               if (!userRegistration) {
                 return { _tag: 'CapacityFull' } as const;
+              }
+
+              if (answerInserts.length > 0) {
+                yield* tx.insert(eventRegistrationQuestionAnswers).values(
+                  answerInserts.map((answer) => ({
+                    answer: answer.answer,
+                    questionId: answer.questionId,
+                    registrationId: userRegistration.id,
+                  })),
+                );
               }
 
               return {
@@ -702,6 +778,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
 
       const joinWaitlist = Effect.fn('EventRegistrationService.joinWaitlist')(
         function* ({
+          answers,
           eventId,
           registrationOptionId,
           tenant,
@@ -764,6 +841,12 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                   columns: {
                     status: true,
                     tenantId: true,
+                  },
+                },
+                questions: {
+                  columns: {
+                    id: true,
+                    required: true,
                   },
                 },
               },
@@ -845,6 +928,15 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
             );
           }
 
+          const answerInserts = yield* Effect.try({
+            catch: (error) => error as EventRegistrationConflictError,
+            try: () =>
+              validateRegistrationQuestionAnswers({
+                answers,
+                questions: registrationOption.questions ?? [],
+              }),
+          });
+
           const waitlistResult = yield* databaseEffect((database) =>
             database.transaction((tx) =>
               Effect.gen(function* () {
@@ -897,6 +989,16 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                   });
                 if (!createdRegistrations[0]) {
                   return { _tag: 'CapacityAvailable' } as const;
+                }
+
+                if (answerInserts.length > 0) {
+                  yield* tx.insert(eventRegistrationQuestionAnswers).values(
+                    answerInserts.map((answer) => ({
+                      answer: answer.answer,
+                      questionId: answer.questionId,
+                      registrationId: createdRegistrations[0].id,
+                    })),
+                  );
                 }
 
                 return { _tag: 'Joined' } as const;

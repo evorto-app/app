@@ -8,6 +8,8 @@ import {
   registrationOptionIsFull,
   registrationOptionSelectedTotalPrice,
   registrationOptionWriteActionDisabled,
+  registrationQuestionAnswerPayload,
+  registrationQuestionsMissingRequired,
 } from './event-registration-option.component';
 
 describe('registrationOptionAudienceCopy', () => {
@@ -217,6 +219,63 @@ describe('registrationOptionWriteActionDisabled', () => {
   it('allows registration writes while no register or waitlist mutation is pending', () => {
     expect(
       registrationOptionWriteActionDisabled({ mutationPending: false }),
+    ).toBe(false);
+  });
+
+  it('disables registration writes while required answers are missing', () => {
+    expect(
+      registrationOptionWriteActionDisabled({
+        missingRequiredAnswers: true,
+        mutationPending: false,
+      }),
+    ).toBe(true);
+  });
+});
+
+describe('registration question answers', () => {
+  const option = {
+    questions: [
+      {
+        description: null,
+        id: 'question-1',
+        required: true,
+        sortOrder: 0,
+        title: 'Emergency contact',
+      },
+      {
+        description: null,
+        id: 'question-2',
+        required: false,
+        sortOrder: 1,
+        title: 'Dietary notes',
+      },
+    ],
+  } as const;
+
+  it('normalizes non-empty answers for the registration mutation payload', () => {
+    expect(
+      registrationQuestionAnswerPayload(option, {
+        'question-1': '  Alice  ',
+        'question-2': '   ',
+      }),
+    ).toEqual([
+      {
+        answer: 'Alice',
+        questionId: 'question-1',
+      },
+    ]);
+  });
+
+  it('detects missing required answers', () => {
+    expect(
+      registrationQuestionsMissingRequired(option, {
+        'question-1': '   ',
+      }),
+    ).toBe(true);
+    expect(
+      registrationQuestionsMissingRequired(option, {
+        'question-1': 'Alice',
+      }),
     ).toBe(false);
   });
 });

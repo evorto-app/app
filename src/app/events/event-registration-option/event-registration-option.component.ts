@@ -113,9 +113,29 @@ export const registrationOptionSelectedTotalPrice = (
   return buyerPrice + option.price * Math.max(0, guestCount);
 };
 
+export const registrationQuestionAnswerPayload = (
+  option: Pick<EventRegistrationOptionView, 'questions'>,
+  answers: Readonly<Record<string, string>>,
+): { answer: string; questionId: string }[] =>
+  option.questions
+    .map((question) => ({
+      answer: (answers[question.id] ?? '').trim(),
+      questionId: question.id,
+    }))
+    .filter((answer) => answer.answer.length > 0);
+
+export const registrationQuestionsMissingRequired = (
+  option: Pick<EventRegistrationOptionView, 'questions'>,
+  answers: Readonly<Record<string, string>>,
+): boolean =>
+  option.questions.some(
+    (question) => question.required && !(answers[question.id] ?? '').trim(),
+  );
+
 export const registrationOptionWriteActionDisabled = (input: {
+  missingRequiredAnswers?: boolean;
   mutationPending: boolean;
-}): boolean => input.mutationPending;
+}): boolean => input.mutationPending || input.missingRequiredAnswers === true;
 
 export const registrationOptionAvailability = (
   option: Pick<
@@ -191,6 +211,15 @@ export class EventRegistrationOptionComponent {
   });
   protected readonly registrationOptionWriteActionDisabled =
     registrationOptionWriteActionDisabled;
+  private readonly registrationQuestionAnswers = signal<Record<string, string>>(
+    {},
+  );
+  protected readonly registrationQuestionAnswersMissingRequired = computed(() =>
+    registrationQuestionsMissingRequired(
+      this.registrationOption(),
+      this.registrationQuestionAnswers(),
+    ),
+  );
   protected readonly selectedGuestCount = computed(() =>
     Math.min(this.guestCount(), this.maxGuestCount()),
   );
@@ -220,6 +249,8 @@ export class EventRegistrationOptionComponent {
   joinWaitlist(registrationOption: { eventId: string; id: string }) {
     if (
       registrationOptionWriteActionDisabled({
+        missingRequiredAnswers:
+          this.registrationQuestionAnswersMissingRequired(),
         mutationPending: this.mutationPending(),
       })
     ) {
@@ -228,6 +259,10 @@ export class EventRegistrationOptionComponent {
 
     this.waitlistMutation.mutate(
       {
+        answers: registrationQuestionAnswerPayload(
+          this.registrationOption(),
+          this.registrationQuestionAnswers(),
+        ),
         eventId: registrationOption.eventId,
         registrationOptionId: registrationOption.id,
       },
@@ -251,6 +286,8 @@ export class EventRegistrationOptionComponent {
   register(registrationOption: { eventId: string; id: string }) {
     if (
       registrationOptionWriteActionDisabled({
+        missingRequiredAnswers:
+          this.registrationQuestionAnswersMissingRequired(),
         mutationPending: this.mutationPending(),
       })
     ) {
@@ -259,6 +296,10 @@ export class EventRegistrationOptionComponent {
 
     this.registrationMutation.mutate(
       {
+        answers: registrationQuestionAnswerPayload(
+          this.registrationOption(),
+          this.registrationQuestionAnswers(),
+        ),
         eventId: registrationOption.eventId,
         guestCount: this.selectedGuestCount(),
         registrationOptionId: registrationOption.id,
@@ -273,6 +314,10 @@ export class EventRegistrationOptionComponent {
         },
       },
     );
+  }
+
+  registrationQuestionAnswer(questionId: string): string {
+    return this.registrationQuestionAnswers()[questionId] ?? '';
   }
 
   updateGuestCount(event: Event) {
@@ -290,6 +335,20 @@ export class EventRegistrationOptionComponent {
         ),
       ),
     );
+  }
+
+  updateRegistrationQuestionAnswer(questionId: string, event: Event) {
+    const input = event.target;
+    if (
+      !(input instanceof HTMLInputElement) &&
+      !(input instanceof HTMLTextAreaElement)
+    ) {
+      return;
+    }
+    this.registrationQuestionAnswers.update((answers) => ({
+      ...answers,
+      [questionId]: input.value,
+    }));
   }
 
   protected errorMessage(error: unknown): string {

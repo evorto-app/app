@@ -1220,13 +1220,17 @@ export const eventRegistrationHandlers = {
         registrations: registrationSummaries,
       };
     }),
-  'events.joinWaitlist': ({ eventId, registrationOptionId }, _options) =>
+  'events.joinWaitlist': (
+    { answers, eventId, registrationOptionId },
+    _options,
+  ) =>
     Effect.gen(function* () {
       yield* RpcAccess.ensureAuthenticated();
       const { tenant } = yield* RpcAccess.current();
       const user = yield* RpcAccess.requireUser();
 
       return yield* EventRegistrationService.joinWaitlist({
+        answers,
         eventId,
         registrationOptionId,
         tenant: {
@@ -1239,7 +1243,7 @@ export const eventRegistrationHandlers = {
       });
     }),
   'events.registerForEvent': (
-    { eventId, guestCount, registrationOptionId },
+    { answers, eventId, guestCount, registrationOptionId },
     options,
   ) =>
     Effect.gen(function* () {
@@ -1248,6 +1252,7 @@ export const eventRegistrationHandlers = {
       const user = yield* RpcAccess.requireUser();
 
       return yield* EventRegistrationService.registerForEvent({
+        answers,
         eventId,
         guestCount,
         headers: options.headers,

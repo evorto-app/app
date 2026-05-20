@@ -40,23 +40,21 @@
   @if (registrationOption().questions.length > 0) {
     <div class="border-outline-variant flex flex-col gap-2 border-t pt-3">
       <p class="label-medium text-on-surface-variant">Registration questions</p>
-      <ul class="flex flex-col gap-2">
-        @for (question of registrationOption().questions; track question.id) {
-          <li>
-            <p class="body-medium text-on-surface">
-              {{ question.title }}
-              <span class="text-on-surface-variant">
-                {{ question.required ? "Required" : "Optional" }}
-              </span>
-            </p>
-            @if (question.description) {
-              <p class="body-small text-on-surface-variant">
-                {{ question.description }}
-              </p>
-            }
-          </li>
-        }
-      </ul>
+      @for (question of registrationOption().questions; track question.id) {
+        <mat-form-field appearance="outline">
+          <mat-label>{{ question.title }}</mat-label>
+          <textarea
+            matInput
+            rows="3"
+            [required]="question.required"
+            [value]="registrationQuestionAnswer(question.id)"
+            (input)="updateRegistrationQuestionAnswer(question.id, $event)"
+          ></textarea>
+          @if (question.description) {
+            <mat-hint>{{ question.description }}</mat-hint>
+          }
+        </mat-form-field>
+      }
     </div>
   }
 
@@ -72,6 +70,8 @@
               type="button"
               [disabled]="
                 registrationOptionWriteActionDisabled({
+                  missingRequiredAnswers:
+                    registrationQuestionAnswersMissingRequired(),
                   mutationPending: mutationPending(),
                 })
               "
@@ -105,6 +105,8 @@
               type="button"
               [disabled]="
                 registrationOptionWriteActionDisabled({
+                  missingRequiredAnswers:
+                    registrationQuestionAnswersMissingRequired(),
                   mutationPending: mutationPending(),
                 })
               "
@@ -120,6 +122,8 @@
               type="button"
               [disabled]="
                 registrationOptionWriteActionDisabled({
+                  missingRequiredAnswers:
+                    registrationQuestionAnswersMissingRequired(),
                   mutationPending: mutationPending(),
                 })
               "
