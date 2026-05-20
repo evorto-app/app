@@ -32,13 +32,25 @@ test('Manage user profile', async ({
   const profileEventAddonId = getId();
   const profileEventAddonPurchaseId = getId();
   const profileEventAddonTitle = `Profile docs snack ${seedDate.getTime()}`;
+  const checkedInRegistrationId = getId();
+  const checkedInAddonId = getId();
+  const checkedInAddonPurchaseId = getId();
+  const checkedInAddonTitle = `Profile docs checked snack ${seedDate.getTime()}`;
   const profileEventId = seeded.scenario.events.freeOpen.eventId;
   const profileEventOptionId = seeded.scenario.events.freeOpen.optionId;
+  const checkedInEventId = seeded.scenario.events.closedReg.eventId;
+  const checkedInEventOptionId = seeded.scenario.events.closedReg.optionId;
   const profileEvent = seeded.events.find(
     (event) => event.id === profileEventId,
   );
   if (!profileEvent) {
     throw new Error('Expected seeded free profile event');
+  }
+  const checkedInEvent = seeded.events.find(
+    (event) => event.id === checkedInEventId,
+  );
+  if (!checkedInEvent) {
+    throw new Error('Expected seeded checked-in profile event');
   }
 
   try {
@@ -63,6 +75,29 @@ test('Manage user profile', async ({
       id: profileEventAddonPurchaseId,
       quantity: 2,
       registrationId: profileEventRegistrationId,
+      unitPrice: 0,
+    });
+    await seedFreeRegistrationAddon({
+      addonId: checkedInAddonId,
+      database,
+      eventId: checkedInEventId,
+      registrationOptionId: checkedInEventOptionId,
+      title: checkedInAddonTitle,
+    });
+    await database.insert(schema.eventRegistrations).values({
+      checkInTime: seedDate,
+      eventId: checkedInEventId,
+      id: checkedInRegistrationId,
+      registrationOptionId: checkedInEventOptionId,
+      status: 'CONFIRMED',
+      tenantId: seeded.tenant.id,
+      userId: regularUser.id,
+    });
+    await database.insert(schema.eventRegistrationAddonPurchases).values({
+      addonId: checkedInAddonId,
+      id: checkedInAddonPurchaseId,
+      quantity: 1,
+      registrationId: checkedInRegistrationId,
       unitPrice: 0,
     });
 
@@ -212,6 +247,29 @@ The user profile now uses a two-column layout:
     await expect(
       documentedEventCard.getByRole('link', { name: 'Open event page' }),
     ).toBeVisible();
+    const checkedInEventCard = page
+      .locator('article')
+      .filter({ hasText: checkedInAddonTitle });
+    await expect(checkedInEventCard).toBeVisible();
+    await expect(
+      checkedInEventCard.getByText(checkedInEvent.title),
+    ).toBeVisible();
+    await expect(checkedInEventCard.getByText('Confirmed')).toBeVisible();
+    await expect(checkedInEventCard.getByText('Checked in:')).toBeVisible();
+    await expect(
+      checkedInEventCard.getByText(`1 x ${checkedInAddonTitle}`),
+    ).toBeVisible();
+    await expect(
+      checkedInEventCard.getByText(
+        'You are checked in. Open the event page for ticket details. Cancellation and transfer are no longer available after check-in.',
+      ),
+    ).toBeVisible();
+    await expect(
+      checkedInEventCard.getByText('Available on the event page.'),
+    ).toHaveCount(0);
+    await expect(
+      checkedInEventCard.getByRole('link', { name: 'Open event page' }),
+    ).toBeVisible();
     await takeScreenshot(
       testInfo,
       page.locator('app-user-profile'),
@@ -246,15 +304,31 @@ The user profile now uses a two-column layout:
         ),
       );
     await database
+      .delete(schema.eventRegistrationAddonPurchases)
+      .where(
+        eq(schema.eventRegistrationAddonPurchases.id, checkedInAddonPurchaseId),
+      );
+    await database
       .delete(schema.eventRegistrations)
       .where(eq(schema.eventRegistrations.id, profileEventRegistrationId));
+    await database
+      .delete(schema.eventRegistrations)
+      .where(eq(schema.eventRegistrations.id, checkedInRegistrationId));
     await database
       .delete(schema.addonToEventRegistrationOptions)
       .where(
         eq(schema.addonToEventRegistrationOptions.addonId, profileEventAddonId),
       );
     await database
+      .delete(schema.addonToEventRegistrationOptions)
+      .where(
+        eq(schema.addonToEventRegistrationOptions.addonId, checkedInAddonId),
+      );
+    await database
       .delete(schema.eventAddons)
       .where(eq(schema.eventAddons.id, profileEventAddonId));
+    await database
+      .delete(schema.eventAddons)
+      .where(eq(schema.eventAddons.id, checkedInAddonId));
   }
 });

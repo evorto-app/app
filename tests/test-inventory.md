@@ -196,16 +196,18 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     optional global reimbursement details. Generated docs already exercise the
     notification-email edit/restore path, and app helper coverage proves payload
     trimming and blank-value normalization before persistence.
-  - Browser-backed checked-in profile event-card assertions. Generated profile
-    docs now seed a confirmed registration with one guest and a free add-on,
-    then assert event link, registration status, guest quantity, purchased
-    add-on summary, payment state, and ticket-routing copy. App/server coverage
-    already proves event-detail action copy, guest/status/payment labels,
-    profile event add-on summaries, implemented-action notes, waitlist
-    event-page routing, and the payment-continuation next-step copy. It also
-    proves profile payment continuation links render only for pending Stripe
-    Checkout HTTPS URLs, and checked-in profile event cards no longer advertise
-    cancellation or transfer actions.
+  - Manual Browser-backed profile event-card review once local runtime is
+    available. Generated profile docs now seed confirmed and checked-in
+    registrations with free add-ons, then assert event link, registration
+    status, guest quantity, purchased add-on summary, payment state,
+    ticket-routing copy, checked-in copy, and that checked-in cards do not show
+    ticket availability copy. App/server coverage already proves event-detail
+    action copy, guest/status/payment labels, profile event add-on summaries,
+    implemented-action notes, waitlist event-page routing, and the
+    payment-continuation next-step copy. It also proves profile payment
+    continuation links render only for pending Stripe Checkout HTTPS URLs, and
+    checked-in profile event cards no longer advertise cancellation or transfer
+    actions.
     Organizer overview app coverage also proves checked-in rows and in-flight
     writes disable participant cancellation and organizer-assisted transfer.
   - Browser-backed ESNcard add, refresh, and remove flows with readable error

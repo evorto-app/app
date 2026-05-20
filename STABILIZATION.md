@@ -1098,7 +1098,7 @@ the current working direction until a product decision overrides them.
 
 ### Test and Documentation Quality
 
-- `tests/docs/profile/user-profile.doc.ts` documents navigation, profile display, edit dialog validation, notification email persistence, event cards, and the receipts tab. It now seeds a deterministic confirmed profile event card with a guest and a free add-on, then asserts the event title, event-detail link, status, guest, add-on, payment, and ticket-routing labels before taking the Events-section screenshot.
+- `tests/docs/profile/user-profile.doc.ts` documents navigation, profile display, edit dialog validation, notification email persistence, event cards, and the receipts tab. It now seeds deterministic confirmed and checked-in profile event cards with free add-ons, then asserts the event title, event-detail link, status, guest, add-on, payment, ticket-routing, and checked-in no-cancellation/no-transfer labels before taking the Events-section screenshot.
 - `src/app/profile/user-profile/edit-profile-dialog.component.spec.ts` covers profile edit payload normalization for notification email and optional global reimbursement details before the update mutation receives the dialog result.
 - `src/app/profile/user-profile/user-profile.component.spec.ts` covers profile event action routing, payment-continuation visibility, guest-quantity, checked-in action copy, implemented-action notes, payment-continuation next-step copy, payment-state, registration-status labels, submitted-receipt status and amount labels, ESNcard action/status labels, ESNcard save disabled state, ESNcard upsert payload normalization, and readable ESNcard mutation error fallback/provider messages. `src/server/effect/rpc/handlers/users.handlers.spec.ts` and the users RPC schema spec now pin purchased add-ons on profile event summaries.
 - Profile app coverage also pins that payment continuation links only render for
@@ -1111,7 +1111,7 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** the profile doc no longer uses a fixed stabilization wait before the profile screenshot, now saves and verifies notification email persistence, and opens the Events section to assert and document event-card semantics.
 - `tests/docs/profile/discounts.doc.ts` documents the discount-card section and current pending/error behavior, but does not add, refresh, remove, or assert any ESNcard validation outcome.
 - `tests/specs/discounts/esn-discounts.test.ts` verifies a seeded verified ESNcard affects paid event price labels and the register button copy.
-- No reviewed Playwright spec proves profile discount-card management itself, browser-level account creation fallback behavior without Auth0 Management credentials, checked-in profile event rendering, or submitted receipt visibility after receipt submission. Local helper/server coverage now pins the visible profile/account copy and action states that can be verified without page-backed runtime, and the profile docs journey asserts the confirmed profile event-card route/status/guest/add-on/payment/ticket labels.
+- No reviewed Playwright spec proves profile discount-card management itself, browser-level account creation fallback behavior without Auth0 Management credentials, or submitted receipt visibility after receipt submission. Local helper/server coverage now pins the visible profile/account copy and action states that can be verified without page-backed runtime, and the profile docs journey asserts confirmed and checked-in profile event-card route/status/guest/add-on/payment/ticket/action labels.
 - `tests/docs/users/create-account.doc.ts` is integration-tagged and skips without Auth0 Management credentials, so baseline docs do not prove the account-creation path.
 - `tests/docs/users/create-account.doc.ts` asserts the account form exposes the editable address as "Notification email" when the integration path can run.
 - `src/app/app.routes.spec.ts` pins the relaunch route contract that public event browsing uses only account-assignment checks, feature areas require assigned authenticated accounts, `/create-account` stays auth-only for tenantless authenticated users, and `/global-admin` remains auth-only before tenant assignment checks.
@@ -1133,7 +1133,7 @@ the current working direction until a product decision overrides them.
 ### Recommended Cleanup Actions
 
 - Keep Browser-backed profile edit persistence coverage aligned with notification email behavior.
-- Keep Browser-backed profile event-card coverage aligned with route/status/guest/add-on/payment/ticket labels; add checked-in profile event assertions once runtime review is available.
+- Keep Browser-backed profile event-card coverage aligned with route/status/guest/add-on/payment/ticket/check-in labels and rerun it during manual runtime review.
 - Add Browser-backed profile discount-card tests for add/refresh/remove and provider validation outcomes once runtime review is available. Local app/server coverage already proves upsert payload normalization, readable mutation errors, global card reads/upserts, refresh persistence, and scoped removal.
 - Add Browser-backed profile/account coverage for account creation retry/tenant-join behavior, profile edit persistence, ESNcard add/refresh/remove, profile event action rendering, and submitted receipt visibility once local runtime review is available. Local helper/server coverage already covers account creation retry/tenant join, profile edit payload persistence, ESNcard action labels/errors/payloads, profile event labels/actions, and submitted receipt status/amount/server rows.
 
@@ -1625,7 +1625,7 @@ implement those decisions or explicitly revise them there before changing code.
   render the submitter's notification email when present, falling back to the
   Auth0 login email only when no notification email is configured.
 - Profile edit docs pass: extended the user-profile documentation journey to save a changed notification email, assert the refreshed profile summary, and restore the seeded user record after the doc run.
-- Profile event-card docs pass: extended the user-profile documentation journey with a deterministic confirmed registration plus free add-on and asserted the profile event-card title, event-detail link, status, guest, add-on, payment, and ticket-routing labels.
+- Profile event-card docs pass: extended the user-profile documentation journey with deterministic confirmed and checked-in registrations plus free add-ons and asserted the profile event-card title, event-detail link, status, guest, add-on, payment, ticket-routing, and checked-in action labels.
 - Create-account gate coverage pass: extracted the email-verification form gate into a typed helper and covered verified, unverified, null, and absent Auth0 email-verification states without requiring Auth0 Management credentials.
 - Playwright skip-inventory pass: added a local unit guard that allowlists every
   current Playwright `test.skip` and `test.fixme`, keeping future fixture-state
