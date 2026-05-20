@@ -80,7 +80,13 @@
             mat-stroked-button
             color="warn"
             (click)="reject()"
-            [disabled]="reviewMutation.isPending()"
+            [disabled]="
+              receiptReviewActionDisabled({
+                formInvalid: form.invalid,
+                mutationPending: reviewMutation.isPending(),
+                receiptPending: receiptQuery.isPending(),
+              })
+            "
             type="button"
           >
             Reject
@@ -89,7 +95,13 @@
             mat-raised-button
             color="primary"
             (click)="approve()"
-            [disabled]="reviewMutation.isPending()"
+            [disabled]="
+              receiptReviewActionDisabled({
+                formInvalid: form.invalid,
+                mutationPending: reviewMutation.isPending(),
+                receiptPending: receiptQuery.isPending(),
+              })
+            "
             type="button"
           >
             Approve

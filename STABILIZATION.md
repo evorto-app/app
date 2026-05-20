@@ -819,6 +819,9 @@ the current working direction until a product decision overrides them.
 - Finance overview docs now describe the current navigation-style finance UI, current finance capability names, and the manual submitter-notification caveat before and after receipt review.
 - **Addressed in stabilization pass:** `tests/docs/finance/receipt-review-reimbursement.doc.ts` now walks the receipt approval queue, approval detail page, manual submitter-notification caveat, reimbursement queue, payout-detail selection, and manual reimbursement recording.
 - `src/app/finance/receipt-refund-list/receipt-refund-list.component.spec.ts` pins the reimbursement queue's manual money-movement notice, payout-detail gating, payout-detail labels, and selected-total math. The receipt reimbursement doc/spec assert the manual-money notice on the page.
+- `src/app/finance/receipt-approval-detail/receipt-approval-detail.component.spec.ts`
+  pins the approval/rejection action guard for invalid forms, loading receipt
+  details, and mutation-pending review writes.
 - Tax-rate docs and specs provide better active coverage for `admin:tax` and inclusive Stripe tax-rate import/selection.
 - Server finance unit tests are still thin, but now include transaction-list permission denial, receipt-media upload preflight denial/success coverage, profile `finance.receipts.my` output normalization, submitter notification-email fallback, and tax-amount consistency rejection on receipt submit/review.
 - Event organize app coverage pins the receipt submission disabled state while
@@ -1364,6 +1367,9 @@ implement those decisions or explicitly revise them there before changing code.
 - Receipt submission guard pass: kept the organizer Add receipt action disabled
   during both upload and submit mutations, with the template and handler sharing
   the same tested helper.
+- Receipt review action guard pass: shared the receipt approval/rejection
+  disabled state and handler early return so invalid, loading, and
+  mutation-pending review writes cannot double-submit.
 - Scanner action guard pass: kept the scanned-registration check-in action
   disabled after a successful local write while the scan-result query refetches,
   with the template and handler sharing the same tested helper.
