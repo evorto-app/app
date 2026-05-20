@@ -76,15 +76,27 @@
                   }
                 </div>
                 @if (!registrationOption.organizingRegistration) {
-                  <button
-                    mat-stroked-button
-                    (click)="cancelRegistration(user)"
-                    [disabled]="
-                      user.checkedIn || cancelRegistrationMutation.isPending()
-                    "
-                  >
-                    Cancel registration
-                  </button>
+                  <div class="flex flex-wrap gap-2">
+                    <button
+                      mat-stroked-button
+                      (click)="openTransferDialog(user)"
+                      [disabled]="
+                        user.checkedIn ||
+                        transferRegistrationMutation.isPending()
+                      "
+                    >
+                      Transfer registration
+                    </button>
+                    <button
+                      mat-stroked-button
+                      (click)="cancelRegistration(user)"
+                      [disabled]="
+                        user.checkedIn || cancelRegistrationMutation.isPending()
+                      "
+                    >
+                      Cancel registration
+                    </button>
+                  </div>
                 }
               </div>
             }

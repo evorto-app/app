@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { computeEventOrganizeStats } from './event-organize';
+import { transferParticipantLabel } from './registration-transfer-dialog.component';
 
 describe('computeEventOrganizeStats', () => {
   it('sums capacity, confirmed registrations, and scanner-updated checked-in spots', () => {
@@ -34,5 +35,17 @@ describe('computeEventOrganizeStats', () => {
       checkedIn: 0,
       registered: 0,
     });
+  });
+});
+
+describe('transferParticipantLabel', () => {
+  it('shows the participant identity before organizer-assisted transfer', () => {
+    expect(
+      transferParticipantLabel({
+        email: 'alex@example.com',
+        firstName: 'Alex',
+        lastName: 'Able',
+      }),
+    ).toBe('Alex Able (alex@example.com)');
   });
 });
