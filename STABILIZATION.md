@@ -1197,8 +1197,10 @@ the current working direction until a product decision overrides them.
   pending-checkout, waitlisted, confirmed, and checked-in states direct
   functional Playwright coverage in addition to product documentation. The
   generated doc and matching functional spec also read back the confirmed
-  registration, add-on purchase, pending checkout transaction, waitlist
-  registration, and checked-in registration rows behind those cards.
+  registration, add-on purchase, pending checkout transaction and registration,
+  waitlist registration, checked-in registration, and checked-in add-on purchase
+  rows behind those cards. Both page-backed paths assert that the profile-level
+  Continue payment action only appears for the pending-checkout card.
 - `tests/specs/profile/user-profile-receipts.spec.ts` mirrors the generated
   profile receipts documentation with functional coverage: it seeds a submitted
   receipt, opens the profile receipts tab by fragment, asserts filename,
@@ -2407,6 +2409,10 @@ implement those decisions or explicitly revise them there before changing code.
   tenant workflow spec and generated guide to create a temporary tenant, read
   back the persisted one-domain/default settings row, and clean up the generated
   tenant after the flow.
+- Profile event-card action pass: tightened the generated profile guide and
+  matching functional spec so only pending-checkout cards expose Continue
+  payment, and added readbacks for the pending registration plus checked-in
+  add-on purchase behind those visible cards.
 
 ## Review Next
 

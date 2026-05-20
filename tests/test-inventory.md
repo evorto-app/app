@@ -298,7 +298,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     The generated profile docs and functional profile-event spec now pin each
     seeded confirmed, pending-checkout, waitlisted, and checked-in card to its
     expected event-page link so the recovery route cannot silently drift while
-    Browser runtime review is unavailable.
+    Browser runtime review is unavailable. They also assert that only the
+    pending-checkout card exposes the profile-level **Continue payment** action,
+    and read back the pending registration plus checked-in add-on purchase rows
+    behind those visible cards.
     Organizer overview app coverage also proves checked-in rows and in-flight
     writes disable participant cancellation and organizer-assisted transfer.
   - Browser-backed ESNcard live add, refresh, and remove provider outcomes with
