@@ -1301,17 +1301,22 @@ the current working direction until a product decision overrides them.
 - `src/server/effect/rpc/handlers/discounts.handlers.spec.ts` covers global-per-user ESNcard reads, updating an existing global user card from another tenant context, refresh revalidation persistence, provider-outage upsert rejection without mutating the stored card, and current-user/type-scoped card removal.
 - `src/server/effect/rpc/handlers/users.handlers.spec.ts` covers `users.events` tenant/user scoping, cancelled-registration exclusion, sorting, checkout URLs, check-in timestamps, guest counts, and payment-state mapping, plus `users.findMany` role aggregation, account creation transactionality, existing-global-user tenant joining, duplicate tenant-assignment conflict behavior, profile update persistence, and `users.userAssigned` behavior.
 - **Docker profile/account runtime pass:** with the Docker stack healthy on local
-  port 4200, the system-Chrome Playwright pass for
+  port 4577, the system-Chrome Playwright pass for
   `tests/specs/profile/user-profile-edit.spec.ts`,
   `tests/specs/profile/user-profile-events.spec.ts`,
   `tests/specs/profile/user-profile-receipts.spec.ts`,
   `tests/specs/profile/user-profile-discounts.spec.ts`,
+  `tests/specs/discounts/esn-discounts.test.ts`,
   `tests/docs/profile/user-profile.doc.ts`,
-  `tests/docs/profile/discounts.doc.ts`, and
-  `tests/docs/users/create-account.doc.ts` passed. The in-app Browser attempt to
-  open `/profile` still timed out before returning usable page state, so manual
-  Browser review remains a tooling/runtime follow-up rather than an uncovered
-  Playwright behavior gap.
+  and `tests/docs/profile/discounts.doc.ts` passed. The main checkout and
+  worktree env files currently provide the core Auth0, Stripe, Cloudflare,
+  Neon, session, and Font Awesome variables, but not
+  `E2E_LIVE_ESN_CARD_IDENTIFIER`, so live ESNcard provider add/refresh/remove
+  remains an explicit credential-gated integration path rather than
+  deterministic baseline coverage. The in-app Browser attempt to open
+  `/profile#discounts` still timed out before returning usable page state, so
+  manual Browser review remains a tooling/runtime follow-up rather than an
+  uncovered Playwright behavior gap.
 
 ### Product Questions Answered Above
 
