@@ -81,6 +81,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - `docs/template-categories/categories.doc.ts`
   - `specs/templates/**`
   - `specs/template-categories/**`
+  - app mapper coverage in `src/app/templates/template-create-event`
 - Roles and permissions:
   - `docs/roles/about-permissions.doc.ts`
   - `docs/roles/roles.doc.ts`
@@ -233,6 +234,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     selectors. Server coverage already proves lookup permissions and
     lookup-only role results; template autocomplete coverage now fails loudly
     when seeded roles are missing.
+  - Keep template-to-event mapper coverage aligned with the event form as richer
+    reusable template data is added. Local app coverage now proves event
+    defaults, source registration option ids, registration-window offsets, and
+    private organizer planning tips at the template-to-event boundary.
   - Local shared coverage pins admin-facing permission labels and descriptions,
     including the labels used for role-form dependency copy and the generated
     permission reference.

@@ -641,6 +641,11 @@ the current working direction until a product decision overrides them.
 - `tests/docs/templates/templates.doc.ts` documents simple-mode template creation, organizer planning tips, role defaults, payment field visibility, optional ESNcard discounted price fields, and role-picker behavior. It asserts that enabling payment reveals both the price and tax-rate controls before taking the payment-field screenshot.
 - `tests/specs/templates/paid-option-requires-tax-rate.spec.ts` now has active simple-mode UI coverage for the paid tax-rate requirement and a seeded inclusive tax-rate save path. Remaining fixme entries are limited to future bulk/no-compatible-rate UI behavior.
 - `src/app/templates/shared/template-form/template-registration-option-form.utilities.spec.ts` covers paid template tax-rate and ESNcard discount preservation, paid missing-tax-rate pass-through for server validation, and free-registration payment-field cleanup before create/edit submission.
+- `src/app/templates/template-create-event/template-create-event.mapper.spec.ts`
+  covers the template-to-event form mapping, including copied registration
+  option source ids for server-side template discount copying, relative
+  registration-window offsets, and the boundary that organizer planning tips
+  stay private to the template surface.
 - `src/server/effect/rpc/handlers/tax-rates.handlers.spec.ts` covers `taxRates.listActive` permission behavior and the current-tenant active/inclusive filter used to populate compatible template tax-rate selects.
 - `src/server/utils/validate-tax-rate.spec.ts` covers the shared server rule that paid options require a tenant-owned active inclusive tax rate and free options cannot carry stale tax-rate ids.
 - `src/server/effect/rpc/handlers/templates/simple-template.service.spec.ts` covers paid template registrations without tax rates, free template registrations with stale tax-rate ids, and invalid ESNcard discounted prices failing through the server-side validation path.
@@ -1508,6 +1513,11 @@ implement those decisions or explicitly revise them there before changing code.
   to match the current schema surface and added a schema guard for the fact that
   add-ons are template-scoped only while registration-question schemas are not
   exposed yet.
+- Template-to-event mapping pass: extracted the create-event-from-template form
+  mapper and pinned copied event defaults, registration source option ids,
+  offset-derived registration windows, and the current boundary that organizer
+  planning tips remain private to template detail instead of flowing into event
+  instances.
 - Create-account retry guard pass: made the create-account submit button stay
   disabled while the account mutation is pending and pinned that invalid,
   submitting, and mutation-pending states all block duplicate submissions

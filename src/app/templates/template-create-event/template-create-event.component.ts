@@ -28,7 +28,7 @@ import {
   eventGeneralFormSchema,
 } from '../../shared/components/forms/event-general-form/event-general-form.schema';
 import { RegistrationOptionForm } from '../../shared/components/forms/registration-option-form/registration-option-form';
-import { createRegistrationOptionFormModel } from '../../shared/components/forms/registration-option-form/registration-option-form.schema';
+import { createEventFormModelFromTemplate } from './template-create-event.mapper';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -86,36 +86,7 @@ export class TemplateCreateEventComponent {
         untracked(() => this.createEventForm.start().value()),
       );
       this.createEventModel.set(
-        createEventGeneralFormModel({
-          description: template.description,
-          end: startDateTime,
-          icon: template.icon,
-          location: template.location ?? null,
-          registrationOptions: template.registrationOptions.map((option) =>
-            createRegistrationOptionFormModel({
-              closeRegistrationTime: startDateTime.minus({
-                hours: option.closeRegistrationOffset,
-              }),
-              description: option.description ?? '',
-              // Preserve source option id only for local form tracking.
-              id: option.id,
-              isPaid: option.isPaid,
-              openRegistrationTime: startDateTime.minus({
-                hours: option.openRegistrationOffset,
-              }),
-              organizingRegistration: option.organizingRegistration,
-              price: option.price,
-              registeredDescription: option.registeredDescription ?? '',
-              registrationMode: option.registrationMode,
-              roleIds: [...(option.roleIds ?? [])],
-              spots: option.spots,
-              stripeTaxRateId: option.stripeTaxRateId ?? null,
-              title: option.title,
-            }),
-          ),
-          start: startDateTime,
-          title: template.title,
-        }),
+        createEventFormModelFromTemplate(template, startDateTime),
       );
       this.lastStart.set(startDateTime);
       this.initializedTemplateId.set(template.id);

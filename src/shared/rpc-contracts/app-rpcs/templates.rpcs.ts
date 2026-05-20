@@ -81,6 +81,9 @@ export const TemplateFindOneRecord = Schema.Struct({
   registrationOptions: Schema.Array(TemplateRegistrationOptionRecord),
   title: Schema.NonEmptyString,
 });
+export type TemplateFindOneRecord = Schema.Schema.Type<
+  typeof TemplateFindOneRecord
+>;
 
 export const TemplateListRecord = Schema.Struct({
   icon: iconSchema,
