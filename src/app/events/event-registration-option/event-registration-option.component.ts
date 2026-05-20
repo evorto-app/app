@@ -22,6 +22,22 @@ import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
 import { PriceWithTaxComponent } from '../../shared/components/inclusive-price-label/price-with-tax.component';
 
+export interface EventRegistrationAddonView {
+  allowPurchaseDuringRegistration: boolean;
+  id: string;
+  isPaid: boolean;
+  maxQuantityPerUser: number;
+  price: number;
+  registrationOptions: readonly {
+    quantity: number;
+    registrationOptionId: string;
+  }[];
+  taxRateDisplayName?: null | string;
+  taxRatePercentage?: null | string;
+  title: string;
+  totalAvailableQuantity: number;
+}
+
 export interface EventRegistrationOptionView {
   appliedDiscountType?: 'esnCard' | null;
   closeRegistrationTime: string;
@@ -113,6 +129,27 @@ export const registrationOptionSelectedTotalPrice = (
   return buyerPrice + option.price * Math.max(0, guestCount);
 };
 
+export const registrationAddonPurchasePayload = (
+  addOns: readonly Pick<EventRegistrationAddonView, 'id'>[],
+  selections: Readonly<Record<string, number>>,
+): { addOnId: string; quantity: number }[] =>
+  addOns
+    .map((addOn) => ({
+      addOnId: addOn.id,
+      quantity: Math.max(0, Math.trunc(selections[addOn.id] ?? 0)),
+    }))
+    .filter((addOn) => addOn.quantity > 0);
+
+export const registrationAddonSelectedTotalPrice = (
+  addOns: readonly Pick<EventRegistrationAddonView, 'id' | 'price'>[],
+  selections: Readonly<Record<string, number>>,
+): number =>
+  addOns.reduce(
+    (total, addOn) =>
+      total + addOn.price * Math.max(0, Math.trunc(selections[addOn.id] ?? 0)),
+    0,
+  );
+
 export const registrationQuestionAnswerPayload = (
   option: Pick<EventRegistrationOptionView, 'questions'>,
   answers: Readonly<Record<string, string>>,
@@ -168,6 +205,7 @@ export const registrationOptionAvailability = (
   templateUrl: './event-registration-option.component.html',
 })
 export class EventRegistrationOptionComponent {
+  public readonly addOns = input<readonly EventRegistrationAddonView[]>([]);
   public readonly registrationOption =
     input.required<EventRegistrationOptionView>();
   protected readonly audienceCopy = computed(() =>
@@ -220,6 +258,10 @@ export class EventRegistrationOptionComponent {
       this.registrationQuestionAnswers(),
     ),
   );
+  private readonly addonSelections = signal<Record<string, number>>({});
+  protected readonly selectedAddonTotalPrice = computed(() =>
+    registrationAddonSelectedTotalPrice(this.addOns(), this.addonSelections()),
+  );
   protected readonly selectedGuestCount = computed(() =>
     Math.min(this.guestCount(), this.maxGuestCount()),
   );
@@ -227,9 +269,11 @@ export class EventRegistrationOptionComponent {
     () => this.selectedGuestCount() + 1,
   );
   protected readonly selectedTotalPrice = computed(() => {
-    return registrationOptionSelectedTotalPrice(
-      this.registrationOption(),
-      this.selectedGuestCount(),
+    return (
+      registrationOptionSelectedTotalPrice(
+        this.registrationOption(),
+        this.selectedGuestCount(),
+      ) + this.selectedAddonTotalPrice()
     );
   });
   protected readonly taxRateInfo = computed(() => {
@@ -245,6 +289,22 @@ export class EventRegistrationOptionComponent {
   });
 
   private queryClient = inject(QueryClient);
+
+  addonQuantity(addOnId: string): number {
+    return this.addonSelections()[addOnId] ?? 0;
+  }
+
+  addonTaxRate(addOn: {
+    taxRateDisplayName?: null | string;
+    taxRatePercentage?: null | string;
+  }) {
+    return addOn.taxRateDisplayName && addOn.taxRatePercentage
+      ? {
+          displayName: addOn.taxRateDisplayName,
+          percentage: addOn.taxRatePercentage,
+        }
+      : undefined;
+  }
 
   joinWaitlist(registrationOption: { eventId: string; id: string }) {
     if (
@@ -296,6 +356,10 @@ export class EventRegistrationOptionComponent {
 
     this.registrationMutation.mutate(
       {
+        addOns: registrationAddonPurchasePayload(
+          this.addOns(),
+          this.addonSelections(),
+        ),
         answers: registrationQuestionAnswerPayload(
           this.registrationOption(),
           this.registrationQuestionAnswers(),
@@ -318,6 +382,26 @@ export class EventRegistrationOptionComponent {
 
   registrationQuestionAnswer(questionId: string): string {
     return this.registrationQuestionAnswers()[questionId] ?? '';
+  }
+
+  updateAddonQuantity(addOn: EventRegistrationAddonView, event: Event) {
+    const input = event.target;
+    if (!(input instanceof HTMLInputElement)) {
+      return;
+    }
+    const parsed = Number.parseInt(input.value, 10);
+    const nextQuantity = Math.max(
+      0,
+      Math.min(
+        Number.isNaN(parsed) ? 0 : parsed,
+        addOn.maxQuantityPerUser,
+        addOn.totalAvailableQuantity,
+      ),
+    );
+    this.addonSelections.update((selections) => ({
+      ...selections,
+      [addOn.id]: nextQuantity,
+    }));
   }
 
   updateGuestCount(event: Event) {

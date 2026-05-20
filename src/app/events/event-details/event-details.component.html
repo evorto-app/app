@@ -273,6 +273,12 @@
                       track registrationOption.id
                     ) {
                       <app-event-registration-option
+                        [addOns]="
+                          eventAddonsForRegistrationOption(
+                            eventQuery.data(),
+                            registrationOption.id
+                          )
+                        "
                         [registrationOption]="registrationOption"
                       />
                     }

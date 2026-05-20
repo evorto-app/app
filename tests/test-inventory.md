@@ -317,12 +317,12 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     registration-option labels. Server handler coverage pins the current add-on
     read model, simple-template service coverage pins optional add-on write
     payload shaping/validation, and template form utility coverage pins add-on
-    submit normalization plus read-model-to-edit-form mapping while add-on
-    checkout/sales fulfillment remains out of scope. Event lifecycle, schema,
-    and event-detail component coverage pins copied event add-on storage and
-    read-only labels. Create-event component coverage pins the visible notice
-    that template add-ons copy to event detail while add-on checkout/sales
-    remains out of scope.
+    submit normalization plus read-model-to-edit-form mapping. Event lifecycle,
+    schema, registration-card, and event-detail component coverage pins copied
+    event add-on storage, registration-time purchase payloads, and event-card
+    add-on selection. Create-event component coverage pins the visible notice
+    that template add-ons copy to registration-time purchase surfaces while
+    standalone before-event and during-event sales remain out of scope.
   - Template registration-option component coverage pins paid tax-rate select
     feedback for loading, empty compatible-rate, failed, and available states.
   - Template question coverage pins simple template form preservation,

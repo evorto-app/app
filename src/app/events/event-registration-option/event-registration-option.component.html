@@ -37,6 +37,45 @@
     {{ audienceCopy().helperText }}
   </p>
 
+  @if (addOns().length > 0) {
+    <div class="border-outline-variant flex flex-col gap-3 border-t pt-3">
+      <p class="label-medium text-on-surface-variant">Add-ons</p>
+      @for (addOn of addOns(); track addOn.id) {
+        <div class="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-start">
+          <div>
+            <p class="body-medium text-on-surface">{{ addOn.title }}</p>
+            <p class="body-small text-on-surface-variant">
+              Max {{ addOn.maxQuantityPerUser }} per registration
+            </p>
+            @if (addOn.isPaid) {
+              <app-price-with-tax
+                [amount]="addOn.price"
+                [taxRate]="addonTaxRate(addOn)"
+              />
+            } @else {
+              <p class="body-small text-on-surface-variant">Free</p>
+            }
+          </div>
+          <mat-form-field appearance="outline" class="w-32">
+            <mat-label>Quantity</mat-label>
+            <input
+              matInput
+              type="number"
+              min="0"
+              [max]="
+                addOn.maxQuantityPerUser < addOn.totalAvailableQuantity
+                  ? addOn.maxQuantityPerUser
+                  : addOn.totalAvailableQuantity
+              "
+              [value]="addonQuantity(addOn.id)"
+              (input)="updateAddonQuantity(addOn, $event)"
+            />
+          </mat-form-field>
+        </div>
+      }
+    </div>
+  }
+
   @if (registrationOption().questions.length > 0) {
     <div class="border-outline-variant flex flex-col gap-2 border-t pt-3">
       <p class="label-medium text-on-surface-variant">Registration questions</p>
@@ -98,7 +137,7 @@
               </span>
             </mat-form-field>
           }
-          @if (registrationOption().isPaid) {
+          @if (selectedTotalPrice() > 0) {
             <button
               (click)="register(registrationOption())"
               mat-flat-button

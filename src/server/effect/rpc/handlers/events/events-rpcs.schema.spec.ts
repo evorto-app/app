@@ -135,6 +135,12 @@ describe('events RPC registration question answer schema', () => {
   it('accepts registration question answers during direct registration and waitlist writes', () => {
     expect(() =>
       Schema.decodeUnknownSync(EventsRegisterForEventPayload)({
+        addOns: [
+          {
+            addOnId: 'addon-1',
+            quantity: 1,
+          },
+        ],
         answers: [
           {
             answer: 'Alice Example',

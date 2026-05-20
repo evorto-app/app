@@ -8,6 +8,7 @@ import { StripeClient } from '../../../../stripe-client';
 import {
   EventRegistrationService,
   isUserEligibleForRegistrationOption,
+  validateRegistrationAddons,
   validateRegistrationQuestionAnswers,
 } from './event-registration.service';
 
@@ -66,6 +67,91 @@ describe('EventRegistrationService', () => {
           userRoleIds: ['role-2'],
         }),
       ).toBe(false);
+    });
+  });
+
+  describe('validateRegistrationAddons', () => {
+    const availableAddOn = {
+      addOnId: 'addon-1',
+      allowMultiple: true,
+      maxQuantityPerUser: 2,
+      price: 500,
+      quantity: 1,
+      stripeTaxRateId: 'txr_1',
+      taxRateDisplayName: 'VAT',
+      taxRateInclusive: true,
+      taxRatePercentage: '19',
+      title: 'Lunch',
+      totalAvailableQuantity: 3,
+    } as const;
+
+    it('normalizes selected registration add-ons', () => {
+      expect(
+        validateRegistrationAddons({
+          addOns: [
+            {
+              addOnId: 'addon-1',
+              quantity: 1,
+            },
+            {
+              addOnId: 'addon-1',
+              quantity: 1,
+            },
+          ],
+          availableAddOns: [availableAddOn],
+        }),
+      ).toEqual([
+        {
+          ...availableAddOn,
+          selectedQuantity: 2,
+        },
+      ]);
+    });
+
+    it('rejects add-ons that are not available during registration', () => {
+      expect(() =>
+        validateRegistrationAddons({
+          addOns: [
+            {
+              addOnId: 'other-addon',
+              quantity: 1,
+            },
+          ],
+          availableAddOns: [availableAddOn],
+        }),
+      ).toThrow('Add-on is not available during registration');
+    });
+
+    it('rejects quantities above the per-user limit or remaining availability', () => {
+      expect(() =>
+        validateRegistrationAddons({
+          addOns: [
+            {
+              addOnId: 'addon-1',
+              quantity: 3,
+            },
+          ],
+          availableAddOns: [availableAddOn],
+        }),
+      ).toThrow('Add-on quantity exceeds the per-user limit');
+
+      expect(() =>
+        validateRegistrationAddons({
+          addOns: [
+            {
+              addOnId: 'addon-1',
+              quantity: 2,
+            },
+          ],
+          availableAddOns: [
+            {
+              ...availableAddOn,
+              maxQuantityPerUser: 5,
+              totalAvailableQuantity: 1,
+            },
+          ],
+        }),
+      ).toThrow('Add-on quantity is no longer available');
     });
   });
 

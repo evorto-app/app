@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  registrationAddonPurchasePayload,
+  registrationAddonSelectedTotalPrice,
   registrationOptionAudienceCopy,
   registrationOptionAvailability,
   registrationOptionAvailableSpots,
@@ -206,6 +208,42 @@ describe('registrationOptionSelectedTotalPrice', () => {
         -1,
       ),
     ).toBe(1500);
+  });
+});
+
+describe('registration add-on selections', () => {
+  const addOns = [
+    {
+      id: 'addon-1',
+      price: 500,
+    },
+    {
+      id: 'addon-2',
+      price: 0,
+    },
+  ] as const;
+
+  it('normalizes selected add-ons for the registration mutation payload', () => {
+    expect(
+      registrationAddonPurchasePayload(addOns, {
+        'addon-1': 2,
+        'addon-2': 0,
+      }),
+    ).toEqual([
+      {
+        addOnId: 'addon-1',
+        quantity: 2,
+      },
+    ]);
+  });
+
+  it('adds selected paid add-ons to the checkout total', () => {
+    expect(
+      registrationAddonSelectedTotalPrice(addOns, {
+        'addon-1': 2,
+        'addon-2': 4,
+      }),
+    ).toBe(1000);
   });
 });
 

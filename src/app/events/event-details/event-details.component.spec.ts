@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   eventAddonPurchaseTiming,
+  eventAddonsForRegistrationOption,
   eventRegistrationOptionTitle,
   eventReviewActionDisabled,
   eventSubmitForReviewActionDisabled,
@@ -164,6 +165,32 @@ describe('eventRegistrationOptionTitle', () => {
         'option-1',
       ),
     ).toBe('Unknown registration option');
+  });
+});
+
+describe('eventAddonsForRegistrationOption', () => {
+  it('returns registration-time add-ons attached to the selected option', () => {
+    expect(
+      eventAddonsForRegistrationOption(
+        {
+          addOns: [
+            {
+              allowPurchaseDuringRegistration: true,
+              registrationOptions: [{ registrationOptionId: 'option-1' }],
+            },
+            {
+              allowPurchaseDuringRegistration: false,
+              registrationOptions: [{ registrationOptionId: 'option-1' }],
+            },
+            {
+              allowPurchaseDuringRegistration: true,
+              registrationOptions: [{ registrationOptionId: 'option-2' }],
+            },
+          ],
+        },
+        'option-1',
+      ),
+    ).toHaveLength(1);
   });
 });
 

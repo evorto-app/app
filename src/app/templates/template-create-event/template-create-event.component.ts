@@ -45,7 +45,7 @@ export const templateCreateEventSubmitDisabled = ({
 
 export const templateAddOnCopyNotice = (addOnCount: number): null | string =>
   addOnCount > 0
-    ? `This template has ${addOnCount} reusable add-on${addOnCount === 1 ? '' : 's'}. Event creation copies them to the event detail page, but event-specific add-on sales are not available yet.`
+    ? `This template has ${addOnCount} reusable add-on${addOnCount === 1 ? '' : 's'}. Event creation copies them to event registration cards when registration-time purchase is enabled; standalone before-event and during-event add-on sales are not available yet.`
     : null;
 
 @Component({
