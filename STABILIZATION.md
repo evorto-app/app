@@ -720,7 +720,7 @@ the current working direction until a product decision overrides them.
 - `src/app/templates/template-create-event/template-create-event.component.spec.ts`
   pins the create-event-from-template submit guard for invalid, submitting, and
   mutation-pending states, plus the visible notice that reusable add-ons are
-  copied into the event read model without checkout/sales fulfillment yet.
+  copied to event detail without checkout/sales fulfillment yet.
 - `src/app/templates/shared/template-form/template-form.utilities.spec.ts` pins
   the shared template create/edit write guard for invalid, submitting, and
   mutation-pending states.
@@ -1834,7 +1834,8 @@ implement those decisions or explicitly revise them there before changing code.
   attachments in the seed baseline.
 - Template create-event add-on boundary pass: showed a create-event notice when
   a source template has reusable add-ons and pinned that current event form data
-  still copies registration options only until event add-on fulfillment exists.
+  keeps add-ons out of client submit payloads while server-side event creation
+  copies them by source registration option.
 - Event add-on copy pass: added event-scoped add-on tables, copied reusable
   template add-ons by source registration option during event creation, and
   surfaced copied add-ons read-only on event detail while checkout/sales
