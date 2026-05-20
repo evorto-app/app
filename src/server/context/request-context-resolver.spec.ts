@@ -180,6 +180,29 @@ describe('request-context-resolver', () => {
     ).toContain('globalAdmin:manageTenants');
   });
 
+  it('resolves local e2e global-admin permissions from configured Auth0 ids', () => {
+    const original = process.env['E2E_GLOBAL_ADMIN_AUTH0_IDS'];
+    process.env['E2E_GLOBAL_ADMIN_AUTH0_IDS'] =
+      ' auth0|global-admin , auth0|other ';
+
+    try {
+      expect(
+        resolveRequestPermissions({
+          oidcUser: {
+            sub: 'auth0|global-admin',
+          },
+          user: undefined,
+        }),
+      ).toContain('globalAdmin:manageTenants');
+    } finally {
+      if (original === undefined) {
+        delete process.env['E2E_GLOBAL_ADMIN_AUTH0_IDS'];
+      } else {
+        process.env['E2E_GLOBAL_ADMIN_AUTH0_IDS'] = original;
+      }
+    }
+  });
+
   it.effect('does not resolve a tenant user without a tenant assignment', () =>
     Effect.gen(function* () {
       const attributesExecute = vi.fn(() => Effect.succeed([]));

@@ -82,7 +82,7 @@ test('Review global tenant administration @admin @globalAdmin', async ({
   page,
 }, testInfo) => {
   const documentedTenant = await database.query.tenants.findFirst({
-    where: eq(schema.tenants.domain, 'localhost'),
+    where: { domain: 'localhost' },
   });
   if (!documentedTenant) {
     throw new Error('Expected generated global-admin docs tenant');
@@ -91,7 +91,7 @@ test('Review global tenant administration @admin @globalAdmin', async ({
   const createdTenantName = 'Documentation Section';
 
   try {
-    await page.goto('/global-admin');
+    await page.goto('/global-admin/tenants');
 
     await testInfo.attach('markdown', {
       body: `
@@ -109,7 +109,9 @@ Global admins can review, create, and edit tenants from the **Global admin** are
       page.getByRole('heading', { name: 'Global admin' }),
     ).toBeVisible();
     await page.getByRole('link', { name: 'Tenants' }).click();
-    await expect(page.getByRole('heading', { name: 'Tenants' })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { level: 1, name: 'Tenants' }),
+    ).toBeVisible();
     await expect(
       page.getByRole('link', { name: 'Create tenant' }),
     ).toHaveAttribute('href', '/global-admin/tenants/create');
@@ -153,11 +155,11 @@ Global admins can review, create, and edit tenants from the **Global admin** are
     await page.getByRole('button', { name: 'Create tenant' }).click();
     await expect(page).toHaveURL(/\/global-admin\/tenants\/[^/]+$/);
     await expect(
-      page.getByRole('heading', { name: createdTenantName }),
+      page.getByRole('heading', { level: 1, name: createdTenantName }),
     ).toBeVisible();
 
     const createdTenant = await database.query.tenants.findFirst({
-      where: eq(schema.tenants.domain, createdTenantDomain),
+      where: { domain: createdTenantDomain },
     });
     if (!createdTenant) {
       throw new Error(
@@ -177,7 +179,9 @@ Global admins can review, create, and edit tenants from the **Global admin** are
     );
 
     await page.goto('/global-admin/tenants');
-    await expect(page.getByRole('heading', { name: 'Tenants' })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { level: 1, name: 'Tenants' }),
+    ).toBeVisible();
     await expect(page).toHaveURL(/\/global-admin\/tenants$/);
     await page.getByLabel(tenantSearchLabel).fill(documentedTenant.domain);
     const reviewTenantLink = page.getByRole('link', { name: 'Review tenant' });
@@ -234,11 +238,11 @@ Global admins can review, create, and edit tenants from the **Global admin** are
     await page.getByRole('button', { name: 'Save tenant' }).click();
     await expect(page).toHaveURL(reviewTenantHref);
     await expect(
-      page.getByRole('heading', { name: updatedTenantName }),
+      page.getByRole('heading', { level: 1, name: updatedTenantName }),
     ).toBeVisible();
 
     const updatedTenant = await database.query.tenants.findFirst({
-      where: eq(schema.tenants.id, documentedTenant.id),
+      where: { id: documentedTenant.id },
     });
     expect(updatedTenant).toEqual(
       expect.objectContaining({

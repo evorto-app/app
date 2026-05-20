@@ -129,6 +129,7 @@ services:
       CLIENT_SECRET:
       CLOUDFLARE_IMAGES_API_TOKEN:
       DATABASE_URL: postgresql://neon:npg@db:5432/${NEON_DATABASE_NAME:-appdb}?sslmode=require
+      E2E_GLOBAL_ADMIN_AUTH0_IDS:
       ISSUER_BASE_URL:
       NEON_LOCAL_PROXY: "true"
       PORT: "4200"

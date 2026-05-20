@@ -104,6 +104,12 @@ Browser or Playwright runs only work when that exact callback URL is registered
 in Auth0. If the generated port is not registered, free port 4200 and start the
 stack with `APP_HOST_PORT=4200 bun run docker:start`.
 
+Local global-admin e2e coverage can use `E2E_GLOBAL_ADMIN_AUTH0_IDS` as a
+no-secret fallback when the Auth0 tenant user has app metadata but the
+post-login session does not include the namespaced global-admin claim. Keep this
+limited to known local e2e Auth0 ids. Production global-admin access remains
+driven by Auth0 app metadata claims, not tenant roles.
+
 Run `bun run docker:check` before investigating Docker startup failures. The
 check validates required local secrets before Compose tears down or starts
 containers, including Neon Local, Auth0, Stripe, the app session secret, and
