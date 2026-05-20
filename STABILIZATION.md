@@ -2004,17 +2004,26 @@ implement those decisions or explicitly revise them there before changing code.
   before opening the dialog for paid, checked-in, or past-event registrations.
   This keeps the paid transfer/refund/resale boundary visible in the organizer
   UI while money movement remains a relaunch blocker.
+- Docker scanner runtime pass: restarted the full Docker stack on
+  `APP_HOST_PORT=4200`, verified the app served `/events`, checked Compose
+  service health/logs, and ran the scanner/profile discount/price-label slice
+  against system Chrome with `NO_WEBSERVER=true`. The slice passed 16/16 after
+  serializing Auth0 setup, tightening Auth0 field selectors, making the
+  user-scoped ESNcard fixture opt-in and stable across parallel tenants, and
+  aligning scanner/profile assertions with the current UI.
 
 ## Review Next
 
 All ten first-pass review areas are now represented in this document. The next
 stabilization work should continue with small cleanup commits around the
-remaining relaunch gaps: Browser-backed profile action coverage, Browser-backed
-scanner aggregate review, automated onboarding/domain workflows, global
-tenant-admin Browser review, and richer template support for reusable add-ons
-and questions. Normal
-generated docs output now stays
-local unless `test:e2e:docs:publish` is run intentionally. New Playwright
+remaining relaunch gaps: Browser-backed profile action coverage, automated
+onboarding/domain workflows, and manual global tenant-admin Browser review.
+Scanner aggregate behavior now has Docker-backed system-Chrome coverage, but the
+in-app Browser connection itself still timed out during local navigation and
+should be retried when the Browser plugin/runtime is healthy. Richer reusable template add-ons and questions are
+now implemented in the simple template flow and should be kept aligned as those
+surfaces evolve. Normal generated docs output now stays local unless
+`test:e2e:docs:publish` is run intentionally. New Playwright
 skips/fixmes should be added only as explicit credential gates or honest
 Browser-backed stabilization placeholders. Receipt notification remains a
 future product delivery path; the current relaunch scope records receipt review

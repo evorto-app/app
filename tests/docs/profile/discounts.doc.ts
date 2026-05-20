@@ -59,9 +59,12 @@ Provider outages are not treated as invalid cards. When esncard.org or the provi
   });
 });
 
+const seededEsnCardIdentifier = 'TEST-ESN-0001';
+
 test('Manage ESN discount card @finance', async ({
   discounts,
   database,
+  discounts,
   page,
 }, testInfo) => {
   void discounts;

@@ -451,7 +451,28 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 
 - `tests/support/fixtures/parallel-test.ts` seeds isolated `test` profile tenants per test.
 - `tests/setup/database.setup.ts` seeds a shared `docs` profile tenant and persists `.e2e-runtime.json`.
+- Docker-backed authenticated checks currently need an Auth0-registered app
+  origin. Use `APP_HOST_PORT=4200 bun run docker:start` on this machine unless
+  the generated worktree port has been added to the Auth0 callback URLs.
 - Scenario handles from `seeded.scenario.events.*` are the preferred way to address seeded entities.
+- `tests/specs/scanning/scanner.test.ts`,
+  `tests/specs/profile/user-profile-discounts.spec.ts`, and
+  `tests/specs/events/price-labels-inclusive.spec.ts` passed together against a
+  fresh Docker runtime with system Chrome, covering scanner writes plus
+  organizer checked-in aggregates, stable seeded ESNcard display, invalid
+  discount-card input blocking, and inclusive price-label behavior.
+- `specs/seed/seed-baseline.test.ts` fails explicitly when the core scenario
+  handles point at missing event or registration-option rows.
+- `docs/events/register.doc.ts` fails explicitly when the regular-user fixture
+  or seeded paid registration option required by the walkthrough is missing.
+- Profile event-card docs/spec seeding fails explicitly when the source
+  scenario registration options for confirmed or checked-in cards are missing.
+- Finance receipt flow specs fail explicitly when the tenant fixture is missing
+  and verify the exact seeded approval/reimbursement receipt instead of the
+  first visible finance queue row.
+- Finance overview docs seed visible and cancelled transaction rows before
+  documenting the transaction list, so the generated guide proves cancelled
+  transactions stay omitted from that surface.
 - Finance-tagged specs remain the main candidates for selective CI filtering when needed.
 - Event, registration, template, finance receipt, scanner, and unlisted-event specs should fail loudly when deterministic fixture state is missing instead of silently passing through skips.
 - Playwright skip/fixme usage is locally audited; add new entries only when
