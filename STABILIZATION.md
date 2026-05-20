@@ -1166,7 +1166,11 @@ the current working direction until a product decision overrides them.
 
 ### Must Fix Before Agent Scaling
 
-1. Continue pruning misleading placeholder tests/docs from profile/account and remaining thin documentation surfaces before agents treat generated docs as product truth.
+1. Keep product-facing generated docs free of placeholder metadata and stale
+   claims before agents treat generated docs as product truth. Profile/account
+   docs now document the current notification email, ESNcard, receipt, and
+   event-card behavior; remaining profile/account gaps are Browser-backed or
+   Auth0-management-gated coverage, not known placeholder doc titles.
 2. Keep the Playwright skip/fixme inventory guard current whenever an
    intentional credential gate or Browser-backed placeholder changes.
 3. Keep server-side template permission, validation, and route-guard coverage in place as template behavior expands beyond simple mode.
@@ -1179,7 +1183,9 @@ the current working direction until a product decision overrides them.
 1. Implement transfer/resale; keep automatic refund handling visible until the finance flow is implemented.
 2. Add Playwright coverage for negative registration paths and role-ineligible direct links.
 3. Keep simple-mode templates as the primary authoring UI, but expand reusable template support for discounts, add-ons, and questions where practical. Organizer planning tips are now exposed as the first private organizer-notes field.
-4. Run the covered legacy-field migration path in production so any existing physical `showInHub`, `paymentStatus`, and `payment_status` artifacts are dropped now that active schema/API code no longer uses them.
+4. Execute the covered legacy-field migration path during production cut-over so
+   any existing physical `showInHub`, `paymentStatus`, and `payment_status`
+   artifacts are dropped now that active schema/API code no longer uses them.
 5. Add Browser-backed scanner/organizer aggregate review once local runtime is available.
 6. Add Browser-backed profile coverage for payment-continuation, ticket/cancellation routing, waitlist messaging, and ESNcard provider failure semantics once local runtime is available.
 7. Fill the remaining tenant settings implementation gap for branding uploads, legal text pages, and onboarding/domain workflows. The current general-settings page exposes SEO fields, externally hosted logo/favicon URLs, tenant legal links, editable supported locale/currency/timezone values, read-only runtime identity, and a visible deferred-settings summary. The current global-admin surface supports a searchable tenant list plus read-only tenant detail review, while tenant creation/editing, custom-domain verification, and impersonation remain out of scope.
@@ -1353,6 +1359,9 @@ implement those decisions or explicitly revise them there before changing code.
   scripts remain gated by `docker:check`, Compose consumes the required runtime
   variables, and the Font Awesome build secret path continues to support both
   premium and brand icon packages.
+- Migration docs alignment pass: refreshed `migration/README.md` to document
+  the current global migration-step phase, including idempotent DDL cleanup for
+  legacy physical fields, and removed stale conductor/track guidance.
 - Docker resume command pass: added `bun run docker:resume` as a non-recreating
   path for already initialized Docker stacks and documented the difference from
   reset-from-zero `docker:start*` commands.
