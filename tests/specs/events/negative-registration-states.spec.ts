@@ -208,31 +208,33 @@ test.describe('Negative registration states', () => {
               eq(schema.eventRegistrations.userId, regularUser.id),
             ),
           );
-        await database
-          .update(schema.eventRegistrationOptions)
-          .set({
-            confirmedSpots: targetOption.spots,
-            registrationMode: 'random',
-            reservedSpots: 0,
-            waitlistSpots: 0,
-          })
-          .where(eq(schema.eventRegistrationOptions.id, targetOptionId));
+        for (const registrationMode of ['random', 'application'] as const) {
+          await database
+            .update(schema.eventRegistrationOptions)
+            .set({
+              confirmedSpots: targetOption.spots,
+              registrationMode,
+              reservedSpots: 0,
+              waitlistSpots: 0,
+            })
+            .where(eq(schema.eventRegistrationOptions.id, targetOptionId));
 
-        await page.goto(`/events/${targetEventId}`);
-        await waitForRegistrationStatus(page);
+          await page.goto(`/events/${targetEventId}`);
+          await waitForRegistrationStatus(page);
 
-        const optionCard = page
-          .locator('app-event-registration-option')
-          .filter({ hasText: targetOption.title });
-        await expect(
-          optionCard.getByText('This option is full.'),
-        ).toBeVisible();
-        await expect(
-          optionCard.getByRole('button', { name: 'Join waitlist' }),
-        ).toHaveCount(0);
-        await expect(
-          optionCard.getByRole('button', { name: /^Register$/ }),
-        ).toHaveCount(0);
+          const optionCard = page
+            .locator('app-event-registration-option')
+            .filter({ hasText: targetOption.title });
+          await expect(
+            optionCard.getByText('This option is full.'),
+          ).toBeVisible();
+          await expect(
+            optionCard.getByRole('button', { name: 'Join waitlist' }),
+          ).toHaveCount(0);
+          await expect(
+            optionCard.getByRole('button', { name: /^Register$/ }),
+          ).toHaveCount(0);
+        }
       } finally {
         await database
           .update(schema.eventRegistrationOptions)
