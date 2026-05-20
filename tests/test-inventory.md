@@ -62,6 +62,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - specs/permissions/matrix.spec.ts [permissions]
   - specs/permissions/override.test.ts [permissions]
   - specs/permissions/tenant-isolation-tax-rates.spec.ts [permissions, finance]
+  - specs/profile/user-profile-discounts.spec.ts [finance]
   - specs/profile/user-profile-events.spec.ts
   - specs/reporting/reporter-paths.test.ts
   - specs/scanning/scanner.test.ts
@@ -111,6 +112,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 - Profile and account:
   - `docs/profile/**`
   - `docs/users/create-account.doc.ts`
+  - `specs/profile/user-profile-discounts.spec.ts`
   - `specs/profile/user-profile-events.spec.ts`
   - app profile edit, event-card, receipt-card, and ESNcard action coverage in
     `src/app/profile`
@@ -234,13 +236,15 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     in-flight write guards, trimmed save payloads, and provider-unavailable
     retry copy. The page-backed discounts doc asserts the seeded verified
     ESNcard identifier/status, refresh/remove action visibility, and
-    invalid-card-number save guard. App and server coverage already prove upsert
-    payload normalization, readable mutation errors, readable status labels,
-    save/refresh/remove action states, global per-user card reads/upserts,
-    refresh persistence, provider-outage upsert rejection before inserting or
-    updating the stored card, and scoped removal. Local app coverage also proves
-    that save, refresh, and remove actions share an in-flight guard so profile
-    discount-card writes do not overlap. App coverage also proves the
+    invalid-card-number save guard. The profile discounts spec functionally
+    covers the same seeded direct-link discount-card journey. App and server
+    coverage already prove upsert payload normalization, readable mutation
+    errors, readable status labels, save/refresh/remove action states, global
+    per-user card reads/upserts, refresh persistence, provider-outage upsert
+    rejection before inserting or updating the stored card, and scoped removal.
+    Local app coverage also proves that save, refresh, and remove actions share
+    an in-flight guard so profile discount-card writes do not overlap. App
+    coverage also proves the
     `#discounts` profile fragment waits for tenant ESNcard provider availability
     before selecting the section.
   - Browser-backed account-creation retry and tenant-join behavior. Server

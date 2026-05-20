@@ -1144,6 +1144,10 @@ the current working direction until a product decision overrides them.
   the seeded verified ESNcard identifier/status, visible refresh/remove actions,
   and the invalid-card-number save guard. It still does not call the external
   ESNcard provider for live add/refresh/remove outcomes.
+- `tests/specs/profile/user-profile-discounts.spec.ts` functionally covers the
+  same seeded profile discount-card state from a direct `#discounts` link,
+  including verified-card display, refresh/remove action visibility, and the
+  invalid-card-number save guard.
 - `tests/specs/discounts/esn-discounts.test.ts` verifies a seeded verified ESNcard affects paid event price labels and the register button copy.
 - No reviewed Playwright spec proves live profile discount-card
   add/refresh/remove provider outcomes or browser-level account creation
@@ -1152,7 +1156,8 @@ the current working direction until a product decision overrides them.
   be verified without page-backed runtime, the create-account docs include a
   baseline helper-backed account-creation note, the discounts docs assert
   helper-backed ESNcard status/pending/error semantics plus seeded
-  status/action/invalid-input behavior, and the profile docs journey asserts
+  status/action/invalid-input behavior, the profile discounts spec pins the
+  seeded direct-link discount-card journey, and the profile docs journey asserts
   confirmed, pending-checkout, waitlisted, and checked-in profile event-card
   route/status/guest/add-on/payment/checkout/waitlist/ticket/action labels plus
   submitted-receipt visibility.
@@ -1352,7 +1357,7 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** the remaining `test.skip` audit removed the dead mobile skip from `tests/specs/permissions/override.test.ts`, corrected the inventory entry for that spec, made the Auth0 Management doc skip name the required credentials explicitly, moved Stripe webhook replay's credential gate to a file-level skip before page/database fixtures are requested, and keeps the skip/fixme allowlist tied to explicit local reasons.
 - **Addressed in stabilization pass:** global-admin route guard coverage now has a direct Playwright spec for the global-admin allow path and signed-in non-global-admin deny path.
 - **Addressed in stabilization pass:** scanning/check-in docs now describe the dedicated QR scanner, scan warnings, authorization, checked-in count updates, and selected guest-quantity check-in. The remaining scanner follow-up is Browser-backed organizer aggregate assertion, not missing product documentation.
-- **Should fix before relaunch:** page-backed docs coverage is still missing or thin for profile discount add/refresh/remove flows. Local unit/server coverage exists for several of those surfaces, but it does not replace Browser-backed docs for the full user journeys.
+- **Remaining runtime review:** live provider-backed profile discount add/refresh/remove outcomes still need Browser review once local runtime and provider credentials are available. Local docs/spec coverage now pins seeded verified-card display, direct `#discounts` routing, refresh/remove action visibility, invalid-input blocking, readable statuses, pending labels, shared write guards, and provider-unavailable retry copy without calling the external provider.
 - **Addressed in stabilization pass:** the generic `tests/docs/template.doc.ts` discovery placeholder was removed; current template documentation lives in `tests/docs/templates/templates.doc.ts`.
 - **Addressed in stabilization pass:** the focused `docScreenshot` helper now
   resolves `DOCS_IMG_OUT_DIR` at call time instead of import time, so tests and
