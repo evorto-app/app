@@ -20,6 +20,22 @@
 } @else if (tenantQuery.data()) {
   <section class="bg-surface text-on-surface rounded-2xl p-4">
     <form class="grid grid-cols-1 gap-3" (submit)="updateTenant($event)">
+      <aside
+        class="border-outline-variant bg-surface-container-low text-on-surface rounded-lg border p-4"
+      >
+        <div class="flex items-start gap-3">
+          <fa-duotone-icon class="text-primary mt-1" [icon]="faCircleInfo" />
+          <div class="grid gap-2">
+            <h2 class="title-small">Relaunch tenant scope</h2>
+            <ul class="body-medium list-disc space-y-1 pl-5">
+              @for (item of relaunchScopeItems; track item) {
+                <li>{{ item }}</li>
+              }
+            </ul>
+          </div>
+        </div>
+      </aside>
+
       <mat-form-field>
         <mat-label>Tenant name</mat-label>
         <input matInput [formField]="tenantForm.name" />

@@ -14,7 +14,10 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { Router, RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
-import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
+import {
+  faArrowLeft,
+  faCircleInfo,
+} from '@fortawesome/duotone-regular-svg-icons';
 import {
   injectMutation,
   injectQuery,
@@ -34,6 +37,7 @@ import {
   type GlobalAdminTenantFormModel,
   globalAdminTenantFormModelFromRecord,
   globalAdminTenantPayloadFromForm,
+  globalAdminTenantRelaunchScopeItems,
   globalAdminTenantSubmitDisabled,
 } from '../tenant-form/tenant-form.model';
 
@@ -55,7 +59,9 @@ export class TenantEditComponent {
   readonly tenantId = input.required<string>();
   protected readonly currencyOptions = supportedTenantCurrencies;
   protected readonly faArrowLeft = faArrowLeft;
+  protected readonly faCircleInfo = faCircleInfo;
   protected readonly localeOptions = supportedTenantLocales;
+  protected readonly relaunchScopeItems = globalAdminTenantRelaunchScopeItems;
   private readonly rpc = AppRpc.injectClient();
   protected readonly tenantQuery = injectQuery(() =>
     this.rpc.globalAdmin.tenants.findOne.queryOptions({

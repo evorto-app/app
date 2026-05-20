@@ -260,8 +260,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     proves the tenant list can be filtered by operational fields, including
     connected Stripe account ids, with readable load-failure messages and
     account labels. Tenant form coverage also proves create/edit payload
-    shaping and mutation-pending submit disabling before page-backed runtime is
-    available.
+    shaping, mutation-pending submit disabling, and the visible relaunch
+    tenant-scope notice before page-backed runtime is available.
   - Keep tenant settings docs and payload tests aligned when new editable
     tenant settings move out of the deferred-settings summary. Current local
     coverage proves the general-settings form trims optional editable

@@ -11,7 +11,10 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { Router, RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
-import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
+import {
+  faArrowLeft,
+  faCircleInfo,
+} from '@fortawesome/duotone-regular-svg-icons';
 import {
   injectMutation,
   QueryClient,
@@ -28,6 +31,7 @@ import { NotificationService } from '../../core/notification.service';
 import {
   createGlobalAdminTenantFormModel,
   globalAdminTenantPayloadFromForm,
+  globalAdminTenantRelaunchScopeItems,
   globalAdminTenantSubmitDisabled,
 } from '../tenant-form/tenant-form.model';
 
@@ -52,7 +56,9 @@ export class TenantCreateComponent {
   );
   protected readonly currencyOptions = supportedTenantCurrencies;
   protected readonly faArrowLeft = faArrowLeft;
+  protected readonly faCircleInfo = faCircleInfo;
   protected readonly localeOptions = supportedTenantLocales;
+  protected readonly relaunchScopeItems = globalAdminTenantRelaunchScopeItems;
   protected readonly tenantModel = signal(createGlobalAdminTenantFormModel());
   protected readonly tenantForm = form(this.tenantModel, (schema) => {
     required(schema.domain);
