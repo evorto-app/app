@@ -13,6 +13,11 @@ const allowedPlaywrightSkipEntries = [
       'Auth0 Management credentials are required for the integration doc.',
   },
   {
+    entry: 'tests/specs/profile/create-account.spec.ts:24:test.skip',
+    reason:
+      'Auth0 Management credentials are required for create-account integration coverage.',
+  },
+  {
     entry: 'tests/specs/finance/stripe-webhook-replay.spec.ts:16:test.skip',
     reason: 'A Stripe webhook signing secret is required for replay coverage.',
   },
@@ -97,6 +102,7 @@ describe('Playwright skip inventory', () => {
       allowedPlaywrightSkipEntries.map((entry) => entry.reason.trim()),
     ).toEqual([
       'Auth0 Management credentials are required for the integration doc.',
+      'Auth0 Management credentials are required for create-account integration coverage.',
       'A Stripe webhook signing secret is required for replay coverage.',
     ]);
   });

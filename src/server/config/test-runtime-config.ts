@@ -5,7 +5,10 @@ import { nonEmptyTrimmedString, optionalTrimmedString } from './config-string';
 
 const DEFAULT_TEST_CLOCK_ISO = '2026-02-01T12:00:00.000Z';
 const DEFAULT_TEST_SEED_KEY = 'evorto-e2e-default-v1';
-const INTEGRATION_PROJECT_NAMES = ['docs-integration'] as const;
+const INTEGRATION_PROJECT_NAMES = [
+  'docs-integration',
+  'local-chrome-integration',
+] as const;
 const PLAYWRIGHT_BROWSER_CHANNELS = ['chromium', 'chrome'] as const;
 const LIST_ONLY_ENVIRONMENT_DEFAULTS = {
   BASE_URL: 'http://localhost:4200',

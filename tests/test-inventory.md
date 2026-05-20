@@ -65,6 +65,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - specs/permissions/matrix.spec.ts [permissions]
   - specs/permissions/override.test.ts [permissions]
   - specs/permissions/tenant-isolation-tax-rates.spec.ts [permissions, finance]
+  - specs/profile/create-account.spec.ts [@needs-auth0-management]
   - specs/profile/user-profile-discounts.spec.ts [finance]
   - specs/profile/user-profile-edit.spec.ts
   - specs/profile/user-profile-events.spec.ts
@@ -119,6 +120,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 - Profile and account:
   - `docs/profile/**`
   - `docs/users/create-account.doc.ts`
+  - `specs/profile/create-account.spec.ts`
   - `specs/profile/user-profile-discounts.spec.ts`
   - `specs/profile/user-profile-edit.spec.ts`
   - `specs/profile/user-profile-events.spec.ts`
@@ -173,6 +175,11 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 - `docs/users/create-account.doc.ts` is integration-tagged with
   `@needs-auth0-management`; baseline list/discovery must not require those
   credentials.
+- `specs/profile/create-account.spec.ts` is collected by
+  `local-chrome-integration` and skips inside the test body without Auth0
+  Management credentials. It is the functional integration path for creating a
+  new Auth0-backed tenant account, verifying profile arrival, tenant assignment,
+  default role assignment, and cleanup.
 - `specs/finance/stripe-webhook-replay.spec.ts` is file-level skipped when
   `STRIPE_WEBHOOK_SECRET` is absent, before page/database fixtures are
   requested. That skip is credential-gated, not a substitute for product
@@ -264,6 +271,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     email-verification gating, payload normalization, error-message mapping, and
     the invalid/submitting/mutation-pending submit guard now shared by the
     visible submit button and handler.
+    `specs/profile/create-account.spec.ts` adds credential-gated functional
+    coverage for a generated Auth0 user creating a current-tenant account,
+    landing on profile, persisted notification email/name fields, tenant
+    assignment, default role assignment, and DB cleanup.
     Shared RPC schema coverage proves account-creation and profile-update
     notification email format validation, matching the create-account/profile
     edit form validators.

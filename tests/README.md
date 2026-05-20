@@ -156,10 +156,11 @@ Playwright separates external-service coverage with dedicated projects:
   - `local-chrome-baseline`
   - `docs-baseline`
 - integration-only:
+  - `local-chrome-integration`
   - `docs-integration`
 
 CI infers whether integration-only credentials are required from the selected Playwright projects.
-If you select `docs-integration`, CI/runtime validation demands the extra external-service credentials.
+If you select `local-chrome-integration` or `docs-integration`, CI/runtime validation demands the extra external-service credentials.
 UI mode is intentionally unrestricted and does not force integration-only credentials at startup.
 
 Integration-only coverage is tagged at the test-title level:
