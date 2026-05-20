@@ -775,6 +775,19 @@ export const eventQueryHandlers = {
             tenantId: tenant.id,
           },
           with: {
+            addonPurchases: {
+              columns: {
+                quantity: true,
+                unitPrice: true,
+              },
+              with: {
+                addOn: {
+                  columns: {
+                    title: true,
+                  },
+                },
+              },
+            },
             registrationOption: {
               columns: {
                 id: true,
@@ -875,6 +888,17 @@ export const eventQueryHandlers = {
                 : registrationOption.price - appliedDiscountedPrice);
 
             return {
+              addonPurchases: registration.addonPurchases.flatMap((purchase) =>
+                purchase.addOn
+                  ? [
+                      {
+                        quantity: purchase.quantity,
+                        title: purchase.addOn.title,
+                        unitPrice: purchase.unitPrice,
+                      },
+                    ]
+                  : [],
+              ),
               appliedDiscountedPrice,
               appliedDiscountType,
               basePriceAtRegistration,

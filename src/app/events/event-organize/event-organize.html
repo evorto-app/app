@@ -60,19 +60,35 @@
               <div
                 class="flex flex-wrap items-center justify-between gap-2 rounded bg-surface-container-high px-3 py-2"
               >
-                <div class="flex flex-wrap items-center gap-2">
-                  <p>{{ user.firstName }} {{ user.lastName }}</p>
-                  @if (user.appliedDiscountType === "esnCard") {
-                    <span
-                      class="bg-primary-container text-on-primary-container rounded px-2 py-1 text-xs"
-                    >
-                      ESNcard discount
-                    </span>
-                  }
-                  @if (user.checkedIn) {
-                    <span class="rounded bg-surface px-2 py-1 text-xs">
-                      Checked in
-                    </span>
+                <div class="grid gap-1">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <p>{{ user.firstName }} {{ user.lastName }}</p>
+                    @if (user.appliedDiscountType === "esnCard") {
+                      <span
+                        class="bg-primary-container text-on-primary-container rounded px-2 py-1 text-xs"
+                      >
+                        ESNcard discount
+                      </span>
+                    }
+                    @if (user.checkedIn) {
+                      <span class="rounded bg-surface px-2 py-1 text-xs">
+                        Checked in
+                      </span>
+                    }
+                  </div>
+                  @if (user.addonPurchases.length > 0) {
+                    <p class="body-small text-on-surface-variant">
+                      Add-ons:
+                      @for (
+                        addOnPurchase of user.addonPurchases;
+                        track $index
+                      ) {
+                        <span>
+                          {{ addOnPurchase.quantity }} x {{ addOnPurchase.title
+                          }}{{ $last ? "" : ", " }}
+                        </span>
+                      }
+                    </p>
                   }
                 </div>
                 @if (!registrationOption.organizingRegistration) {

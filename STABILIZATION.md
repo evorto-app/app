@@ -585,7 +585,7 @@ the current working direction until a product decision overrides them.
 - `src/app/events/event-registration-option/event-registration-option.component.spec.ts` covers that stored `random` and `application` participant options do not expose a waitlist affordance even when full.
 - `src/server/effect/rpc/handlers/events/event-registration.service.spec.ts` covers server-side rejection for duplicate active registration, unpublished events, closed registration windows, role-ineligible users, cross-tenant options, full options, unsupported registration modes, same-event second registrations across options, transactional duplicate races, transactional capacity races, participant waitlist joining, and participant guest quantities.
 - `src/server/effect/rpc/handlers/events/events-registration.handlers.spec.ts` covers participant self-cancellation for pending, confirmed, and waitlisted registrations, buyer-plus-guest spot rollback, checked-in rejection paths, organizer-assisted transfer target lookup, and unpaid registration transfer guardrails including target tenant membership, role eligibility, duplicate active registration, and paid-transfer rejection.
-- `src/app/events/event-organize/event-organize.spec.ts` covers organizer overview stat aggregation and transfer-dialog participant identity copy. The organizer overview UI now exposes the unpaid transfer action next to cancellation for not-yet-checked-in participant registrations.
+- `src/app/events/event-organize/event-organize.spec.ts` covers organizer overview stat aggregation and transfer-dialog participant identity copy. The organizer overview UI now exposes the unpaid transfer action next to cancellation for not-yet-checked-in participant registrations, and the organizer overview RPC returns purchased add-ons with each participant row.
 - `src/app/events/event-organize/event-organize.spec.ts` covers the shared
   organizer participant action guard that disables cancellation and
   organizer-assisted transfer for checked-in rows or in-flight writes.
@@ -593,7 +593,7 @@ the current working direction until a product decision overrides them.
 - `src/server/effect/rpc/handlers/events/events-lifecycle.handlers.spec.ts` covers server-side rejection of end-before-start events and close-before-open registration windows for event create/update.
 - `src/server/effect/rpc/handlers/events/events-lifecycle.handlers.spec.ts` covers template discount copying by stable source option id when template options share the same title, plus pre-insert rejection when copied ESNcard discounts are disabled or exceed the target event option price.
 - `src/server/effect/rpc/handlers/events/events-rpcs.schema.spec.ts` covers acceptance and rejection for the shared event location schema now used by Events RPC contracts.
-- `src/server/effect/rpc/handlers/events/events-rpcs.schema.spec.ts` covers the active registration status literal union and rejects unknown statuses.
+- `src/server/effect/rpc/handlers/events/events-rpcs.schema.spec.ts` covers the active registration status literal union, purchased add-ons on active registration and organizer rows, and rejects unknown statuses.
 - `src/server/effect/rpc/handlers/events/events-rpcs.schema.spec.ts` covers the tax-rate label fields returned with event registration options for paid event cards.
 - `src/app/events/event-details/event-details.component.spec.ts` covers event
   review and submit-for-review action guards for permission, status, and
@@ -1072,7 +1072,7 @@ the current working direction until a product decision overrides them.
 ### Issues and Risks
 
 - **Addressed in stabilization pass:** create-account stores `communicationEmail`, and profile now shows the Auth0 login email separately from the editable notification email. Profile edit updates `communicationEmail` alongside name and reimbursement fields.
-- **Addressed in stabilization pass:** profile event cards now link to event details and show registration status, selected option, guest quantity when applicable, payment state, and check-in time when available. Profile still leaves QR/ticket display, cancellation action, and unpaid transfer workflows to the event-detail flow while exposing pending checkout continuation directly.
+- **Addressed in stabilization pass:** profile event cards now link to event details and show registration status, selected option, guest quantity and purchased add-ons when applicable, payment state, and check-in time when available. Profile still leaves QR/ticket display, cancellation action, and unpaid transfer workflows to the event-detail flow while exposing pending checkout continuation directly.
 - **Addressed in stabilization pass:** profile event cards now label their event-details action as "Open event page" instead of implying that the profile card itself renders the ticket; confirmed ticket access remains on the event detail surface.
 - **Addressed in stabilization pass:** profile event cards now point pending checkout registrations at the implemented profile-level recovery action, route ticket, cancellation, unpaid transfer, and waitlist details back to the event page, and no longer carry deferred automatic-refund, paid-transfer, or resale copy.
 - **Addressed in stabilization pass:** checked-in profile event cards no longer advertise cancellation or transfer as available detail-page actions.
@@ -1094,7 +1094,7 @@ the current working direction until a product decision overrides them.
 
 - `tests/docs/profile/user-profile.doc.ts` documents navigation, profile display, edit dialog validation, notification email persistence, event cards, and the receipts tab.
 - `src/app/profile/user-profile/edit-profile-dialog.component.spec.ts` covers profile edit payload normalization for notification email and optional global reimbursement details before the update mutation receives the dialog result.
-- `src/app/profile/user-profile/user-profile.component.spec.ts` covers profile event action routing, payment-continuation visibility, guest-quantity, checked-in action copy, implemented-action notes, payment-continuation next-step copy, payment-state, registration-status labels, submitted-receipt status and amount labels, ESNcard action/status labels, ESNcard save disabled state, ESNcard upsert payload normalization, and readable ESNcard mutation error fallback/provider messages.
+- `src/app/profile/user-profile/user-profile.component.spec.ts` covers profile event action routing, payment-continuation visibility, guest-quantity, checked-in action copy, implemented-action notes, payment-continuation next-step copy, payment-state, registration-status labels, submitted-receipt status and amount labels, ESNcard action/status labels, ESNcard save disabled state, ESNcard upsert payload normalization, and readable ESNcard mutation error fallback/provider messages. `src/server/effect/rpc/handlers/users.handlers.spec.ts` and the users RPC schema spec now pin purchased add-ons on profile event summaries.
 - Profile app coverage also pins that payment continuation links only render for
   pending Stripe Checkout HTTPS URLs, so malformed or unexpected checkout URL
   values fail closed instead of becoming profile-card links.
@@ -1867,6 +1867,10 @@ implement those decisions or explicitly revise them there before changing code.
   stock reservation, paid add-on Stripe checkout line items, and add-on stock
   restoration on cancellation or checkout expiry. Standalone before-event and
   during-event add-on sales remain future work.
+- Registration add-on readback pass: returned purchased add-ons on active
+  registration, profile event-card, and organizer overview summaries so
+  participants and organizers can see fulfilled registration-time add-ons after
+  checkout.
 - Template question source pass: added template-scoped registration-question
   storage, simple template create/edit controls, `templates.findOne` read-model
   support, and template detail display.

@@ -286,6 +286,19 @@ export const userHandlers = {
             userId: user.id,
           },
           with: {
+            addonPurchases: {
+              columns: {
+                quantity: true,
+                unitPrice: true,
+              },
+              with: {
+                addOn: {
+                  columns: {
+                    title: true,
+                  },
+                },
+              },
+            },
             event: {
               columns: {
                 description: true,
@@ -323,6 +336,18 @@ export const userHandlers = {
           registration.status !== 'CANCELLED'
             ? [
                 {
+                  addonPurchases: registration.addonPurchases.flatMap(
+                    (purchase) =>
+                      purchase.addOn
+                        ? [
+                            {
+                              quantity: purchase.quantity,
+                              title: purchase.addOn.title,
+                              unitPrice: purchase.unitPrice,
+                            },
+                          ]
+                        : [],
+                  ),
                   checkInTime: registration.checkInTime,
                   checkoutUrl: resolvePendingRegistrationCheckoutUrl(
                     registration.transactions,
@@ -346,6 +371,7 @@ export const userHandlers = {
             registrationB.event.start.getTime(),
         )
         .map((registration) => ({
+          addonPurchases: registration.addonPurchases,
           checkInTime: registration.checkInTime?.toISOString() ?? null,
           checkoutUrl: registration.checkoutUrl,
           description: registration.event.description ?? null,

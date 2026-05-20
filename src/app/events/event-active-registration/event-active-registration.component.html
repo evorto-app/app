@@ -26,6 +26,32 @@
           }
         </div>
       }
+      @if (registration.addonPurchases.length > 0) {
+        <div
+          class="bg-surface-container-high text-on-surface-container-high grid gap-2 rounded-xl p-4 lg:col-span-2"
+        >
+          <p class="title-small">Selected add-ons</p>
+          <ul class="grid gap-1 text-sm">
+            @for (addOnPurchase of registration.addonPurchases; track $index) {
+              <li class="flex flex-wrap justify-between gap-2">
+                <span>
+                  {{ addOnPurchase.quantity }} x {{ addOnPurchase.title }}
+                </span>
+                @if (addOnPurchase.unitPrice > 0) {
+                  <span>
+                    {{
+                      (addOnPurchase.quantity * addOnPurchase.unitPrice) / 100
+                        | currency
+                    }}
+                  </span>
+                } @else {
+                  <span>Included</span>
+                }
+              </li>
+            }
+          </ul>
+        </div>
+      }
       @if (registration.status === "PENDING") {
         @if (registration.paymentPending) {
           <div class="text-warning lg:col-span-2">

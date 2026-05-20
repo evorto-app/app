@@ -192,9 +192,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     notification-email edit/restore path, and app helper coverage proves payload
     trimming and blank-value normalization before persistence.
   - Browser-backed profile event-card assertions for event links, registration
-    status, guest quantity, payment state, and check-in state.
-    App coverage already proves event-detail action copy, guest/status/payment
-    labels, implemented-action notes, waitlist event-page routing, and the
+    status, guest quantity, purchased add-ons, payment state, and check-in
+    state. App/server coverage already proves event-detail action copy,
+    guest/status/payment labels, profile event add-on summaries,
+    implemented-action notes, waitlist event-page routing, and the
     payment-continuation next-step copy. It also proves profile payment
     continuation links render only for pending Stripe Checkout HTTPS URLs, and
     checked-in profile event cards no longer advertise cancellation or transfer
@@ -318,10 +319,12 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     read model, simple-template service coverage pins optional add-on write
     payload shaping/validation, and template form utility coverage pins add-on
     submit normalization plus read-model-to-edit-form mapping. Event lifecycle,
-    schema, registration-card, and event-detail component coverage pins copied
-    event add-on storage, registration-time purchase payloads, and event-card
-    add-on selection. Create-event component coverage pins the visible notice
-    that template add-ons copy to registration-time purchase surfaces while
+    schema, registration-card, event-detail component, active-registration
+    readback, organizer-overview readback, and profile-event summary coverage
+    pins copied event add-on storage, registration-time purchase payloads,
+    event-card add-on selection, and fulfilled add-on visibility after
+    registration. Create-event component coverage pins the visible notice that
+    template add-ons copy to registration-time purchase surfaces while
     standalone before-event and during-event sales remain out of scope.
   - Template registration-option component coverage pins paid tax-rate select
     feedback for loading, empty compatible-rate, failed, and available states.

@@ -347,6 +347,13 @@ export const EventsFindOne = asRpcQuery(
 );
 
 export const EventsGetOrganizeOverviewUser = Schema.Struct({
+  addonPurchases: Schema.Array(
+    Schema.Struct({
+      quantity: Schema.Number,
+      title: Schema.NonEmptyString,
+      unitPrice: Schema.Number,
+    }),
+  ),
   appliedDiscountedPrice: Schema.NullOr(Schema.Number),
   appliedDiscountType: Schema.NullOr(Schema.Literal('esnCard')),
   basePriceAtRegistration: Schema.NullOr(Schema.Number),
@@ -397,6 +404,13 @@ export const EventsFindTransferTargets = asRpcQuery(
 );
 
 export const EventsRegistrationStatusRecord = Schema.Struct({
+  addonPurchases: Schema.Array(
+    Schema.Struct({
+      quantity: Schema.Number,
+      title: Schema.NonEmptyString,
+      unitPrice: Schema.Number,
+    }),
+  ),
   appliedDiscountedPrice: Schema.optional(Schema.NullOr(Schema.Number)),
   appliedDiscountType: Schema.optional(
     Schema.NullOr(Schema.Literal('esnCard')),

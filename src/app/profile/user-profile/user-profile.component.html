@@ -119,6 +119,32 @@
                           <dd class="inline">{{ guestLabel }}</dd>
                         </div>
                       }
+                      @if (event.addonPurchases.length > 0) {
+                        <div>
+                          <dt class="text-on-surface-variant inline">
+                            Add-ons:
+                          </dt>
+                          <dd class="inline">
+                            @for (
+                              addOnPurchase of event.addonPurchases;
+                              track $index
+                            ) {
+                              <span>
+                                {{ addOnPurchase.quantity }} x
+                                {{ addOnPurchase.title }}
+                                @if (addOnPurchase.unitPrice > 0) {
+                                  ({{
+                                    (addOnPurchase.quantity *
+                                      addOnPurchase.unitPrice) /
+                                      100 | currency
+                                  }})
+                                }
+                                {{ $last ? "" : ", " }}
+                              </span>
+                            }
+                          </dd>
+                        </div>
+                      }
                       <div>
                         <dt class="text-on-surface-variant inline">Payment:</dt>
                         <dd class="inline">

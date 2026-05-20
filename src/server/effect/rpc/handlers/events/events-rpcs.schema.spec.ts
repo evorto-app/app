@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   EventsFindOneAddon,
   EventsFindOneRegistrationOption,
+  EventsGetOrganizeOverviewUser,
   EventsJoinWaitlistPayload,
   EventsRegisterForEventPayload,
   EventsRegistrationStatus,
@@ -50,6 +51,8 @@ describe('events RPC registration status schema', () => {
   it('rejects unknown active registration statuses', () => {
     expect(() =>
       Schema.decodeUnknownSync(EventsRegistrationStatusRecord)({
+        addonPurchases: [],
+        guestCount: 0,
         id: 'registration-1',
         paymentPending: false,
         registrationOptionId: 'option-1',
@@ -58,6 +61,52 @@ describe('events RPC registration status schema', () => {
         transferAvailable: false,
       }),
     ).toThrow();
+  });
+
+  it('carries purchased add-ons on active registration records', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(EventsRegistrationStatusRecord)({
+        addonPurchases: [
+          {
+            quantity: 2,
+            title: 'Workshop kit',
+            unitPrice: 500,
+          },
+        ],
+        guestCount: 0,
+        id: 'registration-1',
+        paymentPending: false,
+        registrationOptionId: 'option-1',
+        registrationOptionTitle: 'Participant',
+        status: 'CONFIRMED',
+        transferAvailable: false,
+      }),
+    ).not.toThrow();
+  });
+
+  it('carries purchased add-ons on organizer registration rows', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(EventsGetOrganizeOverviewUser)({
+        addonPurchases: [
+          {
+            quantity: 1,
+            title: 'Dinner',
+            unitPrice: 1500,
+          },
+        ],
+        appliedDiscountedPrice: null,
+        appliedDiscountType: null,
+        basePriceAtRegistration: null,
+        checkedIn: false,
+        checkInTime: null,
+        discountAmount: null,
+        email: 'participant@example.com',
+        firstName: 'Parti',
+        lastName: 'Cipant',
+        registrationId: 'registration-1',
+        userId: 'user-1',
+      }),
+    ).not.toThrow();
   });
 });
 
