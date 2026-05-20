@@ -328,6 +328,25 @@ export const EventsGetOrganizeOverview = asRpcQuery(
   }),
 );
 
+export const EventsTransferTargetRecord = Schema.Struct({
+  email: Schema.String,
+  firstName: Schema.String,
+  id: Schema.NonEmptyString,
+  lastName: Schema.String,
+});
+
+export const EventsFindTransferTargets = asRpcQuery(
+  Rpc.make('events.findTransferTargets', {
+    error: EventsCheckInRegistrationError,
+    payload: Schema.Struct({
+      eventId: Schema.NonEmptyString,
+      registrationId: Schema.NonEmptyString,
+      search: Schema.optional(Schema.String),
+    }),
+    success: Schema.Array(EventsTransferTargetRecord),
+  }),
+);
+
 export const EventsRegistrationStatusRecord = Schema.Struct({
   appliedDiscountedPrice: Schema.optional(Schema.NullOr(Schema.Number)),
   appliedDiscountType: Schema.optional(
@@ -513,6 +532,7 @@ export class EventsRpcs extends RpcGroup.make(
   EventsEventList,
   EventsFindOne,
   EventsFindOneForEdit,
+  EventsFindTransferTargets,
   EventsGetOrganizeOverview,
   EventsGetPendingReviews,
   EventsGetRegistrationStatus,

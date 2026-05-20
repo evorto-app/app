@@ -272,6 +272,104 @@ const createTransferDatabase = ({
   return { database, updateSets };
 };
 
+const createTransferTargetsDatabase = () => {
+  const database = {
+    query: {
+      eventRegistrationOptions: {
+        findFirst: () =>
+          Effect.succeed({
+            roleIds: ['participant-role-1'],
+          }),
+      },
+      eventRegistrations: {
+        findFirst: () =>
+          Effect.succeed({
+            checkInTime: null,
+            event: {
+              start: new Date(Date.now() + 24 * 60 * 60 * 1000),
+            },
+            eventId: 'event-1',
+            id: 'registration-1',
+            registrationOptionId: 'option-1',
+            status: 'CONFIRMED',
+            transactions: [],
+            userId: 'attendee-1',
+          }),
+        findMany: vi
+          .fn()
+          .mockReturnValueOnce(
+            Effect.succeed([
+              {
+                id: 'organizer-registration-1',
+                registrationOption: {
+                  organizingRegistration: true,
+                },
+              },
+            ]),
+          )
+          .mockReturnValueOnce(
+            Effect.succeed([
+              {
+                userId: 'already-registered-user',
+              },
+            ]),
+          ),
+      },
+      usersToTenants: {
+        findMany: () =>
+          Effect.succeed([
+            {
+              id: 'tenant-user-current',
+              roles: [{ id: 'participant-role-1' }],
+              user: {
+                email: 'current@example.com',
+                firstName: 'Current',
+                id: 'attendee-1',
+                lastName: 'Owner',
+              },
+              userId: 'attendee-1',
+            },
+            {
+              id: 'tenant-user-eligible',
+              roles: [{ id: 'participant-role-1' }],
+              user: {
+                email: 'alex@example.com',
+                firstName: 'Alex',
+                id: 'target-user-1',
+                lastName: 'Able',
+              },
+              userId: 'target-user-1',
+            },
+            {
+              id: 'tenant-user-active',
+              roles: [{ id: 'participant-role-1' }],
+              user: {
+                email: 'registered@example.com',
+                firstName: 'Already',
+                id: 'already-registered-user',
+                lastName: 'Registered',
+              },
+              userId: 'already-registered-user',
+            },
+            {
+              id: 'tenant-user-ineligible',
+              roles: [{ id: 'other-role-1' }],
+              user: {
+                email: 'other@example.com',
+                firstName: 'Other',
+                id: 'other-user-1',
+                lastName: 'Role',
+              },
+              userId: 'other-user-1',
+            },
+          ]),
+      },
+    },
+  };
+
+  return database;
+};
+
 describe('event registration cancellation handlers', () => {
   it.effect(
     'allows event organizers to cancel another confirmed registration',
@@ -642,6 +740,36 @@ describe('event registration cancellation handlers', () => {
 });
 
 describe('event registration transfer handlers', () => {
+  it.effect(
+    'returns eligible transfer targets for organizer-assisted transfer',
+    () =>
+      Effect.gen(function* () {
+        const result = yield* eventRegistrationHandlers[
+          'events.findTransferTargets'
+        ](
+          {
+            eventId: 'event-1',
+            registrationId: 'registration-1',
+            search: 'alex',
+          },
+          { headers: {} } as never,
+        ).pipe(
+          Effect.provide(
+            createContextLayer({ database: createTransferTargetsDatabase() }),
+          ),
+        );
+
+        expect(result).toEqual([
+          {
+            email: 'alex@example.com',
+            firstName: 'Alex',
+            id: 'target-user-1',
+            lastName: 'Able',
+          },
+        ]);
+      }),
+  );
+
   it.effect(
     'allows event organizers to transfer a confirmed unpaid registration to another tenant user',
     () =>

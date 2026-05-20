@@ -57,6 +57,9 @@ const CHECK_IN_PRE_START_WINDOW_MS = 60 * 60 * 1000;
 const isWithinCheckInWindow = (eventStart: Date, now = new Date()): boolean =>
   eventStart.getTime() - now.getTime() <= CHECK_IN_PRE_START_WINDOW_MS;
 
+const normalizeTransferTargetSearch = (search: string | undefined) =>
+  search?.trim().toLocaleLowerCase() ?? '';
+
 const ensureCanScanEventRegistration = ({
   eventId,
   tenantId,
@@ -797,6 +800,227 @@ export const eventRegistrationHandlers = {
         checkInTime: checkedInRegistration.checkInTime.toISOString(),
       };
     }).pipe(Effect.catch(mapRegistrationScanInternalError)),
+  'events.findTransferTargets': (
+    { eventId, registrationId, search },
+    _options,
+  ) =>
+    Effect.gen(function* () {
+      yield* RpcAccess.ensureAuthenticated();
+      const { tenant } = yield* RpcAccess.current();
+      const user = yield* RpcAccess.requireUser();
+      const now = new Date();
+      const normalizedSearch = normalizeTransferTargetSearch(search);
+
+      const registration = yield* databaseEffect((database) =>
+        database.query.eventRegistrations.findFirst({
+          columns: {
+            checkInTime: true,
+            eventId: true,
+            id: true,
+            registrationOptionId: true,
+            status: true,
+            userId: true,
+          },
+          where: {
+            eventId,
+            id: registrationId,
+            status: { NOT: 'CANCELLED' },
+            tenantId: tenant.id,
+          },
+          with: {
+            event: {
+              columns: {
+                start: true,
+              },
+            },
+            transactions: {
+              columns: {
+                amount: true,
+                status: true,
+                type: true,
+              },
+            },
+          },
+        }),
+      );
+
+      if (!registration) {
+        return yield* Effect.fail(
+          new EventRegistrationNotFoundError({
+            message: 'Registration not found',
+          }),
+        );
+      }
+
+      yield* ensureCanScanEventRegistration({
+        eventId: registration.eventId,
+        tenantId: tenant.id,
+        user,
+      });
+
+      if (registration.status !== 'CONFIRMED') {
+        return yield* Effect.fail(
+          new EventRegistrationConflictError({
+            message: 'Only confirmed registrations can be transferred',
+          }),
+        );
+      }
+
+      if (!registration.event) {
+        return yield* Effect.fail(
+          new EventRegistrationInternalError({
+            message: 'Registration event relation missing',
+          }),
+        );
+      }
+
+      if (registration.checkInTime) {
+        return yield* Effect.fail(
+          new EventRegistrationConflictError({
+            message: 'Checked-in registrations cannot be transferred',
+          }),
+        );
+      }
+
+      if (registration.event.start <= now) {
+        return yield* Effect.fail(
+          new EventRegistrationConflictError({
+            message: 'Registration can no longer be transferred',
+          }),
+        );
+      }
+
+      if (
+        registration.transactions.some(
+          (transaction) =>
+            transaction.type === 'registration' &&
+            transaction.status === 'successful' &&
+            transaction.amount > 0,
+        )
+      ) {
+        return yield* Effect.fail(
+          new EventRegistrationConflictError({
+            message:
+              'Paid registration transfer is not available until the refund/resale flow is implemented',
+          }),
+        );
+      }
+
+      const registrationOption = yield* databaseEffect((database) =>
+        database.query.eventRegistrationOptions.findFirst({
+          columns: {
+            roleIds: true,
+          },
+          where: {
+            eventId: registration.eventId,
+            id: registration.registrationOptionId,
+          },
+        }),
+      );
+      if (!registrationOption) {
+        return yield* Effect.fail(
+          new EventRegistrationInternalError({
+            message: 'Registration option missing',
+          }),
+        );
+      }
+
+      const activeRegistrations = yield* databaseEffect((database) =>
+        database.query.eventRegistrations.findMany({
+          columns: {
+            userId: true,
+          },
+          where: {
+            eventId: registration.eventId,
+            status: { NOT: 'CANCELLED' },
+            tenantId: tenant.id,
+          },
+        }),
+      );
+      const activeUserIds = new Set(
+        activeRegistrations.map(
+          (activeRegistration) => activeRegistration.userId,
+        ),
+      );
+
+      const tenantUsers = yield* databaseEffect((database) =>
+        database.query.usersToTenants.findMany({
+          columns: {
+            id: true,
+            userId: true,
+          },
+          limit: 100,
+          where: {
+            tenantId: tenant.id,
+          },
+          with: {
+            roles: {
+              columns: {
+                id: true,
+              },
+            },
+            user: {
+              columns: {
+                email: true,
+                firstName: true,
+                id: true,
+                lastName: true,
+              },
+            },
+          },
+        }),
+      );
+
+      return tenantUsers
+        .filter((tenantUser) => {
+          if (!tenantUser.user || tenantUser.userId === registration.userId) {
+            return false;
+          }
+          if (activeUserIds.has(tenantUser.userId)) {
+            return false;
+          }
+
+          const roleIds = new Set(tenantUser.roles.map((role) => role.id));
+          const roleEligible = registrationOption.roleIds.some((roleId) =>
+            roleIds.has(roleId),
+          );
+          if (!roleEligible) {
+            return false;
+          }
+
+          if (!normalizedSearch) {
+            return true;
+          }
+
+          const searchable = [
+            tenantUser.user.firstName,
+            tenantUser.user.lastName,
+            tenantUser.user.email,
+          ]
+            .join(' ')
+            .toLocaleLowerCase();
+          return searchable.includes(normalizedSearch);
+        })
+        .flatMap((tenantUser) =>
+          tenantUser.user
+            ? [
+                {
+                  email: tenantUser.user.email,
+                  firstName: tenantUser.user.firstName,
+                  id: tenantUser.user.id,
+                  lastName: tenantUser.user.lastName,
+                },
+              ]
+            : [],
+        )
+        .toSorted((userA, userB) => {
+          const lastNameCompare = userA.lastName.localeCompare(userB.lastName);
+          return lastNameCompare === 0
+            ? userA.firstName.localeCompare(userB.firstName)
+            : lastNameCompare;
+        })
+        .slice(0, 25);
+    }),
   'events.getRegistrationStatus': ({ eventId }, _options) =>
     Effect.gen(function* () {
       const { tenant } = yield* RpcAccess.current();
