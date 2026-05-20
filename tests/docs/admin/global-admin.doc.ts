@@ -75,7 +75,9 @@ Global admins can review, create, and edit tenants from the **Global admin** are
   ).toBeVisible();
   await page.getByRole('link', { name: 'Tenants' }).click();
   await expect(page.getByRole('heading', { name: 'Tenants' })).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Create tenant' })).toBeVisible();
+  await expect(
+    page.getByRole('link', { name: 'Create tenant' }),
+  ).toHaveAttribute('href', '/global-admin/tenants/create');
   await expect(page.getByLabel(tenantSearchLabel)).toBeVisible();
   await expectGlobalAdminTenantRows(page);
   await page.getByLabel(tenantSearchLabel).fill('no-such-tenant');
@@ -100,15 +102,23 @@ Global admins can review, create, and edit tenants from the **Global admin** are
   ).toBeDisabled();
   await page.getByRole('link', { name: 'Cancel' }).click();
   await expect(page.getByRole('heading', { name: 'Tenants' })).toBeVisible();
-  await page.getByRole('link', { name: 'Review tenant' }).first().click();
+  await expect(page).toHaveURL(/\/global-admin\/tenants$/);
+  const reviewTenantLink = page.getByRole('link', { name: 'Review tenant' });
+  const reviewTenantHref = await reviewTenantLink.first().getAttribute('href');
+  expect(reviewTenantHref).toMatch(/^\/global-admin\/tenants\/[^/]+$/);
+  await reviewTenantLink.first().click();
+  await expect(page).toHaveURL(/\/global-admin\/tenants\/[^/]+$/);
   await expect(
     page.getByText('Read-only operational tenant review'),
   ).toBeVisible();
   await expectGlobalAdminTenantRows(page);
-  await expect(page.getByRole('link', { name: 'Edit tenant' })).toBeVisible();
   await expect(
     page.getByRole('link', { name: 'Open tenant domain' }),
-  ).toBeVisible();
+  ).toHaveAttribute('href', 'https://localhost');
+  await expect(page.getByRole('link', { name: 'Edit tenant' })).toHaveAttribute(
+    'href',
+    `${reviewTenantHref}/edit`,
+  );
   await takeScreenshot(
     testInfo,
     page.locator('app-tenant-detail'),
@@ -116,6 +126,7 @@ Global admins can review, create, and edit tenants from the **Global admin** are
     'Global admin tenant detail',
   );
   await page.getByRole('link', { name: 'Edit tenant' }).click();
+  await expect(page).toHaveURL(/\/global-admin\/tenants\/[^/]+\/edit$/);
   await expect(
     page.getByRole('heading', { name: 'Edit tenant' }),
   ).toBeVisible();
@@ -124,6 +135,10 @@ Global admins can review, create, and edit tenants from the **Global admin** are
   await expect(page.getByLabel('Primary domain')).toHaveValue('localhost');
   await expect(page.getByLabel('Stripe account ID')).toHaveValue(/.+/);
   await expect(page.getByRole('button', { name: 'Save tenant' })).toBeEnabled();
+  await expect(page.getByRole('link', { name: 'Cancel' })).toHaveAttribute(
+    'href',
+    reviewTenantHref,
+  );
 
   await testInfo.attach('markdown', {
     body: `

@@ -402,9 +402,12 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     functionally covers tenant list filtering, no-match state, operational row
     fields, connected Stripe-account support lookup, tenant detail review,
     create/edit form relaunch-scope copy, disabled empty create submit, and
-    enabled seeded edit submit. Local server/app coverage already proves the
-    list, tenant detail, tenant create, and tenant edit surfaces return, render,
-    and persist operational tenant state for support review, and local app
+    enabled seeded edit submit. It also pins list -> create -> list,
+    list -> detail -> edit, edit cancel, and external tenant-domain link targets
+    so page navigation cannot silently drift while authenticated Browser runtime
+    review is blocked. Local server/app coverage already proves the list,
+    tenant detail, tenant create, and tenant edit surfaces return, render, and
+    persist operational tenant state for support review, and local app
     coverage proves readable load-failure messages and account labels. Tenant
     form coverage also proves create/edit payload shaping, mutation-pending
     submit disabling, and the visible relaunch tenant-scope notice before

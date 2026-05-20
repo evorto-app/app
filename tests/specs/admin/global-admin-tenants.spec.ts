@@ -58,7 +58,9 @@ test('global tenant admin reviews tenant list, detail, and forms @admin @globalA
   await page.goto('/global-admin');
 
   await expect(page.getByRole('heading', { name: 'Tenants' })).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Create tenant' })).toBeVisible();
+  await expect(
+    page.getByRole('link', { name: 'Create tenant' }),
+  ).toHaveAttribute('href', '/global-admin/tenants/create');
   await expect(page.getByLabel(tenantSearchLabel)).toBeVisible();
   await expectTenantRows(page);
 
@@ -83,17 +85,26 @@ test('global tenant admin reviews tenant list, detail, and forms @admin @globalA
   ).toBeDisabled();
 
   await page.getByRole('link', { name: 'Cancel' }).click();
-  await page.getByRole('link', { name: 'Review tenant' }).first().click();
+  await expect(page).toHaveURL(/\/global-admin\/tenants$/);
+  const reviewTenantLink = page.getByRole('link', { name: 'Review tenant' });
+  const reviewTenantHref = await reviewTenantLink.first().getAttribute('href');
+  expect(reviewTenantHref).toMatch(/^\/global-admin\/tenants\/[^/]+$/);
+  await reviewTenantLink.first().click();
+  await expect(page).toHaveURL(/\/global-admin\/tenants\/[^/]+$/);
   await expect(
     page.getByText('Read-only operational tenant review'),
   ).toBeVisible();
   await expectTenantRows(page);
-  await expect(page.getByRole('link', { name: 'Edit tenant' })).toBeVisible();
   await expect(
     page.getByRole('link', { name: 'Open tenant domain' }),
-  ).toBeVisible();
+  ).toHaveAttribute('href', 'https://localhost');
+  await expect(page.getByRole('link', { name: 'Edit tenant' })).toHaveAttribute(
+    'href',
+    `${reviewTenantHref}/edit`,
+  );
 
   await page.getByRole('link', { name: 'Edit tenant' }).click();
+  await expect(page).toHaveURL(/\/global-admin\/tenants\/[^/]+\/edit$/);
   await expect(
     page.getByRole('heading', { name: 'Edit tenant' }),
   ).toBeVisible();
@@ -101,4 +112,8 @@ test('global tenant admin reviews tenant list, detail, and forms @admin @globalA
   await expect(page.getByLabel('Tenant name')).toHaveValue(/.+/);
   await expect(page.getByLabel('Primary domain')).toHaveValue('localhost');
   await expect(page.getByRole('button', { name: 'Save tenant' })).toBeEnabled();
+  await expect(page.getByRole('link', { name: 'Cancel' })).toHaveAttribute(
+    'href',
+    reviewTenantHref,
+  );
 });
