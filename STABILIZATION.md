@@ -580,7 +580,10 @@ the current working direction until a product decision overrides them.
 
 ### Test and Documentation Quality
 
-- `tests/specs/events/free-registration.test.ts` covers the free registration happy path using seeded scenario handles.
+- `tests/specs/events/free-registration.test.ts` covers the free registration
+  happy path using seeded scenario handles, then restores the touched
+  registration rows and registration-option counters after the page-backed
+  assertions.
 - `tests/specs/events/registration-transfer.test.ts` covers the page-backed
   participant self-service unpaid transfer flow by opening the event page,
   submitting the transfer dialog with an eligible target member email, and
@@ -2061,6 +2064,9 @@ implement those decisions or explicitly revise them there before changing code.
   registration-transfer specs delete generated registration/transaction rows
   and restore touched fixture registration statuses after their page-backed
   assertions.
+- Free-registration fixture cleanup pass: made the free-registration Playwright
+  spec restore deleted fixture registrations and registration-option counters
+  after asserting the confirmed registration readback.
 - Registration transfer documentation pass: added a generated registration-doc
   journey for the unpaid transfer dialog, eligible target email entry, and
   explicit paid-transfer/resale deferral.
