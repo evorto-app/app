@@ -48,6 +48,11 @@ test.describe('Template Tax Rate Validation', () => {
     templateCategories,
   }) => {
     const category = templateCategories[0];
+    if (!category) {
+      throw new Error(
+        'Expected seeded template category before paid template validation',
+      );
+    }
     await page.goto(`/templates/create/${category.id}`);
     await fillTemplateBasics(page, {
       description: null,
@@ -72,6 +77,11 @@ test.describe('Template Tax Rate Validation', () => {
     tenant,
   }) => {
     const category = templateCategories[0];
+    if (!category) {
+      throw new Error(
+        'Expected seeded template category before paid template save',
+      );
+    }
     const taxRate = await database.query.tenantStripeTaxRates.findFirst({
       where: {
         active: true,

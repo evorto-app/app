@@ -93,6 +93,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - `docs/templates/templates.doc.ts`
   - `docs/template-categories/categories.doc.ts`
   - `specs/templates/**`
+  - template create/detail/tax-rate specs that fail explicitly when seeded
+    template categories/templates or reusable attachment/question readbacks are
+    missing
   - `specs/template-categories/**`
   - template-category create/edit page-backed coverage with explicit database
     readbacks for created and edited rows
