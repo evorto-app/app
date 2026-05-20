@@ -2138,6 +2138,10 @@ implement those decisions or explicitly revise them there before changing code.
 - Tenant general-settings functional pass: added page-backed tenant-admin
   coverage for saving editable relaunch settings and reading back persisted
   brand, SEO, legal, and ESNcard provider fields from the tenant row.
+- Font Awesome app-icon guard pass: tightened local source coverage so new
+  Material icon-package imports fail outside the existing root bootstrap
+  registry exception, preserving the premium/brand Font Awesome package path for
+  app action and brand icons.
 
 ## Review Next
 

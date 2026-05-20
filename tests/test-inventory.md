@@ -404,8 +404,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     fail loudly when seeded roles are missing.
   - Keep app action icons on the Font Awesome component path. Local source
     coverage now fails if app templates or components reintroduce direct
-    Material icon elements or `MatIconModule`, preserving the shared
-    premium/brand icon package path.
+    Material icon elements, `MatIconModule`, or new Material icon-package
+    imports outside the existing root bootstrap registry exception, preserving
+    the shared premium/brand icon package path.
   - Keep server authorization checks on `includesPermission` or
     `RpcAccess.ensurePermission`; local source coverage now fails if RPC/HTTP
     handlers reintroduce raw permission-array includes checks.
