@@ -267,7 +267,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     pending, that reimbursement recording stays disabled while the refund
     mutation is pending, that receipt preview rendering only trusts HTTP(S) or
     app-relative preview URLs, and that finance receipt contact details prefer
-    the submitter's notification email with login email fallback.
+    the submitter's notification email with login email fallback. Server
+    handler coverage also pins that reimbursement recording rejects a selected
+    receipt set with mixed submitters before a transaction can be recorded.
   - Keep event-organizer receipt submission action coverage aligned with the
     two-step upload-plus-submit flow. Local app coverage now pins that Add
     receipt remains disabled while the event has not loaded yet, while the

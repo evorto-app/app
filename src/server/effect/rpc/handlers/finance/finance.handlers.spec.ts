@@ -172,6 +172,33 @@ const databaseWithSubmittedReceipt = () => ({
     ),
 });
 
+const databaseWithRefundableReceipts = (
+  receipts: {
+    eventId: string;
+    id: string;
+    submittedByUserId: string;
+    totalAmount: number;
+  }[],
+) => {
+  const receiptQuery = {
+    from: () => receiptQuery,
+    select: () => receiptQuery,
+    where: () => Effect.succeed(receipts),
+  };
+
+  return {
+    query: {
+      users: {
+        findFirst: () =>
+          Effect.die(new Error('payout user lookup should not run')),
+      },
+    },
+    select: () => receiptQuery,
+    transaction: () =>
+      Effect.die(new Error('reimbursement transaction should not run')),
+  };
+};
+
 const submittedReceiptRow = {
   alcoholAmount: 0,
   attachmentFileName: 'receipt.png',
@@ -379,6 +406,46 @@ describe('finance transaction permissions', () => {
 
         expect(error['_tag']).toBe('RpcForbiddenError');
         expect(error.permission).toBe('finance:viewTransactions');
+      }),
+  );
+});
+
+describe('finance receipt reimbursement', () => {
+  it.effect(
+    'rejects reimbursement records when selected receipts have mixed submitters',
+    () =>
+      Effect.gen(function* () {
+        const error = yield* financeHandlers['finance.receipts.createRefund'](
+          {
+            payoutReference: 'NL91ABNA0417164300',
+            payoutType: 'iban',
+            receiptIds: ['receipt-1', 'receipt-2'],
+          },
+          { headers: {} } as never,
+        ).pipe(
+          Effect.flip,
+          Effect.provide(
+            createContextLayer(['finance:refundReceipts'], {
+              database: databaseWithRefundableReceipts([
+                {
+                  eventId: 'event-1',
+                  id: 'receipt-1',
+                  submittedByUserId: 'user-1',
+                  totalAmount: 100,
+                },
+                {
+                  eventId: 'event-1',
+                  id: 'receipt-2',
+                  submittedByUserId: 'user-2',
+                  totalAmount: 50,
+                },
+              ]),
+            }),
+          ),
+        );
+
+        expect(error['_tag']).toBe('RpcBadRequestError');
+        expect(error.reason).toBe('mismatchedSubmitter');
       }),
   );
 });
