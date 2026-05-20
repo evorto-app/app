@@ -109,29 +109,33 @@ Role selection also avoids duplicate entries by hiding already selected roles fr
   const organizerRoleInput = page.getByPlaceholder('Add Role...').first();
   await organizerRoleInput.click();
   const roleOptions = page.locator('mat-option');
-  if ((await roleOptions.count()) > 0) {
-    const firstRoleOption = roleOptions.first();
-    const firstRoleText = await firstRoleOption.textContent();
-    const selectedRoleName = firstRoleText?.trim();
-    await firstRoleOption.click();
-    await organizerRoleInput.click();
-    if (selectedRoleName) {
-      await expect(
-        page.getByRole('option', {
-          exact: true,
-          name: selectedRoleName,
-        }),
-      ).toHaveCount(0);
-    }
-    await takeScreenshot(
-      testInfo,
-      page
-        .locator('app-template-create form')
-        .locator('div', { hasText: 'Organizer Registration' }),
-      page,
-      'Role autocomplete hides selected entries',
-    );
+  const optionsCount = await roleOptions.count();
+  if (optionsCount === 0) {
+    throw new Error('Expected seeded roles for template docs autocomplete');
   }
+
+  const firstRoleOption = roleOptions.first();
+  const firstRoleText = await firstRoleOption.textContent();
+  const selectedRoleName = firstRoleText?.trim();
+  if (!selectedRoleName) {
+    throw new Error('Expected template docs autocomplete option to have text');
+  }
+  await firstRoleOption.click();
+  await organizerRoleInput.click();
+  await expect(
+    page.getByRole('option', {
+      exact: true,
+      name: selectedRoleName,
+    }),
+  ).toHaveCount(0);
+  await takeScreenshot(
+    testInfo,
+    page
+      .locator('app-template-create form')
+      .locator('div', { hasText: 'Organizer Registration' }),
+    page,
+    'Role autocomplete hides selected entries',
+  );
 
   await testInfo.attach('markdown', {
     body: `

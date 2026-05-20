@@ -438,7 +438,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - Browser-backed least-privilege organizer review for event/template role
     selectors. Server coverage already proves lookup permissions and
     lookup-only role results; template and event-edit autocomplete coverage now
-    fail loudly when seeded roles are missing.
+    fail loudly when seeded roles are missing. Generated template docs also
+    fail loudly when role autocomplete options are missing or nameless before
+    documenting the duplicate-hiding behavior.
     The page-backed roles-management spec now fails explicitly if role create or
     edit database readbacks are missing before checking permissions and edited
     metadata.
