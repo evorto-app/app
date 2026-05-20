@@ -83,6 +83,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - `docs/template-categories/categories.doc.ts`
   - `specs/templates/**`
   - `specs/template-categories/**`
+  - app category action guard coverage in `src/app/templates/categories`
   - app mapper and submit-guard coverage in
     `src/app/templates/template-create-event`
   - shared registration-mode label coverage in `src/shared`

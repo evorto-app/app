@@ -657,6 +657,10 @@ the current working direction until a product decision overrides them.
   shares one tested submit-disabled guard between the template button and submit
   handler, so invalid, submitting, and mutation-pending states cannot trigger
   duplicate event creation on slow networks.
+- **Addressed in stabilization pass:** template category create/edit actions now
+  share one tested write-pending guard, so category buttons and handlers cannot
+  open overlapping dialogs or writes while a category create/update is already
+  pending.
 - **Acceptable for now:** the template detail page is a useful read-only summary and the "Create event" action is discoverable from the detail surface.
 
 ### Test and Documentation Quality
@@ -673,6 +677,9 @@ the current working direction until a product decision overrides them.
 - `src/app/templates/template-create-event/template-create-event.component.spec.ts`
   pins the create-event-from-template submit guard for invalid, submitting, and
   mutation-pending states.
+- `src/app/templates/categories/category-list/category-list.component.spec.ts`
+  pins the category create/edit action guard while create or update writes are
+  pending.
 - `src/shared/registration-modes.spec.ts` covers the readable labels used by
   event/template authoring controls and template detail summaries for every
   persisted registration-mode literal.
@@ -1629,6 +1636,9 @@ implement those decisions or explicitly revise them there before changing code.
 - Event edit submit-guard pass: shared the event edit Save Changes disabled
   state and handler early return so invalid, submitting, and mutation-pending
   update writes cannot double-submit.
+- Template category action-guard pass: shared one create/update pending guard
+  across category buttons and handlers so category dialogs and writes cannot
+  overlap while a category mutation is in flight.
 - Create-account retry guard pass: made the create-account submit button stay
   disabled while the account mutation is pending and pinned that invalid,
   submitting, and mutation-pending states all block duplicate submissions

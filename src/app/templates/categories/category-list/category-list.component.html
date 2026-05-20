@@ -9,6 +9,7 @@
   mat-fab
   extended
   (click)="openCategoryCreationDialog()"
+  [disabled]="categoryActionDisabled()"
   class="fab-fixed"
 >
   <mat-icon svgIcon="faPlus" />
@@ -27,7 +28,11 @@
   } @else if (templateCategoryGroupsQuery.isSuccess()) {
     @if (templateCategoryGroupsQuery.data().length === 0) {
       <p>No categories found</p>
-      <button mat-flat-button (click)="openCategoryCreationDialog()">
+      <button
+        mat-flat-button
+        (click)="openCategoryCreationDialog()"
+        [disabled]="categoryActionDisabled()"
+      >
         Create a new category
       </button>
     } @else {
@@ -67,7 +72,11 @@
               Actions
             </th>
             <td mat-cell *matCellDef="let element" class="text-right">
-              <button mat-button (click)="openCategoryEditDialog(element)">
+              <button
+                mat-button
+                (click)="openCategoryEditDialog(element)"
+                [disabled]="categoryActionDisabled()"
+              >
                 Edit
               </button>
             </td>
