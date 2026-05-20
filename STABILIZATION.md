@@ -1259,7 +1259,7 @@ the current working direction until a product decision overrides them.
 
 - Playwright has separate baseline spec and docs projects. Baseline specs exclude `tests/docs/**`; docs baseline runs `tests/docs/**/*.doc.ts`; integration-only docs are selected with `@needs-*` tags.
 - Local docs/spec discovery is runnable again after replacing stale Effect config APIs in `playwright.config.ts` and Playwright support files, and Auth0 Management credentials are no longer required just to import baseline fixtures.
-- `bun run test:e2e -- --list` discovers 84 baseline tests across 24 files,
+- `bun run test:e2e -- --list` discovers 85 baseline tests across 25 files,
   including setup projects, without requiring local Auth0/Stripe secrets.
 - `bun run test:e2e:docs -- --list` discovers 25 baseline docs/setup tests
   across 18 files without requiring local Auth0/Stripe secrets.
@@ -1288,7 +1288,13 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** list-only Playwright commands no longer initialize docs output, clear generated docs/image directories, or require Auth0 Management credentials for baseline fixture imports.
 - **Addressed in stabilization pass:** list-only Playwright config now uses inert placeholder values for runtime-only Auth0/Stripe secrets, so docs/spec discovery can enumerate tests without local secret stubs, starting Docker, or contacting external services.
 - **Addressed in stabilization pass:** participant-facing event registration cards now receive tax-rate label metadata from `events.findOne`, render paid option prices through the shared inclusive tax label component, and have page-level Playwright assertions for the seeded inclusive-price states.
-- **Should fix before relaunch:** page-backed Playwright specs still fail in this checkout because the configured Chromium binary is missing. `tests/specs/screenshot/doc-screenshot.test.ts` seeds data and then fails at browser launch.
+- **Addressed in stabilization pass:** page-backed Playwright specs no longer
+  depend only on a bundled Chromium download for local exploratory runs.
+  Bundled Chromium remains the default browser channel, but
+  `E2E_BROWSER_CHANNEL=chrome` can use system Chrome on hosts where it is
+  installed. In this checkout, full page-backed execution is still blocked by
+  missing runtime secrets until `NEON_API_KEY`, `CLIENT_SECRET`, and
+  `STRIPE_API_KEY` are provided.
 - **Addressed in stabilization pass:** `tests/test-inventory.md` now maps current Playwright specs/docs by suite ownership, records intentional fixme and credential-gated paths, and lists the Browser-backed coverage still needed from the remaining stabilization gaps.
 - **Addressed in stabilization pass:** the remaining `test.skip` audit removed the dead mobile skip from `tests/specs/permissions/override.test.ts`, corrected the inventory entry for that spec, made the Auth0 Management doc skip name the required credentials explicitly, moved Stripe webhook replay's credential gate to a file-level skip before page/database fixtures are requested, and keeps the skip/fixme allowlist tied to explicit local reasons.
 - **Addressed in stabilization pass:** global-admin route guard coverage now has a direct Playwright spec for the global-admin allow path and signed-in non-global-admin deny path.
@@ -1951,11 +1957,11 @@ implement those decisions or explicitly revise them there before changing code.
 All ten first-pass review areas are now represented in this document. The next
 stabilization work should continue with small cleanup commits around the
 remaining relaunch gaps: Browser-backed profile action coverage, Browser-backed
-scanner aggregate review, automated onboarding/domain workflows, global
-tenant-admin Browser review, and richer template support for reusable add-ons
-and questions. Normal
-generated docs output now stays
-local unless `test:e2e:docs:publish` is run intentionally. New Playwright
+scanner aggregate review, automated onboarding/domain workflows, and global
+tenant-admin Browser review. Richer reusable template add-ons and questions are
+now implemented in the simple template flow and should be kept aligned as those
+surfaces evolve. Normal generated docs output now stays local unless
+`test:e2e:docs:publish` is run intentionally. New Playwright
 skips/fixmes should be added only as explicit credential gates or honest
 Browser-backed stabilization placeholders. Receipt notification remains a
 future product delivery path; the current relaunch scope records receipt review

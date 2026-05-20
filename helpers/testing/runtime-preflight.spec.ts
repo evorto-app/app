@@ -160,6 +160,13 @@ describe('evaluateRuntimePreflight', () => {
     expect(playwrightConfig).not.toContain(
       "command: 'bun run docker:start:foreground'",
     );
+
+    const testsGuidance = fs.readFileSync(
+      path.join(process.cwd(), 'tests/AGENTS.md'),
+      'utf8',
+    );
+    expect(testsGuidance).toContain('`bun run docker:webserver`');
+    expect(testsGuidance).not.toContain('`bun run docker:start:foreground`');
   });
 
   it('keeps required Docker variables wired into Compose services', () => {
