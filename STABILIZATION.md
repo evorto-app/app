@@ -619,7 +619,7 @@ the current working direction until a product decision overrides them.
 - **Addressed in this stabilization pass:** template registration offsets now fail with a typed bad request when a registration would open after it closes. Because offsets are "hours before event", `openRegistrationOffset` must be greater than or equal to `closeRegistrationOffset` for a normal window.
 - **Addressed in this stabilization pass:** template create/update and find-one RPC location fields now use the shared `EventLocation` schema instead of `Schema.Any`, matching the event boundary behavior.
 - **Should fix before relaunch:** simple-mode create/update always writes exactly two registration options. That matches the current UI but is thinner than the product model for reusable event knowledge.
-- **Should fix before relaunch:** template add-ons and registration questions exist in schema or product context, but simple-mode template create/update does not expose or persist them. Event creation has separate add-on copying logic, but the simple template editing path cannot maintain those richer fields yet.
+- **Should fix before relaunch:** template add-ons exist in schema and registration questions exist in product context, but simple-mode template create/update does not expose or persist them. There is no reviewed event-side add-on or registration-question schema/copy path yet, so richer template reuse needs a fuller product/runtime slice instead of another simple-mode field.
 - **Addressed in stabilization pass:** simple-mode template create/edit now exposes optional ESNcard discounted prices when the tenant ESNcard provider is enabled, persists them in `templateRegistrationOptionDiscounts`, returns them through `templates.findOne`, and shows them on template detail.
 - **Addressed in stabilization pass:** simple-mode template registration
   options now preserve editable option names plus public and registered-user
@@ -641,6 +641,9 @@ the current working direction until a product decision overrides them.
 - `src/server/effect/rpc/handlers/tax-rates.handlers.spec.ts` covers `taxRates.listActive` permission behavior and the current-tenant active/inclusive filter used to populate compatible template tax-rate selects.
 - `src/server/utils/validate-tax-rate.spec.ts` covers the shared server rule that paid options require a tenant-owned active inclusive tax rate and free options cannot carry stale tax-rate ids.
 - `src/server/effect/rpc/handlers/templates/simple-template.service.spec.ts` covers paid template registrations without tax rates, free template registrations with stale tax-rate ids, and invalid ESNcard discounted prices failing through the server-side validation path.
+- `src/db/schema/template-event-addons.spec.ts` pins the current implementation
+  boundary that add-ons are template-scoped only and registration-question
+  schemas are not exposed yet.
 - The generic `tests/docs/template.doc.ts` discovery placeholder was removed; product template documentation lives in `tests/docs/templates/templates.doc.ts`.
 - Permission matrix coverage checks template create link visibility plus direct route denial for template create/edit/create-event routes. `src/app/templates/templates.routes.spec.ts` keeps the guarded template write-route manifest explicit. Server unit coverage proves template RPC denial, template offset ordering, tenant-owned template category/role validation, and template location schema rejection.
 
@@ -1467,6 +1470,10 @@ implement those decisions or explicitly revise them there before changing code.
   `showInHub`, `paymentStatus`, and `payment_status` cleanup after confirming
   the idempotent global migration step and schema guard specs already cover the
   cut-over path.
+- Template add-on boundary refresh: corrected the richer-template backlog notes
+  to match the current schema surface and added a schema guard for the fact that
+  add-ons are template-scoped only while registration-question schemas are not
+  exposed yet.
 
 ## Review Next
 
