@@ -76,6 +76,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - `docs/events/**`
   - `specs/events/**`
   - `specs/discounts/esn-discounts.test.ts`
+  - app event edit, lifecycle-action, and organizer-action guard coverage in
+    `src/app/events`
 - Templates and categories:
   - `docs/templates/templates.doc.ts`
   - `docs/template-categories/categories.doc.ts`
