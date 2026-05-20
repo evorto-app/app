@@ -1429,6 +1429,9 @@ implement those decisions or explicitly revise them there before changing code.
   `STRIPE_API_KEY` are provided, while Font Awesome premium/brand registry
   access and Docker Compose config still validate. Playwright browser cache is
   still missing and needs `bun run test:e2e:install` before page-backed runs.
+- Docker media isolation pass: forced the app container to use the Compose
+  MinIO endpoint for media/uploads even when developer dotenv values point
+  normal local runs at an external S3-compatible endpoint.
 - Backlog evidence refresh: reran the skip/fixme inventory guard, the legacy
   stabilization field guard, and the focused registration copy/deferred-action
   component specs before pruning completed organizer/helper signup and skip

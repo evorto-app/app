@@ -107,6 +107,11 @@ Docker Compose passes `STRIPE_TEST_ACCOUNT_ID` into both the `db-setup` service
 and the app container so the seeded local tenants can exercise paid registration
 flows against the intended connected test account.
 
+Docker Compose also forces the app container to use the in-network MinIO
+endpoint at `http://minio:9000`. This keeps Docker upload/media flows
+self-contained even when `.env.dev.local` or a developer `.env` points normal
+local development at an external S3-compatible endpoint.
+
 The Docker Stripe CLI listener writes its generated webhook signing secret into
 a shared Docker volume. The app container reads that file through
 `STRIPE_WEBHOOK_SECRET_FILE`, so local paid checkout webhooks use the same
