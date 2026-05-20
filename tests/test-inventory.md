@@ -163,6 +163,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     labels, deferred-action notes, waitlist event-page routing, and the
     payment-continuation next-step copy. It also proves checked-in profile
     event cards no longer advertise cancellation or transfer actions.
+    Organizer overview app coverage also proves checked-in rows and in-flight
+    writes disable participant cancellation and organizer-assisted transfer.
   - Browser-backed ESNcard add, refresh, and remove flows with readable error
     states.
     App and server coverage already prove upsert payload normalization,

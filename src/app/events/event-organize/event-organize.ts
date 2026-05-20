@@ -80,6 +80,14 @@ export interface EventOrganizeParticipant {
   registrationId: string;
 }
 
+export const organizerRegistrationActionDisabled = ({
+  checkedIn,
+  mutationPending,
+}: {
+  checkedIn: boolean;
+  mutationPending: boolean;
+}): boolean => checkedIn || mutationPending;
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -111,6 +119,9 @@ export class EventOrganize {
       eventId: this.eventId(),
     }),
   );
+  protected readonly organizerRegistrationActionDisabled =
+    organizerRegistrationActionDisabled;
+
   protected readonly organizerTableColumns = signal([
     'name',
     'email',
@@ -130,7 +141,6 @@ export class EventOrganize {
         ...registrationOption.users,
       ]);
   });
-
   protected readonly receiptsByEventQuery = injectQuery(() =>
     this.rpc.finance.receipts.byEvent.queryOptions({
       eventId: this.eventId(),
@@ -175,7 +185,21 @@ export class EventOrganize {
     });
   }
 
-  protected cancelRegistration(registration: { registrationId: string }) {
+  protected cancelRegistration(
+    registration: Pick<
+      EventOrganizeParticipant,
+      'checkedIn' | 'registrationId'
+    >,
+  ) {
+    if (
+      organizerRegistrationActionDisabled({
+        checkedIn: registration.checkedIn,
+        mutationPending: this.cancelRegistrationMutation.isPending(),
+      })
+    ) {
+      return;
+    }
+
     this.cancelRegistrationMutation.mutate(
       {
         eventId: this.eventId(),
@@ -272,6 +296,15 @@ export class EventOrganize {
   protected async openTransferDialog(
     registration: EventOrganizeParticipant,
   ): Promise<void> {
+    if (
+      organizerRegistrationActionDisabled({
+        checkedIn: registration.checkedIn,
+        mutationPending: this.transferRegistrationMutation.isPending(),
+      })
+    ) {
+      return;
+    }
+
     const dialogReference = this.dialog.open<
       RegistrationTransferDialogComponent,
       RegistrationTransferDialogData,
