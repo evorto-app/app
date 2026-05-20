@@ -299,6 +299,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     add-on read model while event-side add-on fulfillment remains out of scope.
     Create-event component coverage pins the visible add-on boundary notice when
     a template has reusable add-ons.
+  - Template registration-option component coverage pins paid tax-rate select
+    feedback for loading, empty compatible-rate, failed, and available states.
   - Seed baseline coverage pins free and paid reusable template add-ons attached
     to participant template options so the template detail add-on surface has
     deterministic data once Browser/runtime review is available.

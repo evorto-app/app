@@ -693,6 +693,10 @@ the current working direction until a product decision overrides them.
 - `tests/docs/templates/templates.doc.ts` documents simple-mode template creation, organizer planning tips, role defaults, payment field visibility, optional ESNcard discounted price fields, and role-picker behavior. It asserts that enabling payment reveals both the price and tax-rate controls before taking the payment-field screenshot.
 - `tests/specs/templates/paid-option-requires-tax-rate.spec.ts` now has active simple-mode UI coverage for the paid tax-rate requirement and a seeded inclusive tax-rate save path. Remaining fixme entries are limited to future bulk/no-compatible-rate UI behavior.
 - `src/app/templates/shared/template-form/template-registration-option-form.utilities.spec.ts` covers paid template tax-rate and ESNcard discount preservation, paid missing-tax-rate pass-through for server validation, and free-registration payment-field cleanup before create/edit submission.
+- `src/app/templates/shared/template-form/template-registration-option-form.component.spec.ts`
+  covers the paid tax-rate select feedback for loading, empty compatible-rate,
+  failed, and available states so tenants without configured inclusive rates do
+  not see an empty select menu.
 - `src/app/templates/template-create-event/template-create-event.mapper.spec.ts`
   covers the template-to-event form mapping, including copied registration
   option source ids for server-side template discount copying, relative
@@ -1759,6 +1763,10 @@ implement those decisions or explicitly revise them there before changing code.
   guard to also reject placeholder `@track`, `@req`, and `@doc` metadata in real
   Playwright spec/doc titles, while keeping the reporter stripping fixture
   isolated to its own reporter contract test.
+- Template tax-rate empty-state pass: made the paid template registration-option
+  tax-rate select show an explicit no-compatible-inclusive-rates message instead
+  of an empty menu, and pinned loading, empty, failed, and available states in
+  local component helper coverage.
 
 ## Review Next
 

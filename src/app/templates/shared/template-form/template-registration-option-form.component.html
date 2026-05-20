@@ -51,17 +51,15 @@
           [value]="form.stripeTaxRateId().value()"
           (selectionChange)="setStripeTaxRateId($event.value)"
         >
-          @if (taxRatesQuery.isPending()) {
-            <mat-option disabled>Loading tax rates ...</mat-option>
-          } @else if (taxRatesQuery.isSuccess()) {
+          @if (taxRateOptionsMessage(); as message) {
+            <mat-option disabled>{{ message }}</mat-option>
+          } @else {
             @for (rate of taxRatesQuery.data(); track rate.id) {
               <mat-option [value]="rate.stripeTaxRateId">
                 {{ rate.displayName || rate.stripeTaxRateId }} —
                 {{ rate.percentage ?? "?" }}%
               </mat-option>
             }
-          } @else {
-            <mat-option disabled>Failed to load tax rates</mat-option>
           }
         </mat-select>
         <mat-hint>Inclusive tax; shown price is final</mat-hint>

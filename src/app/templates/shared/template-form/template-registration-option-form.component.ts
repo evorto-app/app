@@ -1,4 +1,9 @@
-import { ChangeDetectionStrategy, Component, input } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  input,
+} from '@angular/core';
 import { FieldTree, FormField } from '@angular/forms/signals';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
@@ -14,6 +19,23 @@ import {
   RegistrationMode,
   TemplateRegistrationFormModel,
 } from './template-registration-option-form.utilities';
+
+export const templateTaxRateOptionsMessage = ({
+  isPending,
+  isSuccess,
+  rateCount,
+}: {
+  isPending: boolean;
+  isSuccess: boolean;
+  rateCount: number;
+}): null | string => {
+  if (isPending) return 'Loading tax rates ...';
+  if (isSuccess && rateCount === 0) {
+    return 'No active inclusive tax rates available';
+  }
+  if (!isSuccess) return 'Failed to load tax rates';
+  return null;
+};
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -40,6 +62,14 @@ export class TemplateRegistrationOptionFormComponent {
   private readonly rpc = AppRpc.injectClient();
   protected readonly taxRatesQuery = injectQuery(() =>
     this.rpc.taxRates.listActive.queryOptions(),
+  );
+
+  protected readonly taxRateOptionsMessage = computed(() =>
+    templateTaxRateOptionsMessage({
+      isPending: this.taxRatesQuery.isPending(),
+      isSuccess: this.taxRatesQuery.isSuccess(),
+      rateCount: this.taxRatesQuery.data()?.length ?? 0,
+    }),
   );
 
   protected setEsnCardDiscountedPrice(event: Event): void {
