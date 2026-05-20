@@ -309,11 +309,12 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     Generated discounts docs now include a helper-backed baseline note for
     readable ESNcard statuses, pending save/refresh/remove labels, shared
     in-flight write guards, trimmed save payloads, and provider-unavailable
-    retry copy. The page-backed discounts doc asserts the seeded verified
-    ESNcard identifier/status, database readback, refresh/remove action
-    visibility, and invalid-card-number save guard. The profile discounts spec
-    functionally covers the same seeded direct-link discount-card journey with
-    database readback. App and server
+    retry copy. The page-backed discounts doc asserts direct `#discounts`
+    routing, the seeded verified ESNcard identifier/status, database readback,
+    refresh/remove action visibility, the invalid-card-number save guard, and
+    that invalid input leaves the seeded row unchanged. The profile discounts
+    spec functionally covers the same seeded direct-link discount-card journey
+    with database readback. App and server
     coverage already prove upsert payload normalization, readable mutation
     errors, readable status labels, save/refresh/remove action states, global
     per-user card reads/upserts, refresh persistence, provider-outage upsert

@@ -1225,9 +1225,10 @@ the current working direction until a product decision overrides them.
   readable ESNcard statuses, save/refresh/remove pending labels, shared
   in-flight write guards, identifier trimming, and provider-unavailable error
   copy without calling the external provider. Its page-backed journey asserts
-  the seeded verified ESNcard identifier/status, visible refresh/remove actions,
-  and the invalid-card-number save guard. It still does not call the external
-  ESNcard provider for live add/refresh/remove outcomes.
+  direct `#discounts` routing, the seeded verified ESNcard identifier/status,
+  visible refresh/remove actions, the invalid-card-number save guard, and that
+  invalid input leaves the seeded card row unchanged. It still does not call the
+  external ESNcard provider for live add/refresh/remove outcomes.
 - `tests/specs/profile/user-profile-discounts.spec.ts` functionally covers the
   same seeded profile discount-card state from a direct `#discounts` link,
   including verified-card display, refresh/remove action visibility, seeded
@@ -2216,6 +2217,9 @@ implement those decisions or explicitly revise them there before changing code.
 - Profile ESNcard docs pass: extended the discounts documentation journey to
   assert the seeded verified ESNcard identifier/status, refresh/remove action
   visibility, and invalid-card-number save guard.
+- Profile ESNcard direct-link docs pass: changed the generated discounts guide
+  to enter through `/profile#discounts` and read back that invalid input leaves
+  the seeded verified card row unchanged.
 - Profile ESNcard baseline-docs pass: added a helper-backed discounts
   documentation note for readable statuses, pending action labels, shared
   in-flight guards, trimmed save payloads, and retryable provider-unavailable
@@ -2334,7 +2338,8 @@ implement those decisions or explicitly revise them there before changing code.
   separate global-admin semantics.
 - ESN discount docs source-guard pass: pinned generated discounts docs to the
   local ESNcard helper functions, trimmed submit payloads, shared write guards,
-  readable statuses/actions, and retryable provider-outage semantics.
+  readable statuses/actions, direct discounts routing, invalid-input
+  non-mutation, and retryable provider-outage semantics.
 - Finance overview docs source-guard pass: pinned generated finance overview
   docs to permission-scoped child navigation so receipt approval access does not
   imply transaction-list access.
