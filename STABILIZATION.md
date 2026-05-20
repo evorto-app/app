@@ -918,7 +918,7 @@ the current working direction until a product decision overrides them.
 - `tests/docs/users/create-account.doc.ts` is integration-tagged and skips without Auth0 Management credentials, so baseline docs do not prove the account-creation path.
 - `tests/docs/users/create-account.doc.ts` asserts the account form exposes the editable address as "Notification email" when the integration path can run.
 - `src/app/app.routes.spec.ts` pins the relaunch route contract that public event browsing uses only account-assignment checks, feature areas require assigned authenticated accounts, `/create-account` stays auth-only for tenantless authenticated users, and `/global-admin` remains auth-only before tenant assignment checks.
-- `src/app/core/create-account/create-account.helpers.spec.ts` covers Auth0-data prefill fallback, explicit email-verification gating, create-account submit payload normalization, and create-account error message mapping without needing Auth0 Management credentials.
+- `src/app/core/create-account/create-account.helpers.spec.ts` covers Auth0-data prefill fallback, explicit email-verification gating, create-account submit payload normalization, retryable submit disabled state, and create-account error message mapping without needing Auth0 Management credentials.
 - `src/shared/rpc-contracts/app-rpcs/users.rpcs.spec.ts` covers notification email format validation at the account-creation and profile-update RPC boundary, matching the create-account and profile-edit form validation.
 - `src/server/discounts/providers/index.spec.ts` covers ESNcard provider validation parsing and provider-unavailable distinction without hitting the external provider.
 - `src/server/effect/rpc/handlers/discounts.handlers.spec.ts` covers global-per-user ESNcard reads, updating an existing global user card from another tenant context, refresh revalidation persistence, and current-user/type-scoped card removal.
@@ -1474,6 +1474,10 @@ implement those decisions or explicitly revise them there before changing code.
   to match the current schema surface and added a schema guard for the fact that
   add-ons are template-scoped only while registration-question schemas are not
   exposed yet.
+- Create-account retry guard pass: made the create-account submit button stay
+  disabled while the account mutation is pending and pinned that invalid,
+  submitting, and mutation-pending states all block duplicate submissions
+  without requiring Auth0 Management credentials.
 
 ## Review Next
 
