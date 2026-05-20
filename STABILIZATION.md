@@ -974,7 +974,13 @@ the current working direction until a product decision overrides them.
 - Server unit coverage proves future-event timing disables scan check-in and rejects direct check-in writes before the pre-start window opens. Server unit coverage also proves pending, cancelled, and waitlisted registrations disable scan check-in and reject direct check-in writes.
 - `tests/docs/events/register.doc.ts` documents that the ticket QR code is available after registration/payment and no longer claims QR email delivery exists in the current relaunch flow.
 - `tests/docs/events/event-management.doc.ts` documents the organizer-facing QR scan/check-in flow, including scan warnings, check-in authorization, buyer-plus-selected-guests checked-in count updates, and selected guest-quantity check-in.
-- `QUALITY.md` lists participant and guest-quantity check-in as high-value Playwright flows; the scanner spec now covers selected guest check-in, while Browser-backed organizer aggregate review still depends on local runtime availability.
+- **Addressed in stabilization pass:** `tests/docs/events/event-management.doc.ts`
+  now seeds a deterministic confirmed registration with guests, opens the
+  scanned-registration page, asserts guest progress and the buyer-plus-guests
+  check-in action, captures that page for generated documentation, records the
+  check-in, reads back the persisted registration/counter state, and restores
+  the seeded checked-in counter during cleanup.
+- `QUALITY.md` lists participant and guest-quantity check-in as high-value Playwright flows; the scanner spec now covers selected guest check-in and the organizer overview aggregate. Manual Browser review still depends on local runtime availability.
 
 ### Product Questions Answered Above
 
@@ -1800,6 +1806,9 @@ implement those decisions or explicitly revise them there before changing code.
   guard to also reject placeholder `@track`, `@req`, and `@doc` metadata in real
   Playwright spec/doc titles, while keeping the reporter stripping fixture
   isolated to its own reporter contract test.
+- Scanner docs persistence pass: extended event-management docs to execute the
+  generated guest check-in, assert the persisted check-in time, selected guest
+  count, and checked-in counter, and restore the seeded event option counter.
 
 ## Review Next
 

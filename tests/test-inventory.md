@@ -276,8 +276,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     aggregation reads the same `checkedInSpots` counter updated by scanner
     check-in mutations, and scanned-registration component coverage pins
     check-in button labels plus selected spot-count copy. Event-management docs
-    now call out that guest-quantity check-in increments the organizer
-    checked-in count by the attendee plus selected guests.
+    now execute the generated guest-quantity check-in, assert the persisted
+    registration and counter updates, restore the seeded counter, and call out
+    that guest-quantity check-in increments the organizer checked-in count by
+    the attendee plus selected guests.
   - Keep scanned-registration action guards aligned with the write/refetch
     lifecycle. Local app coverage now pins that the check-in action is disabled
     when scan state disallows it, no spots are selected, the write is pending,
