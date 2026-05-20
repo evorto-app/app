@@ -68,6 +68,7 @@ test('tenant admin reviews users and manages role definitions @admin @permission
   await expect(roleFormCheckbox(/^Create events$/)).toBeChecked();
   await expect(roleForm.getByText('Includes: View templates')).toBeVisible();
   await expect(roleFormCheckbox(/^View templates$/)).toBeChecked();
+  await expect(saveRoleButton).toBeEnabled();
 
   await saveRoleButton.click();
 
