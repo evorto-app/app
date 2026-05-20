@@ -26,6 +26,13 @@ describe('generated docs source current behavior', () => {
   it('keeps global-admin docs aligned with the relaunch tenant-administration scope', () => {
     const source = readSource('tests/docs/admin/global-admin.doc.ts');
 
+    expect(source).toContain('expectGlobalAdminTenantRows');
+    expect(source).toContain('expectGlobalAdminTenantFormSurface');
+    expect(source).toContain('Search tenants');
+    expect(source).toContain('No tenants match this search');
+    expect(source).toContain('Read-only operational tenant review');
+    expect(source).toContain('Open tenant domain');
+    expect(source).toContain('Stripe account ID');
     expect(source).toContain(
       'Tenant create/edit manages the one active primary domain, name, theme, locale, currency, timezone, and connected Stripe account id.',
     );

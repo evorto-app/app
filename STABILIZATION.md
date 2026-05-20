@@ -2171,6 +2171,10 @@ implement those decisions or explicitly revise them there before changing code.
   deterministic submitted-receipt seed, card assertions, submitted status,
   event title, and formatted amount so the profile receipt walkthrough cannot
   drift back to a placeholder section while Browser runtime review is blocked.
+- Global-admin docs source-guard pass: pinned generated global-admin docs to the
+  searchable tenant list, no-match state, operational row fields, read-only
+  tenant detail review, external tenant-domain link, and create/edit form
+  relaunch-scope surface while authenticated Browser review is still blocked.
 
 ## Review Next
 
