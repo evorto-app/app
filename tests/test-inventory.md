@@ -162,9 +162,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 - Event registration option component coverage pins participant registration and
   waitlist action disabling while a register or waitlist mutation is pending.
 - `specs/events/registration-addons.test.ts` adds page-backed coverage for a
-  registration-time add-on selected on a seeded free event, persisted as a
-  registration add-on purchase, shown after registration, and deducted from
-  add-on availability.
+  registration-time add-on and required question selected on a seeded free
+  event, including required answer gating, persisted add-on purchase, persisted
+  question answer, active-registration readback, and add-on availability
+  decrement.
 - `specs/events/registration-transfer.test.ts` adds page-backed coverage for
   the regular user's self-service unpaid transfer dialog and database readback
   to the target tenant member, failing explicitly if the transferred row is
@@ -479,7 +480,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     readback, organizer-overview readback, profile-event summary coverage, and
     the page-backed registration-addons spec pin copied event add-on storage,
     registration-time purchase payloads, event-card add-on selection, fulfilled
-    add-on visibility after registration, and add-on availability deduction.
+    add-on visibility after registration, required-question answer gating,
+    persisted question answers, and add-on availability deduction.
     Create-event component coverage pins the visible notice that template
     add-ons copy to registration-time purchase surfaces while standalone
     before-event and during-event sales remain out of scope.

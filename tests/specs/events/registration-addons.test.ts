@@ -1,15 +1,19 @@
 import { and, eq } from 'drizzle-orm';
 
+import { getId } from '../../../helpers/get-id';
 import { userStateFile, usersToAuthenticate } from '../../../helpers/user-data';
 import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
-import { seedFreeRegistrationAddon } from '../../support/utils/seed-registration-addons';
+import {
+  seedFreeRegistrationAddon,
+  seedRequiredRegistrationQuestion,
+} from '../../support/utils/seed-registration-addons';
 
 const regularUser = usersToAuthenticate.find((user) => user.roles === 'user');
 
 test.use({ storageState: userStateFile });
 
-test('registers with a free registration add-on and shows it after registration', async ({
+test('registers with a free add-on and required registration question', async ({
   database,
   page,
   seeded,
@@ -21,7 +25,7 @@ test('registers with a free registration add-on and shows it after registration'
 
   const targetEventId = seeded.scenario.events.freeOpen.eventId;
   const targetOptionId = seeded.scenario.events.freeOpen.optionId;
-  const addOnId = `addon-${tenant.id.slice(0, 14)}`;
+  const addOnId = `addon-${getId().slice(0, 14)}`;
   const targetOption = await database.query.eventRegistrationOptions.findFirst({
     where: {
       eventId: targetEventId,
@@ -59,6 +63,12 @@ test('registers with a free registration add-on and shows it after registration'
     registrationOptionId: targetOptionId,
     title: 'Snack voucher',
   });
+  const registrationQuestion = await seedRequiredRegistrationQuestion({
+    database,
+    eventId: targetEventId,
+    registrationOptionId: targetOptionId,
+    title: 'Anything organizers should know?',
+  });
 
   await page.goto(`/events/${targetEventId}`);
   await page
@@ -74,7 +84,16 @@ test('registers with a free registration add-on and shows it after registration'
   await expect(
     participantRegistrationCard.getByText('Snack voucher'),
   ).toBeVisible();
+  await expect(
+    participantRegistrationCard.getByLabel(registrationQuestion.title),
+  ).toBeVisible();
+  await expect(
+    participantRegistrationCard.getByRole('button', { name: 'Register' }),
+  ).toBeDisabled();
   await participantRegistrationCard.getByLabel('Quantity').fill('2');
+  await participantRegistrationCard
+    .getByLabel(registrationQuestion.title)
+    .fill('Vegetarian snack, please.');
   await participantRegistrationCard
     .getByRole('button', { name: 'Register' })
     .click();
@@ -93,6 +112,7 @@ test('registers with a free registration add-on and shows it after registration'
     },
     with: {
       addonPurchases: true,
+      questionAnswers: true,
     },
   });
   expect(registration?.addonPurchases).toEqual([
@@ -100,6 +120,12 @@ test('registers with a free registration add-on and shows it after registration'
       addonId: addOnId,
       quantity: 2,
       unitPrice: 0,
+    }),
+  ]);
+  expect(registration.questionAnswers).toEqual([
+    expect.objectContaining({
+      answer: 'Vegetarian snack, please.',
+      questionId: registrationQuestion.questionId,
     }),
   ]);
 

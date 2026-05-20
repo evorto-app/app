@@ -613,11 +613,13 @@ the current working direction until a product decision overrides them.
 - `tests/docs/events/unlisted-admin.doc.ts` covers the updated direct-link explanation in the listing dialog and on unlisted event details.
 - `tests/docs/events/register.doc.ts` covers free and paid registration as generated documentation and Stripe-backed evidence, including guest quantity selection, the participant versus organizer/helper option wording, participant self-cancellation copy, and the unpaid self-service transfer dialog.
 - `tests/docs/events/register.doc.ts` now documents registration-time add-on
-  selection and active-registration readback during the free registration
+  selection, required registration-question answers, active-registration
+  readback, and persisted answer storage during the free registration
   walkthrough.
 - `tests/specs/events/registration-addons.test.ts` covers the page-backed
-  free registration add-on flow, including quantity selection, persisted add-on
-  purchase, active-registration readback, and availability decrement.
+  free registration add-on and required-question flow, including quantity
+  selection, required answer gating, persisted add-on purchase, persisted
+  question answer, active-registration readback, and availability decrement.
 - `tests/docs/events/register.doc.ts` documents the role-ineligible direct-link state even though page-backed Browser coverage still depends on local runtime availability.
 - `src/app/events/event-registration-option/event-registration-option.component.spec.ts` covers the participant versus organizer/helper registration option copy.
 - `src/app/events/event-registration-option/event-registration-option.component.spec.ts` covers discounted buyer-price plus full-price guest totals for paid registration actions.
@@ -2158,10 +2160,11 @@ implement those decisions or explicitly revise them there before changing code.
   registration, profile event-card, and organizer overview summaries so
   participants and organizers can see fulfilled registration-time add-ons after
   checkout.
-- Registration add-on integration-doc pass: added a page-backed free
-  registration add-on spec and updated generated registration docs to exercise
-  add-on quantity selection and active-registration readback without depending
-  on Stripe secrets.
+- Registration add-on/question integration-doc pass: added a page-backed free
+  registration add-on and required-question spec, then updated generated
+  registration docs to exercise add-on quantity selection, required answer
+  gating, persisted answer storage, and active-registration readback without
+  depending on Stripe secrets.
 - Template question source pass: added template-scoped registration-question
   storage, simple template create/edit controls, `templates.findOne` read-model
   support, and template detail display.

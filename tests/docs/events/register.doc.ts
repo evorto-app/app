@@ -11,7 +11,10 @@ import * as schema from '../../../src/db/schema';
 import { fillTestCard } from '../../support/utils/fill-test-card';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
-import { seedFreeRegistrationAddon } from '../../support/utils/seed-registration-addons';
+import {
+  seedFreeRegistrationAddon,
+  seedRequiredRegistrationQuestion,
+} from '../../support/utils/seed-registration-addons';
 
 test.use({ storageState: userStateFile, trace: 'on-first-retry' });
 
@@ -57,7 +60,7 @@ test.describe('Register for events', () => {
       (user) => user.roles === 'user',
       'regular',
     );
-    const addOnId = `addon-${tenant.id.slice(0, 14)}`;
+    const addOnId = `addon-${getId().slice(0, 14)}`;
 
     await database
       .delete(schema.eventRegistrations)
@@ -82,6 +85,12 @@ test.describe('Register for events', () => {
       eventId: freeEventId,
       registrationOptionId: freeOptionId,
       title: 'Snack voucher',
+    });
+    const registrationQuestion = await seedRequiredRegistrationQuestion({
+      database,
+      eventId: freeEventId,
+      registrationOptionId: freeOptionId,
+      title: 'Anything organizers should know?',
     });
 
     const freeEventHref = `/events/${freeEvent.id}`;
@@ -118,7 +127,7 @@ test.describe('Register for events', () => {
     );
     await testInfo.attach('markdown', {
       body: `
-  Free registration cards can also offer registration-time add-ons. Choose the quantity you want before registering. After registration, selected add-ons are shown with the active registration so participants can review what they picked.`,
+  Free registration cards can also offer registration-time add-ons and required questions. Choose the quantity you want, answer any required questions, and then register. After registration, selected add-ons are shown with the active registration so participants can review what they picked. Question answers are stored with the registration for organizers.`,
     });
     const participantRegistrationCard = page
       .locator('app-event-registration-option')
@@ -128,19 +137,52 @@ test.describe('Register for events', () => {
     await expect(
       participantRegistrationCard.getByText('Snack voucher'),
     ).toBeVisible();
+    await expect(
+      participantRegistrationCard.getByLabel(registrationQuestion.title),
+    ).toBeVisible();
+    await expect(
+      participantRegistrationCard.getByRole('button', { name: 'Register' }),
+    ).toBeDisabled();
     await participantRegistrationCard.getByLabel('Quantity').fill('2');
+    await participantRegistrationCard
+      .getByLabel(registrationQuestion.title)
+      .fill('Vegetarian snack, please.');
     await participantRegistrationCard
       .getByRole('button', { name: 'Register' })
       .click();
     await expect(page.getByText('You are registered')).toBeVisible();
     await expect(page.getByText('2 x Snack voucher')).toBeVisible();
 
+    const registration = await database.query.eventRegistrations.findFirst({
+      where: {
+        eventId: freeEventId,
+        registrationOptionId: freeOptionId,
+        status: 'CONFIRMED',
+        tenantId: tenant.id,
+        userId: regularUser.id,
+      },
+      with: {
+        questionAnswers: true,
+      },
+    });
+    if (!registration) {
+      throw new Error(
+        'Expected registration docs flow to persist the confirmed registration',
+      );
+    }
+    expect(registration.questionAnswers).toEqual([
+      expect.objectContaining({
+        answer: 'Vegetarian snack, please.',
+        questionId: registrationQuestion.questionId,
+      }),
+    ]);
+
     await testInfo.attach('markdown', {
       body: `
   ### Successful registration
   You should now have a successful registration.
   You can see this by additional information being available and also your ticket QR code.
-  Participant registrations can include guests and registration-time add-ons. Guest spots are attached to the logged-in buyer's registration and count against the same option capacity. Add-ons are shown with the confirmed registration and can be reviewed by organizers.
+  Participant registrations can include guests, registration-time add-ons, and registration-question answers. Guest spots are attached to the logged-in buyer's registration and count against the same option capacity. Add-ons are shown with the confirmed registration and can be reviewed by organizers.
   This code is needed when attending the event. Keep this page available because QR email delivery is not part of the current relaunch flow.
   You can cancel a pending or confirmed registration from this event page before the event starts. Confirmed cancellation releases your selected spots, including guests when attached, but paid-registration refunds are not automatic yet.`,
     });
