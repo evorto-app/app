@@ -868,6 +868,10 @@ the current working direction until a product decision overrides them.
 - `tests/docs/roles/roles.doc.ts` documents role creation, dependent permissions, and the explicit deferral of existing-user role assignment for relaunch.
 - `tests/docs/roles/about-permissions.doc.ts` generates the `/docs/about-permissions` source from shared permission metadata, including group labels, permission keys/descriptions, dependent permissions, and the tenant-role/global-admin distinction.
 - `tests/docs/roles/roles.doc.ts` links to `/docs/about-permissions` for permission reference details.
+- `tests/specs/admin/roles-management.spec.ts` functionally covers the
+  tenant-admin user review and role-management relaunch surface: read-only user
+  list search, role create, dependent permission selection, hub-display flags,
+  role detail assertions, role edit persistence, and DB readback.
 - Server unit coverage proves role lookup permissions, lookup-only result shaping, tenant-scoped lookup filters for both list and single-role lookup, role lookup not-found errors, and admin role list denial without `admin:manageRoles`.
 - `helpers/testing/user-list-source.spec.ts` keeps the tenant user list aligned
   with the read-only relaunch surface by guarding review-only columns, the
@@ -1362,6 +1366,10 @@ the current working direction until a product decision overrides them.
   has a functional Playwright spec for tenant list filtering, no-match state,
   operational row fields, tenant detail review, create/edit form relaunch-scope
   copy, disabled empty create submit, and enabled seeded edit submit.
+- **Addressed in stabilization pass:** tenant-admin role/user management now has
+  a functional Playwright spec for read-only user review, role create/edit,
+  dependent permission persistence, hub-display flags, role details, and DB
+  readback.
 - **Addressed in stabilization pass:** profile edit persistence now has a
   functional Playwright spec that saves notification email plus global
   reimbursement fields, verifies the refreshed profile summary, reads the

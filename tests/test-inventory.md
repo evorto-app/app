@@ -48,6 +48,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 
 - Functional tests (`*.test.ts`):
   - specs/admin/global-admin-tenants.spec.ts [admin, globalAdmin]
+  - specs/admin/roles-management.spec.ts [admin, permissions]
   - specs/auth/storage-state-refresh.test.ts
   - specs/discounts/esn-discounts.test.ts [finance]
   - specs/events/events.test.ts
@@ -99,6 +100,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 - Roles and permissions:
   - `docs/roles/about-permissions.doc.ts`
   - `docs/roles/roles.doc.ts`
+  - `specs/admin/roles-management.spec.ts`
   - `specs/permissions/**`
   - shared permission-guard denial coverage in `src/app/core/guards`
   - route-manifest and event-review queue action coverage in `src/app/admin`
@@ -421,6 +423,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - Keep role create/edit submit guards aligned with the write lifecycle. Local
     app coverage now pins that invalid, submitting, and mutation-pending role
     forms stay disabled, and the component submit path shares the same guard.
+    `specs/admin/roles-management.spec.ts` functionally covers the current
+    tenant-admin role create/edit flow, dependent permission persistence,
+    hub-display flags, role details, DB readback, and the read-only tenant user
+    review page.
   - User-list/role-assignment coverage once the role-assignment path exists.
     Source coverage now pins the current read-only UI shape and generated roles
     docs while server coverage proves the current read-only user list pages
