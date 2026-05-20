@@ -216,8 +216,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     tenant-create/edit flows. Local server/app coverage already proves the list,
     tenant detail, tenant create, and tenant edit surfaces return, render, and
     persist operational tenant state for support review, and local app coverage
-    proves the tenant list can be filtered by operational fields with readable
-    load-failure messages.
+    proves the tenant list can be filtered by operational fields, including
+    connected Stripe account ids, with readable load-failure messages and
+    account labels.
   - Keep tenant settings docs and payload tests aligned when new editable
     tenant settings move out of the deferred-settings summary. Current local
     coverage proves the general-settings form trims optional editable
