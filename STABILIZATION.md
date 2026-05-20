@@ -1055,11 +1055,20 @@ the current working direction until a product decision overrides them.
 - **Addressed in this stabilization pass:** scanner guest-count input handling now has focused app coverage that clamps blank, invalid, negative, and over-limit guest selections before the check-in mutation payload is built.
 - **Addressed in stabilization pass:** scanned-registration check-in copy now uses readable singular/plural spot labels, a lower-noise pending label, and clearer future-event warning wording.
 - **Addressed in this stabilization pass:** the scanned-registration check-in action now stays disabled after a successful local check-in while the refreshed scan state catches up, so slow refetches do not briefly expose another write action.
+- **Addressed in stabilization pass:** scanner Playwright coverage now creates
+  explicit confirmed registrations against the seeded past event instead of
+  relying on generated filler registrations, so buyer-plus-guest and remaining
+  guest-arrival assertions stay tied to deterministic fixture state.
 - **Acceptable for now:** QR code display is limited to confirmed registrations in the active registration UI, so pending paid registrations do not show the ticket card there.
 
 ### Test and Documentation Quality
 
-- `tests/specs/scanning/scanner.test.ts` now clicks "Confirm Check In" with selected guests, asserts that `checkInTime`, `checkedInGuestCount`, and `checkedInSpots` update, covers later remaining-guest arrival after the buyer was already checked in, and opens the organizer overview to assert the checked-in aggregate shown there before restoring the seeded row.
+- `tests/specs/scanning/scanner.test.ts` now creates deterministic confirmed
+  registrations for the seeded past event, clicks "Confirm Check In" with
+  selected guests, asserts that `checkInTime`, `checkedInGuestCount`, and
+  `checkedInSpots` update, covers later remaining-guest arrival after the buyer
+  was already checked in, and opens the organizer overview to assert the
+  checked-in aggregate shown there before restoring the seeded counter.
 - `src/app/events/event-organize/event-organize.spec.ts` covers organizer overview stat aggregation from registration-option counters, including scanner-updated `checkedInSpots` totals.
 - Server unit coverage proves scan-read denial for unauthorized tenant users, check-in counter updates for organizer access, selected guest check-in behavior, invalid guest-count rejection, remaining-guest scan behavior after buyer check-in, idempotent duplicate check-in behavior, and same-user check-in denial.
 - `src/server/http/qr-code.web-handler.spec.ts` covers unauthenticated QR denial, owner access, same-event organizer access, other-user denial, and pending-registration denial.
