@@ -266,6 +266,26 @@ describe('generated docs source current behavior', () => {
     expect(source).not.toContain('standalone add-on sales are configured here');
   });
 
+  it('keeps template category docs backed by deterministic persistence checks', () => {
+    const source = readSource(
+      'tests/docs/template-categories/categories.doc.ts',
+    );
+
+    expect(source).toContain('Category docs ${seedDate.getTime()}');
+    expect(source).toContain(
+      'Expected generated category docs to persist the category',
+    );
+    expect(source).toContain(
+      'Expected generated category docs to update the category',
+    );
+    expect(source).toContain(
+      'updatedCategory.title).toBe(updatedCategoryTitle)',
+    );
+    expect(source).toContain('.delete(schema.eventTemplateCategories)');
+    expect(source).not.toContain("fill('Test category')");
+    expect(source).not.toContain('Test category edited');
+  });
+
   it('keeps registration docs aligned with unavailable states and transfer scope', () => {
     const source = readSource('tests/docs/events/register.doc.ts');
 

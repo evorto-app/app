@@ -732,6 +732,9 @@ the current working direction until a product decision overrides them.
   empty-category add flow, role autocomplete duplicate hiding, and a reusable
   add-on/question create path with database readback for persisted planning
   tips, add-on attachment/quantity, and required registration question state.
+- `tests/docs/template-categories/categories.doc.ts` documents template
+  category create/edit with deterministic category names, database readbacks for
+  created and edited rows, and cleanup of the generated category.
 - Template page-backed specs fail explicitly when required seeded template
   categories or templates are missing before create/detail/tax-rate flows use
   them.
