@@ -185,14 +185,30 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 - Profile/account:
   - Browser-backed profile edit persistence after saving notification email and
     optional global reimbursement details. Generated docs already exercise the
-    notification-email edit/restore path, and app helper coverage proves payload
-    trimming and blank-value normalization before persistence.
-  - Browser-backed profile event-card assertions for event links, registration
-    status, guest quantity, payment state, and check-in state.
-    App coverage already proves event-detail action copy, guest/status/payment
-    labels, implemented-action notes, waitlist event-page routing, and the
-    payment-continuation next-step copy. It also proves checked-in profile
-    event cards no longer advertise cancellation or transfer actions.
+    notification-email edit/restore path with database readback,
+    `specs/profile/user-profile-edit.spec.ts` now functionally covers
+    notification email plus IBAN/PayPal persistence with explicit database
+    readback and cleanup, and app helper coverage proves payload trimming and
+    blank-value normalization before persistence.
+  - Manual Browser-backed profile event-card review once local runtime is
+    available. Generated profile docs now seed confirmed, pending-checkout,
+    waitlisted, and checked-in registrations with free add-ons where applicable,
+    then assert event link, registration status, guest quantity, purchased add-on
+    summary, payment state, checkout continuation, waitlist routing,
+    ticket-routing copy, checked-in copy, and that checked-in cards do not show
+    ticket availability copy. `specs/profile/user-profile-events.spec.ts`
+    reuses the same seeded card states as functional Playwright coverage.
+    App/server coverage already proves event-detail action copy,
+    guest/status/payment labels, profile event add-on summaries,
+    implemented-action notes, waitlist event-page routing, and the
+    payment-continuation next-step copy. It also proves profile payment
+    continuation links render only for pending Stripe Checkout HTTPS URLs, and
+    checked-in profile event cards no longer advertise cancellation or transfer
+    actions.
+    The generated profile docs and functional profile-event spec now pin each
+    seeded confirmed, pending-checkout, waitlisted, and checked-in card to its
+    expected event-page link so the recovery route cannot silently drift while
+    Browser runtime review is unavailable.
     Organizer overview app coverage also proves checked-in rows and in-flight
     writes disable participant cancellation and organizer-assisted transfer.
   - Browser-backed ESNcard add, refresh, and remove flows with readable error
@@ -220,10 +236,16 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     Root route-manifest coverage keeps `/create-account` reachable to
     authenticated users without a tenant assignment while protected feature
     routes keep assigned-account and auth guards.
-  - Browser-backed submitted-receipt visibility after a receipt submission.
-    Local app/server coverage already proves readable submitted-receipt status
-    labels, amount formatting, and `finance.receipts.my` profile-card row
-    normalization.
+  - Manual Browser-backed submitted-receipt visibility review after a real
+    receipt submission once local runtime is available. Generated profile docs
+    now seed a deterministic submitted receipt and assert the profile
+    receipt-card filename, submitted status, event title, amount, and persisted
+    database row. Local app/server coverage already proves readable
+    submitted-receipt status labels, amount formatting, and
+    `finance.receipts.my` profile-card row normalization.
+    `specs/profile/user-profile-receipts.spec.ts` adds functional coverage for
+    the same profile receipt-card state with explicit database readback and
+    cleanup.
 - Finance/receipts:
   - Keep finance route-denial cases and route-manifest specs aligned as
     transaction, receipt approval, and reimbursement routes change.

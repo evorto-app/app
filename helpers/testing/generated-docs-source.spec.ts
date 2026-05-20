@@ -113,6 +113,15 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain('Submitted');
     expect(source).toContain('profileEvent.title');
     expect(source).toContain('18.75 €');
+    expect(source).toContain(
+      'Expected generated profile docs user after update',
+    );
+    expect(source).toContain('updatedProfileUser.communicationEmail).toBe');
+    expect(source).toContain(
+      'Expected generated profile docs receipt after read',
+    );
+    expect(source).toContain('attachmentFileName: profileReceiptFileName');
+    expect(source).toContain('totalAmount: 1875');
     expect(source).not.toContain('automatic refund');
     expect(source).not.toContain('resale');
     expect(source).not.toContain('ticket email');

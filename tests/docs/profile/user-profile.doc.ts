@@ -162,6 +162,15 @@ The notification email is user-managed and may differ from the Auth0 login email
       page.getByText(`Notifications: ${documentedNotificationEmail}`),
     ).toBeVisible();
     await expect(page.getByText(`Login: ${originalUser.email}`)).toBeVisible();
+    const updatedProfileUser = await database.query.users.findFirst({
+      where: { id: regularUser.id },
+    });
+    if (!updatedProfileUser) {
+      throw new Error('Expected generated profile docs user after update');
+    }
+    expect(updatedProfileUser.communicationEmail).toBe(
+      documentedNotificationEmail,
+    );
     await takeScreenshot(
       testInfo,
       page.locator('app-user-profile'),
@@ -302,6 +311,23 @@ The user profile now uses a two-column layout:
       profileReceiptCard.getByText(profileEvent.title),
     ).toBeVisible();
     await expect(profileReceiptCard.getByText('18.75 €')).toBeVisible();
+    const profileReceipt = await database.query.financeReceipts.findFirst({
+      where: {
+        id: profileReceiptId,
+        submittedByUserId: regularUser.id,
+        tenantId: seeded.tenant.id,
+      },
+    });
+    if (!profileReceipt) {
+      throw new Error('Expected generated profile docs receipt after read');
+    }
+    expect(profileReceipt).toEqual(
+      expect.objectContaining({
+        attachmentFileName: profileReceiptFileName,
+        status: 'submitted',
+        totalAmount: 1875,
+      }),
+    );
     await takeScreenshot(
       testInfo,
       page.locator('app-user-profile'),

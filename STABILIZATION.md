@@ -1039,7 +1039,16 @@ the current working direction until a product decision overrides them.
 
 ### Test and Documentation Quality
 
-- `tests/docs/profile/user-profile.doc.ts` documents navigation, profile display, edit dialog validation, notification email persistence, event cards, and the receipts tab.
+- `tests/docs/profile/user-profile.doc.ts` documents navigation, profile display, edit dialog validation, notification email persistence, event cards, and the receipts tab. It now saves a deterministic notification email, reads the updated user row back from the database, seeds deterministic confirmed, pending-checkout, waitlisted, and checked-in profile event cards with free add-ons where applicable, then asserts the event title, event-detail link, status, guest, add-on, payment, checkout continuation, waitlist routing, ticket-routing, and checked-in no-cancellation/no-transfer labels before taking the Events-section screenshot. It also seeds a deterministic submitted receipt, asserts its filename, submitted status, event title, and amount on the profile Receipts tab, and reads the generated receipt row back from the database.
+- `tests/specs/profile/user-profile-events.spec.ts` reuses the same deterministic
+  profile event-card seed helper as the generated docs, giving the
+  pending-checkout, waitlisted, confirmed, and checked-in states direct
+  functional Playwright coverage in addition to product documentation.
+- `tests/specs/profile/user-profile-receipts.spec.ts` mirrors the generated
+  profile receipts documentation with functional coverage: it seeds a submitted
+  receipt, opens the profile receipts tab by fragment, asserts filename,
+  submitted status, event context, and amount, reads the persisted receipt row,
+  fails explicitly if that row is missing, and cleans it up.
 - `src/app/profile/user-profile/edit-profile-dialog.component.spec.ts` covers profile edit payload normalization for notification email and optional global reimbursement details before the update mutation receives the dialog result.
 - `src/app/profile/user-profile/user-profile.component.spec.ts` covers profile event action routing, payment-continuation visibility, guest-quantity, checked-in action copy, implemented-action notes, payment-continuation next-step copy, payment-state, registration-status labels, submitted-receipt status and amount labels, ESNcard action/status labels, ESNcard save disabled state, ESNcard upsert payload normalization, and readable ESNcard mutation error fallback/provider messages.
 - Profile app coverage pins that profile edit is disabled while the profile
@@ -1525,6 +1534,27 @@ implement those decisions or explicitly revise them there before changing code.
   render the submitter's notification email when present, falling back to the
   Auth0 login email only when no notification email is configured.
 - Profile edit docs pass: extended the user-profile documentation journey to save a changed notification email, assert the refreshed profile summary, and restore the seeded user record after the doc run.
+- Profile event-card docs pass: extended the user-profile documentation journey with deterministic confirmed and checked-in registrations plus free add-ons and asserted the profile event-card title, event-detail link, status, guest, add-on, payment, ticket-routing, and checked-in action labels.
+- Profile pending/waitlist docs pass: extended the user-profile documentation
+  journey with deterministic pending-checkout and waitlisted event cards so the
+  generated docs assert the Continue payment action, Stripe checkout link,
+  payment-pending next step, waitlist status, and leave-waitlist event-page
+  routing before runtime Browser review is unblocked.
+- Profile event-card spec pass: extracted deterministic profile event-card
+  seeding into a shared Playwright helper and added a functional spec that
+  asserts confirmed, pending-checkout, waitlisted, and checked-in event cards
+  outside the generated documentation suite.
+- Profile event-card route pass: pinned the functional profile event-card spec
+  to the exact seeded event-page links for confirmed, pending-checkout,
+  waitlisted, and checked-in cards while authenticated Browser review remains
+  runtime-gated.
+- Profile docs route pass: pinned the generated user-profile documentation
+  journey to the same seeded event-page links for confirmed, pending-checkout,
+  waitlisted, and checked-in profile event cards.
+- Profile receipt docs pass: extended the user-profile documentation journey with a deterministic submitted receipt and asserted the profile receipt-card filename, submitted status, event title, and amount.
+- Profile docs persistence pass: added generated-doc database readbacks for the
+  saved notification email and submitted receipt row so the profile
+  documentation journey proves persisted state, not only rendered copy.
 - Create-account gate coverage pass: extracted the email-verification form gate into a typed helper and covered verified, unverified, null, and absent Auth0 email-verification states without requiring Auth0 Management credentials.
 - Playwright skip-inventory pass: added a local unit guard that allowlists every
   current Playwright `test.skip` and `test.fixme`, keeping future fixture-state
