@@ -556,8 +556,8 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** participant self-cancellation now covers pending and confirmed registrations before event start, rolls back reserved/confirmed counters including selected guest spots, blocks checked-in cancellations, and keeps refund copy honest for paid registrations.
 - **Addressed in stabilization pass:** organizer/admin cancellation is available from the organizer overview for confirmed participant registrations, requires event-organizer access or `events:organizeAll`, blocks checked-in cancellations, and rolls back confirmed counters without promising automatic refunds.
 - **Addressed in stabilization pass:** active registration cards now make self-service transfer/resale unavailability explicit for pending, confirmed, and waitlisted registrations until the full participant-facing transfer/resale flow exists.
-- **Addressed in stabilization pass:** `events.findTransferTargets` and `events.transferEventRegistration` provide a conservative organizer-assisted transfer primitive for confirmed, not checked-in, unpaid registrations between existing tenant users. The target lookup and mutation require event-organizer access, fail closed when the target user is outside the tenant, role-ineligible for the registration option, or already has an active registration, and reject paid registrations until refund/resale money movement is implemented.
-- **Should fix before relaunch:** participant-facing transfer/resale UI and automatic refund flows are not implemented in the reviewed event registration path.
+- **Addressed in stabilization pass:** `events.findTransferTargets` and `events.transferEventRegistration` provide a conservative organizer-assisted transfer flow for confirmed, not checked-in, unpaid registrations between existing tenant users. The organizer overview opens an eligible-member lookup, and the target lookup and mutation require event-organizer access, fail closed when the target user is outside the tenant, role-ineligible for the registration option, or already has an active registration, and reject paid registrations until refund/resale money movement is implemented.
+- **Should fix before relaunch:** participant-facing self-service transfer/resale UI, paid registration transfer/resale money movement, and automatic refund flows are not implemented in the reviewed event registration path.
 - **Addressed in stabilization pass:** active registration status now uses the shared persisted registration status literal union instead of raw `Schema.String`.
 - **Acceptable for now:** paid registration rollback is careful about cleaning up a failed checkout session creation path; deeper Stripe lifecycle review belongs in the finance pass.
 
@@ -568,6 +568,7 @@ the current working direction until a product decision overrides them.
 - `src/app/events/event-registration-option/event-registration-option.component.spec.ts` covers that stored `random` and `application` participant options do not expose a waitlist affordance even when full.
 - `src/server/effect/rpc/handlers/events/event-registration.service.spec.ts` covers server-side rejection for duplicate active registration, unpublished events, closed registration windows, role-ineligible users, cross-tenant options, full options, unsupported registration modes, same-event second registrations across options, transactional duplicate races, transactional capacity races, participant waitlist joining, and participant guest quantities.
 - `src/server/effect/rpc/handlers/events/events-registration.handlers.spec.ts` covers participant self-cancellation for pending, confirmed, and waitlisted registrations, buyer-plus-guest spot rollback, checked-in rejection paths, organizer-assisted transfer target lookup, and unpaid registration transfer guardrails including target tenant membership, role eligibility, duplicate active registration, and paid-transfer rejection.
+- `src/app/events/event-organize/event-organize.spec.ts` covers organizer overview stat aggregation and transfer-dialog participant identity copy. The organizer overview UI now exposes the unpaid transfer action next to cancellation for not-yet-checked-in participant registrations.
 - `src/server/effect/rpc/handlers/events/events-registration.handlers.spec.ts` covers organizer/admin cancellation for confirmed registrations and denial without event-organizer access.
 - `src/server/effect/rpc/handlers/events/events-lifecycle.handlers.spec.ts` covers server-side rejection of end-before-start events and close-before-open registration windows for event create/update.
 - `src/server/effect/rpc/handlers/events/events-lifecycle.handlers.spec.ts` covers template discount copying by stable source option id when template options share the same title, plus pre-insert rejection when copied ESNcard discounts are disabled or exceed the target event option price.
@@ -1187,7 +1188,7 @@ the current working direction until a product decision overrides them.
 
 ### Should Fix Before Relaunch
 
-1. Implement transfer/resale; keep automatic refund handling visible until the finance flow is implemented.
+1. Implement participant self-service transfer/resale, paid transfer/resale money movement, and automatic refund handling. Organizer-assisted unpaid transfer now exists for confirmed, not checked-in registrations.
 2. Run the active negative-registration Playwright coverage once local runtime
    is available; `specs/events/negative-registration-states.spec.ts` now covers
    closed registration windows, role-ineligible direct links, and waitlist
@@ -1435,6 +1436,12 @@ implement those decisions or explicitly revise them there before changing code.
   current tenant and remain eligible for the registration option, rejected
   duplicate active target registrations, and kept paid transfer blocked until
   refund/resale money movement exists.
+- Organizer-assisted transfer UI pass: exposed the unpaid transfer primitive on
+  the organizer overview for not-yet-checked-in participant registrations,
+  added an eligible-member lookup dialog, refreshed organizer/event data after
+  successful transfer, and updated generated event-management docs to separate
+  organizer-assisted unpaid transfer from participant self-service resale and
+  paid money movement.
 - Profile payment next-step coverage pass: extracted the profile event-card
   pending-checkout next-step copy into a helper and covered that it only appears
   when a pending registration has an actual checkout URL.

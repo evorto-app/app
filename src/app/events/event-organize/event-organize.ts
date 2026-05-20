@@ -33,6 +33,11 @@ import {
   ReceiptSubmitDialogComponent,
   ReceiptSubmitDialogResult,
 } from './receipt-submit-dialog.component';
+import {
+  RegistrationTransferDialogComponent,
+  RegistrationTransferDialogData,
+  RegistrationTransferDialogResult,
+} from './registration-transfer-dialog.component';
 
 interface EventOrganizeStatsInput {
   registrationOptions?: readonly {
@@ -67,6 +72,14 @@ export const computeEventOrganizeStats = (
   };
 };
 
+export interface EventOrganizeParticipant {
+  checkedIn: boolean;
+  email: string;
+  firstName: string;
+  lastName: string;
+  registrationId: string;
+}
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -98,7 +111,6 @@ export class EventOrganize {
       eventId: this.eventId(),
     }),
   );
-
   protected readonly organizerTableColumns = signal([
     'name',
     'email',
@@ -118,6 +130,7 @@ export class EventOrganize {
         ...registrationOption.users,
       ]);
   });
+
   protected readonly receiptsByEventQuery = injectQuery(() =>
     this.rpc.finance.receipts.byEvent.queryOptions({
       eventId: this.eventId(),
@@ -133,12 +146,15 @@ export class EventOrganize {
       ? 'Receipts can be added after the event ends.'
       : null;
   });
-
   protected readonly stats = computed(() =>
     computeEventOrganizeStats(this.event()),
   );
+
   protected readonly submitReceiptMutation = injectMutation(() =>
     this.rpc.finance.receipts.submit.mutationOptions(),
+  );
+  protected readonly transferRegistrationMutation = injectMutation(() =>
+    this.rpc.events.transferEventRegistration.mutationOptions(),
   );
   private readonly config = inject(ConfigService);
   private readonly dialog = inject(MatDialog);
@@ -251,6 +267,60 @@ export class EventOrganize {
         getErrorMessage(error, 'Failed to upload receipt file'),
       );
     }
+  }
+
+  protected async openTransferDialog(
+    registration: EventOrganizeParticipant,
+  ): Promise<void> {
+    const dialogReference = this.dialog.open<
+      RegistrationTransferDialogComponent,
+      RegistrationTransferDialogData,
+      RegistrationTransferDialogResult
+    >(RegistrationTransferDialogComponent, {
+      data: {
+        currentUser: {
+          email: registration.email,
+          firstName: registration.firstName,
+          lastName: registration.lastName,
+        },
+        eventId: this.eventId(),
+        registrationId: registration.registrationId,
+      },
+      width: '560px',
+    });
+
+    const result = await firstValueFrom(dialogReference.afterClosed());
+    if (!result) {
+      return;
+    }
+
+    this.transferRegistrationMutation.mutate(
+      {
+        eventId: this.eventId(),
+        registrationId: registration.registrationId,
+        targetUserId: result.targetUserId,
+      },
+      {
+        onError: (error) => {
+          this.notifications.showError(
+            getErrorMessage(error, 'Failed to transfer registration'),
+          );
+        },
+        onSuccess: async () => {
+          await this.queryClient.invalidateQueries({
+            queryKey: this.rpc.events.getOrganizeOverview.queryKey({
+              eventId: this.eventId(),
+            }),
+          });
+          await this.queryClient.invalidateQueries({
+            queryKey: this.rpc.events.findOne.queryKey({
+              id: this.eventId(),
+            }),
+          });
+          this.notifications.showSuccess('Registration transferred');
+        },
+      },
+    );
   }
 
   protected readonly showOrganizerRow = (
