@@ -302,7 +302,7 @@ Organizers check in attendees from the dedicated QR scanner. Attendees open thei
 
 Check-in is available to event organizers and users with event-wide organize access during the current check-in window. The scanner shows a future-event warning before that window opens. Confirming check-in records the registration check-in time and updates the checked-in count shown on the organizer overview. When a registration includes guests, the organizer chooses how many guests arrived with the attendee, and the checked-in count increases by the attendee plus the selected guests.
 Organizers can also cancel a participant's confirmed registration from the organizer overview before check-in, which releases the confirmed spot without promising an automatic refund.
-For unpaid registrations, organizers can transfer a not-yet-checked-in participant registration to another eligible tenant member. Paid registration transfer still remains blocked until the manual refund or resale money flow is handled.
+For unpaid registrations, organizers can transfer a not-yet-checked-in participant registration to another eligible tenant member. Paid registration transfer shows as unavailable in the organizer overview until the manual refund or resale money flow is handled.
 
 It does not currently include attendee export, attendee messaging, manual check-in controls outside QR scanning, participant self-service resale, paid registration transfer, or automatic refund controls.
 Those flows should be documented separately when they exist in the product.

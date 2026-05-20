@@ -104,6 +104,7 @@ describe('events RPC registration status schema', () => {
         firstName: 'Parti',
         lastName: 'Cipant',
         registrationId: 'registration-1',
+        transferAvailable: true,
         userId: 'user-1',
       }),
     ).not.toThrow();

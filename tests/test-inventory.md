@@ -335,6 +335,16 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     registration and counter updates, restore the seeded counter, and call out
     that guest-quantity check-in increments the organizer checked-in count by
     the attendee plus selected guests.
+    Generated-doc source coverage keeps the event-management docs aligned with
+    the dedicated scanner flow, scanner warning states, guest-quantity count
+    updates, organizer cancellation scope, and paid-transfer/refund deferrals.
+    Generated event-management docs also seed a confirmed registration with
+    guests and capture the scanned-registration page, so docs assert guest
+    progress and the buyer-plus-guests check-in action instead of only
+    describing it in Markdown.
+    Organizer overview read-model and app coverage now also pin that
+    organizer-assisted transfer is unavailable before opening the dialog when a
+    confirmed registration is checked in, paid, or tied to a past event.
   - Keep scanned-registration action guards aligned with the write/refetch
     lifecycle. Local app coverage now pins that the check-in action is disabled
     when scan state disallows it, no spots are selected, the write is pending,

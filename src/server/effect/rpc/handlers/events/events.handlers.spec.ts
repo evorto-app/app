@@ -1,5 +1,6 @@
 import { describe, expect, it } from '@effect/vitest';
 
+import { organizerRegistrationTransferAvailable } from './events-query.handlers';
 import { eventHandlers } from './events.handlers';
 
 describe('eventHandlers composition', () => {
@@ -28,5 +29,46 @@ describe('eventHandlers composition', () => {
       'events.update',
       'events.updateListing',
     ]);
+  });
+});
+
+describe('organizerRegistrationTransferAvailable', () => {
+  it('keeps organizer-assisted transfer unavailable for paid, checked-in, or past registrations', () => {
+    const futureStart = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const pastStart = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+    expect(
+      organizerRegistrationTransferAvailable({
+        checkInTime: null,
+        eventStart: futureStart,
+        transactions: [],
+      }),
+    ).toBe(true);
+    expect(
+      organizerRegistrationTransferAvailable({
+        checkInTime: new Date(),
+        eventStart: futureStart,
+        transactions: [],
+      }),
+    ).toBe(false);
+    expect(
+      organizerRegistrationTransferAvailable({
+        checkInTime: null,
+        eventStart: pastStart,
+        transactions: [],
+      }),
+    ).toBe(false);
+    expect(
+      organizerRegistrationTransferAvailable({
+        checkInTime: null,
+        eventStart: futureStart,
+        transactions: [
+          {
+            amount: 2500,
+            status: 'successful',
+          },
+        ],
+      }),
+    ).toBe(false);
   });
 });

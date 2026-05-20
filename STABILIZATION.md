@@ -1458,13 +1458,19 @@ the current working direction until a product decision overrides them.
    closed registration windows, role-ineligible direct links, and waitlist
    affordances.
 3. Keep simple-mode templates as the primary authoring UI, but expand reusable
-   template support for discounts, add-ons, and questions where practical.
-   Organizer planning tips are now exposed as the first private organizer-notes
-   field, and existing reusable template add-ons are now visible on template
-   detail. Add-on authoring/copying and registration questions remain separate
-   fuller product/runtime slices.
-4. Add Browser-backed scanner/organizer aggregate review once local runtime is available.
-5. Add Browser-backed profile coverage for payment-continuation, ticket/cancellation routing, waitlist messaging, and ESNcard provider failure semantics once local runtime is available.
+  template support for discounts, add-ons, and questions where practical.
+  Organizer planning tips are now exposed as the first private organizer-notes
+   field, existing reusable template add-ons are now visible on template detail,
+   simple template create/edit can persist reusable add-ons, and event creation
+   copies reusable add-ons into event-scoped read-model records. Simple
+   template create/edit can now persist reusable registration questions, show
+   them on template detail, and copy them into event-scoped read-model records.
+   Event registration and waitlist writes now collect/persist submitted
+   question answers. Registration-time add-on purchase is now part of
+   registration checkout, while standalone before-event and during-event add-on
+   sales remain separate fuller product/runtime slices.
+4. Run manual Browser-backed scanner/organizer aggregate review once local runtime is available. The page-backed scanner spec now asserts that the checked-in aggregate changes after buyer-plus-guest check-in, and organizer overview local coverage now keeps paid, checked-in, and past-event transfer actions unavailable before the dialog opens.
+5. Run Browser-backed profile coverage for payment-continuation, ticket/cancellation routing, waitlist messaging, and ESNcard provider failure semantics once local runtime is available. The generated user-profile doc now seeds and asserts the pending-checkout, waitlisted, confirmed, and checked-in event-card states; live runtime execution remains blocked by missing local secrets.
 6. Fill the remaining tenant settings implementation gap for automated onboarding/domain workflows. The current general-settings page exposes SEO fields, uploaded or externally hosted logo/favicon URLs, tenant legal links or hosted legal text, editable supported locale/currency/timezone values, read-only runtime identity, and a visible deferred-settings summary. The current global-admin surface supports a searchable tenant list, tenant create/edit, and tenant detail review, while custom-domain verification, multi-domain automation, and impersonation remain out of scope.
 7. Keep `docker:start` reset behavior intentional, use `docker:resume` only for existing local stacks, and ensure seeded data is sufficient to get going from zero.
 
@@ -1971,6 +1977,11 @@ implement those decisions or explicitly revise them there before changing code.
   matching functional spec so only pending-checkout cards expose Continue
   payment, and added readbacks for the pending registration plus checked-in
   add-on purchase behind those visible cards.
+- Organizer transfer availability pass: added `transferAvailable` to organizer
+  overview participant rows and disabled the organizer-assisted transfer action
+  before opening the dialog for paid, checked-in, or past-event registrations.
+  This keeps the paid transfer/refund/resale boundary visible in the organizer
+  UI while money movement remains a relaunch blocker.
 
 ## Review Next
 

@@ -450,7 +450,7 @@ describe('generated docs source current behavior', () => {
       "Organizers can also cancel a participant's confirmed registration from the organizer overview before check-in, which releases the confirmed spot without promising an automatic refund.",
     );
     expect(source).toContain(
-      'Paid registration transfer still remains blocked until the manual refund or resale money flow is handled.',
+      'Paid registration transfer shows as unavailable in the organizer overview until the manual refund or resale money flow is handled.',
     );
     expect(source).toContain(
       'It does not currently include attendee export, attendee messaging, manual check-in controls outside QR scanning',
