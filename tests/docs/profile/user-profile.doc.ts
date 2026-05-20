@@ -211,7 +211,9 @@ The user profile now uses a two-column layout:
     await expect(
       documentedEventCard.getByText(profileEventCards.confirmed.eventTitle),
     ).toBeVisible();
-    await expect(documentedEventCard.getByText('Confirmed')).toBeVisible();
+    await expect(
+      documentedEventCard.getByText('Confirmed', { exact: true }),
+    ).toBeVisible();
     await expect(
       documentedEventCard.getByText('Includes 1 guest'),
     ).toBeVisible();
@@ -287,7 +289,9 @@ The user profile now uses a two-column layout:
     await expect(
       checkedInEventCard.getByText(profileEventCards.checkedIn.eventTitle),
     ).toBeVisible();
-    await expect(checkedInEventCard.getByText('Confirmed')).toBeVisible();
+    await expect(
+      checkedInEventCard.getByText('Confirmed', { exact: true }),
+    ).toBeVisible();
     await expect(checkedInEventCard.getByText('Checked in:')).toBeVisible();
     await expect(
       checkedInEventCard.getByText(

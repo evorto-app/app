@@ -1492,7 +1492,11 @@ the current working direction until a product decision overrides them.
    registration checkout, while standalone before-event and during-event add-on
    sales remain separate fuller product/runtime slices.
 4. Run manual Browser-backed scanner/organizer aggregate review once local runtime is available. The page-backed scanner spec now asserts that the checked-in aggregate changes after buyer-plus-guest check-in, and organizer overview local coverage now keeps paid, checked-in, and past-event transfer actions unavailable before the dialog opens.
-5. Run Browser-backed profile coverage for payment-continuation, ticket/cancellation routing, waitlist messaging, and ESNcard provider failure semantics once local runtime is available. The generated user-profile doc now seeds and asserts the pending-checkout, waitlisted, confirmed, and checked-in event-card states; live runtime execution remains blocked by missing local secrets.
+5. Keep profile/account coverage aligned as the flow evolves. Docker-backed
+   system-Chrome coverage now proves profile edit persistence, event-card
+   payment continuation/ticket/waitlist routing, submitted receipts, and seeded
+   ESNcard discount state. Live external ESNcard add/refresh/remove provider
+   outcomes remain intentionally outside deterministic local coverage.
 6. Fill the remaining tenant settings implementation gap for automated onboarding/domain workflows. The current general-settings page exposes SEO fields, uploaded or externally hosted logo/favicon URLs, tenant legal links or hosted legal text, editable supported locale/currency/timezone values, read-only runtime identity, and a visible deferred-settings summary. The current global-admin surface supports a searchable tenant list, tenant create/edit, and tenant detail review, while custom-domain verification, multi-domain automation, and impersonation remain out of scope.
 7. Keep `docker:start` reset behavior intentional, use `docker:resume` only for existing local stacks, and ensure seeded data is sufficient to get going from zero.
 
@@ -2027,19 +2031,29 @@ implement those decisions or explicitly revise them there before changing code.
   permission checks read current config permissions, and aligning the tests/docs
   with the overview -> tenant-list route split. The full dependency run still
   depends on live Auth0 login and timed out on the unstable network.
+- Docker profile runtime pass: rebuilt the Docker app image on
+  `APP_HOST_PORT=4200`, verified service health/logs and `/events`, and ran the
+  profile edit, event-card, submitted-receipt, and discount-card functional
+  specs against system Chrome with `NO_WEBSERVER=true --no-deps`. The slice
+  passed 4/4 after making saved profile edits update the visible profile cache
+  immediately, removing an invalid relational filter from the profile event-card
+  fixture, and tightening ambiguous profile status assertions in the matching
+  spec and generated guide. The edited profile docs slice passed 3/3 against the
+  same Docker app.
 
 ## Review Next
 
 All ten first-pass review areas are now represented in this document. The next
 stabilization work should continue with small cleanup commits around the
-remaining relaunch gaps: Browser-backed profile action coverage and automated
-onboarding/domain workflows. Scanner aggregate behavior and global-admin tenant
+remaining relaunch gaps: automated onboarding/domain workflows and live external
+ESNcard provider add/refresh/remove outcomes. Scanner aggregate behavior,
+profile account/event/receipt/discount-card behavior, and global-admin tenant
 administration now have Docker-backed system-Chrome coverage, but the in-app
 Browser connection itself still timed out during local navigation and should be
-retried when the Browser plugin/runtime is healthy. The profile discount-card
-and ESN discounted-pricing slices also now have Docker-backed system-Chrome
-coverage, while live external ESNcard add/refresh provider outcomes remain
-intentionally outside deterministic local Browser coverage.
+retried when the Browser plugin/runtime is healthy. The ESN discounted-pricing
+slice also has Docker-backed system-Chrome coverage, while live external
+ESNcard provider outcomes remain intentionally outside deterministic local
+Browser coverage.
 Richer reusable template add-ons and questions are now implemented in the simple
 template flow and should be kept aligned as those surfaces evolve. Normal generated docs output now stays local unless
 `test:e2e:docs:publish` is run intentionally. New Playwright

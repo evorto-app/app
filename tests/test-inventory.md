@@ -206,15 +206,15 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 ## Stabilization Coverage Still Needed
 
 - Profile/account:
-  - Browser-backed profile edit persistence after saving notification email and
-    optional global reimbursement details. Generated docs now exercise the
-    notification-email plus IBAN/PayPal edit/restore path with database readback,
-    `specs/profile/user-profile-edit.spec.ts` now functionally covers
-    notification email plus IBAN/PayPal persistence with explicit database
-    readback and cleanup, and app helper coverage proves payload trimming and
-    blank-value normalization before persistence.
-  - Manual Browser-backed profile event-card review once local runtime is
-    available. Generated profile docs now seed confirmed, pending-checkout,
+  - Docker-backed system-Chrome profile edit persistence now passes against the
+    rebuilt app. Generated docs exercise the notification-email plus IBAN/PayPal
+    edit/restore path with database readback,
+    `specs/profile/user-profile-edit.spec.ts` functionally covers notification
+    email plus IBAN/PayPal persistence with explicit database readback and
+    cleanup, and app helper coverage proves payload trimming, blank-value
+    normalization, and visible profile-cache refresh after save.
+  - Docker-backed system-Chrome profile event-card review now passes against the
+    rebuilt app. Generated profile docs seed confirmed, pending-checkout,
     waitlisted, and checked-in registrations with free add-ons where applicable,
     then assert event link, registration status, guest quantity, purchased add-on
     summary, payment state, checkout continuation, waitlist routing,
@@ -234,15 +234,15 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     those seeded profile cards.
     The generated profile docs and functional profile-event spec now pin each
     seeded confirmed, pending-checkout, waitlisted, and checked-in card to its
-    expected event-page link so the recovery route cannot silently drift while
-    Browser runtime review is unavailable. They also assert that only the
+    expected event-page link so the recovery route cannot silently drift. They
+    also assert that only the
     pending-checkout card exposes the profile-level **Continue payment** action,
     and read back the pending registration plus checked-in add-on purchase rows
     behind those visible cards.
     Organizer overview app coverage also proves checked-in rows and in-flight
     writes disable participant cancellation and organizer-assisted transfer.
-  - Browser-backed ESNcard live add, refresh, and remove provider outcomes with
-    readable error states.
+  - Live external ESNcard add, refresh, and remove provider outcomes with
+    readable error states remain outside deterministic local coverage.
     Generated discounts docs now include a helper-backed baseline note for
     readable ESNcard statuses, pending save/refresh/remove labels, shared
     in-flight write guards, trimmed save payloads, and provider-unavailable
