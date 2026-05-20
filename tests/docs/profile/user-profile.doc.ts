@@ -1,13 +1,20 @@
 import { eq } from 'drizzle-orm';
 
+import { getId } from '../../../helpers/get-id';
 import { userStateFile, usersToAuthenticate } from '../../../helpers/user-data';
 import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
+import { seedFreeRegistrationAddon } from '../../support/utils/seed-registration-addons';
 
 test.use({ storageState: userStateFile });
 
-test('Manage user profile', async ({ database, page, seedDate }, testInfo) => {
+test('Manage user profile', async ({
+  database,
+  page,
+  seedDate,
+  seeded,
+}, testInfo) => {
   const regularUser = usersToAuthenticate.find(
     (user) => user.stateFile === userStateFile,
   );
@@ -21,8 +28,44 @@ test('Manage user profile', async ({ database, page, seedDate }, testInfo) => {
     throw new Error('Expected regular profile user to exist');
   }
   const documentedNotificationEmail = `profile-docs-${seedDate.getTime()}@evorto.app`;
+  const profileEventRegistrationId = getId();
+  const profileEventAddonId = getId();
+  const profileEventAddonPurchaseId = getId();
+  const profileEventAddonTitle = `Profile docs snack ${seedDate.getTime()}`;
+  const profileEventId = seeded.scenario.events.freeOpen.eventId;
+  const profileEventOptionId = seeded.scenario.events.freeOpen.optionId;
+  const profileEvent = seeded.events.find(
+    (event) => event.id === profileEventId,
+  );
+  if (!profileEvent) {
+    throw new Error('Expected seeded free profile event');
+  }
 
   try {
+    await seedFreeRegistrationAddon({
+      addonId: profileEventAddonId,
+      database,
+      eventId: profileEventId,
+      registrationOptionId: profileEventOptionId,
+      title: profileEventAddonTitle,
+    });
+    await database.insert(schema.eventRegistrations).values({
+      eventId: profileEventId,
+      guestCount: 1,
+      id: profileEventRegistrationId,
+      registrationOptionId: profileEventOptionId,
+      status: 'CONFIRMED',
+      tenantId: seeded.tenant.id,
+      userId: regularUser.id,
+    });
+    await database.insert(schema.eventRegistrationAddonPurchases).values({
+      addonId: profileEventAddonId,
+      id: profileEventAddonPurchaseId,
+      quantity: 2,
+      registrationId: profileEventRegistrationId,
+      unitPrice: 0,
+    });
+
     await page.goto('.');
     await testInfo.attach('markdown', {
       body: `
@@ -146,6 +189,29 @@ The user profile now uses a two-column layout:
     await expect(
       page.getByRole('heading', { name: 'Your Event Registrations' }),
     ).toBeVisible();
+    const documentedEventCard = page
+      .locator('article')
+      .filter({ hasText: profileEventAddonTitle });
+    await expect(documentedEventCard).toBeVisible();
+    await expect(
+      documentedEventCard.getByText(profileEvent.title),
+    ).toBeVisible();
+    await expect(documentedEventCard.getByText('Confirmed')).toBeVisible();
+    await expect(
+      documentedEventCard.getByText('Includes 1 guest'),
+    ).toBeVisible();
+    await expect(
+      documentedEventCard.getByText(`2 x ${profileEventAddonTitle}`),
+    ).toBeVisible();
+    await expect(
+      documentedEventCard.getByText('No payment required'),
+    ).toBeVisible();
+    await expect(
+      documentedEventCard.getByText('Available on the event page.'),
+    ).toBeVisible();
+    await expect(
+      documentedEventCard.getByRole('link', { name: 'Open event page' }),
+    ).toBeVisible();
     await takeScreenshot(
       testInfo,
       page.locator('app-user-profile'),
@@ -171,5 +237,24 @@ The user profile now uses a two-column layout:
         paypalEmail: originalUser.paypalEmail,
       })
       .where(eq(schema.users.id, regularUser.id));
+    await database
+      .delete(schema.eventRegistrationAddonPurchases)
+      .where(
+        eq(
+          schema.eventRegistrationAddonPurchases.id,
+          profileEventAddonPurchaseId,
+        ),
+      );
+    await database
+      .delete(schema.eventRegistrations)
+      .where(eq(schema.eventRegistrations.id, profileEventRegistrationId));
+    await database
+      .delete(schema.addonToEventRegistrationOptions)
+      .where(
+        eq(schema.addonToEventRegistrationOptions.addonId, profileEventAddonId),
+      );
+    await database
+      .delete(schema.eventAddons)
+      .where(eq(schema.eventAddons.id, profileEventAddonId));
   }
 });
