@@ -17,6 +17,7 @@ import {
   eventInstances,
   eventRegistrationOptionDiscounts,
   eventRegistrationOptions,
+  eventRegistrationQuestions,
   eventRegistrations,
   tenantStripeTaxRates,
 } from '../../../../../db/schema';
@@ -372,6 +373,31 @@ export const eventQueryHandlers = {
                   ),
                 ),
             );
+      const eventQuestionRows =
+        registrationOptionIds.length === 0
+          ? []
+          : yield* databaseEffect((database) =>
+              database
+                .select({
+                  description: eventRegistrationQuestions.description,
+                  id: eventRegistrationQuestions.id,
+                  registrationOptionId:
+                    eventRegistrationQuestions.registrationOptionId,
+                  required: eventRegistrationQuestions.required,
+                  sortOrder: eventRegistrationQuestions.sortOrder,
+                  title: eventRegistrationQuestions.title,
+                })
+                .from(eventRegistrationQuestions)
+                .where(
+                  and(
+                    eq(eventRegistrationQuestions.eventId, event.id),
+                    inArray(
+                      eventRegistrationQuestions.registrationOptionId,
+                      registrationOptionIds,
+                    ),
+                  ),
+                ),
+            );
       const registrationOptionTaxRateIds = [
         ...new Set(
           event.registrationOptions
@@ -438,6 +464,16 @@ export const eventQueryHandlers = {
       );
       const esnCardDiscountedPriceByOptionId =
         getEsnCardDiscountedPriceByOptionId(optionDiscounts);
+      const questionsByRegistrationOptionId = groupBy(
+        eventQuestionRows.toSorted((left, right) => {
+          if (left.sortOrder !== right.sortOrder) {
+            return left.sortOrder - right.sortOrder;
+          }
+
+          return left.title.localeCompare(right.title);
+        }),
+        (question) => question.registrationOptionId,
+      );
       const addOnsById = new Map<
         string,
         {
@@ -562,6 +598,15 @@ export const eventQueryHandlers = {
                 registrationOption.openRegistrationTime.toISOString(),
               organizingRegistration: registrationOption.organizingRegistration,
               price: registrationOption.price,
+              questions: (
+                questionsByRegistrationOptionId[registrationOption.id] ?? []
+              ).map((question) => ({
+                description: question.description ?? null,
+                id: question.id,
+                required: question.required,
+                sortOrder: question.sortOrder,
+                title: question.title,
+              })),
               registeredDescription:
                 registrationOption.registeredDescription ?? null,
               registrationMode: registrationOption.registrationMode,

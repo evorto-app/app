@@ -18,8 +18,10 @@ import {
   eventInstances,
   eventRegistrationOptionDiscounts,
   eventRegistrationOptions,
+  eventRegistrationQuestions,
   templateEventAddons,
   templateRegistrationOptionDiscounts,
+  templateRegistrationQuestions,
 } from '../../../../../db/schema';
 import {
   isMeaningfulRichTextHtml,
@@ -135,6 +137,9 @@ type TemplateAddonCopyRecord = typeof templateEventAddons.$inferSelect & {
   }[];
 };
 
+type TemplateQuestionCopyRecord =
+  typeof templateRegistrationQuestions.$inferSelect;
+
 export const buildEventAddonInsert = ({
   addOn,
   eventId,
@@ -154,6 +159,24 @@ export const buildEventAddonInsert = ({
   stripeTaxRateId: addOn.stripeTaxRateId,
   title: addOn.title,
   totalAvailableQuantity: addOn.totalAvailableQuantity,
+});
+
+export const buildEventQuestionInsert = ({
+  eventId,
+  question,
+  registrationOptionId,
+}: {
+  eventId: string;
+  question: TemplateQuestionCopyRecord;
+  registrationOptionId: string;
+}): typeof eventRegistrationQuestions.$inferInsert => ({
+  description: question.description,
+  eventId,
+  registrationOptionId,
+  required: question.required,
+  sortOrder: question.sortOrder,
+  sourceTemplateQuestionId: question.id,
+  title: question.title,
 });
 
 const validateCopiedTemplateDiscount = ({
@@ -302,6 +325,19 @@ export const eventLifecycleHandlers = {
           ? yield* databaseEffect((database) =>
               database.query.templateEventAddons.findMany({
                 where: {
+                  templateId: input.templateId,
+                },
+              }),
+            )
+          : [];
+      const templateQuestions =
+        sourceTemplateOptionIds.length > 0
+          ? yield* databaseEffect((database) =>
+              database.query.templateRegistrationQuestions.findMany({
+                where: {
+                  registrationOptionId: {
+                    in: sourceTemplateOptionIds,
+                  },
                   templateId: input.templateId,
                 },
               }),
@@ -535,6 +571,59 @@ export const eventLifecycleHandlers = {
                 .values(registrationOptionInserts),
             );
           }
+        }
+      }
+
+      if (templateQuestions.length > 0) {
+        const createdOptionSources = createdOptions.map(
+          (createdOption, index) => ({
+            createdOptionId: createdOption.id,
+            sourceTemplateOptionId:
+              sanitizedRegistrationOptions[index]
+                ?.sourceTemplateRegistrationOptionId,
+          }),
+        );
+        const createdOptionIdBySourceTemplateOptionId = new Map(
+          createdOptionSources
+            .filter(
+              (
+                option,
+              ): option is {
+                createdOptionId: string;
+                sourceTemplateOptionId: string;
+              } => option.sourceTemplateOptionId !== undefined,
+            )
+            .map((option) => [
+              option.sourceTemplateOptionId,
+              option.createdOptionId,
+            ]),
+        );
+        const questionInserts = templateQuestions
+          .map((question) => {
+            const registrationOptionId =
+              createdOptionIdBySourceTemplateOptionId.get(
+                question.registrationOptionId,
+              );
+
+            return registrationOptionId
+              ? buildEventQuestionInsert({
+                  eventId: event.id,
+                  question,
+                  registrationOptionId,
+                })
+              : null;
+          })
+          .filter(
+            (
+              insert,
+            ): insert is typeof eventRegistrationQuestions.$inferInsert =>
+              insert !== null,
+          );
+
+        if (questionInserts.length > 0) {
+          yield* databaseEffect((database) =>
+            database.insert(eventRegistrationQuestions).values(questionInserts),
+          );
         }
       }
 
