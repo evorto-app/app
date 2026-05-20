@@ -324,10 +324,39 @@ test.describe('Register for events', () => {
         questionId: waitlistQuestion.questionId,
       }),
     ]);
+    await page.getByRole('button', { name: 'Leave waitlist' }).click();
+    await expect(page.getByText('This option is full.')).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Join waitlist' }),
+    ).toBeVisible();
+
+    const cancelledWaitlistRegistration =
+      await database.query.eventRegistrations.findFirst({
+        where: {
+          id: waitlistRegistration.id,
+          status: 'CANCELLED',
+          tenantId: tenant.id,
+        },
+      });
+    if (!cancelledWaitlistRegistration) {
+      throw new Error(
+        'Expected registration docs waitlist leave action to cancel the waitlist registration',
+      );
+    }
+    const fullOptionAfterLeaving =
+      await database.query.eventRegistrationOptions.findFirst({
+        where: { id: fullOptionId, tenantId: tenant.id },
+      });
+    if (!fullOptionAfterLeaving) {
+      throw new Error(
+        'Expected seeded full option after registration docs waitlist leave action',
+      );
+    }
+    expect(fullOptionAfterLeaving.waitlistSpots).toBe(0);
 
     await testInfo.attach('markdown', {
       body: `
-  Full participant options expose a distinct **Join waitlist** action. If that option asks required registration questions, participants must answer them before joining the waitlist. Waitlist registration is separate from a confirmed registration, and a normal **Register** button is not shown while the option is full.
+  Full participant options expose a distinct **Join waitlist** action. If that option asks required registration questions, participants must answer them before joining the waitlist. Waitlist registration is separate from a confirmed registration, and a normal **Register** button is not shown while the option is full. Participants can leave the waitlist before the event starts, which cancels the waitlist registration and releases the waitlist position.
 `,
     });
   });

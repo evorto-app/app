@@ -117,7 +117,6 @@ test.describe('Negative registration states', () => {
           registrationOptionId: targetOptionId,
           title: 'Anything organizers should know?',
         });
-
         await page.goto(`/events/${targetEventId}`);
         await waitForRegistrationStatus(page);
 
@@ -185,6 +184,34 @@ test.describe('Negative registration states', () => {
             questionId: registrationQuestion.questionId,
           }),
         ]);
+        await page.getByRole('button', { name: 'Leave waitlist' }).click();
+        await expect(page.getByText('This option is full.')).toBeVisible();
+        await expect(
+          page.getByRole('button', { name: 'Join waitlist' }),
+        ).toBeVisible();
+
+        const cancelledWaitlistRegistration =
+          await database.query.eventRegistrations.findFirst({
+            where: {
+              id: waitlistRegistration.id,
+              status: 'CANCELLED',
+              tenantId: tenant.id,
+            },
+          });
+        if (!cancelledWaitlistRegistration) {
+          throw new Error('Expected leaving waitlist to cancel the registration');
+        }
+
+        const optionAfterLeaving =
+          await database.query.eventRegistrationOptions.findFirst({
+            where: { eventId: targetEventId, id: targetOptionId },
+          });
+        if (!optionAfterLeaving) {
+          throw new Error(
+            'Expected seeded freeOpen option after leaving waitlist',
+          );
+        }
+        expect(optionAfterLeaving.waitlistSpots).toBe(0);
       } finally {
         await database
           .delete(schema.eventRegistrations)

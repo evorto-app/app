@@ -290,6 +290,10 @@ describe('generated docs source current behavior', () => {
       'If that option asks required registration questions, participants must answer them before joining the waitlist.',
     );
     expect(source).toContain('waitlistRegistration.questionAnswers');
+    expect(source).toContain(
+      'Participants can leave the waitlist before the event starts, which cancels the waitlist registration and releases the waitlist position.',
+    );
+    expect(source).toContain('fullOptionAfterLeaving.waitlistSpots');
     expect(source).not.toContain('Register button stays available');
     expect(source).not.toContain('paid transfers are automatic');
     expect(source).not.toContain('resale is automatic');

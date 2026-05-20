@@ -1815,6 +1815,9 @@ implement those decisions or explicitly revise them there before changing code.
 - Waitlist question integration-doc pass: extended full-option waitlist specs
   and generated registration docs to exercise required answer gating and
   persisted answer storage before joining a waitlist.
+- Waitlist leave integration-doc pass: extended the full-option waitlist docs
+  and page-backed spec to leave the waitlist after joining, then assert the
+  cancelled registration and released waitlist counter.
 - Registration unavailable-state docs pass: extended the registration generated
   docs journey with page-backed closed-window, full-option waitlist, and
   role-ineligible direct-link states, so negative registration behavior is
