@@ -270,8 +270,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 
 - Profile/account:
   - Browser-backed profile edit persistence after saving notification email and
-    optional global reimbursement details. Generated docs already exercise the
-    notification-email edit/restore path with database readback,
+    optional global reimbursement details. Generated docs now exercise the
+    notification-email plus IBAN/PayPal edit/restore path with database readback,
     `specs/profile/user-profile-edit.spec.ts` now functionally covers
     notification email plus IBAN/PayPal persistence with explicit database
     readback and cleanup, and app helper coverage proves payload trimming and

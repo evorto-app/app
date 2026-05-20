@@ -1282,10 +1282,10 @@ the current working direction until a product decision overrides them.
 
 ### Recommended Cleanup Actions
 
-- Keep Browser-backed profile edit persistence coverage aligned with notification email and global reimbursement-detail behavior.
+- Keep Browser-backed profile edit persistence coverage aligned with notification email and global reimbursement-detail behavior. Generated profile docs and the functional profile edit spec now both save and read back notification email plus IBAN/PayPal details.
 - Keep Browser-backed profile event-card coverage aligned with route/status/guest/add-on/payment/ticket/check-in labels and rerun it during manual runtime review.
 - Add Browser-backed profile discount-card tests for live add/refresh/remove provider validation outcomes once runtime review is available. Local app/server coverage already proves upsert payload normalization, readable mutation errors, global card reads/upserts, refresh persistence, scoped removal, and generated docs assert seeded card display plus invalid-input blocking.
-- Add Browser-backed profile/account coverage for account creation retry/tenant-join behavior, profile edit persistence, ESNcard add/refresh/remove, and profile event action rendering once local runtime review is available. Local helper/server coverage already covers account creation retry/tenant join, profile edit payload persistence, ESNcard action labels/errors/payloads, profile event labels/actions, and submitted receipt status/amount/server rows; generated profile docs now assert submitted receipt visibility.
+- Add Browser-backed profile/account coverage for account creation retry/tenant-join behavior, profile edit persistence, ESNcard add/refresh/remove, and profile event action rendering once local runtime review is available. Local helper/server coverage already covers account creation retry/tenant join, profile edit payload persistence, ESNcard action labels/errors/payloads, profile event labels/actions, and submitted receipt status/amount/server rows; generated profile docs now assert notification email plus reimbursement-detail persistence and submitted receipt visibility.
 
 ## Tenant/Global Admin
 
@@ -1490,6 +1490,10 @@ the current working direction until a product decision overrides them.
   functional Playwright spec that saves notification email plus global
   reimbursement fields, verifies the refreshed profile summary, reads the
   persisted user row, and restores the original fixture data.
+- **Addressed in stabilization pass:** generated user-profile docs now save
+  notification email plus IBAN/PayPal reimbursement details, assert the
+  refreshed profile summary, read the persisted user row, and restore the
+  original fixture data after the doc run.
 - **Addressed in stabilization pass:** create-account now has a
   credential-gated functional Playwright spec alongside the generated
   documentation journey, covering a generated Auth0 user creating a tenant
@@ -1887,7 +1891,10 @@ implement those decisions or explicitly revise them there before changing code.
 - Finance receipt contact pass: receipt approval/reimbursement read models now
   render the submitter's notification email when present, falling back to the
   Auth0 login email only when no notification email is configured.
-- Profile edit docs pass: extended the user-profile documentation journey to save a changed notification email, assert the refreshed profile summary, and restore the seeded user record after the doc run.
+- Profile edit docs pass: extended the user-profile documentation journey to
+  save changed notification email plus IBAN/PayPal reimbursement details,
+  assert the refreshed profile summary, read back the persisted user row, and
+  restore the seeded user record after the doc run.
 - Profile event-card docs pass: extended the user-profile documentation journey with deterministic confirmed and checked-in registrations plus free add-ons and asserted the profile event-card title, event-detail link, status, guest, add-on, payment, ticket-routing, and checked-in action labels.
 - Profile pending/waitlist docs pass: extended the user-profile documentation
   journey with deterministic pending-checkout and waitlisted event cards so the
