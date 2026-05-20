@@ -3,7 +3,11 @@ import { readFileSync } from 'node:fs';
 import nodePath from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import { registrationOptionsState } from './event-details.component';
+import {
+  eventReviewActionDisabled,
+  eventSubmitForReviewActionDisabled,
+  registrationOptionsState,
+} from './event-details.component';
 
 const readSource = (sourcePath: string): string =>
   readFileSync(nodePath.join(process.cwd(), sourcePath), 'utf8');
@@ -34,6 +38,79 @@ describe('registrationOptionsState', () => {
         registrationOptionsHiddenByEligibility: false,
       }),
     ).toBe('none');
+  });
+});
+
+describe('eventReviewActionDisabled', () => {
+  it('allows review actions only for reviewers on pending events without an in-flight review', () => {
+    expect(
+      eventReviewActionDisabled({
+        canReview: true,
+        mutationPending: false,
+        status: 'PENDING_REVIEW',
+      }),
+    ).toBe(false);
+    expect(
+      eventReviewActionDisabled({
+        canReview: false,
+        mutationPending: false,
+        status: 'PENDING_REVIEW',
+      }),
+    ).toBe(true);
+    expect(
+      eventReviewActionDisabled({
+        canReview: true,
+        mutationPending: true,
+        status: 'PENDING_REVIEW',
+      }),
+    ).toBe(true);
+    expect(
+      eventReviewActionDisabled({
+        canReview: true,
+        mutationPending: false,
+        status: 'APPROVED',
+      }),
+    ).toBe(true);
+  });
+});
+
+describe('eventSubmitForReviewActionDisabled', () => {
+  it('allows editable draft and rejected events to be submitted while no submit is pending', () => {
+    expect(
+      eventSubmitForReviewActionDisabled({
+        canEdit: true,
+        mutationPending: false,
+        status: 'DRAFT',
+      }),
+    ).toBe(false);
+    expect(
+      eventSubmitForReviewActionDisabled({
+        canEdit: true,
+        mutationPending: false,
+        status: 'REJECTED',
+      }),
+    ).toBe(false);
+    expect(
+      eventSubmitForReviewActionDisabled({
+        canEdit: false,
+        mutationPending: false,
+        status: 'DRAFT',
+      }),
+    ).toBe(true);
+    expect(
+      eventSubmitForReviewActionDisabled({
+        canEdit: true,
+        mutationPending: true,
+        status: 'DRAFT',
+      }),
+    ).toBe(true);
+    expect(
+      eventSubmitForReviewActionDisabled({
+        canEdit: true,
+        mutationPending: false,
+        status: 'PENDING_REVIEW',
+      }),
+    ).toBe(true);
   });
 });
 

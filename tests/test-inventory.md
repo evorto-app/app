@@ -119,6 +119,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   "Tax free" display, fallback tax labels when rate details are missing,
   discounted ESNcard prices retaining tax labels, and paid template detail
   summaries sharing the same inclusive price component.
+- Event detail component coverage pins review and submit-for-review action
+  guards for permission, status, and mutation-pending states so the page and
+  handlers share the same lifecycle write boundaries.
 - `specs/templates/paid-option-requires-tax-rate.spec.ts` has active
   simple-mode UI coverage for the paid-registration tax-rate requirement and a
   seeded inclusive tax-rate save path. Remaining fixme entries are limited to
