@@ -380,19 +380,19 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - Authenticated Browser review for the global-admin tenant list and
     tenant-create/edit flows. The global-admin tenant Playwright spec now
     functionally covers tenant list filtering, no-match state, operational row
-    fields, tenant detail review, create/edit form relaunch-scope copy, disabled
-    empty create submit, and enabled seeded edit submit. Local server/app
-    coverage already proves the list, tenant detail, tenant create, and tenant
-    edit surfaces return, render, and persist operational tenant state for
-    support review, and local app coverage proves the tenant list can be
-    filtered by operational fields, including connected Stripe account ids, with
-    readable load-failure messages and account labels. Tenant form coverage also
-    proves create/edit payload shaping, mutation-pending submit disabling, and
-    the visible relaunch tenant-scope notice before page-backed runtime is
-    available. Global-admin handler coverage pins one-primary-domain
-    normalization, duplicate-domain rejection before tenant creation mutates
-    data, and same-domain edit allowance. Tenant detail coverage also pins that
-    the external tenant-domain link only renders for single-host tenant domains.
+    fields, connected Stripe-account support lookup, tenant detail review,
+    create/edit form relaunch-scope copy, disabled empty create submit, and
+    enabled seeded edit submit. Local server/app coverage already proves the
+    list, tenant detail, tenant create, and tenant edit surfaces return, render,
+    and persist operational tenant state for support review, and local app
+    coverage proves readable load-failure messages and account labels. Tenant
+    form coverage also proves create/edit payload shaping, mutation-pending
+    submit disabling, and the visible relaunch tenant-scope notice before
+    page-backed runtime is available. Global-admin handler coverage pins
+    one-primary-domain normalization, duplicate-domain rejection before tenant
+    creation mutates data, and same-domain edit allowance. Tenant detail
+    coverage also pins that the external tenant-domain link only renders for
+    single-host tenant domains.
   - Keep tenant settings docs and payload tests aligned when new editable
     tenant settings move out of the deferred-settings summary. Current local
     coverage proves the general-settings page can persist editable
