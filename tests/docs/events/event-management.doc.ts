@@ -214,6 +214,7 @@ The organizer view currently includes:
 - Checked-in count
 - Participants grouped by registration option
 - ESNcard discount markers where applicable
+- Registration-time add-ons purchased by each participant
 - Event receipt submission and receipt list
 
 Organizers check in attendees from the dedicated QR scanner. Attendees open their ticket QR code from the event registration page after a confirmed registration, and organizers scan it from **Scan**. The scanned-registration page shows the attendee, event, registration option, ESNcard discount marker when applicable, guest check-in progress when guests are attached to the registration, and warnings for self-scan, future events, non-confirmed registrations, and already checked-in tickets.

@@ -1,7 +1,7 @@
 import type { DiscountCardRecord } from '@shared/rpc-contracts/app-rpcs/discounts.rpcs';
 import type { FinanceReceiptStatus } from '@shared/rpc-contracts/app-rpcs/finance.rpcs';
 
-import { DatePipe } from '@angular/common';
+import { CurrencyPipe, DatePipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -307,6 +307,7 @@ export const esnCardSubmitPayloadFromIdentifier = (
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     DatePipe,
+    CurrencyPipe,
     FontAwesomeModule,
     FormField,
     MatButtonModule,

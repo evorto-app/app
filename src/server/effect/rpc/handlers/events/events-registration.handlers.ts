@@ -1141,6 +1141,19 @@ export const eventRegistrationHandlers = {
             userId: user.id,
           },
           with: {
+            addonPurchases: {
+              columns: {
+                quantity: true,
+                unitPrice: true,
+              },
+              with: {
+                addOn: {
+                  columns: {
+                    title: true,
+                  },
+                },
+              },
+            },
             event: {
               columns: {
                 start: true,
@@ -1199,6 +1212,17 @@ export const eventRegistrationHandlers = {
             : registrationOption.price - discountedPrice);
 
         return {
+          addonPurchases: registration.addonPurchases.flatMap((purchase) =>
+            purchase.addOn
+              ? [
+                  {
+                    quantity: purchase.quantity,
+                    title: purchase.addOn.title,
+                    unitPrice: purchase.unitPrice,
+                  },
+                ]
+              : [],
+          ),
           appliedDiscountedPrice: discountedPrice,
           appliedDiscountType,
           basePriceAtRegistration,

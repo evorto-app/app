@@ -126,6 +126,11 @@ export const registrationTransferActionDisabled = (input: {
 export class EventActiveRegistrationComponent {
   public readonly registrations = input.required<
     readonly {
+      addonPurchases: readonly {
+        quantity: number;
+        title: string;
+        unitPrice: number;
+      }[];
       appliedDiscountedPrice?: null | number | undefined;
       appliedDiscountType?: 'esnCard' | null | undefined;
       basePriceAtRegistration?: null | number | undefined;
