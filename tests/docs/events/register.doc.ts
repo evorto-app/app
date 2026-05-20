@@ -481,6 +481,122 @@ test.describe('Register for events', () => {
     });
   });
 
+  test('Review paid transfer unavailable state', async ({
+    database,
+    page,
+    seeded,
+    tenant,
+  }, testInfo) => {
+    const regularUser = usersToAuthenticate.find(
+      (user) => user.stateFile === userStateFile,
+    );
+    if (!regularUser) {
+      throw new Error('Expected regular user fixture');
+    }
+
+    const paidEventId = seeded.scenario.events.paidOpen.eventId;
+    const paidOptionId = seeded.scenario.events.paidOpen.optionId;
+    const paidOption = await database.query.eventRegistrationOptions.findFirst({
+      where: {
+        eventId: paidEventId,
+        id: paidOptionId,
+        tenantId: tenant.id,
+      },
+    });
+    if (!paidOption || paidOption.price <= 0) {
+      throw new Error('Expected seeded paid registration option for docs');
+    }
+
+    const registrationId = getId();
+    const transactionId = getId();
+
+    try {
+      await database
+        .update(schema.eventRegistrations)
+        .set({ status: 'CANCELLED' })
+        .where(
+          and(
+            eq(schema.eventRegistrations.eventId, paidEventId),
+            eq(schema.eventRegistrations.tenantId, tenant.id),
+            eq(schema.eventRegistrations.userId, regularUser.id),
+          ),
+        );
+      await database.insert(schema.eventRegistrations).values({
+        eventId: paidEventId,
+        id: registrationId,
+        registrationOptionId: paidOptionId,
+        status: 'CONFIRMED',
+        tenantId: tenant.id,
+        userId: regularUser.id,
+      });
+      await database.insert(schema.transactions).values({
+        amount: paidOption.price,
+        comment: 'Registration docs paid-transfer blocked state',
+        currency: tenant.currency,
+        eventId: paidEventId,
+        eventRegistrationId: registrationId,
+        id: transactionId,
+        method: 'stripe',
+        status: 'successful',
+        targetUserId: regularUser.id,
+        tenantId: tenant.id,
+        type: 'registration',
+      });
+
+      await page.goto(`/events/${paidEventId}`);
+      await waitForRegistrationStatus(page);
+      await expect(
+        page.getByText('Your registration is confirmed'),
+      ).toBeVisible();
+      await expect(
+        page.getByText(
+          'Self-service transfer is only available for unpaid, not-yet-checked-in registrations before the event starts. Paid registration transfer and resale are not automatic yet.',
+        ),
+      ).toBeVisible();
+      await expect(
+        page.getByRole('button', { name: 'Transfer unavailable' }),
+      ).toBeDisabled();
+      await expect(
+        page.getByRole('button', { name: 'Transfer registration' }),
+      ).toHaveCount(0);
+
+      const paidRegistration =
+        await database.query.eventRegistrations.findFirst({
+          where: {
+            id: registrationId,
+            tenantId: tenant.id,
+          },
+        });
+      if (!paidRegistration) {
+        throw new Error(
+          'Expected registration docs paid transfer state to persist the registration',
+        );
+      }
+      expect(paidRegistration.userId).toBe(regularUser.id);
+      expect(paidRegistration.status).toBe('CONFIRMED');
+
+      await testInfo.attach('markdown', {
+        body: `
+  ## Paid transfer and resale boundary
+
+  Paid registrations keep transfer unavailable until the refund or resale money movement exists. The event page shows a disabled transfer action and explains that paid registration transfer and resale are not automatic yet.`,
+      });
+      await takeScreenshot(
+        testInfo,
+        page.locator('section').filter({ hasText: 'Registration' }),
+        page,
+        'Paid transfer unavailable',
+      );
+    } finally {
+      await database
+        .delete(schema.transactions)
+        .where(eq(schema.transactions.id, transactionId));
+      await database
+        .delete(schema.eventRegistrations)
+        .where(eq(schema.eventRegistrations.id, registrationId));
+    }
+  });
+
   test.describe('without eligible roles', () => {
     test.use({ storageState: userStateFile });
 

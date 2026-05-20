@@ -147,6 +147,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   registration with a successful registration transaction and proves the event
   page keeps self-service transfer disabled with the paid transfer/resale
   deferral instead of exposing the unpaid transfer dialog.
+- `docs/events/register.doc.ts` seeds a paid confirmed registration with a
+  successful transaction, asserts disabled transfer-unavailable copy, and reads
+  the generated registration row back before cleanup.
 - Active-registration component coverage pins participant cancellation and
   self-service transfer action disabling while either write is pending or the
   transfer is unavailable.
