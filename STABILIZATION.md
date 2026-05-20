@@ -733,7 +733,7 @@ the current working direction until a product decision overrides them.
 - Template page-backed specs fail explicitly when required seeded template
   categories or templates are missing before create/detail/tax-rate flows use
   them.
-- `tests/docs/templates/templates.doc.ts` documents simple-mode template creation, organizer planning tips, role defaults, payment field visibility, optional ESNcard discounted price fields, reusable add-on editing, reusable registration-question editing, and role-picker behavior. It asserts that enabling payment reveals both the price and tax-rate controls before taking the payment-field screenshot, then asserts that adding a reusable add-on reveals the add-on name, attachment, and purchase-timing controls, and that adding a registration question reveals the question, target, and required-answer controls.
+- `tests/docs/templates/templates.doc.ts` documents simple-mode template creation, organizer planning tips, role defaults, payment field visibility, optional ESNcard discounted price fields, reusable add-on editing, reusable registration-question editing, and role-picker behavior. It asserts that enabling payment reveals both the price and tax-rate controls before taking the payment-field screenshot, then asserts that adding a reusable add-on reveals the add-on name, attachment, and purchase-timing controls, and that adding a registration question reveals the question, target, and required-answer controls. Its role-picker docs fail explicitly when seeded autocomplete roles are missing or nameless before asserting selected roles disappear from the autocomplete.
 - `tests/specs/templates/paid-option-requires-tax-rate.spec.ts` now has active simple-mode UI coverage for the paid tax-rate requirement and a seeded inclusive tax-rate save path. The previous future bulk/no-compatible-rate fixme declarations were removed; current no-compatible-rate select feedback is pinned in local component coverage until a broader page flow exists.
 - `tests/specs/seed/seed-baseline.test.ts` now treats seeded reusable template
   add-ons and registration questions as part of the reset-from-zero contract
@@ -2088,6 +2088,9 @@ implement those decisions or explicitly revise them there before changing code.
   Playwright coverage require seeded template categories/templates up front and
   fail explicitly when reusable add-on attachment or question readbacks are
   missing after the page flow.
+- Template role-picker docs hardening pass: made generated template docs fail
+  explicitly if the role autocomplete has no seeded role options or nameless
+  options before asserting selected roles are hidden from suggestions.
 - Create-account retry guard pass: made the create-account submit button stay
   disabled while the account mutation is pending and pinned that invalid,
   submitting, and mutation-pending states all block duplicate submissions
