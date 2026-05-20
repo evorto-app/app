@@ -581,6 +581,10 @@ the current working direction until a product decision overrides them.
 ### Test and Documentation Quality
 
 - `tests/specs/events/free-registration.test.ts` covers the free registration happy path using seeded scenario handles.
+- `tests/specs/events/registration-transfer.test.ts` also seeds a paid
+  confirmed registration with a successful registration transaction and proves
+  the event page keeps self-service transfer disabled with the paid
+  transfer/resale deferral copy while preserving the original registration row.
 - `src/app/events/event-registration-option/event-registration-option.component.spec.ts` covers registration-card state for full options, distinct waitlist availability, remaining-capacity guest selection helpers, participant registration/write action disabling, and too-early/too-late registration windows without requiring a page-backed browser.
 - `src/app/events/event-registration-option/event-registration-option.component.spec.ts` covers that stored `random` and `application` participant options do not expose a waitlist affordance even when full.
 - `src/server/effect/rpc/handlers/events/event-registration.service.spec.ts` covers server-side rejection for duplicate active registration, unpublished events, closed registration windows, role-ineligible users, cross-tenant options, full options, unsupported registration modes, same-event second registrations across options, transactional duplicate races, transactional capacity races, participant waitlist joining, and participant guest quantities.
@@ -1701,6 +1705,10 @@ implement those decisions or explicitly revise them there before changing code.
   on active registration cards only when the server marks the registration
   transferable, and updated profile/event docs to route unpaid transfer details
   through the event page while keeping paid transfer/resale and refunds honest.
+- Participant paid-transfer blocked pass: extended the registration-transfer
+  Playwright spec with a paid confirmed registration and successful transaction
+  so the event page must render disabled transfer-unavailable copy instead of
+  exposing the unpaid transfer dialog.
 - Profile payment next-step coverage pass: extracted the profile event-card
   pending-checkout next-step copy into a helper and covered that it only appears
   when a pending registration has an actual checkout URL.

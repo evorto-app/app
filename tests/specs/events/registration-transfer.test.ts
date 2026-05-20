@@ -144,3 +144,96 @@ test('regular user transfers an unpaid confirmed registration by email', async (
       .where(eq(schema.eventInstances.id, targetEventId));
   }
 });
+
+test('regular user cannot self-transfer a paid confirmed registration', async ({
+  database,
+  page,
+  seeded,
+  tenant,
+}) => {
+  const regularUser = usersToAuthenticate.find(
+    (user) => user.stateFile === userStateFile,
+  );
+  if (!regularUser) {
+    throw new Error('Expected regular user fixture');
+  }
+
+  const targetEventId = seeded.scenario.events.paidOpen.eventId;
+  const targetOptionId = seeded.scenario.events.paidOpen.optionId;
+  const targetOption = await database.query.eventRegistrationOptions.findFirst({
+    where: {
+      eventId: targetEventId,
+      id: targetOptionId,
+      tenantId: tenant.id,
+    },
+  });
+  if (!targetOption || targetOption.price <= 0) {
+    throw new Error('Expected seeded paid registration option');
+  }
+
+  const registrationId = getId();
+  const transactionId = getId();
+
+  await database
+    .update(schema.eventRegistrations)
+    .set({ status: 'CANCELLED' })
+    .where(
+      and(
+        eq(schema.eventRegistrations.eventId, targetEventId),
+        eq(schema.eventRegistrations.tenantId, tenant.id),
+        eq(schema.eventRegistrations.userId, regularUser.id),
+      ),
+    );
+  await database.insert(schema.eventRegistrations).values({
+    eventId: targetEventId,
+    id: registrationId,
+    registrationOptionId: targetOptionId,
+    status: 'CONFIRMED',
+    tenantId: tenant.id,
+    userId: regularUser.id,
+  });
+  await database.insert(schema.transactions).values({
+    amount: targetOption.price,
+    comment: 'Registration transfer paid-block coverage',
+    currency: tenant.currency,
+    eventId: targetEventId,
+    eventRegistrationId: registrationId,
+    id: transactionId,
+    method: 'stripe',
+    status: 'successful',
+    targetUserId: regularUser.id,
+    tenantId: tenant.id,
+    type: 'registration',
+  });
+
+  await page.goto(`/events/${targetEventId}`);
+  await page
+    .getByText('Loading registration status')
+    .first()
+    .waitFor({ state: 'detached' });
+
+  await expect(page.getByText('Your registration is confirmed')).toBeVisible();
+  await expect(
+    page.getByText(
+      'Self-service transfer is only available for unpaid, not-yet-checked-in registrations before the event starts. Paid registration transfer and resale are not automatic yet.',
+    ),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Transfer unavailable' }),
+  ).toBeDisabled();
+  await expect(
+    page.getByRole('button', { name: 'Transfer registration' }),
+  ).toHaveCount(0);
+
+  const paidRegistration = await database.query.eventRegistrations.findFirst({
+    where: {
+      id: registrationId,
+      tenantId: tenant.id,
+    },
+  });
+  if (!paidRegistration) {
+    throw new Error('Expected paid registration after transfer-blocked flow');
+  }
+  expect(paidRegistration.userId).toBe(regularUser.id);
+  expect(paidRegistration.status).toBe('CONFIRMED');
+});
