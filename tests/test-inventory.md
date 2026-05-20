@@ -141,9 +141,11 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   transfer is unavailable.
 - `specs/templates/paid-option-requires-tax-rate.spec.ts` has active
   simple-mode UI coverage for the paid-registration tax-rate requirement and a
-  seeded inclusive tax-rate save path. Remaining fixme entries are limited to
-  future bulk/no-compatible-rate UI behavior. Template detail paid-option
-  summaries now share the inclusive price label component with event
+  seeded inclusive tax-rate save path. The old future bulk/no-compatible-rate
+  fixme declarations were removed; current no-compatible-rate select feedback
+  is pinned in local component coverage until a broader page flow exists.
+  Template detail paid-option summaries now share the inclusive price label
+  component with event
   registration cards, and create/edit submit helpers keep missing paid tax-rate
   selection visible to server validation while clearing hidden free-registration
   payment fields before submission. Server coverage proves the tax-rate select

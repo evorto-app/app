@@ -110,8 +110,4 @@ test.describe('Template Tax Rate Validation', () => {
     await expect(page).toHaveURL(/\/templates/);
     await expect(page.getByRole('link', { name: templateTitle })).toBeVisible();
   });
-
-  test.fixme('bulk operations respect tax rate validation', async () => {});
-
-  test.fixme('blocked creation when no compatible rates are available', async () => {});
 });
