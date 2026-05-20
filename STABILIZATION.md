@@ -595,7 +595,8 @@ the current working direction until a product decision overrides them.
   the generated row assertions.
 - `tests/specs/events/negative-registration-states.spec.ts` covers the
   participant-facing waitlist affordance for a full first-come-first-served
-  option and explicitly reads back the created waitlist registration.
+  option, explicitly reads back the created waitlist registration, and restores
+  touched fixture registrations, registration questions, and option counters.
 - `src/app/events/event-registration-option/event-registration-option.component.spec.ts` covers registration-card state for full options, distinct waitlist availability, remaining-capacity guest selection helpers, participant registration/write action disabling, and too-early/too-late registration windows without requiring a page-backed browser.
 - `src/app/events/event-registration-option/event-registration-option.component.spec.ts` covers that stored `random` and `application` participant options do not expose a waitlist affordance even when full.
 - `src/server/effect/rpc/handlers/events/event-registration.service.spec.ts` covers server-side rejection for duplicate active registration, unpublished events, closed registration windows, role-ineligible users, cross-tenant options, full options, unsupported registration modes, same-event second registrations across options, transactional duplicate races, transactional capacity races, participant waitlist joining, and participant guest quantities.
@@ -2072,6 +2073,10 @@ implement those decisions or explicitly revise them there before changing code.
   Playwright spec seed an isolated registration question, remove generated
   add-on/question data, and restore touched registration rows and counters after
   asserting add-on and question-answer persistence.
+- Negative-registration fixture cleanup pass: made the closed-window,
+  full-option waitlist, and unsupported-mode Playwright cases restore touched
+  registrations, generated registration questions, and option counters after
+  their page-backed assertions.
 - Registration transfer documentation pass: added a generated registration-doc
   journey for the unpaid transfer dialog, eligible target email entry, and
   explicit paid-transfer/resale deferral.

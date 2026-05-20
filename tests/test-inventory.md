@@ -191,7 +191,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   coverage for full first-come-first-served options with explicit required
   answer gating, persisted waitlist registration readback, and persisted
   question-answer readback. It also leaves the waitlist and asserts the
-  cancelled registration plus released waitlist counter.
+  cancelled registration plus released waitlist counter, then restores touched
+  registrations, generated questions, and option counters.
 - `docs/events/register.doc.ts` includes a generated unpaid transfer journey,
   including the transfer dialog, eligible target email entry, and the explicit
   paid-transfer/resale deferral. It now also seeds a paid confirmed

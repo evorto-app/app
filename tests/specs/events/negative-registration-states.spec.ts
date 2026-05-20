@@ -31,24 +31,50 @@ test.describe('Negative registration states', () => {
       }
 
       const targetEventId = seeded.scenario.events.closedReg.eventId;
-      await database
-        .delete(schema.eventRegistrations)
-        .where(
-          and(
+      const originalRegistrations =
+        await database.query.eventRegistrations.findMany({
+          where: and(
             eq(schema.eventRegistrations.eventId, targetEventId),
             eq(schema.eventRegistrations.tenantId, tenant.id),
             eq(schema.eventRegistrations.userId, regularUser.id),
           ),
-        );
+        });
 
-      await page.goto(`/events/${targetEventId}`);
-      await expect(page).toHaveURL(`/events/${targetEventId}`);
-      await waitForRegistrationStatus(page);
+      try {
+        await database
+          .delete(schema.eventRegistrations)
+          .where(
+            and(
+              eq(schema.eventRegistrations.eventId, targetEventId),
+              eq(schema.eventRegistrations.tenantId, tenant.id),
+              eq(schema.eventRegistrations.userId, regularUser.id),
+            ),
+          );
 
-      await expect(page.getByText('Registration is closed')).toBeVisible();
-      await expect(
-        page.getByRole('button', { name: /^Register$/ }),
-      ).toHaveCount(0);
+        await page.goto(`/events/${targetEventId}`);
+        await expect(page).toHaveURL(`/events/${targetEventId}`);
+        await waitForRegistrationStatus(page);
+
+        await expect(page.getByText('Registration is closed')).toBeVisible();
+        await expect(
+          page.getByRole('button', { name: /^Register$/ }),
+        ).toHaveCount(0);
+      } finally {
+        await database
+          .delete(schema.eventRegistrations)
+          .where(
+            and(
+              eq(schema.eventRegistrations.eventId, targetEventId),
+              eq(schema.eventRegistrations.tenantId, tenant.id),
+              eq(schema.eventRegistrations.userId, regularUser.id),
+            ),
+          );
+        if (originalRegistrations.length) {
+          await database
+            .insert(schema.eventRegistrations)
+            .values(originalRegistrations);
+        }
+      }
     });
 
     test('offers a distinct waitlist action when a participant option is full', async ({
@@ -82,6 +108,14 @@ test.describe('Negative registration states', () => {
       if (!targetEvent) {
         throw new Error('Expected seeded freeOpen event');
       }
+      const originalRegistrations =
+        await database.query.eventRegistrations.findMany({
+          where: and(
+            eq(schema.eventRegistrations.eventId, targetEventId),
+            eq(schema.eventRegistrations.tenantId, tenant.id),
+            eq(schema.eventRegistrations.userId, regularUser.id),
+          ),
+        });
       const serverEventWindow = futureServerEventWindow();
       const registrationQuestion = await seedRequiredRegistrationQuestion({
         database,
@@ -103,6 +137,7 @@ test.describe('Negative registration states', () => {
         await database
           .update(schema.eventRegistrationOptions)
           .set({
+            checkedInSpots: 0,
             closeRegistrationTime: serverEventWindow.closeRegistrationTime,
             confirmedSpots: targetOption.spots,
             openRegistrationTime: serverEventWindow.openRegistrationTime,
@@ -117,6 +152,7 @@ test.describe('Negative registration states', () => {
             start: serverEventWindow.start,
           })
           .where(eq(schema.eventInstances.id, targetEventId));
+
         await page.goto(`/events/${targetEventId}`);
         await waitForRegistrationStatus(page);
 
@@ -190,14 +226,17 @@ test.describe('Negative registration states', () => {
           page.getByRole('button', { name: 'Join waitlist' }),
         ).toBeVisible();
 
-        const cancelledWaitlistRegistration =
-          await database.query.eventRegistrations.findFirst({
-            where: {
-              id: waitlistRegistration.id,
-              status: 'CANCELLED',
-              tenantId: tenant.id,
-            },
-          });
+        const [cancelledWaitlistRegistration] = await database
+          .select()
+          .from(schema.eventRegistrations)
+          .where(
+            and(
+              eq(schema.eventRegistrations.id, waitlistRegistration.id),
+              eq(schema.eventRegistrations.status, 'CANCELLED'),
+              eq(schema.eventRegistrations.tenantId, tenant.id),
+            ),
+          )
+          .limit(1);
         if (!cancelledWaitlistRegistration) {
           throw new Error(
             'Expected leaving waitlist to cancel the registration',
@@ -224,6 +263,11 @@ test.describe('Negative registration states', () => {
               eq(schema.eventRegistrations.userId, regularUser.id),
             ),
           );
+        if (originalRegistrations.length) {
+          await database
+            .insert(schema.eventRegistrations)
+            .values(originalRegistrations);
+        }
         await database
           .delete(schema.eventRegistrationQuestions)
           .where(
@@ -235,9 +279,11 @@ test.describe('Negative registration states', () => {
         await database
           .update(schema.eventRegistrationOptions)
           .set({
+            checkedInSpots: targetOption.checkedInSpots,
             closeRegistrationTime: targetOption.closeRegistrationTime,
             confirmedSpots: targetOption.confirmedSpots,
             openRegistrationTime: targetOption.openRegistrationTime,
+            registrationMode: targetOption.registrationMode,
             reservedSpots: targetOption.reservedSpots,
             waitlistSpots: targetOption.waitlistSpots,
           })
@@ -271,6 +317,14 @@ test.describe('Negative registration states', () => {
       if (!targetOption) {
         throw new Error('Expected seeded freeOpen registration option');
       }
+      const originalRegistrations =
+        await database.query.eventRegistrations.findMany({
+          where: and(
+            eq(schema.eventRegistrations.eventId, targetEventId),
+            eq(schema.eventRegistrations.tenantId, tenant.id),
+            eq(schema.eventRegistrations.userId, regularUser.id),
+          ),
+        });
 
       try {
         await database
@@ -310,6 +364,20 @@ test.describe('Negative registration states', () => {
           ).toHaveCount(0);
         }
       } finally {
+        await database
+          .delete(schema.eventRegistrations)
+          .where(
+            and(
+              eq(schema.eventRegistrations.eventId, targetEventId),
+              eq(schema.eventRegistrations.tenantId, tenant.id),
+              eq(schema.eventRegistrations.userId, regularUser.id),
+            ),
+          );
+        if (originalRegistrations.length) {
+          await database
+            .insert(schema.eventRegistrations)
+            .values(originalRegistrations);
+        }
         await database
           .update(schema.eventRegistrationOptions)
           .set({
