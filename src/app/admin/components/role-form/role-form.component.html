@@ -71,7 +71,13 @@
   <button
     type="submit"
     mat-button
-    [disabled]="form().invalid() || form().submitting() || isSubmitting()"
+    [disabled]="
+      roleFormSubmitDisabled({
+        formInvalid: form().invalid(),
+        formSubmitting: form().submitting(),
+        mutationPending: isSubmitting(),
+      })
+    "
   >
     {{ submitLabel() }}
   </button>
