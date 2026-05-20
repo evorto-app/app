@@ -89,6 +89,11 @@ const hasSuccessfulPaidRegistrationTransaction = (
       transaction.amount > 0,
   );
 
+const hasStripeRefundReference = (transaction: {
+  stripeChargeId: null | string;
+  stripePaymentIntentId: null | string;
+}) => Boolean(transaction.stripeChargeId || transaction.stripePaymentIntentId);
+
 const ensureCanScanEventRegistration = ({
   eventId,
   tenantId,
@@ -196,7 +201,9 @@ const cancelRegistration = ({
               id: true,
               method: true,
               status: true,
+              stripeChargeId: true,
               stripeCheckoutSessionId: true,
+              stripePaymentIntentId: true,
               type: true,
             },
           },
@@ -281,7 +288,7 @@ const cancelRegistration = ({
       );
     }
 
-    const cancelledStripeTransaction = yield* Database.use((database) =>
+    const cancellationOutcome = yield* Database.use((database) =>
       database
         .transaction((tx) =>
           Effect.gen(function* () {
@@ -366,11 +373,15 @@ const cancelRegistration = ({
 
             if (
               registration.status === 'CONFIRMED' &&
-              successfulPaidRegistrationTransaction
+              successfulPaidRegistrationTransaction &&
+              (!stripeAccount ||
+                !hasStripeRefundReference(
+                  successfulPaidRegistrationTransaction,
+                ))
             ) {
               yield* tx.insert(transactions).values({
                 amount: -Math.abs(successfulPaidRegistrationTransaction.amount),
-                comment: `Pending registration refund record for cancelled registration ${registration.id}. Money movement must be handled outside Evorto.`,
+                comment: `Pending registration refund record for cancelled registration ${registration.id}. Stripe refund could not be created automatically from the stored transaction reference.`,
                 currency: tenant.currency,
                 eventId: registration.eventId,
                 eventRegistrationId: registration.id,
@@ -385,7 +396,18 @@ const cancelRegistration = ({
             }
 
             if (!pendingStripeTransaction) {
-              return null;
+              return {
+                pendingStripeTransaction: null,
+                refundTransaction:
+                  registration.status === 'CONFIRMED' &&
+                  successfulPaidRegistrationTransaction &&
+                  stripeAccount &&
+                  hasStripeRefundReference(
+                    successfulPaidRegistrationTransaction,
+                  )
+                    ? successfulPaidRegistrationTransaction
+                    : null,
+              };
             }
 
             yield* tx
@@ -396,8 +418,17 @@ const cancelRegistration = ({
               .where(eq(transactions.id, pendingStripeTransaction.id));
 
             return {
-              stripeCheckoutSessionId,
-              transactionId: pendingStripeTransaction.id,
+              pendingStripeTransaction: {
+                stripeCheckoutSessionId,
+                transactionId: pendingStripeTransaction.id,
+              },
+              refundTransaction:
+                registration.status === 'CONFIRMED' &&
+                successfulPaidRegistrationTransaction &&
+                stripeAccount &&
+                hasStripeRefundReference(successfulPaidRegistrationTransaction)
+                  ? successfulPaidRegistrationTransaction
+                  : null,
             };
           }),
         )
@@ -417,8 +448,89 @@ const cancelRegistration = ({
         ),
     );
 
+    if (cancellationOutcome.refundTransaction && stripeAccount) {
+      const refundTransaction = cancellationOutcome.refundTransaction;
+      const stripeRefundParameters = refundTransaction.stripeChargeId
+        ? {
+            amount: Math.abs(refundTransaction.amount),
+            charge: refundTransaction.stripeChargeId,
+          }
+        : refundTransaction.stripePaymentIntentId
+          ? {
+              amount: Math.abs(refundTransaction.amount),
+              payment_intent: refundTransaction.stripePaymentIntentId,
+            }
+          : null;
+      if (!stripeRefundParameters) {
+        return;
+      }
+
+      yield* Effect.tryPromise(() =>
+        Promise.race([
+          stripe.refunds.create(stripeRefundParameters, {
+            stripeAccount,
+          }),
+          new Promise<never>((_, reject) => {
+            setTimeout(
+              () => reject(new Error('Stripe refund creation timed out')),
+              5000,
+            );
+          }),
+        ]),
+      ).pipe(
+        Effect.flatMap((stripeRefund) =>
+          databaseEffect((database) =>
+            database.insert(transactions).values({
+              amount: -Math.abs(refundTransaction.amount),
+              comment: `Stripe refund ${stripeRefund.id} recorded for cancelled registration ${registration.id} with status ${stripeRefund.status}.`,
+              currency: tenant.currency,
+              eventId: registration.eventId,
+              eventRegistrationId: registration.id,
+              executiveUserId: user.id,
+              manuallyCreated: false,
+              method: refundTransaction.method,
+              status:
+                stripeRefund.status === 'succeeded' ? 'successful' : 'pending',
+              targetUserId: registration.userId,
+              tenantId: tenant.id,
+              type: 'refund',
+            }),
+          ),
+        ),
+        Effect.catch((error) =>
+          Effect.logError(
+            'Failed to create Stripe refund for cancelled registration',
+          ).pipe(
+            Effect.annotateLogs({
+              error,
+              registrationId: registration.id,
+              transactionId: refundTransaction.id,
+            }),
+            Effect.andThen(
+              databaseEffect((database) =>
+                database.insert(transactions).values({
+                  amount: -Math.abs(refundTransaction.amount),
+                  comment: `Pending registration refund record for cancelled registration ${registration.id}. Automatic Stripe refund failed and must be followed up manually.`,
+                  currency: tenant.currency,
+                  eventId: registration.eventId,
+                  eventRegistrationId: registration.id,
+                  executiveUserId: user.id,
+                  manuallyCreated: true,
+                  method: refundTransaction.method,
+                  status: 'pending',
+                  targetUserId: registration.userId,
+                  tenantId: tenant.id,
+                  type: 'refund',
+                }),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     if (
-      !cancelledStripeTransaction ||
+      !cancellationOutcome.pendingStripeTransaction ||
       !stripeCheckoutSessionId ||
       !stripeAccount
     ) {
@@ -446,7 +558,8 @@ const cancelRegistration = ({
             error,
             registrationId: registration.id,
             stripeCheckoutSessionId,
-            transactionId: cancelledStripeTransaction.transactionId,
+            transactionId:
+              cancellationOutcome.pendingStripeTransaction.transactionId,
           }),
         ),
       ),

@@ -193,7 +193,7 @@ test.describe('Register for events', () => {
   You can see this by additional information being available and also your ticket QR code.
   Participant registrations can include guests, registration-time add-ons, and registration-question answers. Guest spots are attached to the logged-in buyer's registration and count against the same option capacity. Add-ons are shown with the confirmed registration and can be reviewed by organizers.
   This code is needed when attending the event. Keep this page available because QR email delivery is not part of the current relaunch flow.
-  You can cancel a pending or confirmed registration from this event page before the event starts. Confirmed cancellation releases your selected spots, including guests when attached. If the registration was paid, Evorto creates a pending manual refund record for organizers; Stripe refunds are not automatic yet.`,
+  You can cancel a pending or confirmed registration from this event page before the event starts. Confirmed cancellation releases your selected spots, including guests when attached. If the registration was paid, Evorto submits a Stripe refund when the original payment reference is available; otherwise it creates a pending manual refund record for organizers.`,
     });
 
     await takeScreenshot(
@@ -599,7 +599,7 @@ test.describe('Register for events', () => {
       ).toBeVisible();
       await expect(
         page.getByText(
-          'If this was paid, Evorto creates a pending manual refund record for organizers; Stripe refunds are not automatic yet.',
+          'If this was paid, Evorto submits a Stripe refund when the original payment reference is available; otherwise it creates a pending manual refund record for organizers.',
         ),
       ).toBeVisible();
       await expect(
@@ -630,7 +630,7 @@ test.describe('Register for events', () => {
 
   Paid registrations keep transfer unavailable until the refund or resale money movement exists. The event page shows a disabled transfer action and explains that paid registration transfer and resale are not automatic yet.
 
-  Paid confirmed cancellations are still allowed before the event starts. Cancelling one releases the selected spots and creates a pending manual refund record for organizers, but Stripe refunds are not automatic yet.`,
+  Paid confirmed cancellations are still allowed before the event starts. Cancelling one releases the selected spots and submits a Stripe refund when the original payment reference is available; older or manually seeded payment records still create a pending manual refund record for organizer follow-up.`,
       });
       await takeScreenshot(
         testInfo,

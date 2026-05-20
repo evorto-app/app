@@ -192,8 +192,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   fixture does not expose the persisted tenant currency field.
 - `specs/events/registration-transfer.test.ts` also cancels a seeded paid
   confirmed registration through the event page and reads back the generated
-  pending manual refund transaction, keeping the implemented ledger behavior
-  covered while automatic Stripe refunds and resale remain deferred.
+  pending manual refund transaction for a manually seeded payment record. Server
+  unit coverage separately proves Stripe-backed cancellation calls the Stripe
+  refund API and records the refund transaction; paid resale remains deferred.
 - `specs/events/negative-registration-states.spec.ts` adds page-backed waitlist
   coverage for full first-come-first-served options with explicit required
   answer gating, persisted waitlist registration readback, and persisted
@@ -205,7 +206,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   paid-transfer/resale deferral. It now also seeds a paid confirmed
   registration with a successful transaction, asserts disabled
   transfer-unavailable copy, cancels the paid registration, and reads back the
-  generated pending manual refund transaction before cleanup.
+  generated pending manual refund fallback before cleanup.
 - Active-registration component coverage pins participant cancellation and
   self-service transfer action disabling while either write is pending or the
   transfer is unavailable.

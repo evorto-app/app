@@ -38,7 +38,7 @@ describe('registrationCancellationCopy', () => {
     });
   });
 
-  it('describes confirmed cancellation without promising automatic refunds', () => {
+  it('describes confirmed cancellation with Stripe refund fallback handling', () => {
     expect(
       registrationCancellationCopy({
         guestCount: 0,
@@ -48,7 +48,7 @@ describe('registrationCancellationCopy', () => {
     ).toEqual({
       buttonLabel: 'Cancel registration',
       helperText:
-        'This cancels your confirmed registration and releases your spot. If this was paid, Evorto creates a pending manual refund record for organizers; Stripe refunds are not automatic yet.',
+        'This cancels your confirmed registration and releases your spot. If this was paid, Evorto submits a Stripe refund when the original payment reference is available; otherwise it creates a pending manual refund record for organizers.',
     });
   });
 
@@ -62,7 +62,7 @@ describe('registrationCancellationCopy', () => {
     ).toEqual({
       buttonLabel: 'Cancel registration',
       helperText:
-        'This cancels your confirmed registration and releases all selected spots. If this was paid, Evorto creates a pending manual refund record for organizers; Stripe refunds are not automatic yet.',
+        'This cancels your confirmed registration and releases all selected spots. If this was paid, Evorto submits a Stripe refund when the original payment reference is available; otherwise it creates a pending manual refund record for organizers.',
     });
   });
 
