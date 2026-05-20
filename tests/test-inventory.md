@@ -175,7 +175,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   registration-time add-on and required question selected on a seeded free
   event, including required answer gating, persisted add-on purchase, persisted
   question answer, active-registration readback, and add-on availability
-  decrement.
+  decrement, then cleans up generated add-on/question data and restores touched
+  registration rows and counters.
 - `specs/events/registration-transfer.test.ts` adds page-backed coverage for
   the regular user's self-service unpaid transfer dialog and database readback
   to the target tenant member, failing explicitly if the transferred row is
