@@ -121,6 +121,32 @@ describe('generated docs source current behavior', () => {
     expect(combinedSource).not.toContain('automatic money movement');
   });
 
+  it('keeps finance overview docs aligned with permission-scoped navigation', () => {
+    const source = readSource('tests/docs/finance/finance-overview.doc.ts');
+
+    expect(source).toContain(
+      'Each child page is guarded by its own finance permission.',
+    );
+    expect(source).toContain('The finance overview is a navigation surface.');
+    expect(source).toContain(
+      'It shows links only for the finance capabilities you have, so users with receipt approval access do not automatically see the transaction list.',
+    );
+    expect(source).toContain(
+      '- **finance:viewTransactions**: view the tenant transaction list.',
+    );
+    expect(source).toContain(
+      '- **finance:approveReceipts**: review submitted receipts.',
+    );
+    expect(source).toContain(
+      '- **finance:refundReceipts**: record receipt reimbursement batches.',
+    );
+    expect(source).not.toContain('all finance users see all finance pages');
+    expect(source).not.toContain(
+      'receipt approval access includes transactions',
+    );
+    expect(source).not.toContain('single finance permission');
+  });
+
   it('keeps template docs aligned with the simple-mode relaunch surface', () => {
     const source = readSource('tests/docs/templates/templates.doc.ts');
 

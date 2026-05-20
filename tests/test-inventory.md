@@ -316,6 +316,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     Local source coverage now fails if the finance permission matrix drifts
     away from the guarded child routes, including the receipt approval detail
     route.
+    Generated-doc source coverage keeps the finance overview guide aligned with
+    permission-scoped child navigation, so receipt approval access does not imply
+    transaction-list access.
     Transaction-list component coverage now pins that manual transaction
     creation is not advertised without an implemented guarded route/workflow.
     `specs/finance/finance-overview-permissions.spec.ts` now functionally pins
