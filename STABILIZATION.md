@@ -893,7 +893,8 @@ the current working direction until a product decision overrides them.
 - Server unit coverage proves role lookup permissions, lookup-only result shaping, tenant-scoped lookup filters for both list and single-role lookup, role lookup not-found errors, and admin role list denial without `admin:manageRoles`.
 - `helpers/testing/user-list-source.spec.ts` keeps the tenant user list aligned
   with the read-only relaunch surface by guarding review-only columns, the
-  visible role-assignment deferral copy, and generated roles documentation.
+  visible role-assignment deferral copy, tenant-scoped role-name reads, and
+  generated roles documentation.
 - `helpers/testing/authorization-source.spec.ts` keeps server RPC/HTTP
   authorization on the shared permission evaluator path and keeps the public
   role lookup contract free of permission-bearing admin role fields.
@@ -923,6 +924,8 @@ the current working direction until a product decision overrides them.
   `paymentStatus`, and `payment_status` artifacts are dropped when the
   schema/API surface is applied.
 - Keep user-role assignment explicitly deferred until a real role-assignment RPC and UI are implemented.
+- Keep the current read-only user-list role-name read tenant-scoped while role
+  assignment remains migration/future-work only.
 - Add Browser-backed least-privilege organizer review for event/template role selectors once the local runtime is available; current server coverage proves lookup permissions and lookup-only result shaping, and the template/event Playwright autocomplete specs fail loudly when seeded role state is missing.
 
 ## Finance/Receipts

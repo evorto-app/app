@@ -497,7 +497,13 @@ export const userHandlers = {
             rolesToTenantUsers,
             eq(usersToTenants.id, rolesToTenantUsers.userTenantId),
           )
-          .leftJoin(roles, eq(rolesToTenantUsers.roleId, roles.id))
+          .leftJoin(
+            roles,
+            and(
+              eq(rolesToTenantUsers.roleId, roles.id),
+              eq(roles.tenantId, tenant.id),
+            ),
+          )
           .where(inArray(usersToTenants.id, tenantUserIds)),
       );
 
