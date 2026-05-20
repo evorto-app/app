@@ -286,6 +286,61 @@ describe('evaluateRuntimePreflight', () => {
     );
   });
 
+  it('allows opt-in system Chrome to avoid the bundled Chromium cache warning', () => {
+    const result = evaluateRuntimePreflight('docker', {
+      cwd: '/repo',
+      env: {
+        ...requiredDockerEnvironment,
+        E2E_BROWSER_CHANNEL: 'chrome',
+      },
+      fileExists: (filePath) =>
+        filePath === '/repo/.env.dev' ||
+        filePath === '/Applications/Google Chrome.app',
+      runCommand: successfulCommand,
+    });
+
+    expect(result.failed).toBe(false);
+    expect(result.warned).toBe(false);
+    expect(result.checks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          details: [
+            'Using E2E_BROWSER_CHANNEL=chrome with /Applications/Google Chrome.app',
+          ],
+          label: 'Playwright system Chrome browser channel',
+          severity: 'ok',
+        }),
+      ]),
+    );
+  });
+
+  it('warns when opt-in system Chrome is requested but missing', () => {
+    const result = evaluateRuntimePreflight('docker', {
+      cwd: '/repo',
+      env: {
+        ...requiredDockerEnvironment,
+        E2E_BROWSER_CHANNEL: 'chrome',
+      },
+      fileExists: (filePath) => filePath === '/repo/.env.dev',
+      runCommand: successfulCommand,
+    });
+
+    expect(result.failed).toBe(false);
+    expect(result.warned).toBe(true);
+    expect(result.checks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          details: [
+            'E2E_BROWSER_CHANNEL=chrome is set, but no system Chrome installation was found.',
+            'Unset E2E_BROWSER_CHANNEL and run bun run test:e2e:install, or install Google Chrome for local exploratory runs.',
+          ],
+          label: 'Playwright system Chrome browser channel',
+          severity: 'warning',
+        }),
+      ]),
+    );
+  });
+
   it('allows Docker to use the generated Stripe listener webhook secret file', () => {
     const result = evaluateRuntimePreflight('docker', {
       cwd: '/repo',

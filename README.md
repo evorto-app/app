@@ -89,6 +89,10 @@ Install the matching Playwright browsers once after dependency install or Playwr
 bun run test:e2e:install
 ```
 
+Local runs use Playwright's bundled Chromium by default. For exploratory runs
+on a machine that already has Google Chrome installed, set
+`E2E_BROWSER_CHANNEL=chrome` instead of downloading the bundled browser.
+
 For end-to-end (e2e) testing, run:
 
 ```bash

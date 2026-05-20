@@ -19,6 +19,10 @@ const environment = Effect.runSync(
   ),
 );
 const resolvedBaseUrl = environment.BASE_URL;
+const desktopChrome = {
+  ...devices['Desktop Chrome'],
+  channel: environment.E2E_BROWSER_CHANNEL,
+};
 const integrationOnlyTestTagPattern =
   /@needs-(auth0-management|cloudflare|google-maps)\b/;
 
@@ -41,7 +45,7 @@ const createModeProject = (
   ...(options.testIgnore ? { testIgnore: options.testIgnore } : {}),
   ...(options.testMatch ? { testMatch: options.testMatch } : {}),
   ...(options.timeout ? { timeout: options.timeout } : {}),
-  use: { ...devices['Desktop Chrome'], channel: 'chromium' },
+  use: desktopChrome,
 });
 
 /**
@@ -85,7 +89,7 @@ export default defineConfig({
       testDir: './tests/setup',
       testMatch: /database\.setup\.ts$/,
       timeout: 120_000,
-      use: { ...devices['Desktop Chrome'], channel: 'chromium' },
+      use: desktopChrome,
     },
     {
       dependencies: ['database-setup'],
@@ -94,7 +98,7 @@ export default defineConfig({
       testDir: './tests/setup',
       testMatch: /authentication\.setup\.ts$/,
       timeout: 20_000,
-      use: { ...devices['Desktop Chrome'], channel: 'chromium' },
+      use: desktopChrome,
     },
     createModeProject('docs-baseline', {
       dependencies: ['setup'],
