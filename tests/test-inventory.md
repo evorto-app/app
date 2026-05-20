@@ -84,6 +84,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - `specs/templates/**`
   - `specs/template-categories/**`
   - app category action guard coverage in `src/app/templates/categories`
+  - app create/edit submit-guard coverage in
+    `src/app/templates/shared/template-form`
   - app mapper and submit-guard coverage in
     `src/app/templates/template-create-event`
   - shared registration-mode label coverage in `src/shared`
