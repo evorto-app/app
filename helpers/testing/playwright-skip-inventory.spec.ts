@@ -16,12 +16,8 @@ const allowedEntries = new Set([
   'tests/specs/events/price-labels-inclusive.spec.ts:14:test.fixme',
   'tests/specs/events/price-labels-inclusive.spec.ts:16:test.fixme',
   'tests/specs/finance/stripe-webhook-replay.spec.ts:16:test.skip',
-  'tests/specs/templates/paid-option-requires-tax-rate.spec.ts:4:test.fixme',
-  'tests/specs/templates/paid-option-requires-tax-rate.spec.ts:6:test.fixme',
-  'tests/specs/templates/paid-option-requires-tax-rate.spec.ts:8:test.fixme',
-  'tests/specs/templates/paid-option-requires-tax-rate.spec.ts:10:test.fixme',
-  'tests/specs/templates/paid-option-requires-tax-rate.spec.ts:12:test.fixme',
-  'tests/specs/templates/paid-option-requires-tax-rate.spec.ts:14:test.fixme',
+  'tests/specs/templates/paid-option-requires-tax-rate.spec.ts:72:test.fixme',
+  'tests/specs/templates/paid-option-requires-tax-rate.spec.ts:74:test.fixme',
 ]);
 
 const skipPattern = /\b(?:test|it|describe)\.(skip|fixme)\b/g;

@@ -636,7 +636,7 @@ the current working direction until a product decision overrides them.
 
 - `tests/specs/templates/templates.test.ts` covers create, view, empty-category add flow, and role autocomplete duplicate hiding.
 - `tests/docs/templates/templates.doc.ts` documents simple-mode template creation, organizer planning tips, role defaults, payment field visibility, optional ESNcard discounted price fields, and role-picker behavior. It asserts that enabling payment reveals both the price and tax-rate controls before taking the payment-field screenshot.
-- `tests/specs/templates/paid-option-requires-tax-rate.spec.ts` is intentionally fixme-only until template tax-rate behavior has active simple-mode UI coverage.
+- `tests/specs/templates/paid-option-requires-tax-rate.spec.ts` now has active simple-mode UI coverage for the paid tax-rate requirement and a seeded inclusive tax-rate save path. Remaining fixme entries are limited to future bulk/no-compatible-rate UI behavior.
 - `src/app/templates/shared/template-form/template-registration-option-form.utilities.spec.ts` covers paid template tax-rate and ESNcard discount preservation, paid missing-tax-rate pass-through for server validation, and free-registration payment-field cleanup before create/edit submission.
 - `src/server/effect/rpc/handlers/tax-rates.handlers.spec.ts` covers `taxRates.listActive` permission behavior and the current-tenant active/inclusive filter used to populate compatible template tax-rate selects.
 - `src/server/utils/validate-tax-rate.spec.ts` covers the shared server rule that paid options require a tenant-owned active inclusive tax rate and free options cannot carry stale tax-rate ids.
@@ -659,7 +659,7 @@ the current working direction until a product decision overrides them.
 - Keep template and event RPC location fields aligned on the shared `EventLocation` schema.
 - Keep organizer planning tips private to the template/organizer surface unless
   a later product decision makes them event-facing.
-- Replace fixme-only template tax-rate specs with active coverage for the current simple-mode UI.
+- Keep the active template tax-rate UI coverage aligned with the current simple-mode payment fields and replace the remaining bulk/no-compatible-rate fixme declarations when those behaviors have UI surfaces.
 - Keep `random` and `application` hidden until their fulfillment semantics are
   implemented end to end.
 
@@ -1235,6 +1235,7 @@ implement those decisions or explicitly revise them there before changing code.
 - Template spec cleanup pass: changed template category and role autocomplete coverage to require seeded icons, seeded roles, and concrete role option text instead of skipping fixture/setup failures.
 - None in the Templates pass. The highest-value issues are permission and contract validation gaps that need targeted tests with the fixes.
 - Template docs/spec cleanup pass: removed the generic template doc discovery placeholder, converted the deferred template tax-rate spec to honest fixme-only declarations, and updated the Playwright inventory.
+- Template tax-rate UI coverage pass: replaced the fixme-only template tax-rate file with active simple-mode Browser-backed assertions for the paid tax-rate requirement and seeded inclusive tax-rate save path, leaving only future bulk/no-compatible-rate behavior as fixme declarations.
 - Permission evaluator pass: routed legacy server permission checks through the shared `includesPermission` helper so client and server agree on dependencies, wildcards, and legacy aliases, and added direct unit coverage for the shared evaluator plus tax-rate dependency behavior.
 - Role/user cleanup pass: removed placeholder user-list selection/edit affordances, aligned the roles doc with the current no-role-assignment UI, and fixed `users.findMany` to return only the RPC contract shape.
 - Role hub-field pass: migrated active role create/update form and RPC writes to `displayInHub`, persisted `collapseMembersInHup`, updated role docs, and removed legacy `showInHub` from the application schema/API surface.
