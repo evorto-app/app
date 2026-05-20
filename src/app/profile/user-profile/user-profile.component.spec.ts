@@ -1,12 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  esnCardActionDisabled,
-  esnCardActionLabel,
-  esnCardMutationErrorMessage,
-  esnCardSaveDisabled,
-  esnCardStatusLabel,
-  esnCardSubmitPayloadFromIdentifier,
   isStripeCheckoutUrl,
   profileEditActionDisabled,
   profileEventActionNote,
@@ -20,6 +14,14 @@ import {
   registrationPaymentLabel,
   registrationStatusLabel,
 } from './user-profile.component';
+import {
+  esnCardActionDisabled,
+  esnCardActionLabel,
+  esnCardMutationErrorMessage,
+  esnCardSaveDisabled,
+  esnCardStatusLabel,
+  esnCardSubmitPayloadFromIdentifier,
+} from './user-profile.esn-card';
 
 describe('profile event labels', () => {
   it('labels the event-details action without claiming profile ticket handling', () => {
