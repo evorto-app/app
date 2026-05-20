@@ -53,6 +53,23 @@ export const scanCheckInActionDisabled = ({
 }): boolean =>
   !allowCheckin || checkInCompleted || mutationPending || spotCount < 1;
 
+export const scanGuestCheckInCountFromInput = ({
+  inputValue,
+  remainingGuestCount,
+}: {
+  inputValue: string;
+  remainingGuestCount: number;
+}): number => {
+  const nextGuestCount = Number.parseInt(inputValue, 10);
+  return Math.max(
+    0,
+    Math.min(
+      Number.isNaN(nextGuestCount) ? 0 : nextGuestCount,
+      remainingGuestCount,
+    ),
+  );
+};
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -140,17 +157,13 @@ export class HandleRegistrationComponent {
     if (!(input instanceof HTMLInputElement)) {
       return;
     }
-    const nextGuestCount = Number.parseInt(input.value, 10);
     const remainingGuestCount =
       this.scanResultQuery.data()?.remainingGuestCount ?? 0;
     this.guestCheckInCount.set(
-      Math.max(
-        0,
-        Math.min(
-          Number.isNaN(nextGuestCount) ? 0 : nextGuestCount,
-          remainingGuestCount,
-        ),
-      ),
+      scanGuestCheckInCountFromInput({
+        inputValue: input.value,
+        remainingGuestCount,
+      }),
     );
   }
 

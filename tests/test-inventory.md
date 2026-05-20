@@ -252,7 +252,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - Keep scanned-registration action guards aligned with the write/refetch
     lifecycle. Local app coverage now pins that the check-in action is disabled
     when scan state disallows it, no spots are selected, the write is pending,
-    or the local success state is already recorded.
+    or the local success state is already recorded. It also pins guest-count
+    input clamping before the check-in mutation payload is built.
 - Tenant/global admin:
   - Authenticated Browser review for the global-admin tenant list and
     tenant-create/edit flows. Local server/app coverage already proves the list,

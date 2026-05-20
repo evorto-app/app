@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   scanCheckInActionDisabled,
   scanCheckInButtonLabel,
+  scanGuestCheckInCountFromInput,
   scanSpotCountLabel,
 } from './handle-registration.component';
 
@@ -70,5 +71,33 @@ describe('scan check-in copy', () => {
   it('uses singular and plural spot suffixes for guest check-in selection', () => {
     expect(scanSpotCountLabel(1)).toBe('1 spot now');
     expect(scanSpotCountLabel(3)).toBe('3 spots now');
+  });
+});
+
+describe('scanGuestCheckInCountFromInput', () => {
+  it('keeps guest check-in selection within the remaining guest count', () => {
+    expect(
+      scanGuestCheckInCountFromInput({
+        inputValue: '2',
+        remainingGuestCount: 3,
+      }),
+    ).toBe(2);
+    expect(
+      scanGuestCheckInCountFromInput({
+        inputValue: '8',
+        remainingGuestCount: 3,
+      }),
+    ).toBe(3);
+  });
+
+  it('normalizes blank, invalid, and negative guest selections to zero', () => {
+    for (const inputValue of ['', 'not-a-number', '-2']) {
+      expect(
+        scanGuestCheckInCountFromInput({
+          inputValue,
+          remainingGuestCount: 3,
+        }),
+      ).toBe(0);
+    }
   });
 });
