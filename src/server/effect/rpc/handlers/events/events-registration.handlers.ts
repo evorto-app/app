@@ -60,6 +60,20 @@ const isWithinCheckInWindow = (eventStart: Date, now = new Date()): boolean =>
 const normalizeTransferTargetSearch = (search: string | undefined) =>
   search?.trim().toLocaleLowerCase() ?? '';
 
+const hasSuccessfulPaidRegistrationTransaction = (
+  transactionsToCheck: readonly {
+    amount: number;
+    status: string;
+    type: string;
+  }[],
+) =>
+  transactionsToCheck.some(
+    (transaction) =>
+      transaction.type === 'registration' &&
+      transaction.status === 'successful' &&
+      transaction.amount > 0,
+  );
+
 const ensureCanScanEventRegistration = ({
   eventId,
   tenantId,
@@ -383,10 +397,12 @@ const cancelRegistration = ({
 const transferEventRegistration = ({
   eventId,
   registrationId,
+  requireOrganizerAccess = true,
   targetUserId,
 }: {
-  eventId: string;
+  eventId?: string;
   registrationId: string;
+  requireOrganizerAccess?: boolean;
   targetUserId: string;
 }) =>
   Effect.gen(function* () {
@@ -406,10 +422,11 @@ const transferEventRegistration = ({
           userId: true,
         },
         where: {
-          eventId,
+          ...(eventId ? { eventId } : {}),
           id: registrationId,
           status: { NOT: 'CANCELLED' },
           tenantId: tenant.id,
+          ...(requireOrganizerAccess ? {} : { userId: user.id }),
         },
         with: {
           event: {
@@ -436,11 +453,13 @@ const transferEventRegistration = ({
       );
     }
 
-    yield* ensureCanScanEventRegistration({
-      eventId: registration.eventId,
-      tenantId: tenant.id,
-      user,
-    });
+    if (requireOrganizerAccess) {
+      yield* ensureCanScanEventRegistration({
+        eventId: registration.eventId,
+        tenantId: tenant.id,
+        user,
+      });
+    }
 
     if (registration.status !== 'CONFIRMED') {
       return yield* Effect.fail(
@@ -482,14 +501,7 @@ const transferEventRegistration = ({
       );
     }
 
-    if (
-      registration.transactions.some(
-        (transaction) =>
-          transaction.type === 'registration' &&
-          transaction.status === 'successful' &&
-          transaction.amount > 0,
-      )
-    ) {
+    if (hasSuccessfulPaidRegistrationTransaction(registration.transactions)) {
       return yield* Effect.fail(
         new EventRegistrationConflictError({
           message:
@@ -592,6 +604,9 @@ const transferEventRegistration = ({
             eq(eventRegistrations.tenantId, tenant.id),
             eq(eventRegistrations.status, 'CONFIRMED'),
             not(eq(eventRegistrations.userId, targetUserId)),
+            ...(requireOrganizerAccess
+              ? []
+              : [eq(eventRegistrations.userId, user.id)]),
           ),
         )
         .returning({
@@ -1038,6 +1053,7 @@ export const eventRegistrationHandlers = {
             appliedDiscountedPrice: true,
             appliedDiscountType: true,
             basePriceAtRegistration: true,
+            checkInTime: true,
             discountAmount: true,
             guestCount: true,
             id: true,
@@ -1053,6 +1069,11 @@ export const eventRegistrationHandlers = {
             userId: user.id,
           },
           with: {
+            event: {
+              columns: {
+                start: true,
+              },
+            },
             registrationOption: {
               columns: {
                 price: true,
@@ -1126,6 +1147,14 @@ export const eventRegistrationHandlers = {
           registrationOptionId: registration.registrationOptionId,
           registrationOptionTitle: registrationOption.title,
           status: registration.status,
+          transferAvailable:
+            registration.status === 'CONFIRMED' &&
+            registration.checkInTime === null &&
+            !!registration.event &&
+            registration.event.start > new Date() &&
+            !hasSuccessfulPaidRegistrationTransaction(
+              registration.transactions,
+            ),
         };
       });
 
@@ -1303,5 +1332,56 @@ export const eventRegistrationHandlers = {
       eventId,
       registrationId,
       targetUserId,
+    }),
+  'events.transferMyRegistration': (
+    { registrationId, targetEmail },
+    _options,
+  ) =>
+    Effect.gen(function* () {
+      yield* RpcAccess.ensureAuthenticated();
+      const normalizedTargetEmail = targetEmail.trim().toLocaleLowerCase();
+
+      if (!normalizedTargetEmail) {
+        return yield* Effect.fail(
+          new EventRegistrationNotFoundError({
+            message: 'Target user not found',
+          }),
+        );
+      }
+
+      const targetUser = yield* databaseEffect((database) =>
+        database.query.users.findFirst({
+          columns: {
+            id: true,
+          },
+          where: {
+            email: normalizedTargetEmail,
+          },
+        }),
+      );
+
+      if (!targetUser) {
+        return yield* Effect.fail(
+          new EventRegistrationNotFoundError({
+            message: 'Target user not found',
+          }),
+        );
+      }
+
+      return yield* transferEventRegistration({
+        registrationId,
+        requireOrganizerAccess: false,
+        targetUserId: targetUser.id,
+      }).pipe(
+        Effect.catchTag('EventRegistrationNotFoundError', (error) =>
+          error.message === 'Target tenant user not found'
+            ? Effect.fail(
+                new EventRegistrationNotFoundError({
+                  message: 'Target user not found',
+                }),
+              )
+            : Effect.fail(error),
+        ),
+      );
     }),
 } satisfies Partial<AppRpcHandlers>;

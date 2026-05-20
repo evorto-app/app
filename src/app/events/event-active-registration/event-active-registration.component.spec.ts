@@ -3,7 +3,9 @@ import { describe, expect, it } from 'vitest';
 import {
   registrationCancellationCopy,
   registrationDeferredActionCopy,
+  registrationTransferActionCopy,
 } from './event-active-registration.component';
+import { normalizeRegistrationTransferTargetEmail } from './event-registration-transfer-dialog.component';
 
 describe('registrationCancellationCopy', () => {
   it('describes pending payment cancellation as releasing the reserved spot', () => {
@@ -88,10 +90,8 @@ describe('registrationCancellationCopy', () => {
 });
 
 describe('registrationDeferredActionCopy', () => {
-  it('keeps transfer and resale visibly unavailable for confirmed registrations', () => {
-    expect(registrationDeferredActionCopy({ status: 'CONFIRMED' })).toBe(
-      'Self-service transfer/resale is not available yet. Contact the organizers if someone else should take your spot.',
-    );
+  it('does not show deferred transfer copy for confirmed registrations', () => {
+    expect(registrationDeferredActionCopy({ status: 'CONFIRMED' })).toBeNull();
   });
 
   it('keeps transfer and resale unavailable for pending or waitlist registrations', () => {
@@ -105,5 +105,56 @@ describe('registrationDeferredActionCopy', () => {
 
   it('does not show deferred transfer copy after cancellation', () => {
     expect(registrationDeferredActionCopy({ status: 'CANCELLED' })).toBeNull();
+  });
+});
+
+describe('registrationTransferActionCopy', () => {
+  it('exposes self-service transfer for eligible confirmed registrations', () => {
+    expect(
+      registrationTransferActionCopy({
+        status: 'CONFIRMED',
+        transferAvailable: true,
+      }),
+    ).toEqual({
+      buttonLabel: 'Transfer registration',
+      helperText:
+        'You can transfer this unpaid registration to another eligible tenant member by email.',
+    });
+  });
+
+  it('keeps paid or otherwise blocked confirmed transfers honest', () => {
+    expect(
+      registrationTransferActionCopy({
+        status: 'CONFIRMED',
+        transferAvailable: false,
+      }),
+    ).toEqual({
+      buttonLabel: 'Transfer unavailable',
+      helperText:
+        'Self-service transfer is only available for unpaid, not-yet-checked-in registrations before the event starts. Paid registration transfer and resale are not automatic yet.',
+    });
+  });
+
+  it('does not expose transfer actions for pending or waitlist registrations', () => {
+    expect(
+      registrationTransferActionCopy({
+        status: 'PENDING',
+        transferAvailable: false,
+      }),
+    ).toBeNull();
+    expect(
+      registrationTransferActionCopy({
+        status: 'WAITLIST',
+        transferAvailable: false,
+      }),
+    ).toBeNull();
+  });
+});
+
+describe('normalizeRegistrationTransferTargetEmail', () => {
+  it('normalizes participant-entered target emails before submit', () => {
+    expect(
+      normalizeRegistrationTransferTargetEmail(' Target@Example.COM '),
+    ).toBe('target@example.com');
   });
 });

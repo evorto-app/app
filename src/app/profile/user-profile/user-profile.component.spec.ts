@@ -30,7 +30,7 @@ describe('profile event labels', () => {
         status: 'CONFIRMED',
       }),
     ).toBe(
-      'Open the event page for ticket access and participant cancellation when the event still allows it. Automatic refunds and self-service transfer/resale are not available yet.',
+      'Open the event page for ticket access, participant cancellation, and unpaid self-service transfer when available. Automatic refunds, paid transfer, and resale are not automatic yet.',
     );
     expect(
       profileEventActionNote({

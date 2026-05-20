@@ -24,6 +24,7 @@ describe('eventHandlers composition', () => {
       'events.reviewEvent',
       'events.submitForReview',
       'events.transferEventRegistration',
+      'events.transferMyRegistration',
       'events.update',
       'events.updateListing',
     ]);

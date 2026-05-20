@@ -137,7 +137,7 @@ The user profile now uses a two-column layout:
 - Left side: section navigation cards
 - Right side: selected section content
 - The **Events** section links each registration back to event details, shows registration status, selected option, guest quantity when applicable, payment state, and check-in time when available, and exposes implemented recovery actions such as continuing a pending checkout payment or opening the event page where confirmed tickets are shown
-- Profile event cards point pending checkout registrations at the implemented profile action, route ticket/cancellation details back to the event page, and keep automatic refunds plus self-service transfer/resale visibly out of the current implemented scope
+- Profile event cards point pending checkout registrations at the implemented profile action, route ticket/cancellation/unpaid-transfer details back to the event page, and keep automatic refunds, paid transfer, and resale visibly out of the current implemented scope
 - Other sections include **Overview**, **Discounts**, and **Receipts**
 `,
     });
