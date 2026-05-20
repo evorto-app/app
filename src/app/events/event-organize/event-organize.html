@@ -99,15 +99,20 @@
                       type="button"
                       (click)="openTransferDialog(user)"
                       [disabled]="
-                        organizerRegistrationActionDisabled({
+                        organizerRegistrationTransferDisabled({
                           checkedIn: user.checkedIn,
                           mutationPending:
                             transferRegistrationMutation.isPending() ||
                             cancelRegistrationMutation.isPending(),
+                          transferAvailable: user.transferAvailable,
                         })
                       "
                     >
-                      Transfer registration
+                      {{
+                        user.transferAvailable
+                          ? "Transfer registration"
+                          : "Transfer unavailable"
+                      }}
                     </button>
                     <button
                       mat-stroked-button

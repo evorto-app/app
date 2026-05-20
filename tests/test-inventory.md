@@ -440,6 +440,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     guests and capture the scanned-registration page, so docs assert guest
     progress and the buyer-plus-guests check-in action instead of only
     describing it in Markdown.
+    Organizer overview read-model and app coverage now also pin that
+    organizer-assisted transfer is unavailable before opening the dialog when a
+    confirmed registration is checked in, paid, or tied to a past event.
   - Keep scanned-registration action guards aligned with the write/refetch
     lifecycle. Local app coverage now pins that the check-in action is disabled
     when scan state disallows it, no spots are selected, the write is pending,

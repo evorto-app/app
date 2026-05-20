@@ -83,6 +83,7 @@ export interface EventOrganizeParticipant {
   firstName: string;
   lastName: string;
   registrationId: string;
+  transferAvailable: boolean;
 }
 
 export const organizerRegistrationActionDisabled = ({
@@ -92,6 +93,16 @@ export const organizerRegistrationActionDisabled = ({
   checkedIn: boolean;
   mutationPending: boolean;
 }): boolean => checkedIn || mutationPending;
+
+export const organizerRegistrationTransferDisabled = ({
+  checkedIn,
+  mutationPending,
+  transferAvailable,
+}: {
+  checkedIn: boolean;
+  mutationPending: boolean;
+  transferAvailable: boolean;
+}): boolean => checkedIn || mutationPending || !transferAvailable;
 
 export const receiptSubmissionActionDisabled = ({
   submissionUnavailable,
@@ -136,6 +147,8 @@ export class EventOrganize {
   );
   protected readonly organizerRegistrationActionDisabled =
     organizerRegistrationActionDisabled;
+  protected readonly organizerRegistrationTransferDisabled =
+    organizerRegistrationTransferDisabled;
   protected readonly organizerTableColumns = signal([
     'name',
     'email',
@@ -322,9 +335,10 @@ export class EventOrganize {
     registration: EventOrganizeParticipant,
   ): Promise<void> {
     if (
-      organizerRegistrationActionDisabled({
+      organizerRegistrationTransferDisabled({
         checkedIn: registration.checkedIn,
         mutationPending: this.transferRegistrationMutation.isPending(),
+        transferAvailable: registration.transferAvailable,
       })
     ) {
       return;
