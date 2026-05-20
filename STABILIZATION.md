@@ -884,6 +884,9 @@ the current working direction until a product decision overrides them.
   mutation is pending.
 - Permission matrix coverage checks admin tax-rate, role-management, user-list, settings, and template write route denial. `src/app/admin/admin.routes.spec.ts` keeps the guarded admin route manifest explicit. Role lookup UI behavior still needs manual Browser review once runtime review is available; current Playwright specs cover duplicate-hiding behavior in both template creation and event editing.
 - `tests/docs/roles/roles.doc.ts` documents role creation, dependent permissions, and the explicit deferral of existing-user role assignment for relaunch.
+- `tests/docs/roles/roles.doc.ts` now creates a deterministic unique role,
+  asserts dependent permission selection, reads the persisted role permissions
+  from the database, and cleans up the generated role after the docs journey.
 - `tests/docs/roles/about-permissions.doc.ts` generates the `/docs/about-permissions` source from shared permission metadata, including group labels, permission keys/descriptions, dependent permissions, and the tenant-role/global-admin distinction.
 - `tests/docs/roles/roles.doc.ts` links to `/docs/about-permissions` for permission reference details.
 - `tests/specs/admin/roles-management.spec.ts` functionally covers the
