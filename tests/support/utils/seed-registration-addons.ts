@@ -3,6 +3,8 @@ import { and, eq } from 'drizzle-orm';
 import * as schema from '../../../src/db/schema';
 import { getId } from '../../../helpers/get-id';
 
+// Seeds a free add-on directly for browser flows that need deterministic
+// add-on purchases without depending on a full organizer authoring journey.
 export const seedFreeRegistrationAddon = async ({
   addonId,
   database,

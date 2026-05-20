@@ -3,6 +3,8 @@ import { join, relative } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+// Source guard: every skipped browser/doc test needs an explicit reason here so
+// uncovered behavior does not disappear behind permanent `test.skip` calls.
 const repositoryRoot = new URL('../..', import.meta.url).pathname;
 const testsRoot = join(repositoryRoot, 'tests');
 

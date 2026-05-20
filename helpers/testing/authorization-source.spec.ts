@@ -4,6 +4,8 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+// Source guard: server handlers should use shared authorization helpers so
+// wildcard/dependency permissions stay consistent across RPC and HTTP paths.
 const repositoryRoot = new URL('../..', import.meta.url).pathname;
 
 const readSource = (path: string): string =>

@@ -2,6 +2,8 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
+// Runtime preflight runs before Docker commands so missing secrets, broken
+// Compose config, or missing browsers fail clearly before the app starts.
 export type RuntimeTarget = 'docker';
 
 type RequiredVariable = {

@@ -5,6 +5,8 @@ import { describe, expect, it } from 'vitest';
 
 import { permissionMatrix } from '../../tests/support/permissions/matrix';
 
+// Source guard: permission-denial Playwright cases should track guarded route
+// manifests as routes move between admin, finance, and template feature areas.
 const repositoryRoot = new URL('../..', import.meta.url).pathname;
 
 const financePermissionMatrixCases = () =>

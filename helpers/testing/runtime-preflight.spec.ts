@@ -7,6 +7,8 @@ import {
   requiredByTarget,
 } from './runtime-preflight';
 
+// Keeps Docker preflight failures readable by pinning the checks operators see
+// before the stack starts rebuilding containers or touching local data.
 const requiredDockerEnvironment = Object.fromEntries(
   requiredByTarget.docker.map(({ name }) => [
     name,

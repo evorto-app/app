@@ -3,6 +3,8 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+// Source guard: the relaunch user-list is review-only, so assignment actions
+// should not reappear until product scope and tests are updated together.
 const repositoryRoot = new URL('../..', import.meta.url).pathname;
 
 const readSource = (path: string): string =>

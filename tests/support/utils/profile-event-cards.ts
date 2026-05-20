@@ -8,6 +8,8 @@ import { relations } from '../../../src/db/relations';
 import * as schema from '../../../src/db/schema';
 import { seedFreeRegistrationAddon } from './seed-registration-addons';
 
+// Shared fixture for profile docs/specs so every profile-card state uses the
+// same persisted registrations, add-ons, checkout URL, and cleanup path.
 export type SeededProfileEventCards = {
   checkedIn: {
     addOnPurchaseId: string;

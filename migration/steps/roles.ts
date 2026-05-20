@@ -1,7 +1,7 @@
 import consola from 'consola';
 import { InferSelectModel } from 'drizzle-orm';
 
-import { database } from '../database';
+import { database } from '../../src/db';
 import * as schema from '../../src/db/schema';
 
 export const setupDefaultRoles = async (
