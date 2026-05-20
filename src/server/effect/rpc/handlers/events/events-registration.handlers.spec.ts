@@ -6,6 +6,7 @@ import {
   eventRegistrationOptions,
   eventRegistrations,
   rolesToTenantUsers,
+  transactions,
   users,
   usersToTenants,
 } from '../../../../../db/schema';
@@ -655,6 +656,102 @@ describe('event registration cancellation handlers', () => {
         ).pipe(Effect.provide(createContextLayer({ database })));
 
         expectCounterDecrement(updateSets[1], 'confirmedSpots', 3);
+        expect(database.transaction).toHaveBeenCalledOnce();
+      }),
+  );
+
+  it.effect(
+    'records a pending manual refund transaction for paid confirmed cancellation',
+    () =>
+      Effect.gen(function* () {
+        let insertedTransaction: Record<string, unknown> | undefined;
+        const updateSets: unknown[] = [];
+        const tx = {
+          insert: (table: unknown) => ({
+            values: (values: Record<string, unknown>) => {
+              if (table === transactions) {
+                insertedTransaction = values;
+              }
+              return Effect.succeed([]);
+            },
+          }),
+          update: (table: unknown) => ({
+            set: (values: unknown) => {
+              updateSets.push(values);
+              return {
+                where: () => ({
+                  returning: () => {
+                    if (
+                      table === eventRegistrations ||
+                      table === eventRegistrationOptions
+                    ) {
+                      return Effect.succeed([{ id: 'updated' }]);
+                    }
+                    return Effect.succeed([]);
+                  },
+                }),
+              };
+            },
+          }),
+        };
+        const database = {
+          query: {
+            eventRegistrations: {
+              findFirst: () =>
+                Effect.succeed({
+                  addonPurchases: [],
+                  checkedInGuestCount: 0,
+                  checkInTime: null,
+                  event: {
+                    start: new Date(Date.now() + 24 * 60 * 60 * 1000),
+                  },
+                  eventId: 'event-1',
+                  guestCount: 1,
+                  id: 'registration-1',
+                  registrationOptionId: 'option-1',
+                  status: 'CONFIRMED',
+                  transactions: [
+                    {
+                      amount: 2500,
+                      id: 'transaction-1',
+                      method: 'stripe',
+                      status: 'successful',
+                      stripeCheckoutSessionId: 'checkout-1',
+                      type: 'registration',
+                    },
+                  ],
+                  userId: 'attendee-1',
+                }),
+            },
+          },
+          transaction: vi.fn((callback: (tx: typeof tx) => unknown) =>
+            callback(tx),
+          ),
+        };
+
+        yield* eventRegistrationHandlers['events.cancelRegistration'](
+          { registrationId: 'registration-1' },
+          { headers: {} } as never,
+        ).pipe(Effect.provide(createContextLayer({ database })));
+
+        expectCounterDecrement(updateSets[1], 'confirmedSpots', 2);
+        expect(insertedTransaction).toEqual(
+          expect.objectContaining({
+            amount: -2500,
+            currency: 'EUR',
+            eventId: 'event-1',
+            eventRegistrationId: 'registration-1',
+            manuallyCreated: true,
+            method: 'stripe',
+            status: 'pending',
+            targetUserId: 'attendee-1',
+            tenantId: 'tenant-1',
+            type: 'refund',
+          }),
+        );
+        expect(insertedTransaction?.['comment']).toContain(
+          'Pending registration refund record',
+        );
         expect(database.transaction).toHaveBeenCalledOnce();
       }),
   );
