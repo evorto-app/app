@@ -314,8 +314,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     pins that reusable add-ons do not enter event form data until event-side
     add-on fulfillment exists.
   - Template detail component coverage pins reusable add-on purchase timing and
-    registration-option labels. Server handler coverage pins the current
-    add-on read model while event-side add-on fulfillment remains out of scope.
+    registration-option labels. Server handler coverage pins the current add-on
+    read model, and simple-template service coverage pins optional add-on write
+    payload shaping/validation while event-side add-on fulfillment remains out
+    of scope.
     Create-event component coverage pins the visible add-on boundary notice when
     a template has reusable add-ons.
   - Template registration-option component coverage pins paid tax-rate select

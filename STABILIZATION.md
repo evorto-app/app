@@ -649,9 +649,14 @@ the current working direction until a product decision overrides them.
 - **Should fix before relaunch:** simple-mode create/update always writes exactly two registration options. That matches the current UI but is thinner than the product model for reusable event knowledge.
 - **Addressed in stabilization pass:** template detail now returns and displays
   existing reusable template add-ons from the current schema, including pricing,
-  purchase timing, quantity limits, and registration-option attachments. Simple
-  create/update still does not author add-ons, and there is still no reviewed
-  event-side add-on fulfillment or registration-question schema/copy path.
+  purchase timing, quantity limits, and registration-option attachments.
+  Template add-ons remain template-scoped until event-side fulfillment exists.
+- **Addressed in this stabilization pass:** the template RPC/service boundary
+  now accepts optional reusable add-on input for simple template writes, validates
+  add-on tax rates and quantity/window invariants, and replaces stored template
+  add-ons only when callers explicitly send add-on data. The current simple UI
+  still does not expose add-on editing, and event creation still does not copy
+  add-ons into event-side fulfillment.
 - **Addressed in this stabilization pass:** create-event-from-template now
   shows an explicit add-on boundary notice when the source template has
   reusable add-ons. Event creation still copies registration options only until
@@ -718,6 +723,10 @@ the current working direction until a product decision overrides them.
 - `src/server/effect/rpc/handlers/tax-rates.handlers.spec.ts` covers `taxRates.listActive` permission behavior and the current-tenant active/inclusive filter used to populate compatible template tax-rate selects.
 - `src/server/utils/validate-tax-rate.spec.ts` covers the shared server rule that paid options require a tenant-owned active inclusive tax rate and free options cannot carry stale tax-rate ids.
 - `src/server/effect/rpc/handlers/templates/simple-template.service.spec.ts` covers paid template registrations without tax rates, free template registrations with stale tax-rate ids, and invalid ESNcard discounted prices failing through the server-side validation path.
+- `src/server/effect/rpc/handlers/templates/simple-template.service.spec.ts`
+  also covers simple reusable add-on insert shaping, registration-option
+  attachment, hidden payment-field cleanup, purchase-window validation, and
+  paid add-on tax-rate validation.
 - `src/db/schema/template-event-addons.spec.ts` pins the current implementation
   boundary that add-ons are template-scoped only and registration-question
   schemas are not exposed yet.
@@ -1386,9 +1395,10 @@ the current working direction until a product decision overrides them.
 3. Keep simple-mode templates as the primary authoring UI, but expand reusable
    template support for discounts, add-ons, and questions where practical.
    Organizer planning tips are now exposed as the first private organizer-notes
-   field, and existing reusable template add-ons are now visible on template
-   detail. Add-on authoring/copying and registration questions remain separate
-   fuller product/runtime slices.
+   field, existing reusable template add-ons are now visible on template detail,
+   and the RPC/service boundary can persist optional simple-template add-ons.
+   Add-on UI editing/copying and registration questions remain separate fuller
+   product/runtime slices.
 4. Add Browser-backed scanner/organizer aggregate review once local runtime is available.
 5. Add Browser-backed profile coverage for payment-continuation, ticket/cancellation routing, waitlist messaging, and ESNcard provider failure semantics once local runtime is available.
 6. Fill the remaining tenant settings implementation gap for automated onboarding/domain workflows. The current general-settings page exposes SEO fields, uploaded or externally hosted logo/favicon URLs, tenant legal links or hosted legal text, editable supported locale/currency/timezone values, read-only runtime identity, and a visible deferred-settings summary. The current global-admin surface supports a searchable tenant list, tenant create/edit, and tenant detail review, while custom-domain verification, multi-domain automation, and impersonation remain out of scope.

@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -15,22 +16,23 @@ const serverAuthorizationSources = [
 
 describe('server authorization source', () => {
   it('routes permission checks through the shared evaluator instead of raw array includes', () => {
-    const commandOutput = Bun.spawnSync({
-      cmd: [
-        'rg',
+    const commandOutput = spawnSync(
+      'rg',
+      [
         '--files-with-matches',
         'permissions\\.includes\\(|currentPermissions\\.includes\\(|user\\.permissions\\.includes\\(',
         ...serverAuthorizationSources,
       ],
-      cwd: repositoryRoot,
-      stderr: 'pipe',
-      stdout: 'pipe',
-    });
+      {
+        cwd: repositoryRoot,
+        encoding: 'utf8',
+      },
+    );
 
-    const stdout = commandOutput.stdout.toString().trim();
-    const stderr = commandOutput.stderr.toString().trim();
+    const stdout = commandOutput.stdout.trim();
+    const stderr = commandOutput.stderr.trim();
 
-    expect(commandOutput.exitCode, stderr || stdout).toBe(1);
+    expect(commandOutput.status, stderr || stdout).toBe(1);
     expect(stdout).toBe('');
   });
 

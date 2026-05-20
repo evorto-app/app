@@ -105,6 +105,7 @@ export type PlaywrightEnvironment = Omit<
   | 'BASE_URL'
   | 'CLIENT_ID'
   | 'CLIENT_SECRET'
+  | 'E2E_BROWSER_CHANNEL'
   | 'ISSUER_BASE_URL'
   | 'SECRET'
   | 'STRIPE_API_KEY'
@@ -155,7 +156,7 @@ const collectMissingFieldErrors = (
 const isPlaywrightBrowserChannel = (
   value: string,
 ): value is PlaywrightBrowserChannel =>
-  PLAYWRIGHT_BROWSER_CHANNELS.includes(value);
+  (PLAYWRIGHT_BROWSER_CHANNELS as readonly string[]).includes(value);
 
 const matchesProjectPattern = (pattern: string, projectName: string) => {
   const escapedPattern = pattern.replaceAll(

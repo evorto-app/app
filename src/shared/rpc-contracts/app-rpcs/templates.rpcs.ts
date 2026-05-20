@@ -37,7 +37,31 @@ export const TemplateSimpleRegistrationInput = Schema.Struct({
   title: Schema.NonEmptyString,
 });
 
+export const TemplateSimpleAddonRegistrationOptionKind = literalUnion(
+  'organizer',
+  'participant',
+);
+
+export const TemplateSimpleAddonInput = Schema.Struct({
+  allowMultiple: Schema.Boolean,
+  allowPurchaseBeforeEvent: Schema.Boolean,
+  allowPurchaseDuringEvent: Schema.Boolean,
+  allowPurchaseDuringRegistration: Schema.Boolean,
+  description: Schema.optional(Schema.NullOr(Schema.String)),
+  isPaid: Schema.Boolean,
+  maxQuantityPerUser: positiveNumber,
+  price: nonNegativeNumber,
+  quantity: positiveNumber,
+  registrationOptionKind: TemplateSimpleAddonRegistrationOptionKind,
+  stripeTaxRateId: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
+  title: Schema.NonEmptyString,
+  totalAvailableQuantity: positiveNumber,
+});
+
 export const TemplateSimpleInput = Schema.Struct({
+  addOns: Schema.optional(
+    Schema.mutable(Schema.Array(TemplateSimpleAddonInput)),
+  ),
   categoryId: Schema.NonEmptyString,
   description: Schema.NonEmptyString,
   icon: iconSchema,
