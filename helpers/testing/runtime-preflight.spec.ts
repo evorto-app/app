@@ -169,6 +169,27 @@ describe('evaluateRuntimePreflight', () => {
     expect(testsGuidance).not.toContain('`bun run docker:start:foreground`');
   });
 
+  it('keeps Playwright package scripts on the generated runtime environment path', () => {
+    const packageJson = JSON.parse(
+      fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8'),
+    ) as { scripts: Record<string, string> };
+
+    for (const scriptName of [
+      'test:e2e',
+      'test:e2e:ui',
+      'test:e2e:integration',
+      'test:e2e:docs',
+      'test:e2e:docs:publish',
+    ]) {
+      expect(packageJson.scripts[scriptName]).toContain('bun run env:runtime');
+      expect(packageJson.scripts[scriptName]).toContain('dotenv -c dev --');
+    }
+
+    expect(packageJson.scripts['test:e2e:integration']).toContain(
+      '--project=local-chrome-integration --project=docs-integration',
+    );
+  });
+
   it('keeps required Docker variables wired into Compose services', () => {
     const composeFile = fs.readFileSync(
       path.join(process.cwd(), 'docker-compose.yml'),

@@ -47,6 +47,8 @@ More specific guidance may exist deeper in some subtrees.
 - `bun run test:unit` - run unit tests.
 - `bun run test:unit:server` - run server unit tests.
 - `bun run test:e2e` - run Playwright e2e.
+- `bun run test:e2e:integration` - run credential-gated Playwright
+  integration projects.
 - `bun run test:e2e:docs` - run Playwright documentation tests.
 - `bun run test:e2e:install` - install the local Playwright browser binaries.
 - `bun run lint` - lint with autofix.
@@ -87,7 +89,7 @@ For runtime/test details, read:
 - `helpers/README.md`
 - `src/server/config/AGENTS.md`
 
-Local `test:e2e`, `test:e2e:ui`, `test:e2e:docs`, `db:*`, and `docker:*`
+Local `test:e2e`, `test:e2e:ui`, `test:e2e:integration`, `test:e2e:docs`, `db:*`, and `docker:*`
 package scripts refresh `.env.dev` before invoking `dotenv -c dev`; use those
 package scripts instead of bare `dotenv` shell commands.
 
