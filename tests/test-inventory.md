@@ -200,7 +200,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     coverage already proves transactional creation, existing-global-user tenant
     joins, duplicate-assignment conflicts, and visible create-account error
     message mapping. App helper coverage proves Auth0-data prefill,
-    email-verification gating, payload normalization, and error-message mapping.
+    email-verification gating, payload normalization, error-message mapping, and
+    the invalid/submitting/mutation-pending submit guard now shared by the
+    visible submit button and handler.
     Shared RPC schema coverage proves account-creation and profile-update
     notification email format validation, matching the create-account/profile
     edit form validators.
