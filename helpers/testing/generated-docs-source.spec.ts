@@ -239,4 +239,31 @@ describe('generated docs source current behavior', () => {
     expect(permissionsSource).not.toContain('Global admin access is a role');
     expect(permissionsSource).not.toContain('tenant roles grant global admin');
   });
+
+  it('keeps ESN discount docs aligned with provider-error and write-guard behavior', () => {
+    const source = readSource('tests/docs/profile/discounts.doc.ts');
+
+    expect(source).toContain('esnCardStatusLabel');
+    expect(source).toContain('esnCardActionLabel');
+    expect(source).toContain('esnCardActionDisabled');
+    expect(source).toContain('esnCardSaveDisabled');
+    expect(source).toContain('esnCardSubmitPayloadFromIdentifier');
+    expect(source).toContain('esnCardMutationErrorMessage');
+    expect(source).toContain(
+      'The profile discount-card form stores one ESN card per user and trims the card number before validation.',
+    );
+    expect(source).toContain(
+      'Save, refresh, and remove stay disabled while any ESNcard write is pending',
+    );
+    expect(source).toContain(
+      'Provider outages are not treated as invalid cards.',
+    );
+    expect(source).toContain(
+      'Evorto leaves the stored ESN card unchanged so the user can retry later.',
+    );
+    expect(source).toContain('ESNcard validation provider is unavailable');
+    expect(source).not.toContain('provider outages mark the card invalid');
+    expect(source).not.toContain('overlap ESNcard writes');
+    expect(source).not.toContain('stores the card number without trimming');
+  });
 });

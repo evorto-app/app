@@ -2163,6 +2163,9 @@ implement those decisions or explicitly revise them there before changing code.
   generated permission reference and kept that reference aligned with
   tenant-scoped roles, wildcard permissions, dependent permissions, and
   separate global-admin semantics.
+- ESN discount docs source-guard pass: pinned generated discounts docs to the
+  local ESNcard helper functions, trimmed submit payloads, shared write guards,
+  readable statuses/actions, and retryable provider-outage semantics.
 
 ## Review Next
 
