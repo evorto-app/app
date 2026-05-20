@@ -179,8 +179,10 @@
             mat-raised-button
             color="primary"
             [disabled]="
-              !canRefund(group.submittedByUserId, group.payout) ||
-              refundMutation.isPending()
+              receiptReimbursementRecordDisabled({
+                canRecord: canRefund(group.submittedByUserId, group.payout),
+                mutationPending: refundMutation.isPending(),
+              })
             "
             (click)="refundRecipient(group)"
           >

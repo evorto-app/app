@@ -843,6 +843,10 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** receipt review records status locally, and the review detail page, success feedback, and finance docs explicitly tell finance reviewers that submitter notification is manual until a real delivery path exists.
 - **Addressed in this stabilization pass:** finance receipt approval and reimbursement lists now prefer the user's editable notification email over the Auth0 login email when rendering submitter contact details.
 - **Addressed in this stabilization pass:** the event organizer receipt action now stays disabled while the original receipt upload is pending, not only while the final submit mutation is pending, and the click handler shares the same guard.
+- **Addressed in stabilization pass:** receipt reimbursement recording now
+  shares one disabled guard between the queue button and handler so missing
+  selections, missing payout details, and mutation-pending writes cannot record
+  duplicate reimbursement transactions on slow networks.
 - **Acceptable for now:** receipt review/reimbursement queries are tenant-scoped, and receipt reimbursement creation uses a transaction plus status preconditions to avoid reimbursing the wrong submitter or already-reimbursed receipts.
 
 ### Test and Documentation Quality
@@ -852,7 +856,7 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** `tests/specs/finance/receipts-flows.spec.ts` now hard-fails when the seeded pending receipt, refundable receipt group, row checkbox, enabled reimbursement action, or tenant "Other" country option is missing.
 - Finance overview docs now describe the current navigation-style finance UI, current finance capability names, and the manual submitter-notification caveat before and after receipt review.
 - **Addressed in stabilization pass:** `tests/docs/finance/receipt-review-reimbursement.doc.ts` now walks the receipt approval queue, approval detail page, manual submitter-notification caveat, reimbursement queue, payout-detail selection, and manual reimbursement recording.
-- `src/app/finance/receipt-refund-list/receipt-refund-list.component.spec.ts` pins the reimbursement queue's manual money-movement notice, payout-detail gating, payout-detail labels, and selected-total math. The receipt reimbursement doc/spec assert the manual-money notice on the page.
+- `src/app/finance/receipt-refund-list/receipt-refund-list.component.spec.ts` pins the reimbursement queue's manual money-movement notice, payout-detail gating, payout-detail labels, selected-total math, and reimbursement record disabled guard. The receipt reimbursement doc/spec assert the manual-money notice on the page.
 - `src/app/finance/receipt-approval-detail/receipt-approval-detail.component.spec.ts`
   pins the approval/rejection action guard for invalid forms, loading receipt
   details, and mutation-pending review writes.
@@ -1410,6 +1414,9 @@ implement those decisions or explicitly revise them there before changing code.
 - Receipt review action guard pass: shared the receipt approval/rejection
   disabled state and handler early return so invalid, loading, and
   mutation-pending review writes cannot double-submit.
+- Receipt reimbursement action guard pass: shared the reimbursement record
+  disabled state and handler early return so missing payout inputs and
+  mutation-pending writes cannot duplicate reimbursement transactions.
 - Scanner action guard pass: kept the scanned-registration check-in action
   disabled after a successful local write while the scan-result query refetches,
   with the template and handler sharing the same tested helper.
