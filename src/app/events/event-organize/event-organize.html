@@ -166,7 +166,7 @@
             (click)="openReceiptDialog()"
             [disabled]="
               receiptSubmissionActionDisabled({
-                receiptSubmissionClosed: !!receiptSubmissionClosedMessage(),
+                submissionUnavailable: !!receiptSubmissionUnavailableMessage(),
                 submitPending: submitReceiptMutation.isPending(),
                 uploadPending: receiptOriginalUploadMutation.isPending(),
               })
@@ -175,7 +175,7 @@
             Add receipt
           </button>
         </div>
-        @if (receiptSubmissionClosedMessage(); as message) {
+        @if (receiptSubmissionUnavailableMessage(); as message) {
           <p class="text-on-surface-variant text-sm">
             {{ message }}
           </p>

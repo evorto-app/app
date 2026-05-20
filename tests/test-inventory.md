@@ -205,7 +205,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     submitter's notification email with login email fallback.
   - Keep event-organizer receipt submission action coverage aligned with the
     two-step upload-plus-submit flow. Local app coverage now pins that Add
-    receipt remains disabled while receipt submission is closed, while the
+    receipt remains disabled while the event has not loaded yet, while the
     original upload is pending, and while the submit mutation is pending.
   - Keep paid-registration webhook counter coverage aligned with buyer-plus-guest
     spot counts. Local shared coverage pins the capacity count helper used by

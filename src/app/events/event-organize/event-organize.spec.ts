@@ -78,31 +78,31 @@ describe('organizerRegistrationActionDisabled', () => {
 });
 
 describe('receiptSubmissionActionDisabled', () => {
-  it('blocks receipt submission while closed, uploading, or submitting', () => {
+  it('blocks receipt submission while unavailable, uploading, or submitting', () => {
     expect(
       receiptSubmissionActionDisabled({
-        receiptSubmissionClosed: true,
+        submissionUnavailable: true,
         submitPending: false,
         uploadPending: false,
       }),
     ).toBe(true);
     expect(
       receiptSubmissionActionDisabled({
-        receiptSubmissionClosed: false,
+        submissionUnavailable: false,
         submitPending: false,
         uploadPending: true,
       }),
     ).toBe(true);
     expect(
       receiptSubmissionActionDisabled({
-        receiptSubmissionClosed: false,
+        submissionUnavailable: false,
         submitPending: true,
         uploadPending: false,
       }),
     ).toBe(true);
     expect(
       receiptSubmissionActionDisabled({
-        receiptSubmissionClosed: false,
+        submissionUnavailable: false,
         submitPending: false,
         uploadPending: false,
       }),

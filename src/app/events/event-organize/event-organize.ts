@@ -89,14 +89,14 @@ export const organizerRegistrationActionDisabled = ({
 }): boolean => checkedIn || mutationPending;
 
 export const receiptSubmissionActionDisabled = ({
-  receiptSubmissionClosed,
+  submissionUnavailable,
   submitPending,
   uploadPending,
 }: {
-  receiptSubmissionClosed: boolean;
+  submissionUnavailable: boolean;
   submitPending: boolean;
   uploadPending: boolean;
-}): boolean => receiptSubmissionClosed || submitPending || uploadPending;
+}): boolean => submissionUnavailable || submitPending || uploadPending;
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -161,15 +161,13 @@ export class EventOrganize {
   );
   protected readonly receiptSubmissionActionDisabled =
     receiptSubmissionActionDisabled;
-  protected readonly receiptSubmissionClosedMessage = computed(() => {
+  protected readonly receiptSubmissionUnavailableMessage = computed(() => {
     const event = this.event();
     if (!event) {
       return 'Receipts can be added after the event has loaded.';
     }
 
-    return new Date(event.end) > new Date()
-      ? 'Receipts can be added after the event ends.'
-      : null;
+    return null;
   });
 
   protected readonly stats = computed(() =>
@@ -243,7 +241,7 @@ export class EventOrganize {
   protected async openReceiptDialog(): Promise<void> {
     if (
       receiptSubmissionActionDisabled({
-        receiptSubmissionClosed: !!this.receiptSubmissionClosedMessage(),
+        submissionUnavailable: !!this.receiptSubmissionUnavailableMessage(),
         submitPending: this.submitReceiptMutation.isPending(),
         uploadPending: this.receiptOriginalUploadMutation.isPending(),
       })
