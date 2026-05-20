@@ -1,4 +1,4 @@
-import { userStateFile } from '../../../helpers/user-data';
+import { userStateFile, usersToAuthenticate } from '../../../helpers/user-data';
 import {
   esnCardActionDisabled,
   esnCardActionLabel,
@@ -58,10 +58,17 @@ Provider outages are not treated as invalid cards. When esncard.org or the provi
 });
 
 test('Manage ESN discount card @finance', async ({
+  database,
   page,
   tenant,
 }, testInfo) => {
   const seededEsnCardIdentifier = `TEST-ESN-0001-${tenant.id.slice(0, 6)}`;
+  const regularUser = usersToAuthenticate.find(
+    (user) => user.stateFile === userStateFile,
+  );
+  if (!regularUser) {
+    throw new Error('Expected regular profile user fixture');
+  }
 
   await page.goto('.');
   await page.getByRole('link', { name: 'Profile' }).click();
@@ -90,6 +97,21 @@ Add your ESN card to receive discounted prices on eligible events. Your card is 
   await expect(page.getByText(/Status: Verified/)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Refresh' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Remove' })).toBeVisible();
+  const seededEsnCard = await database.query.userDiscountCards.findFirst({
+    where: {
+      identifier: seededEsnCardIdentifier,
+      type: 'esnCard',
+      userId: regularUser.id,
+    },
+  });
+  expect(seededEsnCard).toEqual(
+    expect.objectContaining({
+      identifier: seededEsnCardIdentifier,
+      status: 'verified',
+      type: 'esnCard',
+      userId: regularUser.id,
+    }),
+  );
   await takeScreenshot(
     testInfo,
     page.getByRole('heading', { level: 2, name: 'Discount Cards' }),

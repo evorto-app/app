@@ -1228,8 +1228,8 @@ the current working direction until a product decision overrides them.
   ESNcard provider for live add/refresh/remove outcomes.
 - `tests/specs/profile/user-profile-discounts.spec.ts` functionally covers the
   same seeded profile discount-card state from a direct `#discounts` link,
-  including verified-card display, refresh/remove action visibility, and the
-  invalid-card-number save guard.
+  including verified-card display, refresh/remove action visibility, seeded
+  card database readback, and the invalid-card-number save guard.
 - `tests/specs/discounts/esn-discounts.test.ts` verifies a seeded verified ESNcard affects paid event price labels and the register button copy.
 - No reviewed Playwright spec proves live profile discount-card
   add/refresh/remove provider outcomes or browser-level account creation
@@ -1239,8 +1239,9 @@ the current working direction until a product decision overrides them.
   baseline helper-backed account-creation note, the discounts docs assert
   helper-backed ESNcard status/pending/error semantics plus seeded
   status/action/invalid-input behavior, the profile discounts spec pins the
-  seeded direct-link discount-card journey, and the profile docs journey asserts
-  confirmed, pending-checkout, waitlisted, and checked-in profile event-card
+  seeded direct-link discount-card journey with database readback, and the
+  profile docs journey asserts confirmed, pending-checkout, waitlisted, and
+  checked-in profile event-card
   route/status/guest/add-on/payment/checkout/waitlist/ticket/action labels plus
   submitted-receipt visibility. The generated docs and functional
   profile-event spec both pin those seeded card states to their expected
@@ -2202,6 +2203,9 @@ implement those decisions or explicitly revise them there before changing code.
   documentation note for readable statuses, pending action labels, shared
   in-flight guards, trimmed save payloads, and retryable provider-unavailable
   copy without calling the external provider.
+- Profile ESNcard readback pass: made the generated discounts doc and matching
+  direct-link profile discounts spec read back the seeded verified ESNcard row
+  behind the visible profile card.
 - Profile ESNcard write-guard pass: shared one in-flight guard across save,
   refresh, and remove so profile discount-card writes cannot overlap on slow
   networks, and pinned that guard in local app tests.
