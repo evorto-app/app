@@ -221,8 +221,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     invalid-card-number save guard. App and server coverage already prove upsert
     payload normalization, readable mutation errors, readable status labels,
     save/refresh/remove action states, global per-user card reads/upserts,
-    refresh persistence, and scoped removal. Local app coverage also proves that
-    save, refresh, and remove actions share an in-flight guard so profile
+    refresh persistence, provider-outage upsert rejection before inserting or
+    updating the stored card, and scoped removal. Local app coverage also proves
+    that save, refresh, and remove actions share an in-flight guard so profile
     discount-card writes do not overlap. App coverage also proves the
     `#discounts` profile fragment waits for tenant ESNcard provider availability
     before selecting the section.

@@ -126,30 +126,20 @@ describe('discountHandlers', () => {
       const insertedValues = vi.fn(() => {
         throw new Error('Expected existing global card to be updated');
       });
-      const updateReturning = vi
-        .fn()
-        .mockReturnValueOnce(
-          Effect.succeed([
-            {
-              id: 'card-1',
-              identifier: 'ESN-123',
-              status: 'verified' as const,
-              type: 'esnCard' as const,
-              validTo: null,
-            },
-          ]),
-        )
-        .mockReturnValueOnce(
-          Effect.succeed([
-            {
-              id: 'card-1',
-              identifier: 'ESN-123',
-              status: 'verified' as const,
-              type: 'esnCard' as const,
-              validTo: new Date('2026-12-31T00:00:00.000Z'),
-            },
-          ]),
-        );
+      const updateSet = vi.fn(() => ({
+        where: () => ({
+          returning: () =>
+            Effect.succeed([
+              {
+                id: 'card-1',
+                identifier: 'ESN-123',
+                status: 'verified' as const,
+                type: 'esnCard' as const,
+                validTo: new Date('2026-12-31T00:00:00.000Z'),
+              },
+            ]),
+        }),
+      }));
       const database = {
         insert: vi.fn((table: unknown) => {
           expect(table).toBe(userDiscountCards);
@@ -176,11 +166,7 @@ describe('discountHandlers', () => {
         update: vi.fn((table: unknown) => {
           expect(table).toBe(userDiscountCards);
           return {
-            set: () => ({
-              where: () => ({
-                returning: updateReturning,
-              }),
-            }),
+            set: updateSet,
           };
         }),
       };
@@ -205,6 +191,13 @@ describe('discountHandlers', () => {
         config: {},
         identifier: 'ESN-123',
       });
+      expect(updateSet).toHaveBeenCalledWith(
+        expect.objectContaining({
+          identifier: 'ESN-123',
+          status: 'verified',
+          validTo: new Date('2026-12-31T00:00:00.000Z'),
+        }),
+      );
       expect(findFirst).toHaveBeenNthCalledWith(
         2,
         expect.objectContaining({
@@ -224,7 +217,7 @@ describe('discountHandlers', () => {
   });
 
   it.effect(
-    'upsertMyCard reports provider outages as retryable validation errors',
+    'upsertMyCard reports provider outages without changing the stored card',
     () => {
       const originalAdapter = Adapters.esnCard;
       const validate = vi.fn(async () => {
@@ -248,18 +241,10 @@ describe('discountHandlers', () => {
               validTo: null,
             }),
           );
-        const updateReturning = vi.fn().mockReturnValueOnce(
-          Effect.succeed([
-            {
-              id: 'card-1',
-              identifier: 'ESN-123',
-              status: 'verified' as const,
-              type: 'esnCard' as const,
-              validTo: null,
-            },
-          ]),
-        );
         const database = {
+          insert: vi.fn(() => {
+            throw new Error('Provider outages must not insert cards');
+          }),
           query: {
             tenants: {
               findFirst: () =>
@@ -276,15 +261,8 @@ describe('discountHandlers', () => {
               findFirst,
             },
           },
-          update: vi.fn((table: unknown) => {
-            expect(table).toBe(userDiscountCards);
-            return {
-              set: () => ({
-                where: () => ({
-                  returning: updateReturning,
-                }),
-              }),
-            };
+          update: vi.fn(() => {
+            throw new Error('Provider outages must not update cards');
           }),
         };
 
@@ -307,7 +285,8 @@ describe('discountHandlers', () => {
           config: {},
           identifier: 'ESN-123',
         });
-        expect(updateReturning).toHaveBeenCalledTimes(1);
+        expect(database.insert).not.toHaveBeenCalled();
+        expect(database.update).not.toHaveBeenCalled();
       }).pipe(
         Effect.ensuring(
           Effect.sync(() => {

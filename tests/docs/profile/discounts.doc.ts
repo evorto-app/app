@@ -52,7 +52,7 @@ The profile discount-card form stores one ESN card per user and trims the card n
 
 Evorto shows readable card statuses: **Verified**, **Expired**, **Invalid**, and **Needs verification**. Save, refresh, and remove stay disabled while any ESNcard write is pending, so slow provider validation or removal requests cannot overlap.
 
-Provider outages are not treated as invalid cards. When esncard.org or the provider response is unavailable, the profile page shows the retryable provider message, such as **ESNcard validation provider is unavailable**, instead of silently storing an invalid-card state.
+Provider outages are not treated as invalid cards. When esncard.org or the provider response is unavailable, the profile page shows the retryable provider message, such as **ESNcard validation provider is unavailable**, and Evorto leaves the stored ESN card unchanged so the user can retry later.
 `,
   });
 });
