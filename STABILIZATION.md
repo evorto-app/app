@@ -1154,6 +1154,9 @@ the current working direction until a product decision overrides them.
 - `src/app/global-admin/global-admin.routes.spec.ts` covers route-level global-admin permission requirements for list, create, detail, and edit routes.
 - `src/app/global-admin/tenant-form/tenant-form.model.spec.ts` covers create/edit payload shaping, including primary-domain normalization and path rejection before the RPC call, plus disabled submit state for invalid, submitting, and mutation-pending tenant writes.
 - `src/app/global-admin/tenant-list/tenant-list.rows.spec.ts` covers global-admin tenant operational rows, readable Stripe account labels, and search across support fields including connected Stripe account ids.
+- `src/app/global-admin/tenant-detail/tenant-detail.component.spec.ts` covers
+  the tenant-domain external-link helper so malformed legacy tenant domains fail
+  closed instead of becoming "Open tenant domain" links.
 - `src/server/effect/rpc/handlers/global-admin.handlers.spec.ts` covers explicit `globalAdmin:manageTenants` authorization, `globalAdmin:*` dependency authorization, tenant create/update normalization, and fail-closed forbidden/unauthorized tenant-list reads before querying tenants.
 - `src/server/context/request-context-resolver.spec.ts` covers host-first tenant resolution, localhost tenant-cookie fallback, stale localhost tenant-cookie fallback, unknown-host failure, global-admin permissions resolving without a tenant user assignment, and tenant-user context failing closed when the Auth0 user has no current-tenant assignment.
 - Playwright browser probing was limited because the bundled Playwright browser was not installed and stored auth states were stale; system Chrome confirmed anonymous/global-admin redirects to Auth0.
@@ -1773,6 +1776,9 @@ implement those decisions or explicitly revise them there before changing code.
 - Profile checkout-link guard pass: constrained profile payment-continuation
   links to pending Stripe Checkout HTTPS URLs so malformed or unexpected stored
   checkout values do not render as actionable profile links.
+- Global-admin tenant-domain link pass: constrained the tenant-detail "Open
+  tenant domain" link to single-host tenant domain values so malformed legacy
+  domain data fails closed on the support review surface.
 
 ## Review Next
 
