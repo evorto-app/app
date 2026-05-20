@@ -107,7 +107,7 @@
                 </span>
                 <div class="flex items-center gap-1">
                   <span class="font-medium">{{
-                    option.registrationMode | titlecase
+                    registrationModeLabel(option.registrationMode)
                   }}</span>
                   <span class="text-on-surface-variant">·</span>
                   @if (option.isPaid) {
