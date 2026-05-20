@@ -584,7 +584,10 @@ the current working direction until a product decision overrides them.
 - `tests/specs/events/registration-transfer.test.ts` covers the page-backed
   participant self-service unpaid transfer flow by opening the event page,
   submitting the transfer dialog with an eligible target member email, and
-  reading back the transferred registration row.
+  explicitly reading back the transferred registration row.
+- `tests/specs/events/negative-registration-states.spec.ts` covers the
+  participant-facing waitlist affordance for a full first-come-first-served
+  option and explicitly reads back the created waitlist registration.
 - `src/app/events/event-registration-option/event-registration-option.component.spec.ts` covers registration-card state for full options, distinct waitlist availability, remaining-capacity guest selection helpers, participant registration/write action disabling, and too-early/too-late registration windows without requiring a page-backed browser.
 - `src/app/events/event-registration-option/event-registration-option.component.spec.ts` covers that stored `random` and `application` participant options do not expose a waitlist affordance even when full.
 - `src/server/effect/rpc/handlers/events/event-registration.service.spec.ts` covers server-side rejection for duplicate active registration, unpublished events, closed registration windows, role-ineligible users, cross-tenant options, full options, unsupported registration modes, same-event second registrations across options, transactional duplicate races, transactional capacity races, participant waitlist joining, and participant guest quantities.
@@ -1793,6 +1796,9 @@ implement those decisions or explicitly revise them there before changing code.
   for closed registration windows, role-ineligible direct links, and full
   participant-option waitlist affordances. Execution still depends on local
   runtime secrets and the matching Playwright browser cache.
+- Event registration readback-hardening pass: made self-service transfer and
+  waitlist Playwright specs fail explicitly when the expected transferred or
+  waitlisted registration row is missing after the page flow.
 - Registration unavailable-state docs pass: extended the registration generated
   docs journey with page-backed closed-window, full-option waitlist, and
   role-ineligible direct-link states, so negative registration behavior is

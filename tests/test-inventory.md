@@ -167,7 +167,11 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   add-on availability.
 - `specs/events/registration-transfer.test.ts` adds page-backed coverage for
   the regular user's self-service unpaid transfer dialog and database readback
-  to the target tenant member.
+  to the target tenant member, failing explicitly if the transferred row is
+  missing.
+- `specs/events/negative-registration-states.spec.ts` adds page-backed waitlist
+  coverage for full first-come-first-served options with explicit persisted
+  waitlist registration readback.
 - `docs/events/register.doc.ts` includes a generated unpaid transfer journey,
   including the transfer dialog, eligible target email entry, and the explicit
   paid-transfer/resale deferral.

@@ -80,6 +80,9 @@ test('regular user transfers an unpaid confirmed registration by email', async (
         tenantId: tenant.id,
       },
     });
-  expect(transferredRegistration?.userId).toBe(targetUser.id);
-  expect(transferredRegistration?.status).toBe('CONFIRMED');
+  if (!transferredRegistration) {
+    throw new Error('Expected transferred registration after transfer flow');
+  }
+  expect(transferredRegistration.userId).toBe(targetUser.id);
+  expect(transferredRegistration.status).toBe('CONFIRMED');
 });
