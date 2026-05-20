@@ -261,10 +261,11 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     credential-gated.
   - Notification or email follow-up behavior once the product path exists.
 - Scanning/check-in:
-  - Browser-backed organizer aggregate assertions after scan check-in.
-  - Browser-backed organizer aggregate assertions after guest-quantity scan
-    behavior. Local app coverage already proves organizer overview stat
-    aggregation reads the same `checkedInSpots` counter updated by scanner
+  - Manual Browser-backed organizer aggregate review once local runtime is
+    available. The page-backed scanner spec now confirms buyer-plus-guest
+    check-in, persists the scanner counters, and asserts the organizer overview
+    checked-in aggregate. Local app coverage also proves organizer overview
+    stat aggregation reads the same `checkedInSpots` counter updated by scanner
     check-in mutations, and scanned-registration component coverage pins
     check-in button labels plus selected spot-count copy. Event-management docs
     now call out that guest-quantity check-in increments the organizer
