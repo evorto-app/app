@@ -322,6 +322,10 @@ Those flows should be documented separately when they exist in the product.
         checkedInGuestCount: 2,
         checkedInSpots: initialCheckedInSpots + 3,
       });
+    await page.goto(`/events/${scannerEventId}/organize`);
+    await expect(page.getByTestId('event-organize-checked-in-stat')).toHaveText(
+      new RegExp(`^${initialCheckedInSpots + 3}\\s*Checked In$`),
+    );
   } finally {
     await database
       .delete(eventRegistrations)

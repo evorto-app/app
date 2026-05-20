@@ -1096,7 +1096,9 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** scanner Playwright coverage now creates
   explicit confirmed registrations against the seeded past event instead of
   relying on generated filler registrations, so buyer-plus-guest and remaining
-  guest-arrival assertions stay tied to deterministic fixture state.
+  guest-arrival assertions stay tied to deterministic fixture state. Both
+  page-backed scanner paths now assert the organizer overview checked-in
+  aggregate after the mutation.
 - **Acceptable for now:** QR code display is limited to confirmed registrations in the active registration UI, so pending paid registrations do not show the ticket card there.
 
 ### Test and Documentation Quality
@@ -1486,7 +1488,7 @@ the current working direction until a product decision overrides them.
   documentation journey, covering a generated Auth0 user creating a tenant
   account, landing on profile, persisted account fields, tenant/default-role
   assignment, and cleanup.
-- **Addressed in stabilization pass:** scanning/check-in docs now describe the dedicated QR scanner, scan warnings, authorization, checked-in count updates, and selected guest-quantity check-in. The remaining scanner follow-up is manual Browser-backed runtime review, not missing automated aggregate coverage or product documentation.
+- **Addressed in stabilization pass:** scanning/check-in docs now describe the dedicated QR scanner, scan warnings, authorization, checked-in count updates, and selected guest-quantity check-in. Generated docs now assert the organizer checked-in aggregate after the scanner mutation. The remaining scanner follow-up is manual Browser-backed runtime review, not missing automated aggregate coverage or product documentation.
 - **Addressed in stabilization pass:** scanner Playwright coverage now includes
   the partial guest-arrival case where the buyer and one guest were already
   checked in, then a later scan records the remaining guest without re-counting
@@ -2386,6 +2388,9 @@ implement those decisions or explicitly revise them there before changing code.
 - Scanner docs persistence pass: extended event-management docs to execute the
   generated guest check-in, assert the persisted check-in time, selected guest
   count, and checked-in counter, and restore the seeded event option counter.
+- Scanner aggregate assertion pass: extended the later-guest-arrival scanner
+  spec and event-management generated doc to assert the organizer overview
+  checked-in aggregate after scanner writes, not only the database counter.
 
 ## Review Next
 
