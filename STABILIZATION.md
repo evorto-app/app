@@ -2021,6 +2021,9 @@ implement those decisions or explicitly revise them there before changing code.
   with implemented brand-asset uploads and hosted legal routes, and added a
   source guard so those docs do not describe implemented settings as deferred
   again.
+- Generated template docs source-guard pass: pinned the template guide to the
+  role-autocomplete hard failures that prove seeded role options exist and have
+  names before documenting duplicate-hiding behavior.
 - Playwright spec metadata pass: removed placeholder `@track`/`@req` title
   metadata from active Playwright specs while keeping meaningful suite tags such
   as `@finance`, `@stripe`, `@permissions`, `@taxRates`, and `@isolation`.

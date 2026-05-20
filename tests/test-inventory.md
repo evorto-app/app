@@ -229,7 +229,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   relaunch scope. It also keeps profile/account docs aligned with implemented
   notification-email semantics, global reimbursement details, event-card
   routing/check-in copy, submitted receipt visibility, account-creation retry
-  errors, and existing-global-user tenant joins.
+  errors, existing-global-user tenant joins, and template role-picker
+  hard-failure guards before duplicate-hiding docs are emitted.
 - `helpers/testing/authorization-source.spec.ts` keeps server permission checks
   routed through the shared evaluator path and keeps role lookup contracts free
   of permission-bearing admin role fields.
