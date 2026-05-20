@@ -1,6 +1,13 @@
+import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { eq } from 'drizzle-orm';
 
-import { adminStateFile } from '../../../helpers/user-data';
+import { getId } from '../../../helpers/get-id';
+import type { SeedTenantResult } from '../../../helpers/seed-tenant';
+import {
+  adminStateFile,
+  usersToAuthenticate,
+} from '../../../helpers/user-data';
+import type { relations } from '../../../src/db/relations';
 import {
   eventRegistrationOptions,
   eventRegistrations,
@@ -9,50 +16,27 @@ import { expect, test } from '../../support/fixtures/parallel-test';
 
 test.use({ storageState: adminStateFile });
 
-test.skip('scan confirmed registration records check-in', async ({
+type TestDatabase = NodePgDatabase<typeof relations>;
+
+const requireScannerFixture = async ({
   database,
-  page,
-  registrations,
-  tenant,
+  seeded,
+}: {
+  database: TestDatabase;
+  seeded: SeedTenantResult;
 }) => {
-  let confirmedRegistration: (typeof registrations)[number] | undefined;
-  let registrationBefore:
-    | {
-        checkInTime: Date | null;
-        checkedInGuestCount: number;
-        guestCount: number;
-        registrationOptionId: string;
-      }
-    | undefined;
-
-  for (const registration of registrations) {
-    if (
-      registration.status !== 'CONFIRMED' ||
-      registration.tenantId !== tenant.id
-    ) {
-      continue;
-    }
-
-    const candidate = await database.query.eventRegistrations.findFirst({
-      columns: {
-        checkInTime: true,
-        checkedInGuestCount: true,
-        guestCount: true,
-        registrationOptionId: true,
-      },
-      where: { id: registration.id },
-    });
-
-    if (candidate?.checkInTime === null) {
-      confirmedRegistration = registration;
-      registrationBefore = candidate;
-      break;
-    }
+  const eventId = seeded.scenario.events.past.eventId;
+  const event = seeded.events.find((seededEvent) => seededEvent.id === eventId);
+  if (!event) {
+    throw new Error('Expected seeded past event for scanner coverage');
   }
 
-  if (!confirmedRegistration || !registrationBefore) {
+  const registrationOption = event.registrationOptions.find(
+    (option) => !option.organizingRegistration,
+  );
+  if (!registrationOption) {
     throw new Error(
-      'Expected an unchecked confirmed registration in the seeded scanner fixtures',
+      'Expected participant registration option for scanner coverage',
     );
   }
 
@@ -60,24 +44,53 @@ test.skip('scan confirmed registration records check-in', async ({
     columns: {
       checkedInSpots: true,
     },
-    where: { id: registrationBefore.registrationOptionId },
+    where: {
+      eventId,
+      id: registrationOption.id,
+      tenantId: seeded.tenant.id,
+    },
   });
   if (!optionBefore) {
     throw new Error(
-      `Expected registration option "${registrationBefore.registrationOptionId}" for seeded scanner registration`,
+      `Expected registration option "${registrationOption.id}" for seeded scanner event`,
     );
   }
 
-  try {
-    await database
-      .update(eventRegistrations)
-      .set({
-        checkedInGuestCount: 0,
-        guestCount: 2,
-      })
-      .where(eq(eventRegistrations.id, confirmedRegistration.id));
+  const regularUser = usersToAuthenticate.find((user) => user.roles === 'user');
+  if (!regularUser) {
+    throw new Error('Expected regular user fixture for scanner coverage');
+  }
 
-    await page.goto(`/scan/registration/${confirmedRegistration.id}`);
+  return {
+    eventId,
+    optionBefore,
+    registrationOptionId: registrationOption.id,
+    tenantId: seeded.tenant.id,
+    userId: regularUser.id,
+  };
+};
+
+test.skip('scan confirmed registration records check-in', async ({
+  database,
+  page,
+  seeded,
+}) => {
+  const scannerFixture = await requireScannerFixture({ database, seeded });
+  const registrationId = getId();
+
+  try {
+    await database.insert(eventRegistrations).values({
+      checkedInGuestCount: 0,
+      eventId: scannerFixture.eventId,
+      guestCount: 2,
+      id: registrationId,
+      registrationOptionId: scannerFixture.registrationOptionId,
+      status: 'CONFIRMED',
+      tenantId: scannerFixture.tenantId,
+      userId: scannerFixture.userId,
+    });
+
+    await page.goto(`/scan/registration/${registrationId}`);
     await expect(
       page.getByRole('heading', { name: 'Registration scanned' }),
     ).toBeVisible();
@@ -95,13 +108,13 @@ test.skip('scan confirmed registration records check-in', async ({
             checkInTime: true,
             checkedInGuestCount: true,
           },
-          where: { id: confirmedRegistration.id },
+          where: { id: registrationId },
         });
         const option = await database.query.eventRegistrationOptions.findFirst({
           columns: {
             checkedInSpots: true,
           },
-          where: { id: registrationBefore.registrationOptionId },
+          where: { id: scannerFixture.registrationOptionId },
         });
 
         return {
@@ -113,30 +126,24 @@ test.skip('scan confirmed registration records check-in', async ({
       .toEqual({
         checkedIn: true,
         checkedInGuestCount: 2,
-        checkedInSpots: optionBefore.checkedInSpots + 3,
+        checkedInSpots: scannerFixture.optionBefore.checkedInSpots + 3,
       });
 
-    await page.goto(`/events/${confirmedRegistration.eventId}/organize`);
+    await page.goto(`/events/${scannerFixture.eventId}/organize`);
     await expect(page.getByTestId('event-organize-checked-in-stat')).toHaveText(
-      new RegExp(`^${optionBefore.checkedInSpots + 3}\\s*Checked In$`),
+      new RegExp(
+        `^${scannerFixture.optionBefore.checkedInSpots + 3}\\s*Checked In$`,
+      ),
     );
   } finally {
     await database
-      .update(eventRegistrations)
-      .set({
-        checkInTime: null,
-        checkedInGuestCount: registrationBefore.checkedInGuestCount,
-        guestCount: registrationBefore.guestCount,
-      })
-      .where(eq(eventRegistrations.id, confirmedRegistration.id));
+      .delete(eventRegistrations)
+      .where(eq(eventRegistrations.id, registrationId));
     await database
       .update(eventRegistrationOptions)
-      .set({ checkedInSpots: optionBefore.checkedInSpots })
+      .set({ checkedInSpots: scannerFixture.optionBefore.checkedInSpots })
       .where(
-        eq(
-          eventRegistrationOptions.id,
-          registrationBefore.registrationOptionId,
-        ),
+        eq(eventRegistrationOptions.id, scannerFixture.registrationOptionId),
       );
   }
 });
@@ -144,74 +151,33 @@ test.skip('scan confirmed registration records check-in', async ({
 test('scan checked-in registration records remaining guest arrival', async ({
   database,
   page,
-  registrations,
   seedDate,
-  tenant,
+  seeded,
 }) => {
-  let confirmedRegistration: (typeof registrations)[number] | undefined;
-  let registrationBefore:
-    | {
-        checkInTime: Date | null;
-        checkedInGuestCount: number;
-        guestCount: number;
-        registrationOptionId: string;
-      }
-    | undefined;
-
-  for (const registration of registrations) {
-    if (
-      registration.status !== 'CONFIRMED' ||
-      registration.tenantId !== tenant.id
-    ) {
-      continue;
-    }
-
-    const candidate = await database.query.eventRegistrations.findFirst({
-      columns: {
-        checkInTime: true,
-        checkedInGuestCount: true,
-        guestCount: true,
-        registrationOptionId: true,
-      },
-      where: { id: registration.id },
-    });
-
-    if (candidate) {
-      confirmedRegistration = registration;
-      registrationBefore = candidate;
-      break;
-    }
-  }
-
-  if (!confirmedRegistration || !registrationBefore) {
-    throw new Error(
-      'Expected a confirmed registration in the seeded scanner fixtures',
-    );
-  }
-
-  const optionBefore = await database.query.eventRegistrationOptions.findFirst({
-    columns: {
-      checkedInSpots: true,
-    },
-    where: { id: registrationBefore.registrationOptionId },
-  });
-  if (!optionBefore) {
-    throw new Error(
-      `Expected registration option "${registrationBefore.registrationOptionId}" for seeded scanner registration`,
-    );
-  }
+  const scannerFixture = await requireScannerFixture({ database, seeded });
+  const registrationId = getId();
+  const checkedInBaseline = scannerFixture.optionBefore.checkedInSpots + 2;
 
   try {
+    await database.insert(eventRegistrations).values({
+      checkedInGuestCount: 1,
+      checkInTime: seedDate,
+      eventId: scannerFixture.eventId,
+      guestCount: 2,
+      id: registrationId,
+      registrationOptionId: scannerFixture.registrationOptionId,
+      status: 'CONFIRMED',
+      tenantId: scannerFixture.tenantId,
+      userId: scannerFixture.userId,
+    });
     await database
-      .update(eventRegistrations)
-      .set({
-        checkedInGuestCount: 1,
-        checkInTime: seedDate,
-        guestCount: 2,
-      })
-      .where(eq(eventRegistrations.id, confirmedRegistration.id));
+      .update(eventRegistrationOptions)
+      .set({ checkedInSpots: checkedInBaseline })
+      .where(
+        eq(eventRegistrationOptions.id, scannerFixture.registrationOptionId),
+      );
 
-    await page.goto(`/scan/registration/${confirmedRegistration.id}`);
+    await page.goto(`/scan/registration/${registrationId}`);
     await expect(
       page.getByRole('heading', { name: 'Registration scanned' }),
     ).toBeVisible();
@@ -232,13 +198,13 @@ test('scan checked-in registration records remaining guest arrival', async ({
             checkInTime: true,
             checkedInGuestCount: true,
           },
-          where: { id: confirmedRegistration.id },
+          where: { id: registrationId },
         });
         const option = await database.query.eventRegistrationOptions.findFirst({
           columns: {
             checkedInSpots: true,
           },
-          where: { id: registrationBefore.registrationOptionId },
+          where: { id: scannerFixture.registrationOptionId },
         });
 
         return {
@@ -250,25 +216,17 @@ test('scan checked-in registration records remaining guest arrival', async ({
       .toEqual({
         checkedIn: true,
         checkedInGuestCount: 2,
-        checkedInSpots: optionBefore.checkedInSpots + 1,
+        checkedInSpots: checkedInBaseline + 1,
       });
   } finally {
     await database
-      .update(eventRegistrations)
-      .set({
-        checkInTime: registrationBefore.checkInTime,
-        checkedInGuestCount: registrationBefore.checkedInGuestCount,
-        guestCount: registrationBefore.guestCount,
-      })
-      .where(eq(eventRegistrations.id, confirmedRegistration.id));
+      .delete(eventRegistrations)
+      .where(eq(eventRegistrations.id, registrationId));
     await database
       .update(eventRegistrationOptions)
-      .set({ checkedInSpots: optionBefore.checkedInSpots })
+      .set({ checkedInSpots: scannerFixture.optionBefore.checkedInSpots })
       .where(
-        eq(
-          eventRegistrationOptions.id,
-          registrationBefore.registrationOptionId,
-        ),
+        eq(eventRegistrationOptions.id, scannerFixture.registrationOptionId),
       );
   }
 });
