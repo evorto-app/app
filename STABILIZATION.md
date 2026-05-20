@@ -880,6 +880,11 @@ the current working direction until a product decision overrides them.
   shares one disabled guard between the queue button and handler so missing
   selections, missing payout details, and mutation-pending writes cannot record
   duplicate reimbursement transactions on slow networks.
+- **Addressed in stabilization pass:** receipt preview rendering now rejects
+  non-network preview URLs before showing image previews, iframe PDF previews,
+  or "open in new tab" links. This keeps signed R2/MinIO HTTP(S) preview URLs
+  usable while preventing malformed, `javascript:`, `data:`, or local
+  placeholder URLs from being trusted by the Angular resource sanitizer.
 - **Acceptable for now:** receipt review/reimbursement queries are tenant-scoped, and receipt reimbursement creation uses a transaction plus status preconditions to avoid reimbursing the wrong submitter or already-reimbursed receipts.
 
 ### Test and Documentation Quality
@@ -1473,6 +1478,9 @@ implement those decisions or explicitly revise them there before changing code.
 - Receipt reimbursement action guard pass: shared the reimbursement record
   disabled state and handler early return so missing payout inputs and
   mutation-pending writes cannot duplicate reimbursement transactions.
+- Receipt preview URL guard pass: shared receipt preview URL validation between
+  approval details, reimbursement previews, and preview dialogs so only HTTP(S)
+  or app-relative URLs are rendered or opened.
 - Scanner action guard pass: kept the scanned-registration check-in action
   disabled after a successful local write while the scan-result query refetches,
   with the template and handler sharing the same tested helper.
