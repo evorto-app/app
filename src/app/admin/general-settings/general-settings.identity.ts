@@ -15,7 +15,9 @@ export const tenantIdentityRows = (tenant: TenantIdentity) => [
   { label: 'Timezone', value: tenant.timezone },
   {
     label: 'Stripe account',
-    value: tenant.stripeAccountId ? 'Connected' : 'Not connected',
+    value: tenant.stripeAccountId
+      ? `Connected (${tenant.stripeAccountId})`
+      : 'Not connected',
   },
 ];
 
