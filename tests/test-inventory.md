@@ -151,17 +151,20 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 ## Stabilization Coverage Still Needed
 
 - Profile/account:
-  - Keep profile edit persistence documentation aligned with the notification
-    email behavior.
+  - Browser-backed profile edit persistence after saving notification email and
+    optional global reimbursement details. Generated docs already exercise the
+    notification-email edit/restore path, and app helper coverage proves payload
+    trimming and blank-value normalization before persistence.
   - Browser-backed profile event-card assertions for event links, registration
     status, guest quantity, payment state, and check-in state.
     App coverage already proves event-detail action copy, guest/status/payment
     labels, deferred-action notes, waitlist event-page routing, and the
     payment-continuation next-step copy.
-  - Profile ESNcard save, refresh, and remove flows with readable error states.
+  - Browser-backed ESNcard add, refresh, and remove flows with readable error
+    states.
     App and server coverage already prove upsert payload normalization,
-    readable mutation errors, global per-user card reads/upserts, refresh
-    persistence, and scoped removal.
+    readable mutation errors, save/refresh/remove action states, global
+    per-user card reads/upserts, refresh persistence, and scoped removal.
     App coverage also proves the `#discounts` profile fragment waits for
     tenant ESNcard provider availability before selecting the section.
   - Browser-backed account-creation retry and tenant-join behavior. Server
@@ -178,6 +181,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     Root route-manifest coverage keeps `/create-account` reachable to
     authenticated users without a tenant assignment while protected feature
     routes keep assigned-account and auth guards.
+  - Browser-backed submitted-receipt visibility after a receipt submission.
+    Local app/server coverage already proves readable submitted-receipt status
+    labels, amount formatting, and `finance.receipts.my` profile-card row
+    normalization.
 - Finance/receipts:
   - Keep finance route-denial cases and route-manifest specs aligned as
     transaction, receipt approval, and reimbursement routes change.
