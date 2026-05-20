@@ -64,6 +64,11 @@ bun run lint
 - Docker keeps `BASE_URL` browser-facing for Auth0 redirects and sets
   `SSR_RPC_ORIGIN=http://localhost:4200` so SSR RPC calls stay inside the app
   container instead of calling the host-mapped port.
+- Auth0 callback URLs are registered out-of-band. Worktree-local generated
+  ports keep stacks isolated, but authenticated Browser/Playwright validation
+  needs a callback URL Auth0 accepts. On this machine, run Docker-backed
+  authenticated checks with `APP_HOST_PORT=4200 bun run docker:start` unless the
+  generated worktree port has also been added to the Auth0 application.
 - Local `dev:start`, `test:e2e`, `test:e2e:ui`, `test:e2e:integration`, `test:e2e:docs`, `db:*`, and `docker:*` package scripts refresh `.env.dev` before invoking `dotenv -c dev`, so new worktrees get isolated local app/service ports and database URLs by default.
 - `bun run docker:check` fails before Docker Compose mutates local containers
   when required local runtime variables are missing. The check covers Neon

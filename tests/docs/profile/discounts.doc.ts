@@ -57,12 +57,14 @@ Provider outages are not treated as invalid cards. When esncard.org or the provi
   });
 });
 
+const seededEsnCardIdentifier = 'TEST-ESN-0001';
+
 test('Manage ESN discount card @finance', async ({
   database,
+  discounts,
   page,
-  tenant,
 }, testInfo) => {
-  const seededEsnCardIdentifier = `TEST-ESN-0001-${tenant.id.slice(0, 6)}`;
+  void discounts;
   const regularUser = usersToAuthenticate.find(
     (user) => user.stateFile === userStateFile,
   );
@@ -85,7 +87,7 @@ Open your profile's **Discounts** section directly when you want to review or up
   await expect(
     page.getByRole('heading', { level: 2, name: 'Discount Cards' }),
   ).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByText('ESN card')).toBeVisible();
+  await expect(page.getByText('ESN card', { exact: true })).toBeVisible();
   await expect(page.getByText(seededEsnCardIdentifier)).toBeVisible();
   await expect(page.getByText(/Status: Verified/)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Refresh' })).toBeVisible();
@@ -119,6 +121,7 @@ If you already added your ESN card, you will see a readable verification status 
   });
 
   await page.getByRole('textbox', { name: 'ESN card number' }).fill('short');
+  await page.getByRole('textbox', { name: 'ESN card number' }).press('Tab');
   await expect(page.getByText(/Enter a valid ESN card number/)).toBeVisible();
   await expect(
     page.getByRole('button', { name: 'Save ESN card' }),

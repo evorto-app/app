@@ -98,6 +98,12 @@ internal listener (`http://localhost:4200`). Server-side rendering uses
 `SSR_RPC_ORIGIN` for in-container RPC calls; browser-side RPC calls still use the
 normal `/rpc` relative path.
 
+Auth0 callback URLs are configured outside this repository. The runtime helper
+may generate a non-4200 app port for worktree isolation, but authenticated local
+Browser or Playwright runs only work when that exact callback URL is registered
+in Auth0. If the generated port is not registered, free port 4200 and start the
+stack with `APP_HOST_PORT=4200 bun run docker:start`.
+
 Run `bun run docker:check` before investigating Docker startup failures. The
 check validates required local secrets before Compose tears down or starts
 containers, including Neon Local, Auth0, Stripe, the app session secret, and
