@@ -2462,14 +2462,18 @@ implement those decisions or explicitly revise them there before changing code.
   Playwright spec so full stored unsupported modes still render as full without
   exposing normal registration or waitlist actions, matching the fail-closed
   server policy and local component helper coverage.
-- Negative registration Docker pass: rebuilt the Docker stack with the required
-  Font Awesome premium and brand icon registry token path intact, then validated
-  the negative-registration, self-transfer, and generated registration-doc flows
-  with system Chrome. The browser fixtures now use server-future event windows,
-  direct Drizzle selects where relational filters no longer accept SQL
-  predicates, explicit transaction currency for paid-transfer fixtures, and
-  regular-user role-ineligibility setup that restores touched registration
-  option state.
+- Events/registration Docker pass: rebuilt the Docker stack with the required
+  Font Awesome premium and brand icon registry token path intact, then
+  revalidated the running app on local port 4577 with system Chrome. The
+  functional slice covered event browsing, free registration, negative
+  registration states, registration add-ons/questions, unpaid transfer,
+  paid-transfer deferral/cancellation refund-ledger behavior, and unlisted
+  visibility. The generated docs slice covered registration, event management,
+  event approval, and unlisted event flows. The browser fixtures now use
+  server-future event windows, direct Drizzle selects where relational filters
+  no longer accept SQL predicates, explicit transaction currency for
+  paid-transfer fixtures, and regular-user role-ineligibility setup that
+  restores touched registration option state.
 - Free registration fixture-hardening pass: made the free registration and
   registration add-on Playwright specs assert the seeded `freeOpen` event option
   exists for the current tenant before they reset counters or attach add-ons, so
