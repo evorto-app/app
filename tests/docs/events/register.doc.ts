@@ -1,6 +1,11 @@
 import { and, eq } from 'drizzle-orm';
+import type { Page } from '@playwright/test';
 
-import { userStateFile, usersToAuthenticate } from '../../../helpers/user-data';
+import {
+  emptyStateFile,
+  userStateFile,
+  usersToAuthenticate,
+} from '../../../helpers/user-data';
 import * as schema from '../../../src/db/schema';
 import { fillTestCard } from '../../support/utils/fill-test-card';
 import { expect, test } from '../../support/fixtures/parallel-test';
@@ -9,13 +14,15 @@ import { seedFreeRegistrationAddon } from '../../support/utils/seed-registration
 
 test.use({ storageState: userStateFile, trace: 'on-first-retry' });
 
-test.skip(
-  true,
-  'Event registration docs are completed by a later stacked slice.',
-);
+const waitForRegistrationStatus = async (page: Page) => {
+  await page
+    .getByText('Loading registration status')
+    .first()
+    .waitFor({ state: 'detached' });
+};
 
 test.describe('Register for events', () => {
-  test.describe.configure({ retries: 1 });
+  test.describe.configure({ mode: 'serial', retries: 1 });
 
   test('Register for a free event', async ({
     database,
@@ -78,10 +85,7 @@ test.describe('Register for events', () => {
     await expect(
       page.getByRole('heading', { level: 1, name: freeEvent.title }),
     ).toBeVisible();
-    await page
-      .getByText('Loading registration status')
-      .first()
-      .waitFor({ state: 'detached' });
+    await waitForRegistrationStatus(page);
     await testInfo.attach('markdown', {
       body: `
   After you have selected your event, you can see the event description and your options for registration.
@@ -133,6 +137,139 @@ test.describe('Register for events', () => {
       page,
       'Event details after registration',
     );
+  });
+
+  test('Review unavailable registration states', async ({
+    database,
+    page,
+    seeded,
+    tenant,
+  }, testInfo) => {
+    const regularUser =
+      usersToAuthenticate.find((user) => user.roles === 'user') ??
+      usersToAuthenticate[0];
+    const closedEventId = seeded.scenario.events.closedReg.eventId;
+    const fullEventId = seeded.scenario.events.freeOpen.eventId;
+    const fullOptionId = seeded.scenario.events.freeOpen.optionId;
+    const fullOption = await database.query.eventRegistrationOptions.findFirst({
+      where: { id: fullOptionId, tenantId: tenant.id },
+    });
+    if (!regularUser || !fullOption) {
+      throw new Error(
+        'Expected regular user and seeded free registration option',
+      );
+    }
+
+    await testInfo.attach('markdown', {
+      body: `
+  ## Registration unavailable states
+
+  Event pages stay readable when registration is not currently possible. The registration card explains the current state instead of showing an action that cannot succeed.
+`,
+    });
+
+    await database
+      .delete(schema.eventRegistrations)
+      .where(
+        and(
+          eq(schema.eventRegistrations.eventId, closedEventId),
+          eq(schema.eventRegistrations.tenantId, tenant.id),
+          eq(schema.eventRegistrations.userId, regularUser.id),
+        ),
+      );
+    await page.goto(`/events/${closedEventId}`);
+    await waitForRegistrationStatus(page);
+    await expect(page.getByText('Registration is closed')).toBeVisible();
+    await expect(page.getByRole('button', { name: /^Register$/ })).toHaveCount(
+      0,
+    );
+    await takeScreenshot(
+      testInfo,
+      page.locator('section').filter({ hasText: 'Registration' }),
+      page,
+      'Closed registration window',
+    );
+
+    await testInfo.attach('markdown', {
+      body: `
+  When the registration window is closed, participants can still read the event details, but the registration action is removed.
+`,
+    });
+
+    await database
+      .delete(schema.eventRegistrations)
+      .where(
+        and(
+          eq(schema.eventRegistrations.eventId, fullEventId),
+          eq(schema.eventRegistrations.tenantId, tenant.id),
+          eq(schema.eventRegistrations.userId, regularUser.id),
+        ),
+      );
+    await database
+      .update(schema.eventRegistrationOptions)
+      .set({
+        confirmedSpots: fullOption.spots,
+        reservedSpots: 0,
+        waitlistSpots: 0,
+      })
+      .where(eq(schema.eventRegistrationOptions.id, fullOptionId));
+    await page.goto(`/events/${fullEventId}`);
+    await waitForRegistrationStatus(page);
+    await expect(page.getByText('This option is full.')).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Join waitlist' }),
+    ).toBeVisible();
+    await expect(page.getByRole('button', { name: /^Register$/ })).toHaveCount(
+      0,
+    );
+    await takeScreenshot(
+      testInfo,
+      page.locator('section').filter({ hasText: 'Registration' }),
+      page,
+      'Full registration option with waitlist',
+    );
+
+    await testInfo.attach('markdown', {
+      body: `
+  Full participant options expose a distinct **Join waitlist** action. Waitlist registration is separate from a confirmed registration, and a normal **Register** button is not shown while the option is full.
+`,
+    });
+  });
+
+  test.describe('without eligible roles', () => {
+    test.use({ storageState: emptyStateFile });
+
+    test('Review role-ineligible registration state', async ({
+      page,
+      seeded,
+    }, testInfo) => {
+      await page.goto(`/events/${seeded.scenario.events.freeOpen.eventId}`);
+      await waitForRegistrationStatus(page);
+
+      await expect(
+        page.getByRole('heading', { name: 'Registration unavailable' }),
+      ).toBeVisible();
+      await expect(
+        page.getByText(
+          'This event is visible from the direct link, but your account is not eligible for the available registration options.',
+        ),
+      ).toBeVisible();
+      await expect(
+        page.getByRole('button', { name: /^Register$/ }),
+      ).toHaveCount(0);
+      await takeScreenshot(
+        testInfo,
+        page.locator('section').filter({ hasText: 'Registration' }),
+        page,
+        'Role-ineligible registration state',
+      );
+
+      await testInfo.attach('markdown', {
+        body: `
+  Direct event links remain readable for signed-in users without eligible tenant roles. The registration area states that the current account is not eligible instead of hiding the event or rendering an empty registration section.
+`,
+      });
+    });
   });
 
   test('Register for a paid event', async ({
@@ -197,10 +334,7 @@ test.describe('Register for events', () => {
     });
     await page.goto(`/events/${paidEvent.id}`);
     await expect(page).toHaveURL(new RegExp(`/events/${paidEvent.id}`));
-    await page
-      .getByText('Loading registration status')
-      .first()
-      .waitFor({ state: 'detached' });
+    await waitForRegistrationStatus(page);
     await takeScreenshot(
       testInfo,
       page.getByRole('heading', { level: 2, name: 'Registration' }),

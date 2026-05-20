@@ -373,6 +373,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     closed-window rejection, role eligibility, unsupported stored
     registration-mode rejection, unsupported-mode no-waitlist card behavior,
     waitlist joining, and leave-waitlist cancellation.
+  - `docs/events/register.doc.ts` now includes generated documentation
+    journeys for closed registration windows, full participant options with a
+    waitlist action, and role-ineligible direct links, in addition to free and
+    paid registration walkthroughs.
   - Browser-backed execution of those assertions still depends on local runtime
     availability and either the matching Playwright Chromium cache or
     `E2E_BROWSER_CHANNEL=chrome` on a host with system Chrome installed.
