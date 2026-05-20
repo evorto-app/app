@@ -1031,6 +1031,9 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** scanner URL parsing now explicitly accepts absolute URLs from any origin by product decision, but only when the path is exactly `/scan/registration/:registrationId`; malformed payloads and extra path segments are rejected before navigation.
 - **Addressed in stabilization pass:** scanner camera startup is awaited and maps denied permission, missing devices, and busy devices into visible retryable error messages. The scanner also shows a starting state and keeps a retry button available after camera startup failures.
 - **Addressed in stabilization pass:** scanner guest-quantity behavior is explicit. Organizers can choose how many remaining guests to check in with the buyer, and later scans can record additional guest arrivals without re-counting the buyer.
+- **Addressed in stabilization pass:** direct check-in writes now have server
+  coverage for invalid guest-count payloads, including negative counts and
+  counts above the remaining guest quantity.
 - **Addressed in this stabilization pass:** scanner guest-count input handling now has focused app coverage that clamps blank, invalid, negative, and over-limit guest selections before the check-in mutation payload is built.
 - **Addressed in stabilization pass:** scanned-registration check-in copy now uses readable singular/plural spot labels, a lower-noise pending label, and clearer future-event warning wording.
 - **Addressed in this stabilization pass:** the scanned-registration check-in action now stays disabled after a successful local check-in while the refreshed scan state catches up, so slow refetches do not briefly expose another write action.
@@ -1040,7 +1043,7 @@ the current working direction until a product decision overrides them.
 
 - `tests/specs/scanning/scanner.test.ts` now clicks "Confirm Check In" with selected guests, asserts that `checkInTime`, `checkedInGuestCount`, and `checkedInSpots` update, and then opens the organizer overview to assert the checked-in aggregate shown there before restoring the seeded row.
 - `src/app/events/event-organize/event-organize.spec.ts` covers organizer overview stat aggregation from registration-option counters, including scanner-updated `checkedInSpots` totals.
-- Server unit coverage proves scan-read denial for unauthorized tenant users, check-in counter updates for organizer access, selected guest check-in behavior, remaining-guest scan behavior after buyer check-in, idempotent duplicate check-in behavior, and same-user check-in denial.
+- Server unit coverage proves scan-read denial for unauthorized tenant users, check-in counter updates for organizer access, selected guest check-in behavior, invalid guest-count rejection, remaining-guest scan behavior after buyer check-in, idempotent duplicate check-in behavior, and same-user check-in denial.
 - `src/server/http/qr-code.web-handler.spec.ts` covers unauthenticated QR denial, owner access, same-event organizer access, other-user denial, and pending-registration denial.
 - `src/app/scanning/scanner/scanner.component.spec.ts` covers scanner URL parsing for current-origin tickets, other-origin tenant tickets, malformed payloads, and non-exact scan paths.
 - `src/app/scanning/handle-registration/handle-registration.component.spec.ts` covers scanned-registration check-in button and spot-count labels.
@@ -1062,6 +1065,8 @@ the current working direction until a product decision overrides them.
 ### Recommended Cleanup Actions
 
 - Keep server tests for same-user scans, unauthorized tenant users, duplicate scans, and counter updates.
+- Keep server tests for invalid guest-count check-in payloads so direct RPC
+  writes cannot bypass the scanner UI clamping.
 - Keep server tests for pending/cancelled/waitlisted registrations.
 - Keep the Playwright scanner spec aligned with the organizer overview/check-in aggregate and run the manual Browser review once local runtime is available.
 - Keep organizer check-in documentation aligned with the dedicated scanner flow as check-in UI and guest-quantity behavior evolve.
@@ -1708,6 +1713,9 @@ implement those decisions or explicitly revise them there before changing code.
 - Finance transaction-list action cleanup: removed the dead manual
   create-transaction link from the transaction list and added a regression
   guard so it stays hidden until an implemented route/workflow exists.
+- Scanner guest-count server validation pass: added direct handler coverage for
+  negative guest-count payloads and guest-count values above the remaining
+  guest quantity before check-in writes can run.
 - Global-admin tenant-list pass: expanded the tenant list contract and UI with
   non-sensitive operational state for support review, including theme,
   locale/currency/timezone, and Stripe connection status.

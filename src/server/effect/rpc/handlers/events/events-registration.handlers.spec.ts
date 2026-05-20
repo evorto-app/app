@@ -1523,6 +1523,103 @@ describe('event registration scan handlers', () => {
     }),
   );
 
+  it.effect(
+    'rejects negative guest check-in counts before reading registration state',
+    () =>
+      Effect.gen(function* () {
+        const database = {
+          query: {
+            eventRegistrations: {
+              findFirst: vi.fn(() =>
+                Effect.die(new Error('registration lookup should not run')),
+              ),
+            },
+          },
+          transaction: vi.fn(),
+        };
+
+        const error = yield* eventRegistrationHandlers[
+          'events.checkInRegistration'
+        ]({ guestCheckInCount: -1, registrationId: 'registration-1' }, {
+          headers: {},
+        } as never).pipe(
+          Effect.flip,
+          Effect.provide(
+            createContextLayer({
+              database,
+              user: createUser({ permissions: ['events:organizeAll'] }),
+            }),
+          ),
+        );
+
+        expect(error['_tag']).toBe('EventRegistrationConflictError');
+        expect(error.message).toBe(
+          'Guest check-in count must be a non-negative integer',
+        );
+        expect(
+          database.query.eventRegistrations.findFirst,
+        ).not.toHaveBeenCalled();
+        expect(database.transaction).not.toHaveBeenCalled();
+      }),
+  );
+
+  it.effect(
+    'rejects guest check-in counts above remaining guests before writing',
+    () =>
+      Effect.gen(function* () {
+        const database = {
+          query: {
+            eventRegistrations: {
+              findFirst: () =>
+                Effect.succeed({
+                  checkedInGuestCount: 1,
+                  checkInTime: null,
+                  event: {
+                    start: new Date(Date.now() + 30 * 60 * 1000),
+                  },
+                  eventId: 'event-1',
+                  guestCount: 2,
+                  id: 'registration-1',
+                  registrationOptionId: 'option-1',
+                  status: 'CONFIRMED',
+                  userId: 'attendee-1',
+                }),
+              findMany: () =>
+                Effect.succeed([
+                  {
+                    id: 'organizer-registration-1',
+                    registrationOption: {
+                      organizingRegistration: true,
+                    },
+                  },
+                ]),
+            },
+          },
+          transaction: vi.fn(),
+        };
+
+        const error = yield* eventRegistrationHandlers[
+          'events.checkInRegistration'
+        ]({ guestCheckInCount: 2, registrationId: 'registration-1' }, {
+          headers: {},
+        } as never).pipe(
+          Effect.flip,
+          Effect.provide(
+            createContextLayer({
+              database,
+              user: createUser({ permissions: ['events:organizeAll'] }),
+            }),
+          ),
+        );
+
+        expect(error['_tag']).toBe('EventRegistrationConflictError');
+        expect(error.message).toBe(
+          'Guest check-in count exceeds remaining guests',
+        );
+        expect(database.transaction).not.toHaveBeenCalled();
+      }),
+  );
+
   it.effect('rejects check-in before the pre-start window opens', () =>
     Effect.gen(function* () {
       const database = {
