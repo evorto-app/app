@@ -20,6 +20,7 @@ test('tenant admin updates relaunch general settings @admin', async ({
   const privacyPolicyUrl = `https://legal.example.org/${tenant.id}/privacy`;
   const termsText = `Hosted terms text ${suffix}`;
   const buyEsnCardUrl = `https://esncard.example.org/${tenant.id}`;
+  const receiptCountries = ['ES', 'FR'];
 
   await page.goto('/admin/settings');
 
@@ -43,6 +44,16 @@ test('tenant admin updates relaunch general settings @admin', async ({
     .fill(` ${legalNoticeText} `);
   await page.getByLabel('Privacy policy URL').fill(` ${privacyPolicyUrl} `);
   await page.getByLabel('Hosted terms text').fill(` ${termsText} `);
+  await page.getByLabel('Allowed receipt countries').click();
+  await page.getByRole('option', { name: 'Spain (ES)' }).click();
+  await page.getByRole('option', { name: 'France (FR)' }).click();
+  await page.keyboard.press('Escape');
+  const allowOtherCheckbox = page.getByRole('checkbox', {
+    name: 'Allow other',
+  });
+  if (!(await allowOtherCheckbox.isChecked())) {
+    await allowOtherCheckbox.click();
+  }
 
   const esnCardToggle = page.getByRole('switch', {
     name: 'ESN Card discounts',
@@ -68,6 +79,10 @@ test('tenant admin updates relaunch general settings @admin', async ({
   expect(updatedTenant.legalNoticeText).toBe(legalNoticeText);
   expect(updatedTenant.privacyPolicyUrl).toBe(privacyPolicyUrl);
   expect(updatedTenant.termsText).toBe(termsText);
+  expect(updatedTenant.receiptSettings.allowOther).toBe(true);
+  expect(updatedTenant.receiptSettings.receiptCountries).toEqual(
+    expect.arrayContaining(receiptCountries),
+  );
   expect(updatedTenant.discountProviders.esnCard).toEqual({
     config: { buyEsnCardUrl },
     status: 'enabled',
