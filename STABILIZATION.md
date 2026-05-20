@@ -948,7 +948,7 @@ the current working direction until a product decision overrides them.
 - Tenant admin "General settings" shows a read-only identity summary with tenant name, primary domain, currency, locale, timezone, and Stripe connection state. It lets tenant admins change default location, site theme, externally hosted logo/favicon URLs, SEO title/description, legal links or hosted legal text, receipt countries/allow-other, and ESNcard provider enablement plus buy URL. Configured legal URLs appear in the public app footer as off-site links; configured hosted legal text appears through public `/legal/*` pages. Configured favicon URLs update the browser tab icon.
 - Tenant settings writes are tenant-scoped and require `admin:changeSettings`; tax-rate admin reads/writes require `admin:tax`.
 - `/global-admin` is guarded by authentication at the app route and by `globalAdmin:manageTenants` in the global-admin route config. The navigation link is hidden behind `globalAdmin:*`, and the tenant list RPC requires `globalAdmin:manageTenants`.
-- Global admin currently exposes a searchable tenant list and read-only tenant detail review with non-sensitive operational tenant state. There is no tenant create/edit/custom-domain/impersonation flow.
+- Global admin currently exposes a searchable tenant list, tenant create/edit flows for the one active primary domain and operational tenant settings, and tenant detail review with non-sensitive operational tenant state. Custom-domain verification, multi-domain automation, and impersonation remain deferred.
 - Global-admin permissions are derived from Auth0 app metadata `evorto.app/app_metadata.globalAdmin === true` independently from current-tenant membership. Tenant user context still requires a current-tenant assignment.
 - Anonymous direct `/global-admin` redirects to Auth0. Stored auth states were stale, so authenticated global-admin UI was not reverified through Playwright in this pass.
 
@@ -977,6 +977,7 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** the tenant settings RPC payload schema is now exported and covered by a focused contract spec, including the current editable fields and the fact that deferred branding/domain fields are outside the update payload.
 - **Addressed in stabilization pass:** tenant general-settings payload shaping is now extracted and covered locally, including trim/blank normalization for editable URLs/SEO/ESNcard fields before the RPC call.
 - **Addressed in stabilization pass:** the global-admin tenant list and read-only detail page render the tenant operational state returned by the RPC, and generated docs describe the current searchable list plus detail-review global tenant administration surface.
+- **Addressed in stabilization pass:** global-admin tenant create/edit now supports the relaunch one-domain tenant administration surface: name, primary domain, theme, locale, currency, timezone, and connected Stripe account id.
 - **Acceptable for now:** tenant settings writes are scoped to the current tenant id and validate the returned tenant shape before responding.
 - **Acceptable for now:** unknown host requests fail closed with 404 instead of guessing a tenant.
 - **Acceptable for now:** RPC request-context headers are overwritten server-side before handler execution, so client-supplied `x-evorto-*` headers are not trusted as the source of tenant/user context.
@@ -988,14 +989,14 @@ the current working direction until a product decision overrides them.
 - `src/app/core/effect-rpc-angular-client.spec.ts` covers SSR RPC origin selection from incoming URL and forwarded headers.
 - `tests/specs/auth/storage-state-refresh.test.ts` covers stale/wrong tenant cookies in saved Playwright storage state, not runtime tenant resolution.
 - `tests/specs/permissions/tenant-isolation-tax-rates.spec.ts` checks seeded tenant tax-rate isolation directly in the database, but does not exercise the RPC/UI tenant context switch.
-- `tests/specs/permissions/matrix.spec.ts` covers route denial for `/admin/settings`, `/admin/roles`, `/admin/users`, `/admin/tax-rates`, `/finance/transactions`, `/finance/receipts-approval`, `/finance/receipts-refunds`, and template write routes. `tests/specs/finance/tax-rates/admin-import-tax-rates.spec.ts` adds focused tax-rate route denial coverage. Route-manifest unit specs cover admin, finance, template, and global-admin guard declarations without requiring page-backed runtime. `tests/specs/permissions/global-admin-route-guard.spec.ts` covers direct `/global-admin` and `/global-admin/tenants/:tenantId` allow/deny behavior once page-backed runtime is available.
+- `tests/specs/permissions/matrix.spec.ts` covers route denial for `/admin/settings`, `/admin/roles`, `/admin/users`, `/admin/tax-rates`, `/finance/transactions`, `/finance/receipts-approval`, `/finance/receipts-refunds`, and template write routes. `tests/specs/finance/tax-rates/admin-import-tax-rates.spec.ts` adds focused tax-rate route denial coverage. Route-manifest unit specs cover admin, finance, template, and global-admin guard declarations without requiring page-backed runtime. `tests/specs/permissions/global-admin-route-guard.spec.ts` covers direct `/global-admin`, `/global-admin/tenants/create`, `/global-admin/tenants/:tenantId`, and `/global-admin/tenants/:tenantId/edit` allow/deny behavior once page-backed runtime is available.
 - `tests/docs/admin/general-settings.doc.ts` documents the current tenant general-settings page, including the deferred-settings summary, read-only tenant identity summary, editable locale/money policy plus reload behavior, editable brand asset URLs, editable tenant legal links or hosted text, and public footer/favicon exposure, and records which branding/domain settings are not editable yet.
-- `tests/docs/admin/global-admin.doc.ts` documents the current searchable global-admin tenant list and read-only tenant detail review, and records that tenant creation/editing, custom-domain verification, and impersonation workflows are not implemented yet.
+- `tests/docs/admin/global-admin.doc.ts` documents the current searchable global-admin tenant list, tenant create/edit workflow, and tenant detail review, and records that custom-domain verification, multi-domain automation, and impersonation workflows are not implemented yet.
 - `tests/docs/finance/inclusive-tax-rates.doc.ts` documents tenant tax-rate management.
 - `src/shared/rpc-contracts/app-rpcs/admin.rpcs.spec.ts` covers the tenant settings update payload scope.
 - `src/app/admin/general-settings/general-settings.payload.spec.ts` covers the client-side tenant-settings payload sent by the form, including trimmed optional editable fields and blank-to-undefined normalization.
-- `src/app/global-admin/global-admin.routes.spec.ts` covers route-level global-admin permission requirements.
-- `src/server/effect/rpc/handlers/global-admin.handlers.spec.ts` covers explicit `globalAdmin:manageTenants` authorization, `globalAdmin:*` dependency authorization, and fail-closed forbidden/unauthorized tenant-list reads before querying tenants.
+- `src/app/global-admin/global-admin.routes.spec.ts` covers route-level global-admin permission requirements for list, create, detail, and edit routes.
+- `src/server/effect/rpc/handlers/global-admin.handlers.spec.ts` covers explicit `globalAdmin:manageTenants` authorization, `globalAdmin:*` dependency authorization, tenant create/update normalization, and fail-closed forbidden/unauthorized tenant-list reads before querying tenants.
 - `src/server/context/request-context-resolver.spec.ts` covers host-first tenant resolution, localhost tenant-cookie fallback, stale localhost tenant-cookie fallback, unknown-host failure, global-admin permissions resolving without a tenant user assignment, and tenant-user context failing closed when the Auth0 user has no current-tenant assignment.
 - Playwright browser probing was limited because the bundled Playwright browser was not installed and stored auth states were stale; system Chrome confirmed anonymous/global-admin redirects to Auth0.
 
@@ -1012,7 +1013,7 @@ the current working direction until a product decision overrides them.
 
 - Keep one-domain-per-tenant documented and visible as the relaunch scope; leave
   automated multi-domain/custom-domain management for later work.
-- Keep generated global-admin tenant-management documentation aligned if the surface expands beyond the current read-only list/detail review.
+- Keep generated global-admin tenant-management documentation aligned as tenant create/edit, custom-domain verification, multi-domain automation, or impersonation support changes.
 - Keep tenant settings save feedback aligned with the shared notification/error-message pattern.
 - Keep tenant SEO title/description, legal links, and hosted legal text aligned between the Tenant RPC schema, general settings, public footer/pages, and generated documentation.
 
@@ -1192,7 +1193,7 @@ the current working direction until a product decision overrides them.
    artifacts are dropped now that active schema/API code no longer uses them.
 5. Add Browser-backed scanner/organizer aggregate review once local runtime is available.
 6. Add Browser-backed profile coverage for payment-continuation, ticket/cancellation routing, waitlist messaging, and ESNcard provider failure semantics once local runtime is available.
-7. Fill the remaining tenant settings implementation gap for branding uploads and onboarding/domain workflows. The current general-settings page exposes SEO fields, externally hosted logo/favicon URLs, tenant legal links or hosted legal text, editable supported locale/currency/timezone values, read-only runtime identity, and a visible deferred-settings summary. The current global-admin surface supports a searchable tenant list plus read-only tenant detail review, while tenant creation/editing, custom-domain verification, and impersonation remain out of scope.
+7. Fill the remaining tenant settings implementation gap for branding uploads and automated onboarding/domain workflows. The current general-settings page exposes SEO fields, externally hosted logo/favicon URLs, tenant legal links or hosted legal text, editable supported locale/currency/timezone values, read-only runtime identity, and a visible deferred-settings summary. The current global-admin surface supports a searchable tenant list, tenant create/edit, and tenant detail review, while custom-domain verification, multi-domain automation, and impersonation remain out of scope.
 8. Keep `docker:start` reset behavior intentional, use `docker:resume` only for existing local stacks, and ensure seeded data is sufficient to get going from zero.
 
 ### Acceptable For Now
@@ -1356,9 +1357,16 @@ implement those decisions or explicitly revise them there before changing code.
   route, and UI so platform admins can review one tenant's operational state
   from the searchable tenant list without introducing tenant editing or
   impersonation semantics.
+- Global-admin tenant-create/edit pass: added guarded platform-admin tenant
+  create/edit RPCs and routes for the one-domain relaunch model, covering
+  tenant name, primary domain, theme, locale, currency, timezone, and connected
+  Stripe account id while keeping custom-domain verification and impersonation
+  deferred.
 - Global-admin route-guard coverage pass: extended the page-backed direct-route
-  guard spec and inventory notes to cover `/global-admin/tenants/:tenantId` in
-  addition to the global-admin shell route.
+  guard spec and inventory notes to cover `/global-admin/tenants/create`,
+  `/global-admin/tenants/:tenantId`, and
+  `/global-admin/tenants/:tenantId/edit` in addition to the global-admin shell
+  route.
 - User-list pagination pass: fixed the read-only tenant user list to paginate
   tenant-user assignments before loading role rows, so users with multiple
   roles no longer consume multiple page slots.
@@ -1455,9 +1463,9 @@ All ten first-pass review areas are now represented in this document. The next
 stabilization work should continue with small cleanup commits around the
 remaining relaunch gaps: Browser-backed profile action coverage, Browser-backed
 scanner aggregate review, tenant settings implementation scope around branding
-uploads, onboarding/domain workflows, and global
-tenant-admin workflows, plus the legacy-field migration path for production
-data. Normal generated docs output now stays
+uploads, automated onboarding/domain workflows, and global tenant-admin
+workflows, plus the legacy-field migration path for production data. Normal
+generated docs output now stays
 local unless `test:e2e:docs:publish` is run intentionally. New Playwright
 skips/fixmes should be added only as explicit credential gates or honest
 Browser-backed stabilization placeholders. Receipt notification remains a
