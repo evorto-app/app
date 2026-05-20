@@ -138,6 +138,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   selection visible to server validation while clearing hidden free-registration
   payment fields before submission. Server coverage proves the tax-rate select
   source is scoped to current-tenant active inclusive rates.
+- The admin tax-rate import dialog has local unit coverage for the shared import
+  action guard, keeping empty selections and pending imports from submitting
+  duplicate tenant tax-rate writes.
 - `docs/users/create-account.doc.ts` is integration-tagged with
   `@needs-auth0-management`; baseline list/discovery must not require those
   credentials.

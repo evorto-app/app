@@ -1088,6 +1088,7 @@ the current working direction until a product decision overrides them.
 - `tests/docs/admin/general-settings.doc.ts` documents the current tenant general-settings page, including the deferred-settings summary, read-only tenant identity summary, editable locale/money policy plus reload behavior, uploaded or externally hosted brand asset URLs, editable tenant legal links or hosted text, and public footer/favicon exposure, and records which domain/operations settings are not editable yet.
 - `tests/docs/admin/global-admin.doc.ts` documents the current searchable global-admin tenant list, tenant create/edit workflow, and tenant detail review, and records that custom-domain verification, multi-domain automation, and impersonation workflows are not implemented yet.
 - `tests/docs/finance/inclusive-tax-rates.doc.ts` documents tenant tax-rate management.
+- `src/app/admin/components/import-tax-rates-dialog/import-tax-rates-dialog.component.spec.ts` covers the local Stripe tax-rate import guard so empty selections and pending imports cannot submit duplicate tax-rate writes.
 - `src/shared/rpc-contracts/app-rpcs/admin.rpcs.spec.ts` covers the tenant settings update payload scope.
 - `src/app/admin/general-settings/general-settings.payload.spec.ts` covers the client-side tenant-settings payload sent by the form, including trimmed optional editable fields and blank-to-undefined normalization.
 - `src/app/admin/general-settings/general-settings.component.spec.ts` covers
@@ -1666,6 +1667,9 @@ implement those decisions or explicitly revise them there before changing code.
   account cleanup language to page-backed runtime coverage after confirming
   local helper/server tests already cover retry, tenant join, ESNcard action
   states, profile event labels, and submitted receipt card labels.
+- Tax-rate import action-guard pass: shared the import dialog disabled state
+  and handler early return so empty selections and in-flight Stripe tax-rate
+  imports cannot submit overlapping tenant tax-rate writes.
 
 ## Review Next
 

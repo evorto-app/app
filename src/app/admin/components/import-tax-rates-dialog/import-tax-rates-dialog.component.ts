@@ -16,6 +16,13 @@ import {
 
 import { AppRpc } from '../../../core/effect-rpc-angular-client';
 
+export function taxRateImportActionDisabled(input: {
+  mutationPending: boolean;
+  selectedCount: number;
+}) {
+  return input.mutationPending || input.selectedCount === 0;
+}
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -29,9 +36,19 @@ import { AppRpc } from '../../../core/effect-rpc-angular-client';
 })
 export class ImportTaxRatesDialogComponent {
   protected readonly selected = signal<string[]>([]);
-  protected readonly canImport = computed(() => this.selected().length > 0);
 
   private readonly rpc = AppRpc.injectClient();
+
+  private readonly importMutation = injectMutation(() =>
+    this.rpc.admin.tenant.importStripeTaxRates.mutationOptions(),
+  );
+  protected readonly canImport = computed(
+    () =>
+      !taxRateImportActionDisabled({
+        mutationPending: this.importMutation.isPending(),
+        selectedCount: this.selected().length,
+      }),
+  );
 
   protected readonly importedQuery = injectQuery(() =>
     this.rpc.admin.tenant.listImportedTaxRates.queryOptions(),
@@ -44,17 +61,20 @@ export class ImportTaxRatesDialogComponent {
   protected readonly ratesQuery = injectQuery(() =>
     this.rpc.admin.tenant.listStripeTaxRates.queryOptions(),
   );
+
   private readonly dialogRef = inject(
     MatDialogRef<ImportTaxRatesDialogComponent>,
   );
 
-  private readonly importMutation = injectMutation(() =>
-    this.rpc.admin.tenant.importStripeTaxRates.mutationOptions(),
-  );
-
   protected importSelected() {
     const ids = this.selected();
-    if (ids.length === 0) return;
+    if (
+      taxRateImportActionDisabled({
+        mutationPending: this.importMutation.isPending(),
+        selectedCount: ids.length,
+      })
+    )
+      return;
     this.importMutation.mutate(
       { ids },
       {
