@@ -171,8 +171,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   to the target tenant member, failing explicitly if the transferred row is
   missing.
 - `specs/events/negative-registration-states.spec.ts` adds page-backed waitlist
-  coverage for full first-come-first-served options with explicit persisted
-  waitlist registration readback.
+  coverage for full first-come-first-served options with explicit required
+  answer gating, persisted waitlist registration readback, and persisted
+  question-answer readback.
 - `docs/events/register.doc.ts` includes a generated unpaid transfer journey,
   including the transfer dialog, eligible target email entry, and the explicit
   paid-transfer/resale deferral.
@@ -492,7 +493,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - Event question coverage pins event-scoped question storage, event creation
     copying from source template registration options, event detail read-model
     schema shape, registration/waitlist answer payload shape, answer storage,
-    required-answer guards, and server-side answer validation.
+    required-answer guards, waitlist question-answer persistence, and
+    server-side answer validation.
   - Seed baseline coverage pins free and paid reusable template add-ons attached
     to participant template options and reusable template questions attached to
     participant/organizer template options, so those template-detail surfaces

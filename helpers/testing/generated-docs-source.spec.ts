@@ -286,6 +286,10 @@ describe('generated docs source current behavior', () => {
       'participantRegistrationCard.getByLabel(registrationQuestion.title)',
     );
     expect(source).toContain('registration.questionAnswers');
+    expect(source).toContain(
+      'If that option asks required registration questions, participants must answer them before joining the waitlist.',
+    );
+    expect(source).toContain('waitlistRegistration.questionAnswers');
     expect(source).not.toContain('Register button stays available');
     expect(source).not.toContain('paid transfers are automatic');
     expect(source).not.toContain('resale is automatic');
