@@ -169,6 +169,38 @@ describe('evaluateRuntimePreflight', () => {
     expect(testsGuidance).not.toContain('`bun run docker:start:foreground`');
   });
 
+  it('keeps Angular SSR host validation aligned with local and seeded tenant hosts', () => {
+    const angularJson = JSON.parse(
+      fs.readFileSync(path.join(process.cwd(), 'angular.json'), 'utf8'),
+    ) as {
+      projects: {
+        evorto: {
+          architect: {
+            build: {
+              options: {
+                security?: {
+                  allowedHosts?: string[];
+                };
+              };
+            };
+          };
+        };
+      };
+    };
+
+    expect(
+      angularJson.projects.evorto.architect.build.options.security
+        ?.allowedHosts,
+    ).toEqual(
+      expect.arrayContaining([
+        'localhost',
+        '127.0.0.1',
+        'evorto.fly.dev',
+        '*.evorto.app',
+      ]),
+    );
+  });
+
   it('keeps Playwright package scripts on the generated runtime environment path', () => {
     const packageJson = JSON.parse(
       fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8'),
@@ -206,12 +238,18 @@ describe('evaluateRuntimePreflight', () => {
     expect(dbSetupService).toContain('secrets:');
     expect(dbSetupService).toContain('- FONT_AWESOME_TOKEN');
     expect(dbSetupService).toContain('STRIPE_TEST_ACCOUNT_ID:');
+    expect(dbSetupService).toContain('bun helpers/reset-database-schema.ts');
+    expect(dbSetupService).toContain(
+      'bun ./node_modules/drizzle-kit/bin.cjs push --force',
+    );
+    expect(dbSetupService).toContain('bun helpers/database.ts');
 
     for (const variable of [
       'CLIENT_ID',
       'CLIENT_SECRET',
       'ISSUER_BASE_URL',
       'SECRET',
+      'SSR_RPC_ORIGIN',
       'STRIPE_API_KEY',
       'STRIPE_TEST_ACCOUNT_ID',
       'STRIPE_WEBHOOK_SECRET_FILE',
@@ -224,6 +262,7 @@ describe('evaluateRuntimePreflight', () => {
       'STRIPE_WEBHOOK_SECRET_FILE: /run/stripe-webhook/signing-secret',
     );
     expect(evortoService).toContain('S3_ENDPOINT: http://minio:9000');
+    expect(evortoService).toContain('SSR_RPC_ORIGIN: http://localhost:4200');
     expect(evortoService).not.toContain(
       'S3_ENDPOINT: "${S3_ENDPOINT:-http://minio:9000}"',
     );

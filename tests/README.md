@@ -58,9 +58,12 @@ bun run lint
 - Start the local runtime stack in watch mode: `bun run docker:start:watch`
 - Stop the local runtime stack: `bun run docker:stop`
 - Local Docker runs use Neon Local instead of a plain Postgres container.
-- Docker Compose includes a one-shot `db-setup` service that runs the equivalent of `db:reset` before `evorto` starts.
+- Docker Compose includes a one-shot `db-setup` service that runs the equivalent of `db:reset` before `evorto` starts. It first drops and recreates the Docker database `public` schema so Drizzle does not require interactive confirmation inside the container.
 - Docker Compose forces app media/uploads to the in-network MinIO endpoint even
   when normal local dotenv values point to an external S3-compatible endpoint.
+- Docker keeps `BASE_URL` browser-facing for Auth0 redirects and sets
+  `SSR_RPC_ORIGIN=http://localhost:4200` so SSR RPC calls stay inside the app
+  container instead of calling the host-mapped port.
 - Local `dev:start`, `test:e2e`, `test:e2e:ui`, `test:e2e:integration`, `test:e2e:docs`, `db:*`, and `docker:*` package scripts refresh `.env.dev` before invoking `dotenv -c dev`, so new worktrees get isolated local app/service ports and database URLs by default.
 - `bun run docker:check` fails before Docker Compose mutates local containers
   when required local runtime variables are missing. The check covers Neon
@@ -77,8 +80,9 @@ bun run lint
 - `.env.local`, `.env.runtime`, and `.env.ci` are unsupported in this repo.
 - Starting the Docker stack with `docker:start`, `docker:start:foreground`, or
   `docker:start:watch` is destructive for local database state by design because
-  those scripts run `docker compose down` and then `db-setup` pushes schema and
-  resets/seeds the Docker database. Playwright `webServer` uses
+  those scripts run `docker compose down` and then `db-setup` clears the
+  `public` schema, pushes schema, and resets/seeds the Docker database.
+  Playwright `webServer` uses
   `docker:webserver`, which still builds and starts the Compose stack in the
   foreground but does not force a Compose teardown first. Use `docker:resume`
   only for an already initialized stack when you want to bring containers back

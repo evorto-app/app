@@ -74,6 +74,14 @@
               "node-domexception"
             ],
             "externalDependencies": ["@sentry/profiling-node", "skia-canvas"],
+            "security": {
+              "allowedHosts": [
+                "localhost",
+                "127.0.0.1",
+                "evorto.fly.dev",
+                "*.evorto.app"
+              ]
+            },
             "ssr": {
               "entry": "src/server.ts"
             }

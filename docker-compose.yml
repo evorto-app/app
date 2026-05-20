@@ -65,19 +65,7 @@ services:
     command:
       - /bin/sh
       - -lc
-      - >-
-        bun -e 'import { Pool } from "pg"; import { createNodePgPoolConfig } from
-        "./src/db/pg-connection-config.ts"; const pool = new
-        Pool(createNodePgPoolConfig({ databaseUrl: process.env.DATABASE_URL,
-        neonLocalProxy: process.env.NEON_LOCAL_PROXY === "true" })); try { await
-        pool.query("DROP SCHEMA IF EXISTS public CASCADE"); await
-        pool.query("CREATE SCHEMA public"); await pool.query("CREATE EXTENSION IF
-        NOT EXISTS unaccent"); await pool.query("CREATE EXTENSION IF NOT EXISTS
-        pg_trgm"); await pool.query("CREATE OR REPLACE FUNCTION
-        immutable_unaccent(value text) RETURNS text AS " + String.fromCharCode(39)
-        + "SELECT unaccent(value)" + String.fromCharCode(39) + " LANGUAGE sql
-        IMMUTABLE;"); } finally { await pool.end(); }' && bun ./node_modules/drizzle-kit/bin.cjs
-        push --force && bun helpers/database.ts
+      - bun helpers/reset-database-schema.ts && bun ./node_modules/drizzle-kit/bin.cjs push --force && bun helpers/database.ts
     restart: "no"
 
   minio:
@@ -150,6 +138,7 @@ services:
       S3_REGION: "${S3_REGION:-us-east-1}"
       S3_SECRET_ACCESS_KEY: "${S3_SECRET_ACCESS_KEY:-minioadmin}"
       SECRET:
+      SSR_RPC_ORIGIN: http://localhost:4200
       STRIPE_API_KEY:
       STRIPE_TEST_ACCOUNT_ID:
       STRIPE_WEBHOOK_SECRET:
