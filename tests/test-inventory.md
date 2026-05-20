@@ -174,6 +174,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 - `helpers/testing/playwright-skip-inventory.spec.ts` keeps all Playwright
   `test.skip` and `test.fixme` usage allowlisted with a local reason for each
   entry, so new fixture-state gaps do not become silent placeholders.
+- `helpers/testing/generated-docs-source.spec.ts` keeps tenant general-settings
+  docs aligned with implemented brand-asset uploads and hosted legal routes.
 
 ## Stabilization Coverage Still Needed
 
