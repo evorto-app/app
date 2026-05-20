@@ -87,4 +87,37 @@ describe('generated docs source current behavior', () => {
     expect(source).not.toContain('login email as your notification email');
     expect(source).not.toContain('tenant-specific notification email');
   });
+
+  it('keeps finance receipt docs aligned with manual notification and reimbursement scope', () => {
+    const overviewSource = readSource(
+      'tests/docs/finance/finance-overview.doc.ts',
+    );
+    const receiptSource = readSource(
+      'tests/docs/finance/receipt-review-reimbursement.doc.ts',
+    );
+    const combinedSource = `${overviewSource}\n${receiptSource}`;
+
+    expect(combinedSource).toContain(
+      'Submitter email notification is still manual in the current relaunch scope.',
+    );
+    expect(combinedSource).toContain(
+      'Notify the submitter manually after saving.',
+    );
+    expect(combinedSource).toContain(
+      'Recording a reimbursement creates the Evorto finance transaction only.',
+    );
+    expect(combinedSource).toContain(
+      'Transfer the money manually through the selected payout method.',
+    );
+    expect(combinedSource).toContain(
+      'actual money movement remains a manual finance operation',
+    );
+    expect(combinedSource).toContain(
+      'it does not send an automatic submitter email yet',
+    );
+    expect(combinedSource).not.toContain('sends an automatic submitter email');
+    expect(combinedSource).not.toContain('automatic email');
+    expect(combinedSource).not.toContain('automatically transfer');
+    expect(combinedSource).not.toContain('automatic money movement');
+  });
 });

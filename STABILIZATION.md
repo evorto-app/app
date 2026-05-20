@@ -2142,6 +2142,9 @@ implement those decisions or explicitly revise them there before changing code.
   Material icon-package imports fail outside the existing root bootstrap
   registry exception, preserving the premium/brand Font Awesome package path for
   app action and brand icons.
+- Finance docs source-guard pass: pinned generated finance receipt docs to the
+  current manual submitter-notification and manual reimbursement money-movement
+  scope so relaunch docs do not imply automatic email or payout behavior.
 
 ## Review Next
 

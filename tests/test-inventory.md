@@ -321,14 +321,15 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     the current user's finance permissions.
   - Keep receipt review and reimbursement docs aligned with the manual
     notification and manual money-movement scope. Local component coverage,
-    finance docs, and receipt flow specs now pin that the reimbursement queue
-    records an Evorto transaction only, that money movement remains manual
-    through the selected payout method, that reimbursement actions require a
-    selected receipt plus the chosen payout detail, that selected totals sum the
-    selected rows only, that approval/rejection actions stay disabled while the
-    form is invalid, receipt details are loading, or the review mutation is
-    pending, that server review rejects refunded receipts, missing rejection
-    reasons, and invalid receipt dates before writing updates, that
+    generated-doc source coverage, finance docs, and receipt flow specs now pin
+    that the reimbursement queue records an Evorto transaction only, that money
+    movement remains manual through the selected payout method, that
+    reimbursement actions require a selected receipt plus the chosen payout
+    detail, that selected totals sum the selected rows only, that
+    approval/rejection actions stay disabled while the form is invalid, receipt
+    details are loading, or the review mutation is pending, that server review
+    rejects refunded receipts, missing rejection reasons, and invalid receipt
+    dates before writing updates, that
     reimbursement recording stays disabled while the refund mutation is pending,
     that receipt preview rendering only trusts HTTP(S) or app-relative preview
     URLs, and that finance receipt contact details prefer the submitter's
