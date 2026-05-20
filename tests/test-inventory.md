@@ -302,7 +302,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     lifecycle. Local app coverage now pins that the check-in action is disabled
     when scan state disallows it, no spots are selected, the write is pending,
     or the local success state is already recorded. It also pins guest-count
-    input clamping before the check-in mutation payload is built.
+    input clamping before the check-in mutation payload is built, and server
+    handler coverage rejects negative guest counts and counts above the
+    remaining guest quantity before writes can run.
 - Tenant/global admin:
   - Authenticated Browser review for the global-admin tenant list and
     tenant-create/edit flows. Local server/app coverage already proves the list,
