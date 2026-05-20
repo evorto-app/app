@@ -9,6 +9,31 @@ import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
 import { globalAdminTenantRows } from '../tenant-list/tenant-list.rows';
 
+export const globalAdminTenantDomainUrl = (domain: string): null | string => {
+  const normalizedDomain = domain.trim().toLowerCase();
+  if (!normalizedDomain || normalizedDomain.includes('://')) {
+    return null;
+  }
+
+  try {
+    const url = new URL(`https://${normalizedDomain}`);
+    if (
+      !url.hostname ||
+      url.pathname !== '/' ||
+      url.search ||
+      url.hash ||
+      url.username ||
+      url.password
+    ) {
+      return null;
+    }
+
+    return `https://${url.hostname}`;
+  } catch {
+    return null;
+  }
+};
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [FontAwesomeModule, MatButtonModule, RouterLink],
@@ -19,8 +44,9 @@ import { globalAdminTenantRows } from '../tenant-list/tenant-list.rows';
 export class TenantDetailComponent {
   readonly tenantId = input.required<string>();
   protected readonly faArrowLeft = faArrowLeft;
-  private readonly rpc = AppRpc.injectClient();
+  protected readonly tenantDomainUrl = globalAdminTenantDomainUrl;
 
+  private readonly rpc = AppRpc.injectClient();
   protected readonly tenantQuery = injectQuery(() =>
     this.rpc.globalAdmin.tenants.findOne.queryOptions({
       id: this.tenantId(),
