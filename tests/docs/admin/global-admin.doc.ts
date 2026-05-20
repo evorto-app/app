@@ -1,6 +1,8 @@
 import type { Page } from '@playwright/test';
+import { eq } from 'drizzle-orm';
 
 import { gaStateFile } from '../../../helpers/user-data';
+import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 
@@ -23,7 +25,21 @@ const readFirstTenantRowValue = async (
   return value?.trim() ?? '';
 };
 
-const expectGlobalAdminTenantRows = async (page: Page) => {
+interface GlobalAdminTenantDocRow {
+  currency: string;
+  domain: string;
+  id: string;
+  locale: string;
+  name: string;
+  stripeAccountId: null | string;
+  theme: string;
+  timezone: string;
+}
+
+const expectGlobalAdminTenantRows = async (
+  page: Page,
+  tenant: GlobalAdminTenantDocRow,
+) => {
   await expect(page.getByText('Primary domain').first()).toBeVisible();
   await expect(page.getByText('Tenant ID').first()).toBeVisible();
   await expect(page.getByText('Theme').first()).toBeVisible();
@@ -31,11 +47,17 @@ const expectGlobalAdminTenantRows = async (page: Page) => {
   await expect(page.getByText('Currency').first()).toBeVisible();
   await expect(page.getByText('Timezone').first()).toBeVisible();
   await expect(page.getByText('Stripe account').first()).toBeVisible();
-  await expect(page.getByText('evorto').first()).toBeVisible();
-  await expect(page.getByText('en-GB').first()).toBeVisible();
-  await expect(page.getByText('EUR').first()).toBeVisible();
-  await expect(page.getByText('Europe/Berlin').first()).toBeVisible();
-  await readFirstTenantRowValue(page, 'Stripe account');
+  await expect(page.getByText(tenant.domain).first()).toBeVisible();
+  await expect(page.getByText(tenant.id).first()).toBeVisible();
+  await expect(page.getByText(tenant.theme).first()).toBeVisible();
+  await expect(page.getByText(tenant.locale).first()).toBeVisible();
+  await expect(page.getByText(tenant.currency).first()).toBeVisible();
+  await expect(page.getByText(tenant.timezone).first()).toBeVisible();
+  if (tenant.stripeAccountId) {
+    await expect(page.getByText(tenant.stripeAccountId).first()).toBeVisible();
+  } else {
+    await expect(page.getByText('Not connected').first()).toBeVisible();
+  }
 };
 
 const readFirstTenantPrimaryDomain = async (page: Page): Promise<string> =>
@@ -76,8 +98,16 @@ const expectGlobalAdminTenantFormSurface = async (page: Page) => {
 };
 
 test('Review global tenant administration @admin @globalAdmin', async ({
+  database,
   page,
 }, testInfo) => {
+  const documentedTenant = await database.query.tenants.findFirst({
+    where: eq(schema.tenants.domain, 'localhost'),
+  });
+  if (!documentedTenant) {
+    throw new Error('Expected generated global-admin docs tenant');
+  }
+
   await page.goto('/global-admin');
 
   await testInfo.attach('markdown', {
@@ -103,14 +133,21 @@ Global admins can review, create, and edit tenants from the **Global admin** are
     page.getByRole('link', { name: 'Create tenant' }),
   ).toHaveAttribute('href', '/global-admin/tenants/create');
   await expect(page.getByLabel(tenantSearchLabel)).toBeVisible();
-  await expectGlobalAdminTenantRows(page);
-  const primaryDomain = await readFirstTenantPrimaryDomain(page);
+  await expectGlobalAdminTenantRows(page, documentedTenant);
+  const primaryDomain = documentedTenant.domain;
+  expect(await readFirstTenantPrimaryDomain(page)).toBe(primaryDomain);
   await page.getByLabel(tenantSearchLabel).fill('no-such-tenant');
   await expect(
     page.getByRole('heading', { name: 'No tenants match this search' }),
   ).toBeVisible();
   await page.getByLabel(tenantSearchLabel).fill(primaryDomain);
   await expect(page.getByText(primaryDomain).first()).toBeVisible();
+  if (documentedTenant.stripeAccountId) {
+    await page
+      .getByLabel(tenantSearchLabel)
+      .fill(documentedTenant.stripeAccountId);
+    await expect(page.getByText(documentedTenant.stripeAccountId).first()).toBeVisible();
+  }
   await takeScreenshot(
     testInfo,
     page.locator('app-tenant-list'),
@@ -140,7 +177,7 @@ Global admins can review, create, and edit tenants from the **Global admin** are
   await expect(
     page.getByText('Read-only operational tenant review'),
   ).toBeVisible();
-  await expectGlobalAdminTenantRows(page);
+  await expectGlobalAdminTenantRows(page, documentedTenant);
   await expect(
     page.getByRole('link', { name: 'Open tenant domain' }),
   ).toHaveAttribute('href', `https://${primaryDomain}`);
@@ -160,9 +197,11 @@ Global admins can review, create, and edit tenants from the **Global admin** are
     page.getByRole('heading', { name: 'Edit tenant' }),
   ).toBeVisible();
   await expectGlobalAdminTenantFormSurface(page);
-  await expect(tenantNameInput(page)).toHaveValue(/.+/);
+  await expect(tenantNameInput(page)).toHaveValue(documentedTenant.name);
   await expect(tenantPrimaryDomainInput(page)).toHaveValue(primaryDomain);
-  await expect(tenantStripeAccountInput(page)).toHaveValue(/.+/);
+  await expect(tenantStripeAccountInput(page)).toHaveValue(
+    documentedTenant.stripeAccountId ?? '',
+  );
   await expect(page.getByRole('button', { name: 'Save tenant' })).toBeEnabled();
 
   await testInfo.attach('markdown', {

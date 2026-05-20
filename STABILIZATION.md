@@ -1157,7 +1157,13 @@ the current working direction until a product decision overrides them.
 - `tests/specs/permissions/tenant-isolation-tax-rates.spec.ts` checks seeded tenant tax-rate isolation directly in the database, but does not exercise the RPC/UI tenant context switch.
 - `tests/specs/permissions/matrix.spec.ts` covers route denial for `/admin/settings`, `/admin/roles`, `/admin/users`, `/admin/tax-rates`, `/finance/transactions`, `/finance/receipts-approval`, `/finance/receipts-refunds`, and template write routes. `tests/specs/finance/tax-rates/admin-import-tax-rates.spec.ts` adds focused tax-rate route denial coverage. Route-manifest unit specs cover admin, finance, template, and global-admin guard declarations without requiring page-backed runtime. `tests/specs/permissions/global-admin-route-guard.spec.ts` covers direct `/global-admin`, `/global-admin/tenants/create`, `/global-admin/tenants/:tenantId`, and `/global-admin/tenants/:tenantId/edit` allow/deny behavior once page-backed runtime is available.
 - `tests/docs/admin/general-settings.doc.ts` documents the current tenant general-settings page, including the deferred-settings summary, read-only tenant identity summary with Stripe account support lookup detail, editable locale/money policy plus reload behavior, uploaded or externally hosted brand asset URLs, editable tenant legal links or hosted text, and public footer/favicon exposure, and records which domain/operations settings are not editable yet.
-- `tests/docs/admin/global-admin.doc.ts` documents the current searchable global-admin tenant list, tenant create/edit workflow, visible relaunch tenant-scope notice, and tenant detail review, and records that custom-domain verification, multi-domain automation, and impersonation workflows are not implemented yet.
+- `tests/docs/admin/global-admin.doc.ts` documents the current searchable
+  global-admin tenant list, tenant create/edit workflow, visible relaunch
+  tenant-scope notice, and tenant detail review, pins the list/create/detail/edit
+  navigation targets plus the external tenant-domain link, reads the documented
+  tenant row from the database before asserting operational fields, and records
+  that custom-domain verification, multi-domain automation, and impersonation
+  workflows are not implemented yet.
 - `tests/docs/finance/inclusive-tax-rates.doc.ts` documents tenant tax-rate management.
 - `src/app/admin/components/import-tax-rates-dialog/import-tax-rates-dialog.component.spec.ts` covers the local Stripe tax-rate import guard so empty selections and pending imports cannot submit duplicate tax-rate writes.
 - `src/shared/rpc-contracts/app-rpcs/admin.rpcs.spec.ts` covers the tenant settings update payload scope.
@@ -1806,6 +1812,9 @@ implement those decisions or explicitly revise them there before changing code.
   guard to also reject placeholder `@track`, `@req`, and `@doc` metadata in real
   Playwright spec/doc titles, while keeping the reporter stripping fixture
   isolated to its own reporter contract test.
+- Global-admin docs readback pass: tied the generated guide's tenant list,
+  detail, search, and edit-form assertions to the seeded localhost tenant row
+  instead of only matching generic visible values.
 - Scanner docs persistence pass: extended event-management docs to execute the
   generated guest check-in, assert the persisted check-in time, selected guest
   count, and checked-in counter, and restore the seeded event option counter.
