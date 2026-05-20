@@ -187,22 +187,22 @@ export const profileEventActionNote = (event: {
   status: 'CONFIRMED' | 'PENDING' | 'WAITLIST';
 }): string => {
   if (event.paymentState === 'pending' && event.checkoutUrl) {
-    return 'Continue payment from this card, or open the event page for registration details. Cancellation after confirmation is handled on the event page.';
+    return 'Continue payment from this card, or open the event page for registration details.';
   }
 
   switch (event.status) {
     case 'CONFIRMED': {
       if (event.checkInTime) {
-        return 'You are checked in. Open the event page for ticket details. Cancellation and transfer are no longer available after check-in. Automatic refunds, paid transfer, and resale are not automatic yet.';
+        return 'You are checked in. Open the event page for ticket details. Cancellation and transfer are no longer available after check-in.';
       }
 
-      return 'Open the event page for ticket access, participant cancellation, and unpaid self-service transfer when available. Automatic refunds, paid transfer, and resale are not automatic yet.';
+      return 'Open the event page for ticket access, participant cancellation, and unpaid self-service transfer when available.';
     }
     case 'PENDING': {
-      return 'Open the event page for pending-registration details and available cancellation actions. Self-service transfer/resale is not available yet.';
+      return 'Open the event page for pending-registration details and available cancellation actions.';
     }
     case 'WAITLIST': {
-      return 'Open the event page for waitlist details and the leave-waitlist action. Transfer/resale is not available for waitlist registrations.';
+      return 'Open the event page for waitlist details and the leave-waitlist action.';
     }
   }
 };
