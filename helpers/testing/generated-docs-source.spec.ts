@@ -58,6 +58,13 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain('Read-only operational tenant review');
     expect(source).toContain('Open tenant domain');
     expect(source).toContain('Stripe account ID');
+    expect(source).toContain('Expected generated global-admin docs tenant');
+    expect(source).toContain("where: eq(schema.tenants.domain, 'localhost')");
+    expect(source).toContain('documentedTenant.stripeAccountId');
+    expect(source).toContain(
+      'page.getByLabel(tenantSearchLabel).fill(documentedTenant.domain)',
+    );
+    expect(source).toContain("page.getByLabel('Tenant name')).toHaveValue");
     expect(source).toContain(
       'Tenant create/edit manages the one active primary domain, name, theme, locale, currency, timezone, and connected Stripe account id.',
     );
