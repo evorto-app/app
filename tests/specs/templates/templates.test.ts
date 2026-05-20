@@ -204,10 +204,7 @@ test('view a template', async ({ page, templates }) => {
 test('template create form hides selected roles in autocomplete', async ({
   page,
 }) => {
-  await page.goto('.');
-  await page.getByRole('link', { name: 'Templates' }).click();
-  await expect(page).toHaveURL(/\/templates/);
-  await page.getByRole('link', { name: 'Create template' }).click();
+  await page.goto('/templates/create');
   await expect(page).toHaveURL('/templates/create');
 
   const organizerRoleInput = page.getByPlaceholder('Add Role...').first();
