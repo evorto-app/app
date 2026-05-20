@@ -152,11 +152,19 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   question answer, active-registration readback, and add-on availability
   decrement, then cleans up generated add-on/question data and restores touched
   registration rows and counters.
+- `specs/events/registration-transfer.test.ts` adds page-backed coverage for
+  the regular user's self-service unpaid transfer dialog and database readback
+  to the target tenant member, polling for the transferred row after the dialog
+  closes, then deleting the generated registration and restoring touched fixture
+  registration statuses. The spec seeds the event into a server-future window so
+  active-registration actions remain available under Docker server time.
 - `specs/events/registration-transfer.test.ts` also seeds a paid confirmed
   registration with a successful registration transaction and proves the event
   page keeps self-service transfer disabled with the paid transfer/resale
   deferral instead of exposing the unpaid transfer dialog, then deletes the
   generated registration/transaction rows and restores touched fixture status.
+  The paid fixture uses an explicit `EUR` currency because the shared tenant
+  fixture does not expose the persisted tenant currency field.
 - `specs/events/negative-registration-states.spec.ts` adds page-backed waitlist
   coverage for full first-come-first-served options with explicit required
   answer gating, persisted waitlist registration readback, and persisted
@@ -444,8 +452,17 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     closed-window rejection, role eligibility, unsupported stored
     registration-mode rejection, unsupported-mode no-waitlist card behavior,
     waitlist joining, and leave-waitlist cancellation.
-  - Browser-backed execution of those assertions still depends on local runtime
-    availability and the matching Playwright Chromium cache.
+  - `docs/events/register.doc.ts` now includes generated documentation
+    journeys for closed registration windows, full participant options with a
+    waitlist action, role-ineligible direct links, and unpaid registration
+    transfer scope, in addition to free and paid registration walkthroughs.
+    Generated-doc source coverage keeps that unavailable-state and transfer
+    scope documentation aligned with the relaunch behavior.
+  - Docker-backed system-Chrome execution now passes for
+    `specs/events/negative-registration-states.spec.ts`,
+    `specs/events/registration-transfer.test.ts`, and
+    `docs/events/register.doc.ts` when run after
+    `APP_HOST_PORT=4200 bun run docker:start`.
 
 ## Current Notes
 

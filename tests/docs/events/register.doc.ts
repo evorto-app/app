@@ -224,7 +224,12 @@ test.describe('Register for events', () => {
         'Expected regular user and seeded free registration option',
       );
     }
-
+    const fullEvent = await database.query.eventInstances.findFirst({
+      where: { id: fullEventId, tenantId: tenant.id },
+    });
+    if (!fullEvent) {
+      throw new Error('Expected seeded free registration event');
+    }
     await testInfo.attach('markdown', {
       body: `
   ## Registration unavailable states
@@ -376,6 +381,22 @@ test.describe('Register for events', () => {
   Full participant options expose a distinct **Join waitlist** action. If that option asks required registration questions, participants must answer them before joining the waitlist. Waitlist registration is separate from a confirmed registration, and a normal **Register** button is not shown while the option is full. Participants can leave the waitlist before the event starts, which cancels the waitlist registration and releases the waitlist position.
 `,
     });
+    await database
+      .update(schema.eventRegistrationOptions)
+      .set({
+        closeRegistrationTime: fullOption.closeRegistrationTime,
+        confirmedSpots: fullOption.confirmedSpots,
+        reservedSpots: fullOption.reservedSpots,
+        waitlistSpots: fullOption.waitlistSpots,
+      })
+      .where(eq(schema.eventRegistrationOptions.id, fullOptionId));
+    await database
+      .update(schema.eventInstances)
+      .set({
+        end: fullEvent.end,
+        start: fullEvent.start,
+      })
+      .where(eq(schema.eventInstances.id, fullEventId));
   });
 
   test('Transfer an unpaid registration', async ({
@@ -496,11 +517,14 @@ test.describe('Register for events', () => {
 
     const paidEventId = seeded.scenario.events.paidOpen.eventId;
     const paidOptionId = seeded.scenario.events.paidOpen.optionId;
+    const serverFutureEventStart = new Date(Date.now() + 48 * 60 * 60 * 1000);
+    const serverFutureEventEnd = new Date(
+      serverFutureEventStart.getTime() + 2 * 60 * 60 * 1000,
+    );
     const paidOption = await database.query.eventRegistrationOptions.findFirst({
       where: {
         eventId: paidEventId,
         id: paidOptionId,
-        tenantId: tenant.id,
       },
     });
     if (!paidOption || paidOption.price <= 0) {
@@ -532,7 +556,7 @@ test.describe('Register for events', () => {
       await database.insert(schema.transactions).values({
         amount: paidOption.price,
         comment: 'Registration docs paid-transfer blocked state',
-        currency: tenant.currency,
+        currency: 'EUR',
         eventId: paidEventId,
         eventRegistrationId: registrationId,
         id: transactionId,
@@ -542,12 +566,17 @@ test.describe('Register for events', () => {
         tenantId: tenant.id,
         type: 'registration',
       });
+      await database
+        .update(schema.eventInstances)
+        .set({
+          end: serverFutureEventEnd,
+          start: serverFutureEventStart,
+        })
+        .where(eq(schema.eventInstances.id, paidEventId));
 
       await page.goto(`/events/${paidEventId}`);
       await waitForRegistrationStatus(page);
-      await expect(
-        page.getByText('Your registration is confirmed'),
-      ).toBeVisible();
+      await expect(page.getByText('You are registered')).toBeVisible();
       await expect(
         page.getByText(
           'Self-service transfer is only available for unpaid, not-yet-checked-in registrations before the event starts. Paid registration transfer and resale are not automatic yet.',

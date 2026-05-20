@@ -584,11 +584,17 @@ the current working direction until a product decision overrides them.
   happy path using seeded scenario handles, then restores the touched
   registration rows and registration-option counters after the page-backed
   assertions.
+- `tests/specs/events/registration-transfer.test.ts` covers the page-backed
+  participant self-service unpaid transfer flow by opening the event page,
+  submitting the transfer dialog with an eligible target member email, and
+  polling the transferred registration row after seeding the event into a
+  server-future registration window.
 - `tests/specs/events/registration-transfer.test.ts` also seeds a paid
   confirmed registration with a successful registration transaction and proves
   the event page keeps self-service transfer disabled with the paid
-  transfer/resale deferral copy while restoring fixture registration state after
-  the generated row assertions.
+  transfer/resale deferral copy while using an explicit seeded transaction
+  currency and restoring fixture registration state after the generated row
+  assertions.
 - `tests/specs/events/negative-registration-states.spec.ts` covers the
   participant-facing waitlist affordance for a full first-come-first-served
   option, explicitly reads back the created waitlist registration, and restores
@@ -626,7 +632,7 @@ the current working direction until a product decision overrides them.
   selection, required answer gating, persisted add-on purchase, persisted
   question answer, active-registration readback, availability decrement, and
   cleanup of generated add-on/question rows plus touched registration state.
-- `tests/docs/events/register.doc.ts` documents the role-ineligible direct-link state even though page-backed Browser coverage still depends on local runtime availability.
+- `tests/docs/events/register.doc.ts` documents the role-ineligible direct-link state and now runs with the active negative-registration and transfer specs against the Docker stack via system Chrome.
 - `src/app/events/event-registration-option/event-registration-option.component.spec.ts` covers the participant versus organizer/helper registration option copy.
 - `src/app/events/event-registration-option/event-registration-option.component.spec.ts` covers discounted buyer-price plus full-price guest totals for paid registration actions.
 - `src/server/price/format-inclusive-tax-label.spec.ts` covers the shared inclusive-tax label formatter.
@@ -1475,10 +1481,11 @@ the current working direction until a product decision overrides them.
 ### Should Fix Before Relaunch
 
 1. Implement paid transfer/resale money movement, resale-specific workflows, and automatic refund handling. Participant and organizer-assisted unpaid transfer now exist for confirmed, not checked-in registrations.
-2. Run the active negative-registration Playwright coverage once local runtime
-   is available; `specs/events/negative-registration-states.spec.ts` now covers
-   closed registration windows, role-ineligible direct links, and waitlist
-   affordances.
+2. Keep the Docker-backed registration unavailable-state coverage current.
+   `specs/events/negative-registration-states.spec.ts` and
+   `docs/events/register.doc.ts` now pass against the rebuilt Docker stack with
+   system Chrome for closed registration windows, role-ineligible direct links,
+   waitlist affordances, and paid-transfer-unavailable documentation.
 3. Keep simple-mode templates as the primary authoring UI, but expand reusable
   template support for discounts, add-ons, and questions where practical.
   Organizer planning tips are now exposed as the first private organizer-notes
@@ -1989,6 +1996,14 @@ implement those decisions or explicitly revise them there before changing code.
   spec and generated guide save a deterministic tenant-name edit, read the saved
   row back from the database, and restore the shared tenant fixture after the
   flow.
+- Negative registration Docker pass: rebuilt the Docker stack with the required
+  Font Awesome premium and brand icon registry token path intact, then validated
+  the negative-registration, self-transfer, and generated registration-doc flows
+  with system Chrome. The browser fixtures now use server-future event windows,
+  direct Drizzle selects where relational filters no longer accept SQL
+  predicates, explicit transaction currency for paid-transfer fixtures, and
+  regular-user role-ineligibility setup that restores touched registration
+  option state.
 - Scanner docs persistence pass: extended event-management docs to execute the
   generated guest check-in, assert the persisted check-in time, selected guest
   count, and checked-in counter, and restore the seeded event option counter.
