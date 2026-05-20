@@ -34,6 +34,15 @@ describe('read-only tenant user list source', () => {
     expect(template).not.toContain('mat-checkbox');
   });
 
+  it('keeps user-list role names tenant-scoped in the read-only RPC', () => {
+    const source = readSource(
+      'src/server/effect/rpc/handlers/users.handlers.ts',
+    );
+
+    expect(source).toContain('eq(rolesToTenantUsers.roleId, roles.id)');
+    expect(source).toContain('eq(roles.tenantId, tenant.id)');
+  });
+
   it('keeps generated roles docs aligned with the read-only relaunch surface', () => {
     const source = readSource('tests/docs/roles/roles.doc.ts');
 
