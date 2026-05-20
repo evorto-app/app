@@ -1,3 +1,5 @@
+import type { RegistrationMode } from '@shared/registration-modes';
+
 import {
   hidden,
   min,
@@ -18,7 +20,7 @@ export interface RegistrationOptionFormModel {
   organizingRegistration: boolean;
   price: number;
   registeredDescription: string;
-  registrationMode: 'application' | 'fcfs' | 'random';
+  registrationMode: RegistrationMode;
   roleIds: string[];
   spots: number;
   stripeTaxRateId: null | string;

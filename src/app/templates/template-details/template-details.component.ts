@@ -1,4 +1,4 @@
-import { CommonModule, TitleCasePipe } from '@angular/common';
+import { CommonModule } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -17,6 +17,7 @@ import {
   faEllipsisVertical,
   faPlus,
 } from '@fortawesome/duotone-regular-svg-icons';
+import { registrationModeLabel } from '@shared/registration-modes';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
@@ -35,7 +36,6 @@ import { RegistrationStartOffsetPipe } from '../../shared/pipes/registration-sta
     FontAwesomeModule,
     MatMenuModule,
     IconComponent,
-    TitleCasePipe,
     MatChipsModule,
     RegistrationStartOffsetPipe,
     PriceWithTaxComponent,
@@ -50,6 +50,7 @@ export class TemplateDetailsComponent {
   protected readonly faClockFour = faClockFour;
   protected readonly faEllipsisVertical = faEllipsisVertical;
   protected readonly faPlus = faPlus;
+  protected readonly registrationModeLabel = registrationModeLabel;
 
   private readonly rpc = AppRpc.injectClient();
   protected readonly taxRatesQuery = injectQuery(() =>

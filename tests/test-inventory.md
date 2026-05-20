@@ -82,6 +82,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - `specs/templates/**`
   - `specs/template-categories/**`
   - app mapper coverage in `src/app/templates/template-create-event`
+  - shared registration-mode label coverage in `src/shared`
 - Roles and permissions:
   - `docs/roles/about-permissions.doc.ts`
   - `docs/roles/roles.doc.ts`
@@ -238,6 +239,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     reusable template data is added. Local app coverage now proves event
     defaults, source registration option ids, registration-window offsets, and
     private organizer planning tips at the template-to-event boundary.
+  - Keep shared registration-mode labels aligned whenever stored modes are
+    implemented or retired. Local shared coverage now keeps event/template
+    authoring controls and template detail summaries away from raw storage ids.
   - Local shared coverage pins admin-facing permission labels and descriptions,
     including the labels used for role-form dependency copy and the generated
     permission reference.

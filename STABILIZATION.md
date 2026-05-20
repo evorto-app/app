@@ -630,6 +630,9 @@ the current working direction until a product decision overrides them.
   flow into event creation through the existing template-to-event mapping.
 - **Addressed in stabilization pass:** simple-mode template create/edit now exposes the existing `planningTips` field as private organizer planning tips, persists trimmed notes through the template RPC/service, and shows them on the template detail page.
 - **Addressed in this stabilization pass:** registration mode now only offers first-come-first-served in event/template authoring controls. The contracts still accept existing stored `random`/`application` values, but new/edit UI no longer presents unsupported fulfillment modes.
+- **Addressed in stabilization pass:** event and template authoring controls now
+  render readable registration-mode labels instead of raw stored ids such as
+  `fcfs`, while the simple-mode UI still only offers first-come-first-served.
 - **Addressed in this stabilization pass:** template create/edit components use scoped `consola/browser` loggers instead of direct `console.*` calls.
 - **Addressed in stabilization pass:** template detail paid-option summaries now use the shared inclusive tax label component, matching the event registration card display and preserving the same fallback label when tax-rate details are unavailable.
 - **Addressed in stabilization pass:** template create/edit submit normalization clears hidden payment fields for free registrations, so toggling a paid option back to free no longer submits a stale `stripeTaxRateId` that the server correctly rejects.
@@ -646,6 +649,9 @@ the current working direction until a product decision overrides them.
   option source ids for server-side template discount copying, relative
   registration-window offsets, and the boundary that organizer planning tips
   stay private to the template surface.
+- `src/shared/registration-modes.spec.ts` covers the readable labels used by
+  event/template authoring controls and template detail summaries for every
+  persisted registration-mode literal.
 - `src/server/effect/rpc/handlers/tax-rates.handlers.spec.ts` covers `taxRates.listActive` permission behavior and the current-tenant active/inclusive filter used to populate compatible template tax-rate selects.
 - `src/server/utils/validate-tax-rate.spec.ts` covers the shared server rule that paid options require a tenant-owned active inclusive tax rate and free options cannot carry stale tax-rate ids.
 - `src/server/effect/rpc/handlers/templates/simple-template.service.spec.ts` covers paid template registrations without tax rates, free template registrations with stale tax-rate ids, and invalid ESNcard discounted prices failing through the server-side validation path.
@@ -1518,6 +1524,9 @@ implement those decisions or explicitly revise them there before changing code.
   offset-derived registration windows, and the current boundary that organizer
   planning tips remain private to template detail instead of flowing into event
   instances.
+- Registration-mode label pass: centralized readable registration-mode labels
+  and wired event/template authoring selects plus template detail summaries to
+  show "First come, first served" instead of raw `fcfs` storage values.
 - Create-account retry guard pass: made the create-account submit button stay
   disabled while the account mutation is pending and pinned that invalid,
   submitting, and mutation-pending states all block duplicate submissions

@@ -91,7 +91,9 @@
     <mat-label>Registration Mode</mat-label>
     <mat-select [formField]="form.registrationMode">
       @for (mode of registrationModes(); track mode) {
-        <mat-option [value]="mode">{{ mode }}</mat-option>
+        <mat-option [value]="mode">{{
+          registrationModeLabel(mode)
+        }}</mat-option>
       }
     </mat-select>
     <mat-hint>How registrations are processed</mat-hint>

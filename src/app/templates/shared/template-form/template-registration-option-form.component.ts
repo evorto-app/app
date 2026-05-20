@@ -3,6 +3,7 @@ import { FieldTree, FormField } from '@angular/forms/signals';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
+import { registrationModeLabel } from '@shared/registration-modes';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../../core/effect-rpc-angular-client';
@@ -34,6 +35,7 @@ export class TemplateRegistrationOptionFormComponent {
     input.required<FieldTree<TemplateRegistrationFormModel>>();
   public readonly registrationModes =
     input.required<readonly RegistrationMode[]>();
+  protected readonly registrationModeLabel = registrationModeLabel;
 
   private readonly rpc = AppRpc.injectClient();
   protected readonly taxRatesQuery = injectQuery(() =>

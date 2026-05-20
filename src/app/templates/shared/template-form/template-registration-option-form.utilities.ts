@@ -1,4 +1,4 @@
-export type RegistrationMode = 'application' | 'fcfs' | 'random';
+import type { RegistrationMode } from '@shared/registration-modes';
 
 export interface TemplateRegistrationFormModel {
   closeRegistrationOffset: number;
@@ -100,3 +100,5 @@ export const mergeTemplateRegistrationFormOverrides = (
     title: overrides.title ?? base.title,
   });
 };
+
+export { type RegistrationMode } from '@shared/registration-modes';
