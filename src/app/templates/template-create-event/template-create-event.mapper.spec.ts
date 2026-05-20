@@ -111,7 +111,7 @@ describe('createEventFormModelFromTemplate', () => {
     expect(model.description).toBe('<p>Template description</p>');
   });
 
-  it('keeps reusable add-ons out of event form data until event add-on fulfillment exists', () => {
+  it('keeps reusable add-ons out of event form data while preserving source option ids for server-side copying', () => {
     const model = createEventFormModelFromTemplate(
       {
         addOns: [

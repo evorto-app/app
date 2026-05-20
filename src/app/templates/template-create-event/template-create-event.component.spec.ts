@@ -48,7 +48,7 @@ describe('templateAddOnCopyNotice', () => {
       'This template has 1 reusable add-on.',
     );
     expect(templateAddOnCopyNotice(2)).toContain(
-      'Event creation copies registration options now',
+      'Event creation copies them to the event detail page',
     );
     expect(templateAddOnCopyNotice(2)).toContain(
       'event-specific add-on sales are not available yet',

@@ -320,8 +320,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     submit normalization plus read-model-to-edit-form mapping while add-on
     checkout/sales fulfillment remains out of scope. Event lifecycle, schema,
     and event-detail component coverage pins copied event add-on storage and
-    read-only labels. Create-event component coverage pins the visible add-on
-    boundary notice when a template has reusable add-ons.
+    read-only labels. Create-event component coverage pins the visible notice
+    that template add-ons copy to event detail while add-on checkout/sales
+    remains out of scope.
   - Template registration-option component coverage pins paid tax-rate select
     feedback for loading, empty compatible-rate, failed, and available states.
   - Seed baseline coverage pins free and paid reusable template add-ons attached

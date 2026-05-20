@@ -16,9 +16,7 @@ describe('template event add-on schema', () => {
     expect(schemaIndexSource).toContain("export * from './event-addons'");
     expect(templateAddonSource).toContain("pgTable('template_event_addons'");
     expect(eventAddonSource).toContain("pgTable('event_addons'");
-    expect(eventAddonSource).toContain(
-      "'addon_to_event_registration_options'",
-    );
+    expect(eventAddonSource).toContain("'addon_to_event_registration_options'");
   });
 
   it('does not expose registration-question schemas yet', () => {
