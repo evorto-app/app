@@ -194,6 +194,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 - `helpers/testing/authorization-source.spec.ts` keeps server permission checks
   routed through the shared evaluator path and keeps role lookup contracts free
   of permission-bearing admin role fields.
+- `helpers/testing/permission-matrix-source.spec.ts` keeps finance
+  route-denial cases aligned with the guarded finance route manifest, including
+  transaction list, receipt approval list/detail, and reimbursement routes.
 
 ## Stabilization Coverage Still Needed
 
@@ -262,6 +265,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 - Finance/receipts:
   - Keep finance route-denial cases and route-manifest specs aligned as
     transaction, receipt approval, and reimbursement routes change.
+    Local source coverage now fails if the finance permission matrix drifts
+    away from the guarded child routes, including the receipt approval detail
+    route.
     Transaction-list component coverage now pins that manual transaction
     creation is not advertised without an implemented guarded route/workflow.
   - Keep receipt review and reimbursement docs aligned with the manual
