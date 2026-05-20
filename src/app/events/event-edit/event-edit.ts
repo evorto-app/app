@@ -35,6 +35,16 @@ import { RegistrationOptionForm } from '../../shared/components/forms/registrati
 import { createRegistrationOptionFormModel } from '../../shared/components/forms/registration-option-form/registration-option-form.schema';
 import { IfAnyPermissionDirective } from '../../shared/directives/if-any-permission.directive';
 
+export const eventEditSubmitDisabled = ({
+  formInvalid,
+  formSubmitting,
+  mutationPending,
+}: {
+  formInvalid: boolean;
+  formSubmitting: boolean;
+  mutationPending: boolean;
+}): boolean => formInvalid || formSubmitting || mutationPending;
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -71,6 +81,7 @@ export class EventEdit {
       'enabled'
     );
   });
+  protected readonly eventEditSubmitDisabled = eventEditSubmitDisabled;
   protected readonly eventQuery = injectQuery(() =>
     this.rpc.events.findOneForEdit.queryOptions({ id: this.eventId() }),
   );
@@ -127,6 +138,16 @@ export class EventEdit {
   }
   protected async saveEvent(event: Event) {
     event.preventDefault();
+    if (
+      eventEditSubmitDisabled({
+        formInvalid: this.editEventForm().invalid(),
+        formSubmitting: this.editEventForm().submitting(),
+        mutationPending: this.updateEventMutation.isPending(),
+      })
+    ) {
+      return;
+    }
+
     await submit(this.editEventForm, async (formState) => {
       const formValue = formState().value();
 

@@ -505,6 +505,10 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** event find/update RPC location fields now validate against the shared `EventLocation` schema.
 - **Addressed in stabilization pass:** event creation now copies template option discounts by source option identity, so duplicate option titles do not miscopy discounts.
 - **Addressed in stabilization pass:** event creation now revalidates copied template ESNcard discounts before inserting the event. Copied discounts do not persist for event options changed to free, fail when ESNcard discounts are no longer enabled for the tenant, and fail when the template discount exceeds the event option price.
+- **Addressed in stabilization pass:** event edit saves now share one tested
+  submit-disabled guard between the Save Changes button and handler, so
+  invalid, submitting, and mutation-pending update writes cannot double-submit
+  on slow networks.
 - **Addressed in stabilization pass:** `event-management.doc.ts` no longer describes attendee export, attendee messaging, manual check-in controls, event settings tabs, event tags, featured images, notification settings, integrations, or event deletion as existing event-management UI.
 - **Addressed in stabilization pass:** unlisted-event dialog and event detail status copy now explain that unlisted events are hidden from lists while eligible direct links still work.
 - **Acceptable for now:** event edit locks are duplicated in guard, details `canEdit`, `findOneForEdit`, and `events.update`. Duplication is not ideal, but server-side checks are the source of truth.
@@ -587,6 +591,8 @@ the current working direction until a product decision overrides them.
   review and submit-for-review action guards for permission, status, and
   mutation-pending states, keeping the event lifecycle actions safe on slow
   networks and duplicate local triggers.
+- `src/app/events/event-edit/event-edit.spec.ts` covers event edit submit
+  guards for invalid, submitting, and mutation-pending states.
 - `src/app/events/event-active-registration/event-active-registration.component.spec.ts` covers participant cancellation copy for single-spot, guest, and waitlisted registrations; unpaid self-service transfer copy; target-email normalization; and transfer/resale-unavailable notes for pending, waitlisted, and blocked confirmed active registrations.
 - `tests/docs/events/event-management.doc.ts` now documents only the current event details, registration, review/listing, edit, organizer overview, participant grouping/cancellation, and receipt surfaces.
 - `tests/docs/events/unlisted-admin.doc.ts` covers the updated direct-link explanation in the listing dialog and on unlisted event details.
@@ -1620,6 +1626,9 @@ implement those decisions or explicitly revise them there before changing code.
 - Registration-mode label pass: centralized readable registration-mode labels
   and wired event/template authoring selects plus template detail summaries to
   show "First come, first served" instead of raw `fcfs` storage values.
+- Event edit submit-guard pass: shared the event edit Save Changes disabled
+  state and handler early return so invalid, submitting, and mutation-pending
+  update writes cannot double-submit.
 - Create-account retry guard pass: made the create-account submit button stay
   disabled while the account mutation is pending and pinned that invalid,
   submitting, and mutation-pending states all block duplicate submissions

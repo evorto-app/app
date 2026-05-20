@@ -49,9 +49,11 @@
           type="submit"
           mat-button
           [disabled]="
-            editEventForm().invalid() ||
-            editEventForm().submitting() ||
-            updateEventMutation.isPending()
+            eventEditSubmitDisabled({
+              formInvalid: editEventForm().invalid(),
+              formSubmitting: editEventForm().submitting(),
+              mutationPending: updateEventMutation.isPending(),
+            })
           "
         >
           @if (updateEventMutation.isPending()) {
