@@ -130,7 +130,7 @@
         mat-stroked-button
         type="button"
         class="mb-4 w-fit"
-        [disabled]="uploadingBrandAsset() !== null"
+        [disabled]="brandAssetUploadDisabled()"
         (click)="logoAssetInput.click()"
       >
         <fa-duotone-icon [icon]="faUpload" class="mr-2" />
@@ -157,7 +157,7 @@
         mat-stroked-button
         type="button"
         class="w-fit"
-        [disabled]="uploadingBrandAsset() !== null"
+        [disabled]="brandAssetUploadDisabled()"
         (click)="faviconAssetInput.click()"
       >
         <fa-duotone-icon [icon]="faUpload" class="mr-2" />

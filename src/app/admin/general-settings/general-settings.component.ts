@@ -59,6 +59,14 @@ export const generalSettingsSaveDisabled = ({
   mutationPending: boolean;
 }): boolean => formInvalid || formSubmitting || mutationPending;
 
+export const generalSettingsBrandAssetUploadDisabled = ({
+  mutationPending,
+  uploadingBrandAsset,
+}: {
+  mutationPending: boolean;
+  uploadingBrandAsset: AdminTenantBrandAssetKind | null;
+}): boolean => uploadingBrandAsset !== null || mutationPending;
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -78,6 +86,18 @@ export const generalSettingsSaveDisabled = ({
   templateUrl: './general-settings.component.html',
 })
 export class GeneralSettingsComponent {
+  protected readonly uploadingBrandAsset =
+    signal<AdminTenantBrandAssetKind | null>(null);
+  private readonly rpc = AppRpc.injectClient();
+  private readonly uploadBrandAssetMutation = injectMutation(() =>
+    this.rpc.admin.tenant.uploadBrandAsset.mutationOptions(),
+  );
+  protected readonly brandAssetUploadDisabled = computed(() =>
+    generalSettingsBrandAssetUploadDisabled({
+      mutationPending: this.uploadBrandAssetMutation.isPending(),
+      uploadingBrandAsset: this.uploadingBrandAsset(),
+    }),
+  );
   protected readonly currencyOptions = supportedTenantCurrencies;
   protected readonly deferredTenantSettingsRows = deferredTenantSettingsRows;
   protected readonly settingsModel = signal<GeneralSettingsModel>({
@@ -115,19 +135,13 @@ export class GeneralSettingsComponent {
     tenantIdentityRows(this.configService.tenant),
   );
   protected readonly timezoneOptions = supportedTenantTimezones;
-  private readonly rpc = AppRpc.injectClient();
   protected readonly updateSettingsMutation = injectMutation(() =>
     this.rpc.admin.tenant.updateSettings.mutationOptions(),
   );
-  protected readonly uploadingBrandAsset =
-    signal<AdminTenantBrandAssetKind | null>(null);
   private readonly document = inject(DOCUMENT);
-  private readonly notifications = inject(NotificationService);
 
+  private readonly notifications = inject(NotificationService);
   private readonly queryClient = inject(QueryClient);
-  private uploadBrandAssetMutation = injectMutation(() =>
-    this.rpc.admin.tenant.uploadBrandAsset.mutationOptions(),
-  );
 
   constructor() {
     effect(() => {
@@ -226,6 +240,12 @@ export class GeneralSettingsComponent {
     const input = event.target as HTMLInputElement | undefined;
     const file = input?.files?.[0] ?? null;
     if (!file) {
+      return;
+    }
+    if (this.brandAssetUploadDisabled()) {
+      if (input) {
+        input.value = '';
+      }
       return;
     }
 
