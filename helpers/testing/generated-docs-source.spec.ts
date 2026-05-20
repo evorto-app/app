@@ -22,4 +22,20 @@ describe('generated docs source current behavior', () => {
       'hosted text appears at \\`/legal/imprint\\`, \\`/legal/privacy\\`, and \\`/legal/terms\\`',
     );
   });
+
+  it('keeps global-admin docs aligned with the relaunch tenant-administration scope', () => {
+    const source = readSource('tests/docs/admin/global-admin.doc.ts');
+
+    expect(source).toContain(
+      'Tenant create/edit manages the one active primary domain, name, theme, locale, currency, timezone, and connected Stripe account id.',
+    );
+    expect(source).toContain(
+      'custom-domain verification and multi-domain automation are deferred',
+    );
+    expect(source).toContain(
+      'tenant-admin impersonation is not available in the current relaunch surface',
+    );
+    expect(source).not.toContain('impersonation workflow');
+    expect(source).not.toContain('multiple active domains');
+  });
 });

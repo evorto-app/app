@@ -1138,7 +1138,10 @@ the current working direction until a product decision overrides them.
 - **Addressed in this stabilization pass:** global-admin tenant create/edit now
   shows the relaunch tenant scope as a visible form notice: one active primary
   domain, deferred custom-domain verification and multi-domain automation, and
-  no tenant-admin impersonation from the form.
+  no tenant-admin impersonation in the current relaunch surface.
+- **Addressed in this stabilization pass:** generated-docs source coverage now
+  keeps the global-admin tenant-management guide aligned with the one-domain,
+  deferred custom-domain automation, and no-impersonation relaunch scope.
 - **Addressed in stabilization pass:** global-admin tenant create/edit submit
   actions now stay disabled while the create/update mutation is pending and
   the submit handlers ignore duplicate submit events during the in-flight
@@ -1157,6 +1160,8 @@ the current working direction until a product decision overrides them.
 - `tests/specs/permissions/matrix.spec.ts` covers route denial for `/admin/settings`, `/admin/roles`, `/admin/users`, `/admin/tax-rates`, `/finance/transactions`, `/finance/receipts-approval`, `/finance/receipts-refunds`, and template write routes. `tests/specs/finance/tax-rates/admin-import-tax-rates.spec.ts` adds focused tax-rate route denial coverage. Route-manifest unit specs cover admin, finance, template, and global-admin guard declarations without requiring page-backed runtime. `tests/specs/permissions/global-admin-route-guard.spec.ts` covers direct `/global-admin`, `/global-admin/tenants/create`, `/global-admin/tenants/:tenantId`, and `/global-admin/tenants/:tenantId/edit` allow/deny behavior once page-backed runtime is available.
 - `tests/docs/admin/general-settings.doc.ts` documents the current tenant general-settings page, including the deferred-settings summary, read-only tenant identity summary with Stripe account support lookup detail, editable locale/money policy plus reload behavior, uploaded or externally hosted brand asset URLs, editable tenant legal links or hosted text, and public footer/favicon exposure, and records which domain/operations settings are not editable yet.
 - `tests/docs/admin/global-admin.doc.ts` documents the current searchable global-admin tenant list, tenant create/edit workflow, visible relaunch tenant-scope notice, and tenant detail review, and records that custom-domain verification, multi-domain automation, and impersonation workflows are not implemented yet.
+- `helpers/testing/generated-docs-source.spec.ts` keeps the global-admin guide
+  aligned with the one-domain/no-impersonation relaunch scope.
 - `tests/docs/finance/inclusive-tax-rates.doc.ts` documents tenant tax-rate management.
 - `src/app/admin/components/import-tax-rates-dialog/import-tax-rates-dialog.component.spec.ts` covers the local Stripe tax-rate import guard so empty selections and pending imports cannot submit duplicate tax-rate writes.
 - `src/shared/rpc-contracts/app-rpcs/admin.rpcs.spec.ts` covers the tenant settings update payload scope.
