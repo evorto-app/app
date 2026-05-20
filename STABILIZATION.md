@@ -1178,7 +1178,8 @@ the current working direction until a product decision overrides them.
   global-admin tenant list, tenant create/edit workflow, visible relaunch
   tenant-scope notice, and tenant detail review, pins the list/create/detail/edit
   navigation targets plus the external tenant-domain link, reads the documented
-  tenant row from the database before asserting operational fields, and records
+  tenant row from the database before asserting operational fields, saves a
+  tenant-name edit with database readback and fixture restoration, and records
   that custom-domain verification, multi-domain automation, and impersonation
   workflows are not implemented yet.
 - `tests/docs/finance/inclusive-tax-rates.doc.ts` documents tenant tax-rate management.
@@ -1858,6 +1859,10 @@ implement those decisions or explicitly revise them there before changing code.
 - Global-admin docs readback pass: tied the generated guide's tenant list,
   detail, search, and edit-form assertions to the seeded localhost tenant row
   instead of only matching generic visible values.
+- Global-admin edit persistence pass: made the page-backed global-admin tenant
+  spec and generated guide save a deterministic tenant-name edit, read the saved
+  row back from the database, and restore the shared tenant fixture after the
+  flow.
 - Scanner docs persistence pass: extended event-management docs to execute the
   generated guest check-in, assert the persisted check-in time, selected guest
   count, and checked-in counter, and restore the seeded event option counter.
