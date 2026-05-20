@@ -2154,6 +2154,9 @@ implement those decisions or explicitly revise them there before changing code.
   the current unavailable-state and transfer scope, including closed windows,
   full-option waitlists, role-ineligible direct links, unpaid transfer, paid
   transfer/resale deferral, and no QR email delivery.
+- Scanner docs source-guard pass: pinned generated event-management docs to the
+  dedicated QR scanner flow, scanner warning states, guest-quantity checked-in
+  counts, organizer cancellation scope, and paid-transfer/refund deferrals.
 
 ## Review Next
 

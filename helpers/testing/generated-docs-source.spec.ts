@@ -180,4 +180,33 @@ describe('generated docs source current behavior', () => {
     expect(source).not.toContain('resale is automatic');
     expect(source).not.toContain('ticket QR code by email');
   });
+
+  it('keeps event-management docs aligned with scanner and organizer scope', () => {
+    const source = readSource('tests/docs/events/event-management.doc.ts');
+
+    expect(source).toContain(
+      'Organizers check in attendees from the dedicated QR scanner.',
+    );
+    expect(source).toContain(
+      'The scanned-registration page shows the attendee, event, registration option, ESNcard discount marker when applicable, guest check-in progress when guests are attached to the registration, and warnings for self-scan, future events, non-confirmed registrations, and already checked-in tickets.',
+    );
+    expect(source).toContain(
+      'Confirming check-in records the registration check-in time and updates the checked-in count shown on the organizer overview.',
+    );
+    expect(source).toContain(
+      'When a registration includes guests, the organizer chooses how many guests arrived with the attendee, and the checked-in count increases by the attendee plus the selected guests.',
+    );
+    expect(source).toContain(
+      "Organizers can also cancel a participant's confirmed registration from the organizer overview before check-in, which releases the confirmed spot without promising an automatic refund.",
+    );
+    expect(source).toContain(
+      'Paid registration transfer still remains blocked until the manual refund or resale money flow is handled.',
+    );
+    expect(source).toContain(
+      'It does not currently include attendee export, attendee messaging, manual check-in controls outside QR scanning',
+    );
+    expect(source).not.toContain('manual check-in from the organizer overview');
+    expect(source).not.toContain('automatic refund controls are available');
+    expect(source).not.toContain('paid registration transfer is available');
+  });
 });
