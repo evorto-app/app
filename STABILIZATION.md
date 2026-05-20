@@ -795,6 +795,7 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** profile and user-event summaries no longer read `event_registrations.paymentStatus`; payment display is derived from registration transaction rows. Seed and webhook-replay setup stopped writing `paymentStatus` for new fixture registrations, and the legacy payment-status column/enum have been removed from the application schema.
 - **Addressed in stabilization pass:** receipt review records status locally, and the review detail page, success feedback, and finance docs explicitly tell finance reviewers that submitter notification is manual until a real delivery path exists.
 - **Addressed in this stabilization pass:** finance receipt approval and reimbursement lists now prefer the user's editable notification email over the Auth0 login email when rendering submitter contact details.
+- **Addressed in this stabilization pass:** the event organizer receipt action now stays disabled while the original receipt upload is pending, not only while the final submit mutation is pending, and the click handler shares the same guard.
 - **Acceptable for now:** receipt review/reimbursement queries are tenant-scoped, and receipt reimbursement creation uses a transaction plus status preconditions to avoid reimbursing the wrong submitter or already-reimbursed receipts.
 
 ### Test and Documentation Quality
@@ -807,6 +808,8 @@ the current working direction until a product decision overrides them.
 - `src/app/finance/receipt-refund-list/receipt-refund-list.component.spec.ts` pins the reimbursement queue's manual money-movement notice, payout-detail gating, payout-detail labels, and selected-total math. The receipt reimbursement doc/spec assert the manual-money notice on the page.
 - Tax-rate docs and specs provide better active coverage for `admin:tax` and inclusive Stripe tax-rate import/selection.
 - Server finance unit tests are still thin, but now include transaction-list permission denial, receipt-media upload preflight denial/success coverage, profile `finance.receipts.my` output normalization, submitter notification-email fallback, and tax-amount consistency rejection on receipt submit/review.
+- Event organize app coverage pins the receipt submission disabled state across
+  closed events, upload-pending, and submit-pending phases.
 
 ### Product Questions Answered Above
 
@@ -1325,6 +1328,9 @@ implement those decisions or explicitly revise them there before changing code.
 - Payment-status deprecation pass: stopped active profile/user-event reads and fixture setup from relying on `event_registrations.paymentStatus`; user-facing payment state now derives from registration transaction rows, and the legacy field/enum have been removed from the application schema.
 - Receipt timing pass: restricted receipt submission to events whose end time has passed and pointed receipt Playwright setup at the deterministic past event fixture.
 - Receipt timing backlog cleanup: removed the stale relaunch checklist item that still treated pre-event receipt submission policy as undecided after the server rule, Playwright setup, and finance notes had already settled on post-event submission.
+- Receipt submission guard pass: kept the organizer Add receipt action disabled
+  during both upload and submit mutations, with the template and handler sharing
+  the same tested helper.
 - Scanner status-coverage pass: added focused scan-read and direct-check-in coverage for pending, cancelled, and waitlisted registrations.
 - Tenant settings feedback pass: added explicit success and readable error notifications for general settings saves.
 - Tenant SEO settings pass: exposed stored tenant SEO title/description through the Tenant RPC schema, general settings UI, admin settings persistence, and tenant-level document metadata.

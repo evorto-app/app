@@ -165,8 +165,11 @@
             color="primary"
             (click)="openReceiptDialog()"
             [disabled]="
-              submitReceiptMutation.isPending() ||
-              !!receiptSubmissionClosedMessage()
+              receiptSubmissionActionDisabled({
+                receiptSubmissionClosed: !!receiptSubmissionClosedMessage(),
+                submitPending: submitReceiptMutation.isPending(),
+                uploadPending: receiptOriginalUploadMutation.isPending(),
+              })
             "
           >
             Add receipt
