@@ -3,8 +3,13 @@
     <fa-duotone-icon [icon]="faArrowLeft" />
   </a>
   <h1 class="title-large">
-    @if (tenantQuery.data(); as tenant) {
-      {{ tenant.name }}
+    @if (tenantQuery.isSuccess()) {
+      @let tenant = tenantQuery.data();
+      @if (tenant) {
+        {{ tenant.name }}
+      } @else {
+        Tenant review
+      }
     } @else {
       Tenant review
     }
@@ -23,48 +28,62 @@
     <h2 class="title-medium mb-4">There was an error</h2>
     <p class="body-medium">Error: {{ errorMessage(tenantQuery.error()) }}</p>
   </div>
-} @else if (tenantQuery.data(); as tenant) {
-  <section class="bg-surface text-on-surface rounded-2xl p-4">
-    <div class="flex flex-wrap items-center gap-3">
-      <div>
-        <h2 class="title-medium">{{ tenant.name }}</h2>
-        <p class="body-medium text-on-surface-variant">
-          Read-only operational tenant review.
-        </p>
-      </div>
-      <div class="grow"></div>
-      <a mat-button [routerLink]="['/global-admin/tenants', tenant.id, 'edit']">
-        Edit tenant
-      </a>
-      @if (tenantDomainUrl(tenant.domain); as domainUrl) {
+} @else if (tenantQuery.isSuccess()) {
+  @let tenant = tenantQuery.data();
+  @if (tenant) {
+    <section class="bg-surface text-on-surface rounded-2xl p-4">
+      <div class="flex flex-wrap items-center gap-3">
+        <div>
+          <h2 class="title-medium">{{ tenant.name }}</h2>
+          <p class="body-medium text-on-surface-variant">
+            Read-only operational tenant review.
+          </p>
+        </div>
+        <div class="grow"></div>
         <a
           mat-button
-          [href]="domainUrl"
-          target="_blank"
-          rel="noopener noreferrer"
+          [routerLink]="['/global-admin/tenants', tenant.id, 'edit']"
         >
-          Open tenant domain
+          Edit tenant
         </a>
-      }
-    </div>
-
-    <dl class="mt-4 grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
-      @for (row of tenantRows(tenant); track row.label) {
-        <div>
-          <dt class="text-on-surface-variant text-xs uppercase">
-            {{ row.label }}
-          </dt>
-          <dd
-            class="break-words"
-            [class.font-mono]="row.monospace"
-            [class.text-xs]="row.monospace"
+        @if (tenantDomainUrl(tenant.domain); as domainUrl) {
+          <a
+            mat-button
+            [href]="domainUrl"
+            target="_blank"
+            rel="noopener noreferrer"
           >
-            {{ row.value }}
-          </dd>
-        </div>
-      }
-    </dl>
-  </section>
+            Open tenant domain
+          </a>
+        }
+      </div>
+
+      <dl class="mt-4 grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
+        @for (row of tenantRows(tenant); track row.label) {
+          <div>
+            <dt class="text-on-surface-variant text-xs uppercase">
+              {{ row.label }}
+            </dt>
+            <dd
+              class="break-words"
+              [class.font-mono]="row.monospace"
+              [class.text-xs]="row.monospace"
+            >
+              {{ row.value }}
+            </dd>
+          </div>
+        }
+      </dl>
+    </section>
+  } @else {
+    <section class="bg-surface text-on-surface rounded-2xl p-4">
+      <h2 class="title-medium">Tenant not found</h2>
+      <p class="body-medium text-on-surface-variant">
+        This tenant either does not exist or is no longer available for global
+        admin review.
+      </p>
+    </section>
+  }
 } @else {
   <section class="bg-surface text-on-surface rounded-2xl p-4">
     <h2 class="title-medium">Tenant not found</h2>
