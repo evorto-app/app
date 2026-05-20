@@ -69,6 +69,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - specs/profile/user-profile-discounts.spec.ts [finance]
   - specs/profile/user-profile-edit.spec.ts
   - specs/profile/user-profile-events.spec.ts
+  - specs/profile/user-profile-receipts.spec.ts [finance]
   - specs/reporting/reporter-paths.test.ts
   - specs/scanning/scanner.test.ts
   - specs/screenshot/doc-screenshot.test.ts
@@ -124,6 +125,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - `specs/profile/user-profile-discounts.spec.ts`
   - `specs/profile/user-profile-edit.spec.ts`
   - `specs/profile/user-profile-events.spec.ts`
+  - `specs/profile/user-profile-receipts.spec.ts`
   - app profile edit, event-card, receipt-card, and ESNcard action coverage in
     `src/app/profile`
 - Scanning/check-in:
@@ -295,6 +297,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     receipt-card filename, submitted status, event title, and amount. Local
     app/server coverage already proves readable submitted-receipt status labels,
     amount formatting, and `finance.receipts.my` profile-card row normalization.
+    `specs/profile/user-profile-receipts.spec.ts` adds functional coverage for
+    the same profile receipt-card state with database readback and cleanup.
 - Finance/receipts:
   - Keep finance route-denial cases and route-manifest specs aligned as
     transaction, receipt approval, and reimbursement routes change.
