@@ -173,6 +173,24 @@ const databaseWithSubmittedReceipt = () => ({
     ),
 });
 
+const databaseWithReviewReceiptStatus = (
+  status: 'approved' | 'refunded' | 'rejected' | 'submitted',
+) => ({
+  query: {
+    financeReceipts: {
+      findFirst: () =>
+        Effect.succeed({
+          id: 'receipt-1',
+          status,
+        }),
+    },
+  },
+  update: () =>
+    Effect.die(
+      new Error('receipt review update should not run after validation fails'),
+    ),
+});
+
 const databaseWithRefundableReceipts = (
   receipts: {
     eventId: string;
@@ -718,6 +736,77 @@ describe('finance receipt amount validation', () => {
 
       expect(error['_tag']).toBe('RpcBadRequestError');
       expect(error.reason).toBe('taxAmountExceedsTotal');
+    }),
+  );
+
+  it.effect('rejects review updates for refunded receipts', () =>
+    Effect.gen(function* () {
+      const error = yield* financeHandlers['finance.receipts.review'](
+        {
+          ...receiptFieldsInput,
+          id: 'receipt-1',
+          status: 'approved',
+        },
+        { headers: {} } as never,
+      ).pipe(
+        Effect.flip,
+        Effect.provide(
+          createContextLayer(['finance:approveReceipts'], {
+            database: databaseWithReviewReceiptStatus('refunded'),
+          }),
+        ),
+      );
+
+      expect(error['_tag']).toBe('RpcBadRequestError');
+      expect(error.reason).toBe('refundedReceipt');
+    }),
+  );
+
+  it.effect('requires a rejection reason when rejecting receipts', () =>
+    Effect.gen(function* () {
+      const error = yield* financeHandlers['finance.receipts.review'](
+        {
+          ...receiptFieldsInput,
+          id: 'receipt-1',
+          rejectionReason: null,
+          status: 'rejected',
+        },
+        { headers: {} } as never,
+      ).pipe(
+        Effect.flip,
+        Effect.provide(
+          createContextLayer(['finance:approveReceipts'], {
+            database: databaseWithReviewReceiptStatus('submitted'),
+          }),
+        ),
+      );
+
+      expect(error['_tag']).toBe('RpcBadRequestError');
+      expect(error.reason).toBe('missingRejectionReason');
+    }),
+  );
+
+  it.effect('rejects receipt review updates with invalid receipt dates', () =>
+    Effect.gen(function* () {
+      const error = yield* financeHandlers['finance.receipts.review'](
+        {
+          ...receiptFieldsInput,
+          id: 'receipt-1',
+          receiptDate: 'not-a-date',
+          status: 'approved',
+        },
+        { headers: {} } as never,
+      ).pipe(
+        Effect.flip,
+        Effect.provide(
+          createContextLayer(['finance:approveReceipts'], {
+            database: databaseWithReviewReceiptStatus('submitted'),
+          }),
+        ),
+      );
+
+      expect(error['_tag']).toBe('RpcBadRequestError');
+      expect(error.reason).toBe('invalidReceiptDate');
     }),
   );
 });

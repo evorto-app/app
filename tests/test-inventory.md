@@ -267,14 +267,16 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     selected receipt plus the chosen payout detail, that selected totals sum the
     selected rows only, that approval/rejection actions stay disabled while the
     form is invalid, receipt details are loading, or the review mutation is
-    pending, that reimbursement recording stays disabled while the refund
-    mutation is pending, that receipt preview rendering only trusts HTTP(S) or
-    app-relative preview URLs, and that finance receipt contact details prefer
-    the submitter's notification email with login email fallback. Server
-    handler coverage also pins that reimbursement recording rejects a selected
-    receipt set with mixed submitters before a transaction can be recorded,
-    rejects missing or changed payout details, and rejects the transaction when
-    approved receipt preconditions change before the reimbursement update.
+    pending, that server review rejects refunded receipts, missing rejection
+    reasons, and invalid receipt dates before writing updates, that
+    reimbursement recording stays disabled while the refund mutation is pending,
+    that receipt preview rendering only trusts HTTP(S) or app-relative preview
+    URLs, and that finance receipt contact details prefer the submitter's
+    notification email with login email fallback. Server handler coverage also
+    pins that reimbursement recording rejects a selected receipt set with mixed
+    submitters before a transaction can be recorded, rejects missing or changed
+    payout details, and rejects the transaction when approved receipt
+    preconditions change before the reimbursement update.
   - Keep event-organizer receipt submission action coverage aligned with the
     two-step upload-plus-submit flow. Local app coverage now pins that Add
     receipt remains disabled while the event has not loaded yet, while the
