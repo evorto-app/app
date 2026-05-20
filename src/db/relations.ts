@@ -3,7 +3,21 @@ import { defineRelations } from 'drizzle-orm';
 import * as schema from './schema';
 
 export const relations = defineRelations(schema, (r) => ({
+  eventAddons: {
+    event: r.one.eventInstances({
+      from: r.eventAddons.eventId,
+      optional: false,
+      to: r.eventInstances.id,
+    }),
+    registrationOptions: r.many.eventRegistrationOptions({
+      from: r.eventAddons.id.through(r.addonToEventRegistrationOptions.addonId),
+      to: r.eventRegistrationOptions.id.through(
+        r.addonToEventRegistrationOptions.registrationOptionId,
+      ),
+    }),
+  },
   eventInstances: {
+    addons: r.many.eventAddons(),
     creator: r.one.users({
       alias: 'eventInstances_creatorId_users_id',
       from: r.eventInstances.creatorId,
@@ -35,6 +49,12 @@ export const relations = defineRelations(schema, (r) => ({
       from: r.eventRegistrationOptions.eventId,
       optional: false,
       to: r.eventInstances.id,
+    }),
+    eventAddons: r.many.eventAddons({
+      from: r.eventRegistrationOptions.id.through(
+        r.addonToEventRegistrationOptions.registrationOptionId,
+      ),
+      to: r.eventAddons.id.through(r.addonToEventRegistrationOptions.addonId),
     }),
     eventRegistrations: r.many.eventRegistrations(),
   },

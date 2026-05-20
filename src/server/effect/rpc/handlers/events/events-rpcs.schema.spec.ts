@@ -2,6 +2,7 @@ import { Schema } from 'effect';
 import { describe, expect, it } from 'vitest';
 
 import {
+  EventsFindOneAddon,
   EventsFindOneRegistrationOption,
   EventsRegistrationStatus,
   EventsRegistrationStatusRecord,
@@ -85,6 +86,35 @@ describe('events RPC registration option schema', () => {
         taxRateDisplayName: 'VAT',
         taxRatePercentage: '19',
         title: 'Participant',
+      }),
+    ).not.toThrow();
+  });
+});
+
+describe('events RPC add-on schema', () => {
+  it('carries copied event add-ons with registration option attachments', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(EventsFindOneAddon)({
+        allowMultiple: true,
+        allowPurchaseBeforeEvent: true,
+        allowPurchaseDuringEvent: false,
+        allowPurchaseDuringRegistration: true,
+        description: 'Includes equipment rental.',
+        id: 'addon-1',
+        isPaid: true,
+        maxQuantityPerUser: 2,
+        price: 1500,
+        registrationOptions: [
+          {
+            quantity: 1,
+            registrationOptionId: 'option-1',
+          },
+        ],
+        stripeTaxRateId: 'txr_vat_19',
+        taxRateDisplayName: 'VAT',
+        taxRatePercentage: '19',
+        title: 'Equipment rental',
+        totalAvailableQuantity: 20,
       }),
     ).not.toThrow();
   });

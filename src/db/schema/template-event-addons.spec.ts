@@ -5,15 +5,20 @@ const readSource = (path: string) =>
   readFileSync(new URL(path, import.meta.url), 'utf8');
 
 describe('template event add-on schema', () => {
-  it('keeps add-ons scoped to templates until event add-on fulfillment exists', () => {
+  it('exposes template add-ons and copied event add-on storage', () => {
     const schemaIndexSource = readSource('index.ts');
+    const eventAddonSource = readSource('event-addons.ts');
     const templateAddonSource = readSource('template-event-addons.ts');
 
     expect(schemaIndexSource).toContain(
       "export * from './template-event-addons'",
     );
+    expect(schemaIndexSource).toContain("export * from './event-addons'");
     expect(templateAddonSource).toContain("pgTable('template_event_addons'");
-    expect(schemaIndexSource).not.toContain("export * from './event-addons'");
+    expect(eventAddonSource).toContain("pgTable('event_addons'");
+    expect(eventAddonSource).toContain(
+      "'addon_to_event_registration_options'",
+    );
   });
 
   it('does not expose registration-question schemas yet', () => {

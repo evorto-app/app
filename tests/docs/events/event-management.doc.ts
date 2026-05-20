@@ -140,6 +140,7 @@ Let's look at each section in detail.
 ## Registration Options
 
 Registration options determine how people can sign up for your event. Templates can create one or more registration options that are then shown on the event details page.
+Reusable add-ons copied from the source template are shown separately on the event detail page with their price, purchase timing, quantity limits, and attached registration options.
 
 When editing a draft or rejected event, registration options can include:
 

@@ -310,17 +310,18 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - Keep template-to-event mapper coverage aligned with the event form as richer
     reusable template data is added. Local app coverage now proves event
     defaults, source registration option ids, registration-window offsets, and
-    private organizer planning tips at the template-to-event boundary. It also
-    pins that reusable add-ons do not enter event form data until event-side
-    add-on fulfillment exists.
+    private organizer planning tips at the template-to-event boundary. Source
+    registration option ids now also drive server-side reusable add-on copying
+    into event-scoped read-model records.
   - Template detail component coverage pins reusable add-on purchase timing and
     registration-option labels. Server handler coverage pins the current add-on
     read model, simple-template service coverage pins optional add-on write
     payload shaping/validation, and template form utility coverage pins add-on
-    submit normalization plus read-model-to-edit-form mapping while event-side
-    add-on fulfillment remains out of scope.
-    Create-event component coverage pins the visible add-on boundary notice when
-    a template has reusable add-ons.
+    submit normalization plus read-model-to-edit-form mapping while add-on
+    checkout/sales fulfillment remains out of scope. Event lifecycle, schema,
+    and event-detail component coverage pins copied event add-on storage and
+    read-only labels. Create-event component coverage pins the visible add-on
+    boundary notice when a template has reusable add-ons.
   - Template registration-option component coverage pins paid tax-rate select
     feedback for loading, empty compatible-rate, failed, and available states.
   - Seed baseline coverage pins free and paid reusable template add-ons attached
