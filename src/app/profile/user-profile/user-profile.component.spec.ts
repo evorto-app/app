@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  esnCardActionLabel,
   esnCardMutationErrorMessage,
+  esnCardSaveDisabled,
   esnCardSubmitPayloadFromIdentifier,
   profileEventActionNote,
   profileEventContinuePaymentUrl,
@@ -125,6 +127,46 @@ describe('profile event labels', () => {
 });
 
 describe('profile ESN card messages', () => {
+  it('keeps ESN card action labels aligned with pending states', () => {
+    expect(esnCardActionLabel('refresh', false)).toBe('Refresh');
+    expect(esnCardActionLabel('refresh', true)).toBe('Refreshing...');
+    expect(esnCardActionLabel('remove', false)).toBe('Remove');
+    expect(esnCardActionLabel('remove', true)).toBe('Removing...');
+    expect(esnCardActionLabel('save', false)).toBe('Save ESN card');
+    expect(esnCardActionLabel('save', true)).toBe('Checking ESN card...');
+  });
+
+  it('keeps ESN card save disabled while invalid, submitting, or validating', () => {
+    expect(
+      esnCardSaveDisabled({
+        formInvalid: true,
+        formSubmitting: false,
+        mutationPending: false,
+      }),
+    ).toBe(true);
+    expect(
+      esnCardSaveDisabled({
+        formInvalid: false,
+        formSubmitting: true,
+        mutationPending: false,
+      }),
+    ).toBe(true);
+    expect(
+      esnCardSaveDisabled({
+        formInvalid: false,
+        formSubmitting: false,
+        mutationPending: true,
+      }),
+    ).toBe(true);
+    expect(
+      esnCardSaveDisabled({
+        formInvalid: false,
+        formSubmitting: false,
+        mutationPending: false,
+      }),
+    ).toBe(false);
+  });
+
   it('trims the ESN card identifier before submitting the upsert mutation', () => {
     expect(esnCardSubmitPayloadFromIdentifier('  ABCD1234  ')).toEqual({
       identifier: 'ABCD1234',
