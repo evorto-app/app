@@ -3,12 +3,12 @@ import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
-import { MatIconModule } from '@angular/material/icon';
 import { RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import {
   faArrowLeft,
   faArrowUpRightFromSquare,
+  faRotateRight,
 } from '@fortawesome/duotone-regular-svg-icons';
 import {
   injectMutation,
@@ -30,13 +30,7 @@ export const eventReviewQueueActionDisabled = ({
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    MatButtonModule,
-    MatIconModule,
-    RouterLink,
-    FontAwesomeModule,
-    DatePipe,
-  ],
+  imports: [MatButtonModule, RouterLink, FontAwesomeModule, DatePipe],
   selector: 'app-event-reviews',
   standalone: true,
   template: `
@@ -56,7 +50,7 @@ export const eventReviewQueueActionDisabled = ({
         (click)="pendingReviewsQuery.refetch()"
         aria-label="Refresh pending reviews"
       >
-        <mat-icon>refresh</mat-icon>
+        <fa-duotone-icon [icon]="faRotateRight" />
       </button>
     </div>
 
@@ -141,6 +135,7 @@ export class EventReviewsComponent {
     eventReviewQueueActionDisabled;
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faArrowUpRightFromSquare = faArrowUpRightFromSquare;
+  protected readonly faRotateRight = faRotateRight;
   private readonly rpc = AppRpc.injectClient();
   protected readonly pendingReviewsQuery = injectQuery(() =>
     this.rpc.events.getPendingReviews.queryOptions(),
