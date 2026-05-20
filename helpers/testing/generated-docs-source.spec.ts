@@ -364,6 +364,17 @@ describe('generated docs source current behavior', () => {
     expect(rolesSource).toContain(
       'Permissions that are required by another permission are automatically included and shown as non-editable dependent permissions with the same admin-facing labels used in the permission reference.',
     );
+    expect(rolesSource).toContain('Role docs ${seedDate.getTime()}');
+    expect(rolesSource).toContain(
+      "throw new Error('Expected generated roles doc to persist the role')",
+    );
+    expect(rolesSource).toContain(
+      "createdRole.permissions).toContain('events:create')",
+    );
+    expect(rolesSource).toContain(
+      "createdRole.permissions).toContain('templates:view')",
+    );
+    expect(rolesSource).toContain('.delete(schema.roles)');
     expect(permissionsSource).toContain(
       'Permissions are tenant-scoped capabilities assigned through roles.',
     );
