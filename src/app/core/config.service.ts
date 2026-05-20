@@ -94,6 +94,14 @@ export class ConfigService {
       consola.warn('Missing context on server. Skipping config loading.');
       return;
     }
+
+    if (this.requestContext !== null && isPlatformServer(this.platformId)) {
+      this.applyTenantConfig(this.requestContext.tenant);
+      this._permissions = [...this.requestContext.permissions];
+      this._publicConfig = await this.rpc.config.public.call();
+      return;
+    }
+
     const [tenant, permissions, pub] = await Promise.all([
       this.rpc.config.tenant.call(),
       this.rpc.config.permissions.call(),

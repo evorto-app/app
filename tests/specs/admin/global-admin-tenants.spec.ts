@@ -75,9 +75,7 @@ test('global tenant admin reviews tenant list, detail, and forms @admin @globalA
     await page.goto('/global-admin/tenants');
 
     await expect(
-      page
-        .locator('app-tenant-list')
-        .getByRole('heading', { name: 'Tenants' }),
+      page.getByRole('heading', { level: 1, name: 'Tenants' }),
     ).toBeVisible();
     await expect(
       page.getByRole('link', { name: 'Create tenant' }),
@@ -112,11 +110,11 @@ test('global tenant admin reviews tenant list, detail, and forms @admin @globalA
     await page.getByRole('button', { name: 'Create tenant' }).click();
     await expect(page).toHaveURL(/\/global-admin\/tenants\/[^/]+$/);
     await expect(
-      page.getByRole('heading', { name: createdTenantName }),
+      page.getByRole('heading', { level: 1, name: createdTenantName }),
     ).toBeVisible();
 
     const createdTenant = await database.query.tenants.findFirst({
-      where: eq(schema.tenants.domain, createdTenantDomain),
+      where: (tenantTable) => eq(tenantTable.domain, createdTenantDomain),
     });
     if (!createdTenant) {
       throw new Error('Expected global-admin create flow to persist tenant');
@@ -176,7 +174,7 @@ test('global tenant admin reviews tenant list, detail, and forms @admin @globalA
     await page.getByRole('button', { name: 'Save tenant' }).click();
     await expect(page).toHaveURL(reviewTenantHref);
     await expect(
-      page.getByRole('heading', { name: updatedTenantName }),
+      page.getByRole('heading', { level: 1, name: updatedTenantName }),
     ).toBeVisible();
 
     const updatedTenant = await database.query.tenants.findFirst({

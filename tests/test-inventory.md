@@ -193,7 +193,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 - `specs/permissions/override.test.ts` is active desktop coverage for the
   permission override fixture; no mobile project currently runs this spec.
 - `specs/permissions/global-admin-route-guard.spec.ts` covers direct
-  `/global-admin`, `/global-admin/tenants/create`,
+  `/global-admin/tenants`, `/global-admin/tenants/create`,
   `/global-admin/tenants/:tenantId`, and
   `/global-admin/tenants/:tenantId/edit` allow/deny behavior once page-backed
   runtime is available.
@@ -466,6 +466,13 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   a rebuilt Docker runtime with system Chrome after the Stripe CLI sidecar
   update, covering seeded profile discount-card state plus the paid registration
   ESN discount label, price component, and payment button.
+- `tests/specs/admin/global-admin-tenants.spec.ts` and
+  `tests/specs/permissions/global-admin-route-guard.spec.ts` passed together
+  against a rebuilt Docker runtime with system Chrome using existing storage
+  states and `--no-deps`, covering the global-admin tenant list/create/detail/
+  edit workflow and allow/deny route guards. The full dependency run is still
+  subject to live Auth0 login availability; on the slow network it timed out in
+  authentication setup before app assertions ran.
 - `specs/seed/seed-baseline.test.ts` fails explicitly when the core scenario
   handles point at missing event or registration-option rows.
 - `docs/events/register.doc.ts` fails explicitly when the regular-user fixture

@@ -7,9 +7,11 @@ test.describe('global admin route guard allow path', () => {
   test('allows global tenant admins to open the tenant list @permissions @globalAdmin', async ({
     page,
   }) => {
-    await page.goto('/global-admin');
-    await expect(page).toHaveURL(/\/global-admin/);
-    await expect(page.getByRole('heading', { name: 'Tenants' })).toBeVisible();
+    await page.goto('/global-admin/tenants');
+    await expect(page).toHaveURL(/\/global-admin\/tenants/);
+    await expect(
+      page.getByRole('heading', { level: 1, name: 'Tenants' }),
+    ).toBeVisible();
   });
 
   test('allows global tenant admins to open tenant details directly @permissions @globalAdmin', async ({

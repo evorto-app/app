@@ -2018,19 +2018,28 @@ implement those decisions or explicitly revise them there before changing code.
   plus profile discount-card slice against system Chrome. The slice passed 9/9
   after opting the ESN paid-registration spec into the seeded user ESNcard
   fixture and targeting the current price component markup.
+- Docker global-admin runtime pass: rebuilt the Docker app image with the
+  global-admin Auth0 fallback wired into Compose, verified service health/logs
+  and `/events`, confirmed `/global-admin` renders the tenant-admin surface in a
+  system-Chrome session, and ran the global-admin tenant workflow plus route
+  guards with `NO_WEBSERVER=true --no-deps`. The slice passed 8/8 after fixing
+  SSR config initialization to seed permissions from `REQUEST_CONTEXT`, making
+  permission checks read current config permissions, and aligning the tests/docs
+  with the overview -> tenant-list route split. The full dependency run still
+  depends on live Auth0 login and timed out on the unstable network.
 
 ## Review Next
 
 All ten first-pass review areas are now represented in this document. The next
 stabilization work should continue with small cleanup commits around the
-remaining relaunch gaps: Browser-backed profile action coverage, automated
-onboarding/domain workflows, and manual global tenant-admin Browser review.
-Scanner aggregate behavior now has Docker-backed system-Chrome coverage, but the
-in-app Browser connection itself still timed out during local navigation and
-should be retried when the Browser plugin/runtime is healthy. The profile
-discount-card and ESN discounted-pricing slices also now have Docker-backed
-system-Chrome coverage, while live external ESNcard add/refresh provider
-outcomes remain intentionally outside deterministic local Browser coverage.
+remaining relaunch gaps: Browser-backed profile action coverage and automated
+onboarding/domain workflows. Scanner aggregate behavior and global-admin tenant
+administration now have Docker-backed system-Chrome coverage, but the in-app
+Browser connection itself still timed out during local navigation and should be
+retried when the Browser plugin/runtime is healthy. The profile discount-card
+and ESN discounted-pricing slices also now have Docker-backed system-Chrome
+coverage, while live external ESNcard add/refresh provider outcomes remain
+intentionally outside deterministic local Browser coverage.
 Richer reusable template add-ons and questions are now implemented in the simple
 template flow and should be kept aligned as those surfaces evolve. Normal generated docs output now stays local unless
 `test:e2e:docs:publish` is run intentionally. New Playwright
