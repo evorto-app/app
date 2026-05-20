@@ -31,6 +31,14 @@ import { CreateEditCategoryDialogComponent } from '../create-edit-category-dialo
 
 const fallbackIcon: IconValue = { iconColor: 0, iconName: 'city' };
 
+export const templateCategoryActionDisabled = ({
+  createPending,
+  updatePending,
+}: {
+  createPending: boolean;
+  updatePending: boolean;
+}): boolean => createPending || updatePending;
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -73,6 +81,10 @@ export class CategoryListComponent {
   );
 
   async openCategoryCreationDialog() {
+    if (this.categoryActionDisabled()) {
+      return;
+    }
+
     const defaultIcon =
       this.templateCategoryGroupsQuery.data()?.[0]?.icon ?? fallbackIcon;
     const dialogReference = this.dialog.open<
@@ -102,6 +114,10 @@ export class CategoryListComponent {
     id: string;
     title: string;
   }) {
+    if (this.categoryActionDisabled()) {
+      return;
+    }
+
     const dialogReference = this.dialog.open(
       CreateEditCategoryDialogComponent,
       {
@@ -124,5 +140,12 @@ export class CategoryListComponent {
         this.rpc.queryFilter(['templates', 'groupedByCategory']),
       );
     }
+  }
+
+  protected categoryActionDisabled(): boolean {
+    return templateCategoryActionDisabled({
+      createPending: this.createCategoryMutation.isPending(),
+      updatePending: this.updateCategoryMutation.isPending(),
+    });
   }
 }
