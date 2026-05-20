@@ -616,6 +616,11 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   fresh Docker runtime with system Chrome, covering scanner writes plus
   organizer checked-in aggregates, stable seeded ESNcard display, invalid
   discount-card input blocking, and inclusive price-label behavior.
+- `tests/specs/discounts/esn-discounts.test.ts` and
+  `tests/specs/profile/user-profile-discounts.spec.ts` passed together against
+  a rebuilt Docker runtime with system Chrome after the Stripe CLI sidecar
+  update, covering seeded profile discount-card state plus the paid registration
+  ESN discount label, price component, and payment button.
 - `specs/seed/seed-baseline.test.ts` fails explicitly when the core scenario
   handles point at missing event or registration-option rows.
 - `docs/events/register.doc.ts` fails explicitly when the regular-user fixture

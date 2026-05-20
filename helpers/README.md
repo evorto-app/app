@@ -107,16 +107,19 @@ stack with `APP_HOST_PORT=4200 bun run docker:start`.
 Run `bun run docker:check` before investigating Docker startup failures. The
 check validates required local secrets before Compose tears down or starts
 containers, including Neon Local, Auth0, Stripe, the app session secret, and
-Font Awesome package registry access for premium and brand icons. It also reports local
-tooling readiness such as Bun, Docker Compose, Compose config validation,
-Playwright CLI availability, and whether the matching Playwright browser cache
-is installed. Required variables that are already available are listed without
-printing their values, so token paths such as Font Awesome registry access can
-be confirmed even when another required secret still blocks startup. Missing
-Playwright browsers are reported as a warning because they block local
-Playwright runs, not Docker startup. Local e2e runs use bundled Chromium by
-default; set `E2E_BROWSER_CHANNEL=chrome` for exploratory runs on a machine
-that already has Google Chrome installed.
+Font Awesome package registry access for premium and brand icons. It also
+reports local tooling readiness such as Bun, Docker Compose, Compose config
+validation, Playwright CLI availability, and whether the matching Playwright
+browser cache is installed. Required variables that are already available are
+listed without printing their values, so token paths such as Font Awesome
+registry access can be confirmed even when another required secret still blocks
+startup. The Docker Stripe webhook sidecar is pinned in `docker-compose.yml`; if
+its logs report a newer CLI version, update that image pin and rebuild with
+`APP_HOST_PORT=4200 bun run docker:start` before relying on paid-flow webhook
+validation. Missing Playwright browsers are reported as a warning because they
+block local Playwright runs, not Docker startup. Local e2e runs use bundled
+Chromium by default; set `E2E_BROWSER_CHANNEL=chrome` for exploratory runs on a
+machine that already has Google Chrome installed.
 
 Use the tracked `.env.example` file as the no-secret checklist for values that
 belong in your untracked `.env` or exported shell environment. Do not add real
