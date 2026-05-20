@@ -49,6 +49,16 @@ import {
   requiresLocaleMoneyRuntimeReload,
 } from './general-settings.payload';
 
+export const generalSettingsSaveDisabled = ({
+  formInvalid,
+  formSubmitting,
+  mutationPending,
+}: {
+  formInvalid: boolean;
+  formSubmitting: boolean;
+  mutationPending: boolean;
+}): boolean => formInvalid || formSubmitting || mutationPending;
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -96,6 +106,7 @@ export class GeneralSettingsComponent {
   );
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faUpload = faUpload;
+  protected readonly generalSettingsSaveDisabled = generalSettingsSaveDisabled;
   protected readonly localeOptions = supportedTenantLocales;
   protected readonly receiptCountryOptions = RECEIPT_COUNTRY_OPTIONS;
   protected readonly settingsForm = form(this.settingsModel);
@@ -104,16 +115,16 @@ export class GeneralSettingsComponent {
     tenantIdentityRows(this.configService.tenant),
   );
   protected readonly timezoneOptions = supportedTenantTimezones;
+  private readonly rpc = AppRpc.injectClient();
+  protected readonly updateSettingsMutation = injectMutation(() =>
+    this.rpc.admin.tenant.updateSettings.mutationOptions(),
+  );
   protected readonly uploadingBrandAsset =
     signal<AdminTenantBrandAssetKind | null>(null);
   private readonly document = inject(DOCUMENT);
   private readonly notifications = inject(NotificationService);
-  private readonly queryClient = inject(QueryClient);
-  private readonly rpc = AppRpc.injectClient();
 
-  private updateSettingsMutation = injectMutation(() =>
-    this.rpc.admin.tenant.updateSettings.mutationOptions(),
-  );
+  private readonly queryClient = inject(QueryClient);
   private uploadBrandAssetMutation = injectMutation(() =>
     this.rpc.admin.tenant.uploadBrandAsset.mutationOptions(),
   );
@@ -155,6 +166,16 @@ export class GeneralSettingsComponent {
 
   async saveSettings(event: Event) {
     event.preventDefault();
+    if (
+      generalSettingsSaveDisabled({
+        formInvalid: this.settingsForm().invalid(),
+        formSubmitting: this.settingsForm().submitting(),
+        mutationPending: this.updateSettingsMutation.isPending(),
+      })
+    ) {
+      return;
+    }
+
     await submit(this.settingsForm, async (formState) => {
       const settings = formState().value();
       const reloadRequired = requiresLocaleMoneyRuntimeReload(

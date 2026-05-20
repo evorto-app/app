@@ -244,6 +244,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     route coverage pin supported relaunch currency/locale/timezone values,
     hosted legal text fields, public legal page routes, and tenant logo/favicon
     upload storage paths while normalizing legacy context payloads.
+    General-settings component coverage also pins that invalid, submitting, and
+    mutation-pending saves stay disabled so slow settings writes cannot
+    double-submit.
 - Roles/user management:
   - Browser-backed least-privilege organizer review for event/template role
     selectors. Server coverage already proves lookup permissions and
