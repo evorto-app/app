@@ -57,6 +57,8 @@ More specific guidance may exist deeper in some subtrees.
 - `bun run docker:resume` - bring back an already initialized Docker stack
   without recreating containers; use it only when preserving local Docker state
   matters.
+- `bun run docker:webserver` - foreground Docker stack command used by
+  Playwright `webServer`; it does not force `docker compose down` first.
 - `bun run db:migrate`, `bun run db:push`, `bun run db:reset` - database commands.
 
 ## Local Environment

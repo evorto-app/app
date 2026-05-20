@@ -148,6 +148,18 @@ describe('evaluateRuntimePreflight', () => {
     expect(packageJson.scripts['docker:resume']).toBe(
       'bun run docker:check && dotenv -c dev -- docker compose up --no-recreate -d',
     );
+    expect(packageJson.scripts['docker:webserver']).toBe(
+      'bun run docker:check && dotenv -c dev -- docker compose up --build',
+    );
+
+    const playwrightConfig = fs.readFileSync(
+      path.join(process.cwd(), 'playwright.config.ts'),
+      'utf8',
+    );
+    expect(playwrightConfig).toContain("command: 'bun run docker:webserver'");
+    expect(playwrightConfig).not.toContain(
+      "command: 'bun run docker:start:foreground'",
+    );
   });
 
   it('keeps required Docker variables wired into Compose services', () => {

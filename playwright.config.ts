@@ -59,7 +59,7 @@ const webServer = (() => {
   const url = environment.BASE_URL;
 
   return {
-    command: 'bun run docker:start:foreground',
+    command: 'bun run docker:webserver',
     reuseExistingServer: true,
     timeout: 240_000,
     url,
