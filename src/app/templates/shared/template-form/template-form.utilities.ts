@@ -1,6 +1,11 @@
 import type { IconValue } from '@shared/types/icon';
 
 import {
+  createTemplateAddonFormModel,
+  TemplateAddonFormModel,
+  TemplateAddonSubmitData,
+} from './template-addon-form.utilities';
+import {
   createTemplateGeneralFormModel,
   mergeTemplateGeneralFormOverrides,
   TemplateGeneralFormModel,
@@ -15,19 +20,22 @@ import {
 } from './template-registration-option-form.utilities';
 
 export interface TemplateFormData extends TemplateGeneralFormModel {
+  addOns: TemplateAddonFormModel[];
   organizerRegistration: TemplateRegistrationFormModel;
   participantRegistration: TemplateRegistrationFormModel;
 }
 
 export type TemplateFormOverrides = TemplateGeneralFormOverrides & {
+  addOns?: TemplateAddonFormModel[];
   organizerRegistration?: TemplateRegistrationFormOverrides;
   participantRegistration?: TemplateRegistrationFormOverrides;
 };
 
 export type TemplateFormSubmitData = Omit<
   TemplateFormData,
-  'icon' | 'organizerRegistration' | 'participantRegistration'
+  'addOns' | 'icon' | 'organizerRegistration' | 'participantRegistration'
 > & {
+  addOns: TemplateAddonSubmitData[];
   icon: IconValue;
   organizerRegistration: TemplateRegistrationSubmitData;
   participantRegistration: TemplateRegistrationSubmitData;
@@ -38,6 +46,7 @@ export const createTemplateFormModel = (
 ): TemplateFormData => {
   const base: TemplateFormData = {
     ...createTemplateGeneralFormModel(),
+    addOns: [],
     organizerRegistration: createTemplateRegistrationFormModel({
       spots: 1,
       title: 'Organizer Registration',
@@ -79,6 +88,9 @@ export const createTemplateFormModel = (
 
   return {
     ...general,
+    addOns: (overrides.addOns ?? base.addOns).map((addOn) =>
+      createTemplateAddonFormModel(addOn),
+    ),
     organizerRegistration,
     participantRegistration,
   };
@@ -90,6 +102,7 @@ export const mergeTemplateFormOverrides = (
 ): TemplateFormData => {
   const base = previous ?? createTemplateFormModel();
   return createTemplateFormModel({
+    addOns: overrides.addOns ?? base.addOns,
     categoryId: overrides.categoryId ?? base.categoryId,
     description: overrides.description ?? base.description,
     icon: overrides.icon === undefined ? base.icon : overrides.icon,

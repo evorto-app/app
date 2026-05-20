@@ -654,8 +654,11 @@ the current working direction until a product decision overrides them.
 - **Addressed in this stabilization pass:** the template RPC/service boundary
   now accepts optional reusable add-on input for simple template writes, validates
   add-on tax rates and quantity/window invariants, and replaces stored template
-  add-ons only when callers explicitly send add-on data. The current simple UI
-  still does not expose add-on editing, and event creation still does not copy
+  add-ons only when callers explicitly send add-on data.
+- **Addressed in this stabilization pass:** simple-mode template create/edit now
+  exposes reusable add-on editing, including free/paid state, inclusive tax-rate
+  selection, registration-option attachment, included/available quantities,
+  max-per-user quantity, and purchase timing. Event creation still does not copy
   add-ons into event-side fulfillment.
 - **Addressed in this stabilization pass:** create-event-from-template now
   shows an explicit add-on boundary notice when the source template has
@@ -695,9 +698,12 @@ the current working direction until a product decision overrides them.
 ### Test and Documentation Quality
 
 - `tests/specs/templates/templates.test.ts` covers create, view, empty-category add flow, and role autocomplete duplicate hiding.
-- `tests/docs/templates/templates.doc.ts` documents simple-mode template creation, organizer planning tips, role defaults, payment field visibility, optional ESNcard discounted price fields, and role-picker behavior. It asserts that enabling payment reveals both the price and tax-rate controls before taking the payment-field screenshot.
+- `tests/docs/templates/templates.doc.ts` documents simple-mode template creation, organizer planning tips, role defaults, payment field visibility, optional ESNcard discounted price fields, reusable add-on editing, and role-picker behavior. It asserts that enabling payment reveals both the price and tax-rate controls before taking the payment-field screenshot, then asserts that adding a reusable add-on reveals the add-on name, attachment, and purchase-timing controls.
 - `tests/specs/templates/paid-option-requires-tax-rate.spec.ts` now has active simple-mode UI coverage for the paid tax-rate requirement and a seeded inclusive tax-rate save path. The previous future bulk/no-compatible-rate fixme declarations were removed; current no-compatible-rate select feedback is pinned in local component coverage until a broader page flow exists.
 - `src/app/templates/shared/template-form/template-registration-option-form.utilities.spec.ts` covers paid template tax-rate and ESNcard discount preservation, paid missing-tax-rate pass-through for server validation, and free-registration payment-field cleanup before create/edit submission.
+- `src/app/templates/shared/template-form/template-addon-form.utilities.spec.ts`
+  covers add-on submit normalization for free/paid state, trimmed copy, and
+  mapping persisted add-on attachments back into the simple add-on edit form.
 - `src/app/templates/shared/template-form/template-registration-option-form.component.spec.ts`
   covers the paid tax-rate select feedback for loading, empty compatible-rate,
   failed, and available states so tenants without configured inclusive rates do
@@ -741,7 +747,7 @@ the current working direction until a product decision overrides them.
 
 ### Product Questions Answered Above
 
-- Is simple mode the intended relaunch template scope, or should richer registration options/add-ons/questions/organizer notes be available before relaunch? Answered locally: keep simple mode primary and expose organizer planning tips plus ESNcard discounted prices now; add-ons and questions remain separate follow-up work.
+- Is simple mode the intended relaunch template scope, or should richer registration options/add-ons/questions/organizer notes be available before relaunch? Answered locally: keep simple mode primary and expose organizer planning tips, ESNcard discounted prices, and reusable add-ons now; registration questions remain separate follow-up work.
 - Should `random` and `application` registration modes be selectable now if registration fulfillment does not implement those semantics?
 - Should template view require `templates:view`, or should organizers with `events:create` inherit template view through permission dependencies only?
 - Should template category management remain a separate capability from template creation/editing?
@@ -1396,8 +1402,8 @@ the current working direction until a product decision overrides them.
    template support for discounts, add-ons, and questions where practical.
    Organizer planning tips are now exposed as the first private organizer-notes
    field, existing reusable template add-ons are now visible on template detail,
-   and the RPC/service boundary can persist optional simple-template add-ons.
-   Add-on UI editing/copying and registration questions remain separate fuller
+   and simple template create/edit can persist reusable add-ons. Event-side
+   add-on fulfillment and registration questions remain separate fuller
    product/runtime slices.
 4. Add Browser-backed scanner/organizer aggregate review once local runtime is available.
 5. Add Browser-backed profile coverage for payment-continuation, ticket/cancellation routing, waitlist messaging, and ESNcard provider failure semantics once local runtime is available.

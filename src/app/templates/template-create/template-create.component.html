@@ -35,6 +35,28 @@
       </div>
     </div>
 
+    <section class="bg-surface rounded-2xl p-4">
+      <div class="mb-4 flex items-center justify-between gap-4">
+        <h2 class="text-lg font-semibold">Reusable add-ons</h2>
+        <button type="button" mat-button (click)="addTemplateAddOn()">
+          <fa-duotone-icon [icon]="faPlus" />
+          Add add-on
+        </button>
+      </div>
+
+      <div class="grid gap-4">
+        @for (addOn of templateForm.addOns; track addOn; let index = $index) {
+          <app-template-addon-form
+            class="bg-surface-container-lowest rounded-xl p-4 grid gap-4"
+            [addOnForm]="addOn"
+            (remove)="removeTemplateAddOn(index)"
+          />
+        } @empty {
+          <p class="text-on-surface-variant text-sm">No add-ons configured.</p>
+        }
+      </div>
+    </section>
+
     <button type="submit" mat-button [disabled]="!canSubmit()">
       Save template
     </button>
