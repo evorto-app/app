@@ -79,13 +79,24 @@ Docker Compose now also runs one-shot `db-expiration` and `db-setup`
 containers before `evorto` starts. `bun run docker:start`,
 `bun run docker:start:foreground`, and `bun run docker:start:watch` run
 `docker compose down` first, then run the equivalent of `bun run db:reset`
-against the Docker database during stack startup. Neon Local still receives
-`DELETE_BRANCH=true` so normal `docker compose down` deletes the branch, and
-`db-expiration` immediately sets a short Neon branch expiration as a fallback
-for interrupted local or CI shutdowns. Use `bun run docker:resume` only for an
-already initialized stack when you want to bring stopped containers back without
-recreating them. The package scripts preload the needed environment with
-`dotenv -c dev` before invoking Docker.
+against the Docker database during stack startup. That Docker reset path drops
+and recreates the `public` schema before running Drizzle so the one-shot
+container cannot get stuck on non-TTY confirmation prompts from older local
+branch state. Neon Local still receives `DELETE_BRANCH=true` so normal
+`docker compose down` deletes the branch, and `db-expiration` immediately sets
+a short Neon branch expiration as a fallback for interrupted local or CI
+shutdowns. Playwright `webServer` uses
+`bun run docker:webserver`, which starts the foreground Compose stack without
+forcing `docker compose down` first. Use
+`bun run docker:resume` only for an already initialized stack when you want to
+bring stopped containers back without recreating them. The package scripts
+preload the needed environment with `dotenv -c dev` before invoking Docker.
+
+Inside Docker, keep `BASE_URL` browser-facing so Auth0 redirects point at the
+host-mapped app URL, and keep `SSR_RPC_ORIGIN` pointed at the app container's
+internal listener (`http://localhost:4200`). Server-side rendering uses
+`SSR_RPC_ORIGIN` for in-container RPC calls; browser-side RPC calls still use the
+normal `/rpc` relative path.
 
 Run `bun run docker:check` before investigating Docker startup failures. The
 check validates required local secrets before Compose tears down or starts

@@ -19,11 +19,7 @@ import { Effect, Schema } from 'effect';
 import type { AppRpcHandlers } from './shared/handler-types';
 
 import { Database, type DatabaseClient } from '../../../../db';
-import {
-  roles,
-  tenants,
-  tenantStripeTaxRates,
-} from '../../../../db/schema';
+import { roles, tenants, tenantStripeTaxRates } from '../../../../db/schema';
 import {
   includesPermission,
   type Permission,

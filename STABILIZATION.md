@@ -1376,8 +1376,11 @@ the current working direction until a product decision overrides them.
 - Important entrypoints remain visible in `package.json`: app build/dev, unit tests, Playwright e2e/docs, Docker stack start/resume/stop, database commands, dependency updates, Stripe/Sentry ops, theme generation, and receipt-image cleanup.
 - Local runtime config uses `.env.dev.local` for tracked shared defaults, `.env.dev` for generated worktree-specific values, and `.env` for untracked developer secrets.
 - `bun run env:runtime` writes `.env.dev` with worktree-specific `COMPOSE_PROJECT_NAME`, Neon Local port, MinIO ports, `BASE_URL`, and local `DATABASE_URL`.
-- Local `test:e2e`, `test:e2e:ui`, `test:e2e:docs`, `db:*`, and `docker:*` scripts now refresh `.env.dev` before running `dotenv -c dev`, reducing fresh-worktree and wrong-database risk.
-- Docker Compose uses Neon Local, MinIO, Stripe CLI, a one-shot `db-setup` service, and an `evorto` app container. `bun run docker:check` verifies required local secrets before any Docker start command tears down or starts containers, and now also reports Bun, Docker Compose, Compose config, Playwright CLI, `.env.dev`, and Playwright browser-cache readiness.
+- Local `test:e2e`, `test:e2e:ui`, `test:e2e:integration`,
+  `test:e2e:docs`, `db:*`, and `docker:*` scripts now refresh `.env.dev`
+  before running `dotenv -c dev`, reducing fresh-worktree and wrong-database
+  risk.
+- Docker Compose uses Neon Local, MinIO, Stripe CLI, a one-shot `db-setup` service, and an `evorto` app container. `db-setup` clears the Docker database `public` schema before Drizzle pushes schema so reset-from-zero startup stays non-interactive even when Neon Local reuses older branch state. `bun run docker:check` verifies required local secrets before any Docker start command tears down or starts containers, and now also reports Bun, Docker Compose, Compose config, Playwright CLI, `.env.dev`, and Playwright browser-cache readiness.
 - `bun run build:app`, `bun run test:unit -- --watch=false`, and `bun run test:unit:server` pass in the current checkout.
 - Playwright test discovery works through the package scripts without local
   Auth0/Stripe secrets, but full page-backed Playwright execution still
@@ -1402,6 +1405,23 @@ the current working direction until a product decision overrides them.
 - **Should fix before relaunch:** Playwright `webServer` still runs the foreground Docker stack through a destructive `docker compose down` and `db-setup` reset. This is documented, but future agents should treat it as a database-resetting command, not a harmless server start.
 - **Addressed in stabilization pass:** `bun run docker:resume` now provides a non-recreating resume path for an already initialized Docker stack, while `docker:start`, `docker:start:foreground`, and `docker:start:watch` keep the explicit reset-from-zero behavior.
 - **Addressed in this stabilization pass:** `bun run docker:check` reports missing Neon Local, Auth0, Stripe, session, and Font Awesome registry variables before Docker Compose mutates local containers. Docker now writes the same Font Awesome registry scopes as the checked-in `.npmrc`, so premium and brand icon packages can use the same build-secret token path. It also reports local tool readiness and warns when Playwright browsers are missing without blocking Docker start. The Compose-managed Stripe CLI listener writes its generated webhook signing secret into a shared volume and the app reads it through `STRIPE_WEBHOOK_SECRET_FILE`, so a static `STRIPE_WEBHOOK_SECRET` is no longer a Docker-start blocker. The current worktree is missing `NEON_API_KEY`, `CLIENT_SECRET`, and `STRIPE_API_KEY`, so a fresh full Docker start is intentionally blocked until those secrets are provided.
+- **Addressed in this stabilization pass:** the worktree can reuse the main checkout's untracked `.env` secrets for local runtime startup. After copying that file locally, `bun run docker:check` passes with all required variables present.
+- **Addressed in this stabilization pass:** Docker `db-setup` now drops/recreates the `public` schema before `drizzle-kit push --force`, preventing Drizzle's non-TTY confirmation prompt from blocking reset-from-zero startup on older local Neon branch state.
+- **Addressed in this stabilization pass:** Docker sets `SSR_RPC_ORIGIN=http://localhost:4200` for server-side rendering while keeping `BASE_URL` browser-facing for Auth0 redirects. This keeps SSR RPC calls inside the app container and prevents the `/events` page from calling the host-mapped port from inside Docker.
+- **Addressed in stabilization pass:** Playwright local runs now default to the
+  bundled Chromium channel while allowing `E2E_BROWSER_CHANNEL=chrome` for
+  exploratory system-Chrome runs. `docker:check` reports the system Chrome path
+  instead of warning about a missing bundled Chromium cache when that opt-in is
+  active.
+- **Addressed in stabilization pass:** `bun run test:e2e:integration` now
+  exposes the credential-gated `local-chrome-integration` and
+  `docs-integration` projects as a first-class package script, so generated
+  Auth0 Management account-creation docs and functional integration coverage
+  can be run without reconstructing project arguments.
+- **Addressed in stabilization pass:** when bundled Playwright Chromium is
+  missing but system Chrome is installed, `docker:check` now points local
+  exploratory runs at `E2E_BROWSER_CHANNEL=chrome` instead of only recommending
+  the network-heavy browser install path.
 - **Addressed in stabilization pass:** `helpers/testing/runtime-preflight.spec.ts` now pins that destructive Docker start scripts call `docker:check` first, required runtime variables are wired into Compose services, and Font Awesome registry access remains available to Docker through the same secret path for premium and brand icon packages.
 - **Addressed in this stabilization pass:** remaining Angular Material icon usage for app action icons was removed from the role, event-review, template-list, and template-category surfaces. App source coverage now keeps Angular app icons on the Font Awesome component path, so premium and brand icon packages continue using the same package/token mechanic instead of a separate Material icon registry path.
 - **Addressed in stabilization pass:** `specs/seed/seed-baseline.test.ts` now treats the reset-from-zero seed as a runtime contract: default user/organizer roles, every template seed family, paid/free registration options, paid tax-rate wiring, open/closed/draft/past scenario handles, confirmed registrations, and scanner aggregate data must all exist after seeding.
