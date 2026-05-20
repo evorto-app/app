@@ -1319,7 +1319,12 @@ the current working direction until a product decision overrides them.
   general-settings persistence for editable brand asset URLs, SEO copy, hosted
   legal text, external legal URLs, and ESNcard provider buy-link settings with
   explicit database readback.
-- `tests/docs/admin/global-admin.doc.ts` documents the current searchable global-admin tenant list, tenant create/edit workflow, visible relaunch tenant-scope notice, and tenant detail review, and records that custom-domain verification, multi-domain automation, and impersonation workflows are not implemented yet.
+- `tests/docs/admin/global-admin.doc.ts` documents the current searchable
+  global-admin tenant list, tenant create/edit workflow, visible relaunch
+  tenant-scope notice, and tenant detail review, pins the list/create/detail/edit
+  navigation targets plus the external tenant-domain link, and records that
+  custom-domain verification, multi-domain automation, and impersonation
+  workflows are not implemented yet.
 - `helpers/testing/generated-docs-source.spec.ts` keeps the global-admin guide
   aligned with the one-domain/no-impersonation relaunch scope. It also keeps
   profile/account docs aligned with implemented notification-email semantics,
@@ -2223,6 +2228,10 @@ implement those decisions or explicitly revise them there before changing code.
 - Global-admin page-backed support-lookup pass: extended the global-admin
   tenant Playwright spec so the searchable tenant list proves connected Stripe
   account ids work as support lookup terms, not only tenant domains.
+- Global-admin page-backed route pass: pinned the global-admin tenant spec and
+  generated docs to the list/create/detail/edit navigation targets and the
+  external tenant-domain link while authenticated Browser review remains
+  runtime-gated.
 - Tenant general-settings docs source-guard pass: pinned generated settings docs
   to the implemented tenant identity, locale/money, SEO, legal, receipt-country,
   ESNcard, and separate tax-rate surfaces while keeping deferred domain/email/
