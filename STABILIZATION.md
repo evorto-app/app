@@ -1511,7 +1511,7 @@ the current working direction until a product decision overrides them.
   documentation journey, covering a generated Auth0 user creating a tenant
   account, landing on profile, persisted account fields, tenant/default-role
   assignment, and cleanup.
-- **Addressed in stabilization pass:** scanning/check-in docs now describe the dedicated QR scanner, scan warnings, authorization, checked-in count updates, and selected guest-quantity check-in. Generated docs now assert the organizer checked-in aggregate after the scanner mutation. The remaining scanner follow-up is manual Browser-backed runtime review, not missing automated aggregate coverage or product documentation.
+- **Addressed in stabilization pass:** scanning/check-in docs now describe the dedicated QR scanner, scan warnings, authorization, checked-in count updates, and selected guest-quantity check-in. Docker-backed system-Chrome validation now proves the generated event-management docs and scanner spec can execute the scanner mutation and assert the organizer checked-in aggregate afterward.
 - **Addressed in stabilization pass:** scanner Playwright coverage now includes
   the partial guest-arrival case where the buyer and one guest were already
   checked in, then a later scan records the remaining guest without re-counting
@@ -1701,7 +1701,7 @@ the current working direction until a product decision overrides them.
    question answers. Registration-time add-on purchase is now part of
    registration checkout, while standalone before-event and during-event add-on
    sales remain separate fuller product/runtime slices.
-4. Run manual Browser-backed scanner/organizer aggregate review once local runtime is available. The page-backed scanner spec now asserts that the checked-in aggregate changes after buyer-plus-guest check-in, and organizer overview local coverage now keeps paid, checked-in, and past-event transfer actions unavailable before the dialog opens.
+4. Keep scanner/organizer aggregate coverage green in Docker-backed browser runs. The page-backed scanner spec now asserts that the checked-in aggregate changes after buyer-plus-guest check-in and later remaining-guest arrival, generated event-management docs execute the same scanner-to-organizer aggregate path, and organizer overview local coverage keeps paid, checked-in, and past-event transfer actions unavailable before the dialog opens.
 5. Keep profile/account coverage aligned as the flow evolves. Docker-backed
    system-Chrome coverage now proves profile edit persistence, event-card
    payment continuation/ticket/waitlist routing, submitted receipts, and seeded

@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { DateTime } from 'luxon';
 
 import { getId } from '../../../helpers/get-id';
@@ -214,7 +214,9 @@ Note: The event created from the template already has registration options confi
   await page.goto(`/events/${draftEvent.id}/edit`);
   await expect(page).toHaveURL(`/events/${draftEvent.id}/edit`);
   await expect(
-    page.getByRole('heading', { name: draftEvent.title }),
+    page.locator('app-event-edit').getByRole('heading', {
+      name: draftEvent.title,
+    }),
   ).toBeVisible();
   await expect(page.getByText(selectedRole.name).first()).toBeVisible();
   const roleInput = page.getByPlaceholder('Add Role...').first();
@@ -310,14 +312,16 @@ Those flows should be documented separately when they exist in the product.
   });
 
   const scannerEventId = seeded.scenario.events.past.eventId;
-  const scannerRegistrationOption =
-    await database.query.eventRegistrationOptions.findFirst({
-      where: {
-        eventId: scannerEventId,
-        organizingRegistration: false,
-        tenantId: seeded.tenant.id,
-      },
-    });
+  const [scannerRegistrationOption] = await database
+    .select()
+    .from(eventRegistrationOptions)
+    .where(
+      and(
+        eq(eventRegistrationOptions.eventId, scannerEventId),
+        eq(eventRegistrationOptions.organizingRegistration, false),
+      ),
+    )
+    .limit(1);
   if (!scannerRegistrationOption) {
     throw new Error(
       'Expected seeded participant option for scanner documentation',
