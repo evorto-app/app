@@ -6,6 +6,7 @@ import {
   esnCardMutationErrorMessage,
   esnCardSaveDisabled,
   esnCardSubmitPayloadFromIdentifier,
+  profileEditActionDisabled,
   profileEventActionNote,
   profileEventContinuePaymentUrl,
   profileEventDetailActionLabel,
@@ -246,6 +247,21 @@ describe('profile ESN card messages', () => {
         _tag: 'RpcBadRequestError',
       }),
     ).toBe('Bad Request');
+  });
+});
+
+describe('profile edit actions', () => {
+  it('blocks profile edit while an update is pending', () => {
+    expect(
+      profileEditActionDisabled({
+        mutationPending: false,
+      }),
+    ).toBe(false);
+    expect(
+      profileEditActionDisabled({
+        mutationPending: true,
+      }),
+    ).toBe(true);
   });
 });
 
