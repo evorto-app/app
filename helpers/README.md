@@ -112,6 +112,12 @@ endpoint at `http://minio:9000`. This keeps Docker upload/media flows
 self-contained even when `.env.dev.local` or a developer `.env` points normal
 local development at an external S3-compatible endpoint.
 
+The Playwright seed baseline is the contract for what "usable from zero" means
+after the Docker `db-setup` reset: default user and organizer roles, all
+template seed families, paid and free event options, paid tax-rate wiring,
+scenario handles for open/closed/draft/past registration states, confirmed
+registrations, and at least one checked-in aggregate for scanner review.
+
 The Docker Stripe CLI listener writes its generated webhook signing secret into
 a shared Docker volume. The app container reads that file through
 `STRIPE_WEBHOOK_SECRET_FILE`, so local paid checkout webhooks use the same
