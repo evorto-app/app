@@ -1,3 +1,5 @@
+import { and, eq } from 'drizzle-orm';
+
 import * as schema from '../../../src/db/schema';
 import { getId } from '../../../helpers/get-id';
 
@@ -52,6 +54,9 @@ export const seedRequiredRegistrationQuestion = async ({
   title = 'Anything organizers should know?',
 }: {
   database: {
+    delete: (table: unknown) => {
+      where: (condition: unknown) => Promise<unknown>;
+    };
     insert: (table: unknown) => {
       values: (value: unknown) => Promise<unknown>;
     };
@@ -62,6 +67,18 @@ export const seedRequiredRegistrationQuestion = async ({
   title?: string;
 }) => {
   const questionId = `q-${getId().slice(0, 18)}`;
+
+  await database
+    .delete(schema.eventRegistrationQuestions)
+    .where(
+      and(
+        eq(schema.eventRegistrationQuestions.eventId, eventId),
+        eq(
+          schema.eventRegistrationQuestions.registrationOptionId,
+          registrationOptionId,
+        ),
+      ),
+    );
 
   await database.insert(schema.eventRegistrationQuestions).values({
     description,

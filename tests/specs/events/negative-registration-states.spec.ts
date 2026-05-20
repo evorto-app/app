@@ -4,6 +4,7 @@ import type { Page } from '@playwright/test';
 import { userStateFile, usersToAuthenticate } from '../../../helpers/user-data';
 import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
+import { seedRequiredRegistrationQuestion } from '../../support/utils/seed-registration-addons';
 import { futureServerEventWindow } from '../../support/utils/server-test-clock';
 
 const regularUser = usersToAuthenticate.find((user) => user.roles === 'user');
@@ -110,6 +111,12 @@ test.describe('Negative registration states', () => {
             start: serverEventWindow.start,
           })
           .where(eq(schema.eventInstances.id, targetEventId));
+        const registrationQuestion = await seedRequiredRegistrationQuestion({
+          database,
+          eventId: targetEventId,
+          registrationOptionId: targetOptionId,
+          title: 'Anything organizers should know?',
+        });
 
         await page.goto(`/events/${targetEventId}`);
         await waitForRegistrationStatus(page);
@@ -119,6 +126,12 @@ test.describe('Negative registration states', () => {
           name: 'Join waitlist',
         });
         await expect(waitlistButton).toBeVisible();
+        await expect(page.getByLabel(registrationQuestion.title)).toBeVisible();
+        await expect(waitlistButton).toBeDisabled();
+        await page
+          .getByLabel(registrationQuestion.title)
+          .fill('Please tell me if a spot opens.');
+        await expect(waitlistButton).toBeEnabled();
         await expect(
           page.getByRole('button', { name: /^Register$/ }),
         ).toHaveCount(0);
@@ -160,6 +173,18 @@ test.describe('Negative registration states', () => {
             userId: regularUser.id,
           }),
         );
+        const questionAnswers =
+          await database.query.eventRegistrationQuestionAnswers.findMany({
+            where: {
+              registrationId: waitlistRegistration.id,
+            },
+          });
+        expect(questionAnswers).toEqual([
+          expect.objectContaining({
+            answer: 'Please tell me if a spot opens.',
+            questionId: registrationQuestion.questionId,
+          }),
+        ]);
       } finally {
         await database
           .delete(schema.eventRegistrations)

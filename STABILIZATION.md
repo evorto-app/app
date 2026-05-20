@@ -1812,6 +1812,9 @@ implement those decisions or explicitly revise them there before changing code.
 - Event registration readback-hardening pass: made self-service transfer and
   waitlist Playwright specs fail explicitly when the expected transferred or
   waitlisted registration row is missing after the page flow.
+- Waitlist question integration-doc pass: extended full-option waitlist specs
+  and generated registration docs to exercise required answer gating and
+  persisted answer storage before joining a waitlist.
 - Registration unavailable-state docs pass: extended the registration generated
   docs journey with page-backed closed-window, full-option waitlist, and
   role-ineligible direct-link states, so negative registration behavior is

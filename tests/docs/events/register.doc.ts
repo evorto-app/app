@@ -270,12 +270,23 @@ test.describe('Register for events', () => {
         waitlistSpots: 0,
       })
       .where(eq(schema.eventRegistrationOptions.id, fullOptionId));
+    const waitlistQuestion = await seedRequiredRegistrationQuestion({
+      database,
+      eventId: fullEventId,
+      registrationOptionId: fullOptionId,
+      title: 'Anything organizers should know?',
+    });
     await page.goto(`/events/${fullEventId}`);
     await waitForRegistrationStatus(page);
     await expect(page.getByText('This option is full.')).toBeVisible();
-    await expect(
-      page.getByRole('button', { name: 'Join waitlist' }),
-    ).toBeVisible();
+    const waitlistButton = page.getByRole('button', { name: 'Join waitlist' });
+    await expect(waitlistButton).toBeVisible();
+    await expect(page.getByLabel(waitlistQuestion.title)).toBeVisible();
+    await expect(waitlistButton).toBeDisabled();
+    await page
+      .getByLabel(waitlistQuestion.title)
+      .fill('Please tell me if a spot opens.');
+    await expect(waitlistButton).toBeEnabled();
     await expect(page.getByRole('button', { name: /^Register$/ })).toHaveCount(
       0,
     );
@@ -285,10 +296,38 @@ test.describe('Register for events', () => {
       page,
       'Full registration option with waitlist',
     );
+    await waitlistButton.click();
+    await expect(
+      page.getByText('You are currently on the waitlist'),
+    ).toBeVisible();
+    const waitlistRegistration =
+      await database.query.eventRegistrations.findFirst({
+        where: {
+          eventId: fullEventId,
+          registrationOptionId: fullOptionId,
+          status: 'WAITLIST',
+          tenantId: tenant.id,
+          userId: regularUser.id,
+        },
+        with: {
+          questionAnswers: true,
+        },
+      });
+    if (!waitlistRegistration) {
+      throw new Error(
+        'Expected registration docs waitlist flow to persist the waitlist registration',
+      );
+    }
+    expect(waitlistRegistration.questionAnswers).toEqual([
+      expect.objectContaining({
+        answer: 'Please tell me if a spot opens.',
+        questionId: waitlistQuestion.questionId,
+      }),
+    ]);
 
     await testInfo.attach('markdown', {
       body: `
-  Full participant options expose a distinct **Join waitlist** action. Waitlist registration is separate from a confirmed registration, and a normal **Register** button is not shown while the option is full.
+  Full participant options expose a distinct **Join waitlist** action. If that option asks required registration questions, participants must answer them before joining the waitlist. Waitlist registration is separate from a confirmed registration, and a normal **Register** button is not shown while the option is full.
 `,
     });
   });
