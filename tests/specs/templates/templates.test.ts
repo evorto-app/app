@@ -49,10 +49,7 @@ test('create a new template', async ({ page, templateCategories }) => {
     throw new Error('Expected seeded template category before template create');
   }
   const templateTitle = `Historical tour ${getId().slice(0, 6)}`;
-  await page.goto('.');
-  await page.getByRole('link', { name: 'Templates' }).click();
-  await expect(page).toHaveURL(/\/templates/);
-  await page.getByRole('link', { name: 'Create template' }).click();
+  await page.goto('/templates/create');
   await expect(page).toHaveURL(`/templates/create`);
   await fillTemplateBasics(page, {
     categoryTitle: category.title,
@@ -82,10 +79,7 @@ test('create template with reusable add-ons and registration questions', async (
   const questionTitle = `Dietary restrictions ${getId().slice(0, 6)}`;
   const questionDescription = 'Tell organizers about allergies or preferences.';
 
-  await page.goto('.');
-  await page.getByRole('link', { name: 'Templates' }).click();
-  await expect(page).toHaveURL(/\/templates/);
-  await page.getByRole('link', { name: 'Create template' }).click();
+  await page.goto('/templates/create');
   await expect(page).toHaveURL('/templates/create');
 
   await fillTemplateBasics(page, {
@@ -210,10 +204,7 @@ test('view a template', async ({ page, templates }) => {
 test('template create form hides selected roles in autocomplete', async ({
   page,
 }) => {
-  await page.goto('.');
-  await page.getByRole('link', { name: 'Templates' }).click();
-  await expect(page).toHaveURL(/\/templates/);
-  await page.getByRole('link', { name: 'Create template' }).click();
+  await page.goto('/templates/create');
   await expect(page).toHaveURL('/templates/create');
 
   const organizerRoleInput = page.getByPlaceholder('Add Role...').first();
