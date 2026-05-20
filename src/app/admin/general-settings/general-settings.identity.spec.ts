@@ -66,11 +66,6 @@ describe('deferredTenantSettingsRows', () => {
           'Imprint, privacy, and terms links are editable below; legal text pages are not implemented yet.',
       },
       {
-        label: 'Locale and money',
-        value:
-          'Currency, locale, and timezone are editable below within the supported relaunch policy.',
-      },
-      {
         label: 'Operations policy',
         value:
           'Email sender, review policy, registration limits, and Stripe account management are not implemented here yet.',
