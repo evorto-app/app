@@ -308,7 +308,11 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     Organizer overview app coverage also proves checked-in rows and in-flight
     writes disable participant cancellation and organizer-assisted transfer.
   - Live external ESNcard add, refresh, and remove provider outcomes with
-    readable error states remain outside deterministic local coverage.
+    readable error states are now represented by
+    `specs/profile/user-profile-live-esncard.spec.ts`, an integration-tagged
+    Playwright path gated by `E2E_LIVE_ESN_CARD_IDENTIFIER`. It stays out of
+    deterministic baseline CI but can exercise the real esncard.org provider
+    when a valid card identifier is supplied from local secrets.
     Generated discounts docs now include a helper-backed baseline note for
     readable ESNcard statuses, pending save/refresh/remove labels, shared
     in-flight write guards, trimmed save payloads, and provider-unavailable

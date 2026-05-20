@@ -9,6 +9,7 @@ const INTEGRATION_PROJECT_NAMES = [
   'docs-integration',
   'local-chrome-integration',
 ] as const;
+const SELECTED_PLAYWRIGHT_PROJECTS_ENV = 'E2E_SELECTED_PROJECTS';
 const PLAYWRIGHT_BROWSER_CHANNELS = ['chromium', 'chrome'] as const;
 const LIST_ONLY_ENVIRONMENT_DEFAULTS = {
   BASE_URL: 'http://localhost:4200',
@@ -208,6 +209,12 @@ const resolveRequestedProjectNames = (argv: readonly string[]) => {
   return requestedProjectNames.filter((projectName) => projectName.length > 0);
 };
 
+const resolveSelectedProjectNamesFromEnvironment = () =>
+  (process.env[SELECTED_PLAYWRIGHT_PROJECTS_ENV] ?? '')
+    .split(',')
+    .map((projectName) => projectName.trim())
+    .filter((projectName) => projectName.length > 0);
+
 export const requiresIntegrationOnlyPlaywrightEnvironment = (
   argv: readonly string[] = process.argv,
 ) => {
@@ -215,7 +222,10 @@ export const requiresIntegrationOnlyPlaywrightEnvironment = (
     return false;
   }
 
-  const requestedProjectNames = resolveRequestedProjectNames(argv);
+  const requestedProjectNames = [
+    ...resolveRequestedProjectNames(argv),
+    ...resolveSelectedProjectNamesFromEnvironment(),
+  ];
   if (requestedProjectNames.length === 0) {
     return true;
   }

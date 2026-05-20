@@ -174,12 +174,16 @@ Playwright separates external-service coverage with dedicated projects:
 CI infers whether integration-only credentials are required from the selected Playwright projects.
 If you select `local-chrome-integration` or `docs-integration`, CI/runtime validation demands the extra external-service credentials.
 UI mode is intentionally unrestricted and does not force integration-only credentials at startup.
+CI baseline jobs set `E2E_SELECTED_PROJECTS` so Playwright worker processes
+that no longer expose the original CLI `--project` flags still use the
+baseline credential contract.
 
 Integration-only coverage is tagged at the test-title level:
 
 - `@needs-auth0-management`
 - `@needs-cloudflare`
 - `@needs-google-maps`
+- `@needs-live-esncard`
 
 ## Required E2E Variables
 
@@ -221,6 +225,12 @@ Required only for integration-tagged Playwright projects:
 - `CLOUDFLARE_ACCOUNT_ID`
 - `CLOUDFLARE_IMAGES_DELIVERY_HASH`
 - `CLOUDFLARE_IMAGES_API_TOKEN`
+
+Optional live-provider variables for integration-tagged specs:
+
+- `E2E_LIVE_ESN_CARD_IDENTIFIER` for the profile ESNcard add/refresh/remove
+  journey against esncard.org. Use a real valid card identifier only from a
+  local secret source; do not check it into the repo.
 
 ## Local Stack Isolation
 

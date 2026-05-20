@@ -23,6 +23,11 @@ const allowedPlaywrightSkipEntries = [
     entry: 'tests/specs/finance/stripe-webhook-replay.spec.ts:16:test.skip',
     reason: 'A Stripe webhook signing secret is required for replay coverage.',
   },
+  {
+    entry: 'tests/specs/profile/user-profile-live-esncard.spec.ts:14:test.skip',
+    reason:
+      'A live ESNcard identifier is required for external provider coverage.',
+  },
 ] as const;
 
 const allowedEntries = new Set(
@@ -106,6 +111,7 @@ describe('Playwright skip inventory', () => {
       'Auth0 Management credentials are required for the integration doc.',
       'Auth0 Management credentials are required for create-account integration coverage.',
       'A Stripe webhook signing secret is required for replay coverage.',
+      'A live ESNcard identifier is required for external provider coverage.',
     ]);
   });
 
