@@ -2209,6 +2209,10 @@ implement those decisions or explicitly revise them there before changing code.
   documentation journey fail explicitly when the regular-user fixture is missing
   or the seeded `paidOpen` registration option does not exist as a paid option,
   instead of falling back to the first configured user.
+- Profile event-card fixture-hardening pass: made the shared profile event-card
+  seeding helper fail explicitly when the seeded source registration options for
+  confirmed or checked-in cards are missing, so both profile docs and functional
+  profile-event specs catch fixture drift before inserting dependent rows.
 - Scanner page-backed action-guard pass: extended scanner Playwright coverage
   so buyer-plus-guest check-in and later guest-arrival check-in both assert the
   visible check-in action remains disabled after local success while the scan

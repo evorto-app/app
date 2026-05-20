@@ -511,6 +511,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   handles point at missing event or registration-option rows.
 - `docs/events/register.doc.ts` fails explicitly when the regular-user fixture
   or seeded paid registration option required by the walkthrough is missing.
+- Profile event-card docs/spec seeding fails explicitly when the source
+  scenario registration options for confirmed or checked-in cards are missing.
 - Finance-tagged specs remain the main candidates for selective CI filtering when needed.
 - Event, registration, template, finance receipt, scanner, and unlisted-event specs should fail loudly when deterministic fixture state is missing instead of silently passing through skips.
   Free registration and registration add-on specs now assert the seeded
