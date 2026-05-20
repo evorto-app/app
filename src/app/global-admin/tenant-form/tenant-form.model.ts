@@ -39,11 +39,34 @@ export const globalAdminTenantFormModelFromRecord = (
 const optionalTrimmed = (value: string): string | undefined =>
   value.trim() || undefined;
 
+export const normalizeGlobalAdminTenantDomain = (value: string): string => {
+  const trimmedValue = value.trim().toLowerCase();
+  if (!trimmedValue) {
+    throw new Error('Domain is required');
+  }
+
+  const url = new URL(
+    trimmedValue.includes('://') ? trimmedValue : `https://${trimmedValue}`,
+  );
+  if (
+    !url.hostname ||
+    url.pathname !== '/' ||
+    url.search ||
+    url.hash ||
+    url.username ||
+    url.password
+  ) {
+    throw new Error('Domain must be a single host name');
+  }
+
+  return url.hostname;
+};
+
 export const globalAdminTenantPayloadFromForm = (
   model: GlobalAdminTenantFormModel,
 ): GlobalAdminTenantWriteInput => ({
   currency: model.currency,
-  domain: model.domain.trim(),
+  domain: normalizeGlobalAdminTenantDomain(model.domain),
   locale: model.locale,
   name: model.name.trim(),
   stripeAccountId: optionalTrimmed(model.stripeAccountId),

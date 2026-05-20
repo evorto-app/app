@@ -28,6 +28,9 @@
       <mat-form-field>
         <mat-label>Primary domain</mat-label>
         <input matInput [formField]="tenantForm.domain" />
+        <mat-hint
+          >One primary host; custom-domain automation is deferred.</mat-hint
+        >
       </mat-form-field>
 
       <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
