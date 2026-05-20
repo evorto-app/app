@@ -86,6 +86,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - app category action guard coverage in `src/app/templates/categories`
   - app create/edit submit-guard coverage in
     `src/app/templates/shared/template-form`
+  - app template detail reusable add-on label coverage in
+    `src/app/templates/template-details`
   - app mapper and submit-guard coverage in
     `src/app/templates/template-create-event`
   - shared registration-mode label coverage in `src/shared`
@@ -276,6 +278,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     reusable template data is added. Local app coverage now proves event
     defaults, source registration option ids, registration-window offsets, and
     private organizer planning tips at the template-to-event boundary.
+  - Template detail component coverage pins reusable add-on purchase timing and
+    registration-option labels. Server handler coverage pins the current
+    add-on read model while event-side add-on fulfillment remains out of scope.
   - Keep shared registration-mode labels aligned whenever stored modes are
     implemented or retired. Local shared coverage now keeps event/template
     authoring controls and template detail summaries away from raw storage ids.
