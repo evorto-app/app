@@ -657,6 +657,10 @@ the current working direction until a product decision overrides them.
   shares one tested submit-disabled guard between the template button and submit
   handler, so invalid, submitting, and mutation-pending states cannot trigger
   duplicate event creation on slow networks.
+- **Addressed in stabilization pass:** template create/edit writes now share the
+  same submit-disabled helper between buttons and handlers, so invalid,
+  submitting, and mutation-pending create/update states cannot duplicate
+  template writes on slow networks.
 - **Addressed in stabilization pass:** template category create/edit actions now
   share one tested write-pending guard, so category buttons and handlers cannot
   open overlapping dialogs or writes while a category create/update is already
@@ -676,6 +680,9 @@ the current working direction until a product decision overrides them.
   stay private to the template surface.
 - `src/app/templates/template-create-event/template-create-event.component.spec.ts`
   pins the create-event-from-template submit guard for invalid, submitting, and
+  mutation-pending states.
+- `src/app/templates/shared/template-form/template-form.utilities.spec.ts` pins
+  the shared template create/edit write guard for invalid, submitting, and
   mutation-pending states.
 - `src/app/templates/categories/category-list/category-list.component.spec.ts`
   pins the category create/edit action guard while create or update writes are
@@ -1670,6 +1677,9 @@ implement those decisions or explicitly revise them there before changing code.
 - Tax-rate import action-guard pass: shared the import dialog disabled state
   and handler early return so empty selections and in-flight Stripe tax-rate
   imports cannot submit overlapping tenant tax-rate writes.
+- Template create/edit submit-guard pass: shared a tested submit-disabled helper
+  across simple template create/edit buttons and handlers so mutation-pending
+  create/update writes cannot duplicate template writes on slow networks.
 
 ## Review Next
 

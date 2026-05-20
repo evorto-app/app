@@ -24,6 +24,7 @@ import {
   TemplateFormData,
   TemplateFormOverrides,
   TemplateFormSubmitData,
+  templateWriteSubmitDisabled,
 } from '../shared/template-form/template-form.utilities';
 import { TemplateGeneralFormComponent } from '../shared/template-form/template-general-form.component';
 import { templateGeneralFormSchema } from '../shared/template-form/template-general-form.schema';
@@ -98,8 +99,11 @@ export class TemplateEditComponent {
   protected readonly canSubmit = computed(
     () =>
       this.discountProvidersQuery.isSuccess() &&
-      !this.templateForm().invalid() &&
-      !this.templateForm().submitting(),
+      !templateWriteSubmitDisabled({
+        formInvalid: this.templateForm().invalid(),
+        formSubmitting: this.templateForm().submitting(),
+        mutationPending: this.updateTemplateMutation.isPending(),
+      }),
   );
 
   protected readonly esnEnabled = computed(() => {
@@ -117,12 +121,21 @@ export class TemplateEditComponent {
   protected readonly updateTemplateMutation = injectMutation(() =>
     this.rpc.templates.updateSimpleTemplate.mutationOptions(),
   );
-
   private queryClient = inject(QueryClient);
   private router = inject(Router);
 
   async onSubmit(event: Event) {
     event.preventDefault();
+    if (
+      templateWriteSubmitDisabled({
+        formInvalid: this.templateForm().invalid(),
+        formSubmitting: this.templateForm().submitting(),
+        mutationPending: this.updateTemplateMutation.isPending(),
+      })
+    ) {
+      return;
+    }
+
     await submit(this.templateForm, async (formState) => {
       const formValue = formState().value();
       if (!formValue.icon) {
