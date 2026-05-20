@@ -1310,10 +1310,13 @@ the current working direction until a product decision overrides them.
 
 - Playwright has separate baseline spec and docs projects. Baseline specs exclude `tests/docs/**`; docs baseline runs `tests/docs/**/*.doc.ts`; integration-only docs are selected with `@needs-*` tags.
 - Local docs/spec discovery is runnable again after replacing stale Effect config APIs in `playwright.config.ts` and Playwright support files, and Auth0 Management credentials are no longer required just to import baseline fixtures.
-- `bun run test:e2e -- --list` discovers 86 baseline tests across 24 files,
+- `bun run test:e2e -- --list` discovers 103 baseline tests across 34 files,
   including setup projects, without requiring local Auth0/Stripe secrets.
-- `bun run test:e2e:docs -- --list` discovers 25 baseline docs/setup tests
-  across 18 files without requiring local Auth0/Stripe secrets.
+- `bun run test:e2e:docs -- --list` discovers 31 baseline docs/setup tests
+  across 19 files without requiring local Auth0/Stripe secrets.
+- `bun run test:e2e:integration -- --list` discovers 9 setup/integration tests
+  across 4 files: the Auth0 Management account-creation functional spec and
+  generated doc plus shared setup projects.
 - The custom documentation reporter writes grouped Markdown pages and image assets to paths from `DOCS_OUT_DIR` / `DOCS_IMG_OUT_DIR`, defaulting to ignored repository-local `test-results/docs` paths.
 - The reporter initializes and clears docs/image output roots on `onBegin` only for real test execution. During Playwright `--list` discovery it no-ops and does not clean or write docs output.
 - Reporter-path tests pass with `bun run test:e2e -- tests/specs/reporting/reporter-paths.test.ts --no-deps`.
