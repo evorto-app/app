@@ -161,8 +161,9 @@ jobs:
             trap cleanup EXIT
           fi
 
-          bun run test:e2e -- \
-            --grep-invert 'doc-screenshot returns a relative path and writes image|navigate to events list|create template in empty category|create a new template|template create form hides selected roles in autocomplete|register for a free event as regular user|@finance'
+          E2E_SELECTED_PROJECTS=local-chrome-baseline \
+            bunx playwright test --project=local-chrome-baseline \
+              --grep-invert 'doc-screenshot returns a relative path and writes image|navigate to events list|create template in empty category|create a new template|template create form hides selected roles in autocomplete|register for a free event as regular user|@finance'
 
           DOCS_OUT_DIR=test-results/docs \
           DOCS_IMG_OUT_DIR=test-results/docs/images \
