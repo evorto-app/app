@@ -56,6 +56,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - specs/events/free-registration.test.ts
   - specs/events/negative-registration-states.spec.ts
   - specs/events/registration-addons.test.ts
+  - specs/events/registration-transfer.test.ts
   - specs/events/unlisted-visibility.test.ts
   - specs/finance/finance-overview-permissions.spec.ts [finance, permissions]
   - specs/events/price-labels-inclusive.spec.ts [finance]
@@ -159,6 +160,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   registration-time add-on selected on a seeded free event, persisted as a
   registration add-on purchase, shown after registration, and deducted from
   add-on availability.
+- `specs/events/registration-transfer.test.ts` adds page-backed coverage for
+  the regular user's self-service unpaid transfer dialog and database readback
+  to the target tenant member.
 - Active-registration component coverage pins participant cancellation and
   self-service transfer action disabling while either write is pending or the
   transfer is unavailable.

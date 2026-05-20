@@ -581,6 +581,10 @@ the current working direction until a product decision overrides them.
 ### Test and Documentation Quality
 
 - `tests/specs/events/free-registration.test.ts` covers the free registration happy path using seeded scenario handles.
+- `tests/specs/events/registration-transfer.test.ts` covers the page-backed
+  participant self-service unpaid transfer flow by opening the event page,
+  submitting the transfer dialog with an eligible target member email, and
+  reading back the transferred registration row.
 - `src/app/events/event-registration-option/event-registration-option.component.spec.ts` covers registration-card state for full options, distinct waitlist availability, remaining-capacity guest selection helpers, participant registration/write action disabling, and too-early/too-late registration windows without requiring a page-backed browser.
 - `src/app/events/event-registration-option/event-registration-option.component.spec.ts` covers that stored `random` and `application` participant options do not expose a waitlist affordance even when full.
 - `src/server/effect/rpc/handlers/events/event-registration.service.spec.ts` covers server-side rejection for duplicate active registration, unpublished events, closed registration windows, role-ineligible users, cross-tenant options, full options, unsupported registration modes, same-event second registrations across options, transactional duplicate races, transactional capacity races, participant waitlist joining, and participant guest quantities.
@@ -1347,7 +1351,7 @@ the current working direction until a product decision overrides them.
   `tests/docs/**/*.doc.ts`; integration-only specs/docs are selected with
   `@needs-*` tags.
 - Local docs/spec discovery is runnable again after replacing stale Effect config APIs in `playwright.config.ts` and Playwright support files, and Auth0 Management credentials are no longer required just to import baseline fixtures.
-- `bun run test:e2e -- --list` discovers 100 baseline tests across 33 files,
+- `bun run test:e2e -- --list` discovers 101 baseline tests across 34 files,
   including setup projects, without requiring local Auth0/Stripe secrets.
 - `bun run test:e2e:docs -- --list` discovers 29 baseline docs/setup tests
   across 19 files without requiring local Auth0/Stripe secrets.
@@ -1947,6 +1951,9 @@ implement those decisions or explicitly revise them there before changing code.
   on active registration cards only when the server marks the registration
   transferable, and updated profile/event docs to route unpaid transfer details
   through the event page while keeping paid transfer/resale and refunds honest.
+- Participant unpaid transfer functional pass: added page-backed coverage for
+  the regular-user transfer dialog and database readback to prove the current
+  relaunch transfer workflow outside server/app helper tests.
 - Profile payment next-step coverage pass: extracted the profile event-card
   pending-checkout next-step copy into a helper and covered that it only appears
   when a pending registration has an actual checkout URL.
