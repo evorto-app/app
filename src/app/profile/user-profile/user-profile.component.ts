@@ -162,18 +162,31 @@ export const profileEventNextStepLabel = (event: {
   checkoutUrl: null | string;
   paymentState: 'cancelled' | 'notRequired' | 'pending' | 'recorded';
 }): null | string => {
-  if (event.paymentState === 'pending' && event.checkoutUrl) {
+  if (profileEventContinuePaymentUrl(event)) {
     return 'Finish the checkout payment to confirm your spot.';
   }
 
   return null;
 };
 
+export const isStripeCheckoutUrl = (value: string): boolean => {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && url.hostname === 'checkout.stripe.com';
+  } catch {
+    return false;
+  }
+};
+
 export const profileEventContinuePaymentUrl = (event: {
   checkoutUrl: null | string;
   paymentState: 'cancelled' | 'notRequired' | 'pending' | 'recorded';
 }): null | string => {
-  if (event.paymentState !== 'pending') {
+  if (
+    event.paymentState !== 'pending' ||
+    !event.checkoutUrl ||
+    !isStripeCheckoutUrl(event.checkoutUrl)
+  ) {
     return null;
   }
 
@@ -186,7 +199,7 @@ export const profileEventActionNote = (event: {
   paymentState: 'cancelled' | 'notRequired' | 'pending' | 'recorded';
   status: 'CONFIRMED' | 'PENDING' | 'WAITLIST';
 }): string => {
-  if (event.paymentState === 'pending' && event.checkoutUrl) {
+  if (profileEventContinuePaymentUrl(event)) {
     return 'Continue payment from this card, or open the event page for registration details.';
   }
 
