@@ -582,8 +582,8 @@ the current working direction until a product decision overrides them.
 - `src/app/events/event-registration-option/event-registration-option.component.spec.ts` covers discounted buyer-price plus full-price guest totals for paid registration actions.
 - `src/server/price/format-inclusive-tax-label.spec.ts` covers the shared inclusive-tax label formatter.
 - `src/app/shared/components/inclusive-price-label/price-with-tax.component.spec.ts` covers paid, free, zero-tax, and fallback rendering for the shared price/tax label used by event registration cards and template detail summaries.
-- **Addressed in stabilization pass:** event registration option cards now render paid prices through the shared inclusive tax label component using tax-rate details from `events.findOne`; Browser-backed price-label assertions are still needed before removing the Playwright fixme file.
-- `tests/specs/events/price-labels-inclusive.spec.ts` is explicitly quarantined with `test.fixme` until it is replaced with real UI assertions.
+- **Addressed in stabilization pass:** event registration option cards now render paid prices through the shared inclusive tax label component using tax-rate details from `events.findOne`.
+- `tests/specs/events/price-labels-inclusive.spec.ts` now has active page-level assertions for paid inclusive tax labels, free options without tax labels, zero-percent tax-free labels, fallback tax labels, ESNcard discounted prices retaining tax labels, and paid template detail summaries sharing the same price component.
 
 ### Product Questions Answered Above
 
@@ -1039,15 +1039,14 @@ the current working direction until a product decision overrides them.
 
 ### Issues and Risks
 
-- **Addressed in stabilization pass:** `tests/specs/events/price-labels-inclusive.spec.ts` is now fixme-only. The old TODO-heavy placeholder bodies and page-load assertions are gone, so it no longer appears to provide active inclusive-price UI coverage.
-- **Addressed in stabilization pass:** intentionally deferred price/tax `test.fixme` declarations no longer carry placeholder `@track`/`@req` ids; they remain plain backlog declarations until active Browser-backed coverage replaces them.
+- **Addressed in stabilization pass:** `tests/specs/events/price-labels-inclusive.spec.ts` now replaces the old placeholder/fixme declarations with real page-level UI assertions backed by seeded event and template data.
 - **Must fix before agent scaling:** some specs still intentionally skip for integration credentials or explicit deferred coverage, but the known misleading fixture-state examples from this pass now fail loudly when expected seeded state is missing: receipt approval/refund rows, receipt dialog options, unlisted-event seed state, event-creation setup, scanner preconditions, regular-user registration tenant setup, template icons, and template role autocomplete.
 - **Addressed in stabilization pass:** `tests/docs/events/event-management.doc.ts` now documents the current event details, registration, review/listing, organizer overview, participant grouping, and receipt surfaces instead of stale attendee export, attendee messaging, settings, tags, featured images, notifications, integrations, or deletion flows.
 - **Addressed in stabilization pass:** `tests/docs/finance/finance-overview.doc.ts` now documents the current finance permission split and transaction/receipt navigation behavior.
 - **Addressed in stabilization pass:** Playwright discovery was broken by stale Effect config APIs and by import-time Auth0 Management config reads in baseline fixtures. Both are fixed locally, but they show the e2e/docs surface was not being exercised recently enough.
 - **Addressed in stabilization pass:** list-only Playwright commands no longer initialize docs output, clear generated docs/image directories, or require Auth0 Management credentials for baseline fixture imports.
 - **Addressed in stabilization pass:** list-only Playwright config now uses inert placeholder values for runtime-only Auth0/Stripe secrets, so docs/spec discovery can enumerate tests without local secret stubs, starting Docker, or contacting external services.
-- **Addressed in stabilization pass:** participant-facing event registration cards now receive tax-rate label metadata from `events.findOne` and render paid option prices through the shared inclusive tax label component. The Playwright price-label file remains fixme-only until Browser-backed page assertions can run in a local runtime.
+- **Addressed in stabilization pass:** participant-facing event registration cards now receive tax-rate label metadata from `events.findOne`, render paid option prices through the shared inclusive tax label component, and have page-level Playwright assertions for the seeded inclusive-price states.
 - **Should fix before relaunch:** page-backed Playwright specs still fail in this checkout because the configured Chromium binary is missing. `tests/specs/screenshot/doc-screenshot.test.ts` seeds data and then fails at browser launch.
 - **Addressed in stabilization pass:** `tests/test-inventory.md` now maps current Playwright specs/docs by suite ownership, records intentional fixme and credential-gated paths, and lists the Browser-backed coverage still needed from the remaining stabilization gaps.
 - **Addressed in stabilization pass:** the remaining `test.skip` audit removed the dead mobile skip from `tests/specs/permissions/override.test.ts`, corrected the inventory entry for that spec, made the Auth0 Management doc skip name the required credentials explicitly, and moved Stripe webhook replay's credential gate to a file-level skip before page/database fixtures are requested.
@@ -1089,7 +1088,7 @@ the current working direction until a product decision overrides them.
 
 ### Recommended Cleanup Actions
 
-- Replace fixme-only price-label specs with focused assertions once the seeded/browser UI path can prove the behavior.
+- Keep active price-label specs aligned with seeded event and template tax-rate data as price display behavior changes.
 - Keep event-management and finance-overview docs aligned as the live UI changes; both were rewritten during this stabilization pass and should not be treated as stale product truth.
 - Continue auditing remaining `test.skip` usage so credential/integration skips stay honest and fixture-state gaps become hard failures or explicit `test.fixme` states.
 - Keep docs/list commands free of reporter output cleanup, runtime secret requirements, and local browser startup.
@@ -1236,6 +1235,7 @@ implement those decisions or explicitly revise them there before changing code.
 - None in the Templates pass. The highest-value issues are permission and contract validation gaps that need targeted tests with the fixes.
 - Template docs/spec cleanup pass: removed the generic template doc discovery placeholder, converted the deferred template tax-rate spec to honest fixme-only declarations, and updated the Playwright inventory.
 - Template tax-rate UI coverage pass: replaced the fixme-only template tax-rate file with active simple-mode Browser-backed assertions for the paid tax-rate requirement and seeded inclusive tax-rate save path, leaving only future bulk/no-compatible-rate behavior as fixme declarations.
+- Event price-label UI coverage pass: replaced the fixme-only inclusive-price file with active page-level assertions for paid event labels, free event options, zero-percent tax-free labels, fallback tax labels, ESNcard discounted prices retaining tax labels, and paid template detail summaries.
 - Permission evaluator pass: routed legacy server permission checks through the shared `includesPermission` helper so client and server agree on dependencies, wildcards, and legacy aliases, and added direct unit coverage for the shared evaluator plus tax-rate dependency behavior.
 - Role/user cleanup pass: removed placeholder user-list selection/edit affordances, aligned the roles doc with the current no-role-assignment UI, and fixed `users.findMany` to return only the RPC contract shape.
 - Role hub-field pass: migrated active role create/update form and RPC writes to `displayInHub`, persisted `collapseMembersInHup`, updated role docs, and removed legacy `showInHub` from the application schema/API surface.
@@ -1451,10 +1451,8 @@ stabilization work should continue with small cleanup commits around the
 remaining relaunch gaps: Browser-backed profile action coverage, Browser-backed
 scanner aggregate review, tenant settings implementation scope around branding
 uploads, hosted legal text, onboarding/domain workflows, and global
-tenant-admin workflows, the legacy-field migration path for production data,
-and replacing intentionally fixme-only price/tax specs with active
-Browser-backed coverage once the local runtime is available. Normal generated
-docs output now stays
+tenant-admin workflows, plus the legacy-field migration path for production
+data. Normal generated docs output now stays
 local unless `test:e2e:docs:publish` is run intentionally. New Playwright
 skips/fixmes should be added only as explicit credential gates or honest
 Browser-backed stabilization placeholders. Receipt notification remains a
