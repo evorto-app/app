@@ -1,7 +1,10 @@
 import { Schema } from 'effect';
 import { describe, expect, it } from 'vitest';
 
-import { AdminTenantUpdateSettingsInput } from './admin.rpcs';
+import {
+  AdminTenantBrandAssetKind,
+  AdminTenantUpdateSettingsInput,
+} from './admin.rpcs';
 
 const currentTenantSettingsInput = {
   allowOther: true,
@@ -64,14 +67,30 @@ describe('AdminTenantUpdateSettingsInput', () => {
     ).toThrow();
   });
 
-  it('keeps deferred domain and upload fields outside the current update payload', () => {
+  it('keeps deferred domain fields outside the current update payload', () => {
     const decoded = Schema.decodeUnknownSync(AdminTenantUpdateSettingsInput)({
       ...currentTenantSettingsInput,
       customDomain: 'section.example.org',
-      logoUpload: 'logo.svg',
       senderName: 'Example Section',
     });
 
     expect(decoded).toEqual(currentTenantSettingsInput);
+  });
+});
+
+describe('AdminTenantBrandAssetKind', () => {
+  it('accepts the supported tenant branding upload targets', () => {
+    expect(Schema.decodeUnknownSync(AdminTenantBrandAssetKind)('logo')).toBe(
+      'logo',
+    );
+    expect(Schema.decodeUnknownSync(AdminTenantBrandAssetKind)('favicon')).toBe(
+      'favicon',
+    );
+  });
+
+  it('rejects unsupported tenant branding upload targets', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(AdminTenantBrandAssetKind)('hero'),
+    ).toThrow();
   });
 });

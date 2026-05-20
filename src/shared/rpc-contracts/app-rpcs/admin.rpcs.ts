@@ -229,6 +229,29 @@ export type AdminTenantUpdateSettingsInput = Schema.Schema.Type<
   typeof AdminTenantUpdateSettingsInput
 >;
 
+export const AdminTenantBrandAssetKind = literalUnion('favicon', 'logo');
+export type AdminTenantBrandAssetKind = Schema.Schema.Type<
+  typeof AdminTenantBrandAssetKind
+>;
+
+export const AdminTenantUploadBrandAsset = asRpcMutation(
+  Rpc.make('admin.tenant.uploadBrandAsset', {
+    error: AdminTenantRpcError,
+    payload: Schema.Struct({
+      fileBase64: Schema.NonEmptyString,
+      fileName: Schema.NonEmptyString,
+      fileSizeBytes: Schema.Number,
+      kind: AdminTenantBrandAssetKind,
+      mimeType: Schema.NonEmptyString,
+    }),
+    success: Schema.Struct({
+      assetUrl: Schema.NonEmptyString,
+      sizeBytes: Schema.Number,
+      storageKey: Schema.NonEmptyString,
+    }),
+  }),
+);
+
 export const AdminTenantUpdateSettings = asRpcMutation(
   Rpc.make('admin.tenant.updateSettings', {
     error: AdminTenantRpcError,
@@ -248,5 +271,6 @@ export class AdminRpcs extends RpcGroup.make(
   AdminTenantImportStripeTaxRates,
   AdminTenantListImportedTaxRates,
   AdminTenantListStripeTaxRates,
+  AdminTenantUploadBrandAsset,
   AdminTenantUpdateSettings,
 ) {}

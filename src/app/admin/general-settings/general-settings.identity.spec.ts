@@ -70,7 +70,7 @@ describe('deferredTenantSettingsRows', () => {
       {
         label: 'Brand assets',
         value:
-          'Logo and favicon URLs are editable below; file uploads are not implemented yet.',
+          'Logo and favicon uploads or externally hosted URLs are editable below.',
       },
       {
         label: 'Legal pages',
