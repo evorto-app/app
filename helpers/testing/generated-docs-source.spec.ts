@@ -444,6 +444,20 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain(
       'It does not currently include attendee export, attendee messaging, manual check-in controls outside QR scanning',
     );
+    expect(source).toContain(
+      'Role picker behavior: already selected roles are hidden from suggestions to avoid duplicate eligibility entries.',
+    );
+    expect(source).toContain(
+      'Expected seeded draft event for event-management role autocomplete docs',
+    );
+    expect(source).toContain(
+      'Expected seeded event-management docs draft event "${draftEvent.title}" to have selected registration roles',
+    );
+    expect(source).toContain(
+      'Expected seeded event-management docs draft event "${draftEvent.title}" to have an unselected role for autocomplete',
+    );
+    expect(source).toContain("page.getByPlaceholder('Add Role...')");
+    expect(source).toContain('Event edit role picker duplicate prevention');
     expect(source).not.toContain('manual check-in from the organizer overview');
     expect(source).not.toContain('automatic refund controls are available');
     expect(source).not.toContain('paid registration transfer is available');

@@ -823,7 +823,7 @@ the current working direction until a product decision overrides them.
 - `src/app/admin/event-reviews/event-reviews.component.spec.ts` covers the
   tenant event-review queue guard that disables Approve/Reject while a review
   mutation is pending.
-- Permission matrix coverage checks admin tax-rate, role-management, user-list, settings, and template write route denial. `src/app/admin/admin.routes.spec.ts` keeps the guarded admin route manifest explicit. Role lookup UI behavior still needs Browser/E2E coverage once runtime review is available.
+- Permission matrix coverage checks admin tax-rate, role-management, user-list, settings, and template write route denial. `src/app/admin/admin.routes.spec.ts` keeps the guarded admin route manifest explicit. Role lookup UI behavior still needs manual Browser review once runtime review is available; current Playwright specs cover duplicate-hiding behavior in both template creation and event editing, and generated template/event-management docs pin the same behavior with fixture hard-failure guards.
 - `tests/docs/roles/roles.doc.ts` documents role creation, dependent permissions, and the explicit deferral of existing-user role assignment for relaunch.
 - `tests/docs/roles/about-permissions.doc.ts` generates the `/docs/about-permissions` source from shared permission metadata, including group labels, permission keys/descriptions, dependent permissions, and the tenant-role/global-admin distinction.
 - `tests/docs/roles/roles.doc.ts` links to `/docs/about-permissions` for permission reference details.
@@ -846,13 +846,13 @@ the current working direction until a product decision overrides them.
 - Keep route-manifest specs and permission-matrix route-denial cases aligned as admin, finance, template, and global-admin route trees change.
 - Keep role create/edit submit guards aligned with the actual mutation
   lifecycle, not only the signal-form submit callback.
-- Add UI/E2E coverage that least-privilege organizers can search/select tenant roles in event/template eligibility forms once Browser/runtime review is available.
+- Keep UI/E2E coverage aligned so least-privilege organizers can search/select tenant roles in event/template eligibility forms; current Playwright coverage and generated template/event-management docs exercise duplicate-hiding behavior in template creation and event editing, while manual Browser review remains pending until local runtime is available.
 - Keep `migration/steps/004_drop_legacy_stabilization_fields.ts` in the
   production migration path so any existing physical `showInHub`,
   `paymentStatus`, and `payment_status` artifacts are dropped when the
   schema/API surface is applied.
 - Keep user-role assignment explicitly deferred until a real role-assignment RPC and UI are implemented.
-- Add Browser-backed least-privilege organizer review for event/template role selectors once the local runtime is available; current server coverage proves lookup permissions and lookup-only result shaping, and the template Playwright autocomplete spec fails loudly when seeded roles are missing.
+- Add Browser-backed least-privilege organizer review for event/template role selectors once the local runtime is available; current server coverage proves lookup permissions and lookup-only result shaping, and the template/event Playwright plus generated-doc autocomplete checks fail loudly when seeded role state is missing.
 
 ## Finance/Receipts
 
@@ -1863,6 +1863,10 @@ implement those decisions or explicitly revise them there before changing code.
 - Template category action-guard pass: shared one create/update pending guard
   across category buttons and handlers so category dialogs and writes cannot
   overlap while a category mutation is in flight.
+- Event-management role-picker docs hardening pass: made generated
+  event-management docs open a seeded draft event edit form, fail explicitly if
+  selected or unselected role fixtures are missing, and assert selected roles
+  are hidden from role autocomplete suggestions.
 - Create-account retry guard pass: made the create-account submit button stay
   disabled while the account mutation is pending and pinned that invalid,
   submitting, and mutation-pending states all block duplicate submissions

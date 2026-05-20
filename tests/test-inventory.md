@@ -383,8 +383,11 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 - Roles/user management:
   - Browser-backed least-privilege organizer review for event/template role
     selectors. Server coverage already proves lookup permissions and
-    lookup-only role results; template autocomplete coverage now fails loudly
-    when seeded roles are missing.
+    lookup-only role results; template and event-edit autocomplete coverage now
+    fail loudly when seeded roles are missing. Generated template and
+    event-management docs also fail loudly when role autocomplete options or
+    selected/unselected event roles are missing before documenting the
+    duplicate-hiding behavior.
   - Keep app action icons on the Font Awesome component path. Local source
     coverage now fails if app templates or components reintroduce direct
     Material icon elements or `MatIconModule`, preserving the shared
