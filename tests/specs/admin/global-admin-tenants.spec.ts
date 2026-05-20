@@ -1,6 +1,7 @@
 import { expect, type Page } from '@playwright/test';
 import { eq } from 'drizzle-orm';
 
+import { getId } from '../../../helpers/get-id';
 import { gaStateFile } from '../../../helpers/user-data';
 import * as schema from '../../../src/db/schema';
 import { test } from '../../support/fixtures/base-test';
@@ -67,6 +68,8 @@ test('global tenant admin reviews tenant list, detail, and forms @admin @globalA
   if (!originalTenant) {
     throw new Error('Expected seeded global-admin tenant');
   }
+  const createdTenantDomain = `created-${getId().slice(0, 8)}.example.test`;
+  const createdTenantName = 'Created Section';
 
   try {
     await page.goto('/global-admin/tenants');
@@ -101,9 +104,38 @@ test('global tenant admin reviews tenant list, detail, and forms @admin @globalA
     await expect(
       page.getByRole('button', { name: 'Create tenant' }),
     ).toBeDisabled();
+    await page.getByLabel('Tenant name').fill(createdTenantName);
+    await page.getByLabel('Primary domain').fill(createdTenantDomain);
+    await expect(
+      page.getByRole('button', { name: 'Create tenant' }),
+    ).toBeEnabled();
+    await page.getByRole('button', { name: 'Create tenant' }).click();
+    await expect(page).toHaveURL(/\/global-admin\/tenants\/[^/]+$/);
+    await expect(
+      page.getByRole('heading', { name: createdTenantName }),
+    ).toBeVisible();
 
-    await page.getByText('Cancel', { exact: true }).click();
+    const createdTenant = await database.query.tenants.findFirst({
+      where: eq(schema.tenants.domain, createdTenantDomain),
+    });
+    if (!createdTenant) {
+      throw new Error('Expected global-admin create flow to persist tenant');
+    }
+    expect(createdTenant).toEqual(
+      expect.objectContaining({
+        currency: 'EUR',
+        domain: createdTenantDomain,
+        locale: 'en-GB',
+        name: createdTenantName,
+        stripeAccountId: null,
+        theme: 'evorto',
+        timezone: 'Europe/Berlin',
+      }),
+    );
+
+    await page.goto('/global-admin/tenants');
     await expect(page).toHaveURL(/\/global-admin\/tenants$/);
+    await page.getByLabel(tenantSearchLabel).fill('localhost');
     const reviewTenantLink = page.getByRole('link', { name: 'Review tenant' });
     const reviewTenantHref = await reviewTenantLink
       .first()
@@ -158,6 +190,9 @@ test('global tenant admin reviews tenant list, detail, and forms @admin @globalA
       }),
     );
   } finally {
+    await database
+      .delete(schema.tenants)
+      .where(eq(schema.tenants.domain, createdTenantDomain));
     await database
       .update(schema.tenants)
       .set({

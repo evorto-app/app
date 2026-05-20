@@ -1,6 +1,7 @@
 import type { Page } from '@playwright/test';
 import { eq } from 'drizzle-orm';
 
+import { getId } from '../../../helpers/get-id';
 import { gaStateFile } from '../../../helpers/user-data';
 import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
@@ -86,6 +87,8 @@ test('Review global tenant administration @admin @globalAdmin', async ({
   if (!documentedTenant) {
     throw new Error('Expected generated global-admin docs tenant');
   }
+  const createdTenantDomain = `docs-created-${getId().slice(0, 8)}.example.test`;
+  const createdTenantName = 'Documentation Section';
 
   try {
     await page.goto('/global-admin');
@@ -142,9 +145,41 @@ Global admins can review, create, and edit tenants from the **Global admin** are
     await expect(
       page.getByRole('button', { name: 'Create tenant' }),
     ).toBeDisabled();
-    await page.getByRole('link', { name: 'Cancel' }).click();
+    await page.getByLabel('Tenant name').fill(createdTenantName);
+    await page.getByLabel('Primary domain').fill(createdTenantDomain);
+    await expect(
+      page.getByRole('button', { name: 'Create tenant' }),
+    ).toBeEnabled();
+    await page.getByRole('button', { name: 'Create tenant' }).click();
+    await expect(page).toHaveURL(/\/global-admin\/tenants\/[^/]+$/);
+    await expect(
+      page.getByRole('heading', { name: createdTenantName }),
+    ).toBeVisible();
+
+    const createdTenant = await database.query.tenants.findFirst({
+      where: eq(schema.tenants.domain, createdTenantDomain),
+    });
+    if (!createdTenant) {
+      throw new Error(
+        'Expected global-admin docs create flow to persist tenant',
+      );
+    }
+    expect(createdTenant).toEqual(
+      expect.objectContaining({
+        currency: 'EUR',
+        domain: createdTenantDomain,
+        locale: 'en-GB',
+        name: createdTenantName,
+        stripeAccountId: null,
+        theme: 'evorto',
+        timezone: 'Europe/Berlin',
+      }),
+    );
+
+    await page.goto('/global-admin/tenants');
     await expect(page.getByRole('heading', { name: 'Tenants' })).toBeVisible();
     await expect(page).toHaveURL(/\/global-admin\/tenants$/);
+    await page.getByLabel(tenantSearchLabel).fill(documentedTenant.domain);
     const reviewTenantLink = page.getByRole('link', { name: 'Review tenant' });
     const reviewTenantHref = await reviewTenantLink
       .first()
@@ -219,10 +254,13 @@ Global admins can review, create, and edit tenants from the **Global admin** are
 
 The current global-admin page is a searchable tenant list with tenant creation, tenant editing, and a tenant detail review. Each entry shows the tenant name, domain, tenant id, theme, locale, currency, timezone, and Stripe connection state plus connected account id for support and operational review. The tenant detail page repeats the operational fields, links to the edit form, and provides an external link to open the tenant's primary domain.
 
-Tenant create/edit manages the one active primary domain, name, theme, locale, currency, timezone, and connected Stripe account id. The server normalizes primary domains to a single-host value and rejects duplicates before saving, so each tenant keeps one unique primary domain. The generated journey saves a tenant-name edit, returns to the tenant detail page, reads the saved tenant row back from the database, and restores the fixture tenant after the doc run. The create/edit forms show the relaunch tenant scope directly: one active primary domain is managed here, custom-domain verification and multi-domain automation are deferred, and tenant-admin impersonation is not available in the current relaunch surface.
+Tenant create/edit manages the one active primary domain, name, theme, locale, currency, timezone, and connected Stripe account id. The server normalizes primary domains to a single-host value and rejects duplicates before saving, so each tenant keeps one unique primary domain. The generated journey creates a temporary tenant, reads the created row back from the database, cleans it up after the doc run, then saves a tenant-name edit on the seeded fixture tenant, reads the saved row back from the database, and restores the fixture tenant after the doc run. The create/edit forms show the relaunch tenant scope directly: one active primary domain is managed here, custom-domain verification and multi-domain automation are deferred, and tenant-admin impersonation is not available in the current relaunch surface.
 `,
     });
   } finally {
+    await database
+      .delete(schema.tenants)
+      .where(eq(schema.tenants.domain, createdTenantDomain));
     await database
       .update(schema.tenants)
       .set({

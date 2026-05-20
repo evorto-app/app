@@ -1367,10 +1367,11 @@ the current working direction until a product decision overrides them.
   global-admin tenant list, tenant create/edit workflow, visible relaunch
   tenant-scope notice, and tenant detail review, pins the list/create/detail/edit
   navigation targets plus the external tenant-domain link, reads the documented
-  tenant row from the database before asserting operational fields, saves a
-  tenant-name edit with database readback and fixture restoration, and records
-  that custom-domain verification, multi-domain automation, and impersonation
-  workflows are not implemented yet.
+  tenant row from the database before asserting operational fields, creates a
+  temporary tenant with database readback and cleanup, saves a tenant-name edit
+  with database readback and fixture restoration, and records that custom-domain
+  verification, multi-domain automation, and impersonation workflows are not
+  implemented yet.
 - `helpers/testing/generated-docs-source.spec.ts` keeps the global-admin guide
   aligned with the one-domain/no-impersonation relaunch scope. It also keeps
   profile/account docs aligned with implemented notification-email semantics,
@@ -1474,7 +1475,8 @@ the current working direction until a product decision overrides them.
   has a functional Playwright spec for tenant list filtering, no-match state,
   operational row fields, connected Stripe-account support lookup, tenant
   detail review, create/edit form relaunch-scope copy, disabled empty create
-  submit, and enabled seeded edit submit.
+  submit, a temporary tenant create with database readback and cleanup, and
+  enabled seeded edit submit.
 - **Addressed in stabilization pass:** tenant-admin role/user management now has
   a functional Playwright spec for read-only user review, role create/edit,
   dependent permission persistence, hub-display flags, role details, and DB
@@ -2401,6 +2403,10 @@ implement those decisions or explicitly revise them there before changing code.
 - Scanner aggregate assertion pass: extended the later-guest-arrival scanner
   spec and event-management generated doc to assert the organizer overview
   checked-in aggregate after scanner writes, not only the database counter.
+- Global-admin tenant-create readback pass: extended the page-backed global-admin
+  tenant workflow spec and generated guide to create a temporary tenant, read
+  back the persisted one-domain/default settings row, and clean up the generated
+  tenant after the flow.
 
 ## Review Next
 
