@@ -81,8 +81,11 @@
                       mat-stroked-button
                       (click)="openTransferDialog(user)"
                       [disabled]="
-                        user.checkedIn ||
-                        transferRegistrationMutation.isPending()
+                        organizerRegistrationActionDisabled({
+                          checkedIn: user.checkedIn,
+                          mutationPending:
+                            transferRegistrationMutation.isPending(),
+                        })
                       "
                     >
                       Transfer registration
@@ -91,7 +94,11 @@
                       mat-stroked-button
                       (click)="cancelRegistration(user)"
                       [disabled]="
-                        user.checkedIn || cancelRegistrationMutation.isPending()
+                        organizerRegistrationActionDisabled({
+                          checkedIn: user.checkedIn,
+                          mutationPending:
+                            cancelRegistrationMutation.isPending(),
+                        })
                       "
                     >
                       Cancel registration

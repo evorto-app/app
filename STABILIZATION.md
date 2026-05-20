@@ -557,6 +557,10 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** organizer/admin cancellation is available from the organizer overview for confirmed participant registrations, requires event-organizer access or `events:organizeAll`, blocks checked-in cancellations, and rolls back confirmed counters without promising automatic refunds.
 - **Addressed in stabilization pass:** active registration cards now expose unpaid self-service transfer for confirmed, not checked-in registrations before event start, and keep transfer/resale unavailability explicit for pending and waitlisted registrations.
 - **Addressed in stabilization pass:** `events.findTransferTargets` and `events.transferEventRegistration` provide a conservative organizer-assisted transfer flow for confirmed, not checked-in, unpaid registrations between existing tenant users. The organizer overview opens an eligible-member lookup, and the target lookup and mutation require event-organizer access, fail closed when the target user is outside the tenant, role-ineligible for the registration option, or already has an active registration, and reject paid registrations until refund/resale money movement is implemented.
+- **Addressed in stabilization pass:** organizer overview participant actions now
+  use one shared checked-in/in-flight guard for cancellation and
+  organizer-assisted transfer buttons and handlers, so checked-in rows and
+  duplicate in-flight writes cannot be triggered from the page.
 - **Addressed in stabilization pass:** `events.transferMyRegistration` lets participants transfer their own confirmed unpaid registration to an existing eligible tenant user by email without exposing a tenant-member search surface.
 - **Should fix before relaunch:** participant-facing paid transfer/resale money movement, resale-specific workflows, and automatic refund flows are not implemented in the reviewed event registration path.
 - **Addressed in stabilization pass:** active registration status now uses the shared persisted registration status literal union instead of raw `Schema.String`.
@@ -570,6 +574,9 @@ the current working direction until a product decision overrides them.
 - `src/server/effect/rpc/handlers/events/event-registration.service.spec.ts` covers server-side rejection for duplicate active registration, unpublished events, closed registration windows, role-ineligible users, cross-tenant options, full options, unsupported registration modes, same-event second registrations across options, transactional duplicate races, transactional capacity races, participant waitlist joining, and participant guest quantities.
 - `src/server/effect/rpc/handlers/events/events-registration.handlers.spec.ts` covers participant self-cancellation for pending, confirmed, and waitlisted registrations, buyer-plus-guest spot rollback, checked-in rejection paths, organizer-assisted transfer target lookup, and unpaid registration transfer guardrails including target tenant membership, role eligibility, duplicate active registration, and paid-transfer rejection.
 - `src/app/events/event-organize/event-organize.spec.ts` covers organizer overview stat aggregation and transfer-dialog participant identity copy. The organizer overview UI now exposes the unpaid transfer action next to cancellation for not-yet-checked-in participant registrations.
+- `src/app/events/event-organize/event-organize.spec.ts` covers the shared
+  organizer participant action guard that disables cancellation and
+  organizer-assisted transfer for checked-in rows or in-flight writes.
 - `src/server/effect/rpc/handlers/events/events-registration.handlers.spec.ts` covers organizer/admin cancellation for confirmed registrations and denial without event-organizer access.
 - `src/server/effect/rpc/handlers/events/events-lifecycle.handlers.spec.ts` covers server-side rejection of end-before-start events and close-before-open registration windows for event create/update.
 - `src/server/effect/rpc/handlers/events/events-lifecycle.handlers.spec.ts` covers template discount copying by stable source option id when template options share the same title, plus pre-insert rejection when copied ESNcard discounts are disabled or exceed the target event option price.
@@ -1469,6 +1476,10 @@ implement those decisions or explicitly revise them there before changing code.
   successful transfer, and updated generated event-management docs to separate
   organizer-assisted unpaid transfer from participant self-service resale and
   paid money movement.
+- Organizer action guard pass: shared the organizer overview checked-in and
+  mutation-pending guard across cancellation and organizer-assisted transfer
+  buttons plus handlers, keeping duplicate or already-checked-in participant
+  mutations blocked locally.
 - Participant unpaid transfer pass: added `events.transferMyRegistration` so a
   participant can transfer their own confirmed, not checked-in, unpaid
   registration to an existing eligible tenant user by email, exposed the action

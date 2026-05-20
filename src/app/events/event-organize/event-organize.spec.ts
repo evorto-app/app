@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { computeEventOrganizeStats } from './event-organize';
+import {
+  computeEventOrganizeStats,
+  organizerRegistrationActionDisabled,
+} from './event-organize';
 import { transferParticipantLabel } from './registration-transfer-dialog.component';
 
 describe('computeEventOrganizeStats', () => {
@@ -47,5 +50,28 @@ describe('transferParticipantLabel', () => {
         lastName: 'Able',
       }),
     ).toBe('Alex Able (alex@example.com)');
+  });
+});
+
+describe('organizerRegistrationActionDisabled', () => {
+  it('blocks organizer participant mutations for checked-in rows or in-flight writes', () => {
+    expect(
+      organizerRegistrationActionDisabled({
+        checkedIn: true,
+        mutationPending: false,
+      }),
+    ).toBe(true);
+    expect(
+      organizerRegistrationActionDisabled({
+        checkedIn: false,
+        mutationPending: true,
+      }),
+    ).toBe(true);
+    expect(
+      organizerRegistrationActionDisabled({
+        checkedIn: false,
+        mutationPending: false,
+      }),
+    ).toBe(false);
   });
 });
