@@ -51,6 +51,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - specs/discounts/esn-discounts.test.ts [finance]
   - specs/events/events.test.ts
   - specs/events/free-registration.test.ts
+  - specs/events/negative-registration-states.spec.ts
   - specs/events/unlisted-visibility.test.ts
   - specs/events/price-labels-inclusive.spec.ts [finance, fixme]
   - specs/finance/receipts-flows.spec.ts [finance]
@@ -220,11 +221,14 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     users before joining role rows and applies search before pagination, so
     multi-role users do not collapse page size.
 - Registrations:
-  - Browser-backed negative registration states for closed windows,
-    role-ineligible direct links, and waitlist affordances. Server/app unit
-    coverage already proves closed-window rejection, role eligibility,
-    unsupported stored registration-mode rejection, unsupported-mode no-waitlist
-    card behavior, waitlist joining, and leave-waitlist cancellation.
+  - `specs/events/negative-registration-states.spec.ts` adds active
+    page-backed coverage for closed registration windows, role-ineligible direct
+    links, and waitlist affordances. Server/app unit coverage already proves
+    closed-window rejection, role eligibility, unsupported stored
+    registration-mode rejection, unsupported-mode no-waitlist card behavior,
+    waitlist joining, and leave-waitlist cancellation.
+  - Browser-backed execution of those assertions still depends on local runtime
+    availability and the matching Playwright Chromium cache.
 
 ## Current Notes
 

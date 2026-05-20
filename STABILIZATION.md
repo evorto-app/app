@@ -1181,7 +1181,10 @@ the current working direction until a product decision overrides them.
 ### Should Fix Before Relaunch
 
 1. Implement transfer/resale; keep automatic refund handling visible until the finance flow is implemented.
-2. Add Playwright coverage for negative registration paths and role-ineligible direct links.
+2. Run the active negative-registration Playwright coverage once local runtime
+   is available; `specs/events/negative-registration-states.spec.ts` now covers
+   closed registration windows, role-ineligible direct links, and waitlist
+   affordances.
 3. Keep simple-mode templates as the primary authoring UI, but expand reusable template support for discounts, add-ons, and questions where practical. Organizer planning tips are now exposed as the first private organizer-notes field.
 4. Execute the covered legacy-field migration path during production cut-over so
    any existing physical `showInHub`, `paymentStatus`, and `payment_status`
@@ -1314,6 +1317,10 @@ implement those decisions or explicitly revise them there before changing code.
 - Route-guard backlog cleanup: replaced the stale "extend route-guard coverage" follow-up after admin, finance, template, and global-admin route-manifest specs plus permission-matrix denial coverage were in place.
 - Role autocomplete backlog cleanup: replaced the stale skip-based autocomplete follow-up with the remaining Browser-backed least-privilege organizer review, after confirming role lookup unit coverage and the active template autocomplete spec already fail loudly on missing seeded roles.
 - Registration negative-path backlog cleanup: clarified the Playwright inventory so closed-window, role-ineligible, unsupported-mode, and waitlist items point to the remaining Browser-backed page states rather than implying server/app negative-path coverage is absent.
+- Registration negative-path Playwright pass: added active page-backed coverage
+  for closed registration windows, role-ineligible direct links, and full
+  participant-option waitlist affordances. Execution still depends on local
+  runtime secrets and the matching Playwright browser cache.
 - Active-registration deferred-action pass: kept transfer/resale visibly
   unavailable on event active-registration cards for pending, confirmed, and
   waitlisted registrations until the real transfer/resale flow exists.
