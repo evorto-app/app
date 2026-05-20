@@ -184,8 +184,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     status, guest quantity, payment state, and check-in state.
     App coverage already proves event-detail action copy, guest/status/payment
     labels, implemented-action notes, waitlist event-page routing, and the
-    payment-continuation next-step copy. It also proves checked-in profile
-    event cards no longer advertise cancellation or transfer actions.
+    payment-continuation next-step copy. It also proves profile payment
+    continuation links render only for pending Stripe Checkout HTTPS URLs, and
+    checked-in profile event cards no longer advertise cancellation or transfer
+    actions.
     Organizer overview app coverage also proves checked-in rows and in-flight
     writes disable participant cancellation and organizer-assisted transfer.
   - Browser-backed ESNcard add, refresh, and remove flows with readable error

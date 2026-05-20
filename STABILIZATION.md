@@ -1039,6 +1039,9 @@ the current working direction until a product decision overrides them.
 - `tests/docs/profile/user-profile.doc.ts` documents navigation, profile display, edit dialog validation, notification email persistence, event cards, and the receipts tab.
 - `src/app/profile/user-profile/edit-profile-dialog.component.spec.ts` covers profile edit payload normalization for notification email and optional global reimbursement details before the update mutation receives the dialog result.
 - `src/app/profile/user-profile/user-profile.component.spec.ts` covers profile event action routing, payment-continuation visibility, guest-quantity, checked-in action copy, implemented-action notes, payment-continuation next-step copy, payment-state, registration-status labels, submitted-receipt status and amount labels, ESNcard action/status labels, ESNcard save disabled state, ESNcard upsert payload normalization, and readable ESNcard mutation error fallback/provider messages.
+- Profile app coverage also pins that payment continuation links only render for
+  pending Stripe Checkout HTTPS URLs, so malformed or unexpected checkout URL
+  values fail closed instead of becoming profile-card links.
 - Profile app coverage pins that profile edit is disabled while the profile
   update mutation is pending.
 - Profile app coverage also pins that ESNcard save, refresh, and remove actions
@@ -1767,6 +1770,9 @@ implement those decisions or explicitly revise them there before changing code.
   tax-rate select show an explicit no-compatible-inclusive-rates message instead
   of an empty menu, and pinned loading, empty, failed, and available states in
   local component helper coverage.
+- Profile checkout-link guard pass: constrained profile payment-continuation
+  links to pending Stripe Checkout HTTPS URLs so malformed or unexpected stored
+  checkout values do not render as actionable profile links.
 
 ## Review Next
 

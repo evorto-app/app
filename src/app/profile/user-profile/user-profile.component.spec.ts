@@ -7,6 +7,7 @@ import {
   esnCardSaveDisabled,
   esnCardStatusLabel,
   esnCardSubmitPayloadFromIdentifier,
+  isStripeCheckoutUrl,
   profileEditActionDisabled,
   profileEventActionNote,
   profileEventContinuePaymentUrl,
@@ -75,7 +76,7 @@ describe('profile event labels', () => {
     expect(
       profileEventActionNote({
         checkInTime: null,
-        checkoutUrl: 'https://checkout.stripe.test/pay',
+        checkoutUrl: 'https://checkout.stripe.com/pay/cs_test_123',
         paymentState: 'pending',
         status: 'PENDING',
       }),
@@ -87,7 +88,7 @@ describe('profile event labels', () => {
   it('shows the payment continuation next step only when a checkout link exists', () => {
     expect(
       profileEventNextStepLabel({
-        checkoutUrl: 'https://checkout.stripe.test/pay',
+        checkoutUrl: 'https://checkout.stripe.com/pay/cs_test_123',
         paymentState: 'pending',
       }),
     ).toBe('Finish the checkout payment to confirm your spot.');
@@ -99,8 +100,14 @@ describe('profile event labels', () => {
     ).toBeNull();
     expect(
       profileEventNextStepLabel({
-        checkoutUrl: 'https://checkout.stripe.test/pay',
+        checkoutUrl: 'https://checkout.stripe.com/pay/cs_test_123',
         paymentState: 'recorded',
+      }),
+    ).toBeNull();
+    expect(
+      profileEventNextStepLabel({
+        checkoutUrl: 'javascript:alert(1)',
+        paymentState: 'pending',
       }),
     ).toBeNull();
   });
@@ -108,10 +115,10 @@ describe('profile event labels', () => {
   it('renders the payment continuation action only for pending checkout registrations', () => {
     expect(
       profileEventContinuePaymentUrl({
-        checkoutUrl: 'https://checkout.stripe.test/pay',
+        checkoutUrl: 'https://checkout.stripe.com/pay/cs_test_123',
         paymentState: 'pending',
       }),
-    ).toBe('https://checkout.stripe.test/pay');
+    ).toBe('https://checkout.stripe.com/pay/cs_test_123');
     expect(
       profileEventContinuePaymentUrl({
         checkoutUrl: null,
@@ -120,10 +127,29 @@ describe('profile event labels', () => {
     ).toBeNull();
     expect(
       profileEventContinuePaymentUrl({
-        checkoutUrl: 'https://checkout.stripe.test/pay',
+        checkoutUrl: 'https://checkout.stripe.com/pay/cs_test_123',
         paymentState: 'recorded',
       }),
     ).toBeNull();
+    expect(
+      profileEventContinuePaymentUrl({
+        checkoutUrl: 'https://checkout.stripe.com.evil.example/pay',
+        paymentState: 'pending',
+      }),
+    ).toBeNull();
+  });
+
+  it('only treats Stripe Checkout HTTPS URLs as continuation links', () => {
+    expect(
+      isStripeCheckoutUrl('https://checkout.stripe.com/pay/cs_test_123'),
+    ).toBe(true);
+    expect(
+      isStripeCheckoutUrl('http://checkout.stripe.com/pay/cs_test_123'),
+    ).toBe(false);
+    expect(
+      isStripeCheckoutUrl('https://checkout.stripe.com.evil.example/pay'),
+    ).toBe(false);
+    expect(isStripeCheckoutUrl('javascript:alert(1)')).toBe(false);
   });
 
   it('labels guest quantities only when a registration includes guests', () => {
