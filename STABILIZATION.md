@@ -2523,13 +2523,14 @@ implement those decisions or explicitly revise them there before changing code.
   before opening the dialog for paid, checked-in, or past-event registrations.
   This keeps the paid transfer/refund/resale boundary visible in the organizer
   UI while money movement remains a relaunch blocker.
-- Docker scanner runtime pass: restarted the full Docker stack on
-  `APP_HOST_PORT=4200`, verified the app served `/events`, checked Compose
-  service health/logs, and ran the scanner/profile discount/price-label slice
-  against system Chrome with `NO_WEBSERVER=true`. The slice passed 16/16 after
-  serializing Auth0 setup, tightening Auth0 field selectors, making the
-  user-scoped ESNcard fixture opt-in and stable across parallel tenants, and
-  aligning scanner/profile assertions with the current UI.
+- Docker scanner runtime pass: restarted the full Docker stack, verified the
+  app served `/events` on local port 4577, checked Compose service health/logs,
+  and reran the scanner check-in slice plus event-management scanner docs
+  against system Chrome with `NO_WEBSERVER=true --no-deps`. The slice covers
+  selected guest check-in, later remaining-guest arrival, and organizer overview
+  checked-in aggregate readback. Earlier profile discount and price-label slices
+  remain covered separately in the matching profile and organizer-authoring
+  runtime passes.
 - Docker profile/discount runtime pass: updated the Stripe CLI Docker sidecar
   to `stripe/stripe-cli:v1.41.1`, rebuilt the Docker app image with the
   Font Awesome token path exercised for premium and brand icons, verified
