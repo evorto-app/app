@@ -1,10 +1,23 @@
-import { adminStateFile } from '../../../helpers/user-data';
+import { eq } from 'drizzle-orm';
+import { DateTime } from 'luxon';
+
+import { getId } from '../../../helpers/get-id';
+import {
+  adminStateFile,
+  usersToAuthenticate,
+} from '../../../helpers/user-data';
+import { eventRegistrations } from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 
 test.use({ storageState: adminStateFile });
 
-test('Create and manage events', async ({ events, page, seeded }, testInfo) => {
+test('Create and manage events', async ({
+  database,
+  events,
+  page,
+  seeded,
+}, testInfo) => {
   const target = events.find(
     (event) => event.id === seeded.scenario.events.freeOpen.eventId,
   );
@@ -225,6 +238,65 @@ For unpaid registrations, organizers can transfer a not-yet-checked-in participa
 
 It does not currently include attendee export, attendee messaging, manual check-in controls outside QR scanning, participant self-service resale, paid registration transfer, or automatic refund controls.
 Those flows should be documented separately when they exist in the product.
+`,
+  });
+
+  const scannerEventId = seeded.scenario.events.past.eventId;
+  const scannerRegistrationOption =
+    await database.query.eventRegistrationOptions.findFirst({
+      where: {
+        eventId: scannerEventId,
+        organizingRegistration: false,
+        tenantId: seeded.tenant.id,
+      },
+    });
+  if (!scannerRegistrationOption) {
+    throw new Error(
+      'Expected seeded participant option for scanner documentation',
+    );
+  }
+  const scannerUser = usersToAuthenticate.find((user) => user.roles === 'user');
+  if (!scannerUser) {
+    throw new Error('Expected regular user fixture for scanner documentation');
+  }
+  const scannerRegistrationId = getId();
+
+  try {
+    await database.insert(eventRegistrations).values({
+      checkedInGuestCount: 0,
+      eventId: scannerEventId,
+      guestCount: 2,
+      id: scannerRegistrationId,
+      registrationOptionId: scannerRegistrationOption.id,
+      status: 'CONFIRMED',
+      tenantId: seeded.tenant.id,
+      userId: scannerUser.id,
+    });
+
+    await page.goto(`/scan/registration/${scannerRegistrationId}`);
+    await expect(
+      page.getByRole('heading', { name: 'Registration scanned' }),
+    ).toBeVisible();
+    await expect(page.getByText('Includes 2 guests.')).toBeVisible();
+    await expect(page.getByText('0 checked in, 2 remaining.')).toBeVisible();
+    await page.getByLabel('Guests to check in now').fill('2');
+    await expect(
+      page.getByRole('button', { name: 'Confirm 3 check-ins' }),
+    ).toBeVisible();
+    await takeScreenshot(
+      testInfo,
+      page.locator('app-handle-registration'),
+      page,
+      'Scanned registration with guest check-in',
+    );
+  } finally {
+    await database
+      .delete(eventRegistrations)
+      .where(eq(eventRegistrations.id, scannerRegistrationId));
+  }
+
+  await testInfo.attach('markdown', {
+    body: `
 
 ## Event Editing
 

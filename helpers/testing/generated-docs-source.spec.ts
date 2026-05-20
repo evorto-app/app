@@ -331,6 +331,14 @@ describe('generated docs source current behavior', () => {
       'When a registration includes guests, the organizer chooses how many guests arrived with the attendee, and the checked-in count increases by the attendee plus the selected guests.',
     );
     expect(source).toContain(
+      'page.goto(`/scan/registration/${scannerRegistrationId}`)',
+    );
+    expect(source).toContain("page.getByText('Includes 2 guests.')");
+    expect(source).toContain(
+      "page.getByRole('button', { name: 'Confirm 3 check-ins' })",
+    );
+    expect(source).toContain('Scanned registration with guest check-in');
+    expect(source).toContain(
       "Organizers can also cancel a participant's confirmed registration from the organizer overview before check-in, which releases the confirmed spot without promising an automatic refund.",
     );
     expect(source).toContain(
