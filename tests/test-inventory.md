@@ -264,6 +264,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     continuation links render only for pending Stripe Checkout HTTPS URLs, and
     checked-in profile event cards no longer advertise cancellation or transfer
     actions.
+    The functional profile-event spec now pins each seeded confirmed,
+    pending-checkout, waitlisted, and checked-in card to its expected event-page
+    link so the recovery route cannot silently drift while Browser runtime
+    review is unavailable.
     Organizer overview app coverage also proves checked-in rows and in-flight
     writes disable participant cancellation and organizer-assisted transfer.
   - Browser-backed ESNcard live add, refresh, and remove provider outcomes with
