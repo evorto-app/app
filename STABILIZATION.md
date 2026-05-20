@@ -907,7 +907,7 @@ the current working direction until a product decision overrides them.
 
 - `tests/docs/profile/user-profile.doc.ts` documents navigation, profile display, edit dialog validation, notification email persistence, event cards, and the receipts tab.
 - `src/app/profile/user-profile/edit-profile-dialog.component.spec.ts` covers profile edit payload normalization for notification email and optional global reimbursement details before the update mutation receives the dialog result.
-- `src/app/profile/user-profile/user-profile.component.spec.ts` covers profile event action, guest-quantity, deferred-action notes, payment-continuation next-step copy, payment-state, registration-status labels, submitted-receipt status labels, ESNcard upsert payload normalization, and readable ESNcard mutation error fallback/provider messages.
+- `src/app/profile/user-profile/user-profile.component.spec.ts` covers profile event action routing, payment-continuation visibility, guest-quantity, deferred-action notes, payment-continuation next-step copy, payment-state, registration-status labels, submitted-receipt status labels, ESNcard upsert payload normalization, and readable ESNcard mutation error fallback/provider messages.
 - **Addressed in stabilization pass:** the profile doc no longer uses a fixed stabilization wait before the profile screenshot, now saves and verifies notification email persistence, and opens the Events section to document event-card semantics.
 - `tests/docs/profile/discounts.doc.ts` documents the discount-card section and current pending/error behavior, but does not add, refresh, remove, or assert any ESNcard validation outcome.
 - `tests/specs/discounts/esn-discounts.test.ts` verifies a seeded verified ESNcard affects paid event price labels and the register button copy.
@@ -1379,6 +1379,11 @@ implement those decisions or explicitly revise them there before changing code.
   scripts remain gated by `docker:check`, Compose consumes the required runtime
   variables, and the Font Awesome build secret path continues to support both
   premium and brand icon packages.
+- Profile action-helper coverage pass: moved the profile pending-checkout
+  continuation rule into a tested helper so the card only renders the external
+  payment action for pending registrations with a checkout URL while all event
+  states continue routing users back to the event page for ticket,
+  cancellation, and waitlist details.
 - Migration docs alignment pass: refreshed `migration/README.md` to document
   the current global migration-step phase, including idempotent DDL cleanup for
   legacy physical fields, and removed stale conductor/track guidance.

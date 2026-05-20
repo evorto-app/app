@@ -106,6 +106,17 @@ export const profileEventNextStepLabel = (event: {
   return null;
 };
 
+export const profileEventContinuePaymentUrl = (event: {
+  checkoutUrl: null | string;
+  paymentState: 'cancelled' | 'notRequired' | 'pending' | 'recorded';
+}): null | string => {
+  if (event.paymentState !== 'pending') {
+    return null;
+  }
+
+  return event.checkoutUrl;
+};
+
 export const profileEventActionNote = (event: {
   checkoutUrl: null | string;
   paymentState: 'cancelled' | 'notRequired' | 'pending' | 'recorded';
@@ -286,6 +297,8 @@ export class UserProfileComponent {
   );
 
   protected readonly profileEventActionNote = profileEventActionNote;
+  protected readonly profileEventContinuePaymentUrl =
+    profileEventContinuePaymentUrl;
   protected readonly profileEventDetailActionLabel =
     profileEventDetailActionLabel;
   protected readonly profileEventGuestLabel = profileEventGuestLabel;
