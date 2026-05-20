@@ -1,6 +1,6 @@
 import type { FinanceReceiptStatus } from '@shared/rpc-contracts/app-rpcs/finance.rpcs';
 
-import { DatePipe, DecimalPipe } from '@angular/common';
+import { DatePipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -193,6 +193,9 @@ export const profileReceiptStatusLabel = (
   }
 };
 
+export const profileReceiptAmountLabel = (totalAmount: number): string =>
+  `${(totalAmount / 100).toFixed(2)} €`;
+
 export const profileSectionFromFragment = (
   fragment: null | string,
   esnEnabled: boolean,
@@ -223,7 +226,6 @@ export const esnCardSubmitPayloadFromIdentifier = (
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     DatePipe,
-    DecimalPipe,
     FontAwesomeModule,
     FormField,
     MatButtonModule,
@@ -303,6 +305,7 @@ export class UserProfileComponent {
     profileEventDetailActionLabel;
   protected readonly profileEventGuestLabel = profileEventGuestLabel;
   protected readonly profileEventNextStepLabel = profileEventNextStepLabel;
+  protected readonly profileReceiptAmountLabel = profileReceiptAmountLabel;
   protected readonly profileReceiptStatusLabel = profileReceiptStatusLabel;
   protected readonly userQuery = injectQuery(() =>
     this.rpc.users.self.queryOptions(),
