@@ -573,6 +573,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 - Playwright list/discovery output is intentionally readable:
   `helpers/testing/playwright-skip-inventory.spec.ts` guards that real spec/doc
   titles no longer include placeholder `@track`, `@req`, or `@doc` metadata.
-- `docs/users/create-account.doc.ts` is the only current integration-tagged Playwright path; there is no non-doc integration-only spec yet.
+- `docs/users/create-account.doc.ts` and
+  `specs/profile/create-account.spec.ts` are the current Auth0
+  Management-gated integration paths. The doc covers the generated walkthrough;
+  the spec is the matching functional account-creation integration coverage.
 - Playwright `--list` discovery does not clean or write generated docs output,
   and baseline fixture imports do not require Auth0 Management credentials.
