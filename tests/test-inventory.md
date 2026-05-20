@@ -157,6 +157,12 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   page keeps self-service transfer disabled with the paid transfer/resale
   deferral instead of exposing the unpaid transfer dialog, then deletes the
   generated registration/transaction rows and restores touched fixture status.
+- `specs/events/negative-registration-states.spec.ts` adds page-backed waitlist
+  coverage for full first-come-first-served options with explicit required
+  answer gating, persisted waitlist registration readback, and persisted
+  question-answer readback. It also leaves the waitlist and asserts the
+  cancelled registration plus released waitlist counter, then restores touched
+  registrations, generated questions, and option counters.
 - `docs/events/register.doc.ts` seeds a paid confirmed registration with a
   successful transaction, asserts disabled transfer-unavailable copy, and reads
   the generated registration row back before cleanup.
