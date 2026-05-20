@@ -218,8 +218,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     selected receipt plus the chosen payout detail, that selected totals sum the
     selected rows only, that approval/rejection actions stay disabled while the
     form is invalid, receipt details are loading, or the review mutation is
-    pending, and that finance receipt contact details prefer the submitter's
-    notification email with login email fallback.
+    pending, that reimbursement recording stays disabled while the refund
+    mutation is pending, and that finance receipt contact details prefer the
+    submitter's notification email with login email fallback.
   - Keep event-organizer receipt submission action coverage aligned with the
     two-step upload-plus-submit flow. Local app coverage now pins that Add
     receipt remains disabled while the event has not loaded yet, while the

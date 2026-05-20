@@ -4,6 +4,7 @@ import {
   receiptReimbursementCanRecord,
   receiptReimbursementManualNotice,
   receiptReimbursementPayoutDetailLabel,
+  receiptReimbursementRecordDisabled,
   receiptReimbursementSelectedTotal,
 } from './receipt-refund-list.component';
 
@@ -41,6 +42,35 @@ describe('receiptReimbursementCanRecord', () => {
         'paypal',
       ),
     ).toBe(true);
+  });
+});
+
+describe('receiptReimbursementRecordDisabled', () => {
+  it('disables reimbursement recording when the selected group cannot be recorded', () => {
+    expect(
+      receiptReimbursementRecordDisabled({
+        canRecord: false,
+        mutationPending: false,
+      }),
+    ).toBe(true);
+  });
+
+  it('disables reimbursement recording while a refund mutation is pending', () => {
+    expect(
+      receiptReimbursementRecordDisabled({
+        canRecord: true,
+        mutationPending: true,
+      }),
+    ).toBe(true);
+  });
+
+  it('allows reimbursement recording only when the selection and mutation are ready', () => {
+    expect(
+      receiptReimbursementRecordDisabled({
+        canRecord: true,
+        mutationPending: false,
+      }),
+    ).toBe(false);
   });
 });
 

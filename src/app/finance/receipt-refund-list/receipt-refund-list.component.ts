@@ -54,6 +54,13 @@ export function receiptReimbursementPayoutDetailLabel(
   return `${label}: ${payoutReference || 'not set'}`;
 }
 
+export function receiptReimbursementRecordDisabled(input: {
+  canRecord: boolean;
+  mutationPending: boolean;
+}): boolean {
+  return !input.canRecord || input.mutationPending;
+}
+
 export function receiptReimbursementSelectedTotal(
   receipts: readonly { id: string; totalAmount: number }[],
   selectedReceiptIds: readonly string[],
@@ -91,6 +98,8 @@ export class ReceiptRefundListComponent {
     receiptReimbursementManualNotice;
   protected readonly receiptReimbursementPayoutDetailLabel =
     receiptReimbursementPayoutDetailLabel;
+  protected readonly receiptReimbursementRecordDisabled =
+    receiptReimbursementRecordDisabled;
   private readonly rpc = AppRpc.injectClient();
   protected readonly refundableReceiptsQuery = injectQuery(() =>
     this.rpc.finance.receipts.refundableGroupedByRecipient.queryOptions(),
@@ -221,17 +230,33 @@ export class ReceiptRefundListComponent {
     submittedByUserId: string;
   }): Promise<void> {
     const receiptIds = this.selectedReceiptIds(group.submittedByUserId);
-    if (receiptIds.length === 0) {
-      this.notifications.showError('Select at least one receipt');
-      return;
-    }
-
     const payoutType = this.getPayoutType(
       group.submittedByUserId,
       group.payout,
     );
     const payoutReference =
       payoutType === 'iban' ? group.payout.iban : group.payout.paypalEmail;
+    if (
+      receiptReimbursementRecordDisabled({
+        canRecord: receiptReimbursementCanRecord(
+          receiptIds,
+          group.payout,
+          payoutType,
+        ),
+        mutationPending: this.refundMutation.isPending(),
+      })
+    ) {
+      if (receiptIds.length === 0) {
+        this.notifications.showError('Select at least one receipt');
+        return;
+      }
+      if (this.refundMutation.isPending()) {
+        return;
+      }
+
+      this.notifications.showError('Selected payout detail is missing');
+      return;
+    }
     if (!payoutReference) {
       this.notifications.showError('Selected payout detail is missing');
       return;
