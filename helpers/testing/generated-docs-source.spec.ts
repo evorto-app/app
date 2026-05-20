@@ -117,6 +117,9 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain(
       '`/events/${profileEventCards.checkedIn.eventId}`',
     );
+    expect(source).toContain("getByRole('link', { name: 'Continue payment' })");
+    expect(source).toContain('pendingCheckoutRegistration');
+    expect(source).toContain('checkedInAddonPurchase');
     expect(source).toContain(
       'You are checked in. Open the event page for ticket details. Cancellation and transfer are no longer available after check-in.',
     );

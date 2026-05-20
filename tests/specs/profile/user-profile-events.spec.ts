@@ -51,6 +51,9 @@ test('profile event cards show implemented registration actions', async ({
     await expect(
       confirmedCard.getByRole('link', { name: 'Open event page' }),
     ).toHaveAttribute('href', `/events/${profileEventCards.confirmed.eventId}`);
+    await expect(
+      confirmedCard.getByRole('link', { name: 'Continue payment' }),
+    ).toHaveCount(0);
 
     const pendingCheckoutCard = page
       .locator('article')
@@ -90,6 +93,9 @@ test('profile event cards show implemented registration actions', async ({
     await expect(
       waitlistCard.getByRole('link', { name: 'Open event page' }),
     ).toHaveAttribute('href', `/events/${profileEventCards.waitlist.eventId}`);
+    await expect(
+      waitlistCard.getByRole('link', { name: 'Continue payment' }),
+    ).toHaveCount(0);
 
     const checkedInCard = page
       .locator('article')
@@ -107,6 +113,9 @@ test('profile event cards show implemented registration actions', async ({
     await expect(
       checkedInCard.getByRole('link', { name: 'Open event page' }),
     ).toHaveAttribute('href', `/events/${profileEventCards.checkedIn.eventId}`);
+    await expect(
+      checkedInCard.getByRole('link', { name: 'Continue payment' }),
+    ).toHaveCount(0);
 
     const confirmedRegistration =
       await database.query.eventRegistrations.findFirst({
@@ -150,6 +159,20 @@ test('profile event cards show implemented registration actions', async ({
         type: 'registration',
       }),
     );
+    const pendingCheckoutRegistration =
+      await database.query.eventRegistrations.findFirst({
+        where: {
+          id: profileEventCards.pendingCheckout.registrationId,
+          status: 'PENDING',
+          userId: regularUser.id,
+        },
+      });
+    expect(pendingCheckoutRegistration).toEqual(
+      expect.objectContaining({
+        eventId: profileEventCards.pendingCheckout.eventId,
+        registrationOptionId: profileEventCards.pendingCheckout.optionId,
+      }),
+    );
 
     const waitlistRegistration =
       await database.query.eventRegistrations.findFirst({
@@ -178,6 +201,19 @@ test('profile event cards show implemented registration actions', async ({
       expect.objectContaining({
         checkInTime: seedDate,
         eventId: profileEventCards.checkedIn.eventId,
+      }),
+    );
+    const checkedInAddonPurchase =
+      await database.query.eventRegistrationAddonPurchases.findFirst({
+        where: {
+          id: profileEventCards.checkedIn.addOnPurchaseId,
+          registrationId: profileEventCards.checkedIn.registrationId,
+        },
+      });
+    expect(checkedInAddonPurchase).toEqual(
+      expect.objectContaining({
+        addonId: profileEventCards.checkedIn.addonId,
+        quantity: 1,
       }),
     );
   } finally {
