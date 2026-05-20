@@ -232,6 +232,11 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     Shared RPC schema coverage proves account-creation and profile-update
     notification email format validation, matching the create-account/profile
     edit form validators.
+    The baseline create-account doc now uses the account helper contract to
+    record verified-email gating,
+    Auth0-data prefill, notification-email terminology, payload trimming,
+    retryable errors, and duplicate-submit guards without requiring Auth0
+    Management credentials.
     The integration-tagged create-account doc also asserts the editable email
     field is labeled "Notification email" when Auth0 Management credentials are
     available.

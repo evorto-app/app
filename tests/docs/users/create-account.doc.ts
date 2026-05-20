@@ -3,6 +3,13 @@ import { ConfigProvider, Effect } from 'effect';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { hasAuth0ManagementEnvironment } from '../../support/config/environment';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
+import {
+  createAccountErrorMessage,
+  createAccountModelFromAuthData,
+  createAccountPayloadFromModel,
+  createAccountSubmitDisabled,
+  isAuthEmailVerifiedForAccountCreation,
+} from '../../../src/app/core/create-account/create-account.helpers';
 
 // test.use({ storageState: defaultStateFile });
 
@@ -16,18 +23,78 @@ const hasManagementEnvironment = Effect.runSync(
   ),
 );
 
-if (!hasManagementEnvironment) {
-  test.skip(
+test('Understand tenant account creation', async ({}, testInfo) => {
+  expect(
+    createAccountModelFromAuthData(
+      { communicationEmail: '', firstName: '', lastName: '' },
+      {
+        email: ' new-user@example.org ',
+        email_verified: true,
+        family_name: ' User ',
+        given_name: ' New ',
+      },
+    ),
+  ).toEqual({
+    communicationEmail: 'new-user@example.org',
+    firstName: 'New',
+    lastName: 'User',
+  });
+  expect(
+    createAccountPayloadFromModel({
+      communicationEmail: ' notify@example.org ',
+      firstName: ' New ',
+      lastName: ' User ',
+    }),
+  ).toEqual({
+    communicationEmail: 'notify@example.org',
+    firstName: 'New',
+    lastName: 'User',
+  });
+  expect(isAuthEmailVerifiedForAccountCreation({ email_verified: true })).toBe(
     true,
-    'AUTH0_MANAGEMENT_CLIENT_ID and AUTH0_MANAGEMENT_CLIENT_SECRET are required for this integration doc',
   );
-}
+  expect(isAuthEmailVerifiedForAccountCreation({ email_verified: false })).toBe(
+    false,
+  );
+  expect(
+    createAccountSubmitDisabled({
+      formInvalid: false,
+      formSubmitting: false,
+      mutationPending: true,
+    }),
+  ).toBe(true);
+  expect(
+    createAccountErrorMessage({
+      _tag: 'UserConflictError',
+      message: 'User account already exists',
+    }),
+  ).toBe('User account already exists');
+
+  await testInfo.attach('markdown', {
+    body: `
+# Tenant Account Creation
+
+Authenticated users who do not yet have an Evorto account for the current tenant are sent to **Create Account** before protected tenant pages. The form is shown only after the Auth0 email address is explicitly verified.
+
+The account form pre-fills first name, last name, and **Notification email** from Auth0 data when available. Evorto stores the notification email as the user-managed communication address for event and finance messages; it may differ from the Auth0 login email shown later on the profile page.
+
+Before submitting, the form trims first name, last name, and notification email. It stays disabled while invalid, already submitting, or waiting for the account-creation mutation, so slow tenant-join writes cannot be double-submitted. If account creation fails, the page shows a retryable server error instead of silently losing the submit attempt.
+
+Creating the account joins the current tenant and grants the tenant's default user roles. Existing global users with the same Auth0 id join the current tenant instead of creating a duplicate global user.
+`,
+  });
+});
 
 test('Create your account @needs-auth0-management', async ({
   newUser,
   page,
   roles,
 }, testInfo) => {
+  test.skip(
+    !hasManagementEnvironment,
+    'AUTH0_MANAGEMENT_CLIENT_ID and AUTH0_MANAGEMENT_CLIENT_SECRET are required for this integration doc',
+  );
+
   void roles; // Ensure roles are created for this tenant
   await testInfo.attach('markdown', {
     body: `
