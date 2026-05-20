@@ -13,6 +13,12 @@ export interface GlobalAdminTenantFormModel {
   timezone: GlobalAdminTenantWriteInput['timezone'];
 }
 
+export const globalAdminTenantRelaunchScopeItems = [
+  'One active primary domain is managed here.',
+  'Custom-domain verification and multi-domain automation are deferred.',
+  'Tenant-admin impersonation is not available from this form.',
+] as const;
+
 export const createGlobalAdminTenantFormModel =
   (): GlobalAdminTenantFormModel => ({
     currency: 'EUR',

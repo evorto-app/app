@@ -4,6 +4,7 @@ import {
   createGlobalAdminTenantFormModel,
   globalAdminTenantFormModelFromRecord,
   globalAdminTenantPayloadFromForm,
+  globalAdminTenantRelaunchScopeItems,
   globalAdminTenantSubmitDisabled,
   normalizeGlobalAdminTenantDomain,
 } from './tenant-form.model';
@@ -19,6 +20,14 @@ describe('global admin tenant form model', () => {
       theme: 'evorto',
       timezone: 'Europe/Berlin',
     });
+  });
+
+  it('keeps the visible relaunch scope aligned with the one-domain tenant workflow', () => {
+    expect(globalAdminTenantRelaunchScopeItems).toEqual([
+      'One active primary domain is managed here.',
+      'Custom-domain verification and multi-domain automation are deferred.',
+      'Tenant-admin impersonation is not available from this form.',
+    ]);
   });
 
   it('maps tenant records into editable form state without exposing derived values', () => {
