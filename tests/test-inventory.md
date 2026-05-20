@@ -257,10 +257,11 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 - Profile/account:
   - Browser-backed profile edit persistence after saving notification email and
     optional global reimbursement details. Generated docs already exercise the
-    notification-email edit/restore path, `specs/profile/user-profile-edit.spec.ts`
-    now functionally covers notification email plus IBAN/PayPal persistence with
-    explicit database readback and cleanup, and app helper coverage proves
-    payload trimming and blank-value normalization before persistence.
+    notification-email edit/restore path with database readback,
+    `specs/profile/user-profile-edit.spec.ts` now functionally covers
+    notification email plus IBAN/PayPal persistence with explicit database
+    readback and cleanup, and app helper coverage proves payload trimming and
+    blank-value normalization before persistence.
   - Manual Browser-backed profile event-card review once local runtime is
     available. Generated profile docs now seed confirmed, pending-checkout,
     waitlisted, and checked-in registrations with free add-ons where applicable,
@@ -330,9 +331,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - Manual Browser-backed submitted-receipt visibility review after a real
     receipt submission once local runtime is available. Generated profile docs
     now seed a deterministic submitted receipt and assert the profile
-    receipt-card filename, submitted status, event title, and amount. Local
-    app/server coverage already proves readable submitted-receipt status labels,
-    amount formatting, and `finance.receipts.my` profile-card row normalization.
+    receipt-card filename, submitted status, event title, amount, and persisted
+    database row. Local app/server coverage already proves readable
+    submitted-receipt status labels, amount formatting, and
+    `finance.receipts.my` profile-card row normalization.
     `specs/profile/user-profile-receipts.spec.ts` adds functional coverage for
     the same profile receipt-card state with explicit database readback and
     cleanup.
