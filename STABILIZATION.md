@@ -1193,7 +1193,10 @@ the current working direction until a product decision overrides them.
 - `tests/specs/profile/user-profile-events.spec.ts` reuses the same deterministic
   profile event-card seed helper as the generated docs, giving the
   pending-checkout, waitlisted, confirmed, and checked-in states direct
-  functional Playwright coverage in addition to product documentation.
+  functional Playwright coverage in addition to product documentation. The
+  generated doc and matching functional spec also read back the confirmed
+  registration, add-on purchase, pending checkout transaction, waitlist
+  registration, and checked-in registration rows behind those cards.
 - `tests/specs/profile/user-profile-receipts.spec.ts` mirrors the generated
   profile receipts documentation with functional coverage: it seeds a submitted
   receipt, opens the profile receipts tab by fragment, asserts filename,
@@ -2312,6 +2315,10 @@ implement those decisions or explicitly revise them there before changing code.
   deterministic submitted-receipt seed, card assertions, submitted status,
   event title, and formatted amount so the profile receipt walkthrough cannot
   drift back to a placeholder section while Browser runtime review is blocked.
+- Profile event-card readback pass: made the generated profile guide and
+  matching functional spec read back the persisted confirmed registration,
+  add-on purchase, pending checkout transaction, waitlist registration, and
+  checked-in registration rows behind the seeded profile event cards.
 - Global-admin docs source-guard pass: pinned generated global-admin docs to the
   searchable tenant list, no-match state, operational row fields, read-only
   tenant detail review, external tenant-domain link, and create/edit form

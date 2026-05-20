@@ -291,6 +291,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     continuation links render only for pending Stripe Checkout HTTPS URLs, and
     checked-in profile event cards no longer advertise cancellation or transfer
     actions.
+    The generated profile docs and matching profile-event spec now read back the
+    persisted confirmed registration, add-on purchase, pending checkout
+    transaction, waitlist registration, and checked-in registration rows behind
+    those seeded profile cards.
     The generated profile docs and functional profile-event spec now pin each
     seeded confirmed, pending-checkout, waitlisted, and checked-in card to its
     expected event-page link so the recovery route cannot silently drift while

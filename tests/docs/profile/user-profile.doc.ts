@@ -287,6 +287,79 @@ The user profile now uses a two-column layout:
     await expect(
       checkedInEventCard.getByRole('link', { name: 'Open event page' }),
     ).toHaveAttribute('href', `/events/${profileEventCards.checkedIn.eventId}`);
+
+    const confirmedRegistration =
+      await database.query.eventRegistrations.findFirst({
+        where: {
+          id: profileEventCards.confirmed.registrationId,
+          status: 'CONFIRMED',
+          userId: regularUser.id,
+        },
+      });
+    expect(confirmedRegistration).toEqual(
+      expect.objectContaining({
+        eventId: profileEventCards.confirmed.eventId,
+        guestCount: 1,
+      }),
+    );
+    const confirmedAddonPurchase =
+      await database.query.eventRegistrationAddonPurchases.findFirst({
+        where: {
+          id: profileEventCards.confirmed.addOnPurchaseId,
+          registrationId: profileEventCards.confirmed.registrationId,
+        },
+      });
+    expect(confirmedAddonPurchase).toEqual(
+      expect.objectContaining({
+        addonId: profileEventCards.confirmed.addonId,
+        quantity: 2,
+      }),
+    );
+
+    const pendingCheckoutTransaction =
+      await database.query.transactions.findFirst({
+        where: {
+          eventRegistrationId: profileEventCards.pendingCheckout.registrationId,
+          id: profileEventCards.pendingCheckout.transactionId,
+          status: 'pending',
+        },
+      });
+    expect(pendingCheckoutTransaction).toEqual(
+      expect.objectContaining({
+        stripeCheckoutUrl: profileEventCards.pendingCheckout.checkoutUrl,
+        type: 'registration',
+      }),
+    );
+
+    const waitlistRegistration =
+      await database.query.eventRegistrations.findFirst({
+        where: {
+          id: profileEventCards.waitlist.registrationId,
+          status: 'WAITLIST',
+          userId: regularUser.id,
+        },
+      });
+    expect(waitlistRegistration).toEqual(
+      expect.objectContaining({
+        eventId: profileEventCards.waitlist.eventId,
+        registrationOptionId: profileEventCards.waitlist.optionId,
+      }),
+    );
+
+    const checkedInRegistration =
+      await database.query.eventRegistrations.findFirst({
+        where: {
+          id: profileEventCards.checkedIn.registrationId,
+          status: 'CONFIRMED',
+          userId: regularUser.id,
+        },
+      });
+    expect(checkedInRegistration).toEqual(
+      expect.objectContaining({
+        checkInTime: seedDate,
+        eventId: profileEventCards.checkedIn.eventId,
+      }),
+    );
     await takeScreenshot(
       testInfo,
       page.locator('app-user-profile'),
