@@ -791,6 +791,10 @@ the current working direction until a product decision overrides them.
   one tested action guard between Approve/Reject buttons and the handler, so a
   pending review mutation cannot open another rejection dialog or submit a
   second review write.
+- **Addressed in stabilization pass:** server authorization source coverage now
+  rejects raw permission-array `.includes(...)` checks in RPC/HTTP handlers, so
+  new permission gates stay routed through the shared `includesPermission`
+  evaluator or `RpcAccess.ensurePermission`.
 - **Acceptable for now:** roles are tenant-scoped in schema and role-management write queries include tenant boundaries.
 
 ### Test and Documentation Quality
@@ -808,6 +812,9 @@ the current working direction until a product decision overrides them.
 - `tests/docs/roles/about-permissions.doc.ts` generates the `/docs/about-permissions` source from shared permission metadata, including group labels, permission keys/descriptions, dependent permissions, and the tenant-role/global-admin distinction.
 - `tests/docs/roles/roles.doc.ts` links to `/docs/about-permissions` for permission reference details.
 - Server unit coverage proves role lookup permissions, lookup-only result shaping, tenant-scoped lookup filters for both list and single-role lookup, role lookup not-found errors, and admin role list denial without `admin:manageRoles`.
+- `helpers/testing/authorization-source.spec.ts` keeps server RPC/HTTP
+  authorization on the shared permission evaluator path and keeps the public
+  role lookup contract free of permission-bearing admin role fields.
 - `src/server/effect/rpc/handlers/users.handlers.spec.ts` verifies `users.findMany` aggregates role names into the RPC contract shape without leaking the joined `role` column.
 - `src/shared/permissions/permissions.spec.ts` requires explicit labels and descriptions for every permission shown in role management.
 - `src/db/schema/legacy-stabilization-fields.spec.ts` proves the active role schema exposes `displayInHub` instead of `showInHub`, and guards the global migration step that drops physical `roles.showInHub`, `event_registrations.paymentStatus`, and the unused `payment_status` enum before tenant-scoped migration work.
@@ -823,6 +830,8 @@ the current working direction until a product decision overrides them.
 ### Recommended Cleanup Actions
 
 - Keep permission checks routed through `includesPermission` or `RpcAccess.ensurePermission`; avoid reintroducing direct `.includes(...)` authorization checks.
+- Keep the authorization source guard current if a new server-side permission
+  helper is introduced intentionally.
 - Keep route-manifest specs and permission-matrix route-denial cases aligned as admin, finance, template, and global-admin route trees change.
 - Keep role create/edit submit guards aligned with the actual mutation
   lifecycle, not only the signal-form submit callback.
@@ -1618,6 +1627,9 @@ implement those decisions or explicitly revise them there before changing code.
   browser channel while adding `E2E_BROWSER_CHANNEL=chrome` as an explicit
   system-Chrome opt-in for exploratory local runs without a browser-cache
   download.
+- Authorization source-guard pass: added local coverage that rejects raw
+  permission-array checks in server RPC/HTTP handlers and keeps role lookup
+  contracts free of permission-bearing admin role fields.
 - Profile discount-fragment pass: kept `/profile#discounts` stable while
   tenant ESNcard provider data loads, so direct links and docs journeys do not
   fall back permanently to the overview before the Discounts section becomes
