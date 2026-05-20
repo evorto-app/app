@@ -40,6 +40,19 @@ export const scanCheckInButtonLabel = ({
 export const scanSpotCountLabel = (spotCount: number): string =>
   spotCount === 1 ? '1 spot now' : `${spotCount} spots now`;
 
+export const scanCheckInActionDisabled = ({
+  allowCheckin,
+  checkInCompleted,
+  mutationPending,
+  spotCount,
+}: {
+  allowCheckin: boolean;
+  checkInCompleted: boolean;
+  mutationPending: boolean;
+  spotCount: number;
+}): boolean =>
+  !allowCheckin || checkInCompleted || mutationPending || spotCount < 1;
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -63,6 +76,7 @@ export class HandleRegistrationComponent {
   );
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly guestCheckInCount = signal(0);
+  protected readonly scanCheckInActionDisabled = scanCheckInActionDisabled;
   protected readonly scanCheckInButtonLabel = scanCheckInButtonLabel;
   protected readonly scanResultQuery = injectQuery(() =>
     this.rpc.events.registrationScanned.queryOptions({
@@ -96,9 +110,12 @@ export class HandleRegistrationComponent {
   checkIn() {
     const scanResult = this.scanResultQuery.data();
     if (
-      !scanResult?.allowCheckin ||
-      this.selectedSpotCheckInCount() < 1 ||
-      this.checkInMutation.isPending()
+      scanCheckInActionDisabled({
+        allowCheckin: scanResult?.allowCheckin ?? false,
+        checkInCompleted: this.checkInCompleted(),
+        mutationPending: this.checkInMutation.isPending(),
+        spotCount: this.selectedSpotCheckInCount(),
+      })
     )
       return;
 
