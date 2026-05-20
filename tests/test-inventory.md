@@ -484,9 +484,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 - Registrations:
   - `specs/events/negative-registration-states.spec.ts` adds active
     page-backed coverage for closed registration windows, role-ineligible direct
-    links, and waitlist affordances. Server/app unit coverage already proves
+    links, waitlist affordances, and the no-waitlist UI for full stored
+    unsupported registration modes. Server/app unit coverage already proves
     closed-window rejection, role eligibility, unsupported stored
-    registration-mode rejection, unsupported-mode no-waitlist card behavior,
+    registration-mode rejection,
     waitlist joining, and leave-waitlist cancellation.
   - `docs/events/register.doc.ts` now includes generated documentation
     journeys for closed registration windows, full participant options with a

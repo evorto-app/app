@@ -2189,6 +2189,10 @@ implement those decisions or explicitly revise them there before changing code.
   to first-come-first-served mode while keeping persisted `random` and
   `application` modes readable through shared labels instead of re-exposing
   unsupported fulfillment modes in create/edit flows.
+- Negative registration page-backed pass: extended the negative registration
+  Playwright spec so full stored unsupported modes still render as full without
+  exposing normal registration or waitlist actions, matching the fail-closed
+  server policy and local component helper coverage.
 
 ## Review Next
 

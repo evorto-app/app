@@ -177,6 +177,74 @@ test.describe('Negative registration states', () => {
           .where(eq(schema.eventInstances.id, targetEventId));
       }
     });
+
+    test('does not expose a waitlist action for full unsupported stored modes', async ({
+      database,
+      page,
+      seeded,
+      tenant,
+    }) => {
+      if (!regularUser) {
+        throw new Error('Expected regular user fixture');
+      }
+
+      const targetEventId = seeded.scenario.events.freeOpen.eventId;
+      const targetOptionId = seeded.scenario.events.freeOpen.optionId;
+      const targetOption =
+        await database.query.eventRegistrationOptions.findFirst({
+          where: { id: targetOptionId, tenantId: tenant.id },
+        });
+      if (!targetOption) {
+        throw new Error('Expected seeded freeOpen registration option');
+      }
+
+      try {
+        await database
+          .delete(schema.eventRegistrations)
+          .where(
+            and(
+              eq(schema.eventRegistrations.eventId, targetEventId),
+              eq(schema.eventRegistrations.tenantId, tenant.id),
+              eq(schema.eventRegistrations.userId, regularUser.id),
+            ),
+          );
+        await database
+          .update(schema.eventRegistrationOptions)
+          .set({
+            confirmedSpots: targetOption.spots,
+            registrationMode: 'random',
+            reservedSpots: 0,
+            waitlistSpots: 0,
+          })
+          .where(eq(schema.eventRegistrationOptions.id, targetOptionId));
+
+        await page.goto(`/events/${targetEventId}`);
+        await waitForRegistrationStatus(page);
+
+        const optionCard = page
+          .locator('app-event-registration-option')
+          .filter({ hasText: targetOption.title });
+        await expect(
+          optionCard.getByText('This option is full.'),
+        ).toBeVisible();
+        await expect(
+          optionCard.getByRole('button', { name: 'Join waitlist' }),
+        ).toHaveCount(0);
+        await expect(
+          optionCard.getByRole('button', { name: /^Register$/ }),
+        ).toHaveCount(0);
+      } finally {
+        await database
+          .update(schema.eventRegistrationOptions)
+          .set({
+            confirmedSpots: targetOption.confirmedSpots,
+            registrationMode: targetOption.registrationMode,
+            reservedSpots: targetOption.reservedSpots,
+            waitlistSpots: targetOption.waitlistSpots,
+          })
+          .where(eq(schema.eventRegistrationOptions.id, targetOptionId));
+      }
+    });
   });
 
   test.describe('user without eligible roles', () => {
