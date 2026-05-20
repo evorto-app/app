@@ -54,6 +54,30 @@ export const routes: Routes = [
     path: 'global-admin',
   },
   {
+    data: { legalPage: 'imprint' },
+    loadComponent: () =>
+      import('./core/legal-page/legal-page.component').then(
+        (m) => m.LegalPageComponent,
+      ),
+    path: 'legal/imprint',
+  },
+  {
+    data: { legalPage: 'privacy' },
+    loadComponent: () =>
+      import('./core/legal-page/legal-page.component').then(
+        (m) => m.LegalPageComponent,
+      ),
+    path: 'legal/privacy',
+  },
+  {
+    data: { legalPage: 'terms' },
+    loadComponent: () =>
+      import('./core/legal-page/legal-page.component').then(
+        (m) => m.LegalPageComponent,
+      ),
+    path: 'legal/terms',
+  },
+  {
     loadComponent: () =>
       import('./core/not-allowed/not-allowed.component').then(
         (m) => m.NotAllowedComponent,

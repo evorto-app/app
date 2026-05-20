@@ -61,14 +61,20 @@ describe('Tenant schema', () => {
   it('accepts tenant legal links when present', () => {
     const tenant = Schema.decodeUnknownSync(Tenant)({
       ...tenantInput,
+      legalNoticeText: 'Imprint text',
       legalNoticeUrl: 'https://tenant.example.com/imprint',
+      privacyPolicyText: 'Privacy policy text',
       privacyPolicyUrl: 'https://tenant.example.com/privacy',
+      termsText: 'Terms text',
       termsUrl: 'https://tenant.example.com/terms',
     });
 
     expect(Schema.encodeSync(Tenant)(tenant)).toMatchObject({
+      legalNoticeText: 'Imprint text',
       legalNoticeUrl: 'https://tenant.example.com/imprint',
+      privacyPolicyText: 'Privacy policy text',
       privacyPolicyUrl: 'https://tenant.example.com/privacy',
+      termsText: 'Terms text',
       termsUrl: 'https://tenant.example.com/terms',
     });
   });

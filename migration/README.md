@@ -29,7 +29,9 @@ Global Steps
 - Current global steps cover shared constraints/backfills plus stabilization
   cleanup for legacy physical fields that active schema/API code no longer
   uses, including `roles.showInHub`, `event_registrations.paymentStatus`, and
-  the `payment_status` enum.
+  the `payment_status` enum. They also add idempotent target-schema columns
+  needed by relaunch features that were introduced after earlier production
+  tenants existed, such as hosted tenant legal text fields.
 
 Defaults and Backfills
 
