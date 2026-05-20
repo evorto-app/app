@@ -1,8 +1,8 @@
-import { organizerStateFile } from '../../../helpers/user-data';
 import { getId } from '../../../helpers/get-id';
+import { organizerStateFile } from '../../../helpers/user-data';
+import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { fillTemplateBasics } from '../../support/utils/template-form';
-import * as schema from '../../../src/db/schema';
 
 test.setTimeout(120000);
 
@@ -45,6 +45,9 @@ test('create template in empty category', async ({
 
 test('create a new template', async ({ page, templateCategories }) => {
   const category = templateCategories[0];
+  if (!category) {
+    throw new Error('Expected seeded template category before template create');
+  }
   const templateTitle = `Historical tour ${getId().slice(0, 6)}`;
   await page.goto('.');
   await page.getByRole('link', { name: 'Templates' }).click();
@@ -67,6 +70,11 @@ test('create template with reusable add-ons and registration questions', async (
   tenant,
 }) => {
   const category = templateCategories[0];
+  if (!category) {
+    throw new Error(
+      'Expected seeded template category before reusable template create',
+    );
+  }
   const templateTitle = `Reusable setup ${getId().slice(0, 6)}`;
   const planningTips = 'Bring printed waiver forms.';
   const addOnTitle = `Snack voucher ${getId().slice(0, 6)}`;
@@ -156,6 +164,9 @@ test('create template with reusable add-ons and registration questions', async (
         registrationOptionId: participantRegistrationOption.id,
       },
     });
+  if (!addOnAttachment) {
+    throw new Error('Expected reusable add-on registration option attachment');
+  }
   expect(addOnAttachment).toEqual(
     expect.objectContaining({
       quantity: 2,
@@ -171,6 +182,9 @@ test('create template with reusable add-ons and registration questions', async (
       },
     },
   );
+  if (!question) {
+    throw new Error('Expected reusable registration question to be persisted');
+  }
   expect(question).toEqual(
     expect.objectContaining({
       description: questionDescription,
@@ -181,6 +195,9 @@ test('create template with reusable add-ons and registration questions', async (
 
 test('view a template', async ({ page, templates }) => {
   const template = templates[0];
+  if (!template) {
+    throw new Error('Expected seeded template before template detail view');
+  }
   await page.goto('.');
   await page.getByRole('link', { name: 'Templates' }).click();
   await expect(page).toHaveURL(/\/templates/);
