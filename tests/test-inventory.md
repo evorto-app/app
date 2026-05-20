@@ -176,8 +176,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   runtime is available.
 - Page-backed local execution uses bundled Playwright Chromium by default, which
   requires the cache installed by `bun run test:e2e:install`. Exploratory local
-  runs can opt into system Chrome with `E2E_BROWSER_CHANNEL=chrome`; server
-  config and runtime-preflight coverage pin that channel selection.
+  runs can opt into system Chrome with `E2E_BROWSER_CHANNEL=chrome`;
+  runtime-preflight reports that lower-network option when bundled Chromium is
+  missing but system Chrome is available.
 - `helpers/testing/playwright-skip-inventory.spec.ts` keeps all Playwright
   `test.skip` and `test.fixme` usage allowlisted with a local reason for each
   entry, so new fixture-state gaps do not become silent placeholders.

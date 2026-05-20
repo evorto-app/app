@@ -211,6 +211,9 @@ const playwrightBrowserCheck = (
 
   const locations = readPlaywrightInstallLocations(result.stdout);
   const missing = locations.filter((location) => !fileExists(location));
+  const availableChromeLocation = systemChromeLocations.find((location) =>
+    fileExists(location),
+  );
 
   if (missing.length === 0) {
     return {
@@ -224,6 +227,11 @@ const playwrightBrowserCheck = (
     details: [
       ...missing.map((location) => `Missing ${location}`),
       'Run bun run test:e2e:install before local Playwright runs.',
+      ...(availableChromeLocation
+        ? [
+            `Or set E2E_BROWSER_CHANNEL=chrome to use ${availableChromeLocation} for local exploratory runs.`,
+          ]
+        : []),
     ],
     label: 'Playwright Chromium browser installation',
     severity: 'warning',
