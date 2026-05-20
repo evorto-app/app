@@ -64,8 +64,19 @@
             </mat-select>
           </mat-form-field>
           <div class="bg-surface-container rounded-xl p-3 text-sm">
-            <p>IBAN: {{ group.payout.iban || "not set" }}</p>
-            <p>PayPal: {{ group.payout.paypalEmail || "not set" }}</p>
+            <p>
+              {{
+                receiptReimbursementPayoutDetailLabel("iban", group.payout.iban)
+              }}
+            </p>
+            <p>
+              {{
+                receiptReimbursementPayoutDetailLabel(
+                  "paypal",
+                  group.payout.paypalEmail
+                )
+              }}
+            </p>
           </div>
         </div>
 
