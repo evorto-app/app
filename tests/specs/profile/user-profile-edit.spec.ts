@@ -65,9 +65,12 @@ test('profile edit persists notification email and reimbursement details', async
     const updatedUser = await database.query.users.findFirst({
       where: { id: regularUser.id },
     });
-    expect(updatedUser?.communicationEmail).toBe(notificationEmail);
-    expect(updatedUser?.iban).toBe(iban);
-    expect(updatedUser?.paypalEmail).toBe(paypalEmail);
+    if (!updatedUser) {
+      throw new Error('Expected regular profile user after profile update');
+    }
+    expect(updatedUser.communicationEmail).toBe(notificationEmail);
+    expect(updatedUser.iban).toBe(iban);
+    expect(updatedUser.paypalEmail).toBe(paypalEmail);
   } finally {
     await database
       .update(schema.users)

@@ -65,6 +65,9 @@ test('profile receipts show submitted receipt status and event context', async (
         tenantId: seeded.tenant.id,
       },
     });
+    if (!receipt) {
+      throw new Error('Expected seeded profile receipt after profile read');
+    }
     expect(receipt).toEqual(
       expect.objectContaining({
         attachmentFileName: receiptFileName,
