@@ -145,6 +145,7 @@ export const profileEventContinuePaymentUrl = (event: {
 };
 
 export const profileEventActionNote = (event: {
+  checkInTime?: null | string;
   checkoutUrl: null | string;
   paymentState: 'cancelled' | 'notRequired' | 'pending' | 'recorded';
   status: 'CONFIRMED' | 'PENDING' | 'WAITLIST';
@@ -155,6 +156,10 @@ export const profileEventActionNote = (event: {
 
   switch (event.status) {
     case 'CONFIRMED': {
+      if (event.checkInTime) {
+        return 'You are checked in. Open the event page for ticket details. Cancellation and transfer are no longer available after check-in. Automatic refunds, paid transfer, and resale are not automatic yet.';
+      }
+
       return 'Open the event page for ticket access, participant cancellation, and unpaid self-service transfer when available. Automatic refunds, paid transfer, and resale are not automatic yet.';
     }
     case 'PENDING': {

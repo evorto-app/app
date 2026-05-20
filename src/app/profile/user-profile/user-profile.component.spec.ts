@@ -25,6 +25,7 @@ describe('profile event labels', () => {
   it('keeps deferred profile event actions explicit', () => {
     expect(
       profileEventActionNote({
+        checkInTime: null,
         checkoutUrl: null,
         paymentState: 'recorded',
         status: 'CONFIRMED',
@@ -34,6 +35,7 @@ describe('profile event labels', () => {
     );
     expect(
       profileEventActionNote({
+        checkInTime: null,
         checkoutUrl: null,
         paymentState: 'notRequired',
         status: 'PENDING',
@@ -43,6 +45,7 @@ describe('profile event labels', () => {
     );
     expect(
       profileEventActionNote({
+        checkInTime: null,
         checkoutUrl: null,
         paymentState: 'notRequired',
         status: 'WAITLIST',
@@ -52,9 +55,23 @@ describe('profile event labels', () => {
     );
   });
 
+  it('does not advertise cancellation or transfer after check-in', () => {
+    expect(
+      profileEventActionNote({
+        checkInTime: '2026-02-01T10:30:00.000Z',
+        checkoutUrl: null,
+        paymentState: 'recorded',
+        status: 'CONFIRMED',
+      }),
+    ).toBe(
+      'You are checked in. Open the event page for ticket details. Cancellation and transfer are no longer available after check-in. Automatic refunds, paid transfer, and resale are not automatic yet.',
+    );
+  });
+
   it('points pending checkout registrations at the implemented profile action', () => {
     expect(
       profileEventActionNote({
+        checkInTime: null,
         checkoutUrl: 'https://checkout.stripe.test/pay',
         paymentState: 'pending',
         status: 'PENDING',
