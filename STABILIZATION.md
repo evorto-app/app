@@ -1364,6 +1364,7 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** global-admin tenant create/edit now supports the relaunch one-domain tenant administration surface: name, primary domain, theme, locale, currency, timezone, and connected Stripe account id.
 - **Addressed in stabilization pass:** global-admin tenant create/edit normalizes the primary-domain form value to the same single-host shape enforced by the server and keeps the one-domain/custom-domain-automation deferral visible in the form.
 - **Addressed in stabilization pass:** global-admin tenant create/edit now rejects duplicate primary domains with an explicit RPC bad-request error before relying on the database unique constraint, while allowing updates that keep the current tenant's own domain.
+- **Addressed in this stabilization pass:** Docker-backed global-admin tenant coverage now exercises the one-primary-domain negative paths: URL paths are rejected before mutation, duplicate domains surface a visible error, and the generated docs record those guardrails beside the deferred custom-domain automation scope.
 - **Addressed in this stabilization pass:** global-admin tenant create/edit now
   shows the relaunch tenant scope as a visible form notice: one active primary
   domain, deferred custom-domain verification and multi-domain automation, and
