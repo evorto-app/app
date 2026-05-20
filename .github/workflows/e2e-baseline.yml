@@ -96,6 +96,14 @@ jobs:
             echo "::error::Missing required secret: CLIENT_SECRET"
             exit 1
           fi
+          if [ -z "${ISSUER_BASE_URL}" ]; then
+            echo "::error::Missing required Auth0 issuer URL. Set ISSUER_BASE_URL as a secret or repository variable."
+            exit 1
+          fi
+          if [ -z "${SECRET}" ]; then
+            echo "::error::Missing required secret: SECRET"
+            exit 1
+          fi
           if [ -z "${STRIPE_API_KEY}" ]; then
             echo "::error::Missing required secret: STRIPE_API_KEY"
             exit 1
