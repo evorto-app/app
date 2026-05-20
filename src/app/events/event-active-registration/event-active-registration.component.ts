@@ -47,7 +47,7 @@ export const registrationCancellationCopy = (registration: {
   if (registration.status === 'CONFIRMED') {
     return {
       buttonLabel: 'Cancel registration',
-      helperText: `This cancels your confirmed registration and releases ${confirmedSpotNoun}. Paid-registration refunds are not automatic yet.`,
+      helperText: `This cancels your confirmed registration and releases ${confirmedSpotNoun}. If this was paid, Evorto creates a pending manual refund record for organizers; Stripe refunds are not automatic yet.`,
     };
   }
 
