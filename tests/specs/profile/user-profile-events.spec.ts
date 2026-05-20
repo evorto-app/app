@@ -40,7 +40,9 @@ test('profile event cards show implemented registration actions', async ({
       .locator('article')
       .filter({ hasText: profileEventCards.confirmed.addOnTitle });
     await expect(confirmedCard).toBeVisible({ timeout: 15_000 });
-    await expect(confirmedCard.getByText('Confirmed')).toBeVisible();
+    await expect(
+      confirmedCard.getByText('Confirmed', { exact: true }),
+    ).toBeVisible();
     await expect(confirmedCard.getByText('Includes 1 guest')).toBeVisible();
     await expect(
       confirmedCard.getByText(`2 x ${profileEventCards.confirmed.addOnTitle}`),
@@ -100,7 +102,9 @@ test('profile event cards show implemented registration actions', async ({
     const checkedInCard = page
       .locator('article')
       .filter({ hasText: profileEventCards.checkedIn.addOnTitle });
-    await expect(checkedInCard.getByText('Confirmed')).toBeVisible();
+    await expect(
+      checkedInCard.getByText('Confirmed', { exact: true }),
+    ).toBeVisible();
     await expect(checkedInCard.getByText('Checked in:')).toBeVisible();
     await expect(
       checkedInCard.getByText(

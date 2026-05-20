@@ -211,7 +211,9 @@ The user profile now uses a two-column layout:
     await expect(
       documentedEventCard.getByText(profileEventCards.confirmed.eventTitle),
     ).toBeVisible();
-    await expect(documentedEventCard.getByText('Confirmed')).toBeVisible();
+    await expect(
+      documentedEventCard.getByText('Confirmed', { exact: true }),
+    ).toBeVisible();
     await expect(
       documentedEventCard.getByText('Includes 1 guest'),
     ).toBeVisible();
@@ -236,7 +238,9 @@ The user profile now uses a two-column layout:
       .locator('article')
       .filter({ hasText: profileEventCards.pendingCheckout.title });
     await expect(pendingCheckoutCard).toBeVisible();
-    await expect(pendingCheckoutCard.getByText('Pending')).toBeVisible();
+    await expect(
+      pendingCheckoutCard.getByText('Pending', { exact: true }),
+    ).toBeVisible();
     await expect(
       pendingCheckoutCard.getByText('Payment pending'),
     ).toBeVisible();
@@ -263,7 +267,9 @@ The user profile now uses a two-column layout:
       .locator('article')
       .filter({ hasText: profileEventCards.waitlist.title });
     await expect(waitlistCard).toBeVisible();
-    await expect(waitlistCard.getByText('Waitlist')).toBeVisible();
+    await expect(
+      waitlistCard.getByText('Waitlist', { exact: true }),
+    ).toBeVisible();
     await expect(waitlistCard.getByText('No payment required')).toBeVisible();
     await expect(
       waitlistCard.getByText(
@@ -283,7 +289,9 @@ The user profile now uses a two-column layout:
     await expect(
       checkedInEventCard.getByText(profileEventCards.checkedIn.eventTitle),
     ).toBeVisible();
-    await expect(checkedInEventCard.getByText('Confirmed')).toBeVisible();
+    await expect(
+      checkedInEventCard.getByText('Confirmed', { exact: true }),
+    ).toBeVisible();
     await expect(checkedInEventCard.getByText('Checked in:')).toBeVisible();
     await expect(
       checkedInEventCard.getByText(
