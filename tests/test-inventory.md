@@ -62,6 +62,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - specs/permissions/matrix.spec.ts [permissions]
   - specs/permissions/override.test.ts [permissions]
   - specs/permissions/tenant-isolation-tax-rates.spec.ts [permissions, finance]
+  - specs/profile/user-profile-events.spec.ts
   - specs/reporting/reporter-paths.test.ts
   - specs/scanning/scanner.test.ts
   - specs/screenshot/doc-screenshot.test.ts
@@ -110,6 +111,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 - Profile and account:
   - `docs/profile/**`
   - `docs/users/create-account.doc.ts`
+  - `specs/profile/user-profile-events.spec.ts`
   - app profile edit, event-card, receipt-card, and ESNcard action coverage in
     `src/app/profile`
 - Scanning/check-in:
@@ -214,8 +216,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     then assert event link, registration status, guest quantity, purchased add-on
     summary, payment state, checkout continuation, waitlist routing,
     ticket-routing copy, checked-in copy, and that checked-in cards do not show
-    ticket availability copy. App/server coverage already proves event-detail
-    action copy, guest/status/payment labels, profile event add-on summaries,
+    ticket availability copy. `specs/profile/user-profile-events.spec.ts`
+    reuses the same seeded card states as functional Playwright coverage.
+    App/server coverage already proves event-detail action copy,
+    guest/status/payment labels, profile event add-on summaries,
     implemented-action notes, waitlist event-page routing, and the
     payment-continuation next-step copy. It also proves profile payment
     continuation links render only for pending Stripe Checkout HTTPS URLs, and
