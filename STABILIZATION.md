@@ -1330,7 +1330,11 @@ the current working direction until a product decision overrides them.
   notification email plus IBAN/PayPal reimbursement details, assert the
   refreshed profile summary, read the persisted user row, and restore the
   original fixture data after the doc run.
-- **Addressed in stabilization pass:** scanning/check-in docs now describe the dedicated QR scanner, scan warnings, authorization, checked-in count updates, and selected guest-quantity check-in. Generated docs now assert the organizer checked-in aggregate after the scanner mutation. The remaining scanner follow-up is manual Browser-backed runtime review, not missing automated aggregate coverage or product documentation.
+- **Addressed in stabilization pass:** scanning/check-in docs now describe the dedicated QR scanner, scan warnings, authorization, checked-in count updates, and selected guest-quantity check-in. Docker-backed system-Chrome validation now proves the generated event-management docs and scanner spec can execute the scanner mutation and assert the organizer checked-in aggregate afterward.
+- **Addressed in stabilization pass:** scanner Playwright coverage now includes
+  the partial guest-arrival case where the buyer and one guest were already
+  checked in, then a later scan records the remaining guest without re-counting
+  the buyer.
 - **Should fix before relaunch:** page-backed docs coverage is still missing or thin for tenant/global-admin settings beyond the current list/settings pages, account creation outside Auth0-management integration, profile discount add/refresh/remove flows, role assignment/user management, and registration negative paths. Local unit/server coverage exists for several of those surfaces, but it does not replace Browser-backed docs for the full user journeys.
 - **Addressed in stabilization pass:** the generic `tests/docs/template.doc.ts` discovery placeholder was removed; current template documentation lives in `tests/docs/templates/templates.doc.ts`.
 - **Addressed in stabilization pass:** the focused `docScreenshot` helper now resolves `DOCS_IMG_OUT_DIR` at call time instead of import time, so tests and docs jobs can set output paths per run. Some docs journeys still contain fixed waits and should be tightened as those flows are revisited.
@@ -1498,7 +1502,7 @@ the current working direction until a product decision overrides them.
    question answers. Registration-time add-on purchase is now part of
    registration checkout, while standalone before-event and during-event add-on
    sales remain separate fuller product/runtime slices.
-4. Run manual Browser-backed scanner/organizer aggregate review once local runtime is available. The page-backed scanner spec now asserts that the checked-in aggregate changes after buyer-plus-guest check-in, and organizer overview local coverage now keeps paid, checked-in, and past-event transfer actions unavailable before the dialog opens.
+4. Keep scanner/organizer aggregate coverage green in Docker-backed browser runs. The page-backed scanner spec now asserts that the checked-in aggregate changes after buyer-plus-guest check-in and later remaining-guest arrival, generated event-management docs execute the same scanner-to-organizer aggregate path, and organizer overview local coverage keeps paid, checked-in, and past-event transfer actions unavailable before the dialog opens.
 5. Keep profile/account coverage aligned as the flow evolves. Docker-backed
    system-Chrome coverage now proves profile edit persistence, event-card
    payment continuation/ticket/waitlist routing, submitted receipts, and seeded

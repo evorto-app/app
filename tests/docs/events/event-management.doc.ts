@@ -214,7 +214,9 @@ Note: The event created from the template already has registration options confi
   await page.goto(`/events/${draftEvent.id}/edit`);
   await expect(page).toHaveURL(`/events/${draftEvent.id}/edit`);
   await expect(
-    page.getByRole('heading', { name: draftEvent.title }),
+    page.locator('app-event-edit').getByRole('heading', {
+      name: draftEvent.title,
+    }),
   ).toBeVisible();
   await expect(page.getByText(selectedRole.name).first()).toBeVisible();
   const roleInput = page.getByPlaceholder('Add Role...').first();

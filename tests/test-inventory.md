@@ -333,11 +333,16 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     credential-gated.
   - Notification or email follow-up behavior once the product path exists.
 - Scanning/check-in:
-  - Browser-backed organizer aggregate assertions after scan check-in.
-  - Browser-backed organizer aggregate assertions after guest-quantity scan
-    behavior. Local app coverage already proves organizer overview stat
-    aggregation reads the same `checkedInSpots` counter updated by scanner
-    check-in mutations, and scanned-registration component coverage pins
+  - Docker-backed system-Chrome organizer aggregate review now passes for the
+    scanner spec and generated event-management docs. The page-backed scanner
+    spec confirms buyer-plus-guest
+    check-in, later remaining-guest arrival after the buyer was already checked
+    in, persisted scanner counters, and the organizer overview checked-in
+    aggregate using explicit registrations created against the seeded past event
+    instead of generated filler registration state. Local app coverage also
+    proves organizer overview stat aggregation reads the same `checkedInSpots`
+    counter updated by scanner check-in mutations, and scanned-registration
+    component coverage pins
     check-in button labels plus selected spot-count copy. Event-management docs
     now execute the generated guest-quantity check-in, assert the persisted
     registration and counter updates, restore the seeded counter, and call out
@@ -347,9 +352,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     the dedicated scanner flow, scanner warning states, guest-quantity count
     updates, organizer cancellation scope, and paid-transfer/refund deferrals.
     Generated event-management docs also seed a confirmed registration with
-    guests and capture the scanned-registration page, so docs assert guest
-    progress and the buyer-plus-guests check-in action instead of only
-    describing it in Markdown.
+    guests, capture the scanned-registration page, assert the organizer
+    checked-in aggregate after scanner writes, and restore the seeded counter,
+    so docs assert guest progress and the buyer-plus-guests check-in action
+    instead of only describing it in Markdown.
     Organizer overview read-model and app coverage now also pin that
     organizer-assisted transfer is unavailable before opening the dialog when a
     confirmed registration is checked in, paid, or tied to a past event.
