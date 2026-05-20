@@ -460,7 +460,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     authoring controls and template detail summaries away from raw storage ids.
   - Local shared coverage pins admin-facing permission labels and descriptions,
     including the labels used for role-form dependency copy and the generated
-    permission reference.
+    permission reference. Generated-doc source coverage keeps the role guide
+    linked to that permission reference and keeps the reference aligned with
+    tenant-scoped roles, wildcard permissions, dependent permissions, and
+    separate global-admin semantics.
   - Keep role create/edit submit guards aligned with the write lifecycle. Local
     app coverage now pins that invalid, submitting, and mutation-pending role
     forms stay disabled, and the component submit path shares the same guard.

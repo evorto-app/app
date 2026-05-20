@@ -209,4 +209,34 @@ describe('generated docs source current behavior', () => {
     expect(source).not.toContain('automatic refund controls are available');
     expect(source).not.toContain('paid registration transfer is available');
   });
+
+  it('keeps role docs aligned with generated permission reference semantics', () => {
+    const rolesSource = readSource('tests/docs/roles/roles.doc.ts');
+    const permissionsSource = readSource(
+      'tests/docs/roles/about-permissions.doc.ts',
+    );
+
+    expect(rolesSource).toContain(
+      'Learn more at [about permissions](/docs/about-permissions).',
+    );
+    expect(rolesSource).toContain(
+      'Permissions that are required by another permission are automatically included and shown as non-editable dependent permissions with the same admin-facing labels used in the permission reference.',
+    );
+    expect(permissionsSource).toContain(
+      'Permissions are tenant-scoped capabilities assigned through roles.',
+    );
+    expect(permissionsSource).toContain(
+      'Wildcard permissions such as \\`events:*\\` grant the permissions in that group.',
+    );
+    expect(permissionsSource).toContain(
+      'Some permissions also include dependent permissions so the user can reach the screens needed to use the parent capability.',
+    );
+    expect(permissionsSource).toContain(
+      'Global admin access is separate from tenant roles.',
+    );
+    expect(permissionsSource).toContain('PERMISSION_GROUPS');
+    expect(permissionsSource).toContain('PERMISSION_DEPENDENCIES');
+    expect(permissionsSource).not.toContain('Global admin access is a role');
+    expect(permissionsSource).not.toContain('tenant roles grant global admin');
+  });
 });

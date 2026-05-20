@@ -2159,6 +2159,10 @@ implement those decisions or explicitly revise them there before changing code.
 - Scanner docs source-guard pass: pinned generated event-management docs to the
   dedicated QR scanner flow, scanner warning states, guest-quantity checked-in
   counts, organizer cancellation scope, and paid-transfer/refund deferrals.
+- Permission docs source-guard pass: pinned generated role docs to the
+  generated permission reference and kept that reference aligned with
+  tenant-scoped roles, wildcard permissions, dependent permissions, and
+  separate global-admin semantics.
 
 ## Review Next
 
