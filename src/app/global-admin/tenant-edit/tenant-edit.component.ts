@@ -34,6 +34,7 @@ import {
   type GlobalAdminTenantFormModel,
   globalAdminTenantFormModelFromRecord,
   globalAdminTenantPayloadFromForm,
+  globalAdminTenantSubmitDisabled,
 } from '../tenant-form/tenant-form.model';
 
 @Component({
@@ -75,14 +76,15 @@ export class TenantEditComponent {
     required(schema.domain);
     required(schema.name);
   });
+  protected readonly tenantSubmitDisabled = globalAdminTenantSubmitDisabled;
   protected readonly timezoneOptions = supportedTenantTimezones;
 
+  protected readonly updateTenantMutation = injectMutation(() =>
+    this.rpc.globalAdmin.tenants.update.mutationOptions(),
+  );
   private readonly notifications = inject(NotificationService);
   private readonly queryClient = inject(QueryClient);
   private readonly router = inject(Router);
-  private readonly updateTenantMutation = injectMutation(() =>
-    this.rpc.globalAdmin.tenants.update.mutationOptions(),
-  );
 
   protected errorMessage(error: unknown): string {
     return getErrorMessage(error, 'Failed to load tenant');
@@ -90,6 +92,9 @@ export class TenantEditComponent {
 
   protected async updateTenant(event: Event): Promise<void> {
     event.preventDefault();
+    if (this.updateTenantMutation.isPending()) {
+      return;
+    }
     await submit(this.tenantForm, async (formState) => {
       try {
         await this.updateTenantMutation.mutateAsync(

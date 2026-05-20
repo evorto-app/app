@@ -28,6 +28,7 @@ import { NotificationService } from '../../core/notification.service';
 import {
   createGlobalAdminTenantFormModel,
   globalAdminTenantPayloadFromForm,
+  globalAdminTenantSubmitDisabled,
 } from '../tenant-form/tenant-form.model';
 
 @Component({
@@ -45,6 +46,10 @@ import {
   templateUrl: './tenant-create.component.html',
 })
 export class TenantCreateComponent {
+  private readonly rpc = AppRpc.injectClient();
+  protected readonly createTenantMutation = injectMutation(() =>
+    this.rpc.globalAdmin.tenants.create.mutationOptions(),
+  );
   protected readonly currencyOptions = supportedTenantCurrencies;
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly localeOptions = supportedTenantLocales;
@@ -53,11 +58,8 @@ export class TenantCreateComponent {
     required(schema.domain);
     required(schema.name);
   });
+  protected readonly tenantSubmitDisabled = globalAdminTenantSubmitDisabled;
   protected readonly timezoneOptions = supportedTenantTimezones;
-  private readonly rpc = AppRpc.injectClient();
-  private readonly createTenantMutation = injectMutation(() =>
-    this.rpc.globalAdmin.tenants.create.mutationOptions(),
-  );
   private readonly notifications = inject(NotificationService);
   private readonly queryClient = inject(QueryClient);
 
@@ -65,6 +67,9 @@ export class TenantCreateComponent {
 
   protected async createTenant(event: Event): Promise<void> {
     event.preventDefault();
+    if (this.createTenantMutation.isPending()) {
+      return;
+    }
     await submit(this.tenantForm, async (formState) => {
       try {
         const tenant = await this.createTenantMutation.mutateAsync(

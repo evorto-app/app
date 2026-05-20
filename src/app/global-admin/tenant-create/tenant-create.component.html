@@ -77,7 +77,13 @@
       <button
         mat-flat-button
         type="submit"
-        [disabled]="tenantForm().invalid() || tenantForm().submitting()"
+        [disabled]="
+          tenantSubmitDisabled({
+            formInvalid: tenantForm().invalid(),
+            formSubmitting: tenantForm().submitting(),
+            mutationPending: createTenantMutation.isPending(),
+          })
+        "
       >
         Create tenant
       </button>

@@ -4,6 +4,7 @@ import {
   createGlobalAdminTenantFormModel,
   globalAdminTenantFormModelFromRecord,
   globalAdminTenantPayloadFromForm,
+  globalAdminTenantSubmitDisabled,
   normalizeGlobalAdminTenantDomain,
 } from './tenant-form.model';
 
@@ -87,5 +88,36 @@ describe('global admin tenant form model', () => {
         timezone: 'Europe/Berlin',
       }),
     ).toThrow('Domain must be a single host name');
+  });
+
+  it('keeps tenant writes disabled while invalid, submitting, or awaiting the mutation', () => {
+    expect(
+      globalAdminTenantSubmitDisabled({
+        formInvalid: true,
+        formSubmitting: false,
+        mutationPending: false,
+      }),
+    ).toBe(true);
+    expect(
+      globalAdminTenantSubmitDisabled({
+        formInvalid: false,
+        formSubmitting: true,
+        mutationPending: false,
+      }),
+    ).toBe(true);
+    expect(
+      globalAdminTenantSubmitDisabled({
+        formInvalid: false,
+        formSubmitting: false,
+        mutationPending: true,
+      }),
+    ).toBe(true);
+    expect(
+      globalAdminTenantSubmitDisabled({
+        formInvalid: false,
+        formSubmitting: false,
+        mutationPending: false,
+      }),
+    ).toBe(false);
   });
 });
