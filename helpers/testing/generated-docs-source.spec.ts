@@ -196,7 +196,22 @@ describe('generated docs source current behavior', () => {
       'Use reusable add-ons, registration questions, option descriptions, role eligibility, and organizer planning tips to capture repeatable event knowledge',
     );
     expect(source).toContain(
+      '**Description** and **description for registered users**: Optional reusable',
+    );
+    expect(source).toContain(
+      '**ESNcard discounted price**: Optional discounted pricing for tenants with the ESNcard discount provider enabled.',
+    );
+    expect(source).toContain(
+      '**Selected roles**: The roles that are selected for this registration.',
+    );
+    expect(source).toContain(
+      'Role selection also avoids duplicate entries by hiding already selected roles from the autocomplete list.',
+    );
+    expect(source).toContain(
       'Organizer planning tips**: Optional private organizer notes',
+    );
+    expect(source).toContain(
+      'When **Enable Payment** is on, the price and tax-rate fields appear for that registration block.',
     );
     expect(source).toContain(
       'Add-ons can be free or paid, attached to either the participant or organizer registration option',
@@ -213,6 +228,10 @@ describe('generated docs source current behavior', () => {
     expect(source).not.toContain('bulk registration options');
     expect(source).not.toContain('multiple participant registration blocks');
     expect(source).not.toContain('public event planning tips');
+    expect(source).not.toContain('roles can be selected more than once');
+    expect(source).not.toContain(
+      'ESNcard pricing is configured on events only',
+    );
     expect(source).not.toContain('standalone add-on sales are configured here');
   });
 
