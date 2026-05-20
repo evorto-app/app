@@ -76,6 +76,9 @@ test('tenant admin reviews users and manages role definitions @admin @permission
   const createdRole = await database.query.roles.findFirst({
     where: { name: roleName, tenantId: tenant.id },
   });
+  if (!createdRole) {
+    throw new Error('Expected role create flow to persist the new role');
+  }
   expect(createdRole).toMatchObject({
     defaultOrganizerRole: false,
     defaultUserRole: false,
@@ -84,12 +87,8 @@ test('tenant admin reviews users and manages role definitions @admin @permission
     name: roleName,
     tenantId: tenant.id,
   });
-  expect(createdRole?.permissions).toContain('events:create');
-  expect(createdRole?.permissions).toContain('templates:view');
-
-  if (!createdRole) {
-    throw new Error('Expected role create flow to persist the new role');
-  }
+  expect(createdRole.permissions).toContain('events:create');
+  expect(createdRole.permissions).toContain('templates:view');
 
   await page.goto(`/admin/roles/${createdRole.id}/edit`);
 
@@ -115,12 +114,16 @@ test('tenant admin reviews users and manages role definitions @admin @permission
       ),
     )
     .limit(1);
-  expect(updatedRoleRows[0]).toMatchObject({
+  const updatedRole = updatedRoleRows[0];
+  if (!updatedRole) {
+    throw new Error('Expected role edit flow to persist the updated role');
+  }
+  expect(updatedRole).toMatchObject({
     description: updatedDescription,
     displayInHub: false,
     name: roleName,
     tenantId: tenant.id,
   });
-  expect(updatedRoleRows[0]?.permissions).toContain('events:create');
-  expect(updatedRoleRows[0]?.permissions).toContain('templates:view');
+  expect(updatedRole.permissions).toContain('events:create');
+  expect(updatedRole.permissions).toContain('templates:view');
 });
