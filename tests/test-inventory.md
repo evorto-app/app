@@ -213,10 +213,13 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     writes disable participant cancellation and organizer-assisted transfer.
   - Browser-backed ESNcard live add, refresh, and remove provider outcomes with
     readable error states.
-    Generated discounts docs now assert the seeded verified ESNcard
-    identifier/status, refresh/remove action visibility, and invalid-card-number
-    save guard. App and server coverage already prove upsert payload
-    normalization, readable mutation errors, readable status labels,
+    Generated discounts docs now include a helper-backed baseline note for
+    readable ESNcard statuses, pending save/refresh/remove labels, shared
+    in-flight write guards, trimmed save payloads, and provider-unavailable
+    retry copy. The page-backed discounts doc asserts the seeded verified
+    ESNcard identifier/status, refresh/remove action visibility, and
+    invalid-card-number save guard. App and server coverage already prove upsert
+    payload normalization, readable mutation errors, readable status labels,
     save/refresh/remove action states, global per-user card reads/upserts,
     refresh persistence, and scoped removal. Local app coverage also proves that
     save, refresh, and remove actions share an in-flight guard so profile

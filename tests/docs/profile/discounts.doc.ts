@@ -1,8 +1,61 @@
 import { userStateFile } from '../../../helpers/user-data';
+import {
+  esnCardActionDisabled,
+  esnCardActionLabel,
+  esnCardMutationErrorMessage,
+  esnCardSaveDisabled,
+  esnCardStatusLabel,
+  esnCardSubmitPayloadFromIdentifier,
+} from '../../../src/app/profile/user-profile/user-profile.esn-card';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 
 test.use({ storageState: userStateFile });
+
+test('Understand ESN discount card states', async ({}, testInfo) => {
+  expect(esnCardStatusLabel('verified')).toBe('Verified');
+  expect(esnCardStatusLabel('expired')).toBe('Expired');
+  expect(esnCardStatusLabel('invalid')).toBe('Invalid');
+  expect(esnCardStatusLabel('unverified')).toBe('Needs verification');
+  expect(esnCardActionLabel('save', true)).toBe('Checking ESN card...');
+  expect(esnCardActionLabel('refresh', true)).toBe('Refreshing...');
+  expect(esnCardActionLabel('remove', true)).toBe('Removing...');
+  expect(
+    esnCardSaveDisabled({
+      formInvalid: false,
+      formSubmitting: false,
+      mutationPending: true,
+    }),
+  ).toBe(true);
+  expect(
+    esnCardActionDisabled({
+      deletePending: false,
+      refreshPending: true,
+      upsertPending: false,
+    }),
+  ).toBe(true);
+  expect(esnCardSubmitPayloadFromIdentifier('  ESN-1234  ')).toEqual({
+    identifier: 'ESN-1234',
+    type: 'esnCard',
+  });
+  expect(
+    esnCardMutationErrorMessage('save', {
+      message: 'ESNcard validation provider is unavailable',
+    }),
+  ).toBe('ESNcard validation provider is unavailable');
+
+  await testInfo.attach('markdown', {
+    body: `
+# ESN Discount Card States
+
+The profile discount-card form stores one ESN card per user and trims the card number before validation. The save button says **Checking ESN card...** while Evorto validates the card, and refresh/remove actions show their own pending labels while those writes are in flight.
+
+Evorto shows readable card statuses: **Verified**, **Expired**, **Invalid**, and **Needs verification**. Save, refresh, and remove stay disabled while any ESNcard write is pending, so slow provider validation or removal requests cannot overlap.
+
+Provider outages are not treated as invalid cards. When esncard.org or the provider response is unavailable, the profile page shows the retryable provider message, such as **ESNcard validation provider is unavailable**, instead of silently storing an invalid-card state.
+`,
+  });
+});
 
 test('Manage ESN discount card @finance', async ({
   page,

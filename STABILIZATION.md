@@ -1109,9 +1109,26 @@ the current working direction until a product decision overrides them.
 - Profile app coverage also pins that ESNcard save, refresh, and remove actions
   all stay disabled while any ESNcard write is pending.
 - **Addressed in stabilization pass:** the profile doc no longer uses a fixed stabilization wait before the profile screenshot, now saves and verifies notification email persistence, and opens the Events section to assert and document event-card semantics.
-- `tests/docs/profile/discounts.doc.ts` documents the discount-card section and current pending/error behavior. It asserts the seeded verified ESNcard identifier/status, visible refresh/remove actions, and the invalid-card-number save guard. It still does not call the external ESNcard provider for add/refresh/remove outcomes.
+- `tests/docs/profile/discounts.doc.ts` documents the discount-card section and
+  current pending/error behavior. Its helper-backed baseline note asserts
+  readable ESNcard statuses, save/refresh/remove pending labels, shared
+  in-flight write guards, identifier trimming, and provider-unavailable error
+  copy without calling the external provider. Its page-backed journey asserts
+  the seeded verified ESNcard identifier/status, visible refresh/remove actions,
+  and the invalid-card-number save guard. It still does not call the external
+  ESNcard provider for live add/refresh/remove outcomes.
 - `tests/specs/discounts/esn-discounts.test.ts` verifies a seeded verified ESNcard affects paid event price labels and the register button copy.
-- No reviewed Playwright spec proves live profile discount-card add/refresh/remove provider outcomes or browser-level account creation fallback behavior without Auth0 Management credentials. Local helper/server coverage now pins the visible profile/account copy and action states that can be verified without page-backed runtime, the create-account docs include a baseline helper-backed account-creation note, the discounts docs assert seeded ESNcard status/action/invalid-input behavior, and the profile docs journey asserts confirmed and checked-in profile event-card route/status/guest/add-on/payment/ticket/action labels plus submitted-receipt visibility.
+- No reviewed Playwright spec proves live profile discount-card
+  add/refresh/remove provider outcomes or browser-level account creation
+  fallback behavior without Auth0 Management credentials. Local helper/server
+  coverage now pins the visible profile/account copy and action states that can
+  be verified without page-backed runtime, the create-account docs include a
+  baseline helper-backed account-creation note, the discounts docs assert
+  helper-backed ESNcard status/pending/error semantics plus seeded
+  status/action/invalid-input behavior, and the profile docs journey asserts
+  confirmed and checked-in profile event-card
+  route/status/guest/add-on/payment/ticket/action labels plus
+  submitted-receipt visibility.
 - `tests/docs/users/create-account.doc.ts` includes a baseline helper-backed
   account-creation documentation note for verified-email gating, Auth0-data
   prefill, notification-email terminology, payload trimming, retryable errors,
@@ -1873,6 +1890,10 @@ implement those decisions or explicitly revise them there before changing code.
 - Profile ESNcard docs pass: extended the discounts documentation journey to
   assert the seeded verified ESNcard identifier/status, refresh/remove action
   visibility, and invalid-card-number save guard.
+- Profile ESNcard baseline-docs pass: added a helper-backed discounts
+  documentation note for readable statuses, pending action labels, shared
+  in-flight guards, trimmed save payloads, and retryable provider-unavailable
+  copy without calling the external provider.
 - Profile ESNcard write-guard pass: shared one in-flight guard across save,
   refresh, and remove so profile discount-card writes cannot overlap on slow
   networks, and pinned that guard in local app tests.
