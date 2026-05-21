@@ -2875,6 +2875,19 @@ left a seeded tenant behind, which made the next paid-docs attempt flaky on
 retry due to a duplicate tenant id; use explicit fresh seed keys for focused
 reruns after interrupted Playwright jobs.
 
+Participant/profile queue checkpoint: the second queue item's durable anchors
+passed against the same Docker stack with fresh seed keys. The system-Chrome
+functional pass covered `tests/specs/profile/user-profile-edit.spec.ts`,
+`tests/specs/profile/user-profile-events.spec.ts`,
+`tests/specs/profile/user-profile-receipts.spec.ts`,
+`tests/specs/profile/user-profile-discounts.spec.ts`, and
+`tests/specs/profile/user-profile-esncard-provider.spec.ts`. The generated-docs
+pass covered `tests/docs/profile/user-profile.doc.ts` and
+`tests/docs/profile/discounts.doc.ts`. Auth0 Management credentials were
+available through the generated dev environment, so `bun run
+test:e2e:create-account -- --workers=1` also passed and covered the
+integration-tagged account-creation spec plus generated-doc journey.
+
 ## Review Next
 
 All ten first-pass review areas are now represented in this document. The next
