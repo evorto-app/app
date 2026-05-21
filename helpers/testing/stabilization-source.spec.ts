@@ -123,19 +123,24 @@ describe('stabilization source', () => {
 
     expect(readinessCheckpoint).toBeDefined();
     expect(readinessCheckpoint).toContain(
-      '7b39be0f3a89e1fd14982114e8cbf98a5c59af48',
+      'fe3c4a669d444b643dbddd6aefea226574d7673d',
     );
-    expect(readinessCheckpoint).toContain(
-      'The PR has no unresolved review threads at',
+    expect(readinessCheckpoint).toContain('17m20s');
+    expect(readinessCheckpoint).toContain('Node.js 20 actions are deprecated');
+    expect(readinessCheckpoint).toMatch(
+      /The PR has no\s+unresolved review threads at/u,
     );
     expect(readinessCheckpoint).toMatch(
-      /paid transfer\/resale money movement\s+still needs a human settlement-model decision/u,
+      /paid\s+transfer\/resale money movement\s+still needs a human settlement-model decision/u,
     );
     expect(readinessCheckpoint).toMatch(
-      /first in-app Browser queue pass and\s+deterministic ESNcard provider coverage are no longer PR-readiness blockers/u,
+      /first in-app Browser\s+queue pass and deterministic ESNcard provider coverage are no longer\s+PR-readiness blockers/u,
     );
     expect(readinessCheckpoint).not.toContain(
       '4cfd4d960f1831055153fab0b3321ed55e937284',
+    );
+    expect(readinessCheckpoint).not.toContain(
+      '7b39be0f3a89e1fd14982114e8cbf98a5c59af48',
     );
     expect(readinessCheckpoint).not.toContain(
       'in-app Browser manual pass is still blocked',

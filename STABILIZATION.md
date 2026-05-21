@@ -2813,16 +2813,20 @@ implement those decisions or explicitly revise them there before changing code.
   keeps account-creation validation discoverable without forcing the full
   integration suite.
 - Latest PR readiness checkpoint: GitHub is green on
-  `7b39be0f3a89e1fd14982114e8cbf98a5c59af48`, including Analyze, CodeQL, Git
+  `fe3c4a669d444b643dbddd6aefea226574d7673d`, including Analyze, CodeQL, Git
   Town branch stack, CodeRabbit, and Playwright E2E functional + docs. The E2E
   job completed Docker image pull/build, Docker stack startup, app container
   startup, app readiness, the functional suite, the generated-docs suite,
   Docker log collection, stack shutdown, Playwright result upload, and
-  generated-doc artifact upload. The PR has no unresolved review threads at
-  this checkpoint. It remains draft because paid transfer/resale money movement
-  still needs a human settlement-model decision before implementation or
-  explicit relaunch deferral; the first in-app Browser queue pass and
-  deterministic ESNcard provider coverage are no longer PR-readiness blockers.
+  generated-doc artifact upload in 17m20s. GitHub emitted a runner watchpoint
+  that Node.js 20 actions are deprecated for `actions/checkout@v4` and
+  `actions/upload-artifact@v4`; this did not fail the run but should be handled
+  before GitHub's Node 24 default reaches this workflow. The PR has no
+  unresolved review threads at this checkpoint. It remains draft because paid
+  transfer/resale money movement still needs a human settlement-model decision
+  before implementation or explicit relaunch deferral; the first in-app Browser
+  queue pass and deterministic ESNcard provider coverage are no longer
+  PR-readiness blockers.
 
 ## Browser Review Queue
 
