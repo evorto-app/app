@@ -6,18 +6,18 @@ and useful for small cleanup batches.
 
 ## Review Status
 
-| Area                                            | Status     | Confidence | Notes                                                                                                                                                          |
-| ----------------------------------------------- | ---------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Events                                          | Stabilized | high       | Docker-backed specs/docs cover browsing, creation, management, unlisted visibility, registration state, price labels, scanner handoff, and refund copy.        |
-| Registrations                                   | Stabilized | high       | Free/paid registration, guests, add-ons, waitlist, negative states, cancellation/refund, and transfer boundaries have server, app, spec, and docs coverage.    |
-| Templates                                       | Stabilized | high       | Simple-mode templates now cover planning tips, ESNcard discounts, reusable add-ons/questions, role pickers, tax-rate behavior, and event creation copy paths.  |
-| Roles and permissions                           | Stabilized | high       | Route denial, role lookup, role management, permission metadata, tenant isolation, and user-list deferral are pinned by source, unit, spec, and docs coverage. |
-| Finance/receipts                                | Stabilized | high       | Finance navigation, transaction visibility, receipt review, reimbursement recording, receipt submission, and refund boundaries have deterministic coverage.    |
-| Scanning/check-in                               | Stabilized | high       | QR scanner reads, selected guest check-in, later guest arrival, idempotent counters, and organizer aggregates are covered by specs/docs against Docker.        |
-| Profile/account flows                           | Stabilized | partial    | Profile edit, event cards, receipts, account creation contracts, seeded ESNcard behavior, and deterministic ESNcard provider outcomes are covered.             |
-| Tenant/global admin                             | Stabilized | high       | Tenant settings and global-admin list/detail/create/edit are covered for the one-primary-domain relaunch scope; custom-domain automation remains deferred.     |
-| Generated documentation and Playwright coverage | Stabilized | high       | Docs/spec inventory, skip gates, source guards, list mode, and generated-doc runtime flows are current and fail loudly for known fixture gaps.                 |
-| Local runtime/developer workflow                | Stabilized | high       | Docker, env preflight, CI, Font Awesome token paths, and the first in-app Browser queue pass are healthy; repeat Browser review uses generated `BASE_URL`.     |
+| Area                                            | Status     | Confidence | Notes                                                                                                                                                                        |
+| ----------------------------------------------- | ---------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Events                                          | Stabilized | high       | Docker-backed specs/docs cover browsing, creation, management, unlisted visibility, registration state, price labels, scanner handoff, and refund copy.                      |
+| Registrations                                   | Stabilized | high       | Free/paid registration, guests, add-ons, waitlist, negative states, cancellation/refund, and transfer boundaries have server, app, spec, and docs coverage.                  |
+| Templates                                       | Stabilized | high       | Simple-mode templates now cover planning tips, ESNcard discounts, reusable add-ons/questions, role pickers, tax-rate behavior, and event creation copy paths.                |
+| Roles and permissions                           | Stabilized | high       | Route denial, role lookup, role management, permission metadata, tenant isolation, and user-list deferral are pinned by source, unit, spec, and docs coverage.               |
+| Finance/receipts                                | Stabilized | high       | Finance navigation, transaction visibility, receipt review, reimbursement recording, receipt submission, and refund boundaries have deterministic coverage.                  |
+| Scanning/check-in                               | Stabilized | high       | QR scanner reads, selected guest check-in, later guest arrival, idempotent counters, and organizer aggregates are covered by specs/docs against Docker.                      |
+| Profile/account flows                           | Stabilized | high       | Profile edit, event cards, receipts, account creation contracts, seeded ESNcard behavior, deterministic ESNcard provider outcomes, and Browser discount-card UX are covered. |
+| Tenant/global admin                             | Stabilized | high       | Tenant settings and global-admin list/detail/create/edit are covered for the one-primary-domain relaunch scope; custom-domain automation remains deferred.                   |
+| Generated documentation and Playwright coverage | Stabilized | high       | Docs/spec inventory, skip gates, source guards, list mode, and generated-doc runtime flows are current and fail loudly for known fixture gaps.                               |
+| Local runtime/developer workflow                | Stabilized | high       | Docker, env preflight, CI, Font Awesome token paths, and the first in-app Browser queue pass are healthy; repeat Browser review uses generated `BASE_URL`.                   |
 
 ## Product Decision Draft
 
@@ -2807,23 +2807,18 @@ implement those decisions or explicitly revise them there before changing code.
   keeps account-creation validation discoverable without forcing the full
   integration suite.
 - Latest PR readiness checkpoint: GitHub is green on
-  `9b65634b66840aa72dc53c4a5bef742036f049ac`, including Analyze, CodeQL, Git
-  Town branch stack, CodeRabbit, and Playwright E2E functional + docs. The E2E
-  job completed Docker image pull/build, Docker stack startup, app container
-  startup, app readiness, the functional suite, the generated-docs suite,
-  Docker log collection, stack shutdown, Playwright result upload, and
-  generated-doc artifact upload in 22m26s. This checkpoint includes the
-  unlisted-admin generated-docs menu retry that removed the previous flaky
-  `Update listing` menu-item click annotation. GitHub still emits a runner
-  watchpoint that Node.js 20 actions are deprecated for `actions/checkout@v4`
-  and `actions/upload-artifact@v4`; the workflow-pin update is prepared locally
-  but cannot be pushed until the GitHub credential has `workflow` scope or SSH
-  signing is available. The PR has no unresolved review threads at this
-  checkpoint. It remains draft because paid
-  transfer/resale money movement still needs a human settlement-model decision
-  before implementation or explicit relaunch deferral; the first in-app Browser
-  queue pass and deterministic ESNcard provider coverage are no longer
-  PR-readiness blockers.
+  `96f3f64351c68b645070a63534c839944ffd5440`, including Analyze, CodeQL, Git
+  Town branch stack, CodeRabbit status, and Playwright E2E functional + docs.
+  The E2E job completed dependency install, Chromium-only Playwright browser
+  install, Docker image pull/build, Docker stack startup, app container startup,
+  app readiness, the functional suite, the generated-docs suite, Docker log
+  collection, stack shutdown, Playwright result upload, and generated-doc
+  artifact upload in 16m02s. The CI runtime improvement keeps the same Docker
+  stack and Playwright projects while avoiding unused browser installs. The PR
+  has no unresolved review threads at this checkpoint. It remains draft because
+  paid transfer/resale money movement still needs a human settlement-model
+  decision before implementation or explicit relaunch deferral; formal bot
+  review is expected only after the PR is marked ready.
 
 ## Browser Review Queue
 
@@ -2965,6 +2960,12 @@ tenant list, tenant detail, and create form with the relaunch-scope copy.
 Deterministic provider review enabled the local tenant-scoped ESNcard test
 provider and opened the profile discount-card tab with a verified `TEST-ESN`
 card, readable status, refresh/remove actions, and disabled empty save state.
+Repeat Browser profile review on the current in-app `/profile#discounts` tab
+confirmed the seeded verified
+`TEST-ESN-0001` card, refresh/remove actions, disabled empty save, and no new
+profile-page console errors. The tab still retained earlier QR scanner camera
+warnings from the scanner route, which match the documented retryable camera
+fallback rather than a profile discount-card defect.
 
 ## Review Next
 
@@ -2973,8 +2974,7 @@ first manual in-app Browser queue pass has been completed against the local
 Docker app. The next stabilization work should continue with small cleanup
 commits around the remaining product and relaunch-scope blockers. ESNcard
 provider add/refresh/remove outcomes now use deterministic ESNcard provider test
-mode.
-Automated custom-domain
+mode. Automated custom-domain
 verification, multi-domain onboarding, and tenant impersonation are intentionally
 documented deferred scope for relaunch, not an untested current-app claim.
 Scanner aggregate behavior, profile account/event/receipt/discount-card

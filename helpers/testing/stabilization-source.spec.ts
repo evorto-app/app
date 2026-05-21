@@ -1,29 +1,28 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { join } from 'node:path';
-
+import nodePath from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const repositoryRoot = new URL('../..', import.meta.url).pathname;
 
-const readSource = (path: string): string =>
-  readFileSync(join(repositoryRoot, path), 'utf8');
+const readSource = (sourcePath: string): string =>
+  readFileSync(nodePath.join(repositoryRoot, sourcePath), 'utf8');
 
 const listFiles = (directory: string, extension: string): string[] =>
-  readdirSync(join(repositoryRoot, directory)).flatMap((entry) => {
-    const path = `${directory}/${entry}`;
-    const absolutePath = join(repositoryRoot, path);
+  readdirSync(nodePath.join(repositoryRoot, directory)).flatMap((entry) => {
+    const sourcePath = `${directory}/${entry}`;
+    const absolutePath = nodePath.join(repositoryRoot, sourcePath);
 
     if (statSync(absolutePath).isDirectory()) {
-      return listFiles(path, extension);
+      return listFiles(sourcePath, extension);
     }
 
-    return path.endsWith(extension) ? [path] : [];
+    return sourcePath.endsWith(extension) ? [sourcePath] : [];
   });
 
 const readSection = (source: string, heading: string, nextHeading: string) => {
   const match = source.match(
     new RegExp(
-      `## ${heading}\\n(?<section>[\\s\\S]*?)\\n## ${nextHeading}`,
+      String.raw`## ${heading}\n(?<section>[\s\S]*?)\n## ${nextHeading}`,
       'u',
     ),
   );
@@ -123,23 +122,33 @@ describe('stabilization source', () => {
 
     expect(readinessCheckpoint).toBeDefined();
     expect(readinessCheckpoint).toContain(
+      '96f3f64351c68b645070a63534c839944ffd5440',
+    );
+    expect(readinessCheckpoint).toContain('16m02s');
+    expect(readinessCheckpoint).toMatch(
+      /Chromium-only Playwright browser\s+install/u,
+    );
+    expect(readinessCheckpoint).toContain('avoiding unused browser installs');
+    expect(readinessCheckpoint).toMatch(
+      /The PR\s+has no\s+unresolved review threads at/u,
+    );
+    expect(readinessCheckpoint).toMatch(
+      /paid\s+transfer\/resale money movement\s+still needs a human settlement-model\s+decision/u,
+    );
+    expect(readinessCheckpoint).toMatch(
+      /formal bot\s+review is expected only after the PR is marked ready/u,
+    );
+    expect(readinessCheckpoint).not.toContain(
       '9b65634b66840aa72dc53c4a5bef742036f049ac',
     );
-    expect(readinessCheckpoint).toContain('22m26s');
-    expect(readinessCheckpoint).toContain(
+    expect(readinessCheckpoint).not.toContain('22m26s');
+    expect(readinessCheckpoint).not.toContain(
       'unlisted-admin generated-docs menu retry',
     );
-    expect(readinessCheckpoint).toContain('Node.js 20 actions are deprecated');
-    expect(readinessCheckpoint).toContain('workflow');
-    expect(readinessCheckpoint).toMatch(
-      /The PR has no\s+unresolved review threads at/u,
+    expect(readinessCheckpoint).not.toContain(
+      'Node.js 20 actions are deprecated',
     );
-    expect(readinessCheckpoint).toMatch(
-      /paid\s+transfer\/resale money movement\s+still needs a human settlement-model decision/u,
-    );
-    expect(readinessCheckpoint).toMatch(
-      /first in-app Browser\s+queue pass and deterministic ESNcard provider coverage are no longer\s+PR-readiness blockers/u,
-    );
+    expect(readinessCheckpoint).not.toContain('workflow-pin update');
     expect(readinessCheckpoint).not.toContain(
       '4cfd4d960f1831055153fab0b3321ed55e937284',
     );
@@ -198,7 +207,9 @@ describe('stabilization source', () => {
     expect(stabilization).toContain(
       'Finance docs are product-facing relaunch coverage',
     );
-    expect(playwrightConfig).toContain('testMatch: /docs\\/.*\\.doc\\.ts$/');
+    expect(playwrightConfig).toContain(
+      String.raw`testMatch: /docs\/.*\.doc\.ts$/`,
+    );
     expect(playwrightConfig).not.toMatch(
       /docs-baseline[\s\S]*testIgnore:[\s\S]*finance/u,
     );
