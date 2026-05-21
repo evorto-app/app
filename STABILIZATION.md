@@ -2802,10 +2802,13 @@ Scanner aggregate behavior, profile account/event/receipt/discount-card
 behavior, and global-admin tenant administration now have Docker-backed
 system-Chrome coverage, but the in-app Browser connection itself still timed out
 during local navigation and later reported no active Codex browser pane after a
-clean-tab recovery attempt. It should be retried when the Browser plugin/runtime
-and pane are healthy. The ESN discounted-pricing slice also has Docker-backed
-system-Chrome coverage, while live external ESNcard provider outcomes remain
-intentionally outside deterministic local Browser coverage.
+clean-tab recovery attempt. The latest retry fails earlier with the
+`Transport closed` error before navigation; the fallback Playwright browser MCP
+path fails the same way.
+It should be retried when the Browser plugin/runtime transport and pane are
+healthy. The ESN discounted-pricing slice also has Docker-backed system-Chrome
+coverage, while live external ESNcard provider outcomes remain intentionally
+outside deterministic local Browser coverage.
 Richer reusable template add-ons and questions are now implemented in the simple
 template flow and should be kept aligned as those surfaces evolve. Normal generated docs output now stays local unless
 `test:e2e:docs:publish` is run intentionally. New Playwright
