@@ -1,6 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
-
+import nodePath from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 // Source guard: generated documentation is product-facing, so these checks keep
@@ -8,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 const repositoryRoot = new URL('../..', import.meta.url).pathname;
 
 const readSource = (path: string): string =>
-  readFileSync(join(repositoryRoot, path), 'utf8');
+  readFileSync(nodePath.join(repositoryRoot, path), 'utf8');
 
 describe('generated docs source current behavior', () => {
   it('keeps tenant general-settings docs aligned with implemented branding and legal routes', () => {
@@ -54,9 +53,14 @@ describe('generated docs source current behavior', () => {
   });
 
   it('does not generate product docs for global-admin functionality', () => {
+    const inventorySource = readSource('tests/test-inventory.md');
+
     expect(
-      existsSync(join(repositoryRoot, 'tests/docs/admin/global-admin.doc.ts')),
+      existsSync(
+        nodePath.join(repositoryRoot, 'tests/docs/admin/global-admin.doc.ts'),
+      ),
     ).toBe(false);
+    expect(inventorySource).not.toContain('docs/admin/global-admin.doc.ts');
   });
 
   it('keeps profile docs aligned with implemented account and event-card behavior', () => {

@@ -28,7 +28,6 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 ## Active Files
 
 - Documentation journeys (`*.doc.ts`):
-  - docs/admin/global-admin.doc.ts [admin, globalAdmin]
   - docs/admin/general-settings.doc.ts [admin]
   - docs/events/event-approval.doc.ts
   - docs/events/event-management.doc.ts
@@ -122,7 +121,6 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - route-manifest specs in `src/app/finance`, `src/app/global-admin`, and
     `src/app/templates`
 - Tenant/global admin:
-  - `docs/admin/global-admin.doc.ts`
   - `docs/admin/general-settings.doc.ts`
   - `specs/admin/general-settings.spec.ts`
   - `specs/admin/global-admin-tenants.spec.ts`
