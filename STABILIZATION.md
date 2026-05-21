@@ -2917,6 +2917,19 @@ retry still failed before navigation with
 `Must setup test before interacting with the page`, so the human Browser pass
 remains blocked outside the app/runtime path.
 
+Global-admin queue checkpoint: the fifth queue item's durable anchors passed
+against the same Docker stack with fresh seed keys. The system-Chrome
+functional pass covered `tests/specs/admin/global-admin-tenants.spec.ts` and
+`tests/specs/permissions/global-admin-route-guard.spec.ts`, including
+global-admin tenant list search, tenant detail review, tenant create/edit,
+duplicate-domain rejection, path-like domain rejection, route denial for
+non-global users, and allowed access for global admins. The generated-docs pass
+covered `tests/docs/admin/global-admin.doc.ts`, including the relaunch scope
+copy for one active primary domain, deferred custom-domain/multi-domain
+automation, and no tenant-admin impersonation. The in-app Browser retry still
+failed before navigation with `Must setup test before interacting with the
+page`, so the human Browser pass remains blocked outside the app/runtime path.
+
 ## Review Next
 
 All ten first-pass review areas are now represented in this document. The next
