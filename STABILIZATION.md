@@ -1038,7 +1038,7 @@ the current working direction until a product decision overrides them.
 
 ### Test and Documentation Quality
 
-- Stripe webhook replay specs cover idempotent completed sessions, paid-registration counter transitions, expired-session reservation release, processing-claim behavior, stale-claim reclaim, payment-intent fallback, and ignoring unpaid completed sessions. `src/shared/registration-spots.spec.ts` pins the buyer-plus-guests spot count used by webhook counter updates.
+- Stripe webhook replay specs cover idempotent completed sessions, paid-registration counter transitions, expired-session reservation release, processing-claim behavior, stale-claim reclaim, payment-intent and checkout-session mapping fallbacks, and ignoring unpaid completed sessions. `src/shared/registration-spots.spec.ts` pins the buyer-plus-guests spot count used by webhook counter updates.
 - Receipt flow specs cover receipt submission UI, receipt approval/reimbursement path, and tenant "Other" receipt country visibility.
 - `tests/specs/finance/finance-overview-permissions.spec.ts` covers the
   finance overview navigation contract, proving that transaction, receipt
@@ -2697,6 +2697,15 @@ implement those decisions or explicitly revise them there before changing code.
   artifact upload. The in-app Browser control path still timed out while
   opening the local app, so manual Browser review remains blocked by the
   Browser integration rather than Docker/app health.
+- Docker Stripe checkout webhook mapping pass: container logs showed local
+  Stripe CLI `checkout.session.completed` deliveries returning 400 when the
+  event reached the app before the local transaction's payment-intent reference
+  was persisted. The webhook resolver now falls back from missing metadata and
+  payment-intent mapping to the stored `stripeCheckoutSessionId`, with replay
+  coverage in `tests/specs/finance/stripe-webhook-replay.spec.ts`. After
+  rebuilding Docker, the focused system-Chrome replay passed against the
+  container with `--no-deps`, and the app log showed the replayed
+  `/webhooks/stripe` request returning 200.
 - Tenant domain/onboarding boundary audit: rechecked the global-admin and
   tenant general-settings coverage for the one-domain relaunch scope. The
   functional tenant-admin spec, generated global-admin/general-settings docs,

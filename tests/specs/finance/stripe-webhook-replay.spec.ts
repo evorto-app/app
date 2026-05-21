@@ -620,6 +620,120 @@ test('checkout webhook resolves registration by payment intent when metadata is 
     });
 });
 
+test('checkout webhook resolves registration by checkout session before payment intent is persisted @finance @stripe', async ({
+  database,
+  request,
+  seeded,
+  tenant,
+}) => {
+  const registrationId = getId();
+  const transactionId = getId();
+  const checkoutSessionId = `cs_test_${getId()}`;
+  const paymentIntentId = `pi_test_${getId()}`;
+  const stripeChargeId = `ch_test_${getId()}`;
+  const stripeEventId = `evt_test_${getId()}`;
+
+  await database.insert(schema.eventRegistrations).values({
+    eventId: seeded.scenario.events.paidOpen.eventId,
+    id: registrationId,
+    registrationOptionId: seeded.scenario.events.paidOpen.optionId,
+    status: 'PENDING',
+    tenantId: tenant.id,
+    userId: regularUserId,
+  });
+
+  await database.insert(schema.transactions).values({
+    amount: 2500,
+    comment: 'Webhook checkout-session mapping test',
+    currency: 'EUR',
+    eventId: seeded.scenario.events.paidOpen.eventId,
+    eventRegistrationId: registrationId,
+    executiveUserId: regularUserId,
+    id: transactionId,
+    method: 'stripe',
+    status: 'pending',
+    stripeCheckoutSessionId: checkoutSessionId,
+    stripeCheckoutUrl: `https://checkout.stripe.com/c/pay/${checkoutSessionId}`,
+    targetUserId: regularUserId,
+    tenantId: tenant.id,
+    type: 'registration',
+  });
+
+  const payload = JSON.stringify({
+    api_version: '2024-11-20.acacia',
+    created: 1_706_784_000,
+    data: {
+      object: {
+        id: checkoutSessionId,
+        metadata: {},
+        object: 'checkout.session',
+        payment_intent: {
+          id: paymentIntentId,
+          latest_charge: stripeChargeId,
+        },
+        payment_status: 'paid',
+        status: 'complete',
+      },
+    },
+    id: stripeEventId,
+    livemode: false,
+    object: 'event',
+    pending_webhooks: 1,
+    request: {
+      id: null,
+      idempotency_key: null,
+    },
+    type: 'checkout.session.completed',
+  });
+
+  const signature = Stripe.webhooks.generateTestHeaderString({
+    payload,
+    secret: webhookSecret,
+  });
+
+  const delivery = await request.fetch('/webhooks/stripe', {
+    data: Buffer.from(payload, 'utf8'),
+    failOnStatusCode: false,
+    headers: {
+      'content-type': 'application/json',
+      'stripe-signature': signature,
+    },
+    method: 'POST',
+  });
+  const body = await delivery.text();
+  expect(
+    delivery.status(),
+    `Expected webhook delivery to return 200, received ${delivery.status()} with body "${body}"`,
+  ).toBe(200);
+
+  await expect
+    .poll(async () => {
+      const updatedRegistration =
+        await database.query.eventRegistrations.findFirst({
+          where: { id: registrationId, tenantId: tenant.id },
+        });
+      return updatedRegistration?.status;
+    })
+    .toBe('CONFIRMED');
+
+  await expect
+    .poll(async () => {
+      const updatedTransaction = await database.query.transactions.findFirst({
+        where: { id: transactionId, tenantId: tenant.id },
+      });
+      return {
+        chargeId: updatedTransaction?.stripeChargeId,
+        paymentIntentId: updatedTransaction?.stripePaymentIntentId,
+        status: updatedTransaction?.status,
+      };
+    })
+    .toEqual({
+      chargeId: stripeChargeId,
+      paymentIntentId,
+      status: 'successful',
+    });
+});
+
 test('checkout webhook does not confirm unpaid completed sessions @finance @stripe', async ({
   database,
   request,

@@ -102,14 +102,26 @@ const resolveCheckoutSession = (eventSession: Stripe.Checkout.Session) =>
             where: { stripePaymentIntentId: paymentIntentId },
           })
         : undefined;
+      const checkoutSessionTransaction =
+        !paymentIntentTransaction && eventSession.id
+          ? yield* database.query.transactions.findFirst({
+              columns: {
+                eventRegistrationId: true,
+                id: true,
+                tenantId: true,
+              },
+              where: { stripeCheckoutSessionId: eventSession.id },
+            })
+          : undefined;
+      const existingTransaction =
+        paymentIntentTransaction ?? checkoutSessionTransaction;
 
       if (hasCompleteMetadata) {
         if (
-          paymentIntentTransaction &&
-          (paymentIntentTransaction.id !== metadataTransactionId ||
-            paymentIntentTransaction.tenantId !== metadataTenantId ||
-            paymentIntentTransaction.eventRegistrationId !==
-              metadataRegistrationId)
+          existingTransaction &&
+          (existingTransaction.id !== metadataTransactionId ||
+            existingTransaction.tenantId !== metadataTenantId ||
+            existingTransaction.eventRegistrationId !== metadataRegistrationId)
         ) {
           return { type: 'mapping-conflict' } as const;
         }
@@ -118,6 +130,19 @@ const resolveCheckoutSession = (eventSession: Stripe.Checkout.Session) =>
           registrationId: metadataRegistrationId,
           tenantId: metadataTenantId,
           transactionId: metadataTransactionId,
+          type: 'resolved',
+        } as const;
+      }
+
+      if (
+        checkoutSessionTransaction?.eventRegistrationId &&
+        checkoutSessionTransaction.id &&
+        checkoutSessionTransaction.tenantId
+      ) {
+        return {
+          registrationId: checkoutSessionTransaction.eventRegistrationId,
+          tenantId: checkoutSessionTransaction.tenantId,
+          transactionId: checkoutSessionTransaction.id,
           type: 'resolved',
         } as const;
       }

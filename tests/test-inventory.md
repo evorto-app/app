@@ -244,7 +244,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   requested. That skip is credential-gated, not a substitute for product
   coverage. This is separate from the Docker stack's Compose-managed Stripe
   listener, which shares its generated signing secret with the app through
-  `STRIPE_WEBHOOK_SECRET_FILE`.
+  `STRIPE_WEBHOOK_SECRET_FILE`. The suite also pins checkout completion
+  mapping when the webhook event arrives before the payment-intent reference is
+  persisted locally, using the stored `stripeCheckoutSessionId` as the fallback.
 - `specs/permissions/override.test.ts` is active desktop coverage for the
   permission override fixture; no mobile project currently runs this spec.
 - `specs/permissions/global-admin-route-guard.spec.ts` covers direct
@@ -660,6 +662,10 @@ live ESNcard provider path gated by `E2E_LIVE_ESN_CARD_IDENTIFIER`.
   edit workflow and allow/deny route guards. The full dependency run is still
   subject to live Auth0 login availability; on the slow network it timed out in
   authentication setup before app assertions ran.
+- `tests/specs/finance/stripe-webhook-replay.spec.ts --grep "checkout webhook resolves registration by checkout session" --no-deps` passed against a
+  rebuilt Docker runtime with system Chrome after adding the checkout-session
+  fallback for local Stripe completion events that arrive before the
+  payment-intent reference is persisted on the transaction.
 - `specs/seed/seed-baseline.test.ts` fails explicitly when the core scenario
   handles point at missing event or registration-option rows.
 - `docs/events/register.doc.ts` fails explicitly when the regular-user fixture
