@@ -2,7 +2,7 @@
 
 Scope: Current Playwright tests and documentation journeys.
 
-Updated: 2026-05-20
+Updated: 2026-05-21
 
 ## How to Use This Inventory
 
@@ -46,7 +46,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - docs/templates/templates.doc.ts
   - docs/users/create-account.doc.ts [@needs-auth0-management]
 
-- Functional tests (`*.test.ts`):
+- Functional tests (`*.spec.ts` / `*.test.ts`):
+  - specs/admin/general-settings.spec.ts [admin]
+  - specs/admin/global-admin-tenants.spec.ts [admin, globalAdmin]
+  - specs/admin/roles-management.spec.ts [admin, permissions]
   - specs/auth/storage-state-refresh.test.ts
   - specs/discounts/esn-discounts.test.ts [finance]
   - specs/events/events.test.ts
@@ -61,6 +64,12 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - specs/permissions/matrix.spec.ts [permissions]
   - specs/permissions/override.test.ts [permissions]
   - specs/permissions/tenant-isolation-tax-rates.spec.ts [permissions, finance]
+  - specs/profile/create-account.spec.ts [@needs-auth0-management]
+  - specs/profile/user-profile-discounts.spec.ts [finance]
+  - specs/profile/user-profile-edit.spec.ts
+  - specs/profile/user-profile-events.spec.ts
+  - specs/profile/user-profile-live-esncard.spec.ts [@needs-live-esncard]
+  - specs/profile/user-profile-receipts.spec.ts [finance]
   - specs/reporting/reporter-paths.test.ts
   - specs/scanning/scanner.test.ts
   - specs/screenshot/doc-screenshot.test.ts
@@ -200,6 +209,15 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 - `docs/users/create-account.doc.ts` is integration-tagged with
   `@needs-auth0-management`; baseline list/discovery must not require those
   credentials.
+- `specs/profile/create-account.spec.ts` is collected by
+  `local-chrome-integration` and skips inside the test body without Auth0
+  Management credentials. It is the functional integration path for creating a
+  new Auth0-backed tenant account, verifying profile arrival, tenant assignment,
+  default role assignment, and cleanup.
+- `specs/profile/user-profile-live-esncard.spec.ts` is collected by
+  `local-chrome-integration` and skips inside the test body without
+  `E2E_LIVE_ESN_CARD_IDENTIFIER`. It is the functional integration path for
+  live external ESNcard add, refresh, and remove provider outcomes.
 - `specs/finance/stripe-webhook-replay.spec.ts` is file-level skipped when
   `STRIPE_WEBHOOK_SECRET` is absent, before page/database fixtures are
   requested. That skip is credential-gated, not a substitute for product
