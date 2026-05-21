@@ -2291,6 +2291,13 @@ implement those decisions or explicitly revise them there before changing code.
   `bun run test:unit:server -- helpers/testing/playwright-skip-inventory.spec.ts`,
   and `git diff --check`; GitHub CI passed on commit `8e5867ff`, including the
   full Playwright E2E functional + docs job.
+- Live ESNcard rerun command pass: the in-app Browser retry still could not
+  create or navigate a tab because no active Codex browser pane was available,
+  while Docker stayed healthy and `/events` returned HTTP 200 on local port 4577. The main checkout env files do not currently provide
+  `E2E_LIVE_ESN_CARD_IDENTIFIER`, so the live provider path cannot be executed
+  here yet. Added `bun run test:e2e:live-esncard` as a focused command for the
+  credential-gated profile add/refresh/remove provider path once a valid live
+  identifier is supplied.
 
 ## Review Next
 

@@ -34,6 +34,7 @@ when the listed output remains readable.
 bun run test:e2e
 bun run test:e2e:ui
 AUTH0_MANAGEMENT_CLIENT_ID=... AUTH0_MANAGEMENT_CLIENT_SECRET=... bun run test:e2e:integration
+E2E_LIVE_ESN_CARD_IDENTIFIER=... bun run test:e2e:live-esncard
 bun run test:e2e:docs
 bun run test:e2e:docs:publish
 bun run test:e2e:install
@@ -98,6 +99,11 @@ bun run lint
 - `bun run test:e2e:integration` runs all integration-only Playwright
   projects. It is intended for credential-gated specs and docs such as Auth0
   Management account creation.
+- `bun run test:e2e:live-esncard` runs only the live esncard.org
+  add/refresh/remove profile path. It still uses the integration project for
+  authenticated setup, but it narrows execution to
+  `tests/specs/profile/user-profile-live-esncard.spec.ts` and
+  `@needs-live-esncard`.
 - Local Docker scripts preload the environment with `dotenv -c dev` before invoking Compose.
 - Use `bun run ...` package scripts, not a bare shell `dotenv` command. Local shells may resolve a different `dotenv` executable than `node_modules/.bin/dotenv`; when a direct external-tool command is unavoidable, spell it as `node_modules/.bin/dotenv -c dev -- ...`.
 - Playwright list/discovery commands do not clean or write generated docs
@@ -233,7 +239,9 @@ Optional live-provider variables for integration-tagged specs:
 
 - `E2E_LIVE_ESN_CARD_IDENTIFIER` for the profile ESNcard add/refresh/remove
   journey against esncard.org. Use a real valid card identifier only from a
-  local secret source; do not check it into the repo.
+  local secret source; do not check it into the repo. Run it with
+  `E2E_LIVE_ESN_CARD_IDENTIFIER=... bun run test:e2e:live-esncard` when you
+  want to exercise only that live-provider path.
 
 ## Local Stack Isolation
 

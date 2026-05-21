@@ -224,6 +224,7 @@ describe('evaluateRuntimePreflight', () => {
       'test:e2e',
       'test:e2e:ui',
       'test:e2e:integration',
+      'test:e2e:live-esncard',
       'test:e2e:docs',
       'test:e2e:docs:publish',
     ]) {
@@ -233,6 +234,15 @@ describe('evaluateRuntimePreflight', () => {
 
     expect(packageJson.scripts['test:e2e:integration']).toContain(
       '--project=local-chrome-integration --project=docs-integration',
+    );
+    expect(packageJson.scripts['test:e2e:live-esncard']).toContain(
+      'tests/specs/profile/user-profile-live-esncard.spec.ts',
+    );
+    expect(packageJson.scripts['test:e2e:live-esncard']).toContain(
+      '--project=local-chrome-integration',
+    );
+    expect(packageJson.scripts['test:e2e:live-esncard']).toContain(
+      "--grep '@needs-live-esncard'",
     );
   });
 
