@@ -12,9 +12,13 @@ concurrency:
 
 jobs:
   e2e:
-    name: Playwright E2E (functional + docs)
+    name: Playwright E2E (${{ matrix.suite }})
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [functional, docs]
     env:
       CI: true
       APP_HOST_PORT: 4200
@@ -140,6 +144,7 @@ jobs:
           exit 1
 
       - name: Run Playwright functional suite
+        if: matrix.suite == 'functional'
         timeout-minutes: 40
         env:
           E2E_SELECTED_PROJECTS: local-chrome-baseline
@@ -161,6 +166,7 @@ jobs:
             --grep-invert 'doc-screenshot returns a relative path and writes image|navigate to events list|create template in empty category|create a new template|template create form hides selected roles in autocomplete|register for a free event as regular user|@finance'
 
       - name: Run Playwright docs suite
+        if: matrix.suite == 'docs'
         timeout-minutes: 20
         env:
           E2E_SELECTED_PROJECTS: docs-baseline
@@ -188,7 +194,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-test-results
+          name: playwright-test-results-${{ matrix.suite }}
           path: |
             test-results/**
             playwright-report/**
@@ -196,7 +202,7 @@ jobs:
           retention-days: 7
 
       - name: Upload generated docs
-        if: always()
+        if: always() && matrix.suite == 'docs'
         uses: actions/upload-artifact@v4
         with:
           name: e2e-docs
