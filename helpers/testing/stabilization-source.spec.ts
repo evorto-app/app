@@ -78,6 +78,8 @@ describe('stabilization source', () => {
     expect(reviewNext).toContain('Docker-backed');
     expect(reviewNext).toContain('system-Chrome coverage');
     expect(reviewNext).toContain('no active Codex browser pane');
+    expect(reviewNext).toContain('Transport closed');
+    expect(reviewNext).toContain('fallback Playwright browser MCP');
     expect(source).not.toContain(
       'Browser walkthrough coverage for anonymous event browsing is enough',
     );
