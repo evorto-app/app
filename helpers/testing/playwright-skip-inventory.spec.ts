@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 // uncovered behavior does not disappear behind permanent `test.skip` calls.
 const repositoryRoot = new URL('../..', import.meta.url).pathname;
 const testsRoot = join(repositoryRoot, 'tests');
+const testInventoryPath = join(testsRoot, 'test-inventory.md');
 
 const allowedPlaywrightSkipEntries = [
   {
@@ -53,6 +54,35 @@ const collectTypeScriptFiles = (directory: string): string[] =>
     return entry.isFile() && path.endsWith('.ts') ? [path] : [];
   });
 
+const collectPlaywrightSpecAndDocFiles = () =>
+  collectTypeScriptFiles(testsRoot)
+    .map((path) => relative(testsRoot, path).replaceAll('\\', '/'))
+    .filter(
+      (path) =>
+        (path.startsWith('docs/') || path.startsWith('specs/')) &&
+        (path.endsWith('.doc.ts') ||
+          path.endsWith('.spec.ts') ||
+          path.endsWith('.test.ts')),
+    );
+
+const collectActiveInventoryFiles = () => {
+  const source = readFileSync(testInventoryPath, 'utf8');
+  const activeFilesSection = source.match(
+    /## Active Files\n(?<section>[\s\S]*?)\n## Suite Ownership/,
+  )?.groups?.section;
+
+  if (activeFilesSection === undefined) {
+    throw new Error('tests/test-inventory.md is missing the Active Files list');
+  }
+
+  return activeFilesSection
+    .split('\n')
+    .map(
+      (line) => line.match(/^  - (?<path>(?:docs|specs)\/\S+)/)?.groups?.path,
+    )
+    .filter((path): path is string => path !== undefined);
+};
+
 const collectPlaywrightSkipEntries = () =>
   collectTypeScriptFiles(testsRoot).flatMap((path) => {
     const source = readFileSync(path, 'utf8');
@@ -98,6 +128,12 @@ const collectFixedWaitEntries = () =>
   });
 
 describe('Playwright skip inventory', () => {
+  it('keeps the active test inventory aligned with Playwright docs and specs on disk', () => {
+    expect(collectActiveInventoryFiles().sort()).toEqual(
+      collectPlaywrightSpecAndDocFiles().sort(),
+    );
+  });
+
   it('keeps every skip and fixme explicitly classified', () => {
     const entries = collectPlaywrightSkipEntries().sort();
 
