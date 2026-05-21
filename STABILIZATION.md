@@ -1636,7 +1636,10 @@ the current working direction until a product decision overrides them.
 ### Acceptable For Now
 
 1. Server-side edit locks are duplicated with UI guards; keep until broader event authorization is reviewed.
-2. Browser walkthrough coverage for anonymous event browsing is enough for this first pass; authenticated manual behavior should be revisited after server preconditions are fixed.
+2. The manual in-app Browser walkthrough is still a real review gate for the
+   full app-flow queue. Docker-backed Playwright coverage is enough to keep
+   stabilization moving while Browser control is unavailable, but it does not
+   complete the requested human Browser pass.
 3. Rich seeded demo data is useful even if some seeded states are ahead of implemented product behavior, as long as tests do not treat those states as complete features.
 4. The current template detail page is discoverable and useful as a summary of simple template defaults.
 5. Tenant scoping for role-management writes is explicit in the reviewed handlers and schema.
