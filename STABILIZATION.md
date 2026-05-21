@@ -2627,7 +2627,7 @@ implement those decisions or explicitly revise them there before changing code.
   remain covered separately in the matching profile and organizer-authoring
   runtime passes.
 - Docker profile/discount runtime pass: updated the Stripe CLI Docker sidecar
-  to `stripe/stripe-cli:v1.41.1`, rebuilt the Docker app image with the
+  to `stripe/stripe-cli:v1.41.2`, rebuilt the Docker app image with the
   Font Awesome token path exercised for premium and brand icons, verified
   service health/logs and `/events`, and ran the ESN discounted registration
   plus profile discount-card slice against system Chrome. The slice passed 9/9
@@ -2716,6 +2716,14 @@ implement those decisions or explicitly revise them there before changing code.
   artifact upload. The in-app Browser control path still timed out while
   opening the local app, so manual Browser review remains blocked by the
   Browser integration rather than Docker/app health.
+- Stripe sidecar maintenance pass: the running Stripe CLI sidecar reported the
+  pinned image was one patch release behind, so Compose now pins
+  `stripe/stripe-cli:v1.41.2`. The current local logs showed one old burst of
+  connected-account webhook `400` responses, with no newer repeats after the
+  app stayed up and `/events` continued returning 200. `helpers/README.md`
+  now records that reused Stripe test accounts can forward stale Connect events
+  into a freshly reset local database; repeated new `400` deliveries still need
+  normal webhook investigation.
 - Docker Stripe checkout webhook mapping pass: container logs showed local
   Stripe CLI `checkout.session.completed` deliveries returning 400 when the
   event reached the app before the local transaction's payment-intent reference

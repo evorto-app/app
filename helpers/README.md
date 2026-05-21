@@ -138,6 +138,14 @@ Docker Compose passes `STRIPE_TEST_ACCOUNT_ID` into both the `db-setup` service
 and the app container so the seeded local tenants can exercise paid registration
 flows against the intended connected test account.
 
+The Stripe CLI listener forwards events for the configured test account into
+the local app. When a reused test account has older Connect activity, Docker
+logs can show a short burst of stale webhook deliveries that do not correspond
+to the freshly reset local database. Treat repeated new `400` webhook responses
+as a real investigation target, but do not infer that an old isolated delivery
+proves current checkout flow failure without replaying the flow against the
+current reset database.
+
 Docker Compose also forces the app container to use the in-network MinIO
 endpoint at `http://minio:9000`. This keeps Docker upload/media flows
 self-contained even when `.env.dev.local` or a developer `.env` points normal

@@ -154,7 +154,7 @@ services:
       - stripe-webhook:/run/stripe-webhook:ro
 
   stripe:
-    image: stripe/stripe-cli:v1.41.1
+    image: stripe/stripe-cli:v1.41.2
     restart: always
     environment:
       STRIPE_API_KEY:
