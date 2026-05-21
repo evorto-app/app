@@ -2182,6 +2182,10 @@ implement those decisions or explicitly revise them there before changing code.
   that variable, so deterministic Docker/browser coverage remains the
   authoritative local baseline until a real card identifier is supplied from
   local secrets.
+- Event-management docs source-guard refresh: aligned the generated docs source
+  guard with the current paid cancellation behavior, where organizer
+  cancellation submits a Stripe refund when stored payment references exist and
+  records a pending manual refund fallback for older/manual payment rows.
 
 ## Review Next
 

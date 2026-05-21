@@ -449,10 +449,13 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain('.update(eventRegistrationOptions)');
     expect(source).toContain('.set({ checkedInSpots: initialCheckedInSpots })');
     expect(source).toContain(
-      "Organizers can also cancel a participant's confirmed registration from the organizer overview before check-in, which releases the confirmed spot without promising an automatic refund.",
+      "Organizers can also cancel a participant's confirmed registration from the organizer overview before check-in, which releases the confirmed spot and submits a Stripe refund when the paid registration has a stored Stripe payment reference.",
     );
     expect(source).toContain(
-      'Paid registration transfer shows as unavailable in the organizer overview until the manual refund or resale money flow is handled.',
+      'Older or manually seeded payment records still create a pending manual refund record for organizer follow-up.',
+    );
+    expect(source).toContain(
+      'Paid registration transfer shows as unavailable in the organizer overview until the resale money flow is handled.',
     );
     expect(source).toContain(
       'It does not currently include attendee export, attendee messaging, manual check-in controls outside QR scanning',
