@@ -2740,6 +2740,13 @@ implement those decisions or explicitly revise them there before changing code.
   remaining Browser pass and a local source guard so the queue keeps naming the
   natural app-flow order, the durable Playwright/docs anchors, the live ESNcard
   command, and the real remaining Browser/live-provider blockers.
+- TanStack guard CI checkpoint: GitHub's PR check rollup is green on commit
+  `d05e6a39`, including the full Playwright E2E functional + docs job, after
+  replacing the last app-template `query.status() === "pending"` branches with
+  boolean `query.isPending()` checks. Local Docker remains healthy on port 4577
+  and `/events` returns HTTP 200. Manual Browser review is still blocked
+  outside the app runtime: both the in-app Browser path and the fallback
+  Playwright browser MCP now fail before navigation with `Transport closed`.
 
 ## Browser Review Queue
 
