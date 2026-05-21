@@ -60,7 +60,16 @@ describe('generated docs source current behavior', () => {
         nodePath.join(repositoryRoot, 'tests/docs/admin/global-admin.doc.ts'),
       ),
     ).toBe(false);
+    expect(
+      existsSync(
+        nodePath.join(
+          repositoryRoot,
+          'tests/docs/events/unlisted-admin.doc.ts',
+        ),
+      ),
+    ).toBe(false);
     expect(inventorySource).not.toContain('docs/admin/global-admin.doc.ts');
+    expect(inventorySource).not.toContain('docs/events/unlisted-admin.doc.ts');
   });
 
   it('keeps profile docs aligned with implemented account and event-card behavior', () => {

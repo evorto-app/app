@@ -1466,7 +1466,7 @@ the current working direction until a product decision overrides them.
   general-settings persistence for editable brand asset URLs, SEO copy, hosted
   legal text, external legal URLs, receipt-country settings, and ESNcard
   provider buy-link settings with explicit database readback.
-- `helpers/testing/generated-docs-source.spec.ts` verifies product docs are not
+- `helpers/testing/generated-documentation-source.spec.ts` verifies product docs are not
   generated for global-admin functionality. It also keeps profile/account docs
   aligned with implemented notification-email semantics,
   global reimbursement details, event-card routing/check-in copy, submitted
@@ -2807,15 +2807,15 @@ implement those decisions or explicitly revise them there before changing code.
   keeps account-creation validation discoverable without forcing the full
   integration suite.
 - Latest PR readiness checkpoint: GitHub is green on
-  `0d5c1b74de5db7504f2bd833c2e0859adae1a18d`, including Analyze, CodeQL, Git
+  `33b163773afeafd93716a21b52ca253ef273a544`, including Analyze, CodeQL, Git
   Town branch stack, CodeRabbit status, and the split Playwright E2E matrix.
   The E2E workflow now runs separate `Playwright E2E (functional)` and
   `Playwright E2E (docs)` jobs. Each job still performs the full dependency
   install, Chromium-only Playwright browser install, Docker image pull/build,
   Docker stack startup, app container startup, app readiness, Docker log
   collection, stack shutdown, and artifact upload path for its own suite, but
-  the long Playwright phases run in parallel. The docs job completed in 7m25s,
-  the functional job completed in 15m18s, and the workflow wall time was gated
+  the long Playwright phases run in parallel. The docs job completed in 9m16s,
+  the functional job completed in 13m31s, and the workflow wall time was gated
   by the functional job instead of serially running docs afterward. The PR has
   no unresolved review threads at this checkpoint. It remains draft because
   paid transfer/resale money movement still needs a human settlement-model

@@ -32,7 +32,6 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - docs/events/event-approval.doc.ts
   - docs/events/event-management.doc.ts
   - docs/events/register.doc.ts [stripe]
-  - docs/events/unlisted-admin.doc.ts
   - docs/events/unlisted-user.doc.ts
   - docs/finance/finance-overview.doc.ts [finance]
   - docs/finance/inclusive-tax-rates.doc.ts [finance]
@@ -262,7 +261,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   entry, so new fixture-state gaps do not become silent placeholders.
   It also rejects fixed `.waitForTimeout(...)` waits in specs and generated
   docs, keeping those flows tied to concrete UI state.
-- `helpers/testing/generated-docs-source.spec.ts` keeps tenant general-settings
+- `helpers/testing/generated-documentation-source.spec.ts` keeps tenant general-settings
   docs aligned with implemented brand-asset uploads and hosted legal routes,
   verifies product docs are not generated for global-admin functionality, and
   keeps profile/account docs aligned with implemented
