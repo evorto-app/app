@@ -53,6 +53,7 @@ describe('stabilization source', () => {
     expect(queue).toContain('tests/specs/events/unlisted-visibility.test.ts');
     expect(queue).toContain('tests/docs/events/register.doc.ts');
     expect(queue).toContain('tests/docs/profile/*.doc.ts');
+    expect(queue).toContain('bun run test:e2e:create-account');
     expect(queue).toContain('tests/specs/admin/global-admin-tenants.spec.ts');
     expect(queue).toContain(
       'tests/specs/permissions/global-admin-route-guard.spec.ts',
