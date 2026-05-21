@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { ConfigProvider, Effect } from 'effect';
 
 import * as schema from '../../../src/db/schema';
@@ -19,7 +19,6 @@ test('creates tenant account for a new Auth0 user @needs-auth0-management', asyn
   newUser,
   page,
   roles,
-  tenant,
 }) => {
   test.skip(
     !hasManagementEnvironment,
@@ -108,7 +107,7 @@ test('creates tenant account for a new Auth0 user @needs-auth0-management', asyn
     });
 
     const tenantUser = await database.query.usersToTenants.findFirst({
-      where: { tenantId: tenant.id, userId: createdUser.id },
+      where: { userId: createdUser.id },
     });
     if (!tenantUser) {
       throw new Error('Expected account creation to join the current tenant');
@@ -120,7 +119,24 @@ test('creates tenant account for a new Auth0 user @needs-auth0-management', asyn
     });
     expect(roleAssignments.length).toBeGreaterThan(0);
   } finally {
-    if (createdTenantUserId) {
+    if (createdUserId) {
+      const tenantUsers = await database.query.usersToTenants.findMany({
+        columns: { id: true },
+        where: { userId: createdUserId },
+      });
+      const tenantUserIds = tenantUsers.map((tenantUser) => tenantUser.id);
+
+      if (tenantUserIds.length > 0) {
+        await database
+          .delete(schema.rolesToTenantUsers)
+          .where(
+            inArray(schema.rolesToTenantUsers.userTenantId, tenantUserIds),
+          );
+        await database
+          .delete(schema.usersToTenants)
+          .where(eq(schema.usersToTenants.userId, createdUserId));
+      }
+    } else if (createdTenantUserId) {
       await database
         .delete(schema.rolesToTenantUsers)
         .where(eq(schema.rolesToTenantUsers.userTenantId, createdTenantUserId));

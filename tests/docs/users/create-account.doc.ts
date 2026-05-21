@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { ConfigProvider, Effect } from 'effect';
 
 import * as schema from '../../../src/db/schema';
@@ -92,7 +92,6 @@ test('Create your account @needs-auth0-management', async ({
   newUser,
   page,
   roles,
-  tenant,
 }, testInfo) => {
   test.skip(
     !hasManagementEnvironment,
@@ -202,7 +201,7 @@ If the same global login already exists for another tenant, this step joins the 
     });
 
     const tenantUser = await database.query.usersToTenants.findFirst({
-      where: { tenantId: tenant.id, userId: createdUser.id },
+      where: { userId: createdUser.id },
     });
     if (!tenantUser) {
       throw new Error('Expected account creation docs to join current tenant');
@@ -219,7 +218,24 @@ If the same global login already exists for another tenant, this step joins the 
 You should now be on your profile page for the current tenant. From here you can review your profile, manage discount cards when the tenant supports them, and register for events.`,
     });
   } finally {
-    if (createdTenantUserId) {
+    if (createdUserId) {
+      const tenantUsers = await database.query.usersToTenants.findMany({
+        columns: { id: true },
+        where: { userId: createdUserId },
+      });
+      const tenantUserIds = tenantUsers.map((tenantUser) => tenantUser.id);
+
+      if (tenantUserIds.length > 0) {
+        await database
+          .delete(schema.rolesToTenantUsers)
+          .where(
+            inArray(schema.rolesToTenantUsers.userTenantId, tenantUserIds),
+          );
+        await database
+          .delete(schema.usersToTenants)
+          .where(eq(schema.usersToTenants.userId, createdUserId));
+      }
+    } else if (createdTenantUserId) {
       await database
         .delete(schema.rolesToTenantUsers)
         .where(eq(schema.rolesToTenantUsers.userTenantId, createdTenantUserId));

@@ -11,12 +11,12 @@ const testInventoryPath = join(testsRoot, 'test-inventory.md');
 
 const allowedPlaywrightSkipEntries = [
   {
-    entry: 'tests/docs/users/create-account.doc.ts:97:test.skip',
+    entry: 'tests/docs/users/create-account.doc.ts:96:test.skip',
     reason:
       'Auth0 Management credentials are required for the integration doc.',
   },
   {
-    entry: 'tests/specs/profile/create-account.spec.ts:24:test.skip',
+    entry: 'tests/specs/profile/create-account.spec.ts:23:test.skip',
     reason:
       'Auth0 Management credentials are required for create-account integration coverage.',
   },
