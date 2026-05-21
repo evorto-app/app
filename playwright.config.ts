@@ -66,14 +66,18 @@ const webServer = (() => {
   } as const;
 })();
 
+const listOnly = process.argv.includes('--list');
+
 // Configure reporters: avoid blocking HTML server opening; prefer terminal output
 const reporters = environment.CI
   ? [['github'], ['dot']]
-  : [
-      ['html', { open: 'never' }],
-      ['dot'],
-      ['./tests/support/reporters/documentation-reporter.ts'],
-    ];
+  : listOnly
+    ? [['dot']]
+    : [
+        ['html', { open: 'never' }],
+        ['dot'],
+        ['./tests/support/reporters/documentation-reporter.ts'],
+      ];
 
 export default defineConfig({
   /* Fail the build on CI if you accidentally left test.only in the source code. */

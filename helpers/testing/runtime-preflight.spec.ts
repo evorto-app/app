@@ -236,6 +236,23 @@ describe('evaluateRuntimePreflight', () => {
     );
   });
 
+  it('keeps Playwright list discovery away from file-writing reporters', () => {
+    const playwrightConfig = fs.readFileSync(
+      path.join(process.cwd(), 'playwright.config.ts'),
+      'utf8',
+    );
+
+    expect(playwrightConfig).toContain(
+      "const listOnly = process.argv.includes('--list');",
+    );
+    expect(playwrightConfig).toContain(': listOnly');
+    expect(playwrightConfig).toContain("? [['dot']]");
+    expect(playwrightConfig).toContain("['html', { open: 'never' }]");
+    expect(playwrightConfig).toContain(
+      "['./tests/support/reporters/documentation-reporter.ts']",
+    );
+  });
+
   it('keeps required Docker variables wired into Compose services', () => {
     const composeFile = fs.readFileSync(
       path.join(process.cwd(), 'docker-compose.yml'),
