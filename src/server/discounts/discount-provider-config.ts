@@ -35,8 +35,15 @@ export const normalizeEsnCardConfig = (
       buyEsnCardUrl?: unknown;
     }
   ).buyEsnCardUrl;
+  const maybeValidationMode = (
+    config as {
+      validationMode?: unknown;
+    }
+  ).validationMode;
+  const validationMode =
+    maybeValidationMode === 'test' ? { validationMode: 'test' as const } : {};
   if (maybeBuyUrl === undefined || maybeBuyUrl === null) {
-    return {};
+    return validationMode;
   }
 
   const rejectInvalidUrl = options?.rejectInvalidUrl ?? false;
@@ -44,12 +51,12 @@ export const normalizeEsnCardConfig = (
     if (rejectInvalidUrl) {
       throw new InvalidDiscountProviderConfigError();
     }
-    return {};
+    return validationMode;
   }
 
   const trimmedBuyUrl = maybeBuyUrl.trim();
   if (trimmedBuyUrl.length === 0) {
-    return {};
+    return validationMode;
   }
 
   const normalizedBuyUrl = parseBuyEsnCardUrl(trimmedBuyUrl);
@@ -57,8 +64,8 @@ export const normalizeEsnCardConfig = (
     if (rejectInvalidUrl) {
       throw new InvalidDiscountProviderConfigError();
     }
-    return {};
+    return validationMode;
   }
 
-  return { buyEsnCardUrl: normalizedBuyUrl };
+  return { buyEsnCardUrl: normalizedBuyUrl, ...validationMode };
 };

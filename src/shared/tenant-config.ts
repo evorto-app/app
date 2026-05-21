@@ -5,6 +5,7 @@ import {
 
 export interface EsnCardProviderConfig {
   buyEsnCardUrl?: string;
+  validationMode?: 'live' | 'test';
 }
 
 export type EsnCardProviderStatus = 'disabled' | 'enabled';
@@ -39,6 +40,7 @@ export const resolveTenantDiscountProviders = (
         esnCard: {
           config?: {
             buyEsnCardUrl?: string;
+            validationMode?: 'live' | 'test';
           };
           status?: EsnCardProviderStatus;
         };
@@ -48,10 +50,21 @@ export const resolveTenantDiscountProviders = (
   const defaults = createDefaultTenantDiscountProviders();
   const buyEsnCardUrl =
     configuredProviders?.esnCard?.config?.buyEsnCardUrl?.trim() || undefined;
+  const validationMode: EsnCardProviderConfig['validationMode'] | undefined =
+    configuredProviders?.esnCard?.config?.validationMode === 'test'
+      ? 'test'
+      : undefined;
+  const config: EsnCardProviderConfig = {};
+  if (buyEsnCardUrl) {
+    config.buyEsnCardUrl = buyEsnCardUrl;
+  }
+  if (validationMode) {
+    config.validationMode = validationMode;
+  }
 
   return {
     esnCard: {
-      config: buyEsnCardUrl ? { buyEsnCardUrl } : {},
+      config,
       status:
         configuredProviders?.esnCard?.status === 'enabled'
           ? 'enabled'

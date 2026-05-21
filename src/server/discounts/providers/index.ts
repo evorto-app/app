@@ -1,3 +1,4 @@
+import { literalUnion } from '@shared/schema-utilities';
 import { Schema } from 'effect';
 
 export interface ProviderAdapter<TConfig> {
@@ -44,6 +45,7 @@ const isValidDate = (date: Date): boolean => !Number.isNaN(date.getTime());
 const EsnConfig = Schema.Struct({
   apiKey: Schema.NonEmptyString,
   apiUrl: Schema.NonEmptyString,
+  validationMode: Schema.optional(literalUnion('live', 'test')),
 });
 
 export const PROVIDERS: Record<ProviderType, ProviderConfig> = {
@@ -118,10 +120,61 @@ export const validateEsnCard = async ({
   }
 };
 
+const testEsnCardValidTo = new Date('2099-12-31T00:00:00.000Z');
+
+const testEsnCardResultByIdentifier: Record<string, ValidationResult> = {
+  TESTESN0001: {
+    metadata: { provider: 'evorto-test-mode', status: 'active' },
+    status: 'verified',
+    validTo: testEsnCardValidTo,
+  },
+  TESTESNEXPIRE: {
+    metadata: { provider: 'evorto-test-mode', status: 'expired' },
+    status: 'expired',
+  },
+  TESTESNINVALID: {
+    metadata: { provider: 'evorto-test-mode', status: 'invalid' },
+    status: 'invalid',
+  },
+  TESTESNUNVERIF: {
+    metadata: { provider: 'evorto-test-mode', status: 'unverified' },
+    status: 'unverified',
+  },
+  TESTESNVERIFY: {
+    metadata: { provider: 'evorto-test-mode', status: 'active' },
+    status: 'verified',
+    validTo: testEsnCardValidTo,
+  },
+};
+
+const isTestModeConfig = (config: unknown): boolean =>
+  !!config &&
+  typeof config === 'object' &&
+  (config as { validationMode?: unknown }).validationMode === 'test';
+
+export const validateTestEsnCard = ({
+  identifier,
+}: {
+  identifier: string;
+}): ValidationResult => {
+  if (identifier === 'TESTESNDOWN') {
+    throw new ProviderValidationUnavailableError(
+      'ESNcard validation test provider is unavailable',
+      'unavailable',
+    );
+  }
+
+  return testEsnCardResultByIdentifier[identifier] ?? { status: 'invalid' };
+};
+
 export const Adapters: Partial<Record<ProviderType, ProviderAdapter<unknown>>> =
   {
     esnCard: {
-      async validate({ identifier }) {
+      async validate({ config, identifier }) {
+        if (isTestModeConfig(config)) {
+          return validateTestEsnCard({ identifier });
+        }
+
         return validateEsnCard({ identifier });
       },
     },

@@ -1,22 +1,18 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, or } from 'drizzle-orm';
 
 import { userStateFile, usersToAuthenticate } from '../../../helpers/user-data';
 import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
 
-const liveEsnCardIdentifier =
-  process.env['E2E_LIVE_ESN_CARD_IDENTIFIER']?.trim();
 const seededEsnCardIdentifier = 'TEST-ESN-0001';
+const verifiedEsnCardIdentifier = 'TESTESNVERIFY';
+const unavailableEsnCardIdentifier = 'TESTESNDOWN';
 
 test.setTimeout(120_000);
 
 test.use({ storageState: userStateFile });
-test.skip(
-  !liveEsnCardIdentifier,
-  'E2E_LIVE_ESN_CARD_IDENTIFIER is required for live ESNcard provider coverage',
-);
 
-test('adds, refreshes, and removes a live ESN card @needs-live-esncard', async ({
+test('adds, refreshes, and removes a deterministic provider ESN card @esncard-provider', async ({
   database,
   discounts,
   page,
@@ -60,9 +56,24 @@ test('adds, refreshes, and removes a live ESN card @needs-live-esncard', async (
     await database
       .delete(schema.userDiscountCards)
       .where(
-        and(
-          eq(schema.userDiscountCards.userId, regularUser.id),
-          eq(schema.userDiscountCards.type, 'esnCard'),
+        or(
+          and(
+            eq(schema.userDiscountCards.userId, regularUser.id),
+            eq(schema.userDiscountCards.type, 'esnCard'),
+          ),
+          and(
+            eq(schema.userDiscountCards.identifier, verifiedEsnCardIdentifier),
+            eq(schema.userDiscountCards.userId, regularUser.id),
+            eq(schema.userDiscountCards.type, 'esnCard'),
+          ),
+          and(
+            eq(
+              schema.userDiscountCards.identifier,
+              unavailableEsnCardIdentifier,
+            ),
+            eq(schema.userDiscountCards.userId, regularUser.id),
+            eq(schema.userDiscountCards.type, 'esnCard'),
+          ),
         ),
       );
 
@@ -75,24 +86,42 @@ test('adds, refreshes, and removes a live ESN card @needs-live-esncard', async (
 
     await page
       .getByRole('textbox', { name: 'ESN card number' })
-      .fill(liveEsnCardIdentifier!);
+      .fill(unavailableEsnCardIdentifier);
     await page.getByRole('button', { name: 'Save ESN card' }).click();
 
-    await expect(page.getByText(liveEsnCardIdentifier!)).toBeVisible({
+    await expect(
+      page.getByText('Could not validate ESN card right now. Try again later.'),
+    ).toBeVisible({ timeout: 20_000 });
+    expect(
+      await database.query.userDiscountCards.findFirst({
+        where: {
+          identifier: unavailableEsnCardIdentifier,
+          type: 'esnCard',
+          userId: regularUser.id,
+        },
+      }),
+    ).toBeUndefined();
+
+    await page
+      .getByRole('textbox', { name: 'ESN card number' })
+      .fill(verifiedEsnCardIdentifier);
+    await page.getByRole('button', { name: 'Save ESN card' }).click();
+
+    await expect(page.getByText(verifiedEsnCardIdentifier)).toBeVisible({
       timeout: 20_000,
     });
     await expect(page.getByText(/Status: Verified/)).toBeVisible();
 
     const savedCard = await database.query.userDiscountCards.findFirst({
       where: {
-        identifier: liveEsnCardIdentifier!,
+        identifier: verifiedEsnCardIdentifier,
         type: 'esnCard',
         userId: regularUser.id,
       },
     });
     expect(savedCard).toEqual(
       expect.objectContaining({
-        identifier: liveEsnCardIdentifier,
+        identifier: verifiedEsnCardIdentifier,
         status: 'verified',
         type: 'esnCard',
         userId: regularUser.id,
@@ -107,14 +136,14 @@ test('adds, refreshes, and removes a live ESN card @needs-live-esncard', async (
 
     const refreshedCard = await database.query.userDiscountCards.findFirst({
       where: {
-        identifier: liveEsnCardIdentifier!,
+        identifier: verifiedEsnCardIdentifier,
         type: 'esnCard',
         userId: regularUser.id,
       },
     });
     expect(refreshedCard).toEqual(
       expect.objectContaining({
-        identifier: liveEsnCardIdentifier,
+        identifier: verifiedEsnCardIdentifier,
         status: 'verified',
         type: 'esnCard',
         userId: regularUser.id,
@@ -129,7 +158,7 @@ test('adds, refreshes, and removes a live ESN card @needs-live-esncard', async (
 
     const removedCard = await database.query.userDiscountCards.findFirst({
       where: {
-        identifier: liveEsnCardIdentifier!,
+        identifier: verifiedEsnCardIdentifier,
         type: 'esnCard',
         userId: regularUser.id,
       },

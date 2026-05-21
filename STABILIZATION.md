@@ -6,18 +6,18 @@ and useful for small cleanup batches.
 
 ## Review Status
 
-| Area                                            | Status     | Confidence | Notes                                                                                                                                                           |
-| ----------------------------------------------- | ---------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Events                                          | Stabilized | high       | Docker-backed specs/docs cover browsing, creation, management, unlisted visibility, registration state, price labels, scanner handoff, and refund copy.         |
-| Registrations                                   | Stabilized | high       | Free/paid registration, guests, add-ons, waitlist, negative states, cancellation/refund, and transfer boundaries have server, app, spec, and docs coverage.     |
-| Templates                                       | Stabilized | high       | Simple-mode templates now cover planning tips, ESNcard discounts, reusable add-ons/questions, role pickers, tax-rate behavior, and event creation copy paths.   |
-| Roles and permissions                           | Stabilized | high       | Route denial, role lookup, role management, permission metadata, tenant isolation, and user-list deferral are pinned by source, unit, spec, and docs coverage.  |
-| Finance/receipts                                | Stabilized | high       | Finance navigation, transaction visibility, receipt review, reimbursement recording, receipt submission, and refund boundaries have deterministic coverage.     |
-| Scanning/check-in                               | Stabilized | high       | QR scanner reads, selected guest check-in, later guest arrival, idempotent counters, and organizer aggregates are covered by specs/docs against Docker.         |
-| Profile/account flows                           | Stabilized | partial    | Profile edit, event cards, receipts, account creation contracts, and seeded ESNcard behavior are covered; live external ESNcard writes remain credential-gated. |
-| Tenant/global admin                             | Stabilized | high       | Tenant settings and global-admin list/detail/create/edit are covered for the one-primary-domain relaunch scope; custom-domain automation remains deferred.      |
-| Generated documentation and Playwright coverage | Stabilized | high       | Docs/spec inventory, skip gates, source guards, list mode, and generated-doc runtime flows are current and fail loudly for known fixture gaps.                  |
-| Local runtime/developer workflow                | Stabilized | partial    | Docker, env preflight, CI, and Font Awesome token paths are healthy; in-app Browser control still times out before manual review can run.                       |
+| Area                                            | Status     | Confidence | Notes                                                                                                                                                          |
+| ----------------------------------------------- | ---------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Events                                          | Stabilized | high       | Docker-backed specs/docs cover browsing, creation, management, unlisted visibility, registration state, price labels, scanner handoff, and refund copy.        |
+| Registrations                                   | Stabilized | high       | Free/paid registration, guests, add-ons, waitlist, negative states, cancellation/refund, and transfer boundaries have server, app, spec, and docs coverage.    |
+| Templates                                       | Stabilized | high       | Simple-mode templates now cover planning tips, ESNcard discounts, reusable add-ons/questions, role pickers, tax-rate behavior, and event creation copy paths.  |
+| Roles and permissions                           | Stabilized | high       | Route denial, role lookup, role management, permission metadata, tenant isolation, and user-list deferral are pinned by source, unit, spec, and docs coverage. |
+| Finance/receipts                                | Stabilized | high       | Finance navigation, transaction visibility, receipt review, reimbursement recording, receipt submission, and refund boundaries have deterministic coverage.    |
+| Scanning/check-in                               | Stabilized | high       | QR scanner reads, selected guest check-in, later guest arrival, idempotent counters, and organizer aggregates are covered by specs/docs against Docker.        |
+| Profile/account flows                           | Stabilized | partial    | Profile edit, event cards, receipts, account creation contracts, seeded ESNcard behavior, and deterministic ESNcard provider outcomes are covered.             |
+| Tenant/global admin                             | Stabilized | high       | Tenant settings and global-admin list/detail/create/edit are covered for the one-primary-domain relaunch scope; custom-domain automation remains deferred.     |
+| Generated documentation and Playwright coverage | Stabilized | high       | Docs/spec inventory, skip gates, source guards, list mode, and generated-doc runtime flows are current and fail loudly for known fixture gaps.                 |
+| Local runtime/developer workflow                | Stabilized | partial    | Docker, env preflight, CI, and Font Awesome token paths are healthy; in-app Browser control still times out before manual review can run.                      |
 
 ## Product Decision Draft
 
@@ -1286,16 +1286,20 @@ the current working direction until a product decision overrides them.
   copy without calling the external provider. Its page-backed journey asserts
   direct `#discounts` routing, the seeded verified ESNcard identifier/status,
   visible refresh/remove actions, the invalid-card-number save guard, and that
-  invalid input leaves the seeded card row unchanged. It still does not call the
-  external ESNcard provider for live add/refresh/remove outcomes.
+  invalid input leaves the seeded card row unchanged.
+- `tests/specs/profile/user-profile-esncard-provider.spec.ts` functionally
+  covers deterministic ESNcard provider add, refresh, remove, and
+  provider-unavailable outcomes with tenant-scoped provider test mode. The
+  provider test identifiers are explicit (`TESTESNVERIFY`, `TESTESNEXPIRE`,
+  `TESTESNINVALID`, `TESTESNUNVERIF`, and `TESTESNDOWN`) so the path behaves like Stripe test mode instead of
+  relying on a reusable live esncard.org card.
 - `tests/specs/profile/user-profile-discounts.spec.ts` functionally covers the
   same seeded profile discount-card state from a direct `#discounts` link,
   including verified-card display, refresh/remove action visibility, seeded
   card database readback, and the invalid-card-number save guard.
 - `tests/specs/discounts/esn-discounts.test.ts` verifies a seeded verified ESNcard affects paid event price labels and the register button copy.
-- No reviewed Playwright spec proves live profile discount-card
-  add/refresh/remove provider outcomes or browser-level account creation
-  fallback behavior without Auth0 Management credentials. Local helper/server
+- No reviewed Playwright spec proves browser-level account creation fallback
+  behavior without Auth0 Management credentials. Local helper/server
   coverage now pins the visible profile/account copy and action states that can
   be verified without page-backed runtime, the create-account docs include a
   baseline helper-backed account-creation note, the discounts docs assert
@@ -1327,7 +1331,9 @@ the current working direction until a product decision overrides them.
 - `src/app/app.routes.spec.ts` pins the relaunch route contract that public event browsing uses only account-assignment checks, feature areas require assigned authenticated accounts, `/create-account` stays auth-only for tenantless authenticated users, and `/global-admin` remains auth-only before tenant assignment checks.
 - `src/app/core/create-account/create-account.helpers.spec.ts` covers Auth0-data prefill fallback, explicit email-verification gating, create-account submit payload normalization, retryable submit disabled state, and create-account error message mapping without needing Auth0 Management credentials.
 - `src/shared/rpc-contracts/app-rpcs/users.rpcs.spec.ts` covers notification email format validation at the account-creation and profile-update RPC boundary, matching the create-account and profile-edit form validation.
-- `src/server/discounts/providers/index.spec.ts` covers ESNcard provider validation parsing and provider-unavailable distinction without hitting the external provider.
+- `src/server/discounts/providers/index.spec.ts` covers ESNcard provider
+  validation parsing, provider-unavailable distinction, and deterministic
+  tenant-scoped provider test mode without hitting the external provider.
 - `src/server/effect/rpc/handlers/discounts.handlers.spec.ts` covers global-per-user ESNcard reads, updating an existing global user card from another tenant context, refresh revalidation persistence, provider-outage upsert rejection without mutating the stored card, and current-user/type-scoped card removal.
 - `src/server/effect/rpc/handlers/users.handlers.spec.ts` covers `users.events` tenant/user scoping, cancelled-registration exclusion, sorting, checkout URLs, check-in timestamps, guest counts, and payment-state mapping, plus `users.findMany` role aggregation, account creation transactionality, existing-global-user tenant joining, duplicate tenant-assignment conflict behavior, profile update persistence, and `users.userAssigned` behavior.
 - **Docker profile/account runtime pass:** with the Docker stack healthy on local
@@ -1338,12 +1344,9 @@ the current working direction until a product decision overrides them.
   `tests/specs/profile/user-profile-discounts.spec.ts`,
   `tests/specs/discounts/esn-discounts.test.ts`,
   `tests/docs/profile/user-profile.doc.ts`,
-  and `tests/docs/profile/discounts.doc.ts` passed. The main checkout and
-  worktree env files currently provide the core Auth0, Stripe, Cloudflare,
-  Neon, session, and Font Awesome variables, but not
-  `E2E_LIVE_ESN_CARD_IDENTIFIER`, so live ESNcard provider add/refresh/remove
-  remains an explicit credential-gated integration path rather than
-  deterministic baseline coverage. The in-app Browser attempt to open
+  and `tests/docs/profile/discounts.doc.ts` passed. The deterministic provider
+  test-mode path now covers ESNcard add/refresh/remove outcomes without a live
+  identifier. The in-app Browser attempt to open
   `/profile#discounts` still timed out before returning usable page state, so
   manual Browser review remains a tooling/runtime follow-up rather than an
   uncovered Playwright behavior gap.
@@ -1363,7 +1366,7 @@ the current working direction until a product decision overrides them.
 - Keep profile event-card coverage aligned with
   route/status/guest/add-on/payment/ticket/check-in labels and rerun it during
   manual runtime review once in-app Browser navigation is available.
-- Keep the credential-gated live ESNcard profile spec aligned with
+- Keep the deterministic ESNcard provider profile spec aligned with
   add/refresh/remove provider validation outcomes. Local app/server coverage
   already proves upsert payload normalization, readable mutation errors, global
   card reads/upserts, refresh persistence, scoped removal, and generated docs
@@ -1619,7 +1622,13 @@ the current working direction until a product decision overrides them.
   the partial guest-arrival case where the buyer and one guest were already
   checked in, then a later scan records the remaining guest without re-counting
   the buyer.
-- **Remaining runtime review:** live provider-backed profile discount add/refresh/remove outcomes still need Browser review once local runtime and provider credentials are available. Local docs/spec coverage now pins seeded verified-card display, direct `#discounts` routing, refresh/remove action visibility, invalid-input blocking, readable statuses, pending labels, shared write guards, and provider-unavailable retry copy without calling the external provider.
+- **Remaining runtime review:** profile discount add/refresh/remove outcomes still
+  need Browser review once Browser transport is available. Local docs/spec
+  coverage now pins seeded verified-card display, direct `#discounts` routing,
+  refresh/remove action visibility, invalid-input blocking, readable statuses,
+  pending labels, shared write guards, deterministic provider test-mode
+  add/refresh/remove, and provider-unavailable retry copy without calling the
+  external provider.
 - **Addressed in stabilization pass:** the generic `tests/docs/template.doc.ts` discovery placeholder was removed; current template documentation lives in `tests/docs/templates/templates.doc.ts`.
 - **Addressed in stabilization pass:** the focused `docScreenshot` helper now
   resolves `DOCS_IMG_OUT_DIR` at call time instead of import time, so tests and
@@ -1692,7 +1701,7 @@ the current working direction until a product decision overrides them.
   `test:e2e:docs`, `db:*`, and `docker:*` scripts now refresh `.env.dev`
   before running `dotenv -c dev`, reducing fresh-worktree and wrong-database
   risk.
-- Docker Compose uses Neon Local, MinIO, Stripe CLI, a one-shot `db-setup` service, and an `evorto` app container. `db-setup` clears the Docker database `public` schema before Drizzle pushes schema so reset-from-zero startup stays non-interactive even when Neon Local reuses older branch state. `bun run docker:check` verifies required local secrets before any Docker start command tears down or starts containers, and now also reports optional live-provider inputs, Bun, Docker Compose, Compose config, Playwright CLI, `.env.dev`, and Playwright browser-cache readiness.
+- Docker Compose uses Neon Local, MinIO, Stripe CLI, a one-shot `db-setup` service, and an `evorto` app container. `db-setup` clears the Docker database `public` schema before Drizzle pushes schema so reset-from-zero startup stays non-interactive even when Neon Local reuses older branch state. `bun run docker:check` verifies required local secrets before any Docker start command tears down or starts containers, and now also reports Bun, Docker Compose, Compose config, Playwright CLI, `.env.dev`, and Playwright browser-cache readiness.
 - SSR app routes respond to lightweight `GET` and `HEAD` probes. This keeps
   browser-facing app pages useful for health checks and local reachability
   checks without requiring a full page body download.
@@ -1721,7 +1730,7 @@ the current working direction until a product decision overrides them.
   `docker:webserver`, a foreground Compose command that keeps the preflight and
   build/start behavior but does not force `docker compose down` first.
 - **Addressed in stabilization pass:** `bun run docker:resume` now provides a non-recreating resume path for an already initialized Docker stack, while `docker:start`, `docker:start:foreground`, and `docker:start:watch` keep the explicit reset-from-zero behavior.
-- **Addressed in this stabilization pass:** `bun run docker:check` reports missing Neon Local, Auth0, Stripe, session, and Font Awesome registry variables before Docker Compose mutates local containers. Docker now writes the same Font Awesome registry scopes as the checked-in `.npmrc`, so premium and brand icon packages can use the same build-secret token path. It also reports optional live-provider inputs, local tool readiness, and warns when Playwright browsers are missing without blocking Docker start. The Compose-managed Stripe CLI listener writes its generated webhook signing secret into a shared volume and the app reads it through `STRIPE_WEBHOOK_SECRET_FILE`, so a static `STRIPE_WEBHOOK_SECRET` is no longer a Docker-start blocker. After reusing the main checkout's untracked `.env` secrets locally, this worktree's Docker preflight passes with all required runtime variables present while still showing that live ESNcard provider coverage needs `E2E_LIVE_ESN_CARD_IDENTIFIER`.
+- **Addressed in this stabilization pass:** `bun run docker:check` reports missing Neon Local, Auth0, Stripe, session, and Font Awesome registry variables before Docker Compose mutates local containers. Docker now writes the same Font Awesome registry scopes as the checked-in `.npmrc`, so premium and brand icon packages can use the same build-secret token path. It also reports local tool readiness and warns when Playwright browsers are missing without blocking Docker start. The Compose-managed Stripe CLI listener writes its generated webhook signing secret into a shared volume and the app reads it through `STRIPE_WEBHOOK_SECRET_FILE`, so a static `STRIPE_WEBHOOK_SECRET` is no longer a Docker-start blocker. After reusing the main checkout's untracked `.env` secrets locally, this worktree's Docker preflight passes with all required runtime variables present.
 - **Addressed in this stabilization pass:** Docker `db-setup` now drops/recreates the `public` schema before `drizzle-kit push --force`, preventing Drizzle's non-TTY confirmation prompt from blocking reset-from-zero startup on older local Neon branch state.
 - **Addressed in this stabilization pass:** the CI Playwright workflow now relies on the Compose `db-setup` service instead of running a separate host `bun run db:push` step, so CI uses the same non-interactive Docker schema reset path as local Docker startup.
 - **Addressed in this stabilization pass:** the CI Playwright workflow now exports and validates `ISSUER_BASE_URL` and `SECRET` before starting the Docker app container, matching the auth config fields required for runtime startup. CI uses the tracked dev Auth0 issuer and a disposable CI session secret as defaults when repository settings do not override them.
@@ -1743,7 +1752,7 @@ the current working direction until a product decision overrides them.
   the network-heavy browser install path.
 - **Addressed in stabilization pass:** `helpers/testing/runtime-preflight.spec.ts` now pins that destructive Docker start scripts call `docker:check` first, required runtime variables are wired into Compose services, and Font Awesome registry access remains available to Docker through the same secret path for premium and brand icon packages.
 - **Addressed in stabilization pass:** `bun run docker:ps` now loads the generated `.env.dev` before running `docker compose ps`, so worktree stack checks use the isolated `COMPOSE_PROJECT_NAME` instead of accidentally inspecting the default Compose project.
-- **Addressed in stabilization pass:** `tests/test-inventory.md` now names its remaining stabilization list as a coverage watchlist instead of implying all listed items are still missing. It explicitly identifies the two hard external blockers: in-app Browser manual review and the live ESNcard provider path gated by `E2E_LIVE_ESN_CARD_IDENTIFIER`.
+- **Addressed in stabilization pass:** `tests/test-inventory.md` now names its remaining stabilization list as a coverage watchlist instead of implying all listed items are still missing. It explicitly identifies in-app Browser manual review as the hard external blocker and routes ESNcard provider outcomes through deterministic provider test mode.
 - **Addressed in stabilization pass:** `QUALITY.md` now records the Browser-blocked fallback rule used during this PR: continue durable Playwright validation when Browser control is unavailable, but do not treat Playwright, screenshots, or system Chrome as a substitute for a requested in-app Browser walkthrough. Source coverage keeps that distinction explicit.
 - **Addressed in this stabilization pass:** remaining Angular Material icon usage for app action icons was removed from the role, event-review, template-list, and template-category surfaces. App source coverage now keeps Angular app icons on the Font Awesome component path, so premium and brand icon packages continue using the same package/token mechanic instead of a separate Material icon registry path.
 - **Addressed in stabilization pass:** `specs/seed/seed-baseline.test.ts` now treats the reset-from-zero seed as a runtime contract: default user/organizer roles, every template seed family, paid/free registration options, paid tax-rate wiring, open/closed/draft/past scenario handles, confirmed registrations, and scanner aggregate data must all exist after seeding.
@@ -1832,10 +1841,10 @@ the current working direction until a product decision overrides them.
 5. Keep profile/account coverage aligned as the flow evolves. Docker-backed
    system-Chrome coverage now proves profile edit persistence, event-card
    payment continuation/ticket/waitlist routing, submitted receipts, and seeded
-   ESNcard discount state. Live external ESNcard add/refresh/remove provider
-   outcomes are represented by the integration-tagged
-   `specs/profile/user-profile-live-esncard.spec.ts` path, which requires
-   `E2E_LIVE_ESN_CARD_IDENTIFIER` and stays out of deterministic baseline CI.
+   ESNcard discount state. ESNcard add/refresh/remove and
+   provider-unavailable outcomes are represented by the baseline
+   `specs/profile/user-profile-esncard-provider.spec.ts` path through
+   deterministic provider test mode.
 6. Fill the remaining tenant settings implementation gap for automated onboarding/domain workflows. The current general-settings page exposes SEO fields, uploaded or externally hosted logo/favicon URLs, tenant legal links or hosted legal text, editable supported locale/currency/timezone values, read-only runtime identity, and a visible deferred-settings summary. The current global-admin surface supports a searchable tenant list, tenant create/edit, and tenant detail review, while custom-domain verification, multi-domain automation, and impersonation remain out of scope.
 7. Keep `docker:start` reset behavior intentional, use `docker:resume` only for existing local stacks, and ensure seeded data is sufficient to get going from zero.
 
@@ -2085,10 +2094,9 @@ implement those decisions or explicitly revise them there before changing code.
 - Playwright skip-inventory pass: added a local unit guard that allowlists every
   current Playwright `test.skip` and `test.fixme`, keeping future fixture-state
   gaps from becoming silent placeholders.
-- Playwright active-inventory pass: added
-  `tests/specs/profile/user-profile-live-esncard.spec.ts` to the active
-  inventory, clarified that functional coverage includes both `.spec.ts` and
-  `.test.ts` files, and extended the local inventory guard so
+- Playwright active-inventory pass: added the ESNcard provider spec to the
+  active inventory, clarified that functional coverage includes both `.spec.ts`
+  and `.test.ts` files, and extended the local inventory guard so
   `tests/test-inventory.md` stays aligned with the Playwright docs/spec files
   on disk.
 - Playwright fixed-wait cleanup pass: replaced remaining shared
@@ -2695,13 +2703,11 @@ implement those decisions or explicitly revise them there before changing code.
   `query.isSuccess()`. The stabilization source guard now scans app templates
   for direct `query.status()` equality checks so new review slices keep using
   the documented TanStack Query narrowing style.
-- Live-provider preflight visibility pass: kept the external esncard.org
-  add/refresh/remove Playwright journey credential-gated, but made
-  `bun run docker:check` list `E2E_LIVE_ESN_CARD_IDENTIFIER` as an optional
-  live-provider input. The current main checkout and worktree do not provide
-  that variable, so deterministic Docker/browser coverage remains the
-  authoritative local baseline until a real card identifier is supplied from
-  local secrets.
+- ESNcard provider test-mode pass: replaced the external esncard.org
+  add/refresh/remove credential gate with tenant-scoped deterministic provider
+  inputs. `bun run test:e2e:esncard-provider` now exercises the profile
+  add/refresh/remove path plus provider-unavailable retry copy without requiring
+  a live card identifier.
 - Event-management docs source-guard refresh: aligned the generated docs source
   guard with the current paid cancellation behavior, where organizer
   cancellation submits a Stripe refund when stored payment references exist and
@@ -2756,22 +2762,18 @@ implement those decisions or explicitly revise them there before changing code.
   available after the stale tab reset attempt, so manual Browser review remains
   blocked outside the app runtime.
 - Playwright inventory recovery pass: after the laptop power loss, PR #62 was
-  still clean and pushed. The active inventory was missing the live ESNcard
-  provider spec even though the skip guard already allowlisted its credential
-  gate, so the inventory now names that spec and has source coverage to prevent
+  still clean and pushed. The active inventory was missing the ESNcard provider
+  spec, so the inventory now names that spec and has source coverage to prevent
   future active-file drift. Local validation passed with `bun run format:write`,
   `bun run lint`,
   `bun run test:unit:server -- helpers/testing/playwright-skip-inventory.spec.ts`,
   and `git diff --check`; GitHub CI passed on commit `8e5867ff`, including the
   full Playwright E2E functional + docs job.
-- Live ESNcard rerun command pass: the in-app Browser retry still could not
+- ESNcard deterministic command pass: the in-app Browser retry still could not
   create or navigate a tab because no active Codex browser pane was available,
-  while Docker stayed healthy and `/events` returned HTTP 200 on local port 4577. The main checkout env files do not currently provide
-  `E2E_LIVE_ESN_CARD_IDENTIFIER`, so the live provider path cannot be executed
-  here yet. Added `bun run test:e2e:live-esncard` as a focused command for the
-  credential-gated profile add/refresh/remove provider path once a valid live
-  identifier is supplied.
-- Live ESNcard command CI checkpoint: GitHub checks passed on commit
+  while Docker stayed healthy and `/events` returned HTTP 200 on local port 4577. Added `bun run test:e2e:esncard-provider` as a focused command for the
+  deterministic profile add/refresh/remove provider path.
+- ESNcard command CI checkpoint: GitHub checks passed on commit
   `d56dc4fd`, including the full Playwright E2E functional + docs job. That run
   built and started the Docker stack, waited for the app, completed the
   functional suite in 10m30s, completed the generated-docs suite in 5m28s,
@@ -2781,8 +2783,8 @@ implement those decisions or explicitly revise them there before changing code.
   so manual Browser review remains blocked outside the app runtime.
 - Browser review queue guard pass: added a compact manual-review queue for the
   remaining Browser pass and a local source guard so the queue keeps naming the
-  natural app-flow order, the durable Playwright/docs anchors, the live ESNcard
-  command, and the real remaining Browser/live-provider blockers.
+  natural app-flow order, the durable Playwright/docs anchors, the ESNcard
+  provider command, and the real remaining Browser blocker.
 - TanStack guard CI checkpoint: GitHub's PR check rollup is green on commit
   `d05e6a39`, including the full Playwright E2E functional + docs job, after
   replacing the last app-template `query.status() === "pending"` branches with
@@ -2813,8 +2815,8 @@ implement those decisions or explicitly revise them there before changing code.
   startup, app readiness, the functional suite, the generated-docs suite,
   Docker log collection, stack shutdown, and artifact uploads. The PR has no
   unresolved review threads at this checkpoint, but remains draft because the
-  requested in-app Browser manual pass and live ESNcard provider validation are
-  still blocked by external runtime/credential availability.
+  requested in-app Browser manual pass is still blocked by external runtime
+  availability.
 
 ## Browser Review Queue
 
@@ -2854,18 +2856,19 @@ layer is already covered by the linked Playwright specs and generated docs.
    `tests/specs/admin/global-admin-tenants.spec.ts`,
    `tests/specs/permissions/global-admin-route-guard.spec.ts`, and
    `tests/docs/admin/global-admin.doc.ts`.
-6. Credential-gated provider checks: only run the live ESNcard add/refresh/remove
-   path when `E2E_LIVE_ESN_CARD_IDENTIFIER` is supplied from local secrets.
-   Use `E2E_LIVE_ESN_CARD_IDENTIFIER=... bun run test:e2e:live-esncard` for
-   durable execution and use Browser only to inspect the live provider UX
-   afterward.
+6. Deterministic provider checks: run the ESNcard add/refresh/remove path with
+   `bun run test:e2e:esncard-provider`
+   (`tests/specs/profile/user-profile-esncard-provider.spec.ts`). It uses
+   tenant-scoped provider test mode and explicit `TESTESN*` inputs for
+   verified and provider-unavailable outcomes; use Browser afterward only for
+   the visible profile UX review.
 
 ## Review Next
 
 All ten first-pass review areas are now represented in this document. The next
 stabilization work should continue with small cleanup commits around the
-remaining review blockers: in-app Browser manual review and live external
-ESNcard provider add/refresh/remove outcomes. Automated custom-domain
+remaining review blocker: in-app Browser manual review. ESNcard provider add/refresh/remove outcomes now use deterministic ESNcard provider test mode.
+Automated custom-domain
 verification, multi-domain onboarding, and tenant impersonation are intentionally
 documented deferred scope for relaunch, not an untested current-app claim.
 Scanner aggregate behavior, profile account/event/receipt/discount-card
@@ -2876,9 +2879,9 @@ clean-tab recovery attempt. The latest retry fails earlier with the
 `Transport closed` error before navigation; the fallback Playwright browser MCP
 path fails the same way.
 It should be retried when the Browser plugin/runtime transport and pane are
-healthy. The ESN discounted-pricing slice also has Docker-backed system-Chrome
-coverage, while live external ESNcard provider outcomes remain intentionally
-outside deterministic local Browser coverage.
+healthy. The ESN discounted-pricing slice and ESNcard provider outcomes now
+have Docker-backed deterministic system-Chrome coverage; Browser still needs to
+inspect the visible profile UX once transport recovers.
 After Docker Desktop restart restored the full local stack, the in-app Browser
 retry still failed with `Transport closed`, confirming the remaining Browser
 blocker is outside the app and Docker runtime.

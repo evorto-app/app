@@ -124,8 +124,8 @@ reports local tooling readiness such as Bun, Docker Compose, Compose config
 validation, Playwright CLI availability, and whether the matching Playwright
 browser cache is installed. Required and optional variables that are already
 available are listed without printing their values, so token paths such as
-Font Awesome registry access and optional live-provider coverage inputs can be
-confirmed even when another required secret still blocks startup. The Docker
+Font Awesome registry access can be confirmed even when another required secret
+still blocks startup. The Docker
 Stripe webhook sidecar is pinned in `docker-compose.yml`; if
 its logs report a newer CLI version, update that image pin and rebuild with
 `APP_HOST_PORT=4200 bun run docker:start` before relying on paid-flow webhook

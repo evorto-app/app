@@ -12,6 +12,7 @@ import {
 export const DiscountProviderRecord = Schema.Struct({
   config: Schema.Struct({
     buyEsnCardUrl: Schema.optional(Schema.NonEmptyString),
+    validationMode: Schema.optional(literalUnion('live', 'test')),
   }),
   status: literalUnion('disabled', 'enabled'),
   type: Schema.Literal('esnCard'),

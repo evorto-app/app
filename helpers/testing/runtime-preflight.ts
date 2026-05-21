@@ -77,13 +77,7 @@ export const requiredByTarget = {
 } satisfies Record<RuntimeTarget, RequiredVariable[]>;
 
 export const optionalByTarget = {
-  docker: [
-    {
-      description:
-        'Live esncard.org add, refresh, and remove Playwright coverage',
-      name: 'E2E_LIVE_ESN_CARD_IDENTIFIER',
-    },
-  ],
+  docker: [],
 } satisfies Record<RuntimeTarget, RequiredVariable[]>;
 
 const targets = new Set<RuntimeTarget>(['docker']);
@@ -312,15 +306,18 @@ export const evaluateRuntimePreflight = (
       severity: 'ok',
     },
     {
-      details: [
-        ...presentOptionalVariables.map(
-          ({ description, name }) => `${name}: ${description}`,
-        ),
-        ...missingOptionalVariables.map(
-          ({ description, name }) => `missing ${name}: ${description}`,
-        ),
-      ],
-      label: `Optional ${target} live-provider variables`,
+      details:
+        optionalByTarget[target].length > 0
+          ? [
+              ...presentOptionalVariables.map(
+                ({ description, name }) => `${name}: ${description}`,
+              ),
+              ...missingOptionalVariables.map(
+                ({ description, name }) => `missing ${name}: ${description}`,
+              ),
+            ]
+          : ['No optional variables are configured for this target.'],
+      label: `Optional ${target} variables`,
       severity: 'ok',
     },
     {

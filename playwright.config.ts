@@ -24,7 +24,7 @@ const desktopChrome = {
   channel: environment.E2E_BROWSER_CHANNEL,
 };
 const integrationOnlyTestTagPattern =
-  /@needs-(auth0-management|cloudflare|google-maps|live-esncard)\b/;
+  /@needs-(auth0-management|cloudflare|google-maps)\b/;
 
 const createModeProject = (
   name: string,

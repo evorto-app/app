@@ -256,7 +256,7 @@ describe('evaluateRuntimePreflight', () => {
       'test:e2e:ui',
       'test:e2e:integration',
       'test:e2e:create-account',
-      'test:e2e:live-esncard',
+      'test:e2e:esncard-provider',
       'test:e2e:docs',
       'test:e2e:docs:publish',
     ]) {
@@ -279,14 +279,14 @@ describe('evaluateRuntimePreflight', () => {
     expect(packageJson.scripts['test:e2e:create-account']).toContain(
       "--grep '@needs-auth0-management'",
     );
-    expect(packageJson.scripts['test:e2e:live-esncard']).toContain(
-      'tests/specs/profile/user-profile-live-esncard.spec.ts',
+    expect(packageJson.scripts['test:e2e:esncard-provider']).toContain(
+      'tests/specs/profile/user-profile-esncard-provider.spec.ts',
     );
-    expect(packageJson.scripts['test:e2e:live-esncard']).toContain(
-      '--project=local-chrome-integration',
+    expect(packageJson.scripts['test:e2e:esncard-provider']).toContain(
+      '--project=local-chrome-baseline',
     );
-    expect(packageJson.scripts['test:e2e:live-esncard']).toContain(
-      "--grep '@needs-live-esncard'",
+    expect(packageJson.scripts['test:e2e:esncard-provider']).toContain(
+      "--grep '@esncard-provider'",
     );
   });
 
@@ -407,7 +407,7 @@ describe('evaluateRuntimePreflight', () => {
     );
   });
 
-  it('reports optional live-provider variables without making them startup blockers', () => {
+  it('does not require external provider variables for Docker startup', () => {
     const result = evaluateRuntimePreflight('docker', {
       cwd: '/repo',
       env: requiredDockerEnvironment,
@@ -419,34 +419,8 @@ describe('evaluateRuntimePreflight', () => {
     expect(result.checks).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          details: [
-            'missing E2E_LIVE_ESN_CARD_IDENTIFIER: Live esncard.org add, refresh, and remove Playwright coverage',
-          ],
-          label: 'Optional docker live-provider variables',
-          severity: 'ok',
-        }),
-      ]),
-    );
-  });
-
-  it('keeps optional live-provider variables visible when they are available', () => {
-    const result = evaluateRuntimePreflight('docker', {
-      cwd: '/repo',
-      env: {
-        ...requiredDockerEnvironment,
-        E2E_LIVE_ESN_CARD_IDENTIFIER: 'live-card-id',
-      },
-      fileExists: (filePath) => filePath === '/repo/.env.dev',
-      runCommand: successfulCommand,
-    });
-
-    expect(result.checks).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          details: [
-            'E2E_LIVE_ESN_CARD_IDENTIFIER: Live esncard.org add, refresh, and remove Playwright coverage',
-          ],
-          label: 'Optional docker live-provider variables',
+          details: ['No optional variables are configured for this target.'],
+          label: 'Optional docker variables',
           severity: 'ok',
         }),
       ]),
@@ -465,7 +439,7 @@ describe('evaluateRuntimePreflight', () => {
     expect(envExample).toContain('Do not put real secret values in this file.');
   });
 
-  it('keeps the no-secret env example aligned with optional Docker variables', () => {
+  it('keeps removed provider variables out of the no-secret env example', () => {
     const envExample = fs.readFileSync(
       path.join(process.cwd(), '.env.example'),
       'utf8',
@@ -474,6 +448,7 @@ describe('evaluateRuntimePreflight', () => {
     for (const { name } of optionalByTarget.docker) {
       expect(envExample).toContain(`${name}=`);
     }
+    expect(envExample).not.toContain('E2E_LIVE_ESN_CARD_IDENTIFIER');
   });
 
   it('warns about missing Playwright browsers without blocking Docker start', () => {

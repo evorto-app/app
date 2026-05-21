@@ -50,7 +50,7 @@ describe('stabilization source', () => {
     expect(queue).toContain('Organizer authoring and check-in');
     expect(queue).toContain('Tenant admin and finance');
     expect(queue).toContain('Global admin relaunch scope');
-    expect(queue).toContain('Credential-gated provider checks');
+    expect(queue).toContain('Deterministic provider checks');
     expect(queue).toContain('tests/specs/events/events.test.ts');
     expect(queue).toContain('tests/specs/events/unlisted-visibility.test.ts');
     expect(queue).toContain('tests/docs/events/register.doc.ts');
@@ -61,8 +61,11 @@ describe('stabilization source', () => {
       'tests/specs/permissions/global-admin-route-guard.spec.ts',
     );
     expect(queue).toContain('tests/docs/admin/global-admin.doc.ts');
-    expect(queue).toContain('E2E_LIVE_ESN_CARD_IDENTIFIER');
-    expect(queue).toContain('bun run test:e2e:live-esncard');
+    expect(queue).toContain('bun run test:e2e:esncard-provider');
+    expect(queue).toContain(
+      'tests/specs/profile/user-profile-esncard-provider.spec.ts',
+    );
+    expect(queue).not.toContain('E2E_LIVE_ESN_CARD_IDENTIFIER');
   });
 
   it('keeps Review Next scoped to the real remaining blockers', () => {
@@ -70,7 +73,7 @@ describe('stabilization source', () => {
     const reviewNext = source.split('## Review Next\n')[1];
 
     expect(reviewNext).toContain('in-app Browser manual review');
-    expect(reviewNext).toContain('live external');
+    expect(reviewNext).toContain('deterministic ESNcard provider test mode');
     expect(reviewNext).toContain(
       'ESNcard provider add/refresh/remove outcomes',
     );
@@ -116,7 +119,7 @@ describe('stabilization source', () => {
       'Most are now covered by deterministic specs, generated docs, or source guards',
     );
     expect(source).toContain('in-app Browser manual review queue');
-    expect(source).toContain('E2E_LIVE_ESN_CARD_IDENTIFIER');
+    expect(source).not.toContain('E2E_LIVE_ESN_CARD_IDENTIFIER');
   });
 
   it('keeps finance docs in the baseline docs project', () => {

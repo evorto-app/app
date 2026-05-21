@@ -15,7 +15,7 @@
     "test:e2e:ui": "bun run env:runtime && dotenv -c dev -- playwright test --ui",
     "test:e2e:integration": "bun run env:runtime && dotenv -c dev -- playwright test --project=local-chrome-integration --project=docs-integration",
     "test:e2e:create-account": "bun run env:runtime && dotenv -c dev -- playwright test tests/specs/profile/create-account.spec.ts tests/docs/users/create-account.doc.ts --project=local-chrome-integration --project=docs-integration --grep '@needs-auth0-management'",
-    "test:e2e:live-esncard": "bun run env:runtime && dotenv -c dev -- playwright test tests/specs/profile/user-profile-live-esncard.spec.ts --project=local-chrome-integration --grep '@needs-live-esncard'",
+    "test:e2e:esncard-provider": "bun run env:runtime && dotenv -c dev -- playwright test tests/specs/profile/user-profile-esncard-provider.spec.ts --project=local-chrome-baseline --grep '@esncard-provider'",
     "test:e2e:docs": "bun run env:runtime && dotenv -c dev -- playwright test --project=docs-baseline",
     "test:e2e:docs:publish": "bun run env:runtime && DOCS_OUT_DIR=/Users/hedde/code/evorto-pages/apps/documentation/src/app/docs DOCS_IMG_OUT_DIR=/Users/hedde/code/evorto-pages/apps/documentation/public/docs dotenv -c dev -- playwright test --project=docs-baseline",
     "test:e2e:install": "playwright install",

@@ -71,7 +71,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - specs/profile/user-profile-discounts.spec.ts [finance]
   - specs/profile/user-profile-edit.spec.ts
   - specs/profile/user-profile-events.spec.ts
-  - specs/profile/user-profile-live-esncard.spec.ts [@needs-live-esncard]
+  - specs/profile/user-profile-esncard-provider.spec.ts [@esncard-provider]
   - specs/profile/user-profile-receipts.spec.ts [finance]
   - specs/reporting/reporter-paths.test.ts
   - specs/scanning/scanner.test.ts
@@ -233,12 +233,11 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   Management credentials. It is the functional integration path for creating a
   new Auth0-backed tenant account, verifying profile arrival, tenant assignment,
   default role assignment, and cleanup.
-- `specs/profile/user-profile-live-esncard.spec.ts` is collected by
-  `local-chrome-integration` and skips inside the test body without
-  `E2E_LIVE_ESN_CARD_IDENTIFIER`. It is the functional integration path for
-  live external ESNcard add, refresh, and remove provider outcomes. Use
-  `E2E_LIVE_ESN_CARD_IDENTIFIER=... bun run test:e2e:live-esncard` to run only
-  this provider path when a valid live identifier is available.
+- `specs/profile/user-profile-esncard-provider.spec.ts` is collected by
+  `local-chrome-baseline`. It is the functional path for ESNcard add, refresh,
+  remove, and provider-unavailable outcomes through tenant-scoped deterministic
+  provider test mode. Use `bun run test:e2e:esncard-provider` to run only this
+  provider path.
 - `specs/finance/stripe-webhook-replay.spec.ts` is file-level skipped when
   `STRIPE_WEBHOOK_SECRET` is absent, before page/database fixtures are
   requested. That skip is credential-gated, not a substitute for product
@@ -288,7 +287,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 The entries below are the areas to keep aligned as stabilization continues.
 Most are now covered by deterministic specs, generated docs, or source guards;
 the hard external blockers are the in-app Browser manual review queue and the
-live ESNcard provider path gated by `E2E_LIVE_ESN_CARD_IDENTIFIER`.
+deterministic ESNcard provider test-mode path.
 
 - Profile/account:
   - Docker-backed system-Chrome profile edit persistence now passes against the
@@ -326,12 +325,10 @@ live ESNcard provider path gated by `E2E_LIVE_ESN_CARD_IDENTIFIER`.
     behind those visible cards.
     Organizer overview app coverage also proves checked-in rows and in-flight
     writes disable participant cancellation and organizer-assisted transfer.
-  - Live external ESNcard add, refresh, and remove provider outcomes with
+  - ESNcard add, refresh, remove, and provider-unavailable outcomes with
     readable error states are now represented by
-    `specs/profile/user-profile-live-esncard.spec.ts`, an integration-tagged
-    Playwright path gated by `E2E_LIVE_ESN_CARD_IDENTIFIER`. It stays out of
-    deterministic baseline CI but can exercise the real esncard.org provider
-    when a valid card identifier is supplied from local secrets.
+    `specs/profile/user-profile-esncard-provider.spec.ts`, a baseline
+    Playwright path backed by tenant-scoped deterministic provider test mode.
     Generated discounts docs now include a helper-backed baseline note for
     readable ESNcard statuses, pending save/refresh/remove labels, shared
     in-flight write guards, trimmed save payloads, and provider-unavailable

@@ -153,7 +153,7 @@ export const test = base.extend<BaseFixtures & { seeded: SeedTenantResult }>({
       >;
       const updated = {
         ...current,
-        esnCard: { config: {}, status: 'enabled' },
+        esnCard: { config: { validationMode: 'test' }, status: 'enabled' },
       };
       await database
         .update(schema.tenants)

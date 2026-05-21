@@ -35,7 +35,7 @@ bun run test:e2e
 bun run test:e2e:ui
 AUTH0_MANAGEMENT_CLIENT_ID=... AUTH0_MANAGEMENT_CLIENT_SECRET=... bun run test:e2e:integration
 AUTH0_MANAGEMENT_CLIENT_ID=... AUTH0_MANAGEMENT_CLIENT_SECRET=... bun run test:e2e:create-account
-E2E_LIVE_ESN_CARD_IDENTIFIER=... bun run test:e2e:live-esncard
+bun run test:e2e:esncard-provider
 bun run test:e2e:docs
 bun run test:e2e:docs:publish
 bun run test:e2e:install
@@ -76,11 +76,11 @@ bun run lint
 - `bun run docker:check` fails before Docker Compose mutates local containers
   when required local runtime variables are missing. The check covers Neon
   Local, Auth0, Stripe, the application session secret, and Font Awesome package
-  registry access for the premium and brand icon packages. It also reports Bun, Docker
-  Compose, Compose config, Playwright CLI, `.env.dev`, and Playwright browser
-  cache status. It lists optional live-provider variables, such as
-  `E2E_LIVE_ESN_CARD_IDENTIFIER`, without printing values and without making
-  Docker startup depend on them. Missing Playwright browsers are warnings
+  registry access for the premium and brand icon packages. It also reports Bun,
+  Docker Compose, Compose config, Playwright CLI, `.env.dev`, and Playwright
+  browser cache status. ESNcard provider coverage uses tenant-scoped
+  deterministic test mode, so Docker startup no longer depends on live ESNcard
+  identifiers. Missing Playwright browsers are warnings
   because they affect Playwright runs, not Docker startup.
 - `bun run env:runtime` generates `.env.dev`, the untracked worktree-local override file.
 - `.env.dev.local` is the tracked shared default dev config file.
@@ -105,11 +105,11 @@ bun run lint
   account-creation functional spec and generated-doc journey. Use it when the
   main checkout has Auth0 Management credentials but you do not want the whole
   integration suite.
-- `bun run test:e2e:live-esncard` runs only the live esncard.org
-  add/refresh/remove profile path. It still uses the integration project for
-  authenticated setup, but it narrows execution to
-  `tests/specs/profile/user-profile-live-esncard.spec.ts` and
-  `@needs-live-esncard`.
+- `bun run test:e2e:esncard-provider` runs only the deterministic ESNcard
+  provider add/refresh/remove profile path. It uses tenant-scoped provider test
+  mode with `TESTESN*` identifiers and narrows execution to
+  `tests/specs/profile/user-profile-esncard-provider.spec.ts` and
+  `@esncard-provider`.
 - Local Docker scripts preload the environment with `dotenv -c dev` before invoking Compose.
 - Use `bun run ...` package scripts, not a bare shell `dotenv` command. Local shells may resolve a different `dotenv` executable than `node_modules/.bin/dotenv`; when a direct external-tool command is unavoidable, spell it as `node_modules/.bin/dotenv -c dev -- ...`.
 - Playwright list/discovery commands do not clean or write generated docs
@@ -198,7 +198,6 @@ Integration-only coverage is tagged at the test-title level:
 - `@needs-auth0-management`
 - `@needs-cloudflare`
 - `@needs-google-maps`
-- `@needs-live-esncard`
 
 ## Required E2E Variables
 
@@ -241,13 +240,10 @@ Required only for integration-tagged Playwright projects:
 - `CLOUDFLARE_IMAGES_DELIVERY_HASH`
 - `CLOUDFLARE_IMAGES_API_TOKEN`
 
-Optional live-provider variables for integration-tagged specs:
-
-- `E2E_LIVE_ESN_CARD_IDENTIFIER` for the profile ESNcard add/refresh/remove
-  journey against esncard.org. Use a real valid card identifier only from a
-  local secret source; do not check it into the repo. Run it with
-  `E2E_LIVE_ESN_CARD_IDENTIFIER=... bun run test:e2e:live-esncard` when you
-  want to exercise only that live-provider path.
+ESNcard provider outcomes are covered through tenant-scoped deterministic test
+mode. Use `bun run test:e2e:esncard-provider` to exercise profile
+add/refresh/remove behavior with provider-success and provider-unavailable
+inputs without relying on esncard.org returning a reusable live card.
 
 ## Local Stack Isolation
 
