@@ -66,6 +66,12 @@ describe('stabilization source', () => {
     expect(reviewNext).toContain('Docker-backed');
     expect(reviewNext).toContain('system-Chrome coverage');
     expect(reviewNext).toContain('no active Codex browser pane');
+    expect(source).not.toContain(
+      'Browser walkthrough coverage for anonymous event browsing is enough',
+    );
+    expect(source).toContain(
+      'The manual in-app Browser walkthrough is still a real review gate',
+    );
   });
 
   it('keeps the Playwright inventory clear about watchlist versus blockers', () => {
