@@ -2898,6 +2898,25 @@ system-Chrome functional pass covered `tests/specs/templates/templates.test.ts`,
 `tests/docs/events/event-management.doc.ts`, including the template authoring,
 event creation, organizer overview, and scanner guest check-in paths.
 
+Tenant admin/finance queue checkpoint: the fourth queue item's durable anchors
+passed against the same Docker stack with fresh seed keys. The system-Chrome
+functional pass covered `tests/specs/admin/general-settings.spec.ts`,
+`tests/specs/admin/roles-management.spec.ts`,
+`tests/specs/finance/receipts-flows.spec.ts`,
+`tests/specs/finance/finance-overview-permissions.spec.ts`,
+`tests/specs/finance/tax-rates/admin-import-tax-rates.spec.ts`, and
+`tests/specs/finance/stripe-webhook-replay.spec.ts`. The generated-docs pass
+covered `tests/docs/admin/general-settings.doc.ts`,
+`tests/docs/roles/roles.doc.ts`, `tests/docs/roles/about-permissions.doc.ts`,
+`tests/docs/finance/finance-overview.doc.ts`,
+`tests/docs/finance/receipt-review-reimbursement.doc.ts`, and
+`tests/docs/finance/inclusive-tax-rates.doc.ts`, including tenant settings,
+role management, permission education, finance visibility, receipt review,
+reimbursement recording, and inclusive tax-rate behavior. The in-app Browser
+retry still failed before navigation with
+`Must setup test before interacting with the page`, so the human Browser pass
+remains blocked outside the app/runtime path.
+
 ## Review Next
 
 All ten first-pass review areas are now represented in this document. The next
