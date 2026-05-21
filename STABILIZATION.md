@@ -1635,7 +1635,7 @@ the current working direction until a product decision overrides them.
   `test:e2e:docs`, `db:*`, and `docker:*` scripts now refresh `.env.dev`
   before running `dotenv -c dev`, reducing fresh-worktree and wrong-database
   risk.
-- Docker Compose uses Neon Local, MinIO, Stripe CLI, a one-shot `db-setup` service, and an `evorto` app container. `db-setup` clears the Docker database `public` schema before Drizzle pushes schema so reset-from-zero startup stays non-interactive even when Neon Local reuses older branch state. `bun run docker:check` verifies required local secrets before any Docker start command tears down or starts containers, and now also reports Bun, Docker Compose, Compose config, Playwright CLI, `.env.dev`, and Playwright browser-cache readiness.
+- Docker Compose uses Neon Local, MinIO, Stripe CLI, a one-shot `db-setup` service, and an `evorto` app container. `db-setup` clears the Docker database `public` schema before Drizzle pushes schema so reset-from-zero startup stays non-interactive even when Neon Local reuses older branch state. `bun run docker:check` verifies required local secrets before any Docker start command tears down or starts containers, and now also reports optional live-provider inputs, Bun, Docker Compose, Compose config, Playwright CLI, `.env.dev`, and Playwright browser-cache readiness.
 - SSR app routes respond to lightweight `GET` and `HEAD` probes. This keeps
   browser-facing app pages useful for health checks and local reachability
   checks without requiring a full page body download.
@@ -1664,7 +1664,7 @@ the current working direction until a product decision overrides them.
   `docker:webserver`, a foreground Compose command that keeps the preflight and
   build/start behavior but does not force `docker compose down` first.
 - **Addressed in stabilization pass:** `bun run docker:resume` now provides a non-recreating resume path for an already initialized Docker stack, while `docker:start`, `docker:start:foreground`, and `docker:start:watch` keep the explicit reset-from-zero behavior.
-- **Addressed in this stabilization pass:** `bun run docker:check` reports missing Neon Local, Auth0, Stripe, session, and Font Awesome registry variables before Docker Compose mutates local containers. Docker now writes the same Font Awesome registry scopes as the checked-in `.npmrc`, so premium and brand icon packages can use the same build-secret token path. It also reports local tool readiness and warns when Playwright browsers are missing without blocking Docker start. The Compose-managed Stripe CLI listener writes its generated webhook signing secret into a shared volume and the app reads it through `STRIPE_WEBHOOK_SECRET_FILE`, so a static `STRIPE_WEBHOOK_SECRET` is no longer a Docker-start blocker. After reusing the main checkout's untracked `.env` secrets locally, this worktree's Docker preflight passes with all required runtime variables present.
+- **Addressed in this stabilization pass:** `bun run docker:check` reports missing Neon Local, Auth0, Stripe, session, and Font Awesome registry variables before Docker Compose mutates local containers. Docker now writes the same Font Awesome registry scopes as the checked-in `.npmrc`, so premium and brand icon packages can use the same build-secret token path. It also reports optional live-provider inputs, local tool readiness, and warns when Playwright browsers are missing without blocking Docker start. The Compose-managed Stripe CLI listener writes its generated webhook signing secret into a shared volume and the app reads it through `STRIPE_WEBHOOK_SECRET_FILE`, so a static `STRIPE_WEBHOOK_SECRET` is no longer a Docker-start blocker. After reusing the main checkout's untracked `.env` secrets locally, this worktree's Docker preflight passes with all required runtime variables present while still showing that live ESNcard provider coverage needs `E2E_LIVE_ESN_CARD_IDENTIFIER`.
 - **Addressed in this stabilization pass:** Docker `db-setup` now drops/recreates the `public` schema before `drizzle-kit push --force`, preventing Drizzle's non-TTY confirmation prompt from blocking reset-from-zero startup on older local Neon branch state.
 - **Addressed in this stabilization pass:** the CI Playwright workflow now relies on the Compose `db-setup` service instead of running a separate host `bun run db:push` step, so CI uses the same non-interactive Docker schema reset path as local Docker startup.
 - **Addressed in this stabilization pass:** the CI Playwright workflow now exports and validates `ISSUER_BASE_URL` and `SECRET` before starting the Docker app container, matching the auth config fields required for runtime startup. CI uses the tracked dev Auth0 issuer and a disposable CI session secret as defaults when repository settings do not override them.
@@ -2600,6 +2600,13 @@ implement those decisions or explicitly revise them there before changing code.
   200 on port 4577, profile discount-card plus template authoring functional
   slices passed 6/6 against system Chrome, and the matching generated profile
   discounts plus template docs slices passed 3/3.
+- Live-provider preflight visibility pass: kept the external esncard.org
+  add/refresh/remove Playwright journey credential-gated, but made
+  `bun run docker:check` list `E2E_LIVE_ESN_CARD_IDENTIFIER` as an optional
+  live-provider input. The current main checkout and worktree do not provide
+  that variable, so deterministic Docker/browser coverage remains the
+  authoritative local baseline until a real card identifier is supplied from
+  local secrets.
 
 ## Review Next
 
