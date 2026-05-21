@@ -79,4 +79,17 @@ describe('stabilization source', () => {
     expect(source).toContain('in-app Browser manual review queue');
     expect(source).toContain('E2E_LIVE_ESN_CARD_IDENTIFIER');
   });
+
+  it('keeps quality guidance honest about blocked Browser review', () => {
+    const source = readSource('QUALITY.md');
+
+    expect(source).toContain('If Browser is unavailable because the plugin');
+    expect(source).toMatch(/control transport is not\s+healthy/u);
+    expect(source).toMatch(
+      /Do not treat Playwright, screenshots, or system Chrome as a\s+substitute for a requested in-app Browser walkthrough\./u,
+    );
+    expect(source).toMatch(
+      /If Browser could not be used, name the blocker and summarize the fallback\s+validation separately\./u,
+    );
+  });
 });

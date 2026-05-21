@@ -81,6 +81,11 @@ Preferred flow for UI behavior changes:
 2. Add or update Playwright coverage for the durable expected behavior.
 3. Update generated documentation when the user/admin workflow changes.
 
+If Browser is unavailable because the plugin, pane, or control transport is not
+healthy, keep durable validation moving with Playwright and record the Browser
+blocker explicitly. Do not treat Playwright, screenshots, or system Chrome as a
+substitute for a requested in-app Browser walkthrough.
+
 ## Unit Tests
 
 Use unit tests for deterministic logic close to the source.
@@ -251,6 +256,8 @@ When Browser verification is used, summarize:
 - any issue found and fixed
 
 Do not claim Browser verification was performed if it was not.
+If Browser could not be used, name the blocker and summarize the fallback
+validation separately.
 
 ## Playwright Evidence Expectations
 
