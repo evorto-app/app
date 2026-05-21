@@ -1,5 +1,16 @@
 import { Locator, Page, TestInfo } from '@playwright/test';
 
+const animationSettleTimeoutMs = 1_000;
+const locatorSettleTimeoutMs = 1_000;
+
+const waitForLoadingIndicators = async (page: Page): Promise<void> => {
+  await page
+    .getByText(/^Loading(?:\.\.\.|\u2026)$/)
+    .first()
+    .waitFor({ state: 'hidden', timeout: 5_000 })
+    .catch(() => undefined);
+};
+
 const settleRenderFrame = async (page: Page): Promise<void> => {
   await page.locator('body').waitFor({ state: 'visible' });
   await page.evaluate(
@@ -12,13 +23,96 @@ const settleRenderFrame = async (page: Page): Promise<void> => {
   );
 };
 
+const settleFiniteAnimations = async (page: Page): Promise<void> => {
+  await waitForLoadingIndicators(page);
+  await settleRenderFrame(page);
+  await page.evaluate(async (timeoutMs) => {
+    const startedAt = performance.now();
+
+    while (performance.now() - startedAt < timeoutMs) {
+      const runningAnimations = document
+        .getAnimations({ subtree: true })
+        .filter((animation) => {
+          const timing = animation.effect?.getComputedTiming();
+          return (
+            timing &&
+            timing.duration !== Number.POSITIVE_INFINITY &&
+            timing.iterations !== Number.POSITIVE_INFINITY &&
+            (animation.playState === 'pending' ||
+              animation.playState === 'running')
+          );
+        });
+
+      if (runningAnimations.length === 0) {
+        return;
+      }
+
+      await Promise.race([
+        Promise.allSettled(
+          runningAnimations.map((animation) => animation.finished),
+        ),
+        new Promise((resolve) => setTimeout(resolve, 100)),
+      ]);
+    }
+  }, animationSettleTimeoutMs);
+  await settleRenderFrame(page);
+};
+
+const waitForStableLocator = async (
+  page: Page,
+  locator: Locator,
+): Promise<void> => {
+  const target = locator.first();
+  await target.waitFor({ state: 'visible' });
+  const handle = await target.elementHandle();
+
+  if (!handle) {
+    return;
+  }
+
+  try {
+    await page.waitForFunction(
+      async (element) => {
+        const snapshot = (target: Element) => {
+          const bounds = target.getBoundingClientRect();
+          return {
+            height: Math.round(bounds.height),
+            width: Math.round(bounds.width),
+            x: Math.round(bounds.x),
+            y: Math.round(bounds.y),
+          };
+        };
+
+        const before = snapshot(element);
+        await new Promise<void>((resolve) => {
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => resolve());
+          });
+        });
+        const after = snapshot(element);
+
+        return (
+          before.height === after.height &&
+          before.width === after.width &&
+          before.x === after.x &&
+          before.y === after.y
+        );
+      },
+      handle,
+      { timeout: locatorSettleTimeoutMs },
+    );
+  } finally {
+    await handle.dispose();
+  }
+};
+
 export async function takeScreenshot(
   testInfo: TestInfo,
   locators: Locator | Locator[],
   page: Page,
   caption?: string,
 ) {
-  await settleRenderFrame(page);
+  await settleFiniteAnimations(page);
   const focusPoints = Array.isArray(locators) ? locators : [locators];
 
   const isDetachedError = (error: unknown) =>
@@ -39,7 +133,7 @@ export async function takeScreenshot(
         if (!isDetachedError(error) || attempt === attempts - 1) {
           throw error;
         }
-        await settleRenderFrame(page);
+        await settleFiniteAnimations(page);
       }
     }
     if (lastError) throw lastError;
@@ -59,11 +153,14 @@ export async function takeScreenshot(
         htmlElement.style.zIndex = '10000';
         return htmlElement;
       });
+      await waitForStableLocator(page, target);
     });
   }
 
+  await settleFiniteAnimations(page);
   await testInfo.attach('image', {
     body: await page.screenshot({
+      animations: 'disabled',
       style: '.tsqd-parent-container { display: none; }',
     }),
     contentType: 'image/png',

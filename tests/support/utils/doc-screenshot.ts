@@ -2,6 +2,8 @@ import { Locator, Page, TestInfo } from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
+const animationSettleTimeoutMs = 1_000;
+
 function ensureDir(dir: string) {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 }
@@ -24,6 +26,61 @@ export function resolveDocsImageOutputDirectory(
     ? configured
     : path.resolve('test-results/docs/images');
 }
+
+const waitForLoadingIndicators = async (page: Page): Promise<void> => {
+  await page
+    .getByText(/^Loading(?:\.\.\.|\u2026)$/)
+    .first()
+    .waitFor({ state: 'hidden', timeout: 5_000 })
+    .catch(() => undefined);
+};
+
+const settleRenderFrame = async (page: Page): Promise<void> => {
+  await page.locator('body').waitFor({ state: 'visible' });
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => resolve());
+        });
+      }),
+  );
+};
+
+const settleFiniteAnimations = async (page: Page): Promise<void> => {
+  await waitForLoadingIndicators(page);
+  await settleRenderFrame(page);
+  await page.evaluate(async (timeoutMs) => {
+    const startedAt = performance.now();
+
+    while (performance.now() - startedAt < timeoutMs) {
+      const runningAnimations = document
+        .getAnimations({ subtree: true })
+        .filter((animation) => {
+          const timing = animation.effect?.getComputedTiming();
+          return (
+            timing &&
+            timing.duration !== Number.POSITIVE_INFINITY &&
+            timing.iterations !== Number.POSITIVE_INFINITY &&
+            (animation.playState === 'pending' ||
+              animation.playState === 'running')
+          );
+        });
+
+      if (runningAnimations.length === 0) {
+        return;
+      }
+
+      await Promise.race([
+        Promise.allSettled(
+          runningAnimations.map((animation) => animation.finished),
+        ),
+        new Promise((resolve) => setTimeout(resolve, 100)),
+      ]);
+    }
+  }, animationSettleTimeoutMs);
+  await settleRenderFrame(page);
+};
 
 /**
  * Focused documentation screenshot helper.
@@ -51,7 +108,8 @@ export async function docScreenshot(
 
   // Ensure the element is in view before taking the screenshot
   await locator.first().scrollIntoViewIfNeeded();
-  await locator.first().screenshot({ path: absPath });
+  await settleFiniteAnimations(_page);
+  await locator.first().screenshot({ animations: 'disabled', path: absPath });
 
   // Return path relative to the images root
   return path.relative(imagesRoot, absPath);
