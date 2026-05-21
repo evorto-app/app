@@ -236,7 +236,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 - `specs/profile/user-profile-live-esncard.spec.ts` is collected by
   `local-chrome-integration` and skips inside the test body without
   `E2E_LIVE_ESN_CARD_IDENTIFIER`. It is the functional integration path for
-  live external ESNcard add, refresh, and remove provider outcomes.
+  live external ESNcard add, refresh, and remove provider outcomes. Use
+  `E2E_LIVE_ESN_CARD_IDENTIFIER=... bun run test:e2e:live-esncard` to run only
+  this provider path when a valid live identifier is available.
 - `specs/finance/stripe-webhook-replay.spec.ts` is file-level skipped when
   `STRIPE_WEBHOOK_SECRET` is absent, before page/database fixtures are
   requested. That skip is credential-gated, not a substitute for product
