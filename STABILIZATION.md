@@ -2190,6 +2190,15 @@ implement those decisions or explicitly revise them there before changing code.
   terminal-only reporters so spec/docs enumeration does not try to write
   `playwright-report` or generated documentation artifacts while checking the
   current baseline surface.
+- Post-power-loss runtime checkpoint: rechecked the current Docker stack after
+  the laptop power loss, confirmed db/minio health, app/Stripe containers, and
+  `HEAD /events` on local port 4577, and reviewed app logs for the resume
+  probes. The current PR head also passed GitHub CodeQL, Git Town, CodeRabbit,
+  and the full E2E Baseline job, including Docker build/start, app readiness,
+  functional Playwright, generated-docs Playwright, Docker log collection, and
+  artifact upload. The in-app Browser control path still timed out while
+  opening the local app, so manual Browser review remains blocked by the
+  Browser integration rather than Docker/app health.
 
 ## Review Next
 
