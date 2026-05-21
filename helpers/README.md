@@ -85,12 +85,14 @@ container cannot get stuck on non-TTY confirmation prompts from older local
 branch state. Neon Local still receives `DELETE_BRANCH=true` so normal
 `docker compose down` deletes the branch, and `db-expiration` immediately sets
 a short Neon branch expiration as a fallback for interrupted local or CI
-shutdowns. Playwright `webServer` uses
-`bun run docker:webserver`, which starts the foreground Compose stack without
-forcing `docker compose down` first. Use
+shutdowns. Playwright `webServer` uses `bun run docker:webserver`, which starts
+the foreground Compose stack without forcing `docker compose down` first. Use
 `bun run docker:resume` only for an already initialized stack when you want to
-bring stopped containers back without recreating them. The package scripts
-preload the needed environment with `dotenv -c dev` before invoking Docker.
+bring stopped containers back without recreating them. Use `bun run docker:ps`
+to inspect the generated worktree Compose project; bare `docker compose ps` can
+point at the wrong project because it does not preload `.env.dev`. The package
+scripts preload the needed environment with `dotenv -c dev` before invoking
+Docker.
 
 Inside Docker, keep `BASE_URL` browser-facing so Auth0 redirects point at the
 host-mapped app URL, and keep `SSR_RPC_ORIGIN` pointed at the app container's

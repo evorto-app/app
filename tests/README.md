@@ -49,6 +49,7 @@ bun run lint
 - Generate or refresh worktree-local runtime overrides: `bun run env:runtime`
 - Check whether required local Docker secrets are available:
   `bun run docker:check`
+- Show the generated worktree Compose project status: `bun run docker:ps`
 - Start the local runtime stack: `bun run docker:start`
 - Resume an existing local runtime stack without recreating containers:
   `bun run docker:resume`
@@ -70,7 +71,7 @@ bun run lint
   needs a callback URL Auth0 accepts. On this machine, run Docker-backed
   authenticated checks with `APP_HOST_PORT=4200 bun run docker:start` unless the
   generated worktree port has also been added to the Auth0 application.
-- Local `dev:start`, `test:e2e`, `test:e2e:ui`, `test:e2e:integration`, `test:e2e:docs`, `db:*`, and `docker:*` package scripts refresh `.env.dev` before invoking `dotenv -c dev`, so new worktrees get isolated local app/service ports and database URLs by default.
+- Local `dev:start`, `test:e2e`, `test:e2e:ui`, `test:e2e:integration`, `test:e2e:docs`, `db:*`, and `docker:*` package scripts refresh `.env.dev` before invoking `dotenv -c dev`, so new worktrees get isolated local app/service ports and database URLs by default. Use `bun run docker:ps` rather than bare `docker compose ps` when checking a worktree stack because the generated `COMPOSE_PROJECT_NAME` must be loaded from `.env.dev`.
 - `bun run docker:check` fails before Docker Compose mutates local containers
   when required local runtime variables are missing. The check covers Neon
   Local, Auth0, Stripe, the application session secret, and Font Awesome package

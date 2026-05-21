@@ -24,6 +24,10 @@ When a Docker stack has already been initialized and you only need to bring
 stopped containers back, use `bun run docker:resume` to avoid container
 recreation.
 
+Use `bun run docker:ps` to inspect the generated worktree Compose project.
+Bare `docker compose ps` does not load `.env.dev`, so it can show an empty
+project even while the isolated worktree stack is running.
+
 `.env.local`, `.env.runtime`, and `.env.ci` are unsupported in this repo.
 
 ## Git workflow

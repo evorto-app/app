@@ -137,6 +137,9 @@ describe('evaluateRuntimePreflight', () => {
     expect(packageJson.scripts['docker:check']).toBe(
       'bun run env:runtime && dotenv -c dev -- bun helpers/testing/runtime-preflight.ts docker',
     );
+    expect(packageJson.scripts['docker:ps']).toBe(
+      'bun run env:runtime && dotenv -c dev -- docker compose ps',
+    );
 
     for (const scriptName of [
       'docker:start',
