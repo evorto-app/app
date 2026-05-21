@@ -429,12 +429,15 @@ the current working direction until a product decision overrides them.
   - Option C: keep current behavior but rename it to make reset explicit.
   - Decision: Option A. `docker:start` may reset local data because the intended
     workflow is to seed enough data to get going from zero.
-- **Finance docs in CI baseline:** keep finance docs excluded only until finance
-  docs are rewritten to current behavior, with a visible follow-up.
+- **Finance docs in CI baseline:** include finance docs in the normal docs
+  baseline now that finance behavior and documentation have been rewritten to
+  current behavior.
   - Option A: keep excluded indefinitely.
   - Option B: fail loudly now.
   - Option C: temporary exclusion with tracked cleanup.
-  - Decision: Option C.
+  - Decision: Option B. Finance docs are product-facing relaunch coverage and
+    should fail with the rest of the generated docs suite if finance behavior
+    or documentation drifts.
 - **Playwright browser channel:** use bundled Playwright Chromium for CI and
   default local runs; allow opt-in system Chrome for exploratory local
   debugging.

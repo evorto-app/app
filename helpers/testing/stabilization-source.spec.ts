@@ -117,6 +117,26 @@ describe('stabilization source', () => {
     expect(source).toContain('E2E_LIVE_ESN_CARD_IDENTIFIER');
   });
 
+  it('keeps finance docs in the baseline docs project', () => {
+    const stabilization = readSource('STABILIZATION.md');
+    const playwrightConfig = readSource('playwright.config.ts');
+    const inventory = readSource('tests/test-inventory.md');
+
+    expect(stabilization).toContain('Finance docs in CI baseline');
+    expect(stabilization).toContain('Decision: Option B.');
+    expect(stabilization).toContain(
+      'Finance docs are product-facing relaunch coverage',
+    );
+    expect(playwrightConfig).toContain('testMatch: /docs\\/.*\\.doc\\.ts$/');
+    expect(playwrightConfig).not.toMatch(
+      /docs-baseline[\s\S]*testIgnore:[\s\S]*finance/u,
+    );
+    expect(inventory).toContain('docs/finance/finance-overview.doc.ts');
+    expect(inventory).toContain(
+      'docs/finance/receipt-review-reimbursement.doc.ts',
+    );
+  });
+
   it('keeps quality guidance honest about blocked Browser review', () => {
     const source = readSource('QUALITY.md');
 
