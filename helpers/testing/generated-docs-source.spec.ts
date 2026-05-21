@@ -356,11 +356,11 @@ describe('generated docs source current behavior', () => {
       'Confirmed unpaid registrations can be transferred from the event page before check-in and before the event starts.',
     );
     expect(source).toContain(
-      'Paid registration transfer and resale are not automatic yet.',
+      'Paid registration transfer and resale need a settlement model decision first.',
     );
     expect(source).toContain('Review paid transfer unavailable state');
     expect(source).toContain(
-      'Self-service transfer is only available for unpaid, not-yet-checked-in registrations before the event starts. Paid registration transfer and resale are not automatic yet.',
+      'Self-service transfer is only available for unpaid, not-yet-checked-in registrations before the event starts. Paid registration transfer and resale need a settlement model decision first.',
     );
     expect(source).toContain(
       "page.getByRole('button', { name: 'Transfer unavailable' })",
@@ -397,6 +397,9 @@ describe('generated docs source current behavior', () => {
     expect(source).not.toContain('Register button stays available');
     expect(source).not.toContain('paid transfers are automatic');
     expect(source).not.toContain('resale is automatic');
+    expect(source).not.toContain(
+      'Paid registration transfer and resale are not automatic yet.',
+    );
     expect(source).not.toContain('ticket QR code by email');
   });
 
@@ -458,7 +461,7 @@ describe('generated docs source current behavior', () => {
       'Older or manually seeded payment records still create a pending manual refund record for organizer follow-up.',
     );
     expect(source).toContain(
-      'Paid registration transfer shows as unavailable in the organizer overview until the resale money flow is handled.',
+      'Paid registration transfer shows as unavailable in the organizer overview until the settlement model is decided.',
     );
     expect(source).toContain(
       'It does not currently include attendee export, attendee messaging, manual check-in controls outside QR scanning',

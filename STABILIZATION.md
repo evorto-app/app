@@ -594,7 +594,7 @@ the current working direction until a product decision overrides them.
   self-service transfer now share tested action guards between the buttons and
   handlers, so cancellation and transfer writes cannot overlap or double-submit
   locally on slow networks.
-- **Should fix before relaunch:** participant-facing paid transfer/resale money movement and resale-specific workflows are not implemented in the reviewed event registration path. This is blocked on choosing organizer-mediated manual settlement, platform-mediated resale through fresh Stripe Checkout, or explicit deferral. Paid confirmed cancellation now attempts automatic Stripe refunds for transactions with stored Stripe payment references and keeps a pending manual refund fallback for older/manual records.
+- **Should fix before relaunch:** participant-facing paid transfer/resale money movement and resale-specific workflows are not implemented in the reviewed event registration path. This is blocked on choosing organizer-mediated manual settlement, platform-mediated resale through fresh Stripe Checkout, or explicit deferral. The event page shows a disabled transfer action and explains that paid registration transfer and resale need a decision between organizer-mediated manual settlement, platform-mediated resale, or explicit paid-transfer deferral. Paid confirmed cancellation now attempts automatic Stripe refunds for transactions with stored Stripe payment references and keeps a pending manual refund fallback for older/manual records.
 - **Addressed in stabilization pass:** active registration status now uses the shared persisted registration status literal union instead of raw `Schema.String`.
 - **Acceptable for now:** paid registration rollback is careful about cleaning up a failed checkout session creation path; deeper Stripe lifecycle review belongs in the finance pass.
 
@@ -1823,7 +1823,9 @@ the current working direction until a product decision overrides them.
    paid cancellation now attempts automatic Stripe refunds when the original
    transaction has a stored Stripe payment reference. Do not assume whether
    paid resale should be organizer-mediated manual settlement or a
-   platform-mediated Stripe Checkout replacement flow.
+   platform-mediated Stripe Checkout replacement flow. Current app and docs
+   copy keep paid transfer unavailable because the settlement model is not
+   decided yet.
 2. Keep the Docker-backed registration unavailable-state coverage current.
    `specs/events/negative-registration-states.spec.ts` and
    `docs/events/register.doc.ts` now pass against the rebuilt Docker stack with

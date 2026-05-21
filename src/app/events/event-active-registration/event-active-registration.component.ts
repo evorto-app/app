@@ -98,7 +98,7 @@ export const registrationTransferActionCopy = (registration: {
   return {
     buttonLabel: 'Transfer unavailable',
     helperText:
-      'Self-service transfer is only available for unpaid, not-yet-checked-in registrations before the event starts. Paid registration transfer and resale are not automatic yet.',
+      'Self-service transfer is only available for unpaid, not-yet-checked-in registrations before the event starts. Paid registration transfer and resale need a settlement model decision first.',
   };
 };
 

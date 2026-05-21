@@ -206,7 +206,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   including the transfer dialog, eligible target email entry, and the explicit
   paid-transfer/resale deferral. It now also seeds a paid confirmed
   registration with a successful transaction, asserts disabled
-  transfer-unavailable copy, cancels the paid registration, and reads back the
+  transfer-unavailable copy that names the missing settlement-model decision,
+  cancels the paid registration, and reads back the
   generated pending manual refund fallback before cleanup.
 - Active-registration component coverage pins participant cancellation and
   self-service transfer action disabling while either write is pending or the

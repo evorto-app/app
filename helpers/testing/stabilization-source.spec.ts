@@ -165,6 +165,9 @@ describe('stabilization source', () => {
     expect(source).toContain('Decision needed before implementation');
     expect(source).toContain('Do not infer one of these models');
     expect(source).toContain(
+      'The event page shows a disabled transfer action and explains that paid registration transfer and resale need a decision between organizer-mediated manual settlement, platform-mediated resale, or explicit paid-transfer deferral.',
+    );
+    expect(source).toContain(
       'Do not assume whether\n' +
         '   paid resale should be organizer-mediated manual settlement or a\n' +
         '   platform-mediated Stripe Checkout replacement flow.',
