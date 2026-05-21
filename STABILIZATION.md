@@ -2724,6 +2724,10 @@ implement those decisions or explicitly revise them there before changing code.
   in-app Browser retry after local Docker health confirmation still failed
   before opening `/events` because no active Codex browser pane was available,
   so manual Browser review remains blocked outside the app runtime.
+- Browser review queue guard pass: added a compact manual-review queue for the
+  remaining Browser pass and a local source guard so the queue keeps naming the
+  natural app-flow order, the durable Playwright/docs anchors, the live ESNcard
+  command, and the real remaining Browser/live-provider blockers.
 
 ## Browser Review Queue
 
