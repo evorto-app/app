@@ -2611,6 +2611,10 @@ implement those decisions or explicitly revise them there before changing code.
   guard with the current paid cancellation behavior, where organizer
   cancellation submits a Stripe refund when stored payment references exist and
   records a pending manual refund fallback for older/manual payment rows.
+- Playwright discovery reporter pass: kept local `--list` discovery on
+  terminal-only reporters so spec/docs enumeration does not try to write
+  `playwright-report` or generated documentation artifacts while checking the
+  current baseline surface.
 
 ## Review Next
 

@@ -102,9 +102,10 @@ bun run lint
 - Use `bun run ...` package scripts, not a bare shell `dotenv` command. Local shells may resolve a different `dotenv` executable than `node_modules/.bin/dotenv`; when a direct external-tool command is unavoidable, spell it as `node_modules/.bin/dotenv -c dev -- ...`.
 - Playwright list/discovery commands do not clean or write generated docs
   output and may run without local Auth0/Stripe secrets. In list-only mode the
-  Playwright config uses inert placeholder values for runtime-only secrets so
-  test titles can be enumerated without starting Docker or contacting external
-  services. Run the docs projects without `--list` when you intentionally want
+  Playwright config uses inert placeholder values for runtime-only secrets and
+  terminal-only reporters, so test titles can be enumerated without starting
+  Docker, contacting external services, or writing local docs/HTML report
+  artifacts. Run the docs projects without `--list` when you intentionally want
   to regenerate documentation artifacts.
 - `bun run test:e2e:docs` writes generated docs to ignored local
   `test-results/docs` paths by default. Use
