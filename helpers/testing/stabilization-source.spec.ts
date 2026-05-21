@@ -67,4 +67,16 @@ describe('stabilization source', () => {
     expect(reviewNext).toContain('system-Chrome coverage');
     expect(reviewNext).toContain('no active Codex browser pane');
   });
+
+  it('keeps the Playwright inventory clear about watchlist versus blockers', () => {
+    const source = readSource('tests/test-inventory.md');
+
+    expect(source).toContain('## Stabilization Coverage Watchlist');
+    expect(source).not.toContain('## Stabilization Coverage Still Needed');
+    expect(source).toContain(
+      'Most are now covered by deterministic specs, generated docs, or source guards',
+    );
+    expect(source).toContain('in-app Browser manual review queue');
+    expect(source).toContain('E2E_LIVE_ESN_CARD_IDENTIFIER');
+  });
 });

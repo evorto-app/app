@@ -239,7 +239,12 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   `test.skip` and `test.fixme` usage allowlisted with a local reason for each
   entry, so new fixture-state gaps do not become silent placeholders.
 
-## Stabilization Coverage Still Needed
+## Stabilization Coverage Watchlist
+
+The entries below are the areas to keep aligned as stabilization continues.
+Most are now covered by deterministic specs, generated docs, or source guards;
+the hard external blockers are the in-app Browser manual review queue and the
+live ESNcard provider path gated by `E2E_LIVE_ESN_CARD_IDENTIFIER`.
 
 - Profile/account:
   - Docker-backed system-Chrome profile edit persistence now passes against the
