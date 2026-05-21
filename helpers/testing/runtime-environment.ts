@@ -1,5 +1,6 @@
 import * as BunRuntime from '@effect/platform-bun/BunRuntime';
 import { Effect } from 'effect';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 // Generates worktree-local runtime ports and names so parallel Docker/test
@@ -11,6 +12,38 @@ const DEFAULT_MINIO_HOST_PORT = 9000;
 const OUTPUT_FILE_PATH = path.resolve(process.cwd(), '.env.dev');
 
 const databaseName = process.env['NEON_DATABASE_NAME']?.trim() || 'appdb';
+
+const readExistingRuntimeEnvironment = (): Record<string, string> => {
+  if (!existsSync(OUTPUT_FILE_PATH)) {
+    return {};
+  }
+
+  const source = readFileSync(OUTPUT_FILE_PATH, 'utf8');
+  const entries = source
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith('#'))
+    .flatMap((line) => {
+      const separatorIndex = line.indexOf('=');
+
+      if (separatorIndex === -1) {
+        return [];
+      }
+
+      const key = line.slice(0, separatorIndex);
+      const rawValue = line.slice(separatorIndex + 1);
+
+      try {
+        return [[key, JSON.parse(rawValue) as string] as const];
+      } catch {
+        return [[key, rawValue] as const];
+      }
+    });
+
+  return Object.fromEntries(entries);
+};
+
+const existingRuntimeEnvironment = readExistingRuntimeEnvironment();
 
 const deriveSeed = (): string => {
   const runId = process.env['GITHUB_RUN_ID']?.trim();
@@ -42,6 +75,13 @@ const derivePort = (base: number, span: number, chunkStart: number): number =>
 const resolvePort = (names: readonly string[], fallback: number): number => {
   for (const name of names) {
     const parsed = parsePort(process.env[name]);
+    if (parsed !== undefined) {
+      return parsed;
+    }
+  }
+
+  for (const name of names) {
+    const parsed = parsePort(existingRuntimeEnvironment[name]);
     if (parsed !== undefined) {
       return parsed;
     }

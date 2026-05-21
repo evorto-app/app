@@ -175,6 +175,34 @@ describe('evaluateRuntimePreflight', () => {
     expect(testsGuidance).not.toContain('`bun run docker:start:foreground`');
   });
 
+  it('keeps generated runtime ports stable for non-mutating Docker checks', () => {
+    const runtimeEnvironment = fs.readFileSync(
+      path.join(process.cwd(), 'helpers/testing/runtime-environment.ts'),
+      'utf8',
+    );
+    const testsReadme = fs.readFileSync(
+      path.join(process.cwd(), 'tests/README.md'),
+      'utf8',
+    );
+    const helpersReadme = fs.readFileSync(
+      path.join(process.cwd(), 'helpers/README.md'),
+      'utf8',
+    );
+
+    expect(runtimeEnvironment).toContain(
+      'const existingRuntimeEnvironment = readExistingRuntimeEnvironment();',
+    );
+    expect(runtimeEnvironment).toContain(
+      'const parsed = parsePort(existingRuntimeEnvironment[name]);',
+    );
+    expect(testsReadme).toContain(
+      'later package scripts preserve its generated local',
+    );
+    expect(helpersReadme).toContain(
+      'later package-script preflights preserve the',
+    );
+  });
+
   it('keeps Angular SSR host validation aligned with local and seeded tenant hosts', () => {
     const angularJson = JSON.parse(
       fs.readFileSync(path.join(process.cwd(), 'angular.json'), 'utf8'),

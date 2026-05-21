@@ -105,6 +105,10 @@ may generate a non-4200 app port for worktree isolation, but authenticated local
 Browser or Playwright runs only work when that exact callback URL is registered
 in Auth0. If the generated port is not registered, free port 4200 and start the
 stack with `APP_HOST_PORT=4200 bun run docker:start`.
+Once `.env.dev` has been generated, later package-script preflights preserve the
+recorded local ports unless an explicit override such as `APP_HOST_PORT=4200` is
+provided again. This keeps `BASE_URL` aligned with a running stack when you use
+non-mutating commands such as `bun run docker:ps`.
 
 Local global-admin e2e coverage can use `E2E_GLOBAL_ADMIN_AUTH0_IDS` as a
 no-secret fallback when the Auth0 tenant user has app metadata but the

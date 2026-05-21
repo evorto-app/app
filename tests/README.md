@@ -259,3 +259,6 @@ Optional live-provider variables for integration-tagged specs:
 - distinct local MinIO ports
 
 Set `APP_HOST_PORT` before running `bun run env:runtime` only when you need a specific callback URL such as `localhost:4200`.
+After `.env.dev` exists, later package scripts preserve its generated local
+ports unless you explicitly override them again, so status checks do not
+silently move `BASE_URL` away from the already running Docker stack.
