@@ -2803,6 +2803,15 @@ implement those decisions or explicitly revise them there before changing code.
   `@needs-auth0-management` functional spec and generated-doc journey. This
   keeps account-creation validation discoverable without forcing the full
   integration suite.
+- Latest PR readiness checkpoint: GitHub is green on
+  `4cfd4d960f1831055153fab0b3321ed55e937284`, including Analyze, CodeQL, Git
+  Town branch stack, CodeRabbit, and Playwright E2E functional + docs. The E2E
+  job completed Docker image pull/build, Docker stack startup, app container
+  startup, app readiness, the functional suite, the generated-docs suite,
+  Docker log collection, stack shutdown, and artifact uploads. The PR has no
+  unresolved review threads at this checkpoint, but remains draft because the
+  requested in-app Browser manual pass and live ESNcard provider validation are
+  still blocked by external runtime/credential availability.
 
 ## Browser Review Queue
 
