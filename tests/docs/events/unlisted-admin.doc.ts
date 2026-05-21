@@ -1,8 +1,35 @@
 import { adminStateFile } from '../../../helpers/user-data';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
+import type { Page } from '@playwright/test';
 
 test.use({ storageState: adminStateFile });
+
+const openUpdateListingDialog = async (page: Page) => {
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    await page.keyboard.press('Escape').catch(() => undefined);
+    await page
+      .getByRole('button', { name: /open event actions|menu/i })
+      .click();
+
+    const updateListingMenuItem = page.getByRole('menuitem', {
+      name: 'Update listing',
+    });
+    await expect(updateListingMenuItem).toBeVisible();
+
+    try {
+      await updateListingMenuItem.click({ timeout: 10_000 });
+      await expect(
+        page.getByRole('switch', { name: /Unlisted/ }),
+      ).toBeVisible();
+      return;
+    } catch (error) {
+      if (attempt === 2) {
+        throw error;
+      }
+    }
+  }
+};
 
 test('Admin: manage unlisted events', async ({
   events,
@@ -53,8 +80,7 @@ Unlisted events are hidden from public lists. Admins can toggle an event's unlis
   );
 
   // Open menu and update listing
-  await page.getByRole('button', { name: /open event actions|menu/i }).click();
-  await page.getByRole('menuitem', { name: 'Update listing' }).click();
+  await openUpdateListingDialog(page);
   await page.getByRole('switch', { name: /Unlisted/ }).click();
   await expect(
     page.getByText(/eligible people can still open the event/i),
@@ -79,8 +105,7 @@ Unlisted events are hidden from public lists. Admins can toggle an event's unlis
   );
 
   // Restore original state (toggle back to listed) to keep environment clean
-  await page.getByRole('button', { name: /open event actions|menu/i }).click();
-  await page.getByRole('menuitem', { name: 'Update listing' }).click();
+  await openUpdateListingDialog(page);
   const toggle = page.getByRole('switch', { name: /Unlisted/ });
   if (await toggle.isChecked()) {
     await toggle.click();
