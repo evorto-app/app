@@ -467,7 +467,11 @@ the current working direction until a product decision overrides them.
 - Tenant/global admin app code: `src/app/global-admin/**`, `src/app/admin/general-settings/**`, `src/app/admin/admin.routes.ts`, `src/app/core/config.service.ts`, `src/app/core/effect-rpc-angular-client.ts`, `src/app/core/navigation/**`
 - Tenant/global admin RPC, context, and schema paths: `src/shared/rpc-contracts/app-rpcs/global-admin.rpcs.ts`, `src/shared/rpc-contracts/app-rpcs/admin.rpcs.ts`, `src/server/effect/rpc/handlers/global-admin.handlers.ts`, `src/server/effect/rpc/handlers/admin.handlers.ts`, `src/server/context/**`, `src/server/effect/rpc/app-rpcs.request-handler.ts`, `src/db/schema/tenants.ts`, `src/types/custom/tenant.ts`, `src/shared/tenant-config.ts`
 - Tenant/global admin seed/test/docs coverage: `helpers/seed-tenant.ts`, `helpers/create-tenant.ts`, `tests/specs/permissions/tenant-isolation-tax-rates.spec.ts`, `tests/specs/finance/tax-rates/admin-import-tax-rates.spec.ts`, `tests/specs/auth/storage-state-refresh.test.ts`, `tests/docs/finance/inclusive-tax-rates.doc.ts`, `tests/test-inventory.md`
-- Runtime walkthrough: unknown host `no-such-tenant.invalid` returned 404; anonymous `/global-admin` redirected to Auth0. Stored auth states were stale, so authenticated global-admin UI behavior was not reverified in this pass.
+- Initial runtime walkthrough: unknown host `no-such-tenant.invalid` returned
+  404 and anonymous `/global-admin` redirected to Auth0. Later
+  Docker-backed system-Chrome specs/docs superseded the stale-auth limitation
+  from that first pass by verifying authenticated global-admin list, detail,
+  create, edit, and route-guard behavior against the running app.
 - Generated docs and Playwright configuration: `playwright.config.ts`, `tests/README.md`, `tests/AGENTS.md`, `tests/test-inventory.md`, `package.json`
 - Documentation reporter and screenshot helpers: `tests/support/reporters/documentation-reporter.ts`, `tests/support/reporters/documentation-reporter/**`, `tests/support/utils/doc-screenshot.ts`
 - Generated documentation specs: `tests/docs/**`
@@ -1617,9 +1621,16 @@ the current working direction until a product decision overrides them.
 
 ### Test and Documentation Quality
 
-- Generated docs are valuable but currently mix real walkthroughs with aspirational copy. Future agents need stale docs removed or clearly marked before treating docs as product truth.
-- The docs suite favors screenshots and prose, but many docs do not assert that the workflow was completed or persisted.
-- Some functional specs have strong names and tags but weak assertions. These are more dangerous than absent tests because they imply coverage.
+- This pass found generated docs that mixed real walkthroughs with
+  aspirational copy. The current product-facing docs touched by stabilization
+  now assert the workflow state that matters or explicitly document deferred
+  scope before being treated as product truth.
+- The docs suite still favors screenshots and prose, so new or changed docs
+  should assert workflow completion, persisted state, or an explicit deferred
+  boundary instead of relying on screenshots alone.
+- Some functional specs previously had strong names and tags but weak
+  assertions. Keep the current hard-failure pattern for fixture state and
+  persistence readback so specs do not imply coverage they do not provide.
 - Integration-only docs are correctly taggable, but baseline docs should still cover account/profile/tenant flows that do not require Auth0 Management or external APIs.
 - Normal local docs output now stays in this repository's ignored
   `test-results/docs` paths. Publishing into the sibling documentation checkout
@@ -1642,7 +1653,10 @@ the current working direction until a product decision overrides them.
   than fixed sleeps.
 - Keep docs/list commands free of reporter output cleanup, runtime secret requirements, and local browser startup.
 - Update `tests/test-inventory.md` after stale/placeholder docs are pruned.
-- Add missing docs/specs for tenant/global-admin settings, account/profile persistence, role/user management, and negative registration paths as those flows are stabilized.
+- Keep the tenant/global-admin settings, account/profile persistence,
+  role/user management, and negative registration docs/specs aligned as those
+  flows evolve; current stabilization coverage exists for each of those
+  surfaces.
 
 ## Local Runtime/Developer Workflow
 
@@ -1958,7 +1972,11 @@ implement those decisions or explicitly revise them there before changing code.
   global-admin review is available.
 - Permission metadata pass: replaced generated camelCase permission labels with explicit admin-facing labels/descriptions and rendered descriptions in the role form.
 - Route-guard backlog cleanup: replaced the stale "extend route-guard coverage" follow-up after admin, finance, template, and global-admin route-manifest specs plus permission-matrix denial coverage were in place.
-- Role autocomplete backlog cleanup: replaced the stale skip-based autocomplete follow-up with the remaining Browser-backed least-privilege organizer review, after confirming role lookup unit coverage and the active template/event autocomplete specs already fail loudly on missing seeded roles.
+- Role autocomplete backlog cleanup: replaced the stale skip-based autocomplete
+  follow-up after confirming role lookup unit coverage and the active
+  template/event autocomplete specs already fail loudly on missing seeded roles.
+  Manual Browser review for the same pages remains a tooling/runtime blocker,
+  not a missing durable coverage item.
 - Registration negative-path backlog cleanup: clarified the Playwright inventory so closed-window, role-ineligible, unsupported-mode, and waitlist items point to the remaining Browser-backed page states rather than implying server/app negative-path coverage is absent.
 - Registration negative-path Playwright pass: added active page-backed coverage
   for closed registration windows, role-ineligible direct links, and full
