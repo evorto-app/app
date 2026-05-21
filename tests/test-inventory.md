@@ -694,5 +694,7 @@ live ESNcard provider path gated by `E2E_LIVE_ESN_CARD_IDENTIFIER`.
   `specs/profile/create-account.spec.ts` are the current Auth0
   Management-gated integration paths. The doc covers the generated walkthrough;
   the spec is the matching functional account-creation integration coverage.
+  Use `bun run test:e2e:create-account` to run only those two
+  `@needs-auth0-management` paths when the required credentials are available.
 - Playwright `--list` discovery does not clean or write generated docs output,
   and baseline fixture imports do not require Auth0 Management credentials.

@@ -2797,6 +2797,12 @@ implement those decisions or explicitly revise them there before changing code.
   and component TypeScript. App code should use boolean status signals such as
   `query.isSuccess()`/`query.isPending()` instead of `query.status() === ...`,
   because the boolean signals carry the query result type narrowing.
+- Create-account integration command pass: the main checkout and worktree now
+  expose Auth0 Management credential variable names, so added
+  `bun run test:e2e:create-account` as a narrow runner for the
+  `@needs-auth0-management` functional spec and generated-doc journey. This
+  keeps account-creation validation discoverable without forcing the full
+  integration suite.
 
 ## Browser Review Queue
 
@@ -2817,7 +2823,9 @@ generated docs.
    detail registration options, free/paid/waitlist/cancellation states, profile
    event cards, submitted receipts, and seeded discount-card display. Durable
    coverage lives in the registration/profile specs and
-   `tests/docs/profile/*.doc.ts`.
+   `tests/docs/profile/*.doc.ts`. When Auth0 Management credentials are
+   available, run `bun run test:e2e:create-account` for the tenant
+   account-creation spec and generated-doc journey.
 3. Organizer authoring and check-in: use the organizer context for
    `/templates`, template detail/create/edit, event creation from a template,
    event management, and `/scan` check-in warnings plus selected guest

@@ -34,6 +34,7 @@ when the listed output remains readable.
 bun run test:e2e
 bun run test:e2e:ui
 AUTH0_MANAGEMENT_CLIENT_ID=... AUTH0_MANAGEMENT_CLIENT_SECRET=... bun run test:e2e:integration
+AUTH0_MANAGEMENT_CLIENT_ID=... AUTH0_MANAGEMENT_CLIENT_SECRET=... bun run test:e2e:create-account
 E2E_LIVE_ESN_CARD_IDENTIFIER=... bun run test:e2e:live-esncard
 bun run test:e2e:docs
 bun run test:e2e:docs:publish
@@ -100,6 +101,10 @@ bun run lint
 - `bun run test:e2e:integration` runs all integration-only Playwright
   projects. It is intended for credential-gated specs and docs such as Auth0
   Management account creation.
+- `bun run test:e2e:create-account` runs only the Auth0 Management
+  account-creation functional spec and generated-doc journey. Use it when the
+  main checkout has Auth0 Management credentials but you do not want the whole
+  integration suite.
 - `bun run test:e2e:live-esncard` runs only the live esncard.org
   add/refresh/remove profile path. It still uses the integration project for
   authenticated setup, but it narrows execution to
