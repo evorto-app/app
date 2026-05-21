@@ -2725,6 +2725,48 @@ implement those decisions or explicitly revise them there before changing code.
   before opening `/events` because no active Codex browser pane was available,
   so manual Browser review remains blocked outside the app runtime.
 
+## Browser Review Queue
+
+When the in-app Browser pane is available again, review the running Docker app
+in this order. Use the generated `BASE_URL` from `.env.dev`; the current
+worktree generated `http://localhost:4577`. Keep the Browser pass focused on
+human usability, visual affordances, and obvious console/network defects. The
+durable regression layer is already covered by the linked Playwright specs and
+generated docs.
+
+1. Anonymous event discovery: open `/events`, inspect the event list and one
+   public event detail page, then try one unlisted-event direct link from the
+   unlisted docs/spec fixture. Durable coverage lives in
+   `tests/specs/events/events.test.ts`,
+   `tests/specs/events/unlisted-visibility.test.ts`,
+   `tests/docs/events/register.doc.ts`, and the unlisted event docs.
+2. Participant registration/profile: use the regular user context for event
+   detail registration options, free/paid/waitlist/cancellation states, profile
+   event cards, submitted receipts, and seeded discount-card display. Durable
+   coverage lives in the registration/profile specs and
+   `tests/docs/profile/*.doc.ts`.
+3. Organizer authoring and check-in: use the organizer context for
+   `/templates`, template detail/create/edit, event creation from a template,
+   event management, and `/scan` check-in warnings plus selected guest
+   check-in. Durable coverage lives in the template, event-management, and
+   scanner specs/docs.
+4. Tenant admin and finance: use the admin context for `/admin`,
+   `/admin/settings`, `/admin/roles`, receipt review, reimbursement recording,
+   tax rates, and finance navigation permission visibility. Durable coverage
+   lives in the admin, roles, finance, receipt, and tax-rate specs/docs.
+5. Global admin relaunch scope: use the global-admin context for
+   `/global-admin/tenants`, tenant detail, tenant create/edit, duplicate/path
+   domain rejection, and the visible deferred custom-domain/multi-domain/no
+   impersonation scope. Durable coverage lives in
+   `tests/specs/admin/global-admin-tenants.spec.ts`,
+   `tests/specs/permissions/global-admin-route-guard.spec.ts`, and
+   `tests/docs/admin/global-admin.doc.ts`.
+6. Credential-gated provider checks: only run the live ESNcard add/refresh/remove
+   path when `E2E_LIVE_ESN_CARD_IDENTIFIER` is supplied from local secrets.
+   Use `E2E_LIVE_ESN_CARD_IDENTIFIER=... bun run test:e2e:live-esncard` for
+   durable execution and use Browser only to inspect the live provider UX
+   afterward.
+
 ## Review Next
 
 All ten first-pass review areas are now represented in this document. The next
