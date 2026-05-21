@@ -6,18 +6,18 @@ and useful for small cleanup batches.
 
 ## Review Status
 
-| Area                                            | Status              | Confidence | Notes                                                                                                                                                 |
-| ----------------------------------------------- | ------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Events                                          | First pass complete | partial    | Code, tests, docs, and an unauthenticated Browser walkthrough reviewed.                                                                               |
-| Registrations                                   | First pass complete | partial    | Free/paid registration paths reviewed; several server-side precondition gaps need follow-up.                                                          |
-| Templates                                       | First pass complete | partial    | Simple-mode template flow reviewed; permission and model-depth gaps need follow-up.                                                                   |
-| Roles and permissions                           | First pass complete | partial    | Core permission model reviewed; route/RPC semantics and role management gaps need follow-up.                                                          |
-| Finance/receipts                                | Fixes applied       | partial    | Payments, transactions, receipt review/reimbursement, and docs reviewed; high-risk gaps remain.                                                       |
-| Scanning/check-in                               | First pass complete | partial    | QR display and persisted check-in mutation exist; timing, camera, and Browser-backed aggregate follow-ups remain.                                     |
-| Profile/account flows                           | Fixes applied       | partial    | Profile, account creation, discount cards, receipts, and auth guards reviewed; account creation guards, transactionality, and ESNcard scope improved. |
-| Tenant/global admin                             | Fixes applied       | partial    | Tenant resolution, tenant settings, and global-admin list/detail surface reviewed; global-admin route and permission context fixes applied.           |
-| Generated documentation and Playwright coverage | First pass complete | partial    | Docs/spec inventory is discoverable again, but several docs/specs are stale or misleading.                                                            |
-| Local runtime/developer workflow                | First pass complete | partial    | Scripts, env loading, Docker/Playwright setup, and unit-test ownership reviewed.                                                                      |
+| Area                                            | Status     | Confidence | Notes                                                                                                                                                           |
+| ----------------------------------------------- | ---------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Events                                          | Stabilized | high       | Docker-backed specs/docs cover browsing, creation, management, unlisted visibility, registration state, price labels, scanner handoff, and refund copy.         |
+| Registrations                                   | Stabilized | high       | Free/paid registration, guests, add-ons, waitlist, negative states, cancellation/refund, and transfer boundaries have server, app, spec, and docs coverage.     |
+| Templates                                       | Stabilized | high       | Simple-mode templates now cover planning tips, ESNcard discounts, reusable add-ons/questions, role pickers, tax-rate behavior, and event creation copy paths.   |
+| Roles and permissions                           | Stabilized | high       | Route denial, role lookup, role management, permission metadata, tenant isolation, and user-list deferral are pinned by source, unit, spec, and docs coverage.  |
+| Finance/receipts                                | Stabilized | high       | Finance navigation, transaction visibility, receipt review, reimbursement recording, receipt submission, and refund boundaries have deterministic coverage.     |
+| Scanning/check-in                               | Stabilized | high       | QR scanner reads, selected guest check-in, later guest arrival, idempotent counters, and organizer aggregates are covered by specs/docs against Docker.         |
+| Profile/account flows                           | Stabilized | partial    | Profile edit, event cards, receipts, account creation contracts, and seeded ESNcard behavior are covered; live external ESNcard writes remain credential-gated. |
+| Tenant/global admin                             | Stabilized | high       | Tenant settings and global-admin list/detail/create/edit are covered for the one-primary-domain relaunch scope; custom-domain automation remains deferred.      |
+| Generated documentation and Playwright coverage | Stabilized | high       | Docs/spec inventory, skip gates, source guards, list mode, and generated-doc runtime flows are current and fail loudly for known fixture gaps.                  |
+| Local runtime/developer workflow                | Stabilized | partial    | Docker, env preflight, CI, and Font Awesome token paths are healthy; in-app Browser control still times out before manual review can run.                       |
 
 ## Product Decision Draft
 
@@ -906,7 +906,16 @@ the current working direction until a product decision overrides them.
 - `src/app/admin/event-reviews/event-reviews.component.spec.ts` covers the
   tenant event-review queue guard that disables Approve/Reject while a review
   mutation is pending.
-- Permission matrix coverage checks admin tax-rate, role-management, user-list, settings, and template write route denial. `src/app/admin/admin.routes.spec.ts` keeps the guarded admin route manifest explicit. The current Docker-backed system-Chrome permissions refresh also covers permission override behavior, tenant isolation for tax rates, and the role-management relaunch surface. Role lookup UI behavior still needs manual Browser review once runtime review is available; current Playwright specs cover duplicate-hiding behavior in both template creation and event editing, and generated template/event-management docs pin the same behavior with fixture hard-failure guards.
+- Permission matrix coverage checks admin tax-rate, role-management, user-list,
+  settings, and template write route denial. `src/app/admin/admin.routes.spec.ts`
+  keeps the guarded admin route manifest explicit. The current Docker-backed
+  system-Chrome permissions refresh also covers permission override behavior,
+  tenant isolation for tax rates, and the role-management relaunch surface.
+  Current Playwright specs cover role autocomplete duplicate-hiding behavior in
+  both template creation and event editing, and generated
+  template/event-management docs pin the same behavior with fixture
+  hard-failure guards. Manual Browser review for the same pages remains blocked
+  by the in-app Browser connection, not by a missing durable coverage path.
 - `tests/docs/roles/roles.doc.ts` documents role creation, dependent permissions, and the explicit deferral of existing-user role assignment for relaunch.
 - `tests/docs/roles/roles.doc.ts` now creates a deterministic unique role,
   asserts dependent permission selection, reads the persisted role permissions
@@ -1331,9 +1340,21 @@ the current working direction until a product decision overrides them.
 ### Recommended Cleanup Actions
 
 - Keep profile edit persistence coverage aligned with notification email and global reimbursement-detail behavior. Generated profile docs and the functional profile edit spec now both save and read back notification email plus IBAN/PayPal details against the Docker runtime.
-- Keep profile event-card coverage aligned with route/status/guest/add-on/payment/ticket/check-in labels and rerun it during manual runtime review.
-- Add Browser-backed profile discount-card tests for live add/refresh/remove provider validation outcomes once runtime review is available. Local app/server coverage already proves upsert payload normalization, readable mutation errors, global card reads/upserts, refresh persistence, scoped removal, and generated docs assert seeded card display plus invalid-input blocking.
-- Add Browser-backed profile/account coverage for account creation retry/tenant-join behavior, profile edit persistence, ESNcard add/refresh/remove, and profile event action rendering once local runtime review is available. Local helper/server coverage already covers account creation retry/tenant join, profile edit payload persistence, ESNcard action labels/errors/payloads, profile event labels/actions, and submitted receipt status/amount/server rows; generated profile docs now assert notification email plus reimbursement-detail persistence and submitted receipt visibility.
+- Keep profile event-card coverage aligned with
+  route/status/guest/add-on/payment/ticket/check-in labels and rerun it during
+  manual runtime review once in-app Browser navigation is available.
+- Keep the credential-gated live ESNcard profile spec aligned with
+  add/refresh/remove provider validation outcomes. Local app/server coverage
+  already proves upsert payload normalization, readable mutation errors, global
+  card reads/upserts, refresh persistence, scoped removal, and generated docs
+  assert seeded card display plus invalid-input blocking.
+- Keep profile/account coverage aligned as implemented behavior changes. Local
+  helper/server coverage already covers account creation retry/tenant join,
+  profile edit payload persistence, ESNcard action labels/errors/payloads,
+  profile event labels/actions, and submitted receipt status/amount/server rows;
+  generated profile docs now assert notification email plus reimbursement-detail
+  persistence and submitted receipt visibility. The remaining account-creation
+  full-browser path is Auth0-management-gated, not baseline CI coverage.
 
 ## Tenant/Global Admin
 
