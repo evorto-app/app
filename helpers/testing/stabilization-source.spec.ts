@@ -129,14 +129,17 @@ describe('stabilization source', () => {
     );
   });
 
-  it('keeps app templates on TanStack Query boolean status narrowing', () => {
-    const sourceFiles = listFiles('src/app', '.html');
+  it('keeps app code on TanStack Query boolean status narrowing', () => {
+    const sourceFiles = [
+      ...listFiles('src/app', '.html'),
+      ...listFiles('src/app', '.ts'),
+    ];
 
     for (const sourceFile of sourceFiles) {
       const source = readSource(sourceFile);
 
       expect(source, sourceFile).not.toMatch(
-        /\b\w+Query\.status\(\)\s*===\s*['"](pending|success|error)['"]/u,
+        /\b\w+Query\.status\(\)\s*(?:={2,3}|!={1,2})\s*["'](?:pending|success|error)["']/u,
       );
     }
   });

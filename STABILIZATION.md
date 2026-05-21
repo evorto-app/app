@@ -2792,6 +2792,11 @@ implement those decisions or explicitly revise them there before changing code.
   for TanStack Query data. Templates should branch on `query.isSuccess()` and
   then read `query.data()` inside the success state, preserving Query's
   status-based type narrowing.
+- TanStack TypeScript narrowing guard pass: checked the current TanStack Angular
+  TypeScript docs and tightened the app source guard to cover both templates
+  and component TypeScript. App code should use boolean status signals such as
+  `query.isSuccess()`/`query.isPending()` instead of `query.status() === ...`,
+  because the boolean signals carry the query result type narrowing.
 
 ## Browser Review Queue
 
