@@ -43,7 +43,7 @@ For this guide, we assume you have an account with the required permissions. The
 
 # Event Management
 
-The event management feature allows you to create, edit, and manage events in the application. This includes setting up registration options, managing attendees, and controlling event visibility.
+The event management feature allows you to create and edit events, configure registration options, review listing state, inspect the organizer participant overview, and handle event receipts.
 The current management surface is intentionally focused: event details, registration options, review/listing actions, organizer participant overview, and event receipts.
 
 ## Event List

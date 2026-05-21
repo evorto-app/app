@@ -424,6 +424,9 @@ describe('generated docs source current behavior', () => {
     const source = readSource('tests/docs/events/event-management.doc.ts');
 
     expect(source).toContain(
+      'The event management feature allows you to create and edit events, configure registration options, review listing state, inspect the organizer participant overview, and handle event receipts.',
+    );
+    expect(source).toContain(
       'Organizers check in attendees from the dedicated QR scanner.',
     );
     expect(source).toContain(
@@ -475,6 +478,7 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain("page.getByPlaceholder('Add Role...')");
     expect(source).toContain('Event edit role picker duplicate prevention');
     expect(source).not.toContain('manual check-in from the organizer overview');
+    expect(source).not.toContain('managing attendees');
     expect(source).not.toContain('automatic refund controls are available');
     expect(source).not.toContain('paid registration transfer is available');
   });
