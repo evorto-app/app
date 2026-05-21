@@ -2940,28 +2940,44 @@ Browser retry still failed before navigation with
 `Must setup test before interacting with the page`, so the visible profile UX
 review remains blocked outside the app/runtime path.
 
+Manual in-app Browser queue checkpoint: after reseeding the local Docker
+database with a current seed clock and refreshing the auth storage, the Browser
+plugin opened the generated `BASE_URL` successfully and the first manual queue
+pass covered all six app-flow slices. Anonymous review opened `/events`, saw
+future public events, opened a public event detail, and verified a temporary
+unlisted direct link stayed hidden from the list while remaining directly
+openable. Regular-user review signed in through the local Auth0 flow, opened a
+public event, completed a free registration, checked ticket/cancellation/unpaid
+transfer copy, and reviewed profile event-card and receipt tabs. Organizer
+review opened `/templates`, template detail, and `/scan`; Browser camera access
+showed the expected retryable camera fallback, and a direct check-in route
+correctly denied the organizer account without event check-in access. Tenant
+admin review opened `/admin`, `/admin/settings`, `/admin/roles`, `/finance`,
+and a temporary admin-authorized scanned-registration fixture, then removed the
+fixture after confirming the check-in page copy. Global-admin review opened the
+tenant list, tenant detail, and create form with the relaunch-scope copy.
+Deterministic provider review enabled the local tenant-scoped ESNcard test
+provider and opened the profile discount-card tab with a verified `TEST-ESN`
+card, readable status, refresh/remove actions, and disabled empty save state.
+
 ## Review Next
 
-All ten first-pass review areas are now represented in this document. The next
-stabilization work should continue with small cleanup commits around the
-remaining review blocker: in-app Browser manual review. ESNcard provider add/refresh/remove outcomes now use deterministic ESNcard provider test mode.
+All ten first-pass review areas are now represented in this document, and the
+first manual in-app Browser queue pass has been completed against the local
+Docker app. The next stabilization work should continue with small cleanup
+commits around the remaining product and relaunch-scope blockers. ESNcard
+provider add/refresh/remove outcomes now use deterministic ESNcard provider test
+mode.
 Automated custom-domain
 verification, multi-domain onboarding, and tenant impersonation are intentionally
 documented deferred scope for relaunch, not an untested current-app claim.
 Scanner aggregate behavior, profile account/event/receipt/discount-card
-behavior, and global-admin tenant administration now have Docker-backed
-system-Chrome coverage, but the in-app Browser connection itself still timed out
-during local navigation and later reported no active Codex browser pane after a
-clean-tab recovery attempt. The latest retry fails earlier with the
-`Transport closed` error before navigation; the fallback Playwright browser MCP
-path fails the same way.
-It should be retried when the Browser plugin/runtime transport and pane are
-healthy. The ESN discounted-pricing slice and ESNcard provider outcomes now
-have Docker-backed deterministic system-Chrome coverage; Browser still needs to
-inspect the visible profile UX once transport recovers.
-After Docker Desktop restart restored the full local stack, the in-app Browser
-retry still failed with `Transport closed`, confirming the remaining Browser
-blocker is outside the app and Docker runtime.
+behavior, and global-admin tenant administration now have both Docker-backed
+system-Chrome coverage and a first manual Browser review pass. The ESN
+discounted-pricing slice and ESNcard provider outcomes now have Docker-backed
+deterministic system-Chrome coverage, and the Browser pass inspected the
+visible profile discount-card UX after enabling tenant-scoped provider test
+mode locally.
 Richer reusable template add-ons and questions are now implemented in the simple
 template flow and should be kept aligned as those surfaces evolve. Normal generated docs output now stays local unless
 `test:e2e:docs:publish` is run intentionally. New Playwright

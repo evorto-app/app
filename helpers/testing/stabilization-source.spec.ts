@@ -72,20 +72,22 @@ describe('stabilization source', () => {
     const source = readSource('STABILIZATION.md');
     const reviewNext = source.split('## Review Next\n')[1];
 
-    expect(reviewNext).toContain('in-app Browser manual review');
-    expect(reviewNext).toContain('deterministic ESNcard provider test mode');
     expect(reviewNext).toContain(
-      'ESNcard provider add/refresh/remove outcomes',
+      'first manual in-app Browser queue pass has been completed',
     );
+    expect(reviewNext).toContain('deterministic ESNcard provider test');
+    expect(reviewNext).toContain('provider add/refresh/remove outcomes');
     expect(reviewNext).toContain('custom-domain');
     expect(reviewNext).toContain('multi-domain onboarding');
     expect(reviewNext).toContain('tenant impersonation');
     expect(reviewNext).toContain('documented deferred scope');
     expect(reviewNext).toContain('Docker-backed');
     expect(reviewNext).toContain('system-Chrome coverage');
-    expect(reviewNext).toContain('no active Codex browser pane');
-    expect(reviewNext).toContain('Transport closed');
-    expect(reviewNext).toContain('fallback Playwright browser MCP');
+    expect(reviewNext).toContain('manual Browser review pass');
+    expect(reviewNext).toContain('visible profile discount-card UX');
+    expect(reviewNext).not.toContain('no active Codex browser pane');
+    expect(reviewNext).not.toContain('Transport closed');
+    expect(reviewNext).not.toContain('fallback Playwright browser MCP');
     expect(source).not.toContain(
       'Browser walkthrough coverage for anonymous event browsing is enough',
     );
@@ -118,7 +120,9 @@ describe('stabilization source', () => {
     expect(source).toContain(
       'Most are now covered by deterministic specs, generated docs, or source guards',
     );
-    expect(source).toContain('in-app Browser manual review queue');
+    expect(source).toContain(
+      'first in-app Browser manual review queue pass has now covered',
+    );
     expect(source).not.toContain('E2E_LIVE_ESN_CARD_IDENTIFIER');
   });
 

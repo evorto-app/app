@@ -286,8 +286,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 
 The entries below are the areas to keep aligned as stabilization continues.
 Most are now covered by deterministic specs, generated docs, or source guards;
-the hard external blockers are the in-app Browser manual review queue and the
-deterministic ESNcard provider test-mode path.
+the first in-app Browser manual review queue pass has now covered the local
+Docker app, and the deterministic ESNcard provider test-mode path covers
+provider outcomes without live identifiers.
 
 - Profile/account:
   - Docker-backed system-Chrome profile edit persistence now passes against the
@@ -495,8 +496,9 @@ deterministic ESNcard provider test-mode path.
     database, and restore the shared fixture, so the guide is tied to persisted
     tenant state. It also pins list -> create -> created detail, list -> detail
     -> edit, edit cancel, edit save, and external tenant-domain link targets so
-    page navigation cannot silently drift while authenticated Browser runtime
-    review is blocked. Local server/app coverage already proves the list,
+    page navigation cannot silently drift. The authenticated Browser review has
+    now opened the list, detail, and create surfaces against the local Docker
+    app. Local server/app coverage already proves the list,
     tenant detail, tenant create, and tenant edit surfaces return, render, and
     persist operational tenant state for support review, and local app
     coverage proves readable load-failure messages and account labels. Tenant
