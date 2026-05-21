@@ -733,7 +733,8 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** reset-from-zero seed data now includes
   both free and paid reusable template add-ons attached to participant template
   registration options, so Browser review can inspect the add-on detail surface
-  once the local runtime is available.
+  during repeat human review; the first manual Browser queue pass has already
+  covered the template detail surface.
 - **Addressed in stabilization pass:** simple-mode template create/edit now exposes optional ESNcard discounted prices when the tenant ESNcard provider is enabled, persists them in `templateRegistrationOptionDiscounts`, returns them through `templates.findOne`, and shows them on template detail.
 - **Addressed in stabilization pass:** simple-mode template create/edit now
   exposes reusable registration questions attached to the participant or
@@ -934,8 +935,9 @@ the current working direction until a product decision overrides them.
   Current Playwright specs cover role autocomplete duplicate-hiding behavior in
   both template creation and event editing, and generated
   template/event-management docs pin the same behavior with fixture
-  hard-failure guards. Manual Browser review for the same pages remains blocked
-  by the in-app Browser connection, not by a missing durable coverage path.
+  hard-failure guards. The first manual Browser queue pass also opened the
+  relevant admin, role, template, and event-management surfaces for human
+  review; repeat Browser review should stay focused on changed UI behavior.
 - `tests/docs/roles/roles.doc.ts` documents role creation, dependent permissions, and the explicit deferral of existing-user role assignment for relaunch.
 - `tests/docs/roles/roles.doc.ts` now creates a deterministic unique role,
   asserts dependent permission selection, reads the persisted role permissions
@@ -1183,7 +1185,7 @@ the current working direction until a product decision overrides them.
   check-in action, captures that page for generated documentation, records the
   check-in, reads back the persisted registration/counter state, and restores
   the seeded checked-in counter during cleanup.
-- `QUALITY.md` lists participant and guest-quantity check-in as high-value Playwright flows; the scanner spec now covers selected guest check-in and the organizer overview aggregate. Manual Browser review still depends on local runtime availability.
+- `QUALITY.md` lists participant and guest-quantity check-in as high-value Playwright flows; the scanner spec now covers selected guest check-in and the organizer overview aggregate. The first manual Browser queue pass also opened `/scan` and the scanned-registration result surface.
 
 ### Product Questions Answered Above
 
@@ -1200,7 +1202,7 @@ the current working direction until a product decision overrides them.
 - Keep server tests for invalid guest-count check-in payloads so direct RPC
   writes cannot bypass the scanner UI clamping.
 - Keep server tests for pending/cancelled/waitlisted registrations.
-- Keep the Playwright scanner spec aligned with the organizer overview/check-in aggregate and run the manual Browser review once local runtime is available.
+- Keep the Playwright scanner spec aligned with the organizer overview/check-in aggregate, and repeat the focused Browser review when scanner UI behavior changes.
 - Keep organizer check-in documentation aligned with the dedicated scanner flow as check-in UI and guest-quantity behavior evolve.
 - Keep scanner camera-error mapping covered by unit tests as browser/device behavior changes.
 
@@ -1312,8 +1314,8 @@ the current working direction until a product decision overrides them.
   submitted-receipt visibility. The generated docs and functional
   profile-event spec both pin those seeded card states to their expected
   event-page links so ticket, cancellation, unpaid-transfer, and waitlist
-  recovery routing cannot silently drift while Browser runtime review is
-  unavailable.
+  recovery routing cannot silently drift independently from repeat Browser
+  review.
 - `tests/docs/users/create-account.doc.ts` includes a baseline helper-backed
   account-creation documentation note for verified-email gating, Auth0-data
   prefill, notification-email terminology, payload trimming, retryable errors,
@@ -1346,10 +1348,10 @@ the current working direction until a product decision overrides them.
   `tests/docs/profile/user-profile.doc.ts`,
   and `tests/docs/profile/discounts.doc.ts` passed. The deterministic provider
   test-mode path now covers ESNcard add/refresh/remove outcomes without a live
-  identifier. The in-app Browser attempt to open
-  `/profile#discounts` still timed out before returning usable page state, so
-  manual Browser review remains a tooling/runtime follow-up rather than an
-  uncovered Playwright behavior gap.
+  identifier. A later first manual Browser queue pass opened the profile
+  discount-card tab after enabling tenant-scoped provider test mode locally, so
+  the visible profile UX has both deterministic Playwright coverage and human
+  Browser evidence.
 
 ### Product Questions Answered Above
 
@@ -1365,7 +1367,7 @@ the current working direction until a product decision overrides them.
 - Keep profile edit persistence coverage aligned with notification email and global reimbursement-detail behavior. Generated profile docs and the functional profile edit spec now both save and read back notification email plus IBAN/PayPal details against the Docker runtime.
 - Keep profile event-card coverage aligned with
   route/status/guest/add-on/payment/ticket/check-in labels and rerun it during
-  manual runtime review once in-app Browser navigation is available.
+  repeat manual Browser review when profile UI behavior changes.
 - Keep the deterministic ESNcard provider profile spec aligned with
   add/refresh/remove provider validation outcomes. Local app/server coverage
   already proves upsert payload normalization, readable mutation errors, global
@@ -1392,7 +1394,7 @@ the current working direction until a product decision overrides them.
 - `/global-admin` is guarded by authentication at the app route and by `globalAdmin:manageTenants` in the global-admin route config. The navigation link is hidden behind `globalAdmin:*`, and the tenant list RPC requires `globalAdmin:manageTenants`.
 - Global admin currently exposes a searchable tenant list, tenant create/edit flows for the one active primary domain and operational tenant settings, and tenant detail review with non-sensitive operational tenant state. Custom-domain verification, multi-domain automation, and impersonation remain deferred.
 - Global-admin permissions are derived from Auth0 app metadata `evorto.app/app_metadata.globalAdmin === true` independently from current-tenant membership. Tenant user context still requires a current-tenant assignment.
-- Anonymous direct `/global-admin` redirects to Auth0. Docker-backed system-Chrome coverage now verifies authenticated global-admin list, detail, create, edit, and route-guard behavior; the in-app Browser connection still times out during manual navigation.
+- Anonymous direct `/global-admin` redirects to Auth0. Docker-backed system-Chrome coverage verifies authenticated global-admin list, detail, create, edit, and route-guard behavior; the first manual Browser queue pass opened the tenant list, tenant detail, and create form with the relaunch-scope copy.
 
 ### Intended Behavior From Product Context
 
@@ -1456,7 +1458,7 @@ the current working direction until a product decision overrides them.
 - `src/app/core/effect-rpc-angular-client.spec.ts` covers SSR RPC origin selection from incoming URL and forwarded headers.
 - `tests/specs/auth/storage-state-refresh.test.ts` covers stale/wrong tenant cookies in saved Playwright storage state, not runtime tenant resolution.
 - `tests/specs/permissions/tenant-isolation-tax-rates.spec.ts` checks seeded tenant tax-rate isolation directly in the database, but does not exercise the RPC/UI tenant context switch.
-- `tests/specs/permissions/matrix.spec.ts` covers route denial for `/admin/settings`, `/admin/roles`, `/admin/users`, `/admin/tax-rates`, `/finance/transactions`, `/finance/receipts-approval`, `/finance/receipts-refunds`, and template write routes. `tests/specs/finance/tax-rates/admin-import-tax-rates.spec.ts` adds focused tax-rate route denial coverage. Route-manifest unit specs cover admin, finance, template, and global-admin guard declarations without requiring page-backed runtime. `tests/specs/permissions/global-admin-route-guard.spec.ts` covers direct `/global-admin`, `/global-admin/tenants/create`, `/global-admin/tenants/:tenantId`, and `/global-admin/tenants/:tenantId/edit` allow/deny behavior once page-backed runtime is available.
+- `tests/specs/permissions/matrix.spec.ts` covers route denial for `/admin/settings`, `/admin/roles`, `/admin/users`, `/admin/tax-rates`, `/finance/transactions`, `/finance/receipts-approval`, `/finance/receipts-refunds`, and template write routes. `tests/specs/finance/tax-rates/admin-import-tax-rates.spec.ts` adds focused tax-rate route denial coverage. Route-manifest unit specs cover admin, finance, template, and global-admin guard declarations without requiring page-backed runtime. `tests/specs/permissions/global-admin-route-guard.spec.ts` covers direct `/global-admin`, `/global-admin/tenants/create`, `/global-admin/tenants/:tenantId`, and `/global-admin/tenants/:tenantId/edit` allow/deny behavior against page-backed runtime.
 - `helpers/testing/permission-matrix-source.spec.ts` keeps finance
   route-denial cases aligned with the guarded finance route manifest, including
   the transaction list, receipt approval list/detail, and reimbursement routes.
@@ -1512,7 +1514,7 @@ the current working direction until a product decision overrides them.
 - `tests/specs/admin/roles-management.spec.ts` functionally covers the current
   admin user-list review surface and role create/edit flow, including
   permission dependency display and explicit create/edit database readbacks.
-- The in-app Browser connection still times out during manual global-admin navigation, but Docker-backed system-Chrome Playwright runs now verify authenticated tenant administration and route-guard behavior against the running app.
+- Docker-backed system-Chrome Playwright runs verify authenticated tenant administration and route-guard behavior against the running app, and the first manual Browser queue pass opened the global-admin tenant list, detail, and create surfaces for human review.
 
 ### Product Questions Answered Above
 
@@ -1579,13 +1581,13 @@ the current working direction until a product decision overrides them.
   depend only on a bundled Chromium download for local exploratory runs.
   Bundled Chromium remains the default browser channel, but
   `E2E_BROWSER_CHANNEL=chrome` can use system Chrome on hosts where it is
-  installed. In this checkout, full page-backed execution is still blocked by
-  missing runtime secrets until `NEON_API_KEY`, `CLIENT_SECRET`, and
-  `STRIPE_API_KEY` are provided.
+  installed. In this checkout, page-backed execution is available when the
+  generated `.env.dev` is refreshed from the local secret-bearing environment
+  and the Docker stack is healthy.
 - **Addressed in stabilization pass:** `tests/test-inventory.md` now maps
   current Playwright specs/docs by suite ownership, records intentional fixme
-  and credential-gated paths, and lists the Browser-backed coverage still
-  needed from the remaining stabilization gaps. The Playwright inventory source
+  and credential-gated paths, and records the first Browser-backed queue pass
+  coverage. The Playwright inventory source
   guard now also compares that active-file list with the actual `tests/docs`
   and `tests/specs` files on disk, so new docs/spec files cannot be omitted
   silently.
@@ -1622,13 +1624,15 @@ the current working direction until a product decision overrides them.
   the partial guest-arrival case where the buyer and one guest were already
   checked in, then a later scan records the remaining guest without re-counting
   the buyer.
-- **Remaining runtime review:** profile discount add/refresh/remove outcomes still
-  need Browser review once Browser transport is available. Local docs/spec
-  coverage now pins seeded verified-card display, direct `#discounts` routing,
-  refresh/remove action visibility, invalid-input blocking, readable statuses,
-  pending labels, shared write guards, deterministic provider test-mode
-  add/refresh/remove, and provider-unavailable retry copy without calling the
-  external provider.
+- **Addressed in stabilization pass:** profile discount add/refresh/remove
+  outcomes now use deterministic provider test mode in Docker-backed coverage,
+  and the first manual Browser queue pass inspected the visible profile
+  discount-card UX after enabling the tenant-scoped provider test mode locally.
+  Local docs/spec coverage pins seeded verified-card display, direct
+  `#discounts` routing, refresh/remove action visibility, invalid-input
+  blocking, readable statuses, pending labels, shared write guards,
+  deterministic provider test-mode add/refresh/remove, and
+  provider-unavailable retry copy without calling the external provider.
 - **Addressed in stabilization pass:** the generic `tests/docs/template.doc.ts` discovery placeholder was removed; current template documentation lives in `tests/docs/templates/templates.doc.ts`.
 - **Addressed in stabilization pass:** the focused `docScreenshot` helper now
   resolves `DOCS_IMG_OUT_DIR` at call time instead of import time, so tests and
@@ -1752,7 +1756,7 @@ the current working direction until a product decision overrides them.
   the network-heavy browser install path.
 - **Addressed in stabilization pass:** `helpers/testing/runtime-preflight.spec.ts` now pins that destructive Docker start scripts call `docker:check` first, required runtime variables are wired into Compose services, and Font Awesome registry access remains available to Docker through the same secret path for premium and brand icon packages.
 - **Addressed in stabilization pass:** `bun run docker:ps` now loads the generated `.env.dev` before running `docker compose ps`, so worktree stack checks use the isolated `COMPOSE_PROJECT_NAME` instead of accidentally inspecting the default Compose project.
-- **Addressed in stabilization pass:** `tests/test-inventory.md` now names its remaining stabilization list as a coverage watchlist instead of implying all listed items are still missing. It explicitly identifies in-app Browser manual review as the hard external blocker and routes ESNcard provider outcomes through deterministic provider test mode.
+- **Addressed in stabilization pass:** `tests/test-inventory.md` now names its remaining stabilization list as a coverage watchlist instead of implying all listed items are still missing. It records that the first in-app Browser manual review queue pass has covered the local Docker app and routes ESNcard provider outcomes through deterministic provider test mode.
 - **Addressed in stabilization pass:** `QUALITY.md` now records the Browser-blocked fallback rule used during this PR: continue durable Playwright validation when Browser control is unavailable, but do not treat Playwright, screenshots, or system Chrome as a substitute for a requested in-app Browser walkthrough. Source coverage keeps that distinction explicit.
 - **Addressed in this stabilization pass:** remaining Angular Material icon usage for app action icons was removed from the role, event-review, template-list, and template-category surfaces. App source coverage now keeps Angular app icons on the Font Awesome component path, so premium and brand icon packages continue using the same package/token mechanic instead of a separate Material icon registry path.
 - **Addressed in stabilization pass:** `specs/seed/seed-baseline.test.ts` now treats the reset-from-zero seed as a runtime contract: default user/organizer roles, every template seed family, paid/free registration options, paid tax-rate wiring, open/closed/draft/past scenario handles, confirmed registrations, and scanner aggregate data must all exist after seeding.
@@ -1802,10 +1806,10 @@ the current working direction until a product decision overrides them.
    docs now document the current notification email, ESNcard, receipt, and
    event-card behavior; the profile doc now asserts confirmed event-card
    route/status/guest/add-on/payment/ticket labels. Remaining profile/account
-   gaps are Browser-backed or Auth0-management-gated coverage, not known
-   placeholder doc titles.
+   gaps are product-decision or future delivery paths, not known placeholder
+   doc titles.
 2. Keep the Playwright skip/fixme inventory guard current whenever an
-   intentional credential gate or Browser-backed placeholder changes.
+   intentional credential gate or repeat Browser-review placeholder changes.
 3. Keep server-side template permission, validation, and route-guard coverage in place as template behavior expands beyond simple mode.
 4. Keep role lookup APIs lookup-only for event/template eligibility flows; do not re-expose admin role-management data to organizers.
 5. Keep admin, finance, global-admin, and template direct-route denial coverage current as route trees change.

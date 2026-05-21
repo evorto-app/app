@@ -102,6 +102,17 @@ describe('stabilization source', () => {
     expect(source).not.toContain(
       'in-app Browser control still times out before manual review can run',
     );
+    expect(source).not.toContain('once the local runtime is available');
+    expect(source).not.toContain(
+      'manual runtime review once in-app Browser navigation is available',
+    );
+    expect(source).not.toContain(
+      'in-app Browser connection still times out during manual global-admin navigation',
+    );
+    expect(source).not.toContain(
+      'lists the Browser-backed coverage still\n' +
+        '  needed from the remaining stabilization gaps',
+    );
   });
 
   it('keeps paid transfer and resale blocked on an explicit settlement decision', () => {
