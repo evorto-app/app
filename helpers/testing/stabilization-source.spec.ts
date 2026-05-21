@@ -115,6 +115,34 @@ describe('stabilization source', () => {
     );
   });
 
+  it('keeps the latest PR readiness checkpoint current', () => {
+    const source = readSource('STABILIZATION.md');
+    const readinessCheckpoint = source.match(
+      /Latest PR readiness checkpoint:[\s\S]*?\n\n## Browser Review Queue/u,
+    )?.[0];
+
+    expect(readinessCheckpoint).toBeDefined();
+    expect(readinessCheckpoint).toContain(
+      '7b39be0f3a89e1fd14982114e8cbf98a5c59af48',
+    );
+    expect(readinessCheckpoint).toContain(
+      'The PR has no unresolved review threads at',
+    );
+    expect(readinessCheckpoint).toMatch(
+      /paid transfer\/resale money movement\s+still needs a human settlement-model decision/u,
+    );
+    expect(readinessCheckpoint).toMatch(
+      /first in-app Browser queue pass and\s+deterministic ESNcard provider coverage are no longer PR-readiness blockers/u,
+    );
+    expect(readinessCheckpoint).not.toContain(
+      '4cfd4d960f1831055153fab0b3321ed55e937284',
+    );
+    expect(readinessCheckpoint).not.toContain(
+      'in-app Browser manual pass is still blocked',
+    );
+    expect(readinessCheckpoint).not.toContain('E2E_LIVE_ESN_CARD_IDENTIFIER');
+  });
+
   it('keeps paid transfer and resale blocked on an explicit settlement decision', () => {
     const source = readSource('STABILIZATION.md');
 
