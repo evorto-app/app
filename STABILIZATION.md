@@ -1455,6 +1455,10 @@ the current working direction until a product decision overrides them.
 - `src/app/global-admin/tenant-edit/tenant-edit.component.html` follows the
   relaunch TanStack Query template convention by branching on
   `tenantQuery.isSuccess()` before reading `tenantQuery.data()`.
+- Shared app query-derived computed state now follows the same TanStack Query
+  convention: list/detail helpers that previously read `query.data() ?? []` or
+  linked forms directly from `query.data()` now branch through `query.isSuccess()`
+  first so TypeScript and templates retain Query's success-state narrowing.
 - `src/server/effect/rpc/handlers/global-admin.handlers.spec.ts` covers explicit `globalAdmin:manageTenants` authorization, `globalAdmin:*` dependency authorization, tenant create/update normalization, and fail-closed forbidden/unauthorized tenant-list reads before querying tenants.
 - `src/server/context/request-context-resolver.spec.ts` covers host-first tenant resolution, localhost tenant-cookie fallback, stale localhost tenant-cookie fallback, unknown-host failure, global-admin permissions resolving without a tenant user assignment, and tenant-user context failing closed when the Auth0 user has no current-tenant assignment.
 - `tests/specs/admin/roles-management.spec.ts` functionally covers the current
@@ -2576,6 +2580,14 @@ implement those decisions or explicitly revise them there before changing code.
   stale finance doc assumptions around scoped child headings, template-derived
   event end times, Drizzle relational query filters, and submitter contact
   email semantics so the docs assert notification email rather than login email.
+- TanStack Query narrowing pass: aligned shared app computed state and linked
+  edit forms with the documented `query.isSuccess()` success-state narrowing
+  pattern. This covered tenant list/edit, role edit/select, event organizer
+  checks, icon search, template categories/details, tenant tax-rate import
+  helpers, and finance refund recipient defaults. Docker was rebuilt after the
+  edits, `/events` served 200 on port 4577, focused Angular specs passed 27/27,
+  and the Docker-backed global-admin tenant workflow passed against system
+  Chrome. The in-app Browser connection still timed out at runtime setup.
 
 ## Review Next
 

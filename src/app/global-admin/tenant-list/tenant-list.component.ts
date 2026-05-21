@@ -41,10 +41,9 @@ export class TenantListComponent {
   );
   protected readonly tenantSearch = signal('');
   protected readonly filteredTenants = computed(() =>
-    filterGlobalAdminTenants(
-      this.tenantQuery.data() ?? [],
-      this.tenantSearch(),
-    ),
+    this.tenantQuery.isSuccess()
+      ? filterGlobalAdminTenants(this.tenantQuery.data(), this.tenantSearch())
+      : [],
   );
   protected readonly tenantListErrorMessage = globalAdminTenantListErrorMessage;
   protected readonly tenantRows = globalAdminTenantRows;
