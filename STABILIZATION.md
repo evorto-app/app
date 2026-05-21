@@ -2888,6 +2888,16 @@ available through the generated dev environment, so `bun run
 test:e2e:create-account -- --workers=1` also passed and covered the
 integration-tagged account-creation spec plus generated-doc journey.
 
+Organizer authoring/check-in queue checkpoint: the third queue item's durable
+anchors passed against the same Docker stack with fresh seed keys. The
+system-Chrome functional pass covered `tests/specs/templates/templates.test.ts`,
+`tests/specs/templates/paid-option-requires-tax-rate.spec.ts`,
+`tests/specs/events/events.test.ts`, and
+`tests/specs/scanning/scanner.test.ts`. The generated-docs pass covered
+`tests/docs/templates/templates.doc.ts` and
+`tests/docs/events/event-management.doc.ts`, including the template authoring,
+event creation, organizer overview, and scanner guest check-in paths.
+
 ## Review Next
 
 All ten first-pass review areas are now represented in this document. The next
