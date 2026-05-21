@@ -277,16 +277,19 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     per-user card reads/upserts, refresh persistence, provider-outage upsert
     rejection before inserting or updating the stored card, and scoped removal.
     Local app coverage also proves that save, refresh, and remove actions share
-    an in-flight guard so profile discount-card writes do not overlap.
-    App coverage also proves the `#discounts` profile fragment waits for
-    tenant ESNcard provider availability before selecting the section.
-  - Browser-backed account-creation retry and tenant-join behavior. Server
-    coverage already proves transactional creation, existing-global-user tenant
-    joins, duplicate-assignment conflicts, and visible create-account error
-    message mapping. App helper coverage proves Auth0-data prefill,
-    email-verification gating, payload normalization, error-message mapping, and
-    the invalid/submitting/mutation-pending submit guard now shared by the
-    visible submit button and handler.
+    an in-flight guard so profile discount-card writes do not overlap. App
+    coverage also proves the
+    `#discounts` profile fragment waits for tenant ESNcard provider availability
+    before selecting the section. Generated-doc source coverage keeps the
+    discounts guide tied to the local ESNcard helper functions and provider
+    outage retry semantics.
+  - Account-creation retry and tenant-join behavior. Server coverage already
+    proves transactional creation, existing-global-user tenant joins,
+    duplicate-assignment conflicts, and visible create-account error message
+    mapping. App helper coverage proves Auth0-data prefill, email-verification
+    gating, payload normalization, error-message mapping, and the
+    invalid/submitting/mutation-pending submit guard now shared by the visible
+    submit button and handler.
     `specs/profile/create-account.spec.ts` adds credential-gated functional
     coverage for a generated Auth0 user creating a current-tenant account,
     landing on profile, persisted notification email/name fields, tenant
@@ -308,12 +311,12 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     credential-gated integration path executable under the local runtime; the
     live Auth0 path still requires Auth0 Management credentials to avoid
     skipping.
-  - Manual Browser-backed submitted-receipt visibility review after a real
-    receipt submission remains useful once the in-app Browser connection is
-    reliable. The Docker-backed Playwright profile pass now verifies the
-    deterministic profile receipt flow through both generated docs and the
-    functional spec: filename, submitted status, event title, amount, persisted
-    database row, and cleanup. Local app/server coverage already proves readable
+  - Submitted-receipt visibility after receipt submission. Manual Browser
+    review remains useful once the in-app Browser connection is reliable, but
+    the Docker-backed Playwright profile pass now verifies the deterministic
+    profile receipt flow through both generated docs and the functional spec:
+    filename, submitted status, event title, amount, persisted database row, and
+    cleanup. Local app/server coverage already proves readable
     submitted-receipt status labels, amount formatting, and
     `finance.receipts.my` profile-card row normalization.
 - Finance/receipts:
