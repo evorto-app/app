@@ -4,6 +4,7 @@ import path from 'node:path';
 
 import {
   evaluateRuntimePreflight,
+  optionalByTarget,
   requiredByTarget,
 } from './runtime-preflight';
 
@@ -335,6 +336,52 @@ describe('evaluateRuntimePreflight', () => {
     );
   });
 
+  it('reports optional live-provider variables without making them startup blockers', () => {
+    const result = evaluateRuntimePreflight('docker', {
+      cwd: '/repo',
+      env: requiredDockerEnvironment,
+      fileExists: (filePath) => filePath === '/repo/.env.dev',
+      runCommand: successfulCommand,
+    });
+
+    expect(result.failed).toBe(false);
+    expect(result.checks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          details: [
+            'missing E2E_LIVE_ESN_CARD_IDENTIFIER: Live esncard.org add, refresh, and remove Playwright coverage',
+          ],
+          label: 'Optional docker live-provider variables',
+          severity: 'ok',
+        }),
+      ]),
+    );
+  });
+
+  it('keeps optional live-provider variables visible when they are available', () => {
+    const result = evaluateRuntimePreflight('docker', {
+      cwd: '/repo',
+      env: {
+        ...requiredDockerEnvironment,
+        E2E_LIVE_ESN_CARD_IDENTIFIER: 'live-card-id',
+      },
+      fileExists: (filePath) => filePath === '/repo/.env.dev',
+      runCommand: successfulCommand,
+    });
+
+    expect(result.checks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          details: [
+            'E2E_LIVE_ESN_CARD_IDENTIFIER: Live esncard.org add, refresh, and remove Playwright coverage',
+          ],
+          label: 'Optional docker live-provider variables',
+          severity: 'ok',
+        }),
+      ]),
+    );
+  });
+
   it('keeps the no-secret env example aligned with required Docker variables', () => {
     const envExample = fs.readFileSync(
       path.join(process.cwd(), '.env.example'),
@@ -345,6 +392,17 @@ describe('evaluateRuntimePreflight', () => {
       expect(envExample).toContain(`${name}=`);
     }
     expect(envExample).toContain('Do not put real secret values in this file.');
+  });
+
+  it('keeps the no-secret env example aligned with optional Docker variables', () => {
+    const envExample = fs.readFileSync(
+      path.join(process.cwd(), '.env.example'),
+      'utf8',
+    );
+
+    for (const { name } of optionalByTarget.docker) {
+      expect(envExample).toContain(`${name}=`);
+    }
   });
 
   it('warns about missing Playwright browsers without blocking Docker start', () => {
