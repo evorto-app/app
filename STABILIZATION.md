@@ -1318,6 +1318,10 @@ the current working direction until a product decision overrides them.
   convention: list/detail helpers that previously read `query.data() ?? []` or
   linked forms directly from `query.data()` now branch through `query.isSuccess()`
   first so TypeScript and templates retain Query's success-state narrowing.
+- ESNcard provider-gated UI now follows the same convention in profile,
+  event-edit, template create/edit, and template-to-event flows: provider,
+  card, template, and default-role query reads branch through `query.isSuccess()`
+  before enabling ESNcard controls or deriving form defaults.
 - `src/server/effect/rpc/handlers/global-admin.handlers.spec.ts` covers explicit `globalAdmin:manageTenants` authorization, `globalAdmin:*` dependency authorization, tenant create/update normalization, and fail-closed forbidden/unauthorized tenant-list reads before querying tenants.
 - `src/server/context/request-context-resolver.spec.ts` covers host-first tenant resolution, localhost tenant-cookie fallback, stale localhost tenant-cookie fallback, unknown-host failure, global-admin permissions resolving without a tenant user assignment, and tenant-user context failing closed when the Auth0 user has no current-tenant assignment.
 - The in-app Browser connection still times out during manual global-admin navigation, but Docker-backed system-Chrome Playwright runs now verify authenticated tenant administration and route-guard behavior against the running app.
@@ -2163,6 +2167,14 @@ implement those decisions or explicitly revise them there before changing code.
   edits, `/events` served 200 on port 4577, focused Angular specs passed 27/27,
   and the Docker-backed global-admin tenant workflow passed against system
   Chrome. The in-app Browser connection still timed out at runtime setup.
+- ESNcard provider-gate narrowing pass: extended the TanStack Query success
+  narrowing cleanup to the ESNcard provider gates in profile, event edit,
+  template create/edit, and template-to-event creation. Focused Angular specs
+  for event edit/detail, profile, and template-to-event passed 37/37 before the
+  Docker browser slices. Docker was rebuilt after the edits, `/events` served
+  200 on port 4577, profile discount-card plus template authoring functional
+  slices passed 6/6 against system Chrome, and the matching generated profile
+  discounts plus template docs slices passed 3/3.
 
 ## Review Next
 

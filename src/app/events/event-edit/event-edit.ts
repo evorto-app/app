@@ -74,8 +74,8 @@ export class EventEdit {
     eventGeneralFormSchema,
   );
   protected readonly esnEnabled = computed(() => {
+    if (!this.discountProvidersQuery.isSuccess()) return false;
     const providers = this.discountProvidersQuery.data();
-    if (!providers) return false;
     return (
       providers.find((provider) => provider.type === 'esnCard')?.status ===
       'enabled'
@@ -95,8 +95,8 @@ export class EventEdit {
   private router = inject(Router);
   constructor() {
     effect(() => {
-      const event = this.eventQuery.data();
-      if (event) {
+      if (this.eventQuery.isSuccess()) {
+        const event = this.eventQuery.data();
         this.editEventModel.set(
           createEventGeneralFormModel({
             description: event.description,

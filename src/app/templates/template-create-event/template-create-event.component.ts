@@ -66,7 +66,11 @@ export class TemplateCreateEventComponent {
     this.rpc.templates.findOne.queryOptions({ id: this.templateId() }),
   );
   protected readonly addOnCopyNotice = computed(() =>
-    templateAddOnCopyNotice(this.templateQuery.data()?.addOns.length ?? 0),
+    templateAddOnCopyNotice(
+      this.templateQuery.isSuccess()
+        ? this.templateQuery.data().addOns.length
+        : 0,
+    ),
   );
   protected readonly createEventModel = signal<EventGeneralFormModel>(
     createEventGeneralFormModel(),
@@ -82,8 +86,8 @@ export class TemplateCreateEventComponent {
     this.rpc.discounts.getTenantProviders.queryOptions(),
   );
   protected readonly esnEnabled = computed(() => {
+    if (!this.discountProvidersQuery.isSuccess()) return false;
     const providers = this.discountProvidersQuery.data();
-    if (!providers) return false;
     return (
       providers.find((provider) => provider.type === 'esnCard')?.status ===
       'enabled'
@@ -102,8 +106,8 @@ export class TemplateCreateEventComponent {
 
   constructor() {
     effect(() => {
+      if (!this.templateQuery.isSuccess()) return;
       const template = this.templateQuery.data();
-      if (!template) return;
       if (this.initializedTemplateId() === template.id) return;
 
       const startDateTime = this.toDateTime(
@@ -116,10 +120,11 @@ export class TemplateCreateEventComponent {
       this.initializedTemplateId.set(template.id);
     });
     effect(() => {
+      if (!this.templateQuery.isSuccess()) return;
       const template = this.templateQuery.data();
       const eventStart = this.createEventForm.start().value();
       const registrationOptions = this.createEventModel().registrationOptions;
-      if (!template || !eventStart || registrationOptions.length === 0) return;
+      if (!eventStart || registrationOptions.length === 0) return;
       const startDateTime = this.toDateTime(eventStart);
       const previousStart = this.lastStart();
       this.lastStart.set(startDateTime);
