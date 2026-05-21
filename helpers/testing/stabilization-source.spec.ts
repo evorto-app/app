@@ -43,6 +43,8 @@ describe('stabilization source', () => {
     const queue = readSection(source, 'Browser Review Queue', 'Review Next');
 
     expect(queue).toContain('Use the generated `BASE_URL` from `.env.dev`');
+    expect(queue).toContain('local ports can be explicitly pinned for Auth0');
+    expect(queue).not.toMatch(/http:\/\/localhost:\d+/u);
     expect(queue).toContain('Anonymous event discovery');
     expect(queue).toContain('Participant registration/profile');
     expect(queue).toContain('Organizer authoring and check-in');

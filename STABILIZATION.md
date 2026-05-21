@@ -2819,11 +2819,11 @@ implement those decisions or explicitly revise them there before changing code.
 ## Browser Review Queue
 
 When the in-app Browser pane is available again, review the running Docker app
-in this order. Use the generated `BASE_URL` from `.env.dev`; the current
-worktree generated `http://localhost:4577`. Keep the Browser pass focused on
-human usability, visual affordances, and obvious console/network defects. The
-durable regression layer is already covered by the linked Playwright specs and
-generated docs.
+in this order. Use the generated `BASE_URL` from `.env.dev` and re-read it after
+runtime commands, because local ports can be explicitly pinned for Auth0
+callback compatibility. Keep the Browser pass focused on human usability,
+visual affordances, and obvious console/network defects. The durable regression
+layer is already covered by the linked Playwright specs and generated docs.
 
 1. Anonymous event discovery: open `/events`, inspect the event list and one
    public event detail page, then try one unlisted-event direct link from the
