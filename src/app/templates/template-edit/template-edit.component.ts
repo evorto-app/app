@@ -84,8 +84,8 @@ export class TemplateEditComponent {
     this.rpc.templates.findOne.queryOptions({ id: this.templateId() }),
   );
   protected readonly simpleTemplateData = computed(() => {
+    if (!this.templateQuery.isSuccess()) return;
     const templateData = this.templateQuery.data();
-    if (!templateData) return templateData;
     const organizerRegistration = templateData.registrationOptions.find(
       (option) => option.organizingRegistration,
     );

@@ -207,9 +207,11 @@ export class EventDetailsComponent {
     const esnCardEnabled =
       this.config.tenant.discountProviders?.esnCard?.status === 'enabled';
     if (!esnCardEnabled) return false;
+    if (!this.eventQuery.isSuccess() || !this.myCardsQuery.isSuccess()) {
+      return false;
+    }
     const event = this.eventQuery.data();
     const cards = this.myCardsQuery.data();
-    if (!event || !cards) return false;
     const verified = cards.filter((c) => c.status === 'verified');
     if (verified.length === 0) return false;
     const latestValidTo = verified
