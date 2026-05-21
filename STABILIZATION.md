@@ -2930,6 +2930,16 @@ automation, and no tenant-admin impersonation. The in-app Browser retry still
 failed before navigation with `Must setup test before interacting with the
 page`, so the human Browser pass remains blocked outside the app/runtime path.
 
+Deterministic provider queue checkpoint: the sixth queue item's durable anchor
+passed against the same Docker stack. `bun run test:e2e:esncard-provider --
+--workers=1` covered `tests/specs/profile/user-profile-esncard-provider.spec.ts`
+with the `@esncard-provider` grep, including tenant-scoped ESNcard provider
+test mode and the explicit `TESTESN*` outcomes for verified cards, expiration,
+invalid input, unverified state, and provider-unavailable handling. The in-app
+Browser retry still failed before navigation with
+`Must setup test before interacting with the page`, so the visible profile UX
+review remains blocked outside the app/runtime path.
+
 ## Review Next
 
 All ten first-pass review areas are now represented in this document. The next
