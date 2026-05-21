@@ -2624,20 +2624,31 @@ implement those decisions or explicitly revise them there before changing code.
   artifact upload. The in-app Browser control path still timed out while
   opening the local app, so manual Browser review remains blocked by the
   Browser integration rather than Docker/app health.
+- Tenant domain/onboarding boundary audit: rechecked the global-admin and
+  tenant general-settings coverage for the one-domain relaunch scope. The
+  functional tenant-admin spec, generated global-admin/general-settings docs,
+  tenant form unit tests, handler tests, and generated-doc source guard all pin
+  the current boundary: one active primary domain is managed now, duplicate and
+  path-like domains are rejected, tenant detail links only render for single
+  host names, and custom-domain verification, multi-domain automation, and
+  tenant impersonation remain visible deferred scope rather than hidden
+  relaunch assumptions.
 
 ## Review Next
 
 All ten first-pass review areas are now represented in this document. The next
 stabilization work should continue with small cleanup commits around the
-remaining relaunch gaps: automated onboarding/domain workflows and live external
-ESNcard provider add/refresh/remove outcomes. Scanner aggregate behavior,
-profile account/event/receipt/discount-card behavior, and global-admin tenant
-administration now have Docker-backed system-Chrome coverage, but the in-app
-Browser connection itself still timed out during local navigation and should be
-retried when the Browser plugin/runtime is healthy. The ESN discounted-pricing
-slice also has Docker-backed system-Chrome coverage, while live external
-ESNcard provider outcomes remain intentionally outside deterministic local
-Browser coverage.
+remaining review blockers: in-app Browser manual review and live external
+ESNcard provider add/refresh/remove outcomes. Automated custom-domain
+verification, multi-domain onboarding, and tenant impersonation are intentionally
+documented deferred scope for relaunch, not an untested current-app claim.
+Scanner aggregate behavior, profile account/event/receipt/discount-card
+behavior, and global-admin tenant administration now have Docker-backed
+system-Chrome coverage, but the in-app Browser connection itself still timed out
+during local navigation and should be retried when the Browser plugin/runtime is
+healthy. The ESN discounted-pricing slice also has Docker-backed system-Chrome
+coverage, while live external ESNcard provider outcomes remain intentionally
+outside deterministic local Browser coverage.
 Richer reusable template add-ons and questions are now implemented in the simple
 template flow and should be kept aligned as those surfaces evolve. Normal generated docs output now stays local unless
 `test:e2e:docs:publish` is run intentionally. New Playwright
