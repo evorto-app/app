@@ -1563,7 +1563,13 @@ the current working direction until a product decision overrides them.
   installed. In this checkout, full page-backed execution is still blocked by
   missing runtime secrets until `NEON_API_KEY`, `CLIENT_SECRET`, and
   `STRIPE_API_KEY` are provided.
-- **Addressed in stabilization pass:** `tests/test-inventory.md` now maps current Playwright specs/docs by suite ownership, records intentional fixme and credential-gated paths, and lists the Browser-backed coverage still needed from the remaining stabilization gaps.
+- **Addressed in stabilization pass:** `tests/test-inventory.md` now maps
+  current Playwright specs/docs by suite ownership, records intentional fixme
+  and credential-gated paths, and lists the Browser-backed coverage still
+  needed from the remaining stabilization gaps. The Playwright inventory source
+  guard now also compares that active-file list with the actual `tests/docs`
+  and `tests/specs` files on disk, so new docs/spec files cannot be omitted
+  silently.
 - **Addressed in stabilization pass:** the remaining `test.skip` audit removed the dead mobile skip from `tests/specs/permissions/override.test.ts`, corrected the inventory entry for that spec, made the Auth0 Management doc skip name the required credentials explicitly, moved Stripe webhook replay's credential gate to a file-level skip before page/database fixtures are requested, and keeps the skip/fixme allowlist tied to explicit local reasons.
 - **Addressed in stabilization pass:** global-admin route guard coverage now has a direct Playwright spec for the global-admin allow path and signed-in non-global-admin deny path.
 - **Addressed in stabilization pass:** global-admin tenant workflow coverage now
@@ -2051,6 +2057,12 @@ implement those decisions or explicitly revise them there before changing code.
 - Playwright skip-inventory pass: added a local unit guard that allowlists every
   current Playwright `test.skip` and `test.fixme`, keeping future fixture-state
   gaps from becoming silent placeholders.
+- Playwright active-inventory pass: added
+  `tests/specs/profile/user-profile-live-esncard.spec.ts` to the active
+  inventory, clarified that functional coverage includes both `.spec.ts` and
+  `.test.ts` files, and extended the local inventory guard so
+  `tests/test-inventory.md` stays aligned with the Playwright docs/spec files
+  on disk.
 - Playwright fixed-wait cleanup pass: replaced remaining shared
   `.waitForTimeout(...)` waits in docs screenshot and Stripe checkout helpers
   with UI/render-state waits, and extended the Playwright inventory guard so
@@ -2688,6 +2700,15 @@ implement those decisions or explicitly revise them there before changing code.
   discoverable, but tab control reported that no active Codex browser pane was
   available after the stale tab reset attempt, so manual Browser review remains
   blocked outside the app runtime.
+- Playwright inventory recovery pass: after the laptop power loss, PR #62 was
+  still clean and pushed. The active inventory was missing the live ESNcard
+  provider spec even though the skip guard already allowlisted its credential
+  gate, so the inventory now names that spec and has source coverage to prevent
+  future active-file drift. Local validation passed with `bun run format:write`,
+  `bun run lint`,
+  `bun run test:unit:server -- helpers/testing/playwright-skip-inventory.spec.ts`,
+  and `git diff --check`; GitHub CI passed on commit `8e5867ff`, including the
+  full Playwright E2E functional + docs job.
 
 ## Review Next
 
