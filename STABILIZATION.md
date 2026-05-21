@@ -2863,6 +2863,18 @@ layer is already covered by the linked Playwright specs and generated docs.
    verified and provider-unavailable outcomes; use Browser afterward only for
    the visible profile UX review.
 
+Latest queue checkpoint: the Docker app was healthy on the generated `BASE_URL`,
+but browser-control navigation still failed before page interaction with
+`Must setup test before interacting with the page`. The first queue item's
+durable anchors passed against that Docker stack:
+`tests/specs/events/events.test.ts` plus
+`tests/specs/events/unlisted-visibility.test.ts` passed with system Chrome, and
+`tests/docs/events/register.doc.ts` passed its paid-registration docs scenario
+with a fresh `E2E_SEED_KEY`. An earlier interrupted full registration-docs run
+left a seeded tenant behind, which made the next paid-docs attempt flaky on
+retry due to a duplicate tenant id; use explicit fresh seed keys for focused
+reruns after interrupted Playwright jobs.
+
 ## Review Next
 
 All ten first-pass review areas are now represented in this document. The next
