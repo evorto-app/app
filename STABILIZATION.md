@@ -1425,18 +1425,17 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** tenant-hosted legal text is now editable alongside external legal URLs. The public footer links to external URLs when configured, otherwise it links to hosted `/legal/imprint`, `/legal/privacy`, and `/legal/terms` pages when tenant text exists.
 - **Addressed in stabilization pass:** the tenant settings RPC payload schema is now exported and covered by a focused contract spec, including the current editable fields and the fact that deferred custom-domain automation, email sender, review policy, registration limit, and Stripe account-management fields are outside the update payload.
 - **Addressed in stabilization pass:** tenant general-settings payload shaping is now extracted and covered locally, including trim/blank normalization for editable URLs/SEO/ESNcard fields before the RPC call.
-- **Addressed in stabilization pass:** the global-admin tenant list and read-only detail page render the tenant operational state returned by the RPC, including connected Stripe account ids for support lookup, and generated docs describe the current searchable list plus detail-review global tenant administration surface.
+- **Addressed in stabilization pass:** the global-admin tenant list and read-only detail page render the tenant operational state returned by the RPC, including connected Stripe account ids for support lookup. Product docs are intentionally not generated for global-admin functionality.
 - **Addressed in stabilization pass:** global-admin tenant create/edit now supports the relaunch one-domain tenant administration surface: name, primary domain, theme, locale, currency, timezone, and connected Stripe account id.
 - **Addressed in stabilization pass:** global-admin tenant create/edit normalizes the primary-domain form value to the same single-host shape enforced by the server and keeps the one-domain/custom-domain-automation deferral visible in the form.
 - **Addressed in stabilization pass:** global-admin tenant create/edit now rejects duplicate primary domains with an explicit RPC bad-request error before relying on the database unique constraint, while allowing updates that keep the current tenant's own domain.
-- **Addressed in this stabilization pass:** Docker-backed global-admin tenant coverage now exercises the one-primary-domain negative paths: URL paths are rejected before mutation, duplicate domains surface a visible error, and the generated docs record those guardrails beside the deferred custom-domain automation scope.
+- **Addressed in this stabilization pass:** Docker-backed global-admin tenant coverage now exercises the one-primary-domain negative paths: URL paths are rejected before mutation and duplicate domains surface a visible error beside the deferred custom-domain automation scope.
 - **Addressed in this stabilization pass:** global-admin tenant create/edit now
   shows the relaunch tenant scope as a visible form notice: one active primary
   domain, deferred custom-domain verification and multi-domain automation, and
   no tenant-admin impersonation in the current relaunch surface.
 - **Addressed in this stabilization pass:** generated-docs source coverage now
-  keeps the global-admin tenant-management guide aligned with the one-domain,
-  deferred custom-domain automation, and no-impersonation relaunch scope.
+  verifies that product docs are not generated for global-admin functionality.
 - **Addressed in stabilization pass:** global-admin tenant create/edit submit
   actions now stay disabled while the create/update mutation is pending and
   the submit handlers ignore duplicate submit events during the in-flight
@@ -1467,18 +1466,9 @@ the current working direction until a product decision overrides them.
   general-settings persistence for editable brand asset URLs, SEO copy, hosted
   legal text, external legal URLs, receipt-country settings, and ESNcard
   provider buy-link settings with explicit database readback.
-- `tests/docs/admin/global-admin.doc.ts` documents the current searchable
-  global-admin tenant list, tenant create/edit workflow, visible relaunch
-  tenant-scope notice, and tenant detail review, pins the list/create/detail/edit
-  navigation targets plus the external tenant-domain link, reads the documented
-  tenant row from the database before asserting operational fields, creates a
-  temporary tenant with database readback and cleanup, saves a tenant-name edit
-  with database readback and fixture restoration, and records that custom-domain
-  verification, multi-domain automation, and impersonation workflows are not
-  implemented yet.
-- `helpers/testing/generated-docs-source.spec.ts` keeps the global-admin guide
-  aligned with the one-domain/no-impersonation relaunch scope. It also keeps
-  profile/account docs aligned with implemented notification-email semantics,
+- `helpers/testing/generated-docs-source.spec.ts` verifies product docs are not
+  generated for global-admin functionality. It also keeps profile/account docs
+  aligned with implemented notification-email semantics,
   global reimbursement details, event-card routing/check-in copy, submitted
   receipt visibility, account-creation retry errors, and existing-global-user
   tenant joins.
@@ -1529,7 +1519,10 @@ the current working direction until a product decision overrides them.
 
 - Keep one-domain-per-tenant documented and visible as the relaunch scope; leave
   automated multi-domain/custom-domain management for later work.
-- Keep generated global-admin tenant-management documentation aligned as tenant create/edit, custom-domain verification, multi-domain automation, or impersonation support changes.
+- Keep global-admin functional coverage aligned as tenant create/edit,
+  custom-domain verification, multi-domain automation, or impersonation support
+  changes; do not add product-facing generated docs for global-admin
+  functionality.
 - Keep tenant settings save feedback aligned with the shared notification/error-message pattern.
 - Keep tenant settings save guards aligned with the actual mutation lifecycle,
   not only the signal-form submit callback.
@@ -2540,10 +2533,9 @@ implement those decisions or explicitly revise them there before changing code.
   matching functional spec read back the persisted confirmed registration,
   add-on purchase, pending checkout transaction, waitlist registration, and
   checked-in registration rows behind the seeded profile event cards.
-- Global-admin docs source-guard pass: pinned generated global-admin docs to the
-  searchable tenant list, no-match state, operational row fields, read-only
-  tenant detail review, external tenant-domain link, and create/edit form
-  relaunch-scope surface while authenticated Browser review is still blocked.
+- Global-admin docs source-guard pass: removed product-facing generated
+  documentation for global-admin functionality and pinned that policy with
+  source coverage.
 - Global-admin page-backed support-lookup pass: extended the global-admin
   tenant Playwright spec so the searchable tenant list proves connected Stripe
   account ids work as support lookup terms, not only tenant domains.
@@ -2754,8 +2746,8 @@ implement those decisions or explicitly revise them there before changing code.
   `/webhooks/stripe` request returning 200.
 - Tenant domain/onboarding boundary audit: rechecked the global-admin and
   tenant general-settings coverage for the one-domain relaunch scope. The
-  functional tenant-admin spec, generated global-admin/general-settings docs,
-  tenant form unit tests, handler tests, and generated-doc source guard all pin
+  functional tenant-admin spec, generated general-settings docs, tenant form
+  unit tests, handler tests, and generated-doc source guard all pin
   the current boundary: one active primary domain is managed now, duplicate and
   path-like domains are rejected, tenant detail links only render for single
   host names, and custom-domain verification, multi-domain automation, and
@@ -2869,8 +2861,9 @@ covered by the linked Playwright specs and generated docs.
    domain rejection, and the visible deferred custom-domain/multi-domain/no
    impersonation scope. Durable coverage lives in
    `tests/specs/admin/global-admin-tenants.spec.ts`,
-   `tests/specs/permissions/global-admin-route-guard.spec.ts`, and
-   `tests/docs/admin/global-admin.doc.ts`.
+   `tests/specs/permissions/global-admin-route-guard.spec.ts`, and the
+   generated-docs source guard that prevents product docs for global-admin
+   functionality.
 6. Deterministic provider checks: run the ESNcard add/refresh/remove path with
    `bun run test:e2e:esncard-provider`
    (`tests/specs/profile/user-profile-esncard-provider.spec.ts`). It uses
@@ -2938,10 +2931,8 @@ functional pass covered `tests/specs/admin/global-admin-tenants.spec.ts` and
 `tests/specs/permissions/global-admin-route-guard.spec.ts`, including
 global-admin tenant list search, tenant detail review, tenant create/edit,
 duplicate-domain rejection, path-like domain rejection, route denial for
-non-global users, and allowed access for global admins. The generated-docs pass
-covered `tests/docs/admin/global-admin.doc.ts`, including the relaunch scope
-copy for one active primary domain, deferred custom-domain/multi-domain
-automation, and no tenant-admin impersonation. The in-app Browser retry still
+non-global users, and allowed access for global admins. Product docs are not
+generated for global-admin functionality. The in-app Browser retry still
 failed before navigation with `Must setup test before interacting with the
 page`, so the human Browser pass remains blocked outside the app/runtime path.
 

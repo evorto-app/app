@@ -84,7 +84,9 @@ class DocumentationReporter implements Reporter {
           ? titleFromTestFile(doc.filePath ?? doc.folderName)
           : sections[0].title);
 
-      const pageLines: string[] = [`---\ntitle: ${mainTitle}\n---`];
+      const pageLines: string[] = [
+        `---\ntitle: ${JSON.stringify(mainTitle)}\n---`,
+      ];
       for (const [index, section] of sections.entries()) {
         if (index > 0) pageLines.push('');
         if (hasMultipleTests) pageLines.push(`## ${section.title}`);

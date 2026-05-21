@@ -18,8 +18,8 @@ test('documentation reporter respects DOCS_* env and writes files', async ({}, t
 
   // create a fake test with attachments
   const title =
-    'Sample Journey @finance @track(playwright-specs-track-linking_20260126) @req(REPORTER-PATHS-TEST-01)';
-  const slug = 'sample-journey';
+    'Sample Journey: Discounts @finance @track(playwright-specs-track-linking_20260126) @req(REPORTER-PATHS-TEST-01)';
+  const slug = 'sample-journey-discounts';
   const png = Buffer.from([137, 80, 78, 71]); // not a valid PNG, but enough for file write
   const result = {
     attachments: [
@@ -45,7 +45,7 @@ test('documentation reporter respects DOCS_* env and writes files', async ({}, t
   const mdPath = path.join(docsRoot, slug, 'page.md');
   expect(fs.existsSync(mdPath)).toBeTruthy();
   const md = fs.readFileSync(mdPath, 'utf-8');
-  expect(md).toContain('title: Sample Journey');
+  expect(md).toContain('title: "Sample Journey: Discounts"');
   expect(md).not.toContain('@track(');
   expect(md).not.toContain('@req(');
   // image written into images root under slug folder
@@ -150,7 +150,7 @@ test('front matter normalization with permissions callout', async ({}, testInfo)
 
   const mdPath = path.join(docsRoot, slug, 'page.md');
   const md = fs.readFileSync(mdPath, 'utf-8');
-  expect(md.startsWith('---\ntitle:')).toBeTruthy();
+  expect(md.startsWith('---\ntitle: "Permissions Journey"')).toBeTruthy();
   expect(md).toContain('User permissions');
   expect(md).toContain('- admin:manage');
   expect(md).toContain('- events:view');
@@ -224,7 +224,7 @@ test('documentation reporter emits one markdown file per describe block', async 
   const mdPath = path.join(docsRoot, 'registration-docs', 'page.md');
   expect(fs.existsSync(mdPath)).toBe(true);
   const md = fs.readFileSync(mdPath, 'utf-8');
-  expect(md).toContain('title: Registration docs');
+  expect(md).toContain('title: "Registration docs"');
   expect(md).toContain('## Register for a free event');
   expect(md).toContain('## Register for a paid event');
   expect(md).toContain('First section content');
@@ -304,7 +304,7 @@ test('two tests in one describe block share one markdown file', async ({}, testI
   const mdPath = path.join(docsRoot, 'checkout-flow-docs', 'page.md');
   expect(fs.existsSync(mdPath)).toBe(true);
   const md = fs.readFileSync(mdPath, 'utf-8');
-  expect(md).toContain('title: Checkout flow docs');
+  expect(md).toContain('title: "Checkout flow docs"');
   expect(md).toContain('## Open checkout');
   expect(md).toContain('## Confirm checkout payment');
   expect(md).toContain('Open checkout section');

@@ -266,8 +266,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   docs, keeping those flows tied to concrete UI state.
 - `helpers/testing/generated-docs-source.spec.ts` keeps tenant general-settings
   docs aligned with implemented brand-asset uploads and hosted legal routes,
-  and keeps global-admin docs aligned with the one-domain/no-impersonation
-  relaunch scope. It also keeps profile/account docs aligned with implemented
+  verifies product docs are not generated for global-admin functionality, and
+  keeps profile/account docs aligned with implemented
   notification-email semantics, global reimbursement details, event-card
   routing/check-in copy, profile event-page link targets, submitted receipt
   visibility, account-creation retry errors, existing-global-user tenant joins,
@@ -490,16 +490,10 @@ provider outcomes without live identifiers.
     fields, connected Stripe-account support lookup, tenant detail review,
     create/edit form relaunch-scope copy, disabled empty create submit, and
     a temporary tenant create with database readback and cleanup, plus seeded
-    edit save with database readback and fixture restoration. Generated
-    global-admin docs now read the seeded localhost tenant row before asserting
-    list/detail/search/edit fields, create a temporary tenant with database
-    readback and cleanup, then save a tenant-name edit, read it back from the
-    database, and restore the shared fixture, so the guide is tied to persisted
-    tenant state. It also pins list -> create -> created detail, list -> detail
-    -> edit, edit cancel, edit save, and external tenant-domain link targets so
-    page navigation cannot silently drift. The authenticated Browser review has
-    now opened the list, detail, and create surfaces against the local Docker
-    app. Local server/app coverage already proves the list,
+    edit save with database readback and fixture restoration. Product docs are
+    intentionally not generated for global-admin functionality. The authenticated
+    Browser review has now opened the list, detail, and create surfaces against
+    the local Docker app. Local server/app coverage already proves the list,
     tenant detail, tenant create, and tenant edit surfaces return, render, and
     persist operational tenant state for support review, and local app
     coverage proves readable load-failure messages and account labels. Tenant

@@ -61,7 +61,7 @@ describe('stabilization source', () => {
     expect(queue).toContain(
       'tests/specs/permissions/global-admin-route-guard.spec.ts',
     );
-    expect(queue).toContain('tests/docs/admin/global-admin.doc.ts');
+    expect(queue).not.toContain('tests/docs/admin/global-admin.doc.ts');
     expect(queue).toContain('bun run test:e2e:esncard-provider');
     expect(queue).toContain(
       'tests/specs/profile/user-profile-esncard-provider.spec.ts',

@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
@@ -53,42 +53,10 @@ describe('generated docs source current behavior', () => {
     );
   });
 
-  it('keeps global-admin docs aligned with the relaunch tenant-administration scope', () => {
-    const source = readSource('tests/docs/admin/global-admin.doc.ts');
-
-    expect(source).toContain('expectGlobalAdminTenantRows');
-    expect(source).toContain('expectGlobalAdminTenantFormSurface');
-    expect(source).toContain('Search tenants');
-    expect(source).toContain('No tenants match this search');
-    expect(source).toContain('Read-only operational tenant review');
-    expect(source).toContain('Open tenant domain');
-    expect(source).toContain('Stripe account ID');
-    expect(source).toContain('Expected generated global-admin docs tenant');
-    expect(source).toContain(
-      'Expected global-admin docs create flow to persist tenant',
-    );
-    expect(source).toContain('createdTenantDomain');
-    expect(source).toContain('.delete(schema.tenants)');
-    expect(source).toContain("where: { domain: 'localhost' }");
-    expect(source).toContain('documentedTenant.stripeAccountId');
-    expect(source).toContain(
-      'page.getByLabel(tenantSearchLabel).fill(documentedTenant.domain)',
-    );
-    expect(source).toContain("page.getByLabel('Tenant name')).toHaveValue");
-    expect(source).toContain(
-      'Tenant create/edit manages the one active primary domain, name, theme, locale, currency, timezone, and connected Stripe account id.',
-    );
-    expect(source).toContain(
-      'The generated journey creates a temporary tenant, reads the created row back from the database, cleans it up after the doc run, then saves a tenant-name edit on the seeded fixture tenant',
-    );
-    expect(source).toContain(
-      'custom-domain verification and multi-domain automation are deferred',
-    );
-    expect(source).toContain(
-      'tenant-admin impersonation is not available in the current relaunch surface',
-    );
-    expect(source).not.toContain('impersonation workflow');
-    expect(source).not.toContain('multiple active domains');
+  it('does not generate product docs for global-admin functionality', () => {
+    expect(
+      existsSync(join(repositoryRoot, 'tests/docs/admin/global-admin.doc.ts')),
+    ).toBe(false);
   });
 
   it('keeps profile docs aligned with implemented account and event-card behavior', () => {
