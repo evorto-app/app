@@ -123,10 +123,14 @@ describe('stabilization source', () => {
 
     expect(readinessCheckpoint).toBeDefined();
     expect(readinessCheckpoint).toContain(
-      'fe3c4a669d444b643dbddd6aefea226574d7673d',
+      '9b65634b66840aa72dc53c4a5bef742036f049ac',
     );
-    expect(readinessCheckpoint).toContain('17m20s');
+    expect(readinessCheckpoint).toContain('22m26s');
+    expect(readinessCheckpoint).toContain(
+      'unlisted-admin generated-docs menu retry',
+    );
     expect(readinessCheckpoint).toContain('Node.js 20 actions are deprecated');
+    expect(readinessCheckpoint).toContain('workflow');
     expect(readinessCheckpoint).toMatch(
       /The PR has no\s+unresolved review threads at/u,
     );
@@ -141,6 +145,9 @@ describe('stabilization source', () => {
     );
     expect(readinessCheckpoint).not.toContain(
       '7b39be0f3a89e1fd14982114e8cbf98a5c59af48',
+    );
+    expect(readinessCheckpoint).not.toContain(
+      'fe3c4a669d444b643dbddd6aefea226574d7673d',
     );
     expect(readinessCheckpoint).not.toContain(
       'in-app Browser manual pass is still blocked',
