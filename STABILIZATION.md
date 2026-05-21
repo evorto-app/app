@@ -2716,6 +2716,14 @@ implement those decisions or explicitly revise them there before changing code.
   here yet. Added `bun run test:e2e:live-esncard` as a focused command for the
   credential-gated profile add/refresh/remove provider path once a valid live
   identifier is supplied.
+- Live ESNcard command CI checkpoint: GitHub checks passed on commit
+  `d56dc4fd`, including the full Playwright E2E functional + docs job. That run
+  built and started the Docker stack, waited for the app, completed the
+  functional suite in 10m30s, completed the generated-docs suite in 5m28s,
+  collected Docker logs, stopped the stack, and uploaded artifacts. A fresh
+  in-app Browser retry after local Docker health confirmation still failed
+  before opening `/events` because no active Codex browser pane was available,
+  so manual Browser review remains blocked outside the app runtime.
 
 ## Review Next
 
