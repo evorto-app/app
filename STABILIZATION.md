@@ -1886,14 +1886,19 @@ implement those decisions or explicitly revise them there before changing code.
   between the role-form template and submit handler, and guarded parent
   create/edit handlers against duplicate in-flight role writes.
 - Template tax-rate coverage pass: covered the compatible active/inclusive current-tenant tax-rate query and paid missing-tax-rate submit normalization so the remaining fixme is narrowed to page-level simple-mode UI assertions.
-- Scanner aggregate coverage pass: extracted organizer overview stat aggregation and covered the checked-in total against registration-option `checkedInSpots`, keeping local app logic aligned with scanner mutation counters while Browser aggregate review remains blocked.
+- Scanner aggregate coverage pass: extracted organizer overview stat
+  aggregation and covered the checked-in total against registration-option
+  `checkedInSpots`, keeping local app logic aligned with scanner mutation
+  counters before page-backed runtime coverage was added.
 - Scanner aggregate Playwright pass: extended the scanner spec to open the organizer overview after buyer-plus-guest check-in and assert the checked-in aggregate shown there.
 - Profile edit-dialog coverage pass: covered profile edit payload normalization so notification email and optional global reimbursement details are trimmed/null-normalized before persistence.
 - Create-account payload coverage pass: normalized submitted account-creation names and notification email before the RPC mutation and covered that behavior in helper unit tests.
 - Profile receipt-label coverage pass: rendered submitted receipt statuses through readable profile labels and covered all persisted receipt states in app unit tests.
 - Profile receipt-read coverage pass: covered `finance.receipts.my` server output normalization for profile receipt cards without requiring Browser/runtime setup.
 - CI finance-docs pass: removed the explicit `@finance` exclusion from the CI docs baseline after finance documentation was rewritten to current behavior.
-- Scanning docs backlog cleanup: clarified that event-management docs already cover the QR scanner/check-in mutation behavior and that the remaining scanner gap is Browser-backed organizer aggregate assertion.
+- Scanning docs backlog cleanup: clarified that event-management docs already
+  cover the QR scanner/check-in mutation behavior; later scanner specs and docs
+  also assert the organizer checked-in aggregate after scanner writes.
 - Tenant/global-admin pass: guarded global-admin routes with `globalAdmin:manageTenants`, decoupled global-admin permission resolution from current-tenant assignment, required tenant user context to have a current-tenant assignment, and fixed granted group wildcards such as `globalAdmin:*` to satisfy concrete permission checks.
 - Tenant-resolution pass: added focused `resolveTenantContext` coverage for non-local host precedence over cookies, localhost cookie fallback, stale localhost cookie fallback, and unknown non-local host failure.
 - Generated docs/Playwright pass: replaced stale Effect config-provider calls in Playwright config/support files so `test:e2e -- --list` and `test:e2e:docs -- --list` can discover tests again.
@@ -1977,7 +1982,11 @@ implement those decisions or explicitly revise them there before changing code.
   template/event autocomplete specs already fail loudly on missing seeded roles.
   Manual Browser review for the same pages remains a tooling/runtime blocker,
   not a missing durable coverage item.
-- Registration negative-path backlog cleanup: clarified the Playwright inventory so closed-window, role-ineligible, unsupported-mode, and waitlist items point to the remaining Browser-backed page states rather than implying server/app negative-path coverage is absent.
+- Registration negative-path backlog cleanup: clarified the Playwright inventory
+  so closed-window, role-ineligible, unsupported-mode, and waitlist items no
+  longer imply server/app negative-path coverage is absent; later page-backed
+  coverage covers the relaunch closed-window, role-ineligible, and waitlist
+  states.
 - Registration negative-path Playwright pass: added active page-backed coverage
   for closed registration windows, role-ineligible direct links, and full
   participant-option waitlist affordances. Execution still depends on local
@@ -2135,8 +2144,8 @@ implement those decisions or explicitly revise them there before changing code.
   available.
 - Shared price-label coverage pass: added focused Angular coverage for the
   shared price/tax label component's paid, free, zero-tax, and fallback states,
-  narrowing the remaining inclusive-price fixme to page-level Browser
-  assertions.
+  before page-backed inclusive-price assertions covered the event/template UI
+  surfaces.
 - Shared price-label currency pass: changed the shared price/tax label to
   inherit Angular's tenant-level `DEFAULT_CURRENCY_CODE` and locale by default,
   while keeping explicit currency overrides available for future cross-currency
@@ -2333,8 +2342,9 @@ implement those decisions or explicitly revise them there before changing code.
   without requiring Auth0 Management credentials.
 - Profile receipt card coverage pass: moved submitted-receipt amount display
   into a tested helper so the profile receipt section has local coverage for
-  both status labels and cents-to-euro amount presentation while page-backed
-  submitted-receipt visibility remains a Browser/runtime follow-up.
+  both status labels and cents-to-euro amount presentation. Later profile
+  docs/specs added deterministic page-backed submitted-receipt visibility with
+  persisted database readback.
 - Profile ESNcard action coverage pass: moved discount-card save, refresh, and
   remove pending labels plus save-disabled state into tested helpers, keeping
   add/refresh/remove Browser coverage as a runtime follow-up while preserving
@@ -2672,6 +2682,12 @@ implement those decisions or explicitly revise them there before changing code.
   host names, and custom-domain verification, multi-domain automation, and
   tenant impersonation remain visible deferred scope rather than hidden
   relaunch assumptions.
+- Browser recovery retry: after confirming the Docker stack was healthy and
+  `/events` returned 200 on local port 4577, the in-app Browser clean-tab
+  recovery path still could not open the app. The Browser service was
+  discoverable, but tab control reported that no active Codex browser pane was
+  available after the stale tab reset attempt, so manual Browser review remains
+  blocked outside the app runtime.
 
 ## Review Next
 
@@ -2684,10 +2700,11 @@ documented deferred scope for relaunch, not an untested current-app claim.
 Scanner aggregate behavior, profile account/event/receipt/discount-card
 behavior, and global-admin tenant administration now have Docker-backed
 system-Chrome coverage, but the in-app Browser connection itself still timed out
-during local navigation and should be retried when the Browser plugin/runtime is
-healthy. The ESN discounted-pricing slice also has Docker-backed system-Chrome
-coverage, while live external ESNcard provider outcomes remain intentionally
-outside deterministic local Browser coverage.
+during local navigation and later reported no active Codex browser pane after a
+clean-tab recovery attempt. It should be retried when the Browser plugin/runtime
+and pane are healthy. The ESN discounted-pricing slice also has Docker-backed
+system-Chrome coverage, while live external ESNcard provider outcomes remain
+intentionally outside deterministic local Browser coverage.
 Richer reusable template add-ons and questions are now implemented in the simple
 template flow and should be kept aligned as those surfaces evolve. Normal generated docs output now stays local unless
 `test:e2e:docs:publish` is run intentionally. New Playwright
