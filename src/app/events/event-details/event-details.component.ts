@@ -187,7 +187,9 @@ export class EventDetailsComponent {
     this.rpc.events.canOrganize.queryOptions({ eventId: this.eventId() }),
   );
   protected readonly canOrganize = computed(() => {
-    return this.canOrganizeQuery.data() ?? false;
+    return this.canOrganizeQuery.isSuccess()
+      ? this.canOrganizeQuery.data()
+      : false;
   });
   protected readonly canReview =
     this.permissions.hasPermission('events:review');

@@ -76,7 +76,8 @@ export class TenantEditComponent {
       tenant
         ? globalAdminTenantFormModelFromRecord(tenant)
         : (previous?.value ?? createGlobalAdminTenantFormModel()),
-    source: () => this.tenantQuery.data(),
+    source: () =>
+      this.tenantQuery.isSuccess() ? this.tenantQuery.data() : undefined,
   });
   protected readonly tenantForm = form(this.tenantModel, (schema) => {
     required(schema.domain);

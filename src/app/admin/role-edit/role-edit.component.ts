@@ -48,7 +48,8 @@ export class RoleEditComponent {
   >({
     computation: (data, previous) =>
       mergeRoleFormOverrides(data ?? {}, previous?.value),
-    source: () => this.roleQuery.data(),
+    source: () =>
+      this.roleQuery.isSuccess() ? this.roleQuery.data() : undefined,
   });
   protected readonly roleForm = form(this.roleModel, roleFormSchema);
   protected readonly updateRoleMutation = injectMutation(() =>

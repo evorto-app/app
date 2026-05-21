@@ -124,7 +124,9 @@ export class ReceiptRefundListComponent {
 
   constructor() {
     effect(() => {
-      const groups = this.refundableReceiptsQuery.data() ?? [];
+      const groups = this.refundableReceiptsQuery.isSuccess()
+        ? this.refundableReceiptsQuery.data()
+        : [];
       if (groups.length === 0) {
         return;
       }
