@@ -88,6 +88,22 @@ describe('stabilization source', () => {
     );
   });
 
+  it('keeps paid transfer and resale blocked on an explicit settlement decision', () => {
+    const source = readSource('STABILIZATION.md');
+
+    expect(source).toContain('Paid transfer/resale settlement model');
+    expect(source).toContain('organizer-mediated manual settlement');
+    expect(source).toContain('platform-mediated resale');
+    expect(source).toContain('fresh Stripe Checkout');
+    expect(source).toContain('Decision needed before implementation');
+    expect(source).toContain('Do not infer one of these models');
+    expect(source).toContain(
+      'Do not assume whether\n' +
+        '   paid resale should be organizer-mediated manual settlement or a\n' +
+        '   platform-mediated Stripe Checkout replacement flow.',
+    );
+  });
+
   it('keeps the Playwright inventory clear about watchlist versus blockers', () => {
     const source = readSource('tests/test-inventory.md');
 
