@@ -124,4 +124,16 @@ describe('stabilization source', () => {
       );
     }
   });
+
+  it('keeps app templates away from TanStack Query data alias narrowing', () => {
+    const sourceFiles = listFiles('src/app', '.html');
+
+    for (const sourceFile of sourceFiles) {
+      const source = readSource(sourceFile);
+
+      expect(source, sourceFile).not.toMatch(
+        /@if\s*\([^)]*\b\w+Query\.data\(\)\s*;\s*as\s+\w+/u,
+      );
+    }
+  });
 });

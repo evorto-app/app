@@ -2756,6 +2756,11 @@ implement those decisions or explicitly revise them there before changing code.
   and `/events` returns HTTP 200. Manual Browser review is still blocked
   outside the app runtime: both the in-app Browser path and the fallback
   Playwright browser MCP now fail before navigation with `Transport closed`.
+- TanStack data-alias guard pass: extended the stabilization source guard so
+  app templates cannot drift back to `@if (someQuery.data(); as data)` aliases
+  for TanStack Query data. Templates should branch on `query.isSuccess()` and
+  then read `query.data()` inside the success state, preserving Query's
+  status-based type narrowing.
 
 ## Browser Review Queue
 
