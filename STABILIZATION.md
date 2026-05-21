@@ -1406,8 +1406,20 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** list-only Playwright commands no longer initialize docs output, clear generated docs/image directories, or require Auth0 Management credentials for baseline fixture imports.
 - **Addressed in stabilization pass:** list-only Playwright config now uses inert placeholder values for runtime-only Auth0/Stripe secrets, so docs/spec discovery can enumerate tests without local secret stubs, starting Docker, or contacting external services.
 - **Addressed in stabilization pass:** participant-facing event registration cards now receive tax-rate label metadata from `events.findOne`, render paid option prices through the shared inclusive tax label component, and have page-level Playwright assertions for the seeded inclusive-price states.
-- **Should fix before relaunch:** page-backed Playwright specs still fail in this checkout because the configured Chromium binary is missing. `tests/specs/screenshot/doc-screenshot.test.ts` seeds data and then fails at browser launch.
-- **Addressed in stabilization pass:** `tests/test-inventory.md` now maps current Playwright specs/docs by suite ownership, records intentional fixme and credential-gated paths, and lists the Browser-backed coverage still needed from the remaining stabilization gaps.
+- **Addressed in stabilization pass:** page-backed Playwright specs no longer
+  depend only on a bundled Chromium download for local exploratory runs.
+  Bundled Chromium remains the default browser channel, but
+  `E2E_BROWSER_CHANNEL=chrome` can use system Chrome on hosts where it is
+  installed. In this checkout, full page-backed execution is still blocked by
+  missing runtime secrets until `NEON_API_KEY`, `CLIENT_SECRET`, and
+  `STRIPE_API_KEY` are provided.
+- **Addressed in stabilization pass:** `tests/test-inventory.md` now maps
+  current Playwright specs/docs by suite ownership, records intentional fixme
+  and credential-gated paths, and lists the Browser-backed coverage still
+  needed from the remaining stabilization gaps. The Playwright inventory source
+  guard now also compares that active-file list with the actual `tests/docs`
+  and `tests/specs` files on disk, so new docs/spec files cannot be omitted
+  silently.
 - **Addressed in stabilization pass:** the remaining `test.skip` audit removed the dead mobile skip from `tests/specs/permissions/override.test.ts`, corrected the inventory entry for that spec, made the Auth0 Management doc skip name the required credentials explicitly, moved Stripe webhook replay's credential gate to a file-level skip before page/database fixtures are requested, and keeps the skip/fixme allowlist tied to explicit local reasons.
 - **Addressed in stabilization pass:** global-admin route guard coverage now has a direct Playwright spec for the global-admin allow path and signed-in non-global-admin deny path.
 - **Addressed in stabilization pass:** global-admin tenant workflow coverage now
@@ -1829,6 +1841,12 @@ implement those decisions or explicitly revise them there before changing code.
 - Playwright skip-inventory pass: added a local unit guard that allowlists every
   current Playwright `test.skip` and `test.fixme`, keeping future fixture-state
   gaps from becoming silent placeholders.
+- Playwright active-inventory pass: added
+  `tests/specs/profile/user-profile-live-esncard.spec.ts` to the active
+  inventory, clarified that functional coverage includes both `.spec.ts` and
+  `.test.ts` files, and extended the local inventory guard so
+  `tests/test-inventory.md` stays aligned with the Playwright docs/spec files
+  on disk.
 - Global-admin tenant-list pass: expanded the tenant list contract and UI with
   non-sensitive operational state for support review, including theme,
   locale/currency/timezone, and Stripe connection status.
@@ -2264,6 +2282,15 @@ implement those decisions or explicitly revise them there before changing code.
   discoverable, but tab control reported that no active Codex browser pane was
   available after the stale tab reset attempt, so manual Browser review remains
   blocked outside the app runtime.
+- Playwright inventory recovery pass: after the laptop power loss, PR #62 was
+  still clean and pushed. The active inventory was missing the live ESNcard
+  provider spec even though the skip guard already allowlisted its credential
+  gate, so the inventory now names that spec and has source coverage to prevent
+  future active-file drift. Local validation passed with `bun run format:write`,
+  `bun run lint`,
+  `bun run test:unit:server -- helpers/testing/playwright-skip-inventory.spec.ts`,
+  and `git diff --check`; GitHub CI passed on commit `8e5867ff`, including the
+  full Playwright E2E functional + docs job.
 
 ## Review Next
 
