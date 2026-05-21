@@ -17,7 +17,7 @@ and useful for small cleanup batches.
 | Profile/account flows                           | Stabilized | partial    | Profile edit, event cards, receipts, account creation contracts, seeded ESNcard behavior, and deterministic ESNcard provider outcomes are covered.             |
 | Tenant/global admin                             | Stabilized | high       | Tenant settings and global-admin list/detail/create/edit are covered for the one-primary-domain relaunch scope; custom-domain automation remains deferred.     |
 | Generated documentation and Playwright coverage | Stabilized | high       | Docs/spec inventory, skip gates, source guards, list mode, and generated-doc runtime flows are current and fail loudly for known fixture gaps.                 |
-| Local runtime/developer workflow                | Stabilized | partial    | Docker, env preflight, CI, and Font Awesome token paths are healthy; in-app Browser control still times out before manual review can run.                      |
+| Local runtime/developer workflow                | Stabilized | high       | Docker, env preflight, CI, Font Awesome token paths, and the first in-app Browser queue pass are healthy; repeat Browser review uses generated `BASE_URL`.     |
 
 ## Product Decision Draft
 
@@ -1851,10 +1851,10 @@ the current working direction until a product decision overrides them.
 ### Acceptable For Now
 
 1. Server-side edit locks are duplicated with UI guards; keep until broader event authorization is reviewed.
-2. The manual in-app Browser walkthrough is still a real review gate for the
-   full app-flow queue. Docker-backed Playwright coverage is enough to keep
-   stabilization moving while Browser control is unavailable, but it does not
-   complete the requested human Browser pass.
+2. The first manual in-app Browser walkthrough has now covered the full
+   app-flow queue. Docker-backed Playwright remains the durable regression
+   layer; repeat Browser review should still use the generated `BASE_URL` and
+   stay focused on human usability when future UI surfaces change.
 3. Rich seeded demo data is useful even if some seeded states are ahead of implemented product behavior, as long as tests do not treat those states as complete features.
 4. The current template detail page is discoverable and useful as a summary of simple template defaults.
 5. Tenant scoping for role-management writes is explicit in the reviewed handlers and schema.
@@ -2820,12 +2820,12 @@ implement those decisions or explicitly revise them there before changing code.
 
 ## Browser Review Queue
 
-When the in-app Browser pane is available again, review the running Docker app
-in this order. Use the generated `BASE_URL` from `.env.dev` and re-read it after
-runtime commands, because local ports can be explicitly pinned for Auth0
-callback compatibility. Keep the Browser pass focused on human usability,
-visual affordances, and obvious console/network defects. The durable regression
-layer is already covered by the linked Playwright specs and generated docs.
+For repeat Browser review, open the running Docker app in this order. Use the
+generated `BASE_URL` from `.env.dev` and re-read it after runtime commands,
+because local ports can be explicitly pinned for Auth0 callback compatibility.
+Keep the Browser pass focused on human usability, visual affordances, and
+obvious console/network defects. The durable regression layer is already
+covered by the linked Playwright specs and generated docs.
 
 1. Anonymous event discovery: open `/events`, inspect the event list and one
    public event detail page, then try one unlisted-event direct link from the

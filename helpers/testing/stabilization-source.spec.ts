@@ -38,11 +38,12 @@ const readSection = (source: string, heading: string, nextHeading: string) => {
 };
 
 describe('stabilization source', () => {
-  it('keeps the Browser review queue aligned with the remaining manual app-flow pass', () => {
+  it('keeps the Browser review queue aligned with repeat manual app-flow review', () => {
     const source = readSource('STABILIZATION.md');
     const queue = readSection(source, 'Browser Review Queue', 'Review Next');
 
-    expect(queue).toContain('Use the generated `BASE_URL` from `.env.dev`');
+    expect(queue).toContain('For repeat Browser review');
+    expect(queue).toContain('generated `BASE_URL` from `.env.dev`');
     expect(queue).toContain('local ports can be explicitly pinned for Auth0');
     expect(queue).not.toMatch(/http:\/\/localhost:\d+/u);
     expect(queue).toContain('Anonymous event discovery');
@@ -92,7 +93,14 @@ describe('stabilization source', () => {
       'Browser walkthrough coverage for anonymous event browsing is enough',
     );
     expect(source).toContain(
-      'The manual in-app Browser walkthrough is still a real review gate',
+      'The first manual in-app Browser walkthrough has now covered the full',
+    );
+    expect(source).toContain(
+      'repeat Browser review should still use the generated `BASE_URL`',
+    );
+    expect(source).toContain('first in-app Browser queue pass are healthy');
+    expect(source).not.toContain(
+      'in-app Browser control still times out before manual review can run',
     );
   });
 
