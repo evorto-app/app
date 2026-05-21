@@ -2725,7 +2725,9 @@ implement those decisions or explicitly revise them there before changing code.
   `v1.41.2` patch, but recreating that container left the local Docker daemon
   stuck in `Created` state during this session, so the Compose pin stays on the
   last locally verified sidecar version until the update can be validated from a
-  clean Docker state.
+  clean Docker state. Restarting Docker Desktop cleared the stuck container
+  state; a fresh `bun run docker:start` then rebuilt the app, restarted the
+  `v1.41.1` Stripe sidecar, and served `/events` with HTTP 200 again.
 - Docker Stripe checkout webhook mapping pass: container logs showed local
   Stripe CLI `checkout.session.completed` deliveries returning 400 when the
   event reached the app before the local transaction's payment-intent reference
@@ -2852,6 +2854,9 @@ It should be retried when the Browser plugin/runtime transport and pane are
 healthy. The ESN discounted-pricing slice also has Docker-backed system-Chrome
 coverage, while live external ESNcard provider outcomes remain intentionally
 outside deterministic local Browser coverage.
+After Docker Desktop restart restored the full local stack, the in-app Browser
+retry still failed with `Transport closed`, confirming the remaining Browser
+blocker is outside the app and Docker runtime.
 Richer reusable template add-ons and questions are now implemented in the simple
 template flow and should be kept aligned as those surfaces evolve. Normal generated docs output now stays local unless
 `test:e2e:docs:publish` is run intentionally. New Playwright
