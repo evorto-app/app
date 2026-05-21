@@ -2667,6 +2667,12 @@ implement those decisions or explicitly revise them there before changing code.
   200 on port 4577, profile discount-card plus template authoring functional
   slices passed 6/6 against system Chrome, and the matching generated profile
   discounts plus template docs slices passed 3/3.
+- TanStack Query template guard pass: replaced the remaining app-template
+  `query.status() === "pending"` checks with boolean `query.isPending()`
+  branches, matching the same status-signal narrowing convention as
+  `query.isSuccess()`. The stabilization source guard now scans app templates
+  for direct `query.status()` equality checks so new review slices keep using
+  the documented TanStack Query narrowing style.
 - Live-provider preflight visibility pass: kept the external esncard.org
   add/refresh/remove Playwright journey credential-gated, but made
   `bun run docker:check` list `E2E_LIVE_ESN_CARD_IDENTIFIER` as an optional

@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
@@ -7,6 +7,18 @@ const repositoryRoot = new URL('../..', import.meta.url).pathname;
 
 const readSource = (path: string): string =>
   readFileSync(join(repositoryRoot, path), 'utf8');
+
+const listFiles = (directory: string, extension: string): string[] =>
+  readdirSync(join(repositoryRoot, directory)).flatMap((entry) => {
+    const path = `${directory}/${entry}`;
+    const absolutePath = join(repositoryRoot, path);
+
+    if (statSync(absolutePath).isDirectory()) {
+      return listFiles(path, extension);
+    }
+
+    return path.endsWith(extension) ? [path] : [];
+  });
 
 const readSection = (source: string, heading: string, nextHeading: string) => {
   const match = source.match(
@@ -97,5 +109,17 @@ describe('stabilization source', () => {
     expect(source).toMatch(
       /If Browser could not be used, name the blocker and summarize the fallback\s+validation separately\./u,
     );
+  });
+
+  it('keeps app templates on TanStack Query boolean status narrowing', () => {
+    const sourceFiles = listFiles('src/app', '.html');
+
+    for (const sourceFile of sourceFiles) {
+      const source = readSource(sourceFile);
+
+      expect(source, sourceFile).not.toMatch(
+        /\b\w+Query\.status\(\) === "(pending|success|error)"/u,
+      );
+    }
   });
 });
