@@ -116,21 +116,33 @@ describe('stabilization source', () => {
 
   it('keeps the latest PR readiness checkpoint current', () => {
     const source = readSource('STABILIZATION.md');
+    const e2eWorkflow = readSource('.github/workflows/e2e-baseline.yml');
     const readinessCheckpoint = source.match(
       /Latest PR readiness checkpoint:[\s\S]*?\n\n## Browser Review Queue/u,
     )?.[0];
 
     expect(readinessCheckpoint).toBeDefined();
     expect(readinessCheckpoint).toContain(
-      '96f3f64351c68b645070a63534c839944ffd5440',
+      '0d5c1b74de5db7504f2bd833c2e0859adae1a18d',
     );
-    expect(readinessCheckpoint).toContain('16m02s');
+    expect(readinessCheckpoint).toContain('split Playwright E2E matrix');
+    expect(readinessCheckpoint).toContain('Playwright E2E (functional)');
+    expect(readinessCheckpoint).toContain('Playwright E2E (docs)');
+    expect(readinessCheckpoint).toContain('7m25s');
+    expect(readinessCheckpoint).toContain('15m18s');
+    expect(readinessCheckpoint).toContain('run in parallel');
     expect(readinessCheckpoint).toMatch(
       /Chromium-only Playwright browser\s+install/u,
     );
-    expect(readinessCheckpoint).toContain('avoiding unused browser installs');
+    expect(e2eWorkflow).toContain('matrix:');
+    expect(e2eWorkflow).toContain('suite: [functional, docs]');
+    expect(e2eWorkflow).toContain("if: matrix.suite == 'functional'");
+    expect(e2eWorkflow).toContain("if: matrix.suite == 'docs'");
+    expect(e2eWorkflow).toContain(
+      'name: playwright-test-results-${{ matrix.suite }}',
+    );
     expect(readinessCheckpoint).toMatch(
-      /The PR\s+has no\s+unresolved review threads at/u,
+      /The PR\s+has\s+no\s+unresolved review threads at/u,
     );
     expect(readinessCheckpoint).toMatch(
       /paid\s+transfer\/resale money movement\s+still needs a human settlement-model\s+decision/u,
@@ -152,6 +164,10 @@ describe('stabilization source', () => {
     expect(readinessCheckpoint).not.toContain(
       '4cfd4d960f1831055153fab0b3321ed55e937284',
     );
+    expect(readinessCheckpoint).not.toContain(
+      '96f3f64351c68b645070a63534c839944ffd5440',
+    );
+    expect(readinessCheckpoint).not.toContain('16m02s');
     expect(readinessCheckpoint).not.toContain(
       '7b39be0f3a89e1fd14982114e8cbf98a5c59af48',
     );
