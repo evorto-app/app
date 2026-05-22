@@ -15,7 +15,7 @@ and useful for small cleanup batches.
 | Finance/receipts                                | Stabilized | high       | Finance navigation, transaction visibility, receipt review, reimbursement recording, receipt submission, and refund boundaries have deterministic coverage.                  |
 | Scanning/check-in                               | Stabilized | high       | QR scanner reads, selected guest check-in, later guest arrival, idempotent counters, and organizer aggregates are covered by specs/docs against Docker.                      |
 | Profile/account flows                           | Stabilized | high       | Profile edit, event cards, receipts, account creation contracts, seeded ESNcard behavior, deterministic ESNcard provider outcomes, and Browser discount-card UX are covered. |
-| Tenant/global admin                             | Stabilized | high       | Tenant settings and global-admin list/detail/create/edit are covered for the one-primary-domain relaunch scope; custom-domain automation remains deferred.                   |
+| Tenant/global admin                             | Stabilized | high       | Tenant settings and global-admin list/detail/create/edit are covered by functional specs/source guards; custom-domain automation remains deferred.                           |
 | Generated documentation and Playwright coverage | Stabilized | high       | Docs/spec inventory, skip gates, source guards, list mode, and generated-doc runtime flows are current and fail loudly for known fixture gaps.                               |
 | Local runtime/developer workflow                | Stabilized | high       | Docker, env preflight, CI, Font Awesome token paths, and the first in-app Browser queue pass are healthy; repeat Browser review uses generated `BASE_URL`.                   |
 
@@ -482,10 +482,10 @@ the current working direction until a product decision overrides them.
 - Browser walkthrough: unauthenticated direct `/profile` redirects to Auth0 login; unauthenticated direct `/create-account` renders the create-account page with an email-verification error at local `http://localhost:4200`
 - Tenant/global admin app code: `src/app/global-admin/**`, `src/app/admin/general-settings/**`, `src/app/admin/admin.routes.ts`, `src/app/core/config.service.ts`, `src/app/core/effect-rpc-angular-client.ts`, `src/app/core/navigation/**`
 - Tenant/global admin RPC, context, and schema paths: `src/shared/rpc-contracts/app-rpcs/global-admin.rpcs.ts`, `src/shared/rpc-contracts/app-rpcs/admin.rpcs.ts`, `src/server/effect/rpc/handlers/global-admin.handlers.ts`, `src/server/effect/rpc/handlers/admin.handlers.ts`, `src/server/context/**`, `src/server/effect/rpc/app-rpcs.request-handler.ts`, `src/db/schema/tenants.ts`, `src/types/custom/tenant.ts`, `src/shared/tenant-config.ts`
-- Tenant/global admin seed/test/docs coverage: `helpers/seed-tenant.ts`, `helpers/create-tenant.ts`, `tests/specs/permissions/tenant-isolation-tax-rates.spec.ts`, `tests/specs/finance/tax-rates/admin-import-tax-rates.spec.ts`, `tests/specs/auth/storage-state-refresh.test.ts`, `tests/docs/finance/inclusive-tax-rates.doc.ts`, `tests/test-inventory.md`
+- Tenant/global admin seed/test/source coverage: `helpers/seed-tenant.ts`, `helpers/create-tenant.ts`, `tests/specs/admin/global-admin-tenants.spec.ts`, `tests/specs/permissions/global-admin-route-guard.spec.ts`, `tests/specs/permissions/tenant-isolation-tax-rates.spec.ts`, `tests/specs/finance/tax-rates/admin-import-tax-rates.spec.ts`, `tests/specs/auth/storage-state-refresh.test.ts`, `helpers/testing/generated-documentation-source.spec.ts`, `tests/docs/finance/inclusive-tax-rates.doc.ts`, `tests/test-inventory.md`
 - Initial runtime walkthrough: unknown host `no-such-tenant.invalid` returned
   404 and anonymous `/global-admin` redirected to Auth0. Later
-  Docker-backed system-Chrome specs/docs superseded the stale-auth limitation
+  Docker-backed system-Chrome specs and source guards superseded the stale-auth limitation
   from that first pass by verifying authenticated global-admin list, detail,
   create, edit, and route-guard behavior against the running app.
 - Generated docs and Playwright configuration: `playwright.config.ts`, `tests/README.md`, `tests/AGENTS.md`, `tests/test-inventory.md`, `package.json`
@@ -650,7 +650,9 @@ the current working direction until a product decision overrides them.
   resubmission, and approval states from the database, and cleans up generated
   event rows after the documentation journey.
 - `tests/docs/events/event-management.doc.ts` now documents only the current event details, registration, review/listing, edit, organizer overview, participant grouping/cancellation, and receipt surfaces.
-- `tests/docs/events/unlisted-admin.doc.ts` covers the updated direct-link explanation in the listing dialog and on unlisted event details.
+- `tests/docs/events/unlisted-user.doc.ts` covers the participant-facing
+  direct-link explanation for unlisted event details; product docs intentionally
+  do not generate admin unlisted-event or global-admin functionality pages.
 - `tests/docs/events/register.doc.ts` covers free and paid registration as generated documentation and Stripe-backed evidence, including guest quantity selection, the participant versus organizer/helper option wording, participant self-cancellation copy, the unpaid self-service transfer dialog, the paid registration transfer-unavailable boundary, and the pending manual refund fallback created for a manually seeded paid cancellation.
 - `tests/docs/events/register.doc.ts` now documents registration-time add-on
   selection, required registration-question answers, active-registration
@@ -942,7 +944,7 @@ the current working direction until a product decision overrides them.
 - `tests/docs/roles/roles.doc.ts` now creates a deterministic unique role,
   asserts dependent permission selection, reads the persisted role permissions
   from the database, and cleans up the generated role after the docs journey.
-- `tests/docs/roles/about-permissions.doc.ts` generates the `/docs/about-permissions` source from shared permission metadata, including group labels, permission keys/descriptions, dependent permissions, and the tenant-role/global-admin distinction.
+- `tests/docs/roles/about-permissions.doc.ts` generates the `/docs/about-permissions` source from tenant-scoped shared permission metadata, including group labels, permission keys/descriptions, and dependent permissions.
 - `tests/docs/roles/roles.doc.ts` links to `/docs/about-permissions` for permission reference details.
 - `tests/specs/admin/roles-management.spec.ts` functionally covers the
   tenant-admin user review and role-management relaunch surface: read-only user

@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import nodePath from 'node:path';
 import { describe, expect, it } from 'vitest';
 
@@ -8,6 +8,19 @@ const repositoryRoot = new URL('../..', import.meta.url).pathname;
 
 const readSource = (path: string): string =>
   readFileSync(nodePath.join(repositoryRoot, path), 'utf8');
+
+const findFiles = (path: string): string[] => {
+  const absolutePath = nodePath.join(repositoryRoot, path);
+
+  return readdirSync(absolutePath).flatMap((entry) => {
+    const entryPath = nodePath.join(path, entry);
+    const absoluteEntryPath = nodePath.join(repositoryRoot, entryPath);
+
+    return statSync(absoluteEntryPath).isDirectory()
+      ? findFiles(entryPath)
+      : [entryPath];
+  });
+};
 
 describe('generated docs source current behavior', () => {
   it('keeps tenant general-settings docs aligned with implemented branding and legal routes', () => {
@@ -54,6 +67,10 @@ describe('generated docs source current behavior', () => {
 
   it('does not generate product docs for global-admin functionality', () => {
     const inventorySource = readSource('tests/test-inventory.md');
+    const documentFiles = findFiles('tests/docs');
+    const generatedDocumentSources = documentFiles
+      .map((path) => [path, readSource(path)] as const)
+      .filter(([path]) => path.endsWith('.doc.ts'));
 
     expect(
       existsSync(
@@ -70,6 +87,15 @@ describe('generated docs source current behavior', () => {
     ).toBe(false);
     expect(inventorySource).not.toContain('docs/admin/global-admin.doc.ts');
     expect(inventorySource).not.toContain('docs/events/unlisted-admin.doc.ts');
+    expect(documentFiles).not.toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(/global-admin|globalAdmin/i),
+      ]),
+    );
+    for (const [path, source] of generatedDocumentSources) {
+      expect(source, path).not.toContain('/global-admin');
+      expect(source, path).not.toMatch(/global-admin|global admin/i);
+    }
   });
 
   it('keeps profile docs aligned with implemented account and event-card behavior', () => {
@@ -499,11 +525,9 @@ describe('generated docs source current behavior', () => {
     expect(permissionsSource).toContain(
       'Some permissions also include dependent permissions so the user can reach the screens needed to use the parent capability.',
     );
-    expect(permissionsSource).toContain(
-      'Global admin access is separate from tenant roles.',
-    );
     expect(permissionsSource).toContain('PERMISSION_GROUPS');
     expect(permissionsSource).toContain('PERMISSION_DEPENDENCIES');
+    expect(permissionsSource).not.toMatch(/global-admin|global admin/i);
     expect(permissionsSource).not.toContain('Global admin access is a role');
     expect(permissionsSource).not.toContain('tenant roles grant global admin');
   });

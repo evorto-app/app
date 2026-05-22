@@ -37,8 +37,6 @@ Permissions are tenant-scoped capabilities assigned through roles. A user has an
 
 Wildcard permissions such as \`events:*\` grant the permissions in that group. Some permissions also include dependent permissions so the user can reach the screens needed to use the parent capability.
 
-Global admin access is separate from tenant roles. It comes from Auth0 app metadata and is used for platform tenant administration instead of tenant role management.
-
 ${permissionLines().join('\n')}
 `,
   });
