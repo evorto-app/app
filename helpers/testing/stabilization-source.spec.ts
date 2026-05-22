@@ -130,10 +130,12 @@ describe('stabilization source', () => {
     expect(readinessCheckpoint).toContain('split Playwright E2E matrix');
     expect(readinessCheckpoint).toContain('Playwright E2E (functional)');
     expect(readinessCheckpoint).toContain('Playwright E2E (docs)');
-    expect(readinessCheckpoint).toContain('7-9 minute range');
-    expect(readinessCheckpoint).toContain('13-18 minute range');
+    expect(readinessCheckpoint).toContain('8-10 minute range');
+    expect(readinessCheckpoint).toContain('14-18 minute range');
     expect(readinessCheckpoint).toContain('out after 10 minutes');
-    expect(readinessCheckpoint).toContain('generated screenshot stabilization');
+    expect(readinessCheckpoint).toMatch(
+      /generated screenshot\s+stabilization/u,
+    );
     expect(readinessCheckpoint).toContain('run in parallel');
     expect(readinessCheckpoint).toMatch(
       /Chromium-only Playwright browser\s+install/u,
