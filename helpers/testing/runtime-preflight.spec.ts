@@ -17,8 +17,11 @@ const requiredDockerEnvironment = Object.fromEntries(
   ]),
 );
 
-const successfulCommand = (command: string, args: readonly string[]) => {
-  const joined = [command, ...args].join(' ');
+const successfulCommand = (
+  command: string,
+  commandArguments: readonly string[],
+) => {
+  const joined = [command, ...commandArguments].join(' ');
 
   if (joined === 'bun --version') {
     return {
@@ -72,7 +75,7 @@ FFmpeg
 
 const serviceBlock = (composeFile: string, service: string): string => {
   const match = new RegExp(
-    `^  ${service}:\\n([\\s\\S]*?)(?=^  [a-zA-Z0-9_-]+:|^secrets:|^volumes:)`,
+    String.raw`^  ${service}:\n([\s\S]*?)(?=^  [a-zA-Z0-9_-]+:|^secrets:|^volumes:)`,
     'm',
   ).exec(composeFile);
 
@@ -267,6 +270,9 @@ describe('evaluateRuntimePreflight', () => {
     expect(packageJson.scripts['test:e2e:integration']).toContain(
       '--project=local-chrome-integration --project=docs-integration',
     );
+    expect(packageJson.scripts['test:e2e:integration']).toContain(
+      'DOCS_OUT_DIR=test-results/docs DOCS_IMG_OUT_DIR=test-results/docs/images',
+    );
     expect(packageJson.scripts['test:e2e:create-account']).toContain(
       'tests/specs/profile/create-account.spec.ts',
     );
@@ -277,7 +283,19 @@ describe('evaluateRuntimePreflight', () => {
       '--project=local-chrome-integration --project=docs-integration',
     );
     expect(packageJson.scripts['test:e2e:create-account']).toContain(
+      'DOCS_OUT_DIR=test-results/docs DOCS_IMG_OUT_DIR=test-results/docs/images',
+    );
+    expect(packageJson.scripts['test:e2e:create-account']).toContain(
       "--grep '@needs-auth0-management'",
+    );
+    expect(packageJson.scripts['test:e2e:docs']).toContain(
+      'DOCS_OUT_DIR=test-results/docs DOCS_IMG_OUT_DIR=test-results/docs/images',
+    );
+    expect(packageJson.scripts['test:e2e:docs:publish']).toContain(
+      'DOCS_OUT_DIR=/Users/hedde/code/evorto-pages/apps/documentation/src/app/docs',
+    );
+    expect(packageJson.scripts['test:e2e:docs:publish']).toContain(
+      'DOCS_IMG_OUT_DIR=/Users/hedde/code/evorto-pages/apps/documentation/public/docs',
     );
     expect(packageJson.scripts['test:e2e:esncard-provider']).toContain(
       'tests/specs/profile/user-profile-esncard-provider.spec.ts',
@@ -312,22 +330,24 @@ describe('evaluateRuntimePreflight', () => {
       path.join(process.cwd(), 'docker-compose.yml'),
       'utf8',
     );
-    const dbService = serviceBlock(composeFile, 'db');
-    const dbSetupService = serviceBlock(composeFile, 'db-setup');
+    const databaseService = serviceBlock(composeFile, 'db');
+    const databaseSetupService = serviceBlock(composeFile, 'db-setup');
     const evortoService = serviceBlock(composeFile, 'evorto');
     const stripeService = serviceBlock(composeFile, 'stripe');
 
-    expect(dbService).toContain('NEON_API_KEY:');
-    expect(dbService).toContain('NEON_PROJECT_ID:');
+    expect(databaseService).toContain('NEON_API_KEY:');
+    expect(databaseService).toContain('NEON_PROJECT_ID:');
 
-    expect(dbSetupService).toContain('secrets:');
-    expect(dbSetupService).toContain('- FONT_AWESOME_TOKEN');
-    expect(dbSetupService).toContain('STRIPE_TEST_ACCOUNT_ID:');
-    expect(dbSetupService).toContain('bun helpers/reset-database-schema.ts');
-    expect(dbSetupService).toContain(
+    expect(databaseSetupService).toContain('secrets:');
+    expect(databaseSetupService).toContain('- FONT_AWESOME_TOKEN');
+    expect(databaseSetupService).toContain('STRIPE_TEST_ACCOUNT_ID:');
+    expect(databaseSetupService).toContain(
+      'bun helpers/reset-database-schema.ts',
+    );
+    expect(databaseSetupService).toContain(
       'bun ./node_modules/drizzle-kit/bin.cjs push --force',
     );
-    expect(dbSetupService).toContain('bun helpers/database.ts');
+    expect(databaseSetupService).toContain('bun helpers/database.ts');
 
     for (const variable of [
       'CLIENT_ID',
@@ -428,27 +448,29 @@ describe('evaluateRuntimePreflight', () => {
   });
 
   it('keeps the no-secret env example aligned with required Docker variables', () => {
-    const envExample = fs.readFileSync(
+    const environmentExample = fs.readFileSync(
       path.join(process.cwd(), '.env.example'),
       'utf8',
     );
 
     for (const { name } of requiredByTarget.docker) {
-      expect(envExample).toContain(`${name}=`);
+      expect(environmentExample).toContain(`${name}=`);
     }
-    expect(envExample).toContain('Do not put real secret values in this file.');
+    expect(environmentExample).toContain(
+      'Do not put real secret values in this file.',
+    );
   });
 
   it('keeps removed provider variables out of the no-secret env example', () => {
-    const envExample = fs.readFileSync(
+    const environmentExample = fs.readFileSync(
       path.join(process.cwd(), '.env.example'),
       'utf8',
     );
 
     for (const { name } of optionalByTarget.docker) {
-      expect(envExample).toContain(`${name}=`);
+      expect(environmentExample).toContain(`${name}=`);
     }
-    expect(envExample).not.toContain('E2E_LIVE_ESN_CARD_IDENTIFIER');
+    expect(environmentExample).not.toContain('E2E_LIVE_ESN_CARD_IDENTIFIER');
   });
 
   it('warns about missing Playwright browsers without blocking Docker start', () => {

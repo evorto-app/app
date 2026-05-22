@@ -1770,6 +1770,12 @@ the current working direction until a product decision overrides them.
 - Root, test, helper, and config docs now agree that local runtime scripts refresh `.env.dev`, use `dotenv -c dev`, and provide a non-mutating Docker preflight.
 - The Angular unit-test target now has explicit app/shared discovery ownership; server/db/helper specs remain covered by Vitest through `test:unit:server`.
 - The generated-docs pass already records stale docs and placeholder Playwright coverage; the workflow pass removed the list-mode docs-output mutation risk.
+- Normal docs-generating package scripts now pin `DOCS_OUT_DIR=test-results/docs`
+  and `DOCS_IMG_OUT_DIR=test-results/docs/images` before loading local dotenv
+  secrets, so a developer `.env` that points at the `evorto-pages` publish
+  checkout cannot make routine docs, integration, or create-account runs dirty
+  that external repo. Publishing generated docs remains explicit through
+  `bun run test:e2e:docs:publish`.
 - CI and local setup both install or expose Playwright browser installation, and
   local exploratory runs can opt into system Chrome with
   `E2E_BROWSER_CHANNEL=chrome`. Full local e2e still was not run because it
