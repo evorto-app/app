@@ -2,7 +2,7 @@ import { Locator, Page, TestInfo } from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-const animationSettleTimeoutMs = 1_000;
+const animationSettleTimeoutMs = 2_000;
 
 function ensureDir(dir: string) {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });

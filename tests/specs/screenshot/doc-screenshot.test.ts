@@ -69,3 +69,47 @@ test('doc-screenshot waits for descriptive loading text before capture', async (
   expect(await page.getByText('Loading tax rates...').count()).toBe(0);
   expect(fs.existsSync(path.join(imgRoot, relPath))).toBe(true);
 });
+
+test('doc-screenshot waits for finite transitions before capture', async ({
+  page,
+}, testInfo) => {
+  const imgRoot = path.resolve('test-results/tmp-doc-images-transition');
+  process.env.DOCS_IMG_OUT_DIR = imgRoot;
+
+  await page.setContent(`
+    <style>
+      #target {
+        height: 80px;
+        transform: translateX(80px);
+        transition: transform 650ms linear;
+        width: 240px;
+      }
+
+      #target.settled {
+        transform: translateX(0);
+      }
+    </style>
+    <section id="target">Animated documentation target</section>
+    <script>
+      requestAnimationFrame(() => {
+        document.querySelector('#target').classList.add('settled');
+      });
+    </script>
+  `);
+
+  const startedAt = Date.now();
+  const relPath = await docScreenshot(
+    testInfo,
+    page.locator('#target'),
+    page,
+    'transition-target',
+  );
+
+  const translateX = await page.locator('#target').evaluate((element) => {
+    return new DOMMatrixReadOnly(getComputedStyle(element).transform).m41;
+  });
+
+  expect(Date.now() - startedAt).toBeGreaterThanOrEqual(550);
+  expect(translateX).toBe(0);
+  expect(fs.existsSync(path.join(imgRoot, relPath))).toBe(true);
+});

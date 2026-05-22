@@ -1,7 +1,7 @@
 import { Locator, Page, TestInfo } from '@playwright/test';
 
-const animationSettleTimeoutMs = 1_000;
-const locatorSettleTimeoutMs = 1_000;
+const animationSettleTimeoutMs = 2_000;
+const locatorSettleTimeoutMs = 1_500;
 
 const waitForLoadingIndicators = async (page: Page): Promise<void> => {
   const loadingIndicator = page.getByText(/^Loading\b.*$/).first();
