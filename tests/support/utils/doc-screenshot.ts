@@ -3,7 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 
 const animationSettleTimeoutMs = 2_000;
-const snackbarSettleTimeoutMs = 7_000;
+const snackbarSettleTimeoutMs = 750;
 
 function ensureDir(dir: string) {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -48,10 +48,12 @@ const waitForSnackbars = async (page: Page): Promise<void> => {
     .catch(() => false);
 
   if (isVisible) {
-    await snackbar.waitFor({
-      state: 'hidden',
-      timeout: snackbarSettleTimeoutMs,
-    });
+    await snackbar
+      .waitFor({
+        state: 'hidden',
+        timeout: snackbarSettleTimeoutMs,
+      })
+      .catch(() => undefined);
   }
 };
 
@@ -134,7 +136,12 @@ export async function docScreenshot(
   // Ensure the element is in view before taking the screenshot
   await locator.first().scrollIntoViewIfNeeded();
   await settleFiniteAnimations(_page);
-  await locator.first().screenshot({ animations: 'disabled', path: absPath });
+  await locator.first().screenshot({
+    animations: 'disabled',
+    path: absPath,
+    style:
+      'mat-snack-bar-container, .mat-mdc-snack-bar-container { display: none; }',
+  });
 
   // Return path relative to the images root
   return path.relative(imagesRoot, absPath);

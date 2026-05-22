@@ -2,7 +2,7 @@ import { Locator, Page, TestInfo } from '@playwright/test';
 
 const animationSettleTimeoutMs = 2_000;
 const locatorSettleTimeoutMs = 1_500;
-const snackbarSettleTimeoutMs = 7_000;
+const snackbarSettleTimeoutMs = 750;
 
 const waitForLoadingIndicators = async (page: Page): Promise<void> => {
   const loadingIndicator = page.getByText(/^Loading\b.*$/).first();
@@ -24,10 +24,12 @@ const waitForSnackbars = async (page: Page): Promise<void> => {
     .catch(() => false);
 
   if (isVisible) {
-    await snackbar.waitFor({
-      state: 'hidden',
-      timeout: snackbarSettleTimeoutMs,
-    });
+    await snackbar
+      .waitFor({
+        state: 'hidden',
+        timeout: snackbarSettleTimeoutMs,
+      })
+      .catch(() => undefined);
   }
 };
 
@@ -186,7 +188,8 @@ export async function takeScreenshot(
   await testInfo.attach('image', {
     body: await page.screenshot({
       animations: 'disabled',
-      style: '.tsqd-parent-container { display: none; }',
+      style:
+        '.tsqd-parent-container, mat-snack-bar-container, .mat-mdc-snack-bar-container { display: none; }',
     }),
     contentType: 'image/png',
   });

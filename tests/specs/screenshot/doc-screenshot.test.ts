@@ -146,3 +146,31 @@ test('doc-screenshot waits for transient snackbars before capture', async ({
   expect(await page.locator('mat-snack-bar-container').count()).toBe(0);
   expect(fs.existsSync(path.join(imgRoot, relPath))).toBe(true);
 });
+
+test('doc-screenshot does not fail on persistent snackbars', async ({
+  page,
+}, testInfo) => {
+  const imgRoot = path.resolve(
+    'test-results/tmp-doc-images-persistent-snackbar',
+  );
+  process.env.DOCS_IMG_OUT_DIR = imgRoot;
+
+  await page.setContent(`
+    <main>
+      <section id="target">Documentation target</section>
+      <mat-snack-bar-container class="mat-mdc-snack-bar-container">
+        Long-lived notification
+      </mat-snack-bar-container>
+    </main>
+  `);
+
+  const relPath = await docScreenshot(
+    testInfo,
+    page.locator('#target'),
+    page,
+    'persistent-snackbar-target',
+  );
+
+  expect(await page.locator('mat-snack-bar-container').count()).toBe(1);
+  expect(fs.existsSync(path.join(imgRoot, relPath))).toBe(true);
+});
