@@ -123,17 +123,20 @@ describe('stabilization source', () => {
 
     expect(readinessCheckpoint).toBeDefined();
     expect(readinessCheckpoint).toContain(
-      '33b163773afeafd93716a21b52ca253ef273a544',
+      '15262b39e2f027aa6131f87990d49eac9bc95ccf',
     );
     expect(readinessCheckpoint).toContain('split Playwright E2E matrix');
     expect(readinessCheckpoint).toContain('Playwright E2E (functional)');
     expect(readinessCheckpoint).toContain('Playwright E2E (docs)');
-    expect(readinessCheckpoint).toContain('9m16s');
-    expect(readinessCheckpoint).toContain('13m31s');
+    expect(readinessCheckpoint).toContain('7m49s');
+    expect(readinessCheckpoint).toContain('18m2s');
+    expect(readinessCheckpoint).toContain('out after 10 minutes');
+    expect(readinessCheckpoint).toContain('generated screenshot stabilization');
     expect(readinessCheckpoint).toContain('run in parallel');
     expect(readinessCheckpoint).toMatch(
       /Chromium-only Playwright browser\s+install/u,
     );
+    expect(endToEndWorkflow).toContain('timeout-minutes: 10');
     expect(endToEndWorkflow).toContain('matrix:');
     expect(endToEndWorkflow).toContain('suite: [functional, docs]');
     expect(endToEndWorkflow).toContain("if: matrix.suite == 'functional'");
@@ -148,7 +151,7 @@ describe('stabilization source', () => {
       /paid\s+transfer\/resale money movement\s+still needs a human settlement-model\s+decision/u,
     );
     expect(readinessCheckpoint).toMatch(
-      /formal bot\s+review is expected only after the PR is marked ready/u,
+      /formal\s+bot\s+review is\s+expected only after the PR is marked ready/u,
     );
     expect(readinessCheckpoint).not.toContain(
       '9b65634b66840aa72dc53c4a5bef742036f049ac',
@@ -167,6 +170,14 @@ describe('stabilization source', () => {
     expect(readinessCheckpoint).not.toContain(
       '0d5c1b74de5db7504f2bd833c2e0859adae1a18d',
     );
+    expect(readinessCheckpoint).not.toContain(
+      '33b163773afeafd93716a21b52ca253ef273a544',
+    );
+    expect(readinessCheckpoint).not.toContain(
+      '584da0dd32867764716132eb2dcdd0bea3e32869',
+    );
+    expect(readinessCheckpoint).not.toContain('9m16s');
+    expect(readinessCheckpoint).not.toContain('13m31s');
     expect(readinessCheckpoint).not.toContain('7m25s');
     expect(readinessCheckpoint).not.toContain('15m18s');
     expect(readinessCheckpoint).not.toContain(

@@ -2807,20 +2807,24 @@ implement those decisions or explicitly revise them there before changing code.
   keeps account-creation validation discoverable without forcing the full
   integration suite.
 - Latest PR readiness checkpoint: GitHub is green on
-  `33b163773afeafd93716a21b52ca253ef273a544`, including Analyze, CodeQL, Git
+  `15262b39e2f027aa6131f87990d49eac9bc95ccf`, including Analyze, CodeQL, Git
   Town branch stack, CodeRabbit status, and the split Playwright E2E matrix.
   The E2E workflow now runs separate `Playwright E2E (functional)` and
   `Playwright E2E (docs)` jobs. Each job still performs the full dependency
   install, Chromium-only Playwright browser install, Docker image pull/build,
   Docker stack startup, app container startup, app readiness, Docker log
   collection, stack shutdown, and artifact upload path for its own suite, but
-  the long Playwright phases run in parallel. The docs job completed in 9m16s,
-  the functional job completed in 13m31s, and the workflow wall time was gated
-  by the functional job instead of serially running docs afterward. The PR has
-  no unresolved review threads at this checkpoint. It remains draft because
-  paid transfer/resale money movement still needs a human settlement-model
-  decision before implementation or explicit relaunch deferral; formal bot
-  review is expected only after the PR is marked ready.
+  the long Playwright phases run in parallel. The Docker build step now times
+  out after 10 minutes, so an infrastructure build hang fails faster while the
+  successful path remains unchanged. The docs job completed in 7m49s, the
+  functional job completed in 18m2s, and the workflow wall time was gated by
+  the functional job instead of serially running docs afterward. The docs pass
+  also covers the generated screenshot stabilization that waits for loading
+  states, finite animations, and target geometry before capture. The PR has no
+  unresolved review threads at this checkpoint. It remains draft because paid
+  transfer/resale money movement still needs a human settlement-model decision
+  before implementation or explicit relaunch deferral; formal bot review is
+  expected only after the PR is marked ready.
 
 ## Browser Review Queue
 

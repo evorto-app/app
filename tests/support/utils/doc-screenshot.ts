@@ -28,11 +28,14 @@ export function resolveDocsImageOutputDirectory(
 }
 
 const waitForLoadingIndicators = async (page: Page): Promise<void> => {
-  await page
-    .getByText(/^Loading(?:\.\.\.|\u2026)$/)
-    .first()
-    .waitFor({ state: 'hidden', timeout: 5_000 })
-    .catch(() => undefined);
+  const loadingIndicator = page.getByText(/^Loading\b.*$/).first();
+  const isLoading = await loadingIndicator
+    .isVisible({ timeout: 250 })
+    .catch(() => false);
+
+  if (isLoading) {
+    await loadingIndicator.waitFor({ state: 'hidden', timeout: 15_000 });
+  }
 };
 
 const settleRenderFrame = async (page: Page): Promise<void> => {
@@ -50,6 +53,7 @@ const settleRenderFrame = async (page: Page): Promise<void> => {
 const settleFiniteAnimations = async (page: Page): Promise<void> => {
   await waitForLoadingIndicators(page);
   await settleRenderFrame(page);
+  await waitForLoadingIndicators(page);
   await page.evaluate(async (timeoutMs) => {
     const startedAt = performance.now();
 
@@ -80,6 +84,7 @@ const settleFiniteAnimations = async (page: Page): Promise<void> => {
     }
   }, animationSettleTimeoutMs);
   await settleRenderFrame(page);
+  await waitForLoadingIndicators(page);
 };
 
 /**

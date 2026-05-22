@@ -79,7 +79,9 @@ Navigate to the **User roles** page to create or edit tenant roles.
     });
     await page.getByRole('link', { name: 'User roles' }).click();
     await expect(
-      page.getByRole('heading', { name: 'User roles' }),
+      page.locator('app-role-list').getByRole('heading', {
+        name: 'User roles',
+      }),
     ).toBeVisible();
     await takeScreenshot(
       testInfo,

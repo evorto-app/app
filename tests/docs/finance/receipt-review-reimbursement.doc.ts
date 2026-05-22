@@ -73,6 +73,9 @@ Finance users review submitted receipts first. Approved receipts then appear in 
 The approval queue groups submitted receipts by event. Each receipt links to a review page where finance users can inspect the attachment metadata and validate the submitted amounts before approving or rejecting it.
 `,
     });
+    await expect(
+      page.getByRole('link', { name: receiptFileName }),
+    ).toHaveAttribute('href', `/finance/receipts-approval/${receipt.id}`);
     await takeScreenshot(
       testInfo,
       page.locator('app-receipt-approval-list'),
@@ -80,9 +83,6 @@ The approval queue groups submitted receipts by event. Each receipt links to a r
       'Receipt approval queue',
     );
 
-    await expect(
-      page.getByRole('link', { name: receiptFileName }),
-    ).toHaveAttribute('href', `/finance/receipts-approval/${receipt.id}`);
     await page.getByRole('link', { name: receiptFileName }).click();
     await expect(
       page.getByRole('heading', { name: 'Review receipt' }),

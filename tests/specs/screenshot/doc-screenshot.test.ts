@@ -38,3 +38,34 @@ test('doc-screenshot returns a relative path and writes image', async ({
   const absPath = path.join(imgRoot, relPath);
   expect(fs.existsSync(absPath)).toBe(true);
 });
+
+test('doc-screenshot waits for descriptive loading text before capture', async ({
+  page,
+}, testInfo) => {
+  const imgRoot = path.resolve('test-results/tmp-doc-images-loading');
+  process.env.DOCS_IMG_OUT_DIR = imgRoot;
+
+  await page.setContent(`
+    <main>
+      <h1>Loading tax rates...</h1>
+      <section id="target">Ready content</section>
+      <script>
+        setTimeout(() => {
+          document.querySelector('h1').remove();
+        }, 500);
+      </script>
+    </main>
+  `);
+
+  const startedAt = Date.now();
+  const relPath = await docScreenshot(
+    testInfo,
+    page.locator('#target'),
+    page,
+    'loading-tax-rates',
+  );
+
+  expect(Date.now() - startedAt).toBeGreaterThanOrEqual(400);
+  expect(await page.getByText('Loading tax rates...').count()).toBe(0);
+  expect(fs.existsSync(path.join(imgRoot, relPath))).toBe(true);
+});
