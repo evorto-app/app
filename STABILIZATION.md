@@ -2999,6 +2999,13 @@ fallback rather than a profile discount-card defect.
   the retry button was hard to read on the saturated error surface; the scanner
   error state now uses the error-container surface, an alert role, and
   contrast-safe retry button tokens.
+- Generated-docs image review checkpoint: after the docs screenshot helpers were
+  adjusted to wait briefly for snackbars and hide long-lived snackbar containers
+  during capture, the full local docs baseline passed against the running Docker
+  app with `29 passed`. The generated `test-results/docs/images` output
+  contained 57 screenshots; contact-sheet review found no remaining snackbar
+  bars, half-transition captures, or generated product docs for global-admin
+  functionality.
 
 ## Review Next
 
