@@ -117,7 +117,7 @@ Permissions that are required by another permission are automatically included a
     ).toBeChecked();
     await takeScreenshot(
       testInfo,
-      page.locator('app-role-form'),
+      page.getByRole('checkbox', { exact: true, name: 'Events' }),
       page,
       'Role form with permission groups',
     );

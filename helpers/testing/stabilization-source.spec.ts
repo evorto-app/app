@@ -65,6 +65,10 @@ describe('stabilization source', () => {
     expect(queue).toContain(
       'tests/specs/profile/user-profile-esncard-provider.spec.ts',
     );
+    expect(queue).toContain('isolated E2E tenant');
+    expect(queue).toContain('active `localhost` tenant');
+    expect(queue).toContain('TEST-ESN-0001');
+    expect(queue).toContain('local review-state drift');
     expect(queue).not.toContain('E2E_LIVE_ESN_CARD_IDENTIFIER');
   });
 
@@ -119,6 +123,7 @@ describe('stabilization source', () => {
 
   it('keeps the PR readiness checkpoint current without pinning stale heads', () => {
     const source = readSource('STABILIZATION.md');
+    const dockerCompose = readSource('docker-compose.yml');
     const endToEndWorkflow = readSource('.github/workflows/e2e-baseline.yml');
     const readinessCheckpoint = source.match(
       /Recent PR readiness checkpoint:[\s\S]*?\n\n## Browser Review Queue/u,
@@ -133,8 +138,12 @@ describe('stabilization source', () => {
     expect(readinessCheckpoint).toMatch(/roughly\s+ten minutes/u);
     expect(readinessCheckpoint).toContain('low-to-high teens');
     expect(readinessCheckpoint).toContain('out after 10 minutes');
+    expect(readinessCheckpoint).toMatch(/bounded\s+`on-failure` restarts/u);
+    expect(readinessCheckpoint).toContain(
+      'transient `423 Client Error: Locked`',
+    );
     expect(readinessCheckpoint).toMatch(
-      /generated screenshot\s+stabilization/u,
+      /generated\s+screenshot\s+stabilization/u,
     );
     expect(readinessCheckpoint).toContain('run in parallel');
     expect(readinessCheckpoint).toMatch(
@@ -145,11 +154,16 @@ describe('stabilization source', () => {
     expect(endToEndWorkflow).toContain('suite: [functional, docs]');
     expect(endToEndWorkflow).toContain("if: matrix.suite == 'functional'");
     expect(endToEndWorkflow).toContain("if: matrix.suite == 'docs'");
+    expect(dockerCompose).toContain('restart: on-failure:5');
+    expect(endToEndWorkflow).not.toContain(
+      'Neon Local branch startup hit a transient project lock',
+    );
+    expect(endToEndWorkflow).not.toContain('return 75');
     expect(endToEndWorkflow).toContain(
       'name: playwright-test-results-${{ matrix.suite }}',
     );
     expect(readinessCheckpoint).toMatch(
-      /The PR\s+has\s+no\s+unresolved review threads at/u,
+      /The PR\s+has\s+no\s+unresolved review threads\s+at/u,
     );
     expect(readinessCheckpoint).toMatch(
       /paid\s+transfer\/resale money movement\s+still needs a human settlement-model\s+decision/u,

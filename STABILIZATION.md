@@ -2821,10 +2821,14 @@ implement those decisions or explicitly revise them there before changing code.
   successful path remains unchanged. Recent green runs complete docs in roughly
   ten minutes and functional in the low-to-high teens, so the workflow wall
   time is gated by the functional job instead of serially running docs
-  afterward. The docs pass also covers the generated screenshot stabilization
-  that waits for loading states, finite animations, and target geometry before
-  capture. The PR has no unresolved review threads at this checkpoint. It
-  remains draft because paid
+  afterward. Docker Compose gives the Neon Local `db` service bounded
+  `on-failure` restarts, so transient `423 Client Error: Locked`
+  branch-creation exits can recover inside the existing startup wait without
+  serializing the split matrix or treating a temporary Neon project lock as an
+  app regression. The docs pass also covers the generated
+  screenshot stabilization that waits for loading states, finite animations,
+  and target geometry before capture. The PR has no unresolved review threads
+  at this checkpoint. It remains draft because paid
   transfer/resale money movement still needs a human settlement-model decision
   before implementation or explicit relaunch deferral; formal bot review is
   expected only after the PR is marked ready.
@@ -2872,8 +2876,14 @@ covered by the linked Playwright specs and generated docs.
    `bun run test:e2e:esncard-provider`
    (`tests/specs/profile/user-profile-esncard-provider.spec.ts`). It uses
    tenant-scoped provider test mode and explicit `TESTESN*` inputs for
-   verified and provider-unavailable outcomes; use Browser afterward only for
-   the visible profile UX review.
+   verified and provider-unavailable outcomes. That command verifies an isolated
+   E2E tenant; before using the current in-app Browser tab for
+   `/profile#discounts`, make sure the active `localhost` tenant has the
+   ESNcard provider enabled in test mode and the regular user has the seeded
+   `TEST-ESN-0001` card. A direct `#discounts` link correctly falls back to the
+   profile overview when the current tenant has ESNcard disabled; treat that as
+   local review-state drift, not a product regression. Use Browser afterward
+   only for the visible profile UX review.
 
 Initial durable-anchor checkpoint: the Docker app was healthy on the generated
 `BASE_URL`, but Browser control had not recovered yet. The first queue item's
@@ -2966,6 +2976,15 @@ confirmed the seeded verified
 profile-page console errors. The tab still retained earlier QR scanner camera
 warnings from the scanner route, which match the documented retryable camera
 fallback rather than a profile discount-card defect.
+
+- Follow-up repeat profile Browser check: after a focused deterministic
+  ESNcard provider run passed, the current `/profile#discounts` tab still showed
+  the profile overview because that test enables an isolated E2E tenant while
+  the current Browser session used the `localhost` tenant. Re-enabling the
+  `localhost` tenant ESNcard provider in test mode and restoring the regular
+  user's seeded `TEST-ESN-0001` card made the same tab show the expected
+  discount-card section again, with refresh/remove actions, disabled empty save,
+  and no profile-page console errors.
 
 ## Review Next
 
