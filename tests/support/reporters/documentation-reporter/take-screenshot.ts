@@ -2,6 +2,7 @@ import { Locator, Page, TestInfo } from '@playwright/test';
 
 const animationSettleTimeoutMs = 2_000;
 const locatorSettleTimeoutMs = 1_500;
+const snackbarSettleTimeoutMs = 7_000;
 
 const waitForLoadingIndicators = async (page: Page): Promise<void> => {
   const loadingIndicator = page.getByText(/^Loading\b.*$/).first();
@@ -11,6 +12,22 @@ const waitForLoadingIndicators = async (page: Page): Promise<void> => {
 
   if (isLoading) {
     await loadingIndicator.waitFor({ state: 'hidden', timeout: 15_000 });
+  }
+};
+
+const waitForSnackbars = async (page: Page): Promise<void> => {
+  const snackbar = page
+    .locator('mat-snack-bar-container, .mat-mdc-snack-bar-container')
+    .first();
+  const isVisible = await snackbar
+    .isVisible({ timeout: 250 })
+    .catch(() => false);
+
+  if (isVisible) {
+    await snackbar.waitFor({
+      state: 'hidden',
+      timeout: snackbarSettleTimeoutMs,
+    });
   }
 };
 
@@ -28,8 +45,10 @@ const settleRenderFrame = async (page: Page): Promise<void> => {
 
 const settleFiniteAnimations = async (page: Page): Promise<void> => {
   await waitForLoadingIndicators(page);
+  await waitForSnackbars(page);
   await settleRenderFrame(page);
   await waitForLoadingIndicators(page);
+  await waitForSnackbars(page);
   await page.evaluate(async (timeoutMs) => {
     const startedAt = performance.now();
 
@@ -61,6 +80,7 @@ const settleFiniteAnimations = async (page: Page): Promise<void> => {
   }, animationSettleTimeoutMs);
   await settleRenderFrame(page);
   await waitForLoadingIndicators(page);
+  await waitForSnackbars(page);
 };
 
 const waitForStableLocator = async (

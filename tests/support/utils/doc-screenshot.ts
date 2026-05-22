@@ -3,6 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 
 const animationSettleTimeoutMs = 2_000;
+const snackbarSettleTimeoutMs = 7_000;
 
 function ensureDir(dir: string) {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -38,6 +39,22 @@ const waitForLoadingIndicators = async (page: Page): Promise<void> => {
   }
 };
 
+const waitForSnackbars = async (page: Page): Promise<void> => {
+  const snackbar = page
+    .locator('mat-snack-bar-container, .mat-mdc-snack-bar-container')
+    .first();
+  const isVisible = await snackbar
+    .isVisible({ timeout: 250 })
+    .catch(() => false);
+
+  if (isVisible) {
+    await snackbar.waitFor({
+      state: 'hidden',
+      timeout: snackbarSettleTimeoutMs,
+    });
+  }
+};
+
 const settleRenderFrame = async (page: Page): Promise<void> => {
   await page.locator('body').waitFor({ state: 'visible' });
   await page.evaluate(
@@ -52,8 +69,10 @@ const settleRenderFrame = async (page: Page): Promise<void> => {
 
 const settleFiniteAnimations = async (page: Page): Promise<void> => {
   await waitForLoadingIndicators(page);
+  await waitForSnackbars(page);
   await settleRenderFrame(page);
   await waitForLoadingIndicators(page);
+  await waitForSnackbars(page);
   await page.evaluate(async (timeoutMs) => {
     const startedAt = performance.now();
 
@@ -85,6 +104,7 @@ const settleFiniteAnimations = async (page: Page): Promise<void> => {
   }, animationSettleTimeoutMs);
   await settleRenderFrame(page);
   await waitForLoadingIndicators(page);
+  await waitForSnackbars(page);
 };
 
 /**

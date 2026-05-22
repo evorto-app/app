@@ -113,3 +113,36 @@ test('doc-screenshot waits for finite transitions before capture', async ({
   expect(translateX).toBe(0);
   expect(fs.existsSync(path.join(imgRoot, relPath))).toBe(true);
 });
+
+test('doc-screenshot waits for transient snackbars before capture', async ({
+  page,
+}, testInfo) => {
+  const imgRoot = path.resolve('test-results/tmp-doc-images-snackbar');
+  process.env.DOCS_IMG_OUT_DIR = imgRoot;
+
+  await page.setContent(`
+    <main>
+      <section id="target">Documentation target</section>
+      <mat-snack-bar-container class="mat-mdc-snack-bar-container">
+        Profile updated successfully
+      </mat-snack-bar-container>
+      <script>
+        setTimeout(() => {
+          document.querySelector('mat-snack-bar-container').remove();
+        }, 500);
+      </script>
+    </main>
+  `);
+
+  const startedAt = Date.now();
+  const relPath = await docScreenshot(
+    testInfo,
+    page.locator('#target'),
+    page,
+    'snackbar-target',
+  );
+
+  expect(Date.now() - startedAt).toBeGreaterThanOrEqual(400);
+  expect(await page.locator('mat-snack-bar-container').count()).toBe(0);
+  expect(fs.existsSync(path.join(imgRoot, relPath))).toBe(true);
+});
