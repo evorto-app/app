@@ -117,22 +117,21 @@ describe('stabilization source', () => {
     );
   });
 
-  it('keeps the latest PR readiness checkpoint current', () => {
+  it('keeps the PR readiness checkpoint current without pinning stale heads', () => {
     const source = readSource('STABILIZATION.md');
     const endToEndWorkflow = readSource('.github/workflows/e2e-baseline.yml');
     const readinessCheckpoint = source.match(
-      /Latest PR readiness checkpoint:[\s\S]*?\n\n## Browser Review Queue/u,
+      /Recent PR readiness checkpoint:[\s\S]*?\n\n## Browser Review Queue/u,
     )?.[0];
 
     expect(readinessCheckpoint).toBeDefined();
-    expect(readinessCheckpoint).toContain(
-      '8eaf67087b40b6a065067545021b4647d81b9b69',
-    );
+    expect(readinessCheckpoint).not.toMatch(/[0-9a-f]{40}/u);
+    expect(readinessCheckpoint).toContain('current PR head');
     expect(readinessCheckpoint).toContain('split Playwright E2E matrix');
     expect(readinessCheckpoint).toContain('Playwright E2E (functional)');
     expect(readinessCheckpoint).toContain('Playwright E2E (docs)');
-    expect(readinessCheckpoint).toContain('8m9s');
-    expect(readinessCheckpoint).toContain('15m57s');
+    expect(readinessCheckpoint).toContain('7-9 minute range');
+    expect(readinessCheckpoint).toContain('13-18 minute range');
     expect(readinessCheckpoint).toContain('out after 10 minutes');
     expect(readinessCheckpoint).toContain('generated screenshot stabilization');
     expect(readinessCheckpoint).toContain('run in parallel');

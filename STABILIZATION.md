@@ -2806,9 +2806,9 @@ implement those decisions or explicitly revise them there before changing code.
   `@needs-auth0-management` functional spec and generated-doc journey. This
   keeps account-creation validation discoverable without forcing the full
   integration suite.
-- Latest PR readiness checkpoint: GitHub is green on
-  `8eaf67087b40b6a065067545021b4647d81b9b69`, including Analyze, CodeQL, Git
-  Town branch stack, CodeRabbit status, and the split Playwright E2E matrix.
+- Recent PR readiness checkpoint: GitHub has been green on the current PR head
+  after stabilization cleanup commits, including Analyze, CodeQL, Git Town
+  branch stack, CodeRabbit status, and the split Playwright E2E matrix.
   The E2E workflow now runs separate `Playwright E2E (functional)` and
   `Playwright E2E (docs)` jobs. Each job still performs the full dependency
   install, Chromium-only Playwright browser install, Docker image pull/build,
@@ -2816,12 +2816,13 @@ implement those decisions or explicitly revise them there before changing code.
   collection, stack shutdown, and artifact upload path for its own suite, but
   the long Playwright phases run in parallel. The Docker build step now times
   out after 10 minutes, so an infrastructure build hang fails faster while the
-  successful path remains unchanged. The docs job completed in 8m9s, the
-  functional job completed in 15m57s, and the workflow wall time was gated by
-  the functional job instead of serially running docs afterward. The docs pass
-  also covers the generated screenshot stabilization that waits for loading
-  states, finite animations, and target geometry before capture. The PR has no
-  unresolved review threads at this checkpoint. It remains draft because paid
+  successful path remains unchanged. Recent green runs completed docs in the
+  7-9 minute range and functional in the 13-18 minute range, and the workflow
+  wall time was gated by the functional job instead of serially running docs
+  afterward. The docs pass also covers the generated screenshot stabilization
+  that waits for loading states, finite animations, and target geometry before
+  capture. The PR has no unresolved review threads at this checkpoint. It
+  remains draft because paid
   transfer/resale money movement still needs a human settlement-model decision
   before implementation or explicit relaunch deferral; formal bot review is
   expected only after the PR is marked ready.
