@@ -108,6 +108,9 @@ describe('stabilization source', () => {
     expect(source).not.toContain(
       'in-app Browser connection still times out during manual global-admin navigation',
     );
+    expect(source).not.toContain('Must setup test before interacting');
+    expect(source).not.toContain('human Browser pass remains blocked');
+    expect(source).not.toContain('visible profile UX review remains blocked');
     expect(source).not.toContain(
       'lists the Browser-backed coverage still\n' +
         '  needed from the remaining stabilization gaps',

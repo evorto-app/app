@@ -2872,9 +2872,8 @@ covered by the linked Playwright specs and generated docs.
    verified and provider-unavailable outcomes; use Browser afterward only for
    the visible profile UX review.
 
-Latest queue checkpoint: the Docker app was healthy on the generated `BASE_URL`,
-but browser-control navigation still failed before page interaction with
-`Must setup test before interacting with the page`. The first queue item's
+Initial durable-anchor checkpoint: the Docker app was healthy on the generated
+`BASE_URL`, but Browser control had not recovered yet. The first queue item's
 durable anchors passed against that Docker stack:
 `tests/specs/events/events.test.ts` plus
 `tests/specs/events/unlisted-visibility.test.ts` passed with system Chrome, and
@@ -2921,10 +2920,7 @@ covered `tests/docs/admin/general-settings.doc.ts`,
 `tests/docs/finance/receipt-review-reimbursement.doc.ts`, and
 `tests/docs/finance/inclusive-tax-rates.doc.ts`, including tenant settings,
 role management, permission education, finance visibility, receipt review,
-reimbursement recording, and inclusive tax-rate behavior. The in-app Browser
-retry still failed before navigation with
-`Must setup test before interacting with the page`, so the human Browser pass
-remains blocked outside the app/runtime path.
+reimbursement recording, and inclusive tax-rate behavior.
 
 Global-admin queue checkpoint: the fifth queue item's durable anchors passed
 against the same Docker stack with fresh seed keys. The system-Chrome
@@ -2933,19 +2929,14 @@ functional pass covered `tests/specs/admin/global-admin-tenants.spec.ts` and
 global-admin tenant list search, tenant detail review, tenant create/edit,
 duplicate-domain rejection, path-like domain rejection, route denial for
 non-global users, and allowed access for global admins. Product docs are not
-generated for global-admin functionality. The in-app Browser retry still
-failed before navigation with `Must setup test before interacting with the
-page`, so the human Browser pass remains blocked outside the app/runtime path.
+generated for global-admin functionality.
 
 Deterministic provider queue checkpoint: the sixth queue item's durable anchor
 passed against the same Docker stack. `bun run test:e2e:esncard-provider --
 --workers=1` covered `tests/specs/profile/user-profile-esncard-provider.spec.ts`
 with the `@esncard-provider` grep, including tenant-scoped ESNcard provider
 test mode and the explicit `TESTESN*` outcomes for verified cards, expiration,
-invalid input, unverified state, and provider-unavailable handling. The in-app
-Browser retry still failed before navigation with
-`Must setup test before interacting with the page`, so the visible profile UX
-review remains blocked outside the app/runtime path.
+invalid input, unverified state, and provider-unavailable handling.
 
 Manual in-app Browser queue checkpoint: after reseeding the local Docker
 database with a current seed clock and refreshing the auth storage, the Browser
