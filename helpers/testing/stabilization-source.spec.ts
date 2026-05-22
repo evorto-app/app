@@ -123,13 +123,13 @@ describe('stabilization source', () => {
 
     expect(readinessCheckpoint).toBeDefined();
     expect(readinessCheckpoint).toContain(
-      '15262b39e2f027aa6131f87990d49eac9bc95ccf',
+      '8eaf67087b40b6a065067545021b4647d81b9b69',
     );
     expect(readinessCheckpoint).toContain('split Playwright E2E matrix');
     expect(readinessCheckpoint).toContain('Playwright E2E (functional)');
     expect(readinessCheckpoint).toContain('Playwright E2E (docs)');
-    expect(readinessCheckpoint).toContain('7m49s');
-    expect(readinessCheckpoint).toContain('18m2s');
+    expect(readinessCheckpoint).toContain('8m9s');
+    expect(readinessCheckpoint).toContain('15m57s');
     expect(readinessCheckpoint).toContain('out after 10 minutes');
     expect(readinessCheckpoint).toContain('generated screenshot stabilization');
     expect(readinessCheckpoint).toContain('run in parallel');

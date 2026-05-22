@@ -2807,7 +2807,7 @@ implement those decisions or explicitly revise them there before changing code.
   keeps account-creation validation discoverable without forcing the full
   integration suite.
 - Latest PR readiness checkpoint: GitHub is green on
-  `15262b39e2f027aa6131f87990d49eac9bc95ccf`, including Analyze, CodeQL, Git
+  `8eaf67087b40b6a065067545021b4647d81b9b69`, including Analyze, CodeQL, Git
   Town branch stack, CodeRabbit status, and the split Playwright E2E matrix.
   The E2E workflow now runs separate `Playwright E2E (functional)` and
   `Playwright E2E (docs)` jobs. Each job still performs the full dependency
@@ -2816,8 +2816,8 @@ implement those decisions or explicitly revise them there before changing code.
   collection, stack shutdown, and artifact upload path for its own suite, but
   the long Playwright phases run in parallel. The Docker build step now times
   out after 10 minutes, so an infrastructure build hang fails faster while the
-  successful path remains unchanged. The docs job completed in 7m49s, the
-  functional job completed in 18m2s, and the workflow wall time was gated by
+  successful path remains unchanged. The docs job completed in 8m9s, the
+  functional job completed in 15m57s, and the workflow wall time was gated by
   the functional job instead of serially running docs afterward. The docs pass
   also covers the generated screenshot stabilization that waits for loading
   states, finite animations, and target geometry before capture. The PR has no
