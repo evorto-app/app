@@ -2817,12 +2817,12 @@ implement those decisions or explicitly revise them there before changing code.
   the long Playwright phases run in parallel. The Docker build step now times
   out after 10 minutes, so an infrastructure build hang fails faster while the
   successful path remains unchanged. Recent green runs complete docs in roughly
-  the 8-10 minute range and functional in roughly the 14-18 minute range, so
-  the workflow wall time is gated by the functional job instead of serially
-  running docs afterward. The docs pass also covers the generated screenshot
-  stabilization that waits for loading states, finite animations, and target
-  geometry before capture. The PR has no unresolved review threads at this
-  checkpoint. It remains draft because paid
+  ten minutes and functional in the low-to-high teens, so the workflow wall
+  time is gated by the functional job instead of serially running docs
+  afterward. The docs pass also covers the generated screenshot stabilization
+  that waits for loading states, finite animations, and target geometry before
+  capture. The PR has no unresolved review threads at this checkpoint. It
+  remains draft because paid
   transfer/resale money movement still needs a human settlement-model decision
   before implementation or explicit relaunch deferral; formal bot review is
   expected only after the PR is marked ready.
