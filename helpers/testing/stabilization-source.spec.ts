@@ -282,6 +282,23 @@ describe('stabilization source', () => {
     );
   });
 
+  it('keeps scanner camera fallback actions readable', () => {
+    const template = readSource(
+      'src/app/scanning/scanner/scanner.component.html',
+    );
+    const source = readSource('STABILIZATION.md');
+
+    expect(template).toContain('bg-error-container text-on-error-container');
+    expect(template).toContain(
+      'border-on-error-container text-on-error-container',
+    );
+    expect(template).toContain('role="alert"');
+    expect(template).toContain('Try camera again');
+    expect(source).toMatch(
+      /scanner\s+error state now uses the error-container surface/u,
+    );
+  });
+
   it('keeps app code on TanStack Query boolean status narrowing', () => {
     const sourceFiles = [
       ...listFiles('src/app', '.html'),

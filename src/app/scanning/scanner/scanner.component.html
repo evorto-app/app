@@ -15,7 +15,10 @@
     </div>
   }
   @if (errorMessage()) {
-    <div class="bg-error text-on-error mt-2 rounded p-2">
+    <div
+      class="bg-error-container text-on-error-container mt-2 rounded-2xl p-4"
+      role="alert"
+    >
       <p class="title-small">Scanning error</p>
       <p>
         {{ errorMessage() }}
@@ -23,7 +26,7 @@
       <button
         mat-stroked-button
         type="button"
-        class="mt-2"
+        class="border-on-error-container text-on-error-container mt-2"
         (click)="retryCamera()"
         [disabled]="cameraStarting()"
       >

@@ -2991,6 +2991,14 @@ fallback rather than a profile discount-card defect.
   user's seeded `TEST-ESN-0001` card made the same tab show the expected
   discount-card section again, with refresh/remove actions, disabled empty save,
   and no profile-page console errors.
+- Follow-up repeat Browser scanner/profile check: the current in-app Browser
+  session opened `/profile#discounts`, `/events`, profile events, profile
+  receipts, and `/scan` against the healthy `BASE_URL`. Profile discounts,
+  profile receipts, and the empty events states were settled and had no console
+  errors. The scanner camera fallback rendered as expected without a camera, but
+  the retry button was hard to read on the saturated error surface; the scanner
+  error state now uses the error-container surface, an alert role, and
+  contrast-safe retry button tokens.
 
 ## Review Next
 
