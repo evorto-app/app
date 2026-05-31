@@ -214,6 +214,24 @@ describe('stabilization source', () => {
     expect(readinessCheckpoint).not.toContain('E2E_LIVE_ESN_CARD_IDENTIFIER');
   });
 
+  it('opts GitHub JavaScript actions into the Node 24 runtime before the hosted runner cutover', () => {
+    const workflowPaths = listFiles('.github/workflows', '.yml').filter(
+      (workflowPath) => {
+        const workflowSource = readSource(workflowPath);
+        return /uses:\s+actions\/(?:checkout|upload-artifact)@/u.test(
+          workflowSource,
+        );
+      },
+    );
+
+    expect(workflowPaths).toContain('.github/workflows/e2e-baseline.yml');
+    for (const workflowPath of workflowPaths) {
+      expect(readSource(workflowPath), workflowPath).toContain(
+        'FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true',
+      );
+    }
+  });
+
   it('keeps paid transfer and resale blocked on an explicit settlement decision', () => {
     const source = readSource('STABILIZATION.md');
 
