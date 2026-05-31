@@ -21,6 +21,26 @@ const waitForRegistrationStatus = async (page: Page) => {
     .waitFor({ state: 'detached' });
 };
 
+const gotoEventDetail = async (page: Page, eventId: string) => {
+  const eventUrl = `/events/${eventId}`;
+  for (const attempt of [1, 2]) {
+    try {
+      await page.goto(eventUrl, { waitUntil: 'domcontentloaded' });
+      await expect(page).toHaveURL(new RegExp(`/events/${eventId}`));
+      return;
+    } catch (error) {
+      if (
+        attempt === 2 ||
+        !(error instanceof Error) ||
+        !error.message.includes('net::ERR_ABORTED')
+      ) {
+        throw error;
+      }
+      await page.waitForTimeout(500);
+    }
+  }
+};
+
 const requireUserFixture = (
   predicate: (user: (typeof usersToAuthenticate)[number]) => boolean,
   description: string,
@@ -881,8 +901,7 @@ test.describe('Register for events', () => {
       body: `
   To register for a paid event, you have to pay the registration fee.`,
     });
-    await page.goto(`/events/${paidEvent.id}`);
-    await expect(page).toHaveURL(new RegExp(`/events/${paidEvent.id}`));
+    await gotoEventDetail(page, paidEvent.id);
     await waitForRegistrationStatus(page);
     await takeScreenshot(
       testInfo,
@@ -1040,8 +1059,7 @@ test.describe('Register for events', () => {
       );
     }
 
-    await page.goto(`/events/${paidEvent.id}`);
-    await expect(page).toHaveURL(new RegExp(`/events/${paidEvent.id}`));
+    await gotoEventDetail(page, paidEvent.id);
     const registrationStatus = page
       .getByText('Loading registration status')
       .first();
