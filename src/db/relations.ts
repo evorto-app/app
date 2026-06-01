@@ -17,8 +17,24 @@ export const relations = defineRelations(schema, (r) => ({
       ),
     }),
   },
+  eventArchiveSnapshots: {
+    event: r.one.eventInstances({
+      from: r.eventArchiveSnapshots.eventId,
+      optional: false,
+      to: r.eventInstances.id,
+    }),
+    tenant: r.one.tenants({
+      from: r.eventArchiveSnapshots.tenantId,
+      optional: false,
+      to: r.tenants.id,
+    }),
+  },
   eventInstances: {
     addons: r.many.eventAddons(),
+    archiveSnapshot: r.one.eventArchiveSnapshots({
+      from: r.eventInstances.id,
+      to: r.eventArchiveSnapshots.eventId,
+    }),
     creator: r.one.users({
       alias: 'eventInstances_creatorId_users_id',
       from: r.eventInstances.creatorId,
@@ -246,6 +262,7 @@ export const relations = defineRelations(schema, (r) => ({
     }),
   },
   tenants: {
+    eventArchiveSnapshots: r.many.eventArchiveSnapshots(),
     eventRegistrations: r.many.eventRegistrations(),
     events: r.many.eventInstances(),
     financeReceipts: r.many.financeReceipts(),

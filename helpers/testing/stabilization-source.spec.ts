@@ -198,6 +198,9 @@ describe('stabilization source', () => {
     const product = readSource('PRODUCT.md');
     const architecture = readSource('ARCHITECTURE.md');
     const eventSchema = readSource('src/db/schema/event-instances.ts');
+    const archiveSchema = readSource(
+      'src/db/schema/event-archive-snapshots.ts',
+    );
     const statusTable = readSection(
       source,
       'Review Status',
@@ -212,15 +215,22 @@ describe('stabilization source', () => {
     );
     expect(eventSchema).toContain('export const eventReviewStatus = pgEnum');
     expect(eventSchema).toContain("'REJECTED'");
-    expect(eventSchema).not.toMatch(/ARCHIVED|archived|archive|archival/u);
+    expect(archiveSchema).toContain(
+      "eventArchiveSnapshots = pgTable('event_archive_snapshots'",
+    );
+    expect(archiveSchema).toContain('EventArchiveRegistrationSummary');
+    expect(archiveSchema).toContain('EventArchiveOptionSummary');
+    expect(archiveSchema).not.toMatch(
+      /userId|creatorId|reviewedBy|email|firstName|lastName/u,
+    );
     expect(statusTable).toContain('| Events');
-    expect(statusTable).toContain('| Blocked');
-    expect(statusTable).toContain('event archival data-model support');
-    expect(source).toContain(
-      'The current `event_instances` schema has only draft, pending',
+    expect(statusTable).toContain('| Stabilized');
+    expect(statusTable).toContain('event archival snapshot model');
+    expect(source).toMatch(
+      /event archival snapshot model\s+now stores non-personal event timing/u,
     );
     expect(source).toMatch(
-      /Automatic archival remains out of scope without an\s+explicit product decision, but the archival data model is still missing/u,
+      /Automatic archival remains out of scope without an\s+explicit\s+product decision/u,
     );
   });
 
