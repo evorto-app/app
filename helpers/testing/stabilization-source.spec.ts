@@ -49,7 +49,7 @@ describe('stabilization source', () => {
     expect(statusTable).toContain('| Blocked');
     expect(statusTable).toContain('unpaid transfer boundaries');
     expect(statusTable).toContain('paid transfer/resale');
-    expect(statusTable).toContain('still need delivery implementation');
+    expect(statusTable).toContain('still need implementation');
     expect(statusTable).not.toContain(
       'Free/paid registration, guests, add-ons, waitlist, negative states, cancellation/refund, and transfer boundaries have server, app, spec, and docs coverage.',
     );
@@ -86,6 +86,41 @@ describe('stabilization source', () => {
     );
     expect(source).toMatch(
       /Registration lifecycle email\s+notifications and receipt-reviewed email notification remain relaunch blockers/u,
+    );
+  });
+
+  it('keeps the review status honest about the registration-limit policy blocker', () => {
+    const source = readSource('STABILIZATION.md');
+    const product = readSource('PRODUCT.md');
+    const tenantSettingsIdentity = readSource(
+      'src/app/admin/general-settings/general-settings.identity.ts',
+    );
+    const adminRpcContract = readSource(
+      'src/shared/rpc-contracts/app-rpcs/admin.rpcs.ts',
+    );
+    const statusTable = readSection(
+      source,
+      'Review Status',
+      'Product Decision Draft',
+    );
+
+    expect(product).toContain(
+      'limits on how many events a person can register for in a configured time frame',
+    );
+    expect(product).toContain('- registration limits');
+    expect(tenantSettingsIdentity).toContain('registration limits');
+    expect(adminRpcContract).not.toMatch(
+      /registrationLimit|registration_limit/u,
+    );
+    expect(statusTable).toContain('| Registrations');
+    expect(statusTable).toContain('| Tenant/global admin');
+    expect(statusTable).toContain('| Blocked');
+    expect(statusTable).toContain('tenant registration-limit policy');
+    expect(source).toMatch(
+      /current registration path does not enforce a tenant registration\s+limit policy/u,
+    );
+    expect(source).toMatch(
+      /current tenant settings RPC payload has no registration-limit field\s+and registration writes do not enforce a per-user event-count policy/u,
     );
   });
 
