@@ -3098,6 +3098,17 @@ fallback rather than a profile discount-card defect.
   The PR remains local-only at this checkpoint because direct SSH agent signing
   fails before GitHub (`communication with agent failed`) and the HTTPS token
   still lacks `workflow` scope for the E2E workflow commit.
+- Current PR sync checkpoint: after refetching `main` over HTTPS, local
+  `HEAD` still contains `origin/main`, so there is no local merge conflict to
+  resolve. GitHub review-thread inspection found zero unresolved inline review
+  threads. The PR remains draft and GitHub still reports the older remote head,
+  including the stale Qodo `db-expiration` Compose-start failure, because the
+  nine local commits after `b0ba75c6` have not reached the remote branch. A
+  fresh SSH push retry still failed before GitHub authorization: the configured
+  1Password agent lists the `Github` ED25519 key, but signing the GitHub
+  challenge returns `communication with agent failed`. HTTPS push remains
+  unusable for this branch until the GitHub token has `workflow` scope because
+  the local branch edits `.github/workflows/e2e-baseline.yml`.
 
 ## Review Next
 
