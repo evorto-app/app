@@ -1,0 +1,14 @@
+I need you to delete every neon branch that there currently is
+
+---
+
+Except for main of course
+
+---
+
+Then find out how we ended up with 175
+
+---
+
+We need to make sure the docker branches are ephemeral, also in CI
+Check out the neon local docs and possible updates

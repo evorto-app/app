@@ -1,0 +1,29 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "ea5f52b79fe8",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 1,
+  "files_touched": [
+    ".github/workflows/e2e-baseline.yml",
+    "docker-compose.yml",
+    "helpers/README.md",
+    "helpers/testing/runtime-environment.ts",
+    "helpers/testing/set-neon-local-branch-expiration.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/ea/5f52b79fe8/0/metadata.json",
+      "transcript": "/ea/5f52b79fe8/0/full.jsonl",
+      "content_hash": "/ea/5f52b79fe8/0/content_hash.txt",
+      "prompt": "/ea/5f52b79fe8/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 542607,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 8066816,
+    "output_tokens": 24963,
+    "api_call_count": 71
+  }
+}
