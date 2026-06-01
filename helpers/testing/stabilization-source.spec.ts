@@ -155,6 +155,11 @@ describe('stabilization source', () => {
     const qrHandlerSpec = readSource(
       'src/server/http/qr-code.web-handler.spec.ts',
     );
+    const createIdSource = readSource('src/db/create-id.ts');
+    const createIdSpec = readSource('src/db/create-id.spec.ts');
+    const eventRegistrationSchema = readSource(
+      'src/db/schema/event-registrations.ts',
+    );
 
     expect(product).toContain('QR links behave like paper tickets');
     expect(product).toContain(
@@ -174,6 +179,15 @@ describe('stabilization source', () => {
     expect(qrHandlerSpec).toContain(
       'does not generate QR images for pending registrations',
     );
+    expect(createIdSource).toContain(
+      "import { init } from '@paralleldrive/cuid2'",
+    );
+    expect(createIdSource).toContain('const length = 20');
+    expect(eventRegistrationSchema).toContain('...modelOfTenant');
+    expect(createIdSpec).toContain(
+      'creates non-sequential ids suitable for ticket links',
+    );
+    expect(createIdSpec).toContain('/^[a-z0-9]{20}$/u');
     expect(source).toContain('paper-ticket model');
     expect(source).toContain('scan/check-in details');
     expect(source).toContain('scanner authorization');

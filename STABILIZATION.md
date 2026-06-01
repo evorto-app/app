@@ -257,7 +257,9 @@ the current working direction until a product decision overrides them.
   - Decision: Option A. QR images render for confirmed registration ids so the
     same ticket URL can be embedded in email later. The endpoint still fails
     closed for missing or non-confirmed registrations, and scan/check-in details
-    remain protected by scanner authorization.
+    remain protected by scanner authorization. This relies on registration ids
+    staying unguessable; the shared 20-character CUID2 id generator is part of
+    the ticket-link boundary.
 - **Scanner URL validation:** accept the ticket URL as the routing source, then
   enforce authorization against the resolved registration/event.
   - Option A: current tenant domain only.
@@ -1174,7 +1176,9 @@ the current working direction until a product decision overrides them.
   `PRODUCT.md`'s paper-ticket model. The endpoint renders only confirmed
   registration QR images for possession of the unguessable ticket URL, still
   hides missing and non-confirmed registrations, and leaves attendee scan
-  details/check-in writes behind scanner authorization.
+  details/check-in writes behind scanner authorization. `src/db/create-id.spec.ts`
+  keeps the shared 20-character CUID2 id generator pinned as a non-sequential
+  ticket-link prerequisite.
 - **Addressed in stabilization pass:** scanner URL parsing now explicitly accepts absolute URLs from any origin by product decision, but only when the path is exactly `/scan/registration/:registrationId`; malformed payloads and extra path segments are rejected before navigation.
 - **Addressed in stabilization pass:** scanner camera startup is awaited and maps denied permission, missing devices, and busy devices into visible retryable error messages. The scanner also shows a starting state and keeps a retry button available after camera startup failures.
 - **Addressed in stabilization pass:** scanner guest-quantity behavior is explicit. Organizers can choose how many remaining guests to check in with the buyer, and later scans can record additional guest arrivals without re-counting the buyer.
@@ -1205,6 +1209,9 @@ the current working direction until a product decision overrides them.
 - `src/server/http/qr-code.web-handler.spec.ts` covers paper-ticket QR image
   access for confirmed registrations, tenant-domain scan URL generation, and
   pending-registration denial.
+- `src/db/create-id.spec.ts` covers that shared model ids, including event
+  registration ids, remain 20-character lowercase CUID2-style values and are not
+  sequentially ordered.
 - `src/app/scanning/scanner/scanner.component.spec.ts` covers scanner URL parsing for current-origin tickets, other-origin tenant tickets, malformed payloads, and non-exact scan paths.
 - `src/app/scanning/handle-registration/handle-registration.component.spec.ts` covers scanned-registration check-in button and spot-count labels.
 - `src/app/scanning/handle-registration/handle-registration.component.spec.ts` also covers the local check-in action guard for unavailable, completed, pending, and empty spot-count states, plus guest-count input clamping before mutation payload creation.
