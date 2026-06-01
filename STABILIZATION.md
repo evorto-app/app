@@ -2872,10 +2872,12 @@ implement those decisions or explicitly revise them there before changing code.
   Browser then showed the upcoming event list, opened `Soccer Match 1`, rendered
   the event detail and login-required registration card, and reported no console
   errors. The local branch contains the conflict-resolving rebase and is an
-  ancestor of `origin/main`, but the PR still appears dirty on GitHub because
-  the remote PR head is still the old `b0f7d18b` commit. Pushing the rebased
-  branch is blocked by the current GitHub token missing `workflow` scope while
-  `.github/workflows/e2e-baseline.yml` changed, and SSH has no loaded identity.
+  ancestor of `origin/main`. Pushing through HTTPS was rejected because the
+  current GitHub token is missing `workflow` scope while
+  `.github/workflows/e2e-baseline.yml` changed, but the configured SSH remote
+  authenticated successfully and updated the PR branch with `--force-with-lease`.
+  GitHub now sees the rebased PR head on the current main base, and the split
+  CodeQL/E2E checks restarted from that head.
 
 ## Browser Review Queue
 
