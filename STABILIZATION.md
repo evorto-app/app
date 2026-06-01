@@ -3074,6 +3074,14 @@ fallback rather than a profile discount-card defect.
   inclusive tax label, and anonymous "Log in now" registration call-to-action
   without new console errors. This is a narrow current Browser sanity check, not
   a replacement for the full repeat queue above.
+- Follow-up current Browser sanity checkpoint: while the PR branch was still
+  local-only because of the SSH signing/token-scope push blocker, the in-app
+  Browser reopened the generated `BASE_URL` `/events` route against the running
+  Docker app and showed the current seeded event list. Direct navigation to the
+  seeded `Soccer Match 1` detail page rendered the event header, description,
+  participant registration card, inclusive VAT label, and anonymous "Log in now"
+  action. This Browser API path provided URL/title/screenshot evidence, so it is
+  recorded as a visual route sanity check rather than a console-log review.
 
 ## Review Next
 
