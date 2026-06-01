@@ -119,6 +119,35 @@ describe('stabilization source', () => {
     );
   });
 
+  it('keeps same-event registration mutual exclusion explicit', () => {
+    const source = readSource('STABILIZATION.md');
+    const product = readSource('PRODUCT.md');
+    const registrationService = readSource(
+      'src/server/effect/rpc/handlers/events/event-registration.service.ts',
+    );
+    const registrationServiceSpec = readSource(
+      'src/server/effect/rpc/handlers/events/event-registration.service.spec.ts',
+    );
+
+    expect(product).toContain(
+      'Registration options are mutually exclusive per event.',
+    );
+    expect(product).toContain(
+      'A user cannot be both an organizer/helper and a participant for the same event.',
+    );
+    expect(registrationService).toContain("status: { NOT: 'CANCELLED' }");
+    expect(registrationService).toContain(
+      "return { _tag: 'AlreadyRegistered' } as const",
+    );
+    expect(registrationServiceSpec).toContain(
+      'rejects a second registration for the same event before looking up another option',
+    );
+    expect(source).toContain(
+      'Registration writes enforce approved event status, tenant scope, open/close windows, role eligibility, one active registration per user/event',
+    );
+    expect(source).toContain('same-event second registrations across options');
+  });
+
   it('keeps the review status honest about the event archival data-model blocker', () => {
     const source = readSource('STABILIZATION.md');
     const product = readSource('PRODUCT.md');
