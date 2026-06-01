@@ -120,7 +120,7 @@ describe('stabilization source', () => {
     );
   });
 
-  it('keeps the review status honest about the registration-limit policy blocker', () => {
+  it('keeps the review status honest about the tenant operations-policy blocker', () => {
     const source = readSource('STABILIZATION.md');
     const product = readSource('PRODUCT.md');
     const tenantSettingsIdentity = readSource(
@@ -138,20 +138,29 @@ describe('stabilization source', () => {
     expect(product).toContain(
       'limits on how many events a person can register for in a configured time frame',
     );
+    expect(product).toContain('payment settings');
+    expect(product).toContain('- review/publishing workflow settings');
     expect(product).toContain('- registration limits');
+    expect(product).toContain('- email sender name');
+    expect(tenantSettingsIdentity).toContain('Email sender');
+    expect(tenantSettingsIdentity).toContain('review policy');
     expect(tenantSettingsIdentity).toContain('registration limits');
+    expect(tenantSettingsIdentity).toContain('Stripe account management');
+    expect(adminRpcContract).not.toMatch(/senderName|sender_name/u);
+    expect(adminRpcContract).not.toMatch(/reviewPolicy|review_policy/u);
     expect(adminRpcContract).not.toMatch(
       /registrationLimit|registration_limit/u,
     );
+    expect(adminRpcContract).not.toMatch(/stripeAccountId|stripe_account_id/u);
     expect(statusTable).toContain('| Registrations');
     expect(statusTable).toContain('| Tenant/global admin');
     expect(statusTable).toContain('| Blocked');
-    expect(statusTable).toContain('tenant registration-limit policy');
+    expect(statusTable).toContain('tenant operations-policy settings');
     expect(source).toMatch(
       /current registration path does not enforce a tenant registration\s+limit policy/u,
     );
     expect(source).toMatch(
-      /current tenant settings RPC payload has no registration-limit field\s+and registration writes do not enforce a per-user event-count policy/u,
+      /tenant-admin settings\s+RPC payload has no email-sender, review-policy, registration-limit, or Stripe\s+account-management fields/u,
     );
   });
 
