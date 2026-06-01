@@ -1,4 +1,5 @@
 import {
+  integer,
   jsonb,
   pgEnum,
   pgTable,
@@ -57,6 +58,8 @@ export const tenants = pgTable('tenants', {
       allowOther: DEFAULT_TENANT_RECEIPT_ALLOW_OTHER,
       receiptCountries: [...DEFAULT_TENANT_RECEIPT_COUNTRIES],
     }),
+  registrationLimitCount: integer('registration_limit_count'),
+  registrationLimitWindowDays: integer('registration_limit_window_days'),
   seoDescription: text(),
   seoTitle: text(),
   stripeAccountId: varchar(),

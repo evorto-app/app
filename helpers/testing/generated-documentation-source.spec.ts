@@ -41,6 +41,7 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain(
       '**Email sender name** for future tenant email notification display names.',
     );
+    expect(source).toContain('participant registration limits');
     expect(source).toContain(
       'hosted text appears at \\`/legal/imprint\\`, \\`/legal/privacy\\`, and \\`/legal/terms\\`',
     );

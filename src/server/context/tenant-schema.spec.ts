@@ -69,6 +69,19 @@ describe('Tenant schema', () => {
     });
   });
 
+  it('accepts tenant registration limit policy when present', () => {
+    const tenant = Schema.decodeUnknownSync(Tenant)({
+      ...tenantInput,
+      registrationLimitCount: 4,
+      registrationLimitWindowDays: 30,
+    });
+
+    expect(Schema.encodeSync(Tenant)(tenant)).toMatchObject({
+      registrationLimitCount: 4,
+      registrationLimitWindowDays: 30,
+    });
+  });
+
   it('accepts tenant legal links when present', () => {
     const tenant = Schema.decodeUnknownSync(Tenant)({
       ...tenantInput,

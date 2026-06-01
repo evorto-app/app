@@ -6,18 +6,18 @@ and useful for small cleanup batches.
 
 ## Review Status
 
-| Area                                            | Status     | Confidence | Notes                                                                                                                                                                                                                                                          |
-| ----------------------------------------------- | ---------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Events                                          | Blocked    | high       | Docker-backed specs/docs cover browsing, creation, management, unlisted visibility, registration state, price labels, scanner handoff, and refund copy; event archival data-model support is still missing.                                                    |
-| Registrations                                   | Blocked    | high       | Free/paid registration, guests, add-ons, waitlist, negative states, cancellation/refund, and unpaid transfer boundaries have coverage; paid transfer/resale, registration notification emails, and tenant registration-limit policy still need implementation. |
-| Templates                                       | Stabilized | high       | Simple-mode templates now cover planning tips, ESNcard discounts, reusable add-ons/questions, role pickers, tax-rate behavior, and event creation copy paths.                                                                                                  |
-| Roles and permissions                           | Stabilized | high       | Route denial, role lookup, role management, permission metadata, tenant isolation, and user-list deferral are pinned by source, unit, spec, and docs coverage.                                                                                                 |
-| Finance/receipts                                | Blocked    | high       | Finance navigation, transaction visibility, receipt review, reimbursement recording, receipt submission, and refund boundaries have deterministic coverage; receipt-reviewed email notification still needs delivery implementation.                           |
-| Scanning/check-in                               | Stabilized | high       | QR scanner reads, selected guest check-in, later guest arrival, idempotent counters, and organizer aggregates are covered by specs/docs against Docker.                                                                                                        |
-| Profile/account flows                           | Blocked    | high       | Profile edit, event cards, receipts, account creation contracts, seeded ESNcard behavior, deterministic ESNcard provider outcomes, and Browser discount-card UX are covered; Browser verification for home-tenant warning is still pending.                    |
-| Tenant/global admin                             | Blocked    | high       | Tenant settings and global-admin list/detail/create/edit have coverage for the implemented surface; tenant operations-policy settings for review policy, registration limits, and tenant-admin Stripe account management remain deferred.                      |
-| Generated documentation and Playwright coverage | Stabilized | high       | Docs/spec inventory, skip gates, source guards, list mode, and generated-doc runtime flows are current and fail loudly for known fixture gaps.                                                                                                                 |
-| Local runtime/developer workflow                | Stabilized | high       | Docker, env preflight, CI, Font Awesome token paths, and the first in-app Browser queue pass are healthy; repeat Browser review uses generated `BASE_URL`.                                                                                                     |
+| Area                                            | Status     | Confidence | Notes                                                                                                                                                                                                                                                               |
+| ----------------------------------------------- | ---------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Events                                          | Blocked    | high       | Docker-backed specs/docs cover browsing, creation, management, unlisted visibility, registration state, price labels, scanner handoff, and refund copy; event archival data-model support is still missing.                                                         |
+| Registrations                                   | Blocked    | high       | Free/paid registration, guests, add-ons, waitlist, negative states, cancellation/refund, unpaid transfer boundaries, and tenant participant registration limits have coverage; paid transfer/resale and registration notification emails still need implementation. |
+| Templates                                       | Stabilized | high       | Simple-mode templates now cover planning tips, ESNcard discounts, reusable add-ons/questions, role pickers, tax-rate behavior, and event creation copy paths.                                                                                                       |
+| Roles and permissions                           | Stabilized | high       | Route denial, role lookup, role management, permission metadata, tenant isolation, and user-list deferral are pinned by source, unit, spec, and docs coverage.                                                                                                      |
+| Finance/receipts                                | Blocked    | high       | Finance navigation, transaction visibility, receipt review, reimbursement recording, receipt submission, and refund boundaries have deterministic coverage; receipt-reviewed email notification still needs delivery implementation.                                |
+| Scanning/check-in                               | Stabilized | high       | QR scanner reads, selected guest check-in, later guest arrival, idempotent counters, and organizer aggregates are covered by specs/docs against Docker.                                                                                                             |
+| Profile/account flows                           | Blocked    | high       | Profile edit, event cards, receipts, account creation contracts, seeded ESNcard behavior, deterministic ESNcard provider outcomes, and Browser discount-card UX are covered; Browser verification for home-tenant warning is still pending.                         |
+| Tenant/global admin                             | Blocked    | high       | Tenant settings and global-admin list/detail/create/edit have coverage for the implemented surface; tenant operations-policy settings for review policy and tenant-admin Stripe account management remain deferred.                                                 |
+| Generated documentation and Playwright coverage | Stabilized | high       | Docs/spec inventory, skip gates, source guards, list mode, and generated-doc runtime flows are current and fail loudly for known fixture gaps.                                                                                                                      |
+| Local runtime/developer workflow                | Stabilized | high       | Docker, env preflight, CI, Font Awesome token paths, and the first in-app Browser queue pass are healthy; repeat Browser review uses generated `BASE_URL`.                                                                                                          |
 
 ## Product Decision Draft
 
@@ -616,11 +616,11 @@ the current working direction until a product decision overrides them.
   transfer-completed emails as in-scope notifications. The current server has
   no mail delivery service or registration lifecycle email side effects yet;
   client `NotificationService` calls are local snackbar feedback only.
-- **Should fix before relaunch:** `PRODUCT.md` says registration should support
-  limits on how many events a person can register for in a configured time
-  frame. The current registration path does not enforce a tenant registration
-  limit policy, and the tenant settings surface only lists registration limits
-  in the deferred operations-policy summary.
+- **Addressed in this stabilization pass:** tenant settings now store editable
+  participant registration-limit count and rolling window fields, and the
+  registration path enforces configured tenant participant registration limits
+  before reserving capacity. The service repeats the check inside the
+  reservation transaction so concurrent writes cannot bypass the limit.
 - **Addressed in stabilization pass:** active registration status now uses the shared persisted registration status literal union instead of raw `Schema.String`.
 - **Acceptable for now:** paid registration rollback is careful about cleaning up a failed checkout session creation path; deeper Stripe lifecycle review belongs in the finance pass.
 
@@ -1453,14 +1453,13 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** root product and architecture docs now state the relaunch domain scope honestly: one active primary domain per tenant, with automated multi-domain/custom-domain verification deferred to later tenant-onboarding work.
 - **Addressed in stabilization pass:** tenant general settings now expose tenant name, primary domain, and Stripe connection state as read-only operator context.
 - **Addressed in this stabilization pass:** tenant general-settings identity rows now include the connected Stripe account id when present, matching the support lookup detail already exposed in global-admin tenant review.
-- **Addressed in stabilization pass:** tenant general settings now include a visible deferred-settings summary for custom-domain verification, review/publishing settings, registration limits, and Stripe account management. These fields are still not editable unless explicitly called out below.
-- **Should fix before relaunch:** tenant operations-policy settings are still
-  only visible as deferred copy. `PRODUCT.md` lists tenant payment settings,
-  review/publishing workflow settings, and registration limits as tenant
-  customization scope, while the tenant-admin settings RPC payload has no
-  review-policy, registration-limit, or Stripe account-management fields.
-  Registration writes also do not enforce a per-user event-count policy over a
-  configured time frame.
+- **Addressed in stabilization pass:** tenant general settings now include a visible deferred-settings summary for custom-domain verification, review/publishing settings, and Stripe account management. These fields are still not editable unless explicitly called out below.
+- **Should fix before relaunch:** tenant review/publishing policy and
+  tenant-admin Stripe account management settings are still only visible as
+  deferred copy. `PRODUCT.md` lists tenant payment settings and
+  review/publishing workflow settings as tenant customization scope, while the
+  tenant-admin settings RPC payload still has no review-policy or Stripe
+  account-management fields.
 - **Addressed in this stabilization pass:** supported tenant currency, locale, and timezone values are now editable from general settings before dependent event/payment data exists, persisted through `admin.tenant.updateSettings`, and validated against the shared Tenant relaunch policy before the RPC responds.
 - **Addressed in this stabilization pass:** `admin.tenant.updateSettings` now rejects currency, locale, or timezone changes once the tenant has event instances or transaction rows, matching the relaunch decision that later changes require a deliberate migration plan instead of an ordinary settings save.
 - **Addressed in this stabilization pass:** general settings reloads the app after saved currency, locale, or timezone changes so Angular's bootstrap-level currency and locale providers are refreshed instead of leaving the current session on stale formatting defaults.
@@ -1468,6 +1467,10 @@ the current working direction until a product decision overrides them.
   of the `Tenant` RPC schema, editable from general settings, and persisted by
   `admin.tenant.updateSettings` as tenant configuration for future email
   notification display names.
+- **Addressed in this stabilization pass:** tenant participant registration
+  limit count and rolling window days are now part of the `Tenant` RPC schema,
+  editable from general settings, persisted by `admin.tenant.updateSettings`,
+  and enforced by participant registration writes before capacity is reserved.
 - **Addressed in stabilization pass:** tenant logo and favicon URLs are now part of the `Tenant` RPC schema, editable from general settings, validated by `admin.tenant.updateSettings`, persisted with empty values normalized to `null`, and the configured favicon updates the browser tab icon.
 - **Addressed in stabilization pass:** tenant logo and favicon uploads now use the app's object-storage path and return stable app-origin `/tenant-assets/*` URLs that can be saved through the existing tenant settings form. Logo uploads accept PNG, JPEG, WebP, or GIF files; favicon uploads also accept ICO files. SVG uploads stay unsupported for this path.
 - **Addressed in this stabilization pass:** tenant logo and favicon upload actions now stay disabled while any brand asset upload is active or the upload mutation is pending, and duplicate file-change events are ignored instead of starting another upload.
@@ -1476,12 +1479,12 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** tenant-admin child routes now have route-level guards. Settings require `admin:changeSettings`, roles require `admin:manageRoles`, users require `users:viewAll`, tax rates require `admin:tax`, and event reviews require `events:review`.
 - **Addressed in stabilization pass:** tenant settings saves now show a success notification and map failed updates through the shared readable error-message helper instead of relying only on mutation state.
 - **Addressed in this stabilization pass:** tenant general-settings save actions now stay disabled while the update mutation is pending, and the submit handler ignores duplicate submit events during the in-flight settings write.
-- **Addressed in stabilization pass:** tenant general-settings documentation now covers the implemented relaunch surface and explicitly calls out deferred custom-domain automation, review policy, registration limit, and Stripe-account settings.
+- **Addressed in stabilization pass:** tenant general-settings documentation now covers the implemented relaunch surface and explicitly calls out deferred custom-domain automation, review policy, and Stripe-account settings.
 - **Addressed in stabilization pass:** tenant-hosted legal text is now editable alongside external legal URLs. The public footer links to external URLs when configured, otherwise it links to hosted `/legal/imprint`, `/legal/privacy`, and `/legal/terms` pages when tenant text exists.
 - **Addressed in this stabilization pass:** unconfigured hosted legal pages now
   state that no tenant-provided legal text is configured instead of presenting
   generic fallback legal copy, matching `PRODUCT.md`'s legal-page watchpoint.
-- **Addressed in stabilization pass:** the tenant settings RPC payload schema is now exported and covered by a focused contract spec, including the current editable fields and the fact that deferred custom-domain automation, review policy, registration limit, and Stripe account-management fields are outside the update payload.
+- **Addressed in stabilization pass:** the tenant settings RPC payload schema is now exported and covered by a focused contract spec, including the current editable fields and the fact that deferred custom-domain automation, review policy, and Stripe account-management fields are outside the update payload.
 - **Addressed in stabilization pass:** tenant general-settings payload shaping is now extracted and covered locally, including trim/blank normalization for editable URLs/SEO/ESNcard fields before the RPC call.
 - **Addressed in stabilization pass:** the global-admin tenant list and read-only detail page render the tenant operational state returned by the RPC, including connected Stripe account ids for support lookup. Product docs are intentionally not generated for global-admin functionality.
 - **Addressed in stabilization pass:** global-admin tenant create/edit now supports the relaunch one-domain tenant administration surface: name, primary domain, theme, locale, currency, timezone, and connected Stripe account id.

@@ -36,7 +36,7 @@ Tenant admins can manage the settings that are currently implemented for the act
 
 The current general settings page supports:
 
-- A **Deferred settings** summary that makes custom-domain automation, review policy, registration limit, and Stripe account management gaps visible in the app instead of hiding them in docs only.
+- A **Deferred settings** summary that makes custom-domain automation, review policy, and Stripe account management gaps visible in the app instead of hiding them in docs only.
 - A read-only **Tenant identity** summary with tenant name, primary domain, and Stripe connection state.
 - **Default Location** for event location search bias.
 - **Site theme** for the tenant theme.
@@ -56,7 +56,7 @@ Tax rates are managed on the separate **Tax Rates** page.
     body: `
 ## Relaunch scope notes
 
-One-domain-per-tenant remains the current relaunch scope in the application schema. The page now exposes the active primary domain for operator review, allows tenant admins to maintain supported currency, locale, timezone, email sender name, uploaded or externally hosted logo/favicon assets, legal links, and hosted legal text, and keeps an in-app deferred-settings summary for custom domain verification, review/publishing policy, registration limits, and Stripe account management. Currency, locale, and timezone changes are only accepted before event or payment data exists for the tenant. When one of those accepted changes is saved, Evorto reloads the app so bootstrap-level formatting defaults use the new tenant settings.
+One-domain-per-tenant remains the current relaunch scope in the application schema. The page now exposes the active primary domain for operator review, allows tenant admins to maintain supported currency, locale, timezone, email sender name, participant registration limits, uploaded or externally hosted logo/favicon assets, legal links, and hosted legal text, and keeps an in-app deferred-settings summary for custom domain verification, review/publishing policy, and Stripe account management. Currency, locale, and timezone changes are only accepted before event or payment data exists for the tenant. When one of those accepted changes is saved, Evorto reloads the app so bootstrap-level formatting defaults use the new tenant settings.
 `,
   });
 });

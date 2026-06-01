@@ -239,6 +239,8 @@ export const AdminTenantUpdateSettingsInput = Schema.Struct({
   privacyPolicyText: Schema.optional(Schema.String),
   privacyPolicyUrl: Schema.optional(UrlString),
   receiptCountries: Schema.Array(Schema.NonEmptyString),
+  registrationLimitCount: Schema.optional(Schema.Int),
+  registrationLimitWindowDays: Schema.optional(Schema.Int),
   seoDescription: Schema.optional(Schema.String),
   seoTitle: Schema.optional(Schema.String),
   termsText: Schema.optional(Schema.String),

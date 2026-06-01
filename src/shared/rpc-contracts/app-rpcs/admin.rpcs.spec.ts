@@ -21,6 +21,8 @@ const currentTenantSettingsInput = {
   privacyPolicyText: 'Tenant privacy text',
   privacyPolicyUrl: 'https://section.example.org/privacy',
   receiptCountries: ['DE', 'NL'],
+  registrationLimitCount: 4,
+  registrationLimitWindowDays: 30,
   seoDescription: 'Public tenant description',
   seoTitle: 'Public tenant title',
   termsText: 'Tenant terms text',
@@ -73,6 +75,7 @@ describe('AdminTenantUpdateSettingsInput', () => {
       ...currentTenantSettingsInput,
       customDomain: 'section.example.org',
       reviewPolicy: 'manual',
+      stripeAccountId: 'acct_123',
     });
 
     expect(decoded).toEqual(currentTenantSettingsInput);

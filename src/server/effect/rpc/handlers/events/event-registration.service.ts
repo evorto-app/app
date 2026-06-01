@@ -1,7 +1,7 @@
 import type { Headers } from 'effect/unstable/http';
 import type Stripe from 'stripe';
 
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, count, eq, gte, inArray, lt, sql } from 'drizzle-orm';
 import { ConfigProvider, Context, Effect, Layer, Option } from 'effect';
 
 import { Database, type DatabaseClient } from '../../../../../db';
@@ -9,6 +9,7 @@ import { createId } from '../../../../../db/create-id';
 import {
   addonToEventRegistrationOptions,
   eventAddons,
+  eventInstances,
   eventRegistrationAddonPurchases,
   eventRegistrationOptionDiscounts,
   eventRegistrationOptions,
@@ -163,7 +164,14 @@ interface RegisterForEventArguments {
   guestCount: number;
   headers: Headers.Headers;
   registrationOptionId: string;
-  tenant: Pick<Tenant, 'currency' | 'id' | 'stripeAccountId'>;
+  tenant: Pick<
+    Tenant,
+    | 'currency'
+    | 'id'
+    | 'registrationLimitCount'
+    | 'registrationLimitWindowDays'
+    | 'stripeAccountId'
+  >;
   user: Pick<User, 'email' | 'id' | 'roleIds'>;
 }
 
@@ -195,6 +203,11 @@ interface RegistrationQuestionRecord {
   id: string;
   required: boolean;
 }
+
+const resolveRegistrationLimitWindowEnd = (
+  now: Date,
+  windowDays: number,
+): Date => new Date(now.getTime() + windowDays * 24 * 60 * 60 * 1000);
 
 export const validateRegistrationQuestionAnswers = ({
   answers,
@@ -469,6 +482,59 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
             }),
           );
         }
+        const registrationLimitCount = tenant.registrationLimitCount ?? null;
+        const registrationLimitWindowDays =
+          tenant.registrationLimitWindowDays ?? null;
+        const registrationLimitActive =
+          registrationLimitCount !== null &&
+          registrationLimitWindowDays !== null &&
+          !registrationOption.organizingRegistration &&
+          registrationOption.event.start >= now &&
+          registrationOption.event.start <
+            resolveRegistrationLimitWindowEnd(now, registrationLimitWindowDays);
+        if (registrationLimitActive) {
+          const windowEnd = resolveRegistrationLimitWindowEnd(
+            now,
+            registrationLimitWindowDays,
+          );
+          const activeRegistrationCount = yield* databaseEffect((database) =>
+            database
+              .select({
+                count: count(),
+              })
+              .from(eventRegistrations)
+              .innerJoin(
+                eventRegistrationOptions,
+                eq(
+                  eventRegistrationOptions.id,
+                  eventRegistrations.registrationOptionId,
+                ),
+              )
+              .innerJoin(
+                eventInstances,
+                eq(eventInstances.id, eventRegistrations.eventId),
+              )
+              .where(
+                and(
+                  eq(eventRegistrations.tenantId, tenant.id),
+                  eq(eventRegistrations.userId, user.id),
+                  sql`${eventRegistrations.status} != 'CANCELLED'`,
+                  eq(eventRegistrationOptions.organizingRegistration, false),
+                  gte(eventInstances.start, now),
+                  lt(eventInstances.start, windowEnd),
+                ),
+              ),
+          );
+          if (
+            (activeRegistrationCount[0]?.count ?? 0) >= registrationLimitCount
+          ) {
+            return yield* Effect.fail(
+              new EventRegistrationConflictError({
+                message: 'Tenant registration limit reached',
+              }),
+            );
+          }
+        }
 
         const answerInserts = yield* Effect.try({
           catch: (error) => error as EventRegistrationConflictError,
@@ -582,6 +648,47 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                   });
                 if (activeRegistrations.length > 0) {
                   return { _tag: 'AlreadyRegistered' } as const;
+                }
+                if (registrationLimitActive) {
+                  const windowEnd = resolveRegistrationLimitWindowEnd(
+                    now,
+                    registrationLimitWindowDays,
+                  );
+                  const activeRegistrationCount = yield* tx
+                    .select({
+                      count: count(),
+                    })
+                    .from(eventRegistrations)
+                    .innerJoin(
+                      eventRegistrationOptions,
+                      eq(
+                        eventRegistrationOptions.id,
+                        eventRegistrations.registrationOptionId,
+                      ),
+                    )
+                    .innerJoin(
+                      eventInstances,
+                      eq(eventInstances.id, eventRegistrations.eventId),
+                    )
+                    .where(
+                      and(
+                        eq(eventRegistrations.tenantId, tenant.id),
+                        eq(eventRegistrations.userId, user.id),
+                        sql`${eventRegistrations.status} != 'CANCELLED'`,
+                        eq(
+                          eventRegistrationOptions.organizingRegistration,
+                          false,
+                        ),
+                        gte(eventInstances.start, now),
+                        lt(eventInstances.start, windowEnd),
+                      ),
+                    );
+                  if (
+                    (activeRegistrationCount[0]?.count ?? 0) >=
+                    registrationLimitCount
+                  ) {
+                    return { _tag: 'RegistrationLimitReached' } as const;
+                  }
                 }
 
                 const updatedOptions = yield* tx
@@ -708,6 +815,14 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
             }),
           );
         }
+        if (reservationResult._tag === 'RegistrationLimitReached') {
+          return yield* Effect.fail(
+            new EventRegistrationConflictError({
+              message: 'Tenant registration limit reached',
+            }),
+          );
+        }
+
         if (!requiresCheckout) {
           return;
         }

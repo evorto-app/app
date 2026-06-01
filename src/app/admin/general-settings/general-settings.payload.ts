@@ -23,6 +23,8 @@ export interface GeneralSettingsModel {
   privacyPolicyText: string;
   privacyPolicyUrl: string;
   receiptCountries: string[];
+  registrationLimitCount: null | number;
+  registrationLimitWindowDays: null | number;
   seoDescription: string;
   seoTitle: string;
   termsText: string;
@@ -51,6 +53,9 @@ export const generalSettingsPayloadFromModel = (
   privacyPolicyText: optionalTrimmed(settings.privacyPolicyText),
   privacyPolicyUrl: optionalTrimmed(settings.privacyPolicyUrl),
   receiptCountries: settings.receiptCountries,
+  registrationLimitCount: settings.registrationLimitCount ?? undefined,
+  registrationLimitWindowDays:
+    settings.registrationLimitWindowDays ?? undefined,
   seoDescription: optionalTrimmed(settings.seoDescription),
   seoTitle: optionalTrimmed(settings.seoTitle),
   termsText: optionalTrimmed(settings.termsText),

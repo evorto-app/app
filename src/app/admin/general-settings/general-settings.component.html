@@ -122,6 +122,28 @@
           Optional display name for future tenant email notifications.
         </mat-hint>
       </mat-form-field>
+      <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <mat-form-field>
+          <mat-label>Registration limit</mat-label>
+          <input
+            matInput
+            type="number"
+            [formField]="settingsForm.registrationLimitCount"
+            placeholder="4"
+          />
+          <mat-hint>Maximum participant registrations per user.</mat-hint>
+        </mat-form-field>
+        <mat-form-field>
+          <mat-label>Limit window days</mat-label>
+          <input
+            matInput
+            type="number"
+            [formField]="settingsForm.registrationLimitWindowDays"
+            placeholder="30"
+          />
+          <mat-hint>Rolling upcoming-event window for the limit.</mat-hint>
+        </mat-form-field>
+      </div>
 
       <h3 class="title-small mb-2 mt-6">Brand assets</h3>
       <p class="text-on-surface-variant mb-3 text-sm">

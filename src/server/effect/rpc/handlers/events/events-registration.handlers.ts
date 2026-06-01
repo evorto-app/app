@@ -1414,6 +1414,8 @@ export const eventRegistrationHandlers = {
         tenant: {
           currency: tenant.currency,
           id: tenant.id,
+          registrationLimitCount: tenant.registrationLimitCount,
+          registrationLimitWindowDays: tenant.registrationLimitWindowDays,
           stripeAccountId: tenant.stripeAccountId,
         },
         user: {

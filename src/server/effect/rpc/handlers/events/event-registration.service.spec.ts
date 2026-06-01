@@ -579,6 +579,65 @@ describe('EventRegistrationService', () => {
   );
 
   it.effect(
+    'rejects participant registration when the tenant limit is reached',
+    () =>
+      Effect.gen(function* () {
+        const transaction = vi.fn();
+        const selectLimitCount = vi.fn(() => ({
+          from: () => ({
+            innerJoin: () => ({
+              innerJoin: () => ({
+                where: () => Effect.succeed([{ count: 1 }]),
+              }),
+            }),
+          }),
+        }));
+        const mockDatabase = {
+          query: {
+            eventRegistrationOptions: {
+              findFirst: () => Effect.succeed(approvedRegistrationOption),
+            },
+            eventRegistrations: {
+              findFirst: () => Effect.succeed(null),
+            },
+          },
+          select: selectLimitCount,
+          transaction,
+        };
+
+        const program = EventRegistrationService.registerForEvent({
+          eventId: 'event-1',
+          guestCount: 0,
+          headers: Headers.empty,
+          registrationOptionId: 'option-1',
+          tenant: {
+            currency: 'EUR',
+            id: 'tenant-1',
+            registrationLimitCount: 1,
+            registrationLimitWindowDays: 30,
+            stripeAccountId: undefined,
+          },
+          user: {
+            email: 'alice@example.com',
+            id: 'user-1',
+            roleIds: ['role-1'],
+          },
+        }).pipe(
+          Effect.flip,
+          Effect.provide(EventRegistrationService.Default),
+          Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+          Effect.provideService(StripeClient, stripeClient),
+          Effect.provide(configProviderLayer),
+        );
+
+        const error = yield* program;
+        expect(error['_tag']).toBe('EventRegistrationConflictError');
+        expect(error.message).toBe('Tenant registration limit reached');
+        expect(transaction).not.toHaveBeenCalled();
+      }),
+  );
+
+  it.effect(
     'stores guest count when registering multiple participant spots',
     () =>
       Effect.gen(function* () {

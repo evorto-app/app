@@ -303,20 +303,19 @@ describe('stabilization source', () => {
     expect(tenantSettingsIdentity).toContain('registration limits');
     expect(tenantSettingsIdentity).toContain('Stripe account management');
     expect(adminRpcContract).toContain('emailSenderName');
+    expect(adminRpcContract).toContain('registrationLimitCount');
+    expect(adminRpcContract).toContain('registrationLimitWindowDays');
     expect(adminRpcContract).not.toMatch(/reviewPolicy|review_policy/u);
-    expect(adminRpcContract).not.toMatch(
-      /registrationLimit|registration_limit/u,
-    );
     expect(adminRpcContract).not.toMatch(/stripeAccountId|stripe_account_id/u);
     expect(statusTable).toContain('| Registrations');
     expect(statusTable).toContain('| Tenant/global admin');
     expect(statusTable).toContain('| Blocked');
     expect(statusTable).toContain('tenant operations-policy settings');
     expect(source).toMatch(
-      /current registration path does not enforce a tenant registration\s+limit policy/u,
+      /registration path enforces configured tenant participant\s+registration limits/u,
     );
     expect(source).toMatch(
-      /tenant-admin settings\s+RPC payload has no\s+review-policy, registration-limit, or Stripe\s+account-management fields/u,
+      /tenant-admin settings\s+RPC payload still has no\s+review-policy or Stripe\s+account-management fields/u,
     );
   });
 

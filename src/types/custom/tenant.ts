@@ -146,6 +146,8 @@ export class Tenant extends Schema.Class<Tenant>('Tenant')({
   privacyPolicyText: optionalNullable(Schema.NonEmptyString),
   privacyPolicyUrl: optionalNullable(Schema.NonEmptyString),
   receiptSettings: OptionalTenantReceiptSettings,
+  registrationLimitCount: optionalNullable(Schema.Int),
+  registrationLimitWindowDays: optionalNullable(Schema.Int),
   seoDescription: optionalNullable(Schema.NonEmptyString),
   seoTitle: optionalNullable(Schema.NonEmptyString),
   stripeAccountId: optionalNullable(Schema.NonEmptyString),

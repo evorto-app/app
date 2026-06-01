@@ -128,6 +128,8 @@ export class GeneralSettingsComponent {
     privacyPolicyText: '',
     privacyPolicyUrl: '',
     receiptCountries: [...DEFAULT_RECEIPT_COUNTRIES],
+    registrationLimitCount: null,
+    registrationLimitWindowDays: null,
     seoDescription: '',
     seoTitle: '',
     termsText: '',
@@ -186,6 +188,9 @@ export class GeneralSettingsComponent {
           privacyPolicyText: currentTenant.privacyPolicyText ?? '',
           privacyPolicyUrl: currentTenant.privacyPolicyUrl ?? '',
           receiptCountries: [...receiptCountrySettings.receiptCountries],
+          registrationLimitCount: currentTenant.registrationLimitCount ?? null,
+          registrationLimitWindowDays:
+            currentTenant.registrationLimitWindowDays ?? null,
           seoDescription: currentTenant.seoDescription ?? '',
           seoTitle: currentTenant.seoTitle ?? '',
           termsText: currentTenant.termsText ?? '',

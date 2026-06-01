@@ -118,6 +118,40 @@ const normalizeTenantBrandAssets = (input: {
   logoUrl: normalizeOptionalBrandAssetUrl(input.logoUrl, 'logoUrl'),
 });
 
+const normalizeRegistrationLimitPolicy = (input: {
+  registrationLimitCount?: number | undefined;
+  registrationLimitWindowDays?: number | undefined;
+}): {
+  registrationLimitCount: null | number;
+  registrationLimitWindowDays: null | number;
+} => {
+  const registrationLimitCount = input.registrationLimitCount ?? null;
+  const registrationLimitWindowDays = input.registrationLimitWindowDays ?? null;
+
+  if (registrationLimitCount === null && registrationLimitWindowDays === null) {
+    return {
+      registrationLimitCount: null,
+      registrationLimitWindowDays: null,
+    };
+  }
+
+  if (
+    registrationLimitCount === null ||
+    registrationLimitWindowDays === null ||
+    registrationLimitCount < 1 ||
+    registrationLimitWindowDays < 1
+  ) {
+    throw new Error(
+      'Registration limit count and window days must both be positive integers',
+    );
+  }
+
+  return {
+    registrationLimitCount,
+    registrationLimitWindowDays,
+  };
+};
+
 const localeMoneySettingsChanged = (
   tenant: Pick<Tenant, 'currency' | 'locale' | 'timezone'>,
   input: Pick<Tenant, 'currency' | 'locale' | 'timezone'>,
@@ -626,6 +660,14 @@ export const adminHandlers = {
           }),
         try: () => normalizeTenantBrandAssets(input),
       });
+      const registrationLimitPolicy = yield* Effect.try({
+        catch: (error) =>
+          new RpcBadRequestError({
+            message: 'Invalid tenant registration limit policy',
+            reason: error instanceof Error ? error.message : String(error),
+          }),
+        try: () => normalizeRegistrationLimitPolicy(input),
+      });
       if (localeMoneySettingsChanged(tenant, input)) {
         const hasDependentData = yield* tenantHasLocaleMoneyDependentData(
           tenant.id,
@@ -654,6 +696,7 @@ export const adminHandlers = {
           allowOther: input.allowOther,
           receiptCountries: input.receiptCountries,
         }),
+        ...registrationLimitPolicy,
         seoDescription: input.seoDescription?.trim() || null,
         seoTitle: input.seoTitle?.trim() || null,
         theme: input.theme,
@@ -684,6 +727,7 @@ export const adminHandlers = {
               allowOther: input.allowOther,
               receiptCountries: input.receiptCountries,
             }),
+            ...registrationLimitPolicy,
             seoDescription: input.seoDescription?.trim() || null,
             seoTitle: input.seoTitle?.trim() || null,
             theme: input.theme,
