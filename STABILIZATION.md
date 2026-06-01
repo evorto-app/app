@@ -2839,9 +2839,14 @@ implement those decisions or explicitly revise them there before changing code.
   the one-shot branch-expiration helper can fail startup, because the first
   split-matrix run showed all shards reaching `docker compose up -d evorto`
   before `db-expiration` timed out at the previous 60-second metadata wait. The
-  startup step now prints Compose status and service logs before returning the
-  Compose exit status, so future startup failures preserve useful evidence in
-  the failed step. The docs pass also covers the generated
+  next run proved the timeout was masking a bind-mounted metadata permission
+  problem: Neon Local was healthy, but its container user could not write
+  `/tmp/.neon_local/.branches` into the runner-created host directory. CI now
+  creates that ephemeral metadata directory as world-writable before Compose
+  mounts it, matching `/tmp`-style cross-container write semantics. The startup
+  step now prints Compose status and service logs before returning the Compose
+  exit status, so future startup failures preserve useful evidence in the
+  failed step. The docs pass also covers the generated
   screenshot stabilization that waits for loading states, finite animations,
   and target geometry before capture. The PR has no unresolved review threads
   at this checkpoint. It remains draft because paid

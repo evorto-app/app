@@ -159,6 +159,9 @@ describe('stabilization source', () => {
     );
     expect(endToEndWorkflow).toContain('timeout-minutes: 10');
     expect(endToEndWorkflow).toContain('NEON_LOCAL_METADATA_WAIT_SECONDS: 180');
+    expect(endToEndWorkflow).toContain(
+      'chmod 0777 "${NEON_LOCAL_METADATA_DIR}"',
+    );
     expect(endToEndWorkflow).toContain('matrix:');
     expect(endToEndWorkflow).toContain(
       'suite: [functional-1, functional-2, docs]',
