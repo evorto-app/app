@@ -299,10 +299,10 @@ describe('stabilization source', () => {
     expect(product).toContain('- registration limits');
     expect(product).toContain('- email sender name');
     expect(tenantSettingsIdentity).toContain('Email sender');
-    expect(tenantSettingsIdentity).toContain('review policy');
+    expect(tenantSettingsIdentity).toMatch(/review policy/iu);
     expect(tenantSettingsIdentity).toContain('registration limits');
     expect(tenantSettingsIdentity).toContain('Stripe account management');
-    expect(adminRpcContract).not.toMatch(/senderName|sender_name/u);
+    expect(adminRpcContract).toContain('emailSenderName');
     expect(adminRpcContract).not.toMatch(/reviewPolicy|review_policy/u);
     expect(adminRpcContract).not.toMatch(
       /registrationLimit|registration_limit/u,
@@ -316,7 +316,7 @@ describe('stabilization source', () => {
       /current registration path does not enforce a tenant registration\s+limit policy/u,
     );
     expect(source).toMatch(
-      /tenant-admin settings\s+RPC payload has no email-sender, review-policy, registration-limit, or Stripe\s+account-management fields/u,
+      /tenant-admin settings\s+RPC payload has no\s+review-policy, registration-limit, or Stripe\s+account-management fields/u,
     );
   });
 

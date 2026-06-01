@@ -146,6 +146,7 @@ describe('adminHandlers tenant settings', () => {
             allowOther: true,
             currency: 'AUD',
             defaultLocation: null,
+            emailSenderName: ' Example Section ',
             esnCardEnabled: false,
             faviconUrl: ' https://cdn.example.org/favicon.ico ',
             legalNoticeText: '  Tenant imprint text  ',
@@ -167,6 +168,7 @@ describe('adminHandlers tenant settings', () => {
 
         expect(capturedUpdate).toMatchObject({
           currency: 'AUD',
+          emailSenderName: 'Example Section',
           faviconUrl: 'https://cdn.example.org/favicon.ico',
           legalNoticeText: 'Tenant imprint text',
           legalNoticeUrl: 'https://section.example.org/imprint',
@@ -182,6 +184,7 @@ describe('adminHandlers tenant settings', () => {
         });
         expect(result).toMatchObject({
           currency: 'AUD',
+          emailSenderName: 'Example Section',
           faviconUrl: 'https://cdn.example.org/favicon.ico',
           legalNoticeText: 'Tenant imprint text',
           legalNoticeUrl: 'https://section.example.org/imprint',

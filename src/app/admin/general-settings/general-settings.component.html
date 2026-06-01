@@ -106,6 +106,23 @@
         </mat-form-field>
       </div>
 
+      <h3 class="title-small mb-2 mt-6">Operations policy</h3>
+      <p class="text-on-surface-variant mb-3 text-sm">
+        Configure tenant-level operational defaults. Mail delivery still uses
+        the platform notification flow when those messages are implemented.
+      </p>
+      <mat-form-field>
+        <mat-label>Email sender name</mat-label>
+        <input
+          matInput
+          [formField]="settingsForm.emailSenderName"
+          placeholder="Example Section"
+        />
+        <mat-hint>
+          Optional display name for future tenant email notifications.
+        </mat-hint>
+      </mat-form-field>
+
       <h3 class="title-small mb-2 mt-6">Brand assets</h3>
       <p class="text-on-surface-variant mb-3 text-sm">
         Upload tenant assets or paste externally hosted URLs. The favicon

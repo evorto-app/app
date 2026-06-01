@@ -229,6 +229,7 @@ export const AdminTenantUpdateSettingsInput = Schema.Struct({
   buyEsnCardUrl: Schema.optional(UrlString),
   currency: Tenant.fields.currency,
   defaultLocation: Schema.NullOr(Schema.Any),
+  emailSenderName: Schema.optional(Schema.String),
   esnCardEnabled: Schema.Boolean,
   faviconUrl: Schema.optional(TenantBrandAssetUrlString),
   legalNoticeText: Schema.optional(Schema.String),

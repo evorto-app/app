@@ -13,6 +13,7 @@ export interface GeneralSettingsModel {
   buyEsnCardUrl: string;
   currency: SupportedTenantCurrency;
   defaultLocation: GoogleLocationType | null;
+  emailSenderName: string;
   esnCardEnabled: boolean;
   faviconUrl: string;
   legalNoticeText: string;
@@ -40,6 +41,7 @@ export const generalSettingsPayloadFromModel = (
   buyEsnCardUrl: optionalTrimmed(settings.buyEsnCardUrl),
   currency: settings.currency,
   defaultLocation: settings.defaultLocation,
+  emailSenderName: optionalTrimmed(settings.emailSenderName),
   esnCardEnabled: settings.esnCardEnabled,
   faviconUrl: optionalTrimmed(settings.faviconUrl),
   legalNoticeText: optionalTrimmed(settings.legalNoticeText),

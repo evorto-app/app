@@ -647,6 +647,7 @@ export const adminHandlers = {
         currency: input.currency,
         defaultLocation: input.defaultLocation,
         discountProviders,
+        emailSenderName: input.emailSenderName?.trim() || null,
         ...legalLinks,
         locale: input.locale,
         receiptSettings: resolveTenantReceiptSettings({
@@ -676,6 +677,7 @@ export const adminHandlers = {
             currency: input.currency,
             defaultLocation: input.defaultLocation,
             discountProviders,
+            emailSenderName: input.emailSenderName?.trim() || null,
             ...legalLinks,
             locale: input.locale,
             receiptSettings: resolveTenantReceiptSettings({

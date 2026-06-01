@@ -118,6 +118,7 @@ export class GeneralSettingsComponent {
     buyEsnCardUrl: '',
     currency: 'EUR',
     defaultLocation: null,
+    emailSenderName: '',
     esnCardEnabled: false,
     faviconUrl: '',
     legalNoticeText: '',
@@ -174,6 +175,7 @@ export class GeneralSettingsComponent {
             '',
           currency: currentTenant.currency,
           defaultLocation: currentTenant.defaultLocation ?? null,
+          emailSenderName: currentTenant.emailSenderName ?? '',
           esnCardEnabled:
             currentTenant.discountProviders?.esnCard?.status === 'enabled',
           faviconUrl: currentTenant.faviconUrl ?? '',

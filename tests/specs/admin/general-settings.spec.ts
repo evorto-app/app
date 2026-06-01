@@ -29,6 +29,7 @@ test('tenant admin updates relaunch general settings @admin', async ({
   const legalNoticeText = `Hosted imprint text ${suffix}`;
   const privacyPolicyUrl = `https://legal.example.org/${tenant.id}/privacy`;
   const termsText = `Hosted terms text ${suffix}`;
+  const emailSenderName = `Example Sender ${suffix}`;
   const buyEsnCardUrl = `https://esncard.example.org/${tenant.id}`;
 
   await page.goto('/admin/settings');
@@ -56,6 +57,7 @@ test('tenant admin updates relaunch general settings @admin', async ({
   await page
     .getByPlaceholder('Short description for search results and previews')
     .fill(` ${seoDescription} `);
+  await page.getByPlaceholder('Example Section').fill(` ${emailSenderName} `);
   await page
     .getByPlaceholder('Legal notice text shown at /legal/imprint')
     .fill(` ${legalNoticeText} `);
@@ -97,6 +99,7 @@ test('tenant admin updates relaunch general settings @admin', async ({
   expect(updatedTenant.faviconUrl).toBe(faviconUrl);
   expect(updatedTenant.seoTitle).toBe(seoTitle);
   expect(updatedTenant.seoDescription).toBe(seoDescription);
+  expect(updatedTenant.emailSenderName).toBe(emailSenderName);
   expect(updatedTenant.legalNoticeText).toBe(legalNoticeText);
   expect(updatedTenant.privacyPolicyUrl).toBe(privacyPolicyUrl);
   expect(updatedTenant.termsText).toBe(termsText);

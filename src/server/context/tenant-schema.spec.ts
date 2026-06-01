@@ -58,6 +58,17 @@ describe('Tenant schema', () => {
     });
   });
 
+  it('accepts tenant email sender name when present', () => {
+    const tenant = Schema.decodeUnknownSync(Tenant)({
+      ...tenantInput,
+      emailSenderName: 'Example Section',
+    });
+
+    expect(Schema.encodeSync(Tenant)(tenant)).toMatchObject({
+      emailSenderName: 'Example Section',
+    });
+  });
+
   it('accepts tenant legal links when present', () => {
     const tenant = Schema.decodeUnknownSync(Tenant)({
       ...tenantInput,

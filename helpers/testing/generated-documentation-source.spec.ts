@@ -39,7 +39,7 @@ describe('generated docs source current behavior', () => {
       '**SEO title** and **SEO description** for tenant-level page metadata.',
     );
     expect(source).toContain(
-      'custom-domain automation, email sender, review policy, registration limit, and Stripe account management gaps',
+      '**Email sender name** for future tenant email notification display names.',
     );
     expect(source).toContain(
       'hosted text appears at \\`/legal/imprint\\`, \\`/legal/privacy\\`, and \\`/legal/terms\\`',

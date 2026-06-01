@@ -38,6 +38,7 @@ export const tenants = pgTable('tenants', {
     .notNull()
     .default(createDefaultTenantDiscountProviders()),
   domain: text().unique().notNull(),
+  emailSenderName: text('email_sender_name'),
   faviconUrl: text('favicon_url'),
   id: varchar({ length: 20 })
     .$defaultFn(() => createId())

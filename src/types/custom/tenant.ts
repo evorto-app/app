@@ -135,6 +135,7 @@ export class Tenant extends Schema.Class<Tenant>('Tenant')({
     ),
   ),
   domain: Schema.NonEmptyString,
+  emailSenderName: optionalNullable(Schema.NonEmptyString),
   faviconUrl: optionalNullable(Schema.NonEmptyString),
   id: Schema.NonEmptyString,
   legalNoticeText: optionalNullable(Schema.NonEmptyString),

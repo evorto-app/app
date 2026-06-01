@@ -80,7 +80,7 @@ describe('deferredTenantSettingsRows', () => {
       {
         label: 'Operations policy',
         value:
-          'Email sender, review policy, registration limits, and Stripe account management are not implemented here yet.',
+          'Email sender name is editable below. Review policy, registration limits, and Stripe account management are not implemented here yet.',
       },
     ]);
   });

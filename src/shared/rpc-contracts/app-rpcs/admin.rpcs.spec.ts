@@ -11,6 +11,7 @@ const currentTenantSettingsInput = {
   buyEsnCardUrl: 'https://esncard.org/',
   currency: 'EUR' as const,
   defaultLocation: null,
+  emailSenderName: 'Example Section',
   esnCardEnabled: true,
   faviconUrl: 'https://cdn.example.org/favicon.ico',
   legalNoticeText: 'Tenant imprint text',
@@ -71,7 +72,7 @@ describe('AdminTenantUpdateSettingsInput', () => {
     const decoded = Schema.decodeUnknownSync(AdminTenantUpdateSettingsInput)({
       ...currentTenantSettingsInput,
       customDomain: 'section.example.org',
-      senderName: 'Example Section',
+      reviewPolicy: 'manual',
     });
 
     expect(decoded).toEqual(currentTenantSettingsInput);
