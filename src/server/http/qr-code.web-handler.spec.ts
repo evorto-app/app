@@ -1,11 +1,15 @@
-import { describe, expect, it } from '@effect/vitest';
+import { afterEach, describe, expect, it, vi } from '@effect/vitest';
 import { Effect, Layer } from 'effect';
+import QRCode from 'qrcode';
 
-import type { Permission } from '../../shared/permissions/permissions';
 import type { Context as RequestContext } from '../../types/custom/context';
 
 import { Database } from '../../db';
 import { handleQrRegistrationCodeWebRequest } from './qr-code.web-handler';
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 const tenant = {
   currency: 'EUR' as const,
@@ -31,10 +35,8 @@ const tenant = {
 
 const createUser = ({
   id = 'user-1',
-  permissions = [],
 }: {
   id?: string;
-  permissions?: readonly Permission[];
 } = {}) => ({
   attributes: [],
   auth0Id: `auth0|${id}`,
@@ -45,26 +47,24 @@ const createUser = ({
   id,
   lastName: 'User',
   paypalEmail: undefined,
-  permissions,
+  permissions: [],
   roleIds: [],
 });
 
 const createRequestContext = ({
   authenticated = true,
-  permissions = [],
   userId = 'user-1',
 }: {
   authenticated?: boolean;
-  permissions?: readonly Permission[];
   userId?: string;
 } = {}): RequestContext =>
   ({
     authentication: {
       isAuthenticated: authenticated,
     },
-    permissions,
+    permissions: [],
     tenant,
-    user: authenticated ? createUser({ id: userId, permissions }) : undefined,
+    user: authenticated ? createUser({ id: userId }) : undefined,
   }) as RequestContext;
 
 const confirmedRegistration = {
@@ -91,18 +91,13 @@ const runQrRequest = ({
   ).pipe(Effect.provide(Layer.succeed(Database, database as never)));
 
 const createDatabase = ({
-  organizerRegistrations = [],
   registration = confirmedRegistration,
 }: {
-  organizerRegistrations?: readonly {
-    registrationOption?: { organizingRegistration: boolean };
-  }[];
   registration?: null | typeof confirmedRegistration;
 } = {}) => ({
   query: {
     eventRegistrations: {
       findFirst: () => Effect.succeed(registration),
-      findMany: () => Effect.succeed(organizerRegistrations),
     },
     tenants: {
       findFirst: () =>
@@ -114,17 +109,38 @@ const createDatabase = ({
 });
 
 describe('handleQrRegistrationCodeWebRequest', () => {
-  it.effect('requires authentication before returning a registration QR', () =>
-    Effect.gen(function* () {
-      const response = yield* runQrRequest({
-        database: createDatabase(),
-        requestContext: createRequestContext({ authenticated: false }),
-      });
+  it.effect(
+    'allows ticket possession to fetch a confirmed registration QR image',
+    () =>
+      Effect.gen(function* () {
+        const response = yield* runQrRequest({
+          database: createDatabase(),
+          requestContext: createRequestContext({ authenticated: false }),
+        });
 
-      expect(response.status).toBe(401);
-      expect(yield* Effect.promise(() => response.text())).toBe(
-        'Authentication required',
-      );
+        expect(response.status).toBe(200);
+        expect(response.headers.get('Content-Type')).toBe('image/png');
+        expect(
+          (yield* Effect.promise(() => response.arrayBuffer())).byteLength,
+        ).toBeGreaterThan(0);
+      }),
+  );
+
+  it.effect('uses the registration tenant domain in the encoded scan URL', () =>
+    Effect.gen(function* () {
+      const encodedTargets: string[] = [];
+      vi.spyOn(QRCode, 'toBuffer').mockImplementation(((text: string) => {
+        encodedTargets.push(text);
+
+        return Promise.resolve(Buffer.from([1, 2, 3]));
+      }) as typeof QRCode.toBuffer);
+
+      const response = yield* runQrRequest({ database: createDatabase() });
+
+      expect(response.status).toBe(200);
+      expect(encodedTargets).toEqual([
+        'https://tenant.example.com/scan/registration/registration-1',
+      ]);
     }),
   );
 
@@ -146,29 +162,7 @@ describe('handleQrRegistrationCodeWebRequest', () => {
   );
 
   it.effect(
-    'allows an organizer registration for the same event to fetch the QR image',
-    () =>
-      Effect.gen(function* () {
-        const response = yield* runQrRequest({
-          database: createDatabase({
-            organizerRegistrations: [
-              {
-                registrationOption: {
-                  organizingRegistration: true,
-                },
-              },
-            ],
-          }),
-          requestContext: createRequestContext({ userId: 'organizer-1' }),
-        });
-
-        expect(response.status).toBe(200);
-        expect(response.headers.get('Content-Type')).toBe('image/png');
-      }),
-  );
-
-  it.effect(
-    'hides another user confirmed registration from unauthorized users',
+    'does not require the requester to own another user confirmed registration',
     () =>
       Effect.gen(function* () {
         const response = yield* runQrRequest({
@@ -176,10 +170,8 @@ describe('handleQrRegistrationCodeWebRequest', () => {
           requestContext: createRequestContext({ userId: 'other-user' }),
         });
 
-        expect(response.status).toBe(404);
-        expect(yield* Effect.promise(() => response.text())).toBe(
-          'Registration not found',
-        );
+        expect(response.status).toBe(200);
+        expect(response.headers.get('Content-Type')).toBe('image/png');
       }),
   );
 

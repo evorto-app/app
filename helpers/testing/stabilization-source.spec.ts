@@ -148,6 +148,37 @@ describe('stabilization source', () => {
     expect(source).toContain('same-event second registrations across options');
   });
 
+  it('keeps QR image access aligned with the product paper-ticket model', () => {
+    const source = readSource('STABILIZATION.md');
+    const product = readSource('PRODUCT.md');
+    const qrHandler = readSource('src/server/http/qr-code.web-handler.ts');
+    const qrHandlerSpec = readSource(
+      'src/server/http/qr-code.web-handler.spec.ts',
+    );
+
+    expect(product).toContain('QR links behave like paper tickets');
+    expect(product).toContain(
+      'possession of the unguessable ticket URL is enough to render the QR image',
+    );
+    expect(product).toContain(
+      'Check-in must validate registration status and show enough attendee identity',
+    );
+    expect(qrHandler).toContain("registration.status !== 'CONFIRMED'");
+    expect(qrHandler).not.toContain('Authentication required');
+    expect(qrHandlerSpec).toContain(
+      'allows ticket possession to fetch a confirmed registration QR image',
+    );
+    expect(qrHandlerSpec).toContain(
+      'uses the registration tenant domain in the encoded scan URL',
+    );
+    expect(qrHandlerSpec).toContain(
+      'does not generate QR images for pending registrations',
+    );
+    expect(source).toContain('paper-ticket model');
+    expect(source).toContain('scan/check-in details');
+    expect(source).toContain('scanner authorization');
+  });
+
   it('keeps the review status honest about the event archival data-model blocker', () => {
     const source = readSource('STABILIZATION.md');
     const product = readSource('PRODUCT.md');
