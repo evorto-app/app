@@ -2842,6 +2842,22 @@ implement those decisions or explicitly revise them there before changing code.
   transfer/resale money movement still needs a human settlement-model decision
   before implementation or explicit relaunch deferral; formal bot review is
   expected only after the PR is marked ready.
+- Post-main-sync checkpoint: the branch was rebased onto `origin/main` at
+  `35ebb9a2` after the Neon branch-expiration cleanup landed. The E2E workflow
+  now uses the regular Compose graph in CI with
+  `docker compose up -d evorto`, so `db`, `db-expiration`, `db-setup`, MinIO,
+  MinIO init, and the app start through the same dependency path as local
+  startup instead of duplicating database waits and schema setup in GitHub
+  Actions. Local verification after the rebase passed `bun run format:write`,
+  `bun run lint`, the focused stabilization/runtime/generated-docs source guard
+  suite with 42 passing tests, workflow YAML parsing, `git diff --check`, and
+  project-local `docker compose config --quiet`. `bun run docker:check`
+  confirms the Compose file is valid but local Docker startup is currently
+  blocked until `NEON_API_KEY`, `CLIENT_SECRET`, and `STRIPE_API_KEY` are
+  present in the worktree environment. The PR still has no review threads and
+  remains draft; pushing the rebased branch is blocked by the current GitHub
+  token missing `workflow` scope while `.github/workflows/e2e-baseline.yml`
+  changed, and SSH has no loaded identity.
 
 ## Browser Review Queue
 
