@@ -2,6 +2,7 @@ import { Locator, Page, TestInfo } from '@playwright/test';
 
 const animationSettleTimeoutMs = 2_000;
 const locatorSettleTimeoutMs = 1_500;
+const postAnimationSettleTimeoutMs = 250;
 const snackbarSettleTimeoutMs = 750;
 
 const waitForLoadingIndicators = async (page: Page): Promise<void> => {
@@ -80,6 +81,8 @@ const settleFiniteAnimations = async (page: Page): Promise<void> => {
       ]);
     }
   }, animationSettleTimeoutMs);
+  await settleRenderFrame(page);
+  await page.waitForTimeout(postAnimationSettleTimeoutMs);
   await settleRenderFrame(page);
   await waitForLoadingIndicators(page);
   await waitForSnackbars(page);

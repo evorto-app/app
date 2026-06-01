@@ -3,6 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 
 const animationSettleTimeoutMs = 2_000;
+const postAnimationSettleTimeoutMs = 250;
 const snackbarSettleTimeoutMs = 750;
 
 function ensureDir(dir: string) {
@@ -104,6 +105,8 @@ const settleFiniteAnimations = async (page: Page): Promise<void> => {
       ]);
     }
   }, animationSettleTimeoutMs);
+  await settleRenderFrame(page);
+  await page.waitForTimeout(postAnimationSettleTimeoutMs);
   await settleRenderFrame(page);
   await waitForLoadingIndicators(page);
   await waitForSnackbars(page);
