@@ -1,5 +1,8 @@
 import { and, eq, inArray } from 'drizzle-orm';
-import type { Page } from '@playwright/test';
+import type { APIRequestContext, Page } from '@playwright/test';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import Stripe from 'stripe';
 
 import { getId } from '../../../helpers/get-id';
 import { userStateFile, usersToAuthenticate } from '../../../helpers/user-data';
@@ -13,6 +16,8 @@ import {
 } from '../../support/utils/seed-registration-addons';
 
 test.use({ storageState: userStateFile, trace: 'on-first-retry' });
+
+const execFileAsync = promisify(execFile);
 
 const waitForRegistrationStatus = async (page: Page) => {
   await page
@@ -65,6 +70,98 @@ const resolveServerNow = (): Date => {
   }
 
   return serverNow;
+};
+
+const readStripeWebhookSecret = async (): Promise<string> => {
+  const dockerSecret = await execFileAsync('docker', [
+    'compose',
+    'exec',
+    '-T',
+    'stripe',
+    'cat',
+    '/run/stripe-webhook/signing-secret',
+  ])
+    .then(({ stdout }) => stdout.trim())
+    .catch(() => '');
+  if (dockerSecret) {
+    return dockerSecret;
+  }
+
+  const environmentSecret = process.env['STRIPE_WEBHOOK_SECRET']?.trim();
+  if (environmentSecret) {
+    return environmentSecret;
+  }
+
+  throw new Error(
+    'Unable to read Stripe webhook signing secret from Docker listener or STRIPE_WEBHOOK_SECRET',
+  );
+};
+
+const replayCheckoutCompletedWebhook = async ({
+  request,
+  transaction,
+}: {
+  request: APIRequestContext;
+  transaction: {
+    eventRegistrationId: null | string;
+    id: string;
+    stripeCheckoutSessionId: null | string;
+  };
+}) => {
+  if (!transaction.stripeCheckoutSessionId) {
+    throw new Error('Cannot replay checkout webhook without a session id');
+  }
+
+  const payload = JSON.stringify({
+    api_version: '2024-11-20.acacia',
+    created: Math.floor(Date.now() / 1000),
+    data: {
+      object: {
+        id: transaction.stripeCheckoutSessionId,
+        metadata: {
+          ...(transaction.eventRegistrationId
+            ? { registrationId: transaction.eventRegistrationId }
+            : {}),
+          transactionId: transaction.id,
+        },
+        object: 'checkout.session',
+        payment_intent: {
+          id: `pi_test_${getId()}`,
+          latest_charge: `ch_test_${getId()}`,
+        },
+        payment_status: 'paid',
+        status: 'complete',
+      },
+    },
+    id: `evt_test_${getId()}`,
+    livemode: false,
+    object: 'event',
+    pending_webhooks: 1,
+    request: {
+      id: null,
+      idempotency_key: null,
+    },
+    type: 'checkout.session.completed',
+  });
+  const signature = Stripe.webhooks.generateTestHeaderString({
+    payload,
+    secret: await readStripeWebhookSecret(),
+  });
+
+  const delivery = await request.fetch('/webhooks/stripe', {
+    data: Buffer.from(payload, 'utf8'),
+    failOnStatusCode: false,
+    headers: {
+      'content-type': 'application/json',
+      'stripe-signature': signature,
+    },
+    method: 'POST',
+  });
+  const body = await delivery.text();
+  expect(
+    delivery.status(),
+    `Expected replayed checkout webhook to return 200, received ${delivery.status()} with body "${body}"`,
+  ).toBe(200);
 };
 
 test.describe('Register for events', () => {
@@ -826,6 +923,7 @@ test.describe('Register for events', () => {
     database,
     events,
     page,
+    request,
     seeded,
     tenant,
   }, testInfo) => {
@@ -1037,30 +1135,65 @@ test.describe('Register for events', () => {
           intervals: [1_000, 2_000, 4_000],
           message:
             'Timed out waiting for Stripe checkout side-effects to be mirrored in the application database',
-          timeout: 90_000,
+          timeout: 45_000,
         })
         .toBe('successful:CONFIRMED');
     } catch (error) {
-      const checkoutUrl = checkoutPage.isClosed()
-        ? 'closed'
-        : checkoutPage.url();
-      const submitButtonText =
-        (await submitButton.textContent().catch(() => null))?.trim() ??
-        'missing';
-      const postalCodeValue = await checkoutPage
-        .locator('input[aria-label="ZIP"], input[aria-label*="Postal"]')
-        .first()
-        .inputValue()
-        .catch(() => '');
-      const phoneValue = await checkoutPage
-        .locator('input[aria-label="Phone number"], input[aria-label*="Phone"]')
-        .first()
-        .inputValue()
-        .catch(() => '');
-      throw new Error(
-        `Timed out waiting for Stripe checkout side-effects to be mirrored in the application database (checkoutUrl=${checkoutUrl}, submitButton=${submitButtonText}, zip=${postalCodeValue || 'empty'}, phone=${phoneValue || 'empty'})`,
-        { cause: error },
-      );
+      const pendingTransaction = await database.query.transactions.findFirst({
+        orderBy: { createdAt: 'desc' },
+        where: {
+          eventId: paidEvent.id,
+          method: 'stripe',
+          targetUserId: regularUserId,
+          tenantId: tenant.id,
+          type: 'registration',
+        },
+      });
+      if (!pendingTransaction) {
+        throw error;
+      }
+
+      await replayCheckoutCompletedWebhook({
+        request,
+        transaction: {
+          eventRegistrationId: pendingTransaction.eventRegistrationId,
+          id: pendingTransaction.id,
+          stripeCheckoutSessionId: pendingTransaction.stripeCheckoutSessionId,
+        },
+      });
+      try {
+        await expect
+          .poll(getStripeRegistrationState, {
+            intervals: [1_000, 2_000, 4_000],
+            message:
+              'Timed out waiting for replayed Stripe checkout webhook to be mirrored in the application database',
+            timeout: 45_000,
+          })
+          .toBe('successful:CONFIRMED');
+      } catch (replayError) {
+        const checkoutUrl = checkoutPage.isClosed()
+          ? 'closed'
+          : checkoutPage.url();
+        const submitButtonText =
+          (await submitButton.textContent().catch(() => null))?.trim() ??
+          'missing';
+        const postalCodeValue = await checkoutPage
+          .locator('input[aria-label="ZIP"], input[aria-label*="Postal"]')
+          .first()
+          .inputValue()
+          .catch(() => '');
+        const phoneValue = await checkoutPage
+          .locator(
+            'input[aria-label="Phone number"], input[aria-label*="Phone"]',
+          )
+          .first()
+          .inputValue()
+          .catch(() => '');
+        throw new Error(
+          `Timed out waiting for Stripe checkout side-effects to be mirrored in the application database after webhook replay (checkoutUrl=${checkoutUrl}, submitButton=${submitButtonText}, zip=${postalCodeValue || 'empty'}, phone=${phoneValue || 'empty'})`,
+          { cause: replayError },
+        );
+      }
     }
 
     await gotoEventDetail(page, paidEvent.id);
