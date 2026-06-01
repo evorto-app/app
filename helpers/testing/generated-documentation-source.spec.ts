@@ -423,6 +423,9 @@ describe('generated docs source current behavior', () => {
       'expect(rejectedEvent.statusComment).toBe(rejectionComment)',
     );
     expect(source).toContain("expect(approvedEvent.status).toBe('APPROVED')");
+    expect(source).toContain('final **Published** state');
+    expect(source).toContain('Published event status');
+    expect(source).not.toContain('final published state');
     expect(source).toContain('.delete(schema.eventRegistrationOptions)');
     expect(source).toContain('.delete(schema.eventInstances)');
     expect(source).not.toContain(

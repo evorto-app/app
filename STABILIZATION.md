@@ -531,6 +531,10 @@ the current working direction until a product decision overrides them.
   submit-disabled guard between the Save Changes button and handler, so
   invalid, submitting, and mutation-pending update writes cannot double-submit
   on slow networks.
+- **Addressed in this stabilization pass:** the user-facing status chip and
+  generated docs now label the persisted `APPROVED` review state as
+  **Published**, matching `PRODUCT.md`'s lifecycle language while keeping the
+  internal enum unchanged.
 - **Addressed in stabilization pass:** `event-management.doc.ts` no longer describes attendee export, attendee messaging, manual check-in controls, event settings tabs, event tags, featured images, notification settings, integrations, or event deletion as existing event-management UI.
 - **Addressed in stabilization pass:** unlisted-event dialog and event detail status copy now explain that unlisted events are hidden from lists while eligible direct links still work.
 - **Should fix before relaunch:** `PRODUCT.md` says the core lifecycle should

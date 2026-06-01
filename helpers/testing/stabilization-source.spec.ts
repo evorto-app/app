@@ -37,6 +37,29 @@ const readSection = (source: string, heading: string, nextHeading: string) => {
 };
 
 describe('stabilization source', () => {
+  it('keeps the approved event status mapped to published product language', () => {
+    const source = readSource('STABILIZATION.md');
+    const product = readSource('PRODUCT.md');
+    const eventStatusComponent = readSource(
+      'src/app/shared/components/event-status/event-status.component.ts',
+    );
+    const eventApprovalDocument = readSource(
+      'tests/docs/events/event-approval.doc.ts',
+    );
+
+    expect(product).toContain(
+      'Publishing is the approval act. There is no separate "approved but not published" state for now.',
+    );
+    expect(eventStatusComponent).toContain("case 'APPROVED'");
+    expect(eventStatusComponent).toContain("return 'Published'");
+    expect(eventApprovalDocument).toContain(
+      "expect(approvedEvent.status).toBe('APPROVED')",
+    );
+    expect(eventApprovalDocument).toContain('final **Published** state');
+    expect(source).toContain('label the persisted `APPROVED` review state as');
+    expect(source).toContain('internal enum unchanged');
+  });
+
   it('keeps the review status honest about the event archival data-model blocker', () => {
     const source = readSource('STABILIZATION.md');
     const product = readSource('PRODUCT.md');
