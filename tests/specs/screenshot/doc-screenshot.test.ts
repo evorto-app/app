@@ -2,9 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { expect } from '@playwright/test';
 
-import { defaultStateFile } from '../../../helpers/user-data';
 import { docScreenshot } from '../../support/utils/doc-screenshot';
-import { test } from '../../support/fixtures/parallel-test';
+import { test } from '../../support/fixtures/base-test';
 
 // T023: Failing test for screenshot helper
 // This defines the contract for the tests/support/utils/doc-screenshot.ts helper:
@@ -14,8 +13,6 @@ import { test } from '../../support/fixtures/parallel-test';
 
 test.setTimeout(120000);
 
-test.use({ storageState: defaultStateFile });
-
 test('doc-screenshot returns a relative path and writes image', async ({
   page,
 }, testInfo) => {
@@ -23,8 +20,10 @@ test('doc-screenshot returns a relative path and writes image', async ({
   const imgRoot = path.resolve('test-results/tmp-doc-images');
   process.env.DOCS_IMG_OUT_DIR = imgRoot;
 
-  await page.goto('.');
-  const target = page.locator('body');
+  await page.setContent(
+    '<main><section id="target">Home body</section></main>',
+  );
+  const target = page.locator('#target');
 
   const relPath = await docScreenshot(testInfo, target, page, 'home-body');
 

@@ -1550,10 +1550,10 @@ the current working direction until a product decision overrides them.
 - The custom documentation reporter writes grouped Markdown pages and image assets to paths from `DOCS_OUT_DIR` / `DOCS_IMG_OUT_DIR`, defaulting to ignored repository-local `test-results/docs` paths.
 - The reporter initializes and clears docs/image output roots on `onBegin` only for real test execution. During Playwright `--list` discovery it no-ops and does not clean or write docs output.
 - Reporter-path tests pass with `bun run test:e2e -- tests/specs/reporting/reporter-paths.test.ts --no-deps`.
-- The focused screenshot helper test cannot currently run here with the default
-  browser channel because the configured Playwright Chromium binary is missing;
-  exploratory local runs can opt into system Chrome with
-  `E2E_BROWSER_CHANNEL=chrome`.
+- The focused screenshot helper test now runs without tenant seeding because it
+  verifies static screenshot-helper states instead of product data. The focused
+  `doc-screenshot.test.ts` command passes locally and no longer collides with
+  stale seeded tenant ids from previous runs.
 
 ### Intended Behavior From Product Context
 
@@ -1637,6 +1637,11 @@ the current working direction until a product decision overrides them.
   fixed `.waitForTimeout(...)` waits in specs and generated docs, so future
   docs/specs must wait on concrete UI state instead of reintroducing
   time-based sleeps.
+- **Addressed in stabilization pass:** `tests/specs/screenshot/doc-screenshot.test.ts`
+  now uses the non-seeding base fixture and static page content for screenshot
+  helper assertions. This keeps the focused helper check fast and repeatable
+  even when a previous seeded E2E run left tenant ids behind in the local
+  database.
 - **Addressed in stabilization pass:** required `@track`, `@req`, and `@doc`
   title metadata was removed from the custom Playwright lint rule and the rule
   was dropped. Test guidance now prefers clear behavior-oriented titles without
