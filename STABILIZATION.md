@@ -2835,7 +2835,13 @@ implement those decisions or explicitly revise them there before changing code.
   `on-failure` restarts, so transient `423 Client Error: Locked`
   branch-creation exits can recover inside the existing startup wait without
   serializing the split matrix or treating a temporary Neon project lock as an
-  app regression. The docs pass also covers the generated
+  app regression. CI also gives the Neon Local metadata wait 180 seconds before
+  the one-shot branch-expiration helper can fail startup, because the first
+  split-matrix run showed all shards reaching `docker compose up -d evorto`
+  before `db-expiration` timed out at the previous 60-second metadata wait. The
+  startup step now prints Compose status and service logs before returning the
+  Compose exit status, so future startup failures preserve useful evidence in
+  the failed step. The docs pass also covers the generated
   screenshot stabilization that waits for loading states, finite animations,
   and target geometry before capture. The PR has no unresolved review threads
   at this checkpoint. It remains draft because paid
@@ -3046,6 +3052,14 @@ fallback rather than a profile discount-card defect.
   contained 57 screenshots; contact-sheet review found no remaining snackbar
   bars, half-transition captures, or generated product docs for global-admin
   functionality.
+- Fresh post-SSH docs image checkpoint: the local docs baseline passed again
+  against the running Docker app with system Chrome and one worker, reporting
+  `29 passed` in 4.5 minutes. The regenerated docs output contained 17 pages and
+  57 screenshots. Contact-sheet review again found no snackbar bars,
+  half-transition captures, or generated product docs for global-admin
+  functionality. The unlisted-event user doc now emits a quoted YAML title for
+  `User: understanding unlisted events`, so the earlier unquoted-colon
+  frontmatter issue remains fixed.
 
 ## Review Next
 

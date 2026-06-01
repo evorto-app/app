@@ -145,6 +145,11 @@ describe('stabilization source', () => {
     expect(readinessCheckpoint).toContain(
       'transient `423 Client Error: Locked`',
     );
+    expect(readinessCheckpoint).toContain('180 seconds');
+    expect(readinessCheckpoint).toContain('60-second metadata wait');
+    expect(readinessCheckpoint).toContain(
+      'prints Compose status and service logs',
+    );
     expect(readinessCheckpoint).toMatch(
       /generated\s+screenshot\s+stabilization/u,
     );
@@ -153,6 +158,7 @@ describe('stabilization source', () => {
       /Chromium-only Playwright browser\s+install/u,
     );
     expect(endToEndWorkflow).toContain('timeout-minutes: 10');
+    expect(endToEndWorkflow).toContain('NEON_LOCAL_METADATA_WAIT_SECONDS: 180');
     expect(endToEndWorkflow).toContain('matrix:');
     expect(endToEndWorkflow).toContain(
       'suite: [functional-1, functional-2, docs]',
@@ -171,6 +177,8 @@ describe('stabilization source', () => {
     expect(endToEndWorkflow).toContain(
       'name: playwright-test-results-${{ matrix.suite }}',
     );
+    expect(endToEndWorkflow).toContain('compose_status=$?');
+    expect(endToEndWorkflow).toContain('exit "${compose_status}"');
     expect(readinessCheckpoint).toMatch(
       /The PR\s+has\s+no\s+unresolved review threads\s+at/u,
     );
