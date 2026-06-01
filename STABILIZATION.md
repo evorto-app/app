@@ -1460,6 +1460,9 @@ the current working direction until a product decision overrides them.
 - **Addressed in this stabilization pass:** tenant general-settings save actions now stay disabled while the update mutation is pending, and the submit handler ignores duplicate submit events during the in-flight settings write.
 - **Addressed in stabilization pass:** tenant general-settings documentation now covers the implemented relaunch surface and explicitly calls out deferred custom-domain automation, email sender, review policy, registration limit, and Stripe-account settings.
 - **Addressed in stabilization pass:** tenant-hosted legal text is now editable alongside external legal URLs. The public footer links to external URLs when configured, otherwise it links to hosted `/legal/imprint`, `/legal/privacy`, and `/legal/terms` pages when tenant text exists.
+- **Addressed in this stabilization pass:** unconfigured hosted legal pages now
+  state that no tenant-provided legal text is configured instead of presenting
+  generic fallback legal copy, matching `PRODUCT.md`'s legal-page watchpoint.
 - **Addressed in stabilization pass:** the tenant settings RPC payload schema is now exported and covered by a focused contract spec, including the current editable fields and the fact that deferred custom-domain automation, email sender, review policy, registration limit, and Stripe account-management fields are outside the update payload.
 - **Addressed in stabilization pass:** tenant general-settings payload shaping is now extracted and covered locally, including trim/blank normalization for editable URLs/SEO/ESNcard fields before the RPC call.
 - **Addressed in stabilization pass:** the global-admin tenant list and read-only detail page render the tenant operational state returned by the RPC, including connected Stripe account ids for support lookup. Product docs are intentionally not generated for global-admin functionality.

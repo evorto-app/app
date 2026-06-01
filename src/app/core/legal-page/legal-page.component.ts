@@ -13,6 +13,9 @@ import {
   tenantLegalPageTitle,
 } from '../tenant-legal-links';
 
+export const missingTenantLegalTextMessage =
+  'No tenant-provided legal text is configured for this page.';
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
@@ -35,7 +38,7 @@ import {
         </div>
       } @else {
         <p class="text-on-surface-variant">
-          This legal page has not been configured for the current tenant yet.
+          {{ missingTenantLegalTextMessage }}
         </p>
       }
     </main>
@@ -47,9 +50,11 @@ export class LegalPageComponent {
   private readonly page = this.route.snapshot.data[
     'legalPage'
   ] as TenantLegalPage;
-
   protected readonly content = computed(() =>
     tenantLegalPageContent(this.config.tenant, this.page),
   );
+
+  protected readonly missingTenantLegalTextMessage =
+    missingTenantLegalTextMessage;
   protected readonly title = computed(() => tenantLegalPageTitle(this.page));
 }

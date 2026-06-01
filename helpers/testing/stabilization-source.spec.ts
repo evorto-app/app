@@ -60,6 +60,35 @@ describe('stabilization source', () => {
     expect(source).toContain('internal enum unchanged');
   });
 
+  it('keeps legal pages from inventing fallback legal copy', () => {
+    const source = readSource('STABILIZATION.md');
+    const product = readSource('PRODUCT.md');
+    const legalPageComponent = readSource(
+      'src/app/core/legal-page/legal-page.component.ts',
+    );
+    const legalLinksSpec = readSource(
+      'src/app/core/tenant-legal-links.spec.ts',
+    );
+
+    expect(product).toContain(
+      "Evorto should not provide fake fallback legal pages that pretend to cover a tenant's legal obligations.",
+    );
+    expect(product).toContain(
+      'Do not: invent generic legal fallback text and treat it as production-ready.',
+    );
+    expect(legalPageComponent).toContain(
+      'No tenant-provided legal text is configured for this page.',
+    );
+    expect(legalPageComponent).not.toContain(
+      'This legal page has not been configured',
+    );
+    expect(legalLinksSpec).toContain(
+      'does not invent fallback legal text for unconfigured tenant pages',
+    );
+    expect(source).toContain('unconfigured hosted legal pages now');
+    expect(source).toContain('generic fallback legal copy');
+  });
+
   it('keeps the review status honest about the event archival data-model blocker', () => {
     const source = readSource('STABILIZATION.md');
     const product = readSource('PRODUCT.md');

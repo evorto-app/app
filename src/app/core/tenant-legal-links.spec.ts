@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { missingTenantLegalTextMessage } from './legal-page/legal-page.component';
 import {
   tenantLegalLinks,
   tenantLegalPageContent,
@@ -69,6 +70,16 @@ describe('tenantLegalLinks', () => {
 });
 
 describe('tenantLegalPageContent', () => {
+  it('does not invent fallback legal text for unconfigured tenant pages', () => {
+    expect(tenantLegalPageContent({}, 'imprint')).toBeUndefined();
+    expect(tenantLegalPageContent({ legalNoticeText: ' ' }, 'imprint')).toBe(
+      undefined,
+    );
+    expect(missingTenantLegalTextMessage).toBe(
+      'No tenant-provided legal text is configured for this page.',
+    );
+  });
+
   it('returns trimmed hosted text for the requested legal page', () => {
     const tenant = {
       legalNoticeText: ' Imprint text ',
