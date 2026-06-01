@@ -3082,6 +3082,17 @@ fallback rather than a profile discount-card defect.
   participant registration card, inclusive VAT label, and anonymous "Log in now"
   action. This Browser API path provided URL/title/screenshot evidence, so it is
   recorded as a visual route sanity check rather than a console-log review.
+- Current post-fixed-wait Browser sanity checkpoint: after the docs screenshot
+  fixed-wait cleanup, the Docker stack was still healthy on
+  the generated `BASE_URL` with the Stripe sidecar running. The in-app
+  Browser opened `/events`, waited for the seeded event cards to settle, clicked
+  `Soccer Match 1` from the list, and rendered the event detail with the
+  registration card, inclusive VAT label, and anonymous "Log in now" action.
+  Browser console warnings/errors were empty for the settled list and clicked
+  detail checks. Local screenshots were saved under `test-results/browser-evidence/`.
+  The PR remains local-only at this checkpoint because direct SSH agent signing
+  fails before GitHub (`communication with agent failed`) and the HTTPS token
+  still lacks `workflow` scope for the E2E workflow commit.
 
 ## Review Next
 
