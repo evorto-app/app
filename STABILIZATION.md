@@ -2885,10 +2885,12 @@ implement those decisions or explicitly revise them there before changing code.
   errors. The local branch contains the conflict-resolving rebase and is an
   ancestor of `origin/main`. Pushing through HTTPS was rejected because the
   current GitHub token is missing `workflow` scope while
-  `.github/workflows/e2e-baseline.yml` changed, but the configured SSH remote
-  authenticated successfully and updated the PR branch with `--force-with-lease`.
-  GitHub now sees the rebased PR head on the current main base, and the split
-  CodeQL/E2E checks restarted from that head.
+  `.github/workflows/e2e-baseline.yml` changed. The configured SSH key is
+  accepted by GitHub, but the local 1Password SSH agent currently fails while
+  signing the accepted challenge, so the full-Compose CI fix and latest Browser
+  sanity checkpoint remain local-only until SSH signing recovers or the GitHub
+  token is refreshed with `workflow` scope. The remote PR head still reports the
+  older docs failure that this local CI fix is intended to address.
 
 ## Browser Review Queue
 
