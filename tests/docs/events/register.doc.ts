@@ -36,7 +36,11 @@ const gotoEventDetail = async (page: Page, eventId: string) => {
       ) {
         throw error;
       }
-      await page.waitForTimeout(500);
+      await page
+        .waitForFunction(() => document.readyState !== 'loading', undefined, {
+          timeout: 500,
+        })
+        .catch(() => undefined);
     }
   }
 };

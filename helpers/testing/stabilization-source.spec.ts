@@ -300,6 +300,11 @@ describe('stabilization source', () => {
     expect(source).toContain(
       'first in-app Browser manual review queue pass has now covered',
     );
+    expect(source).toContain(
+      'does not satisfy the relaunch transfer/resale\n' +
+        '  workflow. `STABILIZATION.md` keeps registrations blocked until the\n' +
+        '  settlement-model decision is made.',
+    );
     expect(source).not.toContain('E2E_LIVE_ESN_CARD_IDENTIFIER');
   });
 

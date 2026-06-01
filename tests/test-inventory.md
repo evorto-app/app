@@ -2,7 +2,7 @@
 
 Scope: Current Playwright tests and documentation journeys.
 
-Updated: 2026-05-21
+Updated: 2026-06-01
 
 ## How to Use This Inventory
 
@@ -193,6 +193,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   pending manual refund transaction for a manually seeded payment record. Server
   unit coverage separately proves Stripe-backed cancellation calls the Stripe
   refund API and records the refund transaction; paid resale remains deferred.
+  This unavailable-state coverage does not satisfy the relaunch transfer/resale
+  workflow. `STABILIZATION.md` keeps registrations blocked until the
+  settlement-model decision is made.
 - `specs/events/negative-registration-states.spec.ts` adds page-backed waitlist
   coverage for full first-come-first-served options with explicit required
   answer gating, persisted waitlist registration readback, and persisted
