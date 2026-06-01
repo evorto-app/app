@@ -3065,6 +3065,13 @@ fallback rather than a profile discount-card defect.
   functionality. The unlisted-event user doc now emits a quoted YAML title for
   `User: understanding unlisted events`, so the earlier unquoted-colon
   frontmatter issue remains fixed.
+- Current Browser sanity checkpoint: after reconnecting the in-app Browser on
+  the current worktree, the generated `BASE_URL` `/events` route rendered the
+  seeded event list without console errors. Opening `Soccer Match 1` through the
+  event list showed the event detail surface, participant registration option,
+  inclusive tax label, and anonymous "Log in now" registration call-to-action
+  without new console errors. This is a narrow current Browser sanity check, not
+  a replacement for the full repeat queue above.
 
 ## Review Next
 
