@@ -761,7 +761,7 @@ the current working direction until a product decision overrides them.
   registration options, so Browser review can inspect the add-on detail surface
   during repeat human review; the first manual Browser queue pass has already
   covered the template detail surface.
-- **Addressed in stabilization pass:** simple-mode template create/edit now exposes optional ESNcard discounted prices when the tenant ESNcard provider is enabled, persists them in `templateRegistrationOptionDiscounts`, returns them through `templates.findOne`, and shows them on template detail.
+- **Addressed in stabilization pass:** simple-mode template create/edit now exposes optional ESNcard discounted prices when the tenant ESNcard provider is enabled, persists them in `templateRegistrationOptionDiscounts`, returns them through `templates.findOne`, and shows them on template detail only while the current tenant ESNcard provider is enabled.
 - **Addressed in stabilization pass:** simple-mode template create/edit now
   exposes reusable registration questions attached to the participant or
   organizer registration option, persists them in template-scoped question

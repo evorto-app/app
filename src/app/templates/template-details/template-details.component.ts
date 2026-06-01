@@ -48,6 +48,14 @@ export const templateRegistrationOptionTitle = (
     (option) => option.id === registrationOptionId,
   )?.title ?? 'Unknown registration option';
 
+export const templateEsnDiscountVisible = ({
+  discountedPrice,
+  esnEnabled,
+}: {
+  discountedPrice: null | number;
+  esnEnabled: boolean;
+}): boolean => esnEnabled && discountedPrice !== null;
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -67,15 +75,26 @@ export const templateRegistrationOptionTitle = (
   templateUrl: './template-details.component.html',
 })
 export class TemplateDetailsComponent {
+  private readonly rpc = AppRpc.injectClient();
+  protected readonly discountProvidersQuery = injectQuery(() =>
+    this.rpc.discounts.getTenantProviders.queryOptions(),
+  );
+  protected readonly esnEnabled = computed(() => {
+    if (!this.discountProvidersQuery.isSuccess()) return false;
+    const providers = this.discountProvidersQuery.data();
+    return (
+      providers.find((provider) => provider.type === 'esnCard')?.status ===
+      'enabled'
+    );
+  });
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faClock = faClock;
   protected readonly faClockFour = faClockFour;
+
   protected readonly faEllipsisVertical = faEllipsisVertical;
   protected readonly faPlus = faPlus;
   protected readonly registrationModeLabel = registrationModeLabel;
-
   protected readonly registrationOptionTitle = templateRegistrationOptionTitle;
-  private readonly rpc = AppRpc.injectClient();
   protected readonly taxRatesQuery = injectQuery(() =>
     this.rpc.taxRates.listActive.queryOptions(),
   );
@@ -85,8 +104,10 @@ export class TemplateDetailsComponent {
       : [];
     return Object.fromEntries(rates.map((r) => [r.stripeTaxRateId, r]));
   });
+
   protected readonly templateAddonPurchaseTiming = templateAddonPurchaseTiming;
 
+  protected readonly templateEsnDiscountVisible = templateEsnDiscountVisible;
   protected readonly templateId = input.required<string>();
 
   protected readonly templateQuery = injectQuery(() =>

@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   templateAddonPurchaseTiming,
+  templateEsnDiscountVisible,
   templateRegistrationOptionTitle,
 } from './template-details.component';
 
@@ -42,6 +43,27 @@ const createTemplate = (): TemplateFindOneRecord => ({
 });
 
 describe('template detail add-on helpers', () => {
+  it('shows ESNcard template discounts only when the tenant provider is enabled', () => {
+    expect(
+      templateEsnDiscountVisible({
+        discountedPrice: 1200,
+        esnEnabled: true,
+      }),
+    ).toBe(true);
+    expect(
+      templateEsnDiscountVisible({
+        discountedPrice: 1200,
+        esnEnabled: false,
+      }),
+    ).toBe(false);
+    expect(
+      templateEsnDiscountVisible({
+        discountedPrice: null,
+        esnEnabled: true,
+      }),
+    ).toBe(false);
+  });
+
   it('formats enabled purchase timing windows', () => {
     expect(
       templateAddonPurchaseTiming({

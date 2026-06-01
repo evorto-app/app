@@ -89,6 +89,36 @@ describe('stabilization source', () => {
     expect(source).toContain('generic fallback legal copy');
   });
 
+  it('keeps ESNcard template pricing behind the tenant provider', () => {
+    const source = readSource('STABILIZATION.md');
+    const product = readSource('PRODUCT.md');
+    const templateDetails = readSource(
+      'src/app/templates/template-details/template-details.component.ts',
+    );
+    const templateDetailsTemplate = readSource(
+      'src/app/templates/template-details/template-details.component.html',
+    );
+    const templateDetailsSpec = readSource(
+      'src/app/templates/template-details/template-details.component.spec.ts',
+    );
+
+    expect(product).toContain(
+      'ESN-card behavior should be opt-in because not every tenant is an ESN section.',
+    );
+    expect(product).toContain('- hard-coded ESN-only assumptions');
+    expect(templateDetails).toContain('templateEsnDiscountVisible');
+    expect(templateDetails).toContain(
+      "provider.type === 'esnCard')?.status ===",
+    );
+    expect(templateDetailsTemplate).toContain('esnEnabled: esnEnabled()');
+    expect(templateDetailsSpec).toContain(
+      'shows ESNcard template discounts only when the tenant provider is enabled',
+    );
+    expect(source).toContain(
+      'shows them on template detail only while the current tenant ESNcard provider is enabled',
+    );
+  });
+
   it('keeps the review status honest about the event archival data-model blocker', () => {
     const source = readSource('STABILIZATION.md');
     const product = readSource('PRODUCT.md');
