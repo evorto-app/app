@@ -20,6 +20,7 @@ export class User extends Schema.Class<User>('User')({
   communicationEmail: OptionalString,
   email: Schema.NonEmptyString,
   firstName: Schema.NonEmptyString,
+  homeTenantId: OptionalString,
   iban: OptionalString,
   id: Schema.NonEmptyString,
   lastName: Schema.NonEmptyString,

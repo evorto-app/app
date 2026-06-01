@@ -103,6 +103,7 @@ test('creates tenant account for a new Auth0 user @needs-auth0-management', asyn
       communicationEmail: newUser.email,
       email: newUser.email,
       firstName: newUser.firstName,
+      homeTenantId: tenant.id,
       lastName: newUser.lastName,
     });
 

@@ -8,6 +8,7 @@ import {
   profileEventDetailActionLabel,
   profileEventGuestLabel,
   profileEventNextStepLabel,
+  profileHomeTenantWarning,
   profileReceiptAmountLabel,
   profileReceiptStatusLabel,
   profileSectionFromFragment,
@@ -25,6 +26,27 @@ import {
 } from './user-profile.esn-card';
 
 describe('profile event labels', () => {
+  it('warns only when the current tenant differs from the user home tenant', () => {
+    expect(
+      profileHomeTenantWarning({
+        currentTenantId: 'tenant-1',
+        homeTenantId: 'tenant-1',
+      }),
+    ).toBeNull();
+    expect(
+      profileHomeTenantWarning({
+        currentTenantId: 'tenant-2',
+        homeTenantId: 'tenant-1',
+      }),
+    ).toBe('You are browsing a tenant that is not your home tenant.');
+    expect(
+      profileHomeTenantWarning({
+        currentTenantId: 'tenant-2',
+        homeTenantId: null,
+      }),
+    ).toBeNull();
+  });
+
   it('labels the event-details action without claiming profile ticket handling', () => {
     expect(profileEventDetailActionLabel()).toBe('Open event page');
   });

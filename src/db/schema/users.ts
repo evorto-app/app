@@ -35,6 +35,7 @@ export const users = pgTable(
     createdAt: timestamp().notNull().defaultNow(),
     email: text().notNull(),
     firstName: text().notNull(),
+    homeTenantId: varchar({ length: 20 }).references(() => tenants.id),
     iban: text(),
     id: varchar({ length: 20 })
       .$defaultFn(() => createId())

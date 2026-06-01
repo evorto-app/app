@@ -197,6 +197,7 @@ If the same global login already exists for another tenant, this step joins the 
       communicationEmail: newUser.email,
       email: newUser.email,
       firstName: newUser.firstName,
+      homeTenantId: tenant.id,
       lastName: newUser.lastName,
     });
 

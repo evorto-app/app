@@ -41,6 +41,7 @@ const createUser = () => ({
   communicationEmail: 'notify@example.com',
   email: 'alice@example.com',
   firstName: 'Alice',
+  homeTenantId: 'tenant-1',
   iban: null,
   id: 'user-1',
   lastName: 'Doe',
@@ -131,6 +132,7 @@ describe('userHandlers', () => {
               communicationEmail: 'notify@example.com',
               email: 'alice@example.com',
               firstName: 'Alice',
+              homeTenantId: 'tenant-1',
               lastName: 'Doe',
             },
           },
@@ -163,6 +165,7 @@ describe('userHandlers', () => {
     () =>
       Effect.gen(function* () {
         const inserts: unknown[] = [];
+        const updates: unknown[] = [];
         const tx = {
           insert: (table: unknown) => ({
             values: (value: unknown) => {
@@ -188,6 +191,14 @@ describe('userHandlers', () => {
               findFirst: () => Effect.succeed(null),
             },
           },
+          update: (table: unknown) => ({
+            set: (value: unknown) => ({
+              where: (where: unknown) => {
+                updates.push({ table, value, where });
+                return Effect.void;
+              },
+            }),
+          }),
         };
         const database = {
           transaction: (callback: (tx: typeof tx) => unknown) => callback(tx),
@@ -211,6 +222,11 @@ describe('userHandlers', () => {
             },
           },
         ]);
+        expect(updates).toHaveLength(1);
+        expect(updates[0]).toMatchObject({
+          table: users,
+          value: { homeTenantId: 'tenant-1' },
+        });
       }),
   );
 

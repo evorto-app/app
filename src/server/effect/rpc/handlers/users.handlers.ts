@@ -5,7 +5,7 @@ import {
   RpcUnauthorizedError,
 } from '@shared/errors/rpc-errors';
 import { UserConflictError } from '@shared/rpc-contracts/app-rpcs/users.errors';
-import { and, count, eq, ilike, inArray } from 'drizzle-orm';
+import { and, count, eq, ilike, inArray, isNull } from 'drizzle-orm';
 import { Effect, Schema } from 'effect';
 
 import type { AppRpcHandlers } from './shared/handler-types';
@@ -191,6 +191,7 @@ export const userHandlers = {
                     communicationEmail: input.communicationEmail,
                     email,
                     firstName: input.firstName,
+                    homeTenantId: tenant.id,
                     lastName: input.lastName,
                   })
                   .returning({
@@ -222,6 +223,13 @@ export const userHandlers = {
                     message: 'User account already exists',
                   }),
                 );
+              }
+
+              if (existingUser) {
+                yield* tx
+                  .update(users)
+                  .set({ homeTenantId: tenant.id })
+                  .where(and(eq(users.id, userId), isNull(users.homeTenantId)));
               }
 
               const defaultUserRoles = yield* tx.query.roles.findMany({

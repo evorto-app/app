@@ -309,6 +309,10 @@ export const relations = defineRelations(schema, (r) => ({
     financeReceipts_submittedByUserId: r.many.financeReceipts({
       alias: 'financeReceipts_submittedByUserId_users_id',
     }),
+    homeTenant: r.one.tenants({
+      from: r.users.homeTenantId,
+      to: r.tenants.id,
+    }),
     tenantAssignments: r.many.usersToTenants(),
     tenants: r.many.tenants(),
     transactions_executiveUserId: r.many.transactions({

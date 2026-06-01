@@ -28,6 +28,7 @@ import {
   faReceipt,
   faRightFromBracket,
   faTags,
+  faTriangleExclamation,
   faUser,
 } from '@fortawesome/duotone-regular-svg-icons';
 import {
@@ -39,6 +40,7 @@ import { firstValueFrom } from 'rxjs';
 
 import type { User } from '../../../types/custom/user';
 
+import { ConfigService } from '../../core/config.service';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
@@ -234,6 +236,27 @@ export const profileSectionFromFragment = (
   return 'overview';
 };
 
+export const profileHomeTenantWarning = ({
+  currentTenantId,
+  homeTenantId,
+}: {
+  currentTenantId: string;
+  homeTenantId?: null | string | undefined;
+}): null | string => {
+  const normalizedCurrentTenantId = currentTenantId.trim();
+  const normalizedHomeTenantId = homeTenantId?.trim();
+
+  if (
+    !normalizedCurrentTenantId ||
+    !normalizedHomeTenantId ||
+    normalizedCurrentTenantId === normalizedHomeTenantId
+  ) {
+    return null;
+  }
+
+  return 'You are browsing a tenant that is not your home tenant.';
+};
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -299,6 +322,7 @@ export class UserProfileComponent {
   protected readonly faReceipt = faReceipt;
   protected readonly faRightFromBracket = faRightFromBracket;
   protected readonly faTags = faTags;
+  protected readonly faTriangleExclamation = faTriangleExclamation;
   protected readonly faUser = faUser;
   protected readonly myCardsQuery = injectQuery(() =>
     this.rpc.discounts.getMyCards.queryOptions(),
@@ -323,18 +347,25 @@ export class UserProfileComponent {
     profileEventDetailActionLabel;
   protected readonly profileEventGuestLabel = profileEventGuestLabel;
   protected readonly profileEventNextStepLabel = profileEventNextStepLabel;
-  protected readonly profileReceiptAmountLabel = profileReceiptAmountLabel;
-  protected readonly profileReceiptStatusLabel = profileReceiptStatusLabel;
   protected readonly userQuery = injectQuery(() =>
     this.rpc.users.self.queryOptions(),
   );
-
   private readonly profileUserOverride = signal<null | User>(null);
   protected readonly profileUser = computed(
     () =>
       this.profileUserOverride() ??
       (this.userQuery.isSuccess() ? this.userQuery.data() : undefined),
   );
+  private readonly config = inject(ConfigService);
+
+  protected readonly profileHomeTenantWarning = computed(() =>
+    profileHomeTenantWarning({
+      currentTenantId: this.config.tenant.id,
+      homeTenantId: this.profileUser()?.homeTenantId,
+    }),
+  );
+  protected readonly profileReceiptAmountLabel = profileReceiptAmountLabel;
+  protected readonly profileReceiptStatusLabel = profileReceiptStatusLabel;
   protected readonly refreshCardMutation = injectMutation(() =>
     this.rpc.discounts.refreshMyCard.mutationOptions(),
   );
@@ -352,10 +383,10 @@ export class UserProfileComponent {
   protected readonly upsertCardMutation = injectMutation(() =>
     this.rpc.discounts.upsertMyCard.mutationOptions(),
   );
+
   protected readonly userEventsQuery = injectQuery(() =>
     this.rpc.users.events.queryOptions(),
   );
-
   private readonly dialog = inject(MatDialog);
   private readonly notifications = inject(NotificationService);
 

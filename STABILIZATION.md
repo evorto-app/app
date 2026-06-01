@@ -14,7 +14,7 @@ and useful for small cleanup batches.
 | Roles and permissions                           | Stabilized | high       | Route denial, role lookup, role management, permission metadata, tenant isolation, and user-list deferral are pinned by source, unit, spec, and docs coverage.                                                                                                 |
 | Finance/receipts                                | Blocked    | high       | Finance navigation, transaction visibility, receipt review, reimbursement recording, receipt submission, and refund boundaries have deterministic coverage; receipt-reviewed email notification still needs delivery implementation.                           |
 | Scanning/check-in                               | Stabilized | high       | QR scanner reads, selected guest check-in, later guest arrival, idempotent counters, and organizer aggregates are covered by specs/docs against Docker.                                                                                                        |
-| Profile/account flows                           | Blocked    | high       | Profile edit, event cards, receipts, account creation contracts, seeded ESNcard behavior, deterministic ESNcard provider outcomes, and Browser discount-card UX are covered; home-tenant warning support is not implemented yet.                               |
+| Profile/account flows                           | Blocked    | high       | Profile edit, event cards, receipts, account creation contracts, seeded ESNcard behavior, deterministic ESNcard provider outcomes, and Browser discount-card UX are covered; Browser verification for home-tenant warning is still pending.                    |
 | Tenant/global admin                             | Blocked    | high       | Tenant settings and global-admin list/detail/create/edit have coverage for the implemented surface; tenant operations-policy settings for email sender, review policy, registration limits, and tenant-admin Stripe account management remain deferred.        |
 | Generated documentation and Playwright coverage | Stabilized | high       | Docs/spec inventory, skip gates, source guards, list mode, and generated-doc runtime flows are current and fail loudly for known fixture gaps.                                                                                                                 |
 | Local runtime/developer workflow                | Stabilized | high       | Docker, env preflight, CI, Font Awesome token paths, and the first in-app Browser queue pass are healthy; repeat Browser review uses generated `BASE_URL`.                                                                                                     |
@@ -1279,10 +1279,11 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** profile edit now shares one tested
   update-pending guard between the Edit profile button and handler, so a
   profile update in flight cannot open another edit dialog on slow networks.
-- **Should fix before relaunch:** `PRODUCT.md` and the product-decision draft
-  both point to one home tenant per global user with a warning when the current
-  tenant differs. The current `users` schema has no home-tenant field and the
-  profile/app shell does not render a cross-tenant warning yet.
+- **Addressed in stabilization pass:** `PRODUCT.md` and the product-decision
+  draft both point to one home tenant per global user with a warning when the
+  current tenant differs. Account creation now records a user's first tenant as
+  `homeTenantId`, assigns it for existing global users that do not have one yet,
+  and profile renders a warning when the current tenant differs.
 - **Addressed in stabilization pass:** ESNcard save, refresh, and remove actions now clear stale errors, show visible pending button states, and map mutation failures through `getErrorMessage(...)` instead of rendering raw error objects.
 - **Addressed in this stabilization pass:** ESNcard save, refresh, and remove actions now share one in-flight guard so slow validation, refresh, or removal requests cannot overlap with another profile discount-card write.
 - **Addressed in this stabilization pass:** profile discount-card rows now render readable ESNcard status labels instead of raw persisted status values.
@@ -3188,11 +3189,11 @@ Browser-backed stabilization placeholders. Registration lifecycle email
 notifications and receipt-reviewed email notification remain relaunch blockers
 because `PRODUCT.md` lists them as in scope and the current implementation has
 no server mail delivery service; receipt review currently records the status
-locally with explicit manual submitter-notification copy. Profile/account also
-remains blocked on the home-tenant warning model from `PRODUCT.md`; current
-account creation supports multi-tenant membership but does not persist a home
-tenant or warn when the current tenant differs. Tenant/global admin remains
-blocked on tenant operations-policy settings because `PRODUCT.md` lists email
+locally with explicit manual submitter-notification copy. Profile/account
+home-tenant data model and profile warning UI are implemented, but the
+home-tenant warning still needs Browser verification once the local Docker
+runtime is healthy. Tenant/global admin remains blocked on tenant
+operations-policy settings because `PRODUCT.md` lists email
 sender, review/publishing workflow settings, registration limits, and tenant
 payment settings as customization scope, while the current tenant-admin surface
 only exposes those settings as deferred operations-policy copy.

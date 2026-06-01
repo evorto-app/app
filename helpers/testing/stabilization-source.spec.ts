@@ -343,9 +343,12 @@ describe('stabilization source', () => {
     );
   });
 
-  it('keeps the review status honest about the home-tenant warning blocker', () => {
+  it('keeps the review status honest about the home-tenant warning support', () => {
     const source = readSource('STABILIZATION.md');
     const product = readSource('PRODUCT.md');
+    const profileComponent = readSource(
+      'src/app/profile/user-profile/user-profile.component.ts',
+    );
     const usersSchema = readSource('src/db/schema/users.ts');
     const statusTable = readSection(
       source,
@@ -356,15 +359,20 @@ describe('stabilization source', () => {
     expect(product).toContain(
       'A user should ideally have a home tenant so the app can warn when they are browsing a tenant that is not where they usually belong.',
     );
-    expect(usersSchema).not.toMatch(/homeTenant|home_tenant/u);
+    expect(usersSchema).toMatch(
+      /homeTenantId.*references\(\(\) => tenants\.id/u,
+    );
+    expect(profileComponent).toContain('profileHomeTenantWarning');
     expect(statusTable).toContain('| Profile/account flows');
     expect(statusTable).toContain('| Blocked');
-    expect(statusTable).toContain('home-tenant warning support');
+    expect(statusTable).toContain(
+      'Browser verification for home-tenant warning',
+    );
     expect(source).toContain(
-      'The current `users` schema has no home-tenant field',
+      'home-tenant data model and profile warning UI are implemented',
     );
     expect(source).toMatch(
-      /does not persist a home\s+tenant or warn when the current tenant differs/u,
+      /home-tenant warning still needs\s+Browser verification once the local Docker\s+runtime is healthy/u,
     );
   });
 
