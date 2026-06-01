@@ -15,6 +15,25 @@ export const stripeConfig = Config.all({
 
 export type StripeConfig = Config.Success<typeof stripeConfig>;
 
+const isMissingFileError = (cause: unknown): boolean =>
+  cause instanceof Error && 'code' in cause && cause.code === 'ENOENT';
+
+const readWebhookSecretFile = (filePath: string) =>
+  Effect.tryPromise({
+    catch: (cause) =>
+      new Error(`Failed to read STRIPE_WEBHOOK_SECRET_FILE ${filePath}`, {
+        cause: cause instanceof Error ? cause : new Error(String(cause)),
+      }),
+    try: () => fs.readFile(filePath, 'utf8'),
+  }).pipe(
+    Effect.map((value) => value.trim()),
+    Effect.flatMap((value) =>
+      value.length > 0
+        ? Effect.succeed(value)
+        : Effect.fail(missingFieldError('STRIPE_WEBHOOK_SECRET_FILE')),
+    ),
+  );
+
 export const stripeApiConfig = Effect.gen(function* () {
   const config = yield* stripeConfig;
 
@@ -30,25 +49,21 @@ export const stripeApiConfig = Effect.gen(function* () {
 export const stripeWebhookConfig = Effect.gen(function* () {
   const config = yield* stripeConfig;
 
+  const environmentWebhookSecret = () =>
+    Option.match(config.STRIPE_WEBHOOK_SECRET, {
+      onNone: () => Effect.fail(missingFieldError('STRIPE_WEBHOOK_SECRET')),
+      onSome: Effect.succeed,
+    });
+
   const webhookSecret = yield* Option.match(config.STRIPE_WEBHOOK_SECRET_FILE, {
-    onNone: () =>
-      Option.match(config.STRIPE_WEBHOOK_SECRET, {
-        onNone: () => Effect.fail(missingFieldError('STRIPE_WEBHOOK_SECRET')),
-        onSome: Effect.succeed,
-      }),
+    onNone: environmentWebhookSecret,
     onSome: (filePath) =>
-      Effect.tryPromise({
-        catch: (cause) =>
-          new Error(`Failed to read STRIPE_WEBHOOK_SECRET_FILE ${filePath}`, {
-            cause: cause instanceof Error ? cause : new Error(String(cause)),
-          }),
-        try: () => fs.readFile(filePath, 'utf8'),
-      }).pipe(
-        Effect.map((value) => value.trim()),
-        Effect.flatMap((value) =>
-          value.length > 0
-            ? Effect.succeed(value)
-            : Effect.fail(missingFieldError('STRIPE_WEBHOOK_SECRET_FILE')),
+      readWebhookSecretFile(filePath).pipe(
+        Effect.catchIf(
+          (error) =>
+            isMissingFileError(error.cause) &&
+            Option.isSome(config.STRIPE_WEBHOOK_SECRET),
+          environmentWebhookSecret,
         ),
       ),
   });

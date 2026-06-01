@@ -50,4 +50,20 @@ describe('stripeWebhookConfig', () => {
       expect(config.STRIPE_WEBHOOK_SECRET).toBe('whsec_generated');
     }),
   );
+
+  it.effect(
+    'falls back to environment secret when configured file is absent',
+    () =>
+      Effect.gen(function* () {
+        const config = yield* readStripeWebhookConfig([
+          ['STRIPE_WEBHOOK_SECRET', 'whsec_static'],
+          [
+            'STRIPE_WEBHOOK_SECRET_FILE',
+            path.join(os.tmpdir(), 'missing-stripe-signing-secret'),
+          ],
+        ]);
+
+        expect(config.STRIPE_WEBHOOK_SECRET).toBe('whsec_static');
+      }),
+  );
 });
