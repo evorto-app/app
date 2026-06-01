@@ -17,7 +17,10 @@ import {
 } from '../../../../../shared/rpc-contracts/app-rpcs';
 import { StripeClient } from '../../../../stripe-client';
 import { RpcAccess } from '../shared/rpc-access.service';
-import { eventRegistrationHandlers } from './events-registration.handlers';
+import {
+  buildRegistrationTransferredEmailNotification,
+  eventRegistrationHandlers,
+} from './events-registration.handlers';
 
 const tenant = {
   currency: 'EUR' as const,
@@ -207,6 +210,7 @@ const createTransferDatabase = ({
     checkInTime: null,
     event: {
       start: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      title: 'City tour',
     },
     eventId: 'event-1',
     id: 'registration-1',
@@ -220,7 +224,12 @@ const createTransferDatabase = ({
     id: 'target-tenant-user-1',
     roles: [{ id: 'participant-role-1' }],
   },
-  targetUser = { id: 'target-user-1' },
+  targetUser = {
+    communicationEmail: 'notify-target@example.com',
+    email: 'target@example.com',
+    firstName: 'Target',
+    id: 'target-user-1',
+  },
 }: {
   existingTargetRegistration?: null | { id: string };
   organizerRegistrations?: readonly {
@@ -231,7 +240,7 @@ const createTransferDatabase = ({
   }[];
   registration?: null | {
     checkInTime: Date | null;
-    event: null | { start: Date };
+    event: null | { start: Date; title: string };
     eventId: string;
     id: string;
     registrationOptionId: string;
@@ -245,9 +254,45 @@ const createTransferDatabase = ({
   };
   registrationOptionRoleIds?: string[];
   targetTenantUser?: null | { id: string; roles: readonly { id: string }[] };
-  targetUser?: null | { id: string };
+  targetUser?: null | {
+    communicationEmail: string;
+    email: string;
+    firstName: string;
+    id: string;
+  };
 } = {}) => {
+  let insertedNotification: unknown;
   const updateSets: unknown[] = [];
+  const insertQuery = {
+    values: (values: unknown) => {
+      insertedNotification = values;
+      return Effect.succeed();
+    },
+  };
+  const updateQuery = (table: unknown) => ({
+    set: (values: unknown) => {
+      updateSets.push(values);
+      return {
+        where: () => ({
+          returning: () => {
+            if (table === eventRegistrations) {
+              return Effect.succeed([
+                {
+                  eventId: 'event-1',
+                  id: 'registration-1',
+                },
+              ]);
+            }
+            return Effect.succeed([]);
+          },
+        }),
+      };
+    },
+  });
+  const tx = {
+    insert: () => insertQuery,
+    update: updateQuery,
+  };
   const database = {
     query: {
       eventRegistrationOptions: {
@@ -299,9 +344,15 @@ const createTransferDatabase = ({
         };
       },
     }),
+    transaction: (run: (transaction: typeof tx) => Effect.Effect<unknown>) =>
+      run(tx),
   };
 
-  return { database, updateSets };
+  return {
+    database,
+    insertedNotification: () => insertedNotification,
+    updateSets,
+  };
 };
 
 const createTransferTargetsDatabase = ({
@@ -1071,6 +1122,30 @@ describe('event registration cancellation handlers', () => {
 });
 
 describe('event registration transfer handlers', () => {
+  it('builds transfer-completed email copy for the new registration owner', () => {
+    expect(
+      buildRegistrationTransferredEmailNotification({
+        eventTitle: 'City tour',
+        recipientFirstName: 'Target',
+        registrationId: 'registration-1',
+        tenantName: 'Tenant',
+      }),
+    ).toEqual({
+      payload: {
+        eventTitle: 'City tour',
+        registrationId: 'registration-1',
+      },
+      subject: 'Registration transferred for City tour',
+      textBody: [
+        'Hi Target,',
+        '',
+        'Tenant has transferred a registration for City tour to you.',
+        '',
+        'Open Evorto to view the registration details.',
+      ].join('\n'),
+    });
+  });
+
   it.effect(
     'returns eligible transfer targets for organizer-assisted transfer',
     () =>
@@ -1145,7 +1220,8 @@ describe('event registration transfer handlers', () => {
     'allows event organizers to transfer a confirmed unpaid registration to another tenant user',
     () =>
       Effect.gen(function* () {
-        const { database, updateSets } = createTransferDatabase();
+        const { database, insertedNotification, updateSets } =
+          createTransferDatabase();
 
         yield* eventRegistrationHandlers['events.transferEventRegistration'](
           {
@@ -1157,6 +1233,20 @@ describe('event registration transfer handlers', () => {
         ).pipe(Effect.provide(createContextLayer({ database })));
 
         expect(updateSets).toEqual([{ userId: 'target-user-1' }]);
+        expect(insertedNotification()).toEqual(
+          expect.objectContaining({
+            kind: 'registrationTransferred',
+            payload: {
+              eventId: 'event-1',
+              eventTitle: 'City tour',
+              registrationId: 'registration-1',
+            },
+            recipientEmail: 'notify-target@example.com',
+            recipientUserId: 'target-user-1',
+            subject: 'Registration transferred for City tour',
+            tenantId: 'tenant-1',
+          }),
+        );
       }),
   );
 

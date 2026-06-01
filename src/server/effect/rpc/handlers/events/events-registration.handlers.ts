@@ -30,6 +30,7 @@ import type { AppRpcHandlers } from '../shared/handler-types';
 
 import { Database } from '../../../../../db';
 import {
+  emailNotificationOutbox,
   eventAddons,
   eventRegistrationOptions,
   eventRegistrations,
@@ -75,6 +76,11 @@ const isWithinCheckInWindow = (eventStart: Date, now = new Date()): boolean =>
 const normalizeTransferTargetSearch = (search: string | undefined) =>
   search?.trim().toLowerCase() ?? '';
 
+const notificationEmailForUser = (user: {
+  communicationEmail: null | string;
+  email: string;
+}) => user.communicationEmail?.trim() || user.email;
+
 const hasSuccessfulPaidRegistrationTransaction = (
   transactionsToCheck: readonly {
     amount: number;
@@ -88,6 +94,31 @@ const hasSuccessfulPaidRegistrationTransaction = (
       transaction.status === 'successful' &&
       transaction.amount > 0,
   );
+
+export const buildRegistrationTransferredEmailNotification = ({
+  eventTitle,
+  recipientFirstName,
+  registrationId,
+  tenantName,
+}: {
+  eventTitle: string;
+  recipientFirstName: string;
+  registrationId: string;
+  tenantName: string;
+}) => ({
+  payload: {
+    eventTitle,
+    registrationId,
+  },
+  subject: `Registration transferred for ${eventTitle}`,
+  textBody: [
+    `Hi ${recipientFirstName},`,
+    '',
+    `${tenantName} has transferred a registration for ${eventTitle} to you.`,
+    '',
+    'Open Evorto to view the registration details.',
+  ].join('\n'),
+});
 
 const hasStripeRefundReference = (transaction: {
   stripeChargeId: null | string;
@@ -605,6 +636,7 @@ const transferEventRegistration = ({
           event: {
             columns: {
               start: true,
+              title: true,
             },
           },
           transactions: {
@@ -765,46 +797,98 @@ const transferEventRegistration = ({
       );
     }
 
-    const transferredRegistrations = yield* databaseEffect((database) => {
-      const targetRegistrations = alias(
-        eventRegistrations,
-        'target_registrations',
+    const targetUser = yield* databaseEffect((database) =>
+      database.query.users.findFirst({
+        columns: {
+          communicationEmail: true,
+          email: true,
+          firstName: true,
+          id: true,
+        },
+        where: {
+          id: targetUserId,
+        },
+      }),
+    );
+    if (!targetUser) {
+      return yield* Effect.fail(
+        new EventRegistrationNotFoundError({
+          message: 'Target user not found',
+        }),
       );
-      return database
-        .update(eventRegistrations)
-        .set({
-          userId: targetUserId,
-        })
-        .where(
-          and(
-            eq(eventRegistrations.id, registration.id),
-            eq(eventRegistrations.tenantId, tenant.id),
-            eq(eventRegistrations.status, 'CONFIRMED'),
-            not(eq(eventRegistrations.userId, targetUserId)),
-            notExists(
-              database
-                .select({ id: targetRegistrations.id })
-                .from(targetRegistrations)
-                .where(
-                  and(
-                    eq(targetRegistrations.tenantId, tenant.id),
-                    eq(targetRegistrations.eventId, registration.eventId),
-                    eq(targetRegistrations.userId, targetUserId),
-                    not(eq(targetRegistrations.status, 'CANCELLED')),
-                  ),
-                ),
-            ),
-            ...(requireOrganizerAccess
-              ? []
-              : [eq(eventRegistrations.userId, user.id)]),
-          ),
-        )
-        .returning({
-          id: eventRegistrations.id,
-        });
-    });
+    }
 
-    if (transferredRegistrations.length === 0) {
+    const transferredRegistration = yield* databaseEffect((database) =>
+      database.transaction((tx) =>
+        Effect.gen(function* () {
+          const targetRegistrations = alias(
+            eventRegistrations,
+            'target_registrations',
+          );
+          const transferredRegistrations = yield* tx
+            .update(eventRegistrations)
+            .set({
+              userId: targetUserId,
+            })
+            .where(
+              and(
+                eq(eventRegistrations.id, registration.id),
+                eq(eventRegistrations.tenantId, tenant.id),
+                eq(eventRegistrations.status, 'CONFIRMED'),
+                not(eq(eventRegistrations.userId, targetUserId)),
+                notExists(
+                  tx
+                    .select({ id: targetRegistrations.id })
+                    .from(targetRegistrations)
+                    .where(
+                      and(
+                        eq(targetRegistrations.tenantId, tenant.id),
+                        eq(targetRegistrations.eventId, registration.eventId),
+                        eq(targetRegistrations.userId, targetUserId),
+                        not(eq(targetRegistrations.status, 'CANCELLED')),
+                      ),
+                    ),
+                ),
+                ...(requireOrganizerAccess
+                  ? []
+                  : [eq(eventRegistrations.userId, user.id)]),
+              ),
+            )
+            .returning({
+              eventId: eventRegistrations.eventId,
+              id: eventRegistrations.id,
+            });
+          const transferred = transferredRegistrations[0];
+          if (!transferred) {
+            return null;
+          }
+
+          const notification = buildRegistrationTransferredEmailNotification({
+            eventTitle: registration.event.title,
+            recipientFirstName: targetUser.firstName,
+            registrationId: transferred.id,
+            tenantName: tenant.name,
+          });
+
+          yield* tx.insert(emailNotificationOutbox).values({
+            kind: 'registrationTransferred',
+            payload: {
+              ...notification.payload,
+              eventId: transferred.eventId,
+            },
+            recipientEmail: notificationEmailForUser(targetUser),
+            recipientUserId: targetUser.id,
+            subject: notification.subject,
+            tenantId: tenant.id,
+            textBody: notification.textBody,
+          });
+
+          return transferred;
+        }),
+      ),
+    );
+
+    if (!transferredRegistration) {
       return yield* Effect.fail(
         new EventRegistrationNotFoundError({
           message: 'Registration not found',

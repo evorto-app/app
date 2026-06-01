@@ -258,6 +258,12 @@ describe('stabilization source', () => {
     const outboxSchema = readSource(
       'src/db/schema/email-notification-outbox.ts',
     );
+    const registrationHandler = readSource(
+      'src/server/effect/rpc/handlers/events/events-registration.handlers.ts',
+    );
+    const registrationHandlerSpec = readSource(
+      'src/server/effect/rpc/handlers/events/events-registration.handlers.spec.ts',
+    );
     const serverSources = listFiles('src/server', '.ts')
       .map((sourceFile) => readSource(sourceFile))
       .join('\n');
@@ -279,20 +285,31 @@ describe('stabilization source', () => {
     expect(outboxSchema).toContain("'registrationCancelled'");
     expect(outboxSchema).toContain("'registrationTransferred'");
     expect(outboxSchema).toContain("'waitlistSpotAvailable'");
+    expect(registrationHandler).toContain(
+      'buildRegistrationTransferredEmailNotification',
+    );
+    expect(registrationHandler).toContain('emailNotificationOutbox');
+    expect(registrationHandler).toContain("'registrationTransferred'");
+    expect(registrationHandlerSpec).toContain(
+      'builds transfer-completed email copy for the new registration owner',
+    );
     expect(`${serverSources}\n${packageJson}`).not.toMatch(
       /send(?:Mail|Email)|smtp|resend|mailgun|postmark|nodemailer|aws.*ses|EmailService|MailService/u,
     );
     expect(statusTable).toContain('| Registrations');
     expect(statusTable).toContain('| Blocked');
-    expect(statusTable).toContain('registration notification emails');
-    expect(source).toMatch(
-      /The current server has\s+no mail delivery service or registration lifecycle email side effects yet/u,
+    expect(statusTable).toContain('transfer-completed email outbox records');
+    expect(statusTable).toContain(
+      'registration confirmation/cancellation/waitlist email side effects',
     );
     expect(source).toMatch(
-      /Registration lifecycle email\s+notifications remain relaunch blockers/u,
+      /unpaid registration transfer now writes\s+a tenant-scoped `registrationTransferred` email outbox record/u,
     );
     expect(source).toMatch(
-      /current implementation has no registration lifecycle email side\s+effects yet/u,
+      /Those registration lifecycle side effects, plus\s+provider dispatch\/retry for email outbox records, still need implementation/u,
+    );
+    expect(source).toMatch(
+      /Registration confirmation,\s+cancellation, waitlist spot-available, and provider dispatch\/retry remain\s+relaunch blockers/u,
     );
   });
 
