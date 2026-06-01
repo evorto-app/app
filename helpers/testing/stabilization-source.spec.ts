@@ -37,6 +37,24 @@ const readSection = (source: string, heading: string, nextHeading: string) => {
 };
 
 describe('stabilization source', () => {
+  it('keeps the review status honest about the paid transfer relaunch blocker', () => {
+    const source = readSource('STABILIZATION.md');
+    const statusTable = readSection(
+      source,
+      'Review Status',
+      'Product Decision Draft',
+    );
+
+    expect(statusTable).toContain('| Registrations');
+    expect(statusTable).toContain('| Blocked');
+    expect(statusTable).toContain('unpaid transfer boundaries');
+    expect(statusTable).toContain('paid transfer/resale still needs');
+    expect(statusTable).toContain('settlement-model decision before relaunch');
+    expect(statusTable).not.toContain(
+      'Free/paid registration, guests, add-ons, waitlist, negative states, cancellation/refund, and transfer boundaries have server, app, spec, and docs coverage.',
+    );
+  });
+
   it('keeps the Browser review queue aligned with repeat manual app-flow review', () => {
     const source = readSource('STABILIZATION.md');
     const queue = readSection(source, 'Browser Review Queue', 'Review Next');
