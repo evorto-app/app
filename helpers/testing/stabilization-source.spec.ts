@@ -80,6 +80,31 @@ describe('stabilization source', () => {
     );
   });
 
+  it('keeps the review status honest about the home-tenant warning blocker', () => {
+    const source = readSource('STABILIZATION.md');
+    const product = readSource('PRODUCT.md');
+    const usersSchema = readSource('src/db/schema/users.ts');
+    const statusTable = readSection(
+      source,
+      'Review Status',
+      'Product Decision Draft',
+    );
+
+    expect(product).toContain(
+      'A user should ideally have a home tenant so the app can warn when they are browsing a tenant that is not where they usually belong.',
+    );
+    expect(usersSchema).not.toMatch(/homeTenant|home_tenant/u);
+    expect(statusTable).toContain('| Profile/account flows');
+    expect(statusTable).toContain('| Blocked');
+    expect(statusTable).toContain('home-tenant warning support');
+    expect(source).toContain(
+      'The current `users` schema has no home-tenant field',
+    );
+    expect(source).toMatch(
+      /does not persist a home tenant or warn when the\s+current tenant differs/u,
+    );
+  });
+
   it('keeps the Browser review queue aligned with repeat manual app-flow review', () => {
     const source = readSource('STABILIZATION.md');
     const queue = readSection(source, 'Browser Review Queue', 'Review Next');

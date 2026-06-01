@@ -14,7 +14,7 @@ and useful for small cleanup batches.
 | Roles and permissions                           | Stabilized | high       | Route denial, role lookup, role management, permission metadata, tenant isolation, and user-list deferral are pinned by source, unit, spec, and docs coverage.                                                                           |
 | Finance/receipts                                | Blocked    | high       | Finance navigation, transaction visibility, receipt review, reimbursement recording, receipt submission, and refund boundaries have deterministic coverage; receipt-reviewed email notification still needs delivery implementation.     |
 | Scanning/check-in                               | Stabilized | high       | QR scanner reads, selected guest check-in, later guest arrival, idempotent counters, and organizer aggregates are covered by specs/docs against Docker.                                                                                  |
-| Profile/account flows                           | Stabilized | high       | Profile edit, event cards, receipts, account creation contracts, seeded ESNcard behavior, deterministic ESNcard provider outcomes, and Browser discount-card UX are covered.                                                             |
+| Profile/account flows                           | Blocked    | high       | Profile edit, event cards, receipts, account creation contracts, seeded ESNcard behavior, deterministic ESNcard provider outcomes, and Browser discount-card UX are covered; home-tenant warning support is not implemented yet.         |
 | Tenant/global admin                             | Stabilized | high       | Tenant settings and global-admin list/detail/create/edit are covered by functional specs/source guards; custom-domain automation remains deferred.                                                                                       |
 | Generated documentation and Playwright coverage | Stabilized | high       | Docs/spec inventory, skip gates, source guards, list mode, and generated-doc runtime flows are current and fail loudly for known fixture gaps.                                                                                           |
 | Local runtime/developer workflow                | Stabilized | high       | Docker, env preflight, CI, Font Awesome token paths, and the first in-app Browser queue pass are healthy; repeat Browser review uses generated `BASE_URL`.                                                                               |
@@ -1244,6 +1244,10 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** profile edit now shares one tested
   update-pending guard between the Edit profile button and handler, so a
   profile update in flight cannot open another edit dialog on slow networks.
+- **Should fix before relaunch:** `PRODUCT.md` and the product-decision draft
+  both point to one home tenant per global user with a warning when the current
+  tenant differs. The current `users` schema has no home-tenant field and the
+  profile/app shell does not render a cross-tenant warning yet.
 - **Addressed in stabilization pass:** ESNcard save, refresh, and remove actions now clear stale errors, show visible pending button states, and map mutation failures through `getErrorMessage(...)` instead of rendering raw error objects.
 - **Addressed in this stabilization pass:** ESNcard save, refresh, and remove actions now share one in-flight guard so slow validation, refresh, or removal requests cannot overlap with another profile discount-card write.
 - **Addressed in this stabilization pass:** profile discount-card rows now render readable ESNcard status labels instead of raw persisted status values.
@@ -1360,7 +1364,7 @@ the current working direction until a product decision overrides them.
 ### Product Questions Answered Above
 
 - Should a previously known global user be able to join a tenant automatically after Auth0 login, or should tenant joining require an invite/admin approval flow? Current implementation follows the automatic tenant-join direction for authenticated users who reach account creation.
-- What is the intended home-tenant model, and should profile expose or warn about current tenant vs home tenant?
+- What is the intended home-tenant model, and should profile expose or warn about current tenant vs home tenant? Answered locally: the intended model is one home tenant per global user plus a warning when the current tenant differs, but persistence and UI warning support are not implemented yet.
 - Is `communicationEmail` a user-managed notification email, and should it differ from Auth0 login email?
 - Are payout details global per person or tenant-specific per reimbursement context? Current implementation follows the global-per-person direction for relaunch.
 - Are ESNcard records intended to be global per user, tenant-specific, or shared globally by card identifier? Current implementation follows the global-per-user direction while still requiring the current tenant to have ESNcard support enabled before managing or applying the card.
@@ -3135,4 +3139,7 @@ skips/fixmes should be added only as explicit credential gates or honest
 Browser-backed stabilization placeholders. Receipt-reviewed email notification
 remains a relaunch blocker because `PRODUCT.md` lists it as in scope and the
 current implementation only records receipt review locally with explicit manual
-submitter-notification copy.
+submitter-notification copy. Profile/account also remains blocked on the
+home-tenant warning model from `PRODUCT.md`; current account creation supports
+multi-tenant membership but does not persist a home tenant or warn when the
+current tenant differs.
