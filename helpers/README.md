@@ -75,7 +75,7 @@ This will:
 
 The Neon Local container does not emit every proxied query in its default logging configuration, so `docker logs` staying quiet during `db:reset` does not mean the reset missed Docker.
 
-Docker Compose now also runs a one-shot `db-setup` container before `evorto` starts. That service runs the equivalent of `bun run db:reset` against the Docker database on every stack start, and local Neon branches are configured to be deleted automatically on shutdown. The package scripts preload the needed environment with `dotenv -c dev` before invoking Docker.
+Docker Compose now also runs one-shot `db-expiration` and `db-setup` containers before `evorto` starts. Neon Local still receives `DELETE_BRANCH=true` so normal `docker compose down` deletes the branch, and `db-expiration` immediately sets a short Neon branch expiration as a fallback for interrupted local or CI shutdowns. `db-setup` then runs the equivalent of `bun run db:reset` against that Docker database on every stack start. The package scripts preload the needed environment with `dotenv -c dev` before invoking Docker.
 
 Testing/runtime context that depends on these seed flows lives in [tests/README.md](../tests/README.md).
 

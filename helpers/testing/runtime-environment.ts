@@ -94,6 +94,7 @@ const runtimeEnvironment = {
   MINIO_CONSOLE_HOST_PORT: String(minioConsoleHostPort),
   MINIO_HOST_PORT: String(minioHostPort),
   NEON_DATABASE_NAME: databaseName,
+  NEON_LOCAL_BRANCH_TTL_HOURS: '24',
   NEON_LOCAL_HOST_PORT: String(neonLocalHostPort),
   NEON_LOCAL_PROXY: 'true',
 } as const;
