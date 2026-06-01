@@ -6,18 +6,18 @@ and useful for small cleanup batches.
 
 ## Review Status
 
-| Area                                            | Status     | Confidence | Notes                                                                                                                                                                                                                |
-| ----------------------------------------------- | ---------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Events                                          | Stabilized | high       | Docker-backed specs/docs cover browsing, creation, management, unlisted visibility, registration state, price labels, scanner handoff, and refund copy.                                                              |
-| Registrations                                   | Blocked    | high       | Free/paid registration, guests, add-ons, waitlist, negative states, cancellation/refund, and unpaid transfer boundaries have coverage; paid transfer/resale still needs a settlement-model decision before relaunch. |
-| Templates                                       | Stabilized | high       | Simple-mode templates now cover planning tips, ESNcard discounts, reusable add-ons/questions, role pickers, tax-rate behavior, and event creation copy paths.                                                        |
-| Roles and permissions                           | Stabilized | high       | Route denial, role lookup, role management, permission metadata, tenant isolation, and user-list deferral are pinned by source, unit, spec, and docs coverage.                                                       |
-| Finance/receipts                                | Stabilized | high       | Finance navigation, transaction visibility, receipt review, reimbursement recording, receipt submission, and refund boundaries have deterministic coverage.                                                          |
-| Scanning/check-in                               | Stabilized | high       | QR scanner reads, selected guest check-in, later guest arrival, idempotent counters, and organizer aggregates are covered by specs/docs against Docker.                                                              |
-| Profile/account flows                           | Stabilized | high       | Profile edit, event cards, receipts, account creation contracts, seeded ESNcard behavior, deterministic ESNcard provider outcomes, and Browser discount-card UX are covered.                                         |
-| Tenant/global admin                             | Stabilized | high       | Tenant settings and global-admin list/detail/create/edit are covered by functional specs/source guards; custom-domain automation remains deferred.                                                                   |
-| Generated documentation and Playwright coverage | Stabilized | high       | Docs/spec inventory, skip gates, source guards, list mode, and generated-doc runtime flows are current and fail loudly for known fixture gaps.                                                                       |
-| Local runtime/developer workflow                | Stabilized | high       | Docker, env preflight, CI, Font Awesome token paths, and the first in-app Browser queue pass are healthy; repeat Browser review uses generated `BASE_URL`.                                                           |
+| Area                                            | Status     | Confidence | Notes                                                                                                                                                                                                                                    |
+| ----------------------------------------------- | ---------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Events                                          | Stabilized | high       | Docker-backed specs/docs cover browsing, creation, management, unlisted visibility, registration state, price labels, scanner handoff, and refund copy.                                                                                  |
+| Registrations                                   | Blocked    | high       | Free/paid registration, guests, add-ons, waitlist, negative states, cancellation/refund, and unpaid transfer boundaries have coverage; paid transfer/resale still needs the Stripe Checkout replacement and refund flow before relaunch. |
+| Templates                                       | Stabilized | high       | Simple-mode templates now cover planning tips, ESNcard discounts, reusable add-ons/questions, role pickers, tax-rate behavior, and event creation copy paths.                                                                            |
+| Roles and permissions                           | Stabilized | high       | Route denial, role lookup, role management, permission metadata, tenant isolation, and user-list deferral are pinned by source, unit, spec, and docs coverage.                                                                           |
+| Finance/receipts                                | Stabilized | high       | Finance navigation, transaction visibility, receipt review, reimbursement recording, receipt submission, and refund boundaries have deterministic coverage.                                                                              |
+| Scanning/check-in                               | Stabilized | high       | QR scanner reads, selected guest check-in, later guest arrival, idempotent counters, and organizer aggregates are covered by specs/docs against Docker.                                                                                  |
+| Profile/account flows                           | Stabilized | high       | Profile edit, event cards, receipts, account creation contracts, seeded ESNcard behavior, deterministic ESNcard provider outcomes, and Browser discount-card UX are covered.                                                             |
+| Tenant/global admin                             | Stabilized | high       | Tenant settings and global-admin list/detail/create/edit are covered by functional specs/source guards; custom-domain automation remains deferred.                                                                                       |
+| Generated documentation and Playwright coverage | Stabilized | high       | Docs/spec inventory, skip gates, source guards, list mode, and generated-doc runtime flows are current and fail loudly for known fixture gaps.                                                                                           |
+| Local runtime/developer workflow                | Stabilized | high       | Docker, env preflight, CI, Font Awesome token paths, and the first in-app Browser queue pass are healthy; repeat Browser review uses generated `BASE_URL`.                                                                               |
 
 ## Product Decision Draft
 
@@ -76,8 +76,8 @@ the current working direction until a product decision overrides them.
     cancellation, defer transfer/resale.
   - Option C: defer all three and remove claims/docs until implemented.
   - Decision: Option A. All three are required for the production replacement.
-- **Paid transfer/resale settlement model:** transfer/resale remains
-  decision-blocked until the money-flow owner is explicit.
+- **Paid transfer/resale money movement:** transfer/resale follows the
+  product-defined Stripe Checkout replacement and refund workflow.
   - Option A: organizer-mediated manual settlement; the app records the paid
     registration transfer only after an organizer confirms the outside payment
     or reimbursement handling.
@@ -86,9 +86,11 @@ the current working direction until a product decision overrides them.
     participant.
   - Option C: defer paid transfer/resale and keep only unpaid transfer plus
     paid cancellation/refund handling for relaunch.
-  - Decision needed before implementation. Do not infer one of these models from
-    the unpaid transfer flow or from the current paid-cancellation refund
-    behavior.
+  - Decision: Option B, matching `PRODUCT.md`. A new participant completes a
+    fresh Stripe Checkout registration, the existing participant's registration
+    is cancelled, and the existing participant receives a Stripe refund. The
+    current unpaid transfer flow and paid-cancellation refund handling do not
+    implement this paid transfer/resale workflow yet.
 - **Role-ineligible direct links:** show the event with an explicit ineligible
   state in the registration-options area and no registration action.
   - Option A: hide the event entirely.
@@ -594,7 +596,7 @@ the current working direction until a product decision overrides them.
   self-service transfer now share tested action guards between the buttons and
   handlers, so cancellation and transfer writes cannot overlap or double-submit
   locally on slow networks.
-- **Should fix before relaunch:** participant-facing paid transfer/resale money movement and resale-specific workflows are not implemented in the reviewed event registration path. This is blocked on choosing organizer-mediated manual settlement, platform-mediated resale through fresh Stripe Checkout, or explicit deferral. The event page shows a disabled transfer action and explains that paid registration transfer and resale need a decision between organizer-mediated manual settlement, platform-mediated resale, or explicit paid-transfer deferral. Paid confirmed cancellation now attempts automatic Stripe refunds for transactions with stored Stripe payment references and keeps a pending manual refund fallback for older/manual records.
+- **Should fix before relaunch:** participant-facing paid transfer/resale money movement and resale-specific workflows are not implemented in the reviewed event registration path. `PRODUCT.md` defines the intended model as a new participant completing a fresh Stripe Checkout registration, cancellation of the existing participant's registration, and a Stripe refund to the existing participant. The event page shows a disabled transfer action and explains that paid registration transfer and resale need the Stripe Checkout replacement and refund flow first. Paid confirmed cancellation now attempts automatic Stripe refunds for transactions with stored Stripe payment references and keeps a pending manual refund fallback for older/manual records.
 - **Addressed in stabilization pass:** active registration status now uses the shared persisted registration status literal union instead of raw `Schema.String`.
 - **Acceptable for now:** paid registration rollback is careful about cleaning up a failed checkout session creation path; deeper Stripe lifecycle review belongs in the finance pass.
 
@@ -1824,14 +1826,13 @@ the current working direction until a product decision overrides them.
 ### Should Fix Before Relaunch
 
 1. Implement paid transfer/resale money movement and resale-specific workflows
-   after the settlement model is chosen. Participant and organizer-assisted
-   unpaid transfer now exist for confirmed, not checked-in registrations, and
-   paid cancellation now attempts automatic Stripe refunds when the original
-   transaction has a stored Stripe payment reference. Do not assume whether
-   paid resale should be organizer-mediated manual settlement or a
-   platform-mediated Stripe Checkout replacement flow. Current app and docs
-   copy keep paid transfer unavailable because the settlement model is not
-   decided yet.
+   using the Stripe Checkout replacement and refund model from `PRODUCT.md`.
+   Participant and organizer-assisted unpaid transfer now exist for confirmed,
+   not checked-in registrations, and paid cancellation now attempts automatic
+   Stripe refunds when the original transaction has a stored Stripe payment
+   reference. Current app and docs copy keep paid transfer unavailable until
+   the Stripe-backed replacement registration and original-registration refund
+   flow is implemented.
 2. Keep the Docker-backed registration unavailable-state coverage current.
    `specs/events/negative-registration-states.spec.ts` and
    `docs/events/register.doc.ts` now pass against the rebuilt Docker stack with
@@ -2855,9 +2856,9 @@ implement those decisions or explicitly revise them there before changing code.
   screenshot stabilization that waits for loading states, finite animations,
   and target geometry before capture. The PR has no unresolved review threads
   at this checkpoint. It remains draft because paid
-  transfer/resale money movement still needs a human settlement-model decision
-  before implementation or explicit relaunch deferral; formal bot review is
-  expected only after the PR is marked ready.
+  transfer/resale money movement still needs the product-defined Stripe
+  Checkout replacement and refund workflow before relaunch; formal bot review
+  is expected only after the PR is marked ready.
 - Post-main-sync checkpoint: the branch was rebased onto `origin/main` at
   `35ebb9a2` after the Neon branch-expiration cleanup landed. The E2E workflow
   now uses the regular Compose graph in CI with

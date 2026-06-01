@@ -49,7 +49,9 @@ describe('stabilization source', () => {
     expect(statusTable).toContain('| Blocked');
     expect(statusTable).toContain('unpaid transfer boundaries');
     expect(statusTable).toContain('paid transfer/resale still needs');
-    expect(statusTable).toContain('settlement-model decision before relaunch');
+    expect(statusTable).toContain(
+      'Stripe Checkout replacement and refund flow before relaunch',
+    );
     expect(statusTable).not.toContain(
       'Free/paid registration, guests, add-ons, waitlist, negative states, cancellation/refund, and transfer boundaries have server, app, spec, and docs coverage.',
     );
@@ -204,10 +206,10 @@ describe('stabilization source', () => {
       /The PR\s+has\s+no\s+unresolved review threads\s+at/u,
     );
     expect(readinessCheckpoint).toMatch(
-      /paid\s+transfer\/resale money movement\s+still needs a human settlement-model\s+decision/u,
+      /paid\s+transfer\/resale money movement\s+still needs the product-defined Stripe\s+Checkout replacement and refund workflow/u,
     );
     expect(readinessCheckpoint).toMatch(
-      /formal\s+bot\s+review is\s+expected only after the PR is marked ready/u,
+      /formal\s+bot\s+review\s+is\s+expected only after the PR is marked ready/u,
     );
     expect(readinessCheckpoint).not.toContain(
       '9b65634b66840aa72dc53c4a5bef742036f049ac',
@@ -270,22 +272,17 @@ describe('stabilization source', () => {
     }
   });
 
-  it('keeps paid transfer and resale blocked on an explicit settlement decision', () => {
+  it('keeps paid transfer and resale blocked on the product-defined Stripe replacement workflow', () => {
     const source = readSource('STABILIZATION.md');
 
-    expect(source).toContain('Paid transfer/resale settlement model');
-    expect(source).toContain('organizer-mediated manual settlement');
-    expect(source).toContain('platform-mediated resale');
-    expect(source).toContain('fresh Stripe Checkout');
-    expect(source).toContain('Decision needed before implementation');
-    expect(source).toContain('Do not infer one of these models');
+    expect(source).toContain('Paid transfer/resale money movement');
     expect(source).toContain(
-      'The event page shows a disabled transfer action and explains that paid registration transfer and resale need a decision between organizer-mediated manual settlement, platform-mediated resale, or explicit paid-transfer deferral.',
+      'product-defined Stripe Checkout replacement and refund workflow',
     );
+    expect(source).toContain('fresh Stripe Checkout');
+    expect(source).toContain('Decision: Option B, matching `PRODUCT.md`.');
     expect(source).toContain(
-      'Do not assume whether\n' +
-        '   paid resale should be organizer-mediated manual settlement or a\n' +
-        '   platform-mediated Stripe Checkout replacement flow.',
+      'The event page shows a disabled transfer action and explains that paid registration transfer and resale need the Stripe Checkout replacement and refund flow first.',
     );
   });
 
@@ -300,10 +297,8 @@ describe('stabilization source', () => {
     expect(source).toContain(
       'first in-app Browser manual review queue pass has now covered',
     );
-    expect(source).toContain(
-      'does not satisfy the relaunch transfer/resale\n' +
-        '  workflow. `STABILIZATION.md` keeps registrations blocked until the\n' +
-        '  settlement-model decision is made.',
+    expect(source).toMatch(
+      /does not satisfy the relaunch transfer\/resale\s+workflow\. `STABILIZATION\.md` keeps registrations blocked until the Stripe\s+Checkout replacement registration and original-registration refund flow is\s+implemented\./u,
     );
     expect(source).not.toContain('E2E_LIVE_ESN_CARD_IDENTIFIER');
   });

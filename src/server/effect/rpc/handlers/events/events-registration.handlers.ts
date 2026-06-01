@@ -678,7 +678,7 @@ const transferEventRegistration = ({
       return yield* Effect.fail(
         new EventRegistrationConflictError({
           message:
-            'Paid registration transfer is not available until the settlement model is decided',
+            'Paid registration transfer is not available until the Stripe Checkout replacement and refund flow is implemented',
         }),
       );
     }
@@ -1106,7 +1106,7 @@ export const eventRegistrationHandlers = {
         return yield* Effect.fail(
           new EventRegistrationConflictError({
             message:
-              'Paid registration transfer is not available until the settlement model is decided',
+              'Paid registration transfer is not available until the Stripe Checkout replacement and refund flow is implemented',
           }),
         );
       }

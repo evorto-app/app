@@ -251,7 +251,7 @@ test('regular user cannot self-transfer a paid confirmed registration', async ({
     await expect(page.getByText('You are registered')).toBeVisible();
     await expect(
       page.getByText(
-        'Self-service transfer is only available for unpaid, not-yet-checked-in registrations before the event starts. Paid registration transfer and resale need a settlement model decision first.',
+        'Self-service transfer is only available for unpaid, not-yet-checked-in registrations before the event starts. Paid registration transfer and resale need the Stripe Checkout replacement and refund flow first.',
       ),
     ).toBeVisible();
     await expect(

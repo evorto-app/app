@@ -1297,7 +1297,7 @@ describe('event registration transfer handlers', () => {
   );
 
   it.effect(
-    'rejects paid registration transfer until the settlement model is decided',
+    'rejects paid registration transfer until the Stripe replacement flow exists',
     () =>
       Effect.gen(function* () {
         const { database, updateSets } = createTransferDatabase({
@@ -1334,7 +1334,7 @@ describe('event registration transfer handlers', () => {
 
         expect(error['_tag']).toBe('EventRegistrationConflictError');
         expect(error.message).toBe(
-          'Paid registration transfer is not available until the settlement model is decided',
+          'Paid registration transfer is not available until the Stripe Checkout replacement and refund flow is implemented',
         );
         expect(updateSets).toEqual([]);
       }),

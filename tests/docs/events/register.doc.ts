@@ -511,7 +511,7 @@ test.describe('Register for events', () => {
 
   Confirmed unpaid registrations can be transferred from the event page before check-in and before the event starts. The target account must already exist in the tenant and be eligible for the same registration option.
 
-  Paid registration transfer and resale need a settlement model decision first. Those flows remain blocked until the product owner chooses organizer-mediated manual settlement, platform-mediated resale, or explicit paid-transfer deferral.`,
+  Paid registration transfer and resale remain blocked until the Stripe Checkout replacement registration and original-registration refund flow is implemented.`,
     });
     await takeScreenshot(
       testInfo,
@@ -640,7 +640,7 @@ test.describe('Register for events', () => {
       await expect(page.getByText('You are registered')).toBeVisible();
       await expect(
         page.getByText(
-          'Self-service transfer is only available for unpaid, not-yet-checked-in registrations before the event starts. Paid registration transfer and resale need a settlement model decision first.',
+          'Self-service transfer is only available for unpaid, not-yet-checked-in registrations before the event starts. Paid registration transfer and resale need the Stripe Checkout replacement and refund flow first.',
         ),
       ).toBeVisible();
       await expect(
@@ -674,7 +674,7 @@ test.describe('Register for events', () => {
         body: `
   ## Paid transfer and resale boundary
 
-  Paid registrations keep transfer unavailable until the settlement model is decided. The event page shows a disabled transfer action and explains that paid registration transfer and resale need a decision between organizer-mediated manual settlement, platform-mediated resale, or explicit paid-transfer deferral.
+  Paid registrations keep transfer unavailable until the Stripe Checkout replacement registration and original-registration refund flow is implemented. The event page shows a disabled transfer action and explains that paid registration transfer and resale need that Stripe-backed money movement first.
 
   Paid confirmed cancellations are still allowed before the event starts. Cancelling one releases the selected spots and submits a Stripe refund when the original payment reference is available; older or manually seeded payment records still create a pending manual refund record for organizer follow-up.`,
       });

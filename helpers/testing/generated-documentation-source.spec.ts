@@ -363,11 +363,11 @@ describe('generated docs source current behavior', () => {
       'Confirmed unpaid registrations can be transferred from the event page before check-in and before the event starts.',
     );
     expect(source).toContain(
-      'Paid registration transfer and resale need a settlement model decision first.',
+      'Paid registration transfer and resale remain blocked until the Stripe Checkout replacement registration and original-registration refund flow is implemented.',
     );
     expect(source).toContain('Review paid transfer unavailable state');
     expect(source).toContain(
-      'Self-service transfer is only available for unpaid, not-yet-checked-in registrations before the event starts. Paid registration transfer and resale need a settlement model decision first.',
+      'Self-service transfer is only available for unpaid, not-yet-checked-in registrations before the event starts. Paid registration transfer and resale need the Stripe Checkout replacement and refund flow first.',
     );
     expect(source).toContain(
       "page.getByRole('button', { name: 'Transfer unavailable' })",
@@ -468,7 +468,7 @@ describe('generated docs source current behavior', () => {
       'Older or manually seeded payment records still create a pending manual refund record for organizer follow-up.',
     );
     expect(source).toContain(
-      'Paid registration transfer shows as unavailable in the organizer overview until the settlement model is decided.',
+      'Paid registration transfer shows as unavailable in the organizer overview until the Stripe Checkout replacement and refund flow is implemented.',
     );
     expect(source).toContain(
       'It does not currently include attendee export, attendee messaging, manual check-in controls outside QR scanning',
