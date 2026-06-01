@@ -21,7 +21,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        suite: [functional, docs]
+        suite: [functional-1, functional-2, docs]
     env:
       CI: true
       APP_HOST_PORT: 4200
@@ -147,7 +147,7 @@ jobs:
           exit 1
 
       - name: Run Playwright functional suite
-        if: matrix.suite == 'functional'
+        if: startsWith(matrix.suite, 'functional-')
         timeout-minutes: 40
         env:
           E2E_SELECTED_PROJECTS: local-chrome-baseline
@@ -165,8 +165,13 @@ jobs:
             trap cleanup EXIT
           fi
 
-          bunx playwright test --project=local-chrome-baseline \
-            --grep-invert 'doc-screenshot returns a relative path and writes image|navigate to events list|create template in empty category|create a new template|template create form hides selected roles in autocomplete|register for a free event as regular user|@finance'
+          if [ "${{ matrix.suite }}" = "functional-1" ]; then
+            bunx playwright test --project=local-chrome-baseline --shard=1/2 \
+              --grep-invert 'doc-screenshot returns a relative path and writes image|navigate to events list|create template in empty category|create a new template|template create form hides selected roles in autocomplete|register for a free event as regular user|@finance'
+          else
+            bunx playwright test --project=local-chrome-baseline --shard=2/2 \
+              --grep-invert 'doc-screenshot returns a relative path and writes image|navigate to events list|create template in empty category|create a new template|template create form hides selected roles in autocomplete|register for a free event as regular user|@finance'
+          fi
 
       - name: Run Playwright docs suite
         if: matrix.suite == 'docs'

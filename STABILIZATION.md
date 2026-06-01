@@ -2817,17 +2817,21 @@ implement those decisions or explicitly revise them there before changing code.
 - Recent PR readiness checkpoint: GitHub has been green on the current PR head
   after stabilization cleanup commits, including Analyze, CodeQL, Git Town
   branch stack, CodeRabbit status, and the split Playwright E2E matrix.
-  The E2E workflow now runs separate `Playwright E2E (functional)` and
-  `Playwright E2E (docs)` jobs. Each job still performs the full dependency
+  The E2E workflow now runs separate `Playwright E2E (functional-1)`,
+  `Playwright E2E (functional-2)`, and `Playwright E2E (docs)` jobs. Each job
+  still performs the full dependency
   install, Chromium-only Playwright browser install, Docker image pull/build,
   Docker stack startup, app container startup, app readiness, Docker log
-  collection, stack shutdown, and artifact upload path for its own suite, but
-  the long Playwright phases run in parallel. The Docker build step now times
-  out after 10 minutes, so an infrastructure build hang fails faster while the
-  successful path remains unchanged. Recent green runs complete docs in roughly
-  ten minutes and functional in the low-to-high teens, so the workflow wall
-  time is gated by the functional job instead of serially running docs
-  afterward. Docker Compose gives the Neon Local `db` service bounded
+  collection, stack shutdown, and artifact upload path for its own suite. The
+  long Playwright phases run in parallel, and the functional project is sharded
+  into two isolated Docker-backed jobs because the latest timing showed the
+  functional Playwright phase dominated the workflow wall time. The Docker
+  build step now times out after 10 minutes, so an infrastructure build hang
+  fails faster while the successful path remains unchanged. Recent green runs
+  before functional sharding completed docs in roughly ten minutes and
+  functional in the low-to-high teens; after sharding, the workflow should be
+  gated by the slower functional shard instead of one full serial functional
+  pass. Docker Compose gives the Neon Local `db` service bounded
   `on-failure` restarts, so transient `423 Client Error: Locked`
   branch-creation exits can recover inside the existing startup wait without
   serializing the split matrix or treating a temporary Neon project lock as an

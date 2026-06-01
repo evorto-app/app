@@ -133,10 +133,13 @@ describe('stabilization source', () => {
     expect(readinessCheckpoint).not.toMatch(/[0-9a-f]{40}/u);
     expect(readinessCheckpoint).toContain('current PR head');
     expect(readinessCheckpoint).toContain('split Playwright E2E matrix');
-    expect(readinessCheckpoint).toContain('Playwright E2E (functional)');
+    expect(readinessCheckpoint).toContain('Playwright E2E (functional-1)');
+    expect(readinessCheckpoint).toContain('Playwright E2E (functional-2)');
     expect(readinessCheckpoint).toContain('Playwright E2E (docs)');
     expect(readinessCheckpoint).toMatch(/roughly\s+ten minutes/u);
     expect(readinessCheckpoint).toContain('low-to-high teens');
+    expect(readinessCheckpoint).toContain('functional project is sharded');
+    expect(readinessCheckpoint).toContain('slower functional shard');
     expect(readinessCheckpoint).toContain('out after 10 minutes');
     expect(readinessCheckpoint).toMatch(/bounded\s+`on-failure` restarts/u);
     expect(readinessCheckpoint).toContain(
@@ -151,8 +154,14 @@ describe('stabilization source', () => {
     );
     expect(endToEndWorkflow).toContain('timeout-minutes: 10');
     expect(endToEndWorkflow).toContain('matrix:');
-    expect(endToEndWorkflow).toContain('suite: [functional, docs]');
-    expect(endToEndWorkflow).toContain("if: matrix.suite == 'functional'");
+    expect(endToEndWorkflow).toContain(
+      'suite: [functional-1, functional-2, docs]',
+    );
+    expect(endToEndWorkflow).toContain(
+      "if: startsWith(matrix.suite, 'functional-')",
+    );
+    expect(endToEndWorkflow).toContain('--shard=1/2');
+    expect(endToEndWorkflow).toContain('--shard=2/2');
     expect(endToEndWorkflow).toContain("if: matrix.suite == 'docs'");
     expect(dockerCompose).toContain('restart: on-failure:5');
     expect(endToEndWorkflow).not.toContain(
