@@ -37,6 +37,37 @@ const readSection = (source: string, heading: string, nextHeading: string) => {
 };
 
 describe('stabilization source', () => {
+  it('keeps the review status honest about the event archival data-model blocker', () => {
+    const source = readSource('STABILIZATION.md');
+    const product = readSource('PRODUCT.md');
+    const architecture = readSource('ARCHITECTURE.md');
+    const eventSchema = readSource('src/db/schema/event-instances.ts');
+    const statusTable = readSection(
+      source,
+      'Review Status',
+      'Product Decision Draft',
+    );
+
+    expect(product).toContain(
+      'Preserve non-personal event records after the event is archived.',
+    );
+    expect(architecture).toContain(
+      'support archival at the data-model level for relaunch',
+    );
+    expect(eventSchema).toContain('export const eventReviewStatus = pgEnum');
+    expect(eventSchema).toContain("'REJECTED'");
+    expect(eventSchema).not.toMatch(/ARCHIVED|archived|archive|archival/u);
+    expect(statusTable).toContain('| Events');
+    expect(statusTable).toContain('| Blocked');
+    expect(statusTable).toContain('event archival data-model support');
+    expect(source).toContain(
+      'The current `event_instances` schema has only draft, pending',
+    );
+    expect(source).toMatch(
+      /Automatic archival remains out of scope without an\s+explicit product decision, but the archival data model is still missing/u,
+    );
+  });
+
   it('keeps the review status honest about the paid transfer relaunch blocker', () => {
     const source = readSource('STABILIZATION.md');
     const statusTable = readSection(

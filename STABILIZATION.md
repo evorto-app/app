@@ -8,7 +8,7 @@ and useful for small cleanup batches.
 
 | Area                                            | Status     | Confidence | Notes                                                                                                                                                                                                                                                          |
 | ----------------------------------------------- | ---------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Events                                          | Stabilized | high       | Docker-backed specs/docs cover browsing, creation, management, unlisted visibility, registration state, price labels, scanner handoff, and refund copy.                                                                                                        |
+| Events                                          | Blocked    | high       | Docker-backed specs/docs cover browsing, creation, management, unlisted visibility, registration state, price labels, scanner handoff, and refund copy; event archival data-model support is still missing.                                                    |
 | Registrations                                   | Blocked    | high       | Free/paid registration, guests, add-ons, waitlist, negative states, cancellation/refund, and unpaid transfer boundaries have coverage; paid transfer/resale, registration notification emails, and tenant registration-limit policy still need implementation. |
 | Templates                                       | Stabilized | high       | Simple-mode templates now cover planning tips, ESNcard discounts, reusable add-ons/questions, role pickers, tax-rate behavior, and event creation copy paths.                                                                                                  |
 | Roles and permissions                           | Stabilized | high       | Route denial, role lookup, role management, permission metadata, tenant isolation, and user-list deferral are pinned by source, unit, spec, and docs coverage.                                                                                                 |
@@ -533,6 +533,13 @@ the current working direction until a product decision overrides them.
   on slow networks.
 - **Addressed in stabilization pass:** `event-management.doc.ts` no longer describes attendee export, attendee messaging, manual check-in controls, event settings tabs, event tags, featured images, notification settings, integrations, or event deletion as existing event-management UI.
 - **Addressed in stabilization pass:** unlisted-event dialog and event detail status copy now explain that unlisted events are hidden from lists while eligible direct links still work.
+- **Should fix before relaunch:** `PRODUCT.md` says the core lifecycle should
+  preserve non-personal event records after an event is archived, and
+  `ARCHITECTURE.md` says archival should be supported at the data-model level
+  for relaunch. The current `event_instances` schema has only draft, pending
+  review, approved, and rejected review states, and no archive field or
+  archival snapshot model. Automatic archival remains out of scope without an
+  explicit product decision, but the archival data model is still missing.
 - **Acceptable for now:** event edit locks are duplicated in guard, details `canEdit`, `findOneForEdit`, and `events.update`. Duplication is not ideal, but server-side checks are the source of truth.
 
 ### Product Questions Answered Above
@@ -3139,7 +3146,10 @@ first manual in-app Browser queue pass has been completed against the local
 Docker app. The next stabilization work should continue with small cleanup
 commits around the remaining product and relaunch-scope blockers. ESNcard
 provider add/refresh/remove outcomes now use deterministic ESNcard provider test
-mode. Automated custom-domain
+mode. Event archival data-model support remains a relaunch blocker because
+`PRODUCT.md` expects non-personal event records to survive archival while the
+current event schema has no archive state, archive field, or archival snapshot
+model. Automated custom-domain
 verification, multi-domain onboarding, and tenant impersonation are intentionally
 documented deferred scope for relaunch, not an untested current-app claim.
 Scanner aggregate behavior, profile account/event/receipt/discount-card
