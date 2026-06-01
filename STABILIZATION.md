@@ -12,7 +12,7 @@ and useful for small cleanup batches.
 | Registrations                                   | Blocked    | high       | Free/paid registration, guests, add-ons, waitlist, negative states, cancellation/refund, and unpaid transfer boundaries have coverage; paid transfer/resale still needs the Stripe Checkout replacement and refund flow before relaunch. |
 | Templates                                       | Stabilized | high       | Simple-mode templates now cover planning tips, ESNcard discounts, reusable add-ons/questions, role pickers, tax-rate behavior, and event creation copy paths.                                                                            |
 | Roles and permissions                           | Stabilized | high       | Route denial, role lookup, role management, permission metadata, tenant isolation, and user-list deferral are pinned by source, unit, spec, and docs coverage.                                                                           |
-| Finance/receipts                                | Stabilized | high       | Finance navigation, transaction visibility, receipt review, reimbursement recording, receipt submission, and refund boundaries have deterministic coverage.                                                                              |
+| Finance/receipts                                | Blocked    | high       | Finance navigation, transaction visibility, receipt review, reimbursement recording, receipt submission, and refund boundaries have deterministic coverage; receipt-reviewed email notification still needs delivery implementation.     |
 | Scanning/check-in                               | Stabilized | high       | QR scanner reads, selected guest check-in, later guest arrival, idempotent counters, and organizer aggregates are covered by specs/docs against Docker.                                                                                  |
 | Profile/account flows                           | Stabilized | high       | Profile edit, event cards, receipts, account creation contracts, seeded ESNcard behavior, deterministic ESNcard provider outcomes, and Browser discount-card UX are covered.                                                             |
 | Tenant/global admin                             | Stabilized | high       | Tenant settings and global-admin list/detail/create/edit are covered by functional specs/source guards; custom-domain automation remains deferred.                                                                                       |
@@ -1039,7 +1039,7 @@ the current working direction until a product decision overrides them.
   and the caller can submit receipts for it, but it no longer blocks submission
   only because the event end time is in the future.
 - **Addressed in stabilization pass:** profile and user-event summaries no longer read `event_registrations.paymentStatus`; payment display is derived from registration transaction rows. Seed and webhook-replay setup stopped writing `paymentStatus` for new fixture registrations, and the legacy payment-status column/enum have been removed from the application schema.
-- **Addressed in stabilization pass:** receipt review records status locally, and the review detail page, success feedback, and finance docs explicitly tell finance reviewers that submitter notification is manual until a real delivery path exists.
+- **Should fix before relaunch:** receipt review records status locally, and the review detail page, success feedback, and finance docs explicitly tell finance reviewers that submitter notification is manual until a real delivery path exists. `PRODUCT.md` lists receipt-reviewed email as an in-scope notification, but the current server has no mail delivery service or receipt-review email side effect yet.
 - **Addressed in this stabilization pass:** finance receipt approval and reimbursement lists now prefer the user's editable notification email over the Auth0 login email when rendering submitter contact details.
 - **Addressed in this stabilization pass:** the event organizer receipt action now stays disabled while the original receipt upload is pending, not only while the final submit mutation is pending, and the click handler shares the same guard.
 - **Addressed in this stabilization pass:** the event organizer receipt dialog
@@ -3132,7 +3132,7 @@ Richer reusable template add-ons and questions are now implemented in the simple
 template flow and should be kept aligned as those surfaces evolve. Normal generated docs output now stays local unless
 `test:e2e:docs:publish` is run intentionally. New Playwright
 skips/fixmes should be added only as explicit credential gates or honest
-Browser-backed stabilization placeholders. Receipt notification remains a
-future product delivery path; the current relaunch scope records receipt review
-locally and keeps finance-facing copy explicit that submitter notification is
-manual.
+Browser-backed stabilization placeholders. Receipt-reviewed email notification
+remains a relaunch blocker because `PRODUCT.md` lists it as in scope and the
+current implementation only records receipt review locally with explicit manual
+submitter-notification copy.

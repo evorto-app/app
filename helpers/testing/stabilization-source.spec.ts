@@ -57,6 +57,29 @@ describe('stabilization source', () => {
     );
   });
 
+  it('keeps the review status honest about the receipt-reviewed email blocker', () => {
+    const source = readSource('STABILIZATION.md');
+    const product = readSource('PRODUCT.md');
+    const statusTable = readSection(
+      source,
+      'Review Status',
+      'Product Decision Draft',
+    );
+
+    expect(product).toContain(
+      'Receipt review should support email notification when a receipt is reviewed.',
+    );
+    expect(statusTable).toContain('| Finance/receipts');
+    expect(statusTable).toContain('| Blocked');
+    expect(statusTable).toContain('receipt-reviewed email notification');
+    expect(source).toContain(
+      'the current server has no mail delivery service or receipt-review email side effect yet',
+    );
+    expect(source).toContain(
+      'current implementation only records receipt review locally with explicit manual',
+    );
+  });
+
   it('keeps the Browser review queue aligned with repeat manual app-flow review', () => {
     const source = readSource('STABILIZATION.md');
     const queue = readSection(source, 'Browser Review Queue', 'Review Next');
