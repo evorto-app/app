@@ -2864,9 +2864,17 @@ implement those decisions or explicitly revise them there before changing code.
   slice also passed after allowing Playwright setup dependencies to recreate the
   auth storage state; the focused `local-chrome-baseline` run for
   `tests/specs/events/events.test.ts` and
-  `tests/specs/events/unlisted-visibility.test.ts` reported 12 passed. The PR
-  still has no review threads and remains draft; pushing the rebased branch is
-  blocked by the current GitHub token missing `workflow` scope while
+  `tests/specs/events/unlisted-visibility.test.ts` reported 12 passed. That
+  Playwright setup intentionally reseeded `localhost` with deterministic
+  January/February test dates, which made the manual `/events` Browser view show
+  no upcoming events on June 1, 2026. Rerunning
+  `APP_HOST_PORT=4200 bun run docker:start` restored the current demo seed; the
+  Browser then showed the upcoming event list, opened `Soccer Match 1`, rendered
+  the event detail and login-required registration card, and reported no console
+  errors. The local branch contains the conflict-resolving rebase and is an
+  ancestor of `origin/main`, but the PR still appears dirty on GitHub because
+  the remote PR head is still the old `b0f7d18b` commit. Pushing the rebased
+  branch is blocked by the current GitHub token missing `workflow` scope while
   `.github/workflows/e2e-baseline.yml` changed, and SSH has no loaded identity.
 
 ## Browser Review Queue
