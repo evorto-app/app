@@ -1,4 +1,11 @@
 import {
+  emailNotificationOutbox,
+  eventInstances,
+  financeReceipts,
+  transactions,
+  users,
+} from '@db/schema';
+import {
   RpcBadRequestError,
   RpcForbiddenError,
 } from '@shared/errors/rpc-errors';
@@ -11,12 +18,6 @@ import { Effect } from 'effect';
 
 import type { AppRpcHandlers } from '../shared/handler-types';
 
-import {
-  eventInstances,
-  financeReceipts,
-  transactions,
-  users,
-} from '../../../../../db/schema';
 import { RpcAccess } from '../shared/rpc-access.service';
 import {
   canSubmitEventReceipts,
@@ -42,6 +43,44 @@ export const financeReceiptSubmitterEmail = (submitter: {
   submittedByEmail: string;
 }): string =>
   submitter.submittedByCommunicationEmail?.trim() || submitter.submittedByEmail;
+
+export const buildReceiptReviewedEmailNotification = ({
+  eventTitle,
+  receiptId,
+  recipientFirstName,
+  rejectionReason,
+  status,
+  tenantName,
+}: {
+  eventTitle: string;
+  receiptId: string;
+  recipientFirstName: string;
+  rejectionReason: null | string;
+  status: 'approved' | 'rejected';
+  tenantName: string;
+}) => {
+  const statusLabel = status === 'approved' ? 'approved' : 'rejected';
+  const reasonText =
+    status === 'rejected' && rejectionReason?.trim()
+      ? `\n\nReason: ${rejectionReason.trim()}`
+      : '';
+
+  return {
+    payload: {
+      eventTitle,
+      receiptId,
+      reviewStatus: status,
+    },
+    subject: `Receipt ${statusLabel} for ${eventTitle}`,
+    textBody: [
+      `Hi ${recipientFirstName},`,
+      '',
+      `${tenantName} has ${statusLabel} your receipt for ${eventTitle}.${reasonText}`,
+      '',
+      'Open Evorto to view the receipt details.',
+    ].join('\n'),
+  };
+};
 
 export const financeReceiptsHandlers = {
   'finance.receipts.byEvent': ({ eventId }, _options) =>
@@ -638,39 +677,110 @@ export const financeReceiptsHandlers = {
         );
       }
 
-      const updatedReceipts = yield* databaseEffect((database) =>
-        database
-          .update(financeReceipts)
-          .set({
-            alcoholAmount,
-            depositAmount,
-            hasAlcohol: input.hasAlcohol,
-            hasDeposit: input.hasDeposit,
-            purchaseCountry,
-            receiptDate,
+      const updated = yield* databaseEffect((database) =>
+        database.transaction((tx) =>
+          Effect.gen(function* () {
+            const reviewedAt = new Date();
+            const updatedReceipts = yield* tx
+              .update(financeReceipts)
+              .set({
+                alcoholAmount,
+                depositAmount,
+                hasAlcohol: input.hasAlcohol,
+                hasDeposit: input.hasDeposit,
+                purchaseCountry,
+                receiptDate,
 
-            rejectionReason:
-              input.status === 'rejected'
-                ? (input.rejectionReason ?? null)
-                : null,
-            reviewedAt: new Date(),
-            reviewedByUserId: user.id,
-            status: input.status,
-            taxAmount: input.taxAmount,
-            totalAmount: input.totalAmount,
-          })
-          .where(
-            and(
-              eq(financeReceipts.tenantId, tenant.id),
-              eq(financeReceipts.id, input.id),
-            ),
-          )
-          .returning({
-            id: financeReceipts.id,
-            status: financeReceipts.status,
+                rejectionReason:
+                  input.status === 'rejected'
+                    ? (input.rejectionReason ?? null)
+                    : null,
+                reviewedAt,
+                reviewedByUserId: user.id,
+                status: input.status,
+                taxAmount: input.taxAmount,
+                totalAmount: input.totalAmount,
+              })
+              .where(
+                and(
+                  eq(financeReceipts.tenantId, tenant.id),
+                  eq(financeReceipts.id, input.id),
+                ),
+              )
+              .returning({
+                eventId: financeReceipts.eventId,
+                id: financeReceipts.id,
+                status: financeReceipts.status,
+                submittedByUserId: financeReceipts.submittedByUserId,
+              });
+            const updatedReceipt = updatedReceipts[0];
+            if (!updatedReceipt) {
+              return null;
+            }
+
+            const submitters = yield* tx
+              .select({
+                communicationEmail: users.communicationEmail,
+                email: users.email,
+                firstName: users.firstName,
+              })
+              .from(users)
+              .where(eq(users.id, updatedReceipt.submittedByUserId))
+              .limit(1);
+            const submitter = submitters[0];
+            if (!submitter) {
+              return yield* Effect.die(
+                new Error(
+                  `Receipt submitter ${updatedReceipt.submittedByUserId} not found for reviewed receipt ${updatedReceipt.id}`,
+                ),
+              );
+            }
+
+            const events = yield* tx
+              .select({
+                title: eventInstances.title,
+              })
+              .from(eventInstances)
+              .where(eq(eventInstances.id, updatedReceipt.eventId))
+              .limit(1);
+            const event = events[0];
+            if (!event) {
+              return yield* Effect.die(
+                new Error(
+                  `Event ${updatedReceipt.eventId} not found for reviewed receipt ${updatedReceipt.id}`,
+                ),
+              );
+            }
+
+            const notification = buildReceiptReviewedEmailNotification({
+              eventTitle: event.title,
+              receiptId: updatedReceipt.id,
+              recipientFirstName: submitter.firstName,
+              rejectionReason: input.rejectionReason ?? null,
+              status: input.status,
+              tenantName: tenant.name,
+            });
+
+            yield* tx.insert(emailNotificationOutbox).values({
+              kind: 'receiptReviewed',
+              payload: {
+                ...notification.payload,
+                eventId: updatedReceipt.eventId,
+              },
+              recipientEmail: financeReceiptSubmitterEmail({
+                submittedByCommunicationEmail: submitter.communicationEmail,
+                submittedByEmail: submitter.email,
+              }),
+              recipientUserId: updatedReceipt.submittedByUserId,
+              subject: notification.subject,
+              tenantId: tenant.id,
+              textBody: notification.textBody,
+            });
+
+            return updatedReceipt;
           }),
+        ),
       );
-      const updated = updatedReceipts[0];
       if (!updated) {
         return yield* Effect.fail(
           new FinanceReceiptNotFoundError({

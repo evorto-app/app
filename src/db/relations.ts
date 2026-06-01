@@ -3,6 +3,18 @@ import { defineRelations } from 'drizzle-orm';
 import * as schema from './schema';
 
 export const relations = defineRelations(schema, (r) => ({
+  emailNotificationOutbox: {
+    recipient: r.one.users({
+      from: r.emailNotificationOutbox.recipientUserId,
+      optional: false,
+      to: r.users.id,
+    }),
+    tenant: r.one.tenants({
+      from: r.emailNotificationOutbox.tenantId,
+      optional: false,
+      to: r.tenants.id,
+    }),
+  },
   eventAddons: {
     event: r.one.eventInstances({
       from: r.eventAddons.eventId,
@@ -262,6 +274,7 @@ export const relations = defineRelations(schema, (r) => ({
     }),
   },
   tenants: {
+    emailNotificationOutbox: r.many.emailNotificationOutbox(),
     eventArchiveSnapshots: r.many.eventArchiveSnapshots(),
     eventRegistrations: r.many.eventRegistrations(),
     events: r.many.eventInstances(),
@@ -310,6 +323,7 @@ export const relations = defineRelations(schema, (r) => ({
     }),
   },
   users: {
+    emailNotificationOutbox: r.many.emailNotificationOutbox(),
     eventInstances_creatorId: r.many.eventInstances({
       alias: 'eventInstances_creatorId_users_id',
     }),

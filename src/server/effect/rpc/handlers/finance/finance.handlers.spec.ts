@@ -1,15 +1,18 @@
 import { describe, expect, it } from '@effect/vitest';
+import { type Permission } from '@shared/permissions/permissions';
+import {
+  RpcRequestContext,
+  type RpcRequestContextShape,
+} from '@shared/rpc-contracts/app-rpcs';
 import { TransactionRollbackError } from 'drizzle-orm';
 import { Effect, Layer } from 'effect';
 
 import { Database } from '../../../../../db';
-import { type Permission } from '../../../../../shared/permissions/permissions';
-import {
-  RpcRequestContext,
-  type RpcRequestContextShape,
-} from '../../../../../shared/rpc-contracts/app-rpcs';
 import { RpcAccess } from '../shared/rpc-access.service';
-import { financeReceiptSubmitterEmail } from './finance-receipts.handlers';
+import {
+  buildReceiptReviewedEmailNotification,
+  financeReceiptSubmitterEmail,
+} from './finance-receipts.handlers';
 import { financeHandlers } from './finance.handlers';
 import { ReceiptMediaService } from './receipt-media.service';
 
@@ -191,6 +194,70 @@ const databaseWithReviewReceiptStatus = (
     ),
 });
 
+const databaseWithSuccessfulReceiptReview = () => {
+  let insertedNotification: unknown;
+  const updateQuery = {
+    returning: () =>
+      Effect.succeed([
+        {
+          eventId: 'event-1',
+          id: 'receipt-1',
+          status: 'approved' as const,
+          submittedByUserId: 'submitter-1',
+        },
+      ]),
+    set: () => updateQuery,
+    where: () => updateQuery,
+  };
+  const insertQuery = {
+    values: (values: unknown) => {
+      insertedNotification = values;
+      return Effect.succeed();
+    },
+  };
+  const selectRows = [
+    [
+      {
+        communicationEmail: 'notify@example.com',
+        email: 'login@example.com',
+        firstName: 'Alice',
+      },
+    ],
+    [
+      {
+        title: 'City Walk',
+      },
+    ],
+  ];
+  const selectQuery = {
+    from: () => selectQuery,
+    limit: () => Effect.succeed(selectRows.shift() ?? []),
+    where: () => selectQuery,
+  };
+  const tx = {
+    insert: () => insertQuery,
+    select: () => selectQuery,
+    update: () => updateQuery,
+  };
+
+  return {
+    database: {
+      query: {
+        financeReceipts: {
+          findFirst: () =>
+            Effect.succeed({
+              id: 'receipt-1',
+              status: 'submitted' as const,
+            }),
+        },
+      },
+      transaction: (run: (transaction: typeof tx) => Effect.Effect<unknown>) =>
+        run(tx),
+    },
+    insertedNotification: () => insertedNotification,
+  };
+};
+
 const databaseWithRefundableReceipts = (
   receipts: {
     eventId: string;
@@ -354,6 +421,33 @@ describe('financeHandlers composition', () => {
 });
 
 describe('finance profile receipt reads', () => {
+  it('builds receipt-reviewed email copy from review state', () => {
+    expect(
+      buildReceiptReviewedEmailNotification({
+        eventTitle: 'City Walk',
+        receiptId: 'receipt-1',
+        recipientFirstName: 'Alice',
+        rejectionReason: null,
+        status: 'approved',
+        tenantName: 'Tenant',
+      }),
+    ).toEqual({
+      payload: {
+        eventTitle: 'City Walk',
+        receiptId: 'receipt-1',
+        reviewStatus: 'approved',
+      },
+      subject: 'Receipt approved for City Walk',
+      textBody: [
+        'Hi Alice,',
+        '',
+        'Tenant has approved your receipt for City Walk.',
+        '',
+        'Open Evorto to view the receipt details.',
+      ].join('\n'),
+    });
+  });
+
   it('uses notification email for finance receipt submitter displays', () => {
     expect(
       financeReceiptSubmitterEmail({
@@ -659,6 +753,49 @@ describe('finance receipt reimbursement', () => {
 });
 
 describe('finance receipt amount validation', () => {
+  it.effect(
+    'enqueues a receipt-reviewed email notification with the review update',
+    () =>
+      Effect.gen(function* () {
+        const receiptDatabase = databaseWithSuccessfulReceiptReview();
+
+        const result = yield* financeHandlers['finance.receipts.review'](
+          {
+            ...receiptFieldsInput,
+            id: 'receipt-1',
+            status: 'approved',
+          },
+          { headers: {} } as never,
+        ).pipe(
+          Effect.provide(
+            createContextLayer(['finance:approveReceipts'], {
+              database: receiptDatabase.database,
+            }),
+          ),
+        );
+
+        expect(result).toEqual({
+          id: 'receipt-1',
+          status: 'approved',
+        });
+        expect(receiptDatabase.insertedNotification()).toEqual(
+          expect.objectContaining({
+            kind: 'receiptReviewed',
+            payload: {
+              eventId: 'event-1',
+              eventTitle: 'City Walk',
+              receiptId: 'receipt-1',
+              reviewStatus: 'approved',
+            },
+            recipientEmail: 'notify@example.com',
+            recipientUserId: 'submitter-1',
+            subject: 'Receipt approved for City Walk',
+            tenantId: 'tenant-1',
+          }),
+        );
+      }),
+  );
+
   it.effect('allows receipt submissions before the event has ended', () =>
     Effect.gen(function* () {
       const receiptDatabase = databaseWithReceiptInsert({

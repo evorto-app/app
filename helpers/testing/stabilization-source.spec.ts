@@ -255,6 +255,9 @@ describe('stabilization source', () => {
   it('keeps the review status honest about registration email notification blockers', () => {
     const source = readSource('STABILIZATION.md');
     const product = readSource('PRODUCT.md');
+    const outboxSchema = readSource(
+      'src/db/schema/email-notification-outbox.ts',
+    );
     const serverSources = listFiles('src/server', '.ts')
       .map((sourceFile) => readSource(sourceFile))
       .join('\n');
@@ -272,6 +275,10 @@ describe('stabilization source', () => {
     expect(product).toContain('waitlist spot available');
     expect(product).toContain('registration cancelled by participant or admin');
     expect(product).toContain('transfer completed');
+    expect(outboxSchema).toContain("'registrationConfirmed'");
+    expect(outboxSchema).toContain("'registrationCancelled'");
+    expect(outboxSchema).toContain("'registrationTransferred'");
+    expect(outboxSchema).toContain("'waitlistSpotAvailable'");
     expect(`${serverSources}\n${packageJson}`).not.toMatch(
       /send(?:Mail|Email)|smtp|resend|mailgun|postmark|nodemailer|aws.*ses|EmailService|MailService/u,
     );
@@ -282,7 +289,52 @@ describe('stabilization source', () => {
       /The current server has\s+no mail delivery service or registration lifecycle email side effects yet/u,
     );
     expect(source).toMatch(
-      /Registration lifecycle email\s+notifications and receipt-reviewed email notification remain relaunch blockers/u,
+      /Registration lifecycle email\s+notifications remain relaunch blockers/u,
+    );
+    expect(source).toMatch(
+      /current implementation has no registration lifecycle email side\s+effects yet/u,
+    );
+  });
+
+  it('keeps the review status honest about receipt-reviewed email delivery', () => {
+    const source = readSource('STABILIZATION.md');
+    const product = readSource('PRODUCT.md');
+    const outboxSchema = readSource(
+      'src/db/schema/email-notification-outbox.ts',
+    );
+    const financeHandler = readSource(
+      'src/server/effect/rpc/handlers/finance/finance-receipts.handlers.ts',
+    );
+    const financeSpec = readSource(
+      'src/server/effect/rpc/handlers/finance/finance.handlers.spec.ts',
+    );
+    const statusTable = readSection(
+      source,
+      'Review Status',
+      'Product Decision Draft',
+    );
+
+    expect(product).toContain(
+      'Receipt review should support email notification when a receipt is reviewed.',
+    );
+    expect(outboxSchema).toContain("'receiptReviewed'");
+    expect(outboxSchema).toContain('recipientEmail');
+    expect(outboxSchema).toContain('textBody');
+    expect(financeHandler).toContain('emailNotificationOutbox');
+    expect(financeHandler).toContain('buildReceiptReviewedEmailNotification');
+    expect(financeSpec).toContain(
+      'enqueues a receipt-reviewed email notification with the review update',
+    );
+    expect(statusTable).toContain('| Finance/receipts');
+    expect(statusTable).toContain('| Blocked');
+    expect(statusTable).toContain(
+      'receipt review now enqueues receipt-reviewed email outbox records',
+    );
+    expect(source).toMatch(
+      /receipt review now writes a\s+tenant-scoped `receiptReviewed` email outbox record/u,
+    );
+    expect(source).toMatch(
+      /provider dispatch\/retry for email outbox\s+records is still missing/u,
     );
   });
 
@@ -332,6 +384,9 @@ describe('stabilization source', () => {
   it('keeps the review status honest about the receipt-reviewed email blocker', () => {
     const source = readSource('STABILIZATION.md');
     const product = readSource('PRODUCT.md');
+    const outboxSchema = readSource(
+      'src/db/schema/email-notification-outbox.ts',
+    );
     const statusTable = readSection(
       source,
       'Review Status',
@@ -343,12 +398,15 @@ describe('stabilization source', () => {
     );
     expect(statusTable).toContain('| Finance/receipts');
     expect(statusTable).toContain('| Blocked');
-    expect(statusTable).toContain('receipt-reviewed email notification');
-    expect(source).toContain(
-      'the current server has no mail delivery service or receipt-review email side effect yet',
+    expect(statusTable).toContain(
+      'receipt review now enqueues receipt-reviewed email outbox records',
+    );
+    expect(outboxSchema).toContain("'receiptReviewed'");
+    expect(source).toMatch(
+      /receipt review now writes a\s+tenant-scoped `receiptReviewed` email outbox record/u,
     );
     expect(source).toMatch(
-      /current implementation has\s+no server mail delivery service; receipt review currently records the status\s+locally with explicit manual/u,
+      /provider dispatch\/retry for email outbox\s+records is still missing/u,
     );
   });
 

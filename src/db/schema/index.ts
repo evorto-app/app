@@ -1,3 +1,4 @@
+export * from './email-notification-outbox';
 export * from './event-addons';
 export * from './event-archive-snapshots';
 export * from './event-instances';
