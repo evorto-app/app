@@ -6,18 +6,18 @@ and useful for small cleanup batches.
 
 ## Review Status
 
-| Area                                            | Status     | Confidence | Notes                                                                                                                                                                                                                                    |
-| ----------------------------------------------- | ---------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Events                                          | Stabilized | high       | Docker-backed specs/docs cover browsing, creation, management, unlisted visibility, registration state, price labels, scanner handoff, and refund copy.                                                                                  |
-| Registrations                                   | Blocked    | high       | Free/paid registration, guests, add-ons, waitlist, negative states, cancellation/refund, and unpaid transfer boundaries have coverage; paid transfer/resale still needs the Stripe Checkout replacement and refund flow before relaunch. |
-| Templates                                       | Stabilized | high       | Simple-mode templates now cover planning tips, ESNcard discounts, reusable add-ons/questions, role pickers, tax-rate behavior, and event creation copy paths.                                                                            |
-| Roles and permissions                           | Stabilized | high       | Route denial, role lookup, role management, permission metadata, tenant isolation, and user-list deferral are pinned by source, unit, spec, and docs coverage.                                                                           |
-| Finance/receipts                                | Blocked    | high       | Finance navigation, transaction visibility, receipt review, reimbursement recording, receipt submission, and refund boundaries have deterministic coverage; receipt-reviewed email notification still needs delivery implementation.     |
-| Scanning/check-in                               | Stabilized | high       | QR scanner reads, selected guest check-in, later guest arrival, idempotent counters, and organizer aggregates are covered by specs/docs against Docker.                                                                                  |
-| Profile/account flows                           | Blocked    | high       | Profile edit, event cards, receipts, account creation contracts, seeded ESNcard behavior, deterministic ESNcard provider outcomes, and Browser discount-card UX are covered; home-tenant warning support is not implemented yet.         |
-| Tenant/global admin                             | Stabilized | high       | Tenant settings and global-admin list/detail/create/edit are covered by functional specs/source guards; custom-domain automation remains deferred.                                                                                       |
-| Generated documentation and Playwright coverage | Stabilized | high       | Docs/spec inventory, skip gates, source guards, list mode, and generated-doc runtime flows are current and fail loudly for known fixture gaps.                                                                                           |
-| Local runtime/developer workflow                | Stabilized | high       | Docker, env preflight, CI, Font Awesome token paths, and the first in-app Browser queue pass are healthy; repeat Browser review uses generated `BASE_URL`.                                                                               |
+| Area                                            | Status     | Confidence | Notes                                                                                                                                                                                                                                |
+| ----------------------------------------------- | ---------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Events                                          | Stabilized | high       | Docker-backed specs/docs cover browsing, creation, management, unlisted visibility, registration state, price labels, scanner handoff, and refund copy.                                                                              |
+| Registrations                                   | Blocked    | high       | Free/paid registration, guests, add-ons, waitlist, negative states, cancellation/refund, and unpaid transfer boundaries have coverage; paid transfer/resale and registration notification emails still need delivery implementation. |
+| Templates                                       | Stabilized | high       | Simple-mode templates now cover planning tips, ESNcard discounts, reusable add-ons/questions, role pickers, tax-rate behavior, and event creation copy paths.                                                                        |
+| Roles and permissions                           | Stabilized | high       | Route denial, role lookup, role management, permission metadata, tenant isolation, and user-list deferral are pinned by source, unit, spec, and docs coverage.                                                                       |
+| Finance/receipts                                | Blocked    | high       | Finance navigation, transaction visibility, receipt review, reimbursement recording, receipt submission, and refund boundaries have deterministic coverage; receipt-reviewed email notification still needs delivery implementation. |
+| Scanning/check-in                               | Stabilized | high       | QR scanner reads, selected guest check-in, later guest arrival, idempotent counters, and organizer aggregates are covered by specs/docs against Docker.                                                                              |
+| Profile/account flows                           | Blocked    | high       | Profile edit, event cards, receipts, account creation contracts, seeded ESNcard behavior, deterministic ESNcard provider outcomes, and Browser discount-card UX are covered; home-tenant warning support is not implemented yet.     |
+| Tenant/global admin                             | Stabilized | high       | Tenant settings and global-admin list/detail/create/edit are covered by functional specs/source guards; custom-domain automation remains deferred.                                                                                   |
+| Generated documentation and Playwright coverage | Stabilized | high       | Docs/spec inventory, skip gates, source guards, list mode, and generated-doc runtime flows are current and fail loudly for known fixture gaps.                                                                                       |
+| Local runtime/developer workflow                | Stabilized | high       | Docker, env preflight, CI, Font Awesome token paths, and the first in-app Browser queue pass are healthy; repeat Browser review uses generated `BASE_URL`.                                                                           |
 
 ## Product Decision Draft
 
@@ -597,6 +597,12 @@ the current working direction until a product decision overrides them.
   handlers, so cancellation and transfer writes cannot overlap or double-submit
   locally on slow networks.
 - **Should fix before relaunch:** participant-facing paid transfer/resale money movement and resale-specific workflows are not implemented in the reviewed event registration path. `PRODUCT.md` defines the intended model as a new participant completing a fresh Stripe Checkout registration, cancellation of the existing participant's registration, and a Stripe refund to the existing participant. The event page shows a disabled transfer action and explains that paid registration transfer and resale need the Stripe Checkout replacement and refund flow first. Paid confirmed cancellation now attempts automatic Stripe refunds for transactions with stored Stripe payment references and keeps a pending manual refund fallback for older/manual records.
+- **Should fix before relaunch:** `PRODUCT.md` lists email as the first
+  notification channel and includes successful registration confirmation with
+  QR code, waitlist spot-available, registration-cancelled, and
+  transfer-completed emails as in-scope notifications. The current server has
+  no mail delivery service or registration lifecycle email side effects yet;
+  client `NotificationService` calls are local snackbar feedback only.
 - **Addressed in stabilization pass:** active registration status now uses the shared persisted registration status literal union instead of raw `Schema.String`.
 - **Acceptable for now:** paid registration rollback is careful about cleaning up a failed checkout session creation path; deeper Stripe lifecycle review belongs in the finance pass.
 
@@ -3136,10 +3142,11 @@ Richer reusable template add-ons and questions are now implemented in the simple
 template flow and should be kept aligned as those surfaces evolve. Normal generated docs output now stays local unless
 `test:e2e:docs:publish` is run intentionally. New Playwright
 skips/fixmes should be added only as explicit credential gates or honest
-Browser-backed stabilization placeholders. Receipt-reviewed email notification
-remains a relaunch blocker because `PRODUCT.md` lists it as in scope and the
-current implementation only records receipt review locally with explicit manual
-submitter-notification copy. Profile/account also remains blocked on the
-home-tenant warning model from `PRODUCT.md`; current account creation supports
-multi-tenant membership but does not persist a home tenant or warn when the
-current tenant differs.
+Browser-backed stabilization placeholders. Registration lifecycle email
+notifications and receipt-reviewed email notification remain relaunch blockers
+because `PRODUCT.md` lists them as in scope and the current implementation has
+no server mail delivery service; receipt review currently records the status
+locally with explicit manual submitter-notification copy. Profile/account also
+remains blocked on the home-tenant warning model from `PRODUCT.md`; current
+account creation supports multi-tenant membership but does not persist a home
+tenant or warn when the current tenant differs.

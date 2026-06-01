@@ -48,12 +48,44 @@ describe('stabilization source', () => {
     expect(statusTable).toContain('| Registrations');
     expect(statusTable).toContain('| Blocked');
     expect(statusTable).toContain('unpaid transfer boundaries');
-    expect(statusTable).toContain('paid transfer/resale still needs');
-    expect(statusTable).toContain(
-      'Stripe Checkout replacement and refund flow before relaunch',
-    );
+    expect(statusTable).toContain('paid transfer/resale');
+    expect(statusTable).toContain('still need delivery implementation');
     expect(statusTable).not.toContain(
       'Free/paid registration, guests, add-ons, waitlist, negative states, cancellation/refund, and transfer boundaries have server, app, spec, and docs coverage.',
+    );
+  });
+
+  it('keeps the review status honest about registration email notification blockers', () => {
+    const source = readSource('STABILIZATION.md');
+    const product = readSource('PRODUCT.md');
+    const serverSources = listFiles('src/server', '.ts')
+      .map((sourceFile) => readSource(sourceFile))
+      .join('\n');
+    const packageJson = readSource('package.json');
+    const statusTable = readSection(
+      source,
+      'Review Status',
+      'Product Decision Draft',
+    );
+
+    expect(product).toContain('Email is the first notification channel.');
+    expect(product).toContain(
+      'successful registration confirmation, including QR code',
+    );
+    expect(product).toContain('waitlist spot available');
+    expect(product).toContain('registration cancelled by participant or admin');
+    expect(product).toContain('transfer completed');
+    expect(`${serverSources}\n${packageJson}`).not.toMatch(
+      /send(?:Mail|Email)|smtp|resend|mailgun|postmark|nodemailer|aws.*ses|EmailService|MailService/u,
+    );
+    expect(statusTable).toContain('| Registrations');
+    expect(statusTable).toContain('| Blocked');
+    expect(statusTable).toContain('registration notification emails');
+    expect(source).toMatch(
+      /The current server has\s+no mail delivery service or registration lifecycle email side effects yet/u,
+    );
+    expect(source).toMatch(
+      /Registration lifecycle email\s+notifications and receipt-reviewed email notification remain relaunch blockers/u,
     );
   });
 
@@ -75,8 +107,8 @@ describe('stabilization source', () => {
     expect(source).toContain(
       'the current server has no mail delivery service or receipt-review email side effect yet',
     );
-    expect(source).toContain(
-      'current implementation only records receipt review locally with explicit manual',
+    expect(source).toMatch(
+      /current implementation has\s+no server mail delivery service; receipt review currently records the status\s+locally with explicit manual/u,
     );
   });
 
@@ -101,7 +133,7 @@ describe('stabilization source', () => {
       'The current `users` schema has no home-tenant field',
     );
     expect(source).toMatch(
-      /does not persist a home tenant or warn when the\s+current tenant differs/u,
+      /does not persist a home\s+tenant or warn when the current tenant differs/u,
     );
   });
 
