@@ -2851,13 +2851,23 @@ implement those decisions or explicitly revise them there before changing code.
   Actions. Local verification after the rebase passed `bun run format:write`,
   `bun run lint`, the focused stabilization/runtime/generated-docs source guard
   suite with 42 passing tests, workflow YAML parsing, `git diff --check`, and
-  project-local `docker compose config --quiet`. `bun run docker:check`
-  confirms the Compose file is valid but local Docker startup is currently
-  blocked until `NEON_API_KEY`, `CLIENT_SECRET`, and `STRIPE_API_KEY` are
-  present in the worktree environment. The PR still has no review threads and
-  remains draft; pushing the rebased branch is blocked by the current GitHub
-  token missing `workflow` scope while `.github/workflows/e2e-baseline.yml`
-  changed, and SSH has no loaded identity.
+  project-local `docker compose config --quiet`. The refreshed worktree did not
+  initially have a private `.env`; after copying the main checkout's untracked
+  `.env` into this worktree, `bun run docker:check` passed, Docker rebuilt from
+  zero with `APP_HOST_PORT=4200 bun run docker:start`, and `/events` returned
+  successfully. The in-app Browser opened `http://localhost:4200/events`,
+  showed the seeded event list, and reported no console errors. Direct Browser
+  navigation to auth-gated `/profile#discounts` and `/scan` was stopped by the
+  browser layer with `ERR_BLOCKED_BY_CLIENT` before the app route rendered, so
+  repeat authenticated Browser review remains constrained to sessions/routes
+  that the in-app Browser can open. The Docker-backed event/unlisted visibility
+  slice also passed after allowing Playwright setup dependencies to recreate the
+  auth storage state; the focused `local-chrome-baseline` run for
+  `tests/specs/events/events.test.ts` and
+  `tests/specs/events/unlisted-visibility.test.ts` reported 12 passed. The PR
+  still has no review threads and remains draft; pushing the rebased branch is
+  blocked by the current GitHub token missing `workflow` scope while
+  `.github/workflows/e2e-baseline.yml` changed, and SSH has no loaded identity.
 
 ## Browser Review Queue
 
