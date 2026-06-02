@@ -47,93 +47,111 @@
       <!-- Management Section -->
       <section class="grid gap-4">
         <h2 class="title-large">Participants</h2>
-        @for (
-          registrationOption of organizerOverviewQuery.data();
-          track registrationOption.registrationOptionId
-        ) {
+        @if (organizerOverviewQuery.isPending()) {
+          <div class="bg-surface-container rounded-lg p-4">
+            Loading participants...
+          </div>
+        } @else if (organizerOverviewQuery.isError()) {
           <div
-            class="bg-surface-container text-on-surface-container grid gap-2 rounded-lg p-4"
+            class="bg-error-container text-on-error-container rounded-lg p-4"
           >
-            <h3 class="title-medium">
-              {{ registrationOption.registrationOptionTitle }}
-            </h3>
-            @for (user of registrationOption.users; track user.userId) {
+            Failed to load participants.
+          </div>
+        } @else if (organizerOverviewQuery.isSuccess()) {
+          @if (organizerOverviewQuery.data().length === 0) {
+            <div class="bg-surface-container rounded-lg p-4">
+              No participants yet.
+            </div>
+          } @else {
+            @for (
+              registrationOption of organizerOverviewQuery.data();
+              track registrationOption.registrationOptionId
+            ) {
               <div
-                class="flex flex-wrap items-center justify-between gap-2 rounded bg-surface-container-high px-3 py-2"
+                class="bg-surface-container text-on-surface-container grid gap-2 rounded-lg p-4"
               >
-                <div class="grid gap-1">
-                  <div class="flex flex-wrap items-center gap-2">
-                    <p>{{ user.firstName }} {{ user.lastName }}</p>
-                    @if (user.appliedDiscountType === "esnCard") {
-                      <span
-                        class="bg-primary-container text-on-primary-container rounded px-2 py-1 text-xs"
-                      >
-                        ESNcard discount
-                      </span>
-                    }
-                    @if (user.checkedIn) {
-                      <span class="rounded bg-surface px-2 py-1 text-xs">
-                        Checked in
-                      </span>
-                    }
-                  </div>
-                  @if (user.addonPurchases.length > 0) {
-                    <p class="body-small text-on-surface-variant">
-                      Add-ons:
-                      @for (
-                        addOnPurchase of user.addonPurchases;
-                        track $index
-                      ) {
-                        <span>
-                          {{ addOnPurchase.quantity }} x {{ addOnPurchase.title
-                          }}{{ $last ? "" : ", " }}
-                        </span>
+                <h3 class="title-medium">
+                  {{ registrationOption.registrationOptionTitle }}
+                </h3>
+                @for (user of registrationOption.users; track user.userId) {
+                  <div
+                    class="flex flex-wrap items-center justify-between gap-2 rounded bg-surface-container-high px-3 py-2"
+                  >
+                    <div class="grid gap-1">
+                      <div class="flex flex-wrap items-center gap-2">
+                        <p>{{ user.firstName }} {{ user.lastName }}</p>
+                        @if (user.appliedDiscountType === "esnCard") {
+                          <span
+                            class="bg-primary-container text-on-primary-container rounded px-2 py-1 text-xs"
+                          >
+                            ESNcard discount
+                          </span>
+                        }
+                        @if (user.checkedIn) {
+                          <span class="rounded bg-surface px-2 py-1 text-xs">
+                            Checked in
+                          </span>
+                        }
+                      </div>
+                      @if (user.addonPurchases.length > 0) {
+                        <p class="body-small text-on-surface-variant">
+                          Add-ons:
+                          @for (
+                            addOnPurchase of user.addonPurchases;
+                            track $index
+                          ) {
+                            <span>
+                              {{ addOnPurchase.quantity }} x
+                              {{ addOnPurchase.title }}{{ $last ? "" : ", " }}
+                            </span>
+                          }
+                        </p>
                       }
-                    </p>
-                  }
-                </div>
-                @if (!registrationOption.organizingRegistration) {
-                  <div class="flex flex-wrap gap-2">
-                    <button
-                      mat-stroked-button
-                      type="button"
-                      (click)="openTransferDialog(user)"
-                      [disabled]="
-                        organizerRegistrationTransferDisabled({
-                          checkedIn: user.checkedIn,
-                          mutationPending:
-                            transferRegistrationMutation.isPending() ||
-                            cancelRegistrationMutation.isPending(),
-                          transferAvailable: user.transferAvailable,
-                        })
-                      "
-                    >
-                      {{
-                        user.transferAvailable
-                          ? "Transfer registration"
-                          : "Transfer unavailable"
-                      }}
-                    </button>
-                    <button
-                      mat-stroked-button
-                      type="button"
-                      (click)="cancelRegistration(user)"
-                      [disabled]="
-                        organizerRegistrationActionDisabled({
-                          checkedIn: user.checkedIn,
-                          mutationPending:
-                            cancelRegistrationMutation.isPending() ||
-                            transferRegistrationMutation.isPending(),
-                        })
-                      "
-                    >
-                      Cancel registration
-                    </button>
+                    </div>
+                    @if (!registrationOption.organizingRegistration) {
+                      <div class="flex flex-wrap gap-2">
+                        <button
+                          mat-stroked-button
+                          type="button"
+                          (click)="openTransferDialog(user)"
+                          [disabled]="
+                            organizerRegistrationTransferDisabled({
+                              checkedIn: user.checkedIn,
+                              mutationPending:
+                                transferRegistrationMutation.isPending() ||
+                                cancelRegistrationMutation.isPending(),
+                              transferAvailable: user.transferAvailable,
+                            })
+                          "
+                        >
+                          {{
+                            user.transferAvailable
+                              ? "Transfer registration"
+                              : "Transfer unavailable"
+                          }}
+                        </button>
+                        <button
+                          mat-stroked-button
+                          type="button"
+                          (click)="cancelRegistration(user)"
+                          [disabled]="
+                            organizerRegistrationActionDisabled({
+                              checkedIn: user.checkedIn,
+                              mutationPending:
+                                cancelRegistrationMutation.isPending() ||
+                                transferRegistrationMutation.isPending(),
+                            })
+                          "
+                        >
+                          Cancel registration
+                        </button>
+                      </div>
+                    }
                   </div>
                 }
               </div>
             }
-          </div>
+          }
         }
         <!--        <table mat-table [dataSource]="organizerTableContent()">-->
         <!--          <ng-container matColumnDef="name">-->

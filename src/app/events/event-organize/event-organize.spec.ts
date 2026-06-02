@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import nodePath from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -7,6 +9,9 @@ import {
   receiptSubmissionActionDisabled,
 } from './event-organize';
 import { transferParticipantLabel } from './registration-transfer-dialog.component';
+
+const readSource = (sourcePath: string): string =>
+  readFileSync(nodePath.join(process.cwd(), sourcePath), 'utf8');
 
 describe('computeEventOrganizeStats', () => {
   it('sums capacity, confirmed registrations, and scanner-updated checked-in spots', () => {
@@ -40,6 +45,24 @@ describe('computeEventOrganizeStats', () => {
       checkedIn: 0,
       registered: 0,
     });
+  });
+});
+
+describe('event organize participants query state', () => {
+  it('guards participant rows behind loaded organizer overview data', () => {
+    const template = readSource(
+      'src/app/events/event-organize/event-organize.html',
+    );
+    const participantSection = template.slice(
+      template.indexOf('<h2 class="title-large">Participants</h2>'),
+      template.indexOf('<!--        <table mat-table'),
+    );
+
+    expect(participantSection).toContain('organizerOverviewQuery.isPending()');
+    expect(participantSection).toContain('organizerOverviewQuery.isError()');
+    expect(participantSection).toContain('organizerOverviewQuery.isSuccess()');
+    expect(participantSection).toContain('Failed to load participants.');
+    expect(participantSection).toContain('No participants yet.');
   });
 });
 
