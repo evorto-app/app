@@ -112,6 +112,19 @@ export const EventsTransferMyRegistration = asRpcMutation(
   }),
 );
 
+export const EventsCreateRegistrationTransferIntent = asRpcMutation(
+  Rpc.make('events.createRegistrationTransferIntent', {
+    error: EventsCheckInRegistrationError,
+    payload: Schema.Struct({
+      registrationId: Schema.NonEmptyString,
+    }),
+    success: Schema.Struct({
+      code: Schema.NonEmptyString,
+      expiresAt: Schema.NonEmptyString,
+    }),
+  }),
+);
+
 export const EventsCheckInRegistration = asRpcMutation(
   Rpc.make('events.checkInRegistration', {
     error: EventsCheckInRegistrationError,
@@ -611,6 +624,7 @@ export class EventsRpcs extends RpcGroup.make(
   EventsTransferMyRegistration,
   EventsCanOrganize,
   EventsCheckInRegistration,
+  EventsCreateRegistrationTransferIntent,
   EventsCreate,
   EventsEventList,
   EventsFindOne,

@@ -198,6 +198,11 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   refund API, records the refund transaction, writes a cancellation email
   outbox row, and notifies the oldest waitlisted participant when a confirmed
   cancellation opens capacity; paid resale remains deferred.
+  `src/server/effect/rpc/handlers/events/events-registration.handlers.spec.ts`
+  now separately covers the first durable paid transfer primitive:
+  `events.createRegistrationTransferIntent` creates or reuses a tenant-scoped
+  24-hour transfer code for eligible paid registrations and rejects unpaid
+  registrations.
   This unavailable-state coverage does not satisfy the relaunch transfer/resale
   workflow. `STABILIZATION.md` keeps registrations blocked until the Stripe
   Checkout replacement registration and original-registration refund flow is

@@ -26,6 +26,7 @@ import {
 } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { Effect } from 'effect';
+import { randomBytes } from 'node:crypto';
 
 import type { AppRpcHandlers } from '../shared/handler-types';
 
@@ -35,6 +36,7 @@ import {
   eventAddons,
   eventRegistrationOptions,
   eventRegistrations,
+  registrationTransferIntents,
   rolesToTenantUsers,
   transactions,
   users,
@@ -98,6 +100,11 @@ const hasSuccessfulPaidRegistrationTransaction = (
       transaction.status === 'successful' &&
       transaction.amount > 0,
   );
+
+const REGISTRATION_TRANSFER_INTENT_TTL_MS = 24 * 60 * 60 * 1000;
+
+const createRegistrationTransferCode = (): string =>
+  randomBytes(24).toString('base64url');
 
 const hasStripeRefundReference = (transaction: {
   stripeChargeId: null | string;
@@ -1152,6 +1159,138 @@ export const eventRegistrationHandlers = {
         checkInTime: checkedInRegistration.checkInTime.toISOString(),
       };
     }).pipe(Effect.catch(mapRegistrationScanInternalError)),
+  'events.createRegistrationTransferIntent': ({ registrationId }, _options) =>
+    Effect.gen(function* () {
+      yield* RpcAccess.ensureAuthenticated();
+      const { tenant } = yield* RpcAccess.current();
+      const user = yield* RpcAccess.requireUser();
+      const now = new Date();
+
+      const registration = yield* databaseEffect((database) =>
+        database.query.eventRegistrations.findFirst({
+          columns: {
+            checkInTime: true,
+            id: true,
+            status: true,
+            userId: true,
+          },
+          where: {
+            id: registrationId,
+            tenantId: tenant.id,
+            userId: user.id,
+          },
+          with: {
+            event: {
+              columns: {
+                start: true,
+              },
+            },
+            transactions: {
+              columns: {
+                amount: true,
+                status: true,
+                type: true,
+              },
+              where: {
+                type: 'registration',
+              },
+            },
+          },
+        }),
+      );
+      if (!registration || !registration.event) {
+        return yield* Effect.fail(
+          new EventRegistrationNotFoundError({
+            message: 'Registration not found',
+          }),
+        );
+      }
+      if (
+        registration.status !== 'CONFIRMED' ||
+        registration.checkInTime !== null ||
+        registration.event.start <= now
+      ) {
+        return yield* Effect.fail(
+          new EventRegistrationConflictError({
+            message: 'Registration is not eligible for paid transfer',
+          }),
+        );
+      }
+      if (
+        !hasSuccessfulPaidRegistrationTransaction(
+          registration.transactions ?? [],
+        )
+      ) {
+        return yield* Effect.fail(
+          new EventRegistrationConflictError({
+            message: 'Only paid registrations can create transfer codes',
+          }),
+        );
+      }
+
+      const activeIntent = yield* databaseEffect((database) =>
+        database.query.registrationTransferIntents.findFirst({
+          columns: {
+            code: true,
+            expiresAt: true,
+            id: true,
+          },
+          where: {
+            sourceRegistrationId: registration.id,
+            status: 'pending',
+            tenantId: tenant.id,
+          },
+        }),
+      );
+      if (activeIntent && activeIntent.expiresAt > now) {
+        return {
+          code: activeIntent.code,
+          expiresAt: activeIntent.expiresAt.toISOString(),
+        };
+      }
+      if (activeIntent) {
+        yield* databaseEffect((database) =>
+          database
+            .update(registrationTransferIntents)
+            .set({ status: 'expired' })
+            .where(eq(registrationTransferIntents.id, activeIntent.id)),
+        );
+      }
+
+      const expiresAt = new Date(
+        now.getTime() + REGISTRATION_TRANSFER_INTENT_TTL_MS,
+      );
+      const transferCode = createRegistrationTransferCode();
+      const insertedIntents = yield* databaseEffect((database) =>
+        database
+          .insert(registrationTransferIntents)
+          .values({
+            code: transferCode,
+            createdByUserId: user.id,
+            expiresAt,
+            sourceRegistrationId: registration.id,
+            status: 'pending',
+            tenantId: tenant.id,
+          })
+          .returning({
+            code: registrationTransferIntents.code,
+            expiresAt: registrationTransferIntents.expiresAt,
+          }),
+      );
+      const insertedIntent = insertedIntents[0];
+      if (!insertedIntent) {
+        return yield* Effect.fail(
+          new EventRegistrationInternalError({
+            message: 'Transfer intent creation failed',
+          }),
+        );
+      }
+
+      return {
+        code: insertedIntent.code,
+        expiresAt: insertedIntent.expiresAt.toISOString(),
+      };
+    }),
   'events.findTransferTargets': (
     { eventId, registrationId, search },
     _options,

@@ -12,6 +12,7 @@ describe('eventHandlers composition', () => {
       'events.cancelRegistration',
       'events.checkInRegistration',
       'events.create',
+      'events.createRegistrationTransferIntent',
       'events.eventList',
       'events.findOne',
       'events.findOneForEdit',

@@ -13,6 +13,7 @@ export * from './event-templates';
 export * from './finance-receipts';
 export * from './global-enums';
 export * from './icons';
+export * from './registration-transfer-intents';
 export * from './roles';
 export * from './stripe-webhook-events';
 export * from './template-event-addons';

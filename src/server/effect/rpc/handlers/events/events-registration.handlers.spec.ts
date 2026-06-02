@@ -5,6 +5,7 @@ import { Database } from '../../../../../db';
 import {
   eventRegistrationOptions,
   eventRegistrations,
+  registrationTransferIntents,
   rolesToTenantUsers,
   transactions,
   users,
@@ -230,6 +231,75 @@ const createGuestCancellationDatabase = ({
   };
 
   return { database, updateSets };
+};
+
+const paidTransferRegistration = {
+  checkInTime: null,
+  event: {
+    start: new Date(Date.now() + 24 * 60 * 60 * 1000),
+  },
+  id: 'registration-1',
+  status: 'CONFIRMED' as const,
+  transactions: [
+    {
+      amount: 2500,
+      status: 'successful',
+      type: 'registration',
+    },
+  ],
+  userId: 'attendee-1',
+};
+
+const createTransferIntentDatabase = ({
+  activeIntent = null,
+  registration = paidTransferRegistration,
+}: {
+  activeIntent?: null | {
+    code: string;
+    expiresAt: Date;
+    id: string;
+  };
+  registration?: typeof paidTransferRegistration;
+} = {}) => {
+  let insertedIntent: Record<string, unknown> | undefined;
+  const database = {
+    insert: vi.fn((table) => {
+      expect(table).toBe(registrationTransferIntents);
+      return {
+        values: vi.fn((values: Record<string, unknown>) => {
+          insertedIntent = values;
+          return {
+            returning: vi.fn(() =>
+              Effect.succeed([
+                {
+                  code: values['code'],
+                  expiresAt: values['expiresAt'],
+                },
+              ]),
+            ),
+          };
+        }),
+      };
+    }),
+    query: {
+      eventRegistrations: {
+        findFirst: vi.fn(() => Effect.succeed(registration)),
+      },
+      registrationTransferIntents: {
+        findFirst: vi.fn(() => Effect.succeed(activeIntent)),
+      },
+    },
+    update: vi.fn(() => ({
+      set: vi.fn(() => ({
+        where: vi.fn(() => Effect.succeed()),
+      })),
+    })),
+  };
+
+  return {
+    database,
+    getInsertedIntent: () => insertedIntent,
+  };
 };
 
 const createTransferDatabase = ({
@@ -561,6 +631,81 @@ const createTransferTargetsDatabase = ({
 
   return database;
 };
+
+describe('registration transfer intent handlers', () => {
+  it.effect(
+    'creates a paid registration transfer code for an eligible participant registration',
+    () =>
+      Effect.gen(function* () {
+        const user = createUser({ id: 'attendee-1' });
+        const { database, getInsertedIntent } = createTransferIntentDatabase();
+
+        const result = yield* eventRegistrationHandlers[
+          'events.createRegistrationTransferIntent'
+        ]({ registrationId: 'registration-1' }, { headers: {} } as never).pipe(
+          Effect.provide(createContextLayer({ database, user })),
+        );
+
+        expect(result.code).toEqual(expect.any(String));
+        expect(result.expiresAt).toEqual(expect.any(String));
+        expect(getInsertedIntent()).toMatchObject({
+          code: result.code,
+          createdByUserId: 'attendee-1',
+          sourceRegistrationId: 'registration-1',
+          status: 'pending',
+          tenantId: 'tenant-1',
+        });
+        expect(getInsertedIntent()?.['expiresAt']).toBeInstanceOf(Date);
+      }),
+  );
+
+  it.effect('reuses an existing unexpired paid transfer code', () =>
+    Effect.gen(function* () {
+      const user = createUser({ id: 'attendee-1' });
+      const { database, getInsertedIntent } = createTransferIntentDatabase({
+        activeIntent: {
+          code: 'existing-code',
+          expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+          id: 'intent-1',
+        },
+      });
+
+      const result = yield* eventRegistrationHandlers[
+        'events.createRegistrationTransferIntent'
+      ]({ registrationId: 'registration-1' }, { headers: {} } as never).pipe(
+        Effect.provide(createContextLayer({ database, user })),
+      );
+
+      expect(result.code).toBe('existing-code');
+      expect(getInsertedIntent()).toBeUndefined();
+    }),
+  );
+
+  it.effect('rejects unpaid registrations for paid transfer codes', () =>
+    Effect.gen(function* () {
+      const user = createUser({ id: 'attendee-1' });
+      const { database } = createTransferIntentDatabase({
+        registration: {
+          ...paidTransferRegistration,
+          transactions: [],
+        },
+      });
+
+      const error = yield* eventRegistrationHandlers[
+        'events.createRegistrationTransferIntent'
+      ]({ registrationId: 'registration-1' }, { headers: {} } as never).pipe(
+        Effect.provide(createContextLayer({ database, user })),
+        Effect.flip,
+      );
+
+      expect(error['_tag']).toBe('EventRegistrationConflictError');
+      expect(error.message).toBe(
+        'Only paid registrations can create transfer codes',
+      );
+      expect(database.insert).not.toHaveBeenCalled();
+    }),
+  );
+});
 
 describe('event registration cancellation handlers', () => {
   it.effect(
