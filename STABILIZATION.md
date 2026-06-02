@@ -3307,6 +3307,13 @@ fallback rather than a profile discount-card defect.
   Playwright skip/fixme inventory guard is current after the Stripe webhook
   replay credential-gate line drift. The remote PR head remains stale until SSH
   signing or workflow-scoped HTTPS push is available.
+- Current Browser route checkpoint: with the Docker stack healthy on the
+  generated `BASE_URL`, the in-app Browser opened `/events`, waited past the
+  initial loading state, and rendered the seeded event list with the expected
+  `Soccer Match 1` entry. Clicking that unique entry opened the event detail,
+  which rendered the participant registration card, inclusive VAT label, and
+  payment CTA. Browser console warning/error logs were empty for the route
+  check.
 
 ## Review Next
 
