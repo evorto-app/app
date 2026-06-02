@@ -144,6 +144,24 @@ describe('eventListingActionDisabled', () => {
   });
 });
 
+describe('EventDetails template', () => {
+  it('keeps event and registration actions behind explicit query states', () => {
+    const template = readSource(
+      'src/app/events/event-details/event-details.component.html',
+    );
+
+    expect(template).toContain('eventQuery.isPending()');
+    expect(template).toContain('Loading event ...');
+    expect(template).toContain('eventQuery.isError()');
+    expect(template).toContain('Failed to load event.');
+    expect(template).toContain('eventQuery.isSuccess()');
+    expect(template).toContain('registrationStatusQuery.isPending()');
+    expect(template).toContain('registrationStatusQuery.isError()');
+    expect(template).toContain('Failed to load registration status.');
+    expect(template).toContain('registrationStatusQuery.isSuccess()');
+  });
+});
+
 describe('transferCodeRedemptionActionDisabled', () => {
   it('allows transfer-code redemption only with a code, no registration, and no in-flight write', () => {
     expect(
