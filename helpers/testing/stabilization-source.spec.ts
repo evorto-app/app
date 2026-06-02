@@ -609,6 +609,10 @@ describe('stabilization source', () => {
     const source = readSource('STABILIZATION.md');
     const dockerCompose = readSource('docker-compose.yml');
     const endToEndWorkflow = readSource('.github/workflows/e2e-baseline.yml');
+    const ciStartDockerStackHelper = readSource(
+      'helpers/testing/ci-start-docker-stack.sh',
+    );
+    const packageJson = readSource('package.json');
     const readinessCheckpoint = source.match(
       /Recent PR readiness checkpoint:[\s\S]*?\n\n## Browser Review Queue/u,
     )?.[0];
@@ -641,7 +645,7 @@ describe('stabilization source', () => {
     expect(readinessCheckpoint).toMatch(
       /Chromium-only Playwright browser\s+install/u,
     );
-    expect(endToEndWorkflow).toContain('timeout-minutes: 10');
+    expect(endToEndWorkflow).toContain('timeout-minutes: 25');
     expect(endToEndWorkflow).toContain('NEON_LOCAL_METADATA_WAIT_SECONDS: 180');
     expect(endToEndWorkflow).toContain(
       'chmod 0777 "${NEON_LOCAL_METADATA_DIR}"',
@@ -664,8 +668,22 @@ describe('stabilization source', () => {
     expect(endToEndWorkflow).toContain(
       'name: playwright-test-results-${{ matrix.suite }}',
     );
-    expect(endToEndWorkflow).toContain('compose_status=$?');
-    expect(endToEndWorkflow).toContain('exit "${compose_status}"');
+    expect(endToEndWorkflow).toContain(
+      'run: bash helpers/testing/ci-start-docker-stack.sh',
+    );
+    expect(ciStartDockerStackHelper).toContain(
+      'timeout 5m bun run docker:check',
+    );
+    expect(ciStartDockerStackHelper).toContain('start_status=$?');
+    expect(ciStartDockerStackHelper).toContain('return "${start_status}"');
+    expect(endToEndWorkflow).not.toContain('compose_status=$?');
+    expect(packageJson).toContain(
+      '"docker:start": "bun run docker:check && dotenv -c dev -- docker compose down && dotenv -c dev -- docker compose up --build -d"',
+    );
+    expect(endToEndWorkflow).not.toContain('docker compose up -d evorto');
+    expect(ciStartDockerStackHelper).toContain(
+      'db db-expiration db-setup minio minio-init evorto stripe',
+    );
     expect(readinessCheckpoint).toMatch(
       /The PR\s+has\s+no\s+unresolved review threads\s+at/u,
     );

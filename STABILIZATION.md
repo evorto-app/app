@@ -1857,6 +1857,11 @@ the current working direction until a product decision overrides them.
 - **Addressed in this stabilization pass:** the CI Playwright workflow now relies on the Compose `db-setup` service instead of running a separate host `bun run db:push` step, so CI uses the same non-interactive Docker schema reset path as local Docker startup.
 - **Addressed in this stabilization pass:** the CI Playwright workflow now exports and validates `ISSUER_BASE_URL` and `SECRET` before starting the Docker app container, matching the auth config fields required for runtime startup. CI uses the tracked dev Auth0 issuer and a disposable CI session secret as defaults when repository settings do not override them.
 - **Addressed in this stabilization pass:** the CI Playwright workflow now invokes the baseline Playwright project explicitly instead of the package wrapper, so CI configuration only requires deterministic baseline credentials and does not demand Auth0 Management or Cloudflare Images credentials that belong to integration-tagged projects.
+- **Addressed in this stabilization pass:** the CI Playwright workflow now uses
+  the same `bun run docker:start` package-script path as local reset-from-zero
+  Docker startup. This keeps the CI stack on the regular Compose graph,
+  preserves the non-mutating runtime preflight, and still prints Compose status
+  plus focused service logs when startup fails.
 - **Addressed in this stabilization pass:** Docker sets `SSR_RPC_ORIGIN=http://localhost:4200` for server-side rendering while keeping `BASE_URL` browser-facing for Auth0 redirects. This keeps SSR RPC calls inside the app container and prevents the `/events` page from calling the host-mapped port from inside Docker.
 - **Addressed in stabilization pass:** Playwright local runs now default to the
   bundled Chromium channel while allowing `E2E_BROWSER_CHANNEL=chrome` for
@@ -3241,12 +3246,12 @@ fallback rather than a profile discount-card defect.
   resolve. GitHub review-thread inspection found zero unresolved inline review
   threads. The PR remains draft and GitHub still reports the older remote head,
   including the stale Qodo `db-expiration` Compose-start failure, because the
-  nine local commits after `b0ba75c6` have not reached the remote branch. A
-  fresh SSH push retry still failed before GitHub authorization: the configured
-  1Password agent lists the `Github` ED25519 key, but signing the GitHub
-  challenge returns `communication with agent failed`. HTTPS push remains
-  unusable for this branch until the GitHub token has `workflow` scope because
-  the local branch edits `.github/workflows/e2e-baseline.yml`.
+  local stabilization commits have not reached the remote branch. Fresh SSH push
+  retries still failed before GitHub authorization: the configured 1Password
+  agent lists the `Github` ED25519 key, but signing the GitHub challenge returns
+  `communication with agent failed`. HTTPS push remains unusable for this branch
+  until the GitHub token has `workflow` scope because the local branch edits
+  `.github/workflows/e2e-baseline.yml`.
 - Current docs-CI stabilization checkpoint: GitHub's remote docs shard is still
   failing on the older remote head in `tests/docs/events/register.doc.ts`
   because the paid registration docs journey waits for live Stripe Checkout
@@ -3292,6 +3297,11 @@ fallback rather than a profile discount-card defect.
   opened the generated `BASE_URL` `/events`, showed the expected seeded event
   list, clicked `Soccer Match 1`, and rendered the event detail with the
   participant registration card and inclusive VAT label.
+- Current CI Compose alignment checkpoint: CI startup now calls
+  `bun run docker:start` instead of hand-rolling separate pull/build/start
+  commands. That answers the Compose-start review directly while keeping the
+  local destructive reset semantics, Docker preflight, full Compose graph, and
+  failure diagnostics intact.
 
 ## Review Next
 
