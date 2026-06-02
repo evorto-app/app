@@ -556,7 +556,7 @@ describe('stabilization source', () => {
     expect(queue).not.toContain('E2E_LIVE_ESN_CARD_IDENTIFIER');
   });
 
-  it('keeps Review Next scoped to the real remaining blockers', () => {
+  it('keeps Review Next scoped to the real remaining watchpoints', () => {
     const source = readSource('STABILIZATION.md');
     const reviewNext = source.split('## Review Next\n')[1];
 
@@ -573,6 +573,12 @@ describe('stabilization source', () => {
     expect(reviewNext).toContain('system-Chrome coverage');
     expect(reviewNext).toContain('manual Browser review pass');
     expect(reviewNext).toContain('visible profile discount-card UX');
+    expect(reviewNext).toContain(
+      'evidence drift and relaunch-scope watchpoints',
+    );
+    expect(reviewNext).not.toContain(
+      'remaining product and relaunch-scope blockers',
+    );
     expect(reviewNext).not.toContain('no active Codex browser pane');
     expect(reviewNext).not.toContain('Transport closed');
     expect(reviewNext).not.toContain('fallback Playwright browser MCP');

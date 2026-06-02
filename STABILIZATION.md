@@ -3302,13 +3302,18 @@ fallback rather than a profile discount-card defect.
   commands. That answers the Compose-start review directly while keeping the
   local destructive reset semantics, Docker preflight, full Compose graph, and
   failure diagnostics intact.
+- Current review-drift checkpoint: PR review-thread inspection still finds zero
+  unresolved inline review threads while the PR is draft, and the
+  Playwright skip/fixme inventory guard is current after the Stripe webhook
+  replay credential-gate line drift. The remote PR head remains stale until SSH
+  signing or workflow-scoped HTTPS push is available.
 
 ## Review Next
 
 All ten first-pass review areas are now represented in this document, and the
 first manual in-app Browser queue pass has been completed against the local
 Docker app. The next stabilization work should continue with small cleanup
-commits around the remaining product and relaunch-scope blockers. ESNcard
+commits around evidence drift and relaunch-scope watchpoints. ESNcard
 provider add/refresh/remove outcomes now use deterministic ESNcard provider test
 mode. Event archival data-model support now exists as a tenant-scoped
 non-personal snapshot model; automatic archival remains out of scope without an
