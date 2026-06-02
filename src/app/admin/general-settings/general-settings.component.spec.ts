@@ -10,32 +10,61 @@ describe('generalSettingsSaveDisabled', () => {
   it('blocks tenant settings saves while invalid, submitting, or mutation-pending', () => {
     expect(
       generalSettingsSaveDisabled({
+        brandAssetMutationPending: false,
         formInvalid: true,
         formSubmitting: false,
         mutationPending: false,
+        uploadingBrandAsset: null,
       }),
     ).toBe(true);
     expect(
       generalSettingsSaveDisabled({
+        brandAssetMutationPending: false,
         formInvalid: false,
         formSubmitting: true,
         mutationPending: false,
+        uploadingBrandAsset: null,
       }),
     ).toBe(true);
     expect(
       generalSettingsSaveDisabled({
+        brandAssetMutationPending: false,
         formInvalid: false,
         formSubmitting: false,
         mutationPending: true,
+        uploadingBrandAsset: null,
       }),
     ).toBe(true);
     expect(
       generalSettingsSaveDisabled({
+        brandAssetMutationPending: false,
         formInvalid: false,
         formSubmitting: false,
         mutationPending: false,
+        uploadingBrandAsset: null,
       }),
     ).toBe(false);
+  });
+
+  it('blocks tenant settings saves while a brand asset upload is active', () => {
+    expect(
+      generalSettingsSaveDisabled({
+        brandAssetMutationPending: false,
+        formInvalid: false,
+        formSubmitting: false,
+        mutationPending: false,
+        uploadingBrandAsset: 'logo',
+      }),
+    ).toBe(true);
+    expect(
+      generalSettingsSaveDisabled({
+        brandAssetMutationPending: true,
+        formInvalid: false,
+        formSubmitting: false,
+        mutationPending: false,
+        uploadingBrandAsset: null,
+      }),
+    ).toBe(true);
   });
 });
 

@@ -52,14 +52,23 @@ import {
 } from './general-settings.payload';
 
 export const generalSettingsSaveDisabled = ({
+  brandAssetMutationPending,
   formInvalid,
   formSubmitting,
   mutationPending,
+  uploadingBrandAsset,
 }: {
+  brandAssetMutationPending: boolean;
   formInvalid: boolean;
   formSubmitting: boolean;
   mutationPending: boolean;
-}): boolean => formInvalid || formSubmitting || mutationPending;
+  uploadingBrandAsset: AdminTenantBrandAssetKind | null;
+}): boolean =>
+  uploadingBrandAsset !== null ||
+  brandAssetMutationPending ||
+  formInvalid ||
+  formSubmitting ||
+  mutationPending;
 
 export const generalSettingsBrandAssetUploadDisabled = ({
   mutationPending,
@@ -101,12 +110,12 @@ const tenantBrandAssetClientMimeTypes = {
   templateUrl: './general-settings.component.html',
 })
 export class GeneralSettingsComponent {
-  protected readonly uploadingBrandAsset =
-    signal<AdminTenantBrandAssetKind | null>(null);
   private readonly rpc = AppRpc.injectClient();
-  private readonly uploadBrandAssetMutation = injectMutation(() =>
+  protected readonly uploadBrandAssetMutation = injectMutation(() =>
     this.rpc.admin.tenant.uploadBrandAsset.mutationOptions(),
   );
+  protected readonly uploadingBrandAsset =
+    signal<AdminTenantBrandAssetKind | null>(null);
   protected readonly brandAssetUploadDisabled = computed(() =>
     generalSettingsBrandAssetUploadDisabled({
       mutationPending: this.uploadBrandAssetMutation.isPending(),
@@ -217,9 +226,11 @@ export class GeneralSettingsComponent {
     event.preventDefault();
     if (
       generalSettingsSaveDisabled({
+        brandAssetMutationPending: this.uploadBrandAssetMutation.isPending(),
         formInvalid: this.settingsForm().invalid(),
         formSubmitting: this.settingsForm().submitting(),
         mutationPending: this.updateSettingsMutation.isPending(),
+        uploadingBrandAsset: this.uploadingBrandAsset(),
       })
     ) {
       return;

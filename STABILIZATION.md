@@ -1599,7 +1599,8 @@ the current working direction until a product decision overrides them.
 - `src/app/admin/general-settings/general-settings.payload.spec.ts` covers the client-side tenant-settings payload sent by the form, including trimmed optional editable fields and blank-to-undefined normalization.
 - `src/app/admin/general-settings/general-settings.component.spec.ts` covers
   tenant settings save disabling for invalid, submitting, and mutation-pending
-  states, plus brand-asset upload disabling while any upload is active or
+  states, tenant settings save blocking while brand-asset upload lifecycle state
+  is active, plus brand-asset upload disabling while any upload is active or
   mutation-pending.
 - `src/app/global-admin/global-admin.routes.spec.ts` covers route-level global-admin permission requirements for list, create, detail, and edit routes.
 - `src/app/global-admin/tenant-form/tenant-form.model.spec.ts` covers create/edit payload shaping, including primary-domain normalization and path rejection before the RPC call, plus disabled submit state for invalid, submitting, and mutation-pending tenant writes.
@@ -1647,7 +1648,9 @@ the current working direction until a product decision overrides them.
 - Keep tenant settings save guards aligned with the actual mutation lifecycle,
   not only the signal-form submit callback.
 - Keep tenant SEO title/description, legal links, and hosted legal text aligned between the Tenant RPC schema, general settings, public footer/pages, and generated documentation.
-- Keep tenant brand-asset upload guards aligned with the actual upload mutation lifecycle, not only the visible upload button state.
+- Keep tenant brand-asset upload guards aligned with the actual upload mutation
+  lifecycle, including the tenant settings save guard, not only the visible
+  upload button state.
 
 ## Generated Documentation and Playwright Coverage
 
@@ -2023,6 +2026,11 @@ implement those decisions or explicitly revise them there before changing code.
 - Scanner spec cleanup pass: changed the scanner Playwright spec to require an unchecked confirmed registration and matching registration option instead of skipping fixture/setup failures.
 - Free-registration spec cleanup pass: removed the impossible missing-tenant skip so the regular-user registration flow relies on the required tenant fixture and fails if fixture setup breaks.
 - Template spec cleanup pass: changed template category and role autocomplete coverage to require seeded icons, seeded roles, and concrete role option text instead of skipping fixture/setup failures.
+- Tenant brand-asset lifecycle pass: tenant settings saves now stay disabled
+  while logo/favicon upload lifecycle state is active, preventing an admin from
+  publishing stale brand-asset URLs while an upload is still resolving. Focused
+  Angular unit coverage pins the save/upload guards, and the Docker-backed
+  admin settings Playwright spec passed with system Chrome.
 - None in the Templates pass. The highest-value issues are permission and contract validation gaps that need targeted tests with the fixes.
 - Template docs/spec cleanup pass: removed the generic template doc discovery placeholder, converted the deferred template tax-rate spec to honest fixme-only declarations, and updated the Playwright inventory.
 - Template tax-rate UI coverage pass: replaced the fixme-only template tax-rate file with active simple-mode Browser-backed assertions for the paid tax-rate requirement and seeded inclusive tax-rate save path.

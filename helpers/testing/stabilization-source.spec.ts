@@ -434,6 +434,35 @@ describe('stabilization source', () => {
     );
   });
 
+  it('keeps tenant brand-asset settings guards tied to upload lifecycle state', () => {
+    const source = readSource('STABILIZATION.md');
+    const component = readSource(
+      'src/app/admin/general-settings/general-settings.component.ts',
+    );
+    const template = readSource(
+      'src/app/admin/general-settings/general-settings.component.html',
+    );
+    const spec = readSource(
+      'src/app/admin/general-settings/general-settings.component.spec.ts',
+    );
+
+    expect(component).toContain('brandAssetMutationPending');
+    expect(component).toContain('uploadingBrandAsset !== null');
+    expect(template).toContain(
+      'brandAssetMutationPending: uploadBrandAssetMutation.isPending()',
+    );
+    expect(template).toContain('uploadingBrandAsset: uploadingBrandAsset()');
+    expect(spec).toContain(
+      'blocks tenant settings saves while a brand asset upload is active',
+    );
+    expect(source).toMatch(
+      /tenant settings save blocking while brand-asset upload lifecycle state\s+is active/u,
+    );
+    expect(source).toContain(
+      'Tenant brand-asset lifecycle pass: tenant settings saves now stay disabled',
+    );
+  });
+
   it('keeps the review status honest about the receipt-reviewed email blocker', () => {
     const source = readSource('STABILIZATION.md');
     const product = readSource('PRODUCT.md');

@@ -368,6 +368,8 @@
         type="submit"
         [disabled]="
           generalSettingsSaveDisabled({
+            brandAssetMutationPending: uploadBrandAssetMutation.isPending(),
+            uploadingBrandAsset: uploadingBrandAsset(),
             formInvalid: settingsForm().invalid(),
             formSubmitting: settingsForm().submitting(),
             mutationPending: updateSettingsMutation.isPending(),
