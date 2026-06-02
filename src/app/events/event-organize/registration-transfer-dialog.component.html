@@ -27,28 +27,30 @@
     <div class="bg-error-container text-on-error-container rounded-lg p-4">
       Eligible members could not be loaded.
     </div>
-  } @else if (transferTargetsQuery.data()?.length === 0) {
-    <div class="bg-surface-container rounded-lg p-4 text-sm">
-      No eligible transfer target found.
-    </div>
-  } @else {
-    <div class="grid max-h-80 gap-2 overflow-y-auto">
-      @for (target of transferTargetsQuery.data(); track target.id) {
-        <button
-          mat-stroked-button
-          type="button"
-          class="h-auto! justify-start! py-3! text-left"
-          (click)="transferTo(target.id)"
-        >
-          <span class="grid">
-            <span>{{ target.firstName }} {{ target.lastName }}</span>
-            <span class="text-on-surface-variant text-xs">
-              {{ target.email }}
+  } @else if (transferTargetsQuery.isSuccess()) {
+    @if (transferTargetsQuery.data().length === 0) {
+      <div class="bg-surface-container rounded-lg p-4 text-sm">
+        No eligible transfer target found.
+      </div>
+    } @else {
+      <div class="grid max-h-80 gap-2 overflow-y-auto">
+        @for (target of transferTargetsQuery.data(); track target.id) {
+          <button
+            mat-stroked-button
+            type="button"
+            class="h-auto! justify-start! py-3! text-left"
+            (click)="transferTo(target.id)"
+          >
+            <span class="grid">
+              <span>{{ target.firstName }} {{ target.lastName }}</span>
+              <span class="text-on-surface-variant text-xs">
+                {{ target.email }}
+              </span>
             </span>
-          </span>
-        </button>
-      }
-    </div>
+          </button>
+        }
+      </div>
+    }
   }
 </mat-dialog-content>
 <mat-dialog-actions align="end" class="gap-2">

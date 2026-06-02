@@ -626,6 +626,10 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** organizer/admin cancellation is available from the organizer overview for confirmed participant registrations, requires event-organizer access or `events:organizeAll`, blocks checked-in cancellations, rolls back confirmed counters, and uses the same Stripe-refund/manual-fallback behavior as participant cancellation.
 - **Addressed in stabilization pass:** active registration cards now expose unpaid self-service transfer for confirmed, not checked-in registrations before event start, and keep transfer/resale unavailability explicit for pending and waitlisted registrations.
 - **Addressed in stabilization pass:** `events.findTransferTargets` and `events.transferEventRegistration` provide a conservative organizer-assisted transfer flow for confirmed, not checked-in, unpaid registrations between existing tenant users. The organizer overview opens an eligible-member lookup, and the target lookup and mutation require event-organizer access, fail closed when the target user is outside the tenant, role-ineligible for the registration option, or already has an active registration, and keep direct organizer-assisted paid transfer unavailable because paid registrations use participant-created transfer codes for replacement checkout and source-refund handling.
+- **Addressed in this stabilization pass:** the organizer-assisted transfer
+  dialog now renders the target list and transfer actions only after the
+  eligible-target query succeeds, keeping pending and failed target reads behind
+  explicit stable states.
 - **Addressed in stabilization pass:** organizer overview participant actions now
   use one shared checked-in/in-flight guard for cancellation and
   organizer-assisted transfer buttons and handlers, so checked-in rows and

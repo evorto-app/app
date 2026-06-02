@@ -78,6 +78,22 @@ describe('transferParticipantLabel', () => {
   });
 });
 
+describe('RegistrationTransferDialog template', () => {
+  it('guards transfer target actions behind loaded target data', () => {
+    const template = readSource(
+      'src/app/events/event-organize/registration-transfer-dialog.component.html',
+    );
+
+    expect(template).toContain('transferTargetsQuery.isPending()');
+    expect(template).toContain('transferTargetsQuery.isError()');
+    expect(template).toContain('transferTargetsQuery.isSuccess()');
+    expect(template).toContain('Eligible members could not be loaded.');
+    expect(template).toContain('No eligible transfer target found.');
+    expect(template).toContain('transferTargetsQuery.data().length');
+    expect(template).not.toContain('transferTargetsQuery.data()?.length');
+  });
+});
+
 describe('organizerRegistrationActionDisabled', () => {
   it('blocks organizer participant mutations for checked-in rows or in-flight writes', () => {
     expect(
