@@ -611,6 +611,27 @@ describe('stabilization source', () => {
     );
   });
 
+  it('keeps the generated-docs refresh checkpoint tied to current evidence', () => {
+    const source = readSource('STABILIZATION.md');
+    const queue = readSection(source, 'Browser Review Queue', 'Review Next');
+    const checkpoint = queue.match(
+      /Current generated-docs refresh checkpoint:[\s\S]*?(?=\n\n## Review Next|\n- Current |\n$)/u,
+    )?.[0];
+
+    expect(checkpoint).toBeDefined();
+    expect(checkpoint).toContain('generated `BASE_URL`');
+    expect(checkpoint).not.toMatch(/http:\/\/localhost:\d+/u);
+    expect(checkpoint).toContain('29 passed (3.7m)');
+    expect(checkpoint).toContain('17 generated pages and 57 screenshots');
+    expect(checkpoint).toContain(
+      'intentionally quoted\n  `User: understanding unlisted events` title',
+    );
+    expect(checkpoint).toContain('global-admin product docs\n  stayed absent');
+    expect(checkpoint).toContain('no\n  obvious snackbar bars');
+    expect(checkpoint).toContain('blank/loading captures');
+    expect(checkpoint).toContain('half-transition images');
+  });
+
   it('keeps the PR readiness checkpoint current without pinning stale heads', () => {
     const source = readSource('STABILIZATION.md');
     const dockerCompose = readSource('docker-compose.yml');
