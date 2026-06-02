@@ -1,13 +1,12 @@
 import { readdirSync, readFileSync } from 'node:fs';
-import { join, relative } from 'node:path';
-
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 // Source guard: every skipped browser/doc test needs an explicit reason here so
 // uncovered behavior does not disappear behind permanent `test.skip` calls.
 const repositoryRoot = new URL('../..', import.meta.url).pathname;
-const testsRoot = join(repositoryRoot, 'tests');
-const testInventoryPath = join(testsRoot, 'test-inventory.md');
+const testsRoot = path.join(repositoryRoot, 'tests');
+const testInventoryPath = path.join(testsRoot, 'test-inventory.md');
 
 const allowedPlaywrightSkipEntries = [
   {
@@ -21,7 +20,7 @@ const allowedPlaywrightSkipEntries = [
       'Auth0 Management credentials are required for create-account integration coverage.',
   },
   {
-    entry: 'tests/specs/finance/stripe-webhook-replay.spec.ts:16:test.skip',
+    entry: 'tests/specs/finance/stripe-webhook-replay.spec.ts:19:test.skip',
     reason: 'A Stripe webhook signing secret is required for replay coverage.',
   },
 ] as const;
@@ -40,18 +39,18 @@ const allowedPlaceholderMetadataFiles = new Set([
 
 const collectTypeScriptFiles = (directory: string): string[] =>
   readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
-    const path = join(directory, entry.name);
+    const entryPath = path.join(directory, entry.name);
 
     if (entry.isDirectory()) {
-      return collectTypeScriptFiles(path);
+      return collectTypeScriptFiles(entryPath);
     }
 
-    return entry.isFile() && path.endsWith('.ts') ? [path] : [];
+    return entry.isFile() && entryPath.endsWith('.ts') ? [entryPath] : [];
   });
 
-const collectPlaywrightSpecAndDocFiles = () =>
+const collectPlaywrightSpecAndDocumentFiles = () =>
   collectTypeScriptFiles(testsRoot)
-    .map((path) => relative(testsRoot, path).replaceAll('\\', '/'))
+    .map((filePath) => path.relative(testsRoot, filePath).replaceAll('\\', '/'))
     .filter(
       (path) =>
         (path.startsWith('docs/') || path.startsWith('specs/')) &&
@@ -73,16 +72,17 @@ const collectActiveInventoryFiles = () => {
   return activeFilesSection
     .split('\n')
     .map(
-      (line) => line.match(/^  - (?<path>(?:docs|specs)\/\S+)/)?.groups?.path,
+      (line) =>
+        line.match(/^\s{2}- (?<path>(?:docs|specs)\/\S+)/)?.groups?.path,
     )
     .filter((path): path is string => path !== undefined);
 };
 
 const collectPlaywrightSkipEntries = () =>
-  collectTypeScriptFiles(testsRoot).flatMap((path) => {
-    const source = readFileSync(path, 'utf8');
+  collectTypeScriptFiles(testsRoot).flatMap((filePath) => {
+    const source = readFileSync(filePath, 'utf8');
     const lines = source.split('\n');
-    const relativePath = relative(repositoryRoot, path);
+    const relativePath = path.relative(repositoryRoot, filePath);
 
     return lines.flatMap((line, index) =>
       [...line.matchAll(skipPattern)].map((match) =>
@@ -92,14 +92,16 @@ const collectPlaywrightSkipEntries = () =>
   });
 
 const collectPlaceholderMetadataEntries = () =>
-  collectTypeScriptFiles(testsRoot).flatMap((path) => {
-    const relativePath = relative(repositoryRoot, path).replaceAll('\\', '/');
+  collectTypeScriptFiles(testsRoot).flatMap((filePath) => {
+    const relativePath = path
+      .relative(repositoryRoot, filePath)
+      .replaceAll('\\', '/');
 
     if (allowedPlaceholderMetadataFiles.has(relativePath)) {
       return [];
     }
 
-    const source = readFileSync(path, 'utf8');
+    const source = readFileSync(filePath, 'utf8');
     const lines = source.split('\n');
 
     return lines.flatMap((line, index) =>
@@ -110,10 +112,12 @@ const collectPlaceholderMetadataEntries = () =>
   });
 
 const collectFixedWaitEntries = () =>
-  collectTypeScriptFiles(testsRoot).flatMap((path) => {
-    const source = readFileSync(path, 'utf8');
+  collectTypeScriptFiles(testsRoot).flatMap((filePath) => {
+    const source = readFileSync(filePath, 'utf8');
     const lines = source.split('\n');
-    const relativePath = relative(repositoryRoot, path).replaceAll('\\', '/');
+    const relativePath = path
+      .relative(repositoryRoot, filePath)
+      .replaceAll('\\', '/');
 
     return lines.flatMap((line, index) =>
       [...line.matchAll(fixedWaitPattern)].map(
@@ -124,15 +128,15 @@ const collectFixedWaitEntries = () =>
 
 describe('Playwright skip inventory', () => {
   it('keeps the active test inventory aligned with Playwright docs and specs on disk', () => {
-    expect(collectActiveInventoryFiles().sort()).toEqual(
-      collectPlaywrightSpecAndDocFiles().sort(),
+    expect(collectActiveInventoryFiles().toSorted()).toEqual(
+      collectPlaywrightSpecAndDocumentFiles().toSorted(),
     );
   });
 
   it('keeps every skip and fixme explicitly classified', () => {
-    const entries = collectPlaywrightSkipEntries().sort();
+    const entries = collectPlaywrightSkipEntries().toSorted();
 
-    expect(entries).toEqual([...allowedEntries].sort());
+    expect(entries).toEqual([...allowedEntries].toSorted());
   });
 
   it('keeps every allowed skip and fixme tied to a reason', () => {
