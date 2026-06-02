@@ -1699,6 +1699,10 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** Playwright discovery was broken by stale Effect config APIs and by import-time Auth0 Management config reads in baseline fixtures. Both are fixed locally, but they show the e2e/docs surface was not being exercised recently enough.
 - **Addressed in stabilization pass:** list-only Playwright commands no longer initialize docs output, clear generated docs/image directories, or require Auth0 Management credentials for baseline fixture imports.
 - **Addressed in stabilization pass:** list-only Playwright config now uses inert placeholder values for runtime-only Auth0/Stripe secrets, so docs/spec discovery can enumerate tests without local secret stubs, starting Docker, or contacting external services.
+- **Addressed in stabilization pass:** documentation screenshot settling now
+  polls running transitions on browser animation frames instead of a fixed
+  100ms sleep, and the Playwright inventory guard rejects fixed sleep polling in
+  the shared screenshot helpers.
 - **Addressed in stabilization pass:** participant-facing event registration cards now receive tax-rate label metadata from `events.findOne`, render paid option prices through the shared inclusive tax label component, and have page-level Playwright assertions for the seeded inclusive-price states.
 - **Addressed in stabilization pass:** page-backed Playwright specs no longer
   depend only on a bundled Chromium download for local exploratory runs.

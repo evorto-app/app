@@ -77,6 +77,10 @@ const settleFiniteAnimations = async (page: Page): Promise<void> => {
   await waitForSnackbars(page);
   await page.evaluate(async (timeoutMs) => {
     const startedAt = performance.now();
+    const waitForAnimationFrame = (): Promise<void> =>
+      new Promise<void>((resolve) => {
+        requestAnimationFrame(() => resolve());
+      });
 
     while (performance.now() - startedAt < timeoutMs) {
       const runningAnimations = document
@@ -100,7 +104,7 @@ const settleFiniteAnimations = async (page: Page): Promise<void> => {
         Promise.allSettled(
           runningAnimations.map((animation) => animation.finished),
         ),
-        new Promise((resolve) => setTimeout(resolve, 100)),
+        waitForAnimationFrame(),
       ]);
     }
   }, animationSettleTimeoutMs);

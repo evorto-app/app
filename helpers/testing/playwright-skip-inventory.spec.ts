@@ -32,6 +32,11 @@ const allowedEntries = new Set(
 const skipPattern = /\b(?:test|it|describe)\.(skip|fixme)\b/g;
 const placeholderMetadataPattern = /@(track|req|doc)\(/g;
 const fixedWaitPattern = /\.waitForTimeout\s*\(/g;
+const screenshotHelperFixedSleepPattern = /setTimeout\s*\(/g;
+const screenshotHelperPaths = [
+  'tests/support/reporters/documentation-reporter/take-screenshot.ts',
+  'tests/support/utils/doc-screenshot.ts',
+] as const;
 
 const allowedPlaceholderMetadataFiles = new Set([
   'tests/specs/reporting/reporter-paths.test.ts',
@@ -126,6 +131,21 @@ const collectFixedWaitEntries = () =>
     );
   });
 
+const collectScreenshotHelperFixedSleepEntries = () =>
+  screenshotHelperPaths.flatMap((relativePath) => {
+    const source = readFileSync(
+      path.join(repositoryRoot, relativePath),
+      'utf8',
+    );
+    const lines = source.split('\n');
+
+    return lines.flatMap((line, index) =>
+      [...line.matchAll(screenshotHelperFixedSleepPattern)].map(
+        (match) => `${relativePath}:${index + 1}:${match[0]}`,
+      ),
+    );
+  });
+
 describe('Playwright skip inventory', () => {
   it('keeps the active test inventory aligned with Playwright docs and specs on disk', () => {
     expect(collectActiveInventoryFiles().toSorted()).toEqual(
@@ -155,5 +175,9 @@ describe('Playwright skip inventory', () => {
 
   it('keeps Playwright specs and docs free of fixed timeout waits', () => {
     expect(collectFixedWaitEntries()).toEqual([]);
+  });
+
+  it('keeps documentation screenshot settling free of fixed sleep polling', () => {
+    expect(collectScreenshotHelperFixedSleepEntries()).toEqual([]);
   });
 });
