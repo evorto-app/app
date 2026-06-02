@@ -542,6 +542,10 @@ the current working direction until a product decision overrides them.
   submit-disabled guard between the Save Changes button and handler, so
   invalid, submitting, and mutation-pending update writes cannot double-submit
   on slow networks.
+- **Addressed in this stabilization pass:** event edit now renders explicit
+  loading and error states while the source event query is unresolved, and the
+  edit form only appears after the event has loaded. Failed reads no longer show
+  a partially initialized event-edit form.
 - **Addressed in this stabilization pass:** the user-facing status chip and
   generated docs now label the persisted `APPROVED` review state as
   **Published**, matching `PRODUCT.md`'s lifecycle language while keeping the
