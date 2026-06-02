@@ -63,4 +63,8 @@
       [pageSize]="100"
     />
   </div>
+} @else if (usersQuery.isError()) {
+  <div class="bg-error-container text-on-error-container rounded-2xl p-4">
+    Failed to load users.
+  </div>
 }

@@ -994,6 +994,9 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** role create/update now writes `displayInHub` and `collapseMembersInHup`, and the role form uses the same `displayInHub` field that `findHubRoles` reads. The legacy `showInHub` role field has been removed from the Drizzle schema and admin role RPC records, leaving `displayInHub` as the canonical hub-visibility field.
 - **Addressed in stabilization pass:** `users:assignRoles` is now labeled as a future/migration permission in the role form metadata, the user list explicitly says existing-user role assignment is deferred for relaunch, and the roles doc records the read-only user-list behavior.
 - **Addressed in stabilization pass:** the user list no longer shows placeholder selection or "Edit template" actions for user-role assignment.
+- **Addressed in this stabilization pass:** the tenant admin user list now
+  renders an explicit error state when the users query fails, so role admins do
+  not see a silent read-only shell on failed user reads.
 - **Addressed in stabilization pass:** permission metadata now has explicit admin-facing labels and descriptions in the shared permission source, the role form renders those descriptions, and shared tests require every visible permission to keep non-empty metadata.
 - **Addressed in stabilization pass:** role-form dependent-permission copy now uses shared admin-facing permission labels instead of raw permission keys, and the generated permission reference keeps both the label and key visible.
 - **Addressed in this stabilization pass:** role create/edit submits now share a tested disabled guard across the role form template and submit handler, and parent create/update handlers ignore duplicate submit events while the role write is pending.
