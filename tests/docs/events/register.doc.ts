@@ -106,6 +106,7 @@ const replayCheckoutCompletedWebhook = async ({
     eventRegistrationId: null | string;
     id: string;
     stripeCheckoutSessionId: null | string;
+    tenantId: string;
   };
 }) => {
   if (!transaction.stripeCheckoutSessionId) {
@@ -122,6 +123,7 @@ const replayCheckoutCompletedWebhook = async ({
           ...(transaction.eventRegistrationId
             ? { registrationId: transaction.eventRegistrationId }
             : {}),
+          tenantId: transaction.tenantId,
           transactionId: transaction.id,
         },
         object: 'checkout.session',
@@ -951,6 +953,12 @@ test.describe('Register for events', () => {
         'Expected seeded paidOpen registration option to exist and be paid',
       );
     }
+    const paidEventInstance = await database.query.eventInstances.findFirst({
+      where: { id: paidEvent.id, tenantId: tenant.id },
+    });
+    if (!paidEventInstance) {
+      throw new Error('Expected seeded paidOpen event instance to exist');
+    }
     const serverNow = resolveServerNow();
     const serverOpenUntil = new Date(serverNow.getTime() + 24 * 60 * 60 * 1000);
     const serverFutureEventStart = new Date(
@@ -959,6 +967,7 @@ test.describe('Register for events', () => {
     const serverFutureEventEnd = new Date(
       serverFutureEventStart.getTime() + 2 * 60 * 60 * 1000,
     );
+    let checkoutTransactionId: null | string = null;
 
     await database
       .delete(schema.transactions)
@@ -1022,6 +1031,27 @@ test.describe('Register for events', () => {
       page.locator('section').filter({ hasText: 'Registration' }),
       page,
     );
+    const findCheckoutTransaction = async () => {
+      if (checkoutTransactionId) {
+        return database.query.transactions.findFirst({
+          where: {
+            id: checkoutTransactionId,
+            tenantId: tenant.id,
+          },
+        });
+      }
+
+      return database.query.transactions.findFirst({
+        orderBy: { createdAt: 'desc' },
+        where: {
+          eventId: paidEvent.id,
+          method: 'stripe',
+          targetUserId: regularUserId,
+          tenantId: tenant.id,
+          type: 'registration',
+        },
+      });
+    };
     const payNowLink = page.getByRole('link', { name: 'Pay now' }).first();
     let checkoutUrl: null | string = null;
     if ((await payNowLink.count()) > 0) {
@@ -1033,18 +1063,8 @@ test.describe('Register for events', () => {
       await expect
         .poll(
           async () => {
-            const pendingTransaction =
-              await database.query.transactions.findFirst({
-                orderBy: { createdAt: 'desc' },
-                where: {
-                  eventId: paidEvent.id,
-                  method: 'stripe',
-                  status: 'pending',
-                  targetUserId: regularUserId,
-                  tenantId: tenant.id,
-                  type: 'registration',
-                },
-              });
+            const pendingTransaction = await findCheckoutTransaction();
+            checkoutTransactionId = pendingTransaction?.id ?? null;
             return pendingTransaction?.stripeCheckoutUrl ?? null;
           },
           {
@@ -1055,17 +1075,8 @@ test.describe('Register for events', () => {
           },
         )
         .not.toBeNull();
-      const pendingTransaction = await database.query.transactions.findFirst({
-        orderBy: { createdAt: 'desc' },
-        where: {
-          eventId: paidEvent.id,
-          method: 'stripe',
-          status: 'pending',
-          targetUserId: regularUserId,
-          tenantId: tenant.id,
-          type: 'registration',
-        },
-      });
+      const pendingTransaction = await findCheckoutTransaction();
+      checkoutTransactionId = pendingTransaction?.id ?? null;
       checkoutUrl = pendingTransaction?.stripeCheckoutUrl ?? null;
     }
     const checkoutPagePromise = page.context().waitForEvent('page', {
@@ -1096,16 +1107,7 @@ test.describe('Register for events', () => {
     await submitButton.click();
 
     const getStripeRegistrationState = async () => {
-      const transaction = await database.query.transactions.findFirst({
-        orderBy: { createdAt: 'desc' },
-        where: {
-          eventId: paidEvent.id,
-          method: 'stripe',
-          targetUserId: regularUserId,
-          tenantId: tenant.id,
-          type: 'registration',
-        },
-      });
+      const transaction = await findCheckoutTransaction();
       if (!transaction) {
         return 'missing-transaction';
       }
@@ -1139,19 +1141,11 @@ test.describe('Register for events', () => {
         })
         .toBe('successful:CONFIRMED');
     } catch (error) {
-      const pendingTransaction = await database.query.transactions.findFirst({
-        orderBy: { createdAt: 'desc' },
-        where: {
-          eventId: paidEvent.id,
-          method: 'stripe',
-          targetUserId: regularUserId,
-          tenantId: tenant.id,
-          type: 'registration',
-        },
-      });
+      const pendingTransaction = await findCheckoutTransaction();
       if (!pendingTransaction) {
         throw error;
       }
+      checkoutTransactionId = pendingTransaction.id;
 
       await replayCheckoutCompletedWebhook({
         request,
@@ -1159,6 +1153,7 @@ test.describe('Register for events', () => {
           eventRegistrationId: pendingTransaction.eventRegistrationId,
           id: pendingTransaction.id,
           stripeCheckoutSessionId: pendingTransaction.stripeCheckoutSessionId,
+          tenantId: pendingTransaction.tenantId,
         },
       });
       try {
@@ -1218,5 +1213,42 @@ test.describe('Register for events', () => {
       page,
       'Event details after successful paid registration',
     );
+    await database
+      .delete(schema.transactions)
+      .where(
+        and(
+          eq(schema.transactions.eventId, paidEvent.id),
+          eq(schema.transactions.method, 'stripe'),
+          eq(schema.transactions.targetUserId, regularUserId),
+          eq(schema.transactions.tenantId, tenant.id),
+          eq(schema.transactions.type, 'registration'),
+        ),
+      );
+    await database
+      .delete(schema.eventRegistrations)
+      .where(
+        and(
+          eq(schema.eventRegistrations.eventId, paidEvent.id),
+          eq(schema.eventRegistrations.registrationOptionId, paidOptionId),
+          eq(schema.eventRegistrations.tenantId, tenant.id),
+          eq(schema.eventRegistrations.userId, regularUserId),
+        ),
+      );
+    await database
+      .update(schema.eventRegistrationOptions)
+      .set({
+        closeRegistrationTime: paidOption.closeRegistrationTime,
+        confirmedSpots: paidOption.confirmedSpots,
+        reservedSpots: paidOption.reservedSpots,
+        waitlistSpots: paidOption.waitlistSpots,
+      })
+      .where(eq(schema.eventRegistrationOptions.id, paidOptionId));
+    await database
+      .update(schema.eventInstances)
+      .set({
+        end: paidEventInstance.end,
+        start: paidEventInstance.start,
+      })
+      .where(eq(schema.eventInstances.id, paidEvent.id));
   });
 });
