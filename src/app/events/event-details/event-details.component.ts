@@ -8,10 +8,11 @@ import {
   inject,
   input,
 } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
 import { MatMenuModule } from '@angular/material/menu';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { IconComponent } from '@app/shared/components/icon/icon.component';
 import { Shape } from '@app/shared/components/shape/shape';
 import { MaterialThemeDirective } from '@app/shared/directives/material-theme.directive';
@@ -26,7 +27,7 @@ import {
   QueryClient,
 } from '@tanstack/angular-query-experimental';
 import { convert } from 'html-to-text';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, map } from 'rxjs';
 
 import { ConfigService } from '../../core/config.service';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
@@ -93,6 +94,16 @@ export const eventAddonPurchaseTiming = (addOn: {
 
   return windows.length > 0 ? windows.join(', ') : 'Unavailable';
 };
+
+export const transferCodeRedemptionActionDisabled = ({
+  hasTransferCode,
+  isRegistered,
+  mutationPending,
+}: {
+  hasTransferCode: boolean;
+  isRegistered: boolean;
+  mutationPending: boolean;
+}): boolean => !hasTransferCode || isRegistered || mutationPending;
 
 export const eventRegistrationOptionTitle = (
   event: {
@@ -237,6 +248,9 @@ export class EventDetailsComponent {
     eventSubmitForReviewActionDisabled;
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faEllipsisVertical = faEllipsisVertical;
+  protected readonly registerWithTransferCodeMutation = injectMutation(() =>
+    this.rpc.events.registerWithTransferCode.mutationOptions(),
+  );
   protected readonly registrationOptionsState = computed(() => {
     const event = this.eventQuery.data();
     return event ? registrationOptionsState(event) : 'none';
@@ -253,6 +267,18 @@ export class EventDetailsComponent {
   protected readonly submitForReviewMutation = injectMutation(() =>
     this.rpc.events.submitForReview.mutationOptions(),
   );
+  private readonly route = inject(ActivatedRoute);
+  protected readonly transferCode = toSignal(
+    this.route.queryParamMap.pipe(
+      map((parameters) => parameters.get('transferCode')?.trim() || null),
+    ),
+    {
+      initialValue:
+        this.route.snapshot.queryParamMap.get('transferCode')?.trim() || null,
+    },
+  );
+  protected readonly transferCodeRedemptionActionDisabled =
+    transferCodeRedemptionActionDisabled;
   protected readonly updateListingMutation = injectMutation(() =>
     this.rpc.events.updateListing.mutationOptions(),
   );
@@ -303,6 +329,39 @@ export class EventDetailsComponent {
           percentage: addOn.taxRatePercentage,
         }
       : undefined;
+  }
+
+  protected redeemTransferCode() {
+    const transferCode = this.transferCode();
+    if (
+      transferCodeRedemptionActionDisabled({
+        hasTransferCode: !!transferCode,
+        isRegistered: this.registrationStatusQuery.isSuccess()
+          ? this.registrationStatusQuery.data().isRegistered
+          : false,
+        mutationPending: this.registerWithTransferCodeMutation.isPending(),
+      }) ||
+      !transferCode
+    ) {
+      return;
+    }
+
+    this.registerWithTransferCodeMutation.mutate(
+      {
+        code: transferCode,
+        eventId: this.eventId(),
+      },
+      {
+        onSuccess: async () => {
+          await this.registrationStatusQuery.refetch();
+          await this.queryClient.invalidateQueries({
+            queryKey: this.rpc.events.findOne.queryKey({
+              id: this.eventId(),
+            }),
+          });
+        },
+      },
+    );
   }
 
   protected async reviewEvent(approved: boolean): Promise<void> {
@@ -381,6 +440,10 @@ export class EventDetailsComponent {
     } catch (error) {
       await this.handleReviewActionError(error);
     }
+  }
+
+  protected transferCodeErrorMessage(error: unknown): string {
+    return getErrorMessage(error, 'Transfer code registration failed');
   }
 
   private async handleReviewActionError(error: unknown): Promise<void> {

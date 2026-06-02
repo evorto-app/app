@@ -31,6 +31,7 @@ import { randomBytes } from 'node:crypto';
 import type { AppRpcHandlers } from '../shared/handler-types';
 
 import { Database } from '../../../../../db';
+import { createId } from '../../../../../db/create-id';
 import {
   emailNotificationOutbox,
   eventAddons,
@@ -42,6 +43,11 @@ import {
   users,
   usersToTenants,
 } from '../../../../../db/schema';
+import {
+  buildCheckoutSessionExpiresAt,
+  buildCheckoutSessionIdempotencyKey,
+  createHostedCheckoutSession,
+} from '../../../../integrations/stripe-checkout';
 import { StripeClient } from '../../../../stripe-client';
 import { RpcAccess } from '../shared/rpc-access.service';
 import { EventRegistrationService } from './event-registration.service';
@@ -86,6 +92,19 @@ const isWithinCheckInWindow = (eventStart: Date, now = new Date()): boolean =>
 
 const normalizeTransferTargetSearch = (search: string | undefined) =>
   search?.trim().toLowerCase() ?? '';
+
+const resolveRequestOrigin = (
+  headers: Record<string, string | undefined>,
+): string | undefined => {
+  const forwardedProtocol = headers['x-forwarded-proto']?.split(',')[0]?.trim();
+  const forwardedHost = headers['x-forwarded-host']?.split(',')[0]?.trim();
+  const host = forwardedHost ?? headers['host'];
+
+  return (
+    headers['origin'] ??
+    (host ? `${forwardedProtocol ?? 'http'}://${host}` : undefined)
+  );
+};
 
 const hasSuccessfulPaidRegistrationTransaction = (
   transactionsToCheck: readonly {
@@ -780,7 +799,7 @@ const transferEventRegistration = ({
       return yield* Effect.fail(
         new EventRegistrationConflictError({
           message:
-            'Paid registration transfer is not available until the Stripe Checkout replacement and refund flow is implemented',
+            'Direct paid registration transfer is not available; use transfer codes while refund completion remains organizer follow-up',
         }),
       );
     }
@@ -1392,7 +1411,7 @@ export const eventRegistrationHandlers = {
         return yield* Effect.fail(
           new EventRegistrationConflictError({
             message:
-              'Paid registration transfer is not available until the Stripe Checkout replacement and refund flow is implemented',
+              'Direct paid registration transfer is not available; use transfer codes while refund completion remains organizer follow-up',
           }),
         );
       }
@@ -1721,6 +1740,335 @@ export const eventRegistrationHandlers = {
           roleIds: user.roleIds,
         },
       });
+    }),
+  'events.registerWithTransferCode': ({ code, eventId }, options) =>
+    Effect.gen(function* () {
+      yield* RpcAccess.ensureAuthenticated();
+      const { tenant } = yield* RpcAccess.current();
+      const user = yield* RpcAccess.requireUser();
+      const now = new Date();
+
+      const transferIntent = yield* databaseEffect((database) =>
+        database.query.registrationTransferIntents.findFirst({
+          columns: {
+            expiresAt: true,
+            id: true,
+            replacementRegistrationId: true,
+            sourceRegistrationId: true,
+            status: true,
+          },
+          where: {
+            code,
+            status: 'pending',
+            tenantId: tenant.id,
+          },
+        }),
+      );
+      if (!transferIntent || transferIntent.expiresAt <= now) {
+        return yield* Effect.fail(
+          new EventRegistrationNotFoundError({
+            message: 'Transfer code not found',
+          }),
+        );
+      }
+      if (transferIntent.replacementRegistrationId) {
+        return yield* Effect.fail(
+          new EventRegistrationConflictError({
+            message: 'Transfer code is already being used',
+          }),
+        );
+      }
+
+      const sourceRegistration = yield* databaseEffect((database) =>
+        database.query.eventRegistrations.findFirst({
+          columns: {
+            appliedDiscountedPrice: true,
+            appliedDiscountType: true,
+            basePriceAtRegistration: true,
+            checkInTime: true,
+            discountAmount: true,
+            eventId: true,
+            guestCount: true,
+            id: true,
+            registrationOptionId: true,
+            status: true,
+            stripeTaxRateId: true,
+            taxRateDisplayName: true,
+            taxRateInclusive: true,
+            taxRatePercentage: true,
+            userId: true,
+          },
+          where: {
+            eventId,
+            id: transferIntent.sourceRegistrationId,
+            tenantId: tenant.id,
+          },
+          with: {
+            event: {
+              columns: {
+                start: true,
+                title: true,
+              },
+            },
+            registrationOption: {
+              columns: {
+                roleIds: true,
+              },
+            },
+            transactions: {
+              columns: {
+                amount: true,
+                currency: true,
+                method: true,
+                status: true,
+                type: true,
+              },
+              where: {
+                type: 'registration',
+              },
+            },
+          },
+        }),
+      );
+      if (
+        !sourceRegistration ||
+        !sourceRegistration.event ||
+        !sourceRegistration.registrationOption
+      ) {
+        return yield* Effect.fail(
+          new EventRegistrationNotFoundError({
+            message: 'Transfer code not found',
+          }),
+        );
+      }
+      if (sourceRegistration.userId === user.id) {
+        return yield* Effect.fail(
+          new EventRegistrationConflictError({
+            message: 'Users cannot redeem their own transfer code',
+          }),
+        );
+      }
+      if (
+        sourceRegistration.status !== 'CONFIRMED' ||
+        sourceRegistration.checkInTime !== null ||
+        sourceRegistration.event.start <= now
+      ) {
+        return yield* Effect.fail(
+          new EventRegistrationConflictError({
+            message: 'Transfer code is no longer eligible',
+          }),
+        );
+      }
+      if (
+        !sourceRegistration.registrationOption.roleIds.some((roleId) =>
+          user.roleIds.includes(roleId),
+        )
+      ) {
+        return yield* Effect.fail(
+          new EventRegistrationConflictError({
+            message: 'User is not eligible for this registration option',
+          }),
+        );
+      }
+
+      const sourcePaidTransaction = sourceRegistration.transactions.find(
+        (transaction) =>
+          transaction.type === 'registration' &&
+          transaction.status === 'successful' &&
+          transaction.amount > 0,
+      );
+      if (!sourcePaidTransaction) {
+        return yield* Effect.fail(
+          new EventRegistrationConflictError({
+            message: 'Transfer code is only available for paid registrations',
+          }),
+        );
+      }
+
+      const existingRegistration = yield* databaseEffect((database) =>
+        database.query.eventRegistrations.findFirst({
+          columns: {
+            id: true,
+          },
+          where: {
+            eventId: sourceRegistration.eventId,
+            status: { NOT: 'CANCELLED' },
+            tenantId: tenant.id,
+            userId: user.id,
+          },
+        }),
+      );
+      if (existingRegistration) {
+        return yield* Effect.fail(
+          new EventRegistrationConflictError({
+            message: 'User is already registered for this event',
+          }),
+        );
+      }
+
+      const stripeAccount = tenant.stripeAccountId;
+      if (!stripeAccount) {
+        return yield* Effect.fail(
+          new EventRegistrationInternalError({
+            message: 'Stripe account not found',
+          }),
+        );
+      }
+
+      const replacementRegistrationId = createId();
+      const transactionId = createId();
+      yield* databaseEffect((database) =>
+        database.transaction((tx) =>
+          Effect.gen(function* () {
+            const updatedIntents = yield* tx
+              .update(registrationTransferIntents)
+              .set({
+                replacementRegistrationId,
+              })
+              .where(
+                and(
+                  eq(registrationTransferIntents.id, transferIntent.id),
+                  eq(registrationTransferIntents.status, 'pending'),
+                  isNull(registrationTransferIntents.replacementRegistrationId),
+                ),
+              )
+              .returning({
+                id: registrationTransferIntents.id,
+              });
+            if (updatedIntents.length === 0) {
+              return yield* Effect.fail(
+                new EventRegistrationConflictError({
+                  message: 'Transfer code is already being used',
+                }),
+              );
+            }
+
+            yield* tx.insert(eventRegistrations).values({
+              appliedDiscountedPrice: sourceRegistration.appliedDiscountedPrice,
+              appliedDiscountType: sourceRegistration.appliedDiscountType,
+              basePriceAtRegistration:
+                sourceRegistration.basePriceAtRegistration,
+              discountAmount: sourceRegistration.discountAmount,
+              eventId: sourceRegistration.eventId,
+              guestCount: sourceRegistration.guestCount,
+              id: replacementRegistrationId,
+              registrationOptionId: sourceRegistration.registrationOptionId,
+              status: 'PENDING',
+              stripeTaxRateId: sourceRegistration.stripeTaxRateId,
+              taxRateDisplayName: sourceRegistration.taxRateDisplayName,
+              taxRateInclusive: sourceRegistration.taxRateInclusive,
+              taxRatePercentage: sourceRegistration.taxRatePercentage,
+              tenantId: tenant.id,
+              userId: user.id,
+            });
+
+            yield* tx.insert(transactions).values({
+              amount: sourcePaidTransaction.amount,
+              comment: `Replacement registration for transfer code ${code}`,
+              currency: sourcePaidTransaction.currency,
+              eventId: sourceRegistration.eventId,
+              eventRegistrationId: replacementRegistrationId,
+              executiveUserId: user.id,
+              id: transactionId,
+              method: 'stripe',
+              status: 'pending',
+              targetUserId: user.id,
+              tenantId: tenant.id,
+              type: 'registration',
+            });
+          }),
+        ),
+      );
+
+      const rollbackReplacement = () =>
+        databaseEffect((database) =>
+          database.transaction((tx) =>
+            Effect.gen(function* () {
+              yield* tx
+                .update(registrationTransferIntents)
+                .set({ replacementRegistrationId: null })
+                .where(eq(registrationTransferIntents.id, transferIntent.id));
+              yield* tx
+                .delete(transactions)
+                .where(eq(transactions.id, transactionId));
+              yield* tx
+                .delete(eventRegistrations)
+                .where(eq(eventRegistrations.id, replacementRegistrationId));
+            }),
+          ),
+        ).pipe(Effect.orDie);
+
+      const origin = resolveRequestOrigin(options.headers);
+      const eventUrl = `${origin ?? ''}/events/${sourceRegistration.eventId}`;
+      const session = yield* createHostedCheckoutSession(
+        {
+          cancel_url: `${eventUrl}?transferCode=${encodeURIComponent(code)}&registrationStatus=cancel`,
+          customer_email: user.email,
+          expires_at: buildCheckoutSessionExpiresAt(30),
+          line_items: [
+            {
+              price_data: {
+                currency: sourcePaidTransaction.currency,
+                product_data: {
+                  name: `Transfer registration for ${sourceRegistration.event.title}`,
+                },
+                unit_amount: sourcePaidTransaction.amount,
+              },
+              ...(sourceRegistration.stripeTaxRateId
+                ? { tax_rates: [sourceRegistration.stripeTaxRateId] }
+                : {}),
+              quantity: 1,
+            },
+          ],
+          metadata: {
+            registrationId: replacementRegistrationId,
+            tenantId: tenant.id,
+            transactionId,
+            transferIntentId: transferIntent.id,
+          },
+          mode: 'payment',
+          payment_intent_data: {
+            application_fee_amount: Math.round(
+              sourcePaidTransaction.amount * 0.035,
+            ),
+          },
+          success_url: `${eventUrl}?registrationStatus=success`,
+        },
+        {
+          idempotencyKey: buildCheckoutSessionIdempotencyKey({
+            registrationId: replacementRegistrationId,
+            transactionId,
+          }),
+          stripeAccount,
+        },
+      ).pipe(
+        Effect.catch((error) =>
+          rollbackReplacement().pipe(
+            Effect.andThen(
+              Effect.fail(
+                new EventRegistrationInternalError({
+                  cause: error,
+                  message: 'Failed to create stripe checkout session',
+                }),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      yield* databaseEffect((database) =>
+        database
+          .update(transactions)
+          .set({
+            stripeCheckoutSessionId: session.id,
+            stripeCheckoutUrl: session.url,
+            stripePaymentIntentId:
+              typeof session.payment_intent === 'string'
+                ? session.payment_intent
+                : session.payment_intent?.id,
+          })
+          .where(eq(transactions.id, transactionId)),
+      );
     }),
   'events.registrationScanned': ({ registrationId }, _options) =>
     Effect.gen(function* () {

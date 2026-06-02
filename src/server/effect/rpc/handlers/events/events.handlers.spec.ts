@@ -22,6 +22,7 @@ describe('eventHandlers composition', () => {
       'events.getRegistrationStatus',
       'events.joinWaitlist',
       'events.registerForEvent',
+      'events.registerWithTransferCode',
       'events.registrationScanned',
       'events.reviewEvent',
       'events.submitForReview',

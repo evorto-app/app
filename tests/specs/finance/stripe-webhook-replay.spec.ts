@@ -11,6 +11,9 @@ test.use({ storageState: userStateFile });
 const regularUserId =
   usersToAuthenticate.find((user) => user.roles === 'user')?.id ??
   usersToAuthenticate[0].id;
+const organizerUserId =
+  usersToAuthenticate.find((user) => user.roles === 'organizer')?.id ??
+  usersToAuthenticate[0].id;
 const webhookSecret = process.env['STRIPE_WEBHOOK_SECRET'] ?? '';
 
 test.skip(
@@ -228,6 +231,183 @@ test('replaying the same Stripe webhook is idempotent @finance @stripe', async (
   });
   expect(dedupeRecords).toHaveLength(1);
   expect(dedupeRecords[0]?.status).toBe('processed');
+});
+
+test('checkout webhook completes transfer-code replacement without double-counting capacity @finance @stripe', async ({
+  database,
+  request,
+  seeded,
+  tenant,
+}) => {
+  const sourceRegistrationId = getId();
+  const replacementRegistrationId = getId();
+  const transferIntentId = getId();
+  const transactionId = getId();
+  const checkoutSessionId = `cs_test_${getId()}`;
+  const paymentIntentId = `pi_test_${getId()}`;
+  const stripeEventId = `evt_test_${getId()}`;
+  const optionId = seeded.scenario.events.paidOpen.optionId;
+  const eventId = seeded.scenario.events.paidOpen.eventId;
+  const originalOption =
+    await database.query.eventRegistrationOptions.findFirst({
+      columns: {
+        confirmedSpots: true,
+        reservedSpots: true,
+      },
+      where: { id: optionId },
+    });
+  expect(originalOption).toBeTruthy();
+
+  await database
+    .update(schema.eventRegistrationOptions)
+    .set({
+      confirmedSpots: sql`${schema.eventRegistrationOptions.confirmedSpots} + 1`,
+    })
+    .where(eq(schema.eventRegistrationOptions.id, optionId));
+
+  await database.insert(schema.eventRegistrations).values([
+    {
+      eventId,
+      id: sourceRegistrationId,
+      registrationOptionId: optionId,
+      status: 'CONFIRMED',
+      tenantId: tenant.id,
+      userId: organizerUserId,
+    },
+    {
+      eventId,
+      id: replacementRegistrationId,
+      registrationOptionId: optionId,
+      status: 'PENDING',
+      tenantId: tenant.id,
+      userId: regularUserId,
+    },
+  ]);
+
+  await database.insert(schema.registrationTransferIntents).values({
+    code: `transfer-${getId()}`,
+    createdByUserId: organizerUserId,
+    expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+    id: transferIntentId,
+    replacementRegistrationId,
+    sourceRegistrationId,
+    status: 'pending',
+    tenantId: tenant.id,
+  });
+
+  await database.insert(schema.transactions).values({
+    amount: 2500,
+    comment: 'Webhook transfer checkout completion test',
+    currency: 'EUR',
+    eventId,
+    eventRegistrationId: replacementRegistrationId,
+    executiveUserId: regularUserId,
+    id: transactionId,
+    method: 'stripe',
+    status: 'pending',
+    stripeCheckoutSessionId: checkoutSessionId,
+    stripeCheckoutUrl: `https://checkout.stripe.com/c/pay/${checkoutSessionId}`,
+    targetUserId: regularUserId,
+    tenantId: tenant.id,
+    type: 'registration',
+  });
+
+  const payload = JSON.stringify({
+    api_version: '2024-11-20.acacia',
+    created: 1_706_784_000,
+    data: {
+      object: {
+        id: checkoutSessionId,
+        metadata: {
+          registrationId: replacementRegistrationId,
+          tenantId: tenant.id,
+          transactionId,
+          transferIntentId,
+        },
+        object: 'checkout.session',
+        payment_intent: paymentIntentId,
+        payment_status: 'paid',
+        status: 'complete',
+      },
+    },
+    id: stripeEventId,
+    livemode: false,
+    object: 'event',
+    pending_webhooks: 1,
+    request: {
+      id: null,
+      idempotency_key: null,
+    },
+    type: 'checkout.session.completed',
+  });
+
+  const signature = Stripe.webhooks.generateTestHeaderString({
+    payload,
+    secret: webhookSecret,
+  });
+
+  const delivery = await request.fetch('/webhooks/stripe', {
+    data: Buffer.from(payload, 'utf8'),
+    failOnStatusCode: false,
+    headers: {
+      'content-type': 'application/json',
+      'stripe-signature': signature,
+    },
+    method: 'POST',
+  });
+  const body = await delivery.text();
+  expect(
+    delivery.status(),
+    `Expected transfer checkout webhook to return 200, received ${delivery.status()} with body "${body}"`,
+  ).toBe(200);
+
+  await expect
+    .poll(async () => {
+      const sourceRegistration =
+        await database.query.eventRegistrations.findFirst({
+          where: { id: sourceRegistrationId, tenantId: tenant.id },
+        });
+      const replacementRegistration =
+        await database.query.eventRegistrations.findFirst({
+          where: { id: replacementRegistrationId, tenantId: tenant.id },
+        });
+      const transferIntent =
+        await database.query.registrationTransferIntents.findFirst({
+          where: { id: transferIntentId, tenantId: tenant.id },
+        });
+
+      return {
+        replacementStatus: replacementRegistration?.status,
+        sourceStatus: sourceRegistration?.status,
+        transferStatus: transferIntent?.status,
+      };
+    })
+    .toEqual({
+      replacementStatus: 'CONFIRMED',
+      sourceStatus: 'CANCELLED',
+      transferStatus: 'completed',
+    });
+
+  await expect
+    .poll(async () => {
+      const updatedOption =
+        await database.query.eventRegistrationOptions.findFirst({
+          columns: {
+            confirmedSpots: true,
+            reservedSpots: true,
+          },
+          where: { id: optionId },
+        });
+
+      return {
+        confirmedSpots: updatedOption?.confirmedSpots,
+        reservedSpots: updatedOption?.reservedSpots,
+      };
+    })
+    .toEqual({
+      confirmedSpots: (originalOption?.confirmedSpots ?? 0) + 1,
+      reservedSpots: originalOption?.reservedSpots,
+    });
 });
 
 test('expired checkout webhook releases reserved capacity @finance @stripe', async ({

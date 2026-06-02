@@ -548,24 +548,72 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
                   updatedRegistration.guestCount,
                 );
 
-                yield* tx
-                  .update(schema.eventRegistrationOptions)
-                  .set({
-                    confirmedSpots: sql`${schema.eventRegistrationOptions.confirmedSpots} + ${registeredSpotCount}`,
-                    reservedSpots: sql`GREATEST(${schema.eventRegistrationOptions.reservedSpots} - ${registeredSpotCount}, 0)`,
-                  })
-                  .where(
-                    and(
-                      eq(
-                        schema.eventRegistrationOptions.id,
-                        updatedRegistration.registrationOptionId,
+                const transferIntent =
+                  yield* tx.query.registrationTransferIntents.findFirst({
+                    columns: {
+                      id: true,
+                      sourceRegistrationId: true,
+                    },
+                    where: {
+                      replacementRegistrationId: registrationId,
+                      status: 'pending',
+                      tenantId,
+                    },
+                  });
+
+                if (transferIntent) {
+                  yield* tx
+                    .update(schema.eventRegistrations)
+                    .set({ status: 'CANCELLED' })
+                    .where(
+                      and(
+                        eq(
+                          schema.eventRegistrations.id,
+                          transferIntent.sourceRegistrationId,
+                        ),
+                        eq(schema.eventRegistrations.status, 'CONFIRMED'),
+                        eq(schema.eventRegistrations.tenantId, tenantId),
                       ),
-                      eq(
-                        schema.eventRegistrationOptions.eventId,
-                        updatedRegistration.eventId,
+                    );
+                  yield* tx
+                    .update(schema.registrationTransferIntents)
+                    .set({ status: 'completed' })
+                    .where(
+                      and(
+                        eq(
+                          schema.registrationTransferIntents.id,
+                          transferIntent.id,
+                        ),
+                        eq(
+                          schema.registrationTransferIntents.status,
+                          'pending',
+                        ),
+                        eq(
+                          schema.registrationTransferIntents.tenantId,
+                          tenantId,
+                        ),
                       ),
-                    ),
-                  );
+                    );
+                } else {
+                  yield* tx
+                    .update(schema.eventRegistrationOptions)
+                    .set({
+                      confirmedSpots: sql`${schema.eventRegistrationOptions.confirmedSpots} + ${registeredSpotCount}`,
+                      reservedSpots: sql`GREATEST(${schema.eventRegistrationOptions.reservedSpots} - ${registeredSpotCount}, 0)`,
+                    })
+                    .where(
+                      and(
+                        eq(
+                          schema.eventRegistrationOptions.id,
+                          updatedRegistration.registrationOptionId,
+                        ),
+                        eq(
+                          schema.eventRegistrationOptions.eventId,
+                          updatedRegistration.eventId,
+                        ),
+                      ),
+                    );
+                }
 
                 const [event, tenant, user] = yield* Effect.all([
                   tx.query.eventInstances.findFirst({

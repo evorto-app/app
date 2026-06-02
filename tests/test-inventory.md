@@ -199,14 +199,21 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   outbox row, and notifies the oldest waitlisted participant when a confirmed
   cancellation opens capacity; paid resale remains deferred.
   `src/server/effect/rpc/handlers/events/events-registration.handlers.spec.ts`
-  now separately covers the first durable paid transfer primitive:
+  now separately covers the durable paid transfer primitives:
   `events.createRegistrationTransferIntent` creates or reuses a tenant-scoped
   24-hour transfer code for eligible paid registrations and rejects unpaid
-  registrations.
-  This transfer-code coverage does not satisfy the relaunch transfer/resale
-  workflow. `STABILIZATION.md` keeps registrations blocked until the Stripe
-  Checkout replacement registration and original-registration refund flow is
+  registrations, and `events.registerWithTransferCode` creates a replacement
+  pending Stripe Checkout registration for an eligible code recipient while
+  rejecting the original owner and duplicate active registrations. The
+  transfer-code checkout coverage does not satisfy the relaunch transfer/resale
+  workflow. `STABILIZATION.md` keeps registrations blocked until
+  original-registration refund completion and resale-specific workflows are
   implemented.
+- `specs/finance/stripe-webhook-replay.spec.ts` includes a signed webhook replay
+  case for transfer-code replacement checkout completion, proving the source
+  registration is cancelled, the replacement registration is confirmed, the
+  transfer intent is completed, and capacity remains on the original confirmed
+  spot instead of being double-counted.
 - `specs/events/negative-registration-states.spec.ts` adds page-backed waitlist
   coverage for full first-come-first-served options with explicit required
   answer gating, persisted waitlist registration readback, and persisted
@@ -216,9 +223,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 - `docs/events/register.doc.ts` includes a generated unpaid transfer journey,
   including the transfer dialog and eligible target email entry. It now also
   seeds a paid confirmed registration with a successful transaction, creates a
-  paid transfer code/link while naming the still-missing Stripe-backed
-  replacement checkout and refund completion, cancels the paid registration,
-  and reads back the
+  paid transfer code/link while naming the still-missing refund completion,
+  cancels the paid registration, and reads back the
   generated pending manual refund fallback before cleanup.
 - Active-registration component coverage pins participant cancellation and
   self-service transfer action disabling while either write is pending or the

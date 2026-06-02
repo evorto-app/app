@@ -264,6 +264,36 @@
                 [registrations]="registrationStatusQuery.data().registrations"
               />
             } @else {
+              @if (transferCode(); as currentTransferCode) {
+                <div class="bg-surface text-on-surface rounded-2xl p-4">
+                  <h3 class="title-medium">Use transfer code</h3>
+                  <p class="body-medium text-on-surface-variant mt-2">
+                    This transfer code starts a replacement paid registration.
+                    After checkout succeeds, Evorto confirms the replacement
+                    registration and cancels the original registration; refund
+                    completion still needs organizer follow-up.
+                  </p>
+                  <p class="body-small text-on-surface-variant mt-2 font-mono">
+                    {{ currentTransferCode }}
+                  </p>
+                  <button
+                    class="mt-3"
+                    mat-flat-button
+                    (click)="redeemTransferCode()"
+                    [disabled]="
+                      transferCodeRedemptionActionDisabled({
+                        hasTransferCode: !!currentTransferCode,
+                        isRegistered:
+                          registrationStatusQuery.data().isRegistered,
+                        mutationPending:
+                          registerWithTransferCodeMutation.isPending(),
+                      })
+                    "
+                  >
+                    Register with transfer code
+                  </button>
+                </div>
+              }
               @switch (registrationOptionsState()) {
                 @case ("visible") {
                   <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -305,6 +335,20 @@
                 }
               }
             }
+          }
+          @if (registerWithTransferCodeMutation.isError()) {
+            <div
+              class="bg-error text-on-error mt-4 flex flex-col gap-2 rounded-2xl p-4"
+            >
+              <h3 class="title-medium">Transfer code registration failed</h3>
+              <p>
+                {{
+                  transferCodeErrorMessage(
+                    registerWithTransferCodeMutation.error()
+                  )
+                }}
+              </p>
+            </div>
           }
         </section>
       </div>

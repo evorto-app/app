@@ -302,6 +302,129 @@ const createTransferIntentDatabase = ({
   };
 };
 
+const sourceTransferRegistration = {
+  appliedDiscountedPrice: null,
+  appliedDiscountType: null,
+  basePriceAtRegistration: 2500,
+  checkInTime: null,
+  discountAmount: null,
+  event: {
+    start: new Date(Date.now() + 24 * 60 * 60 * 1000),
+    title: 'Paid transfer event',
+  },
+  eventId: 'event-1',
+  guestCount: 0,
+  id: 'source-registration-1',
+  registrationOption: {
+    roleIds: ['role-1'],
+  },
+  registrationOptionId: 'option-1',
+  status: 'CONFIRMED' as const,
+  stripeTaxRateId: null,
+  taxRateDisplayName: null,
+  taxRateInclusive: null,
+  taxRatePercentage: null,
+  transactions: [
+    {
+      amount: 2500,
+      currency: 'EUR' as const,
+      method: 'stripe',
+      status: 'successful',
+      type: 'registration',
+    },
+  ],
+  userId: 'attendee-1',
+};
+
+const createTransferCodeRedemptionDatabase = ({
+  existingRegistration = null,
+  sourceRegistration = sourceTransferRegistration,
+  transferIntent = {
+    expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+    id: 'intent-1',
+    replacementRegistrationId: null,
+    sourceRegistrationId: 'source-registration-1',
+    status: 'pending',
+  },
+}: {
+  existingRegistration?: null | { id: string };
+  sourceRegistration?: typeof sourceTransferRegistration;
+  transferIntent?: null | {
+    expiresAt: Date;
+    id: string;
+    replacementRegistrationId: null | string;
+    sourceRegistrationId: string;
+    status: string;
+  };
+} = {}) => {
+  const insertedRegistrations: Record<string, unknown>[] = [];
+  const insertedTransactions: Record<string, unknown>[] = [];
+  const intentUpdateSets: Record<string, unknown>[] = [];
+  const transactionUpdateSets: Record<string, unknown>[] = [];
+  const eventRegistrationFindFirst = vi
+    .fn()
+    .mockReturnValueOnce(Effect.succeed(sourceRegistration))
+    .mockReturnValueOnce(Effect.succeed(existingRegistration));
+  const tx = {
+    delete: vi.fn(() => ({
+      where: vi.fn(() => Effect.succeed()),
+    })),
+    insert: vi.fn((table) => ({
+      values: vi.fn((values: Record<string, unknown>) => {
+        if (table === eventRegistrations) {
+          insertedRegistrations.push(values);
+        }
+        if (table === transactions) {
+          insertedTransactions.push(values);
+        }
+        return Effect.succeed();
+      }),
+    })),
+    update: vi.fn((table) => ({
+      set: vi.fn((values: Record<string, unknown>) => {
+        if (table === registrationTransferIntents) {
+          intentUpdateSets.push(values);
+        }
+        return {
+          where: vi.fn(() => ({
+            returning: vi.fn(() => Effect.succeed([{ id: 'intent-1' }])),
+          })),
+        };
+      }),
+    })),
+  };
+  const database = {
+    query: {
+      eventRegistrations: {
+        findFirst: eventRegistrationFindFirst,
+      },
+      registrationTransferIntents: {
+        findFirst: vi.fn(() => Effect.succeed(transferIntent)),
+      },
+    },
+    transaction: vi.fn((callback: (tx: typeof tx) => unknown) => callback(tx)),
+    update: vi.fn((table) => {
+      expect(table).toBe(transactions);
+      return {
+        set: vi.fn((values: Record<string, unknown>) => {
+          transactionUpdateSets.push(values);
+          return {
+            where: vi.fn(() => Effect.succeed()),
+          };
+        }),
+      };
+    }),
+  };
+
+  return {
+    database,
+    getInsertedRegistrations: () => insertedRegistrations,
+    getInsertedTransactions: () => insertedTransactions,
+    getIntentUpdateSets: () => intentUpdateSets,
+    getTransactionUpdateSets: () => transactionUpdateSets,
+  };
+};
+
 const createTransferDatabase = ({
   existingTargetRegistration = null,
   organizerRegistrations = [
@@ -704,6 +827,173 @@ describe('registration transfer intent handlers', () => {
       );
       expect(database.insert).not.toHaveBeenCalled();
     }),
+  );
+});
+
+describe('registration transfer code redemption handlers', () => {
+  it.effect(
+    'creates a replacement checkout for an eligible paid transfer code',
+    () =>
+      Effect.gen(function* () {
+        const user = createUser({ id: 'replacement-1' });
+        user.roleIds = ['role-1'];
+        const {
+          database,
+          getInsertedRegistrations,
+          getInsertedTransactions,
+          getIntentUpdateSets,
+          getTransactionUpdateSets,
+        } = createTransferCodeRedemptionDatabase();
+        const stripe = {
+          checkout: {
+            sessions: {
+              create: vi.fn(() =>
+                Promise.resolve({
+                  id: 'cs_123',
+                  payment_intent: 'pi_123',
+                  url: 'https://checkout.example/session',
+                }),
+              ),
+              expire: vi.fn(),
+            },
+          },
+          refunds: {
+            create: vi.fn(),
+          },
+        };
+
+        yield* eventRegistrationHandlers['events.registerWithTransferCode'](
+          { code: 'transfer-code-1', eventId: 'event-1' },
+          { headers: { host: 'tenant.example.com' } } as never,
+        ).pipe(
+          Effect.provide(
+            createContextLayer({
+              database,
+              stripe,
+              tenant: {
+                ...tenant,
+                stripeAccountId: 'acct_123',
+              },
+              user,
+            }),
+          ),
+        );
+
+        expect(getIntentUpdateSets()[0]).toEqual(
+          expect.objectContaining({
+            replacementRegistrationId: expect.any(String),
+          }),
+        );
+        expect(getInsertedRegistrations()[0]).toEqual(
+          expect.objectContaining({
+            eventId: 'event-1',
+            guestCount: 0,
+            registrationOptionId: 'option-1',
+            status: 'PENDING',
+            tenantId: 'tenant-1',
+            userId: 'replacement-1',
+          }),
+        );
+        expect(getInsertedTransactions()[0]).toEqual(
+          expect.objectContaining({
+            amount: 2500,
+            currency: 'EUR',
+            eventId: 'event-1',
+            method: 'stripe',
+            status: 'pending',
+            targetUserId: 'replacement-1',
+            tenantId: 'tenant-1',
+            type: 'registration',
+          }),
+        );
+        expect(stripe.checkout.sessions.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            cancel_url:
+              'http://tenant.example.com/events/event-1?transferCode=transfer-code-1&registrationStatus=cancel',
+            customer_email: 'replacement-1@example.com',
+            metadata: expect.objectContaining({
+              registrationId: getInsertedRegistrations()[0]?.['id'],
+              tenantId: 'tenant-1',
+              transactionId: getInsertedTransactions()[0]?.['id'],
+              transferIntentId: 'intent-1',
+            }),
+            success_url:
+              'http://tenant.example.com/events/event-1?registrationStatus=success',
+          }),
+          expect.objectContaining({
+            stripeAccount: 'acct_123',
+          }),
+        );
+        expect(getTransactionUpdateSets()[0]).toEqual(
+          expect.objectContaining({
+            stripeCheckoutSessionId: 'cs_123',
+            stripeCheckoutUrl: 'https://checkout.example/session',
+            stripePaymentIntentId: 'pi_123',
+          }),
+        );
+      }),
+  );
+
+  it.effect('rejects users redeeming their own paid transfer code', () =>
+    Effect.gen(function* () {
+      const user = createUser({ id: 'attendee-1' });
+      user.roleIds = ['role-1'];
+      const { database } = createTransferCodeRedemptionDatabase();
+
+      const error = yield* eventRegistrationHandlers[
+        'events.registerWithTransferCode'
+      ]({ code: 'transfer-code-1', eventId: 'event-1' }, {
+        headers: {},
+      } as never).pipe(
+        Effect.provide(
+          createContextLayer({
+            database,
+            tenant: {
+              ...tenant,
+              stripeAccountId: 'acct_123',
+            },
+            user,
+          }),
+        ),
+        Effect.flip,
+      );
+
+      expect(error['_tag']).toBe('EventRegistrationConflictError');
+      expect(error.message).toBe('Users cannot redeem their own transfer code');
+    }),
+  );
+
+  it.effect(
+    'rejects transfer-code redemption with an existing active registration',
+    () =>
+      Effect.gen(function* () {
+        const user = createUser({ id: 'replacement-1' });
+        user.roleIds = ['role-1'];
+        const { database } = createTransferCodeRedemptionDatabase({
+          existingRegistration: { id: 'existing-registration-1' },
+        });
+
+        const error = yield* eventRegistrationHandlers[
+          'events.registerWithTransferCode'
+        ]({ code: 'transfer-code-1', eventId: 'event-1' }, {
+          headers: {},
+        } as never).pipe(
+          Effect.provide(
+            createContextLayer({
+              database,
+              tenant: {
+                ...tenant,
+                stripeAccountId: 'acct_123',
+              },
+              user,
+            }),
+          ),
+          Effect.flip,
+        );
+
+        expect(error['_tag']).toBe('EventRegistrationConflictError');
+        expect(error.message).toBe('User is already registered for this event');
+      }),
   );
 });
 
@@ -1655,7 +1945,7 @@ describe('event registration transfer handlers', () => {
   );
 
   it.effect(
-    'rejects paid registration transfer until the Stripe replacement flow exists',
+    'rejects direct paid registration transfer in favor of transfer codes',
     () =>
       Effect.gen(function* () {
         const { database, updateSets } = createTransferDatabase({
@@ -1692,7 +1982,7 @@ describe('event registration transfer handlers', () => {
 
         expect(error['_tag']).toBe('EventRegistrationConflictError');
         expect(error.message).toBe(
-          'Paid registration transfer is not available until the Stripe Checkout replacement and refund flow is implemented',
+          'Direct paid registration transfer is not available; use transfer codes while refund completion remains organizer follow-up',
         );
         expect(updateSets).toEqual([]);
       }),

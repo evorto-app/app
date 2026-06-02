@@ -251,7 +251,7 @@ test('regular user can create a paid transfer code without completing resale yet
     await expect(page.getByText('You are registered')).toBeVisible();
     await expect(
       page.getByText(
-        'Create a 24-hour transfer code and link for this paid registration. Replacement checkout and refund completion are still pending, so keep organizer follow-up for now.',
+        'Create a 24-hour transfer code and link for this paid registration. The replacement participant can start checkout from the link; refund completion still needs organizer follow-up.',
       ),
     ).toBeVisible();
     await expect(

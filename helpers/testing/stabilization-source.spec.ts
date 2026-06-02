@@ -313,9 +313,8 @@ describe('stabilization source', () => {
     );
     expect(statusTable).toContain('| Registrations');
     expect(statusTable).toContain('| Blocked');
-    expect(statusTable).toContain('transfer-completed email outbox records');
     expect(statusTable).toContain(
-      'registration confirmation/cancellation/waitlist email side effects',
+      'registration confirmation/cancellation/transfer-completed/waitlist email outbox records',
     );
     expect(source).toMatch(
       /unpaid registration transfer now writes\s+a tenant-scoped `registrationTransferred` email outbox record/u,
@@ -324,7 +323,7 @@ describe('stabilization source', () => {
       /disabled-by-default Resend-backed email outbox dispatcher/u,
     );
     expect(source).toMatch(
-      /Registration confirmation,\s+cancellation, and waitlist spot-available remain\s+relaunch blockers/u,
+      /Registration confirmation,\s+cancellation, transfer, and waitlist spot-available now record durable email\s+outbox rows/u,
     );
   });
 
@@ -388,6 +387,9 @@ describe('stabilization source', () => {
     const tenantSettingsIdentity = readSource(
       'src/app/admin/general-settings/general-settings.identity.ts',
     );
+    const tenantSettingsComponent = readSource(
+      'src/app/admin/general-settings/general-settings.component.html',
+    );
     const adminRpcContract = readSource(
       'src/shared/rpc-contracts/app-rpcs/admin.rpcs.ts',
     );
@@ -404,10 +406,10 @@ describe('stabilization source', () => {
     expect(product).toContain('- review/publishing workflow settings');
     expect(product).toContain('- registration limits');
     expect(product).toContain('- email sender name');
-    expect(tenantSettingsIdentity).toContain('Email sender');
-    expect(tenantSettingsIdentity).toMatch(/review policy/iu);
-    expect(tenantSettingsIdentity).toContain('registration limits');
-    expect(tenantSettingsIdentity).toContain('Stripe account management');
+    expect(tenantSettingsComponent).toContain('Email sender');
+    expect(tenantSettingsComponent).toMatch(/review policy/iu);
+    expect(tenantSettingsComponent).toContain('Registration limit');
+    expect(tenantSettingsComponent).toContain('Stripe account management');
     expect(adminRpcContract).toContain('emailSenderName');
     expect(adminRpcContract).toContain('registrationLimitCount');
     expect(adminRpcContract).toContain('registrationLimitWindowDays');
@@ -416,12 +418,14 @@ describe('stabilization source', () => {
     expect(statusTable).toContain('| Registrations');
     expect(statusTable).toContain('| Tenant/global admin');
     expect(statusTable).toContain('| Blocked');
-    expect(statusTable).toContain('tenant operations-policy settings');
+    expect(statusTable).toContain(
+      'review policy and tenant-admin Stripe account management are now explicit tenant settings',
+    );
     expect(source).toMatch(
       /registration path enforces configured tenant participant\s+registration limits/u,
     );
     expect(source).toMatch(
-      /tenant-admin settings\s+RPC payload still has no\s+review-policy or Stripe\s+account-management fields/u,
+      /Tenant\/global admin now exposes the relaunch operations\s+policy settings for review\/publishing, registration limits, and Stripe account\s+management as typed tenant configuration/u,
     );
   });
 
@@ -702,7 +706,7 @@ describe('stabilization source', () => {
     }
   });
 
-  it('keeps paid transfer and resale blocked on the product-defined Stripe replacement workflow', () => {
+  it('keeps paid transfer and resale blocked on refund completion after checkout handoff', () => {
     const source = readSource('STABILIZATION.md');
 
     expect(source).toContain('Paid transfer/resale money movement');
@@ -712,7 +716,7 @@ describe('stabilization source', () => {
     expect(source).toContain('fresh Stripe Checkout');
     expect(source).toContain('Decision: Option B, matching `PRODUCT.md`.');
     expect(source).toContain(
-      'The event page shows a disabled transfer action and explains that paid registration transfer and resale need the Stripe Checkout replacement and refund flow first.',
+      'The event page can now create and redeem the transfer code/link into replacement checkout, but original-registration refund completion and resale-specific workflows still require follow-up.',
     );
   });
 
@@ -728,7 +732,7 @@ describe('stabilization source', () => {
       'first in-app Browser manual review queue pass has now covered',
     );
     expect(source).toMatch(
-      /does not satisfy the relaunch transfer\/resale\s+workflow\. `STABILIZATION\.md` keeps registrations blocked until the Stripe\s+Checkout replacement registration and original-registration refund flow is\s+implemented\./u,
+      /does not satisfy the relaunch transfer\/resale\s+workflow\. `STABILIZATION\.md` keeps registrations blocked until\s+original-registration refund completion and resale-specific workflows are\s+implemented\./u,
     );
     expect(source).not.toContain('E2E_LIVE_ESN_CARD_IDENTIFIER');
   });

@@ -125,6 +125,17 @@ export const EventsCreateRegistrationTransferIntent = asRpcMutation(
   }),
 );
 
+export const EventsRegisterWithTransferCode = asRpcMutation(
+  Rpc.make('events.registerWithTransferCode', {
+    error: EventsRegisterForEventError,
+    payload: Schema.Struct({
+      code: Schema.NonEmptyString,
+      eventId: Schema.NonEmptyString,
+    }),
+    success: Schema.Void,
+  }),
+);
+
 export const EventsCheckInRegistration = asRpcMutation(
   Rpc.make('events.checkInRegistration', {
     error: EventsCheckInRegistrationError,
@@ -637,6 +648,7 @@ export class EventsRpcs extends RpcGroup.make(
   EventsGetRegistrationStatus,
   EventsJoinWaitlist,
   EventsRegisterForEvent,
+  EventsRegisterWithTransferCode,
   EventsRegistrationScanned,
   EventsReviewEvent,
   EventsSubmitForReview,

@@ -610,7 +610,7 @@ test.describe('Register for events', () => {
 
   Confirmed unpaid registrations can be transferred from the event page before check-in and before the event starts. The target account must already exist in the tenant and be eligible for the same registration option.
 
-  Paid registration transfer and resale now starts with a transfer code, while the Stripe Checkout replacement registration and original-registration refund completion remain pending.`,
+  Paid registration transfer and resale now starts with a transfer code. The replacement participant can start a Stripe Checkout registration from the link, while original-registration refund completion remains pending.`,
     });
     await takeScreenshot(
       testInfo,
@@ -739,7 +739,7 @@ test.describe('Register for events', () => {
       await expect(page.getByText('You are registered')).toBeVisible();
       await expect(
         page.getByText(
-          'Create a 24-hour transfer code and link for this paid registration. Replacement checkout and refund completion are still pending, so keep organizer follow-up for now.',
+          'Create a 24-hour transfer code and link for this paid registration. The replacement participant can start checkout from the link; refund completion still needs organizer follow-up.',
         ),
       ).toBeVisible();
       await expect(
@@ -804,7 +804,7 @@ test.describe('Register for events', () => {
         body: `
   ## Paid transfer and resale boundary
 
-  Paid registrations can create a 24-hour transfer code and link from the event page before check-in and before the event starts. The replacement participant's Stripe Checkout registration and the original participant refund completion are still pending, so the page keeps that follow-up explicit.
+  Paid registrations can create a 24-hour transfer code and link from the event page before check-in and before the event starts. The replacement participant can start a Stripe Checkout registration from that link; original participant refund completion remains explicit organizer follow-up.
 
   Paid confirmed cancellations are still allowed before the event starts. Cancelling one releases the selected spots and submits a Stripe refund when the original payment reference is available; older or manually seeded payment records still create a pending manual refund record for organizer follow-up.`,
       });

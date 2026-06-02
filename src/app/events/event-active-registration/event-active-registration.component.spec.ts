@@ -138,7 +138,7 @@ describe('registrationTransferActionCopy', () => {
     ).toEqual({
       buttonLabel: 'Transfer unavailable',
       helperText:
-        'Self-service transfer is only available for unpaid, not-yet-checked-in registrations before the event starts. Paid registration transfer and resale need the Stripe Checkout replacement and refund flow first.',
+        'Self-service unpaid transfer is only available for not-yet-checked-in registrations before the event starts. Paid transfer is available through eligible transfer codes; refund completion still needs organizer follow-up.',
     });
   });
 
@@ -180,7 +180,7 @@ describe('registrationPaidTransferCodeActionCopy', () => {
     ).toEqual({
       buttonLabel: 'Create transfer code',
       helperText:
-        'Create a 24-hour transfer code and link for this paid registration. Replacement checkout and refund completion are still pending, so keep organizer follow-up for now.',
+        'Create a 24-hour transfer code and link for this paid registration. The replacement participant can start checkout from the link; refund completion still needs organizer follow-up.',
     });
   });
 

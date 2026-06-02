@@ -10,6 +10,7 @@ import {
   eventReviewActionDisabled,
   eventSubmitForReviewActionDisabled,
   registrationOptionsState,
+  transferCodeRedemptionActionDisabled,
 } from './event-details.component';
 
 const readSource = (sourcePath: string): string =>
@@ -112,6 +113,39 @@ describe('eventSubmitForReviewActionDisabled', () => {
         canEdit: true,
         mutationPending: false,
         status: 'PENDING_REVIEW',
+      }),
+    ).toBe(true);
+  });
+});
+
+describe('transferCodeRedemptionActionDisabled', () => {
+  it('allows transfer-code redemption only with a code, no registration, and no in-flight write', () => {
+    expect(
+      transferCodeRedemptionActionDisabled({
+        hasTransferCode: true,
+        isRegistered: false,
+        mutationPending: false,
+      }),
+    ).toBe(false);
+    expect(
+      transferCodeRedemptionActionDisabled({
+        hasTransferCode: false,
+        isRegistered: false,
+        mutationPending: false,
+      }),
+    ).toBe(true);
+    expect(
+      transferCodeRedemptionActionDisabled({
+        hasTransferCode: true,
+        isRegistered: true,
+        mutationPending: false,
+      }),
+    ).toBe(true);
+    expect(
+      transferCodeRedemptionActionDisabled({
+        hasTransferCode: true,
+        isRegistered: false,
+        mutationPending: true,
       }),
     ).toBe(true);
   });
