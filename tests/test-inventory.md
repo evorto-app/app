@@ -225,9 +225,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 - `docs/events/register.doc.ts` includes a generated unpaid transfer journey,
   including the transfer dialog and eligible target email entry. It now also
   seeds a paid confirmed registration with a successful transaction, creates a
-  paid transfer code/link while naming the still-missing refund completion,
-  cancels the paid registration, and reads back the
-  generated pending manual refund fallback before cleanup.
+  paid transfer code/link while naming the replacement-checkout source-refund
+  path and still-missing resale listing workflow, cancels the paid registration,
+  and reads back the generated pending manual refund fallback before cleanup.
 - Active-registration component coverage pins participant cancellation and
   self-service transfer action disabling while either write is pending or the
   transfer is unavailable.

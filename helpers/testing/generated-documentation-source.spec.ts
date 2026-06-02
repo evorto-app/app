@@ -360,11 +360,11 @@ describe('generated docs source current behavior', () => {
       'Confirmed unpaid registrations can be transferred from the event page before check-in and before the event starts.',
     );
     expect(source).toContain(
-      'Paid registration transfer and resale now starts with a transfer code. The replacement participant can start a Stripe Checkout registration from the link, while original-registration refund completion remains pending.',
+      'Paid registration transfer now starts with a transfer code. The replacement participant can start a Stripe Checkout registration from the link; after checkout succeeds, Evorto cancels the original registration and handles the source refund path. Resale listing workflows are not available yet.',
     );
     expect(source).toContain('Review paid transfer-code state');
     expect(source).toContain(
-      'Create a 24-hour transfer code and link for this paid registration. The replacement participant can start checkout from the link; refund completion still needs organizer follow-up.',
+      'Create a 24-hour transfer code and link for this paid registration. After replacement checkout succeeds, Evorto cancels the original registration and handles the source refund path.',
     );
     expect(source).toContain(
       "page.getByRole('button', { name: 'Create transfer code' })",

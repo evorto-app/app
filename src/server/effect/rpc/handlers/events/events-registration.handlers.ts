@@ -799,7 +799,7 @@ const transferEventRegistration = ({
       return yield* Effect.fail(
         new EventRegistrationConflictError({
           message:
-            'Direct paid registration transfer is not available; use transfer codes while refund completion remains organizer follow-up',
+            'Direct paid registration transfer is not available; use transfer codes for the Stripe checkout replacement flow',
         }),
       );
     }
@@ -1411,7 +1411,7 @@ export const eventRegistrationHandlers = {
         return yield* Effect.fail(
           new EventRegistrationConflictError({
             message:
-              'Direct paid registration transfer is not available; use transfer codes while refund completion remains organizer follow-up',
+              'Direct paid registration transfer is not available; use transfer codes for the Stripe checkout replacement flow',
           }),
         );
       }

@@ -1982,7 +1982,7 @@ describe('event registration transfer handlers', () => {
 
         expect(error['_tag']).toBe('EventRegistrationConflictError');
         expect(error.message).toBe(
-          'Direct paid registration transfer is not available; use transfer codes while refund completion remains organizer follow-up',
+          'Direct paid registration transfer is not available; use transfer codes for the Stripe checkout replacement flow',
         );
         expect(updateSets).toEqual([]);
       }),

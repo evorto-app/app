@@ -2396,8 +2396,8 @@ implement those decisions or explicitly revise them there before changing code.
   journey for the unpaid transfer dialog, eligible target email entry, and
   explicit paid-transfer/resale deferral.
 - Registration paid-transfer docs pass: extended generated registration docs so
-  paid confirmed registrations show transfer-code creation while keeping the
-  then-missing replacement checkout and refund completion visibly deferred.
+  paid confirmed registrations show transfer-code creation while the later
+  checkout and source-refund passes were still pending.
 - Registration transfer-code checkout pass: added
   `events.registerWithTransferCode` so an eligible replacement participant can
   start a pending Stripe Checkout registration from a paid transfer code, and
@@ -2407,6 +2407,11 @@ implement those decisions or explicitly revise them there before changing code.
   to refund the original paid registration after transfer-code replacement
   checkout succeeds, with a pending manual refund fallback when the stored
   payment reference is missing or Stripe refund creation fails.
+- Registration transfer-code copy pass: updated active-registration UI copy,
+  generated registration docs, and direct paid-transfer RPC errors so they no
+  longer describe refund completion as organizer follow-up; current copy points
+  paid transfers at transfer-code checkout plus source-refund handling and keeps
+  only resale listing workflows deferred.
 - Profile payment next-step coverage pass: extracted the profile event-card
   pending-checkout next-step copy into a helper and covered that it only appears
   when a pending registration has an actual checkout URL.
