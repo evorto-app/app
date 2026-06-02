@@ -3269,6 +3269,16 @@ fallback rather than a profile discount-card defect.
   encoded user header without `communicationEmail` and `homeTenantId`. The RPC
   request handler now preserves those fields, and a focused unit guard pins the
   projection.
+- Current generated-docs checkpoint: with the Docker app already healthy on the
+  generated `BASE_URL`, the full local docs baseline passed with
+  `29 passed (3.7m)` using system Chrome and one worker. This reran the same
+  generated-docs shard that is still failing on GitHub's older remote head, and
+  the paid registration docs path no longer timed out waiting for
+  `successful:CONFIRMED`. The regenerated docs output contains 17 pages and 57
+  screenshots. Contact-sheet review found no snackbar bars, half-transition
+  captures, or generated product docs for global-admin functionality. The
+  unlisted-event user doc still emits the quoted YAML title
+  `User: understanding unlisted events`.
 
 ## Review Next
 
