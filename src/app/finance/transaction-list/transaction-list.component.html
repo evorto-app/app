@@ -7,6 +7,10 @@
   >
     <h2 class="title-medium">Loading transactions ...</h2>
   </div>
+} @else if (transactionsQuery.isError()) {
+  <div class="bg-error-container text-on-error-container rounded-2xl p-4">
+    Failed to load transactions.
+  </div>
 } @else if (transactionsQuery.isSuccess()) {
   <div class="overflow-x-auto overflow-y-hidden rounded-2xl">
     <table mat-table [dataSource]="transactionsQuery.data().data">

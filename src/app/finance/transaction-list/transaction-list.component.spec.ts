@@ -25,4 +25,11 @@ describe('TransactionListComponent template', () => {
     expect(template).toContain('aria-label="Select page of transactions"');
     expect(template).not.toContain('aria-label="Select page of users"');
   });
+
+  it('renders a visible error state when transactions fail to load', () => {
+    const template = transactionListTemplate();
+
+    expect(template).toContain('transactionsQuery.isError()');
+    expect(template).toContain('Failed to load transactions.');
+  });
 });
