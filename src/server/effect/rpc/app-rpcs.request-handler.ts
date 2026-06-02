@@ -7,7 +7,7 @@ import {
   RPC_CONTEXT_HEADERS,
 } from './rpc-context-headers';
 
-const buildRpcUser = (context: RequestContext) => {
+export const buildRpcUser = (context: Pick<RequestContext, 'user'>) => {
   if (!context.user) {
     return;
   }
@@ -15,8 +15,10 @@ const buildRpcUser = (context: RequestContext) => {
   return {
     attributes: context.user.attributes,
     auth0Id: context.user.auth0Id,
+    communicationEmail: context.user.communicationEmail,
     email: context.user.email,
     firstName: context.user.firstName,
+    homeTenantId: context.user.homeTenantId,
     iban: context.user.iban,
     id: context.user.id,
     lastName: context.user.lastName,

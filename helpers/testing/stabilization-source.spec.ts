@@ -317,7 +317,7 @@ describe('stabilization source', () => {
       'provider dispatch still need implementation',
     );
     expect(statusTable).toContain('| Registrations');
-    expect(statusTable).toContain('| Blocked');
+    expect(statusTable).toContain('| Stabilized');
     expect(statusTable).toContain(
       'registration confirmation/cancellation/transfer-completed/waitlist email outbox records',
     );
@@ -422,7 +422,7 @@ describe('stabilization source', () => {
     expect(adminRpcContract).not.toMatch(/stripeAccountId|stripe_account_id/u);
     expect(statusTable).toContain('| Registrations');
     expect(statusTable).toContain('| Tenant/global admin');
-    expect(statusTable).toContain('| Blocked');
+    expect(statusTable).toContain('| Stabilized');
     expect(statusTable).toContain(
       'review policy and tenant-admin Stripe account management are now explicit tenant settings',
     );
@@ -472,6 +472,12 @@ describe('stabilization source', () => {
     const profileHomeTenantSpec = readSource(
       'tests/specs/profile/user-profile-home-tenant.spec.ts',
     );
+    const rpcRequestHandler = readSource(
+      'src/server/effect/rpc/app-rpcs.request-handler.ts',
+    );
+    const rpcRequestHandlerSpec = readSource(
+      'src/server/effect/rpc/app-rpcs.request-handler.spec.ts',
+    );
     const usersSchema = readSource('src/db/schema/users.ts');
     const statusTable = readSection(
       source,
@@ -490,19 +496,28 @@ describe('stabilization source', () => {
       'profile warns when browsing outside the user home tenant',
     );
     expect(profileHomeTenantSpec).toContain(".getByRole('status')");
+    expect(rpcRequestHandler).toContain(
+      'communicationEmail: context.user.communicationEmail',
+    );
+    expect(rpcRequestHandler).toContain(
+      'homeTenantId: context.user.homeTenantId',
+    );
+    expect(rpcRequestHandlerSpec).toContain(
+      'keeps profile fields needed by users.self in the RPC context header',
+    );
     expect(statusTable).toContain('| Profile/account flows');
-    expect(statusTable).toContain('| Blocked');
+    expect(statusTable).toContain('| Stabilized');
     expect(statusTable).toContain(
-      'manual in-app Browser verification for the home-tenant warning',
+      'authenticated Browser profile-warning UX are covered',
     );
     expect(source).toMatch(
       /Profile\/account home-tenant data model and\s+profile warning UI are implemented/u,
     );
     expect(source).toContain(
-      'a focused authenticated Playwright spec covers the visible warning',
+      'A focused authenticated Playwright spec covers the visible warning',
     );
     expect(source).toContain(
-      'cannot carry the saved authenticated httpOnly session cookies',
+      'authenticated in-app Browser pass verified the warning after normal Auth0 login',
     );
   });
 
