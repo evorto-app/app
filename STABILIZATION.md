@@ -3240,6 +3240,26 @@ fallback rather than a profile discount-card defect.
   challenge returns `communication with agent failed`. HTTPS push remains
   unusable for this branch until the GitHub token has `workflow` scope because
   the local branch edits `.github/workflows/e2e-baseline.yml`.
+- Current docs-CI stabilization checkpoint: GitHub's remote docs shard is still
+  failing on the older remote head in `tests/docs/events/register.doc.ts`
+  because the paid registration docs journey waits for live Stripe Checkout
+  submission side-effects before the webhook has reliably mirrored into the
+  database. Local commit `f01fb0f4` keeps the docs journey on the real Checkout
+  form screenshot but replays a signed `checkout.session.completed` webhook
+  through `/webhooks/stripe` instead of submitting the hosted Stripe button, then
+  waits for `successful:CONFIRMED`. Source guards now keep that deterministic
+  docs path from drifting back to external Checkout timing. Local verification
+  passed for `bun test helpers/testing/generated-documentation-source.spec.ts`,
+  `bun run format:write`, `bun run lint`,
+  `bunx tsc -p tsconfig.spec.json --noEmit`, `git diff --check`, docs list
+  discovery for `tests/docs/events/register.doc.ts`, and WebStorm errors-only
+  diagnostics on the edited TypeScript files. The fix remains local-only because
+  SSH signing still fails at the 1Password agent and HTTPS push still needs
+  `workflow` scope.
+  Local Docker Browser verification is also blocked until Docker Desktop
+  recovers: the worktree stack left `db` and `stripe` containers in `Created`
+  state, and bounded `docker rm -f` cleanup attempts hang even though
+  `docker info` responds.
 
 ## Review Next
 
