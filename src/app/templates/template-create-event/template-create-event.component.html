@@ -2,11 +2,27 @@
   <a routerLink=".." mat-icon-button>
     <fa-duotone-icon [icon]="faArrowLeft" />
   </a>
-  <h1 class="title-large">Create {{ templateQuery.data()?.title }} event</h1>
+  <h1 class="title-large">
+    @if (templateQuery.isSuccess()) {
+      Create {{ templateQuery.data().title }} event
+    } @else {
+      Create event from template
+    }
+  </h1>
 </div>
 
 <main class="flex flex-col gap-6">
-  @if (templateQuery.isSuccess()) {
+  @if (templateQuery.isPending()) {
+    <div
+      class="bg-surface text-on-surface flex animate-pulse cursor-progress flex-col gap-2 rounded-2xl p-4"
+    >
+      <h2 class="title-medium">Loading template ...</h2>
+    </div>
+  } @else if (templateQuery.isError()) {
+    <div class="bg-error-container text-on-error-container rounded-2xl p-4">
+      Failed to load template.
+    </div>
+  } @else if (templateQuery.isSuccess()) {
     @if (addOnCopyNotice(); as notice) {
       <aside
         class="border-outline-variant bg-surface-container-low text-on-surface rounded-lg border p-4"

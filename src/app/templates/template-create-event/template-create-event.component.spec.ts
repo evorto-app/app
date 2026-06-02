@@ -1,9 +1,20 @@
+import { readFileSync } from 'node:fs';
+import nodePath from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import {
   templateAddOnCopyNotice,
   templateCreateEventSubmitDisabled,
 } from './template-create-event.component';
+
+const templateCreateEventTemplate = (): string =>
+  readFileSync(
+    nodePath.join(
+      process.cwd(),
+      'src/app/templates/template-create-event/template-create-event.component.html',
+    ),
+    'utf8',
+  );
 
 describe('templateCreateEventSubmitDisabled', () => {
   it('blocks template event creation while invalid, submitting, or awaiting the mutation', () => {
@@ -53,5 +64,17 @@ describe('templateAddOnCopyNotice', () => {
     expect(templateAddOnCopyNotice(2)).toContain(
       'standalone before-event and during-event add-on sales are not available yet',
     );
+  });
+});
+
+describe('TemplateCreateEventComponent template', () => {
+  it('renders explicit loading and error states while the source template is unavailable', () => {
+    const template = templateCreateEventTemplate();
+
+    expect(template).toContain('templateQuery.isPending()');
+    expect(template).toContain('Loading template ...');
+    expect(template).toContain('templateQuery.isError()');
+    expect(template).toContain('Failed to load template.');
+    expect(template).toContain('Create event from template');
   });
 });

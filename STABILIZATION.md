@@ -816,6 +816,10 @@ the current working direction until a product decision overrides them.
   reusable add-ons. Event detail shows copied add-ons so organizers can verify
   the template data that moved with the event; registration cards now offer
   registration-time add-on purchase for matching copied add-ons.
+- **Addressed in this stabilization pass:** create-event-from-template now
+  renders explicit loading and error states while the source template query is
+  unresolved, so organizers do not see a partial event-creation shell if the
+  template read fails.
 - **Addressed in stabilization pass:** reset-from-zero seed data now includes
   both free and paid reusable template add-ons attached to participant template
   registration options, so Browser review can inspect the add-on detail surface
