@@ -14,7 +14,7 @@ and useful for small cleanup batches.
 | Roles and permissions                           | Stabilized | high       | Route denial, role lookup, role management, permission metadata, tenant isolation, and user-list deferral are pinned by source, unit, spec, and docs coverage.                                                                                                                                                                                                                                                                  |
 | Finance/receipts                                | Stabilized | high       | Finance navigation, transaction visibility, receipt review, reimbursement recording, receipt submission, and refund boundaries have deterministic coverage; receipt review now enqueues receipt-reviewed email outbox records, and the Resend-backed outbox dispatcher processes pending/failed email records when enabled.                                                                                                     |
 | Scanning/check-in                               | Stabilized | high       | QR scanner reads, selected guest check-in, later guest arrival, idempotent counters, and organizer aggregates are covered by specs/docs against Docker.                                                                                                                                                                                                                                                                         |
-| Profile/account flows                           | Blocked    | high       | Profile edit, event cards, receipts, account creation contracts, seeded ESNcard behavior, deterministic ESNcard provider outcomes, and Browser discount-card UX are covered; Browser verification for home-tenant warning is still pending.                                                                                                                                                                                     |
+| Profile/account flows                           | Blocked    | high       | Profile edit, event cards, receipts, account creation contracts, seeded ESNcard behavior, deterministic ESNcard provider outcomes, home-tenant warning, and Browser discount-card UX are covered; manual in-app Browser verification for the home-tenant warning is still pending because the current Browser session cannot carry the saved authenticated httpOnly session cookies.                                            |
 | Tenant/global admin                             | Stabilized | high       | Tenant settings and global-admin list/detail/create/edit have coverage for the implemented surface; review policy and tenant-admin Stripe account management are now explicit tenant settings while custom-domain automation and impersonation remain out of scope.                                                                                                                                                             |
 | Generated documentation and Playwright coverage | Stabilized | high       | Docs/spec inventory, skip gates, source guards, list mode, and generated-doc runtime flows are current and fail loudly for known fixture gaps.                                                                                                                                                                                                                                                                                  |
 | Local runtime/developer workflow                | Stabilized | high       | Docker, env preflight, CI, Font Awesome token paths, and the first in-app Browser queue pass are healthy; repeat Browser review uses generated `BASE_URL`.                                                                                                                                                                                                                                                                      |
@@ -1324,7 +1324,9 @@ the current working direction until a product decision overrides them.
   draft both point to one home tenant per global user with a warning when the
   current tenant differs. Account creation now records a user's first tenant as
   `homeTenantId`, assigns it for existing global users that do not have one yet,
-  and profile renders a warning when the current tenant differs.
+  and profile renders a warning when the current tenant differs. A focused
+  authenticated Playwright spec now mutates the regular user's home tenant to a
+  different valid tenant and verifies the visible profile warning.
 - **Addressed in stabilization pass:** ESNcard save, refresh, and remove actions now clear stale errors, show visible pending button states, and map mutation failures through `getErrorMessage(...)` instead of rendering raw error objects.
 - **Addressed in this stabilization pass:** ESNcard save, refresh, and remove actions now share one in-flight guard so slow validation, refresh, or removal requests cannot overlap with another profile discount-card write.
 - **Addressed in this stabilization pass:** profile discount-card rows now render readable ESNcard status labels instead of raw persisted status values.
@@ -1441,7 +1443,7 @@ the current working direction until a product decision overrides them.
 ### Product Questions Answered Above
 
 - Should a previously known global user be able to join a tenant automatically after Auth0 login, or should tenant joining require an invite/admin approval flow? Current implementation follows the automatic tenant-join direction for authenticated users who reach account creation.
-- What is the intended home-tenant model, and should profile expose or warn about current tenant vs home tenant? Answered locally: the intended model is one home tenant per global user plus a warning when the current tenant differs; persistence and profile warning UI are implemented locally, with manual Browser verification still pending because the in-app browser tool could not inspect the running page.
+- What is the intended home-tenant model, and should profile expose or warn about current tenant vs home tenant? Answered locally: the intended model is one home tenant per global user plus a warning when the current tenant differs; persistence and profile warning UI are implemented locally, and a focused authenticated Playwright spec covers the visible warning. Manual in-app Browser verification remains pending because the current Browser session cannot carry the saved authenticated httpOnly session cookies and unauthenticated `/profile`/`/login` navigation renders the SSR error page instead of the profile shell.
 - Is `communicationEmail` a user-managed notification email, and should it differ from Auth0 login email?
 - Are payout details global per person or tenant-specific per reimbursement context? Current implementation follows the global-per-person direction for relaunch.
 - Are ESNcard records intended to be global per user, tenant-specific, or shared globally by card identifier? Current implementation follows the global-per-user direction while still requiring the current tenant to have ESNcard support enabled before managing or applying the card.
@@ -3244,10 +3246,12 @@ creation now has server-side RPC coverage as the first durable primitive for the
 future Stripe-backed resale flow. Receipt review now records a durable
 `receiptReviewed` email outbox row with submitter notification-email details,
 and the disabled-by-default Resend-backed dispatcher processes pending/failed
-outbox records when configured. Profile/account
-home-tenant data model and profile warning UI are implemented, but the
-home-tenant warning still needs Browser verification once the local Docker
-runtime is healthy. Tenant/global admin now exposes the relaunch operations
+outbox records when configured. Profile/account home-tenant data model and
+profile warning UI are implemented, and a focused authenticated Playwright spec
+covers the warning. Manual in-app Browser verification is still
+pending because the current Browser session cannot carry the saved
+authenticated httpOnly session cookies and unauthenticated `/profile`/`/login`
+navigation renders the SSR error page instead of the profile shell. Tenant/global admin now exposes the relaunch operations
 policy settings for review/publishing, registration limits, and Stripe account
 management as typed tenant configuration; custom-domain automation,
 multi-domain automation, and impersonation remain deferred product scope.

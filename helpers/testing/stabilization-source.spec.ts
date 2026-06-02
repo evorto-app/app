@@ -464,6 +464,9 @@ describe('stabilization source', () => {
     const profileComponent = readSource(
       'src/app/profile/user-profile/user-profile.component.ts',
     );
+    const profileHomeTenantSpec = readSource(
+      'tests/specs/profile/user-profile-home-tenant.spec.ts',
+    );
     const usersSchema = readSource('src/db/schema/users.ts');
     const statusTable = readSection(
       source,
@@ -478,16 +481,23 @@ describe('stabilization source', () => {
       /homeTenantId.*references\(\(\) => tenants\.id/u,
     );
     expect(profileComponent).toContain('profileHomeTenantWarning');
+    expect(profileHomeTenantSpec).toContain(
+      'profile warns when browsing outside the user home tenant',
+    );
+    expect(profileHomeTenantSpec).toContain(".getByRole('status')");
     expect(statusTable).toContain('| Profile/account flows');
     expect(statusTable).toContain('| Blocked');
     expect(statusTable).toContain(
-      'Browser verification for home-tenant warning',
-    );
-    expect(source).toContain(
-      'home-tenant data model and profile warning UI are implemented',
+      'manual in-app Browser verification for the home-tenant warning',
     );
     expect(source).toMatch(
-      /home-tenant warning still needs\s+Browser verification once the local Docker\s+runtime is healthy/u,
+      /Profile\/account home-tenant data model and\s+profile warning UI are implemented/u,
+    );
+    expect(source).toContain(
+      'a focused authenticated Playwright spec covers the visible warning',
+    );
+    expect(source).toContain(
+      'cannot carry the saved authenticated httpOnly session cookies',
     );
   });
 

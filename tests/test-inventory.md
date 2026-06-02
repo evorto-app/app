@@ -70,6 +70,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - specs/profile/user-profile-edit.spec.ts
   - specs/profile/user-profile-events.spec.ts
   - specs/profile/user-profile-esncard-provider.spec.ts [@esncard-provider]
+  - specs/profile/user-profile-home-tenant.spec.ts
   - specs/profile/user-profile-receipts.spec.ts [finance]
   - specs/reporting/reporter-paths.test.ts
   - specs/scanning/scanner.test.ts
@@ -316,6 +317,10 @@ provider outcomes without live identifiers.
     email plus IBAN/PayPal persistence with explicit database readback and
     cleanup, and app helper coverage proves payload trimming, blank-value
     normalization, and visible profile-cache refresh after save.
+  - `specs/profile/user-profile-home-tenant.spec.ts` mutates the regular user's
+    home tenant to a different valid tenant, opens the authenticated profile
+    page, asserts the visible home-tenant warning, and restores the original user
+    row afterward.
   - Docker-backed system-Chrome profile event-card review now passes against the
     rebuilt app. Generated profile docs seed confirmed, pending-checkout,
     waitlisted, and checked-in registrations with free add-ons where applicable,
