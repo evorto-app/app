@@ -3314,6 +3314,18 @@ fallback rather than a profile discount-card defect.
   which rendered the participant registration card, inclusive VAT label, and
   payment CTA. Browser console warning/error logs were empty for the route
   check.
+- Current readiness refresh checkpoint: HTTPS-based `main` refresh shows this
+  branch contains the latest `origin/main`, while SSH fetch/push still fails at
+  the local 1Password signing step and HTTPS push still lacks `workflow` scope
+  for the changed E2E workflow. Thread-aware PR review inspection finds zero
+  unresolved review threads; the remote PR head remains stale and draft, with
+  the older generated-docs failure still attached to that stale head. Local
+  broad app/server unit checks passed after fixing the Vite `/@fs` source-read
+  drift, the Vitest import drift, and registration-status fixture contract
+  drift. Stabilization, generated-docs, runtime-preflight, and skip-inventory
+  source guards pass locally. The in-app Browser also reopened the generated
+  `BASE_URL` `/events` route, opened a seeded event detail, and showed the
+  registration card without warning/error console logs.
 
 ## Review Next
 
