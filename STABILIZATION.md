@@ -3326,6 +3326,15 @@ fallback rather than a profile discount-card defect.
   source guards pass locally. The in-app Browser also reopened the generated
   `BASE_URL` `/events` route, opened a seeded event detail, and showed the
   registration card without warning/error console logs.
+- Current generated-docs refresh checkpoint: with the Docker stack healthy on
+  the generated `BASE_URL`, the local generated-docs baseline passed with
+  `29 passed (3.7m)` using system Chrome, `NO_WEBSERVER=true`, and one worker.
+  The run produced 17 generated pages and 57 screenshots in the ignored local
+  docs output. Frontmatter title scanning found only the intentionally quoted
+  `User: understanding unlisted events` title, and global-admin product docs
+  stayed absent. Contact-sheet review of the generated screenshots found no
+  obvious snackbar bars, blank/loading captures, or half-transition images;
+  modal/backdrop screenshots were limited to documented dialog states.
 
 ## Review Next
 
