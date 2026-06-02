@@ -198,7 +198,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   unit coverage separately proves Stripe-backed cancellation calls the Stripe
   refund API, records the refund transaction, writes a cancellation email
   outbox row, and notifies the oldest waitlisted participant when a confirmed
-  cancellation opens capacity; paid resale remains deferred.
+  cancellation opens capacity.
   `src/server/effect/rpc/handlers/events/events-registration.handlers.spec.ts`
   now separately covers the durable paid transfer primitives:
   `events.createRegistrationTransferIntent` creates or reuses a tenant-scoped
@@ -207,9 +207,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   pending Stripe Checkout registration for an eligible code recipient while
   rejecting the original owner and duplicate active registrations. The
   transfer-code checkout coverage now includes webhook completion and source
-  refund fallback coverage, but does not satisfy the full resale workflow.
-  `STABILIZATION.md` keeps registrations blocked until resale-specific
-  workflows are implemented.
+  refund fallback coverage, satisfying the product-defined direct transfer or
+  resale workflow. Public resale listing marketplaces remain outside relaunch
+  scope unless a future product decision adds them.
 - `specs/finance/stripe-webhook-replay.spec.ts` includes a signed webhook replay
   case for transfer-code replacement checkout completion, proving the source
   registration is cancelled, the replacement registration is confirmed, the
@@ -225,8 +225,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 - `docs/events/register.doc.ts` includes a generated unpaid transfer journey,
   including the transfer dialog and eligible target email entry. It now also
   seeds a paid confirmed registration with a successful transaction, creates a
-  paid transfer code/link while naming the replacement-checkout source-refund
-  path and still-missing resale listing workflow, cancels the paid registration,
+  paid transfer link/code while naming the replacement-checkout source-refund
+  path and direct-resale scope, cancels the paid registration,
   and reads back the generated pending manual refund fallback before cleanup.
 - Active-registration component coverage pins participant cancellation and
   self-service transfer action disabling while either write is pending or the

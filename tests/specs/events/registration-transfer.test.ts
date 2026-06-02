@@ -145,7 +145,7 @@ test('regular user transfers an unpaid confirmed registration by email', async (
   }
 });
 
-test('regular user can create a paid transfer code without completing resale yet', async ({
+test('regular user can create a paid transfer link for direct resale handoff', async ({
   database,
   page,
   seeded,
@@ -251,13 +251,13 @@ test('regular user can create a paid transfer code without completing resale yet
     await expect(page.getByText('You are registered')).toBeVisible();
     await expect(
       page.getByText(
-        'Create a 24-hour transfer code and link for this paid registration. After replacement checkout succeeds, Evorto cancels the original registration and handles the source refund path.',
+        'Create a 24-hour transfer link and code for this paid registration. Share it with the replacement participant for direct transfer or resale; after replacement checkout succeeds, Evorto cancels this registration and handles the source refund path.',
       ),
     ).toBeVisible();
     await expect(
       page.getByRole('button', { name: 'Transfer registration' }),
     ).toHaveCount(0);
-    await page.getByRole('button', { name: 'Create transfer code' }).click();
+    await page.getByRole('button', { name: 'Create transfer link' }).click();
     await expect(page.getByText('Transfer code')).toBeVisible();
 
     await expect

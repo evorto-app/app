@@ -234,7 +234,7 @@ describe('stabilization source', () => {
     );
   });
 
-  it('keeps the review status honest about the paid transfer relaunch blocker', () => {
+  it('keeps the review status honest about the paid transfer relaunch coverage', () => {
     const source = readSource('STABILIZATION.md');
     const statusTable = readSection(
       source,
@@ -243,11 +243,15 @@ describe('stabilization source', () => {
     );
 
     expect(statusTable).toContain('| Registrations');
-    expect(statusTable).toContain('| Blocked');
+    expect(statusTable).toContain('| Stabilized');
     expect(statusTable).toContain('unpaid transfer boundaries');
-    expect(statusTable).toContain('paid transfer-code checkout handoff');
+    expect(statusTable).toContain(
+      'paid transfer/direct-resale checkout handoff',
+    );
     expect(statusTable).toContain('source-refund completion fallback');
-    expect(statusTable).toContain('resale-specific workflows still need');
+    expect(statusTable).toContain(
+      'public resale listings remain outside relaunch scope',
+    );
     expect(statusTable).not.toContain(
       'Free/paid registration, guests, add-ons, waitlist, negative states, cancellation/refund, and transfer boundaries have server, app, spec, and docs coverage.',
     );
@@ -650,7 +654,9 @@ describe('stabilization source', () => {
     expect(readinessCheckpoint).toMatch(
       /The PR\s+has\s+no\s+unresolved review threads\s+at/u,
     );
-    expect(readinessCheckpoint).toMatch(/resale-specific workflows/u);
+    expect(readinessCheckpoint).toMatch(
+      /final stabilization cleanup and\s+Browser evidence continue/u,
+    );
     expect(readinessCheckpoint).toMatch(
       /formal\s+bot\s+review\s+is\s+expected\s+only\s+after\s+the\s+PR\s+is\s+marked\s+ready/u,
     );
@@ -715,7 +721,7 @@ describe('stabilization source', () => {
     }
   });
 
-  it('keeps paid transfer and resale blocked only on resale-specific follow-up after checkout refund completion', () => {
+  it('keeps paid transfer and direct resale aligned with checkout refund completion', () => {
     const source = readSource('STABILIZATION.md');
     const webhook = readSource('src/server/http/stripe-webhook.web-handler.ts');
     const eventDetailsTemplate = readSource(
@@ -734,8 +740,8 @@ describe('stabilization source', () => {
     );
     expect(source).toContain('fresh Stripe Checkout');
     expect(source).toContain('Decision: Option B, matching `PRODUCT.md`.');
-    expect(source).toContain(
-      'The event page can now create and redeem the transfer code/link into replacement checkout and complete the source refund path, but resale-specific workflow surfaces still require follow-up.',
+    expect(source).toMatch(
+      /cover the product-defined direct transfer\/resale workflow;\s+public resale\s+listing marketplaces remain outside relaunch scope/u,
     );
     expect(webhook).toContain(
       'Failed to create Stripe refund for transferred registration',
@@ -750,6 +756,7 @@ describe('stabilization source', () => {
     expect(source).not.toContain(
       'original-registration refund completion and resale-specific workflows still require follow-up',
     );
+    expect(source).not.toContain('resale-specific workflows still need');
   });
 
   it('keeps the Playwright inventory clear about watchlist versus blockers', () => {
@@ -764,7 +771,7 @@ describe('stabilization source', () => {
       'first in-app Browser manual review queue pass has now covered',
     );
     expect(source).toMatch(
-      /does not satisfy the full resale workflow\.\s+`STABILIZATION\.md` keeps registrations blocked until resale-specific\s+workflows are implemented\./u,
+      /satisfying the product-defined direct transfer or\s+resale workflow\.\s+Public resale listing marketplaces remain outside relaunch\s+scope/u,
     );
     expect(source).not.toContain('E2E_LIVE_ESN_CARD_IDENTIFIER');
   });

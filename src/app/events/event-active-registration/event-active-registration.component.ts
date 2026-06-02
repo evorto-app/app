@@ -104,7 +104,7 @@ export const registrationTransferActionCopy = (registration: {
   return {
     buttonLabel: 'Transfer unavailable',
     helperText:
-      'Self-service unpaid transfer is only available for not-yet-checked-in registrations before the event starts. Paid transfer is available through eligible transfer codes; resale listing workflows are not available yet.',
+      'Self-service unpaid transfer is only available for not-yet-checked-in registrations before the event starts. Paid transfer or direct resale uses eligible transfer links; public resale listings are not part of the relaunch scope.',
   };
 };
 
@@ -123,9 +123,9 @@ export const registrationPaidTransferCodeActionCopy = (registration: {
   }
 
   return {
-    buttonLabel: 'Create transfer code',
+    buttonLabel: 'Create transfer link',
     helperText:
-      'Create a 24-hour transfer code and link for this paid registration. After replacement checkout succeeds, Evorto cancels the original registration and handles the source refund path.',
+      'Create a 24-hour transfer link and code for this paid registration. Share it with the replacement participant for direct transfer or resale; after replacement checkout succeeds, Evorto cancels this registration and handles the source refund path.',
   };
 };
 

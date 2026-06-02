@@ -610,7 +610,7 @@ test.describe('Register for events', () => {
 
   Confirmed unpaid registrations can be transferred from the event page before check-in and before the event starts. The target account must already exist in the tenant and be eligible for the same registration option.
 
-  Paid registration transfer now starts with a transfer code. The replacement participant can start a Stripe Checkout registration from the link; after checkout succeeds, Evorto cancels the original registration and handles the source refund path. Resale listing workflows are not available yet.`,
+  Paid registration transfer or direct resale now starts with a transfer link/code. The replacement participant can start a Stripe Checkout registration from the link; after checkout succeeds, Evorto cancels the original registration and handles the source refund path. Public resale listings are outside the relaunch scope.`,
     });
     await takeScreenshot(
       testInfo,
@@ -653,7 +653,7 @@ test.describe('Register for events', () => {
     });
   });
 
-  test('Review paid transfer-code state', async ({
+  test('Review paid transfer/direct-resale state', async ({
     database,
     page,
     seeded,
@@ -739,7 +739,7 @@ test.describe('Register for events', () => {
       await expect(page.getByText('You are registered')).toBeVisible();
       await expect(
         page.getByText(
-          'Create a 24-hour transfer code and link for this paid registration. After replacement checkout succeeds, Evorto cancels the original registration and handles the source refund path.',
+          'Create a 24-hour transfer link and code for this paid registration. Share it with the replacement participant for direct transfer or resale; after replacement checkout succeeds, Evorto cancels this registration and handles the source refund path.',
         ),
       ).toBeVisible();
       await expect(
@@ -750,7 +750,7 @@ test.describe('Register for events', () => {
       await expect(
         page.getByRole('button', { name: 'Transfer registration' }),
       ).toHaveCount(0);
-      await page.getByRole('button', { name: 'Create transfer code' }).click();
+      await page.getByRole('button', { name: 'Create transfer link' }).click();
       await expect(page.getByText('Transfer code')).toBeVisible();
 
       await expect
@@ -804,7 +804,7 @@ test.describe('Register for events', () => {
         body: `
   ## Paid transfer and resale boundary
 
-  Paid registrations can create a 24-hour transfer code and link from the event page before check-in and before the event starts. The replacement participant can start a Stripe Checkout registration from that link; after checkout succeeds, Evorto cancels the original registration and handles the source refund path. Resale listing workflows are not available yet.
+  Paid registrations can create a 24-hour transfer link and code from the event page before check-in and before the event starts. The replacement participant can start a Stripe Checkout registration from that link; after checkout succeeds, Evorto cancels the original registration and handles the source refund path. This covers direct transfer or resale without adding a public resale listing marketplace to relaunch scope.
 
   Paid confirmed cancellations are still allowed before the event starts. Cancelling one releases the selected spots and submits a Stripe refund when the original payment reference is available; older or manually seeded payment records still create a pending manual refund record for organizer follow-up.`,
       });

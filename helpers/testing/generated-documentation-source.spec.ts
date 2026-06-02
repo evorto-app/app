@@ -360,14 +360,14 @@ describe('generated docs source current behavior', () => {
       'Confirmed unpaid registrations can be transferred from the event page before check-in and before the event starts.',
     );
     expect(source).toContain(
-      'Paid registration transfer now starts with a transfer code. The replacement participant can start a Stripe Checkout registration from the link; after checkout succeeds, Evorto cancels the original registration and handles the source refund path. Resale listing workflows are not available yet.',
+      'Paid registration transfer or direct resale now starts with a transfer link/code. The replacement participant can start a Stripe Checkout registration from the link; after checkout succeeds, Evorto cancels the original registration and handles the source refund path. Public resale listings are outside the relaunch scope.',
     );
-    expect(source).toContain('Review paid transfer-code state');
+    expect(source).toContain('Review paid transfer/direct-resale state');
     expect(source).toContain(
-      'Create a 24-hour transfer code and link for this paid registration. After replacement checkout succeeds, Evorto cancels the original registration and handles the source refund path.',
+      'Create a 24-hour transfer link and code for this paid registration. Share it with the replacement participant for direct transfer or resale; after replacement checkout succeeds, Evorto cancels this registration and handles the source refund path.',
     );
     expect(source).toContain(
-      "page.getByRole('button', { name: 'Create transfer code' })",
+      "page.getByRole('button', { name: 'Create transfer link' })",
     );
     expect(source).toContain(
       "page.getByRole('button', { name: 'Transfer registration' })",
@@ -403,6 +403,9 @@ describe('generated docs source current behavior', () => {
     expect(source).not.toContain('resale is automatic');
     expect(source).not.toContain(
       'Paid registration transfer and resale are not automatic yet.',
+    );
+    expect(source).not.toContain(
+      'Resale listing workflows are not available yet.',
     );
     expect(source).not.toContain('ticket QR code by email');
   });
