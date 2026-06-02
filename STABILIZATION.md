@@ -1157,6 +1157,10 @@ the current working direction until a product decision overrides them.
   now seeds visible and cancelled transaction rows, proves the transaction list
   renders the non-cancelled row, and proves cancelled rows stay omitted before
   generating the transaction-list screenshot.
+- **Addressed in stabilization pass:** the transaction-list paginator now
+  announces transaction pages instead of the stale user-list label, with the
+  template spec pinning both the implemented-route action guard and the
+  transaction-specific pagination label.
 - **Addressed in stabilization pass:** `tests/docs/finance/receipt-review-reimbursement.doc.ts` now walks the exact seeded receipt through the approval queue, approval detail page, queued submitter-email caveat, reimbursement queue, payout-detail selection, and manual reimbursement recording, then reads back the final receipt state and restores the seeded row.
 - `src/app/finance/receipt-refund-list/receipt-refund-list.component.spec.ts` pins the reimbursement queue's manual money-movement notice, payout-detail gating, payout-detail labels, selected-total math, and reimbursement record disabled guard. The receipt reimbursement doc/spec assert the manual-money notice on the page.
 - `src/app/finance/receipt-approval-detail/receipt-approval-detail.component.spec.ts`

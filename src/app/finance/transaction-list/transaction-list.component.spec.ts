@@ -18,4 +18,11 @@ describe('TransactionListComponent template', () => {
     expect(template).not.toContain('Create transaction');
     expect(template).not.toContain('routerLink="edit"');
   });
+
+  it('labels pagination as transaction navigation', () => {
+    const template = transactionListTemplate();
+
+    expect(template).toContain('aria-label="Select page of transactions"');
+    expect(template).not.toContain('aria-label="Select page of users"');
+  });
 });
