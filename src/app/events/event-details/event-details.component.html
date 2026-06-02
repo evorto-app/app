@@ -19,20 +19,31 @@
           <fa-icon [icon]="faArrowLeft" />
         </a>
         <div class="grow"></div>
-        <button
-          title="menu"
-          *appIfAnyPermission="['events:changeListing']"
-          mat-icon-button
-          [matMenuTriggerFor]="menu"
-          aria-label="Open event actions"
-        >
-          <fa-icon [icon]="faEllipsisVertical" />
-        </button>
-        <mat-menu #menu="matMenu">
-          <button mat-menu-item (click)="updateVisibility()">
-            Update listing
+        @if (eventQuery.isSuccess()) {
+          <button
+            title="menu"
+            *appIfAnyPermission="['events:changeListing']"
+            mat-icon-button
+            [matMenuTriggerFor]="menu"
+            aria-label="Open event actions"
+          >
+            <fa-icon [icon]="faEllipsisVertical" />
           </button>
-        </mat-menu>
+          <mat-menu #menu="matMenu">
+            <button
+              mat-menu-item
+              (click)="updateVisibility()"
+              [disabled]="
+                eventListingActionDisabled({
+                  eventLoaded: true,
+                  mutationPending: updateListingMutation.isPending(),
+                })
+              "
+            >
+              Update listing
+            </button>
+          </mat-menu>
+        }
       </div>
       <h1 class="display-small">
         @if (eventQuery.isSuccess()) {

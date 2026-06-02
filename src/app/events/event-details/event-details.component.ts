@@ -81,6 +81,14 @@ export const eventSubmitForReviewActionDisabled = ({
 }): boolean =>
   !canEdit || (status !== 'DRAFT' && status !== 'REJECTED') || mutationPending;
 
+export const eventListingActionDisabled = ({
+  eventLoaded,
+  mutationPending,
+}: {
+  eventLoaded: boolean;
+  mutationPending: boolean;
+}): boolean => !eventLoaded || mutationPending;
+
 export const eventAddonPurchaseTiming = (addOn: {
   allowPurchaseBeforeEvent: boolean;
   allowPurchaseDuringEvent: boolean;
@@ -243,6 +251,7 @@ export class EventDetailsComponent {
     }
     return event.icon.iconColor;
   });
+  protected readonly eventListingActionDisabled = eventListingActionDisabled;
   protected readonly eventReviewActionDisabled = eventReviewActionDisabled;
   protected readonly eventSubmitForReviewActionDisabled =
     eventSubmitForReviewActionDisabled;
@@ -297,10 +306,21 @@ export class EventDetailsComponent {
   }
 
   async updateVisibility() {
+    const event = this.eventQuery.data();
+    if (
+      eventListingActionDisabled({
+        eventLoaded: !!event,
+        mutationPending: this.updateListingMutation.isPending(),
+      }) ||
+      !event
+    ) {
+      return;
+    }
+
     const unlisted = await firstValueFrom(
       this.dialog
         .open(UpdateVisibilityDialogComponent, {
-          data: { event: this.eventQuery.data() },
+          data: { event },
         })
         .afterClosed(),
     );

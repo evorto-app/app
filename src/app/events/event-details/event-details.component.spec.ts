@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import {
   eventAddonPurchaseTiming,
   eventAddonsForRegistrationOption,
+  eventListingActionDisabled,
   eventRegistrationOptionTitle,
   eventReviewActionDisabled,
   eventSubmitForReviewActionDisabled,
@@ -113,6 +114,29 @@ describe('eventSubmitForReviewActionDisabled', () => {
         canEdit: true,
         mutationPending: false,
         status: 'PENDING_REVIEW',
+      }),
+    ).toBe(true);
+  });
+});
+
+describe('eventListingActionDisabled', () => {
+  it('allows listing updates only after the event loaded and no write is pending', () => {
+    expect(
+      eventListingActionDisabled({
+        eventLoaded: true,
+        mutationPending: false,
+      }),
+    ).toBe(false);
+    expect(
+      eventListingActionDisabled({
+        eventLoaded: false,
+        mutationPending: false,
+      }),
+    ).toBe(true);
+    expect(
+      eventListingActionDisabled({
+        eventLoaded: true,
+        mutationPending: true,
       }),
     ).toBe(true);
   });
