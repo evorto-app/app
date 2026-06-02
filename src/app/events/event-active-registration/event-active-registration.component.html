@@ -106,6 +106,7 @@
             [disabled]="
               registrationCancellationActionDisabled({
                 cancellationPending: cancelRegistrationMutation.isPending(),
+                transferCodePending: createTransferCodeMutation.isPending(),
                 transferPending: transferRegistrationMutation.isPending(),
               })
             "
@@ -126,6 +127,7 @@
             [disabled]="
               registrationTransferActionDisabled({
                 cancellationPending: cancelRegistrationMutation.isPending(),
+                transferCodePending: createTransferCodeMutation.isPending(),
                 transferAvailable: registration.transferAvailable,
                 transferPending: transferRegistrationMutation.isPending(),
               })
@@ -133,6 +135,46 @@
           >
             {{ transferAction.buttonLabel }}
           </button>
+        </div>
+      }
+      @if (paidTransferCodeActionCopy(registration); as transferCodeAction) {
+        <div class="flex flex-col items-start gap-2 lg:col-span-2">
+          <p class="body-small text-on-surface-variant">
+            {{ transferCodeAction.helperText }}
+          </p>
+          <button
+            mat-stroked-button
+            (click)="createPaidTransferCode(registration)"
+            [disabled]="
+              registrationPaidTransferCodeActionDisabled({
+                cancellationPending: cancelRegistrationMutation.isPending(),
+                paidTransferCodeAvailable:
+                  registration.paidTransferCodeAvailable,
+                transferCodePending: createTransferCodeMutation.isPending(),
+                transferPending: transferRegistrationMutation.isPending(),
+              })
+            "
+          >
+            {{ transferCodeAction.buttonLabel }}
+          </button>
+          @if (transferCodeResult(); as currentTransferCode) {
+            @if (currentTransferCode.registrationId === registration.id) {
+              <div
+                class="bg-surface-container-high text-on-surface-container-high grid gap-2 rounded-xl p-4"
+              >
+                <p class="title-small">Transfer code</p>
+                <p class="body-medium font-mono">
+                  {{ currentTransferCode.code }}
+                </p>
+                <a [href]="currentTransferCode.transferLink" mat-flat-button>
+                  Open transfer link
+                </a>
+                <p class="body-small text-on-surface-variant">
+                  Expires {{ currentTransferCode.expiresAt | date: "medium" }}.
+                </p>
+              </div>
+            }
+          }
         </div>
       }
       @if (deferredActionCopy(registration); as deferredAction) {
@@ -153,5 +195,11 @@
   <div class="bg-error text-on-error mt-4 flex flex-col gap-2 rounded-2xl p-4">
     <h3 class="title-medium">Registration transfer failed</h3>
     <p>{{ transferErrorMessage(transferRegistrationMutation.error()) }}</p>
+  </div>
+}
+@if (createTransferCodeMutation.isError()) {
+  <div class="bg-error text-on-error mt-4 flex flex-col gap-2 rounded-2xl p-4">
+    <h3 class="title-medium">Transfer code creation failed</h3>
+    <p>{{ transferCodeErrorMessage(createTransferCodeMutation.error()) }}</p>
   </div>
 }

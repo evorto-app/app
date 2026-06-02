@@ -1,9 +1,12 @@
+import '@angular/compiler';
 import { describe, expect, it } from 'vitest';
 
 import {
   registrationCancellationActionDisabled,
   registrationCancellationCopy,
   registrationDeferredActionCopy,
+  registrationPaidTransferCodeActionCopy,
+  registrationPaidTransferCodeActionDisabled,
   registrationTransferActionCopy,
   registrationTransferActionDisabled,
 } from './event-active-registration.component';
@@ -114,6 +117,7 @@ describe('registrationTransferActionCopy', () => {
   it('exposes self-service transfer for eligible confirmed registrations', () => {
     expect(
       registrationTransferActionCopy({
+        paidTransferCodeAvailable: false,
         status: 'CONFIRMED',
         transferAvailable: true,
       }),
@@ -127,6 +131,7 @@ describe('registrationTransferActionCopy', () => {
   it('keeps paid or otherwise blocked confirmed transfers honest', () => {
     expect(
       registrationTransferActionCopy({
+        paidTransferCodeAvailable: false,
         status: 'CONFIRMED',
         transferAvailable: false,
       }),
@@ -140,14 +145,56 @@ describe('registrationTransferActionCopy', () => {
   it('does not expose transfer actions for pending or waitlist registrations', () => {
     expect(
       registrationTransferActionCopy({
+        paidTransferCodeAvailable: false,
         status: 'PENDING',
         transferAvailable: false,
       }),
     ).toBeNull();
     expect(
       registrationTransferActionCopy({
+        paidTransferCodeAvailable: false,
         status: 'WAITLIST',
         transferAvailable: false,
+      }),
+    ).toBeNull();
+  });
+
+  it('defers to paid transfer-code creation for eligible paid registrations', () => {
+    expect(
+      registrationTransferActionCopy({
+        paidTransferCodeAvailable: true,
+        status: 'CONFIRMED',
+        transferAvailable: false,
+      }),
+    ).toBeNull();
+  });
+});
+
+describe('registrationPaidTransferCodeActionCopy', () => {
+  it('exposes transfer-code creation for eligible paid confirmed registrations', () => {
+    expect(
+      registrationPaidTransferCodeActionCopy({
+        paidTransferCodeAvailable: true,
+        status: 'CONFIRMED',
+      }),
+    ).toEqual({
+      buttonLabel: 'Create transfer code',
+      helperText:
+        'Create a 24-hour transfer code and link for this paid registration. Replacement checkout and refund completion are still pending, so keep organizer follow-up for now.',
+    });
+  });
+
+  it('does not expose paid transfer-code creation when unavailable', () => {
+    expect(
+      registrationPaidTransferCodeActionCopy({
+        paidTransferCodeAvailable: false,
+        status: 'CONFIRMED',
+      }),
+    ).toBeNull();
+    expect(
+      registrationPaidTransferCodeActionCopy({
+        paidTransferCodeAvailable: true,
+        status: 'PENDING',
       }),
     ).toBeNull();
   });
@@ -158,13 +205,22 @@ describe('active registration action guards', () => {
     expect(
       registrationCancellationActionDisabled({
         cancellationPending: true,
+        transferCodePending: false,
         transferPending: false,
       }),
     ).toBe(true);
     expect(
       registrationCancellationActionDisabled({
         cancellationPending: false,
+        transferCodePending: false,
         transferPending: true,
+      }),
+    ).toBe(true);
+    expect(
+      registrationCancellationActionDisabled({
+        cancellationPending: false,
+        transferCodePending: true,
+        transferPending: false,
       }),
     ).toBe(true);
   });
@@ -173,6 +229,7 @@ describe('active registration action guards', () => {
     expect(
       registrationCancellationActionDisabled({
         cancellationPending: false,
+        transferCodePending: false,
         transferPending: false,
       }),
     ).toBe(false);
@@ -183,6 +240,7 @@ describe('active registration action guards', () => {
       registrationTransferActionDisabled({
         cancellationPending: false,
         transferAvailable: false,
+        transferCodePending: false,
         transferPending: false,
       }),
     ).toBe(true);
@@ -190,6 +248,7 @@ describe('active registration action guards', () => {
       registrationTransferActionDisabled({
         cancellationPending: true,
         transferAvailable: true,
+        transferCodePending: false,
         transferPending: false,
       }),
     ).toBe(true);
@@ -197,7 +256,16 @@ describe('active registration action guards', () => {
       registrationTransferActionDisabled({
         cancellationPending: false,
         transferAvailable: true,
+        transferCodePending: false,
         transferPending: true,
+      }),
+    ).toBe(true);
+    expect(
+      registrationTransferActionDisabled({
+        cancellationPending: false,
+        transferAvailable: true,
+        transferCodePending: true,
+        transferPending: false,
       }),
     ).toBe(true);
   });
@@ -207,6 +275,53 @@ describe('active registration action guards', () => {
       registrationTransferActionDisabled({
         cancellationPending: false,
         transferAvailable: true,
+        transferCodePending: false,
+        transferPending: false,
+      }),
+    ).toBe(false);
+  });
+
+  it('disables paid transfer-code creation when unavailable or while another action is pending', () => {
+    expect(
+      registrationPaidTransferCodeActionDisabled({
+        cancellationPending: false,
+        paidTransferCodeAvailable: false,
+        transferCodePending: false,
+        transferPending: false,
+      }),
+    ).toBe(true);
+    expect(
+      registrationPaidTransferCodeActionDisabled({
+        cancellationPending: true,
+        paidTransferCodeAvailable: true,
+        transferCodePending: false,
+        transferPending: false,
+      }),
+    ).toBe(true);
+    expect(
+      registrationPaidTransferCodeActionDisabled({
+        cancellationPending: false,
+        paidTransferCodeAvailable: true,
+        transferCodePending: true,
+        transferPending: false,
+      }),
+    ).toBe(true);
+    expect(
+      registrationPaidTransferCodeActionDisabled({
+        cancellationPending: false,
+        paidTransferCodeAvailable: true,
+        transferCodePending: false,
+        transferPending: true,
+      }),
+    ).toBe(true);
+  });
+
+  it('allows paid transfer-code creation only when available and no active registration action write is pending', () => {
+    expect(
+      registrationPaidTransferCodeActionDisabled({
+        cancellationPending: false,
+        paidTransferCodeAvailable: true,
+        transferCodePending: false,
         transferPending: false,
       }),
     ).toBe(false);

@@ -186,11 +186,11 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   active-registration actions remain available under Docker server time.
 - `specs/events/registration-transfer.test.ts` also seeds a paid confirmed
   registration with a successful registration transaction and proves the event
-  page keeps self-service transfer disabled with the paid transfer/resale
-  implementation boundary instead of exposing the unpaid transfer dialog, then
-  deletes the generated registration/transaction rows and restores touched
-  fixture status. The paid fixture uses an explicit `EUR` currency because the
-  shared tenant fixture does not expose the persisted tenant currency field.
+  page creates a tenant-scoped 24-hour transfer code/link without exposing the
+  unpaid transfer dialog, then deletes the generated transfer intent plus
+  registration/transaction rows and restores touched fixture status. The paid
+  fixture uses an explicit `EUR` currency because the shared tenant fixture does
+  not expose the persisted tenant currency field.
 - `specs/events/registration-transfer.test.ts` also cancels a seeded paid
   confirmed registration through the event page and reads back the generated
   pending manual refund transaction for a manually seeded payment record. Server
@@ -203,7 +203,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   `events.createRegistrationTransferIntent` creates or reuses a tenant-scoped
   24-hour transfer code for eligible paid registrations and rejects unpaid
   registrations.
-  This unavailable-state coverage does not satisfy the relaunch transfer/resale
+  This transfer-code coverage does not satisfy the relaunch transfer/resale
   workflow. `STABILIZATION.md` keeps registrations blocked until the Stripe
   Checkout replacement registration and original-registration refund flow is
   implemented.
@@ -214,11 +214,11 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   cancelled registration plus released waitlist counter, then restores touched
   registrations, generated questions, and option counters.
 - `docs/events/register.doc.ts` includes a generated unpaid transfer journey,
-  including the transfer dialog, eligible target email entry, and the explicit
-  paid-transfer/resale deferral. It now also seeds a paid confirmed
-  registration with a successful transaction, asserts disabled
-  transfer-unavailable copy that names the missing Stripe-backed implementation,
-  cancels the paid registration, and reads back the
+  including the transfer dialog and eligible target email entry. It now also
+  seeds a paid confirmed registration with a successful transaction, creates a
+  paid transfer code/link while naming the still-missing Stripe-backed
+  replacement checkout and refund completion, cancels the paid registration,
+  and reads back the
   generated pending manual refund fallback before cleanup.
 - Active-registration component coverage pins participant cancellation and
   self-service transfer action disabling while either write is pending or the

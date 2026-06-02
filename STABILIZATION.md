@@ -615,7 +615,10 @@ the current working direction until a product decision overrides them.
   `events.createRegistrationTransferIntent` RPC that creates or reuses a 24-hour
   transfer code for confirmed paid registrations owned by the current user when
   they are not checked in and the event has not started.
-- **Should fix before relaunch:** participant-facing paid transfer/resale money movement and resale-specific workflows are not implemented in the reviewed event registration path. `PRODUCT.md` defines the intended model as a new participant completing a fresh Stripe Checkout registration, cancellation of the existing participant's registration, and a Stripe refund to the existing participant. The event page shows a disabled transfer action and explains that paid registration transfer and resale need the Stripe Checkout replacement and refund flow first. Paid confirmed cancellation now attempts automatic Stripe refunds for transactions with stored Stripe payment references and keeps a pending manual refund fallback for older/manual records.
+- **Addressed in stabilization pass:** active registration cards now expose paid
+  transfer-code creation for eligible paid registrations and render the
+  generated 24-hour code/link without exposing the unpaid transfer dialog.
+- **Should fix before relaunch:** participant-facing paid transfer/resale money movement and resale-specific workflows are not complete in the reviewed event registration path. `PRODUCT.md` defines the intended model as a new participant completing a fresh Stripe Checkout registration, cancellation of the existing participant's registration, and a Stripe refund to the existing participant. The event page can now create the transfer code/link, but still explains that replacement checkout and refund completion require follow-up. Paid confirmed cancellation now attempts automatic Stripe refunds for transactions with stored Stripe payment references and keeps a pending manual refund fallback for older/manual records.
 - **Addressed in stabilization pass:** unpaid registration transfer now writes
   a tenant-scoped `registrationTransferred` email outbox record in the same
   transaction as the transfer update, using the new owner's notification email
@@ -654,10 +657,10 @@ the current working direction until a product decision overrides them.
   server-future registration window.
 - `tests/specs/events/registration-transfer.test.ts` also seeds a paid
   confirmed registration with a successful registration transaction and proves
-  the event page keeps self-service transfer disabled with the paid
-  transfer/resale deferral copy while using an explicit seeded transaction
-  currency and restoring fixture registration state after the generated row
-  assertions.
+  the event page creates a paid transfer code/link without exposing the unpaid
+  transfer dialog, then deletes the generated transfer intent,
+  registration/transaction rows, and restores fixture registration state after
+  the generated row assertions.
 - `tests/specs/events/registration-transfer.test.ts` also cancels a paid
   confirmed registration through the event page and reads back the generated
   pending manual refund transaction for a manually seeded payment record, while
@@ -690,7 +693,7 @@ the current working direction until a product decision overrides them.
   networks and duplicate local triggers.
 - `src/app/events/event-edit/event-edit.spec.ts` covers event edit submit
   guards for invalid, submitting, and mutation-pending states.
-- `src/app/events/event-active-registration/event-active-registration.component.spec.ts` covers participant cancellation copy for single-spot, guest, and waitlisted registrations; unpaid self-service transfer copy; cancellation/transfer action disabling; target-email normalization; and transfer/resale-unavailable notes for pending, waitlisted, and blocked confirmed active registrations.
+- `src/app/events/event-active-registration/event-active-registration.component.spec.ts` covers participant cancellation copy for single-spot, guest, and waitlisted registrations; unpaid self-service transfer copy; paid transfer-code copy; cancellation/transfer/code action disabling; target-email normalization; and transfer/resale-unavailable notes for pending, waitlisted, and blocked confirmed active registrations.
 - `tests/docs/events/event-approval.doc.ts` now creates a deterministic
   approval-flow event, reads back draft submission, rejection feedback,
   resubmission, and approval states from the database, and cleans up generated
@@ -699,7 +702,7 @@ the current working direction until a product decision overrides them.
 - `tests/docs/events/unlisted-user.doc.ts` covers the participant-facing
   direct-link explanation for unlisted event details; product docs intentionally
   do not generate admin unlisted-event or global-admin functionality pages.
-- `tests/docs/events/register.doc.ts` covers free and paid registration as generated documentation and Stripe-backed evidence, including guest quantity selection, the participant versus organizer/helper option wording, participant self-cancellation copy, the unpaid self-service transfer dialog, the paid registration transfer-unavailable boundary, and the pending manual refund fallback created for a manually seeded paid cancellation.
+- `tests/docs/events/register.doc.ts` covers free and paid registration as generated documentation and Stripe-backed evidence, including guest quantity selection, the participant versus organizer/helper option wording, participant self-cancellation copy, the unpaid self-service transfer dialog, the paid registration transfer-code boundary, and the pending manual refund fallback created for a manually seeded paid cancellation.
 - `tests/docs/events/register.doc.ts` now documents registration-time add-on
   selection, required registration-question answers, active-registration
   readback, and persisted answer storage during the free registration
@@ -1915,14 +1918,15 @@ the current working direction until a product decision overrides them.
    not checked-in registrations, paid transfer-code intents now exist for
    eligible owner-held paid registrations, and paid cancellation now attempts
    automatic Stripe refunds when the original transaction has a stored Stripe
-   payment reference. Current app and docs copy keep paid transfer unavailable
-   until the Stripe-backed replacement registration and original-registration
-   refund flow is implemented.
+   payment reference. Current app and docs copy let eligible paid participants
+   create a transfer code/link, but still keep replacement checkout and
+   original-registration refund completion explicit until that Stripe-backed
+   flow is implemented.
 2. Keep the Docker-backed registration unavailable-state coverage current.
    `specs/events/negative-registration-states.spec.ts` and
    `docs/events/register.doc.ts` now pass against the rebuilt Docker stack with
    system Chrome for closed registration windows, role-ineligible direct links,
-   waitlist affordances, and paid-transfer-unavailable documentation.
+   waitlist affordances, and paid-transfer-code documentation.
 3. Keep simple-mode templates as the primary authoring UI, but expand reusable
    template support for discounts, add-ons, and questions where practical.
    Organizer planning tips are now exposed as the first private organizer-notes
@@ -2355,10 +2359,10 @@ implement those decisions or explicitly revise them there before changing code.
 - Participant unpaid transfer functional pass: added page-backed coverage for
   the regular-user transfer dialog and database readback to prove the current
   relaunch transfer workflow outside server/app helper tests.
-- Participant paid-transfer blocked pass: extended the registration-transfer
+- Participant paid-transfer code pass: extended the registration-transfer
   Playwright spec with a paid confirmed registration and successful transaction
-  so the event page must render disabled transfer-unavailable copy instead of
-  exposing the unpaid transfer dialog.
+  so the event page creates a 24-hour transfer code/link instead of exposing the
+  unpaid transfer dialog.
 - Registration transfer fixture cleanup pass: made the unpaid and paid
   registration-transfer specs delete generated registration/transaction rows
   and restore touched fixture registration statuses after their page-backed
@@ -2378,8 +2382,8 @@ implement those decisions or explicitly revise them there before changing code.
   journey for the unpaid transfer dialog, eligible target email entry, and
   explicit paid-transfer/resale deferral.
 - Registration paid-transfer docs pass: extended generated registration docs so
-  paid confirmed registrations must show disabled transfer-unavailable copy
-  until refund or resale money movement exists.
+  paid confirmed registrations show transfer-code creation while keeping
+  replacement checkout and refund completion visibly deferred.
 - Profile payment next-step coverage pass: extracted the profile event-card
   pending-checkout next-step copy into a helper and covered that it only appears
   when a pending registration has an actual checkout URL.

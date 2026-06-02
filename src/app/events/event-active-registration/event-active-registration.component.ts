@@ -1,11 +1,12 @@
 import type { EventsRegistrationStatus } from '@shared/rpc-contracts/app-rpcs/events.rpcs';
 
-import { CurrencyPipe, NgOptimizedImage } from '@angular/common';
+import { CurrencyPipe, DatePipe, NgOptimizedImage } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
   inject,
   input,
+  signal,
 } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
@@ -77,6 +78,7 @@ export const registrationDeferredActionCopy = (registration: {
 };
 
 export const registrationTransferActionCopy = (registration: {
+  paidTransferCodeAvailable: boolean;
   status: EventsRegistrationStatus;
   transferAvailable: boolean;
 }): null | {
@@ -84,6 +86,10 @@ export const registrationTransferActionCopy = (registration: {
   helperText: string;
 } => {
   if (registration.status !== 'CONFIRMED') {
+    return null;
+  }
+
+  if (registration.paidTransferCodeAvailable) {
     return null;
   }
 
@@ -102,23 +108,61 @@ export const registrationTransferActionCopy = (registration: {
   };
 };
 
+export const registrationPaidTransferCodeActionCopy = (registration: {
+  paidTransferCodeAvailable: boolean;
+  status: EventsRegistrationStatus;
+}): null | {
+  buttonLabel: string;
+  helperText: string;
+} => {
+  if (
+    registration.status !== 'CONFIRMED' ||
+    !registration.paidTransferCodeAvailable
+  ) {
+    return null;
+  }
+
+  return {
+    buttonLabel: 'Create transfer code',
+    helperText:
+      'Create a 24-hour transfer code and link for this paid registration. Replacement checkout and refund completion are still pending, so keep organizer follow-up for now.',
+  };
+};
+
 export const registrationCancellationActionDisabled = (input: {
   cancellationPending: boolean;
+  transferCodePending?: boolean;
   transferPending: boolean;
-}): boolean => input.cancellationPending || input.transferPending;
+}): boolean =>
+  input.cancellationPending ||
+  input.transferCodePending === true ||
+  input.transferPending;
 
 export const registrationTransferActionDisabled = (input: {
   cancellationPending: boolean;
   transferAvailable: boolean;
+  transferCodePending?: boolean;
   transferPending: boolean;
 }): boolean =>
   !input.transferAvailable ||
   input.cancellationPending ||
+  input.transferCodePending === true ||
+  input.transferPending;
+
+export const registrationPaidTransferCodeActionDisabled = (input: {
+  cancellationPending: boolean;
+  paidTransferCodeAvailable: boolean;
+  transferCodePending: boolean;
+  transferPending: boolean;
+}): boolean =>
+  !input.paidTransferCodeAvailable ||
+  input.cancellationPending ||
+  input.transferCodePending ||
   input.transferPending;
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CurrencyPipe, MatButtonModule, NgOptimizedImage],
+  imports: [CurrencyPipe, DatePipe, MatButtonModule, NgOptimizedImage],
   selector: 'app-event-active-registration',
   styles: ``,
   templateUrl: './event-active-registration.component.html',
@@ -136,8 +180,10 @@ export class EventActiveRegistrationComponent {
       basePriceAtRegistration?: null | number | undefined;
       checkoutUrl?: null | string | undefined;
       discountAmount?: null | number | undefined;
+      eventId: string;
       guestCount: number;
       id: string;
+      paidTransferCodeAvailable: boolean;
       paymentPending: boolean;
       registeredDescription?: null | string | undefined;
       registrationOptionTitle: string;
@@ -150,16 +196,29 @@ export class EventActiveRegistrationComponent {
   protected readonly cancelRegistrationMutation = injectMutation(() =>
     this.rpc.events.cancelRegistration.mutationOptions(),
   );
+  protected readonly createTransferCodeMutation = injectMutation(() =>
+    this.rpc.events.createRegistrationTransferIntent.mutationOptions(),
+  );
   protected readonly deferredActionCopy = registrationDeferredActionCopy;
+  protected readonly paidTransferCodeActionCopy =
+    registrationPaidTransferCodeActionCopy;
   protected readonly registrationCancellationActionDisabled =
     registrationCancellationActionDisabled;
+  protected readonly registrationPaidTransferCodeActionDisabled =
+    registrationPaidTransferCodeActionDisabled;
   protected readonly registrationTransferActionDisabled =
     registrationTransferActionDisabled;
   protected readonly transferActionCopy = registrationTransferActionCopy;
+  protected readonly transferCodeResult = signal<null | {
+    code: string;
+    expiresAt: string;
+    registrationId: string;
+    transferLink: string;
+  }>(null);
+
   protected readonly transferRegistrationMutation = injectMutation(() =>
     this.rpc.events.transferMyRegistration.mutationOptions(),
   );
-
   private readonly dialog = inject(MatDialog);
   private readonly queryClient = inject(QueryClient);
 
@@ -167,6 +226,7 @@ export class EventActiveRegistrationComponent {
     if (
       registrationCancellationActionDisabled({
         cancellationPending: this.cancelRegistrationMutation.isPending(),
+        transferCodePending: this.createTransferCodeMutation.isPending(),
         transferPending: this.transferRegistrationMutation.isPending(),
       })
     ) {
@@ -190,6 +250,39 @@ export class EventActiveRegistrationComponent {
     );
   }
 
+  createPaidTransferCode(registration: {
+    eventId: string;
+    id: string;
+    paidTransferCodeAvailable: boolean;
+  }) {
+    if (
+      registrationPaidTransferCodeActionDisabled({
+        cancellationPending: this.cancelRegistrationMutation.isPending(),
+        paidTransferCodeAvailable: registration.paidTransferCodeAvailable,
+        transferCodePending: this.createTransferCodeMutation.isPending(),
+        transferPending: this.transferRegistrationMutation.isPending(),
+      })
+    ) {
+      return;
+    }
+
+    this.createTransferCodeMutation.mutate(
+      {
+        registrationId: registration.id,
+      },
+      {
+        onSuccess: (result) => {
+          this.transferCodeResult.set({
+            code: result.code,
+            expiresAt: result.expiresAt,
+            registrationId: registration.id,
+            transferLink: `/events/${registration.eventId}?transferCode=${encodeURIComponent(result.code)}`,
+          });
+        },
+      },
+    );
+  }
+
   async transferRegistration(registration: {
     id: string;
     transferAvailable: boolean;
@@ -198,6 +291,7 @@ export class EventActiveRegistrationComponent {
       registrationTransferActionDisabled({
         cancellationPending: this.cancelRegistrationMutation.isPending(),
         transferAvailable: registration.transferAvailable,
+        transferCodePending: this.createTransferCodeMutation.isPending(),
         transferPending: this.transferRegistrationMutation.isPending(),
       })
     ) {
@@ -237,6 +331,10 @@ export class EventActiveRegistrationComponent {
 
   protected errorMessage(error: unknown): string {
     return getErrorMessage(error, 'Cancellation failed');
+  }
+
+  protected transferCodeErrorMessage(error: unknown): string {
+    return getErrorMessage(error, 'Transfer code creation failed');
   }
 
   protected transferErrorMessage(error: unknown): string {

@@ -610,7 +610,7 @@ test.describe('Register for events', () => {
 
   Confirmed unpaid registrations can be transferred from the event page before check-in and before the event starts. The target account must already exist in the tenant and be eligible for the same registration option.
 
-  Paid registration transfer and resale remain blocked until the Stripe Checkout replacement registration and original-registration refund flow is implemented.`,
+  Paid registration transfer and resale now starts with a transfer code, while the Stripe Checkout replacement registration and original-registration refund completion remain pending.`,
     });
     await takeScreenshot(
       testInfo,
@@ -653,7 +653,7 @@ test.describe('Register for events', () => {
     });
   });
 
-  test('Review paid transfer unavailable state', async ({
+  test('Review paid transfer-code state', async ({
     database,
     page,
     seeded,
@@ -739,7 +739,7 @@ test.describe('Register for events', () => {
       await expect(page.getByText('You are registered')).toBeVisible();
       await expect(
         page.getByText(
-          'Self-service transfer is only available for unpaid, not-yet-checked-in registrations before the event starts. Paid registration transfer and resale need the Stripe Checkout replacement and refund flow first.',
+          'Create a 24-hour transfer code and link for this paid registration. Replacement checkout and refund completion are still pending, so keep organizer follow-up for now.',
         ),
       ).toBeVisible();
       await expect(
@@ -748,11 +748,42 @@ test.describe('Register for events', () => {
         ),
       ).toBeVisible();
       await expect(
-        page.getByRole('button', { name: 'Transfer unavailable' }),
-      ).toBeDisabled();
-      await expect(
         page.getByRole('button', { name: 'Transfer registration' }),
       ).toHaveCount(0);
+      await page.getByRole('button', { name: 'Create transfer code' }).click();
+      await expect(page.getByText('Transfer code')).toBeVisible();
+
+      await expect
+        .poll(async () =>
+          database.query.registrationTransferIntents.findFirst({
+            where: {
+              sourceRegistrationId: registrationId,
+              status: 'pending',
+              tenantId: tenant.id,
+            },
+          }),
+        )
+        .not.toBeNull();
+      const transferIntent =
+        await database.query.registrationTransferIntents.findFirst({
+          where: {
+            sourceRegistrationId: registrationId,
+            status: 'pending',
+            tenantId: tenant.id,
+          },
+        });
+      expect(transferIntent?.code).toEqual(expect.any(String));
+      await expect(
+        page.getByText(transferIntent?.code ?? 'missing-transfer-code'),
+      ).toBeVisible();
+      await expect(
+        page.getByRole('link', { name: 'Open transfer link' }),
+      ).toHaveAttribute(
+        'href',
+        `/events/${paidEventId}?transferCode=${encodeURIComponent(
+          transferIntent?.code ?? '',
+        )}`,
+      );
 
       const paidRegistration =
         await database.query.eventRegistrations.findFirst({
@@ -773,7 +804,7 @@ test.describe('Register for events', () => {
         body: `
   ## Paid transfer and resale boundary
 
-  Paid registrations keep transfer unavailable until the Stripe Checkout replacement registration and original-registration refund flow is implemented. The event page shows a disabled transfer action and explains that paid registration transfer and resale need that Stripe-backed money movement first.
+  Paid registrations can create a 24-hour transfer code and link from the event page before check-in and before the event starts. The replacement participant's Stripe Checkout registration and the original participant refund completion are still pending, so the page keeps that follow-up explicit.
 
   Paid confirmed cancellations are still allowed before the event starts. Cancelling one releases the selected spots and submits a Stripe refund when the original payment reference is available; older or manually seeded payment records still create a pending manual refund record for organizer follow-up.`,
       });
@@ -781,7 +812,7 @@ test.describe('Register for events', () => {
         testInfo,
         page.locator('section').filter({ hasText: 'Registration' }),
         page,
-        'Paid transfer unavailable',
+        'Paid transfer code',
       );
 
       await page.getByRole('button', { name: 'Cancel registration' }).click();
@@ -823,6 +854,17 @@ test.describe('Register for events', () => {
         'Pending registration refund record',
       );
     } finally {
+      await database
+        .delete(schema.registrationTransferIntents)
+        .where(
+          and(
+            eq(
+              schema.registrationTransferIntents.sourceRegistrationId,
+              registrationId,
+            ),
+            eq(schema.registrationTransferIntents.tenantId, tenant.id),
+          ),
+        );
       await database
         .delete(schema.transactions)
         .where(

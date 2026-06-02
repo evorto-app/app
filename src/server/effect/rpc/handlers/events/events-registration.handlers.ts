@@ -1527,6 +1527,7 @@ export const eventRegistrationHandlers = {
             basePriceAtRegistration: true,
             checkInTime: true,
             discountAmount: true,
+            eventId: true,
             guestCount: true,
             id: true,
             registrationOptionId: true,
@@ -1632,8 +1633,15 @@ export const eventRegistrationHandlers = {
               transaction.type === 'registration',
           )?.stripeCheckoutUrl,
           discountAmount,
+          eventId: registration.eventId,
           guestCount: registration.guestCount,
           id: registration.id,
+          paidTransferCodeAvailable:
+            registration.status === 'CONFIRMED' &&
+            registration.checkInTime === null &&
+            !!registration.event &&
+            registration.event.start > new Date() &&
+            hasSuccessfulPaidRegistrationTransaction(registration.transactions),
           paymentPending: registration.transactions.some(
             (transaction) =>
               transaction.status === 'pending' &&

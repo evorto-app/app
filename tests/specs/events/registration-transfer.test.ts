@@ -145,7 +145,7 @@ test('regular user transfers an unpaid confirmed registration by email', async (
   }
 });
 
-test('regular user cannot self-transfer a paid confirmed registration', async ({
+test('regular user can create a paid transfer code without completing resale yet', async ({
   database,
   page,
   seeded,
@@ -251,15 +251,46 @@ test('regular user cannot self-transfer a paid confirmed registration', async ({
     await expect(page.getByText('You are registered')).toBeVisible();
     await expect(
       page.getByText(
-        'Self-service transfer is only available for unpaid, not-yet-checked-in registrations before the event starts. Paid registration transfer and resale need the Stripe Checkout replacement and refund flow first.',
+        'Create a 24-hour transfer code and link for this paid registration. Replacement checkout and refund completion are still pending, so keep organizer follow-up for now.',
       ),
     ).toBeVisible();
     await expect(
-      page.getByRole('button', { name: 'Transfer unavailable' }),
-    ).toBeDisabled();
-    await expect(
       page.getByRole('button', { name: 'Transfer registration' }),
     ).toHaveCount(0);
+    await page.getByRole('button', { name: 'Create transfer code' }).click();
+    await expect(page.getByText('Transfer code')).toBeVisible();
+
+    await expect
+      .poll(async () =>
+        database.query.registrationTransferIntents.findFirst({
+          where: {
+            sourceRegistrationId: registrationId,
+            status: 'pending',
+            tenantId: tenant.id,
+          },
+        }),
+      )
+      .not.toBeNull();
+    const persistedTransferIntent =
+      await database.query.registrationTransferIntents.findFirst({
+        where: {
+          sourceRegistrationId: registrationId,
+          status: 'pending',
+          tenantId: tenant.id,
+        },
+      });
+    expect(persistedTransferIntent?.code).toEqual(expect.any(String));
+    await expect(
+      page.getByText(persistedTransferIntent?.code ?? 'missing-transfer-code'),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('link', { name: 'Open transfer link' }),
+    ).toHaveAttribute(
+      'href',
+      `/events/${targetEventId}?transferCode=${encodeURIComponent(
+        persistedTransferIntent?.code ?? '',
+      )}`,
+    );
 
     const paidRegistration = await database.query.eventRegistrations.findFirst({
       where: {
@@ -273,6 +304,17 @@ test('regular user cannot self-transfer a paid confirmed registration', async ({
     expect(paidRegistration.userId).toBe(regularUser.id);
     expect(paidRegistration.status).toBe('CONFIRMED');
   } finally {
+    await database
+      .delete(schema.registrationTransferIntents)
+      .where(
+        and(
+          eq(
+            schema.registrationTransferIntents.sourceRegistrationId,
+            registrationId,
+          ),
+          eq(schema.registrationTransferIntents.tenantId, tenant.id),
+        ),
+      );
     await database
       .delete(schema.transactions)
       .where(eq(schema.transactions.id, transactionId));
