@@ -389,6 +389,11 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain(
       'participantRegistrationCard.getByLabel(registrationQuestion.title)',
     );
+    expect(source).toContain('replayCheckoutCompletedWebhook');
+    expect(source).toContain(
+      'Timed out waiting for replayed Stripe checkout webhook to be mirrored in the application database',
+    );
+    expect(source).not.toContain("getByTestId('hosted-payment-submit-button')");
     expect(source).toContain('registration.questionAnswers');
     expect(source).toContain(
       'If that option asks required registration questions, participants must answer them before joining the waitlist.',

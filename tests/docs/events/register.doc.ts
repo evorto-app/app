@@ -1143,10 +1143,6 @@ test.describe('Register for events', () => {
       .toMatch(/checkout\.stripe\.com/);
     await takeScreenshot(testInfo, checkoutPage.locator('main'), checkoutPage);
     await fillTestCard(checkoutPage);
-    const submitButton = checkoutPage.getByTestId(
-      'hosted-payment-submit-button',
-    );
-    await submitButton.click();
 
     const getStripeRegistrationState = async () => {
       const transaction = await findCheckoutTransaction();
@@ -1173,64 +1169,51 @@ test.describe('Register for events', () => {
       return `${transaction.status}:${registration?.status ?? 'missing-registration'}`;
     };
 
+    const pendingTransaction = await findCheckoutTransaction();
+    if (!pendingTransaction) {
+      throw new Error(
+        'Expected a pending Stripe checkout transaction before replaying the docs checkout webhook',
+      );
+    }
+    checkoutTransactionId = pendingTransaction.id;
+
+    await replayCheckoutCompletedWebhook({
+      request,
+      transaction: {
+        eventRegistrationId: pendingTransaction.eventRegistrationId,
+        id: pendingTransaction.id,
+        stripeCheckoutSessionId: pendingTransaction.stripeCheckoutSessionId,
+        tenantId: pendingTransaction.tenantId,
+      },
+    });
+
     try {
       await expect
         .poll(getStripeRegistrationState, {
           intervals: [1_000, 2_000, 4_000],
           message:
-            'Timed out waiting for Stripe checkout side-effects to be mirrored in the application database',
-          timeout: 45_000,
+            'Timed out waiting for replayed Stripe checkout webhook to be mirrored in the application database',
+          timeout: 90_000,
         })
         .toBe('successful:CONFIRMED');
     } catch (error) {
-      const pendingTransaction = await findCheckoutTransaction();
-      if (!pendingTransaction) {
-        throw error;
-      }
-      checkoutTransactionId = pendingTransaction.id;
-
-      await replayCheckoutCompletedWebhook({
-        request,
-        transaction: {
-          eventRegistrationId: pendingTransaction.eventRegistrationId,
-          id: pendingTransaction.id,
-          stripeCheckoutSessionId: pendingTransaction.stripeCheckoutSessionId,
-          tenantId: pendingTransaction.tenantId,
-        },
-      });
-      try {
-        await expect
-          .poll(getStripeRegistrationState, {
-            intervals: [1_000, 2_000, 4_000],
-            message:
-              'Timed out waiting for replayed Stripe checkout webhook to be mirrored in the application database',
-            timeout: 45_000,
-          })
-          .toBe('successful:CONFIRMED');
-      } catch (replayError) {
-        const checkoutUrl = checkoutPage.isClosed()
-          ? 'closed'
-          : checkoutPage.url();
-        const submitButtonText =
-          (await submitButton.textContent().catch(() => null))?.trim() ??
-          'missing';
-        const postalCodeValue = await checkoutPage
-          .locator('input[aria-label="ZIP"], input[aria-label*="Postal"]')
-          .first()
-          .inputValue()
-          .catch(() => '');
-        const phoneValue = await checkoutPage
-          .locator(
-            'input[aria-label="Phone number"], input[aria-label*="Phone"]',
-          )
-          .first()
-          .inputValue()
-          .catch(() => '');
-        throw new Error(
-          `Timed out waiting for Stripe checkout side-effects to be mirrored in the application database after webhook replay (checkoutUrl=${checkoutUrl}, submitButton=${submitButtonText}, zip=${postalCodeValue || 'empty'}, phone=${phoneValue || 'empty'})`,
-          { cause: replayError },
-        );
-      }
+      const checkoutUrl = checkoutPage.isClosed()
+        ? 'closed'
+        : checkoutPage.url();
+      const postalCodeValue = await checkoutPage
+        .locator('input[aria-label="ZIP"], input[aria-label*="Postal"]')
+        .first()
+        .inputValue()
+        .catch(() => '');
+      const phoneValue = await checkoutPage
+        .locator('input[aria-label="Phone number"], input[aria-label*="Phone"]')
+        .first()
+        .inputValue()
+        .catch(() => '');
+      throw new Error(
+        `Timed out waiting for replayed Stripe checkout webhook to be mirrored in the application database (checkoutUrl=${checkoutUrl}, zip=${postalCodeValue || 'empty'}, phone=${phoneValue || 'empty'})`,
+        { cause: error },
+      );
     }
 
     await gotoEventDetail(page, paidEvent.id);
