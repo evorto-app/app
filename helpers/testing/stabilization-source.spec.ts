@@ -245,8 +245,9 @@ describe('stabilization source', () => {
     expect(statusTable).toContain('| Registrations');
     expect(statusTable).toContain('| Blocked');
     expect(statusTable).toContain('unpaid transfer boundaries');
-    expect(statusTable).toContain('paid transfer/resale');
-    expect(statusTable).toContain('still need implementation');
+    expect(statusTable).toContain('paid transfer-code checkout handoff');
+    expect(statusTable).toContain('source-refund completion fallback');
+    expect(statusTable).toContain('resale-specific workflows still need');
     expect(statusTable).not.toContain(
       'Free/paid registration, guests, add-ons, waitlist, negative states, cancellation/refund, and transfer boundaries have server, app, spec, and docs coverage.',
     );
@@ -649,11 +650,9 @@ describe('stabilization source', () => {
     expect(readinessCheckpoint).toMatch(
       /The PR\s+has\s+no\s+unresolved review threads\s+at/u,
     );
+    expect(readinessCheckpoint).toMatch(/resale-specific workflows/u);
     expect(readinessCheckpoint).toMatch(
-      /paid\s+transfer\/resale money movement\s+still needs the product-defined Stripe\s+Checkout replacement and refund workflow/u,
-    );
-    expect(readinessCheckpoint).toMatch(
-      /formal\s+bot\s+review\s+is\s+expected only after the PR is marked ready/u,
+      /formal\s+bot\s+review\s+is\s+expected\s+only\s+after\s+the\s+PR\s+is\s+marked\s+ready/u,
     );
     expect(readinessCheckpoint).not.toContain(
       '9b65634b66840aa72dc53c4a5bef742036f049ac',
@@ -716,8 +715,12 @@ describe('stabilization source', () => {
     }
   });
 
-  it('keeps paid transfer and resale blocked on refund completion after checkout handoff', () => {
+  it('keeps paid transfer and resale blocked only on resale-specific follow-up after checkout refund completion', () => {
     const source = readSource('STABILIZATION.md');
+    const webhook = readSource('src/server/http/stripe-webhook.web-handler.ts');
+    const webhookReplay = readSource(
+      'tests/specs/finance/stripe-webhook-replay.spec.ts',
+    );
 
     expect(source).toContain('Paid transfer/resale money movement');
     expect(source).toContain(
@@ -726,7 +729,16 @@ describe('stabilization source', () => {
     expect(source).toContain('fresh Stripe Checkout');
     expect(source).toContain('Decision: Option B, matching `PRODUCT.md`.');
     expect(source).toContain(
-      'The event page can now create and redeem the transfer code/link into replacement checkout, but original-registration refund completion and resale-specific workflows still require follow-up.',
+      'The event page can now create and redeem the transfer code/link into replacement checkout and complete the source refund path, but resale-specific workflow surfaces still require follow-up.',
+    );
+    expect(webhook).toContain(
+      'Failed to create Stripe refund for transferred registration',
+    );
+    expect(webhook).toContain('insertPendingTransferRefundRecord');
+    expect(webhookReplay).toContain('refundAmount: -2500');
+    expect(webhookReplay).toContain('refundManuallyCreated: true');
+    expect(source).not.toContain(
+      'original-registration refund completion and resale-specific workflows still require follow-up',
     );
   });
 
@@ -742,7 +754,7 @@ describe('stabilization source', () => {
       'first in-app Browser manual review queue pass has now covered',
     );
     expect(source).toMatch(
-      /does not satisfy the relaunch transfer\/resale\s+workflow\. `STABILIZATION\.md` keeps registrations blocked until\s+original-registration refund completion and resale-specific workflows are\s+implemented\./u,
+      /does not satisfy the full resale workflow\.\s+`STABILIZATION\.md` keeps registrations blocked until resale-specific\s+workflows are implemented\./u,
     );
     expect(source).not.toContain('E2E_LIVE_ESN_CARD_IDENTIFIER');
   });

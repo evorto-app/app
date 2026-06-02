@@ -6,18 +6,18 @@ and useful for small cleanup batches.
 
 ## Review Status
 
-| Area                                            | Status     | Confidence | Notes                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| ----------------------------------------------- | ---------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Events                                          | Stabilized | high       | Docker-backed specs/docs cover browsing, creation, management, unlisted visibility, registration state, price labels, scanner handoff, refund copy, and the event archival snapshot model.                                                                                                                                                                                                                                      |
-| Registrations                                   | Blocked    | high       | Free/paid registration, guests, add-ons, waitlist, negative states, cancellation/refund, unpaid transfer boundaries, paid transfer-code checkout handoff, tenant participant registration limits, registration confirmation/cancellation/transfer-completed/waitlist email outbox records, and provider dispatch have coverage; paid transfer/resale refund completion and resale-specific workflows still need implementation. |
-| Templates                                       | Stabilized | high       | Simple-mode templates now cover planning tips, ESNcard discounts, reusable add-ons/questions, role pickers, tax-rate behavior, and event creation copy paths.                                                                                                                                                                                                                                                                   |
-| Roles and permissions                           | Stabilized | high       | Route denial, role lookup, role management, permission metadata, tenant isolation, and user-list deferral are pinned by source, unit, spec, and docs coverage.                                                                                                                                                                                                                                                                  |
-| Finance/receipts                                | Stabilized | high       | Finance navigation, transaction visibility, receipt review, reimbursement recording, receipt submission, and refund boundaries have deterministic coverage; receipt review now enqueues receipt-reviewed email outbox records, and the Resend-backed outbox dispatcher processes pending/failed email records when enabled.                                                                                                     |
-| Scanning/check-in                               | Stabilized | high       | QR scanner reads, selected guest check-in, later guest arrival, idempotent counters, and organizer aggregates are covered by specs/docs against Docker.                                                                                                                                                                                                                                                                         |
-| Profile/account flows                           | Blocked    | high       | Profile edit, event cards, receipts, account creation contracts, seeded ESNcard behavior, deterministic ESNcard provider outcomes, home-tenant warning, and Browser discount-card UX are covered; manual in-app Browser verification for the home-tenant warning is still pending because the current Browser session cannot carry the saved authenticated httpOnly session cookies.                                            |
-| Tenant/global admin                             | Stabilized | high       | Tenant settings and global-admin list/detail/create/edit have coverage for the implemented surface; review policy and tenant-admin Stripe account management are now explicit tenant settings while custom-domain automation and impersonation remain out of scope.                                                                                                                                                             |
-| Generated documentation and Playwright coverage | Stabilized | high       | Docs/spec inventory, skip gates, source guards, list mode, and generated-doc runtime flows are current and fail loudly for known fixture gaps.                                                                                                                                                                                                                                                                                  |
-| Local runtime/developer workflow                | Stabilized | high       | Docker, env preflight, CI, Font Awesome token paths, and the first in-app Browser queue pass are healthy; repeat Browser review uses generated `BASE_URL`.                                                                                                                                                                                                                                                                      |
+| Area                                            | Status     | Confidence | Notes                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ----------------------------------------------- | ---------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Events                                          | Stabilized | high       | Docker-backed specs/docs cover browsing, creation, management, unlisted visibility, registration state, price labels, scanner handoff, refund copy, and the event archival snapshot model.                                                                                                                                                                                                                                 |
+| Registrations                                   | Blocked    | high       | Free/paid registration, guests, add-ons, waitlist, negative states, cancellation/refund, unpaid transfer boundaries, paid transfer-code checkout handoff and source-refund completion fallback, tenant participant registration limits, registration confirmation/cancellation/transfer-completed/waitlist email outbox records, and provider dispatch have coverage; resale-specific workflows still need implementation. |
+| Templates                                       | Stabilized | high       | Simple-mode templates now cover planning tips, ESNcard discounts, reusable add-ons/questions, role pickers, tax-rate behavior, and event creation copy paths.                                                                                                                                                                                                                                                              |
+| Roles and permissions                           | Stabilized | high       | Route denial, role lookup, role management, permission metadata, tenant isolation, and user-list deferral are pinned by source, unit, spec, and docs coverage.                                                                                                                                                                                                                                                             |
+| Finance/receipts                                | Stabilized | high       | Finance navigation, transaction visibility, receipt review, reimbursement recording, receipt submission, and refund boundaries have deterministic coverage; receipt review now enqueues receipt-reviewed email outbox records, and the Resend-backed outbox dispatcher processes pending/failed email records when enabled.                                                                                                |
+| Scanning/check-in                               | Stabilized | high       | QR scanner reads, selected guest check-in, later guest arrival, idempotent counters, and organizer aggregates are covered by specs/docs against Docker.                                                                                                                                                                                                                                                                    |
+| Profile/account flows                           | Blocked    | high       | Profile edit, event cards, receipts, account creation contracts, seeded ESNcard behavior, deterministic ESNcard provider outcomes, home-tenant warning, and Browser discount-card UX are covered; manual in-app Browser verification for the home-tenant warning is still pending because the current Browser session cannot carry the saved authenticated httpOnly session cookies.                                       |
+| Tenant/global admin                             | Stabilized | high       | Tenant settings and global-admin list/detail/create/edit have coverage for the implemented surface; review policy and tenant-admin Stripe account management are now explicit tenant settings while custom-domain automation and impersonation remain out of scope.                                                                                                                                                        |
+| Generated documentation and Playwright coverage | Stabilized | high       | Docs/spec inventory, skip gates, source guards, list mode, and generated-doc runtime flows are current and fail loudly for known fixture gaps.                                                                                                                                                                                                                                                                             |
+| Local runtime/developer workflow                | Stabilized | high       | Docker, env preflight, CI, Font Awesome token paths, and the first in-app Browser queue pass are healthy; repeat Browser review uses generated `BASE_URL`.                                                                                                                                                                                                                                                                 |
 
 ## Product Decision Draft
 
@@ -89,9 +89,9 @@ the current working direction until a product decision overrides them.
   - Decision: Option B, matching `PRODUCT.md`. A new participant completes a
     fresh Stripe Checkout registration, the existing participant's registration
     is cancelled, and the existing participant receives a Stripe refund. The
-    current unpaid transfer flow, paid transfer-code intent primitive, and
-    paid-cancellation refund handling do not implement this paid
-    transfer/resale workflow yet.
+    current unpaid transfer flow, paid transfer-code checkout flow, checkout
+    completion source-refund handling, and paid-cancellation refund handling do
+    not implement resale-specific workflows yet.
 - **Role-ineligible direct links:** show the event with an explicit ineligible
   state in the registration-options area and no registration action.
   - Option A: hide the event entirely.
@@ -625,7 +625,12 @@ the current working direction until a product decision overrides them.
   cancels the original confirmed registration, marks the transfer intent
   completed, and avoids double-counting capacity because the replacement uses
   the original confirmed spot.
-- **Should fix before relaunch:** participant-facing paid transfer/resale money movement and resale-specific workflows are not complete in the reviewed event registration path. `PRODUCT.md` defines the intended model as a new participant completing a fresh Stripe Checkout registration, cancellation of the existing participant's registration, and a Stripe refund to the existing participant. The event page can now create and redeem the transfer code/link into replacement checkout, but original-registration refund completion and resale-specific workflows still require follow-up. Paid confirmed cancellation now attempts automatic Stripe refunds for transactions with stored Stripe payment references and keeps a pending manual refund fallback for older/manual records.
+- **Addressed in stabilization pass:** transfer-code checkout completion now
+  attempts a Stripe refund for the original paid registration when the source
+  transaction has a stored Stripe payment reference, and records a pending
+  manual refund transaction when automatic refunding cannot be attempted or
+  completed.
+- **Should fix before relaunch:** resale-specific workflows are not complete in the reviewed event registration path. `PRODUCT.md` defines the intended model as a new participant completing a fresh Stripe Checkout registration, cancellation of the existing participant's registration, and a Stripe refund to the existing participant. The event page can now create and redeem the transfer code/link into replacement checkout and complete the source refund path, but resale-specific workflow surfaces still require follow-up. Paid confirmed cancellation now attempts automatic Stripe refunds for transactions with stored Stripe payment references and keeps a pending manual refund fallback for older/manual records.
 - **Addressed in stabilization pass:** unpaid registration transfer now writes
   a tenant-scoped `registrationTransferred` email outbox record in the same
   transaction as the transfer update, using the new owner's notification email
@@ -1921,16 +1926,16 @@ the current working direction until a product decision overrides them.
 
 ### Should Fix Before Relaunch
 
-1. Implement paid transfer/resale money movement and resale-specific workflows
-   using the Stripe Checkout replacement and refund model from `PRODUCT.md`.
+1. Implement resale-specific workflows using the Stripe Checkout replacement and
+   refund model from `PRODUCT.md`.
    Participant and organizer-assisted unpaid transfer now exist for confirmed,
    not checked-in registrations, paid transfer-code intents now exist for
    eligible owner-held paid registrations, and paid cancellation now attempts
    automatic Stripe refunds when the original transaction has a stored Stripe
    payment reference. Current app and docs copy let eligible paid participants
-   create and redeem a transfer code/link into replacement checkout, but still
-   keep original-registration refund completion and resale-specific workflows
-   explicit until those Stripe-backed follow-ups are implemented.
+   create and redeem a transfer code/link into replacement checkout, and the
+   checkout webhook now completes source-refund handling, but still keep
+   resale-specific workflows explicit until those follow-ups are implemented.
 2. Keep the Docker-backed registration unavailable-state coverage current.
    `specs/events/negative-registration-states.spec.ts` and
    `docs/events/register.doc.ts` now pass against the rebuilt Docker stack with
@@ -2397,8 +2402,11 @@ implement those decisions or explicitly revise them there before changing code.
   `events.registerWithTransferCode` so an eligible replacement participant can
   start a pending Stripe Checkout registration from a paid transfer code, and
   taught the checkout-completed webhook to cancel the original registration and
-  complete the transfer intent without double-counting capacity. Original
-  participant refund completion remains a relaunch blocker.
+  complete the transfer intent without double-counting capacity.
+- Registration transfer-code refund pass: taught the checkout-completed webhook
+  to refund the original paid registration after transfer-code replacement
+  checkout succeeds, with a pending manual refund fallback when the stored
+  payment reference is missing or Stripe refund creation fails.
 - Profile payment next-step coverage pass: extracted the profile event-card
   pending-checkout next-step copy into a helper and covered that it only appears
   when a pending registration has an actual checkout URL.
@@ -2960,10 +2968,10 @@ implement those decisions or explicitly revise them there before changing code.
   failed step. The docs pass also covers the generated
   screenshot stabilization that waits for loading states, finite animations,
   and target geometry before capture. The PR has no unresolved review threads
-  at this checkpoint. It remains draft because paid
-  transfer/resale money movement still needs the product-defined Stripe
-  Checkout replacement and refund workflow before relaunch; formal bot review
-  is expected only after the PR is marked ready.
+  at this checkpoint. It remains draft because resale-specific workflows still
+  need relaunch follow-up after the transfer-code Checkout replacement and
+  source-refund completion path; formal bot review is expected only after the
+  PR is marked ready.
 - Post-main-sync checkpoint: the branch was rebased onto `origin/main` at
   `35ebb9a2` after the Neon branch-expiration cleanup landed. The E2E workflow
   now uses the regular Compose graph in CI with

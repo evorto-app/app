@@ -241,6 +241,7 @@ test('checkout webhook completes transfer-code replacement without double-counti
 }) => {
   const sourceRegistrationId = getId();
   const replacementRegistrationId = getId();
+  const sourceTransactionId = getId();
   const transferIntentId = getId();
   const transactionId = getId();
   const checkoutSessionId = `cs_test_${getId()}`;
@@ -293,6 +294,21 @@ test('checkout webhook completes transfer-code replacement without double-counti
     sourceRegistrationId,
     status: 'pending',
     tenantId: tenant.id,
+  });
+
+  await database.insert(schema.transactions).values({
+    amount: 2500,
+    comment: 'Webhook transfer source registration payment',
+    currency: 'EUR',
+    eventId,
+    eventRegistrationId: sourceRegistrationId,
+    executiveUserId: organizerUserId,
+    id: sourceTransactionId,
+    method: 'stripe',
+    status: 'successful',
+    targetUserId: organizerUserId,
+    tenantId: tenant.id,
+    type: 'registration',
   });
 
   await database.insert(schema.transactions).values({
@@ -375,14 +391,26 @@ test('checkout webhook completes transfer-code replacement without double-counti
         await database.query.registrationTransferIntents.findFirst({
           where: { id: transferIntentId, tenantId: tenant.id },
         });
+      const refundTransaction = await database.query.transactions.findFirst({
+        where: {
+          eventRegistrationId: sourceRegistrationId,
+          status: 'pending',
+          tenantId: tenant.id,
+          type: 'refund',
+        },
+      });
 
       return {
+        refundAmount: refundTransaction?.amount,
+        refundManuallyCreated: refundTransaction?.manuallyCreated,
         replacementStatus: replacementRegistration?.status,
         sourceStatus: sourceRegistration?.status,
         transferStatus: transferIntent?.status,
       };
     })
     .toEqual({
+      refundAmount: -2500,
+      refundManuallyCreated: true,
       replacementStatus: 'CONFIRMED',
       sourceStatus: 'CANCELLED',
       transferStatus: 'completed',

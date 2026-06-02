@@ -83,6 +83,127 @@ const getLatestChargeId = (
   return latestCharge?.id;
 };
 
+const hasStripeRefundReference = (transaction: {
+  stripeChargeId: null | string;
+  stripePaymentIntentId: null | string;
+}) => Boolean(transaction.stripeChargeId || transaction.stripePaymentIntentId);
+
+interface TransferRefundTransaction {
+  amount: number;
+  currency: (typeof schema.currencyEnum.enumValues)[number];
+  eventId: null | string;
+  eventRegistrationId: null | string;
+  id: string;
+  method: (typeof schema.transactionMethod.enumValues)[number];
+  sourceUserId: string;
+  stripeChargeId: null | string;
+  stripePaymentIntentId: null | string;
+}
+
+const insertPendingTransferRefundRecord = ({
+  refundTransaction,
+  tenantId,
+}: {
+  refundTransaction: TransferRefundTransaction;
+  tenantId: string;
+}) =>
+  databaseEffect((database) =>
+    database.insert(schema.transactions).values({
+      amount: -Math.abs(refundTransaction.amount),
+      comment: `Pending registration refund record for transferred registration ${refundTransaction.eventRegistrationId}. Automatic Stripe refund could not be completed and must be followed up manually.`,
+      currency: refundTransaction.currency,
+      eventId: refundTransaction.eventId,
+      eventRegistrationId: refundTransaction.eventRegistrationId,
+      executiveUserId: refundTransaction.sourceUserId,
+      manuallyCreated: true,
+      method: refundTransaction.method,
+      status: 'pending',
+      targetUserId: refundTransaction.sourceUserId,
+      tenantId,
+      type: 'refund',
+    }),
+  );
+
+const recordTransferRefund = ({
+  refundTransaction,
+  stripe,
+  stripeAccount,
+  tenantId,
+}: {
+  refundTransaction: TransferRefundTransaction;
+  stripe: Stripe;
+  stripeAccount: string;
+  tenantId: string;
+}) => {
+  const stripeRefundParameters = refundTransaction.stripeChargeId
+    ? {
+        amount: Math.abs(refundTransaction.amount),
+        charge: refundTransaction.stripeChargeId,
+      }
+    : refundTransaction.stripePaymentIntentId
+      ? {
+          amount: Math.abs(refundTransaction.amount),
+          payment_intent: refundTransaction.stripePaymentIntentId,
+        }
+      : null;
+
+  if (!stripeRefundParameters) {
+    return insertPendingTransferRefundRecord({
+      refundTransaction,
+      tenantId,
+    });
+  }
+
+  return Effect.tryPromise(() =>
+    Promise.race([
+      stripe.refunds.create(stripeRefundParameters, { stripeAccount }),
+      new Promise<never>((_, reject) => {
+        setTimeout(
+          () => reject(new Error('Stripe refund creation timed out')),
+          5000,
+        );
+      }),
+    ]),
+  ).pipe(
+    Effect.flatMap((stripeRefund) =>
+      databaseEffect((database) =>
+        database.insert(schema.transactions).values({
+          amount: -Math.abs(refundTransaction.amount),
+          comment: `Stripe refund ${stripeRefund.id} recorded for transferred registration ${refundTransaction.eventRegistrationId} with status ${stripeRefund.status}.`,
+          currency: refundTransaction.currency,
+          eventId: refundTransaction.eventId,
+          eventRegistrationId: refundTransaction.eventRegistrationId,
+          executiveUserId: refundTransaction.sourceUserId,
+          manuallyCreated: false,
+          method: refundTransaction.method,
+          status:
+            stripeRefund.status === 'succeeded' ? 'successful' : 'pending',
+          targetUserId: refundTransaction.sourceUserId,
+          tenantId,
+          type: 'refund',
+        }),
+      ),
+    ),
+    Effect.catch((error) =>
+      Effect.logError(
+        'Failed to create Stripe refund for transferred registration',
+      ).pipe(
+        Effect.annotateLogs({
+          error,
+          registrationId: refundTransaction.eventRegistrationId,
+          transactionId: refundTransaction.id,
+        }),
+        Effect.andThen(
+          insertPendingTransferRefundRecord({
+            refundTransaction,
+            tenantId,
+          }),
+        ),
+      ),
+    ),
+  );
+};
+
 const resolveCheckoutSession = (eventSession: Stripe.Checkout.Session) =>
   databaseEffect((database) =>
     Effect.gen(function* () {
@@ -506,7 +627,7 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
             return getLatestChargeId(paymentIntent);
           });
 
-          yield* databaseEffect((database) =>
+          const transferRefundTransaction = yield* databaseEffect((database) =>
             database.transaction((tx) =>
               Effect.gen(function* () {
                 yield* tx
@@ -542,11 +663,13 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
                   });
                 const updatedRegistration = updatedRegistrations[0];
                 if (!updatedRegistration) {
-                  return;
+                  return null;
                 }
                 const registeredSpotCount = registrationSpotCount(
                   updatedRegistration.guestCount,
                 );
+                let refundTransactionForTransfer: null | TransferRefundTransaction =
+                  null;
 
                 const transferIntent =
                   yield* tx.query.registrationTransferIntents.findFirst({
@@ -562,7 +685,7 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
                   });
 
                 if (transferIntent) {
-                  yield* tx
+                  const cancelledSourceRegistrations = yield* tx
                     .update(schema.eventRegistrations)
                     .set({ status: 'CANCELLED' })
                     .where(
@@ -574,7 +697,12 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
                         eq(schema.eventRegistrations.status, 'CONFIRMED'),
                         eq(schema.eventRegistrations.tenantId, tenantId),
                       ),
-                    );
+                    )
+                    .returning({
+                      eventId: schema.eventRegistrations.eventId,
+                      id: schema.eventRegistrations.id,
+                      userId: schema.eventRegistrations.userId,
+                    });
                   yield* tx
                     .update(schema.registrationTransferIntents)
                     .set({ status: 'completed' })
@@ -594,6 +722,69 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
                         ),
                       ),
                     );
+
+                  const cancelledSourceRegistration =
+                    cancelledSourceRegistrations[0];
+                  if (cancelledSourceRegistration) {
+                    const sourceTransactions =
+                      yield* tx.query.transactions.findMany({
+                        columns: {
+                          amount: true,
+                          currency: true,
+                          eventId: true,
+                          eventRegistrationId: true,
+                          id: true,
+                          method: true,
+                          status: true,
+                          stripeChargeId: true,
+                          stripePaymentIntentId: true,
+                          type: true,
+                        },
+                        where: {
+                          eventRegistrationId:
+                            transferIntent.sourceRegistrationId,
+                          tenantId,
+                        },
+                      });
+                    const sourcePaidTransaction = sourceTransactions.find(
+                      (sourceTransaction) =>
+                        sourceTransaction.type === 'registration' &&
+                        sourceTransaction.status === 'successful' &&
+                        sourceTransaction.amount > 0,
+                    );
+
+                    if (sourcePaidTransaction) {
+                      if (hasStripeRefundReference(sourcePaidTransaction)) {
+                        refundTransactionForTransfer = {
+                          amount: sourcePaidTransaction.amount,
+                          currency: sourcePaidTransaction.currency,
+                          eventId: cancelledSourceRegistration.eventId,
+                          eventRegistrationId: cancelledSourceRegistration.id,
+                          id: sourcePaidTransaction.id,
+                          method: sourcePaidTransaction.method,
+                          sourceUserId: cancelledSourceRegistration.userId,
+                          stripeChargeId: sourcePaidTransaction.stripeChargeId,
+                          stripePaymentIntentId:
+                            sourcePaidTransaction.stripePaymentIntentId,
+                        };
+                      } else {
+                        yield* tx.insert(schema.transactions).values({
+                          amount: -Math.abs(sourcePaidTransaction.amount),
+                          comment: `Pending registration refund record for transferred registration ${cancelledSourceRegistration.id}. Stripe refund could not be created automatically from the stored transaction reference.`,
+                          currency: sourcePaidTransaction.currency,
+                          eventId: cancelledSourceRegistration.eventId,
+                          eventRegistrationId: cancelledSourceRegistration.id,
+                          executiveUserId: cancelledSourceRegistration.userId,
+                          manuallyCreated: true,
+                          method: sourcePaidTransaction.method,
+                          status: 'pending',
+                          targetUserId: cancelledSourceRegistration.userId,
+                          tenantId,
+                          type: 'refund',
+                        });
+                      }
+                    }
+                  }
                 } else {
                   yield* tx
                     .update(schema.eventRegistrationOptions)
@@ -668,9 +859,20 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
                     textBody: notification.textBody,
                   });
                 }
+
+                return refundTransactionForTransfer;
               }),
             ),
           );
+
+          if (transferRefundTransaction) {
+            yield* recordTransferRefund({
+              refundTransaction: transferRefundTransaction,
+              stripe,
+              stripeAccount,
+              tenantId,
+            });
+          }
 
           return responseText('Success');
         }

@@ -206,15 +206,16 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   registrations, and `events.registerWithTransferCode` creates a replacement
   pending Stripe Checkout registration for an eligible code recipient while
   rejecting the original owner and duplicate active registrations. The
-  transfer-code checkout coverage does not satisfy the relaunch transfer/resale
-  workflow. `STABILIZATION.md` keeps registrations blocked until
-  original-registration refund completion and resale-specific workflows are
-  implemented.
+  transfer-code checkout coverage now includes webhook completion and source
+  refund fallback coverage, but does not satisfy the full resale workflow.
+  `STABILIZATION.md` keeps registrations blocked until resale-specific
+  workflows are implemented.
 - `specs/finance/stripe-webhook-replay.spec.ts` includes a signed webhook replay
   case for transfer-code replacement checkout completion, proving the source
   registration is cancelled, the replacement registration is confirmed, the
-  transfer intent is completed, and capacity remains on the original confirmed
-  spot instead of being double-counted.
+  transfer intent is completed, a pending manual refund fallback is recorded
+  for source transactions without Stripe refund references, and capacity remains
+  on the original confirmed spot instead of being double-counted.
 - `specs/events/negative-registration-states.spec.ts` adds page-backed waitlist
   coverage for full first-come-first-served options with explicit required
   answer gating, persisted waitlist registration readback, and persisted
