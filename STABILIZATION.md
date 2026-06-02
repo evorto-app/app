@@ -556,6 +556,11 @@ the current working direction until a product decision overrides them.
   render only after the event query succeeds, and the update-listing handler
   shares the same loaded-event and mutation-pending guard so slow or failed
   reads cannot open a visibility dialog with missing event data.
+- **Addressed in this stabilization pass:** event detail now renders explicit
+  event-read loading/error panels, and registration actions only render after
+  the registration-status query succeeds. Failed event or registration-status
+  reads no longer collapse into a partial event shell or silent registration
+  section.
 - **Addressed in this stabilization pass:** organizer participant rows now
   branch on the organizer-overview query state before reading participant data,
   so loading or failed organizer reads show explicit stable UI instead of
