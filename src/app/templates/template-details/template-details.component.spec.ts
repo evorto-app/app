@@ -1,5 +1,7 @@
 import type { TemplateFindOneRecord } from '@shared/rpc-contracts/app-rpcs/templates.rpcs';
 
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -41,6 +43,15 @@ const createTemplate = (): TemplateFindOneRecord => ({
   ],
   title: 'Template',
 });
+
+const templateDetailsTemplate = () =>
+  readFileSync(
+    path.join(
+      process.cwd(),
+      'src/app/templates/template-details/template-details.component.html',
+    ),
+    'utf8',
+  );
 
 describe('template detail add-on helpers', () => {
   it('shows ESNcard template discounts only when the tenant provider is enabled', () => {
@@ -114,5 +125,18 @@ describe('template detail add-on helpers', () => {
     expect(
       templateRegistrationOptionTitle(createTemplate(), 'missing-option'),
     ).toBe('Unknown registration option');
+  });
+});
+
+describe('TemplateDetailsComponent template', () => {
+  it('shows edit and create actions only for loaded template data', () => {
+    const template = templateDetailsTemplate();
+
+    expect(template).toContain(
+      '@if (templateQuery.isSuccess() && templateQuery.data())',
+    );
+    expect(template).toContain('@if (template) {');
+    expect(template).toContain('routerLink="edit"');
+    expect(template).toContain('routerLink="create-event"');
   });
 });

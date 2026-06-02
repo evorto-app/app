@@ -844,6 +844,10 @@ the current working direction until a product decision overrides them.
   share one tested write-pending guard, so category buttons and handlers cannot
   open overlapping dialogs or writes while a category create/update is already
   pending.
+- **Addressed in stabilization pass:** template detail edit/create-event actions
+  now render only after a concrete template record has loaded, so loading,
+  error, and not-found states do not advertise follow-up routes for absent
+  template data.
 - **Acceptable for now:** the template detail page is a useful read-only summary and the "Create event" action is discoverable from the detail surface.
 
 ### Test and Documentation Quality
