@@ -783,6 +783,8 @@ describe('stabilization source', () => {
 
   it('keeps paid transfer and direct resale aligned with checkout refund completion', () => {
     const source = readSource('STABILIZATION.md');
+    const product = readSource('PRODUCT.md');
+    const architecture = readSource('ARCHITECTURE.md');
     const webhook = readSource('src/server/http/stripe-webhook.web-handler.ts');
     const eventDetailsTemplate = readSource(
       'src/app/events/event-details/event-details.component.html',
@@ -798,6 +800,22 @@ describe('stabilization source', () => {
     expect(source).toContain(
       'product-defined Stripe Checkout replacement and refund workflow',
     );
+    expect(product).toContain(
+      'A participant should be able to transfer or resell a registration through Evorto.',
+    );
+    expect(product).toContain(
+      'New participant completes their registration and payment.',
+    );
+    expect(product).toContain(
+      "Existing participant's registration is cancelled.",
+    );
+    expect(product).toContain(
+      'Existing participant receives a refund through Stripe.',
+    );
+    expect(architecture).toContain(
+      'Stripe is the source of truth for payment state.',
+    );
+    expect(architecture).toContain('transfer/resale flow');
     expect(source).toContain('fresh Stripe Checkout');
     expect(source).toContain('Decision: Option B, matching `PRODUCT.md`.');
     expect(source).toMatch(
