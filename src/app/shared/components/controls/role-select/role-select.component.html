@@ -2,10 +2,22 @@
   <mat-form-field class="w-full">
     <mat-label>Selected Roles</mat-label>
     <mat-chip-grid #chipGrid aria-label="Role selection">
-      @for (role of currentRolesQuery(); track role.data()?.id) {
-        <mat-chip-row (removed)="remove(role.data()?.id)">
-          {{ role.data()?.name }}
-          <button matChipRemove [attr.aria-label]="'remove ' + role">
+      @for (
+        roleQuery of currentRolesQuery();
+        track selectedRoleTrackId(roleQuery, $index)
+      ) {
+        <mat-chip-row (removed)="remove(selectedRoleId(roleQuery))">
+          @if (roleQuery.isSuccess()) {
+            {{ roleQuery.data().name }}
+          } @else if (roleQuery.isPending()) {
+            Loading role ...
+          } @else {
+            Failed to load role
+          }
+          <button
+            matChipRemove
+            [attr.aria-label]="'remove ' + selectedRoleLabel(roleQuery, $index)"
+          >
             <fa-icon [icon]="faCircleXmark" />
           </button>
         </mat-chip-row>

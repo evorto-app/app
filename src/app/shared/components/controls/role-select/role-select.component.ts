@@ -27,6 +27,12 @@ import { injectQueries } from '@tanstack/angular-query-experimental/inject-queri
 
 import { AppRpc } from '../../../../core/effect-rpc-angular-client';
 
+interface SelectedRoleQuery {
+  data: () => undefined | { id: string; name: string };
+  isPending: () => boolean;
+  isSuccess: () => boolean;
+}
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -115,5 +121,23 @@ export class RoleSelectComponent implements FormValueControl<string[]> {
     this.touched.set(true);
     this.searchForm.query().value.set('');
     event.option.deselect();
+  }
+
+  protected selectedRoleId(roleQuery: SelectedRoleQuery): string | undefined {
+    return roleQuery.data()?.id;
+  }
+
+  protected selectedRoleLabel(
+    roleQuery: SelectedRoleQuery,
+    index: number,
+  ): string {
+    return roleQuery.data()?.name ?? `selected role ${index + 1}`;
+  }
+
+  protected selectedRoleTrackId(
+    roleQuery: SelectedRoleQuery,
+    index: number,
+  ): string {
+    return roleQuery.data()?.id ?? `pending-role-${index}`;
   }
 }

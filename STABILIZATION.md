@@ -1004,6 +1004,10 @@ the current working direction until a product decision overrides them.
 - **Addressed in this stabilization pass:** denied permission guards now route to the root `/403` page instead of a child-relative `403` path, so direct admin/finance/template denials render a clear not-allowed page instead of an empty feature shell.
 - **Addressed in this stabilization pass:** `admin.roles.findMany` now requires `admin:manageRoles`; permission-bearing role records are no longer exposed to every authenticated tenant user.
 - **Addressed in this stabilization pass:** shared role selection and template default-role queries now use lookup-only `roles.findMany` / `roles.findOne` RPCs. The lookup API returns only id, name, and default-role flags and is available to event/template authoring permissions plus role admins.
+- **Addressed in this stabilization pass:** the shared role selector now renders
+  explicit selected-role loading and error chip labels while individual role
+  lookups resolve, so event/template eligibility forms no longer show blank
+  selected-role chips when role-name reads are slow or fail.
 - **Addressed in stabilization pass:** role create/update now writes `displayInHub` and `collapseMembersInHup`, and the role form uses the same `displayInHub` field that `findHubRoles` reads. The legacy `showInHub` role field has been removed from the Drizzle schema and admin role RPC records, leaving `displayInHub` as the canonical hub-visibility field.
 - **Addressed in stabilization pass:** `users:assignRoles` is now labeled as a future/migration permission in the role form metadata, the user list explicitly says existing-user role assignment is deferred for relaunch, and the roles doc records the read-only user-list behavior.
 - **Addressed in stabilization pass:** the user list no longer shows placeholder selection or "Edit template" actions for user-role assignment.
