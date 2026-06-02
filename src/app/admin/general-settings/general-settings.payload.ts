@@ -2,7 +2,9 @@ import type { AdminTenantUpdateSettingsInput } from '@shared/rpc-contracts/app-r
 
 import type {
   SupportedTenantCurrency,
+  SupportedTenantEventReviewPolicy,
   SupportedTenantLocale,
+  SupportedTenantStripeAccountManagementPolicy,
   SupportedTenantTimezone,
   Tenant,
 } from '../../../types/custom/tenant';
@@ -15,6 +17,7 @@ export interface GeneralSettingsModel {
   defaultLocation: GoogleLocationType | null;
   emailSenderName: string;
   esnCardEnabled: boolean;
+  eventReviewPolicy: SupportedTenantEventReviewPolicy;
   faviconUrl: string;
   legalNoticeText: string;
   legalNoticeUrl: string;
@@ -27,6 +30,7 @@ export interface GeneralSettingsModel {
   registrationLimitWindowDays: null | number;
   seoDescription: string;
   seoTitle: string;
+  stripeAccountManagement: SupportedTenantStripeAccountManagementPolicy;
   termsText: string;
   termsUrl: string;
   theme: 'esn' | 'evorto';
@@ -45,6 +49,7 @@ export const generalSettingsPayloadFromModel = (
   defaultLocation: settings.defaultLocation,
   emailSenderName: optionalTrimmed(settings.emailSenderName),
   esnCardEnabled: settings.esnCardEnabled,
+  eventReviewPolicy: settings.eventReviewPolicy,
   faviconUrl: optionalTrimmed(settings.faviconUrl),
   legalNoticeText: optionalTrimmed(settings.legalNoticeText),
   legalNoticeUrl: optionalTrimmed(settings.legalNoticeUrl),
@@ -58,6 +63,7 @@ export const generalSettingsPayloadFromModel = (
     settings.registrationLimitWindowDays ?? undefined,
   seoDescription: optionalTrimmed(settings.seoDescription),
   seoTitle: optionalTrimmed(settings.seoTitle),
+  stripeAccountManagement: settings.stripeAccountManagement,
   termsText: optionalTrimmed(settings.termsText),
   termsUrl: optionalTrimmed(settings.termsUrl),
   theme: settings.theme,

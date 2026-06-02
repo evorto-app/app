@@ -13,6 +13,7 @@ const currentTenantSettingsInput = {
   defaultLocation: null,
   emailSenderName: 'Example Section',
   esnCardEnabled: true,
+  eventReviewPolicy: 'review_required' as const,
   faviconUrl: 'https://cdn.example.org/favicon.ico',
   legalNoticeText: 'Tenant imprint text',
   legalNoticeUrl: 'https://section.example.org/imprint',
@@ -25,6 +26,7 @@ const currentTenantSettingsInput = {
   registrationLimitWindowDays: 30,
   seoDescription: 'Public tenant description',
   seoTitle: 'Public tenant title',
+  stripeAccountManagement: 'platform_managed' as const,
   termsText: 'Tenant terms text',
   termsUrl: 'https://section.example.org/terms',
   theme: 'esn' as const,
@@ -74,7 +76,6 @@ describe('AdminTenantUpdateSettingsInput', () => {
     const decoded = Schema.decodeUnknownSync(AdminTenantUpdateSettingsInput)({
       ...currentTenantSettingsInput,
       customDomain: 'section.example.org',
-      reviewPolicy: 'manual',
       stripeAccountId: 'acct_123',
     });
 
@@ -99,6 +100,21 @@ describe('AdminTenantUpdateSettingsInput', () => {
       Schema.decodeUnknownSync(AdminTenantUpdateSettingsInput)({
         ...currentTenantSettingsInput,
         termsUrl: '/tenant-assets/tenant-1/terms.pdf',
+      }),
+    ).toThrow();
+  });
+
+  it('rejects unsupported tenant policy values', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(AdminTenantUpdateSettingsInput)({
+        ...currentTenantSettingsInput,
+        eventReviewPolicy: 'manual',
+      }),
+    ).toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(AdminTenantUpdateSettingsInput)({
+        ...currentTenantSettingsInput,
+        stripeAccountManagement: 'unknown',
       }),
     ).toThrow();
   });

@@ -82,6 +82,26 @@ describe('Tenant schema', () => {
     });
   });
 
+  it('defaults tenant operations policy to the conservative relaunch settings', () => {
+    expect(Schema.decodeUnknownSync(Tenant)(tenantInput)).toMatchObject({
+      eventReviewPolicy: 'review_required',
+      stripeAccountManagement: 'platform_managed',
+    });
+  });
+
+  it('accepts explicit tenant operations policy settings when present', () => {
+    const tenant = Schema.decodeUnknownSync(Tenant)({
+      ...tenantInput,
+      eventReviewPolicy: 'organizer_self_publish',
+      stripeAccountManagement: 'tenant_admin_managed',
+    });
+
+    expect(Schema.encodeSync(Tenant)(tenant)).toMatchObject({
+      eventReviewPolicy: 'organizer_self_publish',
+      stripeAccountManagement: 'tenant_admin_managed',
+    });
+  });
+
   it('accepts tenant legal links when present', () => {
     const tenant = Schema.decodeUnknownSync(Tenant)({
       ...tenantInput,

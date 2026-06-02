@@ -31,7 +31,9 @@ import {
 
 import {
   supportedTenantCurrencies,
+  supportedTenantEventReviewPolicies,
   supportedTenantLocales,
+  supportedTenantStripeAccountManagementPolicies,
   supportedTenantTimezones,
 } from '../../../types/custom/tenant';
 import { ConfigService } from '../../core/config.service';
@@ -120,6 +122,7 @@ export class GeneralSettingsComponent {
     defaultLocation: null,
     emailSenderName: '',
     esnCardEnabled: false,
+    eventReviewPolicy: 'review_required',
     faviconUrl: '',
     legalNoticeText: '',
     legalNoticeUrl: '',
@@ -132,6 +135,7 @@ export class GeneralSettingsComponent {
     registrationLimitWindowDays: null,
     seoDescription: '',
     seoTitle: '',
+    stripeAccountManagement: 'platform_managed',
     termsText: '',
     termsUrl: '',
     theme: 'evorto',
@@ -145,7 +149,10 @@ export class GeneralSettingsComponent {
   protected readonly generalSettingsSaveDisabled = generalSettingsSaveDisabled;
   protected readonly localeOptions = supportedTenantLocales;
   protected readonly receiptCountryOptions = RECEIPT_COUNTRY_OPTIONS;
+  protected readonly reviewPolicyOptions = supportedTenantEventReviewPolicies;
   protected readonly settingsForm = form(this.settingsModel);
+  protected readonly stripeAccountManagementOptions =
+    supportedTenantStripeAccountManagementPolicies;
   private readonly configService = inject(ConfigService);
   private readonly currentTenant = computed(
     () => this.configService.tenantSignal() ?? this.configService.tenant,
@@ -180,6 +187,8 @@ export class GeneralSettingsComponent {
           emailSenderName: currentTenant.emailSenderName ?? '',
           esnCardEnabled:
             currentTenant.discountProviders?.esnCard?.status === 'enabled',
+          eventReviewPolicy:
+            currentTenant.eventReviewPolicy ?? 'review_required',
           faviconUrl: currentTenant.faviconUrl ?? '',
           legalNoticeText: currentTenant.legalNoticeText ?? '',
           legalNoticeUrl: currentTenant.legalNoticeUrl ?? '',
@@ -193,6 +202,8 @@ export class GeneralSettingsComponent {
             currentTenant.registrationLimitWindowDays ?? null,
           seoDescription: currentTenant.seoDescription ?? '',
           seoTitle: currentTenant.seoTitle ?? '',
+          stripeAccountManagement:
+            currentTenant.stripeAccountManagement ?? 'platform_managed',
           termsText: currentTenant.termsText ?? '',
           termsUrl: currentTenant.termsUrl ?? '',
           theme: currentTenant.theme,

@@ -60,6 +60,20 @@ test('tenant admin updates relaunch general settings @admin', async ({
     .getByPlaceholder('Short description for search results and previews')
     .fill(` ${seoDescription} `);
   await page.getByPlaceholder('Example Section').fill(` ${emailSenderName} `);
+  await generalSettings
+    .locator('mat-form-field')
+    .filter({ hasText: 'Event review policy' })
+    .getByRole('combobox')
+    .click();
+  await page
+    .getByRole('option', { name: 'Organizers publish directly' })
+    .click();
+  await generalSettings
+    .locator('mat-form-field')
+    .filter({ hasText: 'Stripe account management' })
+    .getByRole('combobox')
+    .click();
+  await page.getByRole('option', { name: 'Tenant admins manage' }).click();
   await page
     .getByPlaceholder('4')
     .fill(`${registrationLimitCount}`);
@@ -108,6 +122,8 @@ test('tenant admin updates relaunch general settings @admin', async ({
   expect(updatedTenant.seoTitle).toBe(seoTitle);
   expect(updatedTenant.seoDescription).toBe(seoDescription);
   expect(updatedTenant.emailSenderName).toBe(emailSenderName);
+  expect(updatedTenant.eventReviewPolicy).toBe('organizer_self_publish');
+  expect(updatedTenant.stripeAccountManagement).toBe('tenant_admin_managed');
   expect(updatedTenant.registrationLimitCount).toBe(registrationLimitCount);
   expect(updatedTenant.registrationLimitWindowDays).toBe(
     registrationLimitWindowDays,

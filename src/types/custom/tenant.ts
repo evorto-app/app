@@ -15,14 +15,32 @@ export const supportedTenantTimezones = [
   'Europe/Berlin',
   'Australia/Brisbane',
 ] as const;
+export const supportedTenantEventReviewPolicies = [
+  'review_required',
+  'organizer_self_publish',
+] as const;
+export const supportedTenantStripeAccountManagementPolicies = [
+  'platform_managed',
+  'tenant_admin_managed',
+] as const;
 
 const SupportedTenantCurrency = literalUnion(...supportedTenantCurrencies);
 const SupportedTenantLocale = literalUnion(...supportedTenantLocales);
 const SupportedTenantTimezone = literalUnion(...supportedTenantTimezones);
+const SupportedTenantEventReviewPolicy = literalUnion(
+  ...supportedTenantEventReviewPolicies,
+);
+const SupportedTenantStripeAccountManagementPolicy = literalUnion(
+  ...supportedTenantStripeAccountManagementPolicies,
+);
 
 export type SupportedTenantCurrency =
   (typeof supportedTenantCurrencies)[number];
+export type SupportedTenantEventReviewPolicy =
+  (typeof supportedTenantEventReviewPolicies)[number];
 export type SupportedTenantLocale = (typeof supportedTenantLocales)[number];
+export type SupportedTenantStripeAccountManagementPolicy =
+  (typeof supportedTenantStripeAccountManagementPolicies)[number];
 export type SupportedTenantTimezone = (typeof supportedTenantTimezones)[number];
 
 const normalizeTenantLocale = (value: string): SupportedTenantLocale => {
@@ -136,6 +154,11 @@ export class Tenant extends Schema.Class<Tenant>('Tenant')({
   ),
   domain: Schema.NonEmptyString,
   emailSenderName: optionalNullable(Schema.NonEmptyString),
+  eventReviewPolicy: Schema.optional(SupportedTenantEventReviewPolicy).pipe(
+    Schema.withDecodingDefaultType(
+      Effect.sync(() => 'review_required' as const),
+    ),
+  ),
   faviconUrl: optionalNullable(Schema.NonEmptyString),
   id: Schema.NonEmptyString,
   legalNoticeText: optionalNullable(Schema.NonEmptyString),
@@ -151,6 +174,13 @@ export class Tenant extends Schema.Class<Tenant>('Tenant')({
   seoDescription: optionalNullable(Schema.NonEmptyString),
   seoTitle: optionalNullable(Schema.NonEmptyString),
   stripeAccountId: optionalNullable(Schema.NonEmptyString),
+  stripeAccountManagement: Schema.optional(
+    SupportedTenantStripeAccountManagementPolicy,
+  ).pipe(
+    Schema.withDecodingDefaultType(
+      Effect.sync(() => 'platform_managed' as const),
+    ),
+  ),
   termsText: optionalNullable(Schema.NonEmptyString),
   termsUrl: optionalNullable(Schema.NonEmptyString),
   theme: literalUnion('evorto', 'esn'),

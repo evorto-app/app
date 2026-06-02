@@ -30,6 +30,16 @@ export const timezoneEnum = pgEnum('timezone', [
   'Australia/Brisbane',
 ]);
 
+export const tenantEventReviewPolicyEnum = pgEnum(
+  'tenant_event_review_policy',
+  ['review_required', 'organizer_self_publish'],
+);
+
+export const tenantStripeAccountManagementEnum = pgEnum(
+  'tenant_stripe_account_management',
+  ['platform_managed', 'tenant_admin_managed'],
+);
+
 export const tenants = pgTable('tenants', {
   createdAt: timestamp().notNull().defaultNow(),
   currency: currencyEnum().notNull().default('EUR'),
@@ -40,6 +50,9 @@ export const tenants = pgTable('tenants', {
     .default(createDefaultTenantDiscountProviders()),
   domain: text().unique().notNull(),
   emailSenderName: text('email_sender_name'),
+  eventReviewPolicy: tenantEventReviewPolicyEnum('event_review_policy')
+    .notNull()
+    .default('review_required'),
   faviconUrl: text('favicon_url'),
   id: varchar({ length: 20 })
     .$defaultFn(() => createId())
@@ -63,6 +76,11 @@ export const tenants = pgTable('tenants', {
   seoDescription: text(),
   seoTitle: text(),
   stripeAccountId: varchar(),
+  stripeAccountManagement: tenantStripeAccountManagementEnum(
+    'stripe_account_management',
+  )
+    .notNull()
+    .default('platform_managed'),
   termsText: text('terms_text'),
   termsUrl: text('terms_url'),
   theme: applicationThemes().notNull().default('evorto'),

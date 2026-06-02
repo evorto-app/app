@@ -108,9 +108,40 @@
 
       <h3 class="title-small mb-2 mt-6">Operations policy</h3>
       <p class="text-on-surface-variant mb-3 text-sm">
-        Configure tenant-level operational defaults. Mail delivery still uses
-        the platform notification flow when those messages are implemented.
+        Configure tenant-level operational defaults.
       </p>
+      <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <mat-form-field>
+          <mat-label>Event review policy</mat-label>
+          <mat-select [formField]="settingsForm.eventReviewPolicy">
+            @for (policy of reviewPolicyOptions; track policy) {
+              <mat-option [value]="policy">
+                {{
+                  policy === "review_required"
+                    ? "Reviewer approval required"
+                    : "Organizers publish directly"
+                }}
+              </mat-option>
+            }
+          </mat-select>
+          <mat-hint>Controls what happens when an organizer submits.</mat-hint>
+        </mat-form-field>
+        <mat-form-field>
+          <mat-label>Stripe account management</mat-label>
+          <mat-select [formField]="settingsForm.stripeAccountManagement">
+            @for (policy of stripeAccountManagementOptions; track policy) {
+              <mat-option [value]="policy">
+                {{
+                  policy === "platform_managed"
+                    ? "Platform managed"
+                    : "Tenant admins manage"
+                }}
+              </mat-option>
+            }
+          </mat-select>
+          <mat-hint>Controls who maintains the connected account.</mat-hint>
+        </mat-form-field>
+      </div>
       <mat-form-field>
         <mat-label>Email sender name</mat-label>
         <input

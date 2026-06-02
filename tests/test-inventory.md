@@ -513,16 +513,19 @@ provider outcomes without live identifiers.
   - Keep tenant settings docs and payload tests aligned when new editable
     tenant settings move out of the deferred-settings summary. Current local
     coverage proves the general-settings page can persist editable
+    review/publishing policy, Stripe account-management policy,
     URLs/SEO/legal-text/receipt-country/ESNcard fields with database readback,
     the form trims optional editable values before sending the RPC payload,
-    includes supported currency/locale/timezone selections in the update
-    payload, and normalizes blank optional values before the RPC call. Server
+    includes supported currency/locale/timezone selections and tenant
+    operations-policy fields in the update payload, and normalizes blank
+    optional values before the RPC call. Server
     admin-handler coverage also pins that currency/locale/timezone changes are
     rejected once tenant event or transaction data exists. Tenant schema,
     admin-handler, and
     route coverage pin supported relaunch currency/locale/timezone values,
-    hosted legal text fields, public legal page routes, and tenant logo/favicon
-    upload storage paths while normalizing legacy context payloads.
+    hosted legal text fields, operations-policy defaults, public legal page
+    routes, and tenant logo/favicon upload storage paths while normalizing
+    legacy context payloads.
     General-settings identity coverage also pins read-only tenant name, primary
     domain, and Stripe account support lookup labels.
     General-settings component coverage also pins that invalid, submitting, and

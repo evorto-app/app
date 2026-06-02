@@ -15,7 +15,7 @@ and useful for small cleanup batches.
 | Finance/receipts                                | Stabilized | high       | Finance navigation, transaction visibility, receipt review, reimbursement recording, receipt submission, and refund boundaries have deterministic coverage; receipt review now enqueues receipt-reviewed email outbox records, and the Resend-backed outbox dispatcher processes pending/failed email records when enabled.       |
 | Scanning/check-in                               | Stabilized | high       | QR scanner reads, selected guest check-in, later guest arrival, idempotent counters, and organizer aggregates are covered by specs/docs against Docker.                                                                                                                                                                           |
 | Profile/account flows                           | Blocked    | high       | Profile edit, event cards, receipts, account creation contracts, seeded ESNcard behavior, deterministic ESNcard provider outcomes, and Browser discount-card UX are covered; Browser verification for home-tenant warning is still pending.                                                                                       |
-| Tenant/global admin                             | Blocked    | high       | Tenant settings and global-admin list/detail/create/edit have coverage for the implemented surface; tenant operations-policy settings for review policy and tenant-admin Stripe account management remain deferred.                                                                                                               |
+| Tenant/global admin                             | Stabilized | high       | Tenant settings and global-admin list/detail/create/edit have coverage for the implemented surface; review policy and tenant-admin Stripe account management are now explicit tenant settings while custom-domain automation and impersonation remain out of scope.                                                               |
 | Generated documentation and Playwright coverage | Stabilized | high       | Docs/spec inventory, skip gates, source guards, list mode, and generated-doc runtime flows are current and fail loudly for known fixture gaps.                                                                                                                                                                                    |
 | Local runtime/developer workflow                | Stabilized | high       | Docker, env preflight, CI, Font Awesome token paths, and the first in-app Browser queue pass are healthy; repeat Browser review uses generated `BASE_URL`.                                                                                                                                                                        |
 
@@ -1453,9 +1453,9 @@ the current working direction until a product decision overrides them.
 
 - Tenants are resolved from request host first. On local hosts, the `evorto-tenant` cookie can select the tenant domain; otherwise the host domain is authoritative.
 - If tenant resolution fails, SSR and RPC requests fail closed with a 404. A local probe with `Host: no-such-tenant.invalid` returned 404.
-- Tenant records currently store one unique `domain`, name, currency, locale, timezone, theme, default location, Stripe account id, receipt settings, discount provider settings, SEO title/description, tenant legal links, hosted legal text, and app-origin or externally hosted logo/favicon URLs.
+- Tenant records currently store one unique `domain`, name, currency, locale, timezone, theme, default location, Stripe account id, tenant event review policy, tenant Stripe account-management policy, receipt settings, discount provider settings, SEO title/description, tenant legal links, hosted legal text, and app-origin or externally hosted logo/favicon URLs.
 - Client config loads the current tenant and permission list through RPC and applies `theme-${tenant.theme}` to the document root.
-- Tenant admin "General settings" shows a read-only identity summary with tenant name, primary domain, currency, locale, timezone, and Stripe connection state including the connected account id when configured. It lets tenant admins change default location, site theme, uploaded or externally hosted logo/favicon URLs, SEO title/description, legal links or hosted legal text, receipt countries/allow-other, and ESNcard provider enablement plus buy URL. Configured legal URLs appear in the public app footer as off-site links; configured hosted legal text appears through public `/legal/*` pages. Configured favicon URLs update the browser tab icon.
+- Tenant admin "General settings" shows a read-only identity summary with tenant name, primary domain, currency, locale, timezone, and Stripe connection state including the connected account id when configured. It lets tenant admins change default location, site theme, review/publishing policy, Stripe account-management policy, uploaded or externally hosted logo/favicon URLs, SEO title/description, legal links or hosted legal text, receipt countries/allow-other, and ESNcard provider enablement plus buy URL. Configured legal URLs appear in the public app footer as off-site links; configured hosted legal text appears through public `/legal/*` pages. Configured favicon URLs update the browser tab icon.
 - Tenant settings writes are tenant-scoped and require `admin:changeSettings`; tax-rate admin reads/writes require `admin:tax`.
 - `/global-admin` is guarded by authentication at the app route and by `globalAdmin:manageTenants` in the global-admin route config. The navigation link is hidden behind `globalAdmin:*`, and the tenant list RPC requires `globalAdmin:manageTenants`.
 - Global admin currently exposes a searchable tenant list, tenant create/edit flows for the one active primary domain and operational tenant settings, and tenant detail review with non-sensitive operational tenant state. Custom-domain verification, multi-domain automation, and impersonation remain deferred.
@@ -1475,13 +1475,9 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** root product and architecture docs now state the relaunch domain scope honestly: one active primary domain per tenant, with automated multi-domain/custom-domain verification deferred to later tenant-onboarding work.
 - **Addressed in stabilization pass:** tenant general settings now expose tenant name, primary domain, and Stripe connection state as read-only operator context.
 - **Addressed in this stabilization pass:** tenant general-settings identity rows now include the connected Stripe account id when present, matching the support lookup detail already exposed in global-admin tenant review.
-- **Addressed in stabilization pass:** tenant general settings now include a visible deferred-settings summary for custom-domain verification, review/publishing settings, and Stripe account management. These fields are still not editable unless explicitly called out below.
-- **Should fix before relaunch:** tenant review/publishing policy and
-  tenant-admin Stripe account management settings are still only visible as
-  deferred copy. `PRODUCT.md` lists tenant payment settings and
-  review/publishing workflow settings as tenant customization scope, while the
-  tenant-admin settings RPC payload still has no review-policy or Stripe
-  account-management fields.
+- **Addressed in stabilization pass:** tenant general settings now include a visible deferred-settings summary for custom-domain verification while implemented brand, legal, and operations-policy settings remain editable below.
+- **Addressed in this stabilization pass:** tenant review/publishing policy and tenant-admin Stripe account-management policy are now explicit tenant fields, editable from general settings, persisted by `admin.tenant.updateSettings`, and covered by the tenant settings RPC payload schema.
+- **Addressed in this stabilization pass:** event review submission now honors the tenant review policy: the conservative default still moves submitted events to `PENDING_REVIEW`, while tenants configured for organizer self-publishing move submitted draft/rejected events directly to `APPROVED`.
 - **Addressed in this stabilization pass:** supported tenant currency, locale, and timezone values are now editable from general settings before dependent event/payment data exists, persisted through `admin.tenant.updateSettings`, and validated against the shared Tenant relaunch policy before the RPC responds.
 - **Addressed in this stabilization pass:** `admin.tenant.updateSettings` now rejects currency, locale, or timezone changes once the tenant has event instances or transaction rows, matching the relaunch decision that later changes require a deliberate migration plan instead of an ordinary settings save.
 - **Addressed in this stabilization pass:** general settings reloads the app after saved currency, locale, or timezone changes so Angular's bootstrap-level currency and locale providers are refreshed instead of leaving the current session on stale formatting defaults.
@@ -1501,12 +1497,12 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** tenant-admin child routes now have route-level guards. Settings require `admin:changeSettings`, roles require `admin:manageRoles`, users require `users:viewAll`, tax rates require `admin:tax`, and event reviews require `events:review`.
 - **Addressed in stabilization pass:** tenant settings saves now show a success notification and map failed updates through the shared readable error-message helper instead of relying only on mutation state.
 - **Addressed in this stabilization pass:** tenant general-settings save actions now stay disabled while the update mutation is pending, and the submit handler ignores duplicate submit events during the in-flight settings write.
-- **Addressed in stabilization pass:** tenant general-settings documentation now covers the implemented relaunch surface and explicitly calls out deferred custom-domain automation, review policy, and Stripe-account settings.
+- **Addressed in stabilization pass:** tenant general-settings documentation now covers the implemented relaunch surface and explicitly calls out deferred custom-domain automation while documenting editable review-policy and Stripe-account-management settings.
 - **Addressed in stabilization pass:** tenant-hosted legal text is now editable alongside external legal URLs. The public footer links to external URLs when configured, otherwise it links to hosted `/legal/imprint`, `/legal/privacy`, and `/legal/terms` pages when tenant text exists.
 - **Addressed in this stabilization pass:** unconfigured hosted legal pages now
   state that no tenant-provided legal text is configured instead of presenting
   generic fallback legal copy, matching `PRODUCT.md`'s legal-page watchpoint.
-- **Addressed in stabilization pass:** the tenant settings RPC payload schema is now exported and covered by a focused contract spec, including the current editable fields and the fact that deferred custom-domain automation, review policy, and Stripe account-management fields are outside the update payload.
+- **Addressed in stabilization pass:** the tenant settings RPC payload schema is now exported and covered by a focused contract spec, including the current editable fields, tenant review policy, tenant Stripe account-management policy, and the fact that deferred custom-domain automation fields are outside the update payload.
 - **Addressed in stabilization pass:** tenant general-settings payload shaping is now extracted and covered locally, including trim/blank normalization for editable URLs/SEO/ESNcard fields before the RPC call.
 - **Addressed in stabilization pass:** the global-admin tenant list and read-only detail page render the tenant operational state returned by the RPC, including connected Stripe account ids for support lookup. Product docs are intentionally not generated for global-admin functionality.
 - **Addressed in stabilization pass:** global-admin tenant create/edit now supports the relaunch one-domain tenant administration surface: name, primary domain, theme, locale, currency, timezone, and connected Stripe account id.
@@ -1544,7 +1540,7 @@ the current working direction until a product decision overrides them.
 - `helpers/testing/permission-matrix-source.spec.ts` keeps finance
   route-denial cases aligned with the guarded finance route manifest, including
   the transaction list, receipt approval list/detail, and reimbursement routes.
-- `tests/docs/admin/general-settings.doc.ts` documents the current tenant general-settings page, including the deferred-settings summary, read-only tenant identity summary with Stripe account support lookup detail, pre-data locale/money editability, dependent-data locking, reload behavior for accepted locale/money changes, uploaded or externally hosted brand asset URLs, editable tenant legal links or hosted text, and public footer/favicon exposure, and records which domain/operations settings are not editable yet.
+- `tests/docs/admin/general-settings.doc.ts` documents the current tenant general-settings page, including the deferred-settings summary, read-only tenant identity summary with Stripe account support lookup detail, pre-data locale/money editability, dependent-data locking, reload behavior for accepted locale/money changes, editable review/Stripe account-management policy fields, uploaded or externally hosted brand asset URLs, editable tenant legal links or hosted text, and public footer/favicon exposure.
 - `tests/specs/admin/general-settings.spec.ts` functionally covers tenant
   general-settings persistence for editable brand asset URLs, SEO copy, hosted
   legal text, external legal URLs, receipt-country settings, and ESNcard
@@ -1937,7 +1933,7 @@ the current working direction until a product decision overrides them.
    provider-unavailable outcomes are represented by the baseline
    `specs/profile/user-profile-esncard-provider.spec.ts` path through
    deterministic provider test mode.
-6. Fill the remaining tenant settings implementation gap for automated onboarding/domain workflows. The current general-settings page exposes SEO fields, uploaded or externally hosted logo/favicon URLs, tenant legal links or hosted legal text, editable supported locale/currency/timezone values, read-only runtime identity, and a visible deferred-settings summary. The current global-admin surface supports a searchable tenant list, tenant create/edit, and tenant detail review, while custom-domain verification, multi-domain automation, and impersonation remain out of scope.
+6. Fill the remaining tenant onboarding/domain workflow gap when that product scope is prioritized. The current general-settings page exposes SEO fields, uploaded or externally hosted logo/favicon URLs, tenant legal links or hosted legal text, editable supported locale/currency/timezone values, review/publishing policy, Stripe account-management policy, read-only runtime identity, and a visible custom-domain deferred-settings summary. The current global-admin surface supports a searchable tenant list, tenant create/edit, and tenant detail review, while custom-domain verification, multi-domain automation, and impersonation remain out of scope.
 7. Keep `docker:start` reset behavior intentional, use `docker:resume` only for existing local stacks, and ensure seeded data is sufficient to get going from zero.
 
 ### Acceptable For Now
@@ -3222,8 +3218,7 @@ and the disabled-by-default Resend-backed dispatcher processes pending/failed
 outbox records when configured. Profile/account
 home-tenant data model and profile warning UI are implemented, but the
 home-tenant warning still needs Browser verification once the local Docker
-runtime is healthy. Tenant/global admin remains blocked on tenant
-operations-policy settings because `PRODUCT.md` lists review/publishing
-workflow settings, registration limits, and tenant payment settings as
-customization scope, while the current tenant-admin surface only exposes those
-settings as deferred operations-policy copy.
+runtime is healthy. Tenant/global admin now exposes the relaunch operations
+policy settings for review/publishing, registration limits, and Stripe account
+management as typed tenant configuration; custom-domain automation,
+multi-domain automation, and impersonation remain deferred product scope.

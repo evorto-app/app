@@ -690,6 +690,7 @@ export const adminHandlers = {
         defaultLocation: input.defaultLocation,
         discountProviders,
         emailSenderName: input.emailSenderName?.trim() || null,
+        eventReviewPolicy: input.eventReviewPolicy,
         ...legalLinks,
         locale: input.locale,
         receiptSettings: resolveTenantReceiptSettings({
@@ -699,6 +700,7 @@ export const adminHandlers = {
         ...registrationLimitPolicy,
         seoDescription: input.seoDescription?.trim() || null,
         seoTitle: input.seoTitle?.trim() || null,
+        stripeAccountManagement: input.stripeAccountManagement,
         theme: input.theme,
         timezone: input.timezone,
       };
@@ -721,6 +723,7 @@ export const adminHandlers = {
             defaultLocation: input.defaultLocation,
             discountProviders,
             emailSenderName: input.emailSenderName?.trim() || null,
+            eventReviewPolicy: input.eventReviewPolicy,
             ...legalLinks,
             locale: input.locale,
             receiptSettings: resolveTenantReceiptSettings({
@@ -730,6 +733,7 @@ export const adminHandlers = {
             ...registrationLimitPolicy,
             seoDescription: input.seoDescription?.trim() || null,
             seoTitle: input.seoTitle?.trim() || null,
+            stripeAccountManagement: input.stripeAccountManagement,
             theme: input.theme,
             timezone: input.timezone,
           })

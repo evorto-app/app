@@ -138,13 +138,14 @@ export const eventReviewHandlers = {
         );
       }
 
+      const selfPublish = tenant.eventReviewPolicy === 'organizer_self_publish';
       const submittedEvents = yield* databaseEffect((database) =>
         database
           .update(eventInstances)
           .set({
-            reviewedAt: null,
-            reviewedBy: null,
-            status: 'PENDING_REVIEW',
+            reviewedAt: selfPublish ? new Date() : null,
+            reviewedBy: selfPublish ? user.id : null,
+            status: selfPublish ? 'APPROVED' : 'PENDING_REVIEW',
             statusComment: null,
           })
           .where(

@@ -77,11 +77,6 @@ describe('deferredTenantSettingsRows', () => {
         value:
           'Imprint, privacy, and terms links or hosted text are editable below.',
       },
-      {
-        label: 'Operations policy',
-        value:
-          'Email sender name and participant registration limits are editable below. Review policy and Stripe account management are not implemented here yet.',
-      },
     ]);
   });
 });
