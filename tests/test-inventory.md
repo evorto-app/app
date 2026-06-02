@@ -486,7 +486,8 @@ provider outcomes without live identifiers.
     the attendee plus selected guests.
     Generated-doc source coverage keeps the event-management docs aligned with
     the dedicated scanner flow, scanner warning states, guest-quantity count
-    updates, organizer cancellation scope, and paid-transfer/refund deferrals.
+    updates, organizer cancellation scope, and direct-organizer versus
+    transfer-code paid transfer boundaries.
     Generated event-management docs also seed a confirmed registration with
     guests, capture the scanned-registration page, assert the organizer
     checked-in aggregate after scanner writes, and restore the seeded counter,

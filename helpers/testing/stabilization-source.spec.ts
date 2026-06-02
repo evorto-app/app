@@ -718,6 +718,12 @@ describe('stabilization source', () => {
   it('keeps paid transfer and resale blocked only on resale-specific follow-up after checkout refund completion', () => {
     const source = readSource('STABILIZATION.md');
     const webhook = readSource('src/server/http/stripe-webhook.web-handler.ts');
+    const eventDetailsTemplate = readSource(
+      'src/app/events/event-details/event-details.component.html',
+    );
+    const organizerTransferDialog = readSource(
+      'src/app/events/event-organize/registration-transfer-dialog.component.html',
+    );
     const webhookReplay = readSource(
       'tests/specs/finance/stripe-webhook-replay.spec.ts',
     );
@@ -735,6 +741,10 @@ describe('stabilization source', () => {
       'Failed to create Stripe refund for transferred registration',
     );
     expect(webhook).toContain('insertPendingTransferRefundRecord');
+    expect(eventDetailsTemplate).toContain('the source refund path');
+    expect(organizerTransferDialog).toContain(
+      'registrations use transfer codes for replacement checkout and source',
+    );
     expect(webhookReplay).toContain('refundAmount: -2500');
     expect(webhookReplay).toContain('refundManuallyCreated: true');
     expect(source).not.toContain(

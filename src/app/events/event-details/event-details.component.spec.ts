@@ -13,8 +13,10 @@ import {
   transferCodeRedemptionActionDisabled,
 } from './event-details.component';
 
+const repositoryRoot = new URL('../../../..', import.meta.url).pathname;
+
 const readSource = (sourcePath: string): string =>
-  readFileSync(nodePath.join(process.cwd(), sourcePath), 'utf8');
+  readFileSync(nodePath.join(repositoryRoot, sourcePath), 'utf8');
 
 describe('registrationOptionsState', () => {
   it('shows available registration options when at least one option is visible', () => {
@@ -148,6 +150,20 @@ describe('transferCodeRedemptionActionDisabled', () => {
         mutationPending: true,
       }),
     ).toBe(true);
+  });
+
+  it('keeps transfer-code redemption copy aligned with source refund handling', () => {
+    const template = readSource(
+      'src/app/events/event-details/event-details.component.html',
+    );
+
+    expect(template).toContain(
+      'This transfer code starts a replacement paid registration.',
+    );
+    expect(template).toContain('the source refund path.');
+    expect(template).not.toContain(
+      'refund completion still needs organizer follow-up',
+    );
   });
 });
 

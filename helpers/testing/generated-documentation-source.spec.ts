@@ -468,7 +468,7 @@ describe('generated docs source current behavior', () => {
       'Older or manually seeded payment records still create a pending manual refund record for organizer follow-up.',
     );
     expect(source).toContain(
-      'Paid registration transfer shows as unavailable in the organizer overview until the Stripe Checkout replacement and refund flow is implemented.',
+      'Paid registrations stay unavailable for direct organizer-assisted transfer and use participant-created transfer codes for replacement checkout and source refund handling.',
     );
     expect(source).toContain(
       'It does not currently include attendee export, attendee messaging, manual check-in controls outside QR scanning',

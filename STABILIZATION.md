@@ -600,7 +600,7 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** participant self-cancellation now covers pending and confirmed registrations before event start, rolls back reserved/confirmed counters including selected guest spots, blocks checked-in cancellations, submits a Stripe refund when the original paid transaction has a stored Stripe payment reference, and records a pending manual refund transaction when automatic refunding cannot be attempted.
 - **Addressed in stabilization pass:** organizer/admin cancellation is available from the organizer overview for confirmed participant registrations, requires event-organizer access or `events:organizeAll`, blocks checked-in cancellations, rolls back confirmed counters, and uses the same Stripe-refund/manual-fallback behavior as participant cancellation.
 - **Addressed in stabilization pass:** active registration cards now expose unpaid self-service transfer for confirmed, not checked-in registrations before event start, and keep transfer/resale unavailability explicit for pending and waitlisted registrations.
-- **Addressed in stabilization pass:** `events.findTransferTargets` and `events.transferEventRegistration` provide a conservative organizer-assisted transfer flow for confirmed, not checked-in, unpaid registrations between existing tenant users. The organizer overview opens an eligible-member lookup, and the target lookup and mutation require event-organizer access, fail closed when the target user is outside the tenant, role-ineligible for the registration option, or already has an active registration, and reject paid registrations until refund/resale money movement is implemented.
+- **Addressed in stabilization pass:** `events.findTransferTargets` and `events.transferEventRegistration` provide a conservative organizer-assisted transfer flow for confirmed, not checked-in, unpaid registrations between existing tenant users. The organizer overview opens an eligible-member lookup, and the target lookup and mutation require event-organizer access, fail closed when the target user is outside the tenant, role-ineligible for the registration option, or already has an active registration, and keep direct organizer-assisted paid transfer unavailable because paid registrations use participant-created transfer codes for replacement checkout and source-refund handling.
 - **Addressed in stabilization pass:** organizer overview participant actions now
   use one shared checked-in/in-flight guard for cancellation and
   organizer-assisted transfer buttons and handlers, so checked-in rows and
@@ -2412,6 +2412,11 @@ implement those decisions or explicitly revise them there before changing code.
   longer describe refund completion as organizer follow-up; current copy points
   paid transfers at transfer-code checkout plus source-refund handling and keeps
   only resale listing workflows deferred.
+- Registration transfer-code redemption copy pass: updated the transfer-code
+  redemption card, organizer transfer dialog hint, and generated
+  event-management docs so direct organizer-assisted transfer stays unpaid-only
+  while paid registrations point to participant-created transfer codes,
+  replacement checkout, and source-refund handling.
 - Profile payment next-step coverage pass: extracted the profile event-card
   pending-checkout next-step copy into a helper and covered that it only appears
   when a pending registration has an actual checkout URL.
@@ -2645,7 +2650,8 @@ implement those decisions or explicitly revise them there before changing code.
   transfer/resale deferral, and no QR email delivery.
 - Scanner docs source-guard pass: pinned generated event-management docs to the
   dedicated QR scanner flow, scanner warning states, guest-quantity checked-in
-  counts, organizer cancellation scope, and paid-transfer/refund deferrals.
+  counts, organizer cancellation scope, and direct-organizer versus
+  transfer-code paid transfer boundaries.
 - Permission docs source-guard pass: pinned generated role docs to the
   generated permission reference and kept that reference aligned with
   tenant-scoped roles, wildcard permissions, dependent permissions, and
