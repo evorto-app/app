@@ -130,6 +130,18 @@ const nonConfirmedRegistrationStatuses = [
   'WAITLIST',
 ] as const;
 
+const cancellationEvent = {
+  start: new Date(Date.now() + 24 * 60 * 60 * 1000),
+  title: 'City tour',
+};
+
+const cancellationUser = {
+  communicationEmail: 'notify-attendee@example.com',
+  email: 'attendee@example.com',
+  firstName: 'Alice',
+  id: 'attendee-1',
+};
+
 const expectCounterDecrement = (
   updateSet: unknown,
   field: 'confirmedSpots' | 'reservedSpots' | 'waitlistSpots',
@@ -146,6 +158,20 @@ const expectCounterDecrement = (
   );
 };
 
+const createWaitlistSelect =
+  (waitlistRows: readonly Record<string, unknown>[] = []) =>
+  () => ({
+    from: () => ({
+      innerJoin: () => ({
+        where: () => ({
+          orderBy: () => ({
+            limit: () => Effect.succeed(waitlistRows),
+          }),
+        }),
+      }),
+    }),
+  });
+
 const createGuestCancellationDatabase = ({
   status,
 }: {
@@ -153,6 +179,15 @@ const createGuestCancellationDatabase = ({
 }) => {
   const updateSets: unknown[] = [];
   const tx = {
+    insert: () => ({
+      values: () => Effect.succeed([]),
+    }),
+    query: {
+      eventRegistrations: {
+        findMany: () => Effect.succeed([]),
+      },
+    },
+    select: createWaitlistSelect(),
     update: (table: unknown) => ({
       set: (values: unknown) => {
         updateSets.push(values);
@@ -179,14 +214,15 @@ const createGuestCancellationDatabase = ({
           Effect.succeed({
             checkedInGuestCount: 0,
             checkInTime: null,
-            event: {
-              start: new Date(Date.now() + 24 * 60 * 60 * 1000),
-            },
+            event: cancellationEvent,
+            eventId: 'event-1',
             guestCount: 2,
             id: 'registration-1',
             registrationOptionId: 'option-1',
             status,
             transactions: [],
+            user: cancellationUser,
+            userId: 'attendee-1',
           }),
       },
     },
@@ -532,7 +568,20 @@ describe('event registration cancellation handlers', () => {
     () =>
       Effect.gen(function* () {
         const updateSets: unknown[] = [];
+        let insertedNotification: Record<string, unknown> | undefined;
         const tx = {
+          insert: () => ({
+            values: (values: Record<string, unknown>) => {
+              insertedNotification = values;
+              return Effect.succeed([]);
+            },
+          }),
+          query: {
+            eventRegistrations: {
+              findMany: () => Effect.succeed([]),
+            },
+          },
+          select: createWaitlistSelect(),
           update: (table: unknown) => ({
             set: (values: unknown) => {
               updateSets.push(values);
@@ -559,15 +608,15 @@ describe('event registration cancellation handlers', () => {
                 Effect.succeed({
                   checkedInGuestCount: 0,
                   checkInTime: null,
-                  event: {
-                    start: new Date(Date.now() + 24 * 60 * 60 * 1000),
-                  },
+                  event: cancellationEvent,
                   eventId: 'event-1',
                   guestCount: 0,
                   id: 'registration-1',
                   registrationOptionId: 'option-1',
                   status: 'CONFIRMED',
                   transactions: [],
+                  user: cancellationUser,
+                  userId: 'attendee-1',
                 }),
               findMany: () =>
                 Effect.succeed([
@@ -594,6 +643,19 @@ describe('event registration cancellation handlers', () => {
           { status: 'CANCELLED' },
           expect.objectContaining({ confirmedSpots: expect.anything() }),
         ]);
+        expect(insertedNotification).toEqual(
+          expect.objectContaining({
+            kind: 'registrationCancelled',
+            payload: {
+              eventId: 'event-1',
+              eventTitle: 'City tour',
+              registrationId: 'registration-1',
+            },
+            recipientEmail: 'notify-attendee@example.com',
+            recipientUserId: 'attendee-1',
+            tenantId: 'tenant-1',
+          }),
+        );
         expect(database.transaction).toHaveBeenCalledOnce();
       }),
   );
@@ -609,15 +671,15 @@ describe('event registration cancellation handlers', () => {
                 Effect.succeed({
                   checkedInGuestCount: 0,
                   checkInTime: null,
-                  event: {
-                    start: new Date(Date.now() + 24 * 60 * 60 * 1000),
-                  },
+                  event: cancellationEvent,
                   eventId: 'event-1',
                   guestCount: 0,
                   id: 'registration-1',
                   registrationOptionId: 'option-1',
                   status: 'CONFIRMED',
                   transactions: [],
+                  user: cancellationUser,
+                  userId: 'attendee-1',
                 }),
               findMany: () => Effect.succeed([]),
             },
@@ -644,7 +706,42 @@ describe('event registration cancellation handlers', () => {
     () =>
       Effect.gen(function* () {
         const updateSets: unknown[] = [];
+        let insertedNotification: Record<string, unknown> | undefined;
         const tx = {
+          insert: (table: unknown) => ({
+            values: (values: Record<string, unknown>) => {
+              if (table !== transactions) {
+                insertedNotification = values;
+              }
+              return Effect.succeed([]);
+            },
+          }),
+          query: {
+            eventRegistrations: {
+              findMany: () =>
+                Effect.succeed([
+                  {
+                    id: 'waitlist-registration-1',
+                    user: {
+                      communicationEmail: null,
+                      email: 'waitlist@example.com',
+                      firstName: 'Wait',
+                      id: 'waitlist-user-1',
+                    },
+                    userId: 'waitlist-user-1',
+                  },
+                ]),
+            },
+          },
+          select: createWaitlistSelect([
+            {
+              id: 'waitlist-registration-1',
+              recipientCommunicationEmail: null,
+              recipientEmail: 'waitlist@example.com',
+              recipientFirstName: 'Wait',
+              recipientUserId: 'waitlist-user-1',
+            },
+          ]),
           update: (table: unknown) => ({
             set: (values: unknown) => {
               updateSets.push(values);
@@ -671,14 +768,15 @@ describe('event registration cancellation handlers', () => {
                 Effect.succeed({
                   checkedInGuestCount: 0,
                   checkInTime: null,
-                  event: {
-                    start: new Date(Date.now() + 24 * 60 * 60 * 1000),
-                  },
+                  event: cancellationEvent,
+                  eventId: 'event-1',
                   guestCount: 0,
                   id: 'registration-1',
                   registrationOptionId: 'option-1',
                   status: 'CONFIRMED',
                   transactions: [],
+                  user: cancellationUser,
+                  userId: 'attendee-1',
                 }),
             },
           },
@@ -696,6 +794,19 @@ describe('event registration cancellation handlers', () => {
           { status: 'CANCELLED' },
           expect.objectContaining({ confirmedSpots: expect.anything() }),
         ]);
+        expect(insertedNotification).toEqual(
+          expect.objectContaining({
+            kind: 'waitlistSpotAvailable',
+            payload: {
+              eventId: 'event-1',
+              eventTitle: 'City tour',
+              registrationId: 'waitlist-registration-1',
+            },
+            recipientEmail: 'waitlist@example.com',
+            recipientUserId: 'waitlist-user-1',
+            tenantId: 'tenant-1',
+          }),
+        );
         expect(database.transaction).toHaveBeenCalledOnce();
       }),
   );
@@ -733,6 +844,12 @@ describe('event registration cancellation handlers', () => {
               return Effect.succeed([]);
             },
           }),
+          query: {
+            eventRegistrations: {
+              findMany: () => Effect.succeed([]),
+            },
+          },
+          select: createWaitlistSelect(),
           update: (table: unknown) => ({
             set: (values: unknown) => {
               updateSets.push(values);
@@ -760,9 +877,7 @@ describe('event registration cancellation handlers', () => {
                   addonPurchases: [],
                   checkedInGuestCount: 0,
                   checkInTime: null,
-                  event: {
-                    start: new Date(Date.now() + 24 * 60 * 60 * 1000),
-                  },
+                  event: cancellationEvent,
                   eventId: 'event-1',
                   guestCount: 1,
                   id: 'registration-1',
@@ -778,6 +893,7 @@ describe('event registration cancellation handlers', () => {
                       type: 'registration',
                     },
                   ],
+                  user: cancellationUser,
                   userId: 'attendee-1',
                 }),
             },
@@ -821,7 +937,15 @@ describe('event registration cancellation handlers', () => {
         let insertedTransaction: Record<string, unknown> | undefined;
         const updateSets: unknown[] = [];
         const tx = {
-          insert: vi.fn(),
+          insert: vi.fn(() => ({
+            values: () => Effect.succeed([]),
+          })),
+          query: {
+            eventRegistrations: {
+              findMany: () => Effect.succeed([]),
+            },
+          },
+          select: createWaitlistSelect(),
           update: (table: unknown) => ({
             set: (values: unknown) => {
               updateSets.push(values);
@@ -857,9 +981,7 @@ describe('event registration cancellation handlers', () => {
                   addonPurchases: [],
                   checkedInGuestCount: 0,
                   checkInTime: null,
-                  event: {
-                    start: new Date(Date.now() + 24 * 60 * 60 * 1000),
-                  },
+                  event: cancellationEvent,
                   eventId: 'event-1',
                   guestCount: 1,
                   id: 'registration-1',
@@ -877,6 +999,7 @@ describe('event registration cancellation handlers', () => {
                       type: 'registration',
                     },
                   ],
+                  user: cancellationUser,
                   userId: 'attendee-1',
                 }),
             },
@@ -915,7 +1038,7 @@ describe('event registration cancellation handlers', () => {
         );
 
         expectCounterDecrement(updateSets[1], 'confirmedSpots', 2);
-        expect(tx.insert).not.toHaveBeenCalled();
+        expect(tx.insert).toHaveBeenCalledOnce();
         expect(stripe.refunds.create).toHaveBeenCalledWith(
           {
             amount: 2500,

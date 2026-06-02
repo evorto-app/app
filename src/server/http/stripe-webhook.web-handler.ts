@@ -7,6 +7,10 @@ import { Effect } from 'effect';
 import { Database, type DatabaseClient } from '../../db';
 import * as schema from '../../db/schema';
 import { stripeWebhookConfig } from '../config/stripe-config';
+import {
+  buildRegistrationConfirmedEmailNotification,
+  notificationEmailForUser,
+} from '../effect/rpc/handlers/events/registration-email-notifications';
 import { StripeClient } from '../stripe-client';
 const MAX_WEBHOOK_SIZE_BYTES = 200 * 1024;
 const STALE_WEBHOOK_CLAIM_AGE_MS = 5 * 60 * 1000;
@@ -534,6 +538,7 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
                     guestCount: schema.eventRegistrations.guestCount,
                     registrationOptionId:
                       schema.eventRegistrations.registrationOptionId,
+                    userId: schema.eventRegistrations.userId,
                   });
                 const updatedRegistration = updatedRegistrations[0];
                 if (!updatedRegistration) {
@@ -561,6 +566,60 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
                       ),
                     ),
                   );
+
+                const [event, tenant, user] = yield* Effect.all([
+                  tx.query.eventInstances.findFirst({
+                    columns: {
+                      title: true,
+                    },
+                    where: {
+                      id: updatedRegistration.eventId,
+                      tenantId,
+                    },
+                  }),
+                  tx.query.tenants.findFirst({
+                    columns: {
+                      name: true,
+                    },
+                    where: {
+                      id: tenantId,
+                    },
+                  }),
+                  tx.query.users.findFirst({
+                    columns: {
+                      communicationEmail: true,
+                      email: true,
+                      firstName: true,
+                      id: true,
+                    },
+                    where: {
+                      id: updatedRegistration.userId,
+                    },
+                  }),
+                ]);
+
+                if (event && tenant && user) {
+                  const notification =
+                    buildRegistrationConfirmedEmailNotification({
+                      eventTitle: event.title,
+                      recipientFirstName: user.firstName,
+                      registrationId,
+                      tenantName: tenant.name,
+                    });
+
+                  yield* tx.insert(schema.emailNotificationOutbox).values({
+                    kind: 'registrationConfirmed',
+                    payload: {
+                      ...notification.payload,
+                      eventId: updatedRegistration.eventId,
+                    },
+                    recipientEmail: notificationEmailForUser(user),
+                    recipientUserId: user.id,
+                    subject: notification.subject,
+                    tenantId,
+                    textBody: notification.textBody,
+                  });
+                }
               }),
             ),
           );

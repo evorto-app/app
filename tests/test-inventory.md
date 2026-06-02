@@ -169,6 +169,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 - `specs/events/free-registration.test.ts` covers the seeded free-registration
   happy path, confirms the persisted registration and confirmed counter, then
   restores the touched registration rows and registration-option counters.
+  Server unit coverage also proves free registration writes a
+  `registrationConfirmed` email outbox row with the participant notification
+  email.
 - `specs/events/registration-addons.test.ts` adds page-backed coverage for a
   registration-time add-on and required question selected on a seeded free
   event, including required answer gating, persisted add-on purchase, persisted
@@ -192,7 +195,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   confirmed registration through the event page and reads back the generated
   pending manual refund transaction for a manually seeded payment record. Server
   unit coverage separately proves Stripe-backed cancellation calls the Stripe
-  refund API and records the refund transaction; paid resale remains deferred.
+  refund API, records the refund transaction, writes a cancellation email
+  outbox row, and notifies the oldest waitlisted participant when a confirmed
+  cancellation opens capacity; paid resale remains deferred.
   This unavailable-state coverage does not satisfy the relaunch transfer/resale
   workflow. `STABILIZATION.md` keeps registrations blocked until the Stripe
   Checkout replacement registration and original-registration refund flow is
@@ -625,6 +630,11 @@ provider outcomes without live identifiers.
     transfer scope, in addition to free and paid registration walkthroughs.
     Generated-doc source coverage keeps that unavailable-state and transfer
     scope documentation aligned with the relaunch behavior.
+  - Server unit coverage now pins registration lifecycle email outbox records
+    for free confirmation, cancellation, transfer, and waitlist spot-available
+    notifications. Paid checkout confirmation is wired through the Stripe
+    webhook path and remains covered by the webhook replay flow when the
+    credential-gated Stripe webhook suite is enabled.
   - Docker-backed system-Chrome execution now passes for
     `specs/events/negative-registration-states.spec.ts`,
     `specs/events/registration-transfer.test.ts`, and

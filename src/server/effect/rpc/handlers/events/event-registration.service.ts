@@ -8,6 +8,7 @@ import { Database, type DatabaseClient } from '../../../../../db';
 import { createId } from '../../../../../db/create-id';
 import {
   addonToEventRegistrationOptions,
+  emailNotificationOutbox,
   eventAddons,
   eventInstances,
   eventRegistrationAddonPurchases,
@@ -38,6 +39,10 @@ import {
   EventRegistrationInternalError,
   EventRegistrationNotFoundError,
 } from './events.errors';
+import {
+  buildRegistrationConfirmedEmailNotification,
+  notificationEmailForUser,
+} from './registration-email-notifications';
 
 const databaseEffect = <A>(
   operation: (database: DatabaseClient) => Effect.Effect<A, unknown, never>,
@@ -164,15 +169,17 @@ interface RegisterForEventArguments {
   guestCount: number;
   headers: Headers.Headers;
   registrationOptionId: string;
-  tenant: Pick<
-    Tenant,
-    | 'currency'
-    | 'id'
-    | 'registrationLimitCount'
-    | 'registrationLimitWindowDays'
-    | 'stripeAccountId'
-  >;
-  user: Pick<User, 'email' | 'id' | 'roleIds'>;
+  tenant: Partial<Pick<Tenant, 'name'>> &
+    Pick<
+      Tenant,
+      | 'currency'
+      | 'id'
+      | 'registrationLimitCount'
+      | 'registrationLimitWindowDays'
+      | 'stripeAccountId'
+    >;
+  user: Partial<Pick<User, 'communicationEmail' | 'firstName'>> &
+    Pick<User, 'email' | 'id' | 'roleIds'>;
 }
 
 interface RegistrationAddonInput {
@@ -787,6 +794,29 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                   });
                 }
 
+                if (!requiresCheckout) {
+                  const notification =
+                    buildRegistrationConfirmedEmailNotification({
+                      eventTitle: registrationOption.event.title,
+                      recipientFirstName: user.firstName,
+                      registrationId: userRegistration.id,
+                      tenantName: tenant.name ?? 'Evorto',
+                    });
+
+                  yield* tx.insert(emailNotificationOutbox).values({
+                    kind: 'registrationConfirmed',
+                    payload: {
+                      ...notification.payload,
+                      eventId,
+                    },
+                    recipientEmail: notificationEmailForUser(user),
+                    recipientUserId: user.id,
+                    subject: notification.subject,
+                    tenantId: tenant.id,
+                    textBody: notification.textBody,
+                  });
+                }
+
                 return {
                   _tag: 'Reserved',
                   registrationId: userRegistration.id,
@@ -957,28 +987,58 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           // Free registrations skip Stripe but still transition reservation -> confirmed.
           if (effectiveTotalPrice <= 0) {
             yield* databaseEffect((database) =>
-              database
-                .update(eventRegistrations)
-                .set({
-                  status: 'CONFIRMED',
-                })
-                .where(eq(eventRegistrations.id, userRegistration.id)),
-            );
+              database.transaction((tx) =>
+                Effect.gen(function* () {
+                  const confirmedRegistrations = yield* tx
+                    .update(eventRegistrations)
+                    .set({
+                      status: 'CONFIRMED',
+                    })
+                    .where(eq(eventRegistrations.id, userRegistration.id))
+                    .returning({
+                      id: eventRegistrations.id,
+                    });
+                  const confirmedRegistration = confirmedRegistrations[0];
+                  if (!confirmedRegistration) {
+                    return;
+                  }
 
-            yield* databaseEffect((database) =>
-              database
-                .update(eventRegistrationOptions)
-                .set({
-                  confirmedSpots: sql`${eventRegistrationOptions.confirmedSpots} + ${requestedSpotCount}`,
-                  reservedSpots: sql`${eventRegistrationOptions.reservedSpots} - ${requestedSpotCount}`,
-                })
-                .where(
-                  and(
-                    eq(eventRegistrationOptions.id, registrationOption.id),
-                    eq(eventRegistrationOptions.eventId, eventId),
-                    sql`${eventRegistrationOptions.reservedSpots} >= ${requestedSpotCount}`,
-                  ),
-                ),
+                  yield* tx
+                    .update(eventRegistrationOptions)
+                    .set({
+                      confirmedSpots: sql`${eventRegistrationOptions.confirmedSpots} + ${requestedSpotCount}`,
+                      reservedSpots: sql`${eventRegistrationOptions.reservedSpots} - ${requestedSpotCount}`,
+                    })
+                    .where(
+                      and(
+                        eq(eventRegistrationOptions.id, registrationOption.id),
+                        eq(eventRegistrationOptions.eventId, eventId),
+                        sql`${eventRegistrationOptions.reservedSpots} >= ${requestedSpotCount}`,
+                      ),
+                    );
+
+                  const notification =
+                    buildRegistrationConfirmedEmailNotification({
+                      eventTitle: registrationOption.event.title,
+                      recipientFirstName: user.firstName,
+                      registrationId: confirmedRegistration.id,
+                      tenantName: tenant.name ?? 'Evorto',
+                    });
+
+                  yield* tx.insert(emailNotificationOutbox).values({
+                    kind: 'registrationConfirmed',
+                    payload: {
+                      ...notification.payload,
+                      eventId,
+                    },
+                    recipientEmail: notificationEmailForUser(user),
+                    recipientUserId: user.id,
+                    subject: notification.subject,
+                    tenantId: tenant.id,
+                    textBody: notification.textBody,
+                  });
+                }),
+              ),
             );
             return;
           }

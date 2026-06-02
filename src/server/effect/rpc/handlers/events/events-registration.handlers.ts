@@ -14,6 +14,7 @@ import {
 } from '@shared/rpc-contracts/app-rpcs/events.errors';
 import {
   and,
+  asc,
   eq,
   gte,
   ilike,
@@ -43,6 +44,14 @@ import { StripeClient } from '../../../../stripe-client';
 import { RpcAccess } from '../shared/rpc-access.service';
 import { EventRegistrationService } from './event-registration.service';
 import { databaseEffect } from './events.shared';
+import {
+  buildRegistrationCancelledEmailNotification,
+  buildRegistrationTransferredEmailNotification,
+  buildWaitlistSpotAvailableEmailNotification,
+  notificationEmailForUser,
+} from './registration-email-notifications';
+
+export { buildRegistrationTransferredEmailNotification } from './registration-email-notifications';
 
 const isRegistrationScanRpcError = (
   error: unknown,
@@ -76,11 +85,6 @@ const isWithinCheckInWindow = (eventStart: Date, now = new Date()): boolean =>
 const normalizeTransferTargetSearch = (search: string | undefined) =>
   search?.trim().toLowerCase() ?? '';
 
-const notificationEmailForUser = (user: {
-  communicationEmail: null | string;
-  email: string;
-}) => user.communicationEmail?.trim() || user.email;
-
 const hasSuccessfulPaidRegistrationTransaction = (
   transactionsToCheck: readonly {
     amount: number;
@@ -94,31 +98,6 @@ const hasSuccessfulPaidRegistrationTransaction = (
       transaction.status === 'successful' &&
       transaction.amount > 0,
   );
-
-export const buildRegistrationTransferredEmailNotification = ({
-  eventTitle,
-  recipientFirstName,
-  registrationId,
-  tenantName,
-}: {
-  eventTitle: string;
-  recipientFirstName: string;
-  registrationId: string;
-  tenantName: string;
-}) => ({
-  payload: {
-    eventTitle,
-    registrationId,
-  },
-  subject: `Registration transferred for ${eventTitle}`,
-  textBody: [
-    `Hi ${recipientFirstName},`,
-    '',
-    `${tenantName} has transferred a registration for ${eventTitle} to you.`,
-    '',
-    'Open Evorto to view the registration details.',
-  ].join('\n'),
-});
 
 const hasStripeRefundReference = (transaction: {
   stripeChargeId: null | string;
@@ -224,6 +203,7 @@ const cancelRegistration = ({
           event: {
             columns: {
               start: true,
+              title: true,
             },
           },
           transactions: {
@@ -236,6 +216,14 @@ const cancelRegistration = ({
               stripeCheckoutSessionId: true,
               stripePaymentIntentId: true,
               type: true,
+            },
+          },
+          user: {
+            columns: {
+              communicationEmail: true,
+              email: true,
+              firstName: true,
+              id: true,
             },
           },
         },
@@ -400,6 +388,81 @@ const cancelRegistration = ({
                   totalAvailableQuantity: sql`${eventAddons.totalAvailableQuantity} + ${addOnPurchase.quantity}`,
                 })
                 .where(eq(eventAddons.id, addOnPurchase.addonId));
+            }
+
+            if (registration.user) {
+              const notification = buildRegistrationCancelledEmailNotification({
+                eventTitle: registration.event.title,
+                recipientFirstName: registration.user.firstName,
+                registrationId: registration.id,
+                tenantName: tenant.name,
+              });
+
+              yield* tx.insert(emailNotificationOutbox).values({
+                kind: 'registrationCancelled',
+                payload: {
+                  ...notification.payload,
+                  eventId: registration.eventId,
+                },
+                recipientEmail: notificationEmailForUser(registration.user),
+                recipientUserId: registration.user.id,
+                subject: notification.subject,
+                tenantId: tenant.id,
+                textBody: notification.textBody,
+              });
+            }
+
+            if (registration.status === 'CONFIRMED') {
+              const waitlistRegistrations = yield* tx
+                .select({
+                  id: eventRegistrations.id,
+                  recipientCommunicationEmail: users.communicationEmail,
+                  recipientEmail: users.email,
+                  recipientFirstName: users.firstName,
+                  recipientUserId: users.id,
+                })
+                .from(eventRegistrations)
+                .innerJoin(users, eq(users.id, eventRegistrations.userId))
+                .where(
+                  and(
+                    eq(eventRegistrations.eventId, registration.eventId),
+                    eq(
+                      eventRegistrations.registrationOptionId,
+                      registration.registrationOptionId,
+                    ),
+                    eq(eventRegistrations.status, 'WAITLIST'),
+                    eq(eventRegistrations.tenantId, tenant.id),
+                  ),
+                )
+                .orderBy(asc(eventRegistrations.createdAt))
+                .limit(1);
+              const waitlistRegistration = waitlistRegistrations[0];
+              if (waitlistRegistration) {
+                const notification =
+                  buildWaitlistSpotAvailableEmailNotification({
+                    eventTitle: registration.event.title,
+                    recipientFirstName: waitlistRegistration.recipientFirstName,
+                    registrationId: waitlistRegistration.id,
+                    tenantName: tenant.name,
+                  });
+
+                yield* tx.insert(emailNotificationOutbox).values({
+                  kind: 'waitlistSpotAvailable',
+                  payload: {
+                    ...notification.payload,
+                    eventId: registration.eventId,
+                  },
+                  recipientEmail: notificationEmailForUser({
+                    communicationEmail:
+                      waitlistRegistration.recipientCommunicationEmail,
+                    email: waitlistRegistration.recipientEmail,
+                  }),
+                  recipientUserId: waitlistRegistration.recipientUserId,
+                  subject: notification.subject,
+                  tenantId: tenant.id,
+                  textBody: notification.textBody,
+                });
+              }
             }
 
             if (
@@ -1498,12 +1561,15 @@ export const eventRegistrationHandlers = {
         tenant: {
           currency: tenant.currency,
           id: tenant.id,
+          name: tenant.name,
           registrationLimitCount: tenant.registrationLimitCount,
           registrationLimitWindowDays: tenant.registrationLimitWindowDays,
           stripeAccountId: tenant.stripeAccountId,
         },
         user: {
+          communicationEmail: user.communicationEmail,
           email: user.email,
+          firstName: user.firstName,
           id: user.id,
           roleIds: user.roleIds,
         },

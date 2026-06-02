@@ -5,6 +5,7 @@ import Stripe from 'stripe';
 
 import { Database } from '../../../../../db';
 import {
+  emailNotificationOutbox,
   eventAddons,
   eventRegistrationAddonPurchases,
   eventRegistrations,
@@ -642,6 +643,7 @@ describe('EventRegistrationService', () => {
     () =>
       Effect.gen(function* () {
         let insertedRegistration: unknown;
+        let insertedNotification: unknown;
         const mockDatabase = {
           query: {
             eventRegistrationOptions: {
@@ -653,7 +655,7 @@ describe('EventRegistrationService', () => {
           },
           transaction: (
             callback: (tx: {
-              insert: () => {
+              insert: (table: unknown) => {
                 values: (value: unknown) => {
                   returning: () => Effect.Effect<{ id: string }[]>;
                 };
@@ -673,9 +675,15 @@ describe('EventRegistrationService', () => {
             }) => Effect.Effect<unknown>,
           ) =>
             callback({
-              insert: () => ({
+              insert: (table) => ({
                 values: (value) => {
-                  insertedRegistration = value;
+                  if (table === eventRegistrations) {
+                    insertedRegistration = value;
+                  }
+                  if (table === emailNotificationOutbox) {
+                    insertedNotification = value;
+                    return Effect.succeed([]);
+                  }
                   return {
                     returning: () => Effect.succeed([{ id: 'registration-1' }]),
                   };
@@ -704,10 +712,13 @@ describe('EventRegistrationService', () => {
           tenant: {
             currency: 'EUR',
             id: 'tenant-1',
+            name: 'Tenant',
             stripeAccountId: undefined,
           },
           user: {
+            communicationEmail: 'notify-alice@example.com',
             email: 'alice@example.com',
+            firstName: 'Alice',
             id: 'user-1',
             roleIds: ['role-1'],
           },
@@ -723,6 +734,20 @@ describe('EventRegistrationService', () => {
           expect.objectContaining({
             guestCount: 2,
             status: 'CONFIRMED',
+          }),
+        );
+        expect(insertedNotification).toEqual(
+          expect.objectContaining({
+            kind: 'registrationConfirmed',
+            payload: {
+              eventId: 'event-1',
+              eventTitle: 'Approved event',
+              registrationId: 'registration-1',
+            },
+            recipientEmail: 'notify-alice@example.com',
+            recipientUserId: 'user-1',
+            subject: 'Registration confirmed for Approved event',
+            tenantId: 'tenant-1',
           }),
         );
       }),

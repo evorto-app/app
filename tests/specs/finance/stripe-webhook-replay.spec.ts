@@ -190,6 +190,39 @@ test('replaying the same Stripe webhook is idempotent @finance @stripe', async (
       reservedSpots: originalOption?.reservedSpots,
     });
 
+  await expect
+    .poll(async () => {
+      const notifications =
+        await database.query.emailNotificationOutbox.findMany({
+          where: {
+            kind: 'registrationConfirmed',
+            recipientUserId: regularUserId,
+            tenantId: tenant.id,
+          },
+        });
+      const notification = notifications.find(
+        (currentNotification) =>
+          currentNotification.payload.eventId ===
+            seeded.scenario.events.paidOpen.eventId &&
+          currentNotification.payload.registrationId === registrationId,
+      );
+
+      return {
+        eventId: notification?.payload.eventId,
+        kind: notification?.kind,
+        recipientUserId: notification?.recipientUserId,
+        registrationId: notification?.payload.registrationId,
+        status: notification?.status,
+      };
+    })
+    .toEqual({
+      eventId: seeded.scenario.events.paidOpen.eventId,
+      kind: 'registrationConfirmed',
+      recipientUserId: regularUserId,
+      registrationId,
+      status: 'pending',
+    });
+
   const dedupeRecords = await database.query.stripeWebhookEvents.findMany({
     where: { stripeEventId },
   });

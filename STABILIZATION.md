@@ -6,18 +6,18 @@ and useful for small cleanup batches.
 
 ## Review Status
 
-| Area                                            | Status     | Confidence | Notes                                                                                                                                                                                                                                                                                                                                                             |
-| ----------------------------------------------- | ---------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Events                                          | Stabilized | high       | Docker-backed specs/docs cover browsing, creation, management, unlisted visibility, registration state, price labels, scanner handoff, refund copy, and the event archival snapshot model.                                                                                                                                                                        |
-| Registrations                                   | Blocked    | high       | Free/paid registration, guests, add-ons, waitlist, negative states, cancellation/refund, unpaid transfer boundaries, tenant participant registration limits, transfer-completed email outbox records, and provider dispatch have coverage; paid transfer/resale and registration confirmation/cancellation/waitlist email side effects still need implementation. |
-| Templates                                       | Stabilized | high       | Simple-mode templates now cover planning tips, ESNcard discounts, reusable add-ons/questions, role pickers, tax-rate behavior, and event creation copy paths.                                                                                                                                                                                                     |
-| Roles and permissions                           | Stabilized | high       | Route denial, role lookup, role management, permission metadata, tenant isolation, and user-list deferral are pinned by source, unit, spec, and docs coverage.                                                                                                                                                                                                    |
-| Finance/receipts                                | Stabilized | high       | Finance navigation, transaction visibility, receipt review, reimbursement recording, receipt submission, and refund boundaries have deterministic coverage; receipt review now enqueues receipt-reviewed email outbox records, and the Resend-backed outbox dispatcher processes pending/failed email records when enabled.                                       |
-| Scanning/check-in                               | Stabilized | high       | QR scanner reads, selected guest check-in, later guest arrival, idempotent counters, and organizer aggregates are covered by specs/docs against Docker.                                                                                                                                                                                                           |
-| Profile/account flows                           | Blocked    | high       | Profile edit, event cards, receipts, account creation contracts, seeded ESNcard behavior, deterministic ESNcard provider outcomes, and Browser discount-card UX are covered; Browser verification for home-tenant warning is still pending.                                                                                                                       |
-| Tenant/global admin                             | Blocked    | high       | Tenant settings and global-admin list/detail/create/edit have coverage for the implemented surface; tenant operations-policy settings for review policy and tenant-admin Stripe account management remain deferred.                                                                                                                                               |
-| Generated documentation and Playwright coverage | Stabilized | high       | Docs/spec inventory, skip gates, source guards, list mode, and generated-doc runtime flows are current and fail loudly for known fixture gaps.                                                                                                                                                                                                                    |
-| Local runtime/developer workflow                | Stabilized | high       | Docker, env preflight, CI, Font Awesome token paths, and the first in-app Browser queue pass are healthy; repeat Browser review uses generated `BASE_URL`.                                                                                                                                                                                                        |
+| Area                                            | Status     | Confidence | Notes                                                                                                                                                                                                                                                                                                                             |
+| ----------------------------------------------- | ---------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Events                                          | Stabilized | high       | Docker-backed specs/docs cover browsing, creation, management, unlisted visibility, registration state, price labels, scanner handoff, refund copy, and the event archival snapshot model.                                                                                                                                        |
+| Registrations                                   | Blocked    | high       | Free/paid registration, guests, add-ons, waitlist, negative states, cancellation/refund, unpaid transfer boundaries, tenant participant registration limits, registration confirmation/cancellation/transfer/waitlist email outbox records, and provider dispatch have coverage; paid transfer/resale still needs implementation. |
+| Templates                                       | Stabilized | high       | Simple-mode templates now cover planning tips, ESNcard discounts, reusable add-ons/questions, role pickers, tax-rate behavior, and event creation copy paths.                                                                                                                                                                     |
+| Roles and permissions                           | Stabilized | high       | Route denial, role lookup, role management, permission metadata, tenant isolation, and user-list deferral are pinned by source, unit, spec, and docs coverage.                                                                                                                                                                    |
+| Finance/receipts                                | Stabilized | high       | Finance navigation, transaction visibility, receipt review, reimbursement recording, receipt submission, and refund boundaries have deterministic coverage; receipt review now enqueues receipt-reviewed email outbox records, and the Resend-backed outbox dispatcher processes pending/failed email records when enabled.       |
+| Scanning/check-in                               | Stabilized | high       | QR scanner reads, selected guest check-in, later guest arrival, idempotent counters, and organizer aggregates are covered by specs/docs against Docker.                                                                                                                                                                           |
+| Profile/account flows                           | Blocked    | high       | Profile edit, event cards, receipts, account creation contracts, seeded ESNcard behavior, deterministic ESNcard provider outcomes, and Browser discount-card UX are covered; Browser verification for home-tenant warning is still pending.                                                                                       |
+| Tenant/global admin                             | Blocked    | high       | Tenant settings and global-admin list/detail/create/edit have coverage for the implemented surface; tenant operations-policy settings for review policy and tenant-admin Stripe account management remain deferred.                                                                                                               |
+| Generated documentation and Playwright coverage | Stabilized | high       | Docs/spec inventory, skip gates, source guards, list mode, and generated-doc runtime flows are current and fail loudly for known fixture gaps.                                                                                                                                                                                    |
+| Local runtime/developer workflow                | Stabilized | high       | Docker, env preflight, CI, Font Awesome token paths, and the first in-app Browser queue pass are healthy; repeat Browser review uses generated `BASE_URL`.                                                                                                                                                                        |
 
 ## Product Decision Draft
 
@@ -614,18 +614,19 @@ the current working direction until a product decision overrides them.
   a tenant-scoped `registrationTransferred` email outbox record in the same
   transaction as the transfer update, using the new owner's notification email
   when configured and preserving event/registration context for delivery.
+- **Addressed in stabilization pass:** confirmed registrations now enqueue a
+  tenant-scoped `registrationConfirmed` email outbox row after ordinary free
+  registration, discounted/free checkout completion, and paid Stripe checkout
+  webhook confirmation. Registration cancellation enqueues
+  `registrationCancelled` for the affected participant, and confirmed
+  cancellation notifies the oldest waitlisted participant with
+  `waitlistSpotAvailable` when the option has a waitlist entry.
 - **Addressed in stabilization pass:** the server has an explicit
   disabled-by-default Resend-backed email outbox dispatcher. When
   `EMAIL_OUTBOX_DISPATCH_ENABLED` is configured with `EMAIL_FROM_ADDRESS` and
   `RESEND_API_KEY`, server startup processes pending and failed email outbox
   rows, marks successful deliveries as sent, and leaves provider failures in a
   retryable failed state with the provider error message.
-- **Should fix before relaunch:** `PRODUCT.md` lists email as the first
-  notification channel and still includes successful registration confirmation
-  with QR code, waitlist spot-available, and registration-cancelled emails as
-  in-scope notifications. Those registration lifecycle side effects still need
-  implementation;
-  client `NotificationService` calls are local snackbar feedback only.
 - **Addressed in this stabilization pass:** tenant settings now store editable
   participant registration-limit count and rolling window fields, and the
   registration path enforces configured tenant participant registration limits
@@ -662,8 +663,8 @@ the current working direction until a product decision overrides them.
   touched fixture registrations, registration questions, and option counters.
 - `src/app/events/event-registration-option/event-registration-option.component.spec.ts` covers registration-card state for full options, distinct waitlist availability, remaining-capacity guest selection helpers, participant registration/write action disabling, and too-early/too-late registration windows without requiring a page-backed browser.
 - `src/app/events/event-registration-option/event-registration-option.component.spec.ts` covers that stored `random` and `application` participant options do not expose a waitlist affordance even when full.
-- `src/server/effect/rpc/handlers/events/event-registration.service.spec.ts` covers server-side rejection for duplicate active registration, unpublished events, closed registration windows, role-ineligible users, cross-tenant options, full options, unsupported registration modes, same-event second registrations across options, transactional duplicate races, transactional capacity races, participant waitlist joining, and participant guest quantities.
-- `src/server/effect/rpc/handlers/events/events-registration.handlers.spec.ts` covers participant self-cancellation for pending, confirmed, and waitlisted registrations, buyer-plus-guest spot rollback, checked-in rejection paths, organizer-assisted transfer target lookup, and unpaid registration transfer guardrails including target tenant membership, role eligibility, duplicate active registration, and paid-transfer rejection.
+- `src/server/effect/rpc/handlers/events/event-registration.service.spec.ts` covers server-side rejection for duplicate active registration, unpublished events, closed registration windows, role-ineligible users, cross-tenant options, full options, unsupported registration modes, same-event second registrations across options, transactional duplicate races, transactional capacity races, participant waitlist joining, participant guest quantities, and free-registration confirmation email outbox records.
+- `src/server/effect/rpc/handlers/events/events-registration.handlers.spec.ts` covers participant self-cancellation for pending, confirmed, and waitlisted registrations, buyer-plus-guest spot rollback, checked-in rejection paths, cancellation and waitlist spot-available email outbox records, organizer-assisted transfer target lookup, and unpaid registration transfer guardrails including target tenant membership, role eligibility, duplicate active registration, and paid-transfer rejection.
 - `src/app/events/event-organize/event-organize.spec.ts` covers organizer overview stat aggregation and transfer-dialog participant identity copy. The organizer overview UI now exposes the unpaid transfer action next to cancellation for not-yet-checked-in participant registrations, and the organizer overview RPC returns purchased add-ons with each participant row.
 - `src/app/events/event-organize/event-organize.spec.ts` covers the shared
   organizer participant action guard that disables cancellation and
@@ -3214,10 +3215,8 @@ template flow and should be kept aligned as those surfaces evolve. Normal genera
 `test:e2e:docs:publish` is run intentionally. New Playwright
 skips/fixmes should be added only as explicit credential gates or honest
 Browser-backed stabilization placeholders. Registration confirmation,
-cancellation, and waitlist spot-available remain relaunch blockers because
-`PRODUCT.md` lists them as in-scope email notifications. Unpaid transfer now
-records durable `registrationTransferred` outbox rows with new-owner
-notification-email details. Receipt review now records a durable
+cancellation, transfer, and waitlist spot-available now record durable email
+outbox rows with notification-email details. Receipt review now records a durable
 `receiptReviewed` email outbox row with submitter notification-email details,
 and the disabled-by-default Resend-backed dispatcher processes pending/failed
 outbox records when configured. Profile/account
