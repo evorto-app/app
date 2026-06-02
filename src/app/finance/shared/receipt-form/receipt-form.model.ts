@@ -5,6 +5,10 @@ import {
   Validators,
 } from '@angular/forms';
 
+export type ReceiptAmountValidationError =
+  | 'breakdownExceedsTotal'
+  | 'taxExceedsTotal';
+
 export interface ReceiptFormControls {
   alcoholAmount: FormControl<number>;
   depositAmount: FormControl<number>;
@@ -17,6 +21,28 @@ export interface ReceiptFormControls {
 }
 
 export type ReceiptFormGroup = FormGroup<ReceiptFormControls>;
+
+export const receiptAmountValidationError = ({
+  alcoholAmount,
+  depositAmount,
+  taxAmount,
+  totalAmount,
+}: {
+  alcoholAmount: number;
+  depositAmount: number;
+  taxAmount: number;
+  totalAmount: number;
+}): null | ReceiptAmountValidationError => {
+  if (depositAmount + alcoholAmount > totalAmount) {
+    return 'breakdownExceedsTotal';
+  }
+
+  if (taxAmount > totalAmount) {
+    return 'taxExceedsTotal';
+  }
+
+  return null;
+};
 
 export const createReceiptForm = (
   formBuilder: NonNullableFormBuilder,

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { receiptAmountValidationError } from '../shared/receipt-form/receipt-form.model';
 import {
   receiptReviewActionDisabled,
   receiptReviewNotificationNotice,
@@ -23,6 +24,37 @@ describe('receiptReviewSuccessMessage', () => {
     expect(receiptReviewSuccessMessage('rejected')).toBe(
       'Receipt rejected. Submitter email queued.',
     );
+  });
+});
+
+describe('receiptAmountValidationError', () => {
+  it('keeps receipt review amount preflight aligned with submit/server checks', () => {
+    expect(
+      receiptAmountValidationError({
+        alcoholAmount: 200,
+        depositAmount: 300,
+        taxAmount: 100,
+        totalAmount: 400,
+      }),
+    ).toBe('breakdownExceedsTotal');
+
+    expect(
+      receiptAmountValidationError({
+        alcoholAmount: 0,
+        depositAmount: 0,
+        taxAmount: 500,
+        totalAmount: 400,
+      }),
+    ).toBe('taxExceedsTotal');
+
+    expect(
+      receiptAmountValidationError({
+        alcoholAmount: 100,
+        depositAmount: 100,
+        taxAmount: 100,
+        totalAmount: 400,
+      }),
+    ).toBeNull();
   });
 });
 

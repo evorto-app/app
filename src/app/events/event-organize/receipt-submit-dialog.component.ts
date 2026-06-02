@@ -18,7 +18,10 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 
 import { ReceiptFormFieldsComponent } from '../../finance/shared/receipt-form/receipt-form-fields.component';
-import { createReceiptForm } from '../../finance/shared/receipt-form/receipt-form.model';
+import {
+  createReceiptForm,
+  receiptAmountValidationError,
+} from '../../finance/shared/receipt-form/receipt-form.model';
 
 export type ReceiptSubmitDialogPayloadResult =
   | {
@@ -109,9 +112,19 @@ export const receiptSubmitDialogResultFromFormValue = ({
     ? Math.round(formValue.alcoholAmount * 100)
     : 0;
 
-  if (depositAmount + alcoholAmount > totalAmount) {
+  const amountValidationError = receiptAmountValidationError({
+    alcoholAmount,
+    depositAmount,
+    taxAmount,
+    totalAmount,
+  });
+  if (amountValidationError) {
+    const errorMessage =
+      amountValidationError === 'taxExceedsTotal'
+        ? 'Tax amount cannot exceed the total amount.'
+        : 'Deposit and alcohol cannot exceed the total amount.';
     return {
-      errorMessage: 'Deposit and alcohol cannot exceed the total amount.',
+      errorMessage,
       result: null,
     };
   }

@@ -131,6 +131,20 @@ describe('receiptSubmitDialogResultFromFormValue', () => {
         formInvalid: false,
         formValue: {
           ...formValue,
+          taxAmount: 13,
+          totalAmount: 12,
+        },
+        selectableCountries: ['DE'],
+      }).errorMessage,
+    ).toBe('Tax amount cannot exceed the total amount.');
+
+    expect(
+      receiptSubmitDialogResultFromFormValue({
+        attachmentName: '',
+        file: receiptFile,
+        formInvalid: false,
+        formValue: {
+          ...formValue,
           receiptDate: new Date('invalid'),
         },
         selectableCountries: ['DE'],

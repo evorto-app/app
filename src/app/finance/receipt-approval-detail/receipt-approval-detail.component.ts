@@ -27,7 +27,10 @@ import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
 import { ReceiptFormFieldsComponent } from '../shared/receipt-form/receipt-form-fields.component';
-import { createReceiptForm } from '../shared/receipt-form/receipt-form.model';
+import {
+  createReceiptForm,
+  receiptAmountValidationError,
+} from '../shared/receipt-form/receipt-form.model';
 import { isSafeReceiptPreviewUrl } from '../shared/receipt-preview-dialog/receipt-preview-dialog.component';
 
 export const receiptReviewSuccessMessage = (
@@ -196,9 +199,17 @@ export class ReceiptApprovalDetailComponent {
     const alcoholAmount = value.hasAlcohol
       ? Math.round(value.alcoholAmount * 100)
       : 0;
-    if (depositAmount + alcoholAmount > totalAmount) {
+    const amountValidationError = receiptAmountValidationError({
+      alcoholAmount,
+      depositAmount,
+      taxAmount,
+      totalAmount,
+    });
+    if (amountValidationError) {
       this.notifications.showError(
-        'Deposit and alcohol amounts cannot exceed total amount',
+        amountValidationError === 'taxExceedsTotal'
+          ? 'Tax amount cannot exceed total amount'
+          : 'Deposit and alcohol amounts cannot exceed total amount',
       );
       return;
     }

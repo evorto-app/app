@@ -1168,6 +1168,9 @@ the current working direction until a product decision overrides them.
   details, and mutation-pending review writes.
 - Tax-rate docs and specs provide better active coverage for `admin:tax` and inclusive Stripe tax-rate import/selection.
 - Server finance unit tests are still thin, but now include transaction-list permission denial, receipt-media upload preflight denial/success coverage, profile `finance.receipts.my` output normalization, submitter notification-email fallback, receipt review precondition rejection, mixed-submitter reimbursement rejection, payout-detail validation before reimbursement recording, reimbursement precondition-race rejection, and tax-amount consistency rejection on receipt submit/review.
+- **Addressed in stabilization pass:** receipt submit and finance review now
+  share the same client-side amount preflight for deposit/alcohol and tax
+  amounts exceeding the total, matching the server-side submit/review guards.
 - Event organize app coverage pins the receipt submission disabled state while
   the event has not loaded yet and across upload-pending and submit-pending
   phases. Receipt submit dialog coverage pins required/supported files,
