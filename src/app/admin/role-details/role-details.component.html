@@ -2,14 +2,23 @@
   <a [routerLink]="['/admin/roles']" mat-icon-button>
     <fa-icon [icon]="faArrowLeft" />
   </a>
-  <h1 class="title-large">{{ roleQuery.data()?.name }}</h1>
+  <h1 class="title-large">
+    @if (roleQuery.isSuccess()) {
+      {{ roleQuery.data().name }}
+    } @else {
+      Role details
+    }
+  </h1>
   <div class="grow"></div>
-  <a
-    [routerLink]="['/admin/roles', roleQuery.data()?.id, 'edit']"
-    mat-icon-button
-  >
-    <fa-icon [icon]="faEdit" />
-  </a>
+  @if (roleQuery.isSuccess()) {
+    <a
+      [routerLink]="['/admin/roles', roleQuery.data().id, 'edit']"
+      mat-icon-button
+      aria-label="Edit role"
+    >
+      <fa-icon [icon]="faEdit" />
+    </a>
+  }
 </div>
 
 @if (roleQuery.isPending()) {
@@ -21,13 +30,14 @@
 } @else if (roleQuery.isError()) {
   <p>Error: {{ errorMessage(roleQuery.error()) }}</p>
 } @else if (roleQuery.isSuccess()) {
+  @let role = roleQuery.data();
   <div
     class="bg-surface-container-low text-on-surface-container-low flex flex-col gap-4 rounded-2xl p-4"
   >
-    @if (roleQuery.data().description) {
+    @if (role.description) {
       <div>
         <h2 class="title-small">Description</h2>
-        <p>{{ roleQuery.data().description }}</p>
+        <p>{{ role.description }}</p>
       </div>
     }
     <div>
@@ -41,7 +51,7 @@
             </div>
             <div class="ml-6 space-y-1">
               @for (permission of group.permissions; track permission.key) {
-                @if (hasPermission(permission.key)) {
+                @if (hasPermission(role, permission.key)) {
                   <div>{{ permission.label }}</div>
                 }
               }

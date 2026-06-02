@@ -960,5 +960,28 @@ describe('stabilization source', () => {
         /@if\s*\([^)]*\b\w+Query\.data\(\)\s*;\s*as\s+\w+/u,
       );
     }
+
+    const roleDetailsTemplate = readSource(
+      'src/app/admin/role-details/role-details.component.html',
+    );
+    const roleDetailsComponent = readSource(
+      'src/app/admin/role-details/role-details.component.ts',
+    );
+    const roleDetailsSpec = readSource(
+      'src/app/admin/role-details/role-details.component.spec.ts',
+    );
+
+    expect(roleDetailsTemplate).toContain('roleQuery.isSuccess()');
+    expect(roleDetailsTemplate).toContain(
+      "[routerLink]=\"['/admin/roles', roleQuery.data().id, 'edit']\"",
+    );
+    expect(roleDetailsTemplate).not.toContain('roleQuery.data()?.id');
+    expect(roleDetailsComponent).toContain('roleHasPermission');
+    expect(roleDetailsComponent).not.toContain(
+      'this.roleQuery.data()?.permissions.includes',
+    );
+    expect(roleDetailsSpec).toContain(
+      'checks permissions from a loaded role without reading query state',
+    );
   });
 });

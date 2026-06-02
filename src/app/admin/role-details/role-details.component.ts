@@ -13,6 +13,11 @@ import {
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
 
+export const roleHasPermission = (
+  role: { permissions: readonly Permission[] },
+  permission: Permission,
+): boolean => role.permissions.includes(permission);
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [FontAwesomeModule, MatButtonModule, MatCardModule, RouterLink],
@@ -33,11 +38,14 @@ export class RoleDetailsComponent {
     }),
   );
 
-  hasPermission(permission: Permission) {
-    return this.roleQuery.data()?.permissions.includes(permission) ?? false;
-  }
-
   protected errorMessage(error: unknown): string {
     return getErrorMessage(error, 'Unknown error');
+  }
+
+  protected hasPermission(
+    role: { permissions: readonly Permission[] },
+    permission: Permission,
+  ): boolean {
+    return roleHasPermission(role, permission);
   }
 }

@@ -2031,6 +2031,11 @@ implement those decisions or explicitly revise them there before changing code.
   publishing stale brand-asset URLs while an upload is still resolving. Focused
   Angular unit coverage pins the save/upload guards, and the Docker-backed
   admin settings Playwright spec passed with system Chrome.
+- Role-detail success-state pass: role detail now renders the edit link only
+  after the role query has succeeded, so loading/error states cannot produce an
+  `/admin/roles/undefined/edit` action. Permission display now uses a loaded-role
+  helper instead of optional query data, and source coverage pins the
+  TanStack Query success-state convention on this route.
 - None in the Templates pass. The highest-value issues are permission and contract validation gaps that need targeted tests with the fixes.
 - Template docs/spec cleanup pass: removed the generic template doc discovery placeholder, converted the deferred template tax-rate spec to honest fixme-only declarations, and updated the Playwright inventory.
 - Template tax-rate UI coverage pass: replaced the fixme-only template tax-rate file with active simple-mode Browser-backed assertions for the paid tax-rate requirement and seeded inclusive tax-rate save path.
